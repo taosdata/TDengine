@@ -142,7 +142,7 @@ char* syncUtilPrintBin(char* ptr, uint32_t len) {
   memset(s, 0, len + 1);
   memcpy(s, ptr, len);
 
-  for (int i = 0; i < len; ++i) {
+  for (int32_t i = 0; i < len; ++i) {
     if (!syncUtilCanPrint(s[i])) {
       s[i] = '.';
     }
@@ -157,8 +157,8 @@ char* syncUtilPrintBin2(char* ptr, uint32_t len) {
   memset(s, 0, len2);
 
   char* p = s;
-  for (int i = 0; i < len; ++i) {
-    int n = sprintf(p, "%d,", ptr[i]);
+  for (int32_t i = 0; i < len; ++i) {
+    int32_t n = sprintf(p, "%d,", ptr[i]);
     p += n;
   }
   return s;

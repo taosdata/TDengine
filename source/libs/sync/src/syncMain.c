@@ -42,6 +42,9 @@ static int32_t syncNodeEqNoop(SSyncNode* ths);
 static int32_t syncNodeAppendNoop(SSyncNode* ths);
 static void    syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId);
 static bool    syncIsConfigChanged(const SSyncCfg* pOldCfg, const SSyncCfg* pNewCfg);
+static int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRaftId destId);
+static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
+static int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
 
 int64_t syncOpen(SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
@@ -512,7 +515,7 @@ int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct 
   ASSERT(pSyncNode->pRaftCfg->configIndexCount >= 1);
   SyncIndex lastIndex = (pSyncNode->pRaftCfg->configIndexArr)[0];
 
-  for (int i = 0; i < pSyncNode->pRaftCfg->configIndexCount; ++i) {
+  for (int32_t i = 0; i < pSyncNode->pRaftCfg->configIndexCount; ++i) {
     if ((pSyncNode->pRaftCfg->configIndexArr)[i] > lastIndex &&
         (pSyncNode->pRaftCfg->configIndexArr)[i] <= snapshotIndex) {
       lastIndex = (pSyncNode->pRaftCfg->configIndexArr)[i];
@@ -531,7 +534,7 @@ SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapsho
   ASSERT(pSyncNode->pRaftCfg->configIndexCount >= 1);
   SyncIndex lastIndex = (pSyncNode->pRaftCfg->configIndexArr)[0];
 
-  for (int i = 0; i < pSyncNode->pRaftCfg->configIndexCount; ++i) {
+  for (int32_t i = 0; i < pSyncNode->pRaftCfg->configIndexCount; ++i) {
     if ((pSyncNode->pRaftCfg->configIndexArr)[i] > lastIndex &&
         (pSyncNode->pRaftCfg->configIndexArr)[i] <= snapshotLastApplyIndex) {
       lastIndex = (pSyncNode->pRaftCfg->configIndexArr)[i];
@@ -600,7 +603,7 @@ void syncGetEpSet(int64_t rid, SEpSet* pEpSet) {
   }
   ASSERT(rid == pSyncNode->rid);
   pEpSet->numOfEps = 0;
-  for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
     snprintf(pEpSet->eps[i].fqdn, sizeof(pEpSet->eps[i].fqdn), "%s", (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodeFqdn);
     pEpSet->eps[i].port = (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodePort;
     (pEpSet->numOfEps)++;
@@ -621,7 +624,7 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
   }
 
   pEpSet->numOfEps = 0;
-  for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
     snprintf(pEpSet->eps[i].fqdn, sizeof(pEpSet->eps[i].fqdn), "%s", (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodeFqdn);
     pEpSet->eps[i].port = (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodePort;
     (pEpSet->numOfEps)++;
@@ -710,7 +713,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
   return ret;
 }
 
-int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRaftId destId) {
+static int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRaftId destId) {
   pSyncTimer->pTimer = NULL;
   pSyncTimer->counter = 0;
   pSyncTimer->timerMS = pSyncNode->hbBaseLine;
@@ -720,7 +723,7 @@ int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRaftId de
   return 0;
 }
 
-int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
+static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   int32_t ret = 0;
   if (syncIsInit()) {
     SSyncHbTimerData* pData = taosMemoryMalloc(sizeof(SSyncHbTimerData));
@@ -737,7 +740,7 @@ int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   return ret;
 }
 
-int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
+static int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   int32_t ret = 0;
   atomic_add_fetch_64(&pSyncTimer->logicClock, 1);
   taosTmrStop(pSyncTimer->pTimer);
@@ -837,14 +840,14 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
 
   // init peersNum, peers, peersId
   pSyncNode->peersNum = pSyncNode->pRaftCfg->cfg.replicaNum - 1;
-  int j = 0;
-  for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
+  int32_t j = 0;
+  for (int32_t i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
     if (i != pSyncNode->pRaftCfg->cfg.myIndex) {
       pSyncNode->peersNodeInfo[j] = pSyncNode->pRaftCfg->cfg.nodeInfo[i];
       j++;
     }
   }
-  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     if (!syncUtilnodeInfo2raftId(&pSyncNode->peersNodeInfo[i], pSyncNode->vgId, &pSyncNode->peersId[i])) {
       sError("vgId:%d, failed to determine raft member id, peer:%d", pSyncNode->vgId, i);
       goto _error;
@@ -853,7 +856,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
 
   // init replicaNum, replicasId
   pSyncNode->replicaNum = pSyncNode->pRaftCfg->cfg.replicaNum;
-  for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
     if (!syncUtilnodeInfo2raftId(&pSyncNode->pRaftCfg->cfg.nodeInfo[i], pSyncNode->vgId, &pSyncNode->replicasId[i])) {
       sError("vgId:%d, failed to determine raft member id, replica:%d", pSyncNode->vgId, i);
       goto _error;
@@ -1002,7 +1005,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   pSyncNode->restoreFinish = false;
 
   // snapshot senders
-  for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     SSyncSnapshotSender* pSender = snapshotSenderCreate(pSyncNode, i);
     // ASSERT(pSender != NULL);
     (pSyncNode->senders)[i] = pSender;
@@ -1133,7 +1136,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
     taosMemoryFree(pSyncNode->pFsm);
   }
 
-  for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     if ((pSyncNode->senders)[i] != NULL) {
       snapshotSenderDestroy((pSyncNode->senders)[i]);
       (pSyncNode->senders)[i] = NULL;
@@ -1178,7 +1181,7 @@ int32_t syncNodePingSelf(SSyncNode* pSyncNode) {
 
 int32_t syncNodePingPeers(SSyncNode* pSyncNode) {
   int32_t ret = 0;
-  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     SRaftId*  destId = &(pSyncNode->peersId[i]);
     SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, destId, pSyncNode->vgId);
     ret = syncNodePing(pSyncNode, destId, pMsg);
@@ -1190,7 +1193,7 @@ int32_t syncNodePingPeers(SSyncNode* pSyncNode) {
 
 int32_t syncNodePingAll(SSyncNode* pSyncNode) {
   int32_t ret = 0;
-  for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
     SRaftId*  destId = &(pSyncNode->replicasId[i]);
     SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, destId, pSyncNode->vgId);
     ret = syncNodePing(pSyncNode, destId, pMsg);
@@ -1294,7 +1297,7 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
   ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
 #endif
 
-  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
     if (pSyncTimer != NULL) {
       syncHbTimerStart(pSyncNode, pSyncTimer);
@@ -1313,7 +1316,7 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   pSyncNode->pHeartbeatTimer = NULL;
 #endif
 
-  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
     if (pSyncTimer != NULL) {
       syncHbTimerStop(pSyncNode, pSyncTimer);
@@ -1396,19 +1399,19 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     cJSON_AddNumberToObject(pRoot, "peersNum", pSyncNode->peersNum);
     cJSON* pPeers = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "peersNodeInfo", pPeers);
-    for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
       cJSON_AddItemToArray(pPeers, syncUtilNodeInfo2Json(&pSyncNode->peersNodeInfo[i]));
     }
     cJSON* pPeersId = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "peersId", pPeersId);
-    for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
       cJSON_AddItemToArray(pPeersId, syncUtilRaftId2Json(&pSyncNode->peersId[i]));
     }
 
     cJSON_AddNumberToObject(pRoot, "replicaNum", pSyncNode->replicaNum);
     cJSON* pReplicasId = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "replicasId", pReplicasId);
-    for (int i = 0; i < pSyncNode->replicaNum; ++i) {
+    for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
       cJSON_AddItemToArray(pReplicasId, syncUtilRaftId2Json(&pSyncNode->replicasId[i]));
     }
 
@@ -1505,7 +1508,7 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     // snapshot senders
     cJSON* pSenders = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "senders", pSenders);
-    for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
       cJSON_AddItemToArray(pSenders, snapshotSender2Json((pSyncNode->senders)[i]));
     }
 
@@ -1530,8 +1533,8 @@ char* syncNode2Str(const SSyncNode* pSyncNode) {
 }
 
 inline char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
-  int   len = 256;
-  char* s = (char*)taosMemoryMalloc(len);
+  int32_t len = 256;
+  char*   s = (char*)taosMemoryMalloc(len);
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
   if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
@@ -1556,7 +1559,7 @@ inline bool syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config) {
   bool b1 = false;
   bool b2 = false;
 
-  for (int i = 0; i < config->replicaNum; ++i) {
+  for (int32_t i = 0; i < config->replicaNum; ++i) {
     if (strcmp((config->nodeInfo)[i].nodeFqdn, pSyncNode->myNodeInfo.nodeFqdn) == 0 &&
         (config->nodeInfo)[i].nodePort == pSyncNode->myNodeInfo.nodePort) {
       b1 = true;
@@ -1564,7 +1567,7 @@ inline bool syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config) {
     }
   }
 
-  for (int i = 0; i < config->replicaNum; ++i) {
+  for (int32_t i = 0; i < config->replicaNum; ++i) {
     SRaftId raftId;
     raftId.addr = syncUtilAddr2U64((config->nodeInfo)[i].nodeFqdn, (config->nodeInfo)[i].nodePort);
     raftId.vgId = pSyncNode->vgId;
@@ -1646,7 +1649,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     SRaftId oldReplicasId[TSDB_MAX_REPLICA];
     memcpy(oldReplicasId, pSyncNode->replicasId, sizeof(oldReplicasId));
     SSyncSnapshotSender* oldSenders[TSDB_MAX_REPLICA];
-    for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
       oldSenders[i] = (pSyncNode->senders)[i];
       sSTrace(oldSenders[i], "snapshot sender save old");
     }
@@ -1657,20 +1660,20 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 
     // init peersNum, peers, peersId
     pSyncNode->peersNum = pSyncNode->pRaftCfg->cfg.replicaNum - 1;
-    int j = 0;
-    for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
+    int32_t j = 0;
+    for (int32_t i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
       if (i != pSyncNode->pRaftCfg->cfg.myIndex) {
         pSyncNode->peersNodeInfo[j] = pSyncNode->pRaftCfg->cfg.nodeInfo[i];
         j++;
       }
     }
-    for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
       syncUtilnodeInfo2raftId(&pSyncNode->peersNodeInfo[i], pSyncNode->vgId, &pSyncNode->peersId[i]);
     }
 
     // init replicaNum, replicasId
     pSyncNode->replicaNum = pSyncNode->pRaftCfg->cfg.replicaNum;
-    for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
+    for (int32_t i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
       syncUtilnodeInfo2raftId(&pSyncNode->pRaftCfg->cfg.nodeInfo[i], pSyncNode->vgId, &pSyncNode->replicasId[i]);
     }
 
@@ -1685,15 +1688,15 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     // reset snapshot senders
 
     // clear new
-    for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
       (pSyncNode->senders)[i] = NULL;
     }
 
     // reset new
-    for (int i = 0; i < pSyncNode->replicaNum; ++i) {
+    for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
       // reset sender
       bool reset = false;
-      for (int j = 0; j < TSDB_MAX_REPLICA; ++j) {
+      for (int32_t j = 0; j < TSDB_MAX_REPLICA; ++j) {
         if (syncUtilSameId(&(pSyncNode->replicasId)[i], &oldReplicasId[j])) {
           char     host[128];
           uint16_t port;
@@ -1716,7 +1719,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     }
 
     // create new
-    for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
       if ((pSyncNode->senders)[i] == NULL) {
         (pSyncNode->senders)[i] = snapshotSenderCreate(pSyncNode, i);
         sSTrace((pSyncNode->senders)[i], "snapshot sender create new");
@@ -1724,7 +1727,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     }
 
     // free old
-    for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
       if (oldSenders[i] != NULL) {
         snapshotSenderDestroy(oldSenders[i]);
         sNTrace(pSyncNode, "snapshot sender delete old %p replica-index:%d", oldSenders[i], i);
@@ -1865,7 +1868,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   // set leader cache
   pSyncNode->leaderCache = pSyncNode->myRaftId;
 
-  for (int i = 0; i < pSyncNode->pNextIndex->replicaNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->pNextIndex->replicaNum; ++i) {
     // maybe overwrite myself, no harm
     // just do it!
 
@@ -1879,7 +1882,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
     pSyncNode->pNextIndex->index[i] = lastIndex + 1;
   }
 
-  for (int i = 0; i < pSyncNode->pMatchIndex->replicaNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->pMatchIndex->replicaNum; ++i) {
     // maybe overwrite myself, no harm
     // just do it!
     pSyncNode->pMatchIndex->index[i] = SYNC_INDEX_INVALID;
@@ -1892,7 +1895,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   // update sender private term
   SSyncSnapshotSender* pMySender = syncNodeGetSnapshotSender(pSyncNode, &(pSyncNode->myRaftId));
   if (pMySender != NULL) {
-    for (int i = 0; i < pSyncNode->pMatchIndex->replicaNum; ++i) {
+    for (int32_t i = 0; i < pSyncNode->pMatchIndex->replicaNum; ++i) {
       if ((pSyncNode->senders)[i]->privateTerm > pMySender->privateTerm) {
         pMySender->privateTerm = (pSyncNode->senders)[i]->privateTerm;
       }
@@ -1946,7 +1949,7 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
 bool syncNodeIsMnode(SSyncNode* pSyncNode) { return (pSyncNode->vgId == 1); }
 
 int32_t syncNodePeerStateInit(SSyncNode* pSyncNode) {
-  for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     pSyncNode->peerStates[i].lastSendIndex = SYNC_INDEX_INVALID;
     pSyncNode->peerStates[i].lastSendTime = 0;
   }
@@ -2332,8 +2335,8 @@ static int32_t syncNodeEqNoop(SSyncNode* ths) {
 static void deleteCacheEntry(const void* key, size_t keyLen, void* value) { taosMemoryFree(value); }
 
 static int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHandle** h) {
-  int       code = 0;
-  int       entryLen = sizeof(*pEntry) + pEntry->dataLen;
+  int32_t   code = 0;
+  int32_t   entryLen = sizeof(*pEntry) + pEntry->dataLen;
   LRUStatus status = taosLRUCacheInsert(pLogStore->pCache, &pEntry->index, sizeof(pEntry->index), pEntry, entryLen,
                                         deleteCacheEntry, h, TAOS_LRU_PRIORITY_LOW);
   if (status != TAOS_LRU_STATUS_OK) {
@@ -2641,7 +2644,7 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
 }
 
 int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg) {
-  for (int i = 0; i < pNewCfg->replicaNum; ++i) {
+  for (int32_t i = 0; i < pNewCfg->replicaNum; ++i) {
     SRaftId raftId;
     raftId.addr = syncUtilAddr2U64((pNewCfg->nodeInfo)[i].nodeFqdn, (pNewCfg->nodeInfo)[i].nodePort);
     raftId.vgId = ths->vgId;
@@ -2772,7 +2775,7 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
 }
 
 bool syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId) {
-  for (int i = 0; i < ths->replicaNum; ++i) {
+  for (int32_t i = 0; i < ths->replicaNum; ++i) {
     if (syncUtilSameId(&((ths->replicasId)[i]), pRaftId)) {
       return true;
     }
@@ -2782,7 +2785,7 @@ bool syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId) {
 
 SSyncSnapshotSender* syncNodeGetSnapshotSender(SSyncNode* ths, SRaftId* pDestId) {
   SSyncSnapshotSender* pSender = NULL;
-  for (int i = 0; i < ths->replicaNum; ++i) {
+  for (int32_t i = 0; i < ths->replicaNum; ++i) {
     if (syncUtilSameId(pDestId, &((ths->replicasId)[i]))) {
       pSender = (ths->senders)[i];
     }
@@ -2792,7 +2795,7 @@ SSyncSnapshotSender* syncNodeGetSnapshotSender(SSyncNode* ths, SRaftId* pDestId)
 
 SSyncTimer* syncNodeGetHbTimer(SSyncNode* ths, SRaftId* pDestId) {
   SSyncTimer* pTimer = NULL;
-  for (int i = 0; i < ths->replicaNum; ++i) {
+  for (int32_t i = 0; i < ths->replicaNum; ++i) {
     if (syncUtilSameId(pDestId, &((ths->replicasId)[i]))) {
       pTimer = &((ths->peerHeartbeatTimerArr)[i]);
     }
@@ -2802,7 +2805,7 @@ SSyncTimer* syncNodeGetHbTimer(SSyncNode* ths, SRaftId* pDestId) {
 
 SPeerState* syncNodeGetPeerState(SSyncNode* ths, const SRaftId* pDestId) {
   SPeerState* pState = NULL;
-  for (int i = 0; i < ths->replicaNum; ++i) {
+  for (int32_t i = 0; i < ths->replicaNum; ++i) {
     if (syncUtilSameId(pDestId, &((ths->replicasId)[i]))) {
       pState = &((ths->peerStates)[i]);
     }
@@ -2841,7 +2844,7 @@ bool syncNodeCanChange(SSyncNode* pSyncNode) {
     }
   }
 
-  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(pSyncNode, &(pSyncNode->peersId)[i]);
     if (pSender != NULL && pSender->start) {
       sError("sync cannot change3");
