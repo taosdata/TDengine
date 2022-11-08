@@ -3096,7 +3096,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     numOfElems++;
 
     char* data = colDataGetData(pInputCol, i);
-    TSKEY cts = getRowPTs(pInput->pPTS, i);
+    TSKEY cts = *(TSKEY*) colDataGetData(pInput->pPTS, i);
     if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
       doSaveCurrentVal(pCtx, i, cts, type, data);
       pResInfo->numOfRes = 1;

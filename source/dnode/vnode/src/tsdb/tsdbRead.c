@@ -985,7 +985,8 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
           uint8_t* p = pData->pData + tDataTypes[pData->type].bytes * pDumpInfo->rowIndex;
           memcpy(pColData->pData, p, remain * tDataTypes[pData->type].bytes);
 
-          ASSERT((((uint64_t)pColData->pData) & (0x8 - 1)) == 0); // make sure it is aligned to 8bit
+          // make sure it is aligned to 8bit
+          ASSERT((((uint64_t)pColData->pData) & (0x8 - 1)) == 0);
 
           // null value exists, check one-by-one
           if (pData->flag != HAS_VALUE) {
