@@ -376,6 +376,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         if (pVgroup->vnodeGid[vg].dnodeId == statusReq.dnodeId) {
           if (pVgroup->vnodeGid[vg].syncState != pVload->syncState ||
               pVgroup->vnodeGid[vg].syncRestore != pVload->syncRestore) {
+            mTrace("vgId:%d, role changed, old state:%s restored:%d new state:%s restored:%d", pVgroup->vgId,
+                   syncStr(pVgroup->vnodeGid[vg].syncState), pVgroup->vnodeGid[vg].syncRestore,
+                   syncStr(pVload->syncState), pVload->syncRestore);
             pVgroup->vnodeGid[vg].syncState = pVload->syncState;
             pVgroup->vnodeGid[vg].syncRestore = pVload->syncRestore;
             roleChanged = true;
