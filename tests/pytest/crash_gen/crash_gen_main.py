@@ -1712,7 +1712,7 @@ class TaskCreateStream(StateTransitionTask):
         '''
         stbname =sTable.getName()
         sub_tables = sTable.getRegTables(wt.getDbConn())
-        aggExpr = Dice.choice([                CREATE STREAM avg_vol_s1 INTO avg_vol1 AS SELECT  csum(current), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
+        aggExpr = Dice.choice([                
                     'count(*)',
                     'avg(speed)',
                     # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
@@ -1735,7 +1735,7 @@ class TaskCreateStream(StateTransitionTask):
             if sub_tables: # if not empty 
                 sub_tbname = sub_tables[0]
                 # create stream with query above sub_table
-                stream_sql = 'create stream {} into {}.{} as select  {}, avg(speed) FROM {}.{} PARTITION BY tbname INTERVAL(5s) SLIDING(3s) '.format(sub_stream_name,dbname,sub_stream_tb_name ,aggExpr,dbname,sub_tbname)
+                stream_sql = 'create stream {} into {}.{} as select  {}, avg(speed) FROM {}.{}  where ts <now and ts >now -1h PARTITION BY tbname INTERVAL(5s) SLIDING(3s) FILL (prev)  '.format(sub_stream_name,dbname,sub_stream_tb_name ,aggExpr,dbname,sub_tbname)
                 try:
                     self.execWtSql(wt, stream_sql)
                     Logging.debug("[OPS] stream is creating at {}".format(time.time()))
@@ -1749,7 +1749,7 @@ class TaskCreateStream(StateTransitionTask):
                 pass
 
         else:
-            stream_sql = 'create stream {} into {}.{} as select  {}, avg(speed) FROM {}.{} PARTITION BY tbname INTERVAL(5s) SLIDING(3s) '.format(super_stream_name,dbname,super_stream_tb_name,aggExpr, dbname,stbname)
+            stream_sql = 'create stream {} into {}.{} as select  {}, avg(speed) FROM {}.{}  where ts <now and ts >now -1h PARTITION BY tbname INTERVAL(5s) SLIDING(3s) FILL (prev) '.format(super_stream_name,dbname,super_stream_tb_name,aggExpr, dbname,stbname)
 
             try:
                 self.execWtSql(wt, stream_sql)
