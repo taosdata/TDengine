@@ -1761,7 +1761,10 @@ class TaskCreateSuperTable(StateTransitionTask):
 
         sTable = self._db.getFixedSuperTable() # type: TdSuperTable
         # wt.execSql("use db")    # should always be in place
-
+        
+        if sTable.hasStreams(wt.getDbConn()) or sTable.hasStreamTables(wt.getDbConn()):
+            sTable.dropStreams(wt.getDbConn())
+            sTable.dropStreamTables(wt.getDbConn())
         sTable.create(wt.getDbConn(),
                       {'ts': TdDataType.TIMESTAMP, 'speed': TdDataType.INT, 'color': TdDataType.BINARY16}, {
                           'b': TdDataType.BINARY200, 'f': TdDataType.FLOAT},
@@ -2557,16 +2560,20 @@ class TaskDeleteData(StateTransitionTask):
                 # Now read it back and verify, we might encounter an error if table is dropped
                 if Config.getConfig().verify_data: # only if command line asks for it
                     try:
-                        readBack = dbc.queryScalar("SELECT * from {}.{} WHERE ts='{}'".
+                        dbc.query("SELECT * from {}.{} WHERE ts='{}'".
                             format(db.getName(), regTableName, nextTick))
-                        if readBack == None :
-                            pass
+                        result = dbc.getQueryResult()
+                        if len(result)==0:
+                            # means data has been delete
+                            print("D1",end="") # DF means delete failed 
+                        else:
+                            print("DF",end="") # DF means delete failed 
                     except taos.error.ProgrammingError as err:
                         errno = Helper.convertErrno(err.errno)
-                        if errno == CrashGenError.INVALID_EMPTY_RESULT: # empty result
-                            print("D1",end="")   # D1 means delete data success and only 1 record
+                        # if errno == CrashGenError.INVALID_EMPTY_RESULT: # empty result
+                        #     print("D1",end="")   # D1 means delete data success and only 1 record
 
-                        elif errno in [0x218, 0x362]: # table doesn't exist
+                        if errno in [0x218, 0x362,0x2662]: # table doesn't exist
                             # do nothing
                             pass
                         else:
@@ -2612,16 +2619,20 @@ class TaskDeleteData(StateTransitionTask):
                 # Now read it back and verify, we might encounter an error if table is dropped
                 if Config.getConfig().verify_data: # only if command line asks for it
                     try:
-                        readBack = dbc.queryScalar("SELECT * from {}.{} ".
-                            format(db.getName(), regTableName))
-                        if readBack == None :
-                            pass
+                        dbc.query("SELECT * from {}.{} WHERE ts='{}'".
+                            format(db.getName(), regTableName, nextTick))
+                        result = dbc.getQueryResult()
+                        if len(result)==0:
+                            # means data has been delete
+                            print("DA",end="")
+                        else:
+                            print("DF",end="") # DF means delete failed 
                     except taos.error.ProgrammingError as err:
                         errno = Helper.convertErrno(err.errno)
-                        if errno == CrashGenError.INVALID_EMPTY_RESULT: # empty result
-                            print("Da",end="")  # Da means delete data success and for all datas
+                        # if errno == CrashGenError.INVALID_EMPTY_RESULT: # empty result
+                        #     print("Da",end="")  # Da means delete data success and for all datas
 
-                        elif errno in [0x218, 0x362]: # table doesn't exist
+                        if errno in [0x218, 0x362,0x2662]: # table doesn't exist
                             # do nothing
                             pass
                         else:
