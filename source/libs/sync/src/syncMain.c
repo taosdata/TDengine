@@ -719,11 +719,8 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
     sNTrace(pSyncNode, "propose message, type:%s", TMSG_INFO(pMsg->msgType));
     ret = (*pSyncNode->syncEqMsg)(pSyncNode->msgcb, &rpcMsg);
     if (ret != 0) {
-      if (terrno != 0) ret = terrno;
       sError("vgId:%d, failed to enqueue msg since %s", pSyncNode->vgId, terrstr());
       syncRespMgrDel(pSyncNode->pSyncRespMgr, seqNum);
-      SRpcMsg rsp = {.code = ret, .info = pMsg->info};
-      tmsgSendRsp(&rsp);
     }
   }
 
