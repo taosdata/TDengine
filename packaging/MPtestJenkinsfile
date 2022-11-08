@@ -39,7 +39,7 @@ pipeline {
     parameters {
         choice(
             name: 'sourcePath',
-            choices: ['web', 'nas'], 
+            choices: ['nas','web'], 
             description: 'choice which way to download the installation pacakge;web is Office Web and nas means taos nas server '
         )
         string (
@@ -67,7 +67,7 @@ pipeline {
         WORK_DIR = '/var/lib/jenkins/workspace'
         TDINTERNAL_ROOT_DIR = '/var/lib/jenkins/workspace/TDinternal'
         TDENGINE_ROOT_DIR = '/var/lib/jenkins/workspace/TDinternal/community'
-        BRANCH_NAME = 'test/TD-20194'
+        BRANCH_NAME = '3.0'
 
         TD_SERVER_TAR = "TDengine-server-${version}-Linux-x64.tar.gz"
         BASE_TD_SERVER_TAR = "TDengine-server-${baseVersion}-Linux-x64.tar.gz"
