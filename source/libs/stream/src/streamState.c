@@ -142,6 +142,7 @@ _err:
 
 void streamStateClose(SStreamState* pState) {
   tdbCommit(pState->db, &pState->txn);
+  tdbPostCommit(pState->db, &pState->txn);
   tdbTbClose(pState->pStateDb);
   tdbTbClose(pState->pFuncStateDb);
   tdbTbClose(pState->pFillStateDb);
@@ -166,6 +167,9 @@ int32_t streamStateBegin(SStreamState* pState) {
 
 int32_t streamStateCommit(SStreamState* pState) {
   if (tdbCommit(pState->db, &pState->txn) < 0) {
+    return -1;
+  }
+  if (tdbPostCommit(pState->db, &pState->txn) < 0) {
     return -1;
   }
   memset(&pState->txn, 0, sizeof(TXN));

@@ -140,6 +140,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
     // tdbUnrefPage(pPage);
     tdbPCacheRelease(pPager->pCache, pPage, &txn);
     tdbCommit(pPager->pEnv, &txn);
+    tdbPostCommit(pPager->pEnv, &txn);
     tdbTxnClose(&txn);
   }
 

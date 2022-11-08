@@ -191,6 +191,7 @@ int  tdbPagerWrite(SPager *pPager, SPage *pPage);
 int  tdbPagerBegin(SPager *pPager, TXN *pTxn);
 int  tdbPagerCommit(SPager *pPager, TXN *pTxn);
 int  tdbPagerPostCommit(SPager *pPager, TXN *pTxn);
+int  tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn);
 int  tdbPagerAbort(SPager *pPager, TXN *pTxn);
 int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *, int), void *arg,
                        TXN *pTxn);
