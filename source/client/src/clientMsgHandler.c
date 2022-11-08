@@ -212,7 +212,11 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
 
   if (strlen(usedbRsp.db) == 0) {
-    return TSDB_CODE_MND_DB_NOT_EXIST;
+    if (usedbRsp.errCode != 0) {
+      return usedbRsp.errCode;
+    } else {
+      return TSDB_CODE_APP_ERROR;
+    }
   }
 
   SName name = {0};

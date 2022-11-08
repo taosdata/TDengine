@@ -852,6 +852,7 @@ typedef struct {
   int16_t hashSuffix;
   int8_t  hashMethod;
   SArray* pVgroupInfos;  // Array of SVgroupInfo
+  int32_t errCode;
 } SUseDbRsp;
 
 int32_t tSerializeSUseDbRsp(void* buf, int32_t bufLen, const SUseDbRsp* pRsp);
