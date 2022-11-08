@@ -923,7 +923,7 @@ char *tTagValToData(const STagVal *value, bool isJson) {
 }
 
 bool tTagGet(const STag *pTag, STagVal *pTagVal) {
-  if(!pTag || !pTagVal){
+  if (!pTag || !pTagVal) {
     return false;
   }
 
@@ -1164,31 +1164,27 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, SColVal *pColVa
     ASSERT(pColData->nData == tDataTypes[pColData->type].bytes * pColData->nVal);
     code = tRealloc(&pColData->pData, pColData->nData + tDataTypes[pColData->type].bytes);
     if (code) goto _exit;
-    pColData->nData += tPutValue(pColData->pData + pColData->nData, &pColVal->value, pColVal->type);
+    memcpy(pColData->pData + pColData->nData, &pColVal->value.val, tDataTypes[pColData->type].bytes);
+    pColData->nData += tDataTypes[pColData->type].bytes;
   }
+  pColData->nVal++;
 
 _exit:
   return code;
 }
 static FORCE_INLINE int32_t tColDataAppendValue00(SColData *pColData, SColVal *pColVal) {
-  int32_t code = 0;
   pColData->flag = HAS_VALUE;
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-  pColData->nVal++;
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue01(SColData *pColData, SColVal *pColVal) {
-  int32_t code = 0;
   pColData->flag = HAS_NONE;
   pColData->nVal++;
-  return code;
+  return 0;
 }
 static FORCE_INLINE int32_t tColDataAppendValue02(SColData *pColData, SColVal *pColVal) {
-  int32_t code = 0;
   pColData->flag = HAS_NULL;
   pColData->nVal++;
-  return code;
+  return 0;
 }
 static FORCE_INLINE int32_t tColDataAppendValue10(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1216,16 +1212,11 @@ static FORCE_INLINE int32_t tColDataAppendValue10(SColData *pColData, SColVal *p
     }
   }
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue11(SColData *pColData, SColVal *pColVal) {
-  int32_t code = 0;
   pColData->nVal++;
-  return code;
+  return 0;
 }
 static FORCE_INLINE int32_t tColDataAppendValue12(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1268,11 +1259,7 @@ static FORCE_INLINE int32_t tColDataAppendValue20(SColData *pColData, SColVal *p
     }
   }
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue21(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1290,9 +1277,8 @@ static FORCE_INLINE int32_t tColDataAppendValue21(SColData *pColData, SColVal *p
   return code;
 }
 static FORCE_INLINE int32_t tColDataAppendValue22(SColData *pColData, SColVal *pColVal) {
-  int32_t code = 0;
   pColData->nVal++;
-  return code;
+  return 0;
 }
 static FORCE_INLINE int32_t tColDataAppendValue30(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1325,11 +1311,7 @@ static FORCE_INLINE int32_t tColDataAppendValue30(SColData *pColData, SColVal *p
     }
   }
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue31(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1353,15 +1335,7 @@ static FORCE_INLINE int32_t tColDataAppendValue32(SColData *pColData, SColVal *p
 
   return code;
 }
-static FORCE_INLINE int32_t tColDataAppendValue40(SColData *pColData, SColVal *pColVal) {
-  int32_t code = 0;
-
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-  pColData->nVal++;
-
-  return code;
-}
+#define tColDataAppendValue40 tColDataPutValue
 static FORCE_INLINE int32_t tColDataAppendValue41(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
 
@@ -1374,12 +1348,7 @@ static FORCE_INLINE int32_t tColDataAppendValue41(SColData *pColData, SColVal *p
   memset(pColData->pBitMap, 255, nBit);
   SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue42(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1393,12 +1362,7 @@ static FORCE_INLINE int32_t tColDataAppendValue42(SColData *pColData, SColVal *p
   memset(pColData->pBitMap, 255, nBit);
   SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue50(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1408,12 +1372,7 @@ static FORCE_INLINE int32_t tColDataAppendValue50(SColData *pColData, SColVal *p
 
   SET_BIT1(pColData->pBitMap, pColData->nVal, 1);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue51(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1423,12 +1382,7 @@ static FORCE_INLINE int32_t tColDataAppendValue51(SColData *pColData, SColVal *p
 
   SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue52(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1447,12 +1401,7 @@ static FORCE_INLINE int32_t tColDataAppendValue52(SColData *pColData, SColVal *p
   tFree(pColData->pBitMap);
   pColData->pBitMap = pBitMap;
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue60(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1461,12 +1410,7 @@ static FORCE_INLINE int32_t tColDataAppendValue60(SColData *pColData, SColVal *p
   if (code) return code;
   SET_BIT1(pColData->pBitMap, pColData->nVal, 1);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue61(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1485,12 +1429,7 @@ static FORCE_INLINE int32_t tColDataAppendValue61(SColData *pColData, SColVal *p
   tFree(pColData->pBitMap);
   pColData->pBitMap = pBitMap;
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue62(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1499,12 +1438,7 @@ static FORCE_INLINE int32_t tColDataAppendValue62(SColData *pColData, SColVal *p
   if (code) return code;
   SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue70(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1513,12 +1447,7 @@ static FORCE_INLINE int32_t tColDataAppendValue70(SColData *pColData, SColVal *p
   if (code) return code;
   SET_BIT2(pColData->pBitMap, pColData->nVal, 2);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue71(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1527,12 +1456,7 @@ static FORCE_INLINE int32_t tColDataAppendValue71(SColData *pColData, SColVal *p
   if (code) return code;
   SET_BIT2(pColData->pBitMap, pColData->nVal, 0);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue72(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1541,12 +1465,7 @@ static FORCE_INLINE int32_t tColDataAppendValue72(SColData *pColData, SColVal *p
   if (code) return code;
   SET_BIT2(pColData->pBitMap, pColData->nVal, 1);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, SColVal *pColVal) = {
     {tColDataAppendValue00, tColDataAppendValue01, tColDataAppendValue02},  // 0
