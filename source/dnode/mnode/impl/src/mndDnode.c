@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDnode.h"
+#include "mndDb.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
@@ -356,7 +357,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   pDnode->lastAccessTime = curMs;
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
-         pDnode->accessTimes, needCheck, online, reboot, dnodeChanged, statusReq.statusSeq);
+          pDnode->accessTimes, needCheck, online, reboot, dnodeChanged, statusReq.statusSeq);
 
   for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
     SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
@@ -376,9 +377,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         if (pVgroup->vnodeGid[vg].dnodeId == statusReq.dnodeId) {
           if (pVgroup->vnodeGid[vg].syncState != pVload->syncState ||
               pVgroup->vnodeGid[vg].syncRestore != pVload->syncRestore) {
-            mTrace("vgId:%d, role changed, old state:%s restored:%d new state:%s restored:%d", pVgroup->vgId,
-                   syncStr(pVgroup->vnodeGid[vg].syncState), pVgroup->vnodeGid[vg].syncRestore,
-                   syncStr(pVload->syncState), pVload->syncRestore);
+            mInfo("vgId:%d, state changed by status msg, old state:%s restored:%d new state:%s restored:%d",
+                  pVgroup->vgId, syncStr(pVgroup->vnodeGid[vg].syncState), pVgroup->vnodeGid[vg].syncRestore,
+                  syncStr(pVload->syncState), pVload->syncRestore);
             pVgroup->vnodeGid[vg].syncState = pVload->syncState;
             pVgroup->vnodeGid[vg].syncRestore = pVload->syncRestore;
             roleChanged = true;
@@ -387,7 +388,12 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         }
       }
       if (roleChanged) {
-        // notify scheduler role has changed
+        SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
+        if (pDb->stateTs != curMs) {
+          mInfo("db:%s, stateTs changed by status msg, old stateTs:%" PRId64 " new stateTs:%" PRId64, pDb->name, pDb->stateTs, curMs);
+          pDb->stateTs = curMs;
+        }
+        mndReleaseDb(pMnode, pDb);
       }
     }
 

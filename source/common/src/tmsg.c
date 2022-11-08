@@ -2238,6 +2238,7 @@ int32_t tSerializeSUseDbReq(void *buf, int32_t bufLen, SUseDbReq *pReq) {
   if (tEncodeI64(&encoder, pReq->dbId) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->vgVersion) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfTable) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->stateTs) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2254,6 +2255,7 @@ int32_t tDeserializeSUseDbReq(void *buf, int32_t bufLen, SUseDbReq *pReq) {
   if (tDecodeI64(&decoder, &pReq->dbId) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->vgVersion) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfTable) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->stateTs) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -2490,6 +2492,7 @@ int32_t tSerializeSUseDbRspImp(SEncoder *pEncoder, const SUseDbRsp *pRsp) {
   }
 
   if (tEncodeI32(pEncoder, pRsp->errCode) < 0) return -1;
+  if (tEncodeI64(pEncoder, pRsp->stateTs) < 0) return -1;
   return 0;
 }
 
@@ -2555,6 +2558,7 @@ int32_t tDeserializeSUseDbRspImp(SDecoder *pDecoder, SUseDbRsp *pRsp) {
   }
 
   if (tDecodeI32(pDecoder, &pRsp->errCode) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pRsp->stateTs) < 0) return -1;
   return 0;
 }
 
