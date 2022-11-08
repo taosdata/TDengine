@@ -6131,13 +6131,13 @@ void tDeleteSTaosxRsp(STaosxRsp *pRsp) {
 }
 
 int32_t tEncodeSSingleDeleteReq(SEncoder *pEncoder, const SSingleDeleteReq *pReq) {
-  if (tEncodeI64(pEncoder, pReq->uid) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pReq->tbname) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->ts) < 0) return -1;
   return 0;
 }
 
 int32_t tDecodeSSingleDeleteReq(SDecoder *pDecoder, SSingleDeleteReq *pReq) {
-  if (tDecodeI64(pDecoder, &pReq->uid) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pReq->tbname) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->ts) < 0) return -1;
   return 0;
 }
