@@ -3023,20 +3023,17 @@ static int32_t translateIntervalWindow(STranslateContext* pCxt, SSelectStmt* pSe
   return code;
 }
 
-static EDealRes checkStateExpr(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    STranslateContext* pCxt = pContext;
-    SColumnNode*       pCol = (SColumnNode*)pNode;
-
-    int32_t type = pCol->node.resType.type;
-    if (!IS_INTEGER_TYPE(type) && type != TSDB_DATA_TYPE_BOOL && !IS_VAR_DATA_TYPE(type)) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE);
-    }
-    if (COLUMN_TYPE_TAG == pCol->colType) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
-    }
+static int32_t checkStateExpr(STranslateContext* pCxt, SNode* pNode) {
+  int32_t type = ((SExprNode*)pNode)->resType.type;
+  if (!IS_INTEGER_TYPE(type) && type != TSDB_DATA_TYPE_BOOL && !IS_VAR_DATA_TYPE(type)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE);
   }
-  return DEAL_RES_CONTINUE;
+
+  if (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool hasPartitionByTbname(SNodeList* pPartitionByList) {
@@ -3068,11 +3065,11 @@ static int32_t translateStateWindow(STranslateContext* pCxt, SSelectStmt* pSelec
   }
 
   SStateWindowNode* pState = (SStateWindowNode*)pSelect->pWindow;
-  nodesWalkExprPostOrder(pState->pExpr, checkStateExpr, pCxt);
-  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    pCxt->errCode = checkStateWindowForStream(pCxt, pSelect);
+  int32_t           code = checkStateExpr(pCxt, pState->pExpr);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkStateWindowForStream(pCxt, pSelect);
   }
-  return pCxt->errCode;
+  return code;
 }
 
 static int32_t translateSessionWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
