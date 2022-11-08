@@ -100,25 +100,6 @@ static int32_t tsdbCommitCache(SCommitter *pCommitter);
 static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno);
 static int32_t tsdbNextCommitRow(SCommitter *pCommitter);
 
-int32_t tRowInfoCmprFn(const void *p1, const void *p2) {
-  SRowInfo *pInfo1 = (SRowInfo *)p1;
-  SRowInfo *pInfo2 = (SRowInfo *)p2;
-
-  if (pInfo1->suid < pInfo2->suid) {
-    return -1;
-  } else if (pInfo1->suid > pInfo2->suid) {
-    return 1;
-  }
-
-  if (pInfo1->uid < pInfo2->uid) {
-    return -1;
-  } else if (pInfo1->uid > pInfo2->uid) {
-    return 1;
-  }
-
-  return tsdbRowCmprFn(&pInfo1->row, &pInfo2->row);
-}
-
 int32_t tsdbBegin(STsdb *pTsdb) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -619,7 +600,8 @@ int32_t tsdbWriteDataBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SMapDa
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -662,7 +644,8 @@ int32_t tsdbWriteSttBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SArray 
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -702,7 +685,8 @@ static int32_t tsdbCommitSttBlk(SDataFWriter *pWriter, SDiskDataBuilder *pBuilde
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }

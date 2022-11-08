@@ -18,10 +18,7 @@
 #define MEM_MIN_HASH 1024
 #define SL_MAX_LEVEL 5
 
-#define SL_NODE_SIZE(l)        (sizeof(SMemSkipListNode) + sizeof(SMemSkipListNode *) * (l)*2)
-#define SL_NODE_FORWARD(n, l)  ((n)->forwards[l])
-#define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
-#define SL_NODE_DATA(n)        (&SL_NODE_BACKWARD(n, (n)->level))
+#define SL_NODE_SIZE(l) (sizeof(SMemSkipListNode) + sizeof(SMemSkipListNode *) * (l)*2)
 
 #define SL_MOVE_BACKWARD 0x1
 #define SL_MOVE_FROM_POS 0x2
@@ -260,63 +257,6 @@ void tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDa
       pIter->pNode = SL_NODE_FORWARD(pos[0], 0);
     }
   }
-}
-
-bool tsdbTbDataIterNext(STbDataIter *pIter) {
-  SMemSkipListNode *pHead = pIter->pTbData->sl.pHead;
-  SMemSkipListNode *pTail = pIter->pTbData->sl.pTail;
-
-  pIter->pRow = NULL;
-  if (pIter->backward) {
-    ASSERT(pIter->pNode != pTail);
-
-    if (pIter->pNode == pHead) {
-      return false;
-    }
-
-    pIter->pNode = SL_NODE_BACKWARD(pIter->pNode, 0);
-    if (pIter->pNode == pHead) {
-      return false;
-    }
-  } else {
-    ASSERT(pIter->pNode != pHead);
-
-    if (pIter->pNode == pTail) {
-      return false;
-    }
-
-    pIter->pNode = SL_NODE_FORWARD(pIter->pNode, 0);
-    if (pIter->pNode == pTail) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
-  // we add here for commit usage
-  if (pIter == NULL) return NULL;
-
-  if (pIter->pRow) {
-    goto _exit;
-  }
-
-  if (pIter->backward) {
-    if (pIter->pNode == pIter->pTbData->sl.pHead) {
-      goto _exit;
-    }
-  } else {
-    if (pIter->pNode == pIter->pTbData->sl.pTail) {
-      goto _exit;
-    }
-  }
-
-  tGetTSDBRow((uint8_t *)SL_NODE_DATA(pIter->pNode), &pIter->row);
-  pIter->pRow = &pIter->row;
-
-_exit:
-  return pIter->pRow;
 }
 
 static int32_t tsdbMemTableRehash(SMemTable *pMemTable) {

@@ -209,11 +209,9 @@ void     tsdbRefMemTable(SMemTable *pMemTable);
 void     tsdbUnrefMemTable(SMemTable *pMemTable);
 SArray  *tsdbMemTableGetTbDataArray(SMemTable *pMemTable);
 // STbDataIter
-int32_t  tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
-void    *tsdbTbDataIterDestroy(STbDataIter *pIter);
-void     tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
-TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter);
-bool     tsdbTbDataIterNext(STbDataIter *pIter);
+int32_t tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
+void   *tsdbTbDataIterDestroy(STbDataIter *pIter);
+void    tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
 // STbData
 int32_t tsdbGetNRowsInTbData(STbData *pTbData);
 // tsdbFile.c ==============================================================================================
@@ -776,6 +774,86 @@ static FORCE_INLINE int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow) {
   pRow->pTSRow = (STSRow *)(p + n);
   n += pRow->pTSRow->len;
   return n;
+}
+
+#define SL_NODE_FORWARD(n, l)  ((n)->forwards[l])
+#define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
+#define SL_NODE_DATA(n)        (&SL_NODE_BACKWARD(n, (n)->level))
+
+static FORCE_INLINE TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
+  // we add here for commit usage
+  if (pIter == NULL) return NULL;
+
+  if (pIter->pRow) {
+    goto _exit;
+  }
+
+  if (pIter->backward) {
+    if (pIter->pNode == pIter->pTbData->sl.pHead) {
+      goto _exit;
+    }
+  } else {
+    if (pIter->pNode == pIter->pTbData->sl.pTail) {
+      goto _exit;
+    }
+  }
+
+  tGetTSDBRow((uint8_t *)SL_NODE_DATA(pIter->pNode), &pIter->row);
+  pIter->pRow = &pIter->row;
+
+_exit:
+  return pIter->pRow;
+}
+
+static FORCE_INLINE bool tsdbTbDataIterNext(STbDataIter *pIter) {
+  SMemSkipListNode *pHead = pIter->pTbData->sl.pHead;
+  SMemSkipListNode *pTail = pIter->pTbData->sl.pTail;
+
+  pIter->pRow = NULL;
+  if (pIter->backward) {
+    ASSERT(pIter->pNode != pTail);
+
+    if (pIter->pNode == pHead) {
+      return false;
+    }
+
+    pIter->pNode = SL_NODE_BACKWARD(pIter->pNode, 0);
+    if (pIter->pNode == pHead) {
+      return false;
+    }
+  } else {
+    ASSERT(pIter->pNode != pHead);
+
+    if (pIter->pNode == pTail) {
+      return false;
+    }
+
+    pIter->pNode = SL_NODE_FORWARD(pIter->pNode, 0);
+    if (pIter->pNode == pTail) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static FORCE_INLINE int32_t tRowInfoCmprFn(const void *p1, const void *p2) {
+  SRowInfo *pInfo1 = (SRowInfo *)p1;
+  SRowInfo *pInfo2 = (SRowInfo *)p2;
+
+  if (pInfo1->suid < pInfo2->suid) {
+    return -1;
+  } else if (pInfo1->suid > pInfo2->suid) {
+    return 1;
+  }
+
+  if (pInfo1->uid < pInfo2->uid) {
+    return -1;
+  } else if (pInfo1->uid > pInfo2->uid) {
+    return 1;
+  }
+
+  return tsdbKeyCmprFn(&TSDBROW_KEY(&pInfo1->row), &TSDBROW_KEY(&pInfo2->row));
 }
 
 #ifdef __cplusplus

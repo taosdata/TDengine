@@ -1036,6 +1036,19 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   if (code) goto _err;
   pBlockData->aTSKEY[pBlockData->nRow] = TSDBROW_TS(pRow);
 
+  if (pRow->type == 0) {
+    if (TD_IS_TP_ROW(pRow->pTSRow)) {
+      // todo (cary)
+    } else if (TD_IS_KV_ROW(pRow->pTSRow)) {
+      // todo (cary)
+    } else {
+      ASSERT(0);
+    }
+  } else {
+    // todo (hzcheng)
+  }
+
+#if 0
   // OTHER
   SRowIter rIter = {0};
   SColVal *pColVal;
@@ -1058,6 +1071,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
       pColVal = tRowIterNext(&rIter);
     }
   }
+#endif
   pBlockData->nRow++;
 
   return code;

@@ -63,7 +63,6 @@ struct STsdbSnapReader {
   uint8_t*     aBuf[5];
 };
 
-extern int32_t tRowInfoCmprFn(const void* p1, const void* p2);
 extern int32_t tsdbReadDataBlockEx(SDataFReader* pReader, SDataBlk* pDataBlk, SBlockData* pBlockData);
 extern int32_t tsdbUpdateTableSchema(SMeta* pMeta, int64_t suid, int64_t uid, SSkmInfo* pSkmInfo);
 
