@@ -59,6 +59,7 @@ impl Cli {
             ),
             paths(
                 task::get_tasks,
+                task::get_tasks_count,
                 task::create_task,
                 task::delete_task,
                 task::start_task,
