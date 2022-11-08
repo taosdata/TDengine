@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use taos::{sync::MessageSet, Consumer, *};
 use tokio::sync::{Barrier, Mutex};
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     taoz::ZFile,
@@ -243,7 +244,13 @@ impl LocalConfig {
     }
 }
 
-pub async fn tmq_to_local(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
+pub async fn tmq_to_local(
+    from: Dsn,
+    mut to: Dsn,
+    jobs: usize,
+    force: bool,
+    cancel: CancellationToken,
+) -> Result<()> {
     let (mut from, _, topics) = check_tmq_dsn(from).await?;
     let mut from_params = from.drain_params();
 
@@ -362,13 +369,34 @@ pub async fn tmq_to_local(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> R
             let consumer = consumers.pop().unwrap();
             let barrier = barrier.clone();
             let man = man.clone();
-            let handle = tokio::spawn(async move { backup(consumer, man, task_id, barrier).await });
+            let handle = tokio::spawn(backup(consumer, man, task_id, barrier));
             handles.push(handle);
             task_id += 1;
         }
     }
-    for handle in handles {
-        handle.await??;
+    let mut should_abort = false;
+    for mut handle in handles {
+        if handle.is_finished() {
+            log::debug!("backup task done with internal handler {handle:?}");
+            continue;
+        }
+        if should_abort {
+            log::debug!("cancel backup task with internal handler {handle:?}");
+            handle.abort();
+            continue;
+        }
+        tokio::select! {
+            _ = cancel.cancelled() => {
+                should_abort = true;
+                // panic!("cancelled");
+                log::debug!("cancel backup task with internal handler {handle:?}");
+                handle.abort();
+            }
+            res = &mut handle => {
+                res??;
+                log::debug!("backup task done with internal handler {handle:?}");
+            }
+        }
     }
     // tokio::time::sleep(std::time::Duration::MAX).await;
     Ok(())

@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use anyhow::{bail, Result};
 use taos::{Consumer, *};
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     tmq::{check_tmq_dsn, group_id_hash},
@@ -257,7 +258,13 @@ async fn sync(
     Ok(())
 }
 
-pub async fn tmq_to_td(from: Dsn, actions: Vec<Action>, mut to: Dsn, jobs: usize) -> Result<()> {
+pub async fn tmq_to_td(
+    from: Dsn,
+    actions: Vec<Action>,
+    mut to: Dsn,
+    jobs: usize,
+    cancel: CancellationToken,
+) -> Result<()> {
     let (mut from, builder, topics) = check_tmq_dsn(from).await?;
 
     // auto generate group.id if not exists
@@ -405,8 +412,29 @@ pub async fn tmq_to_td(from: Dsn, actions: Vec<Action>, mut to: Dsn, jobs: usize
             task_id += 1;
         }
     }
-    for handle in handles {
-        handle.await??;
+    let mut should_abort = false;
+    for mut handle in handles {
+        if handle.is_finished() {
+            log::debug!("backup task done with internal handler {handle:?}");
+            continue;
+        }
+        if should_abort {
+            log::debug!("cancel backup task with internal handler {handle:?}");
+            handle.abort();
+            continue;
+        }
+        tokio::select! {
+            _ = cancel.cancelled() => {
+                should_abort = true;
+                // panic!("cancelled");
+                log::debug!("cancel backup task with internal handler {handle:?}");
+                handle.abort();
+            }
+            res = &mut handle => {
+                res??;
+                log::debug!("backup task done with internal handler {handle:?}");
+            }
+        }
     }
     drop(global_taos);
     drop(target);

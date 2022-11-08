@@ -37,7 +37,11 @@ impl Default for Cli {
 }
 
 impl Cli {
-    pub(super) async fn run_with(self, _opts: super::GlobalOpts) -> Result<()> {
+    pub(super) async fn run_with(
+        self,
+        _opts: super::GlobalOpts,
+        rt: tokio::runtime::Runtime,
+    ) -> Result<()> {
         #[derive(OpenApi)]
         #[openapi(
             components(
@@ -60,8 +64,8 @@ impl Cli {
                 task::start_task,
                 task::stop_task,
                 task::get_task_by_id,
-                task::replicate,
-                task::subscribe,
+                // task::replicate,
+                // task::subscribe,
                 metrics::metrics_exporter
             ),
             tags(
@@ -78,20 +82,10 @@ impl Cli {
             "sqlite:taosx.db".to_string()
         };
 
-        let controller = TaskController::from_sqlite(&database_url).await?;
+        let controller = TaskController::from_sqlite(&database_url)
+            .await?
+            .with_runtime(rt);
 
-        // let controller = std::thread::spawn(|| {
-        //     let runtime = tokio::runtime::Builder::new_multi_thread()
-        //         .enable_all()
-        //         .max_blocking_threads(1024)
-        //         .build()
-        //         .unwrap();
-        //     // todo: use DATABASE_URL
-        //     TaskController::from_sqlite(&database_url)
-        // })
-        // .join()
-        // .unwrap()
-        // .await?;
 
         let store = Data::new(controller);
         let store_cloned = store.clone();
