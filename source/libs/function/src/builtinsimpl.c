@@ -255,8 +255,9 @@ typedef struct SUniqueInfo {
 } SUniqueInfo;
 
 typedef struct SModeItem {
-  int64_t count;
-  char    data[];
+  int64_t   count;
+  STuplePos tuplePos;
+  char      data[];
 } SModeItem;
 
 typedef struct SModeInfo {
@@ -264,6 +265,10 @@ typedef struct SModeInfo {
   uint8_t   colType;
   int16_t   colBytes;
   SHashObj* pHash;
+
+  STuplePos nullTuplePos;
+  bool      nullTupleSaved;
+
   char      pItems[];
 } SModeInfo;
 
@@ -5391,10 +5396,13 @@ bool modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   } else {
     pInfo->pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   }
+  pInfo->nullTupleSaved = false;
+  pInfo->nullTuplePos.pageId = -1;
+
   return true;
 }
 
-static void doModeAdd(SModeInfo* pInfo, char* data) {
+static void doModeAdd(SModeInfo* pInfo, int32_t rowIndex, SqlFunctionCtx* pCtx, char* data) {
   int32_t     hashKeyBytes = IS_STR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
   SModeItem** pHashItem = taosHashGet(pInfo->pHash, data, hashKeyBytes);
   if (pHashItem == NULL) {
@@ -5403,10 +5411,17 @@ static void doModeAdd(SModeInfo* pInfo, char* data) {
     memcpy(pItem->data, data, hashKeyBytes);
     pItem->count += 1;
 
+    if (pCtx->subsidiaries.num > 0) {
+      pItem->tuplePos = saveTupleData(pCtx, rowIndex, pCtx->pSrcBlock, NULL);
+    }
+
     taosHashPut(pInfo->pHash, data, hashKeyBytes, &pItem, sizeof(SModeItem*));
     pInfo->numOfPoints++;
   } else {
     (*pHashItem)->count += 1;
+    if (pCtx->subsidiaries.num > 0) {
+      updateTupleData(pCtx, rowIndex, pCtx->pSrcBlock, &((*pHashItem)->tuplePos));
+    }
   }
 }
 
@@ -5428,12 +5443,17 @@ int32_t modeFunction(SqlFunctionCtx* pCtx) {
     }
 
     numOfElems++;
-    doModeAdd(pInfo, data);
+    doModeAdd(pInfo, i, pCtx, data);
 
     if (sizeof(SModeInfo) + pInfo->numOfPoints * (sizeof(SModeItem) + pInfo->colBytes) >= MODE_MAX_RESULT_SIZE) {
       taosHashCleanup(pInfo->pHash);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+  }
+
+  if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pInfo->nullTupleSaved) {
+    pInfo->nullTuplePos = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, NULL);
+    pInfo->nullTupleSaved = true;
   }
 
   SET_VAL(pResInfo, numOfElems, 1);
@@ -5461,8 +5481,10 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (maxCount != 0) {
     SModeItem* pResItem = (SModeItem*)(pInfo->pItems + resIndex * (sizeof(SModeItem) + pInfo->colBytes));
     colDataAppend(pCol, currentRow, pResItem->data, false);
+    setSelectivityValue(pCtx, pBlock, &pResItem->tuplePos, currentRow);
   } else {
     colDataAppendNULL(pCol, currentRow);
+    setSelectivityValue(pCtx, pBlock, &pInfo->nullTuplePos, currentRow);
   }
 
   taosHashCleanup(pInfo->pHash);

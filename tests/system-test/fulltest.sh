@@ -142,6 +142,8 @@ python3 ./test.py -f 2-query/max.py
 python3 ./test.py -f 2-query/max.py -R
 python3 ./test.py -f 2-query/min.py
 python3 ./test.py -f 2-query/min.py -R
+python3 ./test.py -f 2-query/mode.py
+python3 ./test.py -f 2-query/mode.py -R
 python3 ./test.py -f 2-query/Now.py
 python3 ./test.py -f 2-query/Now.py -R
 python3 ./test.py -f 2-query/percentile.py
@@ -386,6 +388,7 @@ python3 ./test.py -f 2-query/Now.py -Q 2
 python3 ./test.py -f 2-query/Today.py -Q 2
 python3 ./test.py -f 2-query/max.py -Q 2
 python3 ./test.py -f 2-query/min.py -Q 2
+python3 ./test.py -f 2-query/mode.py -Q 2
 python3 ./test.py -f 2-query/count.py -Q 2
 # python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 2
 python3 ./test.py -f 2-query/last.py -Q 2
@@ -482,6 +485,7 @@ python3 ./test.py -f 2-query/Now.py -Q  3
 python3 ./test.py -f 2-query/Today.py -Q  3
 python3 ./test.py -f 2-query/max.py -Q  3
 python3 ./test.py -f 2-query/min.py -Q  3
+python3 ./test.py -f 2-query/mode.py -Q  3
 python3 ./test.py -f 2-query/count.py -Q  3
 # python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 3
 python3 ./test.py -f 2-query/last.py -Q  3
@@ -580,6 +584,7 @@ python3 ./test.py -f 2-query/Now.py -Q  4
 python3 ./test.py -f 2-query/Today.py -Q  4
 python3 ./test.py -f 2-query/max.py -Q  4
 python3 ./test.py -f 2-query/min.py -Q  4
+python3 ./test.py -f 2-query/mode.py -Q  4
 python3 ./test.py -f 2-query/count.py -Q  4
 # python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 4
 python3 ./test.py -f 2-query/last.py -Q  4
