@@ -251,10 +251,10 @@ typedef struct SLimitInfo {
 } SLimitInfo;
 
 typedef struct SExchangeInfo {
-  SArray* pSources;
-  SArray* pSourceDataInfo;
-  tsem_t  ready;
-  void*   pTransporter;
+  SArray*             pSources;
+  SArray*             pSourceDataInfo;
+  tsem_t              ready;
+  void*               pTransporter;
   // SArray<SSDataBlock*>, result block list, used to keep the multi-block that
   // passed by downstream operator
   SArray*             pResultBlockList;

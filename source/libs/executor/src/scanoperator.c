@@ -956,8 +956,12 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pOperator->pTaskInfo = pTaskInfo;
 
   pInfo->metaCache.pTableMetaEntryCache = taosLRUCacheInit(1024*128, -1, .5);
-  taosLRUCacheSetStrictCapacity(pInfo->metaCache.pTableMetaEntryCache, false);
+  if (pInfo->metaCache.pTableMetaEntryCache == NULL) {
+    code = terrno;
+    goto _error;
+  }
 
+  taosLRUCacheSetStrictCapacity(pInfo->metaCache.pTableMetaEntryCache, false);
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScan, NULL, NULL, destroyTableScanOperatorInfo,
                                          getTableScannerExecInfo);
 
