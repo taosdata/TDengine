@@ -56,27 +56,13 @@ typedef struct {
 #define TSROW_IS_KV_ROW(r) ((r)->flags & TSROW_KV_ROW)
 
 // SValue
-int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type) {
+static FORCE_INLINE int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type) {
   if (IS_VAR_DATA_TYPE(type)) {
     return tPutBinary(p, pValue->pData, pValue->nData);
   } else {
     if (p) memcpy(p, &pValue->val, tDataTypes[type].bytes);
     return tDataTypes[type].bytes;
   }
-}
-
-int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type) {
-  if (IS_VAR_DATA_TYPE(type)) {
-    return tGetBinary(p, &pValue->pData, pValue ? &pValue->nData : NULL);
-  } else {
-    memcpy(&pValue->val, p, tDataTypes[type].bytes);
-    return tDataTypes[type].bytes;
-  }
-}
-
-int tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type) {
-  // TODO
-  return 0;
 }
 
 // STSRow2 ========================================================================
