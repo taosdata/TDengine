@@ -2489,6 +2489,7 @@ int32_t tSerializeSUseDbRspImp(SEncoder *pEncoder, const SUseDbRsp *pRsp) {
     if (tEncodeI32(pEncoder, pVgInfo->numOfTable) < 0) return -1;
   }
 
+  if (tEncodeI32(pEncoder, pRsp->errCode) < 0) return -1;
   return 0;
 }
 
@@ -2553,6 +2554,7 @@ int32_t tDeserializeSUseDbRspImp(SDecoder *pDecoder, SUseDbRsp *pRsp) {
     taosArrayPush(pRsp->pVgroupInfos, &vgInfo);
   }
 
+  if (tDecodeI32(pDecoder, &pRsp->errCode) < 0) return -1;
   return 0;
 }
 

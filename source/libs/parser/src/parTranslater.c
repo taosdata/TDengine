@@ -2181,7 +2181,8 @@ static int32_t getTagsTableVgroupListImpl(STranslateContext* pCxt, SName* pTarge
 
   if (TSDB_DB_NAME_T == pTargetName->type) {
     int32_t code = getDBVgInfoImpl(pCxt, pTargetName, pVgroupList);
-    if (TSDB_CODE_MND_DB_NOT_EXIST == code) {
+    if (TSDB_CODE_MND_DB_NOT_EXIST == code || TSDB_CODE_MND_DB_IN_CREATING == code ||
+        TSDB_CODE_MND_DB_IN_DROPPING == code) {
       code = TSDB_CODE_SUCCESS;
     }
     return code;
@@ -2196,7 +2197,8 @@ static int32_t getTagsTableVgroupListImpl(STranslateContext* pCxt, SName* pTarge
     } else {
       taosArrayPush(*pVgroupList, &vgInfo);
     }
-  } else if (TSDB_CODE_MND_DB_NOT_EXIST == code) {
+  } else if (TSDB_CODE_MND_DB_NOT_EXIST == code || TSDB_CODE_MND_DB_IN_CREATING == code ||
+             TSDB_CODE_MND_DB_IN_DROPPING == code) {
     code = TSDB_CODE_SUCCESS;
   }
   return code;
