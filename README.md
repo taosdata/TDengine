@@ -464,7 +464,10 @@ taosx serve -l 0.0.0.0:6050
 
 taosx follows the [OpenAPI Specification 3.x][oas3] and provides a [SwaggerUI] interface at <http://localhost:6050/swagger-ui/>.
 
-- **GET /tasks**: list tasks in current processor.
+- **GET /tasks**: list tasks in current processor. You can use these query filters here for search:
+    - `from_cluster`/`to_cluster`: filter exact matches of cluster id.
+    - `status`: filter exact matches for specific status.
+    - `start_create_time`/`end_create_time`: filter `created` filed by a time range.
 - **POST /tasks**: create new task with from/to DSN and return `id` of the task.
 - **POST /tasks/replicate**: create a replication task with explicit options.
 - **POST /tasks/subscribe**: create a subscription task with explicit options.
@@ -483,10 +486,11 @@ A task schema might be:
   "last_modified_at": "2022-02-02T02:02:02+08:00",
   "completed": false,
   "from": "tmq://root:taosdata@localhost:6030/test",
+  "from_cluster": "<cluster id>",
   "to": "local:/path/to/backup/test",
+  "to_cluster": "<cluster id>",
   "finished_at": "2022-02-02T02:02:02+08:00",
-  "status": "cancelled",
-  "reason": "will not use"
+  "status": "completed",
 }
 ```
 
@@ -496,9 +500,11 @@ A task schema might be:
 - *`last_modified_at`*: datetime that the task has last been modified.
 - *`completed`*: check if the status is `completed`.
 - *`from`*: DSN for source.
+- *`from_cluster`*: Optional cluster id for data source.
 - *`to`*: DSN for target.
-- *`status`*: possible values: `created`, `failed`, `cancelled`, `deleted`, `completed`.
-- *`reason`*: an nullable field for the reason of current status.
+- *`to_cluster`*: Optional cluster id for data target.
+- *`status`*: possible values: `created`, `failed`, `cancelled`, `deleted`, `completed`, `interrupted`, `stopped`.
+- *`reason`*: an nullable field for the reason of current status (currently, for `failed` only).
 
 To create a new task, use the schema:
 

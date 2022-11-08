@@ -1,11 +1,14 @@
-use std::{collections::HashMap, time::{Duration, Instant}};
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 use actix_web::{
     delete, get, post,
-    web::{Data, Json, Path, ServiceConfig},
+    web::{Data, Json, Path, Query, ServiceConfig},
     HttpResponse, Responder,
 };
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::migrate::Migrator;
 use sqlx::SqlitePool;
@@ -15,6 +18,74 @@ use taosx::TaskOpts;
 use tokio::{runtime::Runtime, sync::RwLock};
 use tokio_util::sync::CancellationToken;
 use utoipa::*;
+
+mod datetime_format {
+    use chrono::{DateTime, SecondsFormat, Utc};
+    use serde::{self, Deserialize, Deserializer, Serializer};
+
+    type Target = DateTime<Utc>;
+
+    // The signature of a serialize_with function must follow the pattern:
+    //
+    //    fn serialize<S>(&T, S) -> Result<S::Ok, S::Error> where S: Serializer
+    //
+    // although it may also be generic over the input types T.
+    pub fn serialize<S>(date: &Target, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = format!("{}", date.to_rfc3339_opts(SecondsFormat::Millis, true));
+        serializer.serialize_str(&s)
+    }
+
+    // The signature of a deserialize_with function must follow the pattern:
+    //
+    //    fn deserialize<D>(D) -> Result<T, D::Error> where D: Deserializer
+    //
+    // although it may also be generic over the output types T.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Target, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Target::deserialize(deserializer)
+    }
+}
+
+mod option_datetime_format {
+    use chrono::{DateTime, SecondsFormat, Utc};
+    use serde::{self, Deserialize, Deserializer, Serializer};
+
+    type Target = Option<DateTime<Utc>>;
+
+    // The signature of a serialize_with function must follow the pattern:
+    //
+    //    fn serialize<S>(&T, S) -> Result<S::Ok, S::Error> where S: Serializer
+    //
+    // although it may also be generic over the input types T.
+    pub fn serialize<S>(date: &Option<DateTime<Utc>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if let Some(date) = date.as_ref() {
+            let s = format!("{}", date.to_rfc3339_opts(SecondsFormat::Millis, true));
+            serializer.serialize_str(&s)
+        } else {
+            serializer.serialize_none()
+        }
+    }
+
+    // The signature of a deserialize_with function must follow the pattern:
+    //
+    //    fn deserialize<D>(D) -> Result<T, D::Error> where D: Deserializer
+    //
+    // although it may also be generic over the output types T.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Target, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Target::deserialize(deserializer)
+    }
+}
 
 use super::metrics::metrics_exporter;
 
@@ -43,6 +114,7 @@ impl Drop for TaskController {
         if let Some(rt) = self.runtime.take() {
             // rt.block_on(self.clear()).unwrap();
             std::thread::spawn(move || {
+                log::debug!("dropping tokio runtime in another thread");
                 std::mem::drop(rt);
             })
             .join()
@@ -72,15 +144,20 @@ pub(super) enum StreamType {
 }
 
 impl TaskController {
-    pub async fn from_sqlite(sqlite: &str, runtime: Runtime) -> anyhow::Result<Self> {
+    pub async fn from_sqlite(sqlite: &str) -> anyhow::Result<Self> {
         let options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?.create_if_missing(true);
         let pool = sqlx::SqlitePool::connect_with(options).await?;
         MIGRATOR.run(&pool).await?;
         Ok(Self {
             pool,
-            runtime: Some(runtime),
+            runtime: None,
             tasks: Default::default(),
         })
+    }
+
+    pub fn with_runtime(mut self, rt: tokio::runtime::Runtime) -> Self {
+        self.runtime = Some(rt);
+        self
     }
 
     // pub async fn new(sqlite: &str) -> anyhow::Result<Self> {
@@ -98,10 +175,10 @@ impl TaskController {
     //     })
     // }
 
-    pub async fn tasks(&self) -> anyhow::Result<Vec<Task>> {
-        let tasks = sqlx::query_as_unchecked!(
-            Task,
-            "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where deleted = FALSE",
+    pub async fn tasks(&self, filter: TaskFilter) -> anyhow::Result<Vec<Task>> {
+        let condition = filter.to_sql_conditions()?;
+        let tasks = sqlx::query_as::<_, Task>(
+            &format!("select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where {condition} order by created_at desc"),
         )
         .fetch_all(&self.pool)
         .await?;
@@ -110,12 +187,18 @@ impl TaskController {
 
     pub async fn create(&self, task: NewTask) -> anyhow::Result<Task> {
         let res = sqlx::query(
-            "INSERT INTO tasks (`from`, `to`, `stream_type`, `created_at`, `status`) VALUES(?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (`from`, `from_cluster`, `to`, `to_cluster`, `stream_type`, `jobs`, `compression_level`, `force`, \
+                 `created_at`, `status`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&task.from)
+        .bind(&task.from_cluster)
         .bind(&task.to)
+        .bind(&task.to_cluster)
         .bind(&task.stream_type)
-        .bind(&chrono::Local::now().to_rfc3339())
+        .bind(&task.jobs)
+        .bind(&task.compression_level)
+        .bind(&task.force)
+        .bind(&chrono::Utc::now().to_rfc3339())
         .bind(&Status::Created)
         .execute(&self.pool)
         .await
@@ -130,11 +213,12 @@ impl TaskController {
         // let (tx, rx) = tokio::sync::oneshot::channel();
         let token = tokio_util::sync::CancellationToken::new();
         let cloned_token = token.clone();
-        let handle = self.runtime.as_ref().unwrap().spawn(async move {
+
+        let task_handler = async move {
             tokio::select! {
                 _ = cloned_token.cancelled() => {
                     log::debug!("cancel task {id}");
-                    let now = Local::now();
+                    let now = Utc::now();
                     let status = Status::Cancelled;
                     let _ = sqlx::query!(
                         "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
@@ -153,7 +237,7 @@ impl TaskController {
                             if restarts > 0 {
                                 log::info!("resume task {id} as {restarts} restarts");
 
-                                    let now = Local::now();
+                                    let now = Utc::now();
                                     let _ = sqlx::query!(
                                         "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
                                         now,
@@ -165,7 +249,7 @@ impl TaskController {
                             } else {
                                 log::info!("start task {id}");
 
-                                    let now = Local::now();
+                                    let now = Utc::now();
                                     let _ = sqlx::query!(
                                         "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
                                         now,
@@ -181,7 +265,7 @@ impl TaskController {
                             let result = opts.clone().run().await;
                             match result {
                                 Ok(_) => {
-                                    let now = Local::now();
+                                    let now = Utc::now();
                                     let _ = sqlx::query!(
                                         "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
                                         now,
@@ -195,7 +279,7 @@ impl TaskController {
                                 Err(err) => {
                                     log::error!("run task {id} failed: {err}, wait for resume...");
                                     let err = err.to_string();
-                                    let now = Local::now();
+                                    let now = Utc::now();
                                     let _ = sqlx::query!(
                                         "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
                                         now,
@@ -218,7 +302,7 @@ impl TaskController {
                         let result = opts.run().await;
                         match result {
                             Ok(_) => {
-                                let now = Local::now();
+                                let now = Utc::now();
                                 let status = Status::Completed;
                                 let _ = sqlx::query!(
                                     "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
@@ -233,7 +317,7 @@ impl TaskController {
                             Err(err) => {
                                 log::error!("run task {id} failed: {err}");
                                 let err = err.to_string();
-                                let now = Local::now();
+                                let now = Utc::now();
                                 let status = Status::Failed;
                                 let _ = sqlx::query!(
                                     "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
@@ -254,7 +338,13 @@ impl TaskController {
                 }
             }
             Ok(())
-        });
+        };
+        let handle = if let Some(rt) = self.runtime.as_ref() {
+            rt.spawn(task_handler)
+        } else {
+            tokio::spawn(task_handler)
+        };
+        // let handle = tokio::spawn(task_handler);
         self.tasks.write().await.insert(id, (handle, token));
 
         Ok(task)
@@ -275,6 +365,8 @@ impl TaskController {
             anyhow::bail!("task {id} is running");
         }
 
+        let token = tokio_util::sync::CancellationToken::new();
+        let cloned_token = token.clone();
         let opts = TaskOpts {
             transform: vec![],
             from: task.from.parse()?,
@@ -282,65 +374,68 @@ impl TaskController {
             jobs: task.jobs as _,
             compression_level: task.compression_level.map(Into::into),
             force: task.force,
+            cancel: cloned_token.clone(),
         };
 
         let pool = self.pool.clone();
         // let (tx, rx) = tokio::sync::oneshot::channel();
-        let token = tokio_util::sync::CancellationToken::new();
-        let cloned_token = token.clone();
-        let handle = self.runtime.as_ref().unwrap().spawn(async move {
+        let task_handler = async move {
             let total = Instant::now();
-            tokio::select! {
-                _ = cloned_token.cancelled() => {
-                    log::debug!("cancelling task {id}");
-                    let now = Local::now();
-                    let status = Status::Cancelled;
-                    let _ = sqlx::query!(
-                        "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
-                        now,
-                        status,
-                        id
-                    )
-                    .execute(&pool)
-                    .await?;
-                }
-                result = async {
-                    if opts.from.driver == "tmq" && opts.from.get("timeout").map(|s| s == "never").unwrap_or(false) {
-                        let mut restarts = 0;
-                        let mut sleep = Duration::from_secs(2);
-                        loop {
-                            if restarts > 0 {
-                                log::info!("resume task {id} as {restarts} restarts");
+            if opts.from.driver == "tmq"
+                && opts
+                    .from
+                    .get("timeout")
+                    .map(|s| s == "never")
+                    .unwrap_or(false)
+            {
+                let mut restarts = 0;
+                let mut sleep = Duration::from_secs(2);
+                'task: loop {
+                    if restarts > 0 {
+                        log::info!("resume task {id} as {restarts} restarts");
 
-                                    let now = Local::now();
-                                    let _ = sqlx::query!(
-                                        "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
-                                        now,
-                                        Status::Running,
-                                        id
-                                    )
-                                    .execute(&pool)
-                                    .await?;
-                            } else {
-                                log::info!("start task {id}");
+                        let now = Utc::now();
+                        let _ = sqlx::query!(
+                            "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
+                            now,
+                            Status::Running,
+                            id
+                        )
+                        .execute(&pool)
+                        .await?;
+                    } else {
+                        log::info!("start task {id}");
 
-                                    let now = Local::now();
-                                    let _ = sqlx::query!(
-                                        "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
-                                        now,
-                                        Status::Running,
-                                        id
-                                    )
-                                    .execute(&pool)
-                                    .await?;
-                            }
-                            {
+                        let now = Utc::now();
+                        let _ = sqlx::query!(
+                            "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
+                            now,
+                            Status::Running,
+                            id
+                        )
+                        .execute(&pool)
+                        .await?;
+                    }
+                    tokio::select! {
+                        _ = cloned_token.cancelled() => {
+                            log::debug!("cancelling task {id}");
+                            let now = Utc::now();
+                            let status = Status::Cancelled;
+                            let _ = sqlx::query!(
+                                "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
+                                now,
+                                status,
+                                id
+                            )
+                            .execute(&pool)
+                            .await?;
+                            break 'task;
+                        }
 
-                            }
-                            let result = opts.clone().run().await;
+                        result = opts.run() => {
                             match result {
                                 Ok(_) => {
-                                    let now = Local::now();
+                                    let now = Utc::now();
                                     let _ = sqlx::query!(
                                         "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
                                         now,
@@ -354,7 +449,7 @@ impl TaskController {
                                 Err(err) => {
                                     log::error!("run task {id} failed: {err}, wait for resume...");
                                     let err = err.to_string();
-                                    let now = Local::now();
+                                    let now = Utc::now();
                                     let _ = sqlx::query!(
                                         "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
                                         now,
@@ -373,11 +468,28 @@ impl TaskController {
                             }
                             restarts += 1;
                         }
-                    } else {
-                        let result = opts.run().await;
+                    }
+                }
+            } else {
+                tokio::select! {
+                    _ = cloned_token.cancelled() => {
+                        log::debug!("cancelling task {id}");
+                        let now = Utc::now();
+                        let status = Status::Cancelled;
+                        let _ = sqlx::query!(
+                            "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
+                            now,
+                            status,
+                            id
+                        )
+                        .execute(&pool)
+                        .await?;
+                    }
+
+                    result = opts.run() => {
                         match result {
                             Ok(_) => {
-                                let now = Local::now();
+                                let now = Utc::now();
                                 let status = Status::Completed;
                                 let _ = sqlx::query!(
                                     "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
@@ -392,7 +504,7 @@ impl TaskController {
                             Err(err) => {
                                 log::error!("run task {id} failed: {err}");
                                 let err = err.to_string();
-                                let now = Local::now();
+                                let now = Utc::now();
                                 let status = Status::Failed;
                                 let _ = sqlx::query!(
                                     "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
@@ -406,15 +518,135 @@ impl TaskController {
                             }
                         }
                     }
-                    return Ok::<(), anyhow::Error>(())
-                } => {
-                    let _ = result?;
-                    log::info!("task {} done", id);
                 }
             }
+            // tokio::select! {
+            //     _ = cloned_token.cancelled() => {
+            //         log::debug!("cancelling task {id}");
+            //         let now = Utc::now();
+            //         let status = Status::Cancelled;
+            //         let _ = sqlx::query!(
+            //             "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
+            //             now,
+            //             status,
+            //             id
+            //         )
+            //         .execute(&pool)
+            //         .await?;
+            //     }
+            //     result = {
+            //         if opts.from.driver == "tmq" && opts.from.get("timeout").map(|s| s == "never").unwrap_or(false) {
+            //             let mut restarts = 0;
+            //             let mut sleep = Duration::from_secs(2);
+            //             loop {
+            //                 if restarts > 0 {
+            //                     log::info!("resume task {id} as {restarts} restarts");
+
+            //                         let now = Utc::now();
+            //                         let _ = sqlx::query!(
+            //                             "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
+            //                             now,
+            //                             Status::Running,
+            //                             id
+            //                         )
+            //                         .execute(&pool)
+            //                         .await?;
+            //                 } else {
+            //                     log::info!("start task {id}");
+
+            //                         let now = Utc::now();
+            //                         let _ = sqlx::query!(
+            //                             "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
+            //                             now,
+            //                             Status::Running,
+            //                             id
+            //                         )
+            //                         .execute(&pool)
+            //                         .await?;
+            //                 }
+            //                 let result = opts.clone().run().await;
+            //                 match result {
+            //                     Ok(_) => {
+            //                         let now = Utc::now();
+            //                         let _ = sqlx::query!(
+            //                             "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
+            //                             now,
+            //                             Status::Interrupted,
+            //                             id
+            //                         )
+            //                         .execute(&pool)
+            //                         .await?;
+
+            //                     }
+            //                     Err(err) => {
+            //                         log::error!("run task {id} failed: {err}, wait for resume...");
+            //                         let err = err.to_string();
+            //                         let now = Utc::now();
+            //                         let _ = sqlx::query!(
+            //                             "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
+            //                             now,
+            //                             Status::Failed,
+            //                             err,
+            //                             id
+            //                         )
+            //                         .execute(&pool)
+            //                         .await?;
+            //                     }
+            //                 }
+            //                 log::info!("resume task {id} in {sleep:?}");
+            //                 tokio::time::sleep(sleep).await;
+            //                 if sleep < Duration::from_secs(60 * 60) {
+            //                     sleep = sleep * 2;
+            //                 }
+            //                 restarts += 1;
+            //             }
+            //         } else {
+            //             let result = opts.run().await;
+            //             match result {
+            //                 Ok(_) => {
+            //                     let now = Utc::now();
+            //                     let status = Status::Completed;
+            //                     let _ = sqlx::query!(
+            //                         "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
+            //                         now,
+            //                         status,
+            //                         id
+            //                     )
+            //                     .execute(&pool)
+            //                     .await?;
+
+            //                 }
+            //                 Err(err) => {
+            //                     log::error!("run task {id} failed: {err}");
+            //                     let err = err.to_string();
+            //                     let now = Utc::now();
+            //                     let status = Status::Failed;
+            //                     let _ = sqlx::query!(
+            //                         "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
+            //                         now,
+            //                         status,
+            //                         err,
+            //                         id
+            //                     )
+            //                     .execute(&pool)
+            //                     .await?;
+            //                 }
+            //             }
+            //         }
+            //         return Ok::<(), anyhow::Error>(())
+            //     } => {
+            //         let _ = result?;
+            //         log::info!("task {} done", id);
+            //     }
+            // }
             log::info!("Task {id} has been stopped in {:?}", total.elapsed());
             Ok(())
-        });
+        };
+        let handle = if let Some(rt) = self.runtime.as_ref() {
+            rt.spawn(task_handler)
+        } else {
+            tokio::spawn(task_handler)
+        };
         self.tasks.write().await.insert(id, (handle, token));
         Ok(Some(()))
     }
@@ -435,7 +667,7 @@ impl TaskController {
                 let _ = handle.await;
             }
         }
-        let now = Local::now();
+        let now = Utc::now();
         let res = sqlx::query_as_unchecked!(
             Task,
             "UPDATE tasks SET `deleted` = TRUE, `last_modified_at` = ? where id = ?",
@@ -459,7 +691,7 @@ impl TaskController {
                 let _ = handle.await;
             }
         }
-        let now = Local::now();
+        let now = Utc::now();
         let res = sqlx::query_as_unchecked!(
             Task,
             "UPDATE tasks SET `last_modified_at` = ?, `status` = ? where id = ?",
@@ -534,7 +766,9 @@ pub(super) enum Status {
 }
 
 /// A streaming workflow task description.
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+#[derive(
+    Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode, sqlx::Encode, sqlx::FromRow,
+)]
 pub(super) struct Task {
     /// Unique id for the task item.
     #[schema(read_only, example = 1)]
@@ -545,9 +779,18 @@ pub(super) struct Task {
     /// The stream data source.
     #[schema(example = "tmq:///test")]
     from: String,
+
+    /// Cluster identifier for stream from.
+    #[schema(example = "null")]
+    from_cluster: Option<String>,
+
     /// The target of the stream.
     #[schema(example = "local:/path/to/backup/test")]
     to: String,
+
+    /// Cluster identifier for stream to.
+    #[schema(example = "null")]
+    to_cluster: Option<String>,
 
     /// Number of jobs for task running.
     #[schema(example = 0)]
@@ -561,17 +804,20 @@ pub(super) struct Task {
 
     /// Created time.
     #[schema(read_only)]
-    created_at: DateTime<Local>,
+    #[serde(with = "datetime_format")]
+    created_at: DateTime<Utc>,
 
     /// Stopped time.
     #[schema(read_only)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    finished_at: Option<DateTime<Local>>,
+    #[serde(with = "option_datetime_format")]
+    finished_at: Option<DateTime<Utc>>,
 
     /// Last modified time.
     #[schema(read_only)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    last_modified_at: Option<DateTime<Local>>,
+    #[serde(with = "option_datetime_format")]
+    last_modified_at: Option<DateTime<Utc>>,
 
     /// The current status of the tasks.
     #[schema(read_only, value_type = String)]
@@ -600,16 +846,25 @@ fn is_false(b: &bool) -> bool {
     !*b
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+#[derive(
+    Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode, sqlx::Encode, sqlx::FromRow,
+)]
 pub(super) struct NewTask {
     #[schema(example = "backup")]
     stream_type: StreamType,
     /// The stream data source.
     #[schema(example = "tmq:///test")]
     from: String,
+    /// The stream data source cluster id.
+    #[schema(example = "")]
+    from_cluster: Option<String>,
+
     /// The target of the stream.
     #[schema(example = "local:/path/to/backup/test")]
     to: String,
+    /// The stream data target cluster id.
+    #[schema(example = "")]
+    to_cluster: Option<String>,
 
     /// Jobs number
     #[schema(example = 0)]
@@ -627,11 +882,13 @@ impl TryFrom<NewTask> for taosx::TaskOpts {
     fn try_from(value: NewTask) -> Result<Self, Self::Error> {
         let NewTask {
             from,
+            from_cluster,
             to,
             jobs,
             compression_level,
             force,
             stream_type: _,
+            to_cluster,
         } = value;
         Ok(Self {
             from: from.parse()?,
@@ -640,6 +897,7 @@ impl TryFrom<NewTask> for taosx::TaskOpts {
             jobs: jobs as _,
             compression_level: compression_level.map(Into::into),
             force,
+            cancel: Default::default(),
         })
     }
 }
@@ -665,6 +923,44 @@ pub(super) struct Failed {
     message: String,
 }
 
+#[derive(Serialize, Deserialize, Default, Clone, IntoParams)]
+#[serde(default)]
+pub(super) struct TaskFilter {
+    from_cluster: Option<String>,
+    to_cluster: Option<String>,
+    status: Option<String>,
+    start_create_time: Option<String>,
+    end_create_time: Option<String>,
+    with_deleted: Option<bool>,
+}
+
+impl TaskFilter {
+    fn to_sql_conditions(&self) -> std::result::Result<String, std::fmt::Error> {
+        use std::fmt::Write;
+        let mut sql = String::new();
+        if !self.with_deleted.unwrap_or_default() {
+            write!(sql, "`deleted` = FALSE")?;
+        } else {
+            write!(sql, "1 = 1")?;
+        }
+        if let Some(val) = self.status.as_ref() {
+            write!(sql, " AND `status` = '{val}'")?;
+        }
+        if let Some(from_cluster) = self.from_cluster.as_deref() {
+            write!(sql, " AND `from_cluster` = '{from_cluster}'")?;
+        }
+        if let Some(val) = self.to_cluster.as_deref() {
+            write!(sql, " AND `to_cluster` = '{val}'")?;
+        }
+        if let Some(val) = self.start_create_time.as_deref() {
+            write!(sql, " AND `created_at` >= '{val}'")?;
+        }
+        if let Some(val) = self.end_create_time.as_deref() {
+            write!(sql, " AND `created_at` <= '{val}'")?;
+        }
+        Ok(sql)
+    }
+}
 /// List tasks in current.
 ///
 /// One could call the api endpoint with following curl.
@@ -675,11 +971,17 @@ pub(super) struct Failed {
 #[utoipa::path(
     responses(
         (status = 200, description = "List current task items", body = [Task])
+    ),
+    params(
+        TaskFilter,
     )
 )]
 #[get("/tasks")]
-pub(super) async fn get_tasks(task_store: Data<TaskController>) -> impl Responder {
-    match task_store.tasks().await {
+pub(super) async fn get_tasks(
+    task_store: Data<TaskController>,
+    filter: Query<TaskFilter>,
+) -> impl Responder {
+    match task_store.tasks(filter.into_inner()).await {
         Ok(tasks) => HttpResponse::Ok().json(tasks),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::Failed,
@@ -769,6 +1071,8 @@ impl NewReplicate {
             force,
             jobs: 0,
             compression_level: None,
+            from_cluster: None,
+            to_cluster: None,
         })
     }
 }
@@ -889,6 +1193,8 @@ impl NewSubscribe {
             force: true,
             jobs: 0,
             compression_level: None,
+            from_cluster: None,
+            to_cluster: None,
         })
     }
 }

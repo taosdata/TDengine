@@ -16,6 +16,7 @@ pub use local_to_taos::local_to_taos;
 pub use parquets::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::tmq_to_td;
+use tokio_util::sync::CancellationToken;
 pub use transform::Action;
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -39,6 +40,7 @@ pub struct TaskOpts {
     pub jobs: usize,
     pub compression_level: Option<usize>,
     pub force: bool,
+    pub cancel: CancellationToken,
 }
 
 impl TaskOpts {
@@ -71,7 +73,11 @@ impl TaskOpts {
         })
     }
 
-    pub async fn run(self) -> Result<(), anyhow::Error> {
+    pub fn cancel(&self) {
+        self.cancel.cancel();
+    }
+
+    pub async fn run(&self) -> Result<(), anyhow::Error> {
         let Self {
             from,
             transform,
@@ -79,27 +85,28 @@ impl TaskOpts {
             jobs,
             compression_level: _,
             force,
+            cancel,
         } = self;
 
         {
             match (from.driver.as_str(), to.driver.as_str()) {
                 ("tmq", "taos") => {
-                    tmq_to_td(from, transform, to, jobs).await?;
+                    tmq_to_td(from.clone(), transform.clone(), to.clone(), *jobs, cancel.clone()).await?;
                 }
                 ("tmq", "local") => {
-                    tmq_to_local(from, to, jobs, force).await?;
+                    tmq_to_local(from.clone(), to.clone(), *jobs, *force, cancel.clone()).await?;
                 }
                 ("local", "taos") => {
-                    local_to_taos(from, to, jobs, force).await?;
+                    local_to_taos(from.clone(), to.clone(), *jobs, *force).await?;
                 }
                 ("taos", "taos") => {
-                    legacy_to_taos(from, transform, to, jobs).await?;
+                    legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs).await?;
                 }
                 ("taos", "csv") => {
-                    query_to_csv(from, to).await?;
+                    query_to_csv(from.clone(), to.clone()).await?;
                 }
                 ("taos", "parquet") => {
-                    query_to_parquet(from, to, force).await?;
+                    query_to_parquet(from.clone(), to.clone(), *force).await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }

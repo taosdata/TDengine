@@ -91,8 +91,7 @@ struct Args {
     slop: Vec<String>,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let args = Args::parse();
 
     let mut builder = pretty_env_logger::formatted_timed_builder();
@@ -141,17 +140,36 @@ async fn main() -> Result<()> {
                 )
             },
         )
+        .is_test(false)
         .init();
+
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .max_blocking_threads(4096)
+        .thread_name("taosx-runner")
+        .enable_all()
+        .build()?;
     if let Some(cmd) = args.commands {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .max_blocking_threads(1024)
+            .thread_name("taosx")
+            .enable_all()
+            .build()?;
         match cmd {
-            Commands::Run(cmd) => cmd.run_with(args.globals).await?,
-            Commands::Serve(cli) => cli.run_with(args.globals).await?,
+            Commands::Run(cmd) => runtime.block_on(cmd.run_with(args.globals))?,
+            Commands::Serve(cli) => runtime.block_on(cli.run_with(args.globals, rt))?,
             Commands::External(_) => bail!("unknown subcommand"),
         }
     } else {
         //  service mode
         // dbg!(&args);
-        serve::Cli::default().run_with(args.globals).await?;
+
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .max_blocking_threads(1024)
+            .thread_name("taosx")
+            .worker_threads(num_cpus::get() * 2)
+            .enable_all()
+            .build()?;
+        runtime.block_on(serve::Cli::default().run_with(args.globals, rt))?;
     }
     Ok(())
 }

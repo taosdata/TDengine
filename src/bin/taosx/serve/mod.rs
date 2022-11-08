@@ -18,7 +18,10 @@ pub(super) struct Cli {
     #[clap(short = 'l', long, default_value = "127.0.0.1:6050")]
     listen: String,
     #[clap(short = 'D', long)]
-    data_dir: Option<PathBuf>,
+    database_url: Option<String>,
+
+    // #[clap(short = 'D', long)]
+    // data_dir: Option<PathBuf>,
     #[clap(short = 'L', long)]
     log_dir: Option<PathBuf>,
 }
@@ -27,14 +30,18 @@ impl Default for Cli {
     fn default() -> Self {
         Self {
             listen: "127.0.0.1:6050".parse().unwrap(),
-            data_dir: Default::default(),
-            log_dir: Default::default(),
+            database_url: None,
+            log_dir: None,
         }
     }
 }
 
 impl Cli {
-    pub(super) async fn run_with(self, _opts: super::GlobalOpts) -> Result<()> {
+    pub(super) async fn run_with(
+        self,
+        _opts: super::GlobalOpts,
+        rt: tokio::runtime::Runtime,
+    ) -> Result<()> {
         #[derive(OpenApi)]
         #[openapi(
             components(
@@ -57,8 +64,8 @@ impl Cli {
                 task::start_task,
                 task::stop_task,
                 task::get_task_by_id,
-                task::replicate,
-                task::subscribe,
+                // task::replicate,
+                // task::subscribe,
                 metrics::metrics_exporter
             ),
             tags(
@@ -67,18 +74,18 @@ impl Cli {
         )]
         struct ApiDoc;
 
-        let controller = std::thread::spawn(|| {
-            let runtime = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .max_blocking_threads(1024)
-                .build()
-                .unwrap();
-            runtime.spawn_blocking(|| {});
-            TaskController::from_sqlite("sqlite:taosx.db", runtime)
-        })
-        .join()
-        .unwrap()
-        .await?;
+        let database_url = if let Some(path) = self.database_url.as_deref() {
+            path.to_string()
+        } else if let Ok(url) = std::env::var("DATABASE_URL") {
+            url
+        } else {
+            "sqlite:taosx.db".to_string()
+        };
+
+        let controller = TaskController::from_sqlite(&database_url)
+            .await?
+            .with_runtime(rt);
+
 
         let store = Data::new(controller);
         let store_cloned = store.clone();
