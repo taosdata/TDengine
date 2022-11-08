@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "filter.h"
 #include "executorimpl.h"
+#include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
 #include "tcommon.h"
@@ -986,7 +986,7 @@ void doCloseWindow(SResultRowInfo* pResultRowInfo, const SIntervalAggOperatorInf
   // current result is done in computing final results.
   if (pInfo->timeWindowInterpo && isResultRowInterpolated(pResult, RESULT_ROW_END_INTERP)) {
     closeResultRow(pResult);
-    SListNode *pNode = tdListPopHead(pResultRowInfo->openWindow);
+    SListNode* pNode = tdListPopHead(pResultRowInfo->openWindow);
     taosMemoryFree(pNode);
   }
 }
@@ -1255,35 +1255,33 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
 
   SSDataBlock* pBlock = pInfo->binfo.pRes;
 
-  if (pInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-    return pOperator->fpSet.getStreamResFn(pOperator);
-  } else {
-    pTaskInfo->code = pOperator->fpSet._openFn(pOperator);
-    if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-      return NULL;
-    }
+  ASSERT(pInfo->execModel == OPTR_EXEC_MODEL_BATCH);
 
-    blockDataEnsureCapacity(pBlock, pOperator->resultInfo.capacity);
-    while (1) {
-      doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-      doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
-
-      bool hasRemain = hasRemainResults(&pInfo->groupResInfo);
-      if (!hasRemain) {
-        doSetOperatorCompleted(pOperator);
-        break;
-      }
-
-      if (pBlock->info.rows > 0) {
-        break;
-      }
-    }
-
-    size_t rows = pBlock->info.rows;
-    pOperator->resultInfo.totalRows += rows;
-
-    return (rows == 0) ? NULL : pBlock;
+  pTaskInfo->code = pOperator->fpSet._openFn(pOperator);
+  if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+    return NULL;
   }
+
+  blockDataEnsureCapacity(pBlock, pOperator->resultInfo.capacity);
+  while (1) {
+    doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
+    doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+
+    bool hasRemain = hasRemainResults(&pInfo->groupResInfo);
+    if (!hasRemain) {
+      doSetOperatorCompleted(pOperator);
+      break;
+    }
+
+    if (pBlock->info.rows > 0) {
+      break;
+    }
+  }
+
+  size_t rows = pBlock->info.rows;
+  pOperator->resultInfo.totalRows += rows;
+
+  return (rows == 0) ? NULL : pBlock;
 }
 
 static void setInverFunction(SqlFunctionCtx* pCtx, int32_t num, EStreamType type) {

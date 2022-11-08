@@ -3133,7 +3133,8 @@ int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
 int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
 
 typedef struct {
-  int64_t uid;
+  // int64_t uid;
+  char    tbname[TSDB_TABLE_NAME_LEN];
   int64_t ts;
 } SSingleDeleteReq;
 

@@ -114,7 +114,6 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
   SOperatorFpSet fpSet = {
       ._openFn = openFn,
       .getNextFn = nextFn,
-      .getStreamResFn = streamFn,
       .cleanupFn = cleanup,
       .closeFn = closeFn,
       .getExplainFn = explain,
@@ -819,7 +818,7 @@ bool isTaskKilled(SExecTaskInfo* pTaskInfo) {
   // abort current query execution.
   if (pTaskInfo->owner != 0 &&
       ((taosGetTimestampSec() - pTaskInfo->cost.start / 1000) > 10 * getMaximumIdleDurationSec())
-    /*(!needBuildResAfterQueryComplete(pTaskInfo))*/) {
+      /*(!needBuildResAfterQueryComplete(pTaskInfo))*/) {
     assert(pTaskInfo->cost.start != 0);
     //    qDebug("QInfo:%" PRIu64 " retrieve not arrive beyond %d ms, abort current query execution, start:%" PRId64
     //           ", current:%d", pQInfo->qId, 1, pQInfo->startExecTs, taosGetTimestampSec());
@@ -1899,7 +1898,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 //        printf("%d completed, try next\n", i);
 
         qDebug("%s vgId:%d, taskId:0x%" PRIx64 " execId:%d index:%d completed, rowsOfSource:%" PRIu64
-                   ", totalRows:%" PRIu64 ", completed:%d try next %d/%" PRIzu,
+               ", totalRows:%" PRIu64 ", completed:%d try next %d/%" PRIzu,
                GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, i, pDataInfo->totalRows,
                pExchangeInfo->loadInfo.totalRows, completed, i + 1, totalSources);
         taosMemoryFreeClear(pDataInfo->pRsp);
@@ -1984,7 +1983,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
     }
   }
 
-  _error:
+_error:
   pTaskInfo->code = code;
 }
 
@@ -2046,7 +2045,7 @@ static int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
     if (pRsp->numOfRows == 0) {
       qDebug("%s vgId:%d, taskID:0x%" PRIx64 " execId:%d %d of total completed, rowsOfSource:%" PRIu64
-                 ", totalRows:%" PRIu64 " try next",
+             ", totalRows:%" PRIu64 " try next",
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pExchangeInfo->current + 1,
              pDataInfo->totalRows, pLoadInfo->totalRows);
 
@@ -2063,7 +2062,7 @@ static int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
 
     if (pRsp->completed == 1) {
       qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d numOfRows:%d, rowsOfSource:%" PRIu64
-                 ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64 " try next %d/%" PRIzu,
+             ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64 " try next %d/%" PRIzu,
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pRetrieveRsp->numOfRows,
              pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize, pExchangeInfo->current + 1,
              totalSources);
@@ -2072,7 +2071,7 @@ static int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
       pExchangeInfo->current += 1;
     } else {
       qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d numOfRows:%d, totalRows:%" PRIu64
-                 ", totalBytes:%" PRIu64,
+             ", totalBytes:%" PRIu64,
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pRetrieveRsp->numOfRows,
              pLoadInfo->totalRows, pLoadInfo->totalSize);
     }
@@ -2260,7 +2259,7 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
       createOperatorFpSet(prepareLoadRemoteData, doLoadRemoteData, NULL, NULL, destroyExchangeOperatorInfo, NULL);
   return pOperator;
 
-  _error:
+_error:
   if (pInfo != NULL) {
     doDestroyExchangeOperatorInfo(pInfo);
   }
@@ -3173,8 +3172,8 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
 
   SInterval* pInterval =
       QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == downstream->operatorType
-      ? &((SMergeAlignedIntervalAggOperatorInfo*)downstream->info)->intervalAggOperatorInfo->interval
-      : &((SIntervalAggOperatorInfo*)downstream->info)->interval;
+          ? &((SMergeAlignedIntervalAggOperatorInfo*)downstream->info)->intervalAggOperatorInfo->interval
+          : &((SIntervalAggOperatorInfo*)downstream->info)->interval;
 
   int32_t order = (pPhyFillNode->inputTsOrder == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
   int32_t type = convertFillType(pPhyFillNode->mode);
@@ -3353,9 +3352,9 @@ bool groupbyTbname(SNodeList* pGroupList) {
 
 SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
                                   SNode* pTagIndexCond, const char* pUser) {
-  int32_t type = nodeType(pPhyNode);
+  int32_t         type = nodeType(pPhyNode);
   STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
-  const char* idstr = GET_TASKID(pTaskInfo);
+  const char*     idstr = GET_TASKID(pTaskInfo);
 
   if (pPhyNode->pChildren == NULL || LIST_LENGTH(pPhyNode->pChildren) == 0) {
     SOperatorInfo* pOperator = NULL;
@@ -3428,7 +3427,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
         for (int32_t i = 0; i < sz; i++) {
           STableKeyInfo* pKeyInfo = tableListGetInfo(pTableListInfo, i);
-          qDebug("add table uid:%" PRIu64", gid:%"PRIu64, pKeyInfo->uid, pKeyInfo->groupId);
+          qDebug("add table uid:%" PRIu64 ", gid:%" PRIu64, pKeyInfo->uid, pKeyInfo->groupId);
         }
 #endif
       }
@@ -3461,7 +3460,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
           return NULL;
         }
 
-        for(int32_t i = 0; i < tableListGetSize(pTableListInfo); ++i) {
+        for (int32_t i = 0; i < tableListGetSize(pTableListInfo); ++i) {
           STableKeyInfo* p = taosArrayGet(pList, i);
           tableListAddTableInfo(pTableListInfo, p->uid, 0);
         }
@@ -3501,7 +3500,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     return pOperator;
   }
 
-  size_t  size = LIST_LENGTH(pPhyNode->pChildren);
+  size_t          size = LIST_LENGTH(pPhyNode->pChildren);
   SOperatorInfo** ops = taosMemoryCalloc(size, POINTER_BYTES);
   if (ops == NULL) {
     return NULL;
@@ -3712,7 +3711,7 @@ int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t* length, int32
     *length = *(int32_t*)(*result);
   }
 
-  _downstream:
+_downstream:
   for (int32_t i = 0; i < ops->numOfDownstream; ++i) {
     code = encodeOperator(ops->pDownstream[i], result, length, nOptrWithVal);
     if (code != TDB_CODE_SUCCESS) {
@@ -3971,8 +3970,8 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
     int32_t     size = 0;
     void*       pVal = NULL;
     SWinKey     key = {
-        .ts = *(TSKEY*)pPos->key,
-        .groupId = pPos->groupId,
+            .ts = *(TSKEY*)pPos->key,
+            .groupId = pPos->groupId,
     };
     int32_t code = streamStateGet(pState, &key, &pVal, &size);
     ASSERT(code == 0);
