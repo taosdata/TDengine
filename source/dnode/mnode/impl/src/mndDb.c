@@ -1182,6 +1182,7 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
   memcpy(pRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
   pRsp->uid = pDb->uid;
   pRsp->vgVersion = pDb->vgVersion;
+  pRsp->stateTs = pDb->stateTs;
   pRsp->vgNum = taosArrayGetSize(pRsp->pVgroupInfos);
   pRsp->hashMethod = pDb->cfg.hashMethod;
   pRsp->hashPrefix = pDb->cfg.hashPrefix;
@@ -1234,6 +1235,8 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
         goto _OVER;
       }
 
+      mDebug("db:%s, process usedb req vgVersion:%d stateTs:%" PRId64 ", rsp vgVersion:%d stateTs:%" PRId64,
+             usedbReq.db, usedbReq.vgVersion, usedbReq.stateTs, usedbRsp.vgVersion, usedbRsp.stateTs);
       code = 0;
     }
   }
@@ -1290,13 +1293,19 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
 
     int32_t numOfTable = mndGetDBTableNum(pDb, pMnode);
 
-    if (pDbVgVersion->vgVersion >= pDb->vgVersion && numOfTable == pDbVgVersion->numOfTable) {
-      mInfo("db:%s, version and numOfTable not changed", pDbVgVersion->dbFName);
+    if (pDbVgVersion->vgVersion >= pDb->vgVersion && numOfTable == pDbVgVersion->numOfTable /* &&
+        pDbVgVersion->stateTs == pDb->stateTs */) {
+      mTrace("db:%s, valid dbinfo, vgVersion:%d stateTs:%" PRId64
+             " numOfTables:%d, not changed vgVersion:%d stateTs:%" PRId64 " numOfTables:%d",
+             pDbVgVersion->dbFName, pDbVgVersion->vgVersion, pDbVgVersion->stateTs, pDbVgVersion->numOfTable,
+             pDb->vgVersion, pDb->stateTs, numOfTable);
       mndReleaseDb(pMnode, pDb);
       continue;
     } else {
-      mInfo("db:%s, vgroup version changed from %d to %d", pDbVgVersion->dbFName, pDbVgVersion->vgVersion,
-            pDb->vgVersion);
+      mInfo("db:%s, valid dbinfo, vgVersion:%d stateTs:%" PRId64
+            " numOfTables:%d, changed to vgVersion:%d stateTs:%" PRId64 " numOfTables:%d",
+            pDbVgVersion->dbFName, pDbVgVersion->vgVersion, pDbVgVersion->stateTs, pDbVgVersion->numOfTable,
+            pDb->vgVersion, pDb->stateTs, numOfTable);
     }
 
     usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
@@ -1310,6 +1319,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
     memcpy(usedbRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
     usedbRsp.uid = pDb->uid;
     usedbRsp.vgVersion = pDb->vgVersion;
+    usedbRsp.stateTs = pDb->stateTs;
     usedbRsp.vgNum = (int32_t)taosArrayGetSize(usedbRsp.pVgroupInfos);
     usedbRsp.hashMethod = pDb->cfg.hashMethod;
     usedbRsp.hashPrefix = pDb->cfg.hashPrefix;
