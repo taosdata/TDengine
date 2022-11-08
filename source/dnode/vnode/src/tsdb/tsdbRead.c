@@ -959,11 +959,13 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   if (pColData->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
     memcpy(pColData->pData, &pBlockData->aTSKEY[pDumpInfo->rowIndex], remain * sizeof(int64_t));
 
+
+    // todo: opt perf by extract the loop
     if (!asc) {  // reverse the array list
-      int32_t mid = remain / 2;
+      int32_t mid = remain >> 1u;
       TSKEY*  pts = (int64_t*)pColData->pData;
       for (int32_t j = 0; j < mid; ++j) {
-        int64_t t = pts[i];
+        int64_t t = pts[j];
         pts[j] = pts[remain - j - 1];
         pts[remain - j - 1] = t;
       }
