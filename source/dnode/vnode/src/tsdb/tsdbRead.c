@@ -957,11 +957,15 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   int32_t          i = 0;
   SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, i);
   if (pColData->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-    if (asc) {
-      memcpy(pColData->pData, &pBlockData->aTSKEY[pDumpInfo->rowIndex], remain * sizeof(int64_t));
-    } else {
-      for (int32_t j = pDumpInfo->rowIndex; rowIndex < remain; j += step) {
-        colDataAppendInt64(pColData, rowIndex++, &pBlockData->aTSKEY[j]);
+    memcpy(pColData->pData, &pBlockData->aTSKEY[pDumpInfo->rowIndex], remain * sizeof(int64_t));
+
+    if (!asc) {  // reverse the array list
+      int32_t mid = remain / 2;
+      TSKEY*  pts = (int64_t*)pColData->pData;
+      for (int32_t j = 0; j < mid; ++j) {
+        int64_t t = pts[i];
+        pts[j] = pts[remain - j - 1];
+        pts[remain - j - 1] = t;
       }
     }
 

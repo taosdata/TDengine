@@ -3103,8 +3103,9 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     }
   }
 #endif
+
+  // save selectivity value for column consisted of all null values
   if (numOfElems == 0) {
-    // save selectivity value for column consisted of all null values
     firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
   }
   SET_VAL(pResInfo, numOfElems, 1);
