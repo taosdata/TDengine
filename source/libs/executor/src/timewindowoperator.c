@@ -3550,7 +3550,7 @@ void getCurSessionWindow(SStreamAggSupporter* pAggSup, TSKEY startTs, TSKEY endT
   pKey->win.skey = startTs;
   pKey->win.ekey = endTs;
   pKey->groupId = groupId;
-  int32_t code = streamStateSessionGetKey(pAggSup->pState, pKey, pKey);
+  int32_t code = streamStateSessionGetKeyByRange(pAggSup->pState, pKey, pKey);
   if (code != TSDB_CODE_SUCCESS) {
     SET_SESSION_WIN_KEY_INVALID(pKey);
   }
@@ -3561,10 +3561,11 @@ bool isInvalidSessionWin(SResultWindowInfo* pWinInfo) { return pWinInfo->session
 void setSessionOutputBuf(SStreamAggSupporter* pAggSup, TSKEY startTs, TSKEY endTs, uint64_t groupId,
                          SResultWindowInfo* pCurWin) {
   pCurWin->sessionWin.groupId = groupId;
-  pCurWin->sessionWin.win.skey = startTs - pAggSup->gap;
-  pCurWin->sessionWin.win.ekey = endTs + pAggSup->gap;
+  pCurWin->sessionWin.win.skey = startTs;
+  pCurWin->sessionWin.win.ekey = endTs;
   int32_t size = pAggSup->resultRowSize;
-  int32_t code = streamStateSessionAddIfNotExist(pAggSup->pState, &pCurWin->sessionWin, &pCurWin->pOutputBuf, &size);
+  int32_t code =
+      streamStateSessionAddIfNotExist(pAggSup->pState, &pCurWin->sessionWin, pAggSup->gap, &pCurWin->pOutputBuf, &size);
   if (code == TSDB_CODE_SUCCESS) {
     pCurWin->isOutput = true;
   } else {
@@ -3575,7 +3576,7 @@ void setSessionOutputBuf(SStreamAggSupporter* pAggSup, TSKEY startTs, TSKEY endT
 
 int32_t getSessionWinBuf(SStreamAggSupporter* pAggSup, SStreamStateCur* pCur, SResultWindowInfo* pWinInfo) {
   int32_t size = 0;
-  int32_t code = streamStateSessionGetKVByCur(pCur, &pWinInfo->sessionWin, (const void**)&pWinInfo->pOutputBuf, &size);
+  int32_t code = streamStateSessionGetKVByCur(pCur, &pWinInfo->sessionWin, &pWinInfo->pOutputBuf, &size);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -3680,7 +3681,7 @@ SStreamStateCur* getNextSessionWinInfo(SStreamAggSupporter* pAggSup, SSHashObj* 
   setSessionWinOutputInfo(pStUpdated, pNextWin);
   int32_t size = 0;
   pNextWin->sessionWin = pCurWin->sessionWin;
-  int32_t code = streamStateSessionGetKVByCur(pCur, &pNextWin->sessionWin, (const void**)&pNextWin->pOutputBuf, &size);
+  int32_t code = streamStateSessionGetKVByCur(pCur, &pNextWin->sessionWin, &pNextWin->pOutputBuf, &size);
   if (code != TSDB_CODE_SUCCESS) {
     SET_SESSION_WIN_INVALID(*pNextWin);
   }
@@ -3894,9 +3895,11 @@ static void rebuildSessionWindow(SOperatorInfo* pOperator, SArray* pWinArray, SS
       SOperatorInfo*                 pChild = taosArrayGetP(pInfo->pChildren, j);
       SStreamSessionAggOperatorInfo* pChInfo = pChild->info;
       SStreamAggSupporter*           pChAggSup = &pChInfo->streamAggSup;
-      SStreamStateCur*               pCur = streamStateSessionGetCur(pChAggSup->pState, pWinKey);
-      SResultRow*                    pResult = NULL;
-      SResultRow*                    pChResult = NULL;
+      SSessionKey                    chWinKey = *pWinKey;
+      chWinKey.win.ekey = chWinKey.win.skey;
+      SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentNext(pChAggSup->pState, &chWinKey);
+      SResultRow*      pResult = NULL;
+      SResultRow*      pChResult = NULL;
       while (1) {
         SResultWindowInfo childWin = {0};
         childWin.sessionWin = *pWinKey;
@@ -4112,6 +4115,12 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
   initGroupResInfoFromArrayList(&pInfo->groupResInfo, pUpdated);
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
 
+#if 0
+  char* pBuf = streamStateSessionDump(pAggSup->pState);
+  qDebug("===stream===final session%s", pBuf);
+  taosMemoryFree(pBuf);
+#endif
+
   doBuildDeleteDataBlock(pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
   if (pInfo->pDelRes->info.rows > 0) {
     printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "final session" : "single session");
@@ -4305,6 +4314,12 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
 
   initGroupResInfoFromArrayList(&pInfo->groupResInfo, pUpdated);
   blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
+
+#if 0
+  char* pBuf = streamStateSessionDump(pAggSup->pState);
+  qDebug("===stream===semi session%s", pBuf);
+  taosMemoryFree(pBuf);
+#endif
 
   doBuildSessionResult(pOperator, pAggSup->pState, &pInfo->groupResInfo, pBInfo->pRes);
   if (pBInfo->pRes->info.rows > 0) {
