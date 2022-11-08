@@ -265,9 +265,7 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
     if (msg != NULL && msg->ctx != NULL && msg->ctx->ahandle != (void*)0x9527) {
       if (conn->ctx.freeFunc != NULL && msg->ctx->ahandle != NULL) {
         conn->ctx.freeFunc(msg->ctx->ahandle);
-        continue;
-      }
-      if (msg->ctx->ahandle != NULL && pTransInst->destroyFp != NULL) {
+      } else if (msg->ctx->ahandle != NULL && pTransInst->destroyFp != NULL) {
         tDebug("%s conn %p destroy unfinished ahandle %p", CONN_GET_INST_LABEL(conn), conn, msg->ctx->ahandle);
         pTransInst->destroyFp(msg->ctx->ahandle);
       }
