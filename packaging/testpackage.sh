@@ -75,18 +75,19 @@ function wgetFile {
 file=$1
 versionPath=$2
 sourceP=$3
-
+nasServerIP="192.168.1.131"
+packagePath="/nas/TDengine/v${versionPath}/"
 if [ -f  ${file}  ];then
     echoColor  YD "${file} already exists ,it will delete it and download  it again "
     rm -rf ${file}
 fi
 
-if [ ${sourcePath} = 'web' ];then
+if [ ${sourceP} = 'web' ];then
     echoColor  BD "====download====:wget https://www.taosdata.com/assets-download/3.0/${file}"
     wget https://www.taosdata.com/assets-download/3.0/${file}
-elif [ ${sourcePath} = 'nas' ];then
-    echoColor  BD "====download====:scp root@${nasServerIP}:${sourcePath}/${file} ."
-    scp root@${nasServerIP}:${sourcePath}/${file} .
+elif [ ${sourceP} = 'nas' ];then
+    echoColor  BD "====download====:scp root@${nasServerIP}:${packagePath}/${file} ."
+    scp root@${nasServerIP}:${packagePath}/${file} .
 fi
 
 }
