@@ -1696,9 +1696,9 @@ class TaskCreateStream(StateTransitionTask):
         dbname = self._db.getName()
         
         sub_stream_name = dbname+ '_sub_stream'
-        sub_stream_tb_name = 'avg_sub'
+        sub_stream_tb_name = 'stream_tb_sub'
         super_stream_name = dbname+ '_super_stream'
-        super_stream_tb_name = 'avg_super'
+        super_stream_tb_name = 'stream_tb_super'
         if not self._db.exists(wt.getDbConn()):
             Logging.debug("Skipping task, no DB yet")
             return
@@ -1892,7 +1892,7 @@ class TdSuperTable:
 
     def hasStreamTables(self,dbc: DbConn):
         
-        return dbc.query("show {}.stables like 'avg%'".format(self._dbName)) > 0
+        return dbc.query("show {}.stables like 'stream_tb%'".format(self._dbName)) > 0
 
     def hasStreams(self,dbc: DbConn):
         return dbc.query("show streams") > 0
@@ -1907,7 +1907,7 @@ class TdSuperTable:
         return not dbc.query("show streams ") > 0
 
     def dropStreamTables(self, dbc: DbConn):
-        dbc.query("show {}.stables like 'avg%'".format(self._dbName))
+        dbc.query("show {}.stables like 'stream_tb%'".format(self._dbName))
         
         StreamTables = dbc.getQueryResult()
 
@@ -1915,7 +1915,7 @@ class TdSuperTable:
             if self.dropStreams:
                 dbc.execute('drop table {}.{}'.format(self._dbName,StreamTable[0]))
             
-        return not dbc.query("show {}.stables like 'avg%'".format(self._dbName))
+        return not dbc.query("show {}.stables like 'stream_tb%'".format(self._dbName))
 
     def ensureRegTable(self, task: Optional[Task], dbc: DbConn, regTableName: str):
         '''
