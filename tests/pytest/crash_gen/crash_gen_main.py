@@ -1712,30 +1712,66 @@ class TaskCreateStream(StateTransitionTask):
         '''
         stbname =sTable.getName()
         sub_tables = sTable.getRegTables(wt.getDbConn())
+        aggExpr = Dice.choice([                
+                    'count(*)',
+                    'avg(speed)',
+                    # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
+                    'sum(speed)', 
+                    'stddev(speed)', 
+                    # SELECTOR functions
+                    'min(speed)', 
+                    'max(speed)', 
+                    'first(speed)', 
+                    'last(speed)',
+                    'top(speed, 50)', # TODO: not supported?
+                    'bottom(speed, 50)', # TODO: not supported?
+                    'apercentile(speed, 10)', # TODO: TD-1316
+                    'last_row(*)', # TODO: commented out per TD-3231, we should re-create
+                    # Transformation Functions
+                    # 'diff(speed)', # TODO: no supported?!
+                    'spread(speed)',
+                    'elapsed(ts)',
+                    'mode(speed)',
+                    'bottom(speed,1)',
+                    'top(speed,1)',
+                    'tail(speed,1)',
+                    'unique(color)',
+                    'csum(speed)',
+                    'DERIVATIVE(speed,1s,1)',
+                    'diff(speed,1)',
+                    'irate(speed)',
+                    'mavg(speed,3)',
+                    'sample(speed,5)',
+                    'STATECOUNT(speed,"LT",1)',
+                    'STATEDURATION(speed,"LT",1)',
+                    'twa(speed)'
+                      
+                    ]) # TODO: add more from 'top'
+
         if sub_tables:
             
             if sub_tables: # if not empty 
                 sub_tbname = sub_tables[0]
-
                 # create stream with query above sub_table
-                stream_sql = 'create stream {} into {}.{} as select  count(*), avg(speed) FROM {}.{} PARTITION BY tbname INTERVAL(5s) SLIDING(3s) '.format(sub_stream_name,dbname,sub_stream_tb_name ,dbname,sub_tbname)
+                stream_sql = 'create stream {} into {}.{} as select  {}, avg(speed) FROM {}.{} PARTITION BY tbname INTERVAL(5s) SLIDING(3s) '.format(sub_stream_name,dbname,sub_stream_tb_name ,aggExpr,dbname,sub_tbname)
                 try:
                     self.execWtSql(wt, stream_sql)
+                    Logging.debug("[OPS] stream is creating at {}".format(time.time()))
                 except taos.error.ProgrammingError as err:
                     errno = Helper.convertErrno(err.errno)
                     if errno in [0x03f0]: # stream already exists
                         # stream need drop before drop table
                         pass
 
-                sTable.setStreamName(sub_stream_name)
             else:
                 pass
 
         else:
-            stream_sql = 'create stream {} into {}.{} as select  count(*), avg(speed) FROM {}.{} PARTITION BY tbname INTERVAL(5s) SLIDING(3s) '.format(super_stream_name,dbname,super_stream_tb_name,dbname,stbname)
+            stream_sql = 'create stream {} into {}.{} as select  {}, avg(speed) FROM {}.{} PARTITION BY tbname INTERVAL(5s) SLIDING(3s) '.format(super_stream_name,dbname,super_stream_tb_name,aggExpr, dbname,stbname)
 
             try:
                 self.execWtSql(wt, stream_sql)
+                Logging.debug("[OPS] stream is creating at {}".format(time.time()))
             except taos.error.ProgrammingError as err:
                 errno = Helper.convertErrno(err.errno)
                 if errno in [0x03f0]: # stream already exists
@@ -1779,16 +1815,10 @@ class TdSuperTable:
     def __init__(self, stName, dbName):
         self._stName = stName
         self._dbName = dbName
-        self._streamName = []
 
     def getName(self):
         return self._stName
 
-    def setStreamName(self,name):
-        self._streamName.append(name)
-
-    def getStreamName(self):
-        return self._streamName
 
     def drop(self, dbc, skipCheck = False):
         dbName = self._dbName
@@ -2000,38 +2030,38 @@ class TdSuperTable:
             if not doAggr: # don't do aggregate query, just simple one
                 commonExpr = Dice.choice([
                     '*',
-                    # 'abs(speed)',
-                    # 'acos(speed)',
-                    # 'asin(speed)',
-                    # 'atan(speed)',
-                    # 'ceil(speed)',
-                    # 'cos(speed)',
-                    # 'cos(speed)',
-                    # 'floor(speed)',
-                    # 'log(speed,2)',
-                    # 'pow(speed,2)',
-                    # 'round(speed)',
-                    # 'sin(speed)',
-                    # 'sqrt(speed)',
-                    # 'char_length(color)',
-                    # 'concat(color,color)',   
-                    # 'concat_ws(" ", color,color," ")',
-                    # 'length(color)',
-                    # 'lower(color)',
-                    # 'ltrim(color)',
-                    # 'substr(color , 2)',
-                    # 'upper(color)',
-                    # 'cast(speed as double)',
-                    # 'cast(ts as bigint)',
-                    # # 'TO_ISO8601(color)',
-                    # # 'TO_UNIXTIMESTAMP(ts)',
-                    # 'now()',
-                    # 'timediff(ts,now)',
-                    # 'timezone()',
-                    # 'TIMETRUNCATE(ts,1s)',
-                    # 'TIMEZONE()',
-                    # 'TODAY()',
-                    # 'distinct(color)'
+                    'abs(speed)',
+                    'acos(speed)',
+                    'asin(speed)',
+                    'atan(speed)',
+                    'ceil(speed)',
+                    'cos(speed)',
+                    'cos(speed)',
+                    'floor(speed)',
+                    'log(speed,2)',
+                    'pow(speed,2)',
+                    'round(speed)',
+                    'sin(speed)',
+                    'sqrt(speed)',
+                    'char_length(color)',
+                    'concat(color,color)',   
+                    'concat_ws(" ", color,color," ")',
+                    'length(color)',
+                    'lower(color)',
+                    'ltrim(color)',
+                    'substr(color , 2)',
+                    'upper(color)',
+                    'cast(speed as double)',
+                    'cast(ts as bigint)',
+                    # 'TO_ISO8601(color)',
+                    # 'TO_UNIXTIMESTAMP(ts)',
+                    'now()',
+                    'timediff(ts,now)',
+                    'timezone()',
+                    'TIMETRUNCATE(ts,1s)',
+                    'TIMEZONE()',
+                    'TODAY()',
+                    'distinct(color)'
                 ]
                 )
                 ret.append(SqlQuery( # reg table
@@ -2057,21 +2087,21 @@ class TdSuperTable:
                     # Transformation Functions
                     # 'diff(speed)', # TODO: no supported?!
                     'spread(speed)',
-                    # 'elapsed(ts)',
-                    # 'mode(speed)',
-                    # 'bottom(speed,1)',
-                    # 'top(speed,1)',
-                    # 'tail(speed,1)',
-                    # 'unique(color)',
-                    # 'csum(speed)',
-                    # 'DERIVATIVE(speed,1s,1)',
-                    # 'diff(speed,1)',
-                    # 'irate(speed)',
-                    # 'mavg(speed,3)',
-                    # 'sample(speed,5)',
-                    # 'STATECOUNT(speed,"LT",1)',
-                    # 'STATEDURATION(speed,"LT",1)',
-                    # 'twa(speed)'
+                    'elapsed(ts)',
+                    'mode(speed)',
+                    'bottom(speed,1)',
+                    'top(speed,1)',
+                    'tail(speed,1)',
+                    'unique(color)',
+                    'csum(speed)',
+                    'DERIVATIVE(speed,1s,1)',
+                    'diff(speed,1)',
+                    'irate(speed)',
+                    'mavg(speed,3)',
+                    'sample(speed,5)',
+                    'STATECOUNT(speed,"LT",1)',
+                    'STATEDURATION(speed,"LT",1)',
+                    'twa(speed)'
 
 
 
@@ -2181,17 +2211,12 @@ class TaskDropSuperTable(StateTransitionTask):
             isSuccess = True
             for i in tblSeq:
                 regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)
-                streams_prix = self._db.getName()
                 try:
                     self.execWtSql(wt, "drop table {}.{}".
                         format(self._db.getName(), regTableName))  # nRows always 0, like MySQL
                 except taos.error.ProgrammingError as err:
                     pass
                    
-
-               
-                        
-                
 
                 if (not tickOutput):
                     tickOutput = True  # Print only one time
