@@ -66,16 +66,36 @@ static SLogicSubplan* splCreateScanSubplan(SSplitContext* pCxt, SLogicNode* pNod
   return pSubplan;
 }
 
-static SLogicSubplan* splCreateSubplan(SSplitContext* pCxt, SLogicNode* pNode, ESubplanType subplanType) {
+static bool splHasScan(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    return true;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
+      return true;
+    }
+    return splHasScan((SLogicNode*)pChild);
+  }
+
+  return false;
+}
+
+static void splSetSubplanType(SLogicSubplan* pSubplan) {
+  pSubplan->subplanType = splHasScan(pSubplan->pNode) ? SUBPLAN_TYPE_SCAN : SUBPLAN_TYPE_MERGE;
+}
+
+static SLogicSubplan* splCreateSubplan(SSplitContext* pCxt, SLogicNode* pNode) {
   SLogicSubplan* pSubplan = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
   if (NULL == pSubplan) {
     return NULL;
   }
   pSubplan->id.queryId = pCxt->queryId;
   pSubplan->id.groupId = pCxt->groupId;
-  pSubplan->subplanType = subplanType;
   pSubplan->pNode = pNode;
   pNode->pParent = NULL;
+  splSetSubplanType(pSubplan);
   return pSubplan;
 }
 
@@ -1204,7 +1224,7 @@ static int32_t unionSplitSubplan(SSplitContext* pCxt, SLogicSubplan* pUnionSubpl
 
   SNode* pChild = NULL;
   FOREACH(pChild, pSplitNode->pChildren) {
-    SLogicSubplan* pNewSubplan = splCreateSubplan(pCxt, (SLogicNode*)pChild, pUnionSubplan->subplanType);
+    SLogicSubplan* pNewSubplan = splCreateSubplan(pCxt, (SLogicNode*)pChild);
     code = nodesListMakeStrictAppend(&pUnionSubplan->pChildren, (SNode*)pNewSubplan);
     if (TSDB_CODE_SUCCESS == code) {
       REPLACE_NODE(NULL);
@@ -1390,10 +1410,9 @@ static int32_t insertSelectSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
 
   SLogicSubplan* pNewSubplan = NULL;
   SNodeList*     pSubplanChildren = info.pSubplan->pChildren;
-  ESubplanType   subplanType = info.pSubplan->subplanType;
   int32_t        code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pQueryRoot, SUBPLAN_TYPE_MODIFY);
   if (TSDB_CODE_SUCCESS == code) {
-    pNewSubplan = splCreateSubplan(pCxt, info.pQueryRoot, subplanType);
+    pNewSubplan = splCreateSubplan(pCxt, info.pQueryRoot);
     if (NULL == pNewSubplan) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
