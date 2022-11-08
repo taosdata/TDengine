@@ -19,10 +19,11 @@ from typing import List
 from taostest import TDCase
 from taostest.performance.perfor_basic import InsertFile
 from taostest.performance.result_reduction import Perf_Base_func
+from taostest.components.taosd import TaosD
 import time
 from taostest.util.remote import Remote
 from apscheduler.schedulers.background import BackgroundScheduler
-
+import random
 
 
 class LongTimeInsert(TDCase):
@@ -34,8 +35,10 @@ class LongTimeInsert(TDCase):
         self.des_table_suffix = "_output"
         self.non_prikey_ts_col_name = ""
         self.restart_timeout = 10
-        self.query_interval = 7200
+        # self.query_interval = 7200
+        self.query_interval = 60
         self._remote: Remote = Remote(self.logger)
+        self.taosd = TaosD(self._remote)
         self.taosd_setting = self.tdCom.get_components_setting(
             self.env_setting["settings"], "taosd"
         )
@@ -52,21 +55,46 @@ class LongTimeInsert(TDCase):
         # now - 3d and now + 3d
         self.date_timespan = 6
 
-    def restart_dnode(self):
-        f = open(self.result_file_name, 'a')
-        for i in range(self.counter):
-            self._remote.cmd(self.fqdn_list[i], [killCmd])
-        self.tdSql.query(f'select last_row(*) from perf_db1.stb1 group by tbname;')
-        f.write(f'--------- select last_row(*) from perf_db1.stb1 group by tbname--- {self.tdSql.query_data[0][0]} \t--------\n')
-        self.tdSql.query(f'select last_row(*) from perf_db1.stb2 group by tbname;')
-        f.write(f'--------- select last_row(*) from perf_db1.stb2 group by tbname--- {self.tdSql.query_data[0][0]} \t--------\n')
-        self.tdSql.query(f'select last_row(*) from perf_db1.stb3 group by tbname;')
-        f.write(f'--------- select last_row(*) from perf_db1.stb3 group by tbname--- {self.tdSql.query_data[0][0]} \t--------\n')
-        self.tdSql.query(f'select last_row(*) from perf_db1.stb4 group by tbname;')
-        f.write(f'--------- select last_row(*) from perf_db1.stb4 group by tbname--- {self.tdSql.query_data[0][0]} \t--------\n')
-        self.tdSql.query(f'select last_row(*) from perf_db1.stb5 group by tbname;')
-        f.write(f'--------- select last_row(*) from perf_db1.stb5 group by tbname--- {self.tdSql.query_data[0][0]} \t--------\n')
-        f.close()
+    def drop_db_sync(self, dbname):
+        self.tdSql.execute(f'drop database if exists {dbname}')
+        # TODO
+        
+    def drop_table_sync(self, table_name):
+        self.tdSql.execute(f'drop table if exists {table_name}')
+        # TODO
+
+    def write_log(self, msg):
+        f = open(self.result_file_name, "a")
+        f.write(msg)
+        f.close
+
+    def restart_sync(self, db_list):
+        dnodes_out_mnodes = self.tdSql.get_dnodes_out_mnodes()
+        random_endpoint = random.choice(dnodes_out_mnodes[1])
+        self.tdSql.query(f'select name,ntables from information_schema.ins_databases;')
+        self.write_log(f'--------- (dbname, ntables) --- {self.tdSql.query_data} \t--------\n')
+        for dbname in db_list:
+            self.tdSql.query(f'select count(*) from {dbname}.stb0;')
+            if len(self.tdSql.query_data) > 0:
+                self.write_log(f'--------- select count(*) from {dbname}.stb0 --- {self.tdSql.query_data[0][0]} rows \t--------\n')
+            else:
+                self.write_log(f'--------- select count(*) from {dbname}.stb0 --- 0 rows \t--------\n')
+
+        self.write_log(f'--------- killing dnode: --- {random_endpoint} \t--------\n')
+        self.taosd.kill_by_port(random_endpoint)
+        for dbname in db_list:
+            sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, True))
+            self.write_log(f'--------- dbname: {dbname} sync time --- {sync_time}s \t--------\n')
+
+
+        for taosd_setting in self.taosd_setting["spec"]["dnodes"]:
+            if taosd_setting["endpoint"] == random_endpoint:
+                random_dnode = taosd_setting
+        self.write_log(f'--------- starting dnode: --- {random_endpoint} \t--------\n')
+        self.taosd.start(random_dnode)
+        for dbname in db_list:
+            sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, False))
+            self.write_log(f'--------- dbname: {dbname} sync time --- {sync_time}s \t--------\n')
 
 
     def desc(self):
@@ -83,6 +111,17 @@ class LongTimeInsert(TDCase):
 
     def run(self):
         taosBenchmark_iplist: List = self.get_fqdn("taosBenchmark")
+        # print(self.tdCom.get_db_list())
+        # print(self.tdSql.get_db_vgroup_status("test2", True))
+        # self.tdCom.createDb("sml_line_rest", replica=3, vgroups=10)
+        # while True:
+        #     scheduler = BackgroundScheduler()
+        #     scheduler.add_job(self.restart_sync, 'interval', seconds=self.query_interval, max_instances=1)
+        #     scheduler.start()
+        # self.tdCom.createDb("sml_line_rest", replica=3, vgroups=10)
+        # print(self.tdSql.get_vnode_status_list("sml_line_rest"))
+        # # print(self.tdSql.wait_sync_ready("sml_line_rest"))
+        # print(self.tdSql.wait_sync_ready("sml_line_rest", sync_value=[("follower", "follower", "leader")]))
         # return
         json_data: List = []
         file_name = []
@@ -94,9 +133,13 @@ class LongTimeInsert(TDCase):
         # self.tdSql.execute(f'drop database if exists perf_db1')
         # self.tdSql.execute(f'create database if not exists perf_db1 vgroups 300')
         for cases in cfg:
+            db_list = list()
+            i = 0
             # self.clean_and_restart_taosd()
             # return
-            i = 0
+            for json_file in cfg[cases]:
+                db_list.append(cfg[cases][json_file]["db_info"]["db_name"])
+            
             for json_file in cfg[cases]:
                 self.streams = None
                 if cfg[cases][json_file]["stb_info"]["line_protocol"] == "telnet" or cfg[cases][json_file]["stb_info"]["line_protocol"] == "json":
@@ -242,16 +285,14 @@ class LongTimeInsert(TDCase):
             # put the file to target
             Insert_file.put_file(taosBenchmark_iplist, json_data, file_name)
             self.result_file_name = self.run_log_dir + "/perf_report.txt"
-            f = open(self.result_file_name, "a")
-            f.write("-------- \tinsert\t" + str(cases) + ":\tinsert result--------\n")
-            f.close()
-            # scheduler = BackgroundScheduler()
-            # scheduler.add_job(self.restart_dnode, 'interval', seconds=self.query_interval, max_instances=10)
+            self.write_log("-------- \tinsert\t" + str(cases) + ":\tinsert result--------\n")
+            scheduler = BackgroundScheduler()
+            scheduler.add_job(self.restart_sync, 'interval', seconds=self.query_interval, max_instances=1, args=[db_list])
             # for stbname in self.stb_list:
             #     scheduler.add_job(self.query_last_row, 'interval', seconds=self.query_interval, max_instances=10, args=[f'{cfg[cases][json_file]["db_info"]["db_name"]}.{stbname}'])
             # for stbname in self.stb_list:
             #     scheduler.add_job(self.query_count, 'interval', seconds=self.query_interval, max_instances=10, args=[f'{cfg[cases][json_file]["db_info"]["db_name"]}.{stbname}'])
-            # scheduler.start()
+            scheduler.start()
             timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
             # # run taosBenchmark
             taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
