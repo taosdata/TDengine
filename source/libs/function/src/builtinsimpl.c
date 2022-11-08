@@ -906,6 +906,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
 
       case TSDB_DATA_TYPE_FLOAT: {
         float* plist = (float*)pCol->pData;
+        float val = 0;
         for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
           if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
             continue;
@@ -913,8 +914,9 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
 
           numOfElem += 1;
           pAvgRes->count += 1;
-          pAvgRes->sum.dsum += plist[i];
+          val += plist[i];
         }
+        pAvgRes->sum.dsum = val;
         break;
       }
 
