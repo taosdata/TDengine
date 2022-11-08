@@ -214,6 +214,9 @@ python3 ./test.py -f 1-insert/update_data.py
 python3 ./test.py -f 1-insert/tb_100w_data_order.py
 
 # TD-20200 python3 ./test.py -f 1-insert/delete_data.py
+python3 ./test.py -f 1-insert/delete_stable.py
+python3 ./test.py -f 1-insert/delete_childtable.py
+python3 ./test.py -f 1-insert/delete_normaltable.py
 python3 ./test.py -f 1-insert/keep_expired.py
 
 python3 ./test.py -f 2-query/join2.py
