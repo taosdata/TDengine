@@ -452,11 +452,6 @@ int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   return ret;
 }
 
-int32_t syncForwardToPeer(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
-  int32_t ret = syncPropose(rid, pMsg, isWeak);
-  return ret;
-}
-
 SSyncState syncGetState(int64_t rid) {
   SSyncState state = {.state = TAOS_SYNC_STATE_ERROR};
 
@@ -558,107 +553,25 @@ SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapsho
   return lastIndex;
 }
 
-#if 0
-SyncTerm syncGetMyTerm(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return TAOS_SYNC_STATE_ERROR;
-  }
-  ASSERT(rid == pSyncNode->rid);
-  SyncTerm term = pSyncNode->pRaftStore->currentTerm;
-
-  syncNodeRelease(pSyncNode);
-  return term;
-}
-
-SyncIndex syncGetLastIndex(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return SYNC_INDEX_INVALID;
-  }
-  ASSERT(rid == pSyncNode->rid);
-  SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
-
-  syncNodeRelease(pSyncNode);
-  return lastIndex;
-}
-
-SyncIndex syncGetCommitIndex(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return SYNC_INDEX_INVALID;
-  }
-  ASSERT(rid == pSyncNode->rid);
-  SyncIndex cmtIndex = pSyncNode->commitIndex;
-
-  syncNodeRelease(pSyncNode);
-  return cmtIndex;
-}
-
-SyncGroupId syncGetVgId(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return TAOS_SYNC_STATE_ERROR;
-  }
-  ASSERT(rid == pSyncNode->rid);
-  SyncGroupId vgId = pSyncNode->vgId;
-
-  syncNodeRelease(pSyncNode);
-  return vgId;
-}
-
-void syncGetEpSet(int64_t rid, SEpSet* pEpSet) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    memset(pEpSet, 0, sizeof(*pEpSet));
-    return;
-  }
-  ASSERT(rid == pSyncNode->rid);
-  pEpSet->numOfEps = 0;
-  for (int32_t i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
-    snprintf(pEpSet->eps[i].fqdn, sizeof(pEpSet->eps[i].fqdn), "%s", (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodeFqdn);
-    pEpSet->eps[i].port = (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodePort;
-    (pEpSet->numOfEps)++;
-    sInfo("vgId:%d, sync get epset: index:%d %s:%d", pSyncNode->vgId, i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
-  }
-  pEpSet->inUse = pSyncNode->pRaftCfg->cfg.myIndex;
-  sInfo("vgId:%d, sync get epset in-use:%d", pSyncNode->vgId, pEpSet->inUse);
-
-  syncNodeRelease(pSyncNode);
-}
-#endif
-
 void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    memset(pEpSet, 0, sizeof(*pEpSet));
-    return;
-  }
-
   pEpSet->numOfEps = 0;
+
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) return;
+
   for (int32_t i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
-    snprintf(pEpSet->eps[i].fqdn, sizeof(pEpSet->eps[i].fqdn), "%s", (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodeFqdn);
-    pEpSet->eps[i].port = (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodePort;
-    (pEpSet->numOfEps)++;
-    sInfo("vgId:%d, sync get retry epset: index:%d %s:%d", pSyncNode->vgId, i, pEpSet->eps[i].fqdn,
-          pEpSet->eps[i].port);
+    SEp* pEp = &pEpSet->eps[i];
+    tstrncpy(pEp->fqdn, pSyncNode->pRaftCfg->cfg.nodeInfo[i].nodeFqdn, TSDB_FQDN_LEN);
+    pEp->port = (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodePort;
+    pEpSet->numOfEps++;
+    sInfo("vgId:%d, sync get retry epset, index:%d %s:%d", pSyncNode->vgId, i, pEp->fqdn, pEp->port);
   }
   if (pEpSet->numOfEps > 0) {
     pEpSet->inUse = (pSyncNode->pRaftCfg->cfg.myIndex + 1) % pEpSet->numOfEps;
   }
-  sInfo("vgId:%d, sync get retry epset in-use:%d", pSyncNode->vgId, pEpSet->inUse);
 
+  sInfo("vgId:%d, sync get retry epset numOfEps:%d inUse:%d", pSyncNode->vgId, pEpSet->numOfEps, pEpSet->inUse);
   syncNodeRelease(pSyncNode);
-}
-
-static void syncGetAndDelRespRpc(SSyncNode* pSyncNode, uint64_t index, SRpcHandleInfo* pInfo) {
-  SRespStub stub;
-  int32_t   ret = syncRespMgrGetAndDel(pSyncNode->pSyncRespMgr, index, &stub);
-  if (ret == 1) {
-    *pInfo = stub.rpcMsg.info;
-  }
-
-  sTrace("vgId:%d, get seq:%" PRIu64 " rpc handle:%p", pSyncNode->vgId, index, pInfo->handle);
 }
 
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
@@ -2759,7 +2672,7 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
                 .flag = flag,
             };
 
-            syncGetAndDelRespRpc(ths, cbMeta.seqNum, &rpcMsg.info);
+            syncRespMgrGetAndDel(ths->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info);
             ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, &cbMeta);
           }
         }
