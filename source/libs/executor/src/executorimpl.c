@@ -3383,6 +3383,11 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       pOperator = createTableScanOperatorInfo(pTableScanNode, pHandle, pTaskInfo);
+      if (NULL == pOperator) {
+        pTaskInfo->code = terrno;
+        return NULL;
+      }
+
       STableScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
@@ -3403,6 +3408,10 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       pOperator = createTableMergeScanOperatorInfo(pTableScanNode, pTableListInfo, pHandle, pTaskInfo);
+      if (NULL == pOperator) {
+        pTaskInfo->code = terrno;
+        return NULL;
+      }
 
       STableScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
