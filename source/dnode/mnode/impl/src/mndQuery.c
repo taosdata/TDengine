@@ -21,7 +21,7 @@
 int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg) {
   if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) return 0;
   SMnode *pMnode = pMsg->info.node;
-  return qWorkerPreprocessQueryMsg(pMnode->pQuery, pMsg);
+  return qWorkerPreprocessQueryMsg(pMnode->pQuery, pMsg, false);
 }
 
 void mndPostProcessQueryMsg(SRpcMsg *pMsg) {

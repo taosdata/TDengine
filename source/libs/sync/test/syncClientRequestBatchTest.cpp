@@ -59,7 +59,7 @@ void test2() {
   uint32_t           len = pMsg->bytes;
   char *             serialized = (char *)taosMemoryMalloc(len);
   syncClientRequestSerialize(pMsg, serialized, len);
-  SyncClientRequest *pMsg2 = syncClientRequestBuild(pMsg->dataLen);
+  SyncClientRequest *pMsg2 = syncClientRequestAlloc(pMsg->dataLen);
   syncClientRequestDeserialize(serialized, len, pMsg2);
   syncClientRequestLog2((char *)"test2: syncClientRequestSerialize -> syncClientRequestDeserialize ", pMsg2);
 

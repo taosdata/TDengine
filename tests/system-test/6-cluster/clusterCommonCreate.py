@@ -132,6 +132,17 @@ class ClusterComCreate:
             tdLog.debug("complete to create database %s_%d"%(dbNameIndex,i))
         return
 
+    def createDeltedatabases(self,tsql,dbNameIndex,dbNumbers,dropFlag=1,vgroups=4,replica=1):
+
+        # for i in range(dbNumbers):
+        for i in range(dbNumbers):
+            if dropFlag == 1:
+                tsql.execute("drop database if exists %s_%d"%(dbNameIndex,1))
+            tdLog.debug("create database if not exists %s_%d vgroups %d replica %d"%(dbNameIndex,1, vgroups, replica))
+            tsql.execute("create database if not exists %s_%d vgroups %d replica %d"%(dbNameIndex,1, vgroups, replica))
+            tdLog.debug("complete to create database %s_%d"%(dbNameIndex,1))
+    
+
     def create_stable(self,tsql, dbName,stbName):
         tsql.execute("create table if not exists %s.%s (ts timestamp, c1 int, c2 int, c3 binary(16)) tags(t1 int, t2 binary(32))"%(dbName, stbName))
         tdLog.debug("complete to create %s.%s" %(dbName, stbName))

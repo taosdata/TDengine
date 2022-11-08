@@ -436,6 +436,12 @@ static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   vDebug("vgId:%d, become leader", pVnode->config.vgId);
 }
 
+static bool vnodeApplyQueueEmpty(const SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+  int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
+  return (itemSize == 0);
+}
+
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pVnode;
@@ -445,6 +451,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = vnodeRestoreFinish;
   pFsm->FpLeaderTransferCb = NULL;
+  pFsm->FpApplyQueueEmptyCb = vnodeApplyQueueEmpty;
   pFsm->FpBecomeLeaderCb = vnodeBecomeLeader;
   pFsm->FpBecomeFollowerCb = vnodeBecomeFollower;
   pFsm->FpReConfigCb = NULL;

@@ -26,8 +26,6 @@ typedef struct SRaftId {
   SyncGroupId vgId;
 } SRaftId;
 
-char* sync2SimpleStr(int64_t rid);
-
 // for compatibility, the same as syncPropose
 int32_t syncForwardToPeer(int64_t rid, SRpcMsg* pMsg, bool isWeak);
 
@@ -184,9 +182,8 @@ typedef struct SyncClientRequest {
   char     data[];   // origin RpcMsg.pCont
 } SyncClientRequest;
 
-SyncClientRequest* syncClientRequestBuild(uint32_t dataLen);
-SyncClientRequest* syncClientRequestBuild2(const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum, bool isWeak,
-                                           int32_t vgId);  // step 1
+SyncClientRequest* syncClientRequestAlloc(uint32_t dataLen);
+SyncClientRequest* syncClientRequestBuild(const SRpcMsg* pMsg, uint64_t seqNum, bool isWeak, int32_t vgId);  // step 1
 void               syncClientRequestDestroy(SyncClientRequest* pMsg);
 void               syncClientRequestSerialize(const SyncClientRequest* pMsg, char* buf, uint32_t bufLen);
 void               syncClientRequestDeserialize(const char* buf, uint32_t len, SyncClientRequest* pMsg);
@@ -687,45 +684,6 @@ void                syncLeaderTransferFromRpcMsg(const SRpcMsg* pRpcMsg, SyncLea
 SyncLeaderTransfer* syncLeaderTransferFromRpcMsg2(const SRpcMsg* pRpcMsg);
 cJSON*              syncLeaderTransfer2Json(const SyncLeaderTransfer* pMsg);
 char*               syncLeaderTransfer2Str(const SyncLeaderTransfer* pMsg);
-
-// for debug ----------------------
-void syncLeaderTransferPrint(const SyncLeaderTransfer* pMsg);
-void syncLeaderTransferPrint2(char* s, const SyncLeaderTransfer* pMsg);
-void syncLeaderTransferLog(const SyncLeaderTransfer* pMsg);
-void syncLeaderTransferLog2(char* s, const SyncLeaderTransfer* pMsg);
-
-// ---------------------------------------------
-typedef struct SyncReconfigFinish {
-  uint32_t  bytes;
-  int32_t   vgId;
-  uint32_t  msgType;
-  SSyncCfg  oldCfg;
-  SSyncCfg  newCfg;
-  SyncIndex newCfgIndex;
-  SyncTerm  newCfgTerm;
-  uint64_t  newCfgSeqNum;
-
-} SyncReconfigFinish;
-
-SyncReconfigFinish* syncReconfigFinishBuild(int32_t vgId);
-void                syncReconfigFinishDestroy(SyncReconfigFinish* pMsg);
-void                syncReconfigFinishSerialize(const SyncReconfigFinish* pMsg, char* buf, uint32_t bufLen);
-void                syncReconfigFinishDeserialize(const char* buf, uint32_t len, SyncReconfigFinish* pMsg);
-char*               syncReconfigFinishSerialize2(const SyncReconfigFinish* pMsg, uint32_t* len);
-SyncReconfigFinish* syncReconfigFinishDeserialize2(const char* buf, uint32_t len);
-void                syncReconfigFinish2RpcMsg(const SyncReconfigFinish* pMsg, SRpcMsg* pRpcMsg);
-void                syncReconfigFinishFromRpcMsg(const SRpcMsg* pRpcMsg, SyncReconfigFinish* pMsg);
-SyncReconfigFinish* syncReconfigFinishFromRpcMsg2(const SRpcMsg* pRpcMsg);
-cJSON*              syncReconfigFinish2Json(const SyncReconfigFinish* pMsg);
-char*               syncReconfigFinish2Str(const SyncReconfigFinish* pMsg);
-
-// for debug ----------------------
-void syncReconfigFinishPrint(const SyncReconfigFinish* pMsg);
-void syncReconfigFinishPrint2(char* s, const SyncReconfigFinish* pMsg);
-void syncReconfigFinishLog(const SyncReconfigFinish* pMsg);
-void syncReconfigFinishLog2(char* s, const SyncReconfigFinish* pMsg);
-
-// ---------------------------------------------
 
 typedef enum {
   SYNC_LOCAL_CMD_STEP_DOWN = 100,

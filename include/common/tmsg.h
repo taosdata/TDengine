@@ -216,14 +216,9 @@ typedef struct SEp {
   uint16_t port;
 } SEp;
 
-#define SHOW_REWRITE_MASK() (1 << 0)
-
-#define TEST_SHOW_REWRITE_MASK(m) (((m) & SHOW_REWRITE_MASK()) != 0)
-
 typedef struct {
   int32_t contLen;
   int32_t vgId;
-  int32_t msgMask;
 } SMsgHead;
 
 // Submit message for one table
@@ -843,6 +838,7 @@ typedef struct {
   int64_t dbId;
   int32_t vgVersion;
   int32_t numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
+  int64_t stateTs;      // ms
 } SUseDbReq;
 
 int32_t tSerializeSUseDbReq(void* buf, int32_t bufLen, SUseDbReq* pReq);
@@ -857,6 +853,8 @@ typedef struct {
   int16_t hashSuffix;
   int8_t  hashMethod;
   SArray* pVgroupInfos;  // Array of SVgroupInfo
+  int32_t errCode;
+  int64_t stateTs;  // ms
 } SUseDbRsp;
 
 int32_t tSerializeSUseDbRsp(void* buf, int32_t bufLen, const SUseDbRsp* pRsp);
@@ -1616,6 +1614,7 @@ typedef struct SSubQueryMsg {
   int8_t   needFetch;
   uint32_t sqlLen;  // the query sql,
   uint32_t phyLen;
+  int32_t  msgMask;
   char     msg[];
 } SSubQueryMsg;
 
@@ -3137,7 +3136,8 @@ int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
 int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
 
 typedef struct {
-  int64_t uid;
+  // int64_t uid;
+  char    tbname[TSDB_TABLE_NAME_LEN];
   int64_t ts;
 } SSingleDeleteReq;
 

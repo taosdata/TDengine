@@ -67,7 +67,6 @@ int32_t              snapshotReSend(SSyncSnapshotSender *pSender);
 
 cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender);
 char  *snapshotSender2Str(SSyncSnapshotSender *pSender);
-char  *snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event);
 
 int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId);
 
@@ -96,7 +95,6 @@ void                   snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceive
 
 cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
 char  *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);
-char  *snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event);
 
 //---------------------------------------------------
 // on message

@@ -142,6 +142,8 @@ python3 ./test.py -f 2-query/max.py
 python3 ./test.py -f 2-query/max.py -R
 python3 ./test.py -f 2-query/min.py
 python3 ./test.py -f 2-query/min.py -R
+python3 ./test.py -f 2-query/mode.py
+python3 ./test.py -f 2-query/mode.py -R
 python3 ./test.py -f 2-query/Now.py
 python3 ./test.py -f 2-query/Now.py -R
 python3 ./test.py -f 2-query/percentile.py
@@ -212,6 +214,9 @@ python3 ./test.py -f 1-insert/update_data.py
 python3 ./test.py -f 1-insert/tb_100w_data_order.py
 
 # TD-20200 python3 ./test.py -f 1-insert/delete_data.py
+python3 ./test.py -f 1-insert/delete_stable.py
+python3 ./test.py -f 1-insert/delete_childtable.py
+python3 ./test.py -f 1-insert/delete_normaltable.py
 python3 ./test.py -f 1-insert/keep_expired.py
 
 python3 ./test.py -f 2-query/join2.py
@@ -241,7 +246,7 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3 -i False
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3
-# TD-20198 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3 -n 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3 -n 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 6 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 6 -M 3 -n 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 6 -M 3
@@ -386,6 +391,7 @@ python3 ./test.py -f 2-query/Now.py -Q 2
 python3 ./test.py -f 2-query/Today.py -Q 2
 python3 ./test.py -f 2-query/max.py -Q 2
 python3 ./test.py -f 2-query/min.py -Q 2
+python3 ./test.py -f 2-query/mode.py -Q 2
 python3 ./test.py -f 2-query/count.py -Q 2
 # python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 2
 python3 ./test.py -f 2-query/last.py -Q 2
@@ -482,6 +488,7 @@ python3 ./test.py -f 2-query/Now.py -Q  3
 python3 ./test.py -f 2-query/Today.py -Q  3
 python3 ./test.py -f 2-query/max.py -Q  3
 python3 ./test.py -f 2-query/min.py -Q  3
+python3 ./test.py -f 2-query/mode.py -Q  3
 python3 ./test.py -f 2-query/count.py -Q  3
 # python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 3
 python3 ./test.py -f 2-query/last.py -Q  3
@@ -580,6 +587,7 @@ python3 ./test.py -f 2-query/Now.py -Q  4
 python3 ./test.py -f 2-query/Today.py -Q  4
 python3 ./test.py -f 2-query/max.py -Q  4
 python3 ./test.py -f 2-query/min.py -Q  4
+python3 ./test.py -f 2-query/mode.py -Q  4
 python3 ./test.py -f 2-query/count.py -Q  4
 # python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 4
 python3 ./test.py -f 2-query/last.py -Q  4

@@ -169,6 +169,8 @@ int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
   } else {
     code = tdbCommit(pWriter->pTq->pMetaStore, &pWriter->txn);
     if (code) goto _err;
+    code = tdbPostCommit(pWriter->pTq->pMetaStore, &pWriter->txn);
+    if (code) goto _err;
   }
 
   taosMemoryFree(pWriter);

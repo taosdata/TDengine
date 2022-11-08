@@ -32,7 +32,7 @@ void test1() {
 }
 
 void test2() {
-  SyncClientRequest* pSyncMsg = syncClientRequestBuild(10);
+  SyncClientRequest* pSyncMsg = syncClientRequestAlloc(10);
   pSyncMsg->originalRpcType = 33;
   pSyncMsg->seqNum = 11;
   pSyncMsg->isWeak = 1;
@@ -46,7 +46,7 @@ void test2() {
 }
 
 void test3() {
-  SyncClientRequest* pSyncMsg = syncClientRequestBuild(10);
+  SyncClientRequest* pSyncMsg = syncClientRequestAlloc(10);
   pSyncMsg->originalRpcType = 33;
   pSyncMsg->seqNum = 11;
   pSyncMsg->isWeak = 1;

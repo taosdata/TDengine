@@ -56,27 +56,13 @@ typedef struct {
 #define TSROW_IS_KV_ROW(r) ((r)->flags & TSROW_KV_ROW)
 
 // SValue
-int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type) {
+static FORCE_INLINE int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type) {
   if (IS_VAR_DATA_TYPE(type)) {
     return tPutBinary(p, pValue->pData, pValue->nData);
   } else {
     if (p) memcpy(p, &pValue->val, tDataTypes[type].bytes);
     return tDataTypes[type].bytes;
   }
-}
-
-int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type) {
-  if (IS_VAR_DATA_TYPE(type)) {
-    return tGetBinary(p, &pValue->pData, pValue ? &pValue->nData : NULL);
-  } else {
-    memcpy(&pValue->val, p, tDataTypes[type].bytes);
-    return tDataTypes[type].bytes;
-  }
-}
-
-int tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type) {
-  // TODO
-  return 0;
 }
 
 // STSRow2 ========================================================================
@@ -923,7 +909,7 @@ char *tTagValToData(const STagVal *value, bool isJson) {
 }
 
 bool tTagGet(const STag *pTag, STagVal *pTagVal) {
-  if(!pTag || !pTagVal){
+  if (!pTag || !pTagVal) {
     return false;
   }
 
@@ -1164,31 +1150,27 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, SColVal *pColVa
     ASSERT(pColData->nData == tDataTypes[pColData->type].bytes * pColData->nVal);
     code = tRealloc(&pColData->pData, pColData->nData + tDataTypes[pColData->type].bytes);
     if (code) goto _exit;
-    pColData->nData += tPutValue(pColData->pData + pColData->nData, &pColVal->value, pColVal->type);
+    memcpy(pColData->pData + pColData->nData, &pColVal->value.val, tDataTypes[pColData->type].bytes);
+    pColData->nData += tDataTypes[pColData->type].bytes;
   }
+  pColData->nVal++;
 
 _exit:
   return code;
 }
 static FORCE_INLINE int32_t tColDataAppendValue00(SColData *pColData, SColVal *pColVal) {
-  int32_t code = 0;
   pColData->flag = HAS_VALUE;
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-  pColData->nVal++;
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue01(SColData *pColData, SColVal *pColVal) {
-  int32_t code = 0;
   pColData->flag = HAS_NONE;
   pColData->nVal++;
-  return code;
+  return 0;
 }
 static FORCE_INLINE int32_t tColDataAppendValue02(SColData *pColData, SColVal *pColVal) {
-  int32_t code = 0;
   pColData->flag = HAS_NULL;
   pColData->nVal++;
-  return code;
+  return 0;
 }
 static FORCE_INLINE int32_t tColDataAppendValue10(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1216,16 +1198,11 @@ static FORCE_INLINE int32_t tColDataAppendValue10(SColData *pColData, SColVal *p
     }
   }
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue11(SColData *pColData, SColVal *pColVal) {
-  int32_t code = 0;
   pColData->nVal++;
-  return code;
+  return 0;
 }
 static FORCE_INLINE int32_t tColDataAppendValue12(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1268,11 +1245,7 @@ static FORCE_INLINE int32_t tColDataAppendValue20(SColData *pColData, SColVal *p
     }
   }
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue21(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1290,9 +1263,8 @@ static FORCE_INLINE int32_t tColDataAppendValue21(SColData *pColData, SColVal *p
   return code;
 }
 static FORCE_INLINE int32_t tColDataAppendValue22(SColData *pColData, SColVal *pColVal) {
-  int32_t code = 0;
   pColData->nVal++;
-  return code;
+  return 0;
 }
 static FORCE_INLINE int32_t tColDataAppendValue30(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1325,11 +1297,7 @@ static FORCE_INLINE int32_t tColDataAppendValue30(SColData *pColData, SColVal *p
     }
   }
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue31(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1353,15 +1321,7 @@ static FORCE_INLINE int32_t tColDataAppendValue32(SColData *pColData, SColVal *p
 
   return code;
 }
-static FORCE_INLINE int32_t tColDataAppendValue40(SColData *pColData, SColVal *pColVal) {
-  int32_t code = 0;
-
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-  pColData->nVal++;
-
-  return code;
-}
+#define tColDataAppendValue40 tColDataPutValue
 static FORCE_INLINE int32_t tColDataAppendValue41(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
 
@@ -1374,12 +1334,7 @@ static FORCE_INLINE int32_t tColDataAppendValue41(SColData *pColData, SColVal *p
   memset(pColData->pBitMap, 255, nBit);
   SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue42(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1393,12 +1348,7 @@ static FORCE_INLINE int32_t tColDataAppendValue42(SColData *pColData, SColVal *p
   memset(pColData->pBitMap, 255, nBit);
   SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue50(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1408,12 +1358,7 @@ static FORCE_INLINE int32_t tColDataAppendValue50(SColData *pColData, SColVal *p
 
   SET_BIT1(pColData->pBitMap, pColData->nVal, 1);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue51(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1423,12 +1368,7 @@ static FORCE_INLINE int32_t tColDataAppendValue51(SColData *pColData, SColVal *p
 
   SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue52(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1447,12 +1387,7 @@ static FORCE_INLINE int32_t tColDataAppendValue52(SColData *pColData, SColVal *p
   tFree(pColData->pBitMap);
   pColData->pBitMap = pBitMap;
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue60(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1461,12 +1396,7 @@ static FORCE_INLINE int32_t tColDataAppendValue60(SColData *pColData, SColVal *p
   if (code) return code;
   SET_BIT1(pColData->pBitMap, pColData->nVal, 1);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue61(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1485,12 +1415,7 @@ static FORCE_INLINE int32_t tColDataAppendValue61(SColData *pColData, SColVal *p
   tFree(pColData->pBitMap);
   pColData->pBitMap = pBitMap;
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue62(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1499,12 +1424,7 @@ static FORCE_INLINE int32_t tColDataAppendValue62(SColData *pColData, SColVal *p
   if (code) return code;
   SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue70(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1513,12 +1433,7 @@ static FORCE_INLINE int32_t tColDataAppendValue70(SColData *pColData, SColVal *p
   if (code) return code;
   SET_BIT2(pColData->pBitMap, pColData->nVal, 2);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue71(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1527,12 +1442,7 @@ static FORCE_INLINE int32_t tColDataAppendValue71(SColData *pColData, SColVal *p
   if (code) return code;
   SET_BIT2(pColData->pBitMap, pColData->nVal, 0);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static FORCE_INLINE int32_t tColDataAppendValue72(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
@@ -1541,12 +1451,7 @@ static FORCE_INLINE int32_t tColDataAppendValue72(SColData *pColData, SColVal *p
   if (code) return code;
   SET_BIT2(pColData->pBitMap, pColData->nVal, 1);
 
-  code = tColDataPutValue(pColData, pColVal);
-  if (code) return code;
-
-  pColData->nVal++;
-
-  return code;
+  return tColDataPutValue(pColData, pColVal);
 }
 static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, SColVal *pColVal) = {
     {tColDataAppendValue00, tColDataAppendValue01, tColDataAppendValue02},  // 0
@@ -1723,3 +1628,385 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
 _exit:
   return code;
 }
+
+#define CALC_SUM_MAX_MIN(SUM, MAX, MIN, VAL) \
+  do {                                       \
+    (SUM) += (VAL);                          \
+    if ((MAX) < (VAL)) (MAX) = (VAL);        \
+    if ((MIN) > (VAL)) (MIN) = (VAL);        \
+  } while (0)
+
+static FORCE_INLINE void tColDataCalcSMABool(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                             int16_t *numOfNull) {
+  *sum = 0;
+  *max = 0;
+  *min = 1;
+  *numOfNull = 0;
+
+  int8_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((int8_t *)pColData->pData)[iVal] ? 1 : 0;
+      CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          (*numOfNull)++;
+          break;
+        case 2:
+          val = ((int8_t *)pColData->pData)[iVal] ? 1 : 0;
+          CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMATinyInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                                int16_t *numOfNull) {
+  *sum = 0;
+  *max = INT8_MIN;
+  *min = INT8_MAX;
+  *numOfNull = 0;
+
+  int8_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((int8_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          (*numOfNull)++;
+          break;
+        case 2:
+          val = ((int8_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMATinySmallInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                                     int16_t *numOfNull) {
+  *sum = 0;
+  *max = INT16_MIN;
+  *min = INT16_MAX;
+  *numOfNull = 0;
+
+  int16_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((int16_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          (*numOfNull)++;
+          break;
+        case 2:
+          val = ((int16_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMAInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                            int16_t *numOfNull) {
+  *sum = 0;
+  *max = INT32_MIN;
+  *min = INT32_MAX;
+  *numOfNull = 0;
+
+  int32_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((int32_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          (*numOfNull)++;
+          break;
+        case 2:
+          val = ((int32_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMABigInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                               int16_t *numOfNull) {
+  *sum = 0;
+  *max = INT64_MIN;
+  *min = INT64_MAX;
+  *numOfNull = 0;
+
+  int64_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((int64_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          (*numOfNull)++;
+          break;
+        case 2:
+          val = ((int64_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMAFloat(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                              int16_t *numOfNull) {
+  *(double *)sum = 0;
+  *(double *)max = -FLT_MAX;
+  *(double *)min = FLT_MAX;
+  *numOfNull = 0;
+
+  float val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((float *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*(double *)sum, *(double *)max, *(double *)min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          (*numOfNull)++;
+          break;
+        case 2:
+          val = ((float *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*(double *)sum, *(double *)max, *(double *)min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMADouble(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                               int16_t *numOfNull) {
+  *(double *)sum = 0;
+  *(double *)max = -DBL_MAX;
+  *(double *)min = DBL_MAX;
+  *numOfNull = 0;
+
+  double val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((double *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*(double *)sum, *(double *)max, *(double *)min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          (*numOfNull)++;
+          break;
+        case 2:
+          val = ((double *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*(double *)sum, *(double *)max, *(double *)min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMAUTinyInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                                 int16_t *numOfNull) {
+  *(uint64_t *)sum = 0;
+  *(uint64_t *)max = 0;
+  *(uint64_t *)min = UINT8_MAX;
+  *numOfNull = 0;
+
+  uint8_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((uint8_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          (*numOfNull)++;
+          break;
+        case 2:
+          val = ((uint8_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMATinyUSmallInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                                      int16_t *numOfNull) {
+  *(uint64_t *)sum = 0;
+  *(uint64_t *)max = 0;
+  *(uint64_t *)min = UINT16_MAX;
+  *numOfNull = 0;
+
+  uint16_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((uint16_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          (*numOfNull)++;
+          break;
+        case 2:
+          val = ((uint16_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMAUInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                             int16_t *numOfNull) {
+  *(uint64_t *)sum = 0;
+  *(uint64_t *)max = 0;
+  *(uint64_t *)min = UINT32_MAX;
+  *numOfNull = 0;
+
+  uint32_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((uint32_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          (*numOfNull)++;
+          break;
+        case 2:
+          val = ((uint32_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMAUBigInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                                int16_t *numOfNull) {
+  *(uint64_t *)sum = 0;
+  *(uint64_t *)max = 0;
+  *(uint64_t *)min = UINT64_MAX;
+  *numOfNull = 0;
+
+  uint64_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((uint64_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          (*numOfNull)++;
+          break;
+        case 2:
+          val = ((uint64_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull) = {
+    NULL,
+    tColDataCalcSMABool,           // TSDB_DATA_TYPE_BOOL
+    tColDataCalcSMATinyInt,        // TSDB_DATA_TYPE_TINYINT
+    tColDataCalcSMATinySmallInt,   // TSDB_DATA_TYPE_SMALLINT
+    tColDataCalcSMAInt,            // TSDB_DATA_TYPE_INT
+    tColDataCalcSMABigInt,         // TSDB_DATA_TYPE_BIGINT
+    tColDataCalcSMAFloat,          // TSDB_DATA_TYPE_FLOAT
+    tColDataCalcSMADouble,         // TSDB_DATA_TYPE_DOUBLE
+    NULL,                          // TSDB_DATA_TYPE_VARCHAR
+    tColDataCalcSMABigInt,         // TSDB_DATA_TYPE_TIMESTAMP
+    NULL,                          // TSDB_DATA_TYPE_NCHAR
+    tColDataCalcSMAUTinyInt,       // TSDB_DATA_TYPE_UTINYINT
+    tColDataCalcSMATinyUSmallInt,  // TSDB_DATA_TYPE_USMALLINT
+    tColDataCalcSMAUInt,           // TSDB_DATA_TYPE_UINT
+    tColDataCalcSMAUBigInt,        // TSDB_DATA_TYPE_UBIGINT
+    NULL,                          // TSDB_DATA_TYPE_JSON
+    NULL,                          // TSDB_DATA_TYPE_VARBINARY
+    NULL,                          // TSDB_DATA_TYPE_DECIMAL
+    NULL,                          // TSDB_DATA_TYPE_BLOB
+    NULL                           // TSDB_DATA_TYPE_MEDIUMBLOB
+};

@@ -317,6 +317,8 @@ typedef struct SStreamTask {
   int8_t inputStatus;
   int8_t outputStatus;
 
+  // STaosQueue*   inputQueue1;
+  // STaosQall*    inputQall;
   SStreamQueue* inputQueue;
   SStreamQueue* outputQueue;
 

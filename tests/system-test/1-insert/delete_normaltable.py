@@ -27,10 +27,9 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(),True)
         self.dbname = 'db_test'
         self.setsql = TDSetSql()
-        self.stbname = 'stb'
         self.ntbname = 'ntb'
         self.rowNum = 10
         self.tbnum = 3
@@ -112,59 +111,32 @@ class TDTestCase:
                 tdSql.execute(f'''insert into {tbname} values({self.ts+i},"{base_data['binary']}")''')
             elif 'nchar' in col_type.lower():
                 tdSql.execute(f'''insert into {tbname} values({self.ts+i},"{base_data['nchar']}")''')
-    def delete_all_data(self,tbname,col_type,row_num,base_data,dbname,tb_type,tb_num=1,stbname=''):
+    def delete_all_data(self,tbname,col_type,row_num,base_data,dbname,tb_num=1,stbname=''):
         tdSql.query(f'select count(*) from {tbname}')
         tdSql.execute(f'delete from {tbname}')
         tdSql.execute(f'flush database {dbname}')
         tdSql.execute('reset query cache')
         tdSql.query(f'select * from {tbname}')
         tdSql.checkRows(0)
-        if tb_type == 'ntb' or tb_type == 'ctb':
-            if tb_type == 'ctb':
-                tdSql.query(f'select count(*) from {stbname}')
-                if tb_num <= 1:
-                    if len(tdSql.queryResult) != 0:
-                        tdLog.exit('delete case failure!')
-                else:
-                    tdSql.checkEqual(tdSql.queryResult[0][0],(tb_num-1)*row_num)
-
-            self.insert_base_data(col_type,tbname,row_num,base_data)
-        elif tb_type == 'stb':
-            for i in range(tb_num):
-                self.insert_base_data(col_type,f'{tbname}_{i}',row_num,base_data)
+        self.insert_base_data(col_type,tbname,row_num,base_data)
         tdSql.execute(f'flush database {dbname}')
         tdSql.execute('reset query cache')
         tdSql.query(f'select * from {tbname}')
-        if tb_type == 'ntb' or tb_type == 'ctb':
-            tdSql.checkRows(row_num)
-        elif tb_type =='stb':
-            tdSql.checkRows(row_num*tb_num)
-    def delete_one_row(self,tbname,column_type,column_name,base_data,row_num,dbname,tb_type,tb_num=1):
+        tdSql.checkRows(row_num)
+    def delete_one_row(self,tbname,column_type,column_name,base_data,row_num,dbname,tb_num=1):
         tdSql.execute(f'delete from {tbname} where ts={self.ts}')
         tdSql.execute(f'flush database {dbname}')
         tdSql.execute('reset query cache')
         tdSql.query(f'select {column_name} from {tbname}')
-        if tb_type == 'ntb' or tb_type == 'ctb':
-            tdSql.checkRows(row_num-1)
-        elif tb_type == 'stb':
-            tdSql.checkRows((row_num-1)*tb_num)
+        tdSql.checkRows(row_num-1)
         tdSql.query(f'select {column_name} from {tbname} where ts={self.ts}')
         tdSql.checkRows(0)
-        if tb_type == 'ntb' or tb_type == 'ctb':
-            if 'binary' in column_type.lower():
-                tdSql.execute(f'''insert into {tbname} values({self.ts},"{base_data['binary']}")''')
-            elif 'nchar' in column_type.lower():
-                tdSql.execute(f'''insert into {tbname} values({self.ts},"{base_data['nchar']}")''')
-            else:
-                tdSql.execute(f'insert into {tbname} values({self.ts},{base_data[column_type]})')
-        elif tb_type == 'stb':
-            for i in range(tb_num):
-                if 'binary' in column_type.lower():
-                    tdSql.execute(f'''insert into {tbname}_{i} values({self.ts},"{base_data['binary']}")''')
-                elif 'nchar' in column_type.lower():
-                    tdSql.execute(f'''insert into {tbname}_{i} values({self.ts},"{base_data['nchar']}")''')
-                else:
-                    tdSql.execute(f'insert into {tbname}_{i} values({self.ts},{base_data[column_type]})')
+        if 'binary' in column_type.lower():
+            tdSql.execute(f'''insert into {tbname} values({self.ts},"{base_data['binary']}")''')
+        elif 'nchar' in column_type.lower():
+            tdSql.execute(f'''insert into {tbname} values({self.ts},"{base_data['nchar']}")''')
+        else:
+            tdSql.execute(f'insert into {tbname} values({self.ts},{base_data[column_type]})')
         tdSql.query(f'select {column_name} from {tbname} where ts={self.ts}')
         if column_type.lower() == 'float' or column_type.lower() == 'double':
             if abs(tdSql.queryResult[0][0] - base_data[column_type]) / base_data[column_type] <= 0.0001:
@@ -177,73 +149,45 @@ class TDTestCase:
             tdSql.checkEqual(tdSql.queryResult[0][0],base_data['nchar'])
         else:
             tdSql.checkEqual(tdSql.queryResult[0][0],base_data[column_type])
-    def delete_rows(self,dbname,tbname,col_name,col_type,base_data,row_num,tb_type,tb_num=1):
+    def delete_rows(self,dbname,tbname,col_name,col_type,base_data,row_num,tb_num=1):
         for i in range(row_num):
             tdSql.execute(f'delete from {tbname} where ts>{self.ts+i}')
             tdSql.execute(f'flush database {dbname}')
             tdSql.execute('reset query cache')
             tdSql.query(f'select {col_name} from {tbname}')
-            if tb_type == 'ntb' or tb_type == 'ctb':
-                tdSql.checkRows(i+1)
-                self.insert_base_data(col_type,tbname,row_num,base_data)
-            elif tb_type == 'stb':
-                tdSql.checkRows((i+1)*tb_num)
-                for j in range(tb_num):
-                    self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
+            tdSql.checkRows(i+1)
+            self.insert_base_data(col_type,tbname,row_num,base_data)
         for i in range(row_num):
             tdSql.execute(f'delete from {tbname} where ts>={self.ts+i}')
             tdSql.execute(f'flush database {dbname}')
             tdSql.execute('reset query cache')
             tdSql.query(f'select {col_name} from {tbname}')
-            if tb_type == 'ntb' or tb_type == 'ctb':
-                tdSql.checkRows(i)
-                self.insert_base_data(col_type,tbname,row_num,base_data)
-            elif tb_type == 'stb':
-                tdSql.checkRows(i*tb_num)
-                for j in range(tb_num):
-                    self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
+            tdSql.checkRows(i)
+            self.insert_base_data(col_type,tbname,row_num,base_data)
         for i in range(row_num):
             tdSql.execute(f'delete from {tbname} where ts<={self.ts+i}')
             tdSql.execute(f'flush database {dbname}')
             tdSql.execute('reset query cache')
             tdSql.query(f'select {col_name} from {tbname}')
-            if tb_type == 'ntb' or tb_type == 'ctb':
-                tdSql.checkRows(row_num-i-1)
-                self.insert_base_data(col_type,tbname,row_num,base_data)
-            elif tb_type == 'stb':
-                tdSql.checkRows((row_num-i-1)*tb_num)
-                for j in range(tb_num):
-                    self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
+            tdSql.checkRows(row_num-i-1)
+            self.insert_base_data(col_type,tbname,row_num,base_data)
         for i in range(row_num):
             tdSql.execute(f'delete from {tbname} where ts<{self.ts+i}')
             tdSql.execute(f'flush database {dbname}')
             tdSql.execute('reset query cache')
             tdSql.query(f'select {col_name} from {tbname}')
-            if tb_type == 'ntb' or tb_type == 'ctb':
-                tdSql.checkRows(row_num-i)
-                self.insert_base_data(col_type,tbname,row_num,base_data)
-            elif tb_type == 'stb':
-                tdSql.checkRows((row_num-i)*tb_num)
-                for j in range(tb_num):
-                    self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
+            tdSql.checkRows(row_num-i)
+            self.insert_base_data(col_type,tbname,row_num,base_data)
         for i in range(row_num):
             tdSql.execute(f'delete from {tbname} where ts between {self.ts} and {self.ts+i}')
             tdSql.execute(f'flush database {dbname}')
             tdSql.execute('reset query cache')
             tdSql.query(f'select {col_name} from {tbname}')
-            if tb_type == 'ntb' or tb_type == 'ctb':
-                tdSql.checkRows(row_num - i-1)
-                self.insert_base_data(col_type,tbname,row_num,base_data)
-            elif tb_type == 'stb':
-                tdSql.checkRows(tb_num*(row_num - i-1))
-                for j in range(tb_num):
-                    self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
+            tdSql.checkRows(row_num - i-1)
+            self.insert_base_data(col_type,tbname,row_num,base_data)
             tdSql.execute(f'delete from {tbname} where ts between {self.ts+i+1} and {self.ts}')
             tdSql.query(f'select {col_name} from {tbname}')
-            if tb_type == 'ntb' or tb_type == 'ctb':
-                tdSql.checkRows(row_num)
-            elif tb_type == 'stb':
-                tdSql.checkRows(tb_num*row_num)
+            tdSql.checkRows(row_num)
     def delete_error(self,tbname,column_name,column_type,base_data):
         for error_list in ['',f'ts = {self.ts} and',f'ts = {self.ts} or']:
             if 'binary' in column_type.lower():
@@ -259,49 +203,16 @@ class TDTestCase:
         for col_name,col_type in self.column_dict.items():
             tdSql.execute(f'create table {self.ntbname} (ts timestamp,{col_name} {col_type})')
             self.insert_base_data(col_type,self.ntbname,self.rowNum,self.base_data)
-            self.delete_one_row(self.ntbname,col_type,col_name,self.base_data,self.rowNum,self.dbname,'ntb')
-            self.delete_all_data(self.ntbname,col_type,self.rowNum,self.base_data,self.dbname,'ntb')
+            self.delete_one_row(self.ntbname,col_type,col_name,self.base_data,self.rowNum,self.dbname)
+            self.delete_all_data(self.ntbname,col_type,self.rowNum,self.base_data,self.dbname)
             self.delete_error(self.ntbname,col_name,col_type,self.base_data)
-            self.delete_rows(self.dbname,self.ntbname,col_name,col_type,self.base_data,self.rowNum,'ntb')
+            self.delete_rows(self.dbname,self.ntbname,col_name,col_type,self.base_data,self.rowNum)
             for func in ['first','last']:
                 tdSql.query(f'select {func}(*) from {self.ntbname}')
             tdSql.execute(f'drop table {self.ntbname}')
         tdSql.execute(f'drop database {self.dbname}')
-    def delete_data_ctb(self):
-        tdSql.execute(f'create database if not exists {self.dbname}')
-        tdSql.execute(f'use {self.dbname}')
-        for col_name,col_type in self.column_dict.items():
-            tdSql.execute(f'create table {self.stbname} (ts timestamp,{col_name} {col_type}) tags(t1 int)')
-            for i in range(self.tbnum):
-                tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags(1)')
-                self.insert_base_data(col_type,f'{self.stbname}_{i}',self.rowNum,self.base_data)
-                self.delete_one_row(f'{self.stbname}_{i}',col_type,col_name,self.base_data,self.rowNum,self.dbname,'ctb')
-                self.delete_all_data(f'{self.stbname}_{i}',col_type,self.rowNum,self.base_data,self.dbname,'ctb',i+1,self.stbname)
-                self.delete_error(f'{self.stbname}_{i}',col_name,col_type,self.base_data)
-                self.delete_rows(self.dbname,f'{self.stbname}_{i}',col_name,col_type,self.base_data,self.rowNum,'ctb')
-                for func in ['first','last']:
-                    tdSql.query(f'select {func}(*) from {self.stbname}_{i}')
-            tdSql.execute(f'drop table {self.stbname}')
-    def delete_data_stb(self):
-        tdSql.execute(f'create database if not exists {self.dbname}')
-        tdSql.execute(f'use {self.dbname}')
-        for col_name,col_type in self.column_dict.items():
-            tdSql.execute(f'create table {self.stbname} (ts timestamp,{col_name} {col_type}) tags(t1 int)')
-            for i in range(self.tbnum):
-                tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags(1)')
-                self.insert_base_data(col_type,f'{self.stbname}_{i}',self.rowNum,self.base_data)
-            self.delete_error(self.stbname,col_name,col_type,self.base_data)
-            self.delete_one_row(self.stbname,col_type,col_name,self.base_data,self.rowNum,self.dbname,'stb',self.tbnum)
-            self.delete_all_data(self.stbname,col_type,self.rowNum,self.base_data,self.dbname,'stb',self.tbnum)
-            self.delete_rows(self.dbname,self.stbname,col_name,col_type,self.base_data,self.rowNum,'stb',self.tbnum)
-            for func in ['first','last']:
-                tdSql.query(f'select {func}(*) from {self.stbname}')
-            tdSql.execute(f'drop table {self.stbname}')
-        tdSql.execute(f'drop database {self.dbname}')
     def run(self):
         self.delete_data_ntb()
-        self.delete_data_ctb()
-        self.delete_data_stb()
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)
         self.delete_data_ntb()

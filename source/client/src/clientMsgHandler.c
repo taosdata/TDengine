@@ -175,7 +175,8 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
 
-  if (TSDB_CODE_MND_DB_NOT_EXIST == code) {
+  if (TSDB_CODE_MND_DB_NOT_EXIST == code || TSDB_CODE_MND_DB_IN_CREATING == code ||
+      TSDB_CODE_MND_DB_IN_DROPPING == code) {
     SUseDbRsp usedbRsp = {0};
     tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
     struct SCatalog* pCatalog = NULL;
@@ -212,7 +213,20 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
 
   if (strlen(usedbRsp.db) == 0) {
-    return TSDB_CODE_MND_DB_NOT_EXIST;
+    if (usedbRsp.errCode != 0) {
+      return usedbRsp.errCode;
+    } else {
+      return TSDB_CODE_APP_ERROR;
+    }
+  }
+
+  tscTrace("db:%s, usedbRsp received, numOfVgroups:%d", usedbRsp.db, usedbRsp.vgNum);
+  for (int32_t i = 0; i < usedbRsp.vgNum; ++i) {
+    SVgroupInfo* pInfo = taosArrayGet(usedbRsp.pVgroupInfos, i);
+    tscTrace("vgId:%d, numOfEps:%d inUse:%d ", pInfo->vgId, pInfo->epSet.numOfEps, pInfo->epSet.inUse);
+    for (int32_t j = 0; j < pInfo->epSet.numOfEps; ++j) {
+      tscTrace("vgId:%d, index:%d epset:%s:%u", pInfo->vgId, j, pInfo->epSet.eps[j].fqdn, pInfo->epSet.eps[j].port);
+    }
   }
 
   SName name = {0};

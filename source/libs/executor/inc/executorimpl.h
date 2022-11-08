@@ -87,11 +87,11 @@ typedef struct SLimit {
 typedef struct STableScanAnalyzeInfo SFileBlockLoadRecorder;
 
 typedef struct STaskCostInfo {
-  int64_t  created;
-  int64_t  start;
-  uint64_t elapsedTime;
-  double   extractListTime;
-  double   groupIdMapTime;
+  int64_t                 created;
+  int64_t                 start;
+  uint64_t                elapsedTime;
+  double                  extractListTime;
+  double                  groupIdMapTime;
   SFileBlockLoadRecorder* pRecoder;
 } STaskCostInfo;
 
@@ -184,8 +184,7 @@ enum {
 typedef struct SOperatorFpSet {
   __optr_open_fn_t    _openFn;  // DO NOT invoke this function directly
   __optr_fn_t         getNextFn;
-  __optr_fn_t         getStreamResFn;  // execute the aggregate in the stream model, todo remove it
-  __optr_fn_t         cleanupFn;       // call this function to release the allocated resources ASAP
+  __optr_fn_t         cleanupFn;  // call this function to release the allocated resources ASAP
   __optr_close_fn_t   closeFn;
   __optr_encode_fn_t  encodeResultRow;
   __optr_decode_fn_t  decodeResultRow;

@@ -139,6 +139,63 @@ static void mndIncreaseUpTime(SMnode *pMnode) {
   }
 }
 
+static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) {
+  SSdb *pSdb = pMnode->pSdb;
+
+  void *pIter = NULL;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    bool roleChanged = false;
+    for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
+      if (pVgroup->vnodeGid[vg].dnodeId == dnodeId) {
+        if (pVgroup->vnodeGid[vg].syncState != TAOS_SYNC_STATE_ERROR) {
+          mInfo("vgId:%d, state changed by offline check, old state:%s restored:%d new state:error restored:0",
+                pVgroup->vgId, syncStr(pVgroup->vnodeGid[vg].syncState), pVgroup->vnodeGid[vg].syncRestore);
+          pVgroup->vnodeGid[vg].syncState = TAOS_SYNC_STATE_ERROR;
+          pVgroup->vnodeGid[vg].syncRestore = 0;
+          roleChanged = true;
+        }
+        break;
+      }
+    }
+
+    if (roleChanged) {
+      SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
+      if (pDb != NULL && pDb->stateTs != curMs) {
+        mInfo("db:%s, stateTs changed by offline check, old newTs:%" PRId64 " newTs:%" PRId64, pDb->name, pDb->stateTs,
+              curMs);
+        pDb->stateTs = curMs;
+      }
+      mndReleaseDb(pMnode, pDb);
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+}
+
+static void mndCheckDnodeOffline(SMnode *pMnode) {
+  SSdb   *pSdb = pMnode->pSdb;
+  int64_t curMs = taosGetTimestampMs();
+
+  void *pIter = NULL;
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+
+    bool online = mndIsDnodeOnline(pDnode, curMs);
+    if (!online) {
+      mInfo("dnode:%d, in offline state", pDnode->id);
+      mndSetVgroupOffline(pMnode, pDnode->id, curMs);
+    }
+
+    sdbRelease(pSdb, pDnode);
+  }
+}
+
 static void *mndThreadFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastTime = 0;
@@ -173,6 +230,10 @@ static void *mndThreadFp(void *param) {
 
     if (sec % tsUptimeInterval == 0) {
       mndIncreaseUpTime(pMnode);
+    }
+
+    if (sec % (tsStatusInterval * 5) == 0) {
+      mndCheckDnodeOffline(pMnode);
     }
   }
 

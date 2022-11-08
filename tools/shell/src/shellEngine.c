@@ -226,7 +226,7 @@ void shellRunSingleCommandImp(char *command) {
     int32_t num_rows_affacted = taos_affected_rows(pSql);
     taos_free_result(pSql);
     et = taosGetTimestampUs();
-    printf("Query OK, %d row(s) affected in set (%.6fs)\r\n", num_rows_affacted, (et - st) / 1E6);
+    printf("Query OK, %d row(s) affected(%.6fs)\r\n", num_rows_affacted, (et - st) / 1E6);
 
     // call auto tab
     callbackAutoTab(command, NULL, false);
