@@ -76,7 +76,7 @@ file=$1
 versionPath=$2
 sourceP=$3
 nasServerIP="192.168.1.131"
-packagePath="/nas/TDengine/v${versionPath}/"
+packagePath="/nas/TDengine/v${versionPath}/community"
 if [ -f  ${file}  ];then
     echoColor  YD "${file} already exists ,it will delete it and download  it again "
     rm -rf ${file}
@@ -151,9 +151,9 @@ if [ -d ${installPath}/${tdPath} ] ;then
 fi
 
 echoColor G "===== download  installPackage ====="
-    cd ${installPath} && wgetFile ${packgeName} ${version}  ${sourcePath}
-    cd  ${oriInstallPath}  && wgetFile ${originPackageName} ${originversion}   ${sourcePath}
-fi
+cd ${installPath} && wgetFile ${packgeName} ${version}  ${sourcePath}
+cd  ${oriInstallPath}  && wgetFile ${originPackageName} ${originversion}   ${sourcePath}
+
 
 cd ${installPath}
 cp -r ${scriptDir}/debRpmAutoInstall.sh   . 
