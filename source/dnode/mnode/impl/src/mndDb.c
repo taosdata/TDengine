@@ -290,7 +290,7 @@ SDbObj *mndAcquireDb(SMnode *pMnode, const char *db) {
       terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     } else if (terrno == TSDB_CODE_SDB_OBJ_CREATING) {
       terrno = TSDB_CODE_MND_DB_IN_CREATING;
-    } else if (terrno = TSDB_CODE_SDB_OBJ_DROPPING) {
+    } else if (terrno == TSDB_CODE_SDB_OBJ_DROPPING) {
       terrno = TSDB_CODE_MND_DB_IN_DROPPING;
     } else {
       terrno = TSDB_CODE_APP_ERROR;
