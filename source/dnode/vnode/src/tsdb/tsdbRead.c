@@ -891,7 +891,7 @@ static int doBinarySearchKey(TSKEY* keyList, int num, int pos, TSKEY key, int or
   }
 }
 
-int32_t getEndPosInDataBlock(STsdbReader* pReader, SBlockData* pBlockData, SDataBlk* pBlock, int32_t pos) {
+static int32_t getEndPosInDataBlock(STsdbReader* pReader, SBlockData* pBlockData, SDataBlk* pBlock, int32_t pos) {
   // NOTE: reverse the order to find the end position in data block
   int32_t endPos = -1;
   bool    asc = ASCENDING_TRAVERSE(pReader->order);
@@ -906,6 +906,26 @@ int32_t getEndPosInDataBlock(STsdbReader* pReader, SBlockData* pBlockData, SData
   }
 
   return endPos;
+}
+
+static void copyPrimaryTsCol(SBlockData* pBlockData, SFileBlockDumpInfo* pDumpInfo, SColumnInfoData* pColData,
+                             int32_t dumpedRows, bool asc) {
+  if (asc) {
+    memcpy(pColData->pData, &pBlockData->aTSKEY[pDumpInfo->rowIndex], dumpedRows * sizeof(int64_t));
+  } else {
+    int32_t startIndex = pDumpInfo->rowIndex - dumpedRows + 1;
+    memcpy(pColData->pData, &pBlockData->aTSKEY[startIndex], dumpedRows * sizeof(int64_t));
+
+    // todo: opt perf by extract the loop
+    // reverse the array list
+    int32_t  mid = dumpedRows >> 1u;
+    int64_t* pts = (int64_t*)pColData->pData;
+    for (int32_t j = 0; j < mid; ++j) {
+      int64_t t = pts[j];
+      pts[j] = pts[dumpedRows - j - 1];
+      pts[dumpedRows - j - 1] = t;
+    }
+  }
 }
 
 static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanInfo* pBlockScanInfo) {
@@ -947,30 +967,17 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   }
 
   endIndex += step;
-  int32_t remain = asc ? (endIndex - pDumpInfo->rowIndex) : (pDumpInfo->rowIndex - endIndex);
-  if (remain > pReader->capacity) {  // output buffer check
-    remain = pReader->capacity;
+  int32_t dumpedRows = asc ? (endIndex - pDumpInfo->rowIndex) : (pDumpInfo->rowIndex - endIndex);
+  if (dumpedRows > pReader->capacity) {  // output buffer check
+    dumpedRows = pReader->capacity;
   }
 
+  int32_t i = 0;
   int32_t rowIndex = 0;
 
-  int32_t          i = 0;
   SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, i);
   if (pColData->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-    memcpy(pColData->pData, &pBlockData->aTSKEY[pDumpInfo->rowIndex], remain * sizeof(int64_t));
-
-
-    // todo: opt perf by extract the loop
-    if (!asc) {  // reverse the array list
-      int32_t mid = remain >> 1u;
-      TSKEY*  pts = (int64_t*)pColData->pData;
-      for (int32_t j = 0; j < mid; ++j) {
-        int64_t t = pts[j];
-        pts[j] = pts[remain - j - 1];
-        pts[remain - j - 1] = t;
-      }
-    }
-
+    copyPrimaryTsCol(pBlockData, pDumpInfo, pColData, dumpedRows, asc);
     i += 1;
   }
 
@@ -985,18 +992,80 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
       colIndex += 1;
     } else if (pData->cid == pColData->info.colId) {
       if (pData->flag == HAS_NONE || pData->flag == HAS_NULL || pData->flag == (HAS_NULL | HAS_NONE)) {
-        colDataAppendNNULL(pColData, 0, remain);
+        colDataAppendNNULL(pColData, 0, dumpedRows);
       } else {
-        if (IS_NUMERIC_TYPE(pColData->info.type) && asc) {
-          uint8_t* p = pData->pData + tDataTypes[pData->type].bytes * pDumpInfo->rowIndex;
-          memcpy(pColData->pData, p, remain * tDataTypes[pData->type].bytes);
+        if (IS_MATHABLE_TYPE(pColData->info.type)) {
+
+          uint8_t* p = NULL;
+          if (asc) {
+            p = pData->pData + tDataTypes[pData->type].bytes * pDumpInfo->rowIndex;
+          } else {
+            int32_t startIndex = pDumpInfo->rowIndex - dumpedRows + 1;
+            p = pData->pData + tDataTypes[pData->type].bytes * startIndex;
+          }
 
           // make sure it is aligned to 8bit
           ASSERT((((uint64_t)pColData->pData) & (0x8 - 1)) == 0);
+          memcpy(pColData->pData, p, dumpedRows * tDataTypes[pData->type].bytes);
+
+          if (!asc) {
+            switch(pColData->info.type) {
+              case TSDB_DATA_TYPE_TIMESTAMP:
+              case TSDB_DATA_TYPE_BIGINT:
+              case TSDB_DATA_TYPE_UBIGINT:
+              {
+                int32_t  mid = dumpedRows >> 1u;
+                int64_t* pts = (int64_t*)pColData->pData;
+                for (int32_t j = 0; j < mid; ++j) {
+                  int64_t t = pts[j];
+                  pts[j] = pts[dumpedRows - j - 1];
+                  pts[dumpedRows - j - 1] = t;
+                }
+                break;
+              }
+
+              case TSDB_DATA_TYPE_BOOL:
+              case TSDB_DATA_TYPE_TINYINT:
+              case TSDB_DATA_TYPE_UTINYINT: {
+                int32_t  mid = dumpedRows >> 1u;
+                int8_t* pts = (int8_t*)pColData->pData;
+                for (int32_t j = 0; j < mid; ++j) {
+                  int64_t t = pts[j];
+                  pts[j] = pts[dumpedRows - j - 1];
+                  pts[dumpedRows - j - 1] = t;
+                }
+                break;
+              }
+
+              case TSDB_DATA_TYPE_SMALLINT:
+              case TSDB_DATA_TYPE_USMALLINT: {
+                int32_t  mid = dumpedRows >> 1u;
+                int16_t* pts = (int16_t*)pColData->pData;
+                for (int32_t j = 0; j < mid; ++j) {
+                  int64_t t = pts[j];
+                  pts[j] = pts[dumpedRows - j - 1];
+                  pts[dumpedRows - j - 1] = t;
+                }
+                break;
+              }
+
+              case TSDB_DATA_TYPE_INT:
+              case TSDB_DATA_TYPE_UINT: {
+                int32_t  mid = dumpedRows >> 1u;
+                int32_t* pts = (int32_t*)pColData->pData;
+                for (int32_t j = 0; j < mid; ++j) {
+                  int64_t t = pts[j];
+                  pts[j] = pts[dumpedRows - j - 1];
+                  pts[dumpedRows - j - 1] = t;
+                }
+                break;
+              }
+            }
+          }
 
           // null value exists, check one-by-one
           if (pData->flag != HAS_VALUE) {
-            for (int32_t j = pDumpInfo->rowIndex; rowIndex < remain; j += step, rowIndex++) {
+            for (int32_t j = pDumpInfo->rowIndex; rowIndex < dumpedRows; j += step, rowIndex++) {
               uint8_t v = tColDataGetBitValue(pData, j);
               if (v == 0 || v == 1) {
                 colDataSetNull_f(pColData->nullbitmap, rowIndex);
@@ -1004,7 +1073,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
             }
           }
         } else {
-          for (int32_t j = pDumpInfo->rowIndex; rowIndex < remain; j += step) {
+          for (int32_t j = pDumpInfo->rowIndex; rowIndex < dumpedRows; j += step) {
             tColDataGetValue(pData, j, &cv);
             doCopyColVal(pColData, rowIndex++, i, &cv, pSupInfo);
           }
@@ -1014,7 +1083,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
       colIndex += 1;
       i += 1;
     } else {  // the specified column does not exist in file block, fill with null data
-      colDataAppendNNULL(pColData, 0, remain);
+      colDataAppendNNULL(pColData, 0, dumpedRows);
       i += 1;
     }
   }
@@ -1022,12 +1091,12 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   // fill the mis-matched columns with null value
   while (i < numOfOutputCols) {
     pColData = taosArrayGet(pResBlock->pDataBlock, i);
-    colDataAppendNNULL(pColData, 0, remain);
+    colDataAppendNNULL(pColData, 0, dumpedRows);
     i += 1;
   }
 
-  pResBlock->info.rows = remain;
-  pDumpInfo->rowIndex += step * remain;
+  pResBlock->info.rows = dumpedRows;
+  pDumpInfo->rowIndex += step * dumpedRows;
 
   // check if current block are all handled
   if (pDumpInfo->rowIndex >= 0 && pDumpInfo->rowIndex < pBlock->nRow) {
@@ -1046,7 +1115,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   int32_t unDumpedRows = asc ? pBlock->nRow - pDumpInfo->rowIndex : pDumpInfo->rowIndex + 1;
   tsdbDebug("%p copy file block to sdatablock, global index:%d, table index:%d, brange:%" PRId64 "-%" PRId64
                 ", rows:%d, remain:%d, minVer:%" PRId64 ", maxVer:%" PRId64 ", elapsed time:%.2f ms, %s",
-            pReader, pBlockIter->index, pBlockInfo->tbBlockIdx, pBlock->minKey.ts, pBlock->maxKey.ts, remain,
+            pReader, pBlockIter->index, pBlockInfo->tbBlockIdx, pBlock->minKey.ts, pBlock->maxKey.ts, dumpedRows,
             unDumpedRows, pBlock->minVer, pBlock->maxVer, elapsedTime, pReader->idStr);
 
   return TSDB_CODE_SUCCESS;
