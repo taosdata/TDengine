@@ -1712,7 +1712,7 @@ class TaskCreateStream(StateTransitionTask):
         '''
         stbname =sTable.getName()
         sub_tables = sTable.getRegTables(wt.getDbConn())
-        aggExpr = Dice.choice([                
+        aggExpr = Dice.choice([                CREATE STREAM avg_vol_s1 INTO avg_vol1 AS SELECT  csum(current), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
                     'count(*)',
                     'avg(speed)',
                     # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
@@ -1723,27 +1723,9 @@ class TaskCreateStream(StateTransitionTask):
                     'max(speed)', 
                     'first(speed)', 
                     'last(speed)',
-                    'top(speed, 50)', # TODO: not supported?
-                    'bottom(speed, 50)', # TODO: not supported?
                     'apercentile(speed, 10)', # TODO: TD-1316
                     'last_row(*)', # TODO: commented out per TD-3231, we should re-create
                     # Transformation Functions
-                    # 'diff(speed)', # TODO: no supported?!
-                    'spread(speed)',
-                    'elapsed(ts)',
-                    'mode(speed)',
-                    'bottom(speed,1)',
-                    'top(speed,1)',
-                    'tail(speed,1)',
-                    'unique(color)',
-                    'csum(speed)',
-                    'DERIVATIVE(speed,1s,1)',
-                    'diff(speed,1)',
-                    'irate(speed)',
-                    'mavg(speed,3)',
-                    'sample(speed,5)',
-                    'STATECOUNT(speed,"LT",1)',
-                    'STATEDURATION(speed,"LT",1)',
                     'twa(speed)'
                       
                     ]) # TODO: add more from 'top'
