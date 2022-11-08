@@ -60,13 +60,23 @@ class StreamComputingTest(TDCase):
         self.des_table_suffix = "_output"
         self.stream_suffix = "_stream"
         
+        
         self.update = True
         self.disorder = True
         if self.disorder:
             self.update = False
 
         self.delete = True
-        
+
+        self.subtable = True
+
+        self.subtable_prefix = "prefix_" if self.subtable else ""
+        self.subtable_suffix = "_suffix" if self.subtable else ""
+        self.partition_tbname_alias = "ptn_alias" if self.subtable else ""
+        self.partition_tag_alias = "ptag_alias" if self.subtable else ""
+        self.partition_col_alias = "pcol_alias" if self.subtable else ""
+        self.partition_expression_alias = "pexp_alias" if self.subtable else ""
+
         # ! apercentile(c6, 50) "avg(c7)" "timetruncate(_wstart, 1m)" "timediff(1, 0, 1h)" TD-16878 TD-16877 TD-16876 TD-16869
         self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "spread(c1)", 
         "stddev(c2)", "hyperloglog(c11)", "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "spread(t1)", "stddev(t2)"]
@@ -225,14 +235,15 @@ class StreamComputingTest(TDCase):
 
     def data_filter(self, need_return=False, delete=False):
         self.delete = delete
-        # self.update = False
+        subtable_value = f'concat(concat("{self.subtable_prefix}", {self.partition_tbname_alias}), "{self.subtable_suffix}")' if self.subtable else None
+
         self.case_name = sys._getframe().f_code.co_name
 
         self.prepare_data()
         self.tdCom.write_latency(self.case_name)
 
         # create stb/ctb/tb stream
-        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select {self.filter_source_select_elm} from {self.stb_name} where {self.stb_data_filter_sql} partition by tbname', trigger_mode="at_once")
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select {self.filter_source_select_elm} from {self.stb_name} where {self.stb_data_filter_sql} partition by tbname {self.partition_tbname_alias}', trigger_mode="at_once", subtable_value=subtable_value)
         self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select {self.filter_source_select_elm} from {self.ctb_name} where {self.stb_data_filter_sql}', trigger_mode="at_once")
         self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select {self.filter_source_select_elm} from {self.tb_name} where {self.tb_data_filter_sql}', trigger_mode="at_once")
 
@@ -267,8 +278,12 @@ class StreamComputingTest(TDCase):
             self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from {self.stb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.stb_name} where {self.stb_data_filter_sql} partition by tbname;')
             self.tdCom.check_query_data(f'select {self.tb_filter_des_select_elm} from {self.ctb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.ctb_name} where {self.stb_data_filter_sql};')
             self.tdCom.check_query_data(f'select {self.tb_filter_des_select_elm} from {self.tb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.tb_name} where {self.tb_data_filter_sql};')
+        if self.subtable:
+            self.tdSql.query(f'select count(*) from {self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
+            self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
         if need_return:
             return count
+        
 
     def life_cycle(self, long_duration="14400m"):
         self.case_name = sys._getframe().f_code.co_name
@@ -410,15 +425,18 @@ class StreamComputingTest(TDCase):
     def udf_test(self, udf_size, outputtype):
         self.case_name = sys._getframe().f_code.co_name
         self.prepare_data()
+        stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", {self.partition_tbname_alias}), "{self.subtable_suffix}")' if self.subtable else None
+        ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", {self.partition_tbname_alias}), "{self.subtable_suffix}")' if self.subtable else None
+        tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", {self.partition_tbname_alias}), "{self.subtable_suffix}")' if self.subtable else None
         self.tdCom.drop_all_udfs()
         self.tdCom.write_latency(self.case_name)
         udf1 = "udf1"
         self.build_udf_so()
         self.tdCom.create_udf(udf1, self.udf1, udf_size, outputtype)
         # create stb/ctb/tb stream
-        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select ts, udf1(c1), udf1(c2) from {self.stb_name} partition by tbname')
-        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select ts, udf1(c1), udf1(c2)  from {self.ctb_name} partition by tbname')
-        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select ts, udf1(c1), udf1(c2)  from {self.tb_name} partition by tbname')
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select ts, udf1(c1), udf1(c2) from {self.stb_name} partition by tbname {self.partition_tbname_alias}', subtable_value=stb_subtable_value)
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select ts, udf1(c1), udf1(c2)  from {self.ctb_name} partition by tbname {self.partition_tbname_alias}', subtable_value=ctb_subtable_value)
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select ts, udf1(c1), udf1(c2)  from {self.tb_name} partition by tbname {self.partition_tbname_alias}', subtable_value=tb_subtable_value)
 
         # insert data
         count = 1
@@ -442,6 +460,13 @@ class StreamComputingTest(TDCase):
             self.tdCom.check_query_data(f'select ts, `udf1(c1)`, `udf1(c2)` from {self.stb_name}{self.des_table_suffix}', f'select ts, udf1(c1), udf1(c2)  from {self.stb_name} partition by tbname')
             self.tdCom.check_query_data(f'select ts, `udf1(c1)`, `udf1(c2)` from {self.ctb_name}{self.des_table_suffix}', f'select ts, udf1(c1), udf1(c2)  from {self.ctb_name} partition by tbname')
             self.tdCom.check_query_data(f'select ts, `udf1(c1)`, `udf1(c2)` from {self.tb_name}{self.des_table_suffix}', f'select ts, udf1(c1), udf1(c2) from {self.tb_name} partition by tbname')
+        if self.subtable:
+            self.tdSql.query(f'select count(*) from {self.stb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
+            self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+            self.tdSql.query(f'select count(*) from {self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
+            self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+            self.tdSql.query(f'select count(*) from {self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix};')
+            self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
 
     def udaf_test(self, interval, udf_size, outputtype):
         self.case_name = sys._getframe().f_code.co_name
@@ -1412,8 +1437,8 @@ class StreamComputingTest(TDCase):
     
 
     def run(self):
-        # self.insert_after_restart()
-        # return
+        self.udf_test(8, "int")
+        return
         for vgroups in self.vgroups_list:
             self.vgroups = vgroups
             self.create_none_db_stream()
