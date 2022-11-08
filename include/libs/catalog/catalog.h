@@ -124,6 +124,7 @@ typedef struct SDbVgVersion {
   int64_t dbId;
   int32_t vgVersion;
   int32_t numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
+  int64_t stateTs;
 } SDbVgVersion;
 
 typedef struct STbSVersion {

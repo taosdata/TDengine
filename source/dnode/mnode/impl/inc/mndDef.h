@@ -321,6 +321,7 @@ typedef struct {
   int32_t  vgVersion;
   SDbCfg   cfg;
   SRWLatch lock;
+  int64_t  stateTs;
 } SDbObj;
 
 typedef struct {

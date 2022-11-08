@@ -474,7 +474,7 @@ void* destroyConnPool(void* pool) {
 }
 
 static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
-  char key[32] = {0};
+  char key[TSDB_FQDN_LEN + 64] = {0};
   CONN_CONSTRUCT_HASH_KEY(key, ip, port);
 
   SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
@@ -525,7 +525,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   conn->status = ConnInPool;
 
   if (conn->list == NULL) {
-    char key[32] = {0};
+    char key[TSDB_FQDN_LEN + 64] = {0};
     CONN_CONSTRUCT_HASH_KEY(key, conn->ip, conn->port);
     tTrace("%s conn %p added to conn pool, read buf cap:%d", CONN_GET_INST_LABEL(conn), conn, conn->readBuf.cap);
     conn->list = taosHashGet((SHashObj*)pool, key, strlen(key));
