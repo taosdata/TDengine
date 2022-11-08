@@ -164,7 +164,7 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
 
     if (roleChanged) {
       SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
-      if (pDb->stateTs != curMs) {
+      if (pDb != NULL && pDb->stateTs != curMs) {
         mInfo("db:%s, stateTs changed by offline check, old newTs:%" PRId64 " newTs:%" PRId64, pDb->name, pDb->stateTs,
               curMs);
         pDb->stateTs = curMs;

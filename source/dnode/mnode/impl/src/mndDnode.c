@@ -389,7 +389,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       }
       if (roleChanged) {
         SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
-        if (pDb->stateTs != curMs) {
+        if (pDb != NULL && pDb->stateTs != curMs) {
           mInfo("db:%s, stateTs changed by status msg, old stateTs:%" PRId64 " new stateTs:%" PRId64, pDb->name, pDb->stateTs, curMs);
           pDb->stateTs = curMs;
         }
