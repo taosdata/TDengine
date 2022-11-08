@@ -3088,6 +3088,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     }
   }
 #else
+  int64_t* pts = (int64_t*)pInput->pPTS->pData;
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
     if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
       continue;
@@ -3096,9 +3097,9 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     numOfElems++;
 
     char* data = colDataGetData(pInputCol, i);
-    TSKEY* cts = (TSKEY*) colDataGetData(pInput->pPTS, i);
-    if (pResInfo->numOfRes == 0 || pInfo->ts < (*cts)) {
-      doSaveCurrentVal(pCtx, i, *cts, type, data);
+    TSKEY cts = pts[i];
+    if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
+      doSaveCurrentVal(pCtx, i, cts, type, data);
       pResInfo->numOfRes = 1;
     }
   }
@@ -3285,11 +3286,13 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
     }
   }
 #else
+
+  int64_t* pts = (int64_t*)pInput->pPTS->pData;
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
     char* data = colDataGetData(pInputCol, i);
-    TSKEY cts = getRowPTs(pInput->pPTS, i);
-    numOfElems++;
+    TSKEY cts = pts[i];
 
+    numOfElems++;
     if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
       doSaveLastrow(pCtx, data, i, cts, pInfo);
       pResInfo->numOfRes = 1;
