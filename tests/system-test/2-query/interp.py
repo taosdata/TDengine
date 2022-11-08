@@ -18,6 +18,7 @@ class TDTestCase:
     def run(self):
         dbname = "db"
         tbname = "tb"
+        tbname1 = "tb1"
         stbname = "stb"
         ctbname1 = "ctb1"
         ctbname2 = "ctb2"
@@ -878,7 +879,256 @@ class TDTestCase:
         tdSql.checkData(0, 0, 14)
         tdSql.checkData(1, 0, 15)
 
-        tdLog.printNoPrefix("==========step10:test multi-interp cases")
+
+        tdLog.printNoPrefix("==========step10:test interp with null data")
+        tdSql.execute(
+            f'''create table if not exists {dbname}.{tbname1}
+            (ts timestamp, c0 int, c1 int)
+            '''
+        )
+
+
+        tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:00', 0,    NULL)")
+        tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:05', NULL, NULL)")
+        tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:10', 10,   10)")
+        tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:15', NULL, NULL)")
+        tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:20', 20,   NULL)")
+        tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:25', NULL, NULL)")
+        tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:30', 30,   30)")
+        tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:35', 35,   NULL)")
+        tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:40', 40,   40)")
+        tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:45', NULL, 45)")
+        tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:50', 50,   NULL)")
+        tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:55', NULL, NULL)")
+        tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:01:00', 55,   60)")
+
+        # check c0
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-01 23:59:59', '2020-02-02 00:00:00') every(1s) fill(linear)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-01 23:59:59', '2020-02-02 00:00:03') every(1s) fill(linear)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-01 23:59:59', '2020-02-02 00:00:05') every(1s) fill(linear)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-01 23:59:59', '2020-02-02 00:00:08') every(1s) fill(linear)")
+        tdSql.checkRows(9)
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(3, 0, 3)
+        tdSql.checkData(4, 0, 4)
+        tdSql.checkData(5, 0, 5)
+        tdSql.checkData(6, 0, 6)
+        tdSql.checkData(7, 0, 7)
+        tdSql.checkData(8, 0, 8)
+
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:01', '2020-02-02 00:00:03') every(1s) fill(linear)")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:03', '2020-02-02 00:00:08') every(1s) fill(linear)")
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 4)
+        tdSql.checkData(2, 0, 5)
+        tdSql.checkData(3, 0, 6)
+        tdSql.checkData(4, 0, 7)
+        tdSql.checkData(5, 0, 8)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:05', '2020-02-02 00:00:10') every(1s) fill(linear)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:05', '2020-02-02 00:00:15') every(1s) fill(linear)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:05', '2020-02-02 00:00:18') every(1s) fill(linear)")
+        tdSql.checkRows(9)
+        tdSql.checkData(0, 0, 10)
+        tdSql.checkData(1, 0, 11)
+        tdSql.checkData(2, 0, 12)
+        tdSql.checkData(3, 0, 13)
+        tdSql.checkData(4, 0, 14)
+        tdSql.checkData(5, 0, 15)
+        tdSql.checkData(6, 0, 16)
+        tdSql.checkData(7, 0, 17)
+        tdSql.checkData(8, 0, 18)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:05', '2020-02-02 00:00:20') every(1s) fill(linear)")
+        tdSql.checkRows(11)
+        tdSql.checkData(0,  0, 10)
+        tdSql.checkData(1,  0, 11)
+        tdSql.checkData(2,  0, 12)
+        tdSql.checkData(3,  0, 13)
+        tdSql.checkData(4,  0, 14)
+        tdSql.checkData(5,  0, 15)
+        tdSql.checkData(6,  0, 16)
+        tdSql.checkData(7,  0, 17)
+        tdSql.checkData(8,  0, 18)
+        tdSql.checkData(9, 0, 19)
+        tdSql.checkData(10, 0, 20)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:09', '2020-02-02 00:00:11') every(1s) fill(linear)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:10', '2020-02-02 00:00:15') every(1s) fill(linear)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:12', '2020-02-02 00:00:13') every(1s) fill(linear)")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:12', '2020-02-02 00:00:15') every(1s) fill(linear)")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:12', '2020-02-02 00:00:18') every(1s) fill(linear)")
+        tdSql.checkRows(7)
+        tdSql.checkData(0,  0, 12)
+        tdSql.checkData(1,  0, 13)
+        tdSql.checkData(2,  0, 14)
+        tdSql.checkData(3,  0, 15)
+        tdSql.checkData(4,  0, 16)
+        tdSql.checkData(5,  0, 17)
+        tdSql.checkData(6,  0, 18)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:30', '2020-02-02 00:00:40') every(1s) fill(linear)")
+        tdSql.checkRows(11)
+        tdSql.checkData(0,  0, 30)
+        tdSql.checkData(10, 0, 40)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:25', '2020-02-02 00:00:45') every(1s) fill(linear)")
+        tdSql.checkRows(11)
+        tdSql.checkData(0,  0, 30)
+        tdSql.checkData(10, 0, 40)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:25', '2020-02-02 00:00:45') every(1s) fill(linear)")
+        tdSql.checkRows(11)
+        tdSql.checkData(0,  0, 30)
+        tdSql.checkData(10, 0, 40)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:20', '2020-02-02 00:00:40') every(1s) fill(linear)")
+        tdSql.checkRows(21)
+        tdSql.checkData(0,  0, 20)
+        tdSql.checkData(20, 0, 40)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:30', '2020-02-02 00:00:50') every(1s) fill(linear)")
+        tdSql.checkRows(21)
+        tdSql.checkData(0,  0, 30)
+        tdSql.checkData(20, 0, 50)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:20', '2020-02-02 00:00:50') every(1s) fill(linear)")
+        tdSql.checkRows(31)
+        tdSql.checkData(0,  0, 20)
+        tdSql.checkData(30, 0, 50)
+
+        # check c1
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-01 23:59:59', '2020-02-02 00:00:05') every(1s) fill(linear)")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:00:05') every(1s) fill(linear)")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:00:08') every(1s) fill(linear)")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:00:10') every(1s) fill(linear)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:00:15') every(1s) fill(linear)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:00:20') every(1s) fill(linear)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:00:25') every(1s) fill(linear)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:00:30') every(1s) fill(linear)")
+        tdSql.checkRows(21)
+        tdSql.checkData(0,  0, 10)
+        tdSql.checkData(1,  0, 11)
+        tdSql.checkData(2,  0, 12)
+        tdSql.checkData(3,  0, 13)
+        tdSql.checkData(4,  0, 14)
+        tdSql.checkData(5,  0, 15)
+        tdSql.checkData(6,  0, 16)
+        tdSql.checkData(7,  0, 17)
+        tdSql.checkData(8,  0, 18)
+        tdSql.checkData(9,  0, 19)
+        tdSql.checkData(10, 0, 20)
+        tdSql.checkData(11, 0, 21)
+        tdSql.checkData(12, 0, 22)
+        tdSql.checkData(13, 0, 23)
+        tdSql.checkData(14, 0, 24)
+        tdSql.checkData(15, 0, 25)
+        tdSql.checkData(16, 0, 26)
+        tdSql.checkData(17, 0, 27)
+        tdSql.checkData(18, 0, 28)
+        tdSql.checkData(19, 0, 29)
+        tdSql.checkData(20, 0, 30)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:00:35') every(1s) fill(linear)")
+        tdSql.checkRows(21)
+        tdSql.checkData(0,  0, 10)
+        tdSql.checkData(20, 0, 30)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:00:40') every(1s) fill(linear)")
+        tdSql.checkRows(31)
+        tdSql.checkData(0,  0, 10)
+        tdSql.checkData(30, 0, 40)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:00:45') every(1s) fill(linear)")
+        tdSql.checkRows(36)
+        tdSql.checkData(0,  0, 10)
+        tdSql.checkData(35, 0, 45)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:00:50') every(1s) fill(linear)")
+        tdSql.checkRows(36)
+        tdSql.checkData(0,  0, 10)
+        tdSql.checkData(35, 0, 45)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:00:55') every(1s) fill(linear)")
+        tdSql.checkRows(36)
+        tdSql.checkData(0,  0, 10)
+        tdSql.checkData(35, 0, 45)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:01:00') every(1s) fill(linear)")
+        tdSql.checkRows(51)
+        tdSql.checkData(0,  0, 10)
+        tdSql.checkData(50, 0, 60)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:40', '2020-02-02 00:00:45') every(1s) fill(linear)")
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, 40)
+        tdSql.checkData(5, 0, 45)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:35', '2020-02-02 00:00:50') every(1s) fill(linear)")
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, 40)
+        tdSql.checkData(5, 0, 45)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:35', '2020-02-02 00:00:55') every(1s) fill(linear)")
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, 40)
+        tdSql.checkData(5, 0, 45)
+
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:30', '2020-02-02 00:01:00') every(1s) fill(linear)")
+        tdSql.checkRows(31)
+        tdSql.checkData(0,  0, 30)
+        tdSql.checkData(30, 0, 60)
+
+        tdLog.printNoPrefix("==========step11:test multi-interp cases")
         tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3) from {dbname}.{tbname} range('2020-02-09 00:00:05', '2020-02-13 00:00:05') every(1d) fill(null)")
         tdSql.checkRows(5)
         tdSql.checkCols(4)
@@ -932,7 +1182,7 @@ class TDTestCase:
         for i in range (tdSql.queryCols):
             tdSql.checkData(0, i, 13)
 
-        tdLog.printNoPrefix("==========step11:test error cases")
+        tdLog.printNoPrefix("==========step12:test error cases")
 
         tdSql.error(f"select interp(c0) from {dbname}.{tbname}")
         tdSql.error(f"select interp(c0) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05')")
@@ -955,7 +1205,7 @@ class TDTestCase:
         tdSql.error(f"select interp('abcd') from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d) fill(null)")
         tdSql.error(f"select interp('中文字符') from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d) fill(null)")
 
-        tdLog.printNoPrefix("==========step12:stable cases")
+        tdLog.printNoPrefix("==========step13:stable cases")
 
         #tdSql.query(f"select interp(c0) from {dbname}.{stbname} range('2020-02-01 00:00:04', '2020-02-01 00:00:16') every(1s) fill(null)")
         #tdSql.checkRows(13)
