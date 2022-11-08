@@ -110,7 +110,6 @@ static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
 #define tsdbRowFromBlockData(BLOCKDATA, IROW) ((TSDBROW){.type = 1, .pBlockData = (BLOCKDATA), .iRow = (IROW)})
 void    tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow);
-int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow);
 int32_t tsdbRowCmprFn(const void *p1, const void *p2);
 // SRowIter
 void     tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
@@ -770,6 +769,13 @@ static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
   }
 
   return 0;
+}
+
+static FORCE_INLINE int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow) {
+  int32_t n = tGetI64(p, &pRow->version);
+  pRow->pTSRow = (STSRow *)(p + n);
+  n += pRow->pTSRow->len;
+  return n;
 }
 
 #ifdef __cplusplus
