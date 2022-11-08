@@ -182,9 +182,8 @@ typedef struct SyncClientRequest {
   char     data[];   // origin RpcMsg.pCont
 } SyncClientRequest;
 
-SyncClientRequest* syncClientRequestBuild(uint32_t dataLen);
-SyncClientRequest* syncClientRequestBuild2(const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum, bool isWeak,
-                                           int32_t vgId);  // step 1
+SyncClientRequest* syncClientRequestAlloc(uint32_t dataLen);
+SyncClientRequest* syncClientRequestBuild(const SRpcMsg* pMsg, uint64_t seqNum, bool isWeak, int32_t vgId);  // step 1
 void               syncClientRequestDestroy(SyncClientRequest* pMsg);
 void               syncClientRequestSerialize(const SyncClientRequest* pMsg, char* buf, uint32_t bufLen);
 void               syncClientRequestDeserialize(const char* buf, uint32_t len, SyncClientRequest* pMsg);

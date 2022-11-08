@@ -142,7 +142,7 @@ char* syncUtilPrintBin(char* ptr, uint32_t len) {
   memset(s, 0, len + 1);
   memcpy(s, ptr, len);
 
-  for (int i = 0; i < len; ++i) {
+  for (int32_t i = 0; i < len; ++i) {
     if (!syncUtilCanPrint(s[i])) {
       s[i] = '.';
     }
@@ -157,8 +157,8 @@ char* syncUtilPrintBin2(char* ptr, uint32_t len) {
   memset(s, 0, len2);
 
   char* p = s;
-  for (int i = 0; i < len; ++i) {
-    int n = sprintf(p, "%d,", ptr[i]);
+  for (int32_t i = 0; i < len; ++i) {
+    int32_t n = sprintf(p, "%d,", ptr[i]);
     p += n;
   }
   return s;
@@ -178,29 +178,11 @@ void syncUtilMsgNtoH(void* msg) {
   pHead->vgId = ntohl(pHead->vgId);
 }
 
-bool syncUtilUserPreCommit(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER) {
-    return true;
-  }
+bool syncUtilUserPreCommit(tmsg_t msgType) { return msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER; }
 
-  return false;
-}
+bool syncUtilUserCommit(tmsg_t msgType) { return msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER; }
 
-bool syncUtilUserCommit(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER) {
-    return true;
-  }
-
-  return false;
-}
-
-bool syncUtilUserRollback(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER) {
-    return true;
-  }
-
-  return false;
-}
+bool syncUtilUserRollback(tmsg_t msgType) { return msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER; }
 
 void syncCfg2SimpleStr(const SSyncCfg* pCfg, char* buf, int32_t bufLen) {
   int32_t len = snprintf(buf, bufLen, "{r-num:%d, my:%d, ", pCfg->replicaNum, pCfg->myIndex);

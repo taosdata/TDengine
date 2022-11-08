@@ -74,8 +74,8 @@ void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
 
   ASSERT(syncUtilSameId(&pVotesGranted->pSyncNode->myRaftId, &pMsg->destId));
 
-  int j = -1;
-  for (int i = 0; i < pVotesGranted->replicaNum; ++i) {
+  int32_t j = -1;
+  for (int32_t i = 0; i < pVotesGranted->replicaNum; ++i) {
     if (syncUtilSameId(&((*(pVotesGranted->replicas))[i]), &(pMsg->srcId))) {
       j = i;
       break;
@@ -105,11 +105,11 @@ cJSON *voteGranted2Json(SVotesGranted *pVotesGranted) {
     cJSON_AddNumberToObject(pRoot, "replicaNum", pVotesGranted->replicaNum);
     cJSON *pReplicas = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "replicas", pReplicas);
-    for (int i = 0; i < pVotesGranted->replicaNum; ++i) {
+    for (int32_t i = 0; i < pVotesGranted->replicaNum; ++i) {
       cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pVotesGranted->replicas))[i]));
     }
-    int *arr = (int *)taosMemoryMalloc(sizeof(int) * pVotesGranted->replicaNum);
-    for (int i = 0; i < pVotesGranted->replicaNum; ++i) {
+    int32_t *arr = (int32_t *)taosMemoryMalloc(sizeof(int32_t) * pVotesGranted->replicaNum);
+    for (int32_t i = 0; i < pVotesGranted->replicaNum; ++i) {
       arr[i] = pVotesGranted->isGranted[i];
     }
     cJSON *pIsGranted = cJSON_CreateIntArray(arr, pVotesGranted->replicaNum);
@@ -168,7 +168,7 @@ void votesRespondUpdate(SVotesRespond *pVotesRespond, SSyncNode *pSyncNode) {
 
 bool votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId) {
   bool ret = false;
-  for (int i = 0; i < pVotesRespond->replicaNum; ++i) {
+  for (int32_t i = 0; i < pVotesRespond->replicaNum; ++i) {
     if (syncUtilSameId(&(*pVotesRespond->replicas)[i], pRaftId) && pVotesRespond->isRespond[i]) {
       ret = true;
       break;
@@ -183,7 +183,7 @@ void votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *p
     return;
   }
 
-  for (int i = 0; i < pVotesRespond->replicaNum; ++i) {
+  for (int32_t i = 0; i < pVotesRespond->replicaNum; ++i) {
     if (syncUtilSameId(&((*(pVotesRespond->replicas))[i]), &pMsg->srcId)) {
       // ASSERT(pVotesRespond->isRespond[i] == false);
       pVotesRespond->isRespond[i] = true;
@@ -197,7 +197,7 @@ void votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term) {
   pVotesRespond->term = term;
   memset(pVotesRespond->isRespond, 0, sizeof(pVotesRespond->isRespond));
   /*
-    for (int i = 0; i < pVotesRespond->replicaNum; ++i) {
+    for (int32_t i = 0; i < pVotesRespond->replicaNum; ++i) {
       pVotesRespond->isRespond[i] = false;
     }
   */
@@ -211,12 +211,12 @@ cJSON *votesRespond2Json(SVotesRespond *pVotesRespond) {
     cJSON_AddNumberToObject(pRoot, "replicaNum", pVotesRespond->replicaNum);
     cJSON *pReplicas = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "replicas", pReplicas);
-    for (int i = 0; i < pVotesRespond->replicaNum; ++i) {
+    for (int32_t i = 0; i < pVotesRespond->replicaNum; ++i) {
       cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pVotesRespond->replicas))[i]));
     }
-    int  respondNum = 0;
-    int *arr = (int *)taosMemoryMalloc(sizeof(int) * pVotesRespond->replicaNum);
-    for (int i = 0; i < pVotesRespond->replicaNum; ++i) {
+    int32_t  respondNum = 0;
+    int32_t *arr = (int32_t *)taosMemoryMalloc(sizeof(int32_t) * pVotesRespond->replicaNum);
+    for (int32_t i = 0; i < pVotesRespond->replicaNum; ++i) {
       arr[i] = pVotesRespond->isRespond[i];
       if (pVotesRespond->isRespond[i]) {
         respondNum++;

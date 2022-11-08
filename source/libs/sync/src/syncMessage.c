@@ -831,21 +831,18 @@ void syncPingReplyLog2(char* s, const SyncPingReply* pMsg) {
 }
 
 // ---- message process SyncClientRequest----
-SyncClientRequest* syncClientRequestBuild(uint32_t dataLen) {
+SyncClientRequest* syncClientRequestAlloc(uint32_t dataLen) {
   uint32_t           bytes = sizeof(SyncClientRequest) + dataLen;
-  SyncClientRequest* pMsg = taosMemoryMalloc(bytes);
-  memset(pMsg, 0, bytes);
+  SyncClientRequest* pMsg = taosMemoryCalloc(1, bytes);
   pMsg->bytes = bytes;
   pMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
-  pMsg->seqNum = 0;
-  pMsg->isWeak = false;
   pMsg->dataLen = dataLen;
   return pMsg;
 }
 
 // step 1. original SRpcMsg => SyncClientRequest, add seqNum, isWeak
-SyncClientRequest* syncClientRequestBuild2(const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum, bool isWeak, int32_t vgId) {
-  SyncClientRequest* pMsg = syncClientRequestBuild(pOriginalRpcMsg->contLen);
+SyncClientRequest* syncClientRequestBuild(const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum, bool isWeak, int32_t vgId) {
+  SyncClientRequest* pMsg = syncClientRequestAlloc(pOriginalRpcMsg->contLen);
   pMsg->vgId = vgId;
   pMsg->originalRpcType = pOriginalRpcMsg->msgType;
   pMsg->seqNum = seqNum;
@@ -891,7 +888,6 @@ SyncClientRequest* syncClientRequestDeserialize2(const char* buf, uint32_t len) 
 
 // step 2. SyncClientRequest => RpcMsg, to queue
 void syncClientRequest2RpcMsg(const SyncClientRequest* pMsg, SRpcMsg* pRpcMsg) {
-  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
   pRpcMsg->msgType = pMsg->msgType;
   pRpcMsg->contLen = pMsg->bytes;
   pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);

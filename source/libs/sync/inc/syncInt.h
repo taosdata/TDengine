@@ -111,10 +111,6 @@ typedef struct SElectTimer {
   void*      pData;
 } SElectTimer;
 
-int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRaftId destId);
-int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
-int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
-
 typedef struct SPeerState {
   SyncIndex lastSendIndex;
   int64_t   lastSendTime;
