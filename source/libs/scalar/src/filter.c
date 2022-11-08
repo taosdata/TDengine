@@ -912,8 +912,8 @@ int32_t filterDetachCnfGroups(SArray *group, SArray *left, SArray *right) {
 
   if (taosArrayGetSize(left) <= 0) {
     if (taosArrayGetSize(right) <= 0) {
-      fltError("both groups are empty");
-      FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+      fltDebug("both groups are empty");
+      return TSDB_CODE_SUCCESS;
     }
 
     SFilterGroup *gp = NULL;
