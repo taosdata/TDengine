@@ -208,7 +208,7 @@ STaosQall *taosAllocateQall() {
 void taosFreeQall(STaosQall *qall) { taosMemoryFree(qall); }
 
 int32_t taosReadAllQitems(STaosQueue *queue, STaosQall *qall) {
-  int32_t code = 0;
+  int32_t numOfItems = 0;
   bool    empty;
 
   taosThreadMutexLock(&queue->mutex);
@@ -219,13 +219,14 @@ int32_t taosReadAllQitems(STaosQueue *queue, STaosQall *qall) {
     qall->current = queue->head;
     qall->start = queue->head;
     qall->numOfItems = queue->numOfItems;
-    code = qall->numOfItems;
+    numOfItems = qall->numOfItems;
 
     queue->head = NULL;
     queue->tail = NULL;
     queue->numOfItems = 0;
     queue->memOfItems = 0;
-    uTrace("read %d items from queue:%p, items:%d mem:%" PRId64, code, queue, queue->numOfItems, queue->memOfItems);
+    uTrace("read %d items from queue:%p, items:%d mem:%" PRId64, numOfItems, queue, queue->numOfItems,
+           queue->memOfItems);
     if (queue->qset) atomic_sub_fetch_32(&queue->qset->numOfItems, qall->numOfItems);
   }
 
@@ -237,7 +238,7 @@ int32_t taosReadAllQitems(STaosQueue *queue, STaosQall *qall) {
     qall->start = NULL;
     qall->numOfItems = 0;
   }
-  return code;
+  return numOfItems;
 }
 
 int32_t taosGetQitem(STaosQall *qall, void **ppItem) {
