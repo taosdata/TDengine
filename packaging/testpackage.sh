@@ -6,6 +6,8 @@ version=$2
 originPackageName=$3
 originversion=$4
 testFile=$5
+# sourcePath:web/nas
+sourcePath=$6
 subFile="taos.tar.gz"
 
 # Color setting
@@ -71,16 +73,23 @@ fi
 function wgetFile {
 
 file=$1
-
-if [ ! -f  ${file}  ];then
-    echoColor  BD "wget https://www.taosdata.com/assets-download/3.0/${file}"
-    wget https://www.taosdata.com/assets-download/3.0/${file}
-else
-    echoColor  YD "${file} already exists and use new file "
+versionPath=$2
+sourceP=$3
+nasServerIP="192.168.1.131"
+packagePath="/nas/TDengine/v${versionPath}/community"
+if [ -f  ${file}  ];then
+    echoColor  YD "${file} already exists ,it will delete it and download  it again "
     rm -rf ${file}
-    echoColor  BD "wget https://www.taosdata.com/assets-download/3.0/${file}"
-    wget https://www.taosdata.com/assets-download/3.0/${file}  
 fi
+
+if [ ${sourceP} = 'web' ];then
+    echoColor  BD "====download====:wget https://www.taosdata.com/assets-download/3.0/${file}"
+    wget https://www.taosdata.com/assets-download/3.0/${file}
+elif [ ${sourceP} = 'nas' ];then
+    echoColor  BD "====download====:scp root@${nasServerIP}:${packagePath}/${file} ."
+    scp root@${nasServerIP}:${packagePath}/${file} .
+fi
+
 }
 
 function newPath {
@@ -142,8 +151,9 @@ if [ -d ${installPath}/${tdPath} ] ;then
 fi
 
 echoColor G "===== download  installPackage ====="
-cd ${installPath} && wgetFile ${packgeName}
-cd  ${oriInstallPath}  && wgetFile ${originPackageName}
+cd ${installPath} && wgetFile ${packgeName} ${version}  ${sourcePath}
+cd  ${oriInstallPath}  && wgetFile ${originPackageName} ${originversion}   ${sourcePath}
+
 
 cd ${installPath}
 cp -r ${scriptDir}/debRpmAutoInstall.sh   . 
@@ -193,7 +203,7 @@ elif [[ ${packgeName} =~ "tar" ]];then
     cd  ${oriInstallPath}
     if [ ! -f  {originPackageName}  ];then
         echoColor YD "download  base installPackage"
-        wgetFile ${originPackageName}
+        wgetFile ${originPackageName} ${originversion} ${sourcePath} 
     fi
     echoColor YD "unzip the base installation package" 
     echoColor BD "tar -xf ${originPackageName}" && tar -xf ${originPackageName} 
@@ -238,14 +248,19 @@ cd ${installPath}
 if [[ ${packgeName} =~ "Lite" ]]  ||   ([[ ${packgeName} =~ "x64" ]] && [[ ${packgeName} =~ "client" ]]) ||  ([[ ${packgeName} =~ "deb" ]] && [[ ${packgeName} =~ "server" ]])  || ([[ ${packgeName} =~ "rpm" ]] && [[ ${packgeName} =~ "server" ]]) ;then
     echoColor G "===== install taos-tools when package is lite or client ====="
     cd ${installPath}
-    wgetFile taosTools-2.1.3-Linux-x64.tar.gz .
-    tar xf taosTools-2.1.3-Linux-x64.tar.gz
+    if [ ! -f "taosTools-2.1.3-Linux-x64.tar.gz " ];then
+        wgetFile taosTools-2.1.3-Linux-x64.tar.gz v2.1.3 web
+        tar xf taosTools-2.1.3-Linux-x64.tar.gz  
+    fi
     cd taosTools-2.1.3 && bash install-taostools.sh
 elif  ([[ ${packgeName} =~ "arm64" ]] && [[ ${packgeName} =~ "client" ]]);then
     echoColor G "===== install taos-tools arm when package is arm64-client ====="
     cd ${installPath}
-    wgetFile taosTools-2.1.3-Linux-arm64.tar.gz .
-    tar xf taosTools-2.1.3-Linux-arm64.tar.gz
+    if [ ! -f "taosTools-2.1.3-Linux-x64.tar.gz " ];then
+        wgetFile taosTools-2.1.3-Linux-x64.tar.gz v2.1.3 web
+        tar xf taosTools-2.1.3-Linux-arm64.tar.gz
+    fi    
+    
     cd taosTools-2.1.3 && bash install-taostools.sh
 fi
 
