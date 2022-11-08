@@ -1412,7 +1412,7 @@ class StreamComputingTest(TDCase):
     
 
     def run(self):
-        # self.scalar_function(partition="tbname,c1", delete=True)
+        # self.insert_after_restart()
         # return
         for vgroups in self.vgroups_list:
             self.vgroups = vgroups
@@ -1421,7 +1421,8 @@ class StreamComputingTest(TDCase):
             self.create_none_source_tb_tag_stream()
             self.create_none_source_tb_col_stream()
             self.create_error_source_sql_stream()
-            self.insert_after_restart()
+            # ! TD-20280
+            # self.insert_after_restart()
             ## ! TD-18123
             # self.insert_after_recreate_source_table()
             self.query_after_drop_stream_db()
@@ -1440,14 +1441,13 @@ class StreamComputingTest(TDCase):
             self.at_once_interval(interval=random.randint(10, 15), partition="c1")
             self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)")
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname", delete=True)
-            ## ! TD-20195
-            ## self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
-            ## self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
+            self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
+            self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
             self.at_once_state_window(state_window="c1", partiton="tbname")
             self.at_once_state_window(state_window="c1", partiton="c1")
             self.at_once_state_window(state_window="c1", partiton="abs(c1)")
             self.at_once_state_window(state_window="c1", partiton="tbname", delete=True)
-            # # ! TD-19898
+            # ! TD-19898
             # self.at_once_state_window(state_window="c1", partiton="c1", delete=True)
             # self.at_once_state_window(state_window="c1", partiton="abs(c1)", delete=True)
             self.at_once_session(session=random.randint(10, 15), partition="tbname")
