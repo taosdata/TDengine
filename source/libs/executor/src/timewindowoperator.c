@@ -1991,10 +1991,8 @@ static void doKeepNextRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
   pSliceInfo->isNextRowSet = true;
 }
 
-static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock* pBlock, int32_t rowIndex,
-                             bool isLastRow) {
+static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock* pBlock, int32_t rowIndex) {
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-  bool    fillLastPoint = pSliceInfo->fillLastPoint;
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
     SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pSliceInfo->tsCol.slotId);
@@ -2002,30 +2000,21 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
     // null data should not be kept since it can not be used to perform interpolation
     if (!colDataIsNull_s(pColInfoData, i)) {
-      if (isLastRow) {
+      if (pLinearInfo->start.key == INT64_MIN) {
         pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
         memcpy(pLinearInfo->start.val, colDataGetData(pColInfoData, rowIndex), pLinearInfo->bytes);
-      } else if (fillLastPoint) {
+      } else if (pLinearInfo->end.key == INT64_MAX) {
         pLinearInfo->end.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
         memcpy(pLinearInfo->end.val, colDataGetData(pColInfoData, rowIndex), pLinearInfo->bytes);
       } else {
-        pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
-        pLinearInfo->end.key = *(int64_t*)colDataGetData(pTsCol, rowIndex + 1);
-
-        char* val;
-        val = colDataGetData(pColInfoData, rowIndex);
-        memcpy(pLinearInfo->start.val, val, pLinearInfo->bytes);
-        val = colDataGetData(pColInfoData, rowIndex + 1);
-        memcpy(pLinearInfo->end.val, val, pLinearInfo->bytes);
+        pLinearInfo->start.key = pLinearInfo->end.key;
+        pLinearInfo->end.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
+        memcpy(pLinearInfo->start.val, pLinearInfo->end.val, pLinearInfo->bytes);
+        memcpy(pLinearInfo->end.val, colDataGetData(pColInfoData, rowIndex), pLinearInfo->bytes);
       }
-
-      pLinearInfo->hasNull = false;
-    } else {
-      pLinearInfo->hasNull = true;
     }
   }
 
-  pSliceInfo->fillLastPoint = isLastRow;
 }
 
 static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock) {
@@ -2209,13 +2198,7 @@ static int32_t initFillLinearInfo(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
     taosArrayPush(pInfo->pLinearInfo, &linearInfo);
   }
 
-  pInfo->fillLastPoint = false;
-
   return TSDB_CODE_SUCCESS;
-}
-
-static bool needToFillLastPoint(STimeSliceOperatorInfo* pSliceInfo) {
-  return (pSliceInfo->fillLastPoint == true && pSliceInfo->fillType == TSDB_FILL_LINEAR);
 }
 
 static int32_t initKeeperInfo(STimeSliceOperatorInfo* pInfo, SSDataBlock* pBlock) {
@@ -2273,15 +2256,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
     for (int32_t i = 0; i < pBlock->info.rows; ++i) {
       int64_t ts = *(int64_t*)colDataGetData(pTsCol, i);
 
-      if (i == 0 && needToFillLastPoint(pSliceInfo)) {  // first row in current block
-        doKeepLinearInfo(pSliceInfo, pBlock, i, false);
-        while (pSliceInfo->current < ts && pSliceInfo->current <= pSliceInfo->win.ekey) {
-          genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
-          pSliceInfo->current =
-              taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-        }
-      }
-
       if (pSliceInfo->current > pSliceInfo->win.ekey) {
         doSetOperatorCompleted(pOperator);
         break;
@@ -2313,94 +2287,44 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
         pResBlock->info.rows += 1;
         doKeepPrevRows(pSliceInfo, pBlock, i);
+        doKeepLinearInfo(pSliceInfo, pBlock, i);
 
-        // for linear interpolation, always fill value between this and next points;
-        // if its the first point in data block, also fill values between previous(if there's any) and this point;
-        // if its the last point in data block, no need to fill, but reserve this point as the start value and do
-        // the interpolation when processing next data block.
-        if (pSliceInfo->fillType == TSDB_FILL_LINEAR) {
-          pSliceInfo->current =
-              taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-          if (i < pBlock->info.rows - 1) {
-            doKeepLinearInfo(pSliceInfo, pBlock, i, false);
-            int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
-            if (nextTs > pSliceInfo->current) {
-              while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
-                genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
-                pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
-                                                  pInterval->precision);
-              }
-
-              if (pSliceInfo->current > pSliceInfo->win.ekey) {
-                doSetOperatorCompleted(pOperator);
-                break;
-              }
-            }
-          } else {  // it is the last row of current block
-            // store ts value as start, and calculate interp value when processing next block
-            doKeepLinearInfo(pSliceInfo, pBlock, i, true);
-          }
-        } else {  // non-linear interpolation
-          pSliceInfo->current =
-              taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-          if (pSliceInfo->current > pSliceInfo->win.ekey) {
-            doSetOperatorCompleted(pOperator);
-            break;
-          }
+        pSliceInfo->current =
+            taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+        if (pSliceInfo->current > pSliceInfo->win.ekey) {
+          doSetOperatorCompleted(pOperator);
+          break;
         }
       } else if (ts < pSliceInfo->current) {
         // in case of interpolation window starts and ends between two datapoints, fill(prev) need to interpolate
         doKeepPrevRows(pSliceInfo, pBlock, i);
+        doKeepLinearInfo(pSliceInfo, pBlock, i);
 
-        if (pSliceInfo->fillType == TSDB_FILL_LINEAR) {
-          // no need to increate pSliceInfo->current here
-          // pSliceInfo->current =
-          //    taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-          if (i < pBlock->info.rows - 1) {
-            doKeepLinearInfo(pSliceInfo, pBlock, i, false);
-            int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
-            if (nextTs > pSliceInfo->current) {
-              while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
-                genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
-                pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
-                                                  pInterval->precision);
-              }
+        if (i < pBlock->info.rows - 1) {
+          // in case of interpolation window starts and ends between two datapoints, fill(next) need to interpolate
+          doKeepNextRows(pSliceInfo, pBlock, i + 1);
+          int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
+          if (nextTs > pSliceInfo->current) {
+            while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
+              genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
+              pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
+                                                pInterval->precision);
+            }
 
-              if (pSliceInfo->current > pSliceInfo->win.ekey) {
-                doSetOperatorCompleted(pOperator);
-                break;
-              }
+            if (pSliceInfo->current > pSliceInfo->win.ekey) {
+              doSetOperatorCompleted(pOperator);
+              break;
             }
           } else {
-            // store ts value as start, and calculate interp value when processing next block
-            doKeepLinearInfo(pSliceInfo, pBlock, i, true);
+            // ignore current row, and do nothing
           }
-        } else {  // non-linear interpolation
-          if (i < pBlock->info.rows - 1) {
-            // in case of interpolation window starts and ends between two datapoints, fill(next) need to interpolate
-            doKeepNextRows(pSliceInfo, pBlock, i + 1);
-            int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
-            if (nextTs > pSliceInfo->current) {
-              while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
-                genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
-                pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
-                                                  pInterval->precision);
-              }
-
-              if (pSliceInfo->current > pSliceInfo->win.ekey) {
-                doSetOperatorCompleted(pOperator);
-                break;
-              }
-            } else {
-              // ignore current row, and do nothing
-            }
-          } else {  // it is the last row of current block
-            doKeepPrevRows(pSliceInfo, pBlock, i);
-          }
+        } else {  // it is the last row of current block
+          doKeepPrevRows(pSliceInfo, pBlock, i);
         }
       } else {  // ts > pSliceInfo->current
         // in case of interpolation window starts and ends between two datapoints, fill(next) need to interpolate
         doKeepNextRows(pSliceInfo, pBlock, i);
+        doKeepLinearInfo(pSliceInfo, pBlock, i);
 
         while (pSliceInfo->current < ts && pSliceInfo->current <= pSliceInfo->win.ekey) {
           genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
@@ -2436,32 +2360,8 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
           pResBlock->info.rows += 1;
           doKeepPrevRows(pSliceInfo, pBlock, i);
 
-          if (pSliceInfo->fillType == TSDB_FILL_LINEAR) {
-            pSliceInfo->current =
-                taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-            if (i < pBlock->info.rows - 1) {
-              doKeepLinearInfo(pSliceInfo, pBlock, i, false);
-              int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
-              if (nextTs > pSliceInfo->current) {
-                while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
-                  genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
-                  pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
-                                                    pInterval->precision);
-                }
-
-                if (pSliceInfo->current > pSliceInfo->win.ekey) {
-                  doSetOperatorCompleted(pOperator);
-                  break;
-                }
-              }
-            } else {  // it is the last row of current block
-              // store ts value as start, and calculate interp value when processing next block
-              doKeepLinearInfo(pSliceInfo, pBlock, i, true);
-            }
-          } else {  // non-linear interpolation
-            pSliceInfo->current =
-                taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-          }
+          pSliceInfo->current =
+              taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
         }
 
         if (pSliceInfo->current > pSliceInfo->win.ekey) {
