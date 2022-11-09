@@ -78,7 +78,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
 
     pMsg = syncAppendEntriesBuild(pEntry->bytes, pSyncNode->vgId);
     ASSERT(pMsg != NULL);
-    memcpy(pMsg->data, pEntry->data, pEntry->bytes);
+    memcpy(pMsg->data, pEntry, pEntry->bytes);
     syncEntryDestory(pEntry);
 
   } else {

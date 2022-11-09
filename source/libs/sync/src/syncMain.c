@@ -2223,10 +2223,6 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
 
       } else {
         // del resp mgr, call FpCommitCb
-
-        SRpcMsg rpcMsg = {0};
-        syncClientRequest2RpcMsg(pMsg, &rpcMsg);
-
         SFsmCbMeta cbMeta = {
             .index = pEntry->index,
             .lastConfigIndex = SYNC_INDEX_INVALID,
@@ -2238,9 +2234,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
             .currentTerm = ths->pRaftStore->currentTerm,
             .flag = 0,
         };
-
-        syncRespMgrGetAndDel(ths->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info);
-        ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, &cbMeta);
+        ths->pFsm->FpCommitCb(ths->pFsm, pMsg, &cbMeta);
 
         if (h) {
           taosLRUCacheRelease(ths->pLogStore->pCache, h, false);
