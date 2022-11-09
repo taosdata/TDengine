@@ -3097,22 +3097,6 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 #else
   int64_t* pts = (int64_t*)pInput->pPTS->pData;
 
-  if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
-    for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
-        continue;
-      }
-
-      numOfElems++;
-
-      char* data = colDataGetVarData(pInputCol, i);
-      TSKEY cts = pts[i];
-      if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
-        doSaveCurrentVal(pCtx, i, cts, type, data);
-        pResInfo->numOfRes = 1;
-      }
-    }
-  } else {
 #if 0
     for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
       if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
@@ -3120,16 +3104,13 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       }
 
       numOfElems++;
-
-      char* data = colDataGetNumData(pInputCol, i);
-      TSKEY cts = pts[i];
-      if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
-        doSaveCurrentVal(pCtx, i, cts, type, data);
+      if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
+        char* data = colDataGetData(pInputCol, i);
+        doSaveCurrentVal(pCtx, i, pts[i], type, data);
         pResInfo->numOfRes = 1;
       }
     }
 #else
-
     if (!pInputCol->hasNull) {
       int32_t round = pInput->numOfRows >> 2;
       int32_t reminder = pInput->numOfRows & 0x03;
@@ -3155,7 +3136,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
         }
 
         if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
-          char* data = colDataGetNumData(pInputCol, chosen);
+          char* data = colDataGetData(pInputCol, chosen);
           doSaveCurrentVal(pCtx, i, cts, type, data);
           pResInfo->numOfRes = 1;
         }
@@ -3163,10 +3144,9 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
       for (int32_t i = pInput->startRowIndex + round * 4; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
         numOfElems++;
-        TSKEY cts = pts[i];
-        if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
-          char* data = colDataGetNumData(pInputCol, i);
-          doSaveCurrentVal(pCtx, i, cts, type, data);
+        if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
+          char* data = colDataGetData(pInputCol, i);
+          doSaveCurrentVal(pCtx, i, pts[i], type, data);
           pResInfo->numOfRes = 1;
         }
       }
@@ -3179,14 +3159,14 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
-          char* data = colDataGetNumData(pInputCol, i);
+          char* data = colDataGetData(pInputCol, i);
           doSaveCurrentVal(pCtx, i, pts[i], type, data);
           pResInfo->numOfRes = 1;
         }
       }
     }
 #endif
-  }
+
 #endif
 
   // save selectivity value for column consisted of all null values
