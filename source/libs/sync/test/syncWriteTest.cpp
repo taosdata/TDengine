@@ -7,6 +7,7 @@
 #include "syncRaftEntry.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
+#include "syncTest.h"
 #include "syncUtil.h"
 #include "wal.h"
 
@@ -140,7 +141,8 @@ SRpcMsg *step0() {
 }
 
 SyncClientRequest *step1(const SRpcMsg *pMsg) {
-  SyncClientRequest *pRetMsg = syncClientRequestBuild(pMsg, 123, true, 1000);
+  SyncClientRequest *pRetMsg = NULL;
+  // syncClientRequestBuild(pMsg, 123, true, 1000);
   return pRetMsg;
 }
 
@@ -179,14 +181,14 @@ int main(int argc, char **argv) {
   SyncClientRequest *pMsg1 = step1(pMsg0);
   syncClientRequestLog2((char *)"==step1==", pMsg1);
 
-  for (int i = 0; i < 10; ++i) {
-    SyncClientRequest *pSyncClientRequest = pMsg1;
-    SRpcMsg            rpcMsg = {0};
-    syncClientRequest2RpcMsg(pSyncClientRequest, &rpcMsg);
-    gSyncNode->syncEqMsg(gSyncNode->msgcb, &rpcMsg);
+  // for (int i = 0; i < 10; ++i) {
+  //   SyncClientRequest *pSyncClientRequest = pMsg1;
+  //   SRpcMsg            rpcMsg = {0};
+  //   syncClientRequest2RpcMsg(pSyncClientRequest, &rpcMsg);
+  //   gSyncNode->syncEqMsg(gSyncNode->msgcb, &rpcMsg);
 
-    taosMsleep(1000);
-  }
+  //   taosMsleep(1000);
+  // }
 
   while (1) {
     sTrace("while 1 sleep");

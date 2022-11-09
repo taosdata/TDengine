@@ -78,14 +78,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
 
     pMsg = syncAppendEntriesBuild(pEntry->bytes, pSyncNode->vgId);
     ASSERT(pMsg != NULL);
-
-    // add pEntry into msg
-    uint32_t len;
-    char*    serialized = syncEntrySerialize(pEntry, &len);
-    ASSERT(len == pEntry->bytes);
-    memcpy(pMsg->data, serialized, len);
-
-    taosMemoryFree(serialized);
+    memcpy(pMsg->data, pEntry->data, pEntry->bytes);
     syncEntryDestory(pEntry);
 
   } else {
