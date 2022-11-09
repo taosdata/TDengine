@@ -4,6 +4,7 @@
 #include "syncInt.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
+#include "syncTest.h"
 #include "syncUtil.h"
 #include "tskiplist.h"
 

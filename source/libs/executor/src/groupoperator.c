@@ -908,6 +908,8 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       blockDataDestroy(pResBlock);
     }
   }
+  taosArrayDestroy(pParInfo->rowIds);
+  pParInfo->rowIds = NULL;
   blockDataUpdateTsWindow(pDest, pInfo->tsColIndex);
   pDest->info.groupId = pParInfo->groupId;
   pOperator->resultInfo.totalRows += pDest->info.rows;
@@ -1006,6 +1008,7 @@ static void destroyStreamPartitionOperatorInfo(void* param) {
   cleanupExprSupp(&pInfo->tbnameCalSup);
   cleanupExprSupp(&pInfo->tagCalSup);
   blockDataDestroy(pInfo->pDelRes);
+  taosHashCleanup(pInfo->pPartitions);
   taosMemoryFreeClear(param);
 }
 
