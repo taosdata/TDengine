@@ -130,7 +130,7 @@ void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn)
 void    tColDataClear(SColData *pColData);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
-uint8_t tColDataGetBitValue(SColData *pColData, int32_t iVal);
+uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
 extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
 
