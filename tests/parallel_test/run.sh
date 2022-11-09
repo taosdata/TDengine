@@ -164,8 +164,9 @@ function run_thread() {
         if [ -z "$case_redo_time" ]; then
             case_redo_time=${DEFAULT_RETRY_TIME:-2}
         fi
-        local exec_dir=`echo "$line"|cut -d, -f3`
-        local case_cmd=`echo "$line"|cut -d, -f4`
+        local case_build_san=`echo "$line"|cut -d, -f3`
+        local exec_dir=`echo "$line"|cut -d, -f4`
+        local case_cmd=`echo "$line"|cut -d, -f5`
         local case_file=""
         echo "$case_cmd"|grep -q "\.sh"
         if [ $? -eq 0 ]; then
@@ -191,7 +192,7 @@ function run_thread() {
         if [ ! -z "$case_path" ]; then
             mkdir -p $log_dir/$case_path
         fi
-        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir} ${timeout_param}"
+        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir} ${timeout_param} -s ${case_build_san}"
         # echo "$thread_no $count $cmd"
         local ret=0
         local redo_count=1

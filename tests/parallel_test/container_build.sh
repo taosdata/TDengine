@@ -44,15 +44,25 @@ ulimit -c unlimited
 
 if [ $ent -eq 0 ]; then
     REP_DIR=/home/TDengine
-    REP_MOUNT_PARAM=$WORKDIR/TDengine:/home/TDengine
+    REP_REAL_PATH=$WORKDIR/TDengine
+    REP_MOUNT_PARAM=$REP_REAL_PATH:/home/TDengine
 else
     REP_DIR=/home/TDinternal
-    REP_MOUNT_PARAM=$WORKDIR/TDinternal:/home/TDinternal
+    REP_REAL_PATH=$WORKDIR/TDinternal
+    REP_MOUNT_PARAM=$REP_REAL_PATH:/home/TDinternal
 fi
 
 docker run \
     -v $REP_MOUNT_PARAM \
     --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR;rm -rf debug;mkdir -p debug;cd debug;cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true;make -j $THREAD_COUNT"
+
+mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugNoSan
+
+docker run \
+    -v $REP_MOUNT_PARAM \
+    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR;rm -rf debug;mkdir -p debug;cd debug;cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true  -DSANITIZER=true;make -j $THREAD_COUNT"
+
+mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugSan
 
 ret=$?
 exit $ret
