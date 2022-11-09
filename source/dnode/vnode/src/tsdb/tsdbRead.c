@@ -910,7 +910,7 @@ static int32_t getEndPosInDataBlock(STsdbReader* pReader, SBlockData* pBlockData
   return endPos;
 }
 
-static void copyPrimaryTsCol(SBlockData* pBlockData, SFileBlockDumpInfo* pDumpInfo, SColumnInfoData* pColData,
+static void copyPrimaryTsCol(const SBlockData* pBlockData, SFileBlockDumpInfo* pDumpInfo, SColumnInfoData* pColData,
                              int32_t dumpedRows, bool asc) {
   if (asc) {
     memcpy(pColData->pData, &pBlockData->aTSKEY[pDumpInfo->rowIndex], dumpedRows * sizeof(int64_t));
@@ -926,6 +926,97 @@ static void copyPrimaryTsCol(SBlockData* pBlockData, SFileBlockDumpInfo* pDumpIn
       int64_t t = pts[j];
       pts[j] = pts[dumpedRows - j - 1];
       pts[dumpedRows - j - 1] = t;
+    }
+  }
+}
+
+// a faster version of copy procedure.
+static void copyNumericCols(const SColData* pData, SFileBlockDumpInfo* pDumpInfo, SColumnInfoData* pColData,
+                            int32_t dumpedRows, bool asc)  {
+  uint8_t* p = NULL;
+  if (asc) {
+    p = pData->pData + tDataTypes[pData->type].bytes * pDumpInfo->rowIndex;
+  } else {
+    int32_t startIndex = pDumpInfo->rowIndex - dumpedRows + 1;
+    p = pData->pData + tDataTypes[pData->type].bytes * startIndex;
+  }
+
+  int32_t step = asc? 1:-1;
+
+  // make sure it is aligned to 8bit
+  ASSERT((((uint64_t)pColData->pData) & (0x8 - 1)) == 0);
+
+  // 1. copy data in a batch model
+  memcpy(pColData->pData, p, dumpedRows * tDataTypes[pData->type].bytes);
+
+  // 2. reverse the array list in case of descending order scan data block
+  if (!asc) {
+    switch(pColData->info.type) {
+      case TSDB_DATA_TYPE_TIMESTAMP:
+      case TSDB_DATA_TYPE_DOUBLE:
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_UBIGINT:
+      {
+        int32_t  mid = dumpedRows >> 1u;
+        int64_t* pts = (int64_t*)pColData->pData;
+        for (int32_t j = 0; j < mid; ++j) {
+          int64_t t = pts[j];
+          pts[j] = pts[dumpedRows - j - 1];
+          pts[dumpedRows - j - 1] = t;
+        }
+        break;
+      }
+
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_TINYINT:
+      case TSDB_DATA_TYPE_UTINYINT: {
+        int32_t  mid = dumpedRows >> 1u;
+        int8_t* pts = (int8_t*)pColData->pData;
+        for (int32_t j = 0; j < mid; ++j) {
+          int64_t t = pts[j];
+          pts[j] = pts[dumpedRows - j - 1];
+          pts[dumpedRows - j - 1] = t;
+        }
+        break;
+      }
+
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_USMALLINT: {
+        int32_t  mid = dumpedRows >> 1u;
+        int16_t* pts = (int16_t*)pColData->pData;
+        for (int32_t j = 0; j < mid; ++j) {
+          int64_t t = pts[j];
+          pts[j] = pts[dumpedRows - j - 1];
+          pts[dumpedRows - j - 1] = t;
+        }
+        break;
+      }
+
+      case TSDB_DATA_TYPE_FLOAT:
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_UINT: {
+        int32_t  mid = dumpedRows >> 1u;
+        int32_t* pts = (int32_t*)pColData->pData;
+        for (int32_t j = 0; j < mid; ++j) {
+          int64_t t = pts[j];
+          pts[j] = pts[dumpedRows - j - 1];
+          pts[dumpedRows - j - 1] = t;
+        }
+        break;
+      }
+    }
+  }
+
+  // 3. if the  null value exists, check items one-by-one
+  if (pData->flag != HAS_VALUE) {
+    int32_t rowIndex = 0;
+
+    for (int32_t j = pDumpInfo->rowIndex; rowIndex < dumpedRows; j += step, rowIndex++) {
+      uint8_t v = tColDataGetBitValue(pData, j);
+      if (v == 0 || v == 1) {
+        colDataSetNull_f(pColData->nullbitmap, rowIndex);
+        pColData->hasNull = true;
+      }
     }
   }
 }
@@ -997,84 +1088,8 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
         colDataAppendNNULL(pColData, 0, dumpedRows);
       } else {
         if (IS_MATHABLE_TYPE(pColData->info.type)) {
-
-          uint8_t* p = NULL;
-          if (asc) {
-            p = pData->pData + tDataTypes[pData->type].bytes * pDumpInfo->rowIndex;
-          } else {
-            int32_t startIndex = pDumpInfo->rowIndex - dumpedRows + 1;
-            p = pData->pData + tDataTypes[pData->type].bytes * startIndex;
-          }
-
-          // make sure it is aligned to 8bit
-          ASSERT((((uint64_t)pColData->pData) & (0x8 - 1)) == 0);
-          memcpy(pColData->pData, p, dumpedRows * tDataTypes[pData->type].bytes);
-
-          if (!asc) {
-            switch(pColData->info.type) {
-              case TSDB_DATA_TYPE_TIMESTAMP:
-              case TSDB_DATA_TYPE_BIGINT:
-              case TSDB_DATA_TYPE_UBIGINT:
-              {
-                int32_t  mid = dumpedRows >> 1u;
-                int64_t* pts = (int64_t*)pColData->pData;
-                for (int32_t j = 0; j < mid; ++j) {
-                  int64_t t = pts[j];
-                  pts[j] = pts[dumpedRows - j - 1];
-                  pts[dumpedRows - j - 1] = t;
-                }
-                break;
-              }
-
-              case TSDB_DATA_TYPE_BOOL:
-              case TSDB_DATA_TYPE_TINYINT:
-              case TSDB_DATA_TYPE_UTINYINT: {
-                int32_t  mid = dumpedRows >> 1u;
-                int8_t* pts = (int8_t*)pColData->pData;
-                for (int32_t j = 0; j < mid; ++j) {
-                  int64_t t = pts[j];
-                  pts[j] = pts[dumpedRows - j - 1];
-                  pts[dumpedRows - j - 1] = t;
-                }
-                break;
-              }
-
-              case TSDB_DATA_TYPE_SMALLINT:
-              case TSDB_DATA_TYPE_USMALLINT: {
-                int32_t  mid = dumpedRows >> 1u;
-                int16_t* pts = (int16_t*)pColData->pData;
-                for (int32_t j = 0; j < mid; ++j) {
-                  int64_t t = pts[j];
-                  pts[j] = pts[dumpedRows - j - 1];
-                  pts[dumpedRows - j - 1] = t;
-                }
-                break;
-              }
-
-              case TSDB_DATA_TYPE_INT:
-              case TSDB_DATA_TYPE_UINT: {
-                int32_t  mid = dumpedRows >> 1u;
-                int32_t* pts = (int32_t*)pColData->pData;
-                for (int32_t j = 0; j < mid; ++j) {
-                  int64_t t = pts[j];
-                  pts[j] = pts[dumpedRows - j - 1];
-                  pts[dumpedRows - j - 1] = t;
-                }
-                break;
-              }
-            }
-          }
-
-          // null value exists, check one-by-one
-          if (pData->flag != HAS_VALUE) {
-            for (int32_t j = pDumpInfo->rowIndex; rowIndex < dumpedRows; j += step, rowIndex++) {
-              uint8_t v = tColDataGetBitValue(pData, j);
-              if (v == 0 || v == 1) {
-                colDataSetNull_f(pColData->nullbitmap, rowIndex);
-              }
-            }
-          }
-        } else {
+          copyNumericCols(pData, pDumpInfo, pColData, dumpedRows, asc);
+        } else {  // varchar/nchar type
           for (int32_t j = pDumpInfo->rowIndex; rowIndex < dumpedRows; j += step) {
             tColDataGetValue(pData, j, &cv);
             doCopyColVal(pColData, rowIndex++, i, &cv, pSupInfo);
