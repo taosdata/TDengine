@@ -301,6 +301,12 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
     return 0;
   }
 
+  // need not truncate
+  SyncIndex walCommitVer = walGetCommittedVer(pWal);
+  if (fromIndex <= walCommitVer) {
+    return 0;
+  }
+
   int32_t code = walRollback(pWal, fromIndex);
   if (code != 0) {
     int32_t     err = terrno;
