@@ -34,7 +34,7 @@ while getopts "w:d:c:t:o:e:sh" opt; do
             extra_param="-o $OPTARG"
             ;;
         s)
-            buildSan="-o $OPTARG"
+            buildSan=$OPTARG
             ;;
         h)
             usage

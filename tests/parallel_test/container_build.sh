@@ -51,13 +51,13 @@ else
     REP_REAL_PATH=$WORKDIR/TDinternal
     REP_MOUNT_PARAM=$REP_REAL_PATH:/home/TDinternal
 fi
-
+date 
 docker run \
     -v $REP_MOUNT_PARAM \
     --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR;rm -rf debug;mkdir -p debug;cd debug;cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true;make -j $THREAD_COUNT"
 
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugNoSan
-
+date
 docker run \
     -v $REP_MOUNT_PARAM \
     --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR;rm -rf debug;mkdir -p debug;cd debug;cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true  -DSANITIZER=true;make -j $THREAD_COUNT"

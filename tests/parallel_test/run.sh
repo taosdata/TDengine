@@ -192,7 +192,7 @@ function run_thread() {
         if [ ! -z "$case_path" ]; then
             mkdir -p $log_dir/$case_path
         fi
-        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir} ${timeout_param} -s ${case_build_san}"
+        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
         # echo "$thread_no $count $cmd"
         local ret=0
         local redo_count=1
