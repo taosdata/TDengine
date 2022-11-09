@@ -438,8 +438,24 @@ static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
 
 static bool vnodeApplyQueueEmpty(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
-  int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
-  return (itemSize == 0);
+
+  if (pVnode != NULL && pVnode->msgCb.qsizeFp != NULL) {
+    int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
+    return (itemSize == 0);
+  } else {
+    return true;
+  }
+}
+
+static int32_t vnodeApplyQueueItems(const SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+
+  if (pVnode != NULL && pVnode->msgCb.qsizeFp != NULL) {
+    int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
+    return itemSize;
+  } else {
+    return -1;
+  }
 }
 
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
@@ -452,6 +468,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpRestoreFinishCb = vnodeRestoreFinish;
   pFsm->FpLeaderTransferCb = NULL;
   pFsm->FpApplyQueueEmptyCb = vnodeApplyQueueEmpty;
+  pFsm->FpApplyQueueItems = vnodeApplyQueueItems;
   pFsm->FpBecomeLeaderCb = vnodeBecomeLeader;
   pFsm->FpBecomeFollowerCb = vnodeBecomeFollower;
   pFsm->FpReConfigCb = NULL;

@@ -6,6 +6,7 @@
 #include "syncRaftEntry.h"
 #include "syncUtil.h"
 #include "trpc.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");

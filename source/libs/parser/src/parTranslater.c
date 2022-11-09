@@ -2393,6 +2393,9 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
         if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
           pCxt->stableQuery = true;
         }
+        if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType && isSelectStmt(pCxt->pCurrStmt)) {
+          ((SSelectStmt*)pCxt->pCurrStmt)->isTimeLineResult = false;
+        }
         code = addNamespace(pCxt, pRealTable);
       }
       break;
@@ -3428,6 +3431,19 @@ static SNode* createSetOperProject(const char* pTableAlias, SNode* pNode) {
   return (SNode*)pCol;
 }
 
+// 0 means equal, 1 means the left shall prevail, -1 means the right shall prevail
+static int32_t dataTypeComp(const SDataType* l, const SDataType* r) {
+  if (l->type != r->type) {
+    return 1;
+  }
+
+  if (l->bytes != r->bytes) {
+    return l->bytes > r->bytes ? 1 : -1;
+  }
+
+  return (l->precision == r->precision && l->scale == r->scale) ? 0 : 1;
+}
+
 static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pSetOperator) {
   SNodeList* pLeftProjections = getProjectList(pSetOperator->pLeft);
   SNodeList* pRightProjections = getProjectList(pSetOperator->pRight);
@@ -3440,7 +3456,8 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
   FORBOTH(pLeft, pLeftProjections, pRight, pRightProjections) {
     SExprNode* pLeftExpr = (SExprNode*)pLeft;
     SExprNode* pRightExpr = (SExprNode*)pRight;
-    if (!dataTypeEqual(&pLeftExpr->resType, &pRightExpr->resType)) {
+    int32_t    comp = dataTypeComp(&pLeftExpr->resType, &pRightExpr->resType);
+    if (comp > 0) {
       SNode*  pRightFunc = NULL;
       int32_t code = createCastFunc(pCxt, pRight, pLeftExpr->resType, &pRightFunc);
       if (TSDB_CODE_SUCCESS != code) {
@@ -3448,9 +3465,20 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
       }
       REPLACE_LIST2_NODE(pRightFunc);
       pRightExpr = (SExprNode*)pRightFunc;
+    } else if (comp < 0) {
+      SNode*  pLeftFunc = NULL;
+      int32_t code = createCastFunc(pCxt, pLeft, pRightExpr->resType, &pLeftFunc);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      REPLACE_LIST1_NODE(pLeftFunc);
+      SExprNode* pLeftFuncExpr = (SExprNode*)pLeftFunc;
+      snprintf(pLeftFuncExpr->aliasName, sizeof(pLeftFuncExpr->aliasName), "%s", pLeftExpr->aliasName);
+      snprintf(pLeftFuncExpr->userAlias, sizeof(pLeftFuncExpr->userAlias), "%s", pLeftExpr->userAlias);
+      pLeft = pLeftFunc;
+      pLeftExpr = pLeftFuncExpr;
     }
-    strcpy(pRightExpr->aliasName, pLeftExpr->aliasName);
-    pRightExpr->aliasName[strlen(pLeftExpr->aliasName)] = '\0';
+    snprintf(pRightExpr->aliasName, sizeof(pRightExpr->aliasName), "%s", pLeftExpr->aliasName);
     if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pSetOperator->pProjectionList,
                                                        createSetOperProject(pSetOperator->stmtName, pLeft))) {
       return TSDB_CODE_OUT_OF_MEMORY;
