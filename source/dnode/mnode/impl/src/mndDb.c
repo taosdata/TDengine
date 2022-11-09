@@ -1263,7 +1263,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
   pReq->info.rspLen = contLen;
 
 _OVER:
-  if (code != 0) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
   }
 
