@@ -606,7 +606,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   } else {
     if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
       if (mndSetRpcInfoForDbTrans(pMnode, pReq, MND_OPER_CREATE_DB, createReq.db) == 0) {
-        mInfo("db:%s, is creating and response after trans finished", createReq.db);
+        mInfo("db:%s, is creating and createdb response after trans finished", createReq.db);
         code = TSDB_CODE_ACTION_IN_PROGRESS;
         goto _OVER;
       } else {
@@ -1224,6 +1224,14 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
       usedbRsp.uid = usedbReq.dbId;
       usedbRsp.vgVersion = usedbReq.vgVersion;
       usedbRsp.errCode = terrno;
+
+      if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
+        if (mndSetRpcInfoForDbTrans(pMnode, pReq, MND_OPER_CREATE_DB, usedbReq.db) == 0) {
+          mInfo("db:%s, is creating and usedb response after trans finished", usedbReq.db);
+          code = TSDB_CODE_ACTION_IN_PROGRESS;
+          goto _OVER;
+        }
+      }
 
       mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
     } else {
