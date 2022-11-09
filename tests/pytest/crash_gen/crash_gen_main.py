@@ -1372,6 +1372,7 @@ class Task():
                 0x03D3, # Conflict transaction not completed
                 0x0707, # Query not ready , it always occur at replica 3
                 0x707,  # Query not ready
+                0x396,  # Database in creating status
 
 
 
