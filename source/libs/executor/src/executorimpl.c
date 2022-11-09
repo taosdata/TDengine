@@ -1897,7 +1897,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
       if (pRsp->numOfRows == 0) {
         pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
         qDebug("%s vgId:%d, taskId:0x%" PRIx64 " execId:%d index:%d completed, rowsOfSource:%" PRIu64
-               ", totalRows:%" PRIu64 ", completed:%d try next %d/%" PRIzu,
+               ", totalRows:%" PRIu64 ", try next %d/%" PRIzu,
                GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, i, pDataInfo->totalRows,
                pExchangeInfo->loadInfo.totalRows, i + 1, totalSources);
         taosMemoryFreeClear(pDataInfo->pRsp);
