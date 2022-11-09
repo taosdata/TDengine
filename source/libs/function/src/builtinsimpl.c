@@ -3113,6 +3113,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       }
     }
   } else {
+#if 0
     for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
       if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
         continue;
@@ -3127,6 +3128,64 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
         pResInfo->numOfRes = 1;
       }
     }
+#else
+
+    if (!pInputCol->hasNull) {
+      int32_t round = pInput->numOfRows >> 2;
+      int32_t reminder = pInput->numOfRows & 0x03;
+
+      int32_t tick = 0;
+      for (int32_t i = pInput->startRowIndex; tick < round; i += 4, tick += 1) {
+        int64_t cts = pts[i];
+        int32_t chosen = i;
+
+        if (cts < pts[i + 1]) {
+          cts = pts[i + 1];
+          chosen = i + 1;
+        }
+
+        if (cts < pts[i + 2]) {
+          cts = pts[i + 2];
+          chosen = i + 2;
+        }
+
+        if (cts < pts[i + 3]) {
+          cts = pts[i + 3];
+          chosen = i + 3;
+        }
+
+        if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
+          char* data = colDataGetNumData(pInputCol, chosen);
+          doSaveCurrentVal(pCtx, i, cts, type, data);
+          pResInfo->numOfRes = 1;
+        }
+      }
+
+      for (int32_t i = pInput->startRowIndex + round * 4; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+        numOfElems++;
+        TSKEY cts = pts[i];
+        if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
+          char* data = colDataGetNumData(pInputCol, i);
+          doSaveCurrentVal(pCtx, i, cts, type, data);
+          pResInfo->numOfRes = 1;
+        }
+      }
+    } else {
+      for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+        if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+          continue;
+        }
+
+        numOfElems++;
+
+        if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
+          char* data = colDataGetNumData(pInputCol, i);
+          doSaveCurrentVal(pCtx, i, pts[i], type, data);
+          pResInfo->numOfRes = 1;
+        }
+      }
+    }
+#endif
   }
 #endif
 
