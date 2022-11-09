@@ -3112,6 +3112,8 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     }
 #else
     if (!pInputCol->hasNull) {
+      numOfElems = 1;
+
       int32_t round = pInput->numOfRows >> 2;
       int32_t reminder = pInput->numOfRows & 0x03;
 
@@ -3143,7 +3145,6 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       }
 
       for (int32_t i = pInput->startRowIndex + round * 4; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
-        numOfElems++;
         if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
           char* data = colDataGetData(pInputCol, i);
           doSaveCurrentVal(pCtx, i, pts[i], type, data);
@@ -3173,7 +3174,8 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   if (numOfElems == 0) {
     firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
   }
-  SET_VAL(pResInfo, numOfElems, 1);
+
+//  SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
 

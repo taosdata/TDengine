@@ -881,7 +881,9 @@ int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaul
 
 void    doDestroyExchangeOperatorInfo(void* param);
 
-void    doSetOperatorCompleted(SOperatorInfo* pOperator);
+void    setOperatorCompleted(SOperatorInfo* pOperator);
+void    setOperatorInfo(SOperatorInfo* pOperator, const char* name, int32_t type, bool blocking, int32_t status, void* pInfo,
+                        SExecTaskInfo* pTaskInfo);
 void    doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr,
                                SSDataBlock* pBlock, int32_t rows, const char* idStr, STableMetaCacheInfo * pCache);

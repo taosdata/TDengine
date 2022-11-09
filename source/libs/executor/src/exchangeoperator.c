@@ -213,7 +213,7 @@ static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator) {
         pExchangeInfo->limitInfo.numOfOutputRows += rows;
 
         if (rows == 0) {
-          doSetOperatorCompleted(pOperator);
+          setOperatorCompleted(pOperator);
           return NULL;
         } else {
           return pBlock;
@@ -289,13 +289,8 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
   pInfo->seqLoadData = false;
   pInfo->pTransporter = pTransporter;
 
-  pOperator->name = "ExchangeOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
+  setOperatorInfo(pOperator, "ExchangeOperator", QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pDummyBlock->pDataBlock);
-  pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, doLoadRemoteData, NULL, destroyExchangeOperatorInfo, NULL);
   return pOperator;
@@ -506,7 +501,7 @@ void* setAllSourcesCompleted(SOperatorInfo* pOperator, int64_t startTs) {
          GET_TASKID(pTaskInfo), totalSources, pLoadInfo->totalRows, pLoadInfo->totalSize,
          pLoadInfo->totalElapsed / 1000.0);
 
-  doSetOperatorCompleted(pOperator);
+  setOperatorCompleted(pOperator);
   return NULL;
 }
 
