@@ -468,6 +468,8 @@ taosx follows the [OpenAPI Specification 3.x][oas3] and provides a [SwaggerUI] i
     - `from_cluster`/`to_cluster`: filter exact matches of cluster id.
     - `status`: filter exact matches for specific status.
     - `start_create_time`/`end_create_time`: filter `created` filed by a time range.
+    - `deleted`: include deleted tasks too.
+- **GET /tasks/count**: get tasks count only, all the filters above will work in this api.
 - **POST /tasks**: create new task with from/to DSN and return `id` of the task.
 - **POST /tasks/replicate**: create a replication task with explicit options.
 - **POST /tasks/subscribe**: create a subscription task with explicit options.

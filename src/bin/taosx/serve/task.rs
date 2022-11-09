@@ -185,6 +185,16 @@ impl TaskController {
         Ok(tasks)
     }
 
+    pub async fn tasks_count(&self, filter: TaskFilter) -> anyhow::Result<usize> {
+        let condition = filter.to_sql_conditions()?;
+        let tasks: i64 = sqlx::query_scalar(&format!(
+            "select count(*) from tasks where {condition} order by created_at desc"
+        ))
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(tasks as _)
+    }
+
     pub async fn create(&self, task: NewTask) -> anyhow::Result<Task> {
         let res = sqlx::query(
             "INSERT INTO tasks (`from`, `from_cluster`, `to`, `to_cluster`, `stream_type`, `jobs`, `compression_level`, `force`, \
@@ -739,6 +749,7 @@ pub(super) fn configure(store: Data<TaskController>) -> impl FnOnce(&mut Service
             .app_data(store)
             // .service(search_tasks)
             .service(get_tasks)
+            .service(get_tasks_count)
             .service(create_task)
             .service(delete_task)
             .service(replicate)
@@ -982,7 +993,38 @@ pub(super) async fn get_tasks(
     filter: Query<TaskFilter>,
 ) -> impl Responder {
     match task_store.tasks(filter.into_inner()).await {
-        Ok(tasks) => HttpResponse::Ok().json(tasks),
+        Ok(tasks) => HttpResponse::Ok()
+            .append_header(("Count", tasks.len()))
+            .json(tasks),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::Failed,
+            message: err.to_string(),
+        }),
+    }
+}
+
+/// List tasks in current.
+///
+/// One could call the api endpoint with following curl.
+///
+/// ```shell
+/// curl localhost:6040/tasks
+/// ```
+#[utoipa::path(
+    responses(
+        (status = 200, description = "Tasks count (deleted tasks will not be included by default)", body = [usize])
+    ),
+    params(
+        TaskFilter,
+    )
+)]
+#[get("/tasks/count")]
+pub(super) async fn get_tasks_count(
+    task_store: Data<TaskController>,
+    filter: Query<TaskFilter>,
+) -> impl Responder {
+    match task_store.tasks_count(filter.into_inner()).await {
+        Ok(tasks) => HttpResponse::Ok().body(format!("{tasks}")),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::Failed,
             message: err.to_string(),
