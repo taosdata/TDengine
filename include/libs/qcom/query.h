@@ -127,6 +127,7 @@ typedef struct SDBVgInfo {
   int16_t   hashSuffix;
   int8_t    hashMethod;
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
+  int64_t   stateTs;
   SHashObj* vgHash;      // key:vgId, value:SVgroupInfo
 } SDBVgInfo;
 
