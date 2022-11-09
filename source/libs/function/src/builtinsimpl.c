@@ -3096,18 +3096,36 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   }
 #else
   int64_t* pts = (int64_t*)pInput->pPTS->pData;
-  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-    if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
-      continue;
+
+  if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
+    for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+        continue;
+      }
+
+      numOfElems++;
+
+      char* data = colDataGetVarData(pInputCol, i);
+      TSKEY cts = pts[i];
+      if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
+        doSaveCurrentVal(pCtx, i, cts, type, data);
+        pResInfo->numOfRes = 1;
+      }
     }
+  } else {
+    for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+        continue;
+      }
 
-    numOfElems++;
+      numOfElems++;
 
-    char* data = colDataGetData(pInputCol, i);
-    TSKEY cts = pts[i];
-    if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
-      doSaveCurrentVal(pCtx, i, cts, type, data);
-      pResInfo->numOfRes = 1;
+      char* data = colDataGetNumData(pInputCol, i);
+      TSKEY cts = pts[i];
+      if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
+        doSaveCurrentVal(pCtx, i, cts, type, data);
+        pResInfo->numOfRes = 1;
+      }
     }
   }
 #endif
@@ -3266,8 +3284,8 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
 #if 0
   int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
 
-  // the optimized version only function if all tuples in one block are monotonious increasing or descreasing.
-  // this is NOT always works if project operator exists in downstream.
+  // the optimized version only valid if all tuples in one block are monotonious increasing or descreasing.
+  // this assumption is NOT always works if project operator exists in downstream.
   if (blockDataOrder == TSDB_ORDER_ASC) {
     for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
       char* data = colDataGetData(pInputCol, i);
