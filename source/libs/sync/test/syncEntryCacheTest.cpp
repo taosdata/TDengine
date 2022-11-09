@@ -7,6 +7,7 @@
 #include "syncUtil.h"
 #include "tref.h"
 #include "tskiplist.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");

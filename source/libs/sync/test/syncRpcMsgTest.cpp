@@ -47,7 +47,11 @@ SyncClientRequest *createSyncClientRequest() {
   rpcMsg.contLen = 20;
   rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
   strcpy((char *)rpcMsg.pCont, "hello rpc");
-  SyncClientRequest *pMsg = syncClientRequestBuild(&rpcMsg, 123, true, 1000);
+
+  SRpcMsg clientRequestMsg;
+  syncClientRequestBuildFromRpcMsg(&clientRequestMsg, &rpcMsg, 123, true, 1000);
+  SyncClientRequest *pMsg = (SyncClientRequest *)taosMemoryMalloc(clientRequestMsg.contLen);
+  memcpy(pMsg->data, clientRequestMsg.pCont, clientRequestMsg.contLen);
   return pMsg;
 }
 
@@ -155,11 +159,13 @@ void test7() {
 }
 
 void test8() {
+#if 0
   SyncClientRequest *pMsg = createSyncClientRequest();
   SRpcMsg            rpcMsg = {0};
   syncClientRequest2RpcMsg(pMsg, &rpcMsg);
   syncRpcMsgLog2((char *)"test8", &rpcMsg);
-  syncClientRequestDestroy(pMsg);
+  taosMemoryFree(pMsg);
+#endif
 }
 
 int main() {
