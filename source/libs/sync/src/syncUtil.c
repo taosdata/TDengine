@@ -205,7 +205,7 @@ static void syncPeerState2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
 
     if (i < pSyncNode->replicaNum - 1) {
       len += snprintf(buf + len, bufLen - len, "%d:%" PRId64 " %" PRId64 ", ", i, pState->lastSendIndex,
-                     pState->lastSendTime);
+                      pState->lastSendTime);
     } else {
       len += snprintf(buf + len, bufLen - len, "%d:%" PRId64 " %" PRId64 "}", i, pState->lastSendIndex,
                       pState->lastSendTime);
@@ -241,6 +241,8 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
   va_start(argpointer, format);
   int32_t writeLen = vsnprintf(eventLog, sizeof(eventLog), format, argpointer);
   va_end(argpointer);
+
+  // int32_t aq = pNode->pFsm->FpApplyQueueItems(pNode->pFsm);
 
   taosPrintLog(flags, level, dflag,
                "vgId:%d, sync %s "
