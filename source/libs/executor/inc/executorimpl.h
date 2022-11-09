@@ -87,11 +87,11 @@ typedef struct SLimit {
 typedef struct STableScanAnalyzeInfo SFileBlockLoadRecorder;
 
 typedef struct STaskCostInfo {
-  int64_t  created;
-  int64_t  start;
-  uint64_t elapsedTime;
-  double   extractListTime;
-  double   groupIdMapTime;
+  int64_t                 created;
+  int64_t                 start;
+  uint64_t                elapsedTime;
+  double                  extractListTime;
+  double                  groupIdMapTime;
   SFileBlockLoadRecorder* pRecoder;
 } STaskCostInfo;
 
@@ -184,8 +184,7 @@ enum {
 typedef struct SOperatorFpSet {
   __optr_open_fn_t    _openFn;  // DO NOT invoke this function directly
   __optr_fn_t         getNextFn;
-  __optr_fn_t         getStreamResFn;  // execute the aggregate in the stream model, todo remove it
-  __optr_fn_t         cleanupFn;       // call this function to release the allocated resources ASAP
+  __optr_fn_t         cleanupFn;  // call this function to release the allocated resources ASAP
   __optr_close_fn_t   closeFn;
   __optr_encode_fn_t  encodeResultRow;
   __optr_decode_fn_t  decodeResultRow;
@@ -251,10 +250,10 @@ typedef struct SLimitInfo {
 } SLimitInfo;
 
 typedef struct SExchangeInfo {
-  SArray* pSources;
-  SArray* pSourceDataInfo;
-  tsem_t  ready;
-  void*   pTransporter;
+  SArray*             pSources;
+  SArray*             pSourceDataInfo;
+  tsem_t              ready;
+  void*               pTransporter;
   // SArray<SSDataBlock*>, result block list, used to keep the multi-block that
   // passed by downstream operator
   SArray*             pResultBlockList;
@@ -265,6 +264,7 @@ typedef struct SExchangeInfo {
   SLoadRemoteDataInfo loadInfo;
   uint64_t            self;
   SLimitInfo          limitInfo;
+  int64_t             openedTs;         // start exec time stamp
 } SExchangeInfo;
 
 typedef struct SScanInfo {
@@ -298,6 +298,12 @@ typedef struct {
   SExprSupp*     pExprSup;  // expr supporter of aggregate operator
 } SAggOptrPushDownInfo;
 
+typedef struct STableMetaCacheInfo {
+  SLRUCache*             pTableMetaEntryCache; // 100 by default
+  uint64_t               metaFetch;
+  uint64_t               cacheHit;
+} STableMetaCacheInfo;
+
 typedef struct STableScanInfo {
   STsdbReader*           dataReader;
   SReadHandle            readHandle;
@@ -317,6 +323,7 @@ typedef struct STableScanInfo {
   int8_t                 scanMode;
   SAggOptrPushDownInfo   pdInfo;
   int8_t                 assignBlockUid;
+  STableMetaCacheInfo    metaCache;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
@@ -325,7 +332,6 @@ typedef struct STableMergeScanInfo {
   int32_t                tableEndIndex;
   bool                   hasGroupId;
   uint64_t               groupId;
-  SArray*                dataReaders;  // array of tsdbReaderT*
   SArray*                queryConds;   // array of queryTableDataCond
   STsdbReader*           pReader;
   SReadHandle            readHandle;
@@ -877,8 +883,8 @@ int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaul
 
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
 void    doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo);
-int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
-                               SSDataBlock* pBlock, int32_t rows, const char* idStr);
+int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr,
+                               SSDataBlock* pBlock, int32_t rows, const char* idStr, STableMetaCacheInfo * pCache);
 
 void cleanupAggSup(SAggSupporter* pAggSup);
 void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);

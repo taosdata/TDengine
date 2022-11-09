@@ -60,7 +60,6 @@ void test1() {
   ASSERT(code == 0);
 
   SRaftCfgIndex* pRaftCfgIndex = raftCfgIndexOpen(pFile);
-  raftCfgIndexLog2((char*)"==test1==", pRaftCfgIndex);
 
   raftCfgIndexClose(pRaftCfgIndex);
 }
@@ -71,15 +70,11 @@ void test2() {
     raftCfgIndexAddConfigIndex(pRaftCfgIndex, i);
   }
   raftCfgIndexPersist(pRaftCfgIndex);
-
-  raftCfgIndexLog2((char*)"==test2==", pRaftCfgIndex);
   raftCfgIndexClose(pRaftCfgIndex);
 }
 
 void test3() {
   SRaftCfgIndex* pRaftCfgIndex = raftCfgIndexOpen(pFile);
-
-  raftCfgIndexLog2((char*)"==test3==", pRaftCfgIndex);
   raftCfgIndexClose(pRaftCfgIndex);
 }
 

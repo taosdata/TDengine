@@ -162,7 +162,7 @@ SRpcMsg *step0() {
 }
 
 SyncClientRequest *step1(const SRpcMsg *pMsg) {
-  SyncClientRequest *pRetMsg = syncClientRequestBuild2(pMsg, 123, true, 1000);
+  SyncClientRequest *pRetMsg = syncClientRequestBuild(pMsg, 123, true, 1000);
   return pRetMsg;
 }
 
@@ -192,7 +192,7 @@ int main(int argc, char **argv) {
 
   gSyncNode = syncInitTest();
   assert(gSyncNode != NULL);
-  syncNodeLog2((char *)"", gSyncNode);
+  sNTrace(gSyncNode, "");
 
   initRaftId(gSyncNode);
 
@@ -206,7 +206,7 @@ int main(int argc, char **argv) {
 
   for (int i = 0; i < 10; ++i) {
     SyncClientRequest *pSyncClientRequest = pMsg1;
-    SRpcMsg            rpcMsg;
+    SRpcMsg            rpcMsg = {0};
     syncClientRequest2RpcMsg(pSyncClientRequest, &rpcMsg);
     gSyncNode->syncEqMsg(gSyncNode->msgcb, &rpcMsg);
 

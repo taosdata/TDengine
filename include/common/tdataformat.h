@@ -74,9 +74,7 @@ int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema *
 void    tTSchemaDestroy(STSchema *pTSchema);
 
 // SValue ================================
-int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type);
-int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type);
-int     tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
+static FORCE_INLINE int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type);
 
 // SColVal ================================
 #define CV_FLAG_VALUE ((int8_t)0x0)
@@ -132,8 +130,9 @@ void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn)
 void    tColDataClear(SColData *pColData);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
-uint8_t tColDataGetBitValue(SColData *pColData, int32_t iVal);
+uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
+extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
 
 // STRUCT ================================
 struct STColumn {
@@ -281,6 +280,15 @@ void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
 void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
 int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, col_id_t colId, col_bytes_t bytes);
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
+
+static FORCE_INLINE int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type) {
+  if (IS_VAR_DATA_TYPE(type)) {
+    return tGetBinary(p, &pValue->pData, pValue ? &pValue->nData : NULL);
+  } else {
+    memcpy(&pValue->val, p, tDataTypes[type].bytes);
+    return tDataTypes[type].bytes;
+  }
+}
 
 #endif
 

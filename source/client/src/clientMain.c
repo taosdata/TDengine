@@ -686,11 +686,10 @@ void destorySqlCallbackWrapper(SSqlCallbackWrapper *pWrapper) {
   }
   destoryCatalogReq(pWrapper->pCatalogReq);
   qDestroyParseContext(pWrapper->pParseCtx);
-  catalogFreeMetaData(pWrapper->pResultMeta);
   taosMemoryFree(pWrapper);
 }
 
-void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
+static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t code) {
   SSqlCallbackWrapper *pWrapper = (SSqlCallbackWrapper *)param;
   SRequestObj         *pRequest = pWrapper->pRequest;
   SQuery              *pQuery = pRequest->pQuery;
@@ -707,13 +706,6 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
   }
 
   pRequest->metric.semanticEnd = taosGetTimestampUs();
-
-  if (code == TSDB_CODE_SUCCESS && pWrapper->pParseCtx->needMultiParse) {
-    pWrapper->pResultMeta = catalogCloneMetaData(pResultMeta);
-    if (NULL == pWrapper->pResultMeta) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    }
-  }
 
   if (code == TSDB_CODE_SUCCESS) {
     if (pQuery->haveResultSet) {
@@ -751,14 +743,83 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
   }
 }
 
-int32_t continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest) {
-  qDestroyQuery(pRequest->pQuery);
-  pRequest->pQuery = (SQuery *)nodesMakeNode(QUERY_NODE_QUERY);
-  if (NULL == pRequest->pQuery) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+static int32_t getAllMetaAsync(SSqlCallbackWrapper *pWrapper, catalogCallback fp) {
+  SRequestConnInfo conn = {.pTrans = pWrapper->pParseCtx->pTransporter,
+                           .requestId = pWrapper->pParseCtx->requestId,
+                           .requestObjRefId = pWrapper->pParseCtx->requestRid,
+                           .mgmtEps = pWrapper->pParseCtx->mgmtEpSet};
+
+  pWrapper->pRequest->metric.ctgStart = taosGetTimestampUs();
+
+  return catalogAsyncGetAllMeta(pWrapper->pParseCtx->pCatalog, &conn, pWrapper->pCatalogReq, fp, pWrapper,
+                                &pWrapper->pRequest->body.queryJob);
+}
+
+static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t code);
+
+static int32_t phaseAsyncQuery(SSqlCallbackWrapper *pWrapper) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  switch (pWrapper->pRequest->pQuery->execStage) {
+    case QUERY_EXEC_STAGE_PARSE: {
+      // continue parse after get metadata
+      code = getAllMetaAsync(pWrapper, doAsyncQueryFromParse);
+      break;
+    }
+    case QUERY_EXEC_STAGE_ANALYSE: {
+      // analysis after get metadata
+      code = getAllMetaAsync(pWrapper, doAsyncQueryFromAnalyse);
+      break;
+    }
+    case QUERY_EXEC_STAGE_SCHEDULE: {
+      launchAsyncQuery(pWrapper->pRequest, pWrapper->pRequest->pQuery, NULL, pWrapper);
+      break;
+    }
+    default:
+      break;
   }
-  retrieveMetaCallback(pWrapper->pResultMeta, pWrapper, TSDB_CODE_SUCCESS);
-  return TSDB_CODE_SUCCESS;
+  return code;
+}
+
+static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t code) {
+  SSqlCallbackWrapper *pWrapper = (SSqlCallbackWrapper *)param;
+  SRequestObj         *pRequest = pWrapper->pRequest;
+  SQuery              *pQuery = pRequest->pQuery;
+
+  pRequest->metric.ctgEnd = taosGetTimestampUs();
+  qDebug("0x%" PRIx64 " start to continue parse, reqId:0x%" PRIx64, pRequest->self, pRequest->requestId);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    code = qContinueParseSql(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = phaseAsyncQuery(pWrapper);
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pWrapper->pRequest->self, code,
+             tstrerror(code), pWrapper->pRequest->requestId);
+    destorySqlCallbackWrapper(pWrapper);
+    terrno = code;
+    pRequest->code = code;
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+  }
+}
+
+void continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest) {
+  int32_t code = qParseSqlSyntax(pWrapper->pParseCtx, &pRequest->pQuery, pWrapper->pCatalogReq);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = phaseAsyncQuery(pWrapper);
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pWrapper->pRequest->self, code,
+             tstrerror(code), pWrapper->pRequest->requestId);
+    destorySqlCallbackWrapper(pWrapper);
+    terrno = code;
+    pWrapper->pRequest->code = code;
+    pWrapper->pRequest->body.queryFp(pWrapper->pRequest->body.param, pWrapper->pRequest, code);
+  }
 }
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
@@ -845,26 +906,16 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
   if (TSDB_CODE_SUCCESS == code && !updateMetaForce) {
     SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
-    if (NULL == pRequest->pQuery->pRoot) {
+    if (QUERY_NODE_INSERT_STMT == nodeType(pRequest->pQuery->pRoot)) {
       atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
-    } else if (QUERY_NODE_SELECT_STMT == pRequest->pQuery->pRoot->type) {
+    } else if (QUERY_NODE_SELECT_STMT == nodeType(pRequest->pQuery->pRoot)) {
       atomic_add_fetch_64((int64_t *)&pActivity->numOfQueryReq, 1);
     }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    SRequestConnInfo conn = {.pTrans = pWrapper->pParseCtx->pTransporter,
-                             .requestId = pWrapper->pParseCtx->requestId,
-                             .requestObjRefId = pWrapper->pParseCtx->requestRid,
-                             .mgmtEps = pWrapper->pParseCtx->mgmtEpSet};
-
-    pRequest->metric.ctgStart = taosGetTimestampUs();
-
-    code = catalogAsyncGetAllMeta(pWrapper->pParseCtx->pCatalog, &conn, pWrapper->pCatalogReq, retrieveMetaCallback,
-                                  pWrapper, &pRequest->body.queryJob);
-  }
-
-  if (TSDB_CODE_SUCCESS != code) {
+    phaseAsyncQuery(pWrapper);
+  } else {
     tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code, tstrerror(code),
              pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
@@ -939,7 +990,7 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   // all data has returned to App already, no need to try again
   if (pResultInfo->completed) {
     // it is a local executed query, no need to do async fetch
-    if (QUERY_EXEC_MODE_LOCAL == pRequest->body.execMode) {
+    if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
       if (pResultInfo->localResultFetched) {
         pResultInfo->numOfRows = 0;
         pResultInfo->current = 0;

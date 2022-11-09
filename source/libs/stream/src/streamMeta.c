@@ -70,6 +70,7 @@ _err:
 
 void streamMetaClose(SStreamMeta* pMeta) {
   tdbCommit(pMeta->db, &pMeta->txn);
+  tdbPostCommit(pMeta->db, &pMeta->txn);
   tdbTbClose(pMeta->pTaskDb);
   tdbTbClose(pMeta->pCheckpointDb);
   tdbClose(pMeta->db);

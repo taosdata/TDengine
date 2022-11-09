@@ -56,14 +56,10 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
   SyncIndex logStartIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
   SyncIndex logEndIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
   if (nextIndex < logStartIndex || nextIndex - 1 > logEndIndex) {
-    char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "maybe start snapshot for next-index:%" PRId64 ", start:%" PRId64 ", end:%" PRId64,
-             nextIndex, logStartIndex, logEndIndex);
-    syncNodeEventLog(pSyncNode, logBuf);
-
+    sNTrace(pSyncNode, "maybe start snapshot for next-index:%" PRId64 ", start:%" PRId64 ", end:%" PRId64, nextIndex,
+            logStartIndex, logEndIndex);
     // start snapshot
     // int32_t code = syncNodeStartSnapshot(pSyncNode, pDestId);
-
     return 0;
   }
 
@@ -103,10 +99,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
         char     host[64];
         uint16_t port;
         syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
-
-        char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "replicate to %s:%d error, next-index:%" PRId64, host, port, nextIndex);
-        syncNodeErrorLog(pSyncNode, logBuf);
+        sNError(pSyncNode, "replicate to %s:%d error, next-index:%" PRId64, host, port, nextIndex);
       } while (0);
 
       syncAppendEntriesDestroy(pMsg);
@@ -137,7 +130,7 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
     return -1;
   }
 
-  syncNodeEventLog(pSyncNode, "do replicate");
+  sNTrace(pSyncNode, "do replicate");
 
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
@@ -186,9 +179,7 @@ int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* dest
     char    host[64];
     int16_t port;
     syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
-
-    snprintf(logBuf, sizeof(logBuf), "do not repcate to %s:%d for index:%" PRId64, host, port, pMsg->prevLogIndex + 1);
-    syncNodeEventLog(pSyncNode, logBuf);
+    sNTrace(pSyncNode, "do not repcate to %s:%d for index:%" PRId64, host, port, pMsg->prevLogIndex + 1);
   }
 
   return ret;
