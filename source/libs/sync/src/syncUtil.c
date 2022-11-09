@@ -216,6 +216,9 @@ static void syncPeerState2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
 void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNode* pNode, const char* format, ...) {
   if (pNode == NULL || pNode->pRaftCfg != NULL && pNode->pRaftStore == NULL || pNode->pLogStore == NULL) return;
 
+  // save error code, otherwise it will be overwritten
+  int32_t errCode = terrno;
+
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
   if (pNode->pFsm != NULL && pNode->pFsm->FpGetSnapshotInfo != NULL) {
     pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);
@@ -242,9 +245,9 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
   int32_t writeLen = vsnprintf(eventLog, sizeof(eventLog), format, argpointer);
   va_end(argpointer);
 
-  // save error code, otherwise it will be overwritten by FpApplyQueueItems
-  int32_t errCode = terrno;
   int32_t aqItems = pNode->pFsm->FpApplyQueueItems(pNode->pFsm);
+
+  // restore error code
   terrno = errCode;
 
   taosPrintLog(flags, level, dflag,
