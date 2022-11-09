@@ -324,7 +324,7 @@ static void taosGetLogFileName(char *fn) {
       bool file2open = taosCheckFileIsOpen(fileName);
 
       if (!file1open && !file2open) {
-        sprintf(tsLogObj.logName, "%s%d", fn, i);
+        snprintf(tsLogObj.logName, tListLen(tsLogObj.logName), "%s%d", fn, i);
         return;
       }
     }
