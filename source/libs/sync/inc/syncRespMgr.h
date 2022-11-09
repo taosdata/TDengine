@@ -41,13 +41,12 @@ typedef struct SSyncRespMgr {
 
 SSyncRespMgr *syncRespMgrCreate(void *data, int64_t ttl);
 void          syncRespMgrDestroy(SSyncRespMgr *pObj);
-int64_t       syncRespMgrAdd(SSyncRespMgr *pObj, SRespStub *pStub);
-int32_t       syncRespMgrDel(SSyncRespMgr *pObj, uint64_t index);
-int32_t       syncRespMgrGet(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStub);
-int32_t       syncRespMgrGetAndDel(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStub);
+uint64_t      syncRespMgrAdd(SSyncRespMgr *pObj, const SRespStub *pStub);
+int32_t       syncRespMgrDel(SSyncRespMgr *pObj, uint64_t seq);
+int32_t       syncRespMgrGet(SSyncRespMgr *pObj, uint64_t seq, SRespStub *pStub);
+int32_t       syncRespMgrGetAndDel(SSyncRespMgr *pObj, uint64_t seq, SRpcHandleInfo *pInfo);
 void          syncRespClean(SSyncRespMgr *pObj);
 void          syncRespCleanRsp(SSyncRespMgr *pObj);
-void          syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp);
 
 #ifdef __cplusplus
 }

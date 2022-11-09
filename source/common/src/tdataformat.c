@@ -1557,7 +1557,7 @@ void tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
   tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
 }
 
-uint8_t tColDataGetBitValue(SColData *pColData, int32_t iVal) {
+uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal) {
   uint8_t v;
   switch (pColData->flag) {
     case HAS_NONE:

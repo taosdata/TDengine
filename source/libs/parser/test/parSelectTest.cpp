@@ -425,6 +425,8 @@ TEST_F(ParserSelectTest, informationSchema) {
   run("SELECT * FROM ins_databases WHERE name = 'information_schema'");
 
   run("SELECT * FROM ins_tags WHERE db_name = 'test' and table_name = 'st1'");
+
+  run("SELECT * FROM (SELECT table_name FROM ins_tables) t WHERE table_name = 'a'");
 }
 
 TEST_F(ParserSelectTest, withoutFrom) {
