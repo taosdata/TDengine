@@ -215,7 +215,7 @@ if __name__ == "__main__":
             time.sleep(2)
 
         if restful:
-            toBeKilled = "taosadapt"
+            toBeKilled = "taosadapter"
 
             # killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
             killCmd = f"pkill {toBeKilled}"
