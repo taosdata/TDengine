@@ -3007,6 +3007,7 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
     }
   }
 #else
+  int64_t* pts = (int64_t*) pInput->pPTS->pData;
   for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
     if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
       continue;
@@ -3015,7 +3016,7 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
     numOfElems++;
 
     char* data = colDataGetData(pInputCol, i);
-    TSKEY cts = getRowPTs(pInput->pPTS, i);
+    TSKEY cts = pts[i];
     if (pResInfo->numOfRes == 0 || pInfo->ts > cts) {
       doSaveCurrentVal(pCtx, i, cts, pInputCol->info.type, data);
       pResInfo->numOfRes = 1;
