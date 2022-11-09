@@ -165,6 +165,14 @@ function run_thread() {
             case_redo_time=${DEFAULT_RETRY_TIME:-2}
         fi
         local case_build_san=`echo "$line"|cut -d, -f3`
+        if [ "${case_build_san}" == "y" ]; then
+            case_build_san="y"
+        elif [[ "${case_build_san}" == "n" ]] || [[ "${case_build_san}" == "" ]]; then
+            case_build_san="n"
+        else
+            usage
+            exit 1
+        fi
         local exec_dir=`echo "$line"|cut -d, -f4`
         local case_cmd=`echo "$line"|cut -d, -f5`
         local case_file=""
@@ -193,7 +201,7 @@ function run_thread() {
             mkdir -p $log_dir/$case_path
         fi
         cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
-        # echo "$thread_no $count $cmd"
+        echo "$thread_no $count $cmd"
         local ret=0
         local redo_count=1
         local case_log_file=$log_dir/${case_file}.txt
