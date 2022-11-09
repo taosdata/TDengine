@@ -56,6 +56,12 @@ docker run \
     -v $REP_MOUNT_PARAM \
     --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR;rm -rf debug;mkdir -p debug;cd debug;cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true;make -j $THREAD_COUNT"
 
+if [[ -d ${WORKDIR}/debugNoSan  ]] ;then
+    rm -rf  ${WORKDIR}/debugNoSan
+elif [[ -d ${WORKDIR}/debugSan ]] ;then
+    rm -rf  ${WORKDIR}/debugSan
+fi
+
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugNoSan
 date
 docker run \
