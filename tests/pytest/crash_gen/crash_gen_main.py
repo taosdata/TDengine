@@ -1373,7 +1373,7 @@ class Task():
                 0x0707, # Query not ready , it always occur at replica 3
                 0x707,  # Query not ready
                 0x396,  # Database in creating status
-
+                0x386,  # Database in droping status
 
 
                 1000  # REST catch-all error
@@ -2052,7 +2052,7 @@ class TdSuperTable:
             time.sleep(5) # consumer work only 5 sec ,and then it will exit 
             try:
                 consumer.unsubscribe()
-            except Exception as e :
+            except TmqError as e :
                 pass
             return
         
