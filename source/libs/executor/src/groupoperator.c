@@ -438,7 +438,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode*
   }
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
-  setOperatorInfo(pOperator, "GroupbyAggOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, true, OP_NOT_OPENED, pInfo, pTaskInfo);
+  setOperatorInfo(pOperator, "GroupbyAggOperator", 0, true, OP_NOT_OPENED, pInfo, pTaskInfo);
 
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, hashGroupbyAggregate, NULL, destroyGroupOperatorInfo, NULL);
