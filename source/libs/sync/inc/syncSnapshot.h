@@ -20,13 +20,8 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "cJSON.h"
 #include "syncInt.h"
 #include "syncMessage.h"
-#include "taosdef.h"
 
 #define SYNC_SNAPSHOT_SEQ_INVALID      -2
 #define SYNC_SNAPSHOT_SEQ_FORCE_CLOSE  -3

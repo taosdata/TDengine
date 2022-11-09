@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "syncRaftEntry.h"
 #include "syncUtil.h"
+#include "tref.h"
 
 SSyncRaftEntry* syncEntryBuild(int32_t dataLen) {
   int32_t         bytes = sizeof(SSyncRaftEntry) + dataLen;
