@@ -13,7 +13,7 @@ function usage() {
 }
 
 ent=0
-while getopts "w:d:c:t:o:e:sh" opt; do
+while getopts "w:d:c:t:o:s:eh" opt; do
     case $opt in
         w)
             WORKDIR=$OPTARG
@@ -67,7 +67,7 @@ fi
 
 #select whether the compilation environment  includes sanitizer
 if [ "${buildSan}" == "y" ]; then
-    DEBUGPATH="buildSan"
+    DEBUGPATH="debugSan"
 elif [[ "${buildSan}" == "n" ]] || [[ "${case_build_san}" == "" ]]; then
     DEBUGPATH="debugNoSan"
 else
@@ -80,7 +80,7 @@ if [ $ent -ne 0 ]; then
     extra_param="$extra_param -e"
     INTERNAL_REPDIR=$WORKDIR/TDinternal
     REPDIR=$INTERNAL_REPDIR/community
-    REPDIR_DEBUG=$WORKDIR/DEBUGPATH/
+    REPDIR_DEBUG=$WORKDIR/$DEBUGPATH/
     CONTAINER_TESTDIR=/home/TDinternal/community
     SIM_DIR=/home/TDinternal/sim
     REP_MOUNT_PARAM="$INTERNAL_REPDIR:/home/TDinternal"
@@ -89,7 +89,7 @@ if [ $ent -ne 0 ]; then
 else
     # community edition
     REPDIR=$WORKDIR/TDengine
-    REPDIR_DEBUG=$WORKDIR/DEBUGPATH/
+    REPDIR_DEBUG=$WORKDIR/$DEBUGPATH/
     CONTAINER_TESTDIR=/home/TDengine
     SIM_DIR=/home/TDengine/sim
     REP_MOUNT_PARAM="$REPDIR:/home/TDengine"

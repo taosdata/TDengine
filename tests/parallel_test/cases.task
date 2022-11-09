@@ -1,6 +1,6 @@
 ,,y,unit-test,bash test.sh
-,,,script,./test.sh -f tsim/user/basic.sim
-,,,script,./test.sh -f tsim/user/password.sim
+,,y,script,./test.sh -f tsim/user/basic.sim
+,,y,script,./test.sh -f tsim/user/password.sim
 ,,,script,./test.sh -f tsim/user/privilege_db.sim
 ,,,script,./test.sh -f tsim/user/privilege_sysinfo.sim
 ,,,script,./test.sh -f tsim/db/alter_option.sim
