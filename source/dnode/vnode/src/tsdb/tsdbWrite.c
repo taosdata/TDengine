@@ -97,7 +97,7 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
   STsdbKeepCfg  *pCfg = &pTsdb->keepCfg;
   TSKEY          now = taosGetTimestamp(pCfg->precision);
   TSKEY          minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep2;
-  TSKEY          maxKey = now + tsTickPerMin[pCfg->precision] * pCfg->days;
+  TSKEY          maxKey = tsMaxKeyByPrecision[pCfg->precision];
 
   terrno = TSDB_CODE_SUCCESS;
   // pMsg->length = htonl(pMsg->length);

@@ -505,8 +505,8 @@ int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision) {
 }
 
 void tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minKey, TSKEY *maxKey) {
-  *minKey = fid * minutes * tsTickPerMin[precision];
-  *maxKey = *minKey + minutes * tsTickPerMin[precision] - 1;
+  *minKey = tsTickPerMin[precision] * fid * minutes;
+  *maxKey = *minKey + tsTickPerMin[precision] * minutes - 1;
 }
 
 int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now) {
