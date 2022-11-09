@@ -264,6 +264,7 @@ typedef struct SExchangeInfo {
   SLoadRemoteDataInfo loadInfo;
   uint64_t            self;
   SLimitInfo          limitInfo;
+  int64_t             openedTs;         // start exec time stamp
 } SExchangeInfo;
 
 typedef struct SScanInfo {
