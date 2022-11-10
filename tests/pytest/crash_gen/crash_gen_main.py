@@ -1374,6 +1374,7 @@ class Task():
                 0x707,  # Query not ready
                 0x396,  # Database in creating status
                 0x386,  # Database in droping status
+                0x03E1, # failed on tmq_subscribe ,topic not exist
 
 
                 1000  # REST catch-all error
@@ -2053,7 +2054,10 @@ class TdSuperTable:
             topic_list = TaosTmqList()
             for topic in current_topic_list:
                 topic_list.append(topic)
-            consumer.subscribe(topic_list)
+            try:
+                consumer.subscribe(topic_list)
+            except TmqError as e :
+                pass
             time.sleep(5) # consumer work only 5 sec ,and then it will exit 
             try:
                 consumer.unsubscribe()
