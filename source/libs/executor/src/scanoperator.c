@@ -2366,9 +2366,7 @@ _end:
 static void destroyStreamScanOperatorInfo(void* param) {
   SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {
-    STableScanInfo* pTableScanInfo = pStreamScan->pTableScanOp->info;
-    destroyTableScanOperatorInfo(pTableScanInfo);
-    taosMemoryFreeClear(pStreamScan->pTableScanOp);
+    destroyOperatorInfo(pStreamScan->pTableScanOp);
   }
   if (pStreamScan->tqReader) {
     tqCloseReader(pStreamScan->tqReader);

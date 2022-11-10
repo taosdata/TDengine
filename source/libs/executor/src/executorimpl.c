@@ -91,9 +91,6 @@ static void destroyAggOperatorInfo(void* param);
 
 static void destroyIntervalOperatorInfo(void* param);
 
-
-static void destroyOperatorInfo(SOperatorInfo* pOperator);
-
 void setOperatorCompleted(SOperatorInfo* pOperator) {
   pOperator->status = OP_EXEC_DONE;
   ASSERT(pOperator->pTaskInfo != NULL);
@@ -2172,7 +2169,7 @@ void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
   }
 }
 
-static void destroyOperatorInfo(SOperatorInfo* pOperator) {
+void destroyOperatorInfo(SOperatorInfo* pOperator) {
   if (pOperator == NULL) {
     return;
   }
