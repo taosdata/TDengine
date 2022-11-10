@@ -82,6 +82,18 @@ void   logStoreSimpleLog2(char* s, SSyncLogStore* pLogStore);
 cJSON* syncNode2Json(const SSyncNode* pSyncNode);
 char*  syncNode2Str(const SSyncNode* pSyncNode);
 
+cJSON* voteGranted2Json(SVotesGranted* pVotesGranted);
+char*  voteGranted2Str(SVotesGranted* pVotesGranted);
+cJSON* votesRespond2Json(SVotesRespond* pVotesRespond);
+char*  votesRespond2Str(SVotesRespond* pVotesRespond);
+
+cJSON* syncUtilNodeInfo2Json(const SNodeInfo* p);
+char*  syncUtilRaftId2Str(const SRaftId* p);
+
+cJSON* snapshotSender2Json(SSyncSnapshotSender* pSender);
+char*  snapshotSender2Str(SSyncSnapshotSender* pSender);
+cJSON* snapshotReceiver2Json(SSyncSnapshotReceiver* pReceiver);
+char*  snapshotReceiver2Str(SSyncSnapshotReceiver* pReceiver);
 
 #ifdef __cplusplus
 }

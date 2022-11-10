@@ -23,12 +23,11 @@ static void voteGrantedClearVotes(SVotesGranted *pVotesGranted) {
 }
 
 SVotesGranted *voteGrantedCreate(SSyncNode *pSyncNode) {
-  SVotesGranted *pVotesGranted = taosMemoryMalloc(sizeof(SVotesGranted));
+  SVotesGranted *pVotesGranted = taosMemoryCalloc(1, sizeof(SVotesGranted));
   if (pVotesGranted == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  memset(pVotesGranted, 0, sizeof(SVotesGranted));
 
   pVotesGranted->replicas = &(pSyncNode->replicasId);
   pVotesGranted->replicaNum = pSyncNode->replicaNum;
@@ -59,20 +58,24 @@ void voteGrantedUpdate(SVotesGranted *pVotesGranted, SSyncNode *pSyncNode) {
   pVotesGranted->pSyncNode = pSyncNode;
 }
 
-bool voteGrantedMajority(SVotesGranted *pVotesGranted) {
-  bool ret = pVotesGranted->votes >= pVotesGranted->quorum;
-  return ret;
-}
+bool voteGrantedMajority(SVotesGranted *pVotesGranted) { return pVotesGranted->votes >= pVotesGranted->quorum; }
 
 void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
-  ASSERT(pMsg->voteGranted == true);
-
-  if (pMsg->term != pVotesGranted->term) {
-    sNTrace(pVotesGranted->pSyncNode, "vote grant vnode error");
+  if (!pMsg->voteGranted) {
+    sNFatal(pVotesGranted->pSyncNode, " vote granted should be true");
     return;
   }
 
-  ASSERT(syncUtilSameId(&pVotesGranted->pSyncNode->myRaftId, &pMsg->destId));
+  if (pMsg->term != pVotesGranted->term) {
+    sNTrace(pVotesGranted->pSyncNode, "vote grant term:%" PRId64 " not matched with msg term:%" PRId64,
+            pVotesGranted->term, pMsg->term);
+    return;
+  }
+
+  if (!syncUtilSameId(&pVotesGranted->pSyncNode->myRaftId, &pMsg->destId)) {
+    sNFatal(pVotesGranted->pSyncNode, " vote granted raftId not matched with msg");
+    return;
+  }
 
   int32_t j = -1;
   for (int32_t i = 0; i < pVotesGranted->replicaNum; ++i) {
@@ -81,14 +84,21 @@ void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
       break;
     }
   }
-  ASSERT(j != -1);
-  ASSERT(j >= 0 && j < pVotesGranted->replicaNum);
+  if ((j == -1) || (j >= 0 && j < pVotesGranted->replicaNum)) {
+    sNFatal(pVotesGranted->pSyncNode, " invalid msg srcId, index:%d", j);
+    return;
+  }
 
   if (pVotesGranted->isGranted[j] != true) {
     ++(pVotesGranted->votes);
     pVotesGranted->isGranted[j] = true;
   }
-  ASSERT(pVotesGranted->votes <= pVotesGranted->replicaNum);
+
+  if (pVotesGranted->votes <= pVotesGranted->replicaNum) {
+    sNFatal(pVotesGranted->pSyncNode, " votes:%d not matched with replicaNum:%d", pVotesGranted->votes,
+            pVotesGranted->replicaNum);
+    return;
+  }
 }
 
 void voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term) {
@@ -97,53 +107,12 @@ void voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term) {
   pVotesGranted->toLeader = false;
 }
 
-cJSON *voteGranted2Json(SVotesGranted *pVotesGranted) {
-  char   u64buf[128] = {0};
-  cJSON *pRoot = cJSON_CreateObject();
-
-  if (pVotesGranted != NULL) {
-    cJSON_AddNumberToObject(pRoot, "replicaNum", pVotesGranted->replicaNum);
-    cJSON *pReplicas = cJSON_CreateArray();
-    cJSON_AddItemToObject(pRoot, "replicas", pReplicas);
-    for (int32_t i = 0; i < pVotesGranted->replicaNum; ++i) {
-      cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pVotesGranted->replicas))[i]));
-    }
-    int32_t *arr = (int32_t *)taosMemoryMalloc(sizeof(int32_t) * pVotesGranted->replicaNum);
-    for (int32_t i = 0; i < pVotesGranted->replicaNum; ++i) {
-      arr[i] = pVotesGranted->isGranted[i];
-    }
-    cJSON *pIsGranted = cJSON_CreateIntArray(arr, pVotesGranted->replicaNum);
-    taosMemoryFree(arr);
-    cJSON_AddItemToObject(pRoot, "isGranted", pIsGranted);
-
-    cJSON_AddNumberToObject(pRoot, "votes", pVotesGranted->votes);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pVotesGranted->term);
-    cJSON_AddStringToObject(pRoot, "term", u64buf);
-    cJSON_AddNumberToObject(pRoot, "quorum", pVotesGranted->quorum);
-    cJSON_AddNumberToObject(pRoot, "toLeader", pVotesGranted->toLeader);
-    snprintf(u64buf, sizeof(u64buf), "%p", pVotesGranted->pSyncNode);
-    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
-
-    bool majority = voteGrantedMajority(pVotesGranted);
-    cJSON_AddNumberToObject(pRoot, "majority", majority);
-  }
-
-  cJSON *pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SVotesGranted", pRoot);
-  return pJson;
-}
-
-char *voteGranted2Str(SVotesGranted *pVotesGranted) {
-  cJSON *pJson = voteGranted2Json(pVotesGranted);
-  char  *serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
 SVotesRespond *votesRespondCreate(SSyncNode *pSyncNode) {
-  SVotesRespond *pVotesRespond = taosMemoryMalloc(sizeof(SVotesRespond));
-  ASSERT(pVotesRespond != NULL);
-  memset(pVotesRespond, 0, sizeof(SVotesRespond));
+  SVotesRespond *pVotesRespond = taosMemoryCalloc(1, sizeof(SVotesRespond));
+  if (pVotesRespond == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   pVotesRespond->replicas = &(pSyncNode->replicasId);
   pVotesRespond->replicaNum = pSyncNode->replicaNum;
@@ -185,62 +154,15 @@ void votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *p
 
   for (int32_t i = 0; i < pVotesRespond->replicaNum; ++i) {
     if (syncUtilSameId(&((*(pVotesRespond->replicas))[i]), &pMsg->srcId)) {
-      // ASSERT(pVotesRespond->isRespond[i] == false);
       pVotesRespond->isRespond[i] = true;
       return;
     }
   }
-  ASSERT(0);
+
+  sNFatal(pVotesRespond->pSyncNode, "votes respond not found");
 }
 
 void votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term) {
   pVotesRespond->term = term;
   memset(pVotesRespond->isRespond, 0, sizeof(pVotesRespond->isRespond));
-  /*
-    for (int32_t i = 0; i < pVotesRespond->replicaNum; ++i) {
-      pVotesRespond->isRespond[i] = false;
-    }
-  */
-}
-
-cJSON *votesRespond2Json(SVotesRespond *pVotesRespond) {
-  char   u64buf[128] = {0};
-  cJSON *pRoot = cJSON_CreateObject();
-
-  if (pVotesRespond != NULL) {
-    cJSON_AddNumberToObject(pRoot, "replicaNum", pVotesRespond->replicaNum);
-    cJSON *pReplicas = cJSON_CreateArray();
-    cJSON_AddItemToObject(pRoot, "replicas", pReplicas);
-    for (int32_t i = 0; i < pVotesRespond->replicaNum; ++i) {
-      cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pVotesRespond->replicas))[i]));
-    }
-    int32_t  respondNum = 0;
-    int32_t *arr = (int32_t *)taosMemoryMalloc(sizeof(int32_t) * pVotesRespond->replicaNum);
-    for (int32_t i = 0; i < pVotesRespond->replicaNum; ++i) {
-      arr[i] = pVotesRespond->isRespond[i];
-      if (pVotesRespond->isRespond[i]) {
-        respondNum++;
-      }
-    }
-    cJSON *pIsRespond = cJSON_CreateIntArray(arr, pVotesRespond->replicaNum);
-    taosMemoryFree(arr);
-    cJSON_AddItemToObject(pRoot, "isRespond", pIsRespond);
-    cJSON_AddNumberToObject(pRoot, "respondNum", respondNum);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pVotesRespond->term);
-    cJSON_AddStringToObject(pRoot, "term", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pVotesRespond->pSyncNode);
-    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
-  }
-
-  cJSON *pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SVotesRespond", pRoot);
-  return pJson;
-}
-
-char *votesRespond2Str(SVotesRespond *pVotesRespond) {
-  cJSON *pJson = votesRespond2Json(pVotesRespond);
-  char  *serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
 }

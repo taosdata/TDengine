@@ -21,7 +21,6 @@ extern "C" {
 #endif
 
 #include "syncInt.h"
-#include "syncMessage.h"
 
 #define SYNC_SNAPSHOT_SEQ_INVALID      -2
 #define SYNC_SNAPSHOT_SEQ_FORCE_CLOSE  -3
@@ -31,7 +30,6 @@ extern "C" {
 
 #define SYNC_SNAPSHOT_RETRY_MS 5000
 
-//---------------------------------------------------
 typedef struct SSyncSnapshotSender {
   bool           start;
   int32_t        seq;
@@ -60,12 +58,6 @@ int32_t              snapshotSenderStop(SSyncSnapshotSender *pSender, bool finis
 int32_t              snapshotSend(SSyncSnapshotSender *pSender);
 int32_t              snapshotReSend(SSyncSnapshotSender *pSender);
 
-cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender);
-char  *snapshotSender2Str(SSyncSnapshotSender *pSender);
-
-int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId);
-
-//---------------------------------------------------
 typedef struct SSyncSnapshotReceiver {
   bool           start;
   int32_t        ack;
@@ -78,7 +70,6 @@ typedef struct SSyncSnapshotReceiver {
 
   // init when create
   SSyncNode *pSyncNode;
-
 } SSyncSnapshotReceiver;
 
 SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId);
@@ -88,13 +79,10 @@ int32_t                snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
 bool                   snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver);
 void                   snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver);
 
-cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
-char  *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);
-
-//---------------------------------------------------
 // on message
 int32_t syncNodeOnSnapshot(SSyncNode *ths, SyncSnapshotSend *pMsg);
 int32_t syncNodeOnSnapshotReply(SSyncNode *ths, SyncSnapshotRsp *pMsg);
+int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId);
 
 #ifdef __cplusplus
 }
