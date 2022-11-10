@@ -32,6 +32,21 @@ typedef struct SSumRes {
   int16_t type;
 } SSumRes;
 
+typedef struct SMinmaxResInfo {
+  bool      assign;  // assign the first value or not
+  int64_t   v;
+  STuplePos tuplePos;
+
+  STuplePos nullTuplePos;
+  bool      nullTupleSaved;
+  int16_t   type;
+} SMinmaxResInfo;
+int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc);
+
+STuplePos   saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, const STupleKey* pKey);
+int32_t     updateTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos);
+const char* loadTupleData(SqlFunctionCtx* pCtx, const STuplePos* pPos);
+
 bool    functionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, char* finalResult);

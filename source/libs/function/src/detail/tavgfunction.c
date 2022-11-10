@@ -282,19 +282,20 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
       }
 
       case TSDB_DATA_TYPE_FLOAT: {
+#if 1
         numOfElem = handleFloatCols(pCol, pInput, pAvgRes);
-//        float* plist = (float*)pCol->pData;
-//        //        float val = 0;
-//        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-//          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
-//            continue;
-//          }
-//
-//          numOfElem += 1;
-//          pAvgRes->count += 1;
-//          pAvgRes->sum.dsum += plist[i];
-//        }
-        //        pAvgRes->sum.dsum = val;
+#else
+        float* plist = (float*)pCol->pData;
+        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+            continue;
+          }
+
+          numOfElem += 1;
+          pAvgRes->count += 1;
+          pAvgRes->sum.dsum += plist[i];
+        }
+#endif
         break;
       }
 
