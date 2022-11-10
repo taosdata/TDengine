@@ -140,63 +140,77 @@ async fn backup(
     man: Arc<ZFileMan>,
     id: usize,
     barrier: Arc<Barrier>,
+    cancel: CancellationToken,
 ) -> Result<()> {
     let mut stream = consumer.stream();
     let mut rows = 0;
 
     // let mut wtr: scc::HashMap<i32, ZFile> = scc::HashMap::new();
 
-    while let Some((offset, message)) = stream.try_next().await? {
-        let vgroup = offset.vgroup_id();
-
-        // let prefix = path.join(format!("{}-{}", topic.name, id));
-        // log::info!("start with {}", prefix.display());
-        // let file = ZFile::new(prefix, async_compression::Level::Best).await?;
-        match message {
-            MessageSet::Meta(meta) => {
-                //dbg!(meta.as_json_meta().await?);
-                // writer.write_meta(&meta.as_raw_meta().await?).await?;
-                man.write_vgroup_with_meta(vgroup, meta).await?;
+    loop {
+        tokio::select! {
+            _ = cancel.cancelled() => {
+                log::warn!("[sync: {id}] cancelled");
+                break;
             }
-            MessageSet::Data(data) => {
-                rows += man.write_vgroup_with_data(vgroup, data).await?;
-                // writer.start_raw_block().await?;
-                // while let Some(block) = data.fetch_raw_block().await.unwrap() {
-                //     // dbg!(&block);
-                //     writer.write_raw_block(&block).await?;
-                //     rows += block.nrows();
-                //     log::info!(
-                //         "[{id}] table {} rows: {}",
-                //         block.table_name().unwrap_or_default(),
-                //         block.nrows()
-                //     );
-                // }
-                // writer.finish_raw_block().await?;
-            }
-            MessageSet::MetaData(meta, data) => {
-                // writer.write_meta(&meta.as_raw_meta().await?).await?;
-                man.write_vgroup_with_meta(vgroup, meta).await?;
-                rows += man.write_vgroup_with_data(vgroup, data).await?;
+            next = stream.try_next() => {
+                if let Some((offset, message)) = next? {
+                    let vgroup = offset.vgroup_id();
 
-                // writer.start_raw_block().await?;
-                // while let Some(block) = data.fetch_raw_block().await.unwrap() {
-                //     // dbg!(&block);
-                //     writer.write_raw_block(&block).await?;
-                //     rows += block.nrows();
-                //     log::info!(
-                //         "[{id}] table {} rows: {}",
-                //         block.table_name().unwrap_or_default(),
-                //         block.nrows()
-                //     );
-                // }
-                // writer.finish_raw_block().await?;
+                    // let prefix = path.join(format!("{}-{}", topic.name, id));
+                    // log::info!("start with {}", prefix.display());
+                    // let file = ZFile::new(prefix, async_compression::Level::Best).await?;
+                    match message {
+                        MessageSet::Meta(meta) => {
+                            //dbg!(meta.as_json_meta().await?);
+                            // writer.write_meta(&meta.as_raw_meta().await?).await?;
+                            man.write_vgroup_with_meta(vgroup, meta).await?;
+                        }
+                        MessageSet::Data(data) => {
+                            rows += man.write_vgroup_with_data(vgroup, data).await?;
+                            // writer.start_raw_block().await?;
+                            // while let Some(block) = data.fetch_raw_block().await.unwrap() {
+                            //     // dbg!(&block);
+                            //     writer.write_raw_block(&block).await?;
+                            //     rows += block.nrows();
+                            //     log::info!(
+                            //         "[{id}] table {} rows: {}",
+                            //         block.table_name().unwrap_or_default(),
+                            //         block.nrows()
+                            //     );
+                            // }
+                            // writer.finish_raw_block().await?;
+                        }
+                        MessageSet::MetaData(meta, data) => {
+                            // writer.write_meta(&meta.as_raw_meta().await?).await?;
+                            man.write_vgroup_with_meta(vgroup, meta).await?;
+                            rows += man.write_vgroup_with_data(vgroup, data).await?;
+
+                            // writer.start_raw_block().await?;
+                            // while let Some(block) = data.fetch_raw_block().await.unwrap() {
+                            //     // dbg!(&block);
+                            //     writer.write_raw_block(&block).await?;
+                            //     rows += block.nrows();
+                            //     log::info!(
+                            //         "[{id}] table {} rows: {}",
+                            //         block.table_name().unwrap_or_default(),
+                            //         block.nrows()
+                            //     );
+                            // }
+                            // writer.finish_raw_block().await?;
+                        }
+                    }
+                    // writer.flush().await?;
+                    man.flush_vgroup(vgroup).await?;
+                    consumer.commit(offset).await?;
+                } else {
+                    log::info!("[sync: {id}] polling stopped");
+                    break;
+                }
             }
         }
-        // writer.flush().await?;
-        man.flush_vgroup(vgroup).await?;
-        consumer.commit(offset).await?;
     }
-    // writer.shutdown().await?;
+
     barrier.wait().await;
     log::info!("[{id}] total backup {} rows", rows);
     drop(stream);
@@ -369,35 +383,39 @@ pub async fn tmq_to_local(
             let consumer = consumers.pop().unwrap();
             let barrier = barrier.clone();
             let man = man.clone();
-            let handle = tokio::spawn(backup(consumer, man, task_id, barrier));
+            let cancel = cancel.clone();
+            let handle = tokio::spawn(backup(consumer, man, task_id, barrier, cancel));
             handles.push(handle);
             task_id += 1;
         }
     }
-    let mut should_abort = false;
-    for mut handle in handles {
-        if handle.is_finished() {
-            log::debug!("backup task done with internal handler {handle:?}");
-            continue;
-        }
-        if should_abort {
-            log::debug!("cancel backup task with internal handler {handle:?}");
-            handle.abort();
-            continue;
-        }
-        tokio::select! {
-            _ = cancel.cancelled() => {
-                should_abort = true;
-                // panic!("cancelled");
-                log::debug!("cancel backup task with internal handler {handle:?}");
-                handle.abort();
-            }
-            res = &mut handle => {
-                res??;
-                log::debug!("backup task done with internal handler {handle:?}");
-            }
-        }
+    for handle in handles {
+        let _ = handle.await?;
     }
+    // let mut should_abort = false;
+    // for mut handle in handles {
+    //     if handle.is_finished() {
+    //         log::debug!("backup task done with internal handler {handle:?}");
+    //         continue;
+    //     }
+    //     if should_abort {
+    //         log::debug!("cancel backup task with internal handler {handle:?}");
+    //         handle.abort();
+    //         continue;
+    //     }
+    //     tokio::select! {
+    //         _ = cancel.cancelled() => {
+    //             should_abort = true;
+    //             // panic!("cancelled");
+    //             log::debug!("cancel backup task with internal handler {handle:?}");
+    //             handle.abort();
+    //         }
+    //         res = &mut handle => {
+    //             res??;
+    //             log::debug!("backup task done with internal handler {handle:?}");
+    //         }
+    //     }
+    // }
     // tokio::time::sleep(std::time::Duration::MAX).await;
     Ok(())
 }
@@ -421,6 +439,7 @@ async fn test_tmq_to_local() -> anyhow::Result<()> {
         "local:./tmq_to_local_out".parse()?,
         1,
         true,
+        Default::default(),
     )
     .await?;
     std::fs::remove_dir_all("./tmq_to_local_out")?;

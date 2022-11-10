@@ -87,7 +87,6 @@ impl Cli {
             .await?
             .with_runtime(rt);
 
-
         let store = Data::new(controller);
         let store_cloned = store.clone();
         // // Make instance variable of ApiDoc so all worker threads gets the same instance.
@@ -116,17 +115,14 @@ impl Cli {
         tokio::select! {
             _ = server => {
                  log::info!("server stopped");
-                store_cloned.clear().await?;
                 // done;
             },
             _ = tokio::signal::ctrl_c() => {
                  log::info!("Ctrl+C triggered");
-                // done
-                store_cloned.clear().await?;
-                drop(store_cloned);
-                 log::info!("server stopped");
             }
         };
+        store_cloned.stop_all().await?;
+        drop(store_cloned);
 
         Ok(())
     }

@@ -43,35 +43,43 @@ pub struct TaskOpts {
     pub cancel: CancellationToken,
 }
 
-impl TaskOpts {
-    pub fn synchronize_database_from(database: &str, from: impl IntoDsn) -> anyhow::Result<Self> {
-        let to = format!("taos:///{database}").parse()?;
-        let from = from.into_dsn()?;
-        Ok(Self {
-            from,
-            to,
-            ..Default::default()
-        })
+impl Drop for TaskOpts {
+    fn drop(&mut self) {
+        if !self.cancel.is_cancelled() {
+            self.cancel.cancel();
+        }
     }
-    pub fn synchronize_database_to(database: &str, to: impl IntoDsn) -> anyhow::Result<Self> {
-        let from = format!("tmq:///{database}").parse()?;
-        let to = to.into_dsn()?;
-        Ok(Self {
-            from,
-            to,
-            ..Default::default()
-        })
-    }
+}
 
-    pub fn subscribe_from(database: &str, from: impl IntoDsn) -> anyhow::Result<Self> {
-        let to = format!("taos:///{database}").parse()?;
-        let from = from.into_dsn()?;
-        Ok(Self {
-            from,
-            to,
-            ..Default::default()
-        })
-    }
+impl TaskOpts {
+    // pub fn synchronize_database_from(database: &str, from: impl IntoDsn) -> anyhow::Result<Self> {
+    //     let to = format!("taos:///{database}").parse()?;
+    //     let from = from.into_dsn()?;
+    //     Ok(Self {
+    //         from,
+    //         to,
+    //         ..Default::default()
+    //     })
+    // }
+    // pub fn synchronize_database_to(database: &str, to: impl IntoDsn) -> anyhow::Result<Self> {
+    //     let from = format!("tmq:///{database}").parse()?;
+    //     let to = to.into_dsn()?;
+    //     Ok(Self {
+    //         from,
+    //         to,
+    //         ..Default::default()
+    //     })
+    // }
+
+    // pub fn subscribe_from(database: &str, from: impl IntoDsn) -> anyhow::Result<Self> {
+    //     let to = format!("taos:///{database}").parse()?;
+    //     let from = from.into_dsn()?;
+    //     Ok(Self {
+    //         from,
+    //         to,
+    //         ..Default::default()
+    //     })
+    // }
 
     pub fn cancel(&self) {
         self.cancel.cancel();
@@ -91,7 +99,14 @@ impl TaskOpts {
         {
             match (from.driver.as_str(), to.driver.as_str()) {
                 ("tmq", "taos") => {
-                    tmq_to_td(from.clone(), transform.clone(), to.clone(), *jobs, cancel.clone()).await?;
+                    tmq_to_td(
+                        from.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        *jobs,
+                        cancel.clone(),
+                    )
+                    .await?;
                 }
                 ("tmq", "local") => {
                     tmq_to_local(from.clone(), to.clone(), *jobs, *force, cancel.clone()).await?;
