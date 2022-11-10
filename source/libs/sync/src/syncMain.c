@@ -1036,6 +1036,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
 
   ret = raftStoreClose(pSyncNode->pRaftStore);
   ASSERT(ret == 0);
+  pSyncNode->pRaftStore = NULL;
 
   syncRespMgrDestroy(pSyncNode->pSyncRespMgr);
   pSyncNode->pSyncRespMgr = NULL;
@@ -1931,7 +1932,15 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
   SSyncNode*        pSyncNode = pData->pSyncNode;
   SSyncTimer*       pSyncTimer = pData->pTimer;
 
+  if (pSyncNode == NULL) {
+    return;
+  }
+
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    return;
+  }
+
+  if (pSyncNode->pRaftStore == NULL) {
     return;
   }
 

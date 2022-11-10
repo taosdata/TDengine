@@ -27,9 +27,7 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t
   pRetrieve->completed = 1;
   pRetrieve->numOfRows = htonl(pBlock->info.rows);
 
-  // TODO enable compress
-  int32_t actualLen = 0;
-  blockEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
+  int32_t actualLen = blockEncode(pBlock, pRetrieve->data, numOfCols);
   actualLen += sizeof(SRetrieveTableRsp);
   ASSERT(actualLen <= dataStrLen);
   taosArrayPush(pRsp->blockDataLen, &actualLen);
