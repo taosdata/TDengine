@@ -199,7 +199,7 @@ TEST_F(ParserShowToUseTest, showTableTags) {
 
   run("SHOW TABLE TAGS tag1, tag2 FROM st1");
 
-  run("SHOW TABLE TAGS TBNAME, _TAG, tag3 FROM st1");
+  run("SHOW TABLE TAGS TBNAME, _TAGS, tag3 FROM st1");
 }
 
 TEST_F(ParserShowToUseTest, showTags) {
