@@ -2785,6 +2785,10 @@ static void doSendQueryReqs(SSchedMsg* pSchedMsg) {
         tscError("0x%"PRIx64"subqueries objs reset unexpectedly. numOfSub:%d", pSql->self, pSql->subState.numOfSub);
         break;
     }
+    if (pSub != pSub->signature) {
+      tscError("%p query msg has been freed", pSub);
+      break;
+    }
     SRetrieveSupport* pSupport = pSub->param;
 
     tscDebug("0x%"PRIx64" sub:0x%"PRIx64" launch subquery, orderOfSub:%d.", pSql->self, pSub->self, pSupport->subqueryIndex);

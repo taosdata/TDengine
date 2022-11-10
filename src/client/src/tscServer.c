@@ -1037,6 +1037,10 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t size = tscEstimateQueryMsgSize(pSql);
   assert(size > 0);
+  if (pSql != pSql->signature) {
+    tscError("%p query msg has been freed", pSql);
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
 
   if (TSDB_CODE_SUCCESS != tscAllocPayloadFast(pCmd, size)) {
     tscError("%p failed to malloc for query msg", pSql);
