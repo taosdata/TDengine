@@ -876,13 +876,14 @@ int32_t reserveDbVgVersionInCache(int32_t acctId, const char* pDb, SParseMetaCac
 }
 
 int32_t getDbVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, int32_t* pVersion, int64_t* pDbId,
-                                int32_t* pTableNum) {
+                                int32_t* pTableNum, int64_t* pStateTs) {
   SDbInfo* pDbInfo = NULL;
   int32_t  code = getMetaDataFromHash(pDbFName, strlen(pDbFName), pMetaCache->pDbInfo, (void**)&pDbInfo);
   if (TSDB_CODE_SUCCESS == code) {
     *pVersion = pDbInfo->vgVer;
     *pDbId = pDbInfo->dbId;
     *pTableNum = pDbInfo->tbNum;
+    *pStateTs = pDbInfo->stateTs;
   }
   return code;
 }

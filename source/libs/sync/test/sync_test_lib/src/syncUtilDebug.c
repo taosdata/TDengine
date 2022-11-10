@@ -13,29 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_MESSAGE_H
-#define _TD_LIBS_SYNC_MESSAGE_H
+#define _DEFAULT_SOURCE
+#include "syncTest.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+cJSON* syncUtilNodeInfo2Json(const SNodeInfo* p) {
+  char   u64buf[128] = {0};
+  cJSON* pRoot = cJSON_CreateObject();
 
-#include "syncInt.h"
+  cJSON_AddStringToObject(pRoot, "nodeFqdn", p->nodeFqdn);
+  cJSON_AddNumberToObject(pRoot, "nodePort", p->nodePort);
 
-// ---------------------------------------------
-cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg);
-cJSON* syncRpcUnknownMsg2Json();
-char*  syncRpcMsg2Str(SRpcMsg* pRpcMsg);
-
-// for debug ----------------------
-void syncRpcMsgPrint(SRpcMsg* pMsg);
-void syncRpcMsgPrint2(char* s, SRpcMsg* pMsg);
-void syncRpcMsgLog(SRpcMsg* pMsg);
-void syncRpcMsgLog2(char* s, SRpcMsg* pMsg);
-// ---------------------------------------------
-
-#ifdef __cplusplus
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SNodeInfo", pRoot);
+  return pJson;
 }
-#endif
 
-#endif /*_TD_LIBS_SYNC_MESSAGE_H*/
+char* syncUtilRaftId2Str(const SRaftId* p) {
+  cJSON* pJson = syncUtilRaftId2Json(p);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
