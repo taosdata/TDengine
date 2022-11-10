@@ -249,7 +249,7 @@ int32_t __catalogGetTableDistVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, con
 }
 
 int32_t __catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId,
-                                int32_t* tableNum) {
+                                int32_t* tableNum, int64_t* stateTs) {
   return 0;
 }
 

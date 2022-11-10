@@ -78,7 +78,7 @@ void ctgdUserCallback(SMetaData *pResult, void *param, int32_t code) {
     num = taosArrayGetSize(pResult->pDbInfo);
     for (int32_t i = 0; i < num; ++i) {
       SDbInfo *pDb = taosArrayGet(pResult->pDbInfo, i);
-      qDebug("db %d dbInfo: vgVer:%d, tbNum:%d, dbId:0x%" PRIx64, i, pDb->vgVer, pDb->tbNum, pDb->dbId);
+      qDebug("db %d dbInfo: vgVer:%d, tbNum:%d, stateTs:%" PRId64 " dbId:0x%" PRIx64, i, pDb->vgVer, pDb->tbNum, pDb->stateTs, pDb->dbId);
     }
   } else {
     qDebug("empty db info");
@@ -462,6 +462,7 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
     int32_t hashMethod = -1;
     int16_t hashPrefix = 0;
     int16_t hashSuffix = 0;
+    int64_t stateTs = 0;
     int32_t vgNum = 0;
 
     if (dbCache->vgCache.vgInfo) {
@@ -469,15 +470,34 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
       hashMethod = dbCache->vgCache.vgInfo->hashMethod;
       hashPrefix = dbCache->vgCache.vgInfo->hashPrefix;
       hashSuffix = dbCache->vgCache.vgInfo->hashSuffix;
+      stateTs = dbCache->vgCache.vgInfo->stateTs;
       if (dbCache->vgCache.vgInfo->vgHash) {
         vgNum = taosHashGetSize(dbCache->vgCache.vgInfo->vgHash);
       }
     }
 
     ctgDebug("[%d] db [%.*s][0x%" PRIx64
-             "] %s: metaNum:%d, stbNum:%d, vgVersion:%d, hashMethod:%d, prefix:%d, suffix:%d, vgNum:%d",
-             i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "", metaNum, stbNum, vgVersion,
+             "] %s: metaNum:%d, stbNum:%d, vgVersion:%d, stateTs:%" PRId64 ", hashMethod:%d, prefix:%d, suffix:%d, vgNum:%d",
+             i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "", metaNum, stbNum, vgVersion, stateTs, 
              hashMethod, hashPrefix, hashSuffix, vgNum);
+
+    if (dbCache->vgCache.vgInfo) {
+      int32_t i = 0;
+      void *pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, NULL);
+      while (pVgIter) {
+        SVgroupInfo * pVg = (SVgroupInfo *)pVgIter;
+
+        ctgDebug("The %04dth VG [id:%d, hashBegin:%u, hashEnd:%u, numOfTable:%d, epNum:%d, inUse:%d]",
+                 i++, pVg->vgId, pVg->hashBegin, pVg->hashEnd, pVg->numOfTable, pVg->epSet.numOfEps, pVg->epSet.inUse);
+
+        for (int32_t n = 0; n < pVg->epSet.numOfEps; ++n) {
+          SEp *pEp = &pVg->epSet.eps[n];
+          ctgDebug("\tEp %d [fqdn:%s, port:%d]", n, pEp->fqdn, pEp->port);
+        }
+        
+        pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, pVgIter);      
+      }
+    }
 
     pIter = taosHashIterate(dbHash, pIter);
   }

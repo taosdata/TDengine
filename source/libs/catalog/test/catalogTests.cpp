@@ -2486,7 +2486,8 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   int32_t dbVer = 0;
   int64_t dbId = 0;
   int32_t tbNum = 0;
-  code = catalogGetDBVgVersion(pCtg, ctgTestDbname, &dbVer, &dbId, &tbNum);
+  int64_t stateTs = 0;
+  code = catalogGetDBVgVersion(pCtg, ctgTestDbname, &dbVer, &dbId, &tbNum, &stateTs);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(dbVer, ctgTestVgVersion);
   ASSERT_EQ(dbId, ctgTestDbId);
