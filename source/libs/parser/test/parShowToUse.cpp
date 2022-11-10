@@ -192,6 +192,16 @@ TEST_F(ParserShowToUseTest, showTableDistributed) {
   run("SHOW TABLE DISTRIBUTED st1");
 }
 
+TEST_F(ParserShowToUseTest, showTableTags) {
+  useDb("root", "test");
+
+  run("SHOW TABLE TAGS FROM st1");
+
+  run("SHOW TABLE TAGS tag1, tag2 FROM st1");
+
+  run("SHOW TABLE TAGS TBNAME, _TAG, tag3 FROM st1");
+}
+
 TEST_F(ParserShowToUseTest, showTags) {
   useDb("root", "test");
 
