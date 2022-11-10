@@ -407,9 +407,16 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
   bool      once = false;
   do {
     SCliMsg* pMsg = transQueuePop(&pConn->cliMsgs);
+
     if (pMsg == NULL && once) {
       break;
     }
+
+    if (pMsg != NULL && REQUEST_NO_RESP(&pMsg->msg)) {
+      destroyCmsg(pMsg);
+      break;
+    }
+
     STransConnCtx* pCtx = pMsg ? pMsg->ctx : NULL;
 
     STransMsg transMsg = {0};
@@ -439,6 +446,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
         continue;
       }
     }
+
     if (pMsg == NULL || (pMsg && pMsg->type != Release)) {
       if (cliAppCb(pConn, &transMsg, pMsg) != 0) {
         return;
