@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncRaftStore.h"
 #include "cJSON.h"
 #include "syncEnv.h"
