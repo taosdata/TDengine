@@ -154,6 +154,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STDDEV_PARTIAL,
   FUNCTION_TYPE_STDDEV_MERGE,
 
+  // geometry functions
+  FUNCTION_TYPE_MAKEPOINT = 4250,
+
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
 } EFunctionType;

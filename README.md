@@ -62,7 +62,7 @@ sudo apt-get install -y gcc cmake build-essential git libssl-dev
 To build the [taosTools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config libgeos-dev
 ```
 
 ### CentOS 7.9
@@ -71,6 +71,7 @@ sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-d
 sudo yum install epel-release
 sudo yum update
 sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
+sudo yum install -y geos geos-devel #[ToDo] check if it is right
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
@@ -78,6 +79,7 @@ sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
+sudo dnf install -y geos geos-devel #[ToDo] check if it is right
 ```
 
 #### Install build dependencies for taosTools on CentOS

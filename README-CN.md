@@ -60,7 +60,7 @@ sudo apt-get install -y gcc cmake build-essential git libssl-dev
 为了在 Ubuntu/Debian 系统上编译 [taos-tools](https://github.com/taosdata/taos-tools) 需要安装如下软件：
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config libgeos-dev
 ```
 
 ### CentOS 7.9
@@ -69,6 +69,7 @@ sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-d
 sudo yum install epel-release
 sudo yum update
 sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
+sudo yum install -y geos geos-devel #[ToDo] check if it is right
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
@@ -76,6 +77,7 @@ sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
+sudo dnf install -y geos geos-devel #[ToDo] check if it is right
 ```
 
 #### 在 CentOS 上构建 taosTools 安装依赖软件

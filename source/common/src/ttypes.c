@@ -405,7 +405,7 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
      getStatics_u64},
     {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString, tsDecompressString,
      getStatics_nchr},
-    {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString, tsDecompressString, getStatics_bin},
+    {TSDB_DATA_TYPE_GEOMETRY, 8, TSDB_MAX_GEOMETRY_LEN, "GEOMETRY", 0, 0, tsCompressString, tsDecompressString, getStatics_bin},
 };
 
 char tTokenTypeSwitcher[14] = {
