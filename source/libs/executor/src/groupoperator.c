@@ -899,7 +899,10 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       void* pData = colDataGetVarData(pCol, 0);
       // TODO check tbname validity
       if (pData != (void*)-1) {
-        memcpy(pDest->info.parTbName, varDataVal(pData), varDataLen(pData));
+        memset(pDest->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
+        int32_t len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN);
+        memcpy(pDest->info.parTbName, varDataVal(pData), len);
+        /*pDest->info.parTbName[len + 1] = 0;*/
       } else {
         pDest->info.parTbName[0] = 0;
       }
