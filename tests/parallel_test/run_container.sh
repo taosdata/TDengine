@@ -84,7 +84,7 @@ if [ $ent -ne 0 ]; then
     CONTAINER_TESTDIR=/home/TDinternal/community
     SIM_DIR=/home/TDinternal/sim
     REP_MOUNT_PARAM="$INTERNAL_REPDIR:/home/TDinternal"
-    REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDinternal/debug/"
+    REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDinternal/debug/:ro"
 
 else
     # community edition
