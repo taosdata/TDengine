@@ -973,7 +973,7 @@ static void copyNumericCols(const SColData* pData, SFileBlockDumpInfo* pDumpInfo
         int32_t  mid = dumpedRows >> 1u;
         int8_t* pts = (int8_t*)pColData->pData;
         for (int32_t j = 0; j < mid; ++j) {
-          int64_t t = pts[j];
+          int8_t t = pts[j];
           pts[j] = pts[dumpedRows - j - 1];
           pts[dumpedRows - j - 1] = t;
         }
@@ -998,7 +998,7 @@ static void copyNumericCols(const SColData* pData, SFileBlockDumpInfo* pDumpInfo
         int32_t  mid = dumpedRows >> 1u;
         int32_t* pts = (int32_t*)pColData->pData;
         for (int32_t j = 0; j < mid; ++j) {
-          int64_t t = pts[j];
+          int32_t t = pts[j];
           pts[j] = pts[dumpedRows - j - 1];
           pts[dumpedRows - j - 1] = t;
         }
