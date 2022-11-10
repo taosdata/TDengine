@@ -15,246 +15,261 @@ async fn sync(
     taos: Taos,
     table: Option<String>,
     actions: Vec<Action>,
+    cancel: CancellationToken,
 ) -> Result<()> {
     let mut stream = consumer.stream();
     let mut rows = 0;
 
-    while let Some((offset, message)) = stream.try_next().await? {
-        match message {
-            MessageSet::Meta(meta) => {
-                // log::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
-                if actions.is_empty() {
-                    if let Err(err) = taos.write_raw_meta(meta.as_raw_meta().await?).await {
-                        let errstr = err.to_string();
-                        if errstr.contains("[0x032C]") {
-                            log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
-                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
-                        } else if errstr.contains("[0x03C7]") {
-                            log::warn!("write raw meta error with stable, but we'll continue");
-                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
-                        } else {
-                            bail!("write raw meta error: {err}");
-                        }
-                    }
-                } else {
-                    let mut meta = meta.as_json_meta().await?;
-                    // dbg!(&meta);
-
-                    for action in &actions {
-                        action.mutate_meta(&mut meta)?;
-                    }
-                    // dbg!(&meta);
-                    let sql = meta.to_string();
-                    if let Err(err) = taos.exec(&sql).await {
-                        let errstr = err.to_string();
-                        if errstr.contains("[0x032C]") {
-                            log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
-                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
-                        } else if errstr.contains("[0x03C7]") {
-                            log::warn!("write raw meta error with stable, but we'll continue");
-                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
-                        } else {
-                            bail!("write raw meta error: {err}");
-                        }
-                    }
-                }
+    loop {
+        tokio::select! {
+            _ = cancel.cancelled() => {
+                log::warn!("[sync: {id}] cancelled");
+                break;
             }
-            MessageSet::Data(data) => {
-                while let Some(mut raw) = data.fetch_raw_block().await? {
-                    if let Some(name) = table.as_ref() {
-                        if actions.is_empty() {
-                            raw.with_table_name(name);
-                            log::debug!(
-                                "[{id}] write into {name} {} rows(total {}) with {} columns",
-                                raw.nrows(),
-                                rows,
-                                raw.ncols()
-                            );
-                        } else {
-                            let mut name = name.to_string();
-                            for action in &actions {
-                                match action {
-                                    Action::RenameTable(rename)
-                                    | Action::RenameChildTable(rename) => {
-                                        rename.apply_in_place(&mut name)
-                                    }
-                                    _ => (),
-                                }
-                            }
-                            raw.with_table_name(&name);
-                            log::debug!(
-                                "[{id}] write into {name} {} rows(total {}) with {} columns",
-                                raw.nrows(),
-                                rows,
-                                raw.ncols()
-                            );
-                        }
-                    } else if let Some(name) = raw.table_name().as_deref() {
-                        if !actions.is_empty() {
-                            let mut name = name.to_string();
-                            for action in &actions {
-                                match action {
-                                    Action::RenameTable(rename)
-                                    | Action::RenameChildTable(rename) => {
-                                        rename.apply_in_place(&mut name)
-                                    }
-                                    _ => (),
-                                }
-                            }
-                            raw.with_table_name(&name);
-                            log::debug!(
-                                "[{id}] write into {name} {} rows(total {}) with {} columns",
-                                raw.nrows(),
-                                rows,
-                                raw.ncols()
-                            );
-                        }
-                    } else {
-                        log::debug!(
-                            "[{id}] write {} rows(total {}) with {} columns",
-                            raw.nrows(),
-                            rows,
-                            raw.ncols()
-                        );
-                    }
-                    rows += raw.nrows();
-                    if let Err(err) = taos.write_raw_block(&raw).await {
-                        if err.to_string().contains("[0x2603]") {
-                            // table not exists
-                            if let Some(meta) = raw.to_create() {
-                                if let Err(err) = taos.exec(format!("{}", meta)).await {
-                                    if err.to_string().contains("0x032C") {
-                                        tokio::time::sleep(Duration::from_nanos(1000)).await;
+            next = stream.try_next() => {
+                if let Some((offset, message)) = next? {
+                    match message {
+                        MessageSet::Meta(meta) => {
+                            // log::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
+                            if actions.is_empty() {
+                                if let Err(err) = taos.write_raw_meta(meta.as_raw_meta().await?).await {
+                                    let errstr = err.to_string();
+                                    if errstr.contains("[0x032C]") {
+                                        log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
+                                        // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                                    } else if errstr.contains("[0x03C7]") {
+                                        log::warn!("write raw meta error with stable, but we'll continue");
+                                        // tokio::time::sleep(Duration::from_nanos(1000)).await;
                                     } else {
-                                        bail!("create table error: {err}");
+                                        bail!("write raw meta error: {err}");
+                                    }
+                                }
+                            } else {
+                                let mut meta = meta.as_json_meta().await?;
+                                // dbg!(&meta);
+
+                                for action in &actions {
+                                    action.mutate_meta(&mut meta)?;
+                                }
+                                // dbg!(&meta);
+                                let sql = meta.to_string();
+                                if let Err(err) = taos.exec(&sql).await {
+                                    let errstr = err.to_string();
+                                    if errstr.contains("[0x032C]") {
+                                        log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
+                                        // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                                    } else if errstr.contains("[0x03C7]") {
+                                        log::warn!("write raw meta error with stable, but we'll continue");
+                                        // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                                    } else {
+                                        bail!("write raw meta error: {err}");
+                                    }
+                                }
+                            }
+                        }
+                        MessageSet::Data(data) => {
+                            while let Some(mut raw) = data.fetch_raw_block().await? {
+                                if let Some(name) = table.as_ref() {
+                                    if actions.is_empty() {
+                                        raw.with_table_name(name);
+                                        log::debug!(
+                                            "[{id}] write into {name} {} rows(total {}) with {} columns",
+                                            raw.nrows(),
+                                            rows,
+                                            raw.ncols()
+                                        );
+                                    } else {
+                                        let mut name = name.to_string();
+                                        for action in &actions {
+                                            match action {
+                                                Action::RenameTable(rename)
+                                                | Action::RenameChildTable(rename) => {
+                                                    rename.apply_in_place(&mut name)
+                                                }
+                                                _ => (),
+                                            }
+                                        }
+                                        raw.with_table_name(&name);
+                                        log::debug!(
+                                            "[{id}] write into {name} {} rows(total {}) with {} columns",
+                                            raw.nrows(),
+                                            rows,
+                                            raw.ncols()
+                                        );
+                                    }
+                                } else if let Some(name) = raw.table_name().as_deref() {
+                                    if !actions.is_empty() {
+                                        let mut name = name.to_string();
+                                        for action in &actions {
+                                            match action {
+                                                Action::RenameTable(rename)
+                                                | Action::RenameChildTable(rename) => {
+                                                    rename.apply_in_place(&mut name)
+                                                }
+                                                _ => (),
+                                            }
+                                        }
+                                        raw.with_table_name(&name);
+                                        log::debug!(
+                                            "[{id}] write into {name} {} rows(total {}) with {} columns",
+                                            raw.nrows(),
+                                            rows,
+                                            raw.ncols()
+                                        );
+                                    }
+                                } else {
+                                    log::debug!(
+                                        "[{id}] write {} rows(total {}) with {} columns",
+                                        raw.nrows(),
+                                        rows,
+                                        raw.ncols()
+                                    );
+                                }
+                                rows += raw.nrows();
+                                if let Err(err) = taos.write_raw_block(&raw).await {
+                                    if err.to_string().contains("[0x2603]") {
+                                        // table not exists
+                                        if let Some(meta) = raw.to_create() {
+                                            if let Err(err) = taos.exec(format!("{}", meta)).await {
+                                                if err.to_string().contains("0x032C") {
+                                                    tokio::time::sleep(Duration::from_nanos(1000)).await;
+                                                } else {
+                                                    bail!("create table error: {err}");
+                                                }
+                                            };
+                                            taos.write_raw_block(&raw).await?;
+                                        } else {
+                                            bail!("write table failed: {err}",);
+                                        }
+                                    } else {
+                                        bail!("write table failed: {err}",);
                                     }
                                 };
-                                taos.write_raw_block(&raw).await?;
-                            } else {
-                                bail!("write table failed: {err}",);
                             }
-                        } else {
-                            bail!("write table failed: {err}",);
                         }
-                    };
-                }
-            }
-            MessageSet::MetaData(meta, data) => {
-                // log::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
-                if actions.is_empty() {
-                    if let Err(err) = taos.write_raw_meta(meta.as_raw_meta().await?).await {
-                        let errstr = err.to_string();
-                        if errstr.contains("[0x032C]") {
-                            log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
-                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
-                        } else if errstr.contains("[0x03C7]") {
-                            log::warn!("write raw meta error with stable, but we'll continue");
-                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
-                        } else {
-                            bail!("write raw meta failed: {err}",);
-                        }
-                        continue;
-                    }
-                } else {
-                    let mut meta = meta.as_json_meta().await?;
-
-                    for action in &actions {
-                        action.mutate_meta(&mut meta)?;
-                    }
-                    let sql = meta.to_string();
-                    if let Err(err) = taos.exec(&sql).await {
-                        let errstr = err.to_string();
-                        if errstr.contains("[0x032C]") {
-                            log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
-                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
-                        } else if errstr.contains("[0x03C7]") {
-                            log::warn!("write raw meta error with stable, but we'll continue");
-                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
-                        } else {
-                            bail!("write raw meta failed: {err}",);
-                        }
-                    }
-                }
-
-                while let Some(mut raw) = data.fetch_raw_block().await? {
-                    if let Some(name) = table.as_ref() {
-                        if actions.is_empty() {
-                            raw.with_table_name(name);
-                        } else {
-                            let mut name = name.to_string();
-                            for action in &actions {
-                                match action {
-                                    Action::RenameTable(rename) => rename.apply_in_place(&mut name),
-                                    Action::RenameChildTable(rename) => {
-                                        rename.apply_in_place(&mut name)
-                                    }
-                                    _ => (),
-                                }
-                            }
-                            raw.with_table_name(name);
-                        }
-                    } else if let Some(name) = raw.table_name().as_deref() {
-                        if !actions.is_empty() {
-                            let mut name = name.to_string();
-                            for action in &actions {
-                                match action {
-                                    Action::RenameTable(rename)
-                                    | Action::RenameChildTable(rename) => {
-                                        rename.apply_in_place(&mut name)
-                                    }
-                                    _ => (),
-                                }
-                            }
-                            raw.with_table_name(&name);
-                            log::debug!(
-                                "[{id}] write into {name} {} rows(total {}) with {} columns",
-                                raw.nrows(),
-                                rows,
-                                raw.ncols()
-                            );
-                        }
-                    } else {
-                        log::debug!(
-                            "[{id}] write {} rows(total {}) with {} columns",
-                            raw.nrows(),
-                            rows,
-                            raw.ncols()
-                        );
-                    }
-                    rows += raw.nrows();
-                    log::debug!(
-                        "[{id}] write {} rows(total {}) with {} columns",
-                        raw.nrows(),
-                        rows,
-                        raw.ncols()
-                    );
-                    if let Err(err) = taos.write_raw_block(&raw).await {
-                        if err.to_string().contains("[0x2603]") {
-                            // table not exists
-                            if let Some(meta) = raw.to_create() {
-                                if let Err(err) = taos.exec(format!("{}", meta)).await {
-                                    if err.to_string().contains("0x032C") {
-                                        tokio::time::sleep(Duration::from_nanos(1000)).await;
+                        MessageSet::MetaData(meta, data) => {
+                            // log::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
+                            if actions.is_empty() {
+                                if let Err(err) = taos.write_raw_meta(meta.as_raw_meta().await?).await {
+                                    let errstr = err.to_string();
+                                    if errstr.contains("[0x032C]") {
+                                        log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
+                                        // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                                    } else if errstr.contains("[0x03C7]") {
+                                        log::warn!("write raw meta error with stable, but we'll continue");
+                                        // tokio::time::sleep(Duration::from_nanos(1000)).await;
                                     } else {
-                                        bail!("write to table failed: {err}");
+                                        bail!("write raw meta failed: {err}",);
                                     }
-                                };
-                                taos.write_raw_block(&raw).await?;
+                                    continue;
+                                }
                             } else {
-                                bail!(
-                                    "write to table {:?} but not exists: {err}",
-                                    raw.table_name()
+                                let mut meta = meta.as_json_meta().await?;
+
+                                for action in &actions {
+                                    action.mutate_meta(&mut meta)?;
+                                }
+                                let sql = meta.to_string();
+                                if let Err(err) = taos.exec(&sql).await {
+                                    let errstr = err.to_string();
+                                    if errstr.contains("[0x032C]") {
+                                        log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
+                                        // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                                    } else if errstr.contains("[0x03C7]") {
+                                        log::warn!("write raw meta error with stable, but we'll continue");
+                                        // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                                    } else {
+                                        bail!("write raw meta failed: {err}",);
+                                    }
+                                }
+                            }
+
+                            while let Some(mut raw) = data.fetch_raw_block().await? {
+                                if let Some(name) = table.as_ref() {
+                                    if actions.is_empty() {
+                                        raw.with_table_name(name);
+                                    } else {
+                                        let mut name = name.to_string();
+                                        for action in &actions {
+                                            match action {
+                                                Action::RenameTable(rename) => rename.apply_in_place(&mut name),
+                                                Action::RenameChildTable(rename) => {
+                                                    rename.apply_in_place(&mut name)
+                                                }
+                                                _ => (),
+                                            }
+                                        }
+                                        raw.with_table_name(name);
+                                    }
+                                } else if let Some(name) = raw.table_name().as_deref() {
+                                    if !actions.is_empty() {
+                                        let mut name = name.to_string();
+                                        for action in &actions {
+                                            match action {
+                                                Action::RenameTable(rename)
+                                                | Action::RenameChildTable(rename) => {
+                                                    rename.apply_in_place(&mut name)
+                                                }
+                                                _ => (),
+                                            }
+                                        }
+                                        raw.with_table_name(&name);
+                                        log::debug!(
+                                            "[{id}] write into {name} {} rows(total {}) with {} columns",
+                                            raw.nrows(),
+                                            rows,
+                                            raw.ncols()
+                                        );
+                                    }
+                                } else {
+                                    log::debug!(
+                                        "[{id}] write {} rows(total {}) with {} columns",
+                                        raw.nrows(),
+                                        rows,
+                                        raw.ncols()
+                                    );
+                                }
+                                rows += raw.nrows();
+                                log::debug!(
+                                    "[{id}] write {} rows(total {}) with {} columns",
+                                    raw.nrows(),
+                                    rows,
+                                    raw.ncols()
                                 );
+                                if let Err(err) = taos.write_raw_block(&raw).await {
+                                    if err.to_string().contains("[0x2603]") {
+                                        // table not exists
+                                        if let Some(meta) = raw.to_create() {
+                                            if let Err(err) = taos.exec(format!("{}", meta)).await {
+                                                if err.to_string().contains("0x032C") {
+                                                    tokio::time::sleep(Duration::from_nanos(1000)).await;
+                                                } else {
+                                                    bail!("write to table failed: {err}");
+                                                }
+                                            };
+                                            taos.write_raw_block(&raw).await?;
+                                        } else {
+                                            bail!(
+                                                "write to table {:?} but not exists: {err}",
+                                                raw.table_name()
+                                            );
+                                        }
+                                    } else {
+                                        bail!("write to table failed: {err}",);
+                                    }
+                                };
                             }
-                        } else {
-                            bail!("write to table failed: {err}",);
                         }
-                    };
+                    }
+                    consumer.commit(offset).await?;
+                } else {
+                    break;
                 }
             }
         }
-        consumer.commit(offset).await?;
     }
+
+    // while let Some((offset, message)) = stream.try_next().await? {}
     Ok(())
 }
 
@@ -406,36 +421,41 @@ pub async fn tmq_to_td(
             taos.exec(format!("use {target_database}")).await?;
             let table = topic.table.as_ref().map(|t| t.table.clone());
             let actions = actions.to_vec();
-            let handle =
-                tokio::spawn(async move { sync(task_id, consumer, taos, table, actions).await });
+            let cancellation = cancel.clone();
+            let handle = tokio::spawn(async move {
+                sync(task_id, consumer, taos, table, actions, cancellation).await
+            });
             handles.push(handle);
             task_id += 1;
         }
     }
-    let mut should_abort = false;
-    for mut handle in handles {
-        if handle.is_finished() {
-            log::debug!("backup task done with internal handler {handle:?}");
-            continue;
-        }
-        if should_abort {
-            log::debug!("cancel backup task with internal handler {handle:?}");
-            handle.abort();
-            continue;
-        }
-        tokio::select! {
-            _ = cancel.cancelled() => {
-                should_abort = true;
-                // panic!("cancelled");
-                log::debug!("cancel backup task with internal handler {handle:?}");
-                handle.abort();
-            }
-            res = &mut handle => {
-                res??;
-                log::debug!("backup task done with internal handler {handle:?}");
-            }
-        }
+    for handle in handles {
+        let _ = handle.await?;
     }
+    // let mut should_abort = false;
+    // for mut handle in handles {
+    //     if handle.is_finished() {
+    //         log::debug!("replication task done with internal handler {handle:?}");
+    //         continue;
+    //     }
+    //     if should_abort {
+    //         log::debug!("cancel replication task with internal handler {handle:?}");
+    //         handle.abort();
+    //         continue;
+    //     }
+    //     tokio::select! {
+    //         _ = cancel.cancelled() => {
+    //             should_abort = true;
+    //             // panic!("cancelled");
+    //             log::debug!("cancel replication task with internal handler {handle:?}");
+    //             handle.abort();
+    //         }
+    //         res = &mut handle => {
+    //             res??;
+    //             log::debug!("replication task done with internal handler {handle:?}");
+    //         }
+    //     }
+    // }
     drop(global_taos);
     drop(target);
     drop(builder);

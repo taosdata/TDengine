@@ -299,7 +299,14 @@ async fn test() -> anyhow::Result<()> {
         "CREATE TOPIC local_to_taos WITH META AS DATABASE local_to_taos",
     ])
     .await?;
-    crate::tmq_to_local("tmq:///local_to_taos".parse()?, local.clone(), 1, true).await?;
+    crate::tmq_to_local(
+        "tmq:///local_to_taos".parse()?,
+        local.clone(),
+        1,
+        true,
+        Default::default(),
+    )
+    .await?;
 
     taos.exec_many([
         "DROP TOPIC local_to_taos",

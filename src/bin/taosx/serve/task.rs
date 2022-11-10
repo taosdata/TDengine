@@ -222,11 +222,13 @@ impl TaskController {
         let pool = self.pool.clone();
         // let (tx, rx) = tokio::sync::oneshot::channel();
         let token = tokio_util::sync::CancellationToken::new();
+        // let token = opts.cancel.clone();
         let cloned_token = token.clone();
 
         let task_handler = async move {
             tokio::select! {
                 _ = cloned_token.cancelled() => {
+                    opts.cancel();
                     log::debug!("cancel task {id}");
                     let now = Utc::now();
                     let status = Status::Cancelled;
@@ -269,10 +271,7 @@ impl TaskController {
                                     .execute(&pool)
                                     .await?;
                             }
-                            {
-
-                            }
-                            let result = opts.clone().run().await;
+                            let result = opts.run().await;
                             match result {
                                 Ok(_) => {
                                     let now = Utc::now();
@@ -384,65 +383,66 @@ impl TaskController {
             jobs: task.jobs as _,
             compression_level: task.compression_level.map(Into::into),
             force: task.force,
-            cancel: cloned_token.clone(),
+            cancel: CancellationToken::new(),
         };
 
         let pool = self.pool.clone();
-        // let (tx, rx) = tokio::sync::oneshot::channel();
         let task_handler = async move {
-            let total = Instant::now();
-            if opts.from.driver == "tmq"
-                && opts
-                    .from
-                    .get("timeout")
-                    .map(|s| s == "never")
-                    .unwrap_or(false)
-            {
-                let mut restarts = 0;
-                let mut sleep = Duration::from_secs(2);
-                'task: loop {
-                    if restarts > 0 {
-                        log::info!("resume task {id} as {restarts} restarts");
+            let now = Utc::now();
+            let _ = sqlx::query!(
+                "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
+                now,
+                Status::Started,
+                id
+            )
+            .execute(&pool)
+            .await?;
+            tokio::select! {
+                _ = cloned_token.cancelled() => {
+                    opts.cancel();
+                    log::debug!("cancel task {id}");
+                    let now = Utc::now();
+                    let status = Status::Cancelled;
+                    let _ = sqlx::query!(
+                        "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
+                        now,
+                        status,
+                        id
+                    )
+                    .execute(&pool)
+                    .await?;
+                }
+                result = async {
+                    if opts.from.driver == "tmq" && opts.from.get("timeout").map(|s| s == "never").unwrap_or(false) {
+                        let mut restarts = 0;
+                        let mut sleep = Duration::from_secs(2);
+                        loop {
+                            if restarts > 0 {
+                                log::info!("resume task {id} as {restarts} restarts");
 
-                        let now = Utc::now();
-                        let _ = sqlx::query!(
-                            "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
-                            now,
-                            Status::Running,
-                            id
-                        )
-                        .execute(&pool)
-                        .await?;
-                    } else {
-                        log::info!("start task {id}");
+                                    let now = Utc::now();
+                                    let _ = sqlx::query!(
+                                        "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
+                                        now,
+                                        Status::Running,
+                                        id
+                                    )
+                                    .execute(&pool)
+                                    .await?;
+                            } else {
+                                log::info!("start task {id}");
 
-                        let now = Utc::now();
-                        let _ = sqlx::query!(
-                            "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
-                            now,
-                            Status::Running,
-                            id
-                        )
-                        .execute(&pool)
-                        .await?;
-                    }
-                    tokio::select! {
-                        _ = cloned_token.cancelled() => {
-                            log::debug!("cancelling task {id}");
-                            let now = Utc::now();
-                            let status = Status::Cancelled;
-                            let _ = sqlx::query!(
-                                "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
-                                now,
-                                status,
-                                id
-                            )
-                            .execute(&pool)
-                            .await?;
-                            break 'task;
-                        }
-
-                        result = opts.run() => {
+                                    let now = Utc::now();
+                                    let _ = sqlx::query!(
+                                        "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
+                                        now,
+                                        Status::Running,
+                                        id
+                                    )
+                                    .execute(&pool)
+                                    .await?;
+                            }
+                            let result = opts.run().await;
                             match result {
                                 Ok(_) => {
                                     let now = Utc::now();
@@ -473,30 +473,13 @@ impl TaskController {
                             }
                             log::info!("resume task {id} in {sleep:?}");
                             tokio::time::sleep(sleep).await;
-                            if sleep < Duration::from_secs(60 * 60) {
+                            if sleep < Duration::from_secs(60) {
                                 sleep = sleep * 2;
                             }
                             restarts += 1;
                         }
-                    }
-                }
-            } else {
-                tokio::select! {
-                    _ = cloned_token.cancelled() => {
-                        log::debug!("cancelling task {id}");
-                        let now = Utc::now();
-                        let status = Status::Cancelled;
-                        let _ = sqlx::query!(
-                            "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
-                            now,
-                            status,
-                            id
-                        )
-                        .execute(&pool)
-                        .await?;
-                    }
-
-                    result = opts.run() => {
+                    } else {
+                        let result = opts.run().await;
                         match result {
                             Ok(_) => {
                                 let now = Utc::now();
@@ -528,128 +511,12 @@ impl TaskController {
                             }
                         }
                     }
+                    return Ok::<(), anyhow::Error>(())
+                } => {
+                    let _ = result?;
+                    log::info!("task {} done", id);
                 }
             }
-            // tokio::select! {
-            //     _ = cloned_token.cancelled() => {
-            //         log::debug!("cancelling task {id}");
-            //         let now = Utc::now();
-            //         let status = Status::Cancelled;
-            //         let _ = sqlx::query!(
-            //             "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
-            //             now,
-            //             status,
-            //             id
-            //         )
-            //         .execute(&pool)
-            //         .await?;
-            //     }
-            //     result = {
-            //         if opts.from.driver == "tmq" && opts.from.get("timeout").map(|s| s == "never").unwrap_or(false) {
-            //             let mut restarts = 0;
-            //             let mut sleep = Duration::from_secs(2);
-            //             loop {
-            //                 if restarts > 0 {
-            //                     log::info!("resume task {id} as {restarts} restarts");
-
-            //                         let now = Utc::now();
-            //                         let _ = sqlx::query!(
-            //                             "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
-            //                             now,
-            //                             Status::Running,
-            //                             id
-            //                         )
-            //                         .execute(&pool)
-            //                         .await?;
-            //                 } else {
-            //                     log::info!("start task {id}");
-
-            //                         let now = Utc::now();
-            //                         let _ = sqlx::query!(
-            //                             "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
-            //                             now,
-            //                             Status::Running,
-            //                             id
-            //                         )
-            //                         .execute(&pool)
-            //                         .await?;
-            //                 }
-            //                 let result = opts.clone().run().await;
-            //                 match result {
-            //                     Ok(_) => {
-            //                         let now = Utc::now();
-            //                         let _ = sqlx::query!(
-            //                             "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
-            //                             now,
-            //                             Status::Interrupted,
-            //                             id
-            //                         )
-            //                         .execute(&pool)
-            //                         .await?;
-
-            //                     }
-            //                     Err(err) => {
-            //                         log::error!("run task {id} failed: {err}, wait for resume...");
-            //                         let err = err.to_string();
-            //                         let now = Utc::now();
-            //                         let _ = sqlx::query!(
-            //                             "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
-            //                             now,
-            //                             Status::Failed,
-            //                             err,
-            //                             id
-            //                         )
-            //                         .execute(&pool)
-            //                         .await?;
-            //                     }
-            //                 }
-            //                 log::info!("resume task {id} in {sleep:?}");
-            //                 tokio::time::sleep(sleep).await;
-            //                 if sleep < Duration::from_secs(60 * 60) {
-            //                     sleep = sleep * 2;
-            //                 }
-            //                 restarts += 1;
-            //             }
-            //         } else {
-            //             let result = opts.run().await;
-            //             match result {
-            //                 Ok(_) => {
-            //                     let now = Utc::now();
-            //                     let status = Status::Completed;
-            //                     let _ = sqlx::query!(
-            //                         "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
-            //                         now,
-            //                         status,
-            //                         id
-            //                     )
-            //                     .execute(&pool)
-            //                     .await?;
-
-            //                 }
-            //                 Err(err) => {
-            //                     log::error!("run task {id} failed: {err}");
-            //                     let err = err.to_string();
-            //                     let now = Utc::now();
-            //                     let status = Status::Failed;
-            //                     let _ = sqlx::query!(
-            //                         "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
-            //                         now,
-            //                         status,
-            //                         err,
-            //                         id
-            //                     )
-            //                     .execute(&pool)
-            //                     .await?;
-            //                 }
-            //             }
-            //         }
-            //         return Ok::<(), anyhow::Error>(())
-            //     } => {
-            //         let _ = result?;
-            //         log::info!("task {} done", id);
-            //     }
-            // }
-            log::info!("Task {id} has been stopped in {:?}", total.elapsed());
             Ok(())
         };
         let handle = if let Some(rt) = self.runtime.as_ref() {
@@ -694,12 +561,15 @@ impl TaskController {
     }
     pub async fn stop(&self, id: i64) -> anyhow::Result<Option<()>> {
         if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
+            log::error!("Cancel task by id {id}");
             token.cancel();
-            if !handle.is_finished() {
-                // token.cancel();
-                log::error!("Cancel task by id {id}");
-                let _ = handle.await;
-            }
+            let _ = handle.await?;
+            // handle.abort();
+            // if !handle.is_finished() {
+            //     // token.cancel();
+            //     log::error!("Cancel task by id {id}");
+            //     let _ = handle.await;
+            // }
         }
         let now = Utc::now();
         let res = sqlx::query_as_unchecked!(
@@ -718,6 +588,30 @@ impl TaskController {
         Ok(Some(()))
     }
 
+    pub async fn stop_all(&self) -> anyhow::Result<()> {
+        for (id, (handle, token)) in self.tasks.write().await.drain() {
+            token.cancel();
+            if !handle.is_finished() {
+                // token.cancel();
+                log::error!("Cancel task by id {id}");
+                let _ = handle.await;
+            }
+
+            let res = sqlx::query_as_unchecked!(
+                Task,
+                "UPDATE tasks SET `status` = ? where id = ?",
+                Status::Cancelled,
+                id
+            )
+            .execute(&self.pool)
+            .await?;
+            // dbg!(res);
+            if res.rows_affected() == 1 {
+                log::info!("successfully cancelled task by id {id}");
+            }
+        }
+        Ok(())
+    }
     pub async fn clear(&self) -> anyhow::Result<()> {
         for (id, (handle, token)) in self.tasks.write().await.drain() {
             token.cancel();
@@ -767,12 +661,21 @@ pub(super) fn configure(store: Data<TaskController>) -> impl FnOnce(&mut Service
 #[serde(rename_all = "snake_case")]
 #[derive(sqlx::Type)]
 pub(super) enum Status {
+    /// Created by API.
     Created,
+    /// Started by start API.
+    Started,
+    /// In running state.
     Running,
+    /// Cancelled tasks, this might be stopped or not.
     Cancelled,
+    /// Task has been finished.
     Completed,
+    /// Task completed with error.
     Failed,
+    /// For never stop task, it's not in service, but will retry.
     Interrupted,
+    /// Manually stopped by API.
     Stopped,
 }
 
