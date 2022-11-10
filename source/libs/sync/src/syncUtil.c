@@ -41,15 +41,15 @@ void syncUtilU642Addr(uint64_t u64, char* host, int64_t len, uint16_t* port) {
   *port = (uint16_t)((u64 & 0x00000000FFFF0000) >> 16);
 }
 
-void syncUtilnodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet) {
+void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet) {
   pEpSet->inUse = 0;
   pEpSet->numOfEps = 0;
   addEpIntoEpSet(pEpSet, pInfo->nodeFqdn, pInfo->nodePort);
 }
 
-void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet) {
+void syncUtilRaftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet) {
   char     host[TSDB_FQDN_LEN] = {0};
-  uint16_t port;
+  uint16_t port = 0;
 
   syncUtilU642Addr(raftId->addr, host, sizeof(host), &port);
   pEpSet->inUse = 0;
@@ -57,7 +57,7 @@ void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet) {
   addEpIntoEpSet(pEpSet, host, port);
 }
 
-bool syncUtilnodeInfo2raftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId) {
+bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId) {
   uint32_t ipv4 = taosGetIpv4FromFqdn(pInfo->nodeFqdn);
   if (ipv4 == 0xFFFFFFFF || ipv4 == 1) {
     sError("failed to resolve ipv4 addr, fqdn: %s", pInfo->nodeFqdn);
@@ -73,8 +73,7 @@ bool syncUtilnodeInfo2raftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* 
 }
 
 bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2) {
-  bool ret = pId1->addr == pId2->addr && pId1->vgId == pId2->vgId;
-  return ret;
+  return pId1->addr == pId2->addr && pId1->vgId == pId2->vgId;
 }
 
 bool syncUtilEmptyId(const SRaftId* pId) { return (pId->addr == 0 && pId->vgId == 0); }
@@ -89,18 +88,6 @@ int32_t syncUtilElectRandomMS(int32_t min, int32_t max) {
 }
 
 int32_t syncUtilQuorum(int32_t replicaNum) { return replicaNum / 2 + 1; }
-
-cJSON* syncUtilNodeInfo2Json(const SNodeInfo* p) {
-  char   u64buf[128] = {0};
-  cJSON* pRoot = cJSON_CreateObject();
-
-  cJSON_AddStringToObject(pRoot, "nodeFqdn", p->nodeFqdn);
-  cJSON_AddNumberToObject(pRoot, "nodePort", p->nodePort);
-
-  cJSON* pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SNodeInfo", pRoot);
-  return pJson;
-}
 
 cJSON* syncUtilRaftId2Json(const SRaftId* p) {
   char   u64buf[128] = {0};
@@ -118,13 +105,6 @@ cJSON* syncUtilRaftId2Json(const SRaftId* p) {
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SRaftId", pRoot);
   return pJson;
-}
-
-char* syncUtilRaftId2Str(const SRaftId* p) {
-  cJSON* pJson = syncUtilRaftId2Json(p);
-  char*  serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
 }
 
 static inline bool syncUtilCanPrint(char c) {
@@ -165,14 +145,12 @@ char* syncUtilPrintBin2(char* ptr, uint32_t len) {
 }
 
 void syncUtilMsgHtoN(void* msg) {
-  // htonl
   SMsgHead* pHead = msg;
   pHead->contLen = htonl(pHead->contLen);
   pHead->vgId = htonl(pHead->vgId);
 }
 
 void syncUtilMsgNtoH(void* msg) {
-  // ntohl
   SMsgHead* pHead = msg;
   pHead->contLen = ntohl(pHead->contLen);
   pHead->vgId = ntohl(pHead->vgId);

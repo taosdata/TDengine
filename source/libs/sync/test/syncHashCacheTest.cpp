@@ -1,12 +1,4 @@
-#include <stdio.h>
-#include "syncEnv.h"
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncRaftLog.h"
-#include "syncRaftStore.h"
 #include "syncTest.h"
-#include "syncUtil.h"
-#include "tskiplist.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");

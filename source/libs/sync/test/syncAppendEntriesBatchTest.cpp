@@ -1,11 +1,4 @@
 //#include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncRaftEntry.h"
-#include "syncUtil.h"
-#include "trpc.h"
 #include "syncTest.h"
 
 void logTest() {

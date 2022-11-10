@@ -1,15 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncEnv.h"
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncRaftEntry.h"
-#include "syncRaftLog.h"
-#include "syncRaftStore.h"
 #include "syncTest.h"
-#include "syncUtil.h"
-#include "wal.h"
 
 #if 0
 void logTest() {
