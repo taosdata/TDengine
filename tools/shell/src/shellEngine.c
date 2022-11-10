@@ -540,9 +540,18 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
   }
 }
 
-bool shellIsLimitQuery(const char *sql) {
-  // todo refactor
+// show whole result for this query return true, like limit or describe
+bool shellIsShowWhole(const char *sql) {
+  // limit
   if (taosStrCaseStr(sql, " limit ") != NULL) {
+    return true;
+  }
+  // describe
+  if (taosStrCaseStr(sql, "describe ") != NULL) {
+    return true;
+  }
+  // describe
+  if (taosStrCaseStr(sql, "show ") != NULL) {
     return true;
   }
 
@@ -578,7 +587,7 @@ int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql)) {
+  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsShowWhole(sql)) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
@@ -723,7 +732,7 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql)) {
+  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsShowWhole(sql)) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
