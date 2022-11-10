@@ -287,9 +287,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   memcpy(pObj->sourceDb, pCreate->sourceDB, TSDB_DB_FNAME_LEN);
   SDbObj *pSourceDb = mndAcquireDb(pMnode, pCreate->sourceDB);
   if (pSourceDb == NULL) {
-    /*ASSERT(0);*/
-    mInfo("stream:%s failed to create, source db %s not exist", pCreate->name, pObj->sourceDb);
-    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+    mInfo("stream:%s failed to create, source db %s not exist since %s", pCreate->name, pObj->sourceDb, terrstr());
     return -1;
   }
   pObj->sourceDbUid = pSourceDb->uid;
@@ -298,8 +296,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
   SDbObj *pTargetDb = mndAcquireDbByStb(pMnode, pObj->targetSTbName);
   if (pTargetDb == NULL) {
-    mInfo("stream:%s failed to create, target db %s not exist", pCreate->name, pObj->targetDb);
-    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+    mInfo("stream:%s failed to create, target db %s not exist since %s", pCreate->name, pObj->targetDb, terrstr());
     return -1;
   }
   tstrncpy(pObj->targetDb, pTargetDb->name, TSDB_DB_FNAME_LEN);
@@ -557,78 +554,6 @@ static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
   return 0;
 }
 
-#if 0
-static int32_t mndPersistTaskRecoverReq(STrans *pTrans, SStreamTask *pTask) {
-  SMStreamTaskRecoverReq *pReq = taosMemoryCalloc(1, sizeof(SMStreamTaskRecoverReq));
-  if (pReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-  pReq->streamId = pTask->streamId;
-  pReq->taskId = pTask->taskId;
-  int32_t len;
-  int32_t code;
-  tEncodeSize(tEncodeSMStreamTaskRecoverReq, pReq, len, code);
-  if (code != 0) {
-    return -1;
-  }
-  void *buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
-  if (buf == NULL) {
-    return -1;
-  }
-  void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  SEncoder encoder;
-  tEncoderInit(&encoder, abuf, len);
-  tEncodeSMStreamTaskRecoverReq(&encoder, pReq);
-  ((SMsgHead *)buf)->vgId = pTask->nodeId;
-
-  STransAction action = {0};
-  memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
-  action.pCont = buf;
-  action.contLen = sizeof(SMsgHead) + len;
-  action.msgType = TDMT_STREAM_TASK_RECOVER;
-  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-    taosMemoryFree(buf);
-    return -1;
-  }
-  return 0;
-}
-
-int32_t mndRecoverStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
-  if (pStream->isDistributed) {
-    int32_t lv = taosArrayGetSize(pStream->tasks);
-    for (int32_t i = 0; i < lv; i++) {
-      SArray      *pTasks = taosArrayGetP(pStream->tasks, i);
-      int32_t      sz = taosArrayGetSize(pTasks);
-      SStreamTask *pTask = taosArrayGetP(pTasks, 0);
-      if (pTask->taskLevel == TASK_LEVEL__AGG) {
-        ASSERT(sz == 1);
-        if (mndPersistTaskRecoverReq(pTrans, pTask) < 0) {
-          return -1;
-        }
-      } else {
-        continue;
-      }
-    }
-  } else {
-    int32_t lv = taosArrayGetSize(pStream->tasks);
-    for (int32_t i = 0; i < lv; i++) {
-      SArray *pTasks = taosArrayGetP(pStream->tasks, i);
-      int32_t sz = taosArrayGetSize(pTasks);
-      for (int32_t j = 0; j < sz; j++) {
-        SStreamTask *pTask = taosArrayGetP(pTasks, j);
-        if (pTask->taskLevel != TASK_LEVEL__SOURCE) break;
-        ASSERT(pTask->taskLevel != TASK_LEVEL__SINK);
-        if (mndPersistTaskRecoverReq(pTrans, pTask) < 0) {
-          return -1;
-        }
-      }
-    }
-  }
-  return 0;
-}
-#endif
-
 int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
   int32_t lv = taosArrayGetSize(pStream->tasks);
   for (int32_t i = 0; i < lv; i++) {
@@ -777,7 +702,8 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-stream");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "drop-stream");
+  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
   if (pTrans == NULL) {
     mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);

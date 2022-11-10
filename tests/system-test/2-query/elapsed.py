@@ -20,7 +20,8 @@ from util.sql import *
 from util.dnodes import *
 
 class TDTestCase:
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
@@ -86,13 +87,20 @@ class TDTestCase:
         '''
         return
 
-    def prepare_data(self):
+    def prepare_db(self,dbname,vgroupVar):
+
+        tdLog.info (" ====================================== prepare db ==================================================")
+        tdSql.execute('drop database if exists testdb ;')
+        tdSql.execute('create database %s keep 36500 vgroups %d ;'%(dbname,vgroupVar))
+
+
+    def prepare_data(self,dbname):
 
         tdLog.info (" ====================================== prepare data ==================================================")
 
-        tdSql.execute('drop database if exists testdb ;')
-        tdSql.execute('create database testdb keep 36500;')
-        tdSql.execute('use testdb;')
+        # tdSql.execute('drop database if exists testdb ;')
+        # tdSql.execute('create database testdb keep 36500;')
+        tdSql.execute('use %s;'%dbname)
 
         tdSql.execute('create stable stable_1(ts timestamp ,tscol timestamp, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint, q_float float ,\
              q_double double , bin_chars binary(20)) tags(loc nchar(20) ,ind int,tstag timestamp);')
@@ -1305,17 +1313,26 @@ class TDTestCase:
 
         # ts can't be used at outer query
 
-        tdSql.query("select elapsed(ts,1s) from (select ts from regular_table_1 );")
+        tdSql.query("select elapsed(ts,1s) from (select ts from stable_1 );")
 
         # case : TD-12164
 
-        tdSql.error("select elapsed(ts,1s) from (select qint ts from regular_table_1 );")
-        tdSql.error("select elapsed(tbname ,1s) from (select qint tbname from regular_table_1 );")
-        tdSql.error("select elapsed(tsc ,1s) from (select q_int tsc from regular_table_1) ;")
-        tdSql.error("select elapsed(tsv ,1s) from (select elapsed(ts,1s) tsv from regular_table_1);")
-        tdSql.error("select elapsed(ts ,1s) from (select elapsed(ts,1s) ts from regular_table_1);")
+        tdSql.error("select elapsed(ts,1s) from (select qint ts from stable_1 );")
+        tdSql.error("select elapsed(tbname ,1s) from (select qint tbname from stable_1 );")
+        tdSql.error("select elapsed(tsc ,1s) from (select q_int tsc from stable_1) ;")
+        tdSql.error("select elapsed(tsv ,1s) from (select elapsed(ts,1s) tsv from stable_1);")
+        tdSql.error("select elapsed(ts ,1s) from (select elapsed(ts,1s) ts from stable_1);")
         # # bug fix
-        tdSql.error("select elapsed(tsc ,1s) from (select tscol tsc from regular_table_1) ;")
+        tdSql.error("select elapsed(tsc ,1s) from (select tscol tsc from stable_1) ;")
+
+        #TD-19911
+        tdSql.error("select elapsed(ts,1s,123) from (select ts,tbname from stable_1 order by ts asc );")
+        tdSql.error("select elapsed() from (select ts,tbname from stable_1 order by ts asc );")
+        tdSql.error("select elapsed(tscol,1s) from (select ts,tbname from stable_1 order by ts asc );")
+        tdSql.error("select elapsed(ts,1n) from (select ts,tbname from stable_1 order by ts asc );")
+        tdSql.error("select elapsed(ts,1y) from (select ts,tbname from stable_1 order by ts asc );")
+        tdSql.error("select elapsed(ts,tscol) from (select ts,tbname from stable_1 order by ts asc );")
+        tdSql.error("select elapsed(bin_chars,tscol) from (select ts,tbname from stable_1 order by ts asc );")
 
         # case TD-12276
         tdSql.query("select elapsed(ts,1s) from (select ts,tbname from regular_table_1 order by ts asc );")
@@ -1525,7 +1542,6 @@ class TDTestCase:
 
     def query_precision(self):
         def generate_data(precision="ms"):
-
             tdSql.execute("create database if not exists db_%s precision '%s';" %(precision, precision))
             tdSql.execute("use db_%s;" %precision)
             tdSql.execute("create stable db_%s.st (ts timestamp , id int) tags(ind int);"%precision)
@@ -1579,7 +1595,9 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-        self.prepare_data()
+        dbNameTest="testdbV1"
+        self.prepare_db(dbNameTest,1)
+        self.prepare_data(dbNameTest)
         self.abnormal_common_test()
         self.abnormal_use_test()
         self.query_filter()
@@ -1595,6 +1613,25 @@ class TDTestCase:
         self.query_session_windows()
         self.continuous_query()
         self.query_precision()
+
+        dbNameTest="testdbV2"
+        self.prepare_db(dbNameTest,2)
+        self.prepare_data(dbNameTest)
+        self.abnormal_common_test()
+        self.abnormal_use_test()
+        self.query_filter()
+        # self.query_interval()
+        self.query_mix_common()
+        self.query_mix_Aggregate()
+        self.query_mix_select()
+        self.query_mix_compute()
+        self.query_mix_arithmetic()
+        # self.query_with_join()
+        # self.query_with_union()
+        self.query_nest()
+        self.query_session_windows()
+        self.continuous_query()
+        # self.query_precision()
 
     def stop(self):
         tdSql.close()

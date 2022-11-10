@@ -44,6 +44,46 @@
 //        IN commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
+void syncOneReplicaAdvance(SSyncNode* pSyncNode) {
+  if (pSyncNode == NULL) {
+    sError("pSyncNode is NULL");
+    return;
+  }
+
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    sNError(pSyncNode, "not leader, can not advance commit index");
+    return;
+  }
+
+  if (pSyncNode->replicaNum != 1) {
+    sNError(pSyncNode, "not one replica, can not advance commit index");
+    return;
+  }
+
+  // advance commit index to snapshot first
+  SSnapshot snapshot;
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+  if (snapshot.lastApplyIndex > 0 && snapshot.lastApplyIndex > pSyncNode->commitIndex) {
+    SyncIndex commitBegin = pSyncNode->commitIndex;
+    SyncIndex commitEnd = snapshot.lastApplyIndex;
+    pSyncNode->commitIndex = snapshot.lastApplyIndex;
+    sNTrace(pSyncNode, "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin, commitEnd);
+  }
+
+  // advance commit index as large as possible
+  SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
+  if (lastIndex > pSyncNode->commitIndex) {
+    sNTrace(pSyncNode, "commit by wal from index:%" PRId64 " to index:%" PRId64, pSyncNode->commitIndex + 1, lastIndex);
+    pSyncNode->commitIndex = lastIndex;
+  }
+
+  // call back Wal
+  SyncIndex walCommitVer = logStoreWalCommitVer(pSyncNode->pLogStore);
+  if (pSyncNode->commitIndex > walCommitVer) {
+    pSyncNode->pLogStore->syncLogUpdateCommitIndex(pSyncNode->pLogStore, pSyncNode->commitIndex);
+  }
+}
+
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) {
     sError("pSyncNode is NULL");
@@ -51,7 +91,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   }
 
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
-    syncNodeErrorLog(pSyncNode, "not leader, can not advance commit index");
+    sNError(pSyncNode, "not leader, can not advance commit index");
     return;
   }
 
@@ -62,11 +102,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     SyncIndex commitBegin = pSyncNode->commitIndex;
     SyncIndex commitEnd = snapshot.lastApplyIndex;
     pSyncNode->commitIndex = snapshot.lastApplyIndex;
-
-    char eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin,
-             commitEnd);
-    syncNodeEventLog(pSyncNode, eventLog);
+    sNTrace(pSyncNode, "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin, commitEnd);
   }
 
   // update commit index
@@ -84,9 +120,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       } else {
         int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index, &pEntry);
         if (code != 0) {
-          char logBuf[128];
-          snprintf(logBuf, sizeof(logBuf), "advance commit index error, read wal index:%" PRId64, index);
-          syncNodeErrorLog(pSyncNode, logBuf);
+          sNError(pSyncNode, "advance commit index error, read wal index:%" PRId64, index);
           return;
         }
       }
@@ -103,12 +137,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
 
         break;
       } else {
-        do {
-          char logBuf[128];
-          snprintf(logBuf, sizeof(logBuf), "can not commit due to term not equal, index:%" PRId64 ", term:%" PRIu64,
-                   pEntry->index, pEntry->term);
-          syncNodeEventLog(pSyncNode, logBuf);
-        } while (0);
+        sNTrace(pSyncNode, "can not commit due to term not equal, index:%" PRId64 ", term:%" PRIu64, pEntry->index,
+                pEntry->term);
       }
 
       if (h) {
@@ -140,10 +170,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     if (pSyncNode->pFsm != NULL) {
       int32_t code = syncNodeDoCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
       if (code != 0) {
-        char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "advance commit index error, do commit begin:%" PRId64 ", end:%" PRId64,
-                 beginIndex, endIndex);
-        syncNodeErrorLog(pSyncNode, logBuf);
+        sNError(pSyncNode, "advance commit index error, do commit begin:%" PRId64 ", end:%" PRId64, beginIndex,
+                endIndex);
         return;
       }
     }

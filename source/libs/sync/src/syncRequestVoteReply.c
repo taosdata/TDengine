@@ -71,10 +71,8 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
   // but they won't be looked at, so it doesn't matter.
   if (ths->state == TAOS_SYNC_STATE_CANDIDATE) {
     if (ths->pVotesRespond->term != pMsg->term) {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "vote respond error vote-respond-mgr term:%" PRIu64 ", msg term:%" PRIu64 "",
-               ths->pVotesRespond->term, pMsg->term);
-      syncNodeErrorLog(ths, logBuf);
+      sNError(ths, "vote respond error vote-respond-mgr term:%" PRIu64 ", msg term:%" PRIu64 "",
+              ths->pVotesRespond->term, pMsg->term);
       return -1;
     }
 

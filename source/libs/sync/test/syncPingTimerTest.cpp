@@ -26,8 +26,8 @@ SSyncFSM* pFsm;
 SSyncNode* syncNodeInit() {
   syncInfo.vgId = 1234;
   syncInfo.msgcb = &gSyncIO->msgcb;
-  syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.FpEqMsg = syncIOEqMsg;
+  syncInfo.syncSendMSg = syncIOSendMsg;
+  syncInfo.syncEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
 
@@ -81,12 +81,12 @@ int main(int argc, char** argv) {
   int32_t ret = syncIOStart((char*)"127.0.0.1", ports[myIndex]);
   assert(ret == 0);
 
-  ret = syncEnvStart();
+  ret = syncInit();
   assert(ret == 0);
 
   SSyncNode* pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
-  syncNodeLog2((char*)"----1", pSyncNode);
+  sNTrace(pSyncNode, "----1");
 
   initRaftId(pSyncNode);
 
@@ -95,7 +95,7 @@ int main(int argc, char** argv) {
   sTrace("syncNodeStartPingTimer ...");
   ret = syncNodeStartPingTimer(pSyncNode);
   assert(ret == 0);
-  syncNodeLog2((char*)"----2", pSyncNode);
+  sNTrace(pSyncNode, "----2");
 
   sTrace("sleep ...");
   taosMsleep(10000);
@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
   sTrace("syncNodeStopPingTimer ...");
   ret = syncNodeStopPingTimer(pSyncNode);
   assert(ret == 0);
-  syncNodeLog2((char*)"----3", pSyncNode);
+  sNTrace(pSyncNode, "----3");
 
   sTrace("sleep ...");
   taosMsleep(5000);
@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
   sTrace("syncNodeStartPingTimer ...");
   ret = syncNodeStartPingTimer(pSyncNode);
   assert(ret == 0);
-  syncNodeLog2((char*)"----4", pSyncNode);
+  sNTrace(pSyncNode, "----4");
 
   sTrace("sleep ...");
   taosMsleep(10000);
@@ -119,7 +119,7 @@ int main(int argc, char** argv) {
   sTrace("syncNodeStopPingTimer ...");
   ret = syncNodeStopPingTimer(pSyncNode);
   assert(ret == 0);
-  syncNodeLog2((char*)"----5", pSyncNode);
+  sNTrace(pSyncNode, "----5");
 
   while (1) {
     sTrace("while 1 sleep ...");

@@ -105,6 +105,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   if (IsReq(pRpc) && pRpc->pCont == NULL) {
+    dGError("msg:%p, type:%s pCont is NULL", pRpc, TMSG_INFO(pRpc->msgType));
     terrno = TSDB_CODE_INVALID_MSG_LEN;
     goto _OVER;
   }
@@ -133,6 +134,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
           break;
       }
     } else {
+      dGError("msg:%p, type:%s contLen is 0", pRpc, TMSG_INFO(pRpc->msgType));
       terrno = TSDB_CODE_INVALID_MSG_LEN;
       goto _OVER;
     }
@@ -155,7 +157,11 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 _OVER:
   if (code != 0) {
     if (terrno != 0) code = terrno;
-    dGTrace("msg:%p, failed to process since %s", pMsg, terrstr());
+    if (pMsg) {
+      dGTrace("msg:%p, failed to process %s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
+    } else {
+      dGTrace("msg:%p, failed to process empty msg since %s", pMsg, terrstr());
+    }
 
     if (IsReq(pRpc)) {
       SRpcMsg rsp = {.code = code, .info = pRpc->info};

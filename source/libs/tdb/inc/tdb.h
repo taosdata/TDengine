@@ -36,6 +36,7 @@ int32_t tdbClose(TDB *pDb);
 int32_t tdbBegin(TDB *pDb, TXN *pTxn);
 int32_t tdbCommit(TDB *pDb, TXN *pTxn);
 int32_t tdbPostCommit(TDB *pDb, TXN *pTxn);
+int32_t tdbPrepareAsyncCommit(TDB *pDb, TXN *pTxn);
 int32_t tdbAbort(TDB *pDb, TXN *pTxn);
 int32_t tdbAlter(TDB *pDb, int pages);
 

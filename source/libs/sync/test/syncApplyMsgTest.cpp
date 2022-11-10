@@ -81,7 +81,7 @@ void test4() {
 
 void test5() {
   SyncApplyMsg *pMsg = createMsg();
-  SRpcMsg       rpcMsg;
+  SRpcMsg       rpcMsg = {0};
   syncApplyMsg2RpcMsg(pMsg, &rpcMsg);
   SyncApplyMsg *pMsg2 = syncApplyMsgFromRpcMsg2(&rpcMsg);
   syncApplyMsgLog2((char *)"test5: syncClientRequest2RpcMsg -> syncApplyMsgFromRpcMsg2 ", pMsg2);

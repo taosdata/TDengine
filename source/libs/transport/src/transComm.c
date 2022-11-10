@@ -249,10 +249,10 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   if (atomic_load_8(&pool->stop) == 1) {
     return -1;
   }
-  int idx = pool->index;
-  idx = idx % pool->nAsync;
+  int idx = pool->index % pool->nAsync;
+
   // no need mutex here
-  if (pool->index++ > pool->nAsync) {
+  if (pool->index++ > pool->nAsync * 2000) {
     pool->index = 0;
   }
   uv_async_t* async = &(pool->asyncs[idx]);

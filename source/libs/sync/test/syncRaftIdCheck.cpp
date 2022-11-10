@@ -15,7 +15,7 @@ int main(int argc, char** argv) {
     char     host[128];
     uint16_t port;
     syncUtilU642Addr(u64, host, sizeof(host), &port);
-    printf("" PRIu64 " -> %s:%d \n", u64, host, port);
+    printf("%" PRIu64 " -> %s:%d \n", u64, host, port);
 
   } else if (argc == 3) {
     uint64_t u64;

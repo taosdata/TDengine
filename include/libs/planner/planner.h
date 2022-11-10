@@ -61,7 +61,6 @@ int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan);
 int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
 int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan);
 
-char*       qQueryPlanToString(const SQueryPlan* pPlan);
 SQueryPlan* qStringToQueryPlan(const char* pStr);
 
 void qDestroyQueryPlan(SQueryPlan* pPlan);

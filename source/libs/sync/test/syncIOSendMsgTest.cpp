@@ -26,8 +26,8 @@ SSyncFSM* pFsm;
 SSyncNode* syncNodeInit() {
   syncInfo.vgId = 1234;
   syncInfo.msgcb = &gSyncIO->msgcb;
-  syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.FpEqMsg = syncIOEqMsg;
+  syncInfo.syncSendMSg = syncIOSendMsg;
+  syncInfo.syncEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
 
@@ -82,13 +82,13 @@ int main(int argc, char** argv) {
   int32_t ret = syncIOStart((char*)"127.0.0.1", ports[myIndex]);
   assert(ret == 0);
 
-  ret = syncEnvStart();
+  ret = syncInit();
   assert(ret == 0);
 
   SSyncNode* pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
 
-  syncNodeLog2((char*)"syncInitTest", pSyncNode);
+  sNTrace(pSyncNode, "syncInitTest");
 
   initRaftId(pSyncNode);
 
@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
     SEpSet epSet;
     syncUtilnodeInfo2EpSet(&pSyncNode->myNodeInfo, &epSet);
     rpcMsg.info.noResp = 1;
-    pSyncNode->FpSendMsg(&epSet, &rpcMsg);
+    pSyncNode->syncSendMSg(&epSet, &rpcMsg);
 
     taosMsleep(1000);
   }

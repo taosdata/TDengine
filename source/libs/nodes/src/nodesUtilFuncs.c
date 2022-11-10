@@ -328,6 +328,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       return makeNode(type, sizeof(SDropSuperTableStmt));
     case QUERY_NODE_ALTER_TABLE_STMT:
+    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       return makeNode(type, sizeof(SAlterTableStmt));
     case QUERY_NODE_CREATE_USER_STMT:
       return makeNode(type, sizeof(SCreateUserStmt));
@@ -791,9 +792,24 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->pSlimit);
       break;
     }
-    case QUERY_NODE_VNODE_MODIF_STMT:
-      destroyVgDataBlockArray(((SVnodeModifOpStmt*)pNode)->pDataBlocks);
+    case QUERY_NODE_VNODE_MODIF_STMT: {
+      SVnodeModifOpStmt* pStmt = (SVnodeModifOpStmt*)pNode;
+      destroyVgDataBlockArray(pStmt->pDataBlocks);
+      taosMemoryFreeClear(pStmt->pTableMeta);
+      taosHashCleanup(pStmt->pVgroupsHashObj);
+      taosHashCleanup(pStmt->pSubTableHashObj);
+      taosHashCleanup(pStmt->pTableNameHashObj);
+      taosHashCleanup(pStmt->pDbFNameHashObj);
+      if (pStmt->freeHashFunc) {
+        pStmt->freeHashFunc(pStmt->pTableBlockHashObj);
+      }
+      if (pStmt->freeArrayFunc) {
+        pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
+      }
+      tdDestroySVCreateTbReq(&pStmt->createTblReq);
+      taosCloseFile(&pStmt->fp);
       break;
+    }
     case QUERY_NODE_CREATE_DATABASE_STMT:
       nodesDestroyNode((SNode*)((SCreateDatabaseStmt*)pNode)->pOptions);
       break;

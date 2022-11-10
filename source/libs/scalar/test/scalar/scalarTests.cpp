@@ -87,7 +87,7 @@ void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *s
 
     SColumnInfoData idata = {0};
     idata.info = *colInfo;
-    colInfoDataEnsureCapacity(&idata, rows);
+    colInfoDataEnsureCapacity(&idata, rows, true);
 
     blockDataAppendColInfo(res, &idata);
 
@@ -104,7 +104,7 @@ void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *s
     SSDataBlock    *res = *(SSDataBlock **)taosArrayGetLast(pBlockList);
     SColumnInfoData idata = {0};
     idata.info = *colInfo;
-    colInfoDataEnsureCapacity(&idata, rows);
+    colInfoDataEnsureCapacity(&idata, rows, true);
     blockDataAppendColInfo(res, &idata);
 
     *dataBlockId = taosArrayGetSize(pBlockList) - 1;
@@ -146,12 +146,12 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     SSDataBlock *res = createDataBlock();
     for (int32_t i = 0; i < 2; ++i) {
       SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_INT, 10, i + 1);
-      colInfoDataEnsureCapacity(&idata, rowNum);
+      colInfoDataEnsureCapacity(&idata, rowNum, true);
       blockDataAppendColInfo(res, &idata);
     }
 
     SColumnInfoData idata = createColumnInfoData(dataType, dataBytes, 3);
-    colInfoDataEnsureCapacity(&idata, rowNum);
+    colInfoDataEnsureCapacity(&idata, rowNum, true);
     blockDataAppendColInfo(res, &idata);
     res->info.capacity = rowNum;
 
@@ -175,7 +175,7 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
 
     int32_t         idx = taosArrayGetSize(res->pDataBlock);
     SColumnInfoData idata = createColumnInfoData(dataType, dataBytes, 1 + idx);
-    colInfoDataEnsureCapacity(&idata, rowNum);
+    colInfoDataEnsureCapacity(&idata, rowNum, true);
 
     res->info.capacity = rowNum;
     blockDataAppendColInfo(res, &idata);
@@ -2022,7 +2022,7 @@ void scltMakeDataBlock(SScalarParam **pInput, int32_t type, void *pVal, int32_t 
   input->numOfRows = num;
 
   input->columnData->info = createColumnInfo(0, type, bytes);
-  colInfoDataEnsureCapacity(input->columnData, num);
+  colInfoDataEnsureCapacity(input->columnData, num, true);
 
   if (setVal) {
     for (int32_t i = 0; i < num; ++i) {

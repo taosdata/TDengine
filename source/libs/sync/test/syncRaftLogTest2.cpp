@@ -5,6 +5,7 @@
 #include "syncInt.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
+#include "syncTest.h"
 #include "syncUtil.h"
 #include "wal.h"
 
@@ -25,7 +26,7 @@ const char*    pWalPath = "./syncLogStoreTest_wal";
 SyncIndex gSnapshotLastApplyIndex;
 SyncIndex gSnapshotLastApplyTerm;
 
-int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
+int32_t GetSnapshotCb(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
   pSnapshot->data = NULL;
   pSnapshot->lastApplyIndex = gSnapshotLastApplyIndex;
   pSnapshot->lastApplyTerm = gSnapshotLastApplyTerm;

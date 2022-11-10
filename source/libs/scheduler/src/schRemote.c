@@ -185,12 +185,12 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
               code = rsp->code;
             }
           }
-          SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
 
           if (taosArrayGetSize((SArray*)pJob->execRes.res) <= 0) {        
             taosArrayDestroy((SArray*)pJob->execRes.res);
             pJob->execRes.res = NULL;
           }
+          SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
         }
         
         tDecoderClear(&coder);
@@ -280,7 +280,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
         }
 
         atomic_add_fetch_32(&pJob->resNumOfRows, rsp->affectedRows);
-        SCH_TASK_DLOG("submit succeed, affectedRows:%d", rsp->affectedRows);
+        SCH_TASK_DLOG("submit succeed, affectedRows:%d, blocks:%d", rsp->affectedRows, rsp->nBlocks);
 
         SCH_LOCK(SCH_WRITE, &pJob->resLock);
         if (pJob->execRes.res) {
@@ -1057,6 +1057,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       pMsg->needFetch = SCH_TASK_NEED_FETCH(pTask);
       pMsg->phyLen = htonl(pTask->msgLen);
       pMsg->sqlLen = htonl(len);
+      pMsg->msgMask = htonl((pTask->plan->showRewrite) ? QUERY_MSG_MASK_SHOW_REWRITE() : 0);
 
       memcpy(pMsg->msg, pJob->sql, len);
       memcpy(pMsg->msg + len, pTask->msg, pTask->msgLen);
@@ -1156,6 +1157,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       SCH_ERR_RET(schAppendTaskExecNode(pJob, pTask, addr, pTask->execId));
     }
   } else {
+    taosMemoryFree(msg);
     SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
   }
 #endif

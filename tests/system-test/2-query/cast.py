@@ -12,9 +12,10 @@ from util.dnodes import *
 
 class TDTestCase:
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), True)
         self.dbname = "db"
 
     def __cast_to_bigint(self, col_name, tbname):
@@ -652,6 +653,58 @@ class TDTestCase:
         tdSql.query(f"select cast(c8 as timestamp ) as b from {self.dbname}.ct4")
         tdSql.query(f"select cast(c9 as timestamp ) as b from {self.dbname}.ct4")
         tdSql.query(f"select cast(c9 as binary(64) ) as b from {self.dbname}.ct4")
+
+        # enh of cast function about coverage
+
+        tdSql.query(f"select cast(c1 as int) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as bool) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as tinyint) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as smallint) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as float) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as double) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as tinyint unsigned) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as smallint unsigned) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as int unsigned) as b from {self.dbname}.stb1")
+
+        tdSql.query(f"select cast(c2 as int) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c3 as bool) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c4 as tinyint) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c5 as smallint) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c6 as float) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c7 as double) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c8 as tinyint unsigned) as b from {self.dbname}.stb1")
+
+        tdSql.query(f"select cast(c8 as timestamp ) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c9 as timestamp ) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c9 as binary(64) ) as b from {self.dbname}.stb1")
+
+        tdSql.query(f"select cast(abs(c2) as int) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c3 as bool) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(floor(c4) as tinyint) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c5+2 as smallint) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(2 as float) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c7 as double) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast('123' as tinyint unsigned) as b from {self.dbname}.stb1")
+
+        tdSql.query(f"select max(cast(abs(c2) as int)) as b from {self.dbname}.stb1")
+        tdSql.query(f"select log(cast(c3 as int),2) as b from {self.dbname}.stb1")
+        tdSql.query(f"select abs(cast(floor(c4) as tinyint)) as b from {self.dbname}.stb1")
+        tdSql.query(f"select last(cast(c5+2 as smallint)) as b from {self.dbname}.stb1")
+        tdSql.query(f"select mavg(cast(2 as float),3) as b from {self.dbname}.stb1 partition by tbname")
+        tdSql.query(f"select cast(c7 as double) as b from {self.dbname}.stb1 partition by tbname order by tbname")
+        tdSql.query(f"select cast('123' as tinyint unsigned) as b from {self.dbname}.stb1 partition by tbname")
+
+        # uion with cast and common cols
+        
+        tdSql.query(f"select cast(c2 as int) as b from {self.dbname}.stb1 union all select c1 from {self.dbname}.stb1 ")
+        tdSql.query(f"select cast(c3 as bool) as b from {self.dbname}.stb1 union all select c7 from {self.dbname}.ct1 ")
+        tdSql.query(f"select cast(c4 as tinyint) as b from {self.dbname}.stb1 union all select c4 from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c5 as smallint) as b from {self.dbname}.stb1 union all select cast(c5 as smallint) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c6 as float) as b from {self.dbname}.stb1 union all select c5 from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c7 as double) as b from {self.dbname}.stb1 union all select 123 from {self.dbname}.stb1 ")
+        tdSql.query(f"select cast(c8 as tinyint unsigned) as b from {self.dbname}.stb1 union all select last(cast(c8 as tinyint unsigned)) from {self.dbname}.stb1")
+
+
 
     def run(self):
         tdSql.prepare()

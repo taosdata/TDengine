@@ -287,6 +287,10 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
     return -1;
   }
 
+  return 0;
+}
+
+int tdbPagerPostCommit(SPager *pPager, TXN *pTxn) {
   // remove the journal file
   if (tdbOsClose(pPager->jfd) < 0) {
     tdbError("failed to close jfd due to %s. file:%s", strerror(errno), pPager->jFileName);
@@ -305,15 +309,54 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   return 0;
 }
 
-int tdbPagerPostCommit(SPager *pPager, TXN *pTxn) {
-  if (tdbOsRemove(pPager->jFileName) < 0 && errno != ENOENT) {
-    tdbError("failed to remove file due to %s. file:%s", strerror(errno), pPager->jFileName);
+int tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn) {
+  SPage *pPage;
+  int    ret;
+
+  // sync the journal file
+  ret = tdbOsFSync(pPager->jfd);
+  if (ret < 0) {
+    tdbError("failed to fsync jfd due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  pPager->inTran = 0;
+  // loop to write the dirty pages to file
+  SRBTreeIter  iter = tRBTreeIterCreate(&pPager->rbt, 1);
+  SRBTreeNode *pNode = NULL;
+  while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
+    pPage = (SPage *)pNode;
+    if (pPage->isLocal) continue;
+    ret = tdbPagerWritePageToDB(pPager, pPage);
+    if (ret < 0) {
+      tdbError("failed to write page to db since %s", tstrerror(terrno));
+      return -1;
+    }
+  }
 
+  tdbTrace("tdbttl commit:%p, %d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize);
+  pPager->dbOrigSize = pPager->dbFileSize;
+
+  // release the page
+  iter = tRBTreeIterCreate(&pPager->rbt, 1);
+  while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
+    pPage = (SPage *)pNode;
+    if (pPage->isLocal) continue;
+    pPage->isDirty = 0;
+
+    tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
+    tdbPCacheRelease(pPager->pCache, pPage, pTxn);
+  }
+  /*
+  tRBTreeCreate(&pPager->rbt, pageCmpFn);
+
+  // sync the db file
+  if (tdbOsFSync(pPager->fd) < 0) {
+    tdbError("failed to fsync fd due to %s. file:%s", strerror(errno), pPager->dbFileName);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+  */
   return 0;
 }
 

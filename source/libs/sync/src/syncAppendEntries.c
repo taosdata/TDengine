@@ -89,189 +89,12 @@
 //       /\ UNCHANGED <<candidateVars, leaderVars>>
 //
 
-static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg) {
-  int32_t code;
-
-  SyncIndex delBegin = pMsg->prevLogIndex + 1;
-  SyncIndex delEnd = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
-
-  // invert roll back!
-  for (SyncIndex index = delEnd; index >= delBegin; --index) {
-    if (ths->pFsm->FpRollBackCb != NULL) {
-      SSyncRaftEntry* pRollBackEntry;
-      code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, index, &pRollBackEntry);
-      ASSERT(code == 0);
-      ASSERT(pRollBackEntry != NULL);
-
-      if (syncUtilUserRollback(pRollBackEntry->msgType)) {
-        SRpcMsg rpcMsg;
-        syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
-
-        SFsmCbMeta cbMeta = {0};
-        cbMeta.index = pRollBackEntry->index;
-        cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
-        cbMeta.isWeak = pRollBackEntry->isWeak;
-        cbMeta.code = 0;
-        cbMeta.state = ths->state;
-        cbMeta.seqNum = pRollBackEntry->seqNum;
-        ths->pFsm->FpRollBackCb(ths->pFsm, &rpcMsg, cbMeta);
-        rpcFreeCont(rpcMsg.pCont);
-      }
-
-      syncEntryDestory(pRollBackEntry);
-    }
-  }
-
-  // delete confict entries
-  code = ths->pLogStore->syncLogTruncate(ths->pLogStore, delBegin);
-  ASSERT(code == 0);
-
-  return code;
-}
-
-// if FromIndex > walCommitVer, return 0
-// else return num of pass entries
-static int32_t syncNodeDoMakeLogSame(SSyncNode* ths, SyncIndex FromIndex) {
-  int32_t code = 0;
-  int32_t pass = 0;
-
-  SyncIndex delBegin = FromIndex;
-  SyncIndex delEnd = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
-
-  // invert roll back!
-  for (SyncIndex index = delEnd; index >= delBegin; --index) {
-    if (ths->pFsm->FpRollBackCb != NULL) {
-      SSyncRaftEntry* pRollBackEntry;
-      code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, index, &pRollBackEntry);
-      ASSERT(code == 0);
-      ASSERT(pRollBackEntry != NULL);
-
-      if (syncUtilUserRollback(pRollBackEntry->msgType)) {
-        SRpcMsg rpcMsg;
-        syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
-
-        SFsmCbMeta cbMeta = {0};
-        cbMeta.index = pRollBackEntry->index;
-        cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
-        cbMeta.isWeak = pRollBackEntry->isWeak;
-        cbMeta.code = 0;
-        cbMeta.state = ths->state;
-        cbMeta.seqNum = pRollBackEntry->seqNum;
-        ths->pFsm->FpRollBackCb(ths->pFsm, &rpcMsg, cbMeta);
-        rpcFreeCont(rpcMsg.pCont);
-      }
-
-      syncEntryDestory(pRollBackEntry);
-    }
-  }
-
-  // update delete begin
-  SyncIndex walCommitVer = logStoreWalCommitVer(ths->pLogStore);
-
-  if (delBegin <= walCommitVer) {
-    delBegin = walCommitVer + 1;
-    pass = walCommitVer - delBegin + 1;
-
-    do {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "update delete begin to %" PRId64, delBegin);
-      syncNodeEventLog(ths, logBuf);
-    } while (0);
-  }
-
-  // delete confict entries
-  code = ths->pLogStore->syncLogTruncate(ths->pLogStore, delBegin);
-  ASSERT(code == 0);
-
-  do {
-    char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "make log same from:%" PRId64 ", delbegin:%" PRId64 ", pass:%d", FromIndex,
-             delBegin, pass);
-    syncNodeEventLog(ths, logBuf);
-  } while (0);
-
-  return pass;
-}
-
-int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry, int32_t code) {
-  SRpcMsg rpcMsg;
-  syncEntry2OriginalRpc(pEntry, &rpcMsg);
-
-  // leader transfer
-  if (pEntry->originalRpcType == TDMT_SYNC_LEADER_TRANSFER) {
-    int32_t code = syncDoLeaderTransfer(ths, &rpcMsg, pEntry);
-    ASSERT(code == 0);
-  }
-
-  if (ths->pFsm != NULL) {
-    if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
-      SFsmCbMeta cbMeta = {0};
-      cbMeta.index = pEntry->index;
-      cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
-      cbMeta.isWeak = pEntry->isWeak;
-      cbMeta.code = code;
-      cbMeta.state = ths->state;
-      cbMeta.seqNum = pEntry->seqNum;
-      ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, cbMeta);
-    }
-  }
-  rpcFreeCont(rpcMsg.pCont);
-  return 0;
-}
-
-static bool syncNodeOnAppendEntriesBatchLogOK(SSyncNode* pSyncNode, SyncAppendEntriesBatch* pMsg) {
-  if (pMsg->prevLogIndex == SYNC_INDEX_INVALID) {
-    return true;
-  }
-
-  SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
-  if (pMsg->prevLogIndex > myLastIndex) {
-    sDebug("vgId:%d, sync log not ok, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
-    return false;
-  }
-
-  SyncTerm myPreLogTerm = syncNodeGetPreTerm(pSyncNode, pMsg->prevLogIndex + 1);
-  if (myPreLogTerm == SYNC_TERM_INVALID) {
-    sDebug("vgId:%d, sync log not ok2, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
-    return false;
-  }
-
-  if (pMsg->prevLogIndex <= myLastIndex && pMsg->prevLogTerm == myPreLogTerm) {
-    return true;
-  }
-
-  sDebug("vgId:%d, sync log not ok3, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
-  return false;
-}
-
-// really pre log match
-// prevLogIndex == -1
-static bool syncNodeOnAppendEntriesLogOK(SSyncNode* pSyncNode, SyncAppendEntries* pMsg) {
-  if (pMsg->prevLogIndex == SYNC_INDEX_INVALID) {
-    return true;
-  }
-
-  SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
-  if (pMsg->prevLogIndex > myLastIndex) {
-    sDebug("vgId:%d, sync log not ok, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
-    return false;
-  }
-
-  SyncTerm myPreLogTerm = syncNodeGetPreTerm(pSyncNode, pMsg->prevLogIndex + 1);
-  if (myPreLogTerm == SYNC_TERM_INVALID) {
-    sDebug("vgId:%d, sync log not ok2, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
-    return false;
-  }
-
-  if (pMsg->prevLogIndex <= myLastIndex && pMsg->prevLogTerm == myPreLogTerm) {
-    return true;
-  }
-
-  sDebug("vgId:%d, sync log not ok3, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
-  return false;
-}
-
 int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
+  if (ths->state != TAOS_SYNC_STATE_FOLLOWER) {
+    sNTrace(ths, "can not do follower commit");
+    return -1;
+  }
+
   // maybe update commit index, leader notice me
   if (newCommitIndex > ths->commitIndex) {
     // has commit entry in local
@@ -283,11 +106,7 @@ int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
         SyncIndex commitBegin = ths->commitIndex;
         SyncIndex commitEnd = snapshot.lastApplyIndex;
         ths->commitIndex = snapshot.lastApplyIndex;
-
-        char eventLog[128];
-        snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin,
-                 commitEnd);
-        syncNodeEventLog(ths, eventLog);
+        sNTrace(ths, "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin, commitEnd);
       }
 
       SyncIndex beginIndex = ths->commitIndex + 1;
@@ -324,7 +143,6 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
   // pReply->matchIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
   pReply->matchIndex = SYNC_INDEX_INVALID;
   pReply->lastSendIndex = pMsg->prevLogIndex + 1;
-  pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
   pReply->startTime = ths->startTime;
 
   if (pMsg->term < ths->pRaftStore->currentTerm) {
@@ -361,7 +179,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
   pReply->success = true;
   bool hasAppendEntries = pMsg->dataLen > 0;
   if (hasAppendEntries) {
-    SSyncRaftEntry* pAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
+    SSyncRaftEntry* pAppendEntry = syncEntryBuildFromAppendEntries(pMsg);
     ASSERT(pAppendEntry != NULL);
 
     SyncIndex       appendIndex = pMsg->prevLogIndex + 1;
@@ -370,11 +188,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
     if (code == 0) {
       if (pLocalEntry->term == pAppendEntry->term) {
         // do nothing
-
-        char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "log match, do nothing, index:%" PRId64, appendIndex);
-        syncNodeEventLog(ths, logBuf);
-
+        sNTrace(ths, "log match, do nothing, index:%" PRId64, appendIndex);
       } else {
         // truncate
         code = ths->pLogStore->syncLogTruncate(ths->pLogStore, appendIndex);
@@ -432,7 +246,8 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
       } else {
         // error
         char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "ignore, get local entry error, append-index:%" PRId64, appendIndex);
+        snprintf(logBuf, sizeof(logBuf), "ignore, get local entry error, append-index:%" PRId64 " err:%d", appendIndex,
+                 terrno);
         syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
         syncEntryDestory(pLocalEntry);

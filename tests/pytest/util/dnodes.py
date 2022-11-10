@@ -40,6 +40,7 @@ class TDSimClient:
             "jniDebugFlag": "143",
             "qDebugFlag": "143",
             "supportVnodes": "1024",
+            "enableQueryHb": "1",
             "telemetryReporting": "0",
         }
 
@@ -136,6 +137,7 @@ class TDDnode:
             "wDebugFlag": "143",
             "numOfLogLines": "100000000",
             "statusInterval": "1",
+            "enableQueryHb": "1",
             "supportVnodes": "1024",
             "telemetryReporting": "0"
         }
@@ -416,7 +418,7 @@ class TDDnode:
                     if i > 50:
                         break
                 with open(logFile) as f:
-                    timeout = time.time() + 60 * 2
+                    timeout = time.time() + 10 * 2
                     while True:
                         line = f.readline().encode('utf-8')
                         if bkey in line:

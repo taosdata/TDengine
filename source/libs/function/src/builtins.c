@@ -1651,7 +1651,7 @@ static int32_t translateMode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
-  if (numOfParams == 0 || numOfParams > 2) {
+  if (numOfParams > 2) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -2734,7 +2734,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "mode",
     .type = FUNCTION_TYPE_MODE,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC,
     .translateFunc = translateMode,
     .getEnvFunc   = getModeFuncEnv,
     .initFunc     = modeFunctionSetup,
