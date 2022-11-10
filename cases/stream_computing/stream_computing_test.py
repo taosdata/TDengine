@@ -522,9 +522,9 @@ class StreamComputingTest(TDCase):
             ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", {partition_elm_alias}), "{self.subtable_suffix}")' if self.subtable else None
             tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", {partition_elm_alias}), "{self.subtable_suffix}")' if self.subtable else None
         else:
-            stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", cast(cast(abs({partition_elm_alias}) as timestamp)) as varchar(100)), "{self.subtable_suffix}")' if self.subtable else None
-            ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast(cast(abs({partition_elm_alias}) as timestamp)) as varchar(100)), "{self.subtable_suffix}")' if self.subtable else None
-            tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast(cast(abs({partition_elm_alias}) as timestamp)) as varchar(100)), "{self.subtable_suffix}")' if self.subtable else None
+            stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", cast(cast(abs({partition_elm_alias}) as timestamp) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
+            ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast(cast(abs({partition_elm_alias}) as timestamp) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
+            tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast(cast(abs({partition_elm_alias}) as timestamp) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
         
         self.tdCom.write_latency(self.case_name)
         self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.stb_name} partition by {partition} {partition_elm_alias} interval({self.dataDict["interval"]}s)', trigger_mode="at_once", subtable_value=stb_subtable_value)
@@ -698,8 +698,9 @@ class StreamComputingTest(TDCase):
             tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", {partition_elm_alias}), "{self.subtable_suffix}")' if self.subtable else None
         else:
             stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as binary(20))), "{self.subtable_suffix}")' if self.subtable else None
-            ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast(cast({partition_elm_alias}) as bigint as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
-            tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast(cast({partition_elm_alias}) as unsigned bigint as vchar(20))), "{self.subtable_suffix}")' if self.subtable else None
+            ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast(cast({partition_elm_alias} as bigint) as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
+            # TODO confirm
+            tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast(cast({partition_elm_alias} as bigint unsigned) as nchar(20))), "{self.subtable_suffix}")' if self.subtable else None
         
 
         self.tdCom.write_latency(self.case_name)
@@ -1650,21 +1651,16 @@ class StreamComputingTest(TDCase):
     def run(self):
         # self.subtable = False
         # self.vgroups = 10
-        self.at_once_interval(interval=random.randint(10, 15), partition="c1")
+        
         # self.at_once_session(session=random.randint(10, 15), partition="tbname")
+        # # 
         # self.at_once_session(session=random.randint(10, 15), partition="c1")
         # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)")
         # self.at_once_session(session=random.randint(10, 15), partition="tbname", delete=True)
         # self.at_once_session(session=random.randint(10, 15), partition="c1", delete=True)
         # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True)
         # self.at_once_session(session=random.randint(10, 15), ignore_expired=0)
-        # ! TD-20319
-        # self.at_once_state_window(state_window="c1", partition="tbname", delete=True)
-        # self.at_once_state_window(state_window="c1", partition="c1", delete=True)
-        # self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True)
-        # ! TD-20333
-        # self.window_close_state_window(state_window="c1")
-        return
+        # return
         for vgroups in self.vgroups_list:
             self.vgroups = vgroups
             self.create_none_db_stream()
@@ -1701,16 +1697,18 @@ class StreamComputingTest(TDCase):
             self.at_once_state_window(state_window="c1", partition="c1", delete=True)
             self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True)
             self.at_once_session(session=random.randint(10, 15), partition="tbname")
-            self.at_once_session(session=random.randint(10, 15), partition="c1")
-            self.at_once_session(session=random.randint(10, 15), partition="abs(c1)")
-            self.at_once_session(session=random.randint(10, 15), partition="tbname", delete=True)
-            self.at_once_session(session=random.randint(10, 15), partition="c1", delete=True)
-            self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True)
-            self.at_once_session(session=random.randint(10, 15), ignore_expired=0)
+            # ! TD-20321
+            # self.at_once_session(session=random.randint(10, 15), partition="c1")
+            # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)")
+            # self.at_once_session(session=random.randint(10, 15), partition="tbname", delete=True)
+            # self.at_once_session(session=random.randint(10, 15), partition="c1", delete=True)
+            # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True)
+            # self.at_once_session(session=random.randint(10, 15), ignore_expired=0)
             self.window_close_interval(interval=random.randint(10, 15), watermark=None)
             self.window_close_interval(interval=random.randint(10, 15), watermark=None, ignore_expired=0)
             self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20))
-            self.window_close_state_window(state_window="c1")
+            # ! TD-20333
+            # self.window_close_state_window(state_window="c1")
             self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s")
             # * in this case, when vgroups = 10, max_delay must be set upper than 4, root cause not found 
             self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
