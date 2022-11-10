@@ -138,7 +138,7 @@ if [ -n "$FILE_NAME" ]; then
   else
     echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME
     $PROGRAM -c $CFG_DIR -f $FILE_NAME 2> $ASAN_DIR/tsim.asan 
-    $TOP_DIR/tests/script/sh/checkAsan.sh
+    $CODE_DIR/sh/checkAsan.sh
   fi
 else
   echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f basicSuite.sim
