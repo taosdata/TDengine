@@ -299,8 +299,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxMemUsedByInsert", tsMaxMemUsedByInsert, 1, INT32_MAX, true) != 0) return -1;
-  if (cfgAddInt32(pCfg, "rpcRetryLimit", tsRpcRetryLimit, 1, 10000, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "rpcRetryInterval", tsRpcRetryInterval, 1, 10000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "rpcRetryLimit", tsRpcRetryLimit, 1, 100000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "rpcRetryInterval", tsRpcRetryInterval, 1, 100000, 0) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
@@ -427,8 +427,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "udfdResFuncs", tsUdfdResFuncs, 0) != 0) return -1;
   if (cfgAddString(pCfg, "udfdLdLibPath", tsUdfdLdLibPath, 0) != 0) return -1;
 
-  if (cfgAddInt32(pCfg, "rpcRetryLimit", tsRpcRetryLimit, 1, 1000000, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "rpcRetryInterval", tsRpcRetryInterval, 1, 10000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "rpcRetryLimit", tsRpcRetryLimit, 1, 100000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "rpcRetryInterval", tsRpcRetryInterval, 1, 100000, 0) != 0) return -1;
 
   GRANT_CFG_ADD;
   return 0;
