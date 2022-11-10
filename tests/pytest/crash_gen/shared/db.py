@@ -32,7 +32,7 @@ class DbConn:
     # class variables
     lastSqlFromThreads : dict[int, str] = {} # stored by thread id, obtained from threading.current_thread().ident%10000
     spendThreads : dict[int, float] = {} # stored by thread id, obtained from threading.current_thread().ident%10000
-
+    current_time : dict[int, float] = {}  # save current time 
     @classmethod
     def saveSqlForCurrentThread(cls, sql: str):
         '''
@@ -44,6 +44,7 @@ class DbConn:
         th = threading.current_thread()        
         shortTid = th.native_id % 10000 #type: ignore
         cls.lastSqlFromThreads[shortTid] = sql # Save this for later
+        cls.record_save_sql_time()
 
     @classmethod
     def fetchSqlForThread(cls, shortTid : int) -> str : 
@@ -53,6 +54,25 @@ class DbConn:
             raise CrashGenError("No last-attempted-SQL found for thread id: {}".format(shortTid))
         return cls.lastSqlFromThreads[shortTid] 
 
+    @classmethod
+    def get_save_sql_time(cls, shortTid : int):
+        '''
+        Let us save the last SQL statement on a per-thread basis, so that when later we 
+        run into a dead-lock situation, we can pick out the deadlocked thread, and use 
+        that information to find what what SQL statement is stuck.
+        '''
+        return cls.current_time[shortTid] 
+
+    @classmethod
+    def record_save_sql_time(cls):
+        '''
+        Let us save the last SQL statement on a per-thread basis, so that when later we 
+        run into a dead-lock situation, we can pick out the deadlocked thread, and use 
+        that information to find what what SQL statement is stuck.
+        '''
+        th = threading.current_thread()        
+        shortTid = th.native_id % 10000 #type: ignore
+        cls.current_time[shortTid] = float(time.time()) # Save this for later
  
     @classmethod
     def sql_exec_spend(cls, cost: float):
@@ -460,7 +480,6 @@ class DbConnNative(DbConn):
         finally:
             time_cost =  time.time() - time_start
             self.sql_exec_spend(time_cost)
-
         
         cls = self.__class__
         cls.totalRequests += 1
