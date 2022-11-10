@@ -72,6 +72,7 @@ typedef struct SRpcMsg {
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *epset);
 typedef bool (*RpcRfp)(int32_t code, tmsg_t msgType);
 typedef bool (*RpcTfp)(int32_t code, tmsg_t msgType);
+typedef void (*RpcDfp)(void *ahandle);
 
 typedef struct SRpcInit {
   char     localFqdn[TSDB_FQDN_LEN];
@@ -96,6 +97,9 @@ typedef struct SRpcInit {
 
   // set up timeout for particular msg
   RpcTfp tfp;
+
+  // destroy client ahandle;
+  RpcDfp dfp;
 
   void *parent;
 } SRpcInit;
