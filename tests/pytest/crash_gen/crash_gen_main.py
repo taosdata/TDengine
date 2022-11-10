@@ -549,7 +549,12 @@ class ThreadCoordinator:
 
         # pick a task type for current state
         db = self.pickDatabase()
-        taskType = db.getStateMachine().pickTaskType() # dynamic name of class
+        if Dice.throw(2)==1:
+            taskType = db.getStateMachine().pickTaskType() # dynamic name of class
+        else:
+            taskType = db.getStateMachine().balance_pickTaskType() #  and an method can get  balance task types 
+            pass
+        
         return taskType(self._execStats, db)  # create a task from it
 
     def resetExecutedTasks(self):
@@ -680,8 +685,6 @@ class AnyState:
     CAN_CREATE_STREAM = 3  # super table must exists
     CAN_CREATE_TOPIC = 3  # super table must exists
     CAN_CREATE_CONSUMERS = 3 
-    CAN_CREATE_SMA = 3
-    CAN_DROP_SMA = 3
     CAN_DROP_FIXED_SUPER_TABLE = 4
     CAN_DROP_TOPIC = 4
     CAN_DROP_STREAM = 4
@@ -746,12 +749,6 @@ class AnyState:
 
     def canCreateConsumers(self):
         return self._info[self.CAN_CREATE_CONSUMERS]
-
-    def canCreateSma(self):
-        return self._info[self.CAN_CREATE_SMA]
-
-    def canDropSma(self):
-        return self._info[self.CAN_DROP_SMA]
     
     def canCreateStreams(self):
         return self._info[self.CAN_CREATE_STREAM]
@@ -1093,6 +1090,28 @@ class StateMechine:
         # Logging.debug(" (weighted random:{}/{}) ".format(i, len(taskTypes)))
         return taskTypes[i]
 
+    def balance_pickTaskType(self):
+        # all the task types we can choose from at curent state
+        BasicTypes = self.getTaskTypes()
+        weightsTypes = BasicTypes.copy()
+
+        # this matrixs can balance  the Frequency of different types of tasks
+        weight_matrixs = {'TaskDropDb': 5 , 'TaskDropTopics': 20 , 'TaskDropStreams':10 , 'TaskDropStreamTables':10 ,
+                          'TaskReadData':50 , 'TaskDropSuperTable':5 , 'TaskAlterTags':3 , 'TaskAddData':10,
+                          'TaskDeleteData':10 , 'TaskCreateDb':10 , 'TaskCreateStream': 3, 'TaskCreateTopic' :3,
+                          'TaskCreateConsumers':10, 'TaskCreateSuperTable': 10 }  # task type : weghts matrixs
+        
+        for task , weights in weight_matrixs.items():
+            
+            for basicType in BasicTypes:
+                if basicType.__name__ == task:
+                    for _ in range(weights):
+                        weightsTypes.append(basicType)
+
+        task = random.sample(weightsTypes,1)
+        return task[0]
+
+
     # ref:
     # https://eli.thegreenplace.net/2010/01/22/weighted-random-generation-in-python/
     def _weighted_choice_sub(self, weights) -> int:
@@ -1395,6 +1414,8 @@ class Task():
                 0x386,  # Database in droping status
                 0x03E1, # failed on tmq_subscribe ,topic not exist
                 0x03ed , # Topic must be dropped first, SQL: drop database db_0
+                0x0203 ,  #  Invalid value 
+
 
 
 
@@ -1942,30 +1963,6 @@ class TaskDropTopics(StateTransitionTask):
         if sTable.hasTopics(wt.getDbConn()):
             sTable.dropTopics(wt.getDbConn(),dbname,None)  # drop topics of database
             sTable.dropTopics(wt.getDbConn(),dbname,tblName)  # drop topics of stable
-   
-class TaskCreateSma(StateTransitionTask):
-    
-    @classmethod
-    def getEndState(cls):
-        return StateHasData()
-
-    @classmethod
-    def canBeginFrom(cls, state: AnyState):
-        return state.canCreateSma()
-
-    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        # dbname = self._db.getName()
-       
-        if not self._db.exists(wt.getDbConn()):
-            Logging.debug("Skipping task, no DB yet")
-            return
-
-        sTable = self._db.getFixedSuperTable() # type: TdSuperTable
-        # wt.execSql("use db")    # should always be in place
-        # tblName = sTable.getName()
-        if sTable.hasStreams(wt.getDbConn()):
-            sTable.dropStreams(wt.getDbConn())  # drop stream of database
-            # sTable.dropStreamTables(wt.getDbConn())  # drop streamtables of stable
 
 class TaskDropStreams(StateTransitionTask):
     
