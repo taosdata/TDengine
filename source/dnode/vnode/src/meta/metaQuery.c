@@ -211,7 +211,7 @@ int metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName) {
 
   return 0;
 }
-int metaGetTableUidByName(void *meta, char *tbName, int64_t *uid) {
+int metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid) {
   int         code = 0;
   SMetaReader mr = {0};
   metaReaderInit(&mr, (SMeta *)meta, 0);
@@ -1127,7 +1127,7 @@ int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     if (valid < 0) break;
 
     char   *pTableKey = (char *)pEntryKey;
-    int32_t cmp = (*param->filterFunc)(pTableKey, pName, pCursor->type);
+    cmp = (*param->filterFunc)(pTableKey, pName, pCursor->type);
     if (cmp == 0) {
       tb_uid_t tuid = *(tb_uid_t *)pEntryVal;
       taosArrayPush(pUids, &tuid);

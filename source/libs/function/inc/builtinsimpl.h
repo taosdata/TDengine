@@ -23,6 +23,15 @@ extern "C" {
 #include "function.h"
 #include "functionMgt.h"
 
+typedef struct SSumRes {
+  union {
+    int64_t  isum;
+    uint64_t usum;
+    double   dsum;
+  };
+  int16_t type;
+} SSumRes;
+
 bool    functionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, char* finalResult);
@@ -119,15 +128,10 @@ EFuncDataRequired lastDynDataReq(void* pRes, STimeWindow* pTimeWindow);
 int32_t lastRowFunction(SqlFunctionCtx* pCtx);
 
 bool    getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
-bool    getTopBotMergeFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 bool    topBotFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t topFunction(SqlFunctionCtx* pCtx);
-int32_t topFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t bottomFunction(SqlFunctionCtx* pCtx);
-int32_t bottomFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
-int32_t topBotPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
-int32_t topBotMergeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t topCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t bottomCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t getTopBotInfoSize(int64_t numOfItems);

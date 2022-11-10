@@ -41,21 +41,12 @@
 #define HLL_BUCKET_MASK (HLL_BUCKETS - 1)
 #define HLL_ALPHA_INF   0.721347520444481703680  // constant for 0.5/ln(2)
 
-typedef struct SSumRes {
-  union {
-    int64_t  isum;
-    uint64_t usum;
-    double   dsum;
-  };
-  int16_t type;
-} SSumRes;
-
-typedef struct SAvgRes {
-  double  result;
-  SSumRes sum;
-  int64_t count;
-  int16_t type;  // store the original input type, used in merge function
-} SAvgRes;
+//typedef struct SAvgRes {
+//  double  result;
+//  SSumRes sum;
+//  int64_t count;
+//  int16_t type;  // store the original input type, used in merge function
+//} SAvgRes;
 
 typedef struct SMinmaxResInfo {
   bool      assign;  // assign the first value or not
@@ -362,19 +353,19 @@ typedef struct SGroupKeyInfo {
     }                                                                    \
   } while (0)
 
-#define LIST_AVG_N(sumT, T)                                               \
-  do {                                                                    \
-    T* plist = (T*)pCol->pData;                                           \
-    for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) { \
-      if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {        \
-        continue;                                                         \
-      }                                                                   \
-                                                                          \
-      numOfElem += 1;                                                     \
-      pAvgRes->count -= 1;                                                \
-      sumT -= plist[i];                                                   \
-    }                                                                     \
-  } while (0)
+//#define LIST_AVG_N(sumT, T)                                               \
+//  do {                                                                    \
+//    T* plist = (T*)pCol->pData;                                           \
+//    for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) { \
+//      if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {        \
+//        continue;                                                         \
+//      }                                                                   \
+//                                                                          \
+//      numOfElem += 1;                                                     \
+//      pAvgRes->count -= 1;                                                \
+//      sumT -= plist[i];                                                   \
+//    }                                                                     \
+//  } while (0)
 
 #define LIST_STDDEV_SUB_N(sumT, T)                                 \
   do {                                                             \
@@ -741,374 +732,374 @@ bool getSumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
-int32_t getAvgInfoSize() { return (int32_t)sizeof(SAvgRes); }
-
-bool getAvgFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(SAvgRes);
-  return true;
-}
-
-bool avgFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
-  if (!functionSetup(pCtx, pResultInfo)) {
-    return false;
-  }
-
-  SAvgRes* pRes = GET_ROWCELL_INTERBUF(pResultInfo);
-  memset(pRes, 0, sizeof(SAvgRes));
-  return true;
-}
-
-int32_t avgFunction(SqlFunctionCtx* pCtx) {
-  int32_t numOfElem = 0;
-
-  SInputColumnInfoData* pInput = &pCtx->input;
-  SColumnDataAgg*       pAgg = pInput->pColumnDataAgg[0];
-  int32_t               type = pInput->pData[0]->info.type;
-
-  SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  pAvgRes->type = type;
-
-  // computing based on the true data block
-  SColumnInfoData* pCol = pInput->pData[0];
-
-  int32_t start = pInput->startRowIndex;
-  int32_t numOfRows = pInput->numOfRows;
-
-  if (IS_NULL_TYPE(type)) {
-    numOfElem = 0;
-    goto _avg_over;
-  }
-
-  if (pInput->colDataAggIsSet) {
-    numOfElem = numOfRows - pAgg->numOfNull;
-    ASSERT(numOfElem >= 0);
-
-    pAvgRes->count += numOfElem;
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      pAvgRes->sum.isum += pAgg->sum;
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      pAvgRes->sum.usum += pAgg->sum;
-    } else if (IS_FLOAT_TYPE(type)) {
-      pAvgRes->sum.dsum += GET_DOUBLE_VAL((const char*)&(pAgg->sum));
-    }
-  } else {  // computing based on the true data block
-    switch (type) {
-      case TSDB_DATA_TYPE_TINYINT: {
-        int8_t* plist = (int8_t*)pCol->pData;
-        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
-            continue;
-          }
-
-          numOfElem += 1;
-          pAvgRes->count += 1;
-          pAvgRes->sum.isum += plist[i];
-        }
-
-        break;
-      }
-
-      case TSDB_DATA_TYPE_SMALLINT: {
-        int16_t* plist = (int16_t*)pCol->pData;
-        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
-            continue;
-          }
-
-          numOfElem += 1;
-          pAvgRes->count += 1;
-          pAvgRes->sum.isum += plist[i];
-        }
-        break;
-      }
-
-      case TSDB_DATA_TYPE_INT: {
-        int32_t* plist = (int32_t*)pCol->pData;
-        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
-            continue;
-          }
-
-          numOfElem += 1;
-          pAvgRes->count += 1;
-          pAvgRes->sum.isum += plist[i];
-        }
-
-        break;
-      }
-
-      case TSDB_DATA_TYPE_BIGINT: {
-        int64_t* plist = (int64_t*)pCol->pData;
-        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
-            continue;
-          }
-
-          numOfElem += 1;
-          pAvgRes->count += 1;
-          pAvgRes->sum.isum += plist[i];
-        }
-        break;
-      }
-
-      case TSDB_DATA_TYPE_UTINYINT: {
-        uint8_t* plist = (uint8_t*)pCol->pData;
-        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
-            continue;
-          }
-
-          numOfElem += 1;
-          pAvgRes->count += 1;
-          pAvgRes->sum.usum += plist[i];
-        }
-
-        break;
-      }
-
-      case TSDB_DATA_TYPE_USMALLINT: {
-        uint16_t* plist = (uint16_t*)pCol->pData;
-        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
-            continue;
-          }
-
-          numOfElem += 1;
-          pAvgRes->count += 1;
-          pAvgRes->sum.usum += plist[i];
-        }
-        break;
-      }
-
-      case TSDB_DATA_TYPE_UINT: {
-        uint32_t* plist = (uint32_t*)pCol->pData;
-        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
-            continue;
-          }
-
-          numOfElem += 1;
-          pAvgRes->count += 1;
-          pAvgRes->sum.usum += plist[i];
-        }
-
-        break;
-      }
-
-      case TSDB_DATA_TYPE_UBIGINT: {
-        uint64_t* plist = (uint64_t*)pCol->pData;
-        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
-            continue;
-          }
-
-          numOfElem += 1;
-          pAvgRes->count += 1;
-          pAvgRes->sum.usum += plist[i];
-        }
-        break;
-      }
-
-      case TSDB_DATA_TYPE_FLOAT: {
-        float* plist = (float*)pCol->pData;
-//        float val = 0;
-        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
-            continue;
-          }
-
-          numOfElem += 1;
-          pAvgRes->count += 1;
-          pAvgRes->sum.dsum  += plist[i];
-        }
-//        pAvgRes->sum.dsum = val;
-        break;
-      }
-
-      case TSDB_DATA_TYPE_DOUBLE: {
-        double* plist = (double*)pCol->pData;
-        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
-          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
-            continue;
-          }
-
-          numOfElem += 1;
-          pAvgRes->count += 1;
-          pAvgRes->sum.dsum += plist[i];
-        }
-        break;
-      }
-
-      default:
-        break;
-    }
-  }
-
-_avg_over:
-  // data in the check operation are all null, not output
-  SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
-  return TSDB_CODE_SUCCESS;
-}
-
-static void avgTransferInfo(SAvgRes* pInput, SAvgRes* pOutput) {
-  pOutput->type = pInput->type;
-  if (IS_SIGNED_NUMERIC_TYPE(pOutput->type)) {
-    pOutput->sum.isum += pInput->sum.isum;
-  } else if (IS_UNSIGNED_NUMERIC_TYPE(pOutput->type)) {
-    pOutput->sum.usum += pInput->sum.usum;
-  } else {
-    pOutput->sum.dsum += pInput->sum.dsum;
-  }
-
-  pOutput->count += pInput->count;
-
-  return;
-}
-
-int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
-  SInputColumnInfoData* pInput = &pCtx->input;
-  SColumnInfoData*      pCol = pInput->pData[0];
-  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
-
-  SAvgRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-
-  int32_t start = pInput->startRowIndex;
-
-  for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
-    char*    data = colDataGetData(pCol, i);
-    SAvgRes* pInputInfo = (SAvgRes*)varDataVal(data);
-    avgTransferInfo(pInputInfo, pInfo);
-  }
-
-  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t avgInvertFunction(SqlFunctionCtx* pCtx) {
-  int32_t numOfElem = 0;
-
-  // Only the pre-computing information loaded and actual data does not loaded
-  SInputColumnInfoData* pInput = &pCtx->input;
-  int32_t               type = pInput->pData[0]->info.type;
-
-  SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-
-  // computing based on the true data block
-  SColumnInfoData* pCol = pInput->pData[0];
-
-  int32_t start = pInput->startRowIndex;
-  int32_t numOfRows = pInput->numOfRows;
-
-  switch (type) {
-    case TSDB_DATA_TYPE_TINYINT: {
-      LIST_AVG_N(pAvgRes->sum.isum, int8_t);
-      break;
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      LIST_AVG_N(pAvgRes->sum.isum, int16_t);
-      break;
-    }
-    case TSDB_DATA_TYPE_INT: {
-      LIST_AVG_N(pAvgRes->sum.isum, int32_t);
-      break;
-    }
-    case TSDB_DATA_TYPE_BIGINT: {
-      LIST_AVG_N(pAvgRes->sum.isum, int64_t);
-      break;
-    }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      LIST_AVG_N(pAvgRes->sum.usum, uint8_t);
-      break;
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      LIST_AVG_N(pAvgRes->sum.usum, uint16_t);
-      break;
-    }
-    case TSDB_DATA_TYPE_UINT: {
-      LIST_AVG_N(pAvgRes->sum.usum, uint32_t);
-      break;
-    }
-    case TSDB_DATA_TYPE_UBIGINT: {
-      LIST_AVG_N(pAvgRes->sum.usum, uint64_t);
-      break;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      LIST_AVG_N(pAvgRes->sum.dsum, float);
-      break;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      LIST_AVG_N(pAvgRes->sum.dsum, double);
-      break;
-    }
-    default:
-      break;
-  }
-
-  // data in the check operation are all null, not output
-  SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
-  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
-  SAvgRes*             pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
-
-  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
-  SAvgRes*             pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
-  int16_t              type = pDBuf->type == TSDB_DATA_TYPE_NULL ? pSBuf->type : pDBuf->type;
-
-  if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    pDBuf->sum.isum += pSBuf->sum.isum;
-  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    pDBuf->sum.usum += pSBuf->sum.usum;
-  } else {
-    pDBuf->sum.dsum += pSBuf->sum.dsum;
-  }
-  pDBuf->count += pSBuf->count;
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  SInputColumnInfoData* pInput = &pCtx->input;
-
-  SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  int32_t  type = pAvgRes->type;
-
-  if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    pAvgRes->result = pAvgRes->sum.isum / ((double)pAvgRes->count);
-  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    pAvgRes->result = pAvgRes->sum.usum / ((double)pAvgRes->count);
-  } else {
-    pAvgRes->result = pAvgRes->sum.dsum / ((double)pAvgRes->count);
-  }
-
-  // check for overflow
-  if (isinf(pAvgRes->result) || isnan(pAvgRes->result)) {
-    GET_RES_INFO(pCtx)->numOfRes = 0;
-  }
-
-  return functionFinalize(pCtx, pBlock);
-}
-
-int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  SAvgRes*             pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  int32_t              resultBytes = getAvgInfoSize();
-  char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
-
-  memcpy(varDataVal(res), pInfo, resultBytes);
-  varDataSetLen(res, resultBytes);
-
-  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
-  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
-
-  colDataAppend(pCol, pBlock->info.rows, res, false);
-
-  taosMemoryFree(res);
-  return pResInfo->numOfRes;
-}
+//int32_t getAvgInfoSize() { return (int32_t)sizeof(SAvgRes); }
+//
+//bool getAvgFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+//  pEnv->calcMemSize = sizeof(SAvgRes);
+//  return true;
+//}
+//
+//bool avgFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
+//  if (!functionSetup(pCtx, pResultInfo)) {
+//    return false;
+//  }
+//
+//  SAvgRes* pRes = GET_ROWCELL_INTERBUF(pResultInfo);
+//  memset(pRes, 0, sizeof(SAvgRes));
+//  return true;
+//}
+
+//int32_t avgFunction(SqlFunctionCtx* pCtx) {
+//  int32_t numOfElem = 0;
+//
+//  SInputColumnInfoData* pInput = &pCtx->input;
+//  SColumnDataAgg*       pAgg = pInput->pColumnDataAgg[0];
+//  int32_t               type = pInput->pData[0]->info.type;
+//
+//  SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+//  pAvgRes->type = type;
+//
+//  // computing based on the true data block
+//  SColumnInfoData* pCol = pInput->pData[0];
+//
+//  int32_t start = pInput->startRowIndex;
+//  int32_t numOfRows = pInput->numOfRows;
+//
+//  if (IS_NULL_TYPE(type)) {
+//    numOfElem = 0;
+//    goto _avg_over;
+//  }
+//
+//  if (pInput->colDataAggIsSet) {
+//    numOfElem = numOfRows - pAgg->numOfNull;
+//    ASSERT(numOfElem >= 0);
+//
+//    pAvgRes->count += numOfElem;
+//    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+//      pAvgRes->sum.isum += pAgg->sum;
+//    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+//      pAvgRes->sum.usum += pAgg->sum;
+//    } else if (IS_FLOAT_TYPE(type)) {
+//      pAvgRes->sum.dsum += GET_DOUBLE_VAL((const char*)&(pAgg->sum));
+//    }
+//  } else {  // computing based on the true data block
+//    switch (type) {
+//      case TSDB_DATA_TYPE_TINYINT: {
+//        int8_t* plist = (int8_t*)pCol->pData;
+//        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+//          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+//            continue;
+//          }
+//
+//          numOfElem += 1;
+//          pAvgRes->count += 1;
+//          pAvgRes->sum.isum += plist[i];
+//        }
+//
+//        break;
+//      }
+//
+//      case TSDB_DATA_TYPE_SMALLINT: {
+//        int16_t* plist = (int16_t*)pCol->pData;
+//        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+//          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+//            continue;
+//          }
+//
+//          numOfElem += 1;
+//          pAvgRes->count += 1;
+//          pAvgRes->sum.isum += plist[i];
+//        }
+//        break;
+//      }
+//
+//      case TSDB_DATA_TYPE_INT: {
+//        int32_t* plist = (int32_t*)pCol->pData;
+//        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+//          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+//            continue;
+//          }
+//
+//          numOfElem += 1;
+//          pAvgRes->count += 1;
+//          pAvgRes->sum.isum += plist[i];
+//        }
+//
+//        break;
+//      }
+//
+//      case TSDB_DATA_TYPE_BIGINT: {
+//        int64_t* plist = (int64_t*)pCol->pData;
+//        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+//          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+//            continue;
+//          }
+//
+//          numOfElem += 1;
+//          pAvgRes->count += 1;
+//          pAvgRes->sum.isum += plist[i];
+//        }
+//        break;
+//      }
+//
+//      case TSDB_DATA_TYPE_UTINYINT: {
+//        uint8_t* plist = (uint8_t*)pCol->pData;
+//        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+//          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+//            continue;
+//          }
+//
+//          numOfElem += 1;
+//          pAvgRes->count += 1;
+//          pAvgRes->sum.usum += plist[i];
+//        }
+//
+//        break;
+//      }
+//
+//      case TSDB_DATA_TYPE_USMALLINT: {
+//        uint16_t* plist = (uint16_t*)pCol->pData;
+//        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+//          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+//            continue;
+//          }
+//
+//          numOfElem += 1;
+//          pAvgRes->count += 1;
+//          pAvgRes->sum.usum += plist[i];
+//        }
+//        break;
+//      }
+//
+//      case TSDB_DATA_TYPE_UINT: {
+//        uint32_t* plist = (uint32_t*)pCol->pData;
+//        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+//          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+//            continue;
+//          }
+//
+//          numOfElem += 1;
+//          pAvgRes->count += 1;
+//          pAvgRes->sum.usum += plist[i];
+//        }
+//
+//        break;
+//      }
+//
+//      case TSDB_DATA_TYPE_UBIGINT: {
+//        uint64_t* plist = (uint64_t*)pCol->pData;
+//        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+//          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+//            continue;
+//          }
+//
+//          numOfElem += 1;
+//          pAvgRes->count += 1;
+//          pAvgRes->sum.usum += plist[i];
+//        }
+//        break;
+//      }
+//
+//      case TSDB_DATA_TYPE_FLOAT: {
+//        float* plist = (float*)pCol->pData;
+////        float val = 0;
+//        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+//          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+//            continue;
+//          }
+//
+//          numOfElem += 1;
+//          pAvgRes->count += 1;
+//          pAvgRes->sum.dsum  += plist[i];
+//        }
+////        pAvgRes->sum.dsum = val;
+//        break;
+//      }
+//
+//      case TSDB_DATA_TYPE_DOUBLE: {
+//        double* plist = (double*)pCol->pData;
+//        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+//          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+//            continue;
+//          }
+//
+//          numOfElem += 1;
+//          pAvgRes->count += 1;
+//          pAvgRes->sum.dsum += plist[i];
+//        }
+//        break;
+//      }
+//
+//      default:
+//        break;
+//    }
+//  }
+//
+//_avg_over:
+//  // data in the check operation are all null, not output
+//  SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+//  return TSDB_CODE_SUCCESS;
+//}
+
+//static void avgTransferInfo(SAvgRes* pInput, SAvgRes* pOutput) {
+//  pOutput->type = pInput->type;
+//  if (IS_SIGNED_NUMERIC_TYPE(pOutput->type)) {
+//    pOutput->sum.isum += pInput->sum.isum;
+//  } else if (IS_UNSIGNED_NUMERIC_TYPE(pOutput->type)) {
+//    pOutput->sum.usum += pInput->sum.usum;
+//  } else {
+//    pOutput->sum.dsum += pInput->sum.dsum;
+//  }
+//
+//  pOutput->count += pInput->count;
+//
+//  return;
+//}
+//
+//int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
+//  SInputColumnInfoData* pInput = &pCtx->input;
+//  SColumnInfoData*      pCol = pInput->pData[0];
+//  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
+//
+//  SAvgRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+//
+//  int32_t start = pInput->startRowIndex;
+//
+//  for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
+//    char*    data = colDataGetData(pCol, i);
+//    SAvgRes* pInputInfo = (SAvgRes*)varDataVal(data);
+//    avgTransferInfo(pInputInfo, pInfo);
+//  }
+//
+//  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+//
+//  return TSDB_CODE_SUCCESS;
+//}
+//
+//int32_t avgInvertFunction(SqlFunctionCtx* pCtx) {
+//  int32_t numOfElem = 0;
+//
+//  // Only the pre-computing information loaded and actual data does not loaded
+//  SInputColumnInfoData* pInput = &pCtx->input;
+//  int32_t               type = pInput->pData[0]->info.type;
+//
+//  SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+//
+//  // computing based on the true data block
+//  SColumnInfoData* pCol = pInput->pData[0];
+//
+//  int32_t start = pInput->startRowIndex;
+//  int32_t numOfRows = pInput->numOfRows;
+//
+//  switch (type) {
+//    case TSDB_DATA_TYPE_TINYINT: {
+//      LIST_AVG_N(pAvgRes->sum.isum, int8_t);
+//      break;
+//    }
+//    case TSDB_DATA_TYPE_SMALLINT: {
+//      LIST_AVG_N(pAvgRes->sum.isum, int16_t);
+//      break;
+//    }
+//    case TSDB_DATA_TYPE_INT: {
+//      LIST_AVG_N(pAvgRes->sum.isum, int32_t);
+//      break;
+//    }
+//    case TSDB_DATA_TYPE_BIGINT: {
+//      LIST_AVG_N(pAvgRes->sum.isum, int64_t);
+//      break;
+//    }
+//    case TSDB_DATA_TYPE_UTINYINT: {
+//      LIST_AVG_N(pAvgRes->sum.usum, uint8_t);
+//      break;
+//    }
+//    case TSDB_DATA_TYPE_USMALLINT: {
+//      LIST_AVG_N(pAvgRes->sum.usum, uint16_t);
+//      break;
+//    }
+//    case TSDB_DATA_TYPE_UINT: {
+//      LIST_AVG_N(pAvgRes->sum.usum, uint32_t);
+//      break;
+//    }
+//    case TSDB_DATA_TYPE_UBIGINT: {
+//      LIST_AVG_N(pAvgRes->sum.usum, uint64_t);
+//      break;
+//    }
+//    case TSDB_DATA_TYPE_FLOAT: {
+//      LIST_AVG_N(pAvgRes->sum.dsum, float);
+//      break;
+//    }
+//    case TSDB_DATA_TYPE_DOUBLE: {
+//      LIST_AVG_N(pAvgRes->sum.dsum, double);
+//      break;
+//    }
+//    default:
+//      break;
+//  }
+//
+//  // data in the check operation are all null, not output
+//  SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+//  return TSDB_CODE_SUCCESS;
+//}
+//
+//int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+//  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+//  SAvgRes*             pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+//
+//  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+//  SAvgRes*             pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+//  int16_t              type = pDBuf->type == TSDB_DATA_TYPE_NULL ? pSBuf->type : pDBuf->type;
+//
+//  if (IS_SIGNED_NUMERIC_TYPE(type)) {
+//    pDBuf->sum.isum += pSBuf->sum.isum;
+//  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+//    pDBuf->sum.usum += pSBuf->sum.usum;
+//  } else {
+//    pDBuf->sum.dsum += pSBuf->sum.dsum;
+//  }
+//  pDBuf->count += pSBuf->count;
+//
+//  return TSDB_CODE_SUCCESS;
+//}
+//
+//int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+//  SInputColumnInfoData* pInput = &pCtx->input;
+//
+//  SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+//  int32_t  type = pAvgRes->type;
+//
+//  if (IS_SIGNED_NUMERIC_TYPE(type)) {
+//    pAvgRes->result = pAvgRes->sum.isum / ((double)pAvgRes->count);
+//  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+//    pAvgRes->result = pAvgRes->sum.usum / ((double)pAvgRes->count);
+//  } else {
+//    pAvgRes->result = pAvgRes->sum.dsum / ((double)pAvgRes->count);
+//  }
+//
+//  // check for overflow
+//  if (isinf(pAvgRes->result) || isnan(pAvgRes->result)) {
+//    GET_RES_INFO(pCtx)->numOfRes = 0;
+//  }
+//
+//  return functionFinalize(pCtx, pBlock);
+//}
+//
+//int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+//  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+//  SAvgRes*             pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+//  int32_t              resultBytes = getAvgInfoSize();
+//  char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
+//
+//  memcpy(varDataVal(res), pInfo, resultBytes);
+//  varDataSetLen(res, resultBytes);
+//
+//  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+//  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+//
+//  colDataAppend(pCol, pBlock->info.rows, res, false);
+//
+//  taosMemoryFree(res);
+//  return pResInfo->numOfRes;
+//}
 
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
   return FUNC_DATA_REQUIRED_SMA_LOAD;
@@ -3117,8 +3108,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       int32_t round = pInput->numOfRows >> 2;
       int32_t reminder = pInput->numOfRows & 0x03;
 
-      int32_t tick = 0;
-      for (int32_t i = pInput->startRowIndex; tick < round; i += 4, tick += 1) {
+      for (int32_t i = pInput->startRowIndex, tick = 0; tick < round; i += 4, tick += 1) {
         int64_t cts = pts[i];
         int32_t chosen = i;
 
@@ -3153,7 +3143,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       }
     } else {
       for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
-        if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+        if (colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
           continue;
         }
 
