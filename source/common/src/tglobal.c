@@ -141,8 +141,6 @@ bool tsDeployOnSnode = true;
  */
 int64_t tsTickPerMin[] = {60000L, 60000000L, 60000000000L};
 
-
-
 // lossy compress 6
 char tsLossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty
                                // can close lossy compress.
