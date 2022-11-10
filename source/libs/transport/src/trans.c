@@ -48,6 +48,8 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   pRpc->compressSize = pInit->compressSize;
   pRpc->encryption = pInit->encryption;
+  pRpc->retryLimit = pInit->retryLimit;
+  pRpc->retryInterval = pInit->retryInterval;
 
   // register callback handle
   pRpc->cfp = pInit->cfp;
