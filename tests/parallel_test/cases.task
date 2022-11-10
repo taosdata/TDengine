@@ -1,4 +1,11 @@
+#Coulumn Define
+#caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
+#NA,NA,y or n,script,./test.sh -f tsim/user/basic.sim
+
+#unit-test
 ,,y,unit-test,bash test.sh
+
+#tsim test
 ,,y,script,./test.sh -f tsim/user/basic.sim
 ,,y,script,./test.sh -f tsim/user/password.sim
 ,,,script,./test.sh -f tsim/user/privilege_db.sim
@@ -386,6 +393,9 @@
 ,,,script,./test.sh -f tsim/tag/drop_tag.sim
 ,,,script,./test.sh -f tsim/tag/tbNameIn.sim
 ,,,script,./test.sh -f tmp/monitor.sim
+
+#system test
+
 ,,,system-test,python3 ./test.py -f 0-others/taosShell.py
 ,,,system-test,python3 ./test.py -f 0-others/taosShellError.py
 ,,,system-test,python3 ./test.py -f 0-others/taosShellNetChk.py
@@ -982,6 +992,8 @@
 ,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
 ,,,system-test,python3 ./test.py -f 2-query/sml.py -Q 4
 ,,,system-test,python3 ./test.py -f 2-query/interp.py -Q 4
+
+#develop test
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/auto_create_table_json.py
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/custom_col_tag.py
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/default_json.py
@@ -993,6 +1005,8 @@
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sample_csv_json.py
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_json_alltypes.py
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestQueryWithJson.py -R
+
+#docs-examples test
 ,,,docs-examples-test,bash python.sh
 ,,,docs-examples-test,bash node.sh
 ,,,docs-examples-test,bash csharp.sh
