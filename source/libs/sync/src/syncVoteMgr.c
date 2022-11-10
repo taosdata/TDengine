@@ -62,7 +62,7 @@ bool voteGrantedMajority(SVotesGranted *pVotesGranted) { return pVotesGranted->v
 
 void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
   if (!pMsg->voteGranted) {
-    sNFatal(pVotesGranted->pSyncNode, " vote granted should be true");
+    sNFatal(pVotesGranted->pSyncNode, "vote granted should be true");
     return;
   }
 
@@ -73,7 +73,7 @@ void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
   }
 
   if (!syncUtilSameId(&pVotesGranted->pSyncNode->myRaftId, &pMsg->destId)) {
-    sNFatal(pVotesGranted->pSyncNode, " vote granted raftId not matched with msg");
+    sNFatal(pVotesGranted->pSyncNode, "vote granted raftId not matched with msg");
     return;
   }
 
@@ -84,8 +84,8 @@ void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
       break;
     }
   }
-  if ((j == -1) || (j >= 0 && j < pVotesGranted->replicaNum)) {
-    sNFatal(pVotesGranted->pSyncNode, " invalid msg srcId, index:%d", j);
+  if ((j == -1) || !(j >= 0 && j < pVotesGranted->replicaNum)) {
+    sNFatal(pVotesGranted->pSyncNode, "invalid msg srcId, index:%d", j);
     return;
   }
 
@@ -94,8 +94,8 @@ void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
     pVotesGranted->isGranted[j] = true;
   }
 
-  if (pVotesGranted->votes <= pVotesGranted->replicaNum) {
-    sNFatal(pVotesGranted->pSyncNode, " votes:%d not matched with replicaNum:%d", pVotesGranted->votes,
+  if (pVotesGranted->votes > pVotesGranted->replicaNum) {
+    sNFatal(pVotesGranted->pSyncNode, "votes:%d not matched with replicaNum:%d", pVotesGranted->votes,
             pVotesGranted->replicaNum);
     return;
   }

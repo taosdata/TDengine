@@ -22,8 +22,10 @@ extern "C" {
 
 #include "syncInt.h"
 
+#include "tref.h"
 #include "wal.h"
 
+#include "tref.h"
 #include "syncEnv.h"
 #include "syncIO.h"
 #include "syncIndexMgr.h"
@@ -37,6 +39,8 @@ extern "C" {
 #include "syncSnapshot.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
+
+extern void addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port);
 
 cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry);
 char*  syncEntry2Str(const SSyncRaftEntry* pEntry);
