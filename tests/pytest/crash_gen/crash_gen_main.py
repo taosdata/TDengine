@@ -1367,6 +1367,7 @@ class Task():
                 0x2603, # Table does not exist, replaced by 2662 below
                 0x260d, # Tags number not matched
                 0x2662, # Table does not exist #TODO: what about 2603 above?
+                0x2600, # database not specified, SQL: show stables , database droped , and show tables
                 0x032C, # Object is creating
                 0x032D, # Object is dropping
                 0x03D3, # Conflict transaction not completed
