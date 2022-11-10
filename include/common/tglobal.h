@@ -43,7 +43,6 @@ extern int32_t tsMaxNumOfDistinctResults;
 extern int32_t tsCompatibleModel;
 extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
-extern int64_t tsMaxKeyByPrecision[3];
 extern int32_t tsCountAlwaysReturnValue;
 
 // queue & threads

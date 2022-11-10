@@ -141,14 +141,7 @@ bool tsDeployOnSnode = true;
  */
 int64_t tsTickPerMin[] = {60000L, 60000000L, 60000000000L};
 
-/**
- * @brief max key by precision
- *  approximately calculation:
- *  ms: 3600*1000*8765*1000         // 1970 + 1000 years
- *  us: 3600*1000000*8765*1000      // 1970 + 1000 years
- *  ns: 3600*1000000000*8765*292    // 1970 + 292 years
- */                
-int64_t tsMaxKeyByPrecision[] = {31556995200000L, 31556995200000000L, 9214646400000000000L};
+
 
 // lossy compress 6
 char tsLossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty

@@ -15,6 +15,15 @@
 
 #include "tsdb.h"
 
+/**
+ * @brief max key by precision
+ *  approximately calculation:
+ *  ms: 3600*1000*8765*1000         // 1970 + 1000 years
+ *  us: 3600*1000000*8765*1000      // 1970 + 1000 years
+ *  ns: 3600*1000000000*8765*292    // 1970 + 292 years
+ */
+static int64_t tsMaxKeyByPrecision[] = {31556995200000L, 31556995200000000L, 9214646400000000000L};
+
 // static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg);
 
 int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *pRsp) {
