@@ -334,6 +334,20 @@ If no comparison or condition is true, the result after ELSE is returned, or NUL
 
 The return type of the CASE expression is the result type of the first WHEN WHEN part, and the result type of the other WHEN WHEN parts and ELSE parts can be converted to them, otherwise TDengine will report an error.
 
+### Examples
+
+A device has three status codes to display its status. The statements are as follows:
+
+```sql
+SELECT CASE dev_status WHEN 1 THEN 'Running' WHEN 2 THEN 'Warning' WHEN 3 THEN 'Downtime' ELSE 'Unknown' END FROM dev_table;
+```
+
+The average voltage value of the smart meter is counted. When the voltage is less than 200 or more than 250, it is considered that the statistics is wrong, and the value is corrected to 220. The statement is as follows:
+
+```sql
+SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) FROM meters;
+```
+
 ## JOIN
 
 TDengine supports natural joins between supertables, between standard tables, and between subqueries. The difference between natural joins and inner joins is that natural joins require that the fields being joined in the supertables or standard tables must have the same name. Data or tag columns must be joined with the equivalent column in another table.

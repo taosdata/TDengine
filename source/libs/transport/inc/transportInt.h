@@ -53,6 +53,7 @@ typedef struct {
   void (*cfp)(void* parent, SRpcMsg*, SEpSet*);
   bool (*retry)(int32_t code, tmsg_t msgType);
   bool (*startTimer)(int32_t code, tmsg_t msgType);
+  void (*destroyFp)(void* ahandle);
 
   int           index;
   void*         parent;

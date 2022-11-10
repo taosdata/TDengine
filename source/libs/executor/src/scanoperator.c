@@ -819,7 +819,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
   } else {  // scan table group by group sequentially
     if (pInfo->currentGroupId == -1) {
       if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pTaskInfo->pTableInfoList)) {
-        doSetOperatorCompleted(pOperator);
+        setOperatorCompleted(pOperator);
         return NULL;
       }
 
@@ -842,7 +842,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
     }
 
     if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pTaskInfo->pTableInfoList)) {
-      doSetOperatorCompleted(pOperator);
+      setOperatorCompleted(pOperator);
       return NULL;
     }
 
@@ -864,7 +864,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       return result;
     }
 
-    doSetOperatorCompleted(pOperator);
+    setOperatorCompleted(pOperator);
     return NULL;
   }
 }
@@ -946,13 +946,8 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->currentGroupId = -1;
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
 
-  pOperator->name = "TableScanOperator";  // for debug purpose
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
+  setOperatorInfo(pOperator, "TableScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = numOfCols;
-  pOperator->pTaskInfo = pTaskInfo;
 
   pInfo->metaCache.pTableMetaEntryCache = taosLRUCacheInit(1024 * 128, -1, .5);
   if (pInfo->metaCache.pTableMetaEntryCache == NULL) {
@@ -961,7 +956,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   }
 
   taosLRUCacheSetStrictCapacity(pInfo->metaCache.pTableMetaEntryCache, false);
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScan, NULL, NULL, destroyTableScanOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScan, NULL, destroyTableScanOperatorInfo,
                                          getTableScannerExecInfo);
 
   // for non-blocking operator, the open cost is always 0
@@ -985,14 +980,8 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pReadHandle, SExecTaskInfo* 
   pInfo->dataReader = pReadHandle;
   //  pInfo->prevGroupId       = -1;
 
-  pOperator->name = "TableSeqScanOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
-
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScanImpl, NULL, NULL, NULL, NULL);
+  setOperatorInfo(pOperator, "TableSeqScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScanImpl, NULL, NULL, NULL);
   return pOperator;
 }
 
@@ -1147,15 +1136,8 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
     goto _error;
   }
 
-  pOperator->name = "DataBlockDistScanOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
-
-  pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doBlockInfoScan, NULL, NULL, destroyBlockDistScanOperatorInfo, NULL);
+  setOperatorInfo(pOperator, "DataBlockDistScanOperator", QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doBlockInfoScan, NULL, destroyBlockDistScanOperatorInfo, NULL);
   return pOperator;
 
 _error:
@@ -1437,7 +1419,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
     uint64_t groupId = getGroupIdByData(pInfo, uidCol[i], startData[i], version);
     // gap must be 0.
     SSessionKey startWin = {0};
-    getCurSessionWindow(pInfo->windowSup.pStreamAggSup, startData[i], endData[i], groupId, &startWin);
+    getCurSessionWindow(pInfo->windowSup.pStreamAggSup, startData[i], startData[i], groupId, &startWin);
     if (IS_INVALID_SESSION_WIN_KEY(startWin)) {
       // window has been closed.
       continue;
@@ -2369,11 +2351,9 @@ SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pT
   pInfo->vnode = pHandle->vnode;
 
   pInfo->sContext = pHandle->sContext;
-  pOperator->name = "RawScanOperator";
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
+  setOperatorInfo(pOperator, "RawScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
 
-  pOperator->fpSet = createOperatorFpSet(NULL, doRawScan, NULL, NULL, destroyRawScanOperatorInfo, NULL);
+  pOperator->fpSet = createOperatorFpSet(NULL, doRawScan, NULL, destroyRawScanOperatorInfo, NULL);
   return pOperator;
 
 _end:
@@ -2557,16 +2537,11 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
   pInfo->partitionSup.needCalc = false;
 
-  pOperator->name = "StreamScanOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
+  setOperatorInfo(pOperator, "StreamScanOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
-  pOperator->pTaskInfo = pTaskInfo;
 
   __optr_fn_t nextFn = pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM ? doStreamScan : doQueueScan;
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, nextFn, NULL, NULL, destroyStreamScanOperatorInfo, NULL);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, nextFn, NULL, destroyStreamScanOperatorInfo, NULL);
 
   return pOperator;
 
@@ -2901,7 +2876,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     }
     blockDataDestroy(dataBlock);
     pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
-    doSetOperatorCompleted(pOperator);
+    setOperatorCompleted(pOperator);
     return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   }
 
@@ -2954,7 +2929,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   if (ret != 0) {
     metaCloseTbCursor(pInfo->pCur);
     pInfo->pCur = NULL;
-    doSetOperatorCompleted(pOperator);
+    setOperatorCompleted(pOperator);
   }
 
   pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
@@ -3744,7 +3719,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
   }
 
   if (i >= taosArrayGetSize(pIdx->uids)) {
-    doSetOperatorCompleted(pOperator);
+    setOperatorCompleted(pOperator);
   } else {
     pIdx->lastIdx = i + 1;
   }
@@ -3926,7 +3901,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   if (ret != 0) {
     metaCloseTbCursor(pInfo->pCur);
     pInfo->pCur = NULL;
-    doSetOperatorCompleted(pOperator);
+    setOperatorCompleted(pOperator);
   }
 
   pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
@@ -3948,7 +3923,7 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
     doFilterResult(pInfo->pRes, pOperator->exprSupp.pFilterInfo);
     pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
 
-    doSetOperatorCompleted(pOperator);
+    setOperatorCompleted(pOperator);
     return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   } else {
     if (pInfo->showRewrite == false) {
@@ -4200,15 +4175,9 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
     pInfo->readHandle = *(SReadHandle*)readHandle;
   }
 
-  pOperator->name = "SysTableScanOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
+  setOperatorInfo(pOperator, "SysTableScanOperator", QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
-  pOperator->pTaskInfo = pTaskInfo;
-
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doSysTableScan, NULL, NULL, destroySysScanOperator, NULL);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doSysTableScan, NULL, destroySysScanOperator, NULL);
   return pOperator;
 
 _error:
@@ -4284,7 +4253,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
 
     count += 1;
     if (++pInfo->curPos >= size) {
-      doSetOperatorCompleted(pOperator);
+      setOperatorCompleted(pOperator);
     }
   }
 
@@ -4336,18 +4305,11 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   pInfo->readHandle = *pReadHandle;
   pInfo->curPos = 0;
 
-  pOperator->name = "TagScanOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
-
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
-
+  setOperatorInfo(pOperator, "TagScanOperator", QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTagScan, NULL, NULL, destroyTagScanOperatorInfo, NULL);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTagScan, NULL, destroyTagScanOperatorInfo, NULL);
 
   return pOperator;
 
@@ -4714,7 +4676,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
     pInfo->hasGroupId = true;
 
     if (tableListSize == 0) {
-      doSetOperatorCompleted(pOperator);
+      setOperatorCompleted(pOperator);
       return NULL;
     }
     pInfo->tableStartIndex = 0;
@@ -4733,7 +4695,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
     } else {
       stopGroupTableMergeScan(pOperator);
       if (pInfo->tableEndIndex >= tableListSize - 1) {
-        doSetOperatorCompleted(pOperator);
+        setOperatorCompleted(pOperator);
         break;
       }
       pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
@@ -4853,15 +4815,10 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   int32_t rowSize = pInfo->pResBlock->info.rowSize;
   pInfo->bufPageSize = getProperSortPageSize(rowSize);
 
-  pOperator->name = "TableMergeScanOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
+  setOperatorInfo(pOperator, "TableMergeScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = numOfCols;
-  pOperator->pTaskInfo = pTaskInfo;
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableMergeScan, NULL, NULL,
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableMergeScan, NULL,
                                          destroyTableMergeScanOperatorInfo, getTableMergeScanExplainExecInfo);
   pOperator->cost.openCost = 0;
   return pOperator;

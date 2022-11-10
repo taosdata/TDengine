@@ -1,11 +1,4 @@
-#include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncEnv.h"
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncRaftLog.h"
-#include "syncRaftStore.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -38,10 +31,10 @@ void test2() {
   pSyncMsg->isWeak = 1;
   strcpy(pSyncMsg->data, "test2");
 
-  SSyncRaftEntry* pEntry = syncEntryBuild2(pSyncMsg, 100, 200);
+  SSyncRaftEntry* pEntry = syncEntryBuildFromClientRequest(pSyncMsg, 100, 200);
   syncEntryPrint(pEntry);
 
-  syncClientRequestDestroy(pSyncMsg);
+  taosMemoryFree(pSyncMsg);
   syncEntryDestory(pEntry);
 }
 
@@ -52,10 +45,10 @@ void test3() {
   pSyncMsg->isWeak = 1;
   strcpy(pSyncMsg->data, "test3");
 
-  SSyncRaftEntry* pEntry = syncEntryBuild3(pSyncMsg, 100, 200);
+  SSyncRaftEntry* pEntry = syncEntryBuildFromClientRequest(pSyncMsg, 100, 200);
   syncEntryPrint(pEntry);
 
-  syncClientRequestDestroy(pSyncMsg);
+  taosMemoryFree(pSyncMsg);
   syncEntryDestory(pEntry);
 }
 
@@ -71,14 +64,7 @@ void test4() {
   strcpy(pEntry->data, "test4");
   syncEntryPrint(pEntry);
 
-  uint32_t len;
-  char*    serialized = syncEntrySerialize(pEntry, &len);
-  assert(serialized != NULL);
-  SSyncRaftEntry* pEntry2 = syncEntryDeserialize(serialized, len);
-  syncEntryPrint(pEntry2);
-
-  taosMemoryFree(serialized);
-  syncEntryDestory(pEntry2);
+  // syncEntryDestory(pEntry2);
   syncEntryDestory(pEntry);
 }
 

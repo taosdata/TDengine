@@ -143,6 +143,7 @@ static FORCE_INLINE void     cliUpdateFqdnCache(SHashObj* cache, char* fqdn);
 static void cliHandleResp(SCliConn* conn);
 // handle except about conn
 static void cliHandleExcept(SCliConn* conn);
+static void cliReleaseUnfinishedMsg(SCliConn* conn);
 
 // handle req from app
 static void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd);
@@ -163,17 +164,6 @@ static void      destroyThrdObj(SCliThrd* pThrd);
 
 static void cliWalkCb(uv_handle_t* handle, void* arg);
 
-static void cliReleaseUnfinishedMsg(SCliConn* conn) {
-  for (int i = 0; i < transQueueSize(&conn->cliMsgs); i++) {
-    SCliMsg* msg = transQueueGet(&conn->cliMsgs, i);
-    if (msg != NULL && msg->ctx != NULL && msg->ctx->ahandle != (void*)0x9527) {
-      if (conn->ctx.freeFunc != NULL && msg->ctx->ahandle != NULL) {
-        conn->ctx.freeFunc(msg->ctx->ahandle);
-      }
-    }
-    destroyCmsg(msg);
-  }
-}
 #define CLI_RELEASE_UV(loop)        \
   do {                              \
     uv_walk(loop, cliWalkCb, NULL); \
@@ -266,6 +256,23 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
 
 static void* cliWorkThread(void* arg);
 
+static void cliReleaseUnfinishedMsg(SCliConn* conn) {
+  SCliThrd* pThrd = conn->hostThrd;
+  STrans*   pTransInst = pThrd->pTransInst;
+
+  for (int i = 0; i < transQueueSize(&conn->cliMsgs); i++) {
+    SCliMsg* msg = transQueueGet(&conn->cliMsgs, i);
+    if (msg != NULL && msg->ctx != NULL && msg->ctx->ahandle != (void*)0x9527) {
+      if (conn->ctx.freeFunc != NULL && msg->ctx->ahandle != NULL) {
+        conn->ctx.freeFunc(msg->ctx->ahandle);
+      } else if (msg->ctx->ahandle != NULL && pTransInst->destroyFp != NULL) {
+        tDebug("%s conn %p destroy unfinished ahandle %p", CONN_GET_INST_LABEL(conn), conn, msg->ctx->ahandle);
+        pTransInst->destroyFp(msg->ctx->ahandle);
+      }
+    }
+    destroyCmsg(msg);
+  }
+}
 bool cliMaySendCachedMsg(SCliConn* conn) {
   if (!transQueueEmpty(&conn->cliMsgs)) {
     SCliMsg* pCliMsg = NULL;
@@ -474,7 +481,7 @@ void* destroyConnPool(void* pool) {
 }
 
 static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
-  char key[32] = {0};
+  char key[TSDB_FQDN_LEN + 64] = {0};
   CONN_CONSTRUCT_HASH_KEY(key, ip, port);
 
   SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
@@ -525,7 +532,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   conn->status = ConnInPool;
 
   if (conn->list == NULL) {
-    char key[32] = {0};
+    char key[TSDB_FQDN_LEN + 64] = {0};
     CONN_CONSTRUCT_HASH_KEY(key, conn->ip, conn->port);
     tTrace("%s conn %p added to conn pool, read buf cap:%d", CONN_GET_INST_LABEL(conn), conn, conn->readBuf.cap);
     conn->list = taosHashGet((SHashObj*)pool, key, strlen(key));

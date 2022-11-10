@@ -575,16 +575,6 @@ int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow) {
   return n;
 }
 
-int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow) {
-  int32_t n = 0;
-
-  n += tGetI64(p, &pRow->version);
-  pRow->pTSRow = (STSRow *)(p + n);
-  n += pRow->pTSRow->len;
-
-  return n;
-}
-
 int32_t tsdbRowCmprFn(const void *p1, const void *p2) {
   return tsdbKeyCmprFn(&TSDBROW_KEY((TSDBROW *)p1), &TSDBROW_KEY((TSDBROW *)p2));
 }
@@ -607,7 +597,7 @@ void tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
 SColVal *tRowIterNext(SRowIter *pIter) {
   if (pIter->pRow->type == 0) {
     if (pIter->i < pIter->pTSchema->numOfCols) {
-      tsdbRowGetColVal(pIter->pRow, pIter->pTSchema, pIter->i, &pIter->colVal);
+      tTSRowGetVal(pIter->pRow->pTSRow, pIter->pTSchema, pIter->i, &pIter->colVal);
       pIter->i++;
 
       return &pIter->colVal;
@@ -1053,7 +1043,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   tRowIterInit(&rIter, pRow, pTSchema);
   pColVal = tRowIterNext(&rIter);
   for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
-    SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
+    SColData *pColData = &((SColData *)pBlockData->aColData->pData)[iColData];
 
     while (pColVal && pColVal->cid < pColData->cid) {
       pColVal = tRowIterNext(&rIter);
@@ -1435,111 +1425,6 @@ int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg) {
   n += tGetI64(p + n, &pColAgg->min);
 
   return n;
-}
-
-#define SMA_UPDATE(SUM_V, MIN_V, MAX_V, VAL, MINSET, MAXSET) \
-  do {                                                       \
-    (SUM_V) += (VAL);                                        \
-    if (!(MINSET)) {                                         \
-      (MIN_V) = (VAL);                                       \
-      (MINSET) = 1;                                          \
-    } else if ((MIN_V) > (VAL)) {                            \
-      (MIN_V) = (VAL);                                       \
-    }                                                        \
-    if (!(MAXSET)) {                                         \
-      (MAX_V) = (VAL);                                       \
-      (MAXSET) = 1;                                          \
-    } else if ((MAX_V) < (VAL)) {                            \
-      (MAX_V) = (VAL);                                       \
-    }                                                        \
-  } while (0)
-
-static FORCE_INLINE void tSmaUpdateBool(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet) {
-  int8_t val = *(int8_t *)&pColVal->value.val ? 1 : 0;
-  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
-}
-static FORCE_INLINE void tSmaUpdateTinyint(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet,
-                                           uint8_t *maxSet) {
-  int8_t val = *(int8_t *)&pColVal->value.val;
-  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
-}
-static FORCE_INLINE void tSmaUpdateSmallint(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet,
-                                            uint8_t *maxSet) {
-  int16_t val = *(int16_t *)&pColVal->value.val;
-  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
-}
-static FORCE_INLINE void tSmaUpdateInt(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet) {
-  int32_t val = *(int32_t *)&pColVal->value.val;
-  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
-}
-static FORCE_INLINE void tSmaUpdateBigint(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet) {
-  int64_t val = *(int64_t *)&pColVal->value.val;
-  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
-}
-static FORCE_INLINE void tSmaUpdateFloat(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet) {
-  float val = *(float *)&pColVal->value.val;
-  SMA_UPDATE(*(double *)&pColAgg->sum, *(double *)&pColAgg->min, *(double *)&pColAgg->max, val, *minSet, *maxSet);
-}
-static FORCE_INLINE void tSmaUpdateDouble(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet) {
-  double val = *(double *)&pColVal->value.val;
-  SMA_UPDATE(*(double *)&pColAgg->sum, *(double *)&pColAgg->min, *(double *)&pColAgg->max, val, *minSet, *maxSet);
-}
-static FORCE_INLINE void tSmaUpdateUTinyint(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet,
-                                            uint8_t *maxSet) {
-  uint8_t val = *(uint8_t *)&pColVal->value.val;
-  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
-}
-static FORCE_INLINE void tSmaUpdateUSmallint(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet,
-                                             uint8_t *maxSet) {
-  uint16_t val = *(uint16_t *)&pColVal->value.val;
-  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
-}
-static FORCE_INLINE void tSmaUpdateUInt(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet) {
-  uint32_t val = *(uint32_t *)&pColVal->value.val;
-  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
-}
-static FORCE_INLINE void tSmaUpdateUBigint(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet,
-                                           uint8_t *maxSet) {
-  uint64_t val = *(uint64_t *)&pColVal->value.val;
-  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
-}
-void (*tSmaUpdateImpl[])(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet) = {
-    NULL,
-    tSmaUpdateBool,       // TSDB_DATA_TYPE_BOOL
-    tSmaUpdateTinyint,    // TSDB_DATA_TYPE_TINYINT
-    tSmaUpdateSmallint,   // TSDB_DATA_TYPE_SMALLINT
-    tSmaUpdateInt,        // TSDB_DATA_TYPE_INT
-    tSmaUpdateBigint,     // TSDB_DATA_TYPE_BIGINT
-    tSmaUpdateFloat,      // TSDB_DATA_TYPE_FLOAT
-    tSmaUpdateDouble,     // TSDB_DATA_TYPE_DOUBLE
-    NULL,                 // TSDB_DATA_TYPE_VARCHAR
-    tSmaUpdateBigint,     // TSDB_DATA_TYPE_TIMESTAMP
-    NULL,                 // TSDB_DATA_TYPE_NCHAR
-    tSmaUpdateUTinyint,   // TSDB_DATA_TYPE_UTINYINT
-    tSmaUpdateUSmallint,  // TSDB_DATA_TYPE_USMALLINT
-    tSmaUpdateUInt,       // TSDB_DATA_TYPE_UINT
-    tSmaUpdateUBigint,    // TSDB_DATA_TYPE_UBIGINT
-    NULL,                 // TSDB_DATA_TYPE_JSON
-    NULL,                 // TSDB_DATA_TYPE_VARBINARY
-    NULL,                 // TSDB_DATA_TYPE_DECIMAL
-    NULL,                 // TSDB_DATA_TYPE_BLOB
-    NULL,                 // TSDB_DATA_TYPE_MEDIUMBLOB
-};
-void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
-  *pColAgg = (SColumnDataAgg){.colId = pColData->cid};
-  uint8_t minSet = 0;
-  uint8_t maxSet = 0;
-
-  SColVal cv;
-  for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
-    tColDataGetValue(pColData, iVal, &cv);
-
-    if (COL_VAL_IS_VALUE(&cv)) {
-      tSmaUpdateImpl[pColData->type](pColAgg, &cv, &minSet, &maxSet);
-    } else {
-      pColAgg->numOfNull++;
-    }
-  }
 }
 
 int32_t tsdbCmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t nOut,

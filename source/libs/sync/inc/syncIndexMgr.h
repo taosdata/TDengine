@@ -20,11 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "taosdef.h"
 
 // SIndexMgr -----------------------------
 typedef struct SSyncIndexMgr {

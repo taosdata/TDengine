@@ -244,7 +244,7 @@ int32_t      blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColIn
 SColumnInfoData  createColumnInfoData(int16_t type, int32_t bytes, int16_t colId);
 SColumnInfoData* bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index);
 
-void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols, int8_t needCompress);
+int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols);
 const char* blockDecode(SSDataBlock* pBlock, const char* pData);
 
 void blockDebugShowDataBlock(SSDataBlock* pBlock, const char* flag);

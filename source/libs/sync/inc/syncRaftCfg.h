@@ -20,12 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "cJSON.h"
 #include "syncInt.h"
-#include "taosdef.h"
 
 #define CONFIG_FILE_LEN 2048
 

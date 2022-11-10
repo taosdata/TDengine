@@ -1998,6 +1998,7 @@ int32_t ctgLaunchGetDbInfoTask(SCtgTask* pTask) {
     pInfo->vgVer = dbCache->vgCache.vgInfo->vgVersion;
     pInfo->dbId = dbCache->dbId;
     pInfo->tbNum = dbCache->vgCache.vgInfo->numOfTable;
+    pInfo->stateTs = dbCache->vgCache.vgInfo->stateTs;
 
     ctgReleaseVgInfoToCache(pCtg, dbCache);
     dbCache = NULL;

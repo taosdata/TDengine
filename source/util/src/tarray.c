@@ -26,12 +26,14 @@ SArray* taosArrayInit(size_t size, size_t elemSize) {
 
   SArray* pArray = taosMemoryMalloc(sizeof(SArray));
   if (pArray == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   pArray->size = 0;
   pArray->pData = taosMemoryCalloc(size, elemSize);
   if (pArray->pData == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pArray);
     return NULL;
   }
