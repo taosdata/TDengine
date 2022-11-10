@@ -146,6 +146,12 @@ void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   }
   taosMemoryFreeClear(pMsgBody);
 }
+void destroyAhandle(void *ahandle) {
+  SMsgSendInfo *pSendInfo = ahandle;
+  if (pSendInfo == NULL) return;
+
+  destroySendMsgInfo(pSendInfo);
+}
 
 int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo,
                                 bool persistHandle, void* rpcCtx) {

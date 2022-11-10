@@ -575,16 +575,6 @@ int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow) {
   return n;
 }
 
-int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow) {
-  int32_t n = 0;
-
-  n += tGetI64(p, &pRow->version);
-  pRow->pTSRow = (STSRow *)(p + n);
-  n += pRow->pTSRow->len;
-
-  return n;
-}
-
 int32_t tsdbRowCmprFn(const void *p1, const void *p2) {
   return tsdbKeyCmprFn(&TSDBROW_KEY((TSDBROW *)p1), &TSDBROW_KEY((TSDBROW *)p2));
 }
@@ -1053,7 +1043,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   tRowIterInit(&rIter, pRow, pTSchema);
   pColVal = tRowIterNext(&rIter);
   for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
-    SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
+    SColData *pColData = &((SColData *)pBlockData->aColData->pData)[iColData];
 
     while (pColVal && pColVal->cid < pColData->cid) {
       pColVal = tRowIterNext(&rIter);

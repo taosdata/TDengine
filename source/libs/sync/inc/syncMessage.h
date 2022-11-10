@@ -20,12 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "cJSON.h"
 #include "syncInt.h"
-#include "taosdef.h"
 
 // ---------------------------------------------
 cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg);
