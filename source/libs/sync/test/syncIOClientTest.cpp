@@ -1,10 +1,4 @@
-#include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
-#include "tdatablock.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");

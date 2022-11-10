@@ -3096,27 +3096,86 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   }
 #else
   int64_t* pts = (int64_t*)pInput->pPTS->pData;
-  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-    if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
-      continue;
-    }
 
-    numOfElems++;
+#if 0
+    for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+        continue;
+      }
 
-    char* data = colDataGetData(pInputCol, i);
-    TSKEY cts = pts[i];
-    if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
-      doSaveCurrentVal(pCtx, i, cts, type, data);
-      pResInfo->numOfRes = 1;
+      numOfElems++;
+      if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
+        char* data = colDataGetData(pInputCol, i);
+        doSaveCurrentVal(pCtx, i, pts[i], type, data);
+        pResInfo->numOfRes = 1;
+      }
     }
-  }
+#else
+    if (!pInputCol->hasNull) {
+      numOfElems = 1;
+
+      int32_t round = pInput->numOfRows >> 2;
+      int32_t reminder = pInput->numOfRows & 0x03;
+
+      int32_t tick = 0;
+      for (int32_t i = pInput->startRowIndex; tick < round; i += 4, tick += 1) {
+        int64_t cts = pts[i];
+        int32_t chosen = i;
+
+        if (cts < pts[i + 1]) {
+          cts = pts[i + 1];
+          chosen = i + 1;
+        }
+
+        if (cts < pts[i + 2]) {
+          cts = pts[i + 2];
+          chosen = i + 2;
+        }
+
+        if (cts < pts[i + 3]) {
+          cts = pts[i + 3];
+          chosen = i + 3;
+        }
+
+        if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
+          char* data = colDataGetData(pInputCol, chosen);
+          doSaveCurrentVal(pCtx, i, cts, type, data);
+          pResInfo->numOfRes = 1;
+        }
+      }
+
+      for (int32_t i = pInput->startRowIndex + round * 4; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+        if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
+          char* data = colDataGetData(pInputCol, i);
+          doSaveCurrentVal(pCtx, i, pts[i], type, data);
+          pResInfo->numOfRes = 1;
+        }
+      }
+    } else {
+      for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+        if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+          continue;
+        }
+
+        numOfElems++;
+
+        if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
+          char* data = colDataGetData(pInputCol, i);
+          doSaveCurrentVal(pCtx, i, pts[i], type, data);
+          pResInfo->numOfRes = 1;
+        }
+      }
+    }
+#endif
+
 #endif
 
   // save selectivity value for column consisted of all null values
   if (numOfElems == 0) {
     firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
   }
-  SET_VAL(pResInfo, numOfElems, 1);
+
+//  SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3266,8 +3325,8 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
 #if 0
   int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
 
-  // the optimized version only function if all tuples in one block are monotonious increasing or descreasing.
-  // this is NOT always works if project operator exists in downstream.
+  // the optimized version only valid if all tuples in one block are monotonious increasing or descreasing.
+  // this assumption is NOT always works if project operator exists in downstream.
   if (blockDataOrder == TSDB_ORDER_ASC) {
     for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
       char* data = colDataGetData(pInputCol, i);

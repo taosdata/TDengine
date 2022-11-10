@@ -181,7 +181,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
     struct SCatalog* pCatalog = NULL;
 
-    if (usedbRsp.vgVersion >= 0) {
+    if (usedbRsp.vgVersion >= 0) { // cached in local
       uint64_t clusterId = pRequest->pTscObj->pAppInfo->clusterId;
       int32_t  code1 = catalogGetHandle(clusterId, &pCatalog);
       if (code1 != TSDB_CODE_SUCCESS) {
@@ -442,8 +442,7 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->numOfRows = htonl(pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
-  int32_t len = 0;
-  blockEncode(pBlock, (*pRsp)->data, &len, SHOW_VARIABLES_RESULT_COLS, false);
+  int32_t len = blockEncode(pBlock, (*pRsp)->data, SHOW_VARIABLES_RESULT_COLS);
   ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
 
   blockDataDestroy(pBlock);
