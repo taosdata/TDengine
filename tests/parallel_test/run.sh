@@ -208,7 +208,7 @@ function run_thread() {
         start_time=`date +%s`
         local case_index=`flock -x $lock_file -c "sh -c \"echo \\\$(( \\\$( cat $index_file ) + 1 )) | tee $index_file\""`
         case_index=`printf "%5d" $case_index`
-        local case_info=`echo "$line"|cut -d, -f 3,4`
+        local case_info=`echo "$line"|cut -d, -f 4,5`
         while [ ${redo_count} -lt 6 ]; do
             if [ -f $case_log_file ]; then
                 cp $case_log_file $log_dir/$case_file.${redo_count}.redotxt
@@ -422,7 +422,7 @@ if [ -f "${failed_case_file}" ]; then
                 continue
             fi
         fi
-        line=`echo "$line"|cut -d, -f 3,4`
+        line=`echo "$line"|cut -d, -f 4,5`
         echo -e "$i. $line \e[31m failed\e[0m" >&2
         i=$(( i + 1 ))
     done <${failed_case_file}
