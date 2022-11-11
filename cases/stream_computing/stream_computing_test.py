@@ -679,6 +679,17 @@ class StreamComputingTest(TDCase):
 
                 self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
 
+    def subtable_exceed_test(self):
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data()
+        exceed_child_tbname = self.tdCom.get_long_name(self.tdCom.Boundary.CHILD_TBNAME_MAX_LENGTH + 1)
+        self.tdSql.execute(f'create stream if not exists subtable_exceed_test_ct1_stream_execute trigger at_once into subtable_exceed_test_ct1_output_exceed subtable("{exceed_child_tbname}") as select _wstart AS start, min(c1),max(c2),sum(c3),first(c4),last(c5),apercentile(c6, 50),avg(c7),count(c8),spread(c1),stddev(c2),hyperloglog(c11),timediff(1, 0, 1h),timezone(),to_iso8601(1),to_unixtimestamp("1970-01-01T08:00:00+08:00"),min(t1),max(t2),sum(t3),first(t4),last(t5),apercentile(t6, 50),avg(t7),count(t8),spread(t1),stddev(t2),hyperloglog(t11) from subtable_exceed_test_ct1 partition by tbname ptn_alias session(ts, 15s);')
+        ctb_name = self.tdCom.get_long_name()
+        self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
+        self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.date_time, need_null=True)
+        self.tdSql.query(f'select * from information_schema.ins_tables where table_name = "{exceed_child_tbname[:-1]}"')
+        self.tdSql.checkEqual(self.tdSql.query_row, 1)
+        
     def at_once_session(self, session, ignore_expired=None, partition="tbname", delete=False):
         self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
@@ -700,14 +711,11 @@ class StreamComputingTest(TDCase):
             stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as binary(20))), "{self.subtable_suffix}")' if self.subtable else None
             ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast(cast({partition_elm_alias} as bigint) as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
             # TODO confirm
-            tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast(cast({partition_elm_alias} as bigint unsigned) as nchar(20))), "{self.subtable_suffix}")' if self.subtable else None
+            tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast(cast({partition_elm_alias} as bigint) as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
         
 
         self.tdCom.write_latency(self.case_name)
         # create stb/ctb/tb stream
-        # ! TD-20335
-        # self.tdSql.error(f'create stream if not exists at_once_session_ct1_stream_error trigger at_once into at_once_session_ct1_output_error subtable("{exceed_child_tbname}") as select _wstart AS start, min(c1),max(c2),sum(c3),first(c4),last(c5),apercentile(c6, 50),avg(c7),count(c8),spread(c1),stddev(c2),hyperloglog(c11),timediff(1, 0, 1h),timezone(),to_iso8601(1),to_unixtimestamp("1970-01-01T08:00:00+08:00"),min(t1),max(t2),sum(t3),first(t4),last(t5),apercentile(t6, 50),avg(t7),count(t8),spread(t1),stddev(t2),hyperloglog(t11) from at_once_session_ct1 partition by tbname ptn_alias session(ts, 15s);')
-
         self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str} from {self.ctb_name} partition by {partition} {partition_elm_alias} session(ts, {self.dataDict["session"]}s)', trigger_mode="at_once", ignore_expired=ignore_expired, subtable_value=ctb_subtable_value)
         self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, {self.tb_source_select_str} from {self.tb_name} partition by {partition} {partition_elm_alias} session(ts, {self.dataDict["session"]}s)', trigger_mode="at_once", ignore_expired=ignore_expired, subtable_value=tb_subtable_value)
 
@@ -749,9 +757,8 @@ class StreamComputingTest(TDCase):
             if partition != "tbname":
                 for colname in self.partition_by_downsampling_function_list:
                     if "first" not in colname and "last" not in colname:
-                        self.tdCom.check_query_data(f'select start, {self.tb_output_select_str} from {self.ctb_stream_des_table} order by `min(c1)`,`max(c2)`,`sum(c3)`;', f'select _wstart AS start, {self.tb_source_select_str} from {self.ctb_name} partition by {partition} session(ts, {self.dataDict["session"]}s) order by `min(c1)`,`max(c2)`,`sum(c3)`;', sorted=True)
-                        # ! TD-19844
-                        self.tdCom.check_query_data(f'select start, {self.tb_output_select_str} from {self.tb_stream_des_table} order by `min(c1)`,`max(c2)`,`sum(c3)`;', f'select _wstart AS start, {self.tb_source_select_str} from {self.tb_name} partition by {partition} session(ts, {self.dataDict["session"]}s) order by `min(c1)`,`max(c2)`,`sum(c3)`;')
+                        self.tdCom.check_query_data(f'select start, {self.tb_output_select_str} from {self.ctb_stream_des_table} order by start, `min(c1)`,`max(c2)`,`sum(c3)`;', f'select _wstart AS start, {self.tb_source_select_str} from {self.ctb_name} partition by {partition} session(ts, {self.dataDict["session"]}s) order by start, `min(c1)`,`max(c2)`,`sum(c3)`;', sorted=True)
+                        self.tdCom.check_query_data(f'select start, {self.tb_output_select_str} from {self.tb_stream_des_table} order by start, `min(c1)`,`max(c2)`,`sum(c3)`;', f'select _wstart AS start, {self.tb_source_select_str} from {self.tb_name} partition by {partition} session(ts, {self.dataDict["session"]}s) order by start, `min(c1)`,`max(c2)`,`sum(c3)`;')
             else:
                 for tbname in [self.tb_name]:
                     if tbname != self.tb_name:
@@ -790,30 +797,32 @@ class StreamComputingTest(TDCase):
             self.tdSql.query(f'select * from {self.ctb_name}')
             ptn_counter = 0
             for c1_value in self.tdSql.query_data:
-                if partition == "c1":
-                    self.tdSql.query(f'select count(*) from `{self.ctb_name}_{self.subtable_prefix}{c1_value[1]}{self.subtable_suffix}`;')
-                elif partition == "abs(c1)":
-                    abs_c1_value = abs(c1_value[1])
-                    self.tdSql.query(f'select count(*) from `{self.ctb_name}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}`;')
-                elif partition == "tbname" and ptn_counter == 0:
-                    self.tdSql.query(f'select count(*) from `{self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;')
-                    ptn_counter += 1
-        # self.tdSql.query(f'select count(*) from {self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
-                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                if c1_value is not None:
+                    if partition == "c1":
+                        self.tdSql.query(f'select count(*) from `{self.ctb_name}_{self.subtable_prefix}{c1_value[1]}{self.subtable_suffix}`;')
+                    elif partition == "abs(c1)":
+                        abs_c1_value = abs(c1_value[1])
+                        self.tdSql.query(f'select count(*) from `{self.ctb_name}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}`;')
+                    elif partition == "tbname" and ptn_counter == 0:
+                        self.tdSql.query(f'select count(*) from `{self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;')
+                        ptn_counter += 1
+            # self.tdSql.query(f'select count(*) from {self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
 
             self.tdSql.query(f'select * from {self.tb_name}')
             ptn_counter = 0
             for c1_value in self.tdSql.query_data:
-                if partition == "c1":
-                    self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{c1_value[1]}{self.subtable_suffix}`;')
-                elif partition == "abs(c1)":
-                    abs_c1_value = abs(c1_value[1])
-                    self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}`;')
-                elif partition == "tbname" and ptn_counter == 0:
-                    self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}`;')
-                    ptn_counter += 1
+                if c1_value[1] is not None:
+                    if partition == "c1":
+                        self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{c1_value[1]}{self.subtable_suffix}`;')
+                    elif partition == "abs(c1)":
+                        abs_c1_value = abs(c1_value[1])
+                        self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}`;')
+                    elif partition == "tbname" and ptn_counter == 0:
+                        self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}`;')
+                        ptn_counter += 1
 
-                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
 
     def window_close_interval(self, interval, watermark=None, ignore_expired=None, partition="tbname"):
         self.case_name = sys._getframe().f_code.co_name
@@ -1651,78 +1660,78 @@ class StreamComputingTest(TDCase):
     def run(self):
         # self.subtable = False
         # self.vgroups = 10
-        
+        self.window_close_state_window(state_window="c1")
         # self.at_once_session(session=random.randint(10, 15), partition="tbname")
         # # 
-        # self.at_once_session(session=random.randint(10, 15), partition="c1")
-        # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)")
+        # ! TD-20351
         # self.at_once_session(session=random.randint(10, 15), partition="tbname", delete=True)
         # self.at_once_session(session=random.randint(10, 15), partition="c1", delete=True)
         # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True)
         # self.at_once_session(session=random.randint(10, 15), ignore_expired=0)
         # return
-        for vgroups in self.vgroups_list:
-            self.vgroups = vgroups
-            self.create_none_db_stream()
-            self.create_none_source_tb_stream()
-            self.create_none_source_tb_tag_stream()
-            self.create_none_source_tb_col_stream()
-            self.create_error_source_sql_stream()
-            # ! TD-20280
-            # self.insert_after_restart()
-            ## ! TD-18123
-            # self.insert_after_recreate_source_table()
-            self.query_after_drop_stream_db()
-            self.data_filter()
-            self.data_filter(delete=True)
-            self.life_cycle()
-            self.scalar_function(partition="tbname")
-            self.scalar_function(partition="tbname", delete=True)
-            self.scalar_function(partition="tbname,c1")
-            self.scalar_function(partition="tbname,c1", delete=True)
-            self.stream_tandem()
-            self.udf_test(8, "int")
-            self.udaf_test(10, 8, "double")
+        # for vgroups in self.vgroups_list:
+        #     self.vgroups = vgroups
+        #     self.create_none_db_stream()
+        #     self.create_none_source_tb_stream()
+        #     self.create_none_source_tb_tag_stream()
+        #     self.create_none_source_tb_col_stream()
+        #     self.create_error_source_sql_stream()
+        #     # ! TD-20280
+        #     # self.insert_after_restart()
+        #     ## ! TD-18123
+        #     # self.insert_after_recreate_source_table()
+        #     self.query_after_drop_stream_db()
+        #     self.data_filter()
+        #     self.data_filter(delete=True)
+        #     self.life_cycle()
+        #     self.scalar_function(partition="tbname")
+        #     self.scalar_function(partition="tbname", delete=True)
+        #     self.scalar_function(partition="tbname,c1")
+        #     self.scalar_function(partition="tbname,c1", delete=True)
+        #     self.stream_tandem()
+        #     self.udf_test(8, "int")
+        #     self.udaf_test(10, 8, "double")
             
-            self.at_once_interval(interval=random.randint(10, 15), partition="tbname")
-            self.at_once_interval(interval=random.randint(10, 15), partition="c1")
-            self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)")
-            self.at_once_interval(interval=random.randint(10, 15), partition="tbname", delete=True)
-            self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
-            self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
-            self.at_once_state_window(state_window="c1", partition="tbname")
-            self.at_once_state_window(state_window="c1", partition="c1")
-            self.at_once_state_window(state_window="c1", partition="abs(c1)")
-            self.at_once_state_window(state_window="c1", partition="tbname", delete=True)
-            self.at_once_state_window(state_window="c1", partition="c1", delete=True)
-            self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True)
-            self.at_once_session(session=random.randint(10, 15), partition="tbname")
-            # ! TD-20321
-            # self.at_once_session(session=random.randint(10, 15), partition="c1")
-            # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)")
-            # self.at_once_session(session=random.randint(10, 15), partition="tbname", delete=True)
-            # self.at_once_session(session=random.randint(10, 15), partition="c1", delete=True)
-            # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True)
-            # self.at_once_session(session=random.randint(10, 15), ignore_expired=0)
-            self.window_close_interval(interval=random.randint(10, 15), watermark=None)
-            self.window_close_interval(interval=random.randint(10, 15), watermark=None, ignore_expired=0)
-            self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20))
-            # ! TD-20333
-            # self.window_close_state_window(state_window="c1")
-            self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s")
-            # * in this case, when vgroups = 10, max_delay must be set upper than 4, root cause not found 
-            self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
+        #     self.at_once_interval(interval=random.randint(10, 15), partition="tbname")
+        #     self.at_once_interval(interval=random.randint(10, 15), partition="c1")
+        #     self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)")
+        #     self.at_once_interval(interval=random.randint(10, 15), partition="tbname", delete=True)
+        #     self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
+        #     self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
+        #     self.at_once_state_window(state_window="c1", partition="tbname")
+        #     self.at_once_state_window(state_window="c1", partition="c1")
+        #     self.at_once_state_window(state_window="c1", partition="abs(c1)")
+        #     self.at_once_state_window(state_window="c1", partition="tbname", delete=True)
+        #     self.at_once_state_window(state_window="c1", partition="c1", delete=True)
+        #     self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True)
+        #     self.at_once_session(session=random.randint(10, 15), partition="tbname")
+        #     # ! TD-20321
+        #     # self.at_once_session(session=random.randint(10, 15), partition="c1")
+        #     # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)")
+        #     # self.at_once_session(session=random.randint(10, 15), partition="tbname", delete=True)
+        #     # self.at_once_session(session=random.randint(10, 15), partition="c1", delete=True)
+        #     # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True)
+        #     # self.at_once_session(session=random.randint(10, 15), ignore_expired=0)
+        #     self.window_close_interval(interval=random.randint(10, 15), watermark=None)
+        #     self.window_close_interval(interval=random.randint(10, 15), watermark=None, ignore_expired=0)
+        #     self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20))
+        #     # ! TD-20333
+        #     # self.window_close_state_window(state_window="c1")
+        #     self.subtable_exceed_test()
+        #     self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s")
+        #     # * in this case, when vgroups = 10, max_delay must be set upper than 4, root cause not found 
+        #     self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
 
-            self.watermark_window_close_session(session=random.randint(10, 15), watermark=None)
-            self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 30))
-            self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s")
-            self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s")
-            self.partitionby_interval(interval=None, partition_by_elm="tbname")
-            self.partitionby_interval(interval=None, partition_by_elm="tbname", ignore_expired=0)
-            self.partitionby_interval(interval=10, partition_by_elm="tbname")
-            self.partitionby_interval(interval=10, partition_by_elm="tbname", ignore_expired=0)
-            self.partitionby_interval(interval=10, partition_by_elm="t1")
-            self.partition_tag_by_interval(interval=10, partition_by_elm="t1")
+        #     self.watermark_window_close_session(session=random.randint(10, 15), watermark=None)
+        #     self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 30))
+        #     self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s")
+        #     self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s")
+        #     self.partitionby_interval(interval=None, partition_by_elm="tbname")
+        #     self.partitionby_interval(interval=None, partition_by_elm="tbname", ignore_expired=0)
+        #     self.partitionby_interval(interval=10, partition_by_elm="tbname")
+        #     self.partitionby_interval(interval=10, partition_by_elm="tbname", ignore_expired=0)
+        #     self.partitionby_interval(interval=10, partition_by_elm="t1")
+        #     self.partition_tag_by_interval(interval=10, partition_by_elm="t1")
 
             # TODO to be supported
         # self.vgroups = 2
