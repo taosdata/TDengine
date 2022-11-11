@@ -1,26 +1,27 @@
-from distutils.log import error
-import taos
-import sys
-import time
-import socket
 import os
-import threading
-import subprocess
 import platform
+import socket
+import subprocess
+import sys
+import threading
+import time
+from distutils.log import error
 
-from util.log import *
-from util.sql import *
+import taos
 from util.cases import *
-from util.dnodes import *
-from util.dnodes import TDDnodes
-from util.dnodes import TDDnode
 from util.cluster import *
 from util.common import *
+from util.dnodes import *
+from util.dnodes import TDDnode, TDDnodes
+from util.log import *
+from util.sql import *
+
 sys.path.append("./6-cluster")
 sys.path.append("./7-tmq")
-from tmqCommon import *
-from clusterCommonCreate import *
 from clusterCommonCheck import clusterComCheck
+from clusterCommonCreate import *
+from tmqCommon import *
+
 
 class TDTestCase:
     def __init__(self):
@@ -265,6 +266,7 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
+        tmqCom.getStartConsumeNotifyFromTmqsim()
         tdLog.info("================= restart dnode 2===========================")
         cluster.dnodes[1].stoptaosd()
         cluster.dnodes[1].starttaosd()
