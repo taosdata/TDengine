@@ -136,7 +136,21 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
   return 0;
 }
 
-int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
+int32_t syncNodeReplicate(SSyncNode* pNode) {
+  if (pNode->state != TAOS_SYNC_STATE_LEADER || pNode->replicaNum == 1) {
+    return -1;
+  }
+  for (int32_t i = 0; i < pNode->replicaNum; i++) {
+    if (syncUtilSameId(&pNode->replicasId[i], &pNode->myRaftId)) {
+      continue;
+    }
+    SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
+    (void)syncLogBufferReplicateOnce(pMgr, pNode);
+  }
+  return 0;
+}
+
+int32_t syncNodeReplicateOld(SSyncNode* pSyncNode) {
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
     return -1;
   }
@@ -159,6 +173,17 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, SRaftId* destRaftId, SyncAppendEntries* pMsg) {
+  sInfo("vgId:%d, send append entries msg index: %" PRId64 " to dest: 0x%016" PRId64, pSyncNode->vgId,
+        pMsg->prevLogIndex + 1, destRaftId->addr);
+  int32_t ret = 0;
+  pMsg->destId = *destRaftId;
+  SRpcMsg rpcMsg;
+  syncAppendEntries2RpcMsg(pMsg, &rpcMsg);
+  syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
+  return 0;
+}
+
+int32_t syncNodeSendAppendEntriesOld(SSyncNode* pSyncNode, SRaftId* destRaftId, SyncAppendEntries* pMsg) {
   int32_t ret = 0;
   pMsg->destId = *destRaftId;
 

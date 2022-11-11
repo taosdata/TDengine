@@ -18,6 +18,7 @@
 #include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
+#include "syncReplication.h"
 #include "syncSnapshot.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
@@ -318,16 +319,17 @@ int32_t syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   ASSERT(pNode->pFsm != NULL && "pFsm not registered");
   ASSERT(pNode->pFsm->FpGetSnapshotInfo != NULL && "FpGetSnapshotInfo not registered");
 
-  SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
   SSnapshot snapshot;
   if (pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot) < 0) {
     sError("vgId:%d, failed to get snapshot info since %s", pNode->vgId, terrstr());
     goto _err;
   }
 
+  SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
   SyncIndex commitIndex = snapshot.lastApplyIndex;
   SyncTerm  commitTerm = snapshot.lastApplyTerm;
   SyncIndex toIndex = TMAX(lastVer, commitIndex);
+  ASSERT(lastVer >= commitIndex);
 
   // update match index
   pBuf->commitIndex = commitIndex;
@@ -392,7 +394,7 @@ int32_t syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   }
 
   // update startIndex
-  pBuf->startIndex = index;
+  pBuf->startIndex = takeDummy ? index : index + 1;
 
   // validate
   syncLogBufferValidate(pBuf);
@@ -491,18 +493,44 @@ int32_t syncLogBufferRollbackMatchIndex(SSyncLogBuffer* pBuf, SSyncNode* pNode, 
   return 0;
 }
 
+FORCE_INLINE SyncTerm syncLogBufferGetLastMatchTerm(SSyncLogBuffer* pBuf) {
+  SyncIndex       index = pBuf->matchIndex;
+  SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
+  ASSERT(pEntry != NULL);
+  return pEntry->term;
+}
+
 int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevTerm) {
   taosThreadMutexLock(&pBuf->mutex);
   syncLogBufferValidate(pBuf);
-
-  int32_t   ret = 0;
+  int32_t   ret = -1;
   SyncIndex index = pEntry->index;
   SyncIndex prevIndex = pEntry->index - 1;
-  if (index <= pBuf->commitIndex || index - pBuf->startIndex > pBuf->size) {
-    sInfo("vgId:%d, cannot accept index:%" PRId64 " into log buffer. start index: %" PRId64 ", commit index: %" PRId64
-          ", end index:%" PRId64 ")",
-          pNode->vgId, index, pBuf->startIndex, pBuf->commitIndex, pBuf->endIndex);
-    ret = (index <= pBuf->commitIndex) ? 0 : -1;
+  SyncTerm  lastMatchTerm = syncLogBufferGetLastMatchTerm(pBuf);
+
+  if (index <= pBuf->commitIndex) {
+    sInfo("vgId:%d, raft entry already committed. index: %" PRId64 ", term: %" PRId64 ". log buffer: [%" PRId64
+          " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+          pNode->vgId, pEntry->index, pEntry->term, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex,
+          pBuf->endIndex);
+    ret = 0;
+    goto _out;
+  }
+
+  if (index - pBuf->startIndex >= pBuf->size) {
+    sInfo("vgId:%d, raft entry out of buffer capacity. index: %" PRId64 ", term: %" PRId64 ". log buffer: [%" PRId64
+          " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+          pNode->vgId, pEntry->index, pEntry->term, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex,
+          pBuf->endIndex);
+    goto _out;
+  }
+
+  if (index > pBuf->matchIndex && lastMatchTerm != prevTerm) {
+    sInfo("vgId:%d, not ready to accept raft entry (i.e. across barrier). index: %" PRId64 ", term: %" PRId64
+          ": prevterm: %" PRId64 " /= lastmatch: %" PRId64 ". log buffer: [%" PRId64 " %" PRId64 " %" PRId64
+          ", %" PRId64 ")",
+          pNode->vgId, pEntry->index, pEntry->term, prevTerm, lastMatchTerm, pBuf->startIndex, pBuf->commitIndex,
+          pBuf->matchIndex, pBuf->endIndex);
     goto _out;
   }
 
@@ -511,14 +539,16 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   if (pExist != NULL) {
     ASSERT(pEntry->index == pExist->index);
 
-    if (pEntry->term > pExist->term) {
+    if (pEntry->term != pExist->term) {
       (void)syncLogBufferRollback(pBuf, index);
     } else {
-      sInfo("vgId:%d, %s raft entry received. index:%" PRId64 ", term: %" PRId64 "", pNode->vgId,
-            ((pEntry->term < pExist->term) ? "stale" : "duplicate"), pEntry->index, pEntry->term);
+      sInfo("vgId:%d, duplicate raft entry received. index: %" PRId64 ", term: %" PRId64 ". log buffer: [%" PRId64
+            " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+            pNode->vgId, pEntry->index, pEntry->term, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex,
+            pBuf->endIndex);
       SyncTerm existPrevTerm = pBuf->entries[index % pBuf->size].prevLogTerm;
-      ASSERT(pEntry->term < pExist->term || (pEntry->term == pExist->term && prevTerm == existPrevTerm));
-      ret = (pEntry->term < pExist->term) ? 0 : -1;
+      ASSERT(pEntry->term == pExist->term && prevTerm == existPrevTerm);
+      ret = 0;
       goto _out;
     }
   }
@@ -530,6 +560,9 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
 
   // update end index
   pBuf->endIndex = TMAX(index + 1, pBuf->endIndex);
+
+  // success
+  ret = 0;
 
 _out:
   syncEntryDestroy(pEntry);
@@ -550,6 +583,7 @@ SSyncRaftEntry* syncLogAppendEntriesToRaftEntry(const SyncAppendEntries* pMsg) {
 }
 
 int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
+  ASSERT(pEntry->index >= 0);
   SyncIndex lastVer = pLogStore->syncLogLastIndex(pLogStore);
   if (lastVer >= pEntry->index && pLogStore->syncLogTruncate(pLogStore, pEntry->index) < 0) {
     sError("failed to truncate log store since %s. from index:%" PRId64 "", terrstr(), pEntry->index);
@@ -563,6 +597,9 @@ int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
            pEntry->term);
     return -1;
   }
+
+  lastVer = pLogStore->syncLogLastIndex(pLogStore);
+  ASSERT(pEntry->index == lastVer);
   return 0;
 }
 
@@ -607,10 +644,14 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
       goto _out;
     }
 
+    // increase match index
+    pBuf->matchIndex = index;
+
+    sInfo("vgId:%d, log buffer proceed. start index: %" PRId64 ", match index: %" PRId64 ", end index: %" PRId64,
+          pNode->vgId, pBuf->startIndex, pBuf->matchIndex, pBuf->endIndex);
+
     // replicate on demand
-    if (pNode->state == TAOS_SYNC_STATE_LEADER && pNode->replicaNum > 1) {
-      (void)syncLogBufferReplicate(pBuf, pNode, index);
-    }
+    (void)syncNodeReplicate(pNode);
 
     // persist
     if (syncLogStorePersist(pLogStore, pEntry) < 0) {
@@ -618,16 +659,15 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
              terrstr(), pEntry->index);
       goto _out;
     }
-
-    // increment
-    pBuf->matchIndex = index;
-    matchIndex = pBuf->matchIndex;
+    ASSERT(pEntry->index == pBuf->matchIndex);
 
     // update my match index
+    matchIndex = pBuf->matchIndex;
     syncIndexMgrSetIndex(pNode->pMatchIndex, &pNode->myRaftId, pBuf->matchIndex);
   }  // end of while
 
 _out:
+  pBuf->matchIndex = matchIndex;
   syncLogBufferValidate(pBuf);
   taosThreadMutexUnlock(&pBuf->mutex);
   return matchIndex;
@@ -659,7 +699,7 @@ int32_t syncLogBufferValidate(SSyncLogBuffer* pBuf) {
   ASSERT(pBuf->commitIndex <= pBuf->matchIndex);
   ASSERT(pBuf->matchIndex < pBuf->endIndex);
   ASSERT(pBuf->endIndex - pBuf->startIndex <= pBuf->size);
-  for (SyncIndex index = pBuf->commitIndex; index <= pBuf->matchIndex; index++) {
+  for (SyncIndex index = pBuf->startIndex; index <= pBuf->matchIndex; index++) {
     SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
     ASSERT(pEntry != NULL);
   }
@@ -694,19 +734,10 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   // execute in fsm
   for (int64_t index = pBuf->commitIndex + 1; index <= upperIndex; index++) {
     // get a log entry
-    if (index >= pBuf->startIndex) {
-      inBuf = true;
-      pEntry = pBuf->entries[index % pBuf->size].pItem;
-    } else {
-      inBuf = false;
-      if (pLogStore->syncLogGetEntry(pLogStore, index, &pEntry) < 0) {
-        sError("vgId:%d, failed to get log entry since %s. index:%" PRId64 "", pNode->vgId, terrstr(), index);
-        ret = -1;
-        goto _out;
-      }
+    pEntry = syncLogBufferGetOneEntry(pBuf, pNode, index, &inBuf);
+    if (pEntry == NULL) {
+      goto _out;
     }
-
-    ASSERT(pEntry != NULL);
 
     // execute it
     if (!syncUtilUserCommit(pEntry->originalRpcType)) {
@@ -738,8 +769,8 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   }
 
   // recycle
-  // TODO: with a grace period of one third of free space before commitIndex in ring buffer
-  SyncIndex until = pBuf->commitIndex;
+  SyncIndex used = pBuf->endIndex - pBuf->startIndex;
+  SyncIndex until = pBuf->commitIndex - (pBuf->size - used) / 2;
   for (SyncIndex index = pBuf->startIndex; index < until; index++) {
     SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
     ASSERT(pEntry != NULL);
@@ -796,9 +827,6 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
   syncNodeStepDown(ths, pMsg->term);
   syncNodeResetElectTimer(ths);
 
-  // update commit index
-  (void)syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
-
   if (pMsg->dataLen < (int32_t)sizeof(SSyncRaftEntry)) {
     sError("vgId:%d, incomplete append entries received. prev index:%" PRId64 ", term:%" PRId64 ", datalen:%d",
            ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
@@ -825,15 +853,17 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
 
   // accept
   if (syncLogBufferAccept(ths->pLogBuf, ths, pEntry, pMsg->prevLogTerm) < 0) {
-    sWarn("vgId:%d, failed to accept raft entry into log buffer. index:%" PRId64 ", term:%" PRId64, ths->vgId,
-          pEntry->index, pEntry->term);
     goto _SEND_RESPONSE;
   }
-  pReply->success = true;
 
 _SEND_RESPONSE:
-  // update match index
   pReply->matchIndex = syncLogBufferProceed(ths->pLogBuf, ths);
+  bool matched = (pReply->matchIndex >= pReply->lastSendIndex);
+  pReply->success = matched;
+  if (matched) {
+    // update commit index only after matching
+    (void)syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
+  }
 
   // ack, i.e. send response
   SRpcMsg rpcMsg;
@@ -841,7 +871,7 @@ _SEND_RESPONSE:
   (void)syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
 
   // commit index, i.e. leader notice me
-  if (syncLogBufferCommit(ths->pLogBuf, ths, pMsg->commitIndex) < 0) {
+  if (syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
     sError("vgId:%d, failed to commit raft fsm log since %s.", ths->vgId, terrstr());
     goto _out;
   }

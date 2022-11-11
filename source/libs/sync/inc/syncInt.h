@@ -88,6 +88,60 @@ typedef struct SPeerState {
   int64_t   lastSendTime;
 } SPeerState;
 
+typedef struct SSyncReplInfo {
+  bool    barrier;
+  bool    acked;
+  int64_t timeMs;
+  int64_t term;
+} SSyncReplInfo;
+
+typedef struct SSyncLogReplMgr {
+  SSyncReplInfo states[TSDB_SYNC_LOG_BUFFER_SIZE];
+  int64_t       startIndex;
+  int64_t       matchIndex;
+  int64_t       endIndex;
+  int64_t       size;
+  bool          restored;
+  int64_t       peerStartTime;
+  int32_t       retryBackoff;
+  int32_t       peerId;
+} SSyncLogReplMgr;
+
+SSyncLogReplMgr* syncLogReplMgrCreate();
+void             syncLogReplMgrDestroy(SSyncLogReplMgr* pMgr);
+
+// access
+static FORCE_INLINE int64_t syncLogGetRetryBackoffTimeMs(SSyncLogReplMgr* pMgr) {
+  return (1 << pMgr->retryBackoff) * SYNC_LOG_REPL_RETRY_WAIT_MS;
+}
+
+static FORCE_INLINE int32_t syncLogGetNextRetryBackoff(SSyncLogReplMgr* pMgr) {
+  return TMIN(pMgr->retryBackoff + 1, SYNC_MAX_RETRY_BACKOFF);
+}
+
+static FORCE_INLINE int32_t syncLogReplMgrUpdateTerm(SSyncLogReplMgr* pMgr, SyncIndex index, SyncTerm term) {
+  if (index < pMgr->startIndex || index >= pMgr->endIndex) {
+    return -1;
+  }
+  pMgr->states[(index + pMgr->size) % pMgr->size].term = term;
+  return 0;
+}
+
+SyncTerm syncLogReplMgrGetPrevLogTerm(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index);
+int32_t  syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index, SRaftId* pDestId,
+                                     bool* pBarrier);
+int32_t  syncLogReplMgrProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg);
+int32_t  syncLogBufferReplicateOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode);
+int32_t  syncLogReplMgrReplicateAttemptedOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode);
+int32_t  syncLogReplMgrReplicateProbeOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode);
+int32_t  syncLogResetLogReplMgr(SSyncLogReplMgr* pMgr);
+int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg);
+int32_t syncLogReplMgrProcessReplyInNormalMode(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg);
+int32_t syncLogReplMgrRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode);
+
+// others
+bool syncLogReplMgrValidate(SSyncLogReplMgr* pMgr);
+
 typedef struct SSyncLogBufEntry {
   SSyncRaftEntry* pItem;
   SyncIndex       prevLogIndex;
@@ -115,14 +169,15 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
 int64_t syncLogBufferLoad(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex toIndex);
 int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode);
 int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t commitIndex);
+SSyncRaftEntry* syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex index, bool* pInBuf);
 
 int64_t            syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commtIndex);
-SyncAppendEntries* syncLogToAppendEntries(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex index);
+SyncAppendEntries* syncLogToAppendEntries(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm);
 
 // private
 int32_t syncLogBufferValidate(SSyncLogBuffer* pBuf);
 int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SyncIndex toIndex);
-int32_t syncLogBufferReplicate(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex index);
+int32_t syncLogBufferReplicate(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm);
 void syncIndexMgrSetIndex(SSyncIndexMgr* pSyncIndexMgr, const SRaftId* pRaftId, SyncIndex index);
 bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index);
 
@@ -225,10 +280,13 @@ typedef struct SSyncNode {
   SSyncRespMgr* pSyncRespMgr;
 
   // restore state
-  _Atomic bool restoreFinish;
+  bool restoreFinish;
   // SSnapshot*             pSnapshot;
   SSyncSnapshotSender*   senders[TSDB_MAX_REPLICA];
   SSyncSnapshotReceiver* pNewNodeReceiver;
+
+  // log replication mgr
+  SSyncLogReplMgr* logReplMgrs[TSDB_MAX_REPLICA];
 
   SPeerState peerStates[TSDB_MAX_REPLICA];
 
@@ -308,6 +366,9 @@ void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
 // raft vote --------------
 void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
 void syncNodeVoteForSelf(SSyncNode* pSyncNode);
+
+// log replication
+SSyncLogReplMgr* syncNodeGetLogReplMgr(SSyncNode* pNode, SRaftId* pDestId);
 
 // snapshot --------------
 bool syncNodeHasSnapshot(SSyncNode* pSyncNode);

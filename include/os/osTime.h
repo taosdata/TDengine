@@ -82,6 +82,13 @@ static FORCE_INLINE int64_t taosGetTimestampNs() {
   return (int64_t)systemTime.tv_sec * 1000000000LL + (int64_t)systemTime.tv_nsec;
 }
 
+//@return timestamp of monotonic clock in millisecond
+static FORCE_INLINE int64_t taosGetMonoTimestampMs() {
+  struct timespec systemTime = {0};
+  taosClockGetTime(CLOCK_MONOTONIC, &systemTime);
+  return (int64_t)systemTime.tv_sec * 1000LL + (int64_t)systemTime.tv_nsec / 1000000;
+}
+
 char      *taosStrpTime(const char *buf, const char *fmt, struct tm *tm);
 struct tm *taosLocalTime(const time_t *timep, struct tm *result);
 struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst);
