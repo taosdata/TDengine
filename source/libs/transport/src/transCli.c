@@ -477,7 +477,7 @@ void cliConnTimeout(uv_timer_t* handle) {
   taosArrayPush(pThrd->timerList, &conn->timer);
 
   conn->timer = NULL;
-  cliHandleExceptImpl(conn, TSDB_CODE_RPC_TIMEOUT);
+  cliHandleExceptImpl(conn, -1);
 }
 void cliReadTimeoutCb(uv_timer_t* handle) {
   // set up timeout cb
