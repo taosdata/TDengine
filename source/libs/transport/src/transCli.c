@@ -80,6 +80,7 @@ typedef struct SCliThrd {
   uint64_t      nextTimeout;  // next timeout
   void*         pTransInst;   //
 
+  void (*destroyAhandleFp)(void* ahandle);
   SHashObj* fqdn2ipCache;
   SCvtAddr  cvtAddr;
 
@@ -158,6 +159,7 @@ static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrd* pThrd) = {cliHandleReq,
 
 static FORCE_INLINE void destroyUserdata(STransMsg* userdata);
 static FORCE_INLINE void destroyCmsg(void* cmsg);
+static FORCE_INLINE void destroyCmsgAndAhandle(void* cmsg);
 static FORCE_INLINE int  cliRBChoseIdx(STrans* pTransInst);
 static FORCE_INLINE void transDestroyConnCtx(STransConnCtx* ctx);
 
@@ -569,7 +571,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   if (conn->list->size >= 50) {
     STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
     arg->param1 = conn;
-    arg->param2 = NULL;
+    arg->param2 = thrd;
 
     STrans* pTransInst = thrd->pTransInst;
     conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, CONN_PERSIST_TIME(pTransInst->idleTime));
@@ -693,8 +695,8 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   }
   if (conn->timer != NULL) {
     uv_timer_stop(conn->timer);
-    taosArrayPush(pThrd->timerList, &conn->timer);
     conn->timer->data = NULL;
+    taosArrayPush(pThrd->timerList, &conn->timer);
     conn->timer = NULL;
   }
 
@@ -1213,6 +1215,25 @@ static FORCE_INLINE void destroyCmsg(void* arg) {
   taosMemoryFree(pMsg);
 }
 
+static FORCE_INLINE void destroyCmsgAndAhandle(void* param) {
+  if (param == NULL) return;
+
+  STaskArg* arg = param;
+  SCliMsg*  pMsg = arg->param1;
+  SCliThrd* pThrd = arg->param2;
+
+  tDebug("destroy Ahandle A");
+  if (pThrd != NULL && pThrd->destroyAhandleFp != NULL) {
+    tDebug("destroy Ahandle B");
+    pThrd->destroyAhandleFp(pMsg->ctx->ahandle);
+  }
+  tDebug("destroy Ahandle C");
+
+  transDestroyConnCtx(pMsg->ctx);
+  destroyUserdata(&pMsg->msg);
+  taosMemoryFree(pMsg);
+}
+
 static SCliThrd* createThrdObj(void* trans) {
   STrans* pTransInst = trans;
 
@@ -1247,6 +1268,7 @@ static SCliThrd* createThrdObj(void* trans) {
   pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
   pThrd->pTransInst = trans;
 
+  pThrd->destroyAhandleFp = pTransInst->destroyFp;
   pThrd->fqdn2ipCache = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pThrd->quit = false;
   return pThrd;
@@ -1262,7 +1284,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
   TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliMsg, destroyCmsg);
   transAsyncPoolDestroy(pThrd->asyncPool);
 
-  transDQDestroy(pThrd->delayQueue, destroyCmsg);
+  transDQDestroy(pThrd->delayQueue, destroyCmsgAndAhandle);
   transDQDestroy(pThrd->timeoutQueue, NULL);
 
   tDebug("thread destroy %" PRId64, pThrd->pid);
