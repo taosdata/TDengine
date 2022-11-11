@@ -49,6 +49,9 @@ void   syncEntryPrint2(char* s, const SSyncRaftEntry* pObj);
 void   syncEntryLog(const SSyncRaftEntry* pObj);
 void   syncEntryLog2(char* s, const SSyncRaftEntry* pObj);
 
+char*   syncCfg2Str(SSyncCfg* pSyncCfg);
+int32_t syncCfgFromStr(const char* s, SSyncCfg* pSyncCfg);
+
 cJSON* raftCache2Json(SRaftEntryHashCache* pObj);
 char*  raftCache2Str(SRaftEntryHashCache* pObj);
 void   raftCachePrint(SRaftEntryHashCache* pObj);
