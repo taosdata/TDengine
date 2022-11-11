@@ -125,6 +125,23 @@ void   syncRpcMsgPrint2(char* s, SRpcMsg* pMsg);
 void   syncRpcMsgLog(SRpcMsg* pMsg);
 void   syncRpcMsgLog2(char* s, SRpcMsg* pMsg);
 
+
+// origin syncMessage
+SyncPing* syncPingBuild(uint32_t dataLen);
+SyncPing* syncPingBuild2(const SRaftId* srcId, const SRaftId* destId, int32_t vgId, const char* str);
+SyncPing* syncPingBuild3(const SRaftId* srcId, const SRaftId* destId, int32_t vgId);
+char*     syncPingSerialize2(const SyncPing* pMsg, uint32_t* len);
+int32_t   syncPingSerialize3(const SyncPing* pMsg, char* buf, int32_t bufLen);
+SyncPing* syncPingDeserialize3(void* buf, int32_t bufLen);
+void      syncPing2RpcMsg(const SyncPing* pMsg, SRpcMsg* pRpcMsg);
+void      syncPingFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPing* pMsg);
+cJSON*    syncPing2Json(const SyncPing* pMsg);
+char*     syncPing2Str(const SyncPing* pMsg);
+void      syncPingPrint(const SyncPing* pMsg);
+void      syncPingPrint2(char* s, const SyncPing* pMsg);
+void      syncPingLog(const SyncPing* pMsg);
+void      syncPingLog2(char* s, const SyncPing* pMsg);
+
 #ifdef __cplusplus
 }
 #endif

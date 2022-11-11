@@ -34,27 +34,12 @@ typedef struct SyncPing {
   char     data[];
 } SyncPing;
 
-SyncPing* syncPingBuild(uint32_t dataLen);
-SyncPing* syncPingBuild2(const SRaftId* srcId, const SRaftId* destId, int32_t vgId, const char* str);
-SyncPing* syncPingBuild3(const SRaftId* srcId, const SRaftId* destId, int32_t vgId);
+
 void      syncPingDestroy(SyncPing* pMsg);
 void      syncPingSerialize(const SyncPing* pMsg, char* buf, uint32_t bufLen);
 void      syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pMsg);
-char*     syncPingSerialize2(const SyncPing* pMsg, uint32_t* len);
 SyncPing* syncPingDeserialize2(const char* buf, uint32_t len);
-int32_t   syncPingSerialize3(const SyncPing* pMsg, char* buf, int32_t bufLen);
-SyncPing* syncPingDeserialize3(void* buf, int32_t bufLen);
-void      syncPing2RpcMsg(const SyncPing* pMsg, SRpcMsg* pRpcMsg);
-void      syncPingFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPing* pMsg);
 SyncPing* syncPingFromRpcMsg2(const SRpcMsg* pRpcMsg);
-cJSON*    syncPing2Json(const SyncPing* pMsg);
-char*     syncPing2Str(const SyncPing* pMsg);
-
-// for debug ----------------------
-void syncPingPrint(const SyncPing* pMsg);
-void syncPingPrint2(char* s, const SyncPing* pMsg);
-void syncPingLog(const SyncPing* pMsg);
-void syncPingLog2(char* s, const SyncPing* pMsg);
 
 // ---------------------------------------------
 typedef struct SyncPingReply {
