@@ -263,16 +263,15 @@ static void* cliWorkThread(void* arg);
 
 static void cliReleaseUnfinishedMsg(SCliConn* conn) {
   SCliThrd* pThrd = conn->hostThrd;
-  STrans*   pTransInst = pThrd->pTransInst;
 
   for (int i = 0; i < transQueueSize(&conn->cliMsgs); i++) {
     SCliMsg* msg = transQueueGet(&conn->cliMsgs, i);
     if (msg != NULL && msg->ctx != NULL && msg->ctx->ahandle != (void*)0x9527) {
       if (conn->ctx.freeFunc != NULL && msg->ctx->ahandle != NULL) {
         conn->ctx.freeFunc(msg->ctx->ahandle);
-      } else if (msg->ctx->ahandle != NULL && pTransInst->destroyFp != NULL) {
+      } else if (msg->ctx->ahandle != NULL && pThrd->destroyAhandleFp != NULL) {
         tDebug("%s conn %p destroy unfinished ahandle %p", CONN_GET_INST_LABEL(conn), conn, msg->ctx->ahandle);
-        pTransInst->destroyFp(msg->ctx->ahandle);
+        pThrd->destroyAhandleFp(msg->ctx->ahandle);
       }
     }
     destroyCmsg(msg);
