@@ -190,6 +190,8 @@ typedef struct SStateInfo {
     int64_t count;
     int64_t durationStart;
   };
+  int64_t prevTs;
+  bool    isPrevTsSet;
 } SStateInfo;
 
 typedef enum {
@@ -4879,6 +4881,7 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
   SStateInfo*          pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   SInputColumnInfoData* pInput = &pCtx->input;
+  TSKEY*                tsList = (int64_t*)pInput->pPTS->pData;
 
   SColumnInfoData* pInputCol = pInput->pData[0];
 
@@ -4891,7 +4894,15 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
   }
 
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+    if (pInfo->isPrevTsSet == true && tsList[i] == pInfo->prevTs) {
+      return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+    } else {
+      pInfo->prevTs = tsList[i];
+    }
+
+    pInfo->isPrevTsSet = true;
     numOfElems++;
+
     if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
       colDataAppendNULL(pOutput, i);
       // handle selectivity
@@ -4917,7 +4928,8 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
     }
   }
 
-  return numOfElems;
+  pResInfo->numOfRes = numOfElems;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
@@ -4940,11 +4952,19 @@ int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
 
   int8_t op = getStateOpType(varDataVal(pCtx->param[1].param.pz));
   if (STATE_OPER_INVALID == op) {
-    return 0;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+    if (pInfo->isPrevTsSet == true && tsList[i] == pInfo->prevTs) {
+      return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+    } else {
+      pInfo->prevTs = tsList[i];
+    }
+
+    pInfo->isPrevTsSet = true;
     numOfElems++;
+
     if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
       colDataAppendNULL(pOutput, i);
       // handle selectivity
@@ -4974,7 +4994,8 @@ int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
     }
   }
 
-  return numOfElems;
+  pResInfo->numOfRes = numOfElems;
+  return TSDB_CODE_SUCCESS;
 }
 
 bool getCsumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
