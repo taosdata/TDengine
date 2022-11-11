@@ -20,11 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "taosdef.h"
 
 // TLA+ Spec
 // AppendEntries(i, j) ==
@@ -55,7 +51,7 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode);
 int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* pDestId, const SyncHeartbeat* pMsg);
 
 int32_t syncNodeReplicate(SSyncNode* pSyncNode);
-int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId);
+int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapshot);
 
 int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* pDestId, const SyncAppendEntries* pMsg);
 int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* pDestId, const SyncAppendEntries* pMsg);

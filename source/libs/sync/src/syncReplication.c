@@ -48,19 +48,20 @@
 //                mdest          |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 
-int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
+int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapshot) {
   // next index
   SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
 
-  // maybe start snapshot
-  SyncIndex logStartIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
-  SyncIndex logEndIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
-  if (nextIndex < logStartIndex || nextIndex - 1 > logEndIndex) {
-    sNTrace(pSyncNode, "maybe start snapshot for next-index:%" PRId64 ", start:%" PRId64 ", end:%" PRId64, nextIndex,
-            logStartIndex, logEndIndex);
-    // start snapshot
-    // int32_t code = syncNodeStartSnapshot(pSyncNode, pDestId);
-    return 0;
+  if (snapshot) {
+    // maybe start snapshot
+    SyncIndex logStartIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
+    SyncIndex logEndIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
+    if (nextIndex < logStartIndex || nextIndex - 1 > logEndIndex) {
+      sNTrace(pSyncNode, "maybe start snapshot for next-index:%" PRId64 ", start:%" PRId64 ", end:%" PRId64, nextIndex,
+              logStartIndex, logEndIndex);
+      // start snapshot
+      int32_t code = syncNodeStartSnapshot(pSyncNode, pDestId);
+    }
   }
 
   // pre index, pre term
@@ -78,14 +79,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
 
     pMsg = syncAppendEntriesBuild(pEntry->bytes, pSyncNode->vgId);
     ASSERT(pMsg != NULL);
-
-    // add pEntry into msg
-    uint32_t len;
-    char*    serialized = syncEntrySerialize(pEntry, &len);
-    ASSERT(len == pEntry->bytes);
-    memcpy(pMsg->data, serialized, len);
-
-    taosMemoryFree(serialized);
+    memcpy(pMsg->data, pEntry, pEntry->bytes);
     syncEntryDestory(pEntry);
 
   } else {
@@ -135,7 +129,7 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SRaftId* pDestId = &(pSyncNode->peersId[i]);
-    ret = syncNodeReplicateOne(pSyncNode, pDestId);
+    ret = syncNodeReplicateOne(pSyncNode, pDestId, true);
     if (ret != 0) {
       char    host[64];
       int16_t port;

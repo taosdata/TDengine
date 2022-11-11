@@ -1028,11 +1028,11 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   int32_t type = GET_PARAM_TYPE(pInput);
 
   bool    tzPresent = (inputNum == 2) ? true : false;
-  char   *tz;
-  int32_t tzLen;
+  char    tz[20] = {0};
+  int32_t tzLen = 0;
   if (tzPresent) {
-    tz = varDataVal(pInput[1].columnData->pData);
     tzLen = varDataLen(pInput[1].columnData->pData);
+    memcpy(tz, varDataVal(pInput[1].columnData->pData), tzLen);
   }
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
@@ -1071,8 +1071,10 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     int32_t len = (int32_t)strlen(buf);
 
     // add timezone string
-    snprintf(buf + len, tzLen + 1, "%s", tz);
-    len += tzLen;
+    if (tzLen > 0) {
+      snprintf(buf + len, tzLen + 1, "%s", tz);
+      len += tzLen;
+    }
 
     if (hasFraction) {
       int32_t fracLen = (int32_t)strlen(fraction) + 1;
