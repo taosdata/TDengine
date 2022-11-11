@@ -6288,21 +6288,29 @@ static SNode* createTagsFunction() {
   return (SNode*)pFunc;
 }
 
+static int32_t createShowTableTagsProjections(SNodeList** pProjections, SNodeList** pTags) {
+  if (NULL != *pTags) {
+    TSWAP(*pProjections, *pTags);
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = nodesListMakeStrictAppend(pProjections, createTbnameFunction());
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListStrictAppend(*pProjections, createTagsFunction());
+  }
+  return code;
+}
+
 static int32_t rewriteShowStableTags(STranslateContext* pCxt, SQuery* pQuery) {
-  const char*  cols[] = {"tbname", "_tags"};
-  SShowStmt*   pShow = (SShowStmt*)pQuery->pRoot;
-  SSelectStmt* pSelect = NULL;
+  SShowTableTagsStmt* pShow = (SShowTableTagsStmt*)pQuery->pRoot;
+  SSelectStmt*        pSelect = NULL;
   int32_t code = createSimpleSelectStmt(((SValueNode*)pShow->pDbName)->literal, ((SValueNode*)pShow->pTbName)->literal,
                                         -1, NULL, &pSelect);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(&pSelect->pProjectionList, createTbnameFunction());
+    code = createShowTableTagsProjections(&pSelect->pProjectionList, &pShow->pTags);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(&pSelect->pProjectionList, createTagsFunction());
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    pSelect->isDistinct = true;
     pQuery->showRewrite = true;
+    pSelect->tagScan = true;
     nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = (SNode*)pSelect;
   } else {
