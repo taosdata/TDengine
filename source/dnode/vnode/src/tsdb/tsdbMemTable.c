@@ -568,7 +568,9 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
     do {
       key.ts = row.pTSRow->ts;
       nRow++;
-      tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_FROM_POS);
+      if (SL_NODE_FORWARD(pos[0], 0) != pTbData->sl.pTail) {
+        tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_FROM_POS);
+      }
       code = tbDataDoPut(pMemTable, pTbData, pos, &row, 1);
       if (code) {
         goto _err;

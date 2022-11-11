@@ -54,7 +54,7 @@ fi
 date 
 docker run \
     -v $REP_MOUNT_PARAM \
-    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR;rm -rf debug;mkdir -p debug;cd debug;cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true;make -j $THREAD_COUNT"
+    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR;rm -rf debug;mkdir -p debug;cd debug;cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true;make -j $THREAD_COUNT || exit 1"
 
 if [[ -d ${WORKDIR}/debugNoSan  ]] ;then
     echo "delete  ${WORKDIR}/debugNoSan"
