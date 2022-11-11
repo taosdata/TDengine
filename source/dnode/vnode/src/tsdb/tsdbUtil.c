@@ -1191,6 +1191,9 @@ static int32_t tBlockDataAppendKVRow(SBlockData *pBlockData, STSRow *pRow, STSch
       } else {
         ASSERT(0);
       }
+
+      iTColumn++;
+      pTColumn = (iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
     }
   }
 
