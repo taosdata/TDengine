@@ -138,20 +138,20 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     cJSON_AddStringToObject(pRoot, "heartbeatTimerCounter", u64buf);
 
     // callback
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnPing);
-    cJSON_AddStringToObject(pRoot, "FpOnPing", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnPingReply);
-    cJSON_AddStringToObject(pRoot, "FpOnPingReply", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnRequestVote);
-    cJSON_AddStringToObject(pRoot, "FpOnRequestVote", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnRequestVoteReply);
-    cJSON_AddStringToObject(pRoot, "FpOnRequestVoteReply", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnAppendEntries);
-    cJSON_AddStringToObject(pRoot, "FpOnAppendEntries", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnAppendEntriesReply);
-    cJSON_AddStringToObject(pRoot, "FpOnAppendEntriesReply", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnTimeout);
-    cJSON_AddStringToObject(pRoot, "FpOnTimeout", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnPing);
+    // cJSON_AddStringToObject(pRoot, "FpOnPing", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnPingReply);
+    // cJSON_AddStringToObject(pRoot, "FpOnPingReply", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnRequestVote);
+    // cJSON_AddStringToObject(pRoot, "FpOnRequestVote", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnRequestVoteReply);
+    // cJSON_AddStringToObject(pRoot, "FpOnRequestVoteReply", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnAppendEntries);
+    // cJSON_AddStringToObject(pRoot, "FpOnAppendEntries", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnAppendEntriesReply);
+    // cJSON_AddStringToObject(pRoot, "FpOnAppendEntriesReply", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnTimeout);
+    // cJSON_AddStringToObject(pRoot, "FpOnTimeout", u64buf);
 
     // restoreFinish
     cJSON_AddNumberToObject(pRoot, "restoreFinish", pSyncNode->restoreFinish);

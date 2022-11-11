@@ -213,7 +213,6 @@ int32_t syncNodePingSelf(SSyncNode* pSyncNode);
 int32_t syncNodePingPeers(SSyncNode* pSyncNode);
 int32_t syncNodePingAll(SSyncNode* pSyncNode);
 
-
 #ifdef __cplusplus
 }
 #endif
