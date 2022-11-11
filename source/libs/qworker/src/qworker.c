@@ -1162,6 +1162,41 @@ _return:
   QW_RET(code);
 }
 
+void qworkerStopAllTasks(void *qWorkerMgmt) {
+  SQWorker *mgmt = (SQWorker *)qWorkerMgmt;
+
+  QW_DLOG("start to stop all tasks, taskNum:%d", taosHashGetSize(mgmt->ctxHash));
+  
+  void    *pIter = taosHashIterate(mgmt->ctxHash, NULL);
+  while (pIter) {
+    SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
+    void       *key = taosHashGetKey(pIter, NULL);
+    QW_GET_QTID(key, qId, tId, eId);
+
+    QW_LOCK(QW_WRITE, &ctx->lock);
+
+    QW_TASK_DLOG_E("start to force stop task");
+    
+    if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP) || QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
+      QW_TASK_WLOG_E("task already dropping");
+      QW_UNLOCK(QW_WRITE, &ctx->lock);
+
+      pIter = taosHashIterate(mgmt->ctxHash, pIter);
+      continue;
+    }
+    
+    if (QW_QUERY_RUNNING(ctx)) {
+      qwKillTaskHandle(ctx);
+    } else {
+      qwDropTask(QW_FPARAMS());
+    }
+
+    QW_UNLOCK(QW_WRITE, &ctx->lock);
+
+    pIter = taosHashIterate(mgmt->ctxHash, pIter);
+  }
+}
+
 void qWorkerDestroy(void **qWorkerMgmt) {
   if (NULL == qWorkerMgmt || NULL == *qWorkerMgmt) {
     return;

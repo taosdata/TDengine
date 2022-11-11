@@ -242,7 +242,10 @@ _err:
   return NULL;
 }
 
-void vnodePreClose(SVnode *pVnode) { vnodeSyncPreClose(pVnode); }
+void vnodePreClose(SVnode *pVnode) { 
+  vnodeQueryPreClose(pVnode);
+  vnodeSyncPreClose(pVnode); 
+}
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {

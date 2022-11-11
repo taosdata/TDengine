@@ -28,6 +28,8 @@ int vnodeQueryOpen(SVnode *pVnode) {
   return qWorkerInit(NODE_TYPE_VNODE, TD_VID(pVnode), (void **)&pVnode->pQuery, &pVnode->msgCb);
 }
 
+void vnodeQueryPreClose(SVnode *pVnode) { qworkerStopAllTasks((void *)pVnode->pQuery); }
+
 void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery); }
 
 int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {

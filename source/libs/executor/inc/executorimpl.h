@@ -153,6 +153,16 @@ typedef struct {
   SSchemaWrapper* qsw;
 } SSchemaInfo;
 
+typedef struct {
+  int32_t  operatorType;
+  int64_t  refId;
+} SExchangeOpStopInfo;
+
+typedef struct {
+  SRWLatch lock;
+  SArray*  pStopInfo;
+} STaskStopInfo;
+
 typedef struct SExecTaskInfo {
   STaskIdInfo   id;
   uint32_t      status;
@@ -171,6 +181,7 @@ typedef struct SExecTaskInfo {
   SSubplan*             pSubplan;
   struct SOperatorInfo* pRoot;
   SLocalFetch           localFetch;
+  STaskStopInfo         stopInfo;
 } SExecTaskInfo;
 
 enum {

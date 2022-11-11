@@ -1653,7 +1653,7 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
 }
 
 typedef struct SFetchRspHandleWrapper {
-  uint32_t exchangeId;
+  int64_t exchangeId;
   int32_t  sourceIndex;
 } SFetchRspHandleWrapper;
 
@@ -1873,6 +1873,9 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
   while (1) {
     tsem_wait(&pExchangeInfo->ready);
+    if (isTaskKilled(pTaskInfo)) {
+      longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+    }
 
     for (int32_t i = 0; i < totalSources; ++i) {
       SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, i);
@@ -1983,6 +1986,10 @@ static int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
   pOperator->cost.openCost = taosGetTimestampUs() - startTs;
 
   tsem_wait(&pExchangeInfo->ready);
+  if (isTaskKilled(pTaskInfo)) {
+    longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+  }
+  
   tsem_post(&pExchangeInfo->ready);
   return TSDB_CODE_SUCCESS;
 }
@@ -2002,6 +2009,9 @@ static int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
 
     doSendFetchDataRequest(pExchangeInfo, pTaskInfo, pExchangeInfo->current);
     tsem_wait(&pExchangeInfo->ready);
+    if (isTaskKilled(pTaskInfo)) {
+      longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+    }
 
     SSourceDataInfo*       pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, pExchangeInfo->current);
     SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
@@ -2217,6 +2227,9 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
   pInfo->pDummyBlock = createResDataBlock(pExNode->node.pOutputDataBlockDesc);
   pInfo->pResultBlockList = taosArrayInit(1, POINTER_BYTES);
 
+  SExchangeOpStopInfo stopInfo = {QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, pInfo->self};
+  qAppendTaskStopInfo(pTaskInfo, &stopInfo);
+  
   pInfo->seqLoadData = false;
   pInfo->pTransporter = pTransporter;
 
@@ -3219,6 +3232,7 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
   pTaskInfo->id.queryId = queryId;
   pTaskInfo->execModel = model;
   pTaskInfo->pTableInfoList = tableListCreate();
+  pTaskInfo->stopInfo.pStopInfo = taosArrayInit(4, sizeof(SExchangeOpStopInfo));
 
   char* p = taosMemoryCalloc(1, 128);
   snprintf(p, 128, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
@@ -3832,6 +3846,7 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
     nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
   }
 
+  taosArrayDestroy(pTaskInfo->stopInfo.pStopInfo);
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);
