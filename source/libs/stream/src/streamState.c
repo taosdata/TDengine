@@ -521,9 +521,13 @@ int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVa
   void*            tmp = NULL;
   int32_t          code = streamStateSessionGetKVByCur(pCur, &resKey, &tmp, pVLen);
   if (code == 0) {
-    *key = resKey;
-    *pVal = tdbRealloc(NULL, *pVLen);
-    memcpy(*pVal, tmp, *pVLen);
+    if (key->win.skey != resKey.win.skey) {
+      code = -1;
+    } else {
+      *key = resKey;
+      *pVal = tdbRealloc(NULL, *pVLen);
+      memcpy(*pVal, tmp, *pVLen);
+    }
   }
   streamStateFreeCur(pCur);
   return code;
