@@ -137,7 +137,7 @@ class TDTestCase:
 
         tdLog.info("check show subscriptions")
         tdSql.query("show subscriptions")
-        # tdLog.debug(tdSql.queryResult)
+        tdLog.debug(tdSql.queryResult)
         rows = tdSql.getRows()
         expectSubscriptions = paraDict['vgroups'] * len(topicNameList)
         tdLog.info("show subscriptions rows: %d, expect Subscriptions: %d"%(rows,expectSubscriptions))
