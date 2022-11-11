@@ -110,7 +110,20 @@ char*  snapshotSender2Str(SSyncSnapshotSender* pSender);
 cJSON* snapshotReceiver2Json(SSyncSnapshotReceiver* pReceiver);
 char*  snapshotReceiver2Str(SSyncSnapshotReceiver* pReceiver);
 
+cJSON*   syncIndexMgr2Json(SSyncIndexMgr* pSyncIndexMgr);
+char*    syncIndexMgr2Str(SSyncIndexMgr* pSyncIndexMgr);
+void     syncIndexMgrPrint(SSyncIndexMgr* pObj);
+void     syncIndexMgrPrint2(char* s, SSyncIndexMgr* pObj);
+void     syncIndexMgrLog(SSyncIndexMgr* pObj);
+void     syncIndexMgrLog2(char* s, SSyncIndexMgr* pObj);
 
+cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg);
+cJSON* syncRpcUnknownMsg2Json();
+char*  syncRpcMsg2Str(SRpcMsg* pRpcMsg);
+void   syncRpcMsgPrint(SRpcMsg* pMsg);
+void   syncRpcMsgPrint2(char* s, SRpcMsg* pMsg);
+void   syncRpcMsgLog(SRpcMsg* pMsg);
+void   syncRpcMsgLog2(char* s, SRpcMsg* pMsg);
 
 #ifdef __cplusplus
 }
