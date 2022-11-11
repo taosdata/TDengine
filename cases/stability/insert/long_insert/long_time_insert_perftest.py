@@ -36,7 +36,8 @@ class LongTimeInsert(TDCase):
         self.non_prikey_ts_col_name = ""
         self.restart_timeout = 10
         # self.query_interval = 7200
-        self.query_interval = 60
+        # self.query_interval = 3600
+        self.query_interval = 1200
         self._remote: Remote = Remote(self.logger)
         self.taosd = TaosD(self._remote)
         self.taosd_setting = self.tdCom.get_components_setting(
@@ -68,7 +69,18 @@ class LongTimeInsert(TDCase):
         f.write(msg)
         f.close
 
-    def restart_sync(self, db_list):
+    def alter_replica(self, dbname, dnode_count=3):
+        self.write_log(f'--------- alter database: {dbname} replica 1 \t--------\n')
+        self.tdSql.execute(f'alter {dbname} replica 1')
+        sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, True, dnode_count=dnode_count))
+        self.write_log(f'--------- alter {dbname} replica 1 sync time --- {sync_time}s \t--------\n')
+
+        self.write_log(f'--------- alter database: {dbname} replica 3 \t--------\n')
+        self.tdSql.execute(f'alter {dbname} replica 3')
+        sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, True, dnode_count=dnode_count))
+        self.write_log(f'--------- alter {dbname} replica 3 sync time --- {sync_time}s \t--------\n')
+
+    def restart_sync(self, db_list, dnode_count=3):
         dnodes_out_mnodes = self.tdSql.get_dnodes_out_mnodes()
         random_endpoint = random.choice(dnodes_out_mnodes[1])
         self.tdSql.query(f'select name,ntables from information_schema.ins_databases;')
@@ -96,6 +108,9 @@ class LongTimeInsert(TDCase):
             sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, False))
             self.write_log(f'--------- dbname: {dbname} sync time --- {sync_time}s \t--------\n')
 
+        for dbname in db_list:
+            self.alter_replica(dbname, dnode_count)
+
 
     def desc(self):
         pass
@@ -111,6 +126,7 @@ class LongTimeInsert(TDCase):
 
     def run(self):
         taosBenchmark_iplist: List = self.get_fqdn("taosBenchmark")
+
         # print(self.tdCom.get_db_list())
         # print(self.tdSql.get_db_vgroup_status("test2", True))
         # self.tdCom.createDb("sml_line_rest", replica=3, vgroups=10)
@@ -122,7 +138,7 @@ class LongTimeInsert(TDCase):
         # print(self.tdSql.get_vnode_status_list("sml_line_rest"))
         # # print(self.tdSql.wait_sync_ready("sml_line_rest"))
         # print(self.tdSql.wait_sync_ready("sml_line_rest", sync_value=[("follower", "follower", "leader")]))
-        # return
+        return
         json_data: List = []
         file_name = []
         test_root = os.environ['TEST_ROOT']
