@@ -254,17 +254,18 @@ typedef struct SExchangeInfo {
   SArray*             pSourceDataInfo;
   tsem_t              ready;
   void*               pTransporter;
+
   // SArray<SSDataBlock*>, result block list, used to keep the multi-block that
   // passed by downstream operator
-  SArray*             pResultBlockList;
-  int32_t             rspBlockIndex;  // indicate the return block index in pResultBlockList
+  SArray*             pReadyBlocks;
+  SArray*             pRecycledBlocks;// build a pool for small data block to avoid to repeatly create and then destroy.
   SSDataBlock*        pDummyBlock;    // dummy block, not keep data
   bool                seqLoadData;    // sequential load data or not, false by default
   int32_t             current;
   SLoadRemoteDataInfo loadInfo;
   uint64_t            self;
   SLimitInfo          limitInfo;
-  int64_t             openedTs;         // start exec time stamp
+  int64_t             openedTs;       // start exec time stamp, todo: move to SLoadRemoteDataInfo
 } SExchangeInfo;
 
 typedef struct SScanInfo {

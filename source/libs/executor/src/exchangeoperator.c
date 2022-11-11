@@ -100,14 +100,23 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
       int32_t            index = 0;
       char*              pStart = pRetrieveRsp->data;
       while (index++ < pRetrieveRsp->numOfBlocks) {
-        SSDataBlock* pb = createOneDataBlock(pExchangeInfo->pDummyBlock, false);
+        SSDataBlock* pb = NULL;
+
+        void* p = taosArrayPop(pExchangeInfo->pRecycledBlocks);
+        if (p != NULL) {
+          pb = *(SSDataBlock**) p;
+          blockDataCleanup(pb);
+        } else {
+          pb = createOneDataBlock(pExchangeInfo->pDummyBlock, false);
+        }
+
         code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart);
         if (code != 0) {
           taosMemoryFreeClear(pDataInfo->pRsp);
           goto _error;
         }
 
-        taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
+        taosArrayPush(pExchangeInfo->pReadyBlocks, &pb);
       }
 
       updateLoadRemoteInfo(pLoadInfo, pRetrieveRsp->numOfRows, pRetrieveRsp->compLen, pExchangeInfo->openedTs, pOperator);
@@ -170,23 +179,26 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
     return NULL;
   }
 
-  size_t size = taosArrayGetSize(pExchangeInfo->pResultBlockList);
-  if (size == 0 || pExchangeInfo->rspBlockIndex >= size) {
-    pExchangeInfo->rspBlockIndex = 0;
-    taosArrayClearEx(pExchangeInfo->pResultBlockList, freeBlock);
+  // we have buffered retrieved datablock, return it directly
+  SSDataBlock** p = taosArrayPop(pExchangeInfo->pReadyBlocks);
+  if (p != NULL) {
+    taosArrayPush(pExchangeInfo->pRecycledBlocks, p);
+    return *p;
+  } else {
     if (pExchangeInfo->seqLoadData) {
       seqLoadRemoteData(pOperator);
     } else {
       concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
     }
 
-    if (taosArrayGetSize(pExchangeInfo->pResultBlockList) == 0) {
+    if (taosArrayGetSize(pExchangeInfo->pReadyBlocks) == 0) {
       return NULL;
+    } else {
+      p = taosArrayPop(pExchangeInfo->pReadyBlocks);
+      taosArrayPush(pExchangeInfo->pRecycledBlocks, p);
+      return *p;
     }
   }
-
-  // we have buffered retrieved datablock, return it directly
-  return taosArrayGetP(pExchangeInfo->pResultBlockList, pExchangeInfo->rspBlockIndex++);
 }
 
 static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator) {
@@ -284,7 +296,8 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
 
   tsem_init(&pInfo->ready, 0, 0);
   pInfo->pDummyBlock = createResDataBlock(pExNode->node.pOutputDataBlockDesc);
-  pInfo->pResultBlockList = taosArrayInit(1, POINTER_BYTES);
+  pInfo->pReadyBlocks = taosArrayInit(64, POINTER_BYTES);
+  pInfo->pRecycledBlocks = taosArrayInit(64, POINTER_BYTES);
 
   pInfo->seqLoadData = false;
   pInfo->pTransporter = pTransporter;
@@ -326,11 +339,9 @@ void doDestroyExchangeOperatorInfo(void* param) {
   taosArrayDestroy(pExInfo->pSources);
   taosArrayDestroyEx(pExInfo->pSourceDataInfo, freeSourceDataInfo);
 
-  if (pExInfo->pResultBlockList != NULL) {
-    taosArrayDestroyEx(pExInfo->pResultBlockList, freeBlock);
-    pExInfo->pResultBlockList = NULL;
-  }
-
+  taosArrayDestroyEx(pExInfo->pReadyBlocks, freeBlock);
+  taosArrayDestroyEx(pExInfo->pRecycledBlocks, freeBlock);
+  
   blockDataDestroy(pExInfo->pDummyBlock);
 
   tsem_destroy(&pExInfo->ready);

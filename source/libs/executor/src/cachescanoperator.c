@@ -74,9 +74,8 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
 
     STableKeyInfo* pList = tableListGetInfo(pTableList, 0);
 
-    size_t   num = tableListGetSize(pTableList);
     uint64_t suid = tableListGetSuid(pTableList);
-    code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
+    code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, totalTables,
                                    taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
