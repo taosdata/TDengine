@@ -287,10 +287,6 @@ target_sources(syncLeaderTransferTest
     PRIVATE
     "syncLeaderTransferTest.cpp"
 )
-target_sources(syncReconfigFinishTest
-    PRIVATE
-    "syncReconfigFinishTest.cpp"
-)
 target_sources(syncRestoreFromSnapshot
     PRIVATE
     "syncRestoreFromSnapshot.cpp"
@@ -597,11 +593,6 @@ target_include_directories(syncRaftLogTest3
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncLeaderTransferTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
-target_include_directories(syncReconfigFinishTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
