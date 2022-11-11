@@ -28,7 +28,14 @@ static int vnodeBufPoolCreate(SVnode *pVnode, int64_t size, SVBufPool **ppPool) 
   }
 
   if (VND_IS_RSMA(pVnode)) {
+    pPool->lock = taosMemoryMalloc(sizeof(TdThreadSpinlock));
+    if (!pPool->lock) {
+      taosMemoryFree(pPool);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
     if (taosThreadSpinInit(pPool->lock, 0) != 0) {
+      taosMemoryFree((void*)pPool->lock);
       taosMemoryFree(pPool);
       terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
@@ -53,7 +60,10 @@ static int vnodeBufPoolCreate(SVnode *pVnode, int64_t size, SVBufPool **ppPool) 
 
 static int vnodeBufPoolDestroy(SVBufPool *pPool) {
   vnodeBufPoolReset(pPool);
-  if (pPool->lock) taosThreadSpinDestroy(pPool->lock);
+  if (pPool->lock) {
+    taosThreadSpinDestroy(pPool->lock);
+    taosMemoryFree((void*)pPool->lock);
+  }
   taosMemoryFree(pPool);
   return 0;
 }
