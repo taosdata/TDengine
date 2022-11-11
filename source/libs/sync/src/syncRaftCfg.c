@@ -13,10 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncRaftCfg.h"
-#include "cJSON.h"
-#include "syncEnv.h"
-#include "syncUtil.h"
 
 // file must already exist!
 SRaftCfgIndex *raftCfgIndexOpen(const char *path) {
@@ -242,13 +240,6 @@ cJSON *syncCfg2Json(SSyncCfg *pSyncCfg) {
   return pRoot;
 }
 
-char *syncCfg2Str(SSyncCfg *pSyncCfg) {
-  cJSON *pJson = syncCfg2Json(pSyncCfg);
-  char  *serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg) {
   memset(pSyncCfg, 0, sizeof(SSyncCfg));
   // cJSON *pJson = cJSON_GetObjectItem(pRoot, "SSyncCfg");
@@ -280,17 +271,6 @@ int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg) {
              pNodeFqdn->valuestring);
   }
 
-  return 0;
-}
-
-int32_t syncCfgFromStr(const char *s, SSyncCfg *pSyncCfg) {
-  cJSON *pRoot = cJSON_Parse(s);
-  ASSERT(pRoot != NULL);
-
-  int32_t ret = syncCfgFromJson(pRoot, pSyncCfg);
-  ASSERT(ret == 0);
-
-  cJSON_Delete(pRoot);
   return 0;
 }
 

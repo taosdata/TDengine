@@ -49,6 +49,9 @@ void   syncEntryPrint2(char* s, const SSyncRaftEntry* pObj);
 void   syncEntryLog(const SSyncRaftEntry* pObj);
 void   syncEntryLog2(char* s, const SSyncRaftEntry* pObj);
 
+char*   syncCfg2Str(SSyncCfg* pSyncCfg);
+int32_t syncCfgFromStr(const char* s, SSyncCfg* pSyncCfg);
+
 cJSON* raftCache2Json(SRaftEntryHashCache* pObj);
 char*  raftCache2Str(SRaftEntryHashCache* pObj);
 void   raftCachePrint(SRaftEntryHashCache* pObj);
@@ -62,6 +65,14 @@ void   raftEntryCachePrint(SRaftEntryCache* pObj);
 void   raftEntryCachePrint2(char* s, SRaftEntryCache* pObj);
 void   raftEntryCacheLog(SRaftEntryCache* pObj);
 void   raftEntryCacheLog2(char* s, SRaftEntryCache* pObj);
+
+int32_t raftStoreFromJson(SRaftStore* pRaftStore, cJSON* pJson);
+cJSON*  raftStore2Json(SRaftStore* pRaftStore);
+char*   raftStore2Str(SRaftStore* pRaftStore);
+void    raftStorePrint(SRaftStore* pObj);
+void    raftStorePrint2(char* s, SRaftStore* pObj);
+void    raftStoreLog(SRaftStore* pObj);
+void    raftStoreLog2(char* s, SRaftStore* pObj);
 
 cJSON* syncAppendEntriesBatch2Json(const SyncAppendEntriesBatch* pMsg);
 char*  syncAppendEntriesBatch2Str(const SyncAppendEntriesBatch* pMsg);
@@ -98,6 +109,8 @@ cJSON* snapshotSender2Json(SSyncSnapshotSender* pSender);
 char*  snapshotSender2Str(SSyncSnapshotSender* pSender);
 cJSON* snapshotReceiver2Json(SSyncSnapshotReceiver* pReceiver);
 char*  snapshotReceiver2Str(SSyncSnapshotReceiver* pReceiver);
+
+
 
 #ifdef __cplusplus
 }

@@ -13,33 +13,33 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncRaftLog.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 
-//-------------------------------
 // log[m .. n]
 
 // public function
 static int32_t   raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncIndex snapshotIndex);
-
 static int32_t   raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
 static int32_t   raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
 static bool      raftLogExist(struct SSyncLogStore* pLogStore, SyncIndex index);
 static int32_t   raftLogUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
 static SyncIndex raftlogCommitIndex(SSyncLogStore* pLogStore);
+static int32_t   raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** ppLastEntry);
 
-static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** ppLastEntry);
-
-//-------------------------------
 SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
-  SSyncLogStore* pLogStore = taosMemoryMalloc(sizeof(SSyncLogStore));
-  ASSERT(pLogStore != NULL);
+  SSyncLogStore* pLogStore = taosMemoryCalloc(1, sizeof(SSyncLogStore));
+  if (pLogStore == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   pLogStore->pCache = taosLRUCacheInit(10 * 1024 * 1024, 1, .5);
   if (pLogStore->pCache == NULL) {
-    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
     taosMemoryFree(pLogStore);
+    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -96,7 +96,6 @@ void logStoreDestory(SSyncLogStore* pLogStore) {
   }
 }
 
-//-------------------------------
 // log[m .. n]
 static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncIndex snapshotIndex) {
   ASSERT(snapshotIndex >= 0);

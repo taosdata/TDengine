@@ -25,6 +25,8 @@ extern "C" {
 #define RAFT_STORE_BLOCK_SIZE 512
 #define RAFT_STORE_PATH_LEN   (TSDB_FILENAME_LEN * 2)
 
+#define EMPTY_RAFT_ID ((SRaftId){.addr = 0, .vgId = 0})
+
 typedef struct SRaftStore {
   SyncTerm  currentTerm;
   SRaftId   voteFor;
@@ -38,20 +40,11 @@ int32_t     raftStorePersist(SRaftStore *pRaftStore);
 int32_t     raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len);
 int32_t     raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len);
 
-bool    raftStoreHasVoted(SRaftStore *pRaftStore);
-void    raftStoreVote(SRaftStore *pRaftStore, SRaftId *pRaftId);
-void    raftStoreClearVote(SRaftStore *pRaftStore);
-void    raftStoreNextTerm(SRaftStore *pRaftStore);
-void    raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term);
-int32_t raftStoreFromJson(SRaftStore *pRaftStore, cJSON *pJson);
-cJSON  *raftStore2Json(SRaftStore *pRaftStore);
-char   *raftStore2Str(SRaftStore *pRaftStore);
-
-// for debug -------------------
-void raftStorePrint(SRaftStore *pObj);
-void raftStorePrint2(char *s, SRaftStore *pObj);
-void raftStoreLog(SRaftStore *pObj);
-void raftStoreLog2(char *s, SRaftStore *pObj);
+bool raftStoreHasVoted(SRaftStore *pRaftStore);
+void raftStoreVote(SRaftStore *pRaftStore, SRaftId *pRaftId);
+void raftStoreClearVote(SRaftStore *pRaftStore);
+void raftStoreNextTerm(SRaftStore *pRaftStore);
+void raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term);
 
 #ifdef __cplusplus
 }
