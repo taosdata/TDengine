@@ -21,7 +21,6 @@ extern "C" {
 #endif
 
 #include "sync.h"
-#include "syncTools.h"
 #include "taosdef.h"
 #include "tlog.h"
 #include "trpc.h"
@@ -85,8 +84,32 @@ typedef struct SSyncSnapshotSender    SSyncSnapshotSender;
 typedef struct SSyncSnapshotReceiver  SSyncSnapshotReceiver;
 typedef struct SSyncTimer             SSyncTimer;
 typedef struct SSyncHbTimerData       SSyncHbTimerData;
+typedef struct SyncSnapshotSend       SyncSnapshotSend;
+typedef struct SyncSnapshotRsp        SyncSnapshotRsp;
+typedef struct SyncLocalCmd           SyncLocalCmd;
+typedef struct SyncAppendEntriesBatch SyncAppendEntriesBatch;
+typedef struct SyncPreSnapshotReply   SyncPreSnapshotReply;
+typedef struct SyncHeartbeatReply     SyncHeartbeatReply;
+typedef struct SyncHeartbeat          SyncHeartbeat;
+typedef struct SyncPreSnapshot        SyncPreSnapshot;
+
+typedef int32_t (*FpOnPingCb)(SSyncNode* ths, SyncPing* pMsg);
+typedef int32_t (*FpOnPingReplyCb)(SSyncNode* ths, SyncPingReply* pMsg);
+typedef int32_t (*FpOnClientRequestCb)(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
+typedef int32_t (*FpOnRequestVoteCb)(SSyncNode* ths, SyncRequestVote* pMsg);
+typedef int32_t (*FpOnRequestVoteReplyCb)(SSyncNode* ths, SyncRequestVoteReply* pMsg);
+typedef int32_t (*FpOnAppendEntriesCb)(SSyncNode* ths, SyncAppendEntries* pMsg);
+typedef int32_t (*FpOnAppendEntriesReplyCb)(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+typedef int32_t (*FpOnTimeoutCb)(SSyncNode* pSyncNode, SyncTimeout* pMsg);
+typedef int32_t (*FpOnSnapshotCb)(SSyncNode* ths, SyncSnapshotSend* pMsg);
+typedef int32_t (*FpOnSnapshotReplyCb)(SSyncNode* ths, SyncSnapshotRsp* pMsg);
 
 extern bool gRaftDetailLog;
+
+typedef struct SRaftId {
+  SyncNodeId  addr;
+  SyncGroupId vgId;
+} SRaftId;
 
 typedef struct SSyncHbTimerData {
   SSyncNode*  pSyncNode;

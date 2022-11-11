@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "syncAppendEntries.h"
+#include "syncMessage.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 

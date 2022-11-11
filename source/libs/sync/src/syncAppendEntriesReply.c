@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "syncAppendEntriesReply.h"
+#include "syncMessage.h"
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
 #include "syncRaftStore.h"

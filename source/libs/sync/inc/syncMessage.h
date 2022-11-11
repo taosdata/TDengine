@@ -13,18 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_TOOLS_H
-#define _TD_LIBS_SYNC_TOOLS_H
+#ifndef _TD_LIBS_SYNC_MESSAGE_H
+#define _TD_LIBS_SYNC_MESSAGE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// ------------------ ds -------------------
-typedef struct SRaftId {
-  SyncNodeId  addr;
-  SyncGroupId vgId;
-} SRaftId;
+#include "syncInt.h"
 
 // ------------------ for debug -------------------
 void syncRpcMsgPrint(SRpcMsg* pMsg);
@@ -731,16 +727,6 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
 int32_t syncNodeOnLocalCmd(SSyncNode* ths, SyncLocalCmd* pMsg);
 
 // -----------------------------------------
-typedef int32_t (*FpOnPingCb)(SSyncNode* ths, SyncPing* pMsg);
-typedef int32_t (*FpOnPingReplyCb)(SSyncNode* ths, SyncPingReply* pMsg);
-typedef int32_t (*FpOnClientRequestCb)(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
-typedef int32_t (*FpOnRequestVoteCb)(SSyncNode* ths, SyncRequestVote* pMsg);
-typedef int32_t (*FpOnRequestVoteReplyCb)(SSyncNode* ths, SyncRequestVoteReply* pMsg);
-typedef int32_t (*FpOnAppendEntriesCb)(SSyncNode* ths, SyncAppendEntries* pMsg);
-typedef int32_t (*FpOnAppendEntriesReplyCb)(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
-typedef int32_t (*FpOnTimeoutCb)(SSyncNode* pSyncNode, SyncTimeout* pMsg);
-typedef int32_t (*FpOnSnapshotCb)(SSyncNode* ths, SyncSnapshotSend* pMsg);
-typedef int32_t (*FpOnSnapshotReplyCb)(SSyncNode* ths, SyncSnapshotRsp* pMsg);
 
 // option ----------------------------------
 bool          syncNodeSnapshotEnable(SSyncNode* pSyncNode);
@@ -752,4 +738,4 @@ ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
 }
 #endif
 
-#endif /*_TD_LIBS_SYNC_TOOLS_H*/
+#endif /*_TD_LIBS_SYNC_MESSAGE_H*/
