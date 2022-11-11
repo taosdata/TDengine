@@ -54,7 +54,8 @@ class SyncRestartCreatingTables(TDCase):
         self.timeout = '30s'
         self.vgroups = 10
         self.replica = 3
-    def sync_restart(self):
+    def sync_restart(self,source_type):
+        self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
         taosBenchmark_thread_list = []
         # taosx_thread = []
         taosx_thread_list = []
@@ -62,19 +63,22 @@ class SyncRestartCreatingTables(TDCase):
         for source in range(len(self.source_taosd_list)):
             host = self.source_taosd_list[source][0]
             port = self.source_taosd_list[source][1]
-            self.tdTaosx.write_json(f'{self.test_root}/cases/taosx/basic_stability{source}.json', self.tdTaosx.get_json(f'{self.test_root}/cases/taosx/basic_stability.json',
+            self.tdTaosx.write_json(f'{self.test_root}/cases/taosx/basic_createtable{source}.json', self.tdTaosx.get_json(f'{self.test_root}/cases/taosx/basic_createtable.json',
                             host, int(port), self.dbname[source], self.stbname[source], self.tbname_m[source],self.tb_num,self.start_timestamp,self.row_num,self.drop_flag,self.child_table_exist_flag,replica=self.replica,vgroups=self.vgroups,interlace_rows=0,insert_interval=0))
             self.remote.put(
-                self.taosBenchmark_fqdn[0], f'{self.test_root}/cases/taosx/basic_stability{source}.json', f'/tmp/basic_stability{source}')
+                self.taosBenchmark_fqdn[0], f'{self.test_root}/cases/taosx/basic_createtable{source}.json', f'/tmp/basic_createtable{source}')
         for source in range(len(self.source_taosd_list)):   
             taosBenchmark_thread_list.append(threading.Thread(target=self.remote.cmd,args=(
-                self.taosBenchmark_fqdn[0], f'taosBenchmark -f /tmp/basic_stability{source}/basic_stability{source}.json')))
+                self.taosBenchmark_fqdn[0], f'taosBenchmark -f /tmp/basic_createtable{source}/basic_createtable{source}.json')))
             taosBenchmark_thread_list[source].start()
         time.sleep(5)
         for source in range(len(self.source_taosd_list)):
             target_dbname = self.tdCom.get_long_name(10)
             group_id = self.tdCom.get_long_name(5)
-            self.tdTaosx.run_taosx_db_from_native_to_native(taosx_thread_list,self.taosx_setting,'','',self.source_taosd_list,self.target_taosd,self.dbname,target_dbname,source,group_id,self.timeout)
+            if source_type.lower() == 'db':
+                self.tdTaosx.run_taosx_db_from_native_to_native(taosx_thread_list,self.taosx_setting,'','',self.source_taosd_list,self.target_taosd,self.dbname,target_dbname,source,group_id,self.timeout)
+            elif source_type.lower() == 'stable':
+                self.tdTaosx.run_taosx_stb_from_native_to_native(taosx_thread_list,self.taosx_setting,'','',self.source_taosd_list,self.target_taosd,self.dbname,self.tbname_m,self.target_dbname,source,group_id,self.timeout)
             taosx_thread_list[source].start()
             print(f'taosx Thread:{source} start!')
         time.sleep(5)
@@ -84,9 +88,10 @@ class SyncRestartCreatingTables(TDCase):
         for thread in taosx_thread_list:
             thread.join()
     def run(self):
-        self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+        
         self.target_dbname = self.tdCom.get_long_name(5)
-        self.sync_restart()
+        self.sync_restart('db')
+        self.sync_restart('stable')
         
 
     def cleanup(self):
