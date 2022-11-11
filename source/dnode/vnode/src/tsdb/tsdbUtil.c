@@ -1074,7 +1074,6 @@ static int32_t tBlockDataAppendTPRow(SBlockData *pBlockData, STSRow *pRow, STSch
     } else {
       ASSERT(pTColumn->type == pColData->type);
 
-
       SColVal cv = {.cid = pTColumn->colId, .type = pTColumn->type};
 
       if (pRow->statis) {
