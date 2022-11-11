@@ -168,7 +168,7 @@ int32_t dataBlockToSubmit(SDataInserterHandle* pInserter, SSubmitReq** pReq) {
     for (int32_t j = 0; j < pDataBlock->info.rows; j++) {
       SRowBuilder rb = {0};
       tdSRowInit(&rb, pTSchema->version);
-      tdSRowSetTpInfo(&rb, pTSchema->numOfCols, pTSchema->flen);
+      tdSRowSetTpInfo(&rb, pTSchema->numOfCols, pTSchema->flen, pTSchema->tlen);
       tdSRowResetBuf(&rb, rowData);
 
       ignoreRow = false;

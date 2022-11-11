@@ -260,7 +260,7 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
     for (int32_t j = 0; j < rows; j++) {
       SRowBuilder rb = {0};
       tdSRowInit(&rb, pTSchema->version);
-      tdSRowSetTpInfo(&rb, pTSchema->numOfCols, pTSchema->flen);
+      tdSRowSetTpInfo(&rb, pTSchema->numOfCols, pTSchema->flen, pTSchema->tlen);
       tdSRowResetBuf(&rb, rowData);
 
       for (int32_t k = 0; k < pTSchema->numOfCols; k++) {
@@ -504,7 +504,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       for (int32_t j = 0; j < rows; j++) {
         SRowBuilder rb = {0};
         tdSRowInit(&rb, pTSchema->version);
-        tdSRowSetTpInfo(&rb, pTSchema->numOfCols, pTSchema->flen);
+        tdSRowSetTpInfo(&rb, pTSchema->numOfCols, pTSchema->flen, pTSchema->tlen);
         tdSRowResetBuf(&rb, rowData);
 
         for (int32_t k = 0; k < pTSchema->numOfCols; k++) {

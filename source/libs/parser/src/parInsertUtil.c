@@ -131,7 +131,10 @@ void insSetBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, col_i
   pColList->cols = taosMemoryCalloc(pColList->numOfCols, sizeof(SBoundColumn));
   pColList->colIdxInfo = NULL;
   pColList->flen = 0;
+  pColList->tlen = 0;
   pColList->allNullLen = 0;
+
+  int32_t varBytesLen = 0;
 
   int32_t nVar = 0;
   for (int32_t i = 0; i < pColList->numOfCols; ++i) {
@@ -144,10 +147,12 @@ void insSetBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, col_i
     switch (type) {
       case TSDB_DATA_TYPE_BINARY:
         pColList->allNullLen += (VARSTR_HEADER_SIZE + CHAR_BYTES);
+        varBytesLen += pSchema[i - 1].bytes;
         ++nVar;
         break;
       case TSDB_DATA_TYPE_NCHAR:
         pColList->allNullLen += (VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
+        varBytesLen += pSchema[i - 1].bytes;
         ++nVar;
         break;
       default:
@@ -158,6 +163,7 @@ void insSetBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, col_i
   pColList->allNullLen += pColList->flen;
   pColList->boundNullLen = pColList->allNullLen;  // default set allNullLen
   pColList->extendedVarLen = (uint16_t)(nVar * sizeof(VarDataOffsetT));
+  pColList->tlen = pColList->flen + varBytesLen + (int32_t)TD_BITMAP_BYTES(numOfCols - 1);
 }
 
 int32_t insSchemaIdxCompar(const void* lhs, const void* rhs) {
@@ -731,8 +737,8 @@ int32_t insAllocateMemForSize(STableDataBlocks* pDataBlock, int32_t allSize) {
 int32_t insInitRowBuilder(SRowBuilder* pBuilder, int16_t schemaVer, SParsedDataColInfo* pColInfo) {
   ASSERT(pColInfo->numOfCols > 0 && (pColInfo->numOfBound <= pColInfo->numOfCols));
   tdSRowInit(pBuilder, schemaVer);
-  tdSRowSetExtendedInfo(pBuilder, pColInfo->numOfCols, pColInfo->numOfBound, pColInfo->flen, pColInfo->allNullLen,
-                        pColInfo->boundNullLen);
+  tdSRowSetExtendedInfo(pBuilder, pColInfo->numOfCols, pColInfo->numOfBound, pColInfo->flen, pColInfo->tlen,
+                        pColInfo->allNullLen, pColInfo->boundNullLen);
   return TSDB_CODE_SUCCESS;
 }
 

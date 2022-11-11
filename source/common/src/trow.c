@@ -395,7 +395,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
 
   SRowBuilder rb = {0};
   tdSRowInit(&rb, pTSchema->version);
-  tdSRowSetInfo(&rb, pTSchema->numOfCols, pTSchema->numOfCols, pTSchema->flen);
+  tdSRowSetInfo(&rb, pTSchema->numOfCols, pTSchema->numOfCols, pTSchema->flen, pTSchema->tlen);
   tdSRowResetBuf(&rb, *ppRow);
 
   iColVal = 0;
@@ -744,6 +744,7 @@ int32_t tdAppendColValToKvRow(SRowBuilder *pBuilder, TDRowValT valType, const vo
         memcpy(ptr, val, varDataTLen(val));
       }
       TD_ROW_LEN(row) += varDataTLen(val);
+      ASSERT(pBuilder->tlen == 0 || TD_ROW_LEN(row) <= pBuilder->tlen);
     } else {
       memcpy(ptr, val, TYPE_BYTES[colType]);
       TD_ROW_LEN(row) += TYPE_BYTES[colType];
@@ -782,6 +783,7 @@ int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const vo
         memcpy(POINTER_SHIFT(row, TD_ROW_LEN(row)), val, varDataTLen(val));
       }
       TD_ROW_LEN(row) += varDataTLen(val);
+      ASSERT(pBuilder->tlen == 0 || TD_ROW_LEN(row) <= pBuilder->tlen);
     } else {
       memcpy(POINTER_SHIFT(TD_ROW_DATA(row), offset), val, TYPE_BYTES[colType]);
     }
@@ -790,7 +792,7 @@ int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const vo
   return 0;
 }
 
-int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen,
+int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen, int32_t tlen,
                               int32_t allNullLen, int32_t boundNullLen) {
   if ((boundNullLen > 0) && (allNullLen > 0) && (nBoundCols > 0)) {
     uint32_t tpLen = allNullLen;
@@ -805,6 +807,7 @@ int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBou
     pBuilder->rowType = TD_ROW_TP;
   }
   pBuilder->flen = flen;
+  pBuilder->tlen = tlen > 0 ? tlen + sizeof(STSRow) : 0;
   pBuilder->nCols = nCols;
   pBuilder->nBoundCols = nBoundCols;
   if (pBuilder->flen <= 0 || pBuilder->nCols <= 0) {
@@ -911,11 +914,13 @@ void tdSRowReset(SRowBuilder *pBuilder) {
   pBuilder->nBoundCols = -1;
   pBuilder->nCols = -1;
   pBuilder->flen = -1;
+  pBuilder->tlen = -1;
   pBuilder->pBitmap = NULL;
 }
 
-int32_t tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen) {
+int32_t tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen, int32_t tlen) {
   pBuilder->flen = flen;
+  pBuilder->tlen = tlen > 0 ? tlen + sizeof(STSRow) : 0;
   pBuilder->nCols = nCols;
   if (pBuilder->flen <= 0 || pBuilder->nCols <= 0) {
     ASSERT(0);
@@ -932,8 +937,9 @@ int32_t tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen) {
+int32_t tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen, int32_t tlen) {
   pBuilder->flen = flen;
+  pBuilder->tlen = tlen > 0 ? tlen + sizeof(STSRow) : 0;
   pBuilder->nCols = nCols;
   pBuilder->nBoundCols = nBoundCols;
   if (pBuilder->flen <= 0 || pBuilder->nCols <= 0) {

@@ -1289,7 +1289,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
 
   SRowBuilder rb = {0};
   tdSRowInit(&rb, pTableMeta->sversion);
-  tdSRowSetTpInfo(&rb, numOfCols, fLen);
+  tdSRowSetTpInfo(&rb, numOfCols, fLen, 0);
   int32_t dataLen = 0;
 
   char*    pStart = pData + getVersion1BlockMetaSize(pData, numOfCols);
@@ -1553,7 +1553,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
 
     SRowBuilder rb = {0};
     tdSRowInit(&rb, sver);
-    tdSRowSetTpInfo(&rb, pTableMeta->tableInfo.numOfColumns, fLen);
+    tdSRowSetTpInfo(&rb, pTableMeta->tableInfo.numOfColumns, fLen, 0);
     int32_t totalLen = 0;
 
     SHashObj* schemaHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
@@ -1856,7 +1856,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
 
     SRowBuilder rb = {0};
     tdSRowInit(&rb, sver);
-    tdSRowSetTpInfo(&rb, pTableMeta->tableInfo.numOfColumns, fLen);
+    tdSRowSetTpInfo(&rb, pTableMeta->tableInfo.numOfColumns, fLen, 0);
     int32_t totalLen = 0;
 
     SHashObj* schemaHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);

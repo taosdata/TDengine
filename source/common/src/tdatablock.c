@@ -2023,7 +2023,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
     }
 
     if (rb.nCols != colNum) {
-      tdSRowSetTpInfo(&rb, colNum, pTSchema->flen);
+      tdSRowSetTpInfo(&rb, colNum, pTSchema->flen, pTSchema->tlen);
     }
 
     SSubmitBlk* pSubmitBlk = POINTER_SHIFT(pDataBuf, msgLen);

@@ -63,6 +63,7 @@ typedef struct {
 typedef struct SParsedDataColInfo {
   col_id_t       numOfCols;
   col_id_t       numOfBound;
+  int32_t        tlen;        // TODO: get from STSchema
   uint16_t       flen;        // TODO: get from STSchema
   uint16_t       allNullLen;  // TODO: get from STSchema(base on SDataRow)
   uint16_t       extendedVarLen;

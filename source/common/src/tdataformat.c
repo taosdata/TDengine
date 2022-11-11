@@ -1100,7 +1100,7 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
   pSchema->vlen = pBuilder->vlen;
 
 #ifdef TD_SUPPORT_BITMAP
-  pSchema->tlen += (int)TD_BITMAP_BYTES(pSchema->numOfCols);
+  pSchema->tlen += (int)TD_BITMAP_BYTES(pSchema->numOfCols - 1);
 #endif
 
   memcpy(&pSchema->columns[0], pBuilder->columns, sizeof(STColumn) * pBuilder->nCols);
