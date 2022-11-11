@@ -858,10 +858,6 @@ target_link_libraries(syncLeaderTransferTest
     sync
     gtest_main
 )
-target_link_libraries(syncReconfigFinishTest
-    sync
-    gtest_main
-)
 target_link_libraries(syncRestoreFromSnapshot
     sync
     gtest_main
