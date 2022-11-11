@@ -582,10 +582,10 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       code = -1;
     }
 
-    tqDebug("tmq poll: consumer %" PRId64 ", subkey %s, vg %d, send data blockNum:%d, offset type:%d, uid:%" PRId64
-            ", version:%" PRId64 "",
+    tqDebug("tmq poll: consumer %" PRId64
+            ", subkey %s, vg %d, send data blockNum:%d, offset type:%d, uid/version:%" PRId64 ", ts:%" PRId64 "",
             consumerId, pHandle->subKey, TD_VID(pTq->pVnode), dataRsp.blockNum, dataRsp.rspOffset.type,
-            dataRsp.rspOffset.uid, dataRsp.rspOffset.version);
+            dataRsp.rspOffset.uid, dataRsp.rspOffset.ts);
 
     tDeleteSMqDataRsp(&dataRsp);
     return code;
