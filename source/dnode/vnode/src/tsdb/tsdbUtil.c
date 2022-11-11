@@ -1074,6 +1074,7 @@ static int32_t tBlockDataAppendTPRow(SBlockData *pBlockData, STSRow *pRow, STSch
     } else {
       ASSERT(pTColumn->type == pColData->type);
 
+
       SColVal cv = {.cid = pTColumn->colId, .type = pTColumn->type};
 
       if (pRow->statis) {
@@ -1084,7 +1085,7 @@ static int32_t tBlockDataAppendTPRow(SBlockData *pBlockData, STSRow *pRow, STSch
           cv.flag = CV_FLAG_VALUE;
 
           if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-            void *pData = pRow->data + *(int32_t *)(pRow->data + pTColumn->offset - sizeof(TSKEY));
+            void *pData = (char*)pRow + *(int32_t *)(pRow->data + pTColumn->offset - sizeof(TSKEY));
             cv.value.nData = varDataLen(pData);
             cv.value.pData = varDataVal(pData);
           } else {
@@ -1106,7 +1107,7 @@ static int32_t tBlockDataAppendTPRow(SBlockData *pBlockData, STSRow *pRow, STSch
         cv.flag = CV_FLAG_VALUE;
 
         if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-          void *pData = pRow->data + *(int32_t *)(pRow->data + pTColumn->offset - sizeof(TSKEY));
+          void *pData = (char*)pRow + *(int32_t *)(pRow->data + pTColumn->offset - sizeof(TSKEY));
           cv.value.nData = varDataLen(pData);
           cv.value.pData = varDataVal(pData);
         } else {
@@ -1149,7 +1150,6 @@ static int32_t tBlockDataAppendKVRow(SBlockData *pBlockData, STSRow *pRow, STSch
       if (code) goto _exit;
     } else {
       ASSERT(pTColumn->type == pColData->type);
-      ASSERT(pTColumn->colId == pColData->cid);
 
       SColVal    cv = {.cid = pTColumn->colId, .type = pTColumn->type};
       TDRowValT  vt = TD_VTYPE_NONE; // default is NONE
