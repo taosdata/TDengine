@@ -89,6 +89,8 @@ impl Cli {
 
         let store = Data::new(controller);
         let store_cloned = store.clone();
+        let tasks_mgr = store.clone();
+        tokio::spawn(async move { tasks_mgr.start_all().await });
         // // Make instance variable of ApiDoc so all worker threads gets the same instance.
         let openapi = ApiDoc::openapi();
 
