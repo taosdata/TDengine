@@ -81,6 +81,13 @@ extern "C" {
 #include <string.h>
 #include <wchar.h>
 #include <wctype.h>
+#include <cpuid.h>
+
+#if __AVX__
+#include <immintrin.h>
+#elif __SSE4_2__
+#include <nmmintrin.h>
+#endif
 
 #include "osThread.h"
 

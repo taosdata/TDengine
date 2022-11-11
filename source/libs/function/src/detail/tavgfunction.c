@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <immintrin.h>
 #include "builtinsimpl.h"
 #include "function.h"
 #include "tdatablock.h"
@@ -49,11 +48,48 @@ typedef struct SAvgRes {
   int16_t type;  // store the original input type, used in merge function
 } SAvgRes;
 
+static void floatVectorSumAVX(const SInputColumnInfoData* pInput, const float* plist, SAvgRes* pRes) {
+#if __AVX__
+  // find the start position that are aligned to 32bytes address in memory
+  int32_t startIndex = 0;  //((uint64_t)plist) & ((1<<8u)-1);
+  int32_t bitWidth = 8;
+
+  int32_t      remain = (pInput->numOfRows - startIndex) % bitWidth;
+  int32_t      rounds = (pInput->numOfRows - startIndex) / bitWidth;
+  const float* p = &plist[startIndex];
+
+  __m256 val;
+  __m256 sum = _mm256_setzero_ps();
+
+  for (int32_t i = 0; i < rounds; ++i) {
+    val = _mm256_loadu_ps(p);
+    sum = _mm256_add_ps(sum, val);
+    p += bitWidth;
+  }
+
+  // let sum up the final results
+  const float* q = (const float*)&sum;
+  pRes->sum.dsum += q[0] + q[1] + q[2] + q[3] + q[4] + q[5] + q[6] + q[7];
+
+  // calculate the front and the reminder items in array list
+  for (int32_t j = 0; j < startIndex; ++j) {
+    pRes->sum.dsum += plist[j];
+  }
+
+  startIndex += rounds * bitWidth;
+  for (int32_t j = 0; j < remain; ++j) {
+    pRes->sum.dsum += plist[j + startIndex];
+  }
+#endif
+}
+
 static int32_t handleFloatCols(const SColumnInfoData* pCol, const SInputColumnInfoData* pInput, SAvgRes* pRes) {
   int32_t numOfElems = 0;
   float*  plist = (float*)pCol->pData;
 
-  if (pCol->hasNull || pInput->numOfRows < 8) {
+  const int32_t THRESHOLD_SIZE = 8;
+
+  if (pCol->hasNull || pInput->numOfRows <= THRESHOLD_SIZE) {
     for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
       if (colDataIsNull_f(pCol->nullbitmap, i)) {
         continue;
@@ -67,46 +103,13 @@ static int32_t handleFloatCols(const SColumnInfoData* pCol, const SInputColumnIn
     numOfElems = pInput->numOfRows;
     pRes->count += pInput->numOfRows;
 
-    // 1. an software version to speedup the process by using loop unwinding.
-
-
-
-    // 2. if both the CPU and OS support SSE4.2, let's try the faster version by using SSE4.2 SIMD
-
-
-
-    // 3. If both the CPU and OS support AVX, let's employ AVX instruction to speedup this loop
-    // 3.1 find the start position that are aligned to 32bytes address in memory
-    int32_t startElem = 0;//((uint64_t)plist) & ((1<<8u)-1);
-    int32_t i = 0;
-
-    int32_t bitWidth = 8;
-
-    int32_t remain = (pInput->numOfRows - startElem) % bitWidth;
-    int32_t rounds = (pInput->numOfRows - startElem) / bitWidth;
-    const float* p = &plist[startElem];
-
-    __m256 loadVal;
-    __m256 sum = _mm256_setzero_ps();
-
-    for(; i < rounds; ++i) {
-      loadVal = _mm256_loadu_ps(p);
-      sum = _mm256_add_ps(sum, loadVal);
-      p += bitWidth;
-    }
-
-    // let sum up the final results
-    const float* q = (const float*)&sum;
-    pRes->sum.dsum += q[0] + q[1] + q[2] + q[3] + q[4] + q[5] + q[6] + q[7];
-
-    // calculate the front and the reminder items in array list
-    for(int32_t j = 0; j < startElem; ++j) {
-      pRes->sum.dsum += plist[j];
-    }
-
-    startElem += rounds * bitWidth;
-    for(int32_t j = 0; j < remain; ++j) {
-      pRes->sum.dsum += plist[j + startElem];
+    // 3. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
+    if (tsAVXEnable && tsSIMDEnable) {
+      floatVectorSumAVX(pInput, plist, pRes);
+    } else {
+      for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+        pRes->sum.dsum += plist[i];
+      }
     }
   }
 

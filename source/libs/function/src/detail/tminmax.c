@@ -13,12 +13,155 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <immintrin.h>
 #include "builtinsimpl.h"
 #include "function.h"
 #include "tdatablock.h"
 #include "tfunctionInt.h"
 #include "tglobal.h"
+
+static int32_t i32VectorCmpAVX2(const int32_t* pData, int32_t numOfRows, bool isMinFunc) {
+  int32_t v = 0;
+
+#if __AVX2__
+  int32_t startElem = 0;//((uint64_t)plist) & ((1<<8u)-1);
+  int32_t bitWidth = 8;
+
+  int32_t remain = (numOfRows - startElem) % bitWidth;
+  int32_t rounds = (numOfRows - startElem) / bitWidth;
+  const int32_t* p = &pData[startElem];
+
+  __m256i next;
+  __m256i initialVal = _mm256_loadu_si256((__m256i*)p);
+  p += bitWidth;
+
+  if (!isMinFunc) {  // max function
+    for (int32_t i = 0; i < rounds; ++i) {
+      next = _mm256_loadu_si256((__m256i*)p);
+      initialVal = _mm256_max_epi32(initialVal, next);
+      p += bitWidth;
+    }
+
+    // let sum up the final results
+    const int32_t* q = (const int32_t*)&initialVal;
+
+    v = TMAX(q[0], q[1]);
+    v = TMAX(v, q[2]);
+    v = TMAX(v, q[3]);
+    v = TMAX(v, q[4]);
+    v = TMAX(v, q[5]);
+    v = TMAX(v, q[6]);
+    v = TMAX(v, q[7]);
+
+    // calculate the front and the reminder items in array list
+    startElem += rounds * bitWidth;
+    for (int32_t j = 0; j < remain; ++j) {
+      if (v < p[j + startElem]) {
+        v = p[j + startElem];
+      }
+    }
+  } else {  // min function
+    for (int32_t i = 0; i < rounds; ++i) {
+      next = _mm256_loadu_si256((__m256i*)p);
+      initialVal = _mm256_min_epi32(initialVal, next);
+      p += bitWidth;
+    }
+
+    // let sum up the final results
+    const int32_t* q = (const int32_t*)&initialVal;
+
+    v = TMIN(q[0], q[1]);
+    v = TMIN(v, q[2]);
+    v = TMIN(v, q[3]);
+    v = TMIN(v, q[4]);
+    v = TMIN(v, q[5]);
+    v = TMIN(v, q[6]);
+    v = TMIN(v, q[7]);
+
+    // calculate the front and the remainder items in array list
+    startElem += rounds * bitWidth;
+    for (int32_t j = 0; j < remain; ++j) {
+      if (v > p[j + startElem]) {
+        v = p[j + startElem];
+      }
+    }
+  }
+#endif
+
+  return v;
+}
+
+static float floatVectorCmpAVX(const float* pData, int32_t numOfRows, bool isMinFunc) {
+  float v = 0;
+
+#if __AVX__
+  int32_t startElem = 0;//((uint64_t)plist) & ((1<<8u)-1);
+  int32_t i = 0;
+
+  int32_t bitWidth = 8;
+
+  int32_t remain = (numOfRows - startElem) % bitWidth;
+  int32_t rounds = (numOfRows - startElem) / bitWidth;
+  const float* p = &pData[startElem];
+
+  __m256 next;
+  __m256 initialVal = _mm256_loadu_ps(p);
+  p += bitWidth;
+
+  if (!isMinFunc) {  // max function
+    for (; i < rounds; ++i) {
+      next = _mm256_loadu_ps(p);
+      initialVal = _mm256_max_ps(initialVal, next);
+      p += bitWidth;
+    }
+
+    // let sum up the final results
+    const float* q = (const float*)&initialVal;
+
+    v = TMAX(q[0], q[1]);
+    v = TMAX(v, q[2]);
+    v = TMAX(v, q[3]);
+    v = TMAX(v, q[4]);
+    v = TMAX(v, q[5]);
+    v = TMAX(v, q[6]);
+    v = TMAX(v, q[7]);
+
+    // calculate the front and the reminder items in array list
+    startElem += rounds * bitWidth;
+    for (int32_t j = 0; j < remain; ++j) {
+      if (v < p[j + startElem]) {
+        v = p[j + startElem];
+      }
+    }
+  } else {  // min function
+    for (; i < rounds; ++i) {
+      next = _mm256_loadu_ps(p);
+      initialVal = _mm256_min_ps(initialVal, next);
+      p += bitWidth;
+    }
+
+    // let sum up the final results
+    const float* q = (const float*)&initialVal;
+
+    v = TMIN(q[0], q[1]);
+    v = TMIN(v, q[2]);
+    v = TMIN(v, q[3]);
+    v = TMIN(v, q[4]);
+    v = TMIN(v, q[5]);
+    v = TMIN(v, q[6]);
+    v = TMIN(v, q[7]);
+
+    // calculate the front and the reminder items in array list
+    startElem += rounds * bitWidth;
+    for (int32_t j = 0; j < remain; ++j) {
+      if (v > p[j + startElem]) {
+        v = p[j + startElem];
+      }
+    }
+  }
+#endif
+
+  return v;
+}
 
 static int32_t handleInt32Col(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SqlFunctionCtx* pCtx,
                               SMinmaxResInfo* pBuf, bool isMinFunc) {
@@ -26,7 +169,7 @@ static int32_t handleInt32Col(SColumnInfoData* pCol, int32_t start, int32_t numO
   int32_t* val = (int32_t*)&pBuf->v;
 
   int32_t numOfElems = 0;
-  if (pCol->hasNull || numOfRows < 8 || pCtx->subsidiaries.num > 0) {
+  if (pCol->hasNull || numOfRows <= 8 || pCtx->subsidiaries.num > 0) {
     if (isMinFunc) {  // min
       for (int32_t i = start; i < start + numOfRows; ++i) {
         if (colDataIsNull_f(pCol->nullbitmap, i)) {
@@ -77,79 +220,30 @@ static int32_t handleInt32Col(SColumnInfoData* pCol, int32_t start, int32_t numO
       }
     }
   } else { // not has null value
-    // 1. software version
-
-
-
-
-    // 3. AVX2 version to speedup the loop
-    int32_t startElem = 0;//((uint64_t)plist) & ((1<<8u)-1);
-    int32_t i = 0;
-
-    int32_t bitWidth = 8;
-    int32_t v = 0;
-
-    int32_t remain = (numOfRows - startElem) % bitWidth;
-    int32_t rounds = (numOfRows - startElem) / bitWidth;
-    const int32_t* p = &pData[startElem];
-
-    __m256i next;
-    __m256i initialVal = _mm256_loadu_si256((__m256i*)p);
-    p += bitWidth;
-
-    if (!isMinFunc) {  // max function
-      for (; i < rounds; ++i) {
-        next = _mm256_loadu_si256((__m256i*)p);
-        initialVal = _mm256_max_epi32(initialVal, next);
-        p += bitWidth;
+    // AVX2 version to speedup the loop
+    if (tsAVX2Enable && tsSIMDEnable) {
+      *val = i32VectorCmpAVX2(pData, numOfRows, isMinFunc);
+    } else {
+      if (!pBuf->assign) {
+        *val = pData[0];
+        pBuf->assign = true;
       }
 
-      // let sum up the final results
-      const int32_t* q = (const int32_t*)&initialVal;
-
-      v = TMAX(q[0], q[1]);
-      v = TMAX(v, q[2]);
-      v = TMAX(v, q[3]);
-      v = TMAX(v, q[4]);
-      v = TMAX(v, q[5]);
-      v = TMAX(v, q[6]);
-      v = TMAX(v, q[7]);
-
-      // calculate the front and the reminder items in array list
-      startElem += rounds * bitWidth;
-      for (int32_t j = 0; j < remain; ++j) {
-        if (v < p[j + startElem]) {
-          v = p[j + startElem];
+      if (isMinFunc) {  // min
+        for (int32_t i = start; i < start + numOfRows; ++i) {
+          if (*val > pData[i]) {
+            *val = pData[i];
+          }
         }
-      }
-    } else {  // min function
-      for (; i < rounds; ++i) {
-        next = _mm256_loadu_si256((__m256i*)p);
-        initialVal = _mm256_min_epi32(initialVal, next);
-        p += bitWidth;
-      }
-
-      // let sum up the final results
-      const int32_t* q = (const int32_t*)&initialVal;
-
-      v = TMIN(q[0], q[1]);
-      v = TMIN(v, q[2]);
-      v = TMIN(v, q[3]);
-      v = TMIN(v, q[4]);
-      v = TMIN(v, q[5]);
-      v = TMIN(v, q[6]);
-      v = TMIN(v, q[7]);
-
-      // calculate the front and the reminder items in array list
-      startElem += rounds * bitWidth;
-      for (int32_t j = 0; j < remain; ++j) {
-        if (v > p[j + startElem]) {
-          v = p[j + startElem];
+      } else {  // max
+        for (int32_t i = start; i < start + numOfRows; ++i) {
+          if (*val < pData[i]) {
+            *val = pData[i];
+          }
         }
       }
     }
 
-    *val = v;
     numOfElems = numOfRows;
   }
 
@@ -213,79 +307,30 @@ static int32_t handleFloatCol(SColumnInfoData* pCol, int32_t start, int32_t numO
       }
     }
   } else { // not has null value
-    // 1. software version
-
-
-
-
-    // 3. AVX2 version to speedup the loop
-    int32_t startElem = 0;//((uint64_t)plist) & ((1<<8u)-1);
-    int32_t i = 0;
-
-    int32_t bitWidth = 8;
-    float v = 0;
-
-    int32_t remain = (numOfRows - startElem) % bitWidth;
-    int32_t rounds = (numOfRows - startElem) / bitWidth;
-    const float* p = &pData[startElem];
-
-    __m256 next;
-    __m256 initialVal = _mm256_loadu_ps(p);
-    p += bitWidth;
-
-    if (!isMinFunc) {  // max function
-      for (; i < rounds; ++i) {
-        next = _mm256_loadu_ps(p);
-        initialVal = _mm256_max_ps(initialVal, next);
-        p += bitWidth;
+    // AVX version to speedup the loop
+    if (tsAVXEnable && tsSIMDEnable) {
+      *val = (double) floatVectorCmpAVX(pData, numOfRows, isMinFunc);
+    } else {
+      if (!pBuf->assign) {
+        *val = pData[0];
+        pBuf->assign = true;
       }
 
-      // let sum up the final results
-      const float* q = (const float*)&initialVal;
-
-      v = TMAX(q[0], q[1]);
-      v = TMAX(v, q[2]);
-      v = TMAX(v, q[3]);
-      v = TMAX(v, q[4]);
-      v = TMAX(v, q[5]);
-      v = TMAX(v, q[6]);
-      v = TMAX(v, q[7]);
-
-      // calculate the front and the reminder items in array list
-      startElem += rounds * bitWidth;
-      for (int32_t j = 0; j < remain; ++j) {
-        if (v < p[j + startElem]) {
-          v = p[j + startElem];
+      if (isMinFunc) {  // min
+        for (int32_t i = start; i < start + numOfRows; ++i) {
+          if (*val > pData[i]) {
+            *val = pData[i];
+          }
         }
-      }
-    } else {  // min function
-      for (; i < rounds; ++i) {
-        next = _mm256_loadu_ps(p);
-        initialVal = _mm256_min_ps(initialVal, next);
-        p += bitWidth;
-      }
-
-      // let sum up the final results
-      const float* q = (const float*)&initialVal;
-
-      v = TMIN(q[0], q[1]);
-      v = TMIN(v, q[2]);
-      v = TMIN(v, q[3]);
-      v = TMIN(v, q[4]);
-      v = TMIN(v, q[5]);
-      v = TMIN(v, q[6]);
-      v = TMIN(v, q[7]);
-
-      // calculate the front and the reminder items in array list
-      startElem += rounds * bitWidth;
-      for (int32_t j = 0; j < remain; ++j) {
-        if (v > p[j + startElem]) {
-          v = p[j + startElem];
+      } else {  // max
+        for (int32_t i = start; i < start + numOfRows; ++i) {
+          if (*val < pData[i]) {
+            *val = pData[i];
+          }
         }
       }
     }
 
-    *val = v;
     numOfElems = numOfRows;
   }
 
