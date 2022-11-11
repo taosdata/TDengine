@@ -953,7 +953,7 @@ class StateMechine:
         except taos.error.ProgrammingError as err:            
             Logging.error("Failed to initialized state machine, cannot find current state: {}".format(err))
             traceback.print_stack()
-            pass # re-throw
+            raise # re-throw
 
     # TODO: seems no lnoger used, remove?
     def getCurrentState(self):
@@ -1095,13 +1095,13 @@ class StateMechine:
         BasicTypes = self.getTaskTypes()
         weightsTypes = BasicTypes.copy()
 
-        # this matrixs can balance  the Frequency of different types of tasks
-        weight_matrixs = {'TaskDropDb': 5 , 'TaskDropTopics': 20 , 'TaskDropStreams':10 , 'TaskDropStreamTables':10 ,
+        # this matrixs can balance  the Frequency of TaskTypes 
+        balance_TaskType_matrixs = {'TaskDropDb': 5 , 'TaskDropTopics': 20 , 'TaskDropStreams':10 , 'TaskDropStreamTables':10 ,
                           'TaskReadData':50 , 'TaskDropSuperTable':5 , 'TaskAlterTags':3 , 'TaskAddData':10,
                           'TaskDeleteData':10 , 'TaskCreateDb':10 , 'TaskCreateStream': 3, 'TaskCreateTopic' :3,
-                          'TaskCreateConsumers':10, 'TaskCreateSuperTable': 10 }  # task type : weghts matrixs
+                          'TaskCreateConsumers':10, 'TaskCreateSuperTable': 10 }  # TaskType : balance_matrixs of task
         
-        for task , weights in weight_matrixs.items():
+        for task , weights in balance_TaskType_matrixs.items():
             
             for basicType in BasicTypes:
                 if basicType.__name__ == task:
@@ -1738,8 +1738,12 @@ class TaskDropDb(StateTransitionTask):
             
         #     self._db.getFixedSuperTable().dropTopics(wt.getDbConn(),self._db.getName(),None)
         #     self._db.getFixedSuperTable().dropTopics(wt.getDbConn(),self._db.getName(),self._db.getFixedSuperTableName)
-    
-        self.queryWtSql(wt, "drop database {}".format(self._db.getName())) # drop database maybe failed ,because topic exists
+        try:
+            self.queryWtSql(wt, "drop database {}".format(self._db.getName())) # drop database maybe failed ,because topic exists
+        except taos.error.ProgrammingError as err:
+            errno = Helper.convertErrno(err.errno)
+            if errno in [0x0203]: # drop maybe failed 
+                pass
 
         Logging.debug("[OPS] database dropped at {}".format(time.time()))
 
