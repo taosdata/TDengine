@@ -392,31 +392,6 @@ pub async fn tmq_to_local(
     for handle in handles {
         let _ = handle.await?;
     }
-    // let mut should_abort = false;
-    // for mut handle in handles {
-    //     if handle.is_finished() {
-    //         log::debug!("backup task done with internal handler {handle:?}");
-    //         continue;
-    //     }
-    //     if should_abort {
-    //         log::debug!("cancel backup task with internal handler {handle:?}");
-    //         handle.abort();
-    //         continue;
-    //     }
-    //     tokio::select! {
-    //         _ = cancel.cancelled() => {
-    //             should_abort = true;
-    //             // panic!("cancelled");
-    //             log::debug!("cancel backup task with internal handler {handle:?}");
-    //             handle.abort();
-    //         }
-    //         res = &mut handle => {
-    //             res??;
-    //             log::debug!("backup task done with internal handler {handle:?}");
-    //         }
-    //     }
-    // }
-    // tokio::time::sleep(std::time::Duration::MAX).await;
     Ok(())
 }
 

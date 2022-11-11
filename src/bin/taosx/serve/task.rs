@@ -9,6 +9,7 @@ use actix_web::{
     HttpResponse, Responder,
 };
 use chrono::{DateTime, Utc};
+use regex::internal::Inst;
 use serde::{Deserialize, Serialize};
 use sqlx::migrate::Migrator;
 use sqlx::SqlitePool;
@@ -209,6 +210,7 @@ impl TaskController {
                     if opts.from.driver == "tmq" && opts.from.get("timeout").map(|s| s == "never").unwrap_or(false) {
                         let mut restarts = 0;
                         let mut sleep = Duration::from_secs(2);
+                        let mut last_restart_time = Instant::now();
                         loop {
                             let now = Utc::now();
                             let _ = sqlx::query!(
@@ -221,6 +223,7 @@ impl TaskController {
                             .await?;
                             if restarts > 0 {
                                 log::info!("resume task {id} as {restarts} restarts");
+                                last_restart_time = Instant::now();
                             } else {
                                 log::info!("start task {id}");
                             }
@@ -239,21 +242,46 @@ impl TaskController {
 
                                 }
                                 Err(err) => {
-                                    log::error!("run task {id} failed: {err}, wait for resume...");
-                                    let err = err.to_string();
-                                    let now = Utc::now();
-                                    let _ = sqlx::query!(
-                                        "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
-                                        now,
-                                        Status::Failed,
-                                        err,
-                                        id
-                                    )
-                                    .execute(&pool)
-                                    .await?;
+                                    let err_string = err.to_string();
+
+                                    match err_string.as_str() {
+                                        e if e.contains("WebSocket protocol error") | e.contains("WebSocket internal error") => {
+                                            log::warn!("run task {id} failed: {err}, wait for resume...");
+                                            let err = err.to_string();
+                                            let now = Utc::now();
+                                            let _ = sqlx::query!(
+                                                "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE",
+                                                now,
+                                                Status::Interrupted,
+                                                err,
+                                                id
+                                            )
+                                            .execute(&pool)
+                                            .await?;
+                                        }
+                                        _ => {
+                                            log::error!("run task {id} failed with: {err}, please check the task information");
+                                            let err = err.to_string();
+                                            let now = Utc::now();
+                                            let _ = sqlx::query!(
+                                                "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE",
+                                                now,
+                                                Status::Failed,
+                                                err,
+                                                id
+                                            )
+                                            .execute(&pool)
+                                            .await?;
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                             log::info!("resume task {id} in {sleep:?}");
+                            let running_elapsed = last_restart_time.elapsed();
+                            if running_elapsed > sleep {
+                                sleep = Duration::from_millis(500);
+                            }
                             tokio::time::sleep(sleep).await;
                             if sleep < Duration::from_secs(60) {
                                 sleep = sleep * 2;
@@ -367,143 +395,6 @@ impl TaskController {
             .unwrap();
 
         self.start_task(&task).await?;
-        // let pool = self.pool.clone();
-        // // let (tx, rx) = tokio::sync::oneshot::channel();
-        // let token = tokio_util::sync::CancellationToken::new();
-        // // let token = opts.cancel.clone();
-        // let cloned_token = token.clone();
-
-        // let task_handler = async move {
-        //     tokio::select! {
-        //         _ = cloned_token.cancelled() => {
-        //             opts.cancel();
-        //             log::debug!("cancel task {id}");
-        //             let now = Utc::now();
-        //             let status = Status::Cancelled;
-        //             let _ = sqlx::query!(
-        //                 "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
-        //                 now,
-        //                 status,
-        //                 id
-        //             )
-        //             .execute(&pool)
-        //             .await?;
-        //         }
-        //         result = async {
-        //             if opts.from.driver == "tmq" && opts.from.get("timeout").map(|s| s == "never").unwrap_or(false) {
-        //                 let mut restarts = 0;
-        //                 let mut sleep = Duration::from_secs(2);
-        //                 loop {
-        //                     if restarts > 0 {
-        //                         log::info!("resume task {id} as {restarts} restarts");
-
-        //                             let now = Utc::now();
-        //                             let _ = sqlx::query!(
-        //                                 "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
-        //                                 now,
-        //                                 Status::Running,
-        //                                 id
-        //                             )
-        //                             .execute(&pool)
-        //                             .await?;
-        //                     } else {
-        //                         log::info!("start task {id}");
-
-        //                             let now = Utc::now();
-        //                             let _ = sqlx::query!(
-        //                                 "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
-        //                                 now,
-        //                                 Status::Running,
-        //                                 id
-        //                             )
-        //                             .execute(&pool)
-        //                             .await?;
-        //                     }
-        //                     let result = opts.run().await;
-        //                     match result {
-        //                         Ok(_) => {
-        //                             let now = Utc::now();
-        //                             let _ = sqlx::query!(
-        //                                 "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
-        //                                 now,
-        //                                 Status::Interrupted,
-        //                                 id
-        //                             )
-        //                             .execute(&pool)
-        //                             .await?;
-
-        //                         }
-        //                         Err(err) => {
-        //                             log::error!("run task {id} failed: {err}, wait for resume...");
-        //                             let err = err.to_string();
-        //                             let now = Utc::now();
-        //                             let _ = sqlx::query!(
-        //                                 "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
-        //                                 now,
-        //                                 Status::Failed,
-        //                                 err,
-        //                                 id
-        //                             )
-        //                             .execute(&pool)
-        //                             .await?;
-        //                         }
-        //                     }
-        //                     log::info!("resume task {id} in {sleep:?}");
-        //                     tokio::time::sleep(sleep).await;
-        //                     if sleep < Duration::from_secs(60 * 60) {
-        //                         sleep = sleep * 2;
-        //                     }
-        //                     restarts += 1;
-        //                 }
-        //             } else {
-        //                 let result = opts.run().await;
-        //                 match result {
-        //                     Ok(_) => {
-        //                         let now = Utc::now();
-        //                         let status = Status::Completed;
-        //                         let _ = sqlx::query!(
-        //                             "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
-        //                             now,
-        //                             status,
-        //                             id
-        //                         )
-        //                         .execute(&pool)
-        //                         .await?;
-
-        //                     }
-        //                     Err(err) => {
-        //                         log::error!("run task {id} failed: {err}");
-        //                         let err = err.to_string();
-        //                         let now = Utc::now();
-        //                         let status = Status::Failed;
-        //                         let _ = sqlx::query!(
-        //                             "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
-        //                             now,
-        //                             status,
-        //                             err,
-        //                             id
-        //                         )
-        //                         .execute(&pool)
-        //                         .await?;
-        //                     }
-        //                 }
-        //             }
-        //             return Ok::<(), anyhow::Error>(())
-        //         } => {
-        //             let _ = result?;
-        //             log::info!("task {} done", id);
-        //         }
-        //     }
-        //     Ok(())
-        // };
-        // let handle = if let Some(rt) = self.runtime.as_ref() {
-        //     rt.spawn(task_handler)
-        // } else {
-        //     tokio::spawn(task_handler)
-        // };
-        // // let handle = tokio::spawn(task_handler);
-        // self.tasks.write().await.insert(id, (handle, token));
-
         Ok(task)
     }
 
