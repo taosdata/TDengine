@@ -284,6 +284,13 @@ typedef struct SShowVnodesStmt {
   SNode*    pDnodeEndpoint;
 } SShowVnodesStmt;
 
+typedef struct SShowTableTagsStmt {
+  ENodeType  type;
+  SNode*     pDbName;  // SValueNode
+  SNode*     pTbName;  // SValueNode
+  SNodeList* pTags;
+} SShowTableTagsStmt;
+
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT } EIndexType;
 
 typedef struct SIndexOptions {

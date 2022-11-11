@@ -2,6 +2,7 @@
 import taos
 import sys
 import time
+from datetime import datetime
 import socket
 import os
 import platform
@@ -100,8 +101,11 @@ class TDTestCase:
         processName="taosd"
         taosdCmd = taosdCmdRun + startAction
         tdLog.printNoPrefix("%s"%taosdCmd)
-        os.system(f"nohup {taosdCmd}  & ")
+        logTime=datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+        os.system(f"nohup {taosdCmd}  >  {logTime}.log  2>&1 &  ")
         self.checkAndstopPro(processName,startAction)
+        os.system(f"rm -rf  {logTime}.log")
+
 
     def taosdCommandExe(self,startAction,taosdCmdRun):
         taosdCmd = taosdCmdRun + startAction
@@ -207,7 +211,7 @@ class TDTestCase:
         os.system(" mkdir -p taosdCaseTmp ") 
         os.system("echo \'TAOS_QUERY_POLICY=3\' > taosdCaseTmp/.env ")
         self.taosdCommandStop(startAction,taosdCmdRun)
-        os.system(" rm -rf taosdCaseTmp/.env ") 
+        os.system(" rm -rf taosdCaseTmp ") 
 
         startAction = " -V"
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)

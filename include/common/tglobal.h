@@ -135,6 +135,9 @@ extern int32_t tsTtlPushInterval;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 
+extern int32_t tsRpcRetryLimit;
+extern int32_t tsRpcRetryInterval;
+
 //#define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,

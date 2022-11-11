@@ -424,8 +424,9 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
     case QUERY_NODE_SHOW_TAGS_STMT:
-    case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
       return makeNode(type, sizeof(SShowStmt));
+    case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
+      return makeNode(type, sizeof(SShowTableTagsStmt));
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return makeNode(type, sizeof(SShowDnodeVariablesStmt));
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
@@ -942,11 +943,17 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
-    case QUERY_NODE_SHOW_TAGS_STMT:
-    case QUERY_NODE_SHOW_TABLE_TAGS_STMT: {
+    case QUERY_NODE_SHOW_TAGS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
+      break;
+    }
+    case QUERY_NODE_SHOW_TABLE_TAGS_STMT: {
+      SShowTableTagsStmt* pStmt = (SShowTableTagsStmt*)pNode;
+      nodesDestroyNode(pStmt->pDbName);
+      nodesDestroyNode(pStmt->pTbName);
+      nodesDestroyList(pStmt->pTags);
       break;
     }
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
