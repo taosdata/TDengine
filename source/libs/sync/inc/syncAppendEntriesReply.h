@@ -20,12 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "syncMessage.h"
-#include "taosdef.h"
 
 // TLA+ Spec
 // HandleAppendEntriesResponse(i, j, m) ==

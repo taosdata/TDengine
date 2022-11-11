@@ -1,8 +1,4 @@
-#include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncRaftStore.h"
+#include "syncTest.h"
 
 void print(SHashObj *pNextIndex) {
   printf("----------------\n");

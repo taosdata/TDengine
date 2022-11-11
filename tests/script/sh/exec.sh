@@ -80,7 +80,7 @@ LOG_DIR=$NODE_DIR/log
 DATA_DIR=$NODE_DIR/data
 MGMT_DIR=$NODE_DIR/data/mgmt
 TSDB_DIR=$NODE_DIR/data/tsdb
-
+ASAN_DIR=$SIM_DIR/tsim/asan
 TAOS_CFG=$NODE_DIR/cfg/taos.cfg
 
 echo ------------ $EXEC_OPTON $NODE_NAME
@@ -105,7 +105,7 @@ if [ "$EXEC_OPTON" = "start" ]; then
     nohup valgrind --log-file=${LOG_DIR}/valgrind-taosd-${NODE_NAME}-${TT}.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all --num-callers=20 -v -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &   
   else
     echo "nohup $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &"
-    nohup $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 & 
+    nohup $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2> $ASAN_DIR/$NODE_NAME.asan & 
   fi
   
 else

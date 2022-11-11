@@ -757,7 +757,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
 
   // init internal
   pSyncNode->myNodeInfo = pSyncNode->pRaftCfg->cfg.nodeInfo[pSyncNode->pRaftCfg->cfg.myIndex];
-  if (!syncUtilnodeInfo2raftId(&pSyncNode->myNodeInfo, pSyncNode->vgId, &pSyncNode->myRaftId)) {
+  if (!syncUtilNodeInfo2RaftId(&pSyncNode->myNodeInfo, pSyncNode->vgId, &pSyncNode->myRaftId)) {
     sError("vgId:%d, failed to determine my raft member id", pSyncNode->vgId);
     goto _error;
   }
@@ -772,7 +772,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
     }
   }
   for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
-    if (!syncUtilnodeInfo2raftId(&pSyncNode->peersNodeInfo[i], pSyncNode->vgId, &pSyncNode->peersId[i])) {
+    if (!syncUtilNodeInfo2RaftId(&pSyncNode->peersNodeInfo[i], pSyncNode->vgId, &pSyncNode->peersId[i])) {
       sError("vgId:%d, failed to determine raft member id, peer:%d", pSyncNode->vgId, i);
       goto _error;
     }
@@ -781,7 +781,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   // init replicaNum, replicasId
   pSyncNode->replicaNum = pSyncNode->pRaftCfg->cfg.replicaNum;
   for (int32_t i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
-    if (!syncUtilnodeInfo2raftId(&pSyncNode->pRaftCfg->cfg.nodeInfo[i], pSyncNode->vgId, &pSyncNode->replicasId[i])) {
+    if (!syncUtilNodeInfo2RaftId(&pSyncNode->pRaftCfg->cfg.nodeInfo[i], pSyncNode->vgId, &pSyncNode->replicasId[i])) {
       sError("vgId:%d, failed to determine raft member id, replica:%d", pSyncNode->vgId, i);
       goto _error;
     }
@@ -1213,7 +1213,7 @@ int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode) {
 // utils --------------
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
   SEpSet epSet;
-  syncUtilraftId2EpSet(destRaftId, &epSet);
+  syncUtilRaftId2EpSet(destRaftId, &epSet);
   if (pSyncNode->syncSendMSg != NULL) {
     // htonl
     syncUtilMsgHtoN(pMsg->pCont);
@@ -1230,7 +1230,7 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRp
 
 int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
   SEpSet epSet;
-  syncUtilnodeInfo2EpSet(nodeInfo, &epSet);
+  syncUtilNodeInfo2EpSet(nodeInfo, &epSet);
   if (pSyncNode->syncSendMSg != NULL) {
     // htonl
     syncUtilMsgHtoN(pMsg->pCont);
@@ -1344,7 +1344,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 
     // init internal
     pSyncNode->myNodeInfo = pSyncNode->pRaftCfg->cfg.nodeInfo[pSyncNode->pRaftCfg->cfg.myIndex];
-    syncUtilnodeInfo2raftId(&pSyncNode->myNodeInfo, pSyncNode->vgId, &pSyncNode->myRaftId);
+    syncUtilNodeInfo2RaftId(&pSyncNode->myNodeInfo, pSyncNode->vgId, &pSyncNode->myRaftId);
 
     // init peersNum, peers, peersId
     pSyncNode->peersNum = pSyncNode->pRaftCfg->cfg.replicaNum - 1;
@@ -1356,13 +1356,13 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
       }
     }
     for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
-      syncUtilnodeInfo2raftId(&pSyncNode->peersNodeInfo[i], pSyncNode->vgId, &pSyncNode->peersId[i]);
+      syncUtilNodeInfo2RaftId(&pSyncNode->peersNodeInfo[i], pSyncNode->vgId, &pSyncNode->peersId[i]);
     }
 
     // init replicaNum, replicasId
     pSyncNode->replicaNum = pSyncNode->pRaftCfg->cfg.replicaNum;
     for (int32_t i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
-      syncUtilnodeInfo2raftId(&pSyncNode->pRaftCfg->cfg.nodeInfo[i], pSyncNode->vgId, &pSyncNode->replicasId[i]);
+      syncUtilNodeInfo2RaftId(&pSyncNode->pRaftCfg->cfg.nodeInfo[i], pSyncNode->vgId, &pSyncNode->replicasId[i]);
     }
 
     // update quorum first

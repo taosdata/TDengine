@@ -1158,3 +1158,24 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   }
   return 0;
 }
+
+void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
+  SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
+  assert(pMsg->info.ahandle != NULL);
+
+  SDataBuf buf = {.len = pMsg->contLen, .pData = NULL};
+
+  if (pMsg->contLen > 0) {
+    buf.pData = taosMemoryCalloc(1, pMsg->contLen);
+    if (buf.pData == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
+    }
+  }
+
+  pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
+  rpcFreeCont(pMsg->pCont);
+  destroySendMsgInfo(pSendInfo);
+}

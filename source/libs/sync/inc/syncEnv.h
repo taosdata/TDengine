@@ -30,8 +30,6 @@ extern "C" {
 #define ELECT_TIMER_MS_RANGE (ELECT_TIMER_MS_MAX - ELECT_TIMER_MS_MIN)
 #define HEARTBEAT_TIMER_MS   1000
 
-#define EMPTY_RAFT_ID ((SRaftId){.addr = 0, .vgId = 0})
-
 typedef struct SSyncEnv {
   uint8_t isStart;
 

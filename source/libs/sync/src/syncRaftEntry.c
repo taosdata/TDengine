@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "syncRaftEntry.h"
 #include "syncUtil.h"
+#include "tref.h"
 
 SSyncRaftEntry* syncEntryBuild(int32_t dataLen) {
   int32_t         bytes = sizeof(SSyncRaftEntry) + dataLen;
@@ -101,7 +102,6 @@ void syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg) {
   memcpy(pRpcMsg->pCont, pEntry->data, pRpcMsg->contLen);
 }
 
-//-----------------------------------
 SRaftEntryHashCache* raftCacheCreate(SSyncNode* pSyncNode, int32_t maxCount) {
   SRaftEntryHashCache* pCache = taosMemoryMalloc(sizeof(SRaftEntryHashCache));
   if (pCache == NULL) {
@@ -255,8 +255,6 @@ int32_t raftCacheClear(struct SRaftEntryHashCache* pCache) {
   return 0;
 }
 
-
-//-----------------------------------
 static char* keyFn(const void* pData) {
   SSyncRaftEntry* pEntry = (SSyncRaftEntry*)pData;
   return (char*)(&(pEntry->index));

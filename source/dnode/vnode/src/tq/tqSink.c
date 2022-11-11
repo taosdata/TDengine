@@ -244,7 +244,7 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
 
     int32_t rows = pDataBlock->info.rows;
 
-    tqDebug("tq sink, convert block %d, rows: %d", i, rows);
+    tqDebug("tq sink, convert block1 %d, rows: %d", i, rows);
 
     int32_t dataLen = 0;
     int32_t schemaLen = 0;
@@ -486,7 +486,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       blkHead->uid = 0;
       blkHead->schemaLen = 0;
 
-      tqDebug("tq sink, convert block %d, rows: %d", i, rows);
+      tqDebug("tq sink, convert block2 %d, rows: %d", i, rows);
 
       int32_t dataLen = 0;
       void*   blkSchema = POINTER_SHIFT(blkHead, sizeof(SSubmitBlk));
@@ -514,6 +514,9 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
             tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, pColumn->offset, k);
           } else {
             void* colData = colDataGetData(pColData, j);
+            if (k == 0) {
+              tqDebug("tq sink, row %d ts %" PRId64, j, *(int64_t*)colData);
+            }
             tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, colData, true, pColumn->offset, k);
           }
         }

@@ -53,11 +53,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys);
   initLimitInfo(pSortNode->node.pLimit, pSortNode->node.pSlimit, &pInfo->limitInfo);
 
-  pOperator->name = "SortOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SORT;
-  pOperator->blocking = true;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
+  setOperatorInfo(pOperator, "SortOperator", QUERY_NODE_PHYSICAL_PLAN_SORT, true, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.pExprInfo = pExprInfo;
   pOperator->exprSupp.numOfExprs = numOfCols;
 
@@ -67,7 +63,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   // TODO dynamic set the available sort buffer
 
   pOperator->fpSet =
-      createOperatorFpSet(doOpenSortOperator, doSort, NULL, NULL, destroySortOperatorInfo, getExplainExecInfo);
+      createOperatorFpSet(doOpenSortOperator, doSort, NULL, destroySortOperatorInfo, getExplainExecInfo);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -214,7 +210,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
     pBlock = getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
                                 pInfo->matchInfo.pList, pInfo);
     if (pBlock == NULL) {
-      doSetOperatorCompleted(pOperator);
+      setOperatorCompleted(pOperator);
       return NULL;
     }
 
@@ -428,7 +424,7 @@ SSDataBlock* doGroupSort(SOperatorInfo* pOperator) {
 
     pInfo->prefetchedSortInput = pOperator->pDownstream[0]->fpSet.getNextFn(pOperator->pDownstream[0]);
     if (pInfo->prefetchedSortInput == NULL) {
-      doSetOperatorCompleted(pOperator);
+      setOperatorCompleted(pOperator);
       return NULL;
     }
     pInfo->currGroupId = pInfo->prefetchedSortInput->info.groupId;
@@ -453,7 +449,7 @@ SSDataBlock* doGroupSort(SOperatorInfo* pOperator) {
         beginSortGroup(pOperator);
       } else if (pInfo->childOpStatus == CHILD_OP_FINISHED) {
         finishSortGroup(pOperator);
-        doSetOperatorCompleted(pOperator);
+        setOperatorCompleted(pOperator);
         return NULL;
       }
     }
@@ -509,15 +505,8 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSort
   }
 
   pInfo->pSortInfo = createSortInfo(pSortPhyNode->pSortKeys);
-
-  pOperator->name = "GroupSortOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
-
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doGroupSort, NULL, NULL, destroyGroupSortOperatorInfo,
+  setOperatorInfo(pOperator, "GroupSortOperator", QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT, false, OP_NOT_OPENED, pInfo, pTaskInfo);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doGroupSort, NULL, destroyGroupSortOperatorInfo,
                                          getGroupSortExplainExecInfo);
 
   code = appendDownstream(pOperator, &downstream, 1);
@@ -705,7 +694,7 @@ SSDataBlock* doMultiwayMerge(SOperatorInfo* pOperator) {
   if (pBlock != NULL) {
     pOperator->resultInfo.totalRows += pBlock->info.rows;
   } else {
-    doSetOperatorCompleted(pOperator);
+    setOperatorCompleted(pOperator);
   }
 
   return pBlock;
@@ -774,14 +763,8 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   pInfo->bufPageSize = getProperSortPageSize(rowSize);
   pInfo->sortBufSize = pInfo->bufPageSize * (numStreams + 1);  // one additional is reserved for merged result.
 
-  pOperator->name = "MultiwayMerge";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
-
-  pOperator->fpSet = createOperatorFpSet(doOpenMultiwayMergeOperator, doMultiwayMerge, NULL, NULL,
+  setOperatorInfo(pOperator, "MultiwayMergeOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE, false, OP_NOT_OPENED, pInfo, pTaskInfo);
+  pOperator->fpSet = createOperatorFpSet(doOpenMultiwayMergeOperator, doMultiwayMerge, NULL,
                                          destroyMultiwayMergeOperatorInfo, getMultiwayMergeExplainExecInfo);
 
   code = appendDownstream(pOperator, downStreams, numStreams);

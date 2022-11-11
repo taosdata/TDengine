@@ -20,13 +20,8 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
 #include "syncMessage.h"
-#include "taosdef.h"
-#include "tref.h"
 #include "tskiplist.h"
 
 typedef struct SSyncRaftEntry {

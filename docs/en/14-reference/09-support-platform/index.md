@@ -14,7 +14,7 @@ Note: ● means officially tested and verified, ○ means unofficially tested an
 
 ## List of supported platforms for TDengine clients and connectors
 
-TDengine's connector can support a wide range of platforms, including X64/X86/ARM64/ARM32/MIPS/Alpha hardware platforms and Linux/Win64/Win32/macOS development environments.
+TDengine's connector can support a wide range of platforms, including X64/X86/ARM64/ARM32/MIPS/Alpha/LoongArch64 hardware platforms and Linux/Win64/Win32/macOS development environments.
 
 The comparison matrix is as follows.
 

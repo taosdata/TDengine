@@ -105,6 +105,7 @@ void syncEnvStopTimer() {
 #endif
 
 static void syncEnvTick(void *param, void *tmrId) {
+#if 0
   SSyncEnv *pSyncEnv = param;
   if (atomic_load_64(&gSyncEnv.envTickTimerLogicClockUser) <= atomic_load_64(&gSyncEnv.envTickTimerLogicClock)) {
     gSyncEnv.envTickTimerCounter++;
@@ -121,4 +122,5 @@ static void syncEnvTick(void *param, void *tmrId) {
            gSyncEnv.envTickTimerLogicClockUser, gSyncEnv.envTickTimerLogicClock, gSyncEnv.envTickTimerCounter,
            gSyncEnv.envTickTimerMS, tmrId);
   }
+#endif
 }

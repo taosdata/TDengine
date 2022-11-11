@@ -140,12 +140,15 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
   rpcInit.rfp = clientRpcRfp;
-  // rpcInit.tfp = clientRpcTfp;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.compressSize = tsCompressMsgSize;
+  rpcInit.dfp = destroyAhandle;
+  rpcInit.retryLimit = tsRpcRetryLimit;
+  rpcInit.retryInterval = tsRpcRetryInterval;
+
   void *pDnodeConn = rpcOpen(&rpcInit);
   if (pDnodeConn == NULL) {
     tscError("failed to init connection to server");

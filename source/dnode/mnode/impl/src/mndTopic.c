@@ -637,6 +637,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     if (pIter == NULL) break;
 
     if (pConsumer->status == MQ_CONSUMER_STATUS__LOST_REBD) continue;
+
     int32_t sz = taosArrayGetSize(pConsumer->assignedTopics);
     for (int32_t i = 0; i < sz; i++) {
       char *name = taosArrayGetP(pConsumer->assignedTopics, i);
@@ -649,6 +650,33 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
         return -1;
       }
     }
+
+    sz = taosArrayGetSize(pConsumer->rebNewTopics);
+    for (int32_t i = 0; i < sz; i++) {
+      char *name = taosArrayGetP(pConsumer->rebNewTopics, i);
+      if (strcmp(name, pTopic->name) == 0) {
+        mndReleaseConsumer(pMnode, pConsumer);
+        mndReleaseTopic(pMnode, pTopic);
+        terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
+        mError("topic:%s, failed to drop since subscribed by consumer:%" PRId64 ", in consumer group %s (reb new)",
+               dropReq.name, pConsumer->consumerId, pConsumer->cgroup);
+        return -1;
+      }
+    }
+
+    sz = taosArrayGetSize(pConsumer->rebRemovedTopics);
+    for (int32_t i = 0; i < sz; i++) {
+      char *name = taosArrayGetP(pConsumer->rebRemovedTopics, i);
+      if (strcmp(name, pTopic->name) == 0) {
+        mndReleaseConsumer(pMnode, pConsumer);
+        mndReleaseTopic(pMnode, pTopic);
+        terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
+        mError("topic:%s, failed to drop since subscribed by consumer:%" PRId64 ", in consumer group %s (reb remove)",
+               dropReq.name, pConsumer->consumerId, pConsumer->cgroup);
+        return -1;
+      }
+    }
+
     sdbRelease(pSdb, pConsumer);
   }
 
@@ -674,15 +702,6 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 
   mInfo("trans:%d, used to drop topic:%s", pTrans->id, pTopic->name);
-
-#if 0
-  if (mndDropOffsetByTopic(pMnode, pTrans, dropReq.name) < 0) {
-    ASSERT(0);
-    mndTransDrop(pTrans);
-    mndReleaseTopic(pMnode, pTopic);
-    return -1;
-  }
-#endif
 
   // TODO check if rebalancing
   if (mndDropSubByTopic(pMnode, pTrans, dropReq.name) < 0) {

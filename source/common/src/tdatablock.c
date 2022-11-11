@@ -2197,7 +2197,9 @@ char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
   return rname.ctbShortName;
 }
 
-void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols, int8_t needCompress) {
+int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
+  int32_t dataLen = 0;
+
   // todo extract method
   int32_t* version = (int32_t*)data;
   *version = 1;
@@ -2238,7 +2240,7 @@ void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_
   int32_t* colSizes = (int32_t*)data;
   data += numOfCols * sizeof(int32_t);
 
-  *dataLen = blockDataGetSerialMetaSize(numOfCols);
+  dataLen = blockDataGetSerialMetaSize(numOfCols);
 
   int32_t numOfRows = pBlock->info.rows;
   for (int32_t col = 0; col < numOfCols; ++col) {
@@ -2255,26 +2257,23 @@ void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_
     }
 
     data += metaSize;
-    (*dataLen) += metaSize;
+    dataLen += metaSize;
 
-    if (needCompress) {
-      colSizes[col] = blockCompressColData(pColRes, numOfRows, data, needCompress);
-      data += colSizes[col];
-      (*dataLen) += colSizes[col];
-    } else {
-      colSizes[col] = colDataGetLength(pColRes, numOfRows);
-      (*dataLen) += colSizes[col];
-      memmove(data, pColRes->pData, colSizes[col]);
-      data += colSizes[col];
-    }
+    colSizes[col] = colDataGetLength(pColRes, numOfRows);
+    dataLen += colSizes[col];
+    memmove(data, pColRes->pData, colSizes[col]);
+    data += colSizes[col];
 
     colSizes[col] = htonl(colSizes[col]);
   }
 
-  *actualLen = *dataLen;
+  *actualLen = dataLen;
   *groupId = pBlock->info.groupId;
-  ASSERT(*dataLen > 0);
-  uDebug("build data block, actualLen:%d, rows:%d, cols:%d", *dataLen, *rows, *cols);
+  ASSERT(dataLen > 0);
+
+  uDebug("build data block, actualLen:%d, rows:%d, cols:%d", dataLen, *rows, *cols);
+
+  return dataLen;
 }
 
 const char* blockDecode(SSDataBlock* pBlock, const char* pData) {

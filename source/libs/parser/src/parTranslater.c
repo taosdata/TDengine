@@ -466,14 +466,14 @@ static int32_t getTableHashVgroup(STranslateContext* pCxt, const char* pDbName, 
 }
 
 static int32_t getDBVgVersion(STranslateContext* pCxt, const char* pDbFName, int32_t* pVersion, int64_t* pDbId,
-                              int32_t* pTableNum) {
+                              int32_t* pTableNum, int64_t* pStateTs) {
   SParseContext* pParCxt = pCxt->pParseCxt;
   int32_t        code = collectUseDatabaseImpl(pDbFName, pCxt->pDbs);
   if (TSDB_CODE_SUCCESS == code) {
     if (pParCxt->async) {
-      code = getDbVgVersionFromCache(pCxt->pMetaCache, pDbFName, pVersion, pDbId, pTableNum);
+      code = getDbVgVersionFromCache(pCxt->pMetaCache, pDbFName, pVersion, pDbId, pTableNum, pStateTs);
     } else {
-      code = catalogGetDBVgVersion(pParCxt->pCatalog, pDbFName, pVersion, pDbId, pTableNum);
+      code = catalogGetDBVgVersion(pParCxt->pCatalog, pDbFName, pVersion, pDbId, pTableNum, pStateTs);
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
@@ -1252,6 +1252,19 @@ static bool dataTypeEqual(const SDataType* l, const SDataType* r) {
   return (l->type == r->type && l->bytes == r->bytes && l->precision == r->precision && l->scale == r->scale);
 }
 
+// 0 means equal, 1 means the left shall prevail, -1 means the right shall prevail
+static int32_t dataTypeComp(const SDataType* l, const SDataType* r) {
+  if (l->type != r->type) {
+    return 1;
+  }
+
+  if (l->bytes != r->bytes) {
+    return l->bytes > r->bytes ? 1 : -1;
+  }
+
+  return (l->precision == r->precision && l->scale == r->scale) ? 0 : 1;
+}
+
 static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   if (isMultiResFunc(pOp->pLeft)) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
@@ -1865,6 +1878,7 @@ static int32_t rewriteIsTrue(SNode* pSrc, SNode** pIsTrue) {
 
 static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseWhen) {
   bool   first = true;
+  bool   allNullThen = true;
   SNode* pNode = NULL;
   FOREACH(pNode, pCaseWhen->pWhenThenList) {
     SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
@@ -1876,10 +1890,31 @@ static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseW
       }
       pWhenThen->pWhen = pIsTrue;
     }
-    if (first) {
-      first = false;
-      pCaseWhen->node.resType = ((SExprNode*)pNode)->resType;
-    } else if (!dataTypeEqual(&pCaseWhen->node.resType, &((SExprNode*)pNode)->resType)) {
+
+    SExprNode* pThenExpr = (SExprNode*)pNode;
+    if (TSDB_DATA_TYPE_NULL == pThenExpr->resType.type) {
+      continue;
+    }
+    allNullThen = false;
+    if (first || dataTypeComp(&pCaseWhen->node.resType, &pThenExpr->resType) < 0) {
+      pCaseWhen->node.resType = pThenExpr->resType;
+    }
+    first = false;
+  }
+
+  if (allNullThen) {
+    if (NULL != pCaseWhen->pElse) {
+      pCaseWhen->node.resType = ((SExprNode*)pCaseWhen->pElse)->resType;
+    } else {
+      pCaseWhen->node.resType.type = TSDB_DATA_TYPE_NULL;
+      pCaseWhen->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
+      return DEAL_RES_CONTINUE;
+    }
+  }
+
+  FOREACH(pNode, pCaseWhen->pWhenThenList) {
+    SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
+    if (!dataTypeEqual(&pCaseWhen->node.resType, &((SExprNode*)pNode)->resType)) {
       SNode* pCastFunc = NULL;
       pCxt->errCode = createCastFunc(pCxt, pWhenThen->pThen, pCaseWhen->node.resType, &pCastFunc);
       if (TSDB_CODE_SUCCESS != pCxt->errCode) {
@@ -1889,6 +1924,7 @@ static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseW
       pWhenThen->node.resType = pCaseWhen->node.resType;
     }
   }
+
   if (NULL != pCaseWhen->pElse && !dataTypeEqual(&pCaseWhen->node.resType, &((SExprNode*)pCaseWhen->pElse)->resType)) {
     SNode* pCastFunc = NULL;
     pCxt->errCode = createCastFunc(pCxt, pCaseWhen->pElse, pCaseWhen->node.resType, &pCastFunc);
@@ -3431,19 +3467,6 @@ static SNode* createSetOperProject(const char* pTableAlias, SNode* pNode) {
   return (SNode*)pCol;
 }
 
-// 0 means equal, 1 means the left shall prevail, -1 means the right shall prevail
-static int32_t dataTypeComp(const SDataType* l, const SDataType* r) {
-  if (l->type != r->type) {
-    return 1;
-  }
-
-  if (l->bytes != r->bytes) {
-    return l->bytes > r->bytes ? 1 : -1;
-  }
-
-  return (l->precision == r->precision && l->scale == r->scale) ? 0 : 1;
-}
-
 static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pSetOperator) {
   SNodeList* pLeftProjections = getProjectList(pSetOperator->pLeft);
   SNodeList* pRightProjections = getProjectList(pSetOperator->pRight);
@@ -4969,7 +4992,8 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
   SName     name = {0};
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   tNameExtractFullName(&name, usedbReq.db);
-  int32_t code = getDBVgVersion(pCxt, usedbReq.db, &usedbReq.vgVersion, &usedbReq.dbId, &usedbReq.numOfTable);
+  int32_t code =
+      getDBVgVersion(pCxt, usedbReq.db, &usedbReq.vgVersion, &usedbReq.dbId, &usedbReq.numOfTable, &usedbReq.stateTs);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_USE_DB, (FSerializeFunc)tSerializeSUseDbReq, &usedbReq);
   }
@@ -6281,21 +6305,29 @@ static SNode* createTagsFunction() {
   return (SNode*)pFunc;
 }
 
+static int32_t createShowTableTagsProjections(SNodeList** pProjections, SNodeList** pTags) {
+  if (NULL != *pTags) {
+    TSWAP(*pProjections, *pTags);
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = nodesListMakeStrictAppend(pProjections, createTbnameFunction());
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListStrictAppend(*pProjections, createTagsFunction());
+  }
+  return code;
+}
+
 static int32_t rewriteShowStableTags(STranslateContext* pCxt, SQuery* pQuery) {
-  const char*  cols[] = {"tbname", "_tags"};
-  SShowStmt*   pShow = (SShowStmt*)pQuery->pRoot;
-  SSelectStmt* pSelect = NULL;
+  SShowTableTagsStmt* pShow = (SShowTableTagsStmt*)pQuery->pRoot;
+  SSelectStmt*        pSelect = NULL;
   int32_t code = createSimpleSelectStmt(((SValueNode*)pShow->pDbName)->literal, ((SValueNode*)pShow->pTbName)->literal,
                                         -1, NULL, &pSelect);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(&pSelect->pProjectionList, createTbnameFunction());
+    code = createShowTableTagsProjections(&pSelect->pProjectionList, &pShow->pTags);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(&pSelect->pProjectionList, createTagsFunction());
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    pSelect->isDistinct = true;
     pQuery->showRewrite = true;
+    pSelect->tagScan = true;
     nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = (SNode*)pSelect;
   } else {
