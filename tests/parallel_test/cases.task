@@ -6,8 +6,8 @@
 ,,y,unit-test,bash test.sh
 
 #tsim test
-,,y,script,./test.sh -f tsim/user/basic.sim
-,,y,script,./test.sh -f tsim/user/password.sim
+,,,script,./test.sh -f tsim/user/basic.sim
+,,,script,./test.sh -f tsim/user/password.sim
 ,,,script,./test.sh -f tsim/user/privilege_db.sim
 ,,,script,./test.sh -f tsim/user/privilege_sysinfo.sim
 ,,,script,./test.sh -f tsim/db/alter_option.sim
@@ -714,6 +714,7 @@
 ,,,system-test,python3 ./test.py -f 7-tmq/tmq_taosx.py
 ,,,system-test,python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 ,,,system-test,python3 ./test.py -f 99-TDcase/TD-19201.py
+,,,system-test,python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5
 ,,,system-test,python3 ./test.py -f 2-query/between.py  -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/distinct.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/varchar.py -Q 2

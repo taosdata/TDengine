@@ -47,8 +47,10 @@ typedef struct {
   char     label[TSDB_LABEL_LEN];
   char     user[TSDB_UNI_LEN];  // meter ID
 
-  int32_t compressSize;  // -1: no compress, 0 : all data compressed, size: compress data if larger than size
-  int8_t  encryption;    // encrypt or not
+  int32_t compressSize;   // -1: no compress, 0 : all data compressed, size: compress data if larger than size
+  int8_t  encryption;     // encrypt or not
+  int32_t retryLimit;     // retry limit
+  int32_t retryInterval;  // retry interval ms
 
   void (*cfp)(void* parent, SRpcMsg*, SEpSet*);
   bool (*retry)(int32_t code, tmsg_t msgType);

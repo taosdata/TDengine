@@ -38,7 +38,6 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode);
 void           logStoreDestory(SSyncLogStore* pLogStore);
 
 SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore);
-
 SyncIndex logStoreWalCommitVer(SSyncLogStore* pLogStore);
 
 SyncIndex raftLogWriteIndex(struct SSyncLogStore* pLogStore);

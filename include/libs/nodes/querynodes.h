@@ -297,6 +297,7 @@ typedef struct SSelectStmt {
   bool        hasStateKey;
   bool        onlyHasKeepOrderFunc;
   bool        groupSort;
+  bool        tagScan;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;

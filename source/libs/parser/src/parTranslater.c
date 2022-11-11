@@ -1878,6 +1878,7 @@ static int32_t rewriteIsTrue(SNode* pSrc, SNode** pIsTrue) {
 
 static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseWhen) {
   bool   first = true;
+  bool   allNullThen = true;
   SNode* pNode = NULL;
   FOREACH(pNode, pCaseWhen->pWhenThenList) {
     SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
@@ -1889,10 +1890,26 @@ static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseW
       }
       pWhenThen->pWhen = pIsTrue;
     }
-    if (first || dataTypeComp(&pCaseWhen->node.resType, &((SExprNode*)pNode)->resType) < 0) {
-      pCaseWhen->node.resType = ((SExprNode*)pNode)->resType;
+
+    SExprNode* pThenExpr = (SExprNode*)pNode;
+    if (TSDB_DATA_TYPE_NULL == pThenExpr->resType.type) {
+      continue;
+    }
+    allNullThen = false;
+    if (first || dataTypeComp(&pCaseWhen->node.resType, &pThenExpr->resType) < 0) {
+      pCaseWhen->node.resType = pThenExpr->resType;
     }
     first = false;
+  }
+
+  if (allNullThen) {
+    if (NULL != pCaseWhen->pElse) {
+      pCaseWhen->node.resType = ((SExprNode*)pCaseWhen->pElse)->resType;
+    } else {
+      pCaseWhen->node.resType.type = TSDB_DATA_TYPE_NULL;
+      pCaseWhen->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
+      return DEAL_RES_CONTINUE;
+    }
   }
 
   FOREACH(pNode, pCaseWhen->pWhenThenList) {
@@ -6288,21 +6305,29 @@ static SNode* createTagsFunction() {
   return (SNode*)pFunc;
 }
 
+static int32_t createShowTableTagsProjections(SNodeList** pProjections, SNodeList** pTags) {
+  if (NULL != *pTags) {
+    TSWAP(*pProjections, *pTags);
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = nodesListMakeStrictAppend(pProjections, createTbnameFunction());
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListStrictAppend(*pProjections, createTagsFunction());
+  }
+  return code;
+}
+
 static int32_t rewriteShowStableTags(STranslateContext* pCxt, SQuery* pQuery) {
-  const char*  cols[] = {"tbname", "_tags"};
-  SShowStmt*   pShow = (SShowStmt*)pQuery->pRoot;
-  SSelectStmt* pSelect = NULL;
+  SShowTableTagsStmt* pShow = (SShowTableTagsStmt*)pQuery->pRoot;
+  SSelectStmt*        pSelect = NULL;
   int32_t code = createSimpleSelectStmt(((SValueNode*)pShow->pDbName)->literal, ((SValueNode*)pShow->pTbName)->literal,
                                         -1, NULL, &pSelect);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(&pSelect->pProjectionList, createTbnameFunction());
+    code = createShowTableTagsProjections(&pSelect->pProjectionList, &pShow->pTags);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(&pSelect->pProjectionList, createTagsFunction());
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    pSelect->isDistinct = true;
     pQuery->showRewrite = true;
+    pSelect->tagScan = true;
     nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = (SNode*)pSelect;
   } else {
