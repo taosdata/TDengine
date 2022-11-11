@@ -458,11 +458,10 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *p
 }
 
 static FORCE_INLINE int8_t tsdbMemSkipListRandLevel(SMemSkipList *pSl) {
-  int8_t         level = 1;
-  int8_t         tlevel = TMIN(pSl->maxLevel, pSl->level + 1);
-  const uint32_t factor = 4;
+  int8_t level = 1;
+  int8_t tlevel = TMIN(pSl->maxLevel, pSl->level + 1);
 
-  while ((taosRandR(&pSl->seed) % factor) == 0 && level < tlevel) {
+  while ((taosRandR(&pSl->seed) & 0x3) == 0 && level < tlevel) {
     level++;
   }
 
