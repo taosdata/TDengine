@@ -606,7 +606,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   } else {
     if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
       if (mndSetRpcInfoForDbTrans(pMnode, pReq, MND_OPER_CREATE_DB, createReq.db) == 0) {
-        mInfo("db:%s, is creating and response after trans finished", createReq.db);
+        mInfo("db:%s, is creating and createdb response after trans finished", createReq.db);
         code = TSDB_CODE_ACTION_IN_PROGRESS;
         goto _OVER;
       } else {
@@ -1175,7 +1175,7 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
 
   int32_t numOfTable = mndGetDBTableNum(pDb, pMnode);
 
-  if (pReq == NULL || pReq->vgVersion < pDb->vgVersion || pReq->dbId != pDb->uid || numOfTable != pReq->numOfTable) {
+  if (pReq == NULL || pReq->vgVersion < pDb->vgVersion || pReq->dbId != pDb->uid || numOfTable != pReq->numOfTable || pReq->stateTs < pDb->stateTs) {
     mndBuildDBVgroupInfo(pDb, pMnode, pRsp->pVgroupInfos);
   }
 
@@ -1225,6 +1225,14 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
       usedbRsp.vgVersion = usedbReq.vgVersion;
       usedbRsp.errCode = terrno;
 
+      if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
+        if (mndSetRpcInfoForDbTrans(pMnode, pReq, MND_OPER_CREATE_DB, usedbReq.db) == 0) {
+          mInfo("db:%s, is creating and usedb response after trans finished", usedbReq.db);
+          code = TSDB_CODE_ACTION_IN_PROGRESS;
+          goto _OVER;
+        }
+      }
+
       mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
     } else {
       if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb) != 0) {
@@ -1255,7 +1263,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
   pReq->info.rspLen = contLen;
 
 _OVER:
-  if (code != 0) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
   }
 
@@ -1275,11 +1283,30 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
 
   for (int32_t i = 0; i < numOfDbs; ++i) {
     SDbVgVersion *pDbVgVersion = &pDbs[i];
-    pDbVgVersion->dbId = htobe64(pDbVgVersion->dbId);
+    pDbVgVersion->dbId = be64toh(pDbVgVersion->dbId);
     pDbVgVersion->vgVersion = htonl(pDbVgVersion->vgVersion);
     pDbVgVersion->numOfTable = htonl(pDbVgVersion->numOfTable);
+    pDbVgVersion->stateTs = be64toh(pDbVgVersion->stateTs);
 
     SUseDbRsp usedbRsp = {0};
+
+    if ((0 == strcasecmp(pDbVgVersion->dbFName, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcasecmp(pDbVgVersion->dbFName, TSDB_PERFORMANCE_SCHEMA_DB)))) {
+      memcpy(usedbRsp.db, pDbVgVersion->dbFName, TSDB_DB_FNAME_LEN);
+      int32_t vgVersion = mndGetGlobalVgroupVersion(pMnode);
+      if (pDbVgVersion->vgVersion < vgVersion) {
+        usedbRsp.pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
+    
+        mndBuildDBVgroupInfo(NULL, pMnode, usedbRsp.pVgroupInfos);
+        usedbRsp.vgVersion = vgVersion++;
+      } else {
+        usedbRsp.vgVersion = pDbVgVersion->vgVersion;
+      }
+      usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);
+      
+      taosArrayPush(batchUseRsp.pArray, &usedbRsp);
+      
+      continue;
+    }
 
     SDbObj *pDb = mndAcquireDb(pMnode, pDbVgVersion->dbFName);
     if (pDb == NULL) {
@@ -1293,8 +1320,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
 
     int32_t numOfTable = mndGetDBTableNum(pDb, pMnode);
 
-    if (pDbVgVersion->vgVersion >= pDb->vgVersion && numOfTable == pDbVgVersion->numOfTable /* &&
-        pDbVgVersion->stateTs == pDb->stateTs */) {
+    if (pDbVgVersion->vgVersion >= pDb->vgVersion && numOfTable == pDbVgVersion->numOfTable  &&
+        pDbVgVersion->stateTs == pDb->stateTs) {
       mTrace("db:%s, valid dbinfo, vgVersion:%d stateTs:%" PRId64
              " numOfTables:%d, not changed vgVersion:%d stateTs:%" PRId64 " numOfTables:%d",
              pDbVgVersion->dbFName, pDbVgVersion->vgVersion, pDbVgVersion->stateTs, pDbVgVersion->numOfTable,

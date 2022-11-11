@@ -61,7 +61,7 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
   int32_t numOfBatchs = taosArrayGetSize(batchUseRsp.pArray);
   for (int32_t i = 0; i < numOfBatchs; ++i) {
     SUseDbRsp *rsp = taosArrayGet(batchUseRsp.pArray, i);
-    tscDebug("hb db rsp, db:%s, vgVersion:%d, uid:%" PRIx64, rsp->db, rsp->vgVersion, rsp->uid);
+    tscDebug("hb db rsp, db:%s, vgVersion:%d, stateTs:%" PRId64 ", uid:%" PRIx64, rsp->db, rsp->vgVersion, rsp->stateTs, rsp->uid);
 
     if (rsp->vgVersion < 0) {
       code = catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
@@ -72,6 +72,7 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
       }
 
       vgInfo->vgVersion = rsp->vgVersion;
+      vgInfo->stateTs = rsp->stateTs;
       vgInfo->hashMethod = rsp->hashMethod;
       vgInfo->hashPrefix = rsp->hashPrefix;
       vgInfo->hashSuffix = rsp->hashSuffix;
@@ -486,6 +487,7 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
     db->dbId = htobe64(db->dbId);
     db->vgVersion = htonl(db->vgVersion);
     db->numOfTable = htonl(db->numOfTable);
+    db->stateTs = htobe64(db->stateTs);
   }
 
   SKv kv = {

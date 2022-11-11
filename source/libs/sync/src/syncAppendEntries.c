@@ -179,7 +179,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
   pReply->success = true;
   bool hasAppendEntries = pMsg->dataLen > 0;
   if (hasAppendEntries) {
-    SSyncRaftEntry* pAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
+    SSyncRaftEntry* pAppendEntry = syncEntryBuildFromAppendEntries(pMsg);
     ASSERT(pAppendEntry != NULL);
 
     SyncIndex       appendIndex = pMsg->prevLogIndex + 1;
@@ -246,7 +246,8 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
       } else {
         // error
         char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "ignore, get local entry error, append-index:%" PRId64, appendIndex);
+        snprintf(logBuf, sizeof(logBuf), "ignore, get local entry error, append-index:%" PRId64 " err:%d", appendIndex,
+                 terrno);
         syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
         syncEntryDestory(pLocalEntry);
