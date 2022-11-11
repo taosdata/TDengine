@@ -1288,6 +1288,7 @@ static void doCloseIdleConn(void* param) {
 }
 
 static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
+  STrans*        pTransInst = pThrd->pTransInst;
   STransConnCtx* pCtx = pMsg->ctx;
 
   STraceId* trace = &pMsg->msg.info.traceId;
@@ -1299,7 +1300,7 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
   arg->param1 = pMsg;
   arg->param2 = pThrd;
-  transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
+  transDQSched(pThrd->delayQueue, doDelayTask, arg, pTransInst->retryInterval);
 }
 
 FORCE_INLINE void cliCompareAndSwap(int8_t* val, int8_t exp, int8_t newVal) {
@@ -1351,7 +1352,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pMsg->sent = 0;
     pCtx->retryCnt += 1;
     if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK) {
-      cliCompareAndSwap(&pCtx->retryLimit, TRANS_RETRY_COUNT_LIMIT, EPSET_GET_SIZE(&pCtx->epSet) * 3);
+      cliCompareAndSwap(&pCtx->retryLimit, pTransInst->retryLimit, EPSET_GET_SIZE(&pCtx->epSet) * 3);
       if (pCtx->retryCnt < pCtx->retryLimit) {
         transUnrefCliHandle(pConn);
         EPSET_FORWARD_INUSE(&pCtx->epSet);
@@ -1360,7 +1361,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         return -1;
       }
     } else {
-      cliCompareAndSwap(&pCtx->retryLimit, TRANS_RETRY_COUNT_LIMIT, TRANS_RETRY_COUNT_LIMIT);
+      cliCompareAndSwap(&pCtx->retryLimit, pTransInst->retryLimit, pTransInst->retryLimit);
       if (pCtx->retryCnt < pCtx->retryLimit) {
         if (pResp->contLen == 0) {
           EPSET_FORWARD_INUSE(&pCtx->epSet);
