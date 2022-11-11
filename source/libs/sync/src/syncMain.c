@@ -145,14 +145,6 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
     SyncTimeout* pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
     code = syncNodeOnTimer(pSyncNode, pSyncMsg);
     syncTimeoutDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_SYNC_PING) {
-    SyncPing* pSyncMsg = syncPingFromRpcMsg2(pMsg);
-    code = syncNodeOnPing(pSyncNode, pSyncMsg);
-    syncPingDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_SYNC_PING_REPLY) {
-    SyncPingReply* pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
-    code = syncNodeOnPingReply(pSyncNode, pSyncMsg);
-    syncPingReplyDestroy(pSyncMsg);
   } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
     code = syncNodeOnClientRequest(pSyncNode, pMsg, NULL);
   } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
@@ -905,18 +897,6 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     syncHbTimerInit(pSyncNode, &(pSyncNode->peerHeartbeatTimerArr[i]), (pSyncNode->replicasId)[i]);
   }
-
-  // init callback
-  pSyncNode->FpOnPing = syncNodeOnPing;
-  pSyncNode->FpOnPingReply = syncNodeOnPingReply;
-  pSyncNode->FpOnClientRequest = syncNodeOnClientRequest;
-  pSyncNode->FpOnTimeout = syncNodeOnTimer;
-  pSyncNode->FpOnSnapshot = syncNodeOnSnapshot;
-  pSyncNode->FpOnSnapshotReply = syncNodeOnSnapshotReply;
-  pSyncNode->FpOnRequestVote = syncNodeOnRequestVote;
-  pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReply;
-  pSyncNode->FpOnAppendEntries = syncNodeOnAppendEntries;
-  pSyncNode->FpOnAppendEntriesReply = syncNodeOnAppendEntriesReply;
 
   // tools
   pSyncNode->pSyncRespMgr = syncRespMgrCreate(pSyncNode, SYNC_RESP_TTL_MS);
@@ -2059,33 +2039,6 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
     syncEntryDestory(pEntry);
   }
 
-  return ret;
-}
-
-// on message ----
-int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg) {
-  sTrace("vgId:%d, recv sync-ping", ths->vgId);
-
-  SyncPingReply* pMsgReply = syncPingReplyBuild3(&ths->myRaftId, &pMsg->srcId, ths->vgId);
-  SRpcMsg        rpcMsg;
-  syncPingReply2RpcMsg(pMsgReply, &rpcMsg);
-
-  /*
-    // htonl
-    SMsgHead* pHead = rpcMsg.pCont;
-    pHead->contLen = htonl(pHead->contLen);
-    pHead->vgId = htonl(pHead->vgId);
-  */
-
-  syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg);
-  syncPingReplyDestroy(pMsgReply);
-
-  return 0;
-}
-
-int32_t syncNodeOnPingReply(SSyncNode* ths, SyncPingReply* pMsg) {
-  int32_t ret = 0;
-  sTrace("vgId:%d, recv sync-ping-reply", ths->vgId);
   return ret;
 }
 
