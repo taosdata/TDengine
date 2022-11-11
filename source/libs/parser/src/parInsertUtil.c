@@ -147,12 +147,12 @@ void insSetBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, col_i
     switch (type) {
       case TSDB_DATA_TYPE_BINARY:
         pColList->allNullLen += (VARSTR_HEADER_SIZE + CHAR_BYTES);
-        varBytesLen += pSchema[i - 1].bytes;
+        varBytesLen += pSchema[i].bytes;
         ++nVar;
         break;
       case TSDB_DATA_TYPE_NCHAR:
         pColList->allNullLen += (VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
-        varBytesLen += pSchema[i - 1].bytes;
+        varBytesLen += pSchema[i].bytes;
         ++nVar;
         break;
       default:

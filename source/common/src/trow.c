@@ -807,7 +807,12 @@ int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBou
     pBuilder->rowType = TD_ROW_TP;
   }
   pBuilder->flen = flen;
-  pBuilder->tlen = tlen > 0 ? tlen + sizeof(STSRow) : 0;
+  if (pBuilder->rowType = TD_ROW_TP) {
+    pBuilder->tlen = tlen > 0 ? tlen + sizeof(STSRow) - 8 : 0;
+  } else {
+    pBuilder->tlen = tlen > 0 ? tlen + sizeof(STSRow) - 8 + 2 : 0;
+  }
+
   pBuilder->nCols = nCols;
   pBuilder->nBoundCols = nBoundCols;
   if (pBuilder->flen <= 0 || pBuilder->nCols <= 0) {
@@ -920,7 +925,7 @@ void tdSRowReset(SRowBuilder *pBuilder) {
 
 int32_t tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen, int32_t tlen) {
   pBuilder->flen = flen;
-  pBuilder->tlen = tlen > 0 ? tlen + sizeof(STSRow) : 0;
+  pBuilder->tlen = tlen > 0 ? tlen + sizeof(STSRow) - 8 : 0;
   pBuilder->nCols = nCols;
   if (pBuilder->flen <= 0 || pBuilder->nCols <= 0) {
     ASSERT(0);
@@ -939,7 +944,7 @@ int32_t tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen, int3
 
 int32_t tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen, int32_t tlen) {
   pBuilder->flen = flen;
-  pBuilder->tlen = tlen > 0 ? tlen + sizeof(STSRow) : 0;
+  pBuilder->tlen = tlen > 0 ? tlen + sizeof(STSRow) - 8 : 0;
   pBuilder->nCols = nCols;
   pBuilder->nBoundCols = nBoundCols;
   if (pBuilder->flen <= 0 || pBuilder->nCols <= 0) {
