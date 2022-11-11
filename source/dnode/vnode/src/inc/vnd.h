@@ -65,6 +65,7 @@ struct SVBufPool {
   SVnode*          pVnode;
   volatile int32_t nRef;
   TdThreadSpinlock lock;
+  bool             isLock;
   int64_t          size;
   uint8_t*         ptr;
   SVBufPoolNode*   pTail;
