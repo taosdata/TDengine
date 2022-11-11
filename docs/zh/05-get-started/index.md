@@ -18,4 +18,4 @@ import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 
 微信扫描下面二维码，加“小 T”为好友，即可加入“物联网大数据技术前沿群”，与大家共同交流物联网大数据技术应用、TDengine 使用问题和技巧等话题。
 
-<img src="./tdengine.webp" width="200">
+<img src="./tdengine.webp" width="200" />
