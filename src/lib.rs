@@ -7,6 +7,7 @@ mod tmq;
 mod tmq_to_local;
 mod tmq_to_td;
 mod transform;
+pub mod utils;
 
 use taos::{Dsn, IntoDsn};
 

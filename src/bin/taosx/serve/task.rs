@@ -8,8 +8,8 @@ use actix_web::{
     web::{Data, Json, Path, Query, ServiceConfig},
     HttpResponse, Responder,
 };
+use anyhow::Context;
 use chrono::{DateTime, Utc};
-use regex::internal::Inst;
 use serde::{Deserialize, Serialize};
 use sqlx::migrate::Migrator;
 use sqlx::SqlitePool;
@@ -137,11 +137,18 @@ pub(super) enum Schedule {
 #[serde(rename_all = "snake_case")]
 #[derive(sqlx::Type)]
 pub(super) enum StreamType {
+    Auto,
     Replicate,
     Backup,
     Restore,
     Subscribe,
     Export,
+}
+
+impl Default for StreamType {
+    fn default() -> Self {
+        StreamType::Auto
+    }
 }
 
 impl TaskController {
@@ -387,6 +394,13 @@ impl TaskController {
         .await
         .unwrap();
 
+        if task.clear {
+            let to: Dsn = task.to.parse()?;
+            taosx::utils::clear_database(&to)
+                .await
+                .with_context(|| format!("Failed to clear target database with {to}"))?;
+        }
+
         // let opts = taosx::TaskOpts::try_from(task.clone())?;
         let id = res.last_insert_rowid();
         let task = sqlx::query_as_unchecked!(Task, "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where id = ?", id)
@@ -428,161 +442,6 @@ impl TaskController {
         let task = task.unwrap();
 
         self.start_task(&task).await.map(Some)
-
-        // if self.tasks.read().await.get(&id).is_some() {
-        //     anyhow::bail!("task {id} is running");
-        // }
-
-        // let token = tokio_util::sync::CancellationToken::new();
-        // let cloned_token = token.clone();
-        // let opts = TaskOpts {
-        //     transform: vec![],
-        //     from: task.from.parse()?,
-        //     to: task.to.parse()?,
-        //     jobs: task.jobs as _,
-        //     compression_level: task.compression_level.map(Into::into),
-        //     force: task.force,
-        //     cancel: CancellationToken::new(),
-        // };
-
-        // let pool = self.pool.clone();
-        // let task_handler = async move {
-        //     let now = Utc::now();
-        //     let _ = sqlx::query!(
-        //         "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
-        //         now,
-        //         Status::Started,
-        //         id
-        //     )
-        //     .execute(&pool)
-        //     .await?;
-        //     tokio::select! {
-        //         _ = cloned_token.cancelled() => {
-        //             opts.cancel();
-        //             log::debug!("cancel task {id}");
-        //             let now = Utc::now();
-        //             let status = Status::Cancelled;
-        //             let _ = sqlx::query!(
-        //                 "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
-        //                 now,
-        //                 status,
-        //                 id
-        //             )
-        //             .execute(&pool)
-        //             .await?;
-        //         }
-        //         result = async {
-        //             if opts.from.driver == "tmq" && opts.from.get("timeout").map(|s| s == "never").unwrap_or(false) {
-        //                 let mut restarts = 0;
-        //                 let mut sleep = Duration::from_secs(2);
-        //                 loop {
-        //                     let now = Utc::now();
-        //                     let _ = sqlx::query!(
-        //                         "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
-        //                         now,
-        //                         Status::Running,
-        //                         id
-        //                     )
-        //                     .execute(&pool)
-        //                     .await?;
-        //                     if restarts > 0 {
-        //                         log::info!("resume task {id} as {restarts} restarts");
-        //                     } else {
-        //                         log::info!("start task {id}");
-        //                     }
-        //                     let result = opts.run().await;
-        //                     match result {
-        //                         Ok(_) => {
-        //                             let now = Utc::now();
-        //                             let _ = sqlx::query!(
-        //                                 "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
-        //                                 now,
-        //                                 Status::Interrupted,
-        //                                 id
-        //                             )
-        //                             .execute(&pool)
-        //                             .await?;
-
-        //                         }
-        //                         Err(err) => {
-        //                             log::error!("run task {id} failed: {err}, wait for resume...");
-        //                             let err = err.to_string();
-        //                             let now = Utc::now();
-        //                             let _ = sqlx::query!(
-        //                                 "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
-        //                                 now,
-        //                                 Status::Failed,
-        //                                 err,
-        //                                 id
-        //                             )
-        //                             .execute(&pool)
-        //                             .await?;
-        //                         }
-        //                     }
-        //                     log::info!("resume task {id} in {sleep:?}");
-        //                     tokio::time::sleep(sleep).await;
-        //                     if sleep < Duration::from_secs(60) {
-        //                         sleep = sleep * 2;
-        //                     }
-        //                     restarts += 1;
-        //                 }
-        //             } else {
-        //                 let now = Utc::now();
-        //                 let _ = sqlx::query!(
-        //                     "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
-        //                     now,
-        //                     Status::Running,
-        //                     id
-        //                 )
-        //                 .execute(&pool)
-        //                 .await?;
-        //                 let result = opts.run().await;
-        //                 match result {
-        //                     Ok(_) => {
-        //                         let now = Utc::now();
-        //                         let status = Status::Completed;
-        //                         let _ = sqlx::query!(
-        //                             "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
-        //                             now,
-        //                             status,
-        //                             id
-        //                         )
-        //                         .execute(&pool)
-        //                         .await?;
-
-        //                     }
-        //                     Err(err) => {
-        //                         log::error!("run task {id} failed: {err}");
-        //                         let err = err.to_string();
-        //                         let now = Utc::now();
-        //                         let status = Status::Failed;
-        //                         let _ = sqlx::query!(
-        //                             "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
-        //                             now,
-        //                             status,
-        //                             err,
-        //                             id
-        //                         )
-        //                         .execute(&pool)
-        //                         .await?;
-        //                     }
-        //                 }
-        //             }
-        //             return Ok::<(), anyhow::Error>(())
-        //         } => {
-        //             let _ = result?;
-        //             log::info!("task {} done", id);
-        //         }
-        //     }
-        //     Ok(())
-        // };
-        // let handle = if let Some(rt) = self.runtime.as_ref() {
-        //     rt.spawn(task_handler)
-        // } else {
-        //     tokio::spawn(task_handler)
-        // };
-        // self.tasks.write().await.insert(id, (handle, token));
-        // Ok(Some(()))
     }
 
     pub async fn get(&self, id: i64) -> anyhow::Result<Option<Task>> {
@@ -740,6 +599,8 @@ pub(super) fn configure(store: Data<TaskController>) -> impl FnOnce(&mut Service
 pub(super) enum Status {
     /// Created by API.
     Created,
+    /// Clear target database.
+    Cleared,
     /// Started by start API.
     Started,
     /// In running state.
@@ -842,6 +703,7 @@ fn is_false(b: &bool) -> bool {
 )]
 pub(super) struct NewTask {
     #[schema(example = "backup")]
+    #[serde(default)]
     stream_type: StreamType,
     /// The stream data source.
     #[schema(example = "tmq:///test")]
@@ -856,6 +718,11 @@ pub(super) struct NewTask {
     /// The stream data target cluster id.
     #[schema(example = "")]
     to_cluster: Option<String>,
+
+    /// Set if the target database should be cleared before running task.
+    #[schema(example = "false")]
+    #[serde(default)]
+    clear: bool,
 
     /// Jobs number
     #[schema(example = 0)]
@@ -875,6 +742,7 @@ impl TryFrom<NewTask> for taosx::TaskOpts {
             from,
             from_cluster,
             to,
+            clear,
             jobs,
             compression_level,
             force,
@@ -1065,6 +933,10 @@ pub(super) struct NewReplicate {
     from: Option<String>,
     /// Replicate database to another TDengine.
     to: Option<String>,
+    /// Set if the target database should be cleared before running task.
+    #[schema(example = "false")]
+    #[serde(default)]
+    clear: bool,
     /// Override if database if not matched.
     #[serde(default)]
     force: bool,
@@ -1077,6 +949,7 @@ impl NewReplicate {
             from,
             to,
             force,
+            clear,
             username,
             password,
         } = self;
@@ -1095,6 +968,7 @@ impl NewReplicate {
             compression_level: None,
             from_cluster: None,
             to_cluster: None,
+            clear,
         })
     }
 }
@@ -1203,10 +1077,18 @@ pub(super) struct NewSubscribe {
     #[schema(example = r#"{"database":"test2"}"#)]
     /// Target cluster information.
     to: Cluster,
+    /// Set if the target database should be cleared before running task.
+    #[schema(example = "false")]
+    #[serde(default)]
+    clear: bool,
 }
 impl NewSubscribe {
     pub(super) fn into_task(self) -> Result<NewTask, anyhow::Error> {
-        let Self { from, to: cluster } = self;
+        let Self {
+            from,
+            to: cluster,
+            clear,
+        } = self;
         let to = format!("{}", cluster.into_dsn());
         Ok(NewTask {
             stream_type: StreamType::Subscribe,
@@ -1217,6 +1099,7 @@ impl NewSubscribe {
             compression_level: None,
             from_cluster: None,
             to_cluster: None,
+            clear,
         })
     }
 }
