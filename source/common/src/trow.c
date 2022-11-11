@@ -807,7 +807,7 @@ int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBou
     pBuilder->rowType = TD_ROW_TP;
   }
   pBuilder->flen = flen;
-  if (pBuilder->rowType = TD_ROW_TP) {
+  if (pBuilder->rowType == TD_ROW_TP) {
     pBuilder->tlen = tlen > 0 ? tlen + sizeof(STSRow) - 8 : 0;
   } else {
     pBuilder->tlen = tlen > 0 ? tlen + sizeof(STSRow) - 8 + 2 : 0;
