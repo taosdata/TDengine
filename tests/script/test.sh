@@ -74,6 +74,7 @@ PRG_DIR=$SIM_DIR/tsim
 CFG_DIR=$PRG_DIR/cfg
 LOG_DIR=$PRG_DIR/log
 DATA_DIR=$PRG_DIR/data
+ASAN_DIR=$PRG_DIR/asan
 
 chmod -R 777 $PRG_DIR
 echo "------------------------------------------------------------------------"
@@ -82,14 +83,17 @@ echo "BUILD_DIR: $BUILD_DIR"
 echo "SIM_DIR  : $SIM_DIR"
 echo "CODE_DIR : $CODE_DIR"
 echo "CFG_DIR  : $CFG_DIR"
+echo "ASAN_DIR  : $ASAN_DIR"
 
 rm -rf $SIM_DIR/*
 rm -rf $LOG_DIR
 rm -rf $CFG_DIR
+rm -rf $ASAN_DIR
 
 mkdir -p $PRG_DIR
 mkdir -p $LOG_DIR
 mkdir -p $CFG_DIR
+mkdir -p $ASAN_DIR
 
 TAOS_CFG=$PRG_DIR/cfg/taos.cfg
 touch -f $TAOS_CFG
@@ -132,8 +136,9 @@ if [ -n "$FILE_NAME" ]; then
     echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME -v
     $PROGRAM -c $CFG_DIR -f $FILE_NAME -v
   else
-    echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME  
-    $PROGRAM -c $CFG_DIR -f $FILE_NAME
+    echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME
+    $PROGRAM -c $CFG_DIR -f $FILE_NAME 2> $ASAN_DIR/tsim.asan 
+    $CODE_DIR/sh/checkAsan.sh
   fi
 else
   echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f basicSuite.sim
