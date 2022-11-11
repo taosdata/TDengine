@@ -981,6 +981,7 @@ void setTaskKilled(SExecTaskInfo* pTaskInfo);
 void queryCostStatis(SExecTaskInfo* pTaskInfo);
 
 void    doDestroyTask(SExecTaskInfo* pTaskInfo);
+void destroyOperatorInfo(SOperatorInfo* pOperator);
 int32_t getMaximumIdleDurationSec();
 
 /*
