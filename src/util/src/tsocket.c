@@ -352,7 +352,7 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
   serverAddr.sin_addr.s_addr = destIp;
   serverAddr.sin_port = (uint16_t)htons((uint16_t)destPort);
 
-#ifdef _TD_LINUX
+#if defined(_TD_LINUX)
   taosSetNonblocking(sockFd, 1);
   ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
   if (ret == -1) {
@@ -386,7 +386,7 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
     }
   }
   taosSetNonblocking(sockFd, 0);
-#elif _TD_WINDOWS
+#elif defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined(_TD_WINDOWS)
   taosSetNonblocking(sockFd, 1);
 
   ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
