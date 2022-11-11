@@ -22,11 +22,9 @@ extern "C" {
 
 #include "syncInt.h"
 
-#define CONFIG_FILE_LEN 2048
-
+#define CONFIG_FILE_LEN        2048
 #define MAX_CONFIG_INDEX_COUNT 256
 
-// SRaftCfgIndex ------------------------------------------
 typedef struct SRaftCfgIndex {
   TdFilePtr pFile;
   char      path[TSDB_FILENAME_LEN * 2];
@@ -44,10 +42,7 @@ cJSON  *raftCfgIndex2Json(SRaftCfgIndex *pRaftCfgIndex);
 char   *raftCfgIndex2Str(SRaftCfgIndex *pRaftCfgIndex);
 int32_t raftCfgIndexFromJson(const cJSON *pRoot, SRaftCfgIndex *pRaftCfgIndex);
 int32_t raftCfgIndexFromStr(const char *s, SRaftCfgIndex *pRaftCfgIndex);
-
 int32_t raftCfgIndexCreateFile(const char *path);
-
-// ---------------------------------------------------------
 
 typedef struct SRaftCfg {
   SSyncCfg  cfg;
@@ -68,11 +63,9 @@ int32_t   raftCfgClose(SRaftCfg *pRaftCfg);
 int32_t   raftCfgPersist(SRaftCfg *pRaftCfg);
 int32_t   raftCfgAddConfigIndex(SRaftCfg *pRaftCfg, SyncIndex configIndex);
 
-cJSON  *syncCfg2Json(SSyncCfg *pSyncCfg);
-char   *syncCfg2Str(SSyncCfg *pSyncCfg);
 void    syncCfg2SimpleStr(const SSyncCfg *pCfg, char *str, int32_t bufLen);
+cJSON  *syncCfg2Json(SSyncCfg *pSyncCfg);
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg);
-int32_t syncCfgFromStr(const char *s, SSyncCfg *pSyncCfg);
 
 cJSON  *raftCfg2Json(SRaftCfg *pRaftCfg);
 char   *raftCfg2Str(SRaftCfg *pRaftCfg);

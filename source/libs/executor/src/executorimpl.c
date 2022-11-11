@@ -3423,6 +3423,7 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
     ASSERT(code == 0);
     if (code == -1) {
       // coverity scan
+      pGroupResInfo->index += 1;
       continue;
     }
     SResultRow* pRow = (SResultRow*)pVal;

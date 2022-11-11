@@ -21,7 +21,6 @@ extern "C" {
 #endif
 
 #include "syncInt.h"
-#include "syncMessage.h"
 
 // TLA+ Spec
 // HandleAppendEntriesRequest(i, j, m) ==
