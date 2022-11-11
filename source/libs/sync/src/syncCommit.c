@@ -13,10 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
-#include "syncInt.h"
-#include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"

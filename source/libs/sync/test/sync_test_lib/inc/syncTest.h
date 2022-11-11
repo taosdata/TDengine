@@ -110,7 +110,37 @@ char*  snapshotSender2Str(SSyncSnapshotSender* pSender);
 cJSON* snapshotReceiver2Json(SSyncSnapshotReceiver* pReceiver);
 char*  snapshotReceiver2Str(SSyncSnapshotReceiver* pReceiver);
 
+cJSON*   syncIndexMgr2Json(SSyncIndexMgr* pSyncIndexMgr);
+char*    syncIndexMgr2Str(SSyncIndexMgr* pSyncIndexMgr);
+void     syncIndexMgrPrint(SSyncIndexMgr* pObj);
+void     syncIndexMgrPrint2(char* s, SSyncIndexMgr* pObj);
+void     syncIndexMgrLog(SSyncIndexMgr* pObj);
+void     syncIndexMgrLog2(char* s, SSyncIndexMgr* pObj);
 
+cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg);
+cJSON* syncRpcUnknownMsg2Json();
+char*  syncRpcMsg2Str(SRpcMsg* pRpcMsg);
+void   syncRpcMsgPrint(SRpcMsg* pMsg);
+void   syncRpcMsgPrint2(char* s, SRpcMsg* pMsg);
+void   syncRpcMsgLog(SRpcMsg* pMsg);
+void   syncRpcMsgLog2(char* s, SRpcMsg* pMsg);
+
+
+// origin syncMessage
+SyncPing* syncPingBuild(uint32_t dataLen);
+SyncPing* syncPingBuild2(const SRaftId* srcId, const SRaftId* destId, int32_t vgId, const char* str);
+SyncPing* syncPingBuild3(const SRaftId* srcId, const SRaftId* destId, int32_t vgId);
+char*     syncPingSerialize2(const SyncPing* pMsg, uint32_t* len);
+int32_t   syncPingSerialize3(const SyncPing* pMsg, char* buf, int32_t bufLen);
+SyncPing* syncPingDeserialize3(void* buf, int32_t bufLen);
+void      syncPing2RpcMsg(const SyncPing* pMsg, SRpcMsg* pRpcMsg);
+void      syncPingFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPing* pMsg);
+cJSON*    syncPing2Json(const SyncPing* pMsg);
+char*     syncPing2Str(const SyncPing* pMsg);
+void      syncPingPrint(const SyncPing* pMsg);
+void      syncPingPrint2(char* s, const SyncPing* pMsg);
+void      syncPingLog(const SyncPing* pMsg);
+void      syncPingLog2(char* s, const SyncPing* pMsg);
 
 #ifdef __cplusplus
 }

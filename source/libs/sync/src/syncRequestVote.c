@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "syncRequestVote.h"
+#include "syncMessage.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"

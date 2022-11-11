@@ -18,8 +18,8 @@
 #include "syncMessage.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
-#include "syncVoteMgr.h"
 #include "syncUtil.h"
+#include "syncVoteMgr.h"
 
 // TLA+ Spec
 // RequestVote(i, j) ==
