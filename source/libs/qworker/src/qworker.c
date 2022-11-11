@@ -683,6 +683,8 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   bool          queryStop = false;
 
   do {
+    ctx = NULL;
+    
     QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_CQUERY, &input, NULL));
 
     QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
@@ -1162,11 +1164,13 @@ _return:
   QW_RET(code);
 }
 
-void qworkerStopAllTasks(void *qWorkerMgmt) {
+void qWorkerStopAllTasks(void *qWorkerMgmt) {
   SQWorker *mgmt = (SQWorker *)qWorkerMgmt;
 
   QW_DLOG("start to stop all tasks, taskNum:%d", taosHashGetSize(mgmt->ctxHash));
-  
+
+  uint64_t qId, tId;
+  int32_t  eId;  
   void    *pIter = taosHashIterate(mgmt->ctxHash, NULL);
   while (pIter) {
     SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
@@ -1187,8 +1191,6 @@ void qworkerStopAllTasks(void *qWorkerMgmt) {
     
     if (QW_QUERY_RUNNING(ctx)) {
       qwKillTaskHandle(ctx);
-    } else {
-      qwDropTask(QW_FPARAMS());
     }
 
     QW_UNLOCK(QW_WRITE, &ctx->lock);

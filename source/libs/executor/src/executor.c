@@ -688,7 +688,7 @@ void qRemoveTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo *pInfo) {
   }
   taosWUnLockLatch(&pTaskInfo->stopInfo.lock);
 
-  return TSDB_CODE_SUCCESS;
+  return;
 }
 
 void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {

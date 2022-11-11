@@ -1058,6 +1058,7 @@ int32_t setOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResul
 int32_t releaseOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult);
 int32_t saveOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult, int32_t resSize);
 void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order);
+int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo *pInfo);
 
 #ifdef __cplusplus
 }
