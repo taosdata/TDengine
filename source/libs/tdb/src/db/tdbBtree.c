@@ -140,6 +140,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
     // tdbUnrefPage(pPage);
     tdbPCacheRelease(pPager->pCache, pPage, &txn);
     tdbCommit(pPager->pEnv, &txn);
+    tdbPostCommit(pPager->pEnv, &txn);
     tdbTxnClose(&txn);
   }
 
@@ -1715,16 +1716,20 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   memcpy(pKey, cd.pKey, cd.kLen);
 
   if (ppVal) {
-    // TODO: vLen may be zero
-    pVal = tdbRealloc(*ppVal, cd.vLen);
-    if (pVal == NULL) {
-      tdbFree(pKey);
-      return -1;
+    if (cd.vLen > 0) {
+      pVal = tdbRealloc(*ppVal, cd.vLen);
+      if (pVal == NULL) {
+        tdbFree(pKey);
+        return -1;
+      }
+
+      memcpy(pVal, cd.pVal, cd.vLen);
+    } else {
+      pVal = NULL;
     }
 
     *ppVal = pVal;
     *vLen = cd.vLen;
-    memcpy(pVal, cd.pVal, cd.vLen);
   }
 
   ret = tdbBtcMoveToNext(pBtc);

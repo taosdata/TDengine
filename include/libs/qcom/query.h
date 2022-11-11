@@ -57,6 +57,10 @@ typedef enum {
 #define QUERY_RSP_POLICY_DELAY 0
 #define QUERY_RSP_POLICY_QUICK 1
 
+#define QUERY_MSG_MASK_SHOW_REWRITE() (1 << 0)
+#define TEST_SHOW_REWRITE_MASK(m) (((m) & QUERY_MSG_MASK_SHOW_REWRITE()) != 0)
+
+
 typedef struct STableComInfo {
   uint8_t  numOfTags;     // the number of tags in schema
   uint8_t  precision;     // the number of precision
@@ -123,6 +127,7 @@ typedef struct SDBVgInfo {
   int16_t   hashSuffix;
   int8_t    hashMethod;
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
+  int64_t   stateTs;
   SHashObj* vgHash;      // key:vgId, value:SVgroupInfo
 } SDBVgInfo;
 
@@ -199,6 +204,8 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 
+void destroyAhandle(void* ahandle);
+
 int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo,
                                 bool persistHandle, void* ctx);
 
@@ -242,13 +249,13 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define SET_META_TYPE_BOTH_TABLE(t) (t) = META_TYPE_BOTH_TABLE
 
 #define NEED_CLIENT_RM_TBLMETA_ERROR(_code)                                                   \
-  ((_code) == TSDB_CODE_PAR_TABLE_NOT_EXIST || (_code) == TSDB_CODE_VND_TB_NOT_EXIST ||       \
+  ((_code) == TSDB_CODE_PAR_TABLE_NOT_EXIST || (_code) == TSDB_CODE_TDB_TABLE_NOT_EXIST ||    \
    (_code) == TSDB_CODE_PAR_INVALID_COLUMNS_NUM || (_code) == TSDB_CODE_PAR_INVALID_COLUMN || \
    (_code) == TSDB_CODE_PAR_TAGS_NOT_MATCHED || (_code) == TSDB_CODE_PAR_VALUE_TOO_LONG ||    \
    (_code) == TSDB_CODE_PAR_INVALID_DROP_COL || ((_code) == TSDB_CODE_TDB_INVALID_TABLE_ID))
 #define NEED_CLIENT_REFRESH_VG_ERROR(_code) \
   ((_code) == TSDB_CODE_VND_HASH_MISMATCH || (_code) == TSDB_CODE_VND_INVALID_VGROUP_ID)
-#define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code) ((_code) == TSDB_CODE_TDB_TABLE_RECREATED)
+#define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code) ((_code) == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER)
 #define NEED_CLIENT_HANDLE_ERROR(_code)                                          \
   (NEED_CLIENT_RM_TBLMETA_ERROR(_code) || NEED_CLIENT_REFRESH_VG_ERROR(_code) || \
    NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code))

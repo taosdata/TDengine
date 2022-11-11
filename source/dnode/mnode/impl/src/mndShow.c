@@ -240,25 +240,22 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  int32_t      numOfCols = pShow->pMeta->numOfColumns;
-  SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+  int32_t numOfCols = pShow->pMeta->numOfColumns;
 
+  SSDataBlock *pBlock = createDataBlock();
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {0};
-    SSchema        *p = &pShow->pMeta->pSchemas[i];
+
+    SSchema *p = &pShow->pMeta->pSchemas[i];
 
     idata.info.bytes = p->bytes;
     idata.info.type = p->type;
     idata.info.colId = p->colId;
-
-    taosArrayPush(pBlock->pDataBlock, &idata);
-    if (IS_VAR_DATA_TYPE(p->type)) {
-      pBlock->info.hasVarCol = true;
-    }
+    blockDataAppendColInfo(pBlock, &idata);
   }
 
   blockDataEnsureCapacity(pBlock, rowsToRead);
+
   if (mndCheckRetrieveFinished(pShow)) {
     mDebug("show:0x%" PRIx64 ", read finished, numOfRows:%d", pShow->id, pShow->numOfRows);
     rowsRead = 0;
@@ -306,8 +303,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
       pStart += sizeof(SSysTableSchema);
     }
 
-    int32_t len = 0;
-    blockEncode(pBlock, pStart, &len, pShow->pMeta->numOfColumns, false);
+    int32_t len = blockEncode(pBlock, pStart, pShow->pMeta->numOfColumns);
   }
 
   pRsp->numOfRows = htonl(rowsRead);

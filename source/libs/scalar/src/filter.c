@@ -912,8 +912,8 @@ int32_t filterDetachCnfGroups(SArray *group, SArray *left, SArray *right) {
 
   if (taosArrayGetSize(left) <= 0) {
     if (taosArrayGetSize(right) <= 0) {
-      fltError("both groups are empty");
-      FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+      fltDebug("both groups are empty");
+      return TSDB_CODE_SUCCESS;
     }
 
     SFilterGroup *gp = NULL;
@@ -1169,7 +1169,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
 
     SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
     out.columnData->info.type = type;
-    out.columnData->info.bytes = tDataTypes[type].bytes;
+    out.columnData->info.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes; //reserved space for simple_copy
 
     for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
       SValueNode *valueNode = (SValueNode *)cell->pNode;
@@ -1191,7 +1191,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
         filterAddField(info, NULL, (void **)&out.columnData->pData, FLD_TYPE_VALUE, &right, len, true);
         out.columnData->pData = NULL;
       } else {
-        void *data = taosMemoryCalloc(1, tDataTypes[type].bytes);
+        void *data = taosMemoryCalloc(1, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes); //reserved space for simple_copy
         if (NULL == data) {
           FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
         }
@@ -3994,9 +3994,12 @@ int32_t filterSetDataFromColId(SFilterInfo *info, void *param) {
 }
 
 int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) {
-  int32_t      code = 0;
   SFilterInfo *info = NULL;
+  if (pNode == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
 
+  int32_t code = 0;
   if (pNode == NULL || pInfo == NULL) {
     fltError("invalid param");
     FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
@@ -4034,9 +4037,7 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) 
 _return:
 
   filterFreeInfo(*pInfo);
-
   *pInfo = NULL;
-
   FLT_RET(code);
 }
 

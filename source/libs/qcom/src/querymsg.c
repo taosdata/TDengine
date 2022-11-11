@@ -41,8 +41,9 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   pOut->dbVgroup->hashMethod = usedbRsp->hashMethod;
   pOut->dbVgroup->hashPrefix = usedbRsp->hashPrefix;
   pOut->dbVgroup->hashSuffix = usedbRsp->hashSuffix;
+  pOut->dbVgroup->stateTs = usedbRsp->stateTs;
 
-  qDebug("Got %d vgroup for db %s", usedbRsp->vgNum, usedbRsp->db);
+  qDebug("Got %d vgroup for db %s, vgVersion:%d, stateTs:%" PRId64, usedbRsp->vgNum, usedbRsp->db, usedbRsp->vgVersion, usedbRsp->stateTs);
 
   if (usedbRsp->vgNum <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -103,6 +104,7 @@ int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *ms
   usedbReq.vgVersion = pInput->vgVersion;
   usedbReq.dbId = pInput->dbId;
   usedbReq.numOfTable = pInput->numOfTable;
+  usedbReq.stateTs = pInput->stateTs;
 
   int32_t bufLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -304,6 +306,15 @@ int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
     qError("invalid db[%s] vgroup number[%d]", usedbRsp.db, usedbRsp.vgNum);
     code = TSDB_CODE_TSC_INVALID_VALUE;
     goto PROCESS_USEDB_OVER;
+  }
+
+  qTrace("db:%s, usedbRsp received, numOfVgroups:%d", usedbRsp.db, usedbRsp.vgNum);
+  for (int32_t i = 0; i < usedbRsp.vgNum; ++i) {
+    SVgroupInfo *pInfo = taosArrayGet(usedbRsp.pVgroupInfos, i);
+    qTrace("vgId:%d, numOfEps:%d inUse:%d ", pInfo->vgId, pInfo->epSet.numOfEps, pInfo->epSet.inUse);
+    for (int32_t j = 0; j < pInfo->epSet.numOfEps; ++j) {
+      qTrace("vgId:%d, index:%d epset:%s:%u", pInfo->vgId, j, pInfo->epSet.eps[j].fqdn, pInfo->epSet.eps[j].port);
+    }
   }
 
   code = queryBuildUseDbOutput(pOut, &usedbRsp);

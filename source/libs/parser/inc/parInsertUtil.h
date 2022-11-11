@@ -79,29 +79,6 @@ typedef struct SInsertParseBaseContext {
   SMsgBuf        msg;
 } SInsertParseBaseContext;
 
-typedef struct SInsertParseContext {
-  SParseContext     *pComCxt;             // input
-  char              *pSql;                // input
-  SMsgBuf            msg;                 // input
-  STableMeta        *pTableMeta;          // each table
-  SParsedDataColInfo tags;                // each table
-  SVCreateTbReq      createTblReq;        // each table
-  SHashObj          *pVgroupsHashObj;     // global
-  SHashObj          *pTableBlockHashObj;  // global
-  SHashObj          *pSubTableHashObj;    // global
-  SArray            *pVgDataBlocks;       // global
-  SHashObj          *pTableNameHashObj;   // global
-  SHashObj          *pDbFNameHashObj;     // global
-  int32_t            totalNum;
-  SVnodeModifOpStmt *pOutput;
-  SStmtCallback     *pStmtCb;
-  SParseMetaCache   *pMetaCache;
-  char               sTableName[TSDB_TABLE_NAME_LEN];
-  char               tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW];
-  int64_t            memElapsed;
-  int64_t            parRowElapsed;
-} SInsertParseContext;
-
 typedef struct SInsertParseSyntaxCxt {
   SParseContext   *pComCxt;
   char            *pSql;
@@ -142,7 +119,7 @@ typedef struct STableDataBlocks {
 
 int32_t insGetExtendedRowSize(STableDataBlocks *pBlock);
 void insGetSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo *spd, col_id_t idx, int32_t *toffset, col_id_t *colIdx);
-int32_t insSetBlockInfo(SSubmitBlk *pBlocks, STableDataBlocks *dataBuf, int32_t numOfRows);
+int32_t insSetBlockInfo(SSubmitBlk *pBlocks, STableDataBlocks *dataBuf, int32_t numOfRows, SMsgBuf *pMsg);
 int32_t insSchemaIdxCompar(const void *lhs, const void *rhs);
 int32_t insBoundIdxCompar(const void *lhs, const void *rhs);
 void    insSetBoundColumnInfo(SParsedDataColInfo *pColList, SSchema *pSchema, col_id_t numOfCols);
@@ -161,7 +138,7 @@ void    insBuildCreateTbReq(SVCreateTbReq *pTbReq, const char *tname, STag *pTag
                             SArray *tagName, uint8_t tagNum);
 int32_t insMemRowAppend(SMsgBuf *pMsgBuf, const void *value, int32_t len, void *param);
 int32_t insCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start);
-int32_t insBuildOutput(SInsertParseContext *pCxt);
+int32_t insBuildOutput(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks);
 void    insDestroyDataBlock(STableDataBlocks *pDataBlock);
 
 #endif  // TDENGINE_PAR_INSERT_UTIL_H

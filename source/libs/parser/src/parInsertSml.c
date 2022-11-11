@@ -333,11 +333,7 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
   }
 
   SSubmitBlk* pBlocks = (SSubmitBlk*)(pDataBlock->pData);
-  if (TSDB_CODE_SUCCESS != insSetBlockInfo(pBlocks, pDataBlock, rowNum)) {
-    return buildInvalidOperationMsg(&pBuf, "too many rows in sql, total number of rows should be less than INT32_MAX");
-  }
-
-  return TSDB_CODE_SUCCESS;
+  return insSetBlockInfo(pBlocks, pDataBlock, rowNum, &pBuf);
 }
 
 void* smlInitHandle(SQuery* pQuery) {

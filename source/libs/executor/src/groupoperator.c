@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "filter.h"
 #include "function.h"
 #include "os.h"
 #include "tname.h"
@@ -312,10 +313,10 @@ static SSDataBlock* buildGroupResultDataBlock(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = pInfo->binfo.pRes;
   while (1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    doFilter(pInfo->pCondition, pRes, NULL, NULL);
+    doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
 
     if (!hasRemainResults(&pInfo->groupResInfo)) {
-      doSetOperatorCompleted(pOperator);
+      setOperatorCompleted(pOperator);
       break;
     }
 
@@ -336,8 +337,6 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
   SGroupbyOperatorInfo* pInfo = pOperator->info;
-  SSDataBlock*          pRes = pInfo->binfo.pRes;
-
   if (pOperator->status == OP_RES_TO_RETURN) {
     return buildGroupResultDataBlock(pOperator);
   }
@@ -390,7 +389,6 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
     }
   }
 #endif
-  blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, 0);
 
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
@@ -414,14 +412,14 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode*
   }
 
   pInfo->pGroupCols = extractColumnInfo(pAggNode->pGroupKeys);
-  pInfo->pCondition = pAggNode->node.pConditions;
-
   int32_t code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
+  blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
+
   code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, pInfo->pGroupCols);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -434,16 +432,16 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode*
     goto _error;
   }
 
-  initResultRowInfo(&pInfo->binfo.resultRowInfo);
+  code = filterInitFromNode((SNode*)pAggNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
-  pOperator->name = "GroupbyAggOperator";
-  pOperator->blocking = true;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
+  initResultRowInfo(&pInfo->binfo.resultRowInfo);
+  setOperatorInfo(pOperator, "GroupbyAggOperator", 0, true, OP_NOT_OPENED, pInfo, pTaskInfo);
 
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, hashGroupbyAggregate, NULL, NULL, destroyGroupOperatorInfo, NULL);
+      createOperatorFpSet(operatorDummyOpenFn, hashGroupbyAggregate, NULL, destroyGroupOperatorInfo, NULL);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -651,7 +649,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
     // try next group data
     ++pInfo->groupIndex;
     if (pInfo->groupIndex >= taosArrayGetSize(pInfo->sortedGroupArray)) {
-      doSetOperatorCompleted(pOperator);
+      setOperatorCompleted(pOperator);
       clearPartitionOperator(pInfo);
       return NULL;
     }
@@ -750,6 +748,14 @@ static void destroyPartitionOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pGroupColVals);
   taosMemoryFree(pInfo->keyBuf);
   taosArrayDestroy(pInfo->sortedGroupArray);
+
+  void* pGroupIter = taosHashIterate(pInfo->pGroupSet, NULL);
+  while (pGroupIter != NULL) {
+    SDataGroupInfo* pGroupInfo = pGroupIter;
+    taosArrayDestroy(pGroupInfo->pPageList);
+    pGroupIter = taosHashIterate(pInfo->pGroupSet, pGroupIter);
+  }
+
   taosHashCleanup(pInfo->pGroupSet);
   taosMemoryFree(pInfo->columnOffset);
 
@@ -810,17 +816,12 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
     goto _error;
   }
 
-  pOperator->name = "PartitionOperator";
-  pOperator->blocking = true;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PARTITION;
+  setOperatorInfo(pOperator, "PartitionOperator", QUERY_NODE_PHYSICAL_PLAN_PARTITION, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->exprSupp.pExprInfo = pExprInfo;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, hashPartition, NULL, NULL, destroyPartitionOperatorInfo, NULL);
+      createOperatorFpSet(operatorDummyOpenFn, hashPartition, NULL, destroyPartitionOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
@@ -898,7 +899,10 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       void* pData = colDataGetVarData(pCol, 0);
       // TODO check tbname validity
       if (pData != (void*)-1) {
-        memcpy(pDest->info.parTbName, varDataVal(pData), varDataLen(pData));
+        memset(pDest->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
+        int32_t len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN);
+        memcpy(pDest->info.parTbName, varDataVal(pData), len);
+        /*pDest->info.parTbName[len + 1] = 0;*/
       } else {
         pDest->info.parTbName[0] = 0;
       }
@@ -907,6 +911,8 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       blockDataDestroy(pResBlock);
     }
   }
+  taosArrayDestroy(pParInfo->rowIds);
+  pParInfo->rowIds = NULL;
   blockDataUpdateTsWindow(pDest, pInfo->tsColIndex);
   pDest->info.groupId = pParInfo->groupId;
   pOperator->resultInfo.totalRows += pDest->info.rows;
@@ -952,7 +958,7 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
     pInfo->pInputDataBlock = NULL;
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
-      doSetOperatorCompleted(pOperator);
+      setOperatorCompleted(pOperator);
       return NULL;
     }
     printDataBlock(pBlock, "stream partitionby recv");
@@ -1005,6 +1011,7 @@ static void destroyStreamPartitionOperatorInfo(void* param) {
   cleanupExprSupp(&pInfo->tbnameCalSup);
   cleanupExprSupp(&pInfo->tagCalSup);
   blockDataDestroy(pInfo->pDelRes);
+  taosHashCleanup(pInfo->pPartitions);
   taosMemoryFreeClear(param);
 }
 
@@ -1074,14 +1081,16 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
   }
   pInfo->partitionSup.needCalc = true;
 
-  SSDataBlock* pResBlock = createResDataBlock(pPartNode->part.node.pOutputDataBlockDesc);
-  if (!pResBlock) {
+  pInfo->binfo.pRes = createResDataBlock(pPartNode->part.node.pOutputDataBlockDesc);
+  if (pInfo->binfo.pRes == NULL) {
     goto _error;
   }
-  blockDataEnsureCapacity(pResBlock, 4096);
-  pInfo->binfo.pRes = pResBlock;
+
+  blockDataEnsureCapacity(pInfo->binfo.pRes, 4096);
+
   pInfo->parIte = NULL;
   pInfo->pInputDataBlock = NULL;
+
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pPartitions = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
   pInfo->tsColIndex = 0;
@@ -1090,15 +1099,10 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
   int32_t    numOfCols = 0;
   SExprInfo* pExprInfo = createExprInfo(pPartNode->part.pTargets, NULL, &numOfCols);
 
-  pOperator->name = "StreamPartitionOperator";
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION;
+  setOperatorInfo(pOperator, "StreamPartitionOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->exprSupp.pExprInfo = pExprInfo;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamHashPartition, NULL, NULL,
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamHashPartition, NULL,
                                          destroyStreamPartitionOperatorInfo, NULL);
 
   initParDownStream(downstream, &pInfo->partitionSup, &pInfo->scalarSup);

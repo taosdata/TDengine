@@ -13,11 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncElection.h"
 #include "syncMessage.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 #include "syncVoteMgr.h"
+#include "syncUtil.h"
 
 // TLA+ Spec
 // RequestVote(i, j) ==
@@ -32,7 +34,7 @@
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
-  syncNodeEventLog(pSyncNode, "begin election");
+  sNTrace(pSyncNode, "begin election");
 
   int32_t ret = 0;
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
@@ -40,7 +42,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   }
 
   if (pSyncNode->state != TAOS_SYNC_STATE_CANDIDATE) {
-    syncNodeErrorLog(pSyncNode, "not candidate, can not elect");
+    sNError(pSyncNode, "not candidate, can not elect");
     return -1;
   }
 
@@ -82,7 +84,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
 
 int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
   if (pSyncNode->state != TAOS_SYNC_STATE_CANDIDATE) {
-    syncNodeEventLog(pSyncNode, "not candidate, stop elect");
+    sNTrace(pSyncNode, "not candidate, stop elect");
     return 0;
   }
 

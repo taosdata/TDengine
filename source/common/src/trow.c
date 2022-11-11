@@ -73,8 +73,8 @@ void tdSCellValPrint(SCellVal *pVal, int8_t colType) {
   } else if (tdValTypeIsNone(pVal->valType)) {
     printf("NONE ");
     return;
-  } 
-  if(!pVal->val) {
+  }
+  if (!pVal->val) {
     ASSERT(0);
     printf("BadVal ");
     return;
@@ -1065,8 +1065,8 @@ void tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema) {
 
 void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColVal) {
   STColumn *pTColumn = &pTSchema->columns[iCol];
-  SCellVal  cv;
-  SValue    value;
+  SCellVal  cv = {0};
+  SValue    value = {0};
 
   ASSERT((pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID) || (iCol > 0));
 
@@ -1083,13 +1083,15 @@ void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColV
   } else if (tdValTypeIsNull(cv.valType)) {
     *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
   } else {
-    if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-      value.nData = varDataLen(cv.val);
-      value.pData = varDataVal(cv.val);
-    } else {
-      tGetValue(cv.val, &value, pTColumn->type);
-    }
+    pColVal->cid = pTColumn->colId;
+    pColVal->type = pTColumn->type;
+    pColVal->flag = CV_FLAG_VALUE;
 
-    *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, value);
+    if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+      pColVal->value.nData = varDataLen(cv.val);
+      pColVal->value.pData = varDataVal(cv.val);
+    } else {
+      memcpy(&pColVal->value.val, cv.val, tDataTypes[pTColumn->type].bytes);
+    }
   }
 }

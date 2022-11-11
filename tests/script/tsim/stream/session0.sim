@@ -201,7 +201,7 @@ if $loop_count == 10 then
 endi
 
 if $rows != 1 then
-  print ======$rows
+  print =====rows=$rows
   goto loop2
 endi
 

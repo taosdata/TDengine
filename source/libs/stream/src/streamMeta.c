@@ -70,6 +70,7 @@ _err:
 
 void streamMetaClose(SStreamMeta* pMeta) {
   tdbCommit(pMeta->db, &pMeta->txn);
+  tdbPostCommit(pMeta->db, &pMeta->txn);
   tdbTbClose(pMeta->pTaskDb);
   tdbTbClose(pMeta->pCheckpointDb);
   tdbClose(pMeta->db);
@@ -186,10 +187,8 @@ int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
     while (1) {
       int8_t schedStatus =
           atomic_val_compare_exchange_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE, TASK_SCHED_STATUS__DROPPING);
-      if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
+      if (schedStatus != TASK_SCHED_STATUS__ACTIVE) {
         tFreeSStreamTask(pTask);
-        break;
-      } else if (schedStatus == TASK_SCHED_STATUS__DROPPING) {
         break;
       }
       taosMsleep(10);

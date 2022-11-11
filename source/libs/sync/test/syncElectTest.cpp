@@ -1,10 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncEnv.h"
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncUtil.h"
-#include "wal.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -107,7 +102,7 @@ int main(int argc, char** argv) {
 
   SSyncNode* pSyncNode = createSyncNode(replicaNum, myIndex, gVgId, pWal, (char*)gDir);
   assert(pSyncNode != NULL);
-  syncNodeLog2((char*)"==syncElectTest==", pSyncNode);
+  sNTrace(pSyncNode, "==syncElectTest==");
 
   //---------------------------
   while (1) {

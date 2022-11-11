@@ -79,7 +79,7 @@ void syncNodeRemove(int64_t rid) { taosRemoveRef(gNodeRefId, rid); }
 SSyncNode *syncNodeAcquire(int64_t rid) {
   SSyncNode *pNode = taosAcquireRef(gNodeRefId, rid);
   if (pNode == NULL) {
-    sTrace("failed to acquire node from refId:%" PRId64, rid);
+    sError("failed to acquire node from refId:%" PRId64, rid);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
   }
 

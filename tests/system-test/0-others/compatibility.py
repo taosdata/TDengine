@@ -23,6 +23,7 @@ class TDTestCase:
         return
 
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -92,6 +93,7 @@ class TDTestCase:
         oldServerVersion=tdsqlF.queryResult[0][0]
         tdLog.info(f"Base server version is {oldServerVersion}")
         tdsqlF.query(f"SELECT CLIENT_VERSION();")
+        
         # the oldClientVersion can't be updated in the same python process,so the version is new compiled verison
         oldClientVersion=tdsqlF.queryResult[0][0]
         tdLog.info(f"Base client version is {oldClientVersion}")
@@ -104,7 +106,16 @@ class TDTestCase:
         # tdsqlF.query(f"select count(*) from {stb}")
         # tdsqlF.checkData(0,0,tableNumbers*recordNumbers1)
         os.system("pkill taosd")
-        sleep(1)
+        sleep(2)
+
+        print(f"start taosd: nohup taosd -c {cPath} & ")
+        os.system(f" nohup taosd -c {cPath} & " )
+        sleep(10)
+        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
+        os.system("pkill -9 taosd")
+
+
 
         tdLog.printNoPrefix("==========step2:update new version ")
         self.buildTaosd(bPath)

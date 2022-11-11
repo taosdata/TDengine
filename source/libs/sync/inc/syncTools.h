@@ -20,18 +20,11 @@
 extern "C" {
 #endif
 
-#include "trpc.h"
-
 // ------------------ ds -------------------
 typedef struct SRaftId {
   SyncNodeId  addr;
   SyncGroupId vgId;
 } SRaftId;
-
-char*   sync2SimpleStr(int64_t rid);
-
-// for compatibility, the same as syncPropose
-int32_t syncForwardToPeer(int64_t rid, SRpcMsg* pMsg, bool isWeak);
 
 // ------------------ for debug -------------------
 void syncRpcMsgPrint(SRpcMsg* pMsg);
@@ -186,19 +179,14 @@ typedef struct SyncClientRequest {
   char     data[];   // origin RpcMsg.pCont
 } SyncClientRequest;
 
-SyncClientRequest* syncClientRequestBuild(uint32_t dataLen);
-SyncClientRequest* syncClientRequestBuild2(const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum, bool isWeak,
-                                           int32_t vgId);  // step 1
-void               syncClientRequestDestroy(SyncClientRequest* pMsg);
-void               syncClientRequestSerialize(const SyncClientRequest* pMsg, char* buf, uint32_t bufLen);
-void               syncClientRequestDeserialize(const char* buf, uint32_t len, SyncClientRequest* pMsg);
-char*              syncClientRequestSerialize2(const SyncClientRequest* pMsg, uint32_t* len);
-SyncClientRequest* syncClientRequestDeserialize2(const char* buf, uint32_t len);
-void               syncClientRequest2RpcMsg(const SyncClientRequest* pMsg, SRpcMsg* pRpcMsg);  // step 2
-void               syncClientRequestFromRpcMsg(const SRpcMsg* pRpcMsg, SyncClientRequest* pMsg);
-SyncClientRequest* syncClientRequestFromRpcMsg2(const SRpcMsg* pRpcMsg);  // step 3
-cJSON*             syncClientRequest2Json(const SyncClientRequest* pMsg);
-char*              syncClientRequest2Str(const SyncClientRequest* pMsg);
+SyncClientRequest* syncClientRequestAlloc(uint32_t dataLen);
+int32_t syncClientRequestBuildFromRpcMsg(SRpcMsg* pClientRequestRpcMsg, const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum,
+                                         bool isWeak, int32_t vgId);
+int32_t syncClientRequestBuildFromNoopEntry(SRpcMsg* pClientRequestRpcMsg, const SSyncRaftEntry* pEntry, int32_t vgId);
+void    syncClientRequest2RpcMsg(const SyncClientRequest* pMsg, SRpcMsg* pRpcMsg);  // step 2
+void    syncClientRequestFromRpcMsg(const SRpcMsg* pRpcMsg, SyncClientRequest* pMsg);
+cJSON*  syncClientRequest2Json(const SyncClientRequest* pMsg);
+char*   syncClientRequest2Str(const SyncClientRequest* pMsg);
 
 // for debug ----------------------
 void syncClientRequestPrint(const SyncClientRequest* pMsg);
@@ -389,14 +377,6 @@ SyncAppendEntriesBatch* syncAppendEntriesBatchDeserialize2(const char* buf, uint
 void                    syncAppendEntriesBatch2RpcMsg(const SyncAppendEntriesBatch* pMsg, SRpcMsg* pRpcMsg);
 void                    syncAppendEntriesBatchFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntriesBatch* pMsg);
 SyncAppendEntriesBatch* syncAppendEntriesBatchFromRpcMsg2(const SRpcMsg* pRpcMsg);
-cJSON*                  syncAppendEntriesBatch2Json(const SyncAppendEntriesBatch* pMsg);
-char*                   syncAppendEntriesBatch2Str(const SyncAppendEntriesBatch* pMsg);
-
-// for debug ----------------------
-void syncAppendEntriesBatchPrint(const SyncAppendEntriesBatch* pMsg);
-void syncAppendEntriesBatchPrint2(char* s, const SyncAppendEntriesBatch* pMsg);
-void syncAppendEntriesBatchLog(const SyncAppendEntriesBatch* pMsg);
-void syncAppendEntriesBatchLog2(char* s, const SyncAppendEntriesBatch* pMsg);
 
 // ---------------------------------------------
 typedef struct SyncAppendEntriesReply {
@@ -499,6 +479,69 @@ void syncHeartbeatReplyLog(const SyncHeartbeatReply* pMsg);
 void syncHeartbeatReplyLog2(char* s, const SyncHeartbeatReply* pMsg);
 
 // ---------------------------------------------
+typedef struct SyncPreSnapshot {
+  uint32_t bytes;
+  int32_t  vgId;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+
+  // private data
+  SyncTerm term;
+
+} SyncPreSnapshot;
+
+SyncPreSnapshot* syncPreSnapshotBuild(int32_t vgId);
+void             syncPreSnapshotDestroy(SyncPreSnapshot* pMsg);
+void             syncPreSnapshotSerialize(const SyncPreSnapshot* pMsg, char* buf, uint32_t bufLen);
+void             syncPreSnapshotDeserialize(const char* buf, uint32_t len, SyncPreSnapshot* pMsg);
+char*            syncPreSnapshotSerialize2(const SyncPreSnapshot* pMsg, uint32_t* len);
+SyncPreSnapshot* syncPreSnapshotDeserialize2(const char* buf, uint32_t len);
+void             syncPreSnapshot2RpcMsg(const SyncPreSnapshot* pMsg, SRpcMsg* pRpcMsg);
+void             syncPreSnapshotFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPreSnapshot* pMsg);
+SyncPreSnapshot* syncPreSnapshotFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*           syncPreSnapshot2Json(const SyncPreSnapshot* pMsg);
+char*            syncPreSnapshot2Str(const SyncPreSnapshot* pMsg);
+
+// for debug ----------------------
+void syncPreSnapshotPrint(const SyncPreSnapshot* pMsg);
+void syncPreSnapshotPrint2(char* s, const SyncPreSnapshot* pMsg);
+void syncPreSnapshotLog(const SyncPreSnapshot* pMsg);
+void syncPreSnapshotLog2(char* s, const SyncPreSnapshot* pMsg);
+
+// ---------------------------------------------
+typedef struct SyncPreSnapshotReply {
+  uint32_t bytes;
+  int32_t  vgId;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+
+  // private data
+  SyncTerm  term;
+  SyncIndex snapStart;
+
+} SyncPreSnapshotReply;
+
+SyncPreSnapshotReply* syncPreSnapshotReplyBuild(int32_t vgId);
+void                  syncPreSnapshotReplyDestroy(SyncPreSnapshotReply* pMsg);
+void                  syncPreSnapshotReplySerialize(const SyncPreSnapshotReply* pMsg, char* buf, uint32_t bufLen);
+void                  syncPreSnapshotReplyDeserialize(const char* buf, uint32_t len, SyncPreSnapshotReply* pMsg);
+char*                 syncPreSnapshotReplySerialize2(const SyncPreSnapshotReply* pMsg, uint32_t* len);
+SyncPreSnapshotReply* syncPreSnapshotReplyDeserialize2(const char* buf, uint32_t len);
+void                  syncPreSnapshotReply2RpcMsg(const SyncPreSnapshotReply* pMsg, SRpcMsg* pRpcMsg);
+void                  syncPreSnapshotReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPreSnapshotReply* pMsg);
+SyncPreSnapshotReply* syncPreSnapshotReplyFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*                syncPreSnapshotReply2Json(const SyncPreSnapshotReply* pMsg);
+char*                 syncPreSnapshotReply2Str(const SyncPreSnapshotReply* pMsg);
+
+// for debug ----------------------
+void syncPreSnapshotReplyPrint(const SyncPreSnapshotReply* pMsg);
+void syncPreSnapshotReplyPrint2(char* s, const SyncPreSnapshotReply* pMsg);
+void syncPreSnapshotReplyLog(const SyncPreSnapshotReply* pMsg);
+void syncPreSnapshotReplyLog2(char* s, const SyncPreSnapshotReply* pMsg);
+
+// ---------------------------------------------
 typedef struct SyncApplyMsg {
   uint32_t   bytes;
   int32_t    vgId;
@@ -543,7 +586,7 @@ typedef struct SyncSnapshotSend {
   SyncTerm  lastTerm;         // snapshot.lastTerm
   SyncIndex lastConfigIndex;  // snapshot.lastConfigIndex
   SSyncCfg  lastConfig;
-  SyncTerm  privateTerm;
+  int64_t   startTime;
   int32_t   seq;
   uint32_t  dataLen;
   char      data[];
@@ -578,9 +621,10 @@ typedef struct SyncSnapshotRsp {
   SyncTerm  term;
   SyncIndex lastIndex;
   SyncTerm  lastTerm;
-  SyncTerm  privateTerm;
+  int64_t   startTime;
   int32_t   ack;
   int32_t   code;
+  SyncIndex snapBeginIndex;  // when ack = SYNC_SNAPSHOT_SEQ_BEGIN, it's valid
 } SyncSnapshotRsp;
 
 SyncSnapshotRsp* syncSnapshotRspBuild(int32_t vgId);
@@ -626,47 +670,9 @@ SyncLeaderTransfer* syncLeaderTransferFromRpcMsg2(const SRpcMsg* pRpcMsg);
 cJSON*              syncLeaderTransfer2Json(const SyncLeaderTransfer* pMsg);
 char*               syncLeaderTransfer2Str(const SyncLeaderTransfer* pMsg);
 
-// for debug ----------------------
-void syncLeaderTransferPrint(const SyncLeaderTransfer* pMsg);
-void syncLeaderTransferPrint2(char* s, const SyncLeaderTransfer* pMsg);
-void syncLeaderTransferLog(const SyncLeaderTransfer* pMsg);
-void syncLeaderTransferLog2(char* s, const SyncLeaderTransfer* pMsg);
-
-// ---------------------------------------------
-typedef struct SyncReconfigFinish {
-  uint32_t  bytes;
-  int32_t   vgId;
-  uint32_t  msgType;
-  SSyncCfg  oldCfg;
-  SSyncCfg  newCfg;
-  SyncIndex newCfgIndex;
-  SyncTerm  newCfgTerm;
-  uint64_t  newCfgSeqNum;
-
-} SyncReconfigFinish;
-
-SyncReconfigFinish* syncReconfigFinishBuild(int32_t vgId);
-void                syncReconfigFinishDestroy(SyncReconfigFinish* pMsg);
-void                syncReconfigFinishSerialize(const SyncReconfigFinish* pMsg, char* buf, uint32_t bufLen);
-void                syncReconfigFinishDeserialize(const char* buf, uint32_t len, SyncReconfigFinish* pMsg);
-char*               syncReconfigFinishSerialize2(const SyncReconfigFinish* pMsg, uint32_t* len);
-SyncReconfigFinish* syncReconfigFinishDeserialize2(const char* buf, uint32_t len);
-void                syncReconfigFinish2RpcMsg(const SyncReconfigFinish* pMsg, SRpcMsg* pRpcMsg);
-void                syncReconfigFinishFromRpcMsg(const SRpcMsg* pRpcMsg, SyncReconfigFinish* pMsg);
-SyncReconfigFinish* syncReconfigFinishFromRpcMsg2(const SRpcMsg* pRpcMsg);
-cJSON*              syncReconfigFinish2Json(const SyncReconfigFinish* pMsg);
-char*               syncReconfigFinish2Str(const SyncReconfigFinish* pMsg);
-
-// for debug ----------------------
-void syncReconfigFinishPrint(const SyncReconfigFinish* pMsg);
-void syncReconfigFinishPrint2(char* s, const SyncReconfigFinish* pMsg);
-void syncReconfigFinishLog(const SyncReconfigFinish* pMsg);
-void syncReconfigFinishLog2(char* s, const SyncReconfigFinish* pMsg);
-
-// ---------------------------------------------
-
 typedef enum {
   SYNC_LOCAL_CMD_STEP_DOWN = 100,
+  SYNC_LOCAL_CMD_FOLLOWER_CMT,
 } ESyncLocalCmd;
 
 const char* syncLocalCmdGetStr(int32_t cmd);
@@ -680,6 +686,7 @@ typedef struct SyncLocalCmd {
 
   int32_t  cmd;
   SyncTerm sdNewTerm;  // step down new term
+  SyncIndex fcIndex;// follower commit index
 
 } SyncLocalCmd;
 
@@ -711,20 +718,22 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, SyncRequestVoteReply* pMsg);
 int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg);
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
 
+int32_t syncNodeOnPreSnapshot(SSyncNode* ths, SyncPreSnapshot* pMsg);
+int32_t syncNodeOnPreSnapshotReply(SSyncNode* ths, SyncPreSnapshotReply* pMsg);
+
 int32_t syncNodeOnSnapshot(SSyncNode* ths, SyncSnapshotSend* pMsg);
 int32_t syncNodeOnSnapshotReply(SSyncNode* ths, SyncSnapshotRsp* pMsg);
 
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg);
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, SyncHeartbeatReply* pMsg);
 
-int32_t syncNodeOnClientRequest(SSyncNode* ths, SyncClientRequest* pMsg, SyncIndex* pRetIndex);
-int32_t syncNodeOnTimer(SSyncNode* ths, SyncTimeout* pMsg);
+int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
 int32_t syncNodeOnLocalCmd(SSyncNode* ths, SyncLocalCmd* pMsg);
 
 // -----------------------------------------
 typedef int32_t (*FpOnPingCb)(SSyncNode* ths, SyncPing* pMsg);
 typedef int32_t (*FpOnPingReplyCb)(SSyncNode* ths, SyncPingReply* pMsg);
-typedef int32_t (*FpOnClientRequestCb)(SSyncNode* ths, SyncClientRequest* pMsg, SyncIndex* pRetIndex);
+typedef int32_t (*FpOnClientRequestCb)(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
 typedef int32_t (*FpOnRequestVoteCb)(SSyncNode* ths, SyncRequestVote* pMsg);
 typedef int32_t (*FpOnRequestVoteReplyCb)(SSyncNode* ths, SyncRequestVoteReply* pMsg);
 typedef int32_t (*FpOnAppendEntriesCb)(SSyncNode* ths, SyncAppendEntries* pMsg);

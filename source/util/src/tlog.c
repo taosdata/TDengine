@@ -81,25 +81,25 @@ int64_t tsNumOfDebugLogs = 0;
 int64_t tsNumOfTraceLogs = 0;
 
 // log
-int32_t dDebugFlag = 135;
-int32_t vDebugFlag = 135;
-int32_t mDebugFlag = 135;
+int32_t dDebugFlag = 131;
+int32_t vDebugFlag = 131;
+int32_t mDebugFlag = 131;
 int32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t tmrDebugFlag = 131;
 int32_t uDebugFlag = 131;
 int32_t rpcDebugFlag = 131;
 int32_t qDebugFlag = 131;
-int32_t wDebugFlag = 135;
-int32_t sDebugFlag = 135;
+int32_t wDebugFlag = 131;
+int32_t sDebugFlag = 131;
 int32_t tsdbDebugFlag = 131;
 int32_t tdbDebugFlag = 131;
-int32_t tqDebugFlag = 135;
-int32_t fsDebugFlag = 135;
-int32_t metaDebugFlag = 135;
-int32_t udfDebugFlag = 135;
+int32_t tqDebugFlag = 131;
+int32_t fsDebugFlag = 131;
+int32_t metaDebugFlag = 131;
+int32_t udfDebugFlag = 131;
 int32_t smaDebugFlag = 131;
-int32_t idxDebugFlag = 135;
+int32_t idxDebugFlag = 131;
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
@@ -317,14 +317,14 @@ static void taosGetLogFileName(char *fn) {
     for (int32_t i = 0; i < tsLogObj.fileNum; i++) {
       char fileName[LOG_FILE_NAME_LEN];
 
-      sprintf(fileName, "%s%d.0", fn, i);
+      snprintf(fileName, LOG_FILE_NAME_LEN, "%s%d.0", fn, i);
       bool file1open = taosCheckFileIsOpen(fileName);
 
-      sprintf(fileName, "%s%d.1", fn, i);
+      snprintf(fileName, LOG_FILE_NAME_LEN, "%s%d.1", fn, i);
       bool file2open = taosCheckFileIsOpen(fileName);
 
       if (!file1open && !file2open) {
-        sprintf(tsLogObj.logName, "%s%d", fn, i);
+        snprintf(tsLogObj.logName, LOG_FILE_NAME_LEN, "%s%d", fn, i);
         return;
       }
     }
@@ -586,7 +586,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   int32_t        end = 0;
   int32_t        remainSize = 0;
   static int64_t lostLine = 0;
-  char           tmpBuf[40] = {0};
+  char           tmpBuf[128] = {0};
   int32_t        tmpBufLen = 0;
 
   if (pLogBuf == NULL || pLogBuf->stop) return -1;
@@ -598,7 +598,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   remainSize = (start > end) ? (start - end - 1) : (start + LOG_BUF_SIZE(pLogBuf) - end - 1);
 
   if (lostLine > 0) {
-    sprintf(tmpBuf, "...Lost %" PRId64 " lines here...\n", lostLine);
+    snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
     tmpBufLen = (int32_t)strlen(tmpBuf);
   }
 

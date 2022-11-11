@@ -252,7 +252,7 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   int idx = pool->index % pool->nAsync;
 
   // no need mutex here
-  if (pool->index++ > pool->nAsync) {
+  if (pool->index++ > pool->nAsync * 2000) {
     pool->index = 0;
   }
   uv_async_t* async = &(pool->asyncs[idx]);

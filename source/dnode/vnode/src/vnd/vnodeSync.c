@@ -309,13 +309,13 @@ static void vnodeSyncApplyMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const S
     const STraceId *trace = &pMsg->info.traceId;
     vGTrace("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
             ", weak:%d, code:%d, state:%d %s, type:%s",
-            syncGetVgId(pVnode->sync), pFsm, pMeta->index, pMeta->term, rpcMsg.info.conn.applyIndex, pMeta->isWeak,
-            pMeta->code, pMeta->state, syncUtilState2String(pMeta->state), TMSG_INFO(pMsg->msgType));
+            pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, rpcMsg.info.conn.applyIndex, pMeta->isWeak,
+            pMeta->code, pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType));
 
     tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
   } else {
     SRpcMsg rsp = {.code = pMeta->code, .info = pMsg->info};
-    vError("vgId:%d, commit-cb execute error, type:%s, index:%" PRId64 ", error:0x%x %s", syncGetVgId(pVnode->sync),
+    vError("vgId:%d, commit-cb execute error, type:%s, index:%" PRId64 ", error:0x%x %s", pVnode->config.vgId,
            TMSG_INFO(pMsg->msgType), pMeta->index, pMeta->code, tstrerror(pMeta->code));
     if (rsp.info.handle != NULL) {
       tmsgSendRsp(&rsp);
@@ -338,56 +338,30 @@ static void vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, con
 static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   SVnode *pVnode = pFsm->data;
   vTrace("vgId:%d, rollback-cb is excuted, fsm:%p, index:%" PRId64 ", weak:%d, code:%d, state:%d %s, type:%s",
-         syncGetVgId(pVnode->sync), pFsm, pMeta->index, pMeta->isWeak, pMeta->code, pMeta->state,
-         syncUtilState2String(pMeta->state), TMSG_INFO(pMsg->msgType));
+         pVnode->config.vgId, pFsm, pMeta->index, pMeta->isWeak, pMeta->code, pMeta->state, syncStr(pMeta->state),
+         TMSG_INFO(pMsg->msgType));
 }
 
-#define USE_TSDB_SNAPSHOT
-
 static int32_t vnodeSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader) {
-#ifdef USE_TSDB_SNAPSHOT
   SVnode         *pVnode = pFsm->data;
   SSnapshotParam *pSnapshotParam = pParam;
   int32_t code = vnodeSnapReaderOpen(pVnode, pSnapshotParam->start, pSnapshotParam->end, (SVSnapReader **)ppReader);
   return code;
-#else
-  *ppReader = taosMemoryMalloc(32);
-  return 0;
-#endif
 }
 
 static int32_t vnodeSnapshotStopRead(const SSyncFSM *pFsm, void *pReader) {
-#ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
   int32_t code = vnodeSnapReaderClose(pReader);
   return code;
-#else
-  taosMemoryFree(pReader);
-  return 0;
-#endif
 }
 
 static int32_t vnodeSnapshotDoRead(const SSyncFSM *pFsm, void *pReader, void **ppBuf, int32_t *len) {
-#ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
   int32_t code = vnodeSnapRead(pReader, (uint8_t **)ppBuf, len);
   return code;
-#else
-  static int32_t times = 0;
-  if (times++ < 5) {
-    *len = 64;
-    *ppBuf = taosMemoryMalloc(*len);
-    snprintf(*ppBuf, *len, "snapshot block %d", times);
-  } else {
-    *len = 0;
-    *ppBuf = NULL;
-  }
-  return 0;
-#endif
 }
 
 static int32_t vnodeSnapshotStartWrite(const SSyncFSM *pFsm, void *pParam, void **ppWriter) {
-#ifdef USE_TSDB_SNAPSHOT
   SVnode         *pVnode = pFsm->data;
   SSnapshotParam *pSnapshotParam = pParam;
 
@@ -404,14 +378,9 @@ static int32_t vnodeSnapshotStartWrite(const SSyncFSM *pFsm, void *pParam, void 
 
   int32_t code = vnodeSnapWriterOpen(pVnode, pSnapshotParam->start, pSnapshotParam->end, (SVSnapWriter **)ppWriter);
   return code;
-#else
-  *ppWriter = taosMemoryMalloc(32);
-  return 0;
-#endif
 }
 
 static int32_t vnodeSnapshotStopWrite(const SSyncFSM *pFsm, void *pWriter, bool isApply, SSnapshot *pSnapshot) {
-#ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
   vInfo("vgId:%d, stop write vnode snapshot, apply:%d, index:%" PRId64 " term:%" PRIu64 " config:%" PRId64,
         pVnode->config.vgId, isApply, pSnapshot->lastApplyIndex, pSnapshot->lastApplyTerm, pSnapshot->lastConfigIndex);
@@ -419,22 +388,14 @@ static int32_t vnodeSnapshotStopWrite(const SSyncFSM *pFsm, void *pWriter, bool 
   int32_t code = vnodeSnapWriterClose(pWriter, !isApply, pSnapshot);
   vInfo("vgId:%d, apply vnode snapshot finished, code:0x%x", pVnode->config.vgId, code);
   return code;
-#else
-  taosMemoryFree(pWriter);
-  return 0;
-#endif
 }
 
 static int32_t vnodeSnapshotDoWrite(const SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) {
-#ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, continue write vnode snapshot, len:%d", pVnode->config.vgId, len);
   int32_t code = vnodeSnapWrite(pWriter, pBuf, len);
   vDebug("vgId:%d, continue write vnode snapshot finished, len:%d", pVnode->config.vgId, len);
   return code;
-#else
-  return 0;
-#endif
 }
 
 static void vnodeRestoreFinish(const SSyncFSM *pFsm) {
@@ -461,7 +422,6 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become follower", pVnode->config.vgId);
 
-  // clear old leader resource
   taosThreadMutexLock(&pVnode->lock);
   if (pVnode->blocked) {
     pVnode->blocked = false;
@@ -474,15 +434,28 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
 static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become leader", pVnode->config.vgId);
+}
 
-#if 0
-  taosThreadMutexLock(&pVnode->lock);
-  if (pVnode->blocked) {
-    pVnode->blocked = false;
-    tsem_post(&pVnode->syncSem);
+static bool vnodeApplyQueueEmpty(const SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+
+  if (pVnode != NULL && pVnode->msgCb.qsizeFp != NULL) {
+    int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
+    return (itemSize == 0);
+  } else {
+    return true;
   }
-  taosThreadMutexUnlock(&pVnode->lock);
-#endif
+}
+
+static int32_t vnodeApplyQueueItems(const SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+
+  if (pVnode != NULL && pVnode->msgCb.qsizeFp != NULL) {
+    int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
+    return itemSize;
+  } else {
+    return -1;
+  }
 }
 
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
@@ -494,6 +467,8 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = vnodeRestoreFinish;
   pFsm->FpLeaderTransferCb = NULL;
+  pFsm->FpApplyQueueEmptyCb = vnodeApplyQueueEmpty;
+  pFsm->FpApplyQueueItems = vnodeApplyQueueItems;
   pFsm->FpBecomeLeaderCb = vnodeBecomeLeader;
   pFsm->FpBecomeFollowerCb = vnodeBecomeFollower;
   pFsm->FpReConfigCb = NULL;
@@ -543,21 +518,43 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
 }
 
 void vnodeSyncStart(SVnode *pVnode) {
-  vDebug("vgId:%d, start sync", pVnode->config.vgId);
+  vInfo("vgId:%d, start sync", pVnode->config.vgId);
   syncStart(pVnode->sync);
 }
 
+void vnodeSyncPreClose(SVnode *pVnode) {
+  vInfo("vgId:%d, pre close sync", pVnode->config.vgId);
+  syncLeaderTransfer(pVnode->sync);
+  syncPreStop(pVnode->sync);
+  taosThreadMutexLock(&pVnode->lock);
+  if (pVnode->blocked) {
+    vInfo("vgId:%d, post block after close sync", pVnode->config.vgId);
+    pVnode->blocked = false;
+    tsem_post(&pVnode->syncSem);
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
+}
+
 void vnodeSyncClose(SVnode *pVnode) {
-  vDebug("vgId:%d, close sync", pVnode->config.vgId);
+  vInfo("vgId:%d, close sync", pVnode->config.vgId);
   syncStop(pVnode->sync);
 }
 
-bool vnodeIsRoleLeader(SVnode *pVnode) { return syncGetMyRole(pVnode->sync) == TAOS_SYNC_STATE_LEADER; }
+bool vnodeIsRoleLeader(SVnode *pVnode) {
+  SSyncState state = syncGetState(pVnode->sync);
+  return state.state == TAOS_SYNC_STATE_LEADER;
+}
 
 bool vnodeIsLeader(SVnode *pVnode) {
-  if (!syncIsReady(pVnode->sync)) {
-    vDebug("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncGetMyRoleStr(pVnode->sync),
-           syncRestoreFinish(pVnode->sync));
+  SSyncState state = syncGetState(pVnode->sync);
+
+  if (state.state != TAOS_SYNC_STATE_LEADER || !state.restored) {
+    if (state.state != TAOS_SYNC_STATE_LEADER) {
+      terrno = TSDB_CODE_SYN_NOT_LEADER;
+    } else {
+      terrno = TSDB_CODE_APP_NOT_READY;
+    }
+    vDebug("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncStr(state.state), state.restored);
     return false;
   }
 

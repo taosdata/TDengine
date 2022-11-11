@@ -190,6 +190,7 @@ typedef struct {
   int64_t dbId;
   int32_t vgVersion;
   int32_t numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
+  int64_t stateTs;
 } SBuildUseDBInput;
 
 typedef struct SField {
@@ -297,7 +298,6 @@ typedef struct {
 
 typedef struct {
   int32_t        code;
-  int8_t         hashMeta;
   int64_t        uid;
   char*          tblFName;
   int32_t        numOfRows;
@@ -839,6 +839,7 @@ typedef struct {
   int64_t dbId;
   int32_t vgVersion;
   int32_t numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
+  int64_t stateTs;      // ms
 } SUseDbReq;
 
 int32_t tSerializeSUseDbReq(void* buf, int32_t bufLen, SUseDbReq* pReq);
@@ -853,6 +854,8 @@ typedef struct {
   int16_t hashSuffix;
   int8_t  hashMethod;
   SArray* pVgroupInfos;  // Array of SVgroupInfo
+  int32_t errCode;
+  int64_t stateTs;  // ms
 } SUseDbRsp;
 
 int32_t tSerializeSUseDbRsp(void* buf, int32_t bufLen, const SUseDbRsp* pRsp);
@@ -1128,6 +1131,7 @@ typedef struct {
   SQnodeLoad  qload;
   SClusterCfg clusterCfg;
   SArray*     pVloads;  // array of SVnodeLoad
+  int32_t     statusSeq;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -1149,6 +1153,7 @@ typedef struct {
   int64_t   dnodeVer;
   SDnodeCfg dnodeCfg;
   SArray*   pDnodeEps;  // Array of SDnodeEp
+  int32_t   statusSeq;
 } SStatusRsp;
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
@@ -1610,6 +1615,7 @@ typedef struct SSubQueryMsg {
   int8_t   needFetch;
   uint32_t sqlLen;  // the query sql,
   uint32_t phyLen;
+  int32_t  msgMask;
   char     msg[];
 } SSubQueryMsg;
 
@@ -1800,7 +1806,7 @@ int32_t tDeserializeSCMCreateTopicRsp(void* buf, int32_t bufLen, SCMCreateTopicR
 
 typedef struct {
   int64_t consumerId;
-} SMqConsumerLostMsg, SMqConsumerRecoverMsg;
+} SMqConsumerLostMsg, SMqConsumerRecoverMsg, SMqConsumerClearMsg;
 
 typedef struct {
   int64_t consumerId;
@@ -3131,7 +3137,8 @@ int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
 int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
 
 typedef struct {
-  int64_t uid;
+  // int64_t uid;
+  char    tbname[TSDB_TABLE_NAME_LEN];
   int64_t ts;
 } SSingleDeleteReq;
 

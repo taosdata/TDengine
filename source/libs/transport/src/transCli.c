@@ -143,6 +143,7 @@ static FORCE_INLINE void     cliUpdateFqdnCache(SHashObj* cache, char* fqdn);
 static void cliHandleResp(SCliConn* conn);
 // handle except about conn
 static void cliHandleExcept(SCliConn* conn);
+static void cliReleaseUnfinishedMsg(SCliConn* conn);
 
 // handle req from app
 static void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd);
@@ -163,17 +164,6 @@ static void      destroyThrdObj(SCliThrd* pThrd);
 
 static void cliWalkCb(uv_handle_t* handle, void* arg);
 
-static void cliReleaseUnfinishedMsg(SCliConn* conn) {
-  for (int i = 0; i < transQueueSize(&conn->cliMsgs); i++) {
-    SCliMsg* msg = transQueueGet(&conn->cliMsgs, i);
-    if (msg != NULL && msg->ctx != NULL && msg->ctx->ahandle != (void*)0x9527) {
-      if (conn->ctx.freeFunc != NULL && msg->ctx->ahandle != NULL) {
-        conn->ctx.freeFunc(msg->ctx->ahandle);
-      }
-    }
-    destroyCmsg(msg);
-  }
-}
 #define CLI_RELEASE_UV(loop)        \
   do {                              \
     uv_walk(loop, cliWalkCb, NULL); \
@@ -266,6 +256,23 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
 
 static void* cliWorkThread(void* arg);
 
+static void cliReleaseUnfinishedMsg(SCliConn* conn) {
+  SCliThrd* pThrd = conn->hostThrd;
+  STrans*   pTransInst = pThrd->pTransInst;
+
+  for (int i = 0; i < transQueueSize(&conn->cliMsgs); i++) {
+    SCliMsg* msg = transQueueGet(&conn->cliMsgs, i);
+    if (msg != NULL && msg->ctx != NULL && msg->ctx->ahandle != (void*)0x9527) {
+      if (conn->ctx.freeFunc != NULL && msg->ctx->ahandle != NULL) {
+        conn->ctx.freeFunc(msg->ctx->ahandle);
+      } else if (msg->ctx->ahandle != NULL && pTransInst->destroyFp != NULL) {
+        tDebug("%s conn %p destroy unfinished ahandle %p", CONN_GET_INST_LABEL(conn), conn, msg->ctx->ahandle);
+        pTransInst->destroyFp(msg->ctx->ahandle);
+      }
+    }
+    destroyCmsg(msg);
+  }
+}
 bool cliMaySendCachedMsg(SCliConn* conn) {
   if (!transQueueEmpty(&conn->cliMsgs)) {
     SCliMsg* pCliMsg = NULL;
@@ -427,7 +434,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
 
     if (pCtx == NULL || pCtx->pSem == NULL) {
       if (transMsg.info.ahandle == NULL) {
-        if (REQUEST_NO_RESP(&pMsg->msg) || pMsg->type == Release) destroyCmsg(pMsg);
+        if (pMsg == NULL || REQUEST_NO_RESP(&pMsg->msg) || pMsg->type == Release) destroyCmsg(pMsg);
         once = true;
         continue;
       }
@@ -474,7 +481,7 @@ void* destroyConnPool(void* pool) {
 }
 
 static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
-  char key[32] = {0};
+  char key[TSDB_FQDN_LEN + 64] = {0};
   CONN_CONSTRUCT_HASH_KEY(key, ip, port);
 
   SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
@@ -525,7 +532,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   conn->status = ConnInPool;
 
   if (conn->list == NULL) {
-    char key[32] = {0};
+    char key[TSDB_FQDN_LEN + 64] = {0};
     CONN_CONSTRUCT_HASH_KEY(key, conn->ip, conn->port);
     tTrace("%s conn %p added to conn pool, read buf cap:%d", CONN_GET_INST_LABEL(conn), conn, conn->readBuf.cap);
     conn->list = taosHashGet((SHashObj*)pool, key, strlen(key));
@@ -718,8 +725,10 @@ static void cliSendCb(uv_write_t* req, int status) {
   if (status == 0) {
     tTrace("%s conn %p data already was written out", CONN_GET_INST_LABEL(pConn), pConn);
   } else {
-    tError("%s conn %p failed to write:%s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(status));
-    cliHandleExcept(pConn);
+    if (!uv_is_closing((uv_handle_t*)&pConn->stream)) {
+      tError("%s conn %p failed to write:%s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(status));
+      cliHandleExcept(pConn);
+    }
     return;
   }
   if (cliHandleNoResp(pConn) == true) {
@@ -1179,7 +1188,7 @@ static SCliThrd* createThrdObj(void* trans) {
   pThrd->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
   uv_loop_init(pThrd->loop);
 
-  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 5, pThrd, cliAsyncCb);
+  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 8, pThrd, cliAsyncCb);
 
   pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
   uv_prepare_init(pThrd->loop, pThrd->prepare);
@@ -1251,11 +1260,14 @@ void cliWalkCb(uv_handle_t* handle, void* arg) {
 }
 
 FORCE_INLINE int cliRBChoseIdx(STrans* pTransInst) {
-  int8_t index = pTransInst->index;
+  int32_t index = pTransInst->index;
   if (pTransInst->numOfThreads == 0) {
     return -1;
   }
-  if (pTransInst->index++ >= pTransInst->numOfThreads) {
+  /*
+   * no lock, and to avoid CPU load imbalance, set limit pTransInst->numOfThreads * 2000;
+   */
+  if (pTransInst->index++ >= pTransInst->numOfThreads * 2000) {
     pTransInst->index = 0;
   }
   return index % pTransInst->numOfThreads;
@@ -1269,13 +1281,14 @@ static FORCE_INLINE void doDelayTask(void* param) {
 static void doCloseIdleConn(void* param) {
   STaskArg* arg = param;
   SCliConn* conn = arg->param1;
-  tTrace("%s conn %p idle, close it", CONN_GET_INST_LABEL(conn), conn);
+  tDebug("%s conn %p idle, close it", CONN_GET_INST_LABEL(conn), conn);
   conn->task = NULL;
   cliDestroyConn(conn, true);
   taosMemoryFree(arg);
 }
 
 static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
+  STrans*        pTransInst = pThrd->pTransInst;
   STransConnCtx* pCtx = pMsg->ctx;
 
   STraceId* trace = &pMsg->msg.info.traceId;
@@ -1287,7 +1300,7 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
   arg->param1 = pMsg;
   arg->param2 = pThrd;
-  transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
+  transDQSched(pThrd->delayQueue, doDelayTask, arg, pTransInst->retryInterval);
 }
 
 FORCE_INLINE void cliCompareAndSwap(int8_t* val, int8_t exp, int8_t newVal) {
@@ -1339,7 +1352,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pMsg->sent = 0;
     pCtx->retryCnt += 1;
     if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK) {
-      cliCompareAndSwap(&pCtx->retryLimit, TRANS_RETRY_COUNT_LIMIT, EPSET_GET_SIZE(&pCtx->epSet) * 3);
+      cliCompareAndSwap(&pCtx->retryLimit, pTransInst->retryLimit, EPSET_GET_SIZE(&pCtx->epSet) * 3);
       if (pCtx->retryCnt < pCtx->retryLimit) {
         transUnrefCliHandle(pConn);
         EPSET_FORWARD_INUSE(&pCtx->epSet);
@@ -1348,7 +1361,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         return -1;
       }
     } else {
-      cliCompareAndSwap(&pCtx->retryLimit, TRANS_RETRY_COUNT_LIMIT, TRANS_RETRY_COUNT_LIMIT);
+      cliCompareAndSwap(&pCtx->retryLimit, pTransInst->retryLimit, pTransInst->retryLimit);
       if (pCtx->retryCnt < pCtx->retryLimit) {
         if (pResp->contLen == 0) {
           EPSET_FORWARD_INUSE(&pCtx->epSet);

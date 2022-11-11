@@ -201,7 +201,13 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
     }
 
     if (end == fileSize) firstTrial = false;
-    if (firstTrial && terrno == TSDB_CODE_SUCCESS) continue;
+    if (firstTrial) {
+      if (terrno == TSDB_CODE_SUCCESS) {
+        continue;
+      } else {
+        firstTrial = false;
+      }
+    }
     if (retVer >= 0 || offset == 0) break;
   }
 

@@ -48,11 +48,14 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   pRpc->compressSize = pInit->compressSize;
   pRpc->encryption = pInit->encryption;
+  pRpc->retryLimit = pInit->retryLimit;
+  pRpc->retryInterval = pInit->retryInterval;
 
   // register callback handle
   pRpc->cfp = pInit->cfp;
   pRpc->retry = pInit->rfp;
   pRpc->startTimer = pInit->tfp;
+  pRpc->destroyFp = pInit->dfp;
 
   pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
 

@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDnode.h"
+#include "mndDb.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
@@ -345,6 +346,19 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
   }
 
+  int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
+  int64_t curMs = taosGetTimestampMs();
+  bool    online = mndIsDnodeOnline(pDnode, curMs);
+  bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
+  bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
+  bool    needCheck = !online || dnodeChanged || reboot;
+
+  pDnode->accessTimes++;
+  pDnode->lastAccessTime = curMs;
+  const STraceId *trace = &pReq->info.traceId;
+  mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
+          pDnode->accessTimes, needCheck, online, reboot, dnodeChanged, statusReq.statusSeq);
+
   for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
     SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
 
@@ -363,6 +377,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         if (pVgroup->vnodeGid[vg].dnodeId == statusReq.dnodeId) {
           if (pVgroup->vnodeGid[vg].syncState != pVload->syncState ||
               pVgroup->vnodeGid[vg].syncRestore != pVload->syncRestore) {
+            mInfo("vgId:%d, state changed by status msg, old state:%s restored:%d new state:%s restored:%d",
+                  pVgroup->vgId, syncStr(pVgroup->vnodeGid[vg].syncState), pVgroup->vnodeGid[vg].syncRestore,
+                  syncStr(pVload->syncState), pVload->syncRestore);
             pVgroup->vnodeGid[vg].syncState = pVload->syncState;
             pVgroup->vnodeGid[vg].syncRestore = pVload->syncRestore;
             roleChanged = true;
@@ -371,7 +388,12 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         }
       }
       if (roleChanged) {
-        // notify scheduler role has changed
+        SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
+        if (pDb != NULL && pDb->stateTs != curMs) {
+          mInfo("db:%s, stateTs changed by status msg, old stateTs:%" PRId64 " new stateTs:%" PRId64, pDb->name, pDb->stateTs, curMs);
+          pDb->stateTs = curMs;
+        }
+        mndReleaseDb(pMnode, pDb);
       }
     }
 
@@ -396,13 +418,6 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     mndReleaseQnode(pMnode, pQnode);
   }
 
-  int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
-  int64_t curMs = taosGetTimestampMs();
-  bool    online = mndIsDnodeOnline(pDnode, curMs);
-  bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
-  bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
-  bool    needCheck = !online || dnodeChanged || reboot;
-
   if (needCheck) {
     if (statusReq.sver != tsVersion) {
       if (pDnode != NULL) {
@@ -424,9 +439,6 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
                pMnode->clusterId);
         terrno = TSDB_CODE_MND_INVALID_CLUSTER_ID;
         goto _OVER;
-      } else {
-        pDnode->accessTimes++;
-        mDebug("dnode:%d, status received, access times %d", pDnode->id, pDnode->accessTimes);
       }
     }
 
@@ -453,6 +465,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->memTotal = statusReq.memTotal;
 
     SStatusRsp statusRsp = {0};
+    statusRsp.statusSeq++;
     statusRsp.dnodeVer = dnodeVer;
     statusRsp.dnodeCfg.dnodeId = pDnode->id;
     statusRsp.dnodeCfg.clusterId = pMnode->clusterId;
@@ -473,8 +486,6 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pReq->info.rsp = pHead;
   }
 
-  pDnode->lastAccessTime = curMs;
-  pDnode->accessTimes++;
   code = 0;
 
 _OVER:

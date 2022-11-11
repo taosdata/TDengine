@@ -25,6 +25,8 @@ int32_t tqBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
   SColumnInfoData* pGidCol = taosArrayGet(pDataBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pTbNameCol = taosArrayGet(pDataBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
 
+  tqDebug("stream delete msg: row %d", totRow);
+
   for (int32_t row = 0; row < totRow; row++) {
     int64_t ts = *(int64_t*)colDataGetData(pTsCol, row);
     int64_t groupId = *(int64_t*)colDataGetData(pGidCol, row);
@@ -36,11 +38,14 @@ int32_t tqBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
     } else {
       name = buildCtbNameByGroupId(stbFullName, groupId);
     }
-    tqDebug("stream delete msg: groupId :%" PRId64 ", name: %s", groupId, name);
+    tqDebug("stream delete msg: vgId:%d, groupId :%" PRId64 ", name: %s, ts:%" PRId64, pVnode->config.vgId, groupId,
+            name, ts);
+#if 0
     SMetaReader mr = {0};
     metaReaderInit(&mr, pVnode->pMeta, 0);
     if (metaGetTableEntryByName(&mr, name) < 0) {
       metaReaderClear(&mr);
+      tqDebug("stream delete msg, skip vgId:%d since no table: %s", pVnode->config.vgId, name);
       taosMemoryFree(name);
       continue;
     }
@@ -48,10 +53,13 @@ int32_t tqBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
     int64_t uid = mr.me.uid;
     metaReaderClear(&mr);
     taosMemoryFree(name);
+#endif
     SSingleDeleteReq req = {
         .ts = ts,
-        .uid = uid,
     };
+    strncpy(req.tbname, name, TSDB_TABLE_NAME_LEN);
+    taosMemoryFree(name);
+    /*tqDebug("stream delete msg, active: vgId:%d, ts:%" PRId64 " name:%s", pVnode->config.vgId, ts, name);*/
     taosArrayPush(deleteReq->deleteReqs, &req);
   }
   return 0;
@@ -309,6 +317,10 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       deleteReq.deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
       deleteReq.suid = suid;
       tqBuildDeleteReq(pVnode, stbFullName, pDataBlock, &deleteReq);
+      if (taosArrayGetSize(deleteReq.deleteReqs) == 0) {
+        taosArrayDestroy(deleteReq.deleteReqs);
+        continue;
+      }
 
       int32_t len;
       int32_t code;

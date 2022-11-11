@@ -321,7 +321,7 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 }
 
 int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
-  SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)tinfo;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
   if (isAdd) {
     qDebug("add %d tables id into query list, %s", (int32_t)taosArrayGetSize(tableIdList), pTaskInfo->id.str);
@@ -473,7 +473,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
 
   qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, pSubplan->id.queryId);
 
-  _error:
+_error:
   // if failed to add ref for all tables in this query, abort current query
   return code;
 }
@@ -1027,10 +1027,11 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
       if (pTableScanInfo->dataReader == NULL) {
         STableKeyInfo* pList = tableListGetInfo(pTaskInfo->pTableInfoList, 0);
-        int32_t num = tableListGetSize(pTaskInfo->pTableInfoList);
+        int32_t        num = tableListGetSize(pTaskInfo->pTableInfoList);
 
         if (tsdbReaderOpen(pTableScanInfo->readHandle.vnode, &pTableScanInfo->cond, pList, num,
-                           &pTableScanInfo->dataReader, NULL) < 0 || pTableScanInfo->dataReader == NULL) {
+                           &pTableScanInfo->dataReader, NULL) < 0 ||
+            pTableScanInfo->dataReader == NULL) {
           ASSERT(0);
         }
       }
@@ -1071,14 +1072,14 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     initQueryTableDataCondForTmq(&pTaskInfo->streamInfo.tableCond, sContext, &mtInfo);
     pTaskInfo->streamInfo.tableCond.twindows.skey = pOffset->ts;
 
-    if (pTaskInfo->pTableInfoList == NULL)  {
+    if (pTaskInfo->pTableInfoList == NULL) {
       pTaskInfo->pTableInfoList = tableListCreate();
     }
 
     tableListAddTableInfo(pTaskInfo->pTableInfoList, mtInfo.uid, 0);
 
     STableKeyInfo* pList = tableListGetInfo(pTaskInfo->pTableInfoList, 0);
-    int32_t size = tableListGetSize(pTaskInfo->pTableInfoList);
+    int32_t        size = tableListGetSize(pTaskInfo->pTableInfoList);
     ASSERT(size == 1);
 
     tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, &pInfo->dataReader, NULL);
@@ -1104,4 +1105,25 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     qDebug("tmqsnap qStreamPrepareScan snapshot log");
   }
   return 0;
+}
+
+void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
+  SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
+  assert(pMsg->info.ahandle != NULL);
+
+  SDataBuf buf = {.len = pMsg->contLen, .pData = NULL};
+
+  if (pMsg->contLen > 0) {
+    buf.pData = taosMemoryCalloc(1, pMsg->contLen);
+    if (buf.pData == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
+    }
+  }
+
+  pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
+  rpcFreeCont(pMsg->pCont);
+  destroySendMsgInfo(pSendInfo);
 }

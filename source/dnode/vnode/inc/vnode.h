@@ -158,7 +158,7 @@ int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableL
 void     tsdbReaderClose(STsdbReader *pReader);
 bool     tsdbNextDataBlock(STsdbReader *pReader);
 bool     tsdbTableNextDataBlock(STsdbReader *pReader, uint64_t uid);
-void     tsdbRetrieveDataBlockInfo(const STsdbReader* pReader, int32_t* rows, uint64_t* uid, STimeWindow* pWindow);
+void     tsdbRetrieveDataBlockInfo(const STsdbReader *pReader, int32_t *rows, uint64_t *uid, STimeWindow *pWindow);
 int32_t  tsdbRetrieveDatablockSMA(STsdbReader *pReader, SColumnDataAgg ***pBlockStatis, bool *allHave);
 SArray  *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
 int32_t  tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
@@ -240,7 +240,7 @@ bool    tqNextDataBlock(STqReader *pReader);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
 
-void vnodeEnqueueStreamMsg(SVnode *pVnode, SRpcMsg *pMsg);
+int32_t vnodeEnqueueStreamMsg(SVnode *pVnode, SRpcMsg *pMsg);
 
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);

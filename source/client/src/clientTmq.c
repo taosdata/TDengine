@@ -1649,7 +1649,7 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         taosFreeQitem(pollRspWrapper);
         return pRsp;
       } else {
-        tscDebug("msg discard since epoch mismatch: msg epoch %d, consumer epoch %d\n",
+        tscDebug("msg discard since epoch mismatch: msg epoch %d, consumer epoch %d",
                  pollRspWrapper->dataRsp.head.epoch, consumerEpoch);
         taosFreeQitem(pollRspWrapper);
       }
@@ -1667,7 +1667,7 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         taosFreeQitem(pollRspWrapper);
         return pRsp;
       } else {
-        tscDebug("msg discard since epoch mismatch: msg epoch %d, consumer epoch %d\n",
+        tscDebug("msg discard since epoch mismatch: msg epoch %d, consumer epoch %d",
                  pollRspWrapper->metaRsp.head.epoch, consumerEpoch);
         taosFreeQitem(pollRspWrapper);
       }
@@ -1756,7 +1756,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
 
     rspObj = tmqHandleAllRsp(tmq, timeout, false);
     if (rspObj) {
-      tscDebug("consumer:%" PRId64 ", return rsp", tmq->consumerId);
+      tscDebug("consumer:%" PRId64 ", return rsp %p", tmq->consumerId, rspObj);
       return (TAOS_RES*)rspObj;
     } else if (terrno == TSDB_CODE_TQ_NO_COMMITTED_OFFSET) {
       tscDebug("consumer:%" PRId64 ", return null since no committed offset", tmq->consumerId);

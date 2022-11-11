@@ -1,10 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncEnv.h"
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncRaftStore.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -86,7 +81,7 @@ int main(int argc, char** argv) {
 
   SSyncNode* pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
-  syncNodeLog2((char*)"", pSyncNode);
+  sNTrace(pSyncNode, "");
 
   initRaftId(pSyncNode);
 
