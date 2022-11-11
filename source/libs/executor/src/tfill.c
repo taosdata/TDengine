@@ -680,9 +680,9 @@ SResultCellData* getResultCell(SResultRowData* pRaw, int32_t index) {
 void* destroyFillColumnInfo(SFillColInfo* pFillCol, int32_t start, int32_t end) {
   for (int32_t i = start; i < end; i++) {
     destroyExprInfo(pFillCol[i].pExpr, 1);
-    taosMemoryFreeClear(pFillCol[i].pExpr);
     taosVariantDestroy(&pFillCol[i].fillVal);
   }
+  taosMemoryFreeClear(pFillCol[start].pExpr);
   taosMemoryFree(pFillCol);
   return NULL;
 }
