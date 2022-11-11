@@ -13,14 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncReplication.h"
 #include "syncIndexMgr.h"
-#include "syncMessage.h"
-#include "syncRaftCfg.h"
 #include "syncRaftEntry.h"
-#include "syncRaftLog.h"
 #include "syncRaftStore.h"
-#include "syncSnapshot.h"
 #include "syncUtil.h"
 
 // TLA+ Spec
