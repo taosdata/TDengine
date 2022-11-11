@@ -69,7 +69,7 @@ mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugNoSan
 date
 docker run \
     -v $REP_MOUNT_PARAM \
-    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR;rm -rf debug;mkdir -p debug;cd debug;cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true  -DSANITIZER=true;make -j $THREAD_COUNT"
+    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR;rm -rf debug;mkdir -p debug;cd debug;cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true   -DBUILD_SANITIZER=1  -DTOOLS_SANITIZE=true -DTOOLS_BUILD_TYPE=Debug e;make -j $THREAD_COUNT"
 
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugSan
 
