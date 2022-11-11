@@ -846,10 +846,12 @@ void cliConnCb(uv_connect_t* req, int status) {
   SCliConn* pConn = req->data;
   SCliThrd* pThrd = pConn->hostThrd;
 
-  uv_timer_stop(pConn->timer);
-  pConn->timer->data = NULL;
-  taosArrayPush(pThrd->timerList, &pConn->timer);
-  pConn->timer = NULL;
+  if (pConn->timer != NULL) {
+    uv_timer_stop(pConn->timer);
+    pConn->timer->data = NULL;
+    taosArrayPush(pThrd->timerList, &pConn->timer);
+    pConn->timer = NULL;
+  }
 
   if (status != 0) {
     tError("%s conn %p failed to connect server:%s", CONN_GET_INST_LABEL(pConn), pConn, uv_strerror(status));
