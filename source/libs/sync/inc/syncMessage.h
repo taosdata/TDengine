@@ -22,40 +22,6 @@ extern "C" {
 
 #include "syncInt.h"
 
-// ------------------ for debug -------------------
-void syncRpcMsgPrint(SRpcMsg* pMsg);
-void syncRpcMsgPrint2(char* s, SRpcMsg* pMsg);
-void syncRpcMsgLog(SRpcMsg* pMsg);
-void syncRpcMsgLog2(char* s, SRpcMsg* pMsg);
-
-// ------------------ for compile -------------------
-typedef struct SSyncBuffer {
-  void*  data;
-  size_t len;
-} SSyncBuffer;
-
-typedef struct SNodesRole {
-  int32_t    replicaNum;
-  SNodeInfo  nodeInfo[TSDB_MAX_REPLICA];
-  ESyncState role[TSDB_MAX_REPLICA];
-} SNodesRole;
-
-typedef struct SStateMgr {
-  void* data;
-
-  int32_t (*getCurrentTerm)(struct SStateMgr* pMgr, SyncTerm* pCurrentTerm);
-  int32_t (*persistCurrentTerm)(struct SStateMgr* pMgr, SyncTerm pCurrentTerm);
-
-  int32_t (*getVoteFor)(struct SStateMgr* pMgr, SyncNodeId* pVoteFor);
-  int32_t (*persistVoteFor)(struct SStateMgr* pMgr, SyncNodeId voteFor);
-
-  int32_t (*getSyncCfg)(struct SStateMgr* pMgr, SSyncCfg* pSyncCfg);
-  int32_t (*persistSyncCfg)(struct SStateMgr* pMgr, SSyncCfg* pSyncCfg);
-
-} SStateMgr;
-
-// ------------------ for message process -------------------
-
 // ---------------------------------------------
 typedef struct SyncPing {
   uint32_t bytes;
