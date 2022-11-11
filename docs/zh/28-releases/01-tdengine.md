@@ -4,6 +4,8 @@ title: TDengine 发布历史
 description: TDengine 发布历史、Release Notes 及下载链接
 ---
 
+各版本 TDengine 安装包下载链接如下：
+
 import Release from "/components/ReleaseV3";
 
 ## 3.0.1.6
