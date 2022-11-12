@@ -115,17 +115,6 @@ void syncAppendEntriesPrint2(char* s, const SyncAppendEntries* pMsg);
 void syncAppendEntriesLog(const SyncAppendEntries* pMsg);
 void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg);
 
-// ---------------------------------------------
-
-typedef struct SOffsetAndContLen {
-  int32_t offset;
-  int32_t contLen;
-} SOffsetAndContLen;
-
-// data:
-// block1: SOffsetAndContLen Array
-// block2: entry Array
-
 typedef struct SyncAppendEntriesReply {
   uint32_t bytes;
   int32_t  vgId;

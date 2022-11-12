@@ -1654,7 +1654,7 @@ void syncNodeVoteForSelf(SSyncNode* pSyncNode) {
 
   SRpcMsg rpcMsg = {0};
   int32_t ret = syncBuildRequestVoteReply(&rpcMsg, pSyncNode->vgId);
-  if (ret == 0) return;
+  if (ret != 0) return;
 
   SyncRequestVoteReply* pMsg = rpcMsg.pCont;
   pMsg->srcId = pSyncNode->myRaftId;
