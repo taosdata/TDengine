@@ -22,60 +22,6 @@ extern "C" {
 
 #include "syncInt.h"
 
-// ---------------------------------------------
-typedef struct SyncPing {
-  uint32_t bytes;
-  int32_t  vgId;
-  uint32_t msgType;
-  SRaftId  srcId;
-  SRaftId  destId;
-  // private data
-  uint32_t dataLen;
-  char     data[];
-} SyncPing;
-
-
-void      syncPingDestroy(SyncPing* pMsg);
-void      syncPingSerialize(const SyncPing* pMsg, char* buf, uint32_t bufLen);
-void      syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pMsg);
-SyncPing* syncPingDeserialize2(const char* buf, uint32_t len);
-SyncPing* syncPingFromRpcMsg2(const SRpcMsg* pRpcMsg);
-
-// ---------------------------------------------
-typedef struct SyncPingReply {
-  uint32_t bytes;
-  int32_t  vgId;
-  uint32_t msgType;
-  SRaftId  srcId;
-  SRaftId  destId;
-  // private data
-  uint32_t dataLen;
-  char     data[];
-} SyncPingReply;
-
-SyncPingReply* syncPingReplyBuild(uint32_t dataLen);
-SyncPingReply* syncPingReplyBuild2(const SRaftId* srcId, const SRaftId* destId, int32_t vgId, const char* str);
-SyncPingReply* syncPingReplyBuild3(const SRaftId* srcId, const SRaftId* destId, int32_t vgId);
-void           syncPingReplyDestroy(SyncPingReply* pMsg);
-void           syncPingReplySerialize(const SyncPingReply* pMsg, char* buf, uint32_t bufLen);
-void           syncPingReplyDeserialize(const char* buf, uint32_t len, SyncPingReply* pMsg);
-char*          syncPingReplySerialize2(const SyncPingReply* pMsg, uint32_t* len);
-SyncPingReply* syncPingReplyDeserialize2(const char* buf, uint32_t len);
-int32_t        syncPingReplySerialize3(const SyncPingReply* pMsg, char* buf, int32_t bufLen);
-SyncPingReply* syncPingReplyDeserialize3(void* buf, int32_t bufLen);
-void           syncPingReply2RpcMsg(const SyncPingReply* pMsg, SRpcMsg* pRpcMsg);
-void           syncPingReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPingReply* pMsg);
-SyncPingReply* syncPingReplyFromRpcMsg2(const SRpcMsg* pRpcMsg);
-cJSON*         syncPingReply2Json(const SyncPingReply* pMsg);
-char*          syncPingReply2Str(const SyncPingReply* pMsg);
-
-// for debug ----------------------
-void syncPingReplyPrint(const SyncPingReply* pMsg);
-void syncPingReplyPrint2(char* s, const SyncPingReply* pMsg);
-void syncPingReplyLog(const SyncPingReply* pMsg);
-void syncPingReplyLog2(char* s, const SyncPingReply* pMsg);
-
-// ---------------------------------------------
 typedef enum ESyncTimeoutType {
   SYNC_TIMEOUT_PING = 100,
   SYNC_TIMEOUT_ELECTION,
@@ -656,8 +602,6 @@ void syncLocalCmdLog(const SyncLocalCmd* pMsg);
 void syncLocalCmdLog2(char* s, const SyncLocalCmd* pMsg);
 
 // on message ----------------------
-int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg);
-int32_t syncNodeOnPingReply(SSyncNode* ths, SyncPingReply* pMsg);
 
 int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg);
 int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, SyncRequestVoteReply* pMsg);

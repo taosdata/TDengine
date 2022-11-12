@@ -67,8 +67,6 @@ extern "C" {
 
 typedef struct SyncTimeout            SyncTimeout;
 typedef struct SyncClientRequest      SyncClientRequest;
-typedef struct SyncPing               SyncPing;
-typedef struct SyncPingReply          SyncPingReply;
 typedef struct SyncRequestVote        SyncRequestVote;
 typedef struct SyncRequestVoteReply   SyncRequestVoteReply;
 typedef struct SyncAppendEntries      SyncAppendEntries;
@@ -92,17 +90,6 @@ typedef struct SyncPreSnapshotReply   SyncPreSnapshotReply;
 typedef struct SyncHeartbeatReply     SyncHeartbeatReply;
 typedef struct SyncHeartbeat          SyncHeartbeat;
 typedef struct SyncPreSnapshot        SyncPreSnapshot;
-
-typedef int32_t (*FpOnPingCb)(SSyncNode* ths, SyncPing* pMsg);
-typedef int32_t (*FpOnPingReplyCb)(SSyncNode* ths, SyncPingReply* pMsg);
-typedef int32_t (*FpOnClientRequestCb)(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
-typedef int32_t (*FpOnRequestVoteCb)(SSyncNode* ths, SyncRequestVote* pMsg);
-typedef int32_t (*FpOnRequestVoteReplyCb)(SSyncNode* ths, SyncRequestVoteReply* pMsg);
-typedef int32_t (*FpOnAppendEntriesCb)(SSyncNode* ths, SyncAppendEntries* pMsg);
-typedef int32_t (*FpOnAppendEntriesReplyCb)(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
-typedef int32_t (*FpOnTimeoutCb)(SSyncNode* pSyncNode, SyncTimeout* pMsg);
-typedef int32_t (*FpOnSnapshotCb)(SSyncNode* ths, SyncSnapshotSend* pMsg);
-typedef int32_t (*FpOnSnapshotReplyCb)(SSyncNode* ths, SyncSnapshotRsp* pMsg);
 
 extern bool gRaftDetailLog;
 
@@ -220,18 +207,6 @@ typedef struct SSyncNode {
   // peer heartbeat timer
   SSyncTimer peerHeartbeatTimerArr[TSDB_MAX_REPLICA];
 
-  // callback
-  FpOnPingCb               FpOnPing;
-  FpOnPingReplyCb          FpOnPingReply;
-  FpOnClientRequestCb      FpOnClientRequest;
-  FpOnTimeoutCb            FpOnTimeout;
-  FpOnRequestVoteCb        FpOnRequestVote;
-  FpOnRequestVoteReplyCb   FpOnRequestVoteReply;
-  FpOnAppendEntriesCb      FpOnAppendEntries;
-  FpOnAppendEntriesReplyCb FpOnAppendEntriesReply;
-  FpOnSnapshotCb           FpOnSnapshot;
-  FpOnSnapshotReplyCb      FpOnSnapshotReply;
-
   // tools
   SSyncRespMgr* pSyncRespMgr;
 
@@ -268,12 +243,6 @@ int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak);
 bool          syncNodeSnapshotEnable(SSyncNode* pSyncNode);
 ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
 SyncIndex     syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex);
-
-// ping --------------
-int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);
-int32_t syncNodePingSelf(SSyncNode* pSyncNode);
-int32_t syncNodePingPeers(SSyncNode* pSyncNode);
-int32_t syncNodePingAll(SSyncNode* pSyncNode);
 
 // timer control --------------
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode);

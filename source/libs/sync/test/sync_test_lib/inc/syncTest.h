@@ -42,6 +42,20 @@ extern "C" {
 
 extern void addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port);
 
+typedef struct SyncPing      SyncPing;
+typedef struct SyncPingReply SyncPingReply;
+
+typedef int32_t (*FpOnPingCb)(SSyncNode* ths, SyncPing* pMsg);
+typedef int32_t (*FpOnPingReplyCb)(SSyncNode* ths, SyncPingReply* pMsg);
+typedef int32_t (*FpOnClientRequestCb)(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
+typedef int32_t (*FpOnRequestVoteCb)(SSyncNode* ths, SyncRequestVote* pMsg);
+typedef int32_t (*FpOnRequestVoteReplyCb)(SSyncNode* ths, SyncRequestVoteReply* pMsg);
+typedef int32_t (*FpOnAppendEntriesCb)(SSyncNode* ths, SyncAppendEntries* pMsg);
+typedef int32_t (*FpOnAppendEntriesReplyCb)(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+typedef int32_t (*FpOnTimeoutCb)(SSyncNode* pSyncNode, SyncTimeout* pMsg);
+typedef int32_t (*FpOnSnapshotCb)(SSyncNode* ths, SyncSnapshotSend* pMsg);
+typedef int32_t (*FpOnSnapshotReplyCb)(SSyncNode* ths, SyncSnapshotRsp* pMsg);
+
 cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry);
 char*  syncEntry2Str(const SSyncRaftEntry* pEntry);
 void   syncEntryPrint(const SSyncRaftEntry* pObj);
@@ -127,6 +141,18 @@ void   syncRpcMsgLog2(char* s, SRpcMsg* pMsg);
 
 
 // origin syncMessage
+typedef struct SyncPing {
+  uint32_t bytes;
+  int32_t  vgId;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+  // private data
+  uint32_t dataLen;
+  char     data[];
+} SyncPing;
+
+
 SyncPing* syncPingBuild(uint32_t dataLen);
 SyncPing* syncPingBuild2(const SRaftId* srcId, const SRaftId* destId, int32_t vgId, const char* str);
 SyncPing* syncPingBuild3(const SRaftId* srcId, const SRaftId* destId, int32_t vgId);
@@ -141,6 +167,51 @@ void      syncPingPrint(const SyncPing* pMsg);
 void      syncPingPrint2(char* s, const SyncPing* pMsg);
 void      syncPingLog(const SyncPing* pMsg);
 void      syncPingLog2(char* s, const SyncPing* pMsg);
+void      syncPingDestroy(SyncPing* pMsg);
+void      syncPingSerialize(const SyncPing* pMsg, char* buf, uint32_t bufLen);
+void      syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pMsg);
+SyncPing* syncPingDeserialize2(const char* buf, uint32_t len);
+SyncPing* syncPingFromRpcMsg2(const SRpcMsg* pRpcMsg);
+
+typedef struct SyncPingReply {
+  uint32_t bytes;
+  int32_t  vgId;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+  // private data
+  uint32_t dataLen;
+  char     data[];
+} SyncPingReply;
+
+SyncPingReply* syncPingReplyBuild(uint32_t dataLen);
+SyncPingReply* syncPingReplyBuild2(const SRaftId* srcId, const SRaftId* destId, int32_t vgId, const char* str);
+SyncPingReply* syncPingReplyBuild3(const SRaftId* srcId, const SRaftId* destId, int32_t vgId);
+void           syncPingReplyDestroy(SyncPingReply* pMsg);
+void           syncPingReplySerialize(const SyncPingReply* pMsg, char* buf, uint32_t bufLen);
+void           syncPingReplyDeserialize(const char* buf, uint32_t len, SyncPingReply* pMsg);
+char*          syncPingReplySerialize2(const SyncPingReply* pMsg, uint32_t* len);
+SyncPingReply* syncPingReplyDeserialize2(const char* buf, uint32_t len);
+int32_t        syncPingReplySerialize3(const SyncPingReply* pMsg, char* buf, int32_t bufLen);
+SyncPingReply* syncPingReplyDeserialize3(void* buf, int32_t bufLen);
+void           syncPingReply2RpcMsg(const SyncPingReply* pMsg, SRpcMsg* pRpcMsg);
+void           syncPingReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPingReply* pMsg);
+SyncPingReply* syncPingReplyFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*         syncPingReply2Json(const SyncPingReply* pMsg);
+char*          syncPingReply2Str(const SyncPingReply* pMsg);
+
+// for debug ----------------------
+void syncPingReplyPrint(const SyncPingReply* pMsg);
+void syncPingReplyPrint2(char* s, const SyncPingReply* pMsg);
+void syncPingReplyLog(const SyncPingReply* pMsg);
+void syncPingReplyLog2(char* s, const SyncPingReply* pMsg);
+
+int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg);
+int32_t syncNodeOnPingReply(SSyncNode* ths, SyncPingReply* pMsg);
+int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);
+int32_t syncNodePingSelf(SSyncNode* pSyncNode);
+int32_t syncNodePingPeers(SSyncNode* pSyncNode);
+int32_t syncNodePingAll(SSyncNode* pSyncNode);
 
 #ifdef __cplusplus
 }

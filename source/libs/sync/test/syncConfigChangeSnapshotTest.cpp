@@ -223,18 +223,18 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
 
   SSyncNode* pSyncNode = (SSyncNode*)syncNodeAcquire(rid);
   assert(pSyncNode != NULL);
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
-  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
-  gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
+  // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
+  // gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
+  // gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
+  // gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
 
-  gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
-  gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
-  gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
-  gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
+  // gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
+  // gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
+  // gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
+  // gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
 
-  gSyncIO->FpOnSyncSnapshot = pSyncNode->FpOnSnapshot;
-  gSyncIO->FpOnSyncSnapshotReply = pSyncNode->FpOnSnapshotReply;
+  // gSyncIO->FpOnSyncSnapshot = pSyncNode->FpOnSnapshot;
+  // gSyncIO->FpOnSyncSnapshotReply = pSyncNode->FpOnSnapshotReply;
 
   gSyncIO->pSyncNode = pSyncNode;
   syncNodeRelease(pSyncNode);
