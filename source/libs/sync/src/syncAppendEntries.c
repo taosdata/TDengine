@@ -147,7 +147,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   // prepare response msg
-  int32_t code = syncBuildRequestVoteReply(&rpcRsp, ths->vgId);
+  int32_t code = syncBuildAppendEntriesReply(&rpcRsp, ths->vgId);
   if (code != 0) {
     syncLogRecvAppendEntries(ths, pMsg, "build rsp error");
     goto _IGNORE;

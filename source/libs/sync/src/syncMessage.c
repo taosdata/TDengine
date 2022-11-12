@@ -140,7 +140,7 @@ int32_t syncBuildAppendEntries(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
 }
 
 int32_t syncBuildAppendEntriesReply(SRpcMsg* pMsg, int32_t vgId) {
-  int32_t bytes = sizeof(SyncRequestVoteReply);
+  int32_t bytes = sizeof(SyncAppendEntriesReply);
   pMsg->pCont = rpcMallocCont(bytes);
   pMsg->msgType = TDMT_SYNC_APPEND_ENTRIES_REPLY;
   pMsg->contLen = bytes;
