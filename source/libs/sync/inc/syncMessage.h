@@ -97,24 +97,6 @@ typedef struct SyncAppendEntries {
   char      data[];
 } SyncAppendEntries;
 
-SyncAppendEntries* syncAppendEntriesBuild(uint32_t dataLen, int32_t vgId);
-void               syncAppendEntriesDestroy(SyncAppendEntries* pMsg);
-void               syncAppendEntriesSerialize(const SyncAppendEntries* pMsg, char* buf, uint32_t bufLen);
-void               syncAppendEntriesDeserialize(const char* buf, uint32_t len, SyncAppendEntries* pMsg);
-char*              syncAppendEntriesSerialize2(const SyncAppendEntries* pMsg, uint32_t* len);
-SyncAppendEntries* syncAppendEntriesDeserialize2(const char* buf, uint32_t len);
-void               syncAppendEntries2RpcMsg(const SyncAppendEntries* pMsg, SRpcMsg* pRpcMsg);
-void               syncAppendEntriesFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntries* pMsg);
-SyncAppendEntries* syncAppendEntriesFromRpcMsg2(const SRpcMsg* pRpcMsg);
-cJSON*             syncAppendEntries2Json(const SyncAppendEntries* pMsg);
-char*              syncAppendEntries2Str(const SyncAppendEntries* pMsg);
-
-// for debug ----------------------
-void syncAppendEntriesPrint(const SyncAppendEntries* pMsg);
-void syncAppendEntriesPrint2(char* s, const SyncAppendEntries* pMsg);
-void syncAppendEntriesLog(const SyncAppendEntries* pMsg);
-void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg);
-
 typedef struct SyncAppendEntriesReply {
   uint32_t bytes;
   int32_t  vgId;
@@ -446,9 +428,8 @@ void syncLocalCmdLog2(char* s, const SyncLocalCmd* pMsg);
 
 // on message ----------------------
 int32_t syncNodeOnRequestVote(SSyncNode* pNode, const SRpcMsg* pMsg);
-int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pMsg);
-
-int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg);
+int32_t syncNodeOnRequestVoteReply(SSyncNode* pNode, const SRpcMsg* pMsg);
+int32_t syncNodeOnAppendEntries(SSyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
 
 int32_t syncNodeOnPreSnapshot(SSyncNode* ths, SyncPreSnapshot* pMsg);
@@ -478,6 +459,7 @@ int32_t syncClientRequestBuildFromRpcMsg(SRpcMsg* pClientRequestRpcMsg, const SR
 int32_t syncClientRequestBuildFromNoopEntry(SRpcMsg* pClientRequestRpcMsg, const SSyncRaftEntry* pEntry, int32_t vgId);
 int32_t syncBuildRequestVote(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildRequestVoteReply(SRpcMsg* pMsg, int32_t vgId);
+int32_t syncBuildAppendEntries(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId);
 
 #ifdef __cplusplus
 }
