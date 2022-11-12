@@ -134,9 +134,7 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
   if (pSyncNode == NULL) return code;
 
   if (pMsg->msgType == TDMT_SYNC_HEARTBEAT) {
-    SyncHeartbeat* pSyncMsg = syncHeartbeatFromRpcMsg2(pMsg);
-    code = syncNodeOnHeartbeat(pSyncNode, pSyncMsg);
-    syncHeartbeatDestroy(pSyncMsg);
+    code = syncNodeOnHeartbeat(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_HEARTBEAT_REPLY) {
     SyncHeartbeatReply* pSyncMsg = syncHeartbeatReplyFromRpcMsg2(pMsg);
     code = syncNodeOnHeartbeatReply(pSyncNode, pSyncMsg);
@@ -1192,6 +1190,7 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRp
     pSyncNode->syncSendMSg(&epSet, pMsg);
   } else {
     sError("vgId:%d, sync send msg by id error, fp-send-msg is null", pSyncNode->vgId);
+    rpcFreeCont(pMsg->pCont);
     return -1;
   }
 
@@ -1913,7 +1912,10 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
   if (pSyncNode->replicaNum > 1) {
     if (timerLogicClock == msgLogicClock) {
-      SyncHeartbeat* pSyncMsg = syncHeartbeatBuild(pSyncNode->vgId);
+      SRpcMsg        rpcMsg = {0};
+      (void)syncBuildHeartbeat(&rpcMsg, pSyncNode->vgId);
+
+      SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
       pSyncMsg->srcId = pSyncNode->myRaftId;
       pSyncMsg->destId = pData->destId;
       pSyncMsg->term = pSyncNode->pRaftStore->currentTerm;
@@ -1921,28 +1923,8 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
       pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
       pSyncMsg->privateTerm = 0;
 
-      SRpcMsg rpcMsg;
-      syncHeartbeat2RpcMsg(pSyncMsg, &rpcMsg);
-
-// eq msg
-#if 0
-      if (pSyncNode->syncEqCtrlMsg != NULL) {
-        int32_t code = pSyncNode->syncEqCtrlMsg(pSyncNode->msgcb, &rpcMsg);
-        if (code != 0) {
-          sError("vgId:%d, sync ctrl enqueue timer msg error, code:%d", pSyncNode->vgId, code);
-          rpcFreeCont(rpcMsg.pCont);
-          syncHeartbeatDestroy(pSyncMsg);
-          return;
-        }
-      } else {
-        sError("vgId:%d, enqueue ctrl msg cb ptr (i.e. syncEqMsg) not set.", pSyncNode->vgId);
-      }
-#endif
-
       // send msg
-      syncNodeSendHeartbeat(pSyncNode, &(pSyncMsg->destId), pSyncMsg);
-
-      syncHeartbeatDestroy(pSyncMsg);
+      syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
 
       if (syncIsInit()) {
         taosTmrReset(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS, pData, syncEnv()->pTimerManager,
@@ -2024,7 +2006,8 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   return ret;
 }
 
-int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
+int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  SyncHeartbeat* pMsg = pRpcMsg->pCont;
   syncLogRecvHeartbeat(ths, pMsg, "");
 
   SyncHeartbeatReply* pMsgReply = syncHeartbeatReplyBuild(ths->vgId);

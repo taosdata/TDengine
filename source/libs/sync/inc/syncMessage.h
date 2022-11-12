@@ -125,28 +125,8 @@ typedef struct SyncHeartbeat {
   SyncIndex commitIndex;
   SyncTerm  privateTerm;
   SyncTerm  minMatchIndex;
-
 } SyncHeartbeat;
 
-SyncHeartbeat* syncHeartbeatBuild(int32_t vgId);
-void           syncHeartbeatDestroy(SyncHeartbeat* pMsg);
-void           syncHeartbeatSerialize(const SyncHeartbeat* pMsg, char* buf, uint32_t bufLen);
-void           syncHeartbeatDeserialize(const char* buf, uint32_t len, SyncHeartbeat* pMsg);
-char*          syncHeartbeatSerialize2(const SyncHeartbeat* pMsg, uint32_t* len);
-SyncHeartbeat* syncHeartbeatDeserialize2(const char* buf, uint32_t len);
-void           syncHeartbeat2RpcMsg(const SyncHeartbeat* pMsg, SRpcMsg* pRpcMsg);
-void           syncHeartbeatFromRpcMsg(const SRpcMsg* pRpcMsg, SyncHeartbeat* pMsg);
-SyncHeartbeat* syncHeartbeatFromRpcMsg2(const SRpcMsg* pRpcMsg);
-cJSON*         syncHeartbeat2Json(const SyncHeartbeat* pMsg);
-char*          syncHeartbeat2Str(const SyncHeartbeat* pMsg);
-
-// for debug ----------------------
-void syncHeartbeatPrint(const SyncHeartbeat* pMsg);
-void syncHeartbeatPrint2(char* s, const SyncHeartbeat* pMsg);
-void syncHeartbeatLog(const SyncHeartbeat* pMsg);
-void syncHeartbeatLog2(char* s, const SyncHeartbeat* pMsg);
-
-// ---------------------------------------------
 typedef struct SyncHeartbeatReply {
   uint32_t bytes;
   int32_t  vgId;
@@ -420,7 +400,7 @@ int32_t syncNodeOnPreSnapshotReply(SSyncNode* ths, SyncPreSnapshotReply* pMsg);
 int32_t syncNodeOnSnapshot(SSyncNode* ths, SyncSnapshotSend* pMsg);
 int32_t syncNodeOnSnapshotReply(SSyncNode* ths, SyncSnapshotRsp* pMsg);
 
-int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg);
+int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, SyncHeartbeatReply* pMsg);
 
 int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
@@ -441,6 +421,7 @@ int32_t syncBuildRequestVote(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildRequestVoteReply(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildAppendEntries(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId);
 int32_t syncBuildAppendEntriesReply(SRpcMsg* pMsg, int32_t vgId);
+int32_t syncBuildHeartbeat(SRpcMsg* pMsg, int32_t vgId);
 
 #ifdef __cplusplus
 }
