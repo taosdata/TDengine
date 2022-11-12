@@ -10,7 +10,7 @@
 ,,,script,./test.sh -f tsim/user/password.sim
 ,,,script,./test.sh -f tsim/user/privilege_db.sim
 ,,,script,./test.sh -f tsim/user/privilege_sysinfo.sim
-,,y,script,./test.sh -f tsim/db/alter_option.sim
+,,,script,./test.sh -f tsim/db/alter_option.sim
 ,,,script,./test.sh -f tsim/db/alter_replica_13.sim
 ,,,script,./test.sh -f tsim/db/alter_replica_31.sim
 ,,,script,./test.sh -f tsim/db/basic1.sim
