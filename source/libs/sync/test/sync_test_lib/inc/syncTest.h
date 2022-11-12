@@ -231,6 +231,16 @@ void         syncTimeoutPrint2(char* s, const SyncTimeout* pMsg);
 void         syncTimeoutLog(const SyncTimeout* pMsg);
 void         syncTimeoutLog2(char* s, const SyncTimeout* pMsg);
 
+SyncClientRequest* syncClientRequestAlloc(uint32_t dataLen);
+void               syncClientRequest2RpcMsg(const SyncClientRequest* pMsg, SRpcMsg* pRpcMsg);  // step 2
+void               syncClientRequestFromRpcMsg(const SRpcMsg* pRpcMsg, SyncClientRequest* pMsg);
+cJSON*             syncClientRequest2Json(const SyncClientRequest* pMsg);
+char*              syncClientRequest2Str(const SyncClientRequest* pMsg);
+void               syncClientRequestPrint(const SyncClientRequest* pMsg);
+void               syncClientRequestPrint2(char* s, const SyncClientRequest* pMsg);
+void               syncClientRequestLog(const SyncClientRequest* pMsg);
+void               syncClientRequestLog2(char* s, const SyncClientRequest* pMsg);
+
 #ifdef __cplusplus
 }
 #endif

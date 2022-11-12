@@ -34,7 +34,7 @@ extern "C" {
 //               /\ voterLog'       = [voterLog EXCEPT ![i] = [j \in {} |-> <<>>]]
 //               /\ UNCHANGED <<messages, leaderVars, logVars>>
 //
-int32_t syncNodeOnTimer(SSyncNode* ths, SRpcMsg* pMsg);
+int32_t syncNodeOnTimer(SSyncNode* ths, const SRpcMsg* pMsg);
 
 #ifdef __cplusplus
 }

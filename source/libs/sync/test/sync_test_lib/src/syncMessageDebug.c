@@ -938,6 +938,50 @@ void syncSnapshotSendLog2(char* s, const SyncSnapshotSend* pMsg) {
   }
 }
 
+SyncClientRequest* syncClientRequestAlloc(uint32_t dataLen) {
+  uint32_t           bytes = sizeof(SyncClientRequest) + dataLen;
+  SyncClientRequest* pMsg = taosMemoryCalloc(1, bytes);
+  pMsg->bytes = bytes;
+  pMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
+  pMsg->dataLen = dataLen;
+  return pMsg;
+}
+
+cJSON* syncClientRequest2Json(const SyncClientRequest* pMsg) {
+  char   u64buf[128] = {0};
+  cJSON* pRoot = cJSON_CreateObject();
+
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "vgId", pMsg->vgId);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+    cJSON_AddNumberToObject(pRoot, "originalRpcType", pMsg->originalRpcType);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->seqNum);
+    cJSON_AddStringToObject(pRoot, "seqNum", u64buf);
+    cJSON_AddNumberToObject(pRoot, "isWeak", pMsg->isWeak);
+    cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
+
+    char* s;
+    s = syncUtilPrintBin((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data", s);
+    taosMemoryFree(s);
+    s = syncUtilPrintBin2((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data2", s);
+    taosMemoryFree(s);
+  }
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SyncClientRequest", pRoot);
+  return pJson;
+}
+
+char* syncClientRequest2Str(const SyncClientRequest* pMsg) {
+  cJSON* pJson = syncClientRequest2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
 cJSON* syncClientRequestBatch2Json(const SyncClientRequestBatch* pMsg) {
   char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
