@@ -58,43 +58,6 @@ int32_t syncClientRequestBuildFromRpcMsg(SRpcMsg* pClientRequestRpcMsg, const SR
                                          bool isWeak, int32_t vgId);
 int32_t syncClientRequestBuildFromNoopEntry(SRpcMsg* pClientRequestRpcMsg, const SSyncRaftEntry* pEntry, int32_t vgId);
 
-// ---------------------------------------------
-typedef struct SRaftMeta {
-  uint64_t seqNum;
-  bool     isWeak;
-} SRaftMeta;
-
-// block1:
-// block2: SRaftMeta array
-// block3: rpc msg array (with pCont pointer)
-
-typedef struct SyncClientRequestBatch {
-  uint32_t bytes;
-  int32_t  vgId;
-  uint32_t msgType;  // TDMT_SYNC_CLIENT_REQUEST_BATCH
-  uint32_t dataCount;
-  uint32_t dataLen;
-  char     data[];  // block2, block3
-} SyncClientRequestBatch;
-
-SyncClientRequestBatch* syncClientRequestBatchBuild(SRpcMsg** rpcMsgPArr, SRaftMeta* raftArr, int32_t arrSize,
-                                                    int32_t vgId);
-void                    syncClientRequestBatch2RpcMsg(const SyncClientRequestBatch* pSyncMsg, SRpcMsg* pRpcMsg);
-void                    syncClientRequestBatchDestroy(SyncClientRequestBatch* pMsg);
-void                    syncClientRequestBatchDestroyDeep(SyncClientRequestBatch* pMsg);
-SRaftMeta*              syncClientRequestBatchMetaArr(const SyncClientRequestBatch* pSyncMsg);
-SRpcMsg*                syncClientRequestBatchRpcMsgArr(const SyncClientRequestBatch* pSyncMsg);
-SyncClientRequestBatch* syncClientRequestBatchFromRpcMsg(const SRpcMsg* pRpcMsg);
-cJSON*                  syncClientRequestBatch2Json(const SyncClientRequestBatch* pMsg);
-char*                   syncClientRequestBatch2Str(const SyncClientRequestBatch* pMsg);
-
-// for debug ----------------------
-void syncClientRequestBatchPrint(const SyncClientRequestBatch* pMsg);
-void syncClientRequestBatchPrint2(char* s, const SyncClientRequestBatch* pMsg);
-void syncClientRequestBatchLog(const SyncClientRequestBatch* pMsg);
-void syncClientRequestBatchLog2(char* s, const SyncClientRequestBatch* pMsg);
-
-// ---------------------------------------------
 typedef struct SyncClientRequestReply {
   uint32_t bytes;
   int32_t  vgId;
@@ -103,7 +66,6 @@ typedef struct SyncClientRequestReply {
   SRaftId  leaderHint;
 } SyncClientRequestReply;
 
-// ---------------------------------------------
 typedef struct SyncRequestVote {
   uint32_t bytes;
   int32_t  vgId;
@@ -213,36 +175,6 @@ typedef struct SOffsetAndContLen {
 // block1: SOffsetAndContLen Array
 // block2: entry Array
 
-typedef struct SyncAppendEntriesBatch {
-  uint32_t bytes;
-  int32_t  vgId;
-  uint32_t msgType;
-  SRaftId  srcId;
-  SRaftId  destId;
-
-  // private data
-  SyncTerm  term;
-  SyncIndex prevLogIndex;
-  SyncTerm  prevLogTerm;
-  SyncIndex commitIndex;
-  SyncTerm  privateTerm;
-  int32_t   dataCount;
-  uint32_t  dataLen;
-  char      data[];  // block1, block2
-} SyncAppendEntriesBatch;
-
-SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SSyncRaftEntry** entryPArr, int32_t arrSize, int32_t vgId);
-SOffsetAndContLen*      syncAppendEntriesBatchMetaTableArray(SyncAppendEntriesBatch* pMsg);
-void                    syncAppendEntriesBatchDestroy(SyncAppendEntriesBatch* pMsg);
-void                    syncAppendEntriesBatchSerialize(const SyncAppendEntriesBatch* pMsg, char* buf, uint32_t bufLen);
-void                    syncAppendEntriesBatchDeserialize(const char* buf, uint32_t len, SyncAppendEntriesBatch* pMsg);
-char*                   syncAppendEntriesBatchSerialize2(const SyncAppendEntriesBatch* pMsg, uint32_t* len);
-SyncAppendEntriesBatch* syncAppendEntriesBatchDeserialize2(const char* buf, uint32_t len);
-void                    syncAppendEntriesBatch2RpcMsg(const SyncAppendEntriesBatch* pMsg, SRpcMsg* pRpcMsg);
-void                    syncAppendEntriesBatchFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntriesBatch* pMsg);
-SyncAppendEntriesBatch* syncAppendEntriesBatchFromRpcMsg2(const SRpcMsg* pRpcMsg);
-
-// ---------------------------------------------
 typedef struct SyncAppendEntriesReply {
   uint32_t bytes;
   int32_t  vgId;

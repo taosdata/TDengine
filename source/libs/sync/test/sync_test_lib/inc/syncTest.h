@@ -245,4 +245,4 @@ void               syncClientRequestLog2(char* s, const SyncClientRequest* pMsg)
 }
 #endif
 
-#endif /*_TD_LIBS_SYNC_RAFT_ENTRY_H*/
+#endif /*_TD_LIBS_SYNC_TEST_H*/
