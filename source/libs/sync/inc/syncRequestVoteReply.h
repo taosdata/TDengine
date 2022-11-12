@@ -39,7 +39,7 @@ extern "C" {
 //    /\ Discard(m)
 //    /\ UNCHANGED <<serverVars, votedFor, leaderVars, logVars>>
 //
-int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, SyncRequestVoteReply* pMsg);
+int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pMsg);
 
 #ifdef __cplusplus
 }

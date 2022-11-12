@@ -148,9 +148,7 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
   } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
     syncNodeOnRequestVote(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
-    SyncRequestVoteReply* pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
-    code = syncNodeOnRequestVoteReply(pSyncNode, pSyncMsg);
-    syncRequestVoteReplyDestroy(pSyncMsg);
+    code = syncNodeOnRequestVoteReply(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
     SyncAppendEntries* pSyncMsg = syncAppendEntriesFromRpcMsg2(pMsg);
     code = syncNodeOnAppendEntries(pSyncNode, pSyncMsg);
@@ -376,7 +374,7 @@ bool syncIsReadyForRead(int64_t rid) {
       if (!pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore)) {
         SSyncRaftEntry* pEntry = NULL;
         int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(
-            pSyncNode->pLogStore, pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore), &pEntry);
+                    pSyncNode->pLogStore, pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore), &pEntry);
         if (code == 0 && pEntry != NULL) {
           if (pEntry->originalRpcType == TDMT_SYNC_NOOP && pEntry->term == pSyncNode->pRaftStore->currentTerm) {
             ready = true;
@@ -1652,9 +1650,13 @@ void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId) 
 
 // simulate get vote from outside
 void syncNodeVoteForSelf(SSyncNode* pSyncNode) {
-  syncNodeVoteForTerm(pSyncNode, pSyncNode->pRaftStore->currentTerm, &(pSyncNode->myRaftId));
+  syncNodeVoteForTerm(pSyncNode, pSyncNode->pRaftStore->currentTerm, &pSyncNode->myRaftId);
 
-  SyncRequestVoteReply* pMsg = syncRequestVoteReplyBuild(pSyncNode->vgId);
+  SRpcMsg rpcMsg = {0};
+  int32_t ret = syncBuildRequestVoteReply(&rpcMsg, pSyncNode->vgId);
+  if (ret == 0) return;
+
+  SyncRequestVoteReply* pMsg = rpcMsg.pCont;
   pMsg->srcId = pSyncNode->myRaftId;
   pMsg->destId = pSyncNode->myRaftId;
   pMsg->term = pSyncNode->pRaftStore->currentTerm;
@@ -1662,10 +1664,8 @@ void syncNodeVoteForSelf(SSyncNode* pSyncNode) {
 
   voteGrantedVote(pSyncNode->pVotesGranted, pMsg);
   votesRespondAdd(pSyncNode->pVotesRespond, pMsg);
-  syncRequestVoteReplyDestroy(pMsg);
+  rpcFreeCont(rpcMsg.pCont);
 }
-
-// snapshot --------------
 
 // return if has a snapshot
 bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
@@ -2531,31 +2531,6 @@ const char* syncTimerTypeStr(enum ESyncTimeoutType timerType) {
 void syncLogRecvTimer(SSyncNode* pSyncNode, const SyncTimeout* pMsg, const char* s) {
   sNTrace(pSyncNode, "recv sync-timer {type:%s, lc:%" PRId64 ", ms:%d, data:%p}, %s",
           syncTimerTypeStr(pMsg->timeoutType), pMsg->logicClock, pMsg->timerMS, pMsg->data, s);
-}
-
-void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s) {
-  char     logBuf[256];
-  char     host[64];
-  uint16_t port;
-  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "recv sync-request-vote from %s:%d, {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, %s",
-          host, port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
-}
-
-void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
-  char     host[64];
-  uint16_t port;
-  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "send sync-request-vote-reply to %s:%d {term:%" PRId64 ", grant:%d}, %s", host, port, pMsg->term,
-          pMsg->voteGranted, s);
-}
-
-void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
-  char     host[64];
-  uint16_t port;
-  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "recv sync-request-vote-reply from %s:%d {term:%" PRId64 ", grant:%d}, %s", host, port, pMsg->term,
-          pMsg->voteGranted, s);
 }
 
 void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s) {
