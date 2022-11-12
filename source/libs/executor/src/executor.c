@@ -536,7 +536,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     memcpy(&pTaskInfo->localFetch, pLocal, sizeof(*pLocal));
   }
 
-  taosArrayClearEx(pResList, freeBlock);
+  taosArrayClear(pResList);
 
   int64_t curOwner = 0;
   if ((curOwner = atomic_val_compare_exchange_64(&pTaskInfo->owner, 0, threadId)) != 0) {
@@ -574,8 +574,20 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
 
   int64_t st = taosGetTimestampUs();
 
+  int32_t blockIndex = 0;
   while ((pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot)) != NULL) {
-    SSDataBlock* p = createOneDataBlock(pRes, true);
+    SSDataBlock* p = NULL;
+    if (blockIndex >= taosArrayGetSize(pTaskInfo->pResultBlockList)) {
+      SSDataBlock* p1 = createOneDataBlock(pRes, true);
+      taosArrayPush(pTaskInfo->pResultBlockList, &p1);
+      p = p1;
+    } else {
+      p = *(SSDataBlock**) taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);
+      copyDataBlock(p, pRes);
+    }
+
+    blockIndex += 1;
+
     current += p->info.rows;
     ASSERT(p->info.rows > 0);
     taosArrayPush(pResList, &p);

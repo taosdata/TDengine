@@ -18,11 +18,6 @@ SQWorkerMgmt gQwMgmt = {
     .qwNum = 0,
 };
 
-static void freeBlock(void *param) {
-  SSDataBlock *pBlock = *(SSDataBlock **)param;
-  blockDataDestroy(pBlock);
-}
-
 int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   int32_t         code = 0;
   SSchedulerHbRsp rsp = {0};
@@ -193,7 +188,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
   }
 
 _return:
-  taosArrayDestroyEx(pResList, freeBlock);
+  taosArrayDestroy(pResList);
   QW_RET(code);
 }
 

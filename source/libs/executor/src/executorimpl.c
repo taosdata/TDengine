@@ -2600,6 +2600,7 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
   pTaskInfo->id.queryId = queryId;
   pTaskInfo->execModel = model;
   pTaskInfo->pTableInfoList = tableListCreate();
+  pTaskInfo->pResultBlockList = taosArrayInit(128, POINTER_BYTES);
 
   char* p = taosMemoryCalloc(1, 128);
   snprintf(p, 128, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
@@ -3201,6 +3202,11 @@ _complete:
   return terrno;
 }
 
+static void freeBlock(void* pParam) {
+  SSDataBlock* pBlock = *(SSDataBlock**)pParam;
+  blockDataDestroy(pBlock);
+}
+
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
 
@@ -3213,6 +3219,7 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
     nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
   }
 
+  taosArrayDestroyEx(pTaskInfo->pResultBlockList, freeBlock);
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);

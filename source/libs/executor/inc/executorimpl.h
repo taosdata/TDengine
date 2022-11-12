@@ -153,14 +153,13 @@ typedef struct {
   SSchemaWrapper* qsw;
 } SSchemaInfo;
 
-typedef struct SExecTaskInfo {
-  STaskIdInfo   id;
-  uint32_t      status;
-  STimeWindow   window;
-  STaskCostInfo cost;
-  int64_t       owner;  // if it is in execution
-  int32_t       code;
-
+struct SExecTaskInfo {
+  STaskIdInfo           id;
+  uint32_t              status;
+  STimeWindow           window;
+  STaskCostInfo         cost;
+  int64_t               owner;  // if it is in execution
+  int32_t               code;
   int64_t               version;  // used for stream to record wal version
   SStreamTaskInfo       streamInfo;
   SSchemaInfo           schemaInfo;
@@ -171,7 +170,8 @@ typedef struct SExecTaskInfo {
   SSubplan*             pSubplan;
   struct SOperatorInfo* pRoot;
   SLocalFetch           localFetch;
-} SExecTaskInfo;
+  SArray*               pResultBlockList;// result block list
+};
 
 enum {
   OP_NOT_OPENED = 0x0,

@@ -1306,6 +1306,7 @@ int32_t copyDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
 
     colDataAssign(pDst, pSrc, src->info.rows, &src->info);
   }
+
   uint32_t cap = dst->info.capacity;
   dst->info = src->info;
   dst->info.capacity = cap;
