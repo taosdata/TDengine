@@ -40,27 +40,9 @@ typedef struct SyncTimeout {
   void*            data;  // need optimized
 } SyncTimeout;
 
-SyncTimeout* syncTimeoutBuild();
-SyncTimeout* syncTimeoutBuild2(ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS, int32_t vgId,
-                               void* data);
-void         syncTimeoutDestroy(SyncTimeout* pMsg);
-void         syncTimeoutSerialize(const SyncTimeout* pMsg, char* buf, uint32_t bufLen);
-void         syncTimeoutDeserialize(const char* buf, uint32_t len, SyncTimeout* pMsg);
-char*        syncTimeoutSerialize2(const SyncTimeout* pMsg, uint32_t* len);
-SyncTimeout* syncTimeoutDeserialize2(const char* buf, uint32_t len);
-void         syncTimeout2RpcMsg(const SyncTimeout* pMsg, SRpcMsg* pRpcMsg);
-void         syncTimeoutFromRpcMsg(const SRpcMsg* pRpcMsg, SyncTimeout* pMsg);
-SyncTimeout* syncTimeoutFromRpcMsg2(const SRpcMsg* pRpcMsg);
-cJSON*       syncTimeout2Json(const SyncTimeout* pMsg);
-char*        syncTimeout2Str(const SyncTimeout* pMsg);
+int32_t syncTimeoutBuild(SRpcMsg* pTimeoutRpcMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
+                         SSyncNode* pNode);
 
-// for debug ----------------------
-void syncTimeoutPrint(const SyncTimeout* pMsg);
-void syncTimeoutPrint2(char* s, const SyncTimeout* pMsg);
-void syncTimeoutLog(const SyncTimeout* pMsg);
-void syncTimeoutLog2(char* s, const SyncTimeout* pMsg);
-
-// ---------------------------------------------
 typedef struct SyncClientRequest {
   uint32_t bytes;
   int32_t  vgId;
@@ -577,9 +559,9 @@ typedef struct SyncLocalCmd {
   SRaftId  srcId;
   SRaftId  destId;
 
-  int32_t  cmd;
-  SyncTerm sdNewTerm;  // step down new term
-  SyncIndex fcIndex;// follower commit index
+  int32_t   cmd;
+  SyncTerm  sdNewTerm;  // step down new term
+  SyncIndex fcIndex;    // follower commit index
 
 } SyncLocalCmd;
 
@@ -628,6 +610,7 @@ bool          syncNodeSnapshotEnable(SSyncNode* pSyncNode);
 ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
 
 // ---------------------------------------------
+SyncTimeout* syncTimeoutBuildX();
 
 #ifdef __cplusplus
 }

@@ -213,6 +213,24 @@ int32_t syncNodePingSelf(SSyncNode* pSyncNode);
 int32_t syncNodePingPeers(SSyncNode* pSyncNode);
 int32_t syncNodePingAll(SSyncNode* pSyncNode);
 
+SyncTimeout* syncTimeoutBuildX();
+SyncTimeout* syncTimeoutBuild2(ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS, int32_t vgId,
+                               void* data);
+void         syncTimeoutDestroy(SyncTimeout* pMsg);
+void         syncTimeoutSerialize(const SyncTimeout* pMsg, char* buf, uint32_t bufLen);
+void         syncTimeoutDeserialize(const char* buf, uint32_t len, SyncTimeout* pMsg);
+char*        syncTimeoutSerialize2(const SyncTimeout* pMsg, uint32_t* len);
+SyncTimeout* syncTimeoutDeserialize2(const char* buf, uint32_t len);
+void         syncTimeout2RpcMsg(const SyncTimeout* pMsg, SRpcMsg* pRpcMsg);
+void         syncTimeoutFromRpcMsg(const SRpcMsg* pRpcMsg, SyncTimeout* pMsg);
+SyncTimeout* syncTimeoutFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*       syncTimeout2Json(const SyncTimeout* pMsg);
+char*        syncTimeout2Str(const SyncTimeout* pMsg);
+void         syncTimeoutPrint(const SyncTimeout* pMsg);
+void         syncTimeoutPrint2(char* s, const SyncTimeout* pMsg);
+void         syncTimeoutLog(const SyncTimeout* pMsg);
+void         syncTimeoutLog2(char* s, const SyncTimeout* pMsg);
+
 #ifdef __cplusplus
 }
 #endif

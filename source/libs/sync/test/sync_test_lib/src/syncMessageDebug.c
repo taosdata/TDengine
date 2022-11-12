@@ -1046,3 +1046,134 @@ void syncClientRequestLog2(char* s, const SyncClientRequest* pMsg) {
     taosMemoryFree(serialized);
   }
 }
+
+// ---- message process SyncTimeout----
+SyncTimeout* syncTimeoutBuildX() {
+  uint32_t     bytes = sizeof(SyncTimeout);
+  SyncTimeout* pMsg = taosMemoryMalloc(bytes);
+  memset(pMsg, 0, bytes);
+  pMsg->bytes = bytes;
+  pMsg->msgType = TDMT_SYNC_TIMEOUT;
+  return pMsg;
+}
+
+SyncTimeout* syncTimeoutBuild2(ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS, int32_t vgId,
+                               void* data) {
+  SyncTimeout* pMsg = syncTimeoutBuildX();
+  pMsg->vgId = vgId;
+  pMsg->timeoutType = timeoutType;
+  pMsg->logicClock = logicClock;
+  pMsg->timerMS = timerMS;
+  pMsg->data = data;
+  return pMsg;
+}
+
+char* syncTimeoutSerialize2(const SyncTimeout* pMsg, uint32_t* len) {
+  char* buf = taosMemoryMalloc(pMsg->bytes);
+  ASSERT(buf != NULL);
+  syncTimeoutSerialize(pMsg, buf, pMsg->bytes);
+  if (len != NULL) {
+    *len = pMsg->bytes;
+  }
+  return buf;
+}
+
+void syncTimeoutDestroy(SyncTimeout* pMsg) {
+  if (pMsg != NULL) {
+    taosMemoryFree(pMsg);
+  }
+}
+
+void syncTimeoutSerialize(const SyncTimeout* pMsg, char* buf, uint32_t bufLen) {
+  ASSERT(pMsg->bytes <= bufLen);
+  memcpy(buf, pMsg, pMsg->bytes);
+}
+
+void syncTimeoutDeserialize(const char* buf, uint32_t len, SyncTimeout* pMsg) {
+  memcpy(pMsg, buf, len);
+  ASSERT(len == pMsg->bytes);
+}
+
+SyncTimeout* syncTimeoutDeserialize2(const char* buf, uint32_t len) {
+  uint32_t     bytes = *((uint32_t*)buf);
+  SyncTimeout* pMsg = taosMemoryMalloc(bytes);
+  ASSERT(pMsg != NULL);
+  syncTimeoutDeserialize(buf, len, pMsg);
+  ASSERT(len == pMsg->bytes);
+  return pMsg;
+}
+
+void syncTimeout2RpcMsg(const SyncTimeout* pMsg, SRpcMsg* pRpcMsg) {
+  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
+  pRpcMsg->msgType = pMsg->msgType;
+  pRpcMsg->contLen = pMsg->bytes;
+  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  syncTimeoutSerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
+}
+
+void syncTimeoutFromRpcMsg(const SRpcMsg* pRpcMsg, SyncTimeout* pMsg) {
+  syncTimeoutDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+SyncTimeout* syncTimeoutFromRpcMsg2(const SRpcMsg* pRpcMsg) {
+  SyncTimeout* pMsg = syncTimeoutDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  ASSERT(pMsg != NULL);
+  return pMsg;
+}
+
+cJSON* syncTimeout2Json(const SyncTimeout* pMsg) {
+  char   u64buf[128] = {0};
+  cJSON* pRoot = cJSON_CreateObject();
+
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "vgId", pMsg->vgId);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+    cJSON_AddNumberToObject(pRoot, "timeoutType", pMsg->timeoutType);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->logicClock);
+    cJSON_AddStringToObject(pRoot, "logicClock", u64buf);
+    cJSON_AddNumberToObject(pRoot, "timerMS", pMsg->timerMS);
+    snprintf(u64buf, sizeof(u64buf), "%p", pMsg->data);
+    cJSON_AddStringToObject(pRoot, "data", u64buf);
+  }
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SyncTimeout", pRoot);
+  return pJson;
+}
+
+char* syncTimeout2Str(const SyncTimeout* pMsg) {
+  cJSON* pJson = syncTimeout2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// for debug ----------------------
+void syncTimeoutPrint(const SyncTimeout* pMsg) {
+  char* serialized = syncTimeout2Str(pMsg);
+  printf("syncTimeoutPrint | len:%zu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncTimeoutPrint2(char* s, const SyncTimeout* pMsg) {
+  char* serialized = syncTimeout2Str(pMsg);
+  printf("syncTimeoutPrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncTimeoutLog(const SyncTimeout* pMsg) {
+  char* serialized = syncTimeout2Str(pMsg);
+  sTrace("syncTimeoutLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
+  taosMemoryFree(serialized);
+}
+
+void syncTimeoutLog2(char* s, const SyncTimeout* pMsg) {
+  if (gRaftDetailLog) {
+    char* serialized = syncTimeout2Str(pMsg);
+    sTrace("syncTimeoutLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
+}
