@@ -54,20 +54,9 @@ typedef struct SyncClientRequest {
   char     data[];   // origin RpcMsg.pCont
 } SyncClientRequest;
 
-SyncClientRequest* syncClientRequestAlloc(uint32_t dataLen);
 int32_t syncClientRequestBuildFromRpcMsg(SRpcMsg* pClientRequestRpcMsg, const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum,
                                          bool isWeak, int32_t vgId);
 int32_t syncClientRequestBuildFromNoopEntry(SRpcMsg* pClientRequestRpcMsg, const SSyncRaftEntry* pEntry, int32_t vgId);
-void    syncClientRequest2RpcMsg(const SyncClientRequest* pMsg, SRpcMsg* pRpcMsg);  // step 2
-void    syncClientRequestFromRpcMsg(const SRpcMsg* pRpcMsg, SyncClientRequest* pMsg);
-cJSON*  syncClientRequest2Json(const SyncClientRequest* pMsg);
-char*   syncClientRequest2Str(const SyncClientRequest* pMsg);
-
-// for debug ----------------------
-void syncClientRequestPrint(const SyncClientRequest* pMsg);
-void syncClientRequestPrint2(char* s, const SyncClientRequest* pMsg);
-void syncClientRequestLog(const SyncClientRequest* pMsg);
-void syncClientRequestLog2(char* s, const SyncClientRequest* pMsg);
 
 // ---------------------------------------------
 typedef struct SRaftMeta {
@@ -608,9 +597,6 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, SyncLocalCmd* pMsg);
 // option ----------------------------------
 bool          syncNodeSnapshotEnable(SSyncNode* pSyncNode);
 ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
-
-// ---------------------------------------------
-SyncTimeout* syncTimeoutBuildX();
 
 #ifdef __cplusplus
 }
