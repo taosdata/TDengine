@@ -180,6 +180,7 @@ int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* dest
     int16_t port;
     syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
     sNTrace(pSyncNode, "do not repcate to %s:%d for index:%" PRId64, host, port, pMsg->prevLogIndex + 1);
+    rpcFreeCont(pRpcMsg->pCont);
   }
 
   return ret;
