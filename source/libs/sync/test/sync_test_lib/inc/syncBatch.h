@@ -58,6 +58,15 @@ void syncClientRequestBatchPrint2(char* s, const SyncClientRequestBatch* pMsg);
 void syncClientRequestBatchLog(const SyncClientRequestBatch* pMsg);
 void syncClientRequestBatchLog2(char* s, const SyncClientRequestBatch* pMsg);
 
+typedef struct SOffsetAndContLen {
+  int32_t offset;
+  int32_t contLen;
+} SOffsetAndContLen;
+
+// data:
+// block1: SOffsetAndContLen Array
+// block2: entry Array
+
 typedef struct SyncAppendEntriesBatch {
   uint32_t bytes;
   int32_t  vgId;
