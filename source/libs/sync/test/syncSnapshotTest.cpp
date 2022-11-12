@@ -154,7 +154,7 @@ SRpcMsg *step0() {
 
 SyncClientRequest *step1(const SRpcMsg *pMsg) {
   SRpcMsg clientRequestMsg;
-  syncClientRequestBuildFromRpcMsg(&clientRequestMsg, pMsg, 123, true, 1000);
+  syncBuildClientRequest(&clientRequestMsg, pMsg, 123, true, 1000);
   SyncClientRequest *pMsg2 = (SyncClientRequest *)taosMemoryMalloc(clientRequestMsg.contLen);
   memcpy(pMsg2->data, clientRequestMsg.pCont, clientRequestMsg.contLen);
   return pMsg2;

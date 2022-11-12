@@ -434,11 +434,9 @@ ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
 
 const char* syncTimerTypeStr(enum ESyncTimeoutType timerType);
 
-int32_t syncTimeoutBuild(SRpcMsg* pTimeoutRpcMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
-                         SSyncNode* pNode);
-int32_t syncClientRequestBuildFromRpcMsg(SRpcMsg* pClientRequestRpcMsg, const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum,
-                                         bool isWeak, int32_t vgId);
-int32_t syncClientRequestBuildFromNoopEntry(SRpcMsg* pClientRequestRpcMsg, const SSyncRaftEntry* pEntry, int32_t vgId);
+int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType ttype, uint64_t logicClock, int32_t ms, SSyncNode* pNode);
+int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginalRpc, uint64_t seq, bool isWeak, int32_t vgId);
+int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SSyncRaftEntry* pEntry, int32_t vgId);
 int32_t syncBuildRequestVote(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildRequestVoteReply(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildAppendEntries(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId);

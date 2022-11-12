@@ -20,18 +20,18 @@
 #include "syncUtil.h"
 #include "tcoding.h"
 
-int32_t syncTimeoutBuild(SRpcMsg* pTimeoutRpcMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
+int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
                          SSyncNode* pNode) {
   int32_t bytes = sizeof(SyncTimeout);
-  pTimeoutRpcMsg->pCont = rpcMallocCont(bytes);
-  pTimeoutRpcMsg->msgType = TDMT_SYNC_TIMEOUT;
-  pTimeoutRpcMsg->contLen = bytes;
-  if (pTimeoutRpcMsg->pCont == NULL) {
+  pMsg->pCont = rpcMallocCont(bytes);
+  pMsg->msgType = TDMT_SYNC_TIMEOUT;
+  pMsg->contLen = bytes;
+  if (pMsg->pCont == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  SyncTimeout* pTimeout = pTimeoutRpcMsg->pCont;
+  SyncTimeout* pTimeout = pMsg->pCont;
   pTimeout->bytes = bytes;
   pTimeout->msgType = TDMT_SYNC_TIMEOUT;
   pTimeout->vgId = pNode->vgId;
@@ -42,41 +42,40 @@ int32_t syncTimeoutBuild(SRpcMsg* pTimeoutRpcMsg, ESyncTimeoutType timeoutType, 
   return 0;
 }
 
-int32_t syncClientRequestBuildFromRpcMsg(SRpcMsg* pClientRequestRpcMsg, const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum,
-                                         bool isWeak, int32_t vgId) {
-  int32_t bytes = sizeof(SyncClientRequest) + pOriginalRpcMsg->contLen;
-  pClientRequestRpcMsg->pCont = rpcMallocCont(bytes);
-  pClientRequestRpcMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
-  pClientRequestRpcMsg->contLen = bytes;
-  if (pClientRequestRpcMsg->pCont == NULL) {
+int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginal, uint64_t seqNum, bool isWeak, int32_t vgId) {
+  int32_t bytes = sizeof(SyncClientRequest) + pOriginal->contLen;
+  pMsg->pCont = rpcMallocCont(bytes);
+  pMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
+  pMsg->contLen = bytes;
+  if (pMsg->pCont == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  SyncClientRequest* pClientRequest = pClientRequestRpcMsg->pCont;
+  SyncClientRequest* pClientRequest = pMsg->pCont;
   pClientRequest->bytes = bytes;
   pClientRequest->vgId = vgId;
   pClientRequest->msgType = TDMT_SYNC_CLIENT_REQUEST;
-  pClientRequest->originalRpcType = pOriginalRpcMsg->msgType;
+  pClientRequest->originalRpcType = pOriginal->msgType;
   pClientRequest->seqNum = seqNum;
   pClientRequest->isWeak = isWeak;
-  pClientRequest->dataLen = pOriginalRpcMsg->contLen;
-  memcpy(pClientRequest->data, (char*)pOriginalRpcMsg->pCont, pOriginalRpcMsg->contLen);
+  pClientRequest->dataLen = pOriginal->contLen;
+  memcpy(pClientRequest->data, (char*)pOriginal->pCont, pOriginal->contLen);
 
   return 0;
 }
 
-int32_t syncClientRequestBuildFromNoopEntry(SRpcMsg* pClientRequestRpcMsg, const SSyncRaftEntry* pEntry, int32_t vgId) {
+int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SSyncRaftEntry* pEntry, int32_t vgId) {
   int32_t bytes = sizeof(SyncClientRequest) + pEntry->bytes;
-  pClientRequestRpcMsg->pCont = rpcMallocCont(bytes);
-  pClientRequestRpcMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
-  pClientRequestRpcMsg->contLen = bytes;
-  if (pClientRequestRpcMsg->pCont == NULL) {
+  pMsg->pCont = rpcMallocCont(bytes);
+  pMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
+  pMsg->contLen = bytes;
+  if (pMsg->pCont == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  SyncClientRequest* pClientRequest = pClientRequestRpcMsg->pCont;
+  SyncClientRequest* pClientRequest = pMsg->pCont;
   pClientRequest->bytes = bytes;
   pClientRequest->vgId = vgId;
   pClientRequest->msgType = TDMT_SYNC_CLIENT_REQUEST;
