@@ -138,6 +138,7 @@ void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMs
 
 int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
+  SRpcMsg            rpcRsp = {0};
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
@@ -146,7 +147,13 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   // prepare response msg
-  SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
+  int32_t code = syncBuildAppendEntriesReply(&rpcRsp, ths->vgId);
+  if (code != 0) {
+    syncLogRecvAppendEntries(ths, pMsg, "build rsp error");
+    goto _IGNORE;
+  }
+
+  SyncAppendEntriesReply* pReply = rpcRsp.pCont;
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
   pReply->term = ths->pRaftStore->currentTerm;
@@ -288,7 +295,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   goto _SEND_RESPONSE;
 
 _IGNORE:
-  syncAppendEntriesReplyDestroy(pReply);
+  rpcFreeCont(rpcRsp.pCont);
   return 0;
 
 _SEND_RESPONSE:
@@ -296,10 +303,6 @@ _SEND_RESPONSE:
   syncLogSendAppendEntriesReply(ths, pReply, "");
 
   // send response
-  SRpcMsg rpcMsg;
-  syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
-  syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
-  syncAppendEntriesReplyDestroy(pReply);
-
+  syncNodeSendMsgById(&pReply->destId, ths, &rpcRsp);
   return 0;
 }

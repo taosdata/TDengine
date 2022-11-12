@@ -20,18 +20,18 @@
 #include "syncUtil.h"
 #include "tcoding.h"
 
-int32_t syncTimeoutBuild(SRpcMsg* pTimeoutRpcMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
+int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
                          SSyncNode* pNode) {
   int32_t bytes = sizeof(SyncTimeout);
-  pTimeoutRpcMsg->pCont = rpcMallocCont(bytes);
-  pTimeoutRpcMsg->msgType = TDMT_SYNC_TIMEOUT;
-  pTimeoutRpcMsg->contLen = bytes;
-  if (pTimeoutRpcMsg->pCont == NULL) {
+  pMsg->pCont = rpcMallocCont(bytes);
+  pMsg->msgType = TDMT_SYNC_TIMEOUT;
+  pMsg->contLen = bytes;
+  if (pMsg->pCont == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  SyncTimeout* pTimeout = pTimeoutRpcMsg->pCont;
+  SyncTimeout* pTimeout = pMsg->pCont;
   pTimeout->bytes = bytes;
   pTimeout->msgType = TDMT_SYNC_TIMEOUT;
   pTimeout->vgId = pNode->vgId;
@@ -42,41 +42,40 @@ int32_t syncTimeoutBuild(SRpcMsg* pTimeoutRpcMsg, ESyncTimeoutType timeoutType, 
   return 0;
 }
 
-int32_t syncClientRequestBuildFromRpcMsg(SRpcMsg* pClientRequestRpcMsg, const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum,
-                                         bool isWeak, int32_t vgId) {
-  int32_t bytes = sizeof(SyncClientRequest) + pOriginalRpcMsg->contLen;
-  pClientRequestRpcMsg->pCont = rpcMallocCont(bytes);
-  pClientRequestRpcMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
-  pClientRequestRpcMsg->contLen = bytes;
-  if (pClientRequestRpcMsg->pCont == NULL) {
+int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginal, uint64_t seqNum, bool isWeak, int32_t vgId) {
+  int32_t bytes = sizeof(SyncClientRequest) + pOriginal->contLen;
+  pMsg->pCont = rpcMallocCont(bytes);
+  pMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
+  pMsg->contLen = bytes;
+  if (pMsg->pCont == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  SyncClientRequest* pClientRequest = pClientRequestRpcMsg->pCont;
+  SyncClientRequest* pClientRequest = pMsg->pCont;
   pClientRequest->bytes = bytes;
   pClientRequest->vgId = vgId;
   pClientRequest->msgType = TDMT_SYNC_CLIENT_REQUEST;
-  pClientRequest->originalRpcType = pOriginalRpcMsg->msgType;
+  pClientRequest->originalRpcType = pOriginal->msgType;
   pClientRequest->seqNum = seqNum;
   pClientRequest->isWeak = isWeak;
-  pClientRequest->dataLen = pOriginalRpcMsg->contLen;
-  memcpy(pClientRequest->data, (char*)pOriginalRpcMsg->pCont, pOriginalRpcMsg->contLen);
+  pClientRequest->dataLen = pOriginal->contLen;
+  memcpy(pClientRequest->data, (char*)pOriginal->pCont, pOriginal->contLen);
 
   return 0;
 }
 
-int32_t syncClientRequestBuildFromNoopEntry(SRpcMsg* pClientRequestRpcMsg, const SSyncRaftEntry* pEntry, int32_t vgId) {
+int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SSyncRaftEntry* pEntry, int32_t vgId) {
   int32_t bytes = sizeof(SyncClientRequest) + pEntry->bytes;
-  pClientRequestRpcMsg->pCont = rpcMallocCont(bytes);
-  pClientRequestRpcMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
-  pClientRequestRpcMsg->contLen = bytes;
-  if (pClientRequestRpcMsg->pCont == NULL) {
+  pMsg->pCont = rpcMallocCont(bytes);
+  pMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
+  pMsg->contLen = bytes;
+  if (pMsg->pCont == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  SyncClientRequest* pClientRequest = pClientRequestRpcMsg->pCont;
+  SyncClientRequest* pClientRequest = pMsg->pCont;
   pClientRequest->bytes = bytes;
   pClientRequest->vgId = vgId;
   pClientRequest->msgType = TDMT_SYNC_CLIENT_REQUEST;
@@ -93,7 +92,7 @@ int32_t syncBuildRequestVote(SRpcMsg* pMsg, int32_t vgId) {
   pMsg->msgType = TDMT_SYNC_REQUEST_VOTE;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
-    terrno = TDMT_SYNC_REQUEST_VOTE;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -110,7 +109,7 @@ int32_t syncBuildRequestVoteReply(SRpcMsg* pMsg, int32_t vgId) {
   pMsg->msgType = TDMT_SYNC_REQUEST_VOTE_REPLY;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
-    terrno = TDMT_SYNC_REQUEST_VOTE;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -139,314 +138,40 @@ int32_t syncBuildAppendEntries(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
   return 0;
 }
 
-// ---- message process SyncAppendEntriesReply----
-SyncAppendEntriesReply* syncAppendEntriesReplyBuild(int32_t vgId) {
-  uint32_t                bytes = sizeof(SyncAppendEntriesReply);
-  SyncAppendEntriesReply* pMsg = taosMemoryMalloc(bytes);
-  memset(pMsg, 0, bytes);
-  pMsg->bytes = bytes;
-  pMsg->vgId = vgId;
+int32_t syncBuildAppendEntriesReply(SRpcMsg* pMsg, int32_t vgId) {
+  int32_t bytes = sizeof(SyncAppendEntriesReply);
+  pMsg->pCont = rpcMallocCont(bytes);
   pMsg->msgType = TDMT_SYNC_APPEND_ENTRIES_REPLY;
-  return pMsg;
-}
-
-void syncAppendEntriesReplyDestroy(SyncAppendEntriesReply* pMsg) {
-  if (pMsg != NULL) {
-    taosMemoryFree(pMsg);
-  }
-}
-
-void syncAppendEntriesReplySerialize(const SyncAppendEntriesReply* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
-  memcpy(buf, pMsg, pMsg->bytes);
-}
-
-void syncAppendEntriesReplyDeserialize(const char* buf, uint32_t len, SyncAppendEntriesReply* pMsg) {
-  memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
-}
-
-char* syncAppendEntriesReplySerialize2(const SyncAppendEntriesReply* pMsg, uint32_t* len) {
-  char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
-  syncAppendEntriesReplySerialize(pMsg, buf, pMsg->bytes);
-  if (len != NULL) {
-    *len = pMsg->bytes;
-  }
-  return buf;
-}
-
-SyncAppendEntriesReply* syncAppendEntriesReplyDeserialize2(const char* buf, uint32_t len) {
-  uint32_t                bytes = *((uint32_t*)buf);
-  SyncAppendEntriesReply* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
-  syncAppendEntriesReplyDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
-  return pMsg;
-}
-
-void syncAppendEntriesReply2RpcMsg(const SyncAppendEntriesReply* pMsg, SRpcMsg* pRpcMsg) {
-  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
-  pRpcMsg->msgType = pMsg->msgType;
-  pRpcMsg->contLen = pMsg->bytes;
-  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
-  syncAppendEntriesReplySerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
-}
-
-void syncAppendEntriesReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntriesReply* pMsg) {
-  syncAppendEntriesReplyDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
-}
-
-SyncAppendEntriesReply* syncAppendEntriesReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
-  SyncAppendEntriesReply* pMsg = syncAppendEntriesReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
-  return pMsg;
-}
-
-cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
-  char   u64buf[128] = {0};
-  cJSON* pRoot = cJSON_CreateObject();
-
-  if (pMsg != NULL) {
-    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
-    cJSON_AddNumberToObject(pRoot, "vgId", pMsg->vgId);
-    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
-
-    cJSON* pSrcId = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->srcId.addr);
-    cJSON_AddStringToObject(pSrcId, "addr", u64buf);
-    {
-      uint64_t u64 = pMsg->srcId.addr;
-      cJSON*   pTmp = pSrcId;
-      char     host[128] = {0};
-      uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
-      cJSON_AddStringToObject(pTmp, "addr_host", host);
-      cJSON_AddNumberToObject(pTmp, "addr_port", port);
-    }
-    cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
-    cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
-
-    cJSON* pDestId = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->destId.addr);
-    cJSON_AddStringToObject(pDestId, "addr", u64buf);
-    {
-      uint64_t u64 = pMsg->destId.addr;
-      cJSON*   pTmp = pDestId;
-      char     host[128] = {0};
-      uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
-      cJSON_AddStringToObject(pTmp, "addr_host", host);
-      cJSON_AddNumberToObject(pTmp, "addr_port", port);
-    }
-    cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
-    cJSON_AddItemToObject(pRoot, "destId", pDestId);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->privateTerm);
-    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->term);
-    cJSON_AddStringToObject(pRoot, "term", u64buf);
-    cJSON_AddNumberToObject(pRoot, "success", pMsg->success);
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->matchIndex);
-    cJSON_AddStringToObject(pRoot, "matchIndex", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->startTime);
-    cJSON_AddStringToObject(pRoot, "startTime", u64buf);
+  pMsg->contLen = bytes;
+  if (pMsg->pCont == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
   }
 
-  cJSON* pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SyncAppendEntriesReply", pRoot);
-  return pJson;
+  SyncAppendEntriesReply* pAppendEntriesReply = pMsg->pCont;
+  pAppendEntriesReply->bytes = bytes;
+  pAppendEntriesReply->msgType = TDMT_SYNC_APPEND_ENTRIES_REPLY;
+  pAppendEntriesReply->vgId = vgId;
+  return 0;
 }
 
-char* syncAppendEntriesReply2Str(const SyncAppendEntriesReply* pMsg) {
-  cJSON* pJson = syncAppendEntriesReply2Json(pMsg);
-  char*  serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
-// for debug ----------------------
-void syncAppendEntriesReplyPrint(const SyncAppendEntriesReply* pMsg) {
-  char* serialized = syncAppendEntriesReply2Str(pMsg);
-  printf("syncAppendEntriesReplyPrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncAppendEntriesReplyPrint2(char* s, const SyncAppendEntriesReply* pMsg) {
-  char* serialized = syncAppendEntriesReply2Str(pMsg);
-  printf("syncAppendEntriesReplyPrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncAppendEntriesReplyLog(const SyncAppendEntriesReply* pMsg) {
-  char* serialized = syncAppendEntriesReply2Str(pMsg);
-  sTrace("syncAppendEntriesReplyLog | len:%d| %s", (int32_t)strlen(serialized), serialized);
-  taosMemoryFree(serialized);
-}
-
-void syncAppendEntriesReplyLog2(char* s, const SyncAppendEntriesReply* pMsg) {
-  if (gRaftDetailLog) {
-    char* serialized = syncAppendEntriesReply2Str(pMsg);
-    sTrace("syncAppendEntriesReplyLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
-    taosMemoryFree(serialized);
-  }
-}
-
-// ---- message process SyncHeartbeat----
-SyncHeartbeat* syncHeartbeatBuild(int32_t vgId) {
-  uint32_t       bytes = sizeof(SyncHeartbeat);
-  SyncHeartbeat* pMsg = taosMemoryMalloc(bytes);
-  memset(pMsg, 0, bytes);
-  pMsg->bytes = bytes;
-  pMsg->vgId = vgId;
+int32_t syncBuildHeartbeat(SRpcMsg* pMsg, int32_t vgId) {
+  int32_t bytes = sizeof(SyncHeartbeat);
+  pMsg->pCont = rpcMallocCont(bytes);
   pMsg->msgType = TDMT_SYNC_HEARTBEAT;
-  return pMsg;
-}
-
-void syncHeartbeatDestroy(SyncHeartbeat* pMsg) {
-  if (pMsg != NULL) {
-    taosMemoryFree(pMsg);
-  }
-}
-
-void syncHeartbeatSerialize(const SyncHeartbeat* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
-  memcpy(buf, pMsg, pMsg->bytes);
-}
-
-void syncHeartbeatDeserialize(const char* buf, uint32_t len, SyncHeartbeat* pMsg) {
-  memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
-}
-
-char* syncHeartbeatSerialize2(const SyncHeartbeat* pMsg, uint32_t* len) {
-  char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
-  syncHeartbeatSerialize(pMsg, buf, pMsg->bytes);
-  if (len != NULL) {
-    *len = pMsg->bytes;
-  }
-  return buf;
-}
-
-SyncHeartbeat* syncHeartbeatDeserialize2(const char* buf, uint32_t len) {
-  uint32_t       bytes = *((uint32_t*)buf);
-  SyncHeartbeat* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
-  syncHeartbeatDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
-  return pMsg;
-}
-
-void syncHeartbeat2RpcMsg(const SyncHeartbeat* pMsg, SRpcMsg* pRpcMsg) {
-  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
-  pRpcMsg->msgType = pMsg->msgType;
-  pRpcMsg->contLen = pMsg->bytes;
-  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
-  syncHeartbeatSerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
-}
-
-void syncHeartbeatFromRpcMsg(const SRpcMsg* pRpcMsg, SyncHeartbeat* pMsg) {
-  syncHeartbeatDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
-}
-
-SyncHeartbeat* syncHeartbeatFromRpcMsg2(const SRpcMsg* pRpcMsg) {
-  SyncHeartbeat* pMsg = syncHeartbeatDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
-  return pMsg;
-}
-
-cJSON* syncHeartbeat2Json(const SyncHeartbeat* pMsg) {
-  char   u64buf[128] = {0};
-  cJSON* pRoot = cJSON_CreateObject();
-
-  if (pMsg != NULL) {
-    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
-    cJSON_AddNumberToObject(pRoot, "vgId", pMsg->vgId);
-    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
-
-    cJSON* pSrcId = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->srcId.addr);
-    cJSON_AddStringToObject(pSrcId, "addr", u64buf);
-    {
-      uint64_t u64 = pMsg->srcId.addr;
-      cJSON*   pTmp = pSrcId;
-      char     host[128] = {0};
-      uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
-      cJSON_AddStringToObject(pTmp, "addr_host", host);
-      cJSON_AddNumberToObject(pTmp, "addr_port", port);
-    }
-    cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
-    cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
-
-    cJSON* pDestId = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->destId.addr);
-    cJSON_AddStringToObject(pDestId, "addr", u64buf);
-    {
-      uint64_t u64 = pMsg->destId.addr;
-      cJSON*   pTmp = pDestId;
-      char     host[128] = {0};
-      uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
-      cJSON_AddStringToObject(pTmp, "addr_host", host);
-      cJSON_AddNumberToObject(pTmp, "addr_port", port);
-    }
-    cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
-    cJSON_AddItemToObject(pRoot, "destId", pDestId);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->term);
-    cJSON_AddStringToObject(pRoot, "term", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->privateTerm);
-    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->commitIndex);
-    cJSON_AddStringToObject(pRoot, "commitIndex", u64buf);
+  pMsg->contLen = bytes;
+  if (pMsg->pCont == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
   }
 
-  cJSON* pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SyncHeartbeat", pRoot);
-  return pJson;
+  SyncHeartbeat* pHeartbeat = pMsg->pCont;
+  pHeartbeat->bytes = bytes;
+  pHeartbeat->msgType = TDMT_SYNC_HEARTBEAT;
+  pHeartbeat->vgId = vgId;
+  return 0;
 }
 
-char* syncHeartbeat2Str(const SyncHeartbeat* pMsg) {
-  cJSON* pJson = syncHeartbeat2Json(pMsg);
-  char*  serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
-void syncHeartbeatPrint(const SyncHeartbeat* pMsg) {
-  char* serialized = syncHeartbeat2Str(pMsg);
-  printf("syncHeartbeatPrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncHeartbeatPrint2(char* s, const SyncHeartbeat* pMsg) {
-  char* serialized = syncHeartbeat2Str(pMsg);
-  printf("syncHeartbeatPrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncHeartbeatLog(const SyncHeartbeat* pMsg) {
-  char* serialized = syncHeartbeat2Str(pMsg);
-  sTrace("syncHeartbeatLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
-  taosMemoryFree(serialized);
-}
-
-void syncHeartbeatLog2(char* s, const SyncHeartbeat* pMsg) {
-  if (gRaftDetailLog) {
-    char* serialized = syncHeartbeat2Str(pMsg);
-    sTrace("syncHeartbeatLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
-    taosMemoryFree(serialized);
-  }
-}
 
 // ---- message process SyncHeartbeatReply----
 SyncHeartbeatReply* syncHeartbeatReplyBuild(int32_t vgId) {

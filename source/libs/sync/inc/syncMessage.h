@@ -112,24 +112,6 @@ typedef struct SyncAppendEntriesReply {
   int64_t   startTime;
 } SyncAppendEntriesReply;
 
-SyncAppendEntriesReply* syncAppendEntriesReplyBuild(int32_t vgId);
-void                    syncAppendEntriesReplyDestroy(SyncAppendEntriesReply* pMsg);
-void                    syncAppendEntriesReplySerialize(const SyncAppendEntriesReply* pMsg, char* buf, uint32_t bufLen);
-void                    syncAppendEntriesReplyDeserialize(const char* buf, uint32_t len, SyncAppendEntriesReply* pMsg);
-char*                   syncAppendEntriesReplySerialize2(const SyncAppendEntriesReply* pMsg, uint32_t* len);
-SyncAppendEntriesReply* syncAppendEntriesReplyDeserialize2(const char* buf, uint32_t len);
-void                    syncAppendEntriesReply2RpcMsg(const SyncAppendEntriesReply* pMsg, SRpcMsg* pRpcMsg);
-void                    syncAppendEntriesReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntriesReply* pMsg);
-SyncAppendEntriesReply* syncAppendEntriesReplyFromRpcMsg2(const SRpcMsg* pRpcMsg);
-cJSON*                  syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg);
-char*                   syncAppendEntriesReply2Str(const SyncAppendEntriesReply* pMsg);
-
-// for debug ----------------------
-void syncAppendEntriesReplyPrint(const SyncAppendEntriesReply* pMsg);
-void syncAppendEntriesReplyPrint2(char* s, const SyncAppendEntriesReply* pMsg);
-void syncAppendEntriesReplyLog(const SyncAppendEntriesReply* pMsg);
-void syncAppendEntriesReplyLog2(char* s, const SyncAppendEntriesReply* pMsg);
-
 // ---------------------------------------------
 typedef struct SyncHeartbeat {
   uint32_t bytes;
@@ -143,28 +125,8 @@ typedef struct SyncHeartbeat {
   SyncIndex commitIndex;
   SyncTerm  privateTerm;
   SyncTerm  minMatchIndex;
-
 } SyncHeartbeat;
 
-SyncHeartbeat* syncHeartbeatBuild(int32_t vgId);
-void           syncHeartbeatDestroy(SyncHeartbeat* pMsg);
-void           syncHeartbeatSerialize(const SyncHeartbeat* pMsg, char* buf, uint32_t bufLen);
-void           syncHeartbeatDeserialize(const char* buf, uint32_t len, SyncHeartbeat* pMsg);
-char*          syncHeartbeatSerialize2(const SyncHeartbeat* pMsg, uint32_t* len);
-SyncHeartbeat* syncHeartbeatDeserialize2(const char* buf, uint32_t len);
-void           syncHeartbeat2RpcMsg(const SyncHeartbeat* pMsg, SRpcMsg* pRpcMsg);
-void           syncHeartbeatFromRpcMsg(const SRpcMsg* pRpcMsg, SyncHeartbeat* pMsg);
-SyncHeartbeat* syncHeartbeatFromRpcMsg2(const SRpcMsg* pRpcMsg);
-cJSON*         syncHeartbeat2Json(const SyncHeartbeat* pMsg);
-char*          syncHeartbeat2Str(const SyncHeartbeat* pMsg);
-
-// for debug ----------------------
-void syncHeartbeatPrint(const SyncHeartbeat* pMsg);
-void syncHeartbeatPrint2(char* s, const SyncHeartbeat* pMsg);
-void syncHeartbeatLog(const SyncHeartbeat* pMsg);
-void syncHeartbeatLog2(char* s, const SyncHeartbeat* pMsg);
-
-// ---------------------------------------------
 typedef struct SyncHeartbeatReply {
   uint32_t bytes;
   int32_t  vgId;
@@ -430,7 +392,7 @@ void syncLocalCmdLog2(char* s, const SyncLocalCmd* pMsg);
 int32_t syncNodeOnRequestVote(SSyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnRequestVoteReply(SSyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnAppendEntries(SSyncNode* pNode, const SRpcMsg* pMsg);
-int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pMsg);
 
 int32_t syncNodeOnPreSnapshot(SSyncNode* ths, SyncPreSnapshot* pMsg);
 int32_t syncNodeOnPreSnapshotReply(SSyncNode* ths, SyncPreSnapshotReply* pMsg);
@@ -438,7 +400,7 @@ int32_t syncNodeOnPreSnapshotReply(SSyncNode* ths, SyncPreSnapshotReply* pMsg);
 int32_t syncNodeOnSnapshot(SSyncNode* ths, SyncSnapshotSend* pMsg);
 int32_t syncNodeOnSnapshotReply(SSyncNode* ths, SyncSnapshotRsp* pMsg);
 
-int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg);
+int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, SyncHeartbeatReply* pMsg);
 
 int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
@@ -452,14 +414,14 @@ ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
 
 const char* syncTimerTypeStr(enum ESyncTimeoutType timerType);
 
-int32_t syncTimeoutBuild(SRpcMsg* pTimeoutRpcMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
-                         SSyncNode* pNode);
-int32_t syncClientRequestBuildFromRpcMsg(SRpcMsg* pClientRequestRpcMsg, const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum,
-                                         bool isWeak, int32_t vgId);
-int32_t syncClientRequestBuildFromNoopEntry(SRpcMsg* pClientRequestRpcMsg, const SSyncRaftEntry* pEntry, int32_t vgId);
+int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType ttype, uint64_t logicClock, int32_t ms, SSyncNode* pNode);
+int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginalRpc, uint64_t seq, bool isWeak, int32_t vgId);
+int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SSyncRaftEntry* pEntry, int32_t vgId);
 int32_t syncBuildRequestVote(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildRequestVoteReply(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildAppendEntries(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId);
+int32_t syncBuildAppendEntriesReply(SRpcMsg* pMsg, int32_t vgId);
+int32_t syncBuildHeartbeat(SRpcMsg* pMsg, int32_t vgId);
 
 #ifdef __cplusplus
 }
