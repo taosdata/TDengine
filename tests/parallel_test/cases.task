@@ -6,20 +6,20 @@
 ,,y,unit-test,bash test.sh
 
 #tsim test
-,,,script,./test.sh -f tsim/user/basic.sim
-,,,script,./test.sh -f tsim/user/password.sim
-,,,script,./test.sh -f tsim/user/privilege_db.sim
-,,,script,./test.sh -f tsim/user/privilege_sysinfo.sim
-,,,script,./test.sh -f tsim/db/alter_option.sim
+,,y,script,./test.sh -f tsim/user/basic.sim
+,,y,script,./test.sh -f tsim/user/password.sim
+,,y,script,./test.sh -f tsim/user/privilege_db.sim
+,,y,script,./test.sh -f tsim/user/privilege_sysinfo.sim
+,,y,script,./test.sh -f tsim/db/alter_option.sim
 ,,,script,./test.sh -f tsim/db/alter_replica_13.sim
 ,,,script,./test.sh -f tsim/db/alter_replica_31.sim
 ,,y,script,./test.sh -f tsim/db/basic1.sim
-,,,script,./test.sh -f tsim/db/basic2.sim
-,,,script,./test.sh -f tsim/db/basic3.sim
-,,,script,./test.sh -f tsim/db/basic4.sim
-,,,script,./test.sh -f tsim/db/basic5.sim
-,,,script,./test.sh -f tsim/db/basic6.sim
-,,,script,./test.sh -f tsim/db/commit.sim
+,,y,script,./test.sh -f tsim/db/basic2.sim
+,,y,script,./test.sh -f tsim/db/basic3.sim
+,,y,script,./test.sh -f tsim/db/basic4.sim
+,,y,script,./test.sh -f tsim/db/basic5.sim
+,,y,script,./test.sh -f tsim/db/basic6.sim
+,,y,script,./test.sh -f tsim/db/commit.sim
 ,,,script,./test.sh -f tsim/db/create_all_options.sim
 ,,,script,./test.sh -f tsim/db/delete_reuse1.sim
 ,,,script,./test.sh -f tsim/db/delete_reuse2.sim
@@ -28,10 +28,10 @@
 ,,,script,./test.sh -f tsim/db/delete_writing1.sim
 ,,,script,./test.sh -f tsim/db/delete_writing2.sim
 ,,,script,./test.sh -f tsim/db/error1.sim
-,,,script,./test.sh -f tsim/db/keep.sim
-,,,script,./test.sh -f tsim/db/len.sim
-,,,script,./test.sh -f tsim/db/repeat.sim
-,,,script,./test.sh -f tsim/db/show_create_db.sim
+,,y,script,./test.sh -f tsim/db/keep.sim
+,,y,script,./test.sh -f tsim/db/len.sim
+,,y,script,./test.sh -f tsim/db/repeat.sim
+,,y,script,./test.sh -f tsim/db/show_create_db.sim
 ,,,script,./test.sh -f tsim/db/show_create_table.sim
 ,,,script,./test.sh -f tsim/db/tables.sim
 ,,,script,./test.sh -f tsim/db/taosdlog.sim
