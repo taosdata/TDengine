@@ -85,8 +85,10 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   return 0;
 }
 
-int32_t syncNodeOnTimer(SSyncNode* ths, SyncTimeout* pMsg) {
-  int32_t ret = 0;
+int32_t syncNodeOnTimer(SSyncNode* ths, SRpcMsg* pRpc) {
+  int32_t      ret = 0;
+  SyncTimeout* pMsg = pRpc->pCont;
+
   syncLogRecvTimer(ths, pMsg, "");
 
   if (pMsg->timeoutType == SYNC_TIMEOUT_PING) {
