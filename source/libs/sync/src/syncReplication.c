@@ -20,6 +20,9 @@
 #include "syncRaftStore.h"
 #include "syncUtil.h"
 
+static int32_t syncNodeSendAppendEntries(SSyncNode* pNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
+static int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
+
 // TLA+ Spec
 // AppendEntries(i, j) ==
 //    /\ i /= j
@@ -65,6 +68,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
   SyncTerm  preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
 
   // prepare entry
+  SRpcMsg            rpcMsg = {0};
   SyncAppendEntries* pMsg = NULL;
 
   SSyncRaftEntry* pEntry;
@@ -73,26 +77,23 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
   if (code == 0) {
     ASSERT(pEntry != NULL);
 
-    pMsg = syncAppendEntriesBuild(pEntry->bytes, pSyncNode->vgId);
-    ASSERT(pMsg != NULL);
-    memcpy(pMsg->data, pEntry, pEntry->bytes);
-    syncEntryDestory(pEntry);
+    code = syncBuildAppendEntries(&rpcMsg, pEntry->bytes, pSyncNode->vgId);
+    ASSERT(code == 0);
 
+    pMsg = rpcMsg.pCont;
+    memcpy(pMsg->data, pEntry, pEntry->bytes);
   } else {
     if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
       // no entry in log
-      pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
-      ASSERT(pMsg != NULL);
+      code = syncBuildAppendEntries(&rpcMsg, 0, pSyncNode->vgId);
+      ASSERT(code == 0);
 
+      pMsg = rpcMsg.pCont;
     } else {
-      do {
-        char     host[64];
-        uint16_t port;
-        syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
-        sNError(pSyncNode, "replicate to %s:%d error, next-index:%" PRId64, host, port, nextIndex);
-      } while (0);
-
-      syncAppendEntriesDestroy(pMsg);
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
+      sNError(pSyncNode, "replicate to %s:%d error, next-index:%" PRId64, host, port, nextIndex);
       return -1;
     }
   }
@@ -109,9 +110,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
   // pMsg->privateTerm = syncIndexMgrGetTerm(pSyncNode->pNextIndex, pDestId);
 
   // send msg
-  syncNodeMaybeSendAppendEntries(pSyncNode, pDestId, pMsg);
-  syncAppendEntriesDestroy(pMsg);
-
+  syncNodeMaybeSendAppendEntries(pSyncNode, pDestId, &rpcMsg);
   return 0;
 }
 
@@ -137,13 +136,23 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
   return 0;
 }
 
-int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg) {
-  int32_t ret = 0;
-  syncLogSendAppendEntries(pSyncNode, pMsg, "");
+static void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
+  sNTrace(pSyncNode,
+          "send sync-append-entries to %s:%d, {term:%" PRId64 ", pre-index:%" PRId64 ", pre-term:%" PRId64
+          ", pterm:%" PRId64 ", cmt:%" PRId64 ", datalen:%d}, %s",
+          host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm, pMsg->commitIndex,
+          pMsg->dataLen, s);
+}
 
-  SRpcMsg rpcMsg;
-  syncAppendEntries2RpcMsg(pMsg, &rpcMsg);
-  syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
+int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
+  int32_t            ret = 0;
+  SyncAppendEntries* pMsg = pRpcMsg->pCont;
+
+  syncLogSendAppendEntries(pSyncNode, pMsg, "");
+  syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
 
   SPeerState* pState = syncNodeGetPeerState(pSyncNode, destRaftId);
   if (pState == NULL) {
@@ -159,29 +168,21 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   return ret;
 }
 
-int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg) {
-  int32_t ret = 0;
-  if (syncNodeNeedSendAppendEntries(pSyncNode, destRaftId, pMsg)) {
-    ret = syncNodeSendAppendEntries(pSyncNode, destRaftId, pMsg);
+int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
+  int32_t            ret = 0;
+  SyncAppendEntries* pMsg = pRpcMsg->pCont;
 
+  if (syncNodeNeedSendAppendEntries(pSyncNode, destRaftId, pMsg)) {
+    ret = syncNodeSendAppendEntries(pSyncNode, destRaftId, pRpcMsg);
   } else {
     char    logBuf[128];
     char    host[64];
     int16_t port;
     syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
     sNTrace(pSyncNode, "do not repcate to %s:%d for index:%" PRId64, host, port, pMsg->prevLogIndex + 1);
+    rpcFreeCont(pRpcMsg->pCont);
   }
 
-  return ret;
-}
-
-int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg) {
-  int32_t ret = 0;
-  syncLogSendAppendEntries(pSyncNode, pMsg, "");
-
-  SRpcMsg rpcMsg;
-  syncAppendEntries2RpcMsg(pMsg, &rpcMsg);
-  syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
   return ret;
 }
 

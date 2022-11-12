@@ -277,6 +277,24 @@ void syncRequestVoteReplyPrint2(char* s, const SyncRequestVoteReply* pMsg);
 void syncRequestVoteReplyLog(const SyncRequestVoteReply* pMsg);
 void syncRequestVoteReplyLog2(char* s, const SyncRequestVoteReply* pMsg);
 
+SyncAppendEntries* syncAppendEntriesBuild(uint32_t dataLen, int32_t vgId);
+void               syncAppendEntriesDestroy(SyncAppendEntries* pMsg);
+void               syncAppendEntriesSerialize(const SyncAppendEntries* pMsg, char* buf, uint32_t bufLen);
+void               syncAppendEntriesDeserialize(const char* buf, uint32_t len, SyncAppendEntries* pMsg);
+char*              syncAppendEntriesSerialize2(const SyncAppendEntries* pMsg, uint32_t* len);
+SyncAppendEntries* syncAppendEntriesDeserialize2(const char* buf, uint32_t len);
+void               syncAppendEntries2RpcMsg(const SyncAppendEntries* pMsg, SRpcMsg* pRpcMsg);
+void               syncAppendEntriesFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntries* pMsg);
+SyncAppendEntries* syncAppendEntriesFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*             syncAppendEntries2Json(const SyncAppendEntries* pMsg);
+char*              syncAppendEntries2Str(const SyncAppendEntries* pMsg);
+
+// for debug ----------------------
+void syncAppendEntriesPrint(const SyncAppendEntries* pMsg);
+void syncAppendEntriesPrint2(char* s, const SyncAppendEntries* pMsg);
+void syncAppendEntriesLog(const SyncAppendEntries* pMsg);
+void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg);
+
 #ifdef __cplusplus
 }
 #endif

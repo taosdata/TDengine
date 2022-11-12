@@ -1308,3 +1308,174 @@ void syncRequestVoteReplyLog2(char* s, const SyncRequestVoteReply* pMsg) {
     taosMemoryFree(serialized);
   }
 }
+
+// ---- message process SyncAppendEntries----
+SyncAppendEntries* syncAppendEntriesBuild(uint32_t dataLen, int32_t vgId) {
+  uint32_t           bytes = sizeof(SyncAppendEntries) + dataLen;
+  SyncAppendEntries* pMsg = taosMemoryMalloc(bytes);
+  memset(pMsg, 0, bytes);
+  pMsg->bytes = bytes;
+  pMsg->vgId = vgId;
+  pMsg->msgType = TDMT_SYNC_APPEND_ENTRIES;
+  pMsg->dataLen = dataLen;
+  return pMsg;
+}
+
+void syncAppendEntriesDestroy(SyncAppendEntries* pMsg) {
+  if (pMsg != NULL) {
+    taosMemoryFree(pMsg);
+  }
+}
+
+void syncAppendEntriesSerialize(const SyncAppendEntries* pMsg, char* buf, uint32_t bufLen) {
+  ASSERT(pMsg->bytes <= bufLen);
+  memcpy(buf, pMsg, pMsg->bytes);
+}
+
+void syncAppendEntriesDeserialize(const char* buf, uint32_t len, SyncAppendEntries* pMsg) {
+  memcpy(pMsg, buf, len);
+  ASSERT(len == pMsg->bytes);
+  ASSERT(pMsg->bytes == sizeof(SyncAppendEntries) + pMsg->dataLen);
+}
+
+char* syncAppendEntriesSerialize2(const SyncAppendEntries* pMsg, uint32_t* len) {
+  char* buf = taosMemoryMalloc(pMsg->bytes);
+  ASSERT(buf != NULL);
+  syncAppendEntriesSerialize(pMsg, buf, pMsg->bytes);
+  if (len != NULL) {
+    *len = pMsg->bytes;
+  }
+  return buf;
+}
+
+SyncAppendEntries* syncAppendEntriesDeserialize2(const char* buf, uint32_t len) {
+  uint32_t           bytes = *((uint32_t*)buf);
+  SyncAppendEntries* pMsg = taosMemoryMalloc(bytes);
+  ASSERT(pMsg != NULL);
+  syncAppendEntriesDeserialize(buf, len, pMsg);
+  ASSERT(len == pMsg->bytes);
+  return pMsg;
+}
+
+void syncAppendEntries2RpcMsg(const SyncAppendEntries* pMsg, SRpcMsg* pRpcMsg) {
+  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
+  pRpcMsg->msgType = pMsg->msgType;
+  pRpcMsg->contLen = pMsg->bytes;
+  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  syncAppendEntriesSerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
+}
+
+void syncAppendEntriesFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntries* pMsg) {
+  syncAppendEntriesDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+SyncAppendEntries* syncAppendEntriesFromRpcMsg2(const SRpcMsg* pRpcMsg) {
+  SyncAppendEntries* pMsg = syncAppendEntriesDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  ASSERT(pMsg != NULL);
+  return pMsg;
+}
+
+cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
+  char   u64buf[128] = {0};
+  cJSON* pRoot = cJSON_CreateObject();
+
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "vgId", pMsg->vgId);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+
+    cJSON* pSrcId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->srcId.addr);
+    cJSON_AddStringToObject(pSrcId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->srcId.addr;
+      cJSON*   pTmp = pSrcId;
+      char     host[128] = {0};
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
+    cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
+
+    cJSON* pDestId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->destId.addr);
+    cJSON_AddStringToObject(pDestId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->destId.addr;
+      cJSON*   pTmp = pDestId;
+      char     host[128] = {0};
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
+    cJSON_AddItemToObject(pRoot, "destId", pDestId);
+
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->term);
+    cJSON_AddStringToObject(pRoot, "term", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->privateTerm);
+    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->prevLogIndex);
+    cJSON_AddStringToObject(pRoot, "prevLogIndex", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->prevLogTerm);
+    cJSON_AddStringToObject(pRoot, "pre_log_term", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->commitIndex);
+    cJSON_AddStringToObject(pRoot, "commitIndex", u64buf);
+
+    cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
+    char* s;
+    s = syncUtilPrintBin((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data", s);
+    taosMemoryFree(s);
+    s = syncUtilPrintBin2((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data2", s);
+    taosMemoryFree(s);
+  }
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SyncAppendEntries", pRoot);
+  return pJson;
+}
+
+char* syncAppendEntries2Str(const SyncAppendEntries* pMsg) {
+  cJSON* pJson = syncAppendEntries2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// for debug ----------------------
+void syncAppendEntriesPrint(const SyncAppendEntries* pMsg) {
+  char* serialized = syncAppendEntries2Str(pMsg);
+  printf("syncAppendEntriesPrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncAppendEntriesPrint2(char* s, const SyncAppendEntries* pMsg) {
+  char* serialized = syncAppendEntries2Str(pMsg);
+  printf("syncAppendEntriesPrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncAppendEntriesLog(const SyncAppendEntries* pMsg) {
+  char* serialized = syncAppendEntries2Str(pMsg);
+  sTrace("syncAppendEntriesLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
+  taosMemoryFree(serialized);
+}
+
+void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg) {
+  if (gRaftDetailLog) {
+    char* serialized = syncAppendEntries2Str(pMsg);
+    sTrace("syncAppendEntriesLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
+}
