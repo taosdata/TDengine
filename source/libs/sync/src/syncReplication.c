@@ -186,19 +186,19 @@ int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* dest
   return ret;
 }
 
-int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncHeartbeat* pMsg) {
-  int32_t ret = 0;
-  syncLogSendHeartbeat(pSyncNode, pMsg, "");
-
-  SRpcMsg rpcMsg;
-  syncHeartbeat2RpcMsg(pMsg, &rpcMsg);
-  syncNodeSendMsgById(&(pMsg->destId), pSyncNode, &rpcMsg);
-  return ret;
+int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destId, SRpcMsg* pMsg) {
+  syncLogSendHeartbeat(pSyncNode, pMsg->pCont, "");
+  return syncNodeSendMsgById(destId, pSyncNode, pMsg);
 }
 
 int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
   for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
-    SyncHeartbeat* pSyncMsg = syncHeartbeatBuild(pSyncNode->vgId);
+    SRpcMsg rpcMsg = {0};
+    if (syncBuildHeartbeat(&rpcMsg, pSyncNode->vgId) != 0) {
+      continue;
+    }
+
+    SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
     pSyncMsg->srcId = pSyncNode->myRaftId;
     pSyncMsg->destId = pSyncNode->peersId[i];
     pSyncMsg->term = pSyncNode->pRaftStore->currentTerm;
@@ -206,13 +206,8 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
     pSyncMsg->privateTerm = 0;
 
-    SRpcMsg rpcMsg;
-    syncHeartbeat2RpcMsg(pSyncMsg, &rpcMsg);
-
     // send msg
-    syncNodeSendHeartbeat(pSyncNode, &(pSyncMsg->destId), pSyncMsg);
-
-    syncHeartbeatDestroy(pSyncMsg);
+    syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
   }
 
   return 0;
