@@ -88,8 +88,9 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* pSyncNode, SyncRequestVote* pM
   return false;
 }
 
-int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg) {
-  int32_t ret = 0;
+int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  int32_t          ret = 0;
+  SyncRequestVote* pMsg = pRpcMsg->pCont;
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {

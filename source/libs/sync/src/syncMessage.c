@@ -88,155 +88,21 @@ int32_t syncClientRequestBuildFromNoopEntry(SRpcMsg* pClientRequestRpcMsg, const
   return 0;
 }
 
-// ---- message process SyncRequestVote----
-SyncRequestVote* syncRequestVoteBuild(int32_t vgId) {
-  uint32_t         bytes = sizeof(SyncRequestVote);
-  SyncRequestVote* pMsg = taosMemoryMalloc(bytes);
-  memset(pMsg, 0, bytes);
-  pMsg->bytes = bytes;
-  pMsg->vgId = vgId;
+int32_t syncBuildRequestVote(SRpcMsg* pMsg, int32_t vgId) {
+  int32_t bytes = sizeof(SyncRequestVote);
+  pMsg->pCont = rpcMallocCont(bytes);
   pMsg->msgType = TDMT_SYNC_REQUEST_VOTE;
-  return pMsg;
-}
-
-void syncRequestVoteDestroy(SyncRequestVote* pMsg) {
-  if (pMsg != NULL) {
-    taosMemoryFree(pMsg);
-  }
-}
-
-void syncRequestVoteSerialize(const SyncRequestVote* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
-  memcpy(buf, pMsg, pMsg->bytes);
-}
-
-void syncRequestVoteDeserialize(const char* buf, uint32_t len, SyncRequestVote* pMsg) {
-  memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
-}
-
-char* syncRequestVoteSerialize2(const SyncRequestVote* pMsg, uint32_t* len) {
-  char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
-  syncRequestVoteSerialize(pMsg, buf, pMsg->bytes);
-  if (len != NULL) {
-    *len = pMsg->bytes;
-  }
-  return buf;
-}
-
-SyncRequestVote* syncRequestVoteDeserialize2(const char* buf, uint32_t len) {
-  uint32_t         bytes = *((uint32_t*)buf);
-  SyncRequestVote* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
-  syncRequestVoteDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
-  return pMsg;
-}
-
-void syncRequestVote2RpcMsg(const SyncRequestVote* pMsg, SRpcMsg* pRpcMsg) {
-  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
-  pRpcMsg->msgType = pMsg->msgType;
-  pRpcMsg->contLen = pMsg->bytes;
-  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
-  syncRequestVoteSerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
-}
-
-void syncRequestVoteFromRpcMsg(const SRpcMsg* pRpcMsg, SyncRequestVote* pMsg) {
-  syncRequestVoteDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
-}
-
-SyncRequestVote* syncRequestVoteFromRpcMsg2(const SRpcMsg* pRpcMsg) {
-  SyncRequestVote* pMsg = syncRequestVoteDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
-  return pMsg;
-}
-
-cJSON* syncRequestVote2Json(const SyncRequestVote* pMsg) {
-  char   u64buf[128] = {0};
-  cJSON* pRoot = cJSON_CreateObject();
-
-  if (pMsg != NULL) {
-    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
-    cJSON_AddNumberToObject(pRoot, "vgId", pMsg->vgId);
-    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
-
-    cJSON* pSrcId = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->srcId.addr);
-    cJSON_AddStringToObject(pSrcId, "addr", u64buf);
-    {
-      uint64_t u64 = pMsg->srcId.addr;
-      cJSON*   pTmp = pSrcId;
-      char     host[128] = {0};
-      uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
-      cJSON_AddStringToObject(pTmp, "addr_host", host);
-      cJSON_AddNumberToObject(pTmp, "addr_port", port);
-    }
-    cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
-    cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
-
-    cJSON* pDestId = cJSON_CreateObject();
-    cJSON_AddNumberToObject(pDestId, "addr", pMsg->destId.addr);
-    {
-      uint64_t u64 = pMsg->destId.addr;
-      cJSON*   pTmp = pDestId;
-      char     host[128] = {0};
-      uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
-      cJSON_AddStringToObject(pTmp, "addr_host", host);
-      cJSON_AddNumberToObject(pTmp, "addr_port", port);
-    }
-    cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
-    cJSON_AddItemToObject(pRoot, "destId", pDestId);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->term);
-    cJSON_AddStringToObject(pRoot, "term", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->lastLogIndex);
-    cJSON_AddStringToObject(pRoot, "lastLogIndex", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->lastLogTerm);
-    cJSON_AddStringToObject(pRoot, "lastLogTerm", u64buf);
+  pMsg->contLen = bytes;
+  if (pMsg->pCont == NULL) {
+    terrno = TDMT_SYNC_REQUEST_VOTE;
+    return -1;
   }
 
-  cJSON* pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SyncRequestVote", pRoot);
-  return pJson;
-}
-
-char* syncRequestVote2Str(const SyncRequestVote* pMsg) {
-  cJSON* pJson = syncRequestVote2Json(pMsg);
-  char*  serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
-// for debug ----------------------
-void syncRequestVotePrint(const SyncRequestVote* pMsg) {
-  char* serialized = syncRequestVote2Str(pMsg);
-  printf("syncRequestVotePrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncRequestVotePrint2(char* s, const SyncRequestVote* pMsg) {
-  char* serialized = syncRequestVote2Str(pMsg);
-  printf("syncRequestVotePrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncRequestVoteLog(const SyncRequestVote* pMsg) {
-  char* serialized = syncRequestVote2Str(pMsg);
-  sTrace("syncRequestVoteLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
-  taosMemoryFree(serialized);
-}
-
-void syncRequestVoteLog2(char* s, const SyncRequestVote* pMsg) {
-  if (gRaftDetailLog) {
-    char* serialized = syncRequestVote2Str(pMsg);
-    sTrace("syncRequestVoteLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
-    taosMemoryFree(serialized);
-  }
+  SyncRequestVote* pRequestVote = pMsg->pCont;
+  pRequestVote->bytes = bytes;
+  pRequestVote->msgType = TDMT_SYNC_REQUEST_VOTE;
+  pRequestVote->vgId = vgId;
+  return 0;
 }
 
 // ---- message process SyncRequestVoteReply----

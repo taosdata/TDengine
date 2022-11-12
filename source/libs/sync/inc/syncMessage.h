@@ -28,8 +28,6 @@ typedef enum ESyncTimeoutType {
   SYNC_TIMEOUT_HEARTBEAT,
 } ESyncTimeoutType;
 
-const char* syncTimerTypeStr(enum ESyncTimeoutType timerType);
-
 typedef struct SyncTimeout {
   uint32_t         bytes;
   int32_t          vgId;
@@ -39,9 +37,6 @@ typedef struct SyncTimeout {
   int32_t          timerMS;
   void*            data;  // need optimized
 } SyncTimeout;
-
-int32_t syncTimeoutBuild(SRpcMsg* pTimeoutRpcMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
-                         SSyncNode* pNode);
 
 typedef struct SyncClientRequest {
   uint32_t bytes;
@@ -53,10 +48,6 @@ typedef struct SyncClientRequest {
   uint32_t dataLen;  // origin RpcMsg.contLen
   char     data[];   // origin RpcMsg.pCont
 } SyncClientRequest;
-
-int32_t syncClientRequestBuildFromRpcMsg(SRpcMsg* pClientRequestRpcMsg, const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum,
-                                         bool isWeak, int32_t vgId);
-int32_t syncClientRequestBuildFromNoopEntry(SRpcMsg* pClientRequestRpcMsg, const SSyncRaftEntry* pEntry, int32_t vgId);
 
 typedef struct SyncClientRequestReply {
   uint32_t bytes;
@@ -78,25 +69,6 @@ typedef struct SyncRequestVote {
   SyncTerm  lastLogTerm;
 } SyncRequestVote;
 
-SyncRequestVote* syncRequestVoteBuild(int32_t vgId);
-void             syncRequestVoteDestroy(SyncRequestVote* pMsg);
-void             syncRequestVoteSerialize(const SyncRequestVote* pMsg, char* buf, uint32_t bufLen);
-void             syncRequestVoteDeserialize(const char* buf, uint32_t len, SyncRequestVote* pMsg);
-char*            syncRequestVoteSerialize2(const SyncRequestVote* pMsg, uint32_t* len);
-SyncRequestVote* syncRequestVoteDeserialize2(const char* buf, uint32_t len);
-void             syncRequestVote2RpcMsg(const SyncRequestVote* pMsg, SRpcMsg* pRpcMsg);
-void             syncRequestVoteFromRpcMsg(const SRpcMsg* pRpcMsg, SyncRequestVote* pMsg);
-SyncRequestVote* syncRequestVoteFromRpcMsg2(const SRpcMsg* pRpcMsg);
-cJSON*           syncRequestVote2Json(const SyncRequestVote* pMsg);
-char*            syncRequestVote2Str(const SyncRequestVote* pMsg);
-
-// for debug ----------------------
-void syncRequestVotePrint(const SyncRequestVote* pMsg);
-void syncRequestVotePrint2(char* s, const SyncRequestVote* pMsg);
-void syncRequestVoteLog(const SyncRequestVote* pMsg);
-void syncRequestVoteLog2(char* s, const SyncRequestVote* pMsg);
-
-// ---------------------------------------------
 typedef struct SyncRequestVoteReply {
   uint32_t bytes;
   int32_t  vgId;
@@ -505,8 +477,7 @@ void syncLocalCmdLog(const SyncLocalCmd* pMsg);
 void syncLocalCmdLog2(char* s, const SyncLocalCmd* pMsg);
 
 // on message ----------------------
-
-int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg);
+int32_t syncNodeOnRequestVote(SSyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, SyncRequestVoteReply* pMsg);
 
 int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg);
@@ -529,6 +500,15 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, SyncLocalCmd* pMsg);
 // option ----------------------------------
 bool          syncNodeSnapshotEnable(SSyncNode* pSyncNode);
 ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
+
+const char* syncTimerTypeStr(enum ESyncTimeoutType timerType);
+
+int32_t syncTimeoutBuild(SRpcMsg* pTimeoutRpcMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
+                         SSyncNode* pNode);
+int32_t syncClientRequestBuildFromRpcMsg(SRpcMsg* pClientRequestRpcMsg, const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum,
+                                         bool isWeak, int32_t vgId);
+int32_t syncClientRequestBuildFromNoopEntry(SRpcMsg* pClientRequestRpcMsg, const SSyncRaftEntry* pEntry, int32_t vgId);
+int32_t syncBuildRequestVote(SRpcMsg* pMsg, int32_t vgId);
 
 #ifdef __cplusplus
 }

@@ -146,9 +146,7 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
   } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
     code = syncNodeOnClientRequest(pSyncNode, pMsg, NULL);
   } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
-    SyncRequestVote* pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
-    code = syncNodeOnRequestVote(pSyncNode, pSyncMsg);
-    syncRequestVoteDestroy(pSyncMsg);
+    syncNodeOnRequestVote(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
     SyncRequestVoteReply* pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
     code = syncNodeOnRequestVoteReply(pSyncNode, pSyncMsg);
@@ -2533,14 +2531,6 @@ const char* syncTimerTypeStr(enum ESyncTimeoutType timerType) {
 void syncLogRecvTimer(SSyncNode* pSyncNode, const SyncTimeout* pMsg, const char* s) {
   sNTrace(pSyncNode, "recv sync-timer {type:%s, lc:%" PRId64 ", ms:%d, data:%p}, %s",
           syncTimerTypeStr(pMsg->timeoutType), pMsg->logicClock, pMsg->timerMS, pMsg->data, s);
-}
-
-void syncLogSendRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s) {
-  char     host[64];
-  uint16_t port;
-  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "send sync-request-vote to %s:%d {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, %s",
-          host, port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
 }
 
 void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s) {
