@@ -426,7 +426,7 @@ cmd ::= SHOW TABLE DISTRIBUTED full_table_name(A).                              
 cmd ::= SHOW CONSUMERS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CONSUMERS_STMT); }
 cmd ::= SHOW SUBSCRIPTIONS.                                                       { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT); }
 cmd ::= SHOW TAGS FROM table_name_cond(A) from_db_opt(B).                         { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TAGS_STMT, B, A, OP_TYPE_EQUAL); }
-cmd ::= SHOW TABLE TAGS FROM table_name_cond(A) from_db_opt(B).                   { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TABLE_TAGS_STMT, B, A, OP_TYPE_EQUAL); }
+cmd ::= SHOW TABLE TAGS tag_list_opt(C) FROM table_name_cond(A) from_db_opt(B).   { pCxt->pRootNode = createShowTableTagsStmt(pCxt, A, B, C); }
 cmd ::= SHOW VNODES NK_INTEGER(A).                                                { pCxt->pRootNode = createShowVnodesStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A), NULL); }
 cmd ::= SHOW VNODES NK_STRING(A).                                                 { pCxt->pRootNode = createShowVnodesStmt(pCxt, NULL, createValueNode(pCxt, TSDB_DATA_TYPE_VARCHAR, &A)); }
 
@@ -440,6 +440,18 @@ table_name_cond(A) ::= table_name(B).                                           
 
 from_db_opt(A) ::= .                                                              { A = createDefaultDatabaseCondValue(pCxt); }
 from_db_opt(A) ::= FROM db_name(B).                                               { A = createIdentifierValueNode(pCxt, &B); }
+
+%type tag_list_opt                                                                { SNodeList* }
+%destructor tag_list_opt                                                          { nodesDestroyList($$); }
+tag_list_opt(A) ::= .                                                             { A = NULL; }
+tag_list_opt(A) ::= tag_item(B).                                                  { A = createNodeList(pCxt, B); }
+tag_list_opt(A) ::= tag_list_opt(B) NK_COMMA tag_item(C).                         { A = addNodeToList(pCxt, B, C); }
+
+tag_item(A) ::= TBNAME(B).                                                        { A = setProjectionAlias(pCxt, createFunctionNode(pCxt, &B, NULL), &B); }
+tag_item(A) ::= QTAGS(B).                                                         { A = createFunctionNode(pCxt, &B, NULL); }
+tag_item(A) ::= column_name(B).                                                   { A = createColumnNode(pCxt, NULL, &B); }
+tag_item(A) ::= column_name(B) column_alias(C).                                   { A = setProjectionAlias(pCxt, createColumnNode(pCxt, NULL, &B), &C); }
+tag_item(A) ::= column_name(B) AS column_alias(C).                                { A = setProjectionAlias(pCxt, createColumnNode(pCxt, NULL, &B), &C); }
 
 /************************************************ create index ********************************************************/
 cmd ::= CREATE SMA INDEX not_exists_opt(D) 

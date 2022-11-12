@@ -32,6 +32,22 @@ typedef struct {
   void    *pRpc;
 } SInfo;
 
+
+void initLogEnv() {
+  const char  *logDir =  "/tmp/trans_cli"; 
+  const char*  defaultLogFileNamePrefix = "taoslog";
+  const int32_t maxLogFileNum = 10000;
+  tsAsyncLog = 0;
+  //idxDebugFlag = 143;
+  strcpy(tsLogDir, (char *)logDir);
+  taosRemoveDir(tsLogDir);
+  taosMkDir(tsLogDir); 
+     
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+   printf("failed to open log file in directory:%s\n", tsLogDir);  
+  }
+}
+  
 static void processResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SInfo *pInfo = (SInfo *)pMsg->info.ahandle;
   tDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen,
@@ -98,7 +114,7 @@ int main(int argc, char *argv[]) {
   rpcInit.user = "michael";
   rpcInit.connType = TAOS_CONN_CLIENT;
 
-  rpcDebugFlag = 131;
+  rpcDebugFlag = 135;
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
     } else if (strcmp(argv[i], "-i") == 0 && i < argc - 1) {
@@ -132,7 +148,9 @@ int main(int argc, char *argv[]) {
       exit(0);
     }
   }
-  taosInitLog("client.log", 100000);
+   
+
+  initLogEnv();
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {

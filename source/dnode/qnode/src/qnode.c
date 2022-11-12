@@ -69,7 +69,7 @@ int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
     return 0;
   }
 
-  return qWorkerPreprocessQueryMsg(pQnode->pQuery, pMsg);
+  return qWorkerPreprocessQueryMsg(pQnode->pQuery, pMsg, false);
 }
 
 int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
@@ -103,7 +103,7 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
       break;
     default:
       qError("unknown msg type:%d in qnode queue", pMsg->msgType);
-      terrno = TSDB_CODE_VND_APP_ERROR;
+      terrno = TSDB_CODE_APP_ERROR;
   }
 
   if (code == 0) return TSDB_CODE_ACTION_IN_PROGRESS;

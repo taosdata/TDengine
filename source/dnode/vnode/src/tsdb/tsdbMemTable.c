@@ -116,6 +116,13 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgI
   if (info.suid) {
     metaGetInfo(pTsdb->pVnode->pMeta, info.suid, &info);
   }
+  if (pMsgIter->sversion != info.skmVer) {
+    tsdbError("vgId:%d, req sver:%d, skmVer:%d suid:%" PRId64 " uid:%" PRId64, TD_VID(pTsdb->pVnode),
+              pMsgIter->sversion, info.skmVer, suid, uid);
+    code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+    goto _err;
+  }
+
   pRsp->sver = info.skmVer;
 
   // create/get STbData to op
@@ -133,6 +140,7 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgI
   return code;
 
 _err:
+  terrno = code;
   return code;
 }
 
@@ -190,14 +198,14 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   }
 
   tsdbInfo("vgId:%d, delete data from table suid:%" PRId64 " uid:%" PRId64 " skey:%" PRId64 " eKey:%" PRId64
-           " since %s",
-           TD_VID(pTsdb->pVnode), suid, uid, sKey, eKey, tstrerror(code));
+           " at version %" PRId64 " since %s",
+           TD_VID(pTsdb->pVnode), suid, uid, sKey, eKey, version, tstrerror(code));
   return code;
 
 _err:
   tsdbError("vgId:%d, failed to delete data from table suid:%" PRId64 " uid:%" PRId64 " skey:%" PRId64 " eKey:%" PRId64
-            " since %s",
-            TD_VID(pTsdb->pVnode), suid, uid, sKey, eKey, tstrerror(code));
+            " at version %" PRId64 " since %s",
+            TD_VID(pTsdb->pVnode), suid, uid, sKey, eKey, version, tstrerror(code));
   return code;
 }
 
@@ -284,31 +292,6 @@ bool tsdbTbDataIterNext(STbDataIter *pIter) {
   }
 
   return true;
-}
-
-TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
-  // we add here for commit usage
-  if (pIter == NULL) return NULL;
-
-  if (pIter->pRow) {
-    goto _exit;
-  }
-
-  if (pIter->backward) {
-    if (pIter->pNode == pIter->pTbData->sl.pHead) {
-      goto _exit;
-    }
-  } else {
-    if (pIter->pNode == pIter->pTbData->sl.pTail) {
-      goto _exit;
-    }
-  }
-
-  tGetTSDBRow((uint8_t *)SL_NODE_DATA(pIter->pNode), &pIter->row);
-  pIter->pRow = &pIter->row;
-
-_exit:
-  return pIter->pRow;
 }
 
 static int32_t tsdbMemTableRehash(SMemTable *pMemTable) {
@@ -475,11 +458,10 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *p
 }
 
 static FORCE_INLINE int8_t tsdbMemSkipListRandLevel(SMemSkipList *pSl) {
-  int8_t         level = 1;
-  int8_t         tlevel = TMIN(pSl->maxLevel, pSl->level + 1);
-  const uint32_t factor = 4;
+  int8_t level = 1;
+  int8_t tlevel = TMIN(pSl->maxLevel, pSl->level + 1);
 
-  while ((taosRandR(&pSl->seed) % factor) == 0 && level < tlevel) {
+  while ((taosRandR(&pSl->seed) & 0x3) == 0 && level < tlevel) {
     level++;
   }
 
@@ -585,7 +567,9 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
     do {
       key.ts = row.pTSRow->ts;
       nRow++;
-      tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_FROM_POS);
+      if (SL_NODE_FORWARD(pos[0], 0) != pTbData->sl.pTail) {
+        tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_FROM_POS);
+      }
       code = tbDataDoPut(pMemTable, pTbData, pos, &row, 1);
       if (code) {
         goto _err;

@@ -58,7 +58,11 @@ static void smProcessStreamQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dTrace("msg:%p, get from snode-stream queue", pMsg);
   int32_t code = sndProcessStreamMsg(pMgmt->pSnode, pMsg);
   if (code < 0) {
-    dGError("snd, msg:%p failed to process stream since %s", pMsg, terrstr(code));
+    if (pMsg) {
+      dGError("snd, msg:%p failed to process stream msg %s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr(code));
+    } else {
+      dGError("snd, msg:%p failed to process stream empty msg since %s", pMsg, terrstr(code));
+    }
     smSendRsp(pMsg, terrno);
   }
 
@@ -136,6 +140,9 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   if (pSnode == NULL) {
     dError("snode: msg:%p failed to put into vnode queue since %s, type:%s qtype:%d", pMsg, terrstr(),
            TMSG_INFO(pMsg->msgType), qtype);
+    taosFreeQitem(pMsg);
+    rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
     return -1;
   }
 

@@ -13,15 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncAppendEntries.h"
-#include "syncInt.h"
-#include "syncRaftCfg.h"
+#include "syncMessage.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
-#include "syncSnapshot.h"
-#include "syncUtil.h"
-#include "syncVoteMgr.h"
-#include "wal.h"
 
 // TLA+ Spec
 // HandleAppendEntriesRequest(i, j, m) ==
@@ -90,6 +86,11 @@
 //
 
 int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
+  if (ths->state != TAOS_SYNC_STATE_FOLLOWER) {
+    sNTrace(ths, "can not do follower commit");
+    return -1;
+  }
+
   // maybe update commit index, leader notice me
   if (newCommitIndex > ths->commitIndex) {
     // has commit entry in local
@@ -101,11 +102,7 @@ int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
         SyncIndex commitBegin = ths->commitIndex;
         SyncIndex commitEnd = snapshot.lastApplyIndex;
         ths->commitIndex = snapshot.lastApplyIndex;
-
-        char eventLog[128];
-        snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin,
-                 commitEnd);
-        syncNodeEventLog(ths, eventLog);
+        sNTrace(ths, "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin, commitEnd);
       }
 
       SyncIndex beginIndex = ths->commitIndex + 1;
@@ -142,7 +139,6 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
   // pReply->matchIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
   pReply->matchIndex = SYNC_INDEX_INVALID;
   pReply->lastSendIndex = pMsg->prevLogIndex + 1;
-  pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
   pReply->startTime = ths->startTime;
 
   if (pMsg->term < ths->pRaftStore->currentTerm) {
@@ -179,7 +175,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
   pReply->success = true;
   bool hasAppendEntries = pMsg->dataLen > 0;
   if (hasAppendEntries) {
-    SSyncRaftEntry* pAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
+    SSyncRaftEntry* pAppendEntry = syncEntryBuildFromAppendEntries(pMsg);
     ASSERT(pAppendEntry != NULL);
 
     SyncIndex       appendIndex = pMsg->prevLogIndex + 1;
@@ -188,11 +184,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
     if (code == 0) {
       if (pLocalEntry->term == pAppendEntry->term) {
         // do nothing
-
-        char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "log match, do nothing, index:%" PRId64, appendIndex);
-        syncNodeEventLog(ths, logBuf);
-
+        sNTrace(ths, "log match, do nothing, index:%" PRId64, appendIndex);
       } else {
         // truncate
         code = ths->pLogStore->syncLogTruncate(ths->pLogStore, appendIndex);
@@ -250,7 +242,8 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
       } else {
         // error
         char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "ignore, get local entry error, append-index:%" PRId64, appendIndex);
+        snprintf(logBuf, sizeof(logBuf), "ignore, get local entry error, append-index:%" PRId64 " err:%d", appendIndex,
+                 terrno);
         syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
         syncEntryDestory(pLocalEntry);

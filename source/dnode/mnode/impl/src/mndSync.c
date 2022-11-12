@@ -202,6 +202,28 @@ static void mndBecomeLeader(const SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
 }
 
+static bool mndApplyQueueEmpty(const SSyncFSM *pFsm) {
+  SMnode *pMnode = pFsm->data;
+
+  if (pMnode != NULL && pMnode->msgCb.qsizeFp != NULL) {
+    int32_t itemSize = tmsgGetQueueSize(&pMnode->msgCb, 1, APPLY_QUEUE);
+    return (itemSize == 0);
+  } else {
+    return true;
+  }
+}
+
+static int32_t mndApplyQueueItems(const SSyncFSM *pFsm) {
+  SMnode *pMnode = pFsm->data;
+
+  if (pMnode != NULL && pMnode->msgCb.qsizeFp != NULL) {
+    int32_t itemSize = tmsgGetQueueSize(&pMnode->msgCb, 1, APPLY_QUEUE);
+    return itemSize;
+  } else {
+    return -1;
+  }
+}
+
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
@@ -210,6 +232,8 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpRollBackCb = NULL;
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
   pFsm->FpLeaderTransferCb = NULL;
+  pFsm->FpApplyQueueEmptyCb = mndApplyQueueEmpty;
+  pFsm->FpApplyQueueItems = mndApplyQueueItems;
   pFsm->FpReConfigCb = NULL;
   pFsm->FpBecomeLeaderCb = mndBecomeLeader;
   pFsm->FpBecomeFollowerCb = mndBecomeFollower;
@@ -282,6 +306,8 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   pMgmt->errCode = 0;
 
   SRpcMsg req = {.msgType = TDMT_MND_APPLY_MSG, .contLen = sdbGetRawTotalSize(pRaw)};
+  if (req.contLen <= 0) return -1;
+
   req.pCont = rpcMallocCont(req.contLen);
   if (req.pCont == NULL) return -1;
   memcpy(req.pCont, pRaw, req.contLen);
@@ -349,11 +375,15 @@ void mndSyncStop(SMnode *pMnode) {
 }
 
 bool mndIsLeader(SMnode *pMnode) {
-  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  SSyncState state = syncGetState(pMnode->syncMgmt.sync);
 
-  if (!syncIsReady(pMgmt->sync)) {
-    // get terrno from syncIsReady
-    // terrno = TSDB_CODE_SYN_NOT_LEADER;
+  if (state.state != TAOS_SYNC_STATE_LEADER || !state.restored) {
+    if (state.state != TAOS_SYNC_STATE_LEADER) {
+      terrno = TSDB_CODE_SYN_NOT_LEADER;
+    } else {
+      terrno = TSDB_CODE_APP_NOT_READY;
+    }
+    mDebug("vgId:1, mnode not ready, state:%s, restore:%d", syncStr(state.state), state.restored);
     return false;
   }
 

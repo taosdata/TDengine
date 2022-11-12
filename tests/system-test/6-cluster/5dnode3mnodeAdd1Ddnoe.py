@@ -31,6 +31,7 @@ class TDTestCase:
         self.TDDnodes = None
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
+        self.replicaVar = int(replicaVar)
 
 
     def getBuildPath(self):
@@ -118,20 +119,19 @@ class TDTestCase:
         rowsPerStb=paraDict["ctbNum"]*paraDict["rowsPerTbl"]
         rowsall=rowsPerStb*paraDict['stbNumbers']
         dbNumbers = 1
+        paraDict['replica'] = self.replicaVar
 
         tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
         clusterComCheck.checkDnodes(dnodeNumbers)
-        clusterComCheck.checkMnodeStatus(1)
 
-        # fisr add three mnodes;
-        tdLog.info("fisr add three mnodes and check mnode status")
-        tdSql.execute("create mnode on dnode 2")
-        clusterComCheck.checkMnodeStatus(2)
-        tdSql.execute("create mnode on dnode 3")
-        clusterComCheck.checkMnodeStatus(3)
+        
+        #check mnode status
+        tdLog.info("check mnode status")
+        clusterComCheck.checkMnodeStatus(mnodeNums)
+        
 
         # add some error operations and
         tdLog.info("Confirm the status of the dnode again")
@@ -167,8 +167,8 @@ class TDTestCase:
             threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
         for tr in threads:
             tr.start()
-        dnode6Port=int(6030+5*100)
-        tdSql.execute("create dnode '%s:%d'"%(hostname,dnode6Port))
+        dnode7Port=int(6030+6*100)
+        tdSql.execute("create dnode '%s:%d'"%(hostname,dnode7Port))
         clusterComCheck.checkDnodes(dnodeNumbers)
         for tr in threads:
             tr.join()
@@ -219,7 +219,7 @@ class TDTestCase:
             tdSql.checkRows(rowsPerStb)
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=2,stopRole='dnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=2,stopRole='dnode')
 
     def stop(self):
         tdSql.close()

@@ -139,6 +139,63 @@ static void mndIncreaseUpTime(SMnode *pMnode) {
   }
 }
 
+static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) {
+  SSdb *pSdb = pMnode->pSdb;
+
+  void *pIter = NULL;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    bool roleChanged = false;
+    for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
+      if (pVgroup->vnodeGid[vg].dnodeId == dnodeId) {
+        if (pVgroup->vnodeGid[vg].syncState != TAOS_SYNC_STATE_ERROR) {
+          mInfo("vgId:%d, state changed by offline check, old state:%s restored:%d new state:error restored:0",
+                pVgroup->vgId, syncStr(pVgroup->vnodeGid[vg].syncState), pVgroup->vnodeGid[vg].syncRestore);
+          pVgroup->vnodeGid[vg].syncState = TAOS_SYNC_STATE_ERROR;
+          pVgroup->vnodeGid[vg].syncRestore = 0;
+          roleChanged = true;
+        }
+        break;
+      }
+    }
+
+    if (roleChanged) {
+      SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
+      if (pDb != NULL && pDb->stateTs != curMs) {
+        mInfo("db:%s, stateTs changed by offline check, old newTs:%" PRId64 " newTs:%" PRId64, pDb->name, pDb->stateTs,
+              curMs);
+        pDb->stateTs = curMs;
+      }
+      mndReleaseDb(pMnode, pDb);
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+}
+
+static void mndCheckDnodeOffline(SMnode *pMnode) {
+  SSdb   *pSdb = pMnode->pSdb;
+  int64_t curMs = taosGetTimestampMs();
+
+  void *pIter = NULL;
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+
+    bool online = mndIsDnodeOnline(pDnode, curMs);
+    if (!online) {
+      mInfo("dnode:%d, in offline state", pDnode->id);
+      mndSetVgroupOffline(pMnode, pDnode->id, curMs);
+    }
+
+    sdbRelease(pSdb, pDnode);
+  }
+}
+
 static void *mndThreadFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastTime = 0;
@@ -173,6 +230,10 @@ static void *mndThreadFp(void *param) {
 
     if (sec % tsUptimeInterval == 0) {
       mndIncreaseUpTime(pMnode);
+    }
+
+    if (sec % (tsStatusInterval * 5) == 0) {
+      mndCheckDnodeOffline(pMnode);
     }
   }
 
@@ -429,6 +490,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 void mndPreClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     syncLeaderTransfer(pMnode->syncMgmt.sync);
+    syncPreStop(pMnode->syncMgmt.sync);
   }
 }
 
@@ -487,14 +549,14 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   }
   if (mndAcquireRpc(pMsg->info.node) == 0) return 0;
 
-  SMnode     *pMnode = pMsg->info.node;
-  const char *role = syncGetMyRoleStr(pMnode->syncMgmt.sync);
-  bool        restored = syncIsRestoreFinish(pMnode->syncMgmt.sync);
+  SMnode    *pMnode = pMsg->info.node;
+  SSyncState state = syncGetState(pMnode->syncMgmt.sync);
+
   if (pMsg->msgType == TDMT_MND_TMQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
       pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
       pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
-           pMnode->stopped, restored, role);
+           pMnode->stopped, state.restored, syncStr(state.restored));
     return -1;
   }
 
@@ -505,8 +567,8 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   mDebug(
       "msg:%p, type:%s failed to process since %s, mnode restored:%d stopped:%d, sync restored:%d "
       "role:%s, redirect numOfEps:%d inUse:%d",
-      pMsg, TMSG_INFO(pMsg->msgType), terrstr(), pMnode->restored, pMnode->stopped, restored, role, epSet.numOfEps,
-      epSet.inUse);
+      pMsg, TMSG_INFO(pMsg->msgType), terrstr(), pMnode->restored, pMnode->stopped, state.restored,
+      syncStr(state.restored), epSet.numOfEps, epSet.inUse);
 
   if (epSet.numOfEps > 0) {
     for (int32_t i = 0; i < epSet.numOfEps; ++i) {
@@ -729,8 +791,9 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 }
 
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
-  pLoad->syncState = syncGetMyRole(pMnode->syncMgmt.sync);
-  pLoad->syncRestore = pMnode->restored;
+  SSyncState state = syncGetState(pMnode->syncMgmt.sync);
+  pLoad->syncState = state.state;
+  pLoad->syncRestore = state.restored;
   mTrace("mnode current syncState is %s, syncRestore:%d", syncStr(pLoad->syncState), pLoad->syncRestore);
   return 0;
 }

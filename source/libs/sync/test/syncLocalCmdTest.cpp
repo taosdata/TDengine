@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -21,6 +17,7 @@ SyncLocalCmd *createMsg() {
   pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 5678);
   pMsg->destId.vgId = 100;
   pMsg->sdNewTerm = 123;
+  pMsg->fcIndex = 456;
   pMsg->cmd = SYNC_LOCAL_CMD_STEP_DOWN;
 
   return pMsg;

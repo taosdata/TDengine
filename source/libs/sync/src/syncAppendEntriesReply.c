@@ -13,17 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncAppendEntriesReply.h"
+#include "syncMessage.h"
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
-#include "syncInt.h"
-#include "syncRaftCfg.h"
-#include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncReplication.h"
 #include "syncSnapshot.h"
-#include "syncUtil.h"
-#include "syncVoteMgr.h"
 
 // TLA+ Spec
 // HandleAppendEntriesResponse(i, j, m) ==
@@ -43,12 +40,7 @@
 static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, SyncTerm lastApplyTerm,
                                       SyncAppendEntriesReply* pMsg) {
   if (beginIndex > endIndex) {
-    do {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "snapshot param error, start:%" PRId64 ", end:%" PRId64, beginIndex, endIndex);
-      syncNodeErrorLog(ths, logBuf);
-    } while (0);
-
+    sNError(ths, "snapshot param error, start:%" PRId64 ", end:%" PRId64, beginIndex, endIndex);
     return;
   }
 
@@ -57,12 +49,7 @@ static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, Sync
   ASSERT(pSender != NULL);
 
   if (snapshotSenderIsStart(pSender)) {
-    do {
-      char* eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender already start");
-      syncNodeErrorLog(ths, eventLog);
-      taosMemoryFree(eventLog);
-    } while (0);
-
+    sSError(pSender, "snapshot sender already start");
     return;
   }
 
@@ -73,6 +60,7 @@ static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, Sync
   int32_t        code = ths->pFsm->FpSnapshotStartRead(ths->pFsm, &readerParam, &pReader);
   ASSERT(code == 0);
 
+#if 0
   if (pMsg->privateTerm < pSender->privateTerm) {
     ASSERT(pReader != NULL);
     snapshotSenderStart(pSender, readerParam, snapshot, pReader);
@@ -82,6 +70,7 @@ static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, Sync
       ths->pFsm->FpSnapshotStopRead(ths->pFsm, pReader);
     }
   }
+#endif
 }
 
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
