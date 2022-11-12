@@ -88,8 +88,26 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* pSyncNode, SyncRequestVote* pM
   return false;
 }
 
-int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg) {
-  int32_t ret = 0;
+static void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s) {
+  char     logBuf[256];
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+  sNTrace(pSyncNode, "recv sync-request-vote from %s:%d, {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, %s",
+          host, port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
+}
+
+static void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
+  sNTrace(pSyncNode, "send sync-request-vote-reply to %s:%d {term:%" PRId64 ", grant:%d}, %s", host, port, pMsg->term,
+          pMsg->voteGranted, s);
+}
+
+int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  int32_t          ret = 0;
+  SyncRequestVote* pMsg = pRpcMsg->pCont;
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
@@ -121,7 +139,11 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg) {
   }
 
   // send msg
-  SyncRequestVoteReply* pReply = syncRequestVoteReplyBuild(ths->vgId);
+  SRpcMsg rpcMsg = {0};
+  ret = syncBuildRequestVoteReply(&rpcMsg, ths->vgId);
+  ASSERT(ret == 0 );
+
+  SyncRequestVoteReply* pReply = rpcMsg.pCont;
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
   pReply->term = ths->pRaftStore->currentTerm;
@@ -135,10 +157,6 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg) {
     syncLogSendRequestVoteReply(ths, pReply, "");
   } while (0);
 
-  SRpcMsg rpcMsg;
-  syncRequestVoteReply2RpcMsg(pReply, &rpcMsg);
   syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
-  syncRequestVoteReplyDestroy(pReply);
-
   return 0;
 }

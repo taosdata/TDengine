@@ -241,8 +241,44 @@ void               syncClientRequestPrint2(char* s, const SyncClientRequest* pMs
 void               syncClientRequestLog(const SyncClientRequest* pMsg);
 void               syncClientRequestLog2(char* s, const SyncClientRequest* pMsg);
 
+SyncRequestVote* syncRequestVoteBuild(int32_t vgId);
+void             syncRequestVoteDestroy(SyncRequestVote* pMsg);
+void             syncRequestVoteSerialize(const SyncRequestVote* pMsg, char* buf, uint32_t bufLen);
+void             syncRequestVoteDeserialize(const char* buf, uint32_t len, SyncRequestVote* pMsg);
+char*            syncRequestVoteSerialize2(const SyncRequestVote* pMsg, uint32_t* len);
+SyncRequestVote* syncRequestVoteDeserialize2(const char* buf, uint32_t len);
+void             syncRequestVote2RpcMsg(const SyncRequestVote* pMsg, SRpcMsg* pRpcMsg);
+void             syncRequestVoteFromRpcMsg(const SRpcMsg* pRpcMsg, SyncRequestVote* pMsg);
+SyncRequestVote* syncRequestVoteFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*           syncRequestVote2Json(const SyncRequestVote* pMsg);
+char*            syncRequestVote2Str(const SyncRequestVote* pMsg);
+
+// for debug ----------------------
+void syncRequestVotePrint(const SyncRequestVote* pMsg);
+void syncRequestVotePrint2(char* s, const SyncRequestVote* pMsg);
+void syncRequestVoteLog(const SyncRequestVote* pMsg);
+void syncRequestVoteLog2(char* s, const SyncRequestVote* pMsg);
+
+SyncRequestVoteReply* syncRequestVoteReplyBuild(int32_t vgId);
+void                  syncRequestVoteReplyDestroy(SyncRequestVoteReply* pMsg);
+void                  syncRequestVoteReplySerialize(const SyncRequestVoteReply* pMsg, char* buf, uint32_t bufLen);
+void                  syncRequestVoteReplyDeserialize(const char* buf, uint32_t len, SyncRequestVoteReply* pMsg);
+char*                 syncRequestVoteReplySerialize2(const SyncRequestVoteReply* pMsg, uint32_t* len);
+SyncRequestVoteReply* syncRequestVoteReplyDeserialize2(const char* buf, uint32_t len);
+void                  syncRequestVoteReply2RpcMsg(const SyncRequestVoteReply* pMsg, SRpcMsg* pRpcMsg);
+void                  syncRequestVoteReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncRequestVoteReply* pMsg);
+SyncRequestVoteReply* syncRequestVoteReplyFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*                syncRequestVoteReply2Json(const SyncRequestVoteReply* pMsg);
+char*                 syncRequestVoteReply2Str(const SyncRequestVoteReply* pMsg);
+
+// for debug ----------------------
+void syncRequestVoteReplyPrint(const SyncRequestVoteReply* pMsg);
+void syncRequestVoteReplyPrint2(char* s, const SyncRequestVoteReply* pMsg);
+void syncRequestVoteReplyLog(const SyncRequestVoteReply* pMsg);
+void syncRequestVoteReplyLog2(char* s, const SyncRequestVoteReply* pMsg);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_LIBS_SYNC_RAFT_ENTRY_H*/
+#endif /*_TD_LIBS_SYNC_TEST_H*/
