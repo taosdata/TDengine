@@ -152,9 +152,7 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
   } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
     syncNodeOnAppendEntries(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
-    SyncAppendEntriesReply* pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
-    code = syncNodeOnAppendEntriesReply(pSyncNode, pSyncMsg);
-    syncAppendEntriesReplyDestroy(pSyncMsg);
+    syncNodeOnAppendEntriesReply(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
     SyncSnapshotSend* pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
     code = syncNodeOnSnapshot(pSyncNode, pSyncMsg);
@@ -603,7 +601,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
     SRespStub stub = {.createTime = taosGetTimestampMs(), .rpcMsg = *pMsg};
     uint64_t  seqNum = syncRespMgrAdd(pSyncNode->pSyncRespMgr, &stub);
     SRpcMsg   rpcMsg = {0};
-    int32_t   code = syncClientRequestBuildFromRpcMsg(&rpcMsg, pMsg, seqNum, isWeak, pSyncNode->vgId);
+    int32_t   code = syncBuildClientRequest(&rpcMsg, pMsg, seqNum, isWeak, pSyncNode->vgId);
     if (code != 0) {
       sError("vgId:%d, failed to propose msg while serialize since %s", pSyncNode->vgId, terrstr());
       (void)syncRespMgrDel(pSyncNode->pSyncRespMgr, seqNum);
@@ -1796,7 +1794,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
   SSyncNode* pNode = param;
   if (atomic_load_64(&pNode->pingTimerLogicClockUser) <= atomic_load_64(&pNode->pingTimerLogicClock)) {
     SRpcMsg rpcMsg = {0};
-    int32_t code = syncTimeoutBuild(&rpcMsg, SYNC_TIMEOUT_PING, atomic_load_64(&pNode->pingTimerLogicClock),
+    int32_t code = syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_PING, atomic_load_64(&pNode->pingTimerLogicClock),
                                     pNode->pingTimerMS, pNode);
     if (code != 0) {
       sNError(pNode, "failed to build ping msg");
@@ -1826,7 +1824,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   SSyncNode*   pNode = pElectTimer->pSyncNode;
 
   SRpcMsg rpcMsg = {0};
-  int32_t code = syncTimeoutBuild(&rpcMsg, SYNC_TIMEOUT_ELECTION, pElectTimer->logicClock, pNode->electTimerMS, pNode);
+  int32_t code = syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_ELECTION, pElectTimer->logicClock, pNode->electTimerMS, pNode);
 
   if (code != 0) {
     sNError(pNode, "failed to build elect msg");
@@ -1865,7 +1863,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
   if (pNode->replicaNum > 1) {
     if (atomic_load_64(&pNode->heartbeatTimerLogicClockUser) <= atomic_load_64(&pNode->heartbeatTimerLogicClock)) {
       SRpcMsg rpcMsg = {0};
-      int32_t code = syncTimeoutBuild(&rpcMsg, SYNC_TIMEOUT_HEARTBEAT, atomic_load_64(&pNode->heartbeatTimerLogicClock),
+      int32_t code = syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_HEARTBEAT, atomic_load_64(&pNode->heartbeatTimerLogicClock),
                                       pNode->heartbeatTimerMS, pNode);
 
       if (code != 0) {
@@ -1972,7 +1970,7 @@ static int32_t syncNodeEqNoop(SSyncNode* pNode) {
   if (pEntry == NULL) return -1;
 
   SRpcMsg rpcMsg = {0};
-  int32_t code = syncClientRequestBuildFromNoopEntry(&rpcMsg, pEntry, pNode->vgId);
+  int32_t code = syncBuildClientRequestFromNoopEntry(&rpcMsg, pEntry, pNode->vgId);
   syncEntryDestory(pEntry);
 
   sNTrace(pNode, "propose msg, type:noop");

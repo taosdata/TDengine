@@ -295,6 +295,24 @@ void syncAppendEntriesPrint2(char* s, const SyncAppendEntries* pMsg);
 void syncAppendEntriesLog(const SyncAppendEntries* pMsg);
 void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg);
 
+SyncAppendEntriesReply* syncAppendEntriesReplyBuild(int32_t vgId);
+void                    syncAppendEntriesReplyDestroy(SyncAppendEntriesReply* pMsg);
+void                    syncAppendEntriesReplySerialize(const SyncAppendEntriesReply* pMsg, char* buf, uint32_t bufLen);
+void                    syncAppendEntriesReplyDeserialize(const char* buf, uint32_t len, SyncAppendEntriesReply* pMsg);
+char*                   syncAppendEntriesReplySerialize2(const SyncAppendEntriesReply* pMsg, uint32_t* len);
+SyncAppendEntriesReply* syncAppendEntriesReplyDeserialize2(const char* buf, uint32_t len);
+void                    syncAppendEntriesReply2RpcMsg(const SyncAppendEntriesReply* pMsg, SRpcMsg* pRpcMsg);
+void                    syncAppendEntriesReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntriesReply* pMsg);
+SyncAppendEntriesReply* syncAppendEntriesReplyFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*                  syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg);
+char*                   syncAppendEntriesReply2Str(const SyncAppendEntriesReply* pMsg);
+
+// for debug ----------------------
+void syncAppendEntriesReplyPrint(const SyncAppendEntriesReply* pMsg);
+void syncAppendEntriesReplyPrint2(char* s, const SyncAppendEntriesReply* pMsg);
+void syncAppendEntriesReplyLog(const SyncAppendEntriesReply* pMsg);
+void syncAppendEntriesReplyLog2(char* s, const SyncAppendEntriesReply* pMsg);
+
 #ifdef __cplusplus
 }
 #endif
