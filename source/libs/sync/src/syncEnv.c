@@ -15,11 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "syncEnv.h"
+#include "syncUtil.h"
 #include "tref.h"
 
 static SSyncEnv gSyncEnv = {0};
 static int32_t  gNodeRefId = -1;
-bool            gRaftDetailLog = false;
 static void     syncEnvTick(void *param, void *tmrId);
 
 SSyncEnv *syncEnv() { return &gSyncEnv; }

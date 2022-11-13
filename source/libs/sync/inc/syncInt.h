@@ -22,48 +22,8 @@ extern "C" {
 
 #include "sync.h"
 #include "taosdef.h"
-#include "tlog.h"
 #include "trpc.h"
 #include "ttimer.h"
-
-// clang-format off
-
-#define sFatal(...) if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("SYN FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }
-#define sError(...) if (sDebugFlag & DEBUG_ERROR) { taosPrintLog("SYN ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }
-#define sWarn(...)  if (sDebugFlag & DEBUG_WARN)  { taosPrintLog("SYN WARN ",  DEBUG_WARN,  255,        __VA_ARGS__); }
-#define sInfo(...)  if (sDebugFlag & DEBUG_INFO)  { taosPrintLog("SYN ",       DEBUG_INFO,  255,        __VA_ARGS__); }
-#define sDebug(...) if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("SYN ",       DEBUG_DEBUG, sDebugFlag, __VA_ARGS__); }
-#define sTrace(...) if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN ",       DEBUG_TRACE, sDebugFlag, __VA_ARGS__); }
-
-#define sLFatal(...) if (sDebugFlag & DEBUG_FATAL) { taosPrintLongString("SYN FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }
-#define sLError(...) if (sDebugFlag & DEBUG_ERROR) { taosPrintLongString("SYN ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }
-#define sLWarn(...)  if (sDebugFlag & DEBUG_WARN)  { taosPrintLongString("SYN WARN ",  DEBUG_WARN,  255,        __VA_ARGS__); }
-#define sLInfo(...)  if (sDebugFlag & DEBUG_INFO)  { taosPrintLongString("SYN ",       DEBUG_INFO,  255,        __VA_ARGS__); }
-#define sLDebug(...) if (sDebugFlag & DEBUG_DEBUG) { taosPrintLongString("SYN ",       DEBUG_DEBUG, sDebugFlag, __VA_ARGS__); }
-#define sLTrace(...) if (sDebugFlag & DEBUG_TRACE) { taosPrintLongString("SYN ",       DEBUG_TRACE, sDebugFlag, __VA_ARGS__); }
-
-#define sNFatal(pNode, ...)  if (sDebugFlag & DEBUG_FATAL) { syncPrintNodeLog("SYN FATAL ", DEBUG_FATAL, 255,        pNode, __VA_ARGS__); }
-#define sNError(pNode, ...)  if (sDebugFlag & DEBUG_ERROR) { syncPrintNodeLog("SYN ERROR ", DEBUG_ERROR, 255,        pNode, __VA_ARGS__); }
-#define sNWarn(pNode, ...)   if (sDebugFlag & DEBUG_WARN)  { syncPrintNodeLog("SYN WARN ",  DEBUG_WARN,  255,        pNode, __VA_ARGS__); }
-#define sNInfo(pNode, ...)   if (sDebugFlag & DEBUG_INFO)  { syncPrintNodeLog("SYN ",       DEBUG_INFO,  255,        pNode, __VA_ARGS__); }
-#define sNDebug(pNode, ...)  if (sDebugFlag & DEBUG_DEBUG) { syncPrintNodeLog("SYN ",       DEBUG_DEBUG, sDebugFlag, pNode, __VA_ARGS__); }
-#define sNTrace(pNode, ...)  if (sDebugFlag & DEBUG_TRACE) { syncPrintNodeLog("SYN ",       DEBUG_TRACE, sDebugFlag, pNode, __VA_ARGS__); }
-
-#define sSFatal(pSender, ...)  if (sDebugFlag & DEBUG_FATAL) { syncPrintSnapshotSenderLog("SYN FATAL ", DEBUG_FATAL, 255,        pSender, __VA_ARGS__); }
-#define sSError(pSender, ...)  if (sDebugFlag & DEBUG_ERROR) { syncPrintSnapshotSenderLog("SYN ERROR ", DEBUG_ERROR, 255,        pSender, __VA_ARGS__); }
-#define sSWarn(pSender, ...)   if (sDebugFlag & DEBUG_WARN)  { syncPrintSnapshotSenderLog("SYN WARN ",  DEBUG_WARN,  255,        pSender, __VA_ARGS__); }
-#define sSInfo(pSender, ...)   if (sDebugFlag & DEBUG_INFO)  { syncPrintSnapshotSenderLog("SYN ",       DEBUG_INFO,  255,        pSender, __VA_ARGS__); }
-#define sSDebug(pSender, ...)  if (sDebugFlag & DEBUG_DEBUG) { syncPrintSnapshotSenderLog("SYN ",       DEBUG_DEBUG, sDebugFlag, pSender, __VA_ARGS__); }
-#define sSTrace(pSender, ...)  if (sDebugFlag & DEBUG_TRACE) { syncPrintSnapshotSenderLog("SYN ",       DEBUG_TRACE, sDebugFlag, pSender, __VA_ARGS__); }
-
-#define sRFatal(pReceiver, ...)  if (sDebugFlag & DEBUG_FATAL) { syncPrintSnapshotReceiverLog("SYN FATAL ", DEBUG_FATAL, 255,        pReceiver, __VA_ARGS__); }
-#define sRError(pReceiver, ...)  if (sDebugFlag & DEBUG_ERROR) { syncPrintSnapshotReceiverLog("SYN ERROR ", DEBUG_ERROR, 255,        pReceiver, __VA_ARGS__); }
-#define sRWarn(pReceiver, ...)   if (sDebugFlag & DEBUG_WARN)  { syncPrintSnapshotReceiverLog("SYN WARN ",  DEBUG_WARN,  255,        pReceiver, __VA_ARGS__); }
-#define sRInfo(pReceiver, ...)   if (sDebugFlag & DEBUG_INFO)  { syncPrintSnapshotReceiverLog("SYN ",       DEBUG_INFO,  255,        pReceiver, __VA_ARGS__); }
-#define sRDebug(pReceiver, ...)  if (sDebugFlag & DEBUG_DEBUG) { syncPrintSnapshotReceiverLog("SYN ",       DEBUG_DEBUG, sDebugFlag, pReceiver, __VA_ARGS__); }
-#define sRTrace(pReceiver, ...)  if (sDebugFlag & DEBUG_TRACE) { syncPrintSnapshotReceiverLog("SYN ",       DEBUG_TRACE, sDebugFlag, pReceiver, __VA_ARGS__); }
-
-// clang-format on
 
 typedef struct SyncTimeout            SyncTimeout;
 typedef struct SyncClientRequest      SyncClientRequest;
@@ -90,8 +50,6 @@ typedef struct SyncPreSnapshotReply   SyncPreSnapshotReply;
 typedef struct SyncHeartbeatReply     SyncHeartbeatReply;
 typedef struct SyncHeartbeat          SyncHeartbeat;
 typedef struct SyncPreSnapshot        SyncPreSnapshot;
-
-extern bool gRaftDetailLog;
 
 typedef struct SRaftId {
   SyncNodeId  addr;
@@ -239,9 +197,6 @@ void       syncNodeClose(SSyncNode* pSyncNode);
 void       syncNodePreClose(SSyncNode* pSyncNode);
 int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak);
 
-ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
-SyncIndex     syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex);
-
 // on message ---------------------
 int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
@@ -269,9 +224,6 @@ int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode);
 // utils --------------
 int32_t   syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 int32_t   syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-char*     syncNode2SimpleStr(const SSyncNode* pSyncNode);
-bool      syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config);
-void      syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex);
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode);
 
 // raft state change --------------
@@ -302,12 +254,9 @@ SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index);
 SyncTerm  syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index);
 int32_t   syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm);
 
-bool    syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg);
 int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag);
 int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex);
 int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry, int32_t code);
-
-int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg);
 
 bool                 syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId);
 SSyncSnapshotSender* syncNodeGetSnapshotSender(SSyncNode* ths, SRaftId* pDestId);
@@ -318,13 +267,7 @@ bool syncNodeNeedSendAppendEntries(SSyncNode* ths, const SRaftId* pDestId, const
 int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
 int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
 
-bool    syncNodeCanChange(SSyncNode* pSyncNode);
-int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode);
-int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader);
-int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry);
-
 int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode);
-
 bool    syncNodeIsMnode(SSyncNode* pSyncNode);
 int32_t syncNodePeerStateInit(SSyncNode* pSyncNode);
 
