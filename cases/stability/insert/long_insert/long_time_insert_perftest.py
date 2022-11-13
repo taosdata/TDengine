@@ -80,10 +80,24 @@ class LongTimeInsert(TDCase):
         sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, True, dnode_count=dnode_count))
         self.write_log(f'--------- alter {dbname} replica {dnode_count} sync time --- {sync_time}s \t--------\n')
 
-    def create_new_table(self):
-        pass
+    def drop_exist_table(self, dbname, ctbname_prefix, count=10):
+        create_tb_sql_list = list()
+        for i in range(count):
+            self.tdSql.execute(f'drop table if exists {dbname}.{ctbname_prefix}0{i}')
+            self.tdSql.query(f'show create table {dbname}.{ctbname_prefix}0{i}')
+            create_tb_sql_list.append(self.tdSql.query_data[0][1])
+        return create_tb_sql_list
+        
+    def create_dropped_table(self, dbname, create_tb_sql_list):
+        self.tdSql.execute(f'use {dbname}')
+        for i in range(create_tb_sql_list):
+            self.tdSql.execute(i)
 
-    def restart_sync(self, db_list, dnode_count=3, stop_dnode=True, alter_replica=False):
+    def alter_table(self, dbname, stb_info_dict):
+        if "alter_table" in stb_info_dict:
+            self.tdSql.execute(f'alter stable {dbname}.{stb_info_dict["stb_name"]} rename tag `t12` `t12_update`')
+
+    def restart_sync(self, db_list, stb_info_dict=None, dnode_count=3, stop_dnode=True, alter_replica=False, drop_count=10):
         dnodes_out_mnodes = self.tdSql.get_dnodes_out_mnodes()
         random_endpoint = random.choice(dnodes_out_mnodes[1])
         if stop_dnode:
@@ -108,6 +122,15 @@ class LongTimeInsert(TDCase):
                     random_dnode = taosd_setting
             self.write_log(f'--------- starting dnode: --- {random_endpoint} \t--------\n')
             self.taosd.start(random_dnode)
+            self.tdSql.query(f'select count(*) from {dbname}.stb0;')
+            for dbname in db_list:
+                if len(self.tdSql.query_data) > 0:
+                    if int(self.tdSql.query_data[0][0]) >= 100000000:
+                        create_tb_sql_list = self.drop_exist_table(dbname, ctbname_prefix=stb_info_dict["childtable_prefix"], count=drop_count)
+                        self.create_dropped_table(dbname, create_tb_sql_list)
+                        self.alter_table(dbname, stb_info_dict)
+                        self.tdSql.execute(f'drop database {dbname};')
+
             for dbname in db_list:
                 sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, False))
                 self.write_log(f'--------- dbname: {dbname} sync time --- {sync_time}s \t--------\n')
@@ -317,15 +340,20 @@ class LongTimeInsert(TDCase):
                     )
                     self.tdSql.query(f'select count(*) from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0], cfg[cases][json_file]["stb_info"]["childtable_count"] * cfg[cases][json_file]["stb_info"]["insert_rows"])
+                    # self.restart_sync(db_list=cfg[cases][json_file]["db_info"]["db_name"])
                     for j in range(int(cfg[cases][json_file]["stb_info"]["childtable_count"])):
                         self.tdSql.execute(f'drop table {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["childtable_prefix"]}0{j}')
                     self.tdSql.execute(f'drop stable {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
                     self.tdSql.error(f'select * from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
                     self.tdSql.execute(f'drop database {cfg[cases][json_file]["db_info"]["db_name"]}')
                     self.tdSql.error(f'use {cfg[cases][json_file]["db_info"]["db_name"]}')
+                if "alter_table" in cfg[cases][json_file]["stb_info"]:
+                    self.tdSql.execute(f'alter stable {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]} rename tag `t12` `t_12`')
+
+
             else:
                 scheduler = BackgroundScheduler()
-                scheduler.add_job(self.restart_sync, 'interval', seconds=self.query_interval, max_instances=1, args=[db_list])
+                scheduler.add_job(self.restart_sync, 'interval', seconds=self.query_interval, max_instances=1, args=[db_list, cfg[cases][json_file]])
                 scheduler.start()
                 timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
                 # # run taosBenchmark
