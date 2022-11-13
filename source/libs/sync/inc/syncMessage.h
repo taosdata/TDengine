@@ -224,8 +224,6 @@ typedef enum {
   SYNC_LOCAL_CMD_FOLLOWER_CMT,
 } ESyncLocalCmd;
 
-const char* syncLocalCmdGetStr(int32_t cmd);
-
 typedef struct SyncLocalCmd {
   uint32_t bytes;
   int32_t  vgId;
@@ -236,26 +234,7 @@ typedef struct SyncLocalCmd {
   int32_t   cmd;
   SyncTerm  sdNewTerm;  // step down new term
   SyncIndex fcIndex;    // follower commit index
-
 } SyncLocalCmd;
-
-SyncLocalCmd* syncLocalCmdBuild(int32_t vgId);
-void          syncLocalCmdDestroy(SyncLocalCmd* pMsg);
-void          syncLocalCmdSerialize(const SyncLocalCmd* pMsg, char* buf, uint32_t bufLen);
-void          syncLocalCmdDeserialize(const char* buf, uint32_t len, SyncLocalCmd* pMsg);
-char*         syncLocalCmdSerialize2(const SyncLocalCmd* pMsg, uint32_t* len);
-SyncLocalCmd* syncLocalCmdDeserialize2(const char* buf, uint32_t len);
-void          syncLocalCmd2RpcMsg(const SyncLocalCmd* pMsg, SRpcMsg* pRpcMsg);
-void          syncLocalCmdFromRpcMsg(const SRpcMsg* pRpcMsg, SyncLocalCmd* pMsg);
-SyncLocalCmd* syncLocalCmdFromRpcMsg2(const SRpcMsg* pRpcMsg);
-cJSON*        syncLocalCmd2Json(const SyncLocalCmd* pMsg);
-char*         syncLocalCmd2Str(const SyncLocalCmd* pMsg);
-
-// for debug ----------------------
-void syncLocalCmdPrint(const SyncLocalCmd* pMsg);
-void syncLocalCmdPrint2(char* s, const SyncLocalCmd* pMsg);
-void syncLocalCmdLog(const SyncLocalCmd* pMsg);
-void syncLocalCmdLog2(char* s, const SyncLocalCmd* pMsg);
 
 // on message ----------------------
 int32_t syncNodeOnRequestVote(SSyncNode* pNode, const SRpcMsg* pMsg);
@@ -264,20 +243,18 @@ int32_t syncNodeOnAppendEntries(SSyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnSnapshot(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnSnapshotReply(SSyncNode* ths, const SRpcMsg* pMsg);
-
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pMsg);
 
 int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
-int32_t syncNodeOnLocalCmd(SSyncNode* ths, SyncLocalCmd* pMsg);
-
-// -----------------------------------------
 
 // option ----------------------------------
 bool          syncNodeSnapshotEnable(SSyncNode* pSyncNode);
 ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
 
-const char* syncTimerTypeStr(enum ESyncTimeoutType timerType);
+const char* syncTimerTypeStr( ESyncTimeoutType timerType);
+const char* syncLocalCmdGetStr(ESyncLocalCmd cmd);
 
 int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType ttype, uint64_t logicClock, int32_t ms, SSyncNode* pNode);
 int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginal, uint64_t seq, bool isWeak, int32_t vgId);
@@ -294,6 +271,7 @@ int32_t syncBuildApplyMsg(SRpcMsg* pMsg, const SRpcMsg* pOriginal, int32_t vgId,
 int32_t syncBuildSnapshotSend(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId);
 int32_t syncBuildSnapshotSendRsp(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildLeaderTransfer(SRpcMsg* pMsg, int32_t vgId);
+int32_t syncBuildLocalCmd(SRpcMsg* pMsg, int32_t vgId);
 
 #ifdef __cplusplus
 }

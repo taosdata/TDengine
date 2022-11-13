@@ -154,9 +154,7 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
   } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
     code = syncNodeOnSnapshotReply(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_LOCAL_CMD) {
-    SyncLocalCmd* pSyncMsg = syncLocalCmdFromRpcMsg2(pMsg);
-    code = syncNodeOnLocalCmd(pSyncNode, pSyncMsg);
-    syncLocalCmdDestroy(pSyncMsg);
+    code = syncNodeOnLocalCmd(pSyncNode, pMsg);
   } else {
     sError("vgId:%d, failed to process msg:%p since invalid type:%s", pSyncNode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
     code = -1;
@@ -2017,12 +2015,12 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
     if (ths->state == TAOS_SYNC_STATE_FOLLOWER) {
       // syncNodeFollowerCommit(ths, pMsg->commitIndex);
-      SyncLocalCmd* pSyncMsg = syncLocalCmdBuild(ths->vgId);
+      SRpcMsg rpcMsgLocalCmd = {0};
+      (void)syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId);
+
+      SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
       pSyncMsg->cmd = SYNC_LOCAL_CMD_FOLLOWER_CMT;
       pSyncMsg->fcIndex = pMsg->commitIndex;
-
-      SRpcMsg rpcMsgLocalCmd;
-      syncLocalCmd2RpcMsg(pSyncMsg, &rpcMsgLocalCmd);
 
       if (ths->syncEqMsg != NULL && ths->msgcb != NULL) {
         int32_t code = ths->syncEqMsg(ths->msgcb, &rpcMsgLocalCmd);
@@ -2038,12 +2036,12 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   if (pMsg->term >= ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_FOLLOWER) {
     // syncNodeStepDown(ths, pMsg->term);
-    SyncLocalCmd* pSyncMsg = syncLocalCmdBuild(ths->vgId);
+    SRpcMsg rpcMsgLocalCmd = {0};
+    (void)syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId);
+
+    SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
     pSyncMsg->cmd = SYNC_LOCAL_CMD_STEP_DOWN;
     pSyncMsg->sdNewTerm = pMsg->term;
-
-    SRpcMsg rpcMsgLocalCmd;
-    syncLocalCmd2RpcMsg(pSyncMsg, &rpcMsgLocalCmd);
 
     if (ths->syncEqMsg != NULL && ths->msgcb != NULL) {
       int32_t code = ths->syncEqMsg(ths->msgcb, &rpcMsgLocalCmd);
@@ -2054,8 +2052,6 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
         sTrace("vgId:%d, sync enqueue step-down msg, new-term: %" PRId64, ths->vgId, pSyncMsg->sdNewTerm);
       }
     }
-
-    syncLocalCmdDestroy(pSyncMsg);
   }
 
   /*
@@ -2079,7 +2075,8 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   return 0;
 }
 
-int32_t syncNodeOnLocalCmd(SSyncNode* ths, SyncLocalCmd* pMsg) {
+int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  SyncLocalCmd* pMsg = pRpcMsg->pCont;
   syncLogRecvLocalCmd(ths, pMsg, "");
 
   if (pMsg->cmd == SYNC_LOCAL_CMD_STEP_DOWN) {
@@ -2485,18 +2482,6 @@ bool syncNodeCanChange(SSyncNode* pSyncNode) {
   }
 
   return true;
-}
-
-const char* syncTimerTypeStr(enum ESyncTimeoutType timerType) {
-  if (timerType == SYNC_TIMEOUT_PING) {
-    return "ping";
-  } else if (timerType == SYNC_TIMEOUT_ELECTION) {
-    return "elect";
-  } else if (timerType == SYNC_TIMEOUT_HEARTBEAT) {
-    return "heartbeat";
-  } else {
-    return "unknown";
-  }
 }
 
 void syncLogRecvTimer(SSyncNode* pSyncNode, const SyncTimeout* pMsg, const char* s) {
