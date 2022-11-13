@@ -15,10 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "syncMessage.h"
-#include "syncRaftCfg.h"
 #include "syncRaftEntry.h"
-#include "syncUtil.h"
-#include "tcoding.h"
 
 int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
                          SSyncNode* pNode) {
@@ -189,6 +186,7 @@ int32_t syncBuildHeartbeatReply(SRpcMsg* pMsg, int32_t vgId) {
   return 0;
 }
 
+#if 0
 int32_t syncBuildPreSnapshot(SRpcMsg* pMsg, int32_t vgId) {
   int32_t bytes = sizeof(SyncPreSnapshot);
   pMsg->pCont = rpcMallocCont(bytes);
@@ -222,6 +220,7 @@ int32_t syncBuildPreSnapshotReply(SRpcMsg* pMsg, int32_t vgId) {
   pPreSnapshotReply->vgId = vgId;
   return 0;
 }
+#endif
 
 int32_t syncBuildSnapshotSend(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
   int32_t bytes = sizeof(SyncSnapshotSend) + dataLen;

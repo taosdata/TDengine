@@ -239,10 +239,21 @@ void       syncNodeClose(SSyncNode* pSyncNode);
 void       syncNodePreClose(SSyncNode* pSyncNode);
 int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak);
 
-// option
-bool          syncNodeSnapshotEnable(SSyncNode* pSyncNode);
 ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
 SyncIndex     syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex);
+
+// on message ---------------------
+int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
+int32_t syncNodeOnRequestVote(SSyncNode* pNode, const SRpcMsg* pMsg);
+int32_t syncNodeOnRequestVoteReply(SSyncNode* pNode, const SRpcMsg* pMsg);
+int32_t syncNodeOnAppendEntries(SSyncNode* pNode, const SRpcMsg* pMsg);
+int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnSnapshot(SSyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnSnapshotReply(SSyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pMsg);
 
 // timer control --------------
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode);

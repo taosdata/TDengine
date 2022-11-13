@@ -85,7 +85,7 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   return 0;
 }
 
-int32_t syncNodeOnTimer(SSyncNode* ths, const SRpcMsg* pRpc) {
+int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pRpc) {
   int32_t      ret = 0;
   SyncTimeout* pMsg = pRpc->pCont;
 

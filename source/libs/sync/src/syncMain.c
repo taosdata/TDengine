@@ -138,7 +138,7 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
   } else if (pMsg->msgType == TDMT_SYNC_HEARTBEAT_REPLY) {
     code = syncNodeOnHeartbeatReply(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
-    code = syncNodeOnTimer(pSyncNode, pMsg);
+    code = syncNodeOnTimeout(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
     code = syncNodeOnClientRequest(pSyncNode, pMsg, NULL);
   } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
@@ -1033,9 +1033,6 @@ void syncNodeClose(SSyncNode* pSyncNode) {
 
   taosMemoryFree(pSyncNode);
 }
-
-// option
-// bool syncNodeSnapshotEnable(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotEnable; }
 
 ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotStrategy; }
 

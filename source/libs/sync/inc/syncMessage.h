@@ -236,26 +236,6 @@ typedef struct SyncLocalCmd {
   SyncIndex fcIndex;    // follower commit index
 } SyncLocalCmd;
 
-// on message ----------------------
-int32_t syncNodeOnRequestVote(SSyncNode* pNode, const SRpcMsg* pMsg);
-int32_t syncNodeOnRequestVoteReply(SSyncNode* pNode, const SRpcMsg* pMsg);
-int32_t syncNodeOnAppendEntries(SSyncNode* pNode, const SRpcMsg* pMsg);
-int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pMsg);
-int32_t syncNodeOnSnapshot(SSyncNode* ths, const SRpcMsg* pMsg);
-int32_t syncNodeOnSnapshotReply(SSyncNode* ths, const SRpcMsg* pMsg);
-int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pMsg);
-int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pMsg);
-int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pMsg);
-
-int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
-
-// option ----------------------------------
-bool          syncNodeSnapshotEnable(SSyncNode* pSyncNode);
-ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
-
-const char* syncTimerTypeStr( ESyncTimeoutType timerType);
-const char* syncLocalCmdGetStr(ESyncLocalCmd cmd);
-
 int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType ttype, uint64_t logicClock, int32_t ms, SSyncNode* pNode);
 int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginal, uint64_t seq, bool isWeak, int32_t vgId);
 int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SSyncRaftEntry* pEntry, int32_t vgId);
@@ -272,6 +252,9 @@ int32_t syncBuildSnapshotSend(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId);
 int32_t syncBuildSnapshotSendRsp(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildLeaderTransfer(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildLocalCmd(SRpcMsg* pMsg, int32_t vgId);
+
+const char* syncTimerTypeStr(ESyncTimeoutType timerType);
+const char* syncLocalCmdGetStr(ESyncLocalCmd cmd);
 
 #ifdef __cplusplus
 }
