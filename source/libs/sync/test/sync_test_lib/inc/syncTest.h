@@ -389,6 +389,26 @@ void syncPreSnapshotReplyLog2(char* s, const SyncPreSnapshotReply* pMsg);
 int32_t syncNodeOnPreSnapshot(SSyncNode* ths, SyncPreSnapshot* pMsg);
 int32_t syncNodeOnPreSnapshotReply(SSyncNode* ths, SyncPreSnapshotReply* pMsg);
 
+SyncApplyMsg* syncApplyMsgBuild(uint32_t dataLen);
+SyncApplyMsg* syncApplyMsgBuild2(const SRpcMsg* pOriginalRpcMsg, int32_t vgId, SFsmCbMeta* pMeta);
+void          syncApplyMsgDestroy(SyncApplyMsg* pMsg);
+void          syncApplyMsgSerialize(const SyncApplyMsg* pMsg, char* buf, uint32_t bufLen);
+void          syncApplyMsgDeserialize(const char* buf, uint32_t len, SyncApplyMsg* pMsg);
+char*         syncApplyMsgSerialize2(const SyncApplyMsg* pMsg, uint32_t* len);
+SyncApplyMsg* syncApplyMsgDeserialize2(const char* buf, uint32_t len);
+void syncApplyMsg2RpcMsg(const SyncApplyMsg* pMsg, SRpcMsg* pRpcMsg);     // SyncApplyMsg to SRpcMsg, put it into ApplyQ
+void syncApplyMsgFromRpcMsg(const SRpcMsg* pRpcMsg, SyncApplyMsg* pMsg);  // get SRpcMsg from ApplyQ, to SyncApplyMsg
+SyncApplyMsg* syncApplyMsgFromRpcMsg2(const SRpcMsg* pRpcMsg);
+void syncApplyMsg2OriginalRpcMsg(const SyncApplyMsg* pMsg, SRpcMsg* pOriginalRpcMsg);  // SyncApplyMsg to OriginalRpcMsg
+cJSON* syncApplyMsg2Json(const SyncApplyMsg* pMsg);
+char*  syncApplyMsg2Str(const SyncApplyMsg* pMsg);
+
+// for debug ----------------------
+void syncApplyMsgPrint(const SyncApplyMsg* pMsg);
+void syncApplyMsgPrint2(char* s, const SyncApplyMsg* pMsg);
+void syncApplyMsgLog(const SyncApplyMsg* pMsg);
+void syncApplyMsgLog2(char* s, const SyncApplyMsg* pMsg);
+
 #ifdef __cplusplus
 }
 #endif

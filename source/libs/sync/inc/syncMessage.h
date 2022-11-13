@@ -172,27 +172,6 @@ typedef struct SyncApplyMsg {
   char       data[];   // user RpcMsg.pCont
 } SyncApplyMsg;
 
-SyncApplyMsg* syncApplyMsgBuild(uint32_t dataLen);
-SyncApplyMsg* syncApplyMsgBuild2(const SRpcMsg* pOriginalRpcMsg, int32_t vgId, SFsmCbMeta* pMeta);
-void          syncApplyMsgDestroy(SyncApplyMsg* pMsg);
-void          syncApplyMsgSerialize(const SyncApplyMsg* pMsg, char* buf, uint32_t bufLen);
-void          syncApplyMsgDeserialize(const char* buf, uint32_t len, SyncApplyMsg* pMsg);
-char*         syncApplyMsgSerialize2(const SyncApplyMsg* pMsg, uint32_t* len);
-SyncApplyMsg* syncApplyMsgDeserialize2(const char* buf, uint32_t len);
-void syncApplyMsg2RpcMsg(const SyncApplyMsg* pMsg, SRpcMsg* pRpcMsg);     // SyncApplyMsg to SRpcMsg, put it into ApplyQ
-void syncApplyMsgFromRpcMsg(const SRpcMsg* pRpcMsg, SyncApplyMsg* pMsg);  // get SRpcMsg from ApplyQ, to SyncApplyMsg
-SyncApplyMsg* syncApplyMsgFromRpcMsg2(const SRpcMsg* pRpcMsg);
-void syncApplyMsg2OriginalRpcMsg(const SyncApplyMsg* pMsg, SRpcMsg* pOriginalRpcMsg);  // SyncApplyMsg to OriginalRpcMsg
-cJSON* syncApplyMsg2Json(const SyncApplyMsg* pMsg);
-char*  syncApplyMsg2Str(const SyncApplyMsg* pMsg);
-
-// for debug ----------------------
-void syncApplyMsgPrint(const SyncApplyMsg* pMsg);
-void syncApplyMsgPrint2(char* s, const SyncApplyMsg* pMsg);
-void syncApplyMsgLog(const SyncApplyMsg* pMsg);
-void syncApplyMsgLog2(char* s, const SyncApplyMsg* pMsg);
-
-// ---------------------------------------------
 typedef struct SyncSnapshotSend {
   uint32_t bytes;
   int32_t  vgId;
@@ -352,7 +331,7 @@ ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
 const char* syncTimerTypeStr(enum ESyncTimeoutType timerType);
 
 int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType ttype, uint64_t logicClock, int32_t ms, SSyncNode* pNode);
-int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginalRpc, uint64_t seq, bool isWeak, int32_t vgId);
+int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginal, uint64_t seq, bool isWeak, int32_t vgId);
 int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SSyncRaftEntry* pEntry, int32_t vgId);
 int32_t syncBuildRequestVote(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildRequestVoteReply(SRpcMsg* pMsg, int32_t vgId);
@@ -362,6 +341,7 @@ int32_t syncBuildHeartbeat(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildHeartbeatReply(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildPreSnapshot(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildPreSnapshotReply(SRpcMsg* pMsg, int32_t vgId);
+int32_t syncBuildApplyMsg(SRpcMsg* pMsg, const SRpcMsg* pOriginal, int32_t vgId, SFsmCbMeta* pMeta);
 
 #ifdef __cplusplus
 }
