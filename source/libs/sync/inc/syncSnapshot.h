@@ -43,6 +43,7 @@ typedef struct SSyncSnapshotSender {
   int64_t        sendingMS;
   SyncTerm       term;
   int64_t        startTime;
+  int64_t        endTime;
   bool           finish;
 
   // init when create
@@ -59,14 +60,17 @@ int32_t              snapshotSend(SSyncSnapshotSender *pSender);
 int32_t              snapshotReSend(SSyncSnapshotSender *pSender);
 
 typedef struct SSyncSnapshotReceiver {
-  bool           start;
-  int32_t        ack;
+  // update when pre snapshot
+  bool     start;
+  int32_t  ack;
+  SyncTerm term;
+  SRaftId  fromId;
+  int64_t  startTime;
+
+  // update when begin
   void          *pWriter;
-  SyncTerm       term;
   SSnapshotParam snapshotParam;
   SSnapshot      snapshot;
-  SRaftId        fromId;
-  int64_t        startTime;
 
   // init when create
   SSyncNode *pSyncNode;
@@ -82,7 +86,8 @@ void                   snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceive
 // on message
 int32_t syncNodeOnSnapshot(SSyncNode *ths, SyncSnapshotSend *pMsg);
 int32_t syncNodeOnSnapshotReply(SSyncNode *ths, SyncSnapshotRsp *pMsg);
-int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId);
+
+// start
 
 #ifdef __cplusplus
 }

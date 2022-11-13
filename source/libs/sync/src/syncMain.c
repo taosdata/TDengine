@@ -2604,10 +2604,47 @@ void syncLogRecvSyncPreSnapshotReply(SSyncNode* pSyncNode, const SyncPreSnapshot
           port, pMsg->term, pMsg->snapStart, s);
 }
 
-void syncLogSendSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s) {}
+void syncLogSendSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
 
-void syncLogRecvSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s) {}
+  sNTrace(pSyncNode,
+          "send sync-snapshot-send from %s:%d {term:%" PRId64 ", begin:%" PRId64 ", end:%" PRId64 ", lterm:%" PRId64
+          ", stime:%" PRId64 ", seq:%d}, %s",
+          host, port, pMsg->term, pMsg->beginIndex, pMsg->lastIndex, pMsg->lastTerm, pMsg->startTime, pMsg->seq, s);
+}
 
-void syncLogSendSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s) {}
+void syncLogRecvSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
 
-void syncLogRecvSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s) {}
+  sNTrace(pSyncNode,
+          "recv sync-snapshot-send from %s:%d {term:%" PRId64 ", begin:%" PRId64 ", lst:%" PRId64 ", lterm:%" PRId64
+          ", stime:%" PRId64 ", seq:%d, len:%u}, %s",
+          host, port, pMsg->term, pMsg->beginIndex, pMsg->lastIndex, pMsg->lastTerm, pMsg->startTime, pMsg->seq,
+          pMsg->dataLen, s);
+}
+
+void syncLogSendSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
+
+  sNTrace(pSyncNode,
+          "send sync-snapshot-rsp from %s:%d {term:%" PRId64 ", begin:%" PRId64 ", lst:%" PRId64 ", lterm:%" PRId64
+          ", stime:%" PRId64 ", ack:%d}, %s",
+          host, port, pMsg->term, pMsg->snapBeginIndex, pMsg->lastIndex, pMsg->lastTerm, pMsg->startTime, pMsg->ack, s);
+}
+
+void syncLogRecvSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+
+  sNTrace(pSyncNode,
+          "recv sync-snapshot-rsp from %s:%d {term:%" PRId64 ", begin:%" PRId64 ", lst:%" PRId64 ", lterm:%" PRId64
+          ", stime:%" PRId64 ", ack:%d}, %s",
+          host, port, pMsg->term, pMsg->snapBeginIndex, pMsg->lastIndex, pMsg->lastTerm, pMsg->startTime, pMsg->ack, s);
+}

@@ -119,7 +119,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     ASSERT(pState != NULL);
 
     if (pMsg->lastSendIndex == pState->lastSendIndex) {
-      syncNodeReplicateOne(ths, &(pMsg->srcId));
+      syncNodeReplicateOne(ths, &(pMsg->srcId), true);
     }
   }
 

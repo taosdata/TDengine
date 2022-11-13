@@ -185,7 +185,11 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   if (pMsg->prevLogIndex >= startIndex) {
     SyncTerm myPreLogTerm = syncNodeGetPreTerm(ths, pMsg->prevLogIndex + 1);
-    ASSERT(myPreLogTerm != SYNC_TERM_INVALID);
+    // ASSERT(myPreLogTerm != SYNC_TERM_INVALID);
+    if (myPreLogTerm == SYNC_TERM_INVALID) {
+      syncLogRecvAppendEntries(ths, pMsg, "reject, pre-term invalid");
+      goto _SEND_RESPONSE;
+    }
 
     if (myPreLogTerm != pMsg->prevLogTerm) {
       syncLogRecvAppendEntries(ths, pMsg, "reject, pre-term not match");

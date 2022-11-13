@@ -282,8 +282,9 @@ void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
 void syncNodeVoteForSelf(SSyncNode* pSyncNode);
 
 // snapshot --------------
-bool syncNodeHasSnapshot(SSyncNode* pSyncNode);
-void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode);
+bool    syncNodeHasSnapshot(SSyncNode* pSyncNode);
+void    syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode);
+int32_t syncNodeStartSnapshot(SSyncNode* pSyncNode, SRaftId* pDestId);
 
 SyncIndex syncNodeGetLastIndex(const SSyncNode* pSyncNode);
 SyncTerm  syncNodeGetLastTerm(SSyncNode* pSyncNode);
