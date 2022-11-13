@@ -110,6 +110,7 @@ void   logStoreSimpleLog2(char* s, SSyncLogStore* pLogStore);
 
 cJSON* syncNode2Json(const SSyncNode* pSyncNode);
 char*  syncNode2Str(const SSyncNode* pSyncNode);
+char*  syncNode2SimpleStr(const SSyncNode* pSyncNode);
 
 cJSON* voteGranted2Json(SVotesGranted* pVotesGranted);
 char*  voteGranted2Str(SVotesGranted* pVotesGranted);

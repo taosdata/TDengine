@@ -45,6 +45,18 @@ static bool    syncIsConfigChanged(const SSyncCfg* pOldCfg, const SSyncCfg* pNew
 static int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRaftId destId);
 static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
 static int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
+static int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg);
+static bool    syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config);
+static void    syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex);
+static bool    syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg);
+
+static bool    syncNodeCanChange(SSyncNode* pSyncNode);
+static int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode);
+static int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader);
+static int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry);
+
+static ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
+static SyncIndex     syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex);
 
 int64_t syncOpen(SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
@@ -133,31 +145,44 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) return code;
 
-  if (pMsg->msgType == TDMT_SYNC_HEARTBEAT) {
-    code = syncNodeOnHeartbeat(pSyncNode, pMsg);
-  } else if (pMsg->msgType == TDMT_SYNC_HEARTBEAT_REPLY) {
-    code = syncNodeOnHeartbeatReply(pSyncNode, pMsg);
-  } else if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
-    code = syncNodeOnTimeout(pSyncNode, pMsg);
-  } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
-    code = syncNodeOnClientRequest(pSyncNode, pMsg, NULL);
-  } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
-    code = syncNodeOnRequestVote(pSyncNode, pMsg);
-  } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
-    code = syncNodeOnRequestVoteReply(pSyncNode, pMsg);
-  } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
-    code = syncNodeOnAppendEntries(pSyncNode, pMsg);
-  } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
-    code = syncNodeOnAppendEntriesReply(pSyncNode, pMsg);
-  } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
-    code = syncNodeOnSnapshot(pSyncNode, pMsg);
-  } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
-    code = syncNodeOnSnapshotReply(pSyncNode, pMsg);
-  } else if (pMsg->msgType == TDMT_SYNC_LOCAL_CMD) {
-    code = syncNodeOnLocalCmd(pSyncNode, pMsg);
-  } else {
-    sError("vgId:%d, failed to process msg:%p since invalid type:%s", pSyncNode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
-    code = -1;
+  switch (pMsg->msgType) {
+    case TDMT_SYNC_HEARTBEAT:
+      code = syncNodeOnHeartbeat(pSyncNode, pMsg);
+      break;
+    case TDMT_SYNC_HEARTBEAT_REPLY:
+      code = syncNodeOnHeartbeatReply(pSyncNode, pMsg);
+      break;
+    case TDMT_SYNC_TIMEOUT:
+      code = syncNodeOnTimeout(pSyncNode, pMsg);
+      break;
+    case TDMT_SYNC_CLIENT_REQUEST:
+      code = syncNodeOnClientRequest(pSyncNode, pMsg, NULL);
+      break;
+    case TDMT_SYNC_REQUEST_VOTE:
+      code = syncNodeOnRequestVote(pSyncNode, pMsg);
+      break;
+    case TDMT_SYNC_REQUEST_VOTE_REPLY:
+      code = syncNodeOnRequestVoteReply(pSyncNode, pMsg);
+      break;
+    case TDMT_SYNC_APPEND_ENTRIES:
+      code = syncNodeOnAppendEntries(pSyncNode, pMsg);
+      break;
+    case TDMT_SYNC_APPEND_ENTRIES_REPLY:
+      code = syncNodeOnAppendEntriesReply(pSyncNode, pMsg);
+      break;
+    case TDMT_SYNC_SNAPSHOT_SEND:
+      code = syncNodeOnSnapshot(pSyncNode, pMsg);
+      break;
+    case TDMT_SYNC_SNAPSHOT_RSP:
+      code = syncNodeOnSnapshotReply(pSyncNode, pMsg);
+      break;
+    case TDMT_SYNC_LOCAL_CMD:
+      code = syncNodeOnLocalCmd(pSyncNode, pMsg);
+      break;
+    default:
+      sError("vgId:%d, failed to process msg:%p since invalid type:%s", pSyncNode->vgId, pMsg,
+             TMSG_INFO(pMsg->msgType));
+      code = -1;
   }
 
   syncNodeRelease(pSyncNode);
@@ -1618,8 +1643,6 @@ void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {
   syncNodeBecomeFollower(pSyncNode, "candidate to follower");
   sNTrace(pSyncNode, "candidate to follower");
 }
-
-// raft vote --------------
 
 // just called by syncNodeVoteForSelf
 // need assert
