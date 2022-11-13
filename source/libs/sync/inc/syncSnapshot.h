@@ -88,7 +88,6 @@ int32_t syncNodeOnSnapshot(SSyncNode *ths, SyncSnapshotSend *pMsg);
 int32_t syncNodeOnSnapshotReply(SSyncNode *ths, SyncSnapshotRsp *pMsg);
 
 // start
-int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId);
 
 #ifdef __cplusplus
 }

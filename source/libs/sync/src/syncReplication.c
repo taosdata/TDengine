@@ -20,7 +20,6 @@
 #include "syncRaftEntry.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
-#include "syncSnapshot.h"
 #include "syncUtil.h"
 
 // TLA+ Spec
