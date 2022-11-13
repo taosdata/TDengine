@@ -1006,6 +1006,7 @@
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sample_csv_json.py
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_json_alltypes.py
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestQueryWithJson.py -R
+,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/telnet_tcp.py -R
 
 #docs-examples test
 ,,,docs-examples-test,bash python.sh
