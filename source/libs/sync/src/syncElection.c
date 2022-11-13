@@ -33,14 +33,6 @@
 //             mdest         |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 
-static void syncLogSendRequestVote(SSyncNode* pNode, const SyncRequestVote* pMsg, const char* s) {
-  char     host[64];
-  uint16_t port;
-  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
-  sNTrace(pNode, "send sync-request-vote to %s:%d {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, %s", host,
-          port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
-}
-
 static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
   if (pNode->state != TAOS_SYNC_STATE_CANDIDATE) {
     sNTrace(pNode, "not candidate, stop elect");

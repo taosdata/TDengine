@@ -17,6 +17,7 @@
 #include "syncRespMgr.h"
 #include "syncRaftEntry.h"
 #include "syncRaftStore.h"
+#include "syncUtil.h"
 
 SSyncRespMgr *syncRespMgrCreate(void *data, int64_t ttl) {
   SSyncRespMgr *pObj = taosMemoryCalloc(1, sizeof(SSyncRespMgr));

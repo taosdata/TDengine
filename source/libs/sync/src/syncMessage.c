@@ -15,10 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "syncMessage.h"
-#include "syncRaftCfg.h"
 #include "syncRaftEntry.h"
-#include "syncUtil.h"
-#include "tcoding.h"
 
 int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
                          SSyncNode* pNode) {
@@ -189,6 +186,7 @@ int32_t syncBuildHeartbeatReply(SRpcMsg* pMsg, int32_t vgId) {
   return 0;
 }
 
+#if 0
 int32_t syncBuildPreSnapshot(SRpcMsg* pMsg, int32_t vgId) {
   int32_t bytes = sizeof(SyncPreSnapshot);
   pMsg->pCont = rpcMallocCont(bytes);
@@ -222,6 +220,7 @@ int32_t syncBuildPreSnapshotReply(SRpcMsg* pMsg, int32_t vgId) {
   pPreSnapshotReply->vgId = vgId;
   return 0;
 }
+#endif
 
 int32_t syncBuildSnapshotSend(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
   int32_t bytes = sizeof(SyncSnapshotSend) + dataLen;
@@ -275,164 +274,43 @@ int32_t syncBuildLeaderTransfer(SRpcMsg* pMsg, int32_t vgId) {
   return 0;
 }
 
-const char* syncLocalCmdGetStr(int32_t cmd) {
-  if (cmd == SYNC_LOCAL_CMD_STEP_DOWN) {
-    return "step-down";
-  } else if (cmd == SYNC_LOCAL_CMD_FOLLOWER_CMT) {
-    return "follower-commit";
-  }
-
-  return "unknown-local-cmd";
-}
-
-SyncLocalCmd* syncLocalCmdBuild(int32_t vgId) {
-  uint32_t      bytes = sizeof(SyncLocalCmd);
-  SyncLocalCmd* pMsg = taosMemoryMalloc(bytes);
-  memset(pMsg, 0, bytes);
-  pMsg->bytes = bytes;
-  pMsg->vgId = vgId;
+int32_t syncBuildLocalCmd(SRpcMsg* pMsg, int32_t vgId) {
+  int32_t bytes = sizeof(SyncLocalCmd);
+  pMsg->pCont = rpcMallocCont(bytes);
   pMsg->msgType = TDMT_SYNC_LOCAL_CMD;
-  return pMsg;
+  pMsg->contLen = bytes;
+  if (pMsg->pCont == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  SyncLocalCmd* pLocalCmd = pMsg->pCont;
+  pLocalCmd->bytes = bytes;
+  pLocalCmd->msgType = TDMT_SYNC_LOCAL_CMD;
+  pLocalCmd->vgId = vgId;
+  return 0;
 }
 
-void syncLocalCmdDestroy(SyncLocalCmd* pMsg) {
-  if (pMsg != NULL) {
-    taosMemoryFree(pMsg);
+const char* syncTimerTypeStr(enum ESyncTimeoutType timerType) {
+  switch (timerType) {
+    case SYNC_TIMEOUT_PING:
+      return "ping";
+    case SYNC_TIMEOUT_ELECTION:
+      return "elect";
+    case SYNC_TIMEOUT_HEARTBEAT:
+      return "heartbeat";
+    default:
+      return "unknown";
   }
 }
 
-void syncLocalCmdSerialize(const SyncLocalCmd* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
-  memcpy(buf, pMsg, pMsg->bytes);
-}
-
-void syncLocalCmdDeserialize(const char* buf, uint32_t len, SyncLocalCmd* pMsg) {
-  memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
-}
-
-char* syncLocalCmdSerialize2(const SyncLocalCmd* pMsg, uint32_t* len) {
-  char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
-  syncLocalCmdSerialize(pMsg, buf, pMsg->bytes);
-  if (len != NULL) {
-    *len = pMsg->bytes;
-  }
-  return buf;
-}
-
-SyncLocalCmd* syncLocalCmdDeserialize2(const char* buf, uint32_t len) {
-  uint32_t      bytes = *((uint32_t*)buf);
-  SyncLocalCmd* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
-  syncLocalCmdDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
-  return pMsg;
-}
-
-void syncLocalCmd2RpcMsg(const SyncLocalCmd* pMsg, SRpcMsg* pRpcMsg) {
-  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
-  pRpcMsg->msgType = pMsg->msgType;
-  pRpcMsg->contLen = pMsg->bytes;
-  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
-  syncLocalCmdSerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
-}
-
-void syncLocalCmdFromRpcMsg(const SRpcMsg* pRpcMsg, SyncLocalCmd* pMsg) {
-  syncLocalCmdDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
-}
-
-SyncLocalCmd* syncLocalCmdFromRpcMsg2(const SRpcMsg* pRpcMsg) {
-  SyncLocalCmd* pMsg = syncLocalCmdDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
-  return pMsg;
-}
-
-cJSON* syncLocalCmd2Json(const SyncLocalCmd* pMsg) {
-  char   u64buf[128];
-  cJSON* pRoot = cJSON_CreateObject();
-
-  if (pMsg != NULL) {
-    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
-    cJSON_AddNumberToObject(pRoot, "vgId", pMsg->vgId);
-    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
-
-    cJSON* pSrcId = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->srcId.addr);
-    cJSON_AddStringToObject(pSrcId, "addr", u64buf);
-    {
-      uint64_t u64 = pMsg->srcId.addr;
-      cJSON*   pTmp = pSrcId;
-      char     host[128];
-      uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
-      cJSON_AddStringToObject(pTmp, "addr_host", host);
-      cJSON_AddNumberToObject(pTmp, "addr_port", port);
-    }
-    cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
-    cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
-
-    cJSON* pDestId = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->destId.addr);
-    cJSON_AddStringToObject(pDestId, "addr", u64buf);
-    {
-      uint64_t u64 = pMsg->destId.addr;
-      cJSON*   pTmp = pDestId;
-      char     host[128];
-      uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
-      cJSON_AddStringToObject(pTmp, "addr_host", host);
-      cJSON_AddNumberToObject(pTmp, "addr_port", port);
-    }
-    cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
-    cJSON_AddItemToObject(pRoot, "destId", pDestId);
-
-    cJSON_AddNumberToObject(pRoot, "cmd", pMsg->cmd);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->sdNewTerm);
-    cJSON_AddStringToObject(pRoot, "sd-new-term", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->fcIndex);
-    cJSON_AddStringToObject(pRoot, "fc-index", u64buf);
-  }
-
-  cJSON* pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SyncLocalCmd2Json", pRoot);
-  return pJson;
-}
-
-char* syncLocalCmd2Str(const SyncLocalCmd* pMsg) {
-  cJSON* pJson = syncLocalCmd2Json(pMsg);
-  char*  serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
-// for debug ----------------------
-void syncLocalCmdPrint(const SyncLocalCmd* pMsg) {
-  char* serialized = syncLocalCmd2Str(pMsg);
-  printf("syncLocalCmdPrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncLocalCmdPrint2(char* s, const SyncLocalCmd* pMsg) {
-  char* serialized = syncLocalCmd2Str(pMsg);
-  printf("syncLocalCmdPrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncLocalCmdLog(const SyncLocalCmd* pMsg) {
-  char* serialized = syncLocalCmd2Str(pMsg);
-  sTrace("syncLocalCmdLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
-  taosMemoryFree(serialized);
-}
-
-void syncLocalCmdLog2(char* s, const SyncLocalCmd* pMsg) {
-  if (gRaftDetailLog) {
-    char* serialized = syncLocalCmd2Str(pMsg);
-    sTrace("syncLocalCmdLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
-    taosMemoryFree(serialized);
+const char* syncLocalCmdGetStr(ESyncLocalCmd cmd) {
+  switch (cmd) {
+    case SYNC_LOCAL_CMD_STEP_DOWN:
+      return "step-down";
+    case SYNC_LOCAL_CMD_FOLLOWER_CMT:
+      return "follower-commit";
+    default:
+      return "unknown-local-cmd";
   }
 }

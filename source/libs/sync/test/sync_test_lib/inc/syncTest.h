@@ -457,6 +457,24 @@ SyncLeaderTransfer* syncLeaderTransferFromRpcMsg2(const SRpcMsg* pRpcMsg);
 cJSON*              syncLeaderTransfer2Json(const SyncLeaderTransfer* pMsg);
 char*               syncLeaderTransfer2Str(const SyncLeaderTransfer* pMsg);
 
+SyncLocalCmd* syncLocalCmdBuild(int32_t vgId);
+void          syncLocalCmdDestroy(SyncLocalCmd* pMsg);
+void          syncLocalCmdSerialize(const SyncLocalCmd* pMsg, char* buf, uint32_t bufLen);
+void          syncLocalCmdDeserialize(const char* buf, uint32_t len, SyncLocalCmd* pMsg);
+char*         syncLocalCmdSerialize2(const SyncLocalCmd* pMsg, uint32_t* len);
+SyncLocalCmd* syncLocalCmdDeserialize2(const char* buf, uint32_t len);
+void          syncLocalCmd2RpcMsg(const SyncLocalCmd* pMsg, SRpcMsg* pRpcMsg);
+void          syncLocalCmdFromRpcMsg(const SRpcMsg* pRpcMsg, SyncLocalCmd* pMsg);
+SyncLocalCmd* syncLocalCmdFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*        syncLocalCmd2Json(const SyncLocalCmd* pMsg);
+char*         syncLocalCmd2Str(const SyncLocalCmd* pMsg);
+
+// for debug ----------------------
+void syncLocalCmdPrint(const SyncLocalCmd* pMsg);
+void syncLocalCmdPrint2(char* s, const SyncLocalCmd* pMsg);
+void syncLocalCmdLog(const SyncLocalCmd* pMsg);
+void syncLocalCmdLog2(char* s, const SyncLocalCmd* pMsg);
+
 #ifdef __cplusplus
 }
 #endif
