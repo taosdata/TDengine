@@ -45,6 +45,7 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
     pSender->replicaIndex = replicaIndex;
     pSender->term = pSyncNode->pRaftStore->currentTerm;
     pSender->startTime = 0;
+    pSender->endTime = 0;
     pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &(pSender->snapshot));
     pSender->finish = false;
   } else {
@@ -132,6 +133,7 @@ int32_t snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
   // update flag
   pSender->start = false;
   pSender->finish = finish;
+  pSender->endTime = taosGetTimestampMs();
 
   // close reader
   if (pSender->pReader != NULL) {
@@ -265,7 +267,7 @@ int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
   }
 
   if (!snapshotSenderIsStart(pSender) && pSender->finish &&
-      taosGetTimestampMs() - pSender->startTime < SNAPSHOT_WAIT_MS) {
+      taosGetTimestampMs() - pSender->endTime < SNAPSHOT_WAIT_MS) {
     sNTrace(pSyncNode, "snapshot sender too frequently, ignore");
     return 1;
   }
@@ -793,6 +795,9 @@ int32_t syncNodeOnSnapshotReplyPre(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) 
     sNError(pSyncNode, "create snapshot reader error");
     return -1;
   }
+
+  // update next index
+  syncIndexMgrSetIndex(pSyncNode->pNextIndex, &(pMsg->srcId), snapshot.lastApplyIndex + 1);
 
   // update seq
   pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
