@@ -219,18 +219,6 @@ typedef struct SyncLeaderTransfer {
   SRaftId   newLeaderId;
 } SyncLeaderTransfer;
 
-SyncLeaderTransfer* syncLeaderTransferBuild(int32_t vgId);
-void                syncLeaderTransferDestroy(SyncLeaderTransfer* pMsg);
-void                syncLeaderTransferSerialize(const SyncLeaderTransfer* pMsg, char* buf, uint32_t bufLen);
-void                syncLeaderTransferDeserialize(const char* buf, uint32_t len, SyncLeaderTransfer* pMsg);
-char*               syncLeaderTransferSerialize2(const SyncLeaderTransfer* pMsg, uint32_t* len);
-SyncLeaderTransfer* syncLeaderTransferDeserialize2(const char* buf, uint32_t len);
-void                syncLeaderTransfer2RpcMsg(const SyncLeaderTransfer* pMsg, SRpcMsg* pRpcMsg);
-void                syncLeaderTransferFromRpcMsg(const SRpcMsg* pRpcMsg, SyncLeaderTransfer* pMsg);
-SyncLeaderTransfer* syncLeaderTransferFromRpcMsg2(const SRpcMsg* pRpcMsg);
-cJSON*              syncLeaderTransfer2Json(const SyncLeaderTransfer* pMsg);
-char*               syncLeaderTransfer2Str(const SyncLeaderTransfer* pMsg);
-
 typedef enum {
   SYNC_LOCAL_CMD_STEP_DOWN = 100,
   SYNC_LOCAL_CMD_FOLLOWER_CMT,
@@ -305,6 +293,7 @@ int32_t syncBuildPreSnapshotReply(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildApplyMsg(SRpcMsg* pMsg, const SRpcMsg* pOriginal, int32_t vgId, SFsmCbMeta* pMeta);
 int32_t syncBuildSnapshotSend(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId);
 int32_t syncBuildSnapshotSendRsp(SRpcMsg* pMsg, int32_t vgId);
+int32_t syncBuildLeaderTransfer(SRpcMsg* pMsg, int32_t vgId);
 
 #ifdef __cplusplus
 }

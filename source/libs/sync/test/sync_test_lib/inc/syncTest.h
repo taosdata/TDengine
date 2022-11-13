@@ -445,7 +445,18 @@ void syncSnapshotRspPrint2(char* s, const SyncSnapshotRsp* pMsg);
 void syncSnapshotRspLog(const SyncSnapshotRsp* pMsg);
 void syncSnapshotRspLog2(char* s, const SyncSnapshotRsp* pMsg);
 
-// ---------------------------------------------
+SyncLeaderTransfer* syncLeaderTransferBuild(int32_t vgId);
+void                syncLeaderTransferDestroy(SyncLeaderTransfer* pMsg);
+void                syncLeaderTransferSerialize(const SyncLeaderTransfer* pMsg, char* buf, uint32_t bufLen);
+void                syncLeaderTransferDeserialize(const char* buf, uint32_t len, SyncLeaderTransfer* pMsg);
+char*               syncLeaderTransferSerialize2(const SyncLeaderTransfer* pMsg, uint32_t* len);
+SyncLeaderTransfer* syncLeaderTransferDeserialize2(const char* buf, uint32_t len);
+void                syncLeaderTransfer2RpcMsg(const SyncLeaderTransfer* pMsg, SRpcMsg* pRpcMsg);
+void                syncLeaderTransferFromRpcMsg(const SRpcMsg* pRpcMsg, SyncLeaderTransfer* pMsg);
+SyncLeaderTransfer* syncLeaderTransferFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*              syncLeaderTransfer2Json(const SyncLeaderTransfer* pMsg);
+char*               syncLeaderTransfer2Str(const SyncLeaderTransfer* pMsg);
+
 #ifdef __cplusplus
 }
 #endif
