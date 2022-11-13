@@ -20,11 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "taosdef.h"
 
 // \* Leader i advances its commitIndex.
 // \* This is done as a separate step from handling AppendEntries responses,

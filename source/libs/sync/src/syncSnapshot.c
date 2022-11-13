@@ -13,33 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncSnapshot.h"
 #include "syncIndexMgr.h"
 #include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
-#include "wal.h"
 
-//----------------------------------
-static void    snapshotSenderUpdateProgress(SSyncSnapshotSender *pSender, SyncSnapshotRsp *pMsg);
-static void    snapshotReceiverDoStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg);
-static void    snapshotReceiverGotData(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg);
-static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg);
-
-//----------------------------------
 SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex) {
   bool condition = (pSyncNode->pFsm->FpSnapshotStartRead != NULL) && (pSyncNode->pFsm->FpSnapshotStopRead != NULL) &&
                    (pSyncNode->pFsm->FpSnapshotDoRead != NULL);
 
   SSyncSnapshotSender *pSender = NULL;
   if (condition) {
-    pSender = taosMemoryMalloc(sizeof(SSyncSnapshotSender));
+    pSender = taosMemoryCalloc(1, sizeof(SSyncSnapshotSender));
     if (pSender == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
-    memset(pSender, 0, sizeof(*pSender));
 
     pSender->start = false;
     pSender->seq = SYNC_SNAPSHOT_SEQ_INVALID;
@@ -249,64 +241,6 @@ static void snapshotSenderUpdateProgress(SSyncSnapshotSender *pSender, SyncSnaps
   ++(pSender->seq);
 }
 
-cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
-  char   u64buf[128];
-  cJSON *pRoot = cJSON_CreateObject();
-
-  if (pSender != NULL) {
-    cJSON_AddNumberToObject(pRoot, "start", pSender->start);
-    cJSON_AddNumberToObject(pRoot, "seq", pSender->seq);
-    cJSON_AddNumberToObject(pRoot, "ack", pSender->ack);
-
-    snprintf(u64buf, sizeof(u64buf), "%p", pSender->pReader);
-    cJSON_AddStringToObject(pRoot, "pReader", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%p", pSender->pCurrentBlock);
-    cJSON_AddStringToObject(pRoot, "pCurrentBlock", u64buf);
-    cJSON_AddNumberToObject(pRoot, "blockLen", pSender->blockLen);
-
-    if (pSender->pCurrentBlock != NULL) {
-      char *s;
-      s = syncUtilPrintBin((char *)(pSender->pCurrentBlock), pSender->blockLen);
-      cJSON_AddStringToObject(pRoot, "pCurrentBlock", s);
-      taosMemoryFree(s);
-      s = syncUtilPrintBin2((char *)(pSender->pCurrentBlock), pSender->blockLen);
-      cJSON_AddStringToObject(pRoot, "pCurrentBlock2", s);
-      taosMemoryFree(s);
-    }
-
-    cJSON *pSnapshot = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->snapshot.lastApplyIndex);
-    cJSON_AddStringToObject(pSnapshot, "lastApplyIndex", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->snapshot.lastApplyTerm);
-    cJSON_AddStringToObject(pSnapshot, "lastApplyTerm", u64buf);
-    cJSON_AddItemToObject(pRoot, "snapshot", pSnapshot);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->sendingMS);
-    cJSON_AddStringToObject(pRoot, "sendingMS", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSender->pSyncNode);
-    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
-    cJSON_AddNumberToObject(pRoot, "replicaIndex", pSender->replicaIndex);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->term);
-    cJSON_AddStringToObject(pRoot, "term", u64buf);
-
-    //  snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->privateTerm);
-    //  cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
-
-    cJSON_AddNumberToObject(pRoot, "finish", pSender->finish);
-  }
-
-  cJSON *pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SSyncSnapshotSender", pRoot);
-  return pJson;
-}
-
-char *snapshotSender2Str(SSyncSnapshotSender *pSender) {
-  cJSON *pJson = snapshotSender2Json(pSender);
-  char  *serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
 int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
   sNTrace(pSyncNode, "starting snapshot ...");
 
@@ -335,16 +269,17 @@ int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
   return 0;
 }
 
-// -------------------------------------
 SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId) {
   bool condition = (pSyncNode->pFsm->FpSnapshotStartWrite != NULL) && (pSyncNode->pFsm->FpSnapshotStopWrite != NULL) &&
                    (pSyncNode->pFsm->FpSnapshotDoWrite != NULL);
 
   SSyncSnapshotReceiver *pReceiver = NULL;
   if (condition) {
-    pReceiver = taosMemoryMalloc(sizeof(SSyncSnapshotReceiver));
-    ASSERT(pReceiver != NULL);
-    memset(pReceiver, 0, sizeof(*pReceiver));
+    pReceiver = taosMemoryCalloc(1, sizeof(SSyncSnapshotReceiver));
+    if (pReceiver == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
 
     pReceiver->start = false;
     pReceiver->ack = SYNC_SNAPSHOT_SEQ_BEGIN;
@@ -528,63 +463,6 @@ static void snapshotReceiverGotData(SSyncSnapshotReceiver *pReceiver, SyncSnapsh
     // event log
     sRTrace(pReceiver, "snapshot receiver receiving");
   }
-}
-
-cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
-  char   u64buf[128];
-  cJSON *pRoot = cJSON_CreateObject();
-
-  if (pReceiver != NULL) {
-    cJSON_AddNumberToObject(pRoot, "start", pReceiver->start);
-    cJSON_AddNumberToObject(pRoot, "ack", pReceiver->ack);
-
-    snprintf(u64buf, sizeof(u64buf), "%p", pReceiver->pWriter);
-    cJSON_AddStringToObject(pRoot, "pWriter", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%p", pReceiver->pSyncNode);
-    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
-
-    cJSON *pFromId = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->fromId.addr);
-    cJSON_AddStringToObject(pFromId, "addr", u64buf);
-    {
-      uint64_t u64 = pReceiver->fromId.addr;
-      cJSON   *pTmp = pFromId;
-      char     host[128] = {0};
-      uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
-      cJSON_AddStringToObject(pTmp, "addr_host", host);
-      cJSON_AddNumberToObject(pTmp, "addr_port", port);
-    }
-    cJSON_AddNumberToObject(pFromId, "vgId", pReceiver->fromId.vgId);
-    cJSON_AddItemToObject(pRoot, "fromId", pFromId);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->snapshot.lastApplyIndex);
-    cJSON_AddStringToObject(pRoot, "snapshot.lastApplyIndex", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->snapshot.lastApplyTerm);
-    cJSON_AddStringToObject(pRoot, "snapshot.lastApplyTerm", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->snapshot.lastConfigIndex);
-    cJSON_AddStringToObject(pRoot, "snapshot.lastConfigIndex", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->term);
-    cJSON_AddStringToObject(pRoot, "term", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pReceiver->startTime);
-    cJSON_AddStringToObject(pRoot, "startTime", u64buf);
-  }
-
-  cJSON *pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SSyncSnapshotReceiver", pRoot);
-  return pJson;
-}
-
-char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) {
-  cJSON *pJson = snapshotReceiver2Json(pReceiver);
-  char  *serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
 }
 
 SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths) {

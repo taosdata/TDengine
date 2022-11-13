@@ -439,6 +439,8 @@ int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
   code = schDoTaskRedirect(pJob, pTask, pData, rspCode);
   taosMemoryFree(pData->pData);
   taosMemoryFree(pData->pEpSet);
+  pData->pData = NULL;
+  pData->pEpSet = NULL;
 
   SCH_RET(code);
 
@@ -446,6 +448,8 @@ _return:
 
   taosMemoryFree(pData->pData);
   taosMemoryFree(pData->pEpSet);
+  pData->pData = NULL;
+  pData->pEpSet = NULL;
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
@@ -942,7 +946,7 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
   }
 
   SCH_ERR_JRET(qWorkerProcessLocalQuery(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId,
-                                       pTask->execId, &qwMsg, explainRes));
+                                        pTask->execId, &qwMsg, explainRes));
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     SCH_ERR_RET(schHandleExplainRes(explainRes));
@@ -1115,7 +1119,7 @@ int32_t schExecLocalFetch(SSchJob *pJob, SSchTask *pTask) {
   }
 
   SCH_ERR_JRET(qWorkerProcessLocalFetch(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId,
-                                       pTask->execId, &pRsp, explainRes));
+                                        pTask->execId, &pRsp, explainRes));
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     SCH_ERR_RET(schHandleExplainRes(explainRes));

@@ -20,11 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "taosdef.h"
 
 // SIndexMgr -----------------------------
 typedef struct SSyncIndexMgr {
@@ -45,22 +41,13 @@ void           syncIndexMgrDestroy(SSyncIndexMgr *pSyncIndexMgr);
 void           syncIndexMgrClear(SSyncIndexMgr *pSyncIndexMgr);
 void           syncIndexMgrSetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, SyncIndex index);
 SyncIndex      syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId);
-cJSON *        syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr);
-char *         syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr);
 
-void    syncIndexMgrSetStartTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, int64_t startTime);
-int64_t syncIndexMgrGetStartTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId);
-void    syncIndexMgrSetRecvTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, int64_t recvTime);
-int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId);
-
-// void     syncIndexMgrSetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, SyncTerm term);
-// SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId);
-
-// for debug -------------------
-void syncIndexMgrPrint(SSyncIndexMgr *pObj);
-void syncIndexMgrPrint2(char *s, SSyncIndexMgr *pObj);
-void syncIndexMgrLog(SSyncIndexMgr *pObj);
-void syncIndexMgrLog2(char *s, SSyncIndexMgr *pObj);
+void     syncIndexMgrSetStartTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, int64_t startTime);
+int64_t  syncIndexMgrGetStartTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId);
+void     syncIndexMgrSetRecvTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, int64_t recvTime);
+int64_t  syncIndexMgrGetRecvTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId);
+void     syncIndexMgrSetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, SyncTerm term);
+SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId);
 
 #ifdef __cplusplus
 }

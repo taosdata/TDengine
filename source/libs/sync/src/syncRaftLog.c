@@ -13,40 +13,33 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncRaftLog.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 
-//-------------------------------
 // log[m .. n]
 
 // public function
 static int32_t   raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncIndex snapshotIndex);
-static SyncIndex raftLogBeginIndex(struct SSyncLogStore* pLogStore);
-static SyncIndex raftLogEndIndex(struct SSyncLogStore* pLogStore);
-static SyncIndex raftLogWriteIndex(struct SSyncLogStore* pLogStore);
-static bool      raftLogIsEmpty(struct SSyncLogStore* pLogStore);
-static int32_t   raftLogEntryCount(struct SSyncLogStore* pLogStore);
-static SyncIndex raftLogLastIndex(struct SSyncLogStore* pLogStore);
-static SyncTerm  raftLogLastTerm(struct SSyncLogStore* pLogStore);
 static int32_t   raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
-static int32_t   raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry);
 static int32_t   raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
 static bool      raftLogExist(struct SSyncLogStore* pLogStore, SyncIndex index);
 static int32_t   raftLogUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
 static SyncIndex raftlogCommitIndex(SSyncLogStore* pLogStore);
+static int32_t   raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** ppLastEntry);
 
-static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** ppLastEntry);
-
-//-------------------------------
 SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
-  SSyncLogStore* pLogStore = taosMemoryMalloc(sizeof(SSyncLogStore));
-  ASSERT(pLogStore != NULL);
+  SSyncLogStore* pLogStore = taosMemoryCalloc(1, sizeof(SSyncLogStore));
+  if (pLogStore == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   pLogStore->pCache = taosLRUCacheInit(10 * 1024 * 1024, 1, .5);
   if (pLogStore->pCache == NULL) {
-    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
     taosMemoryFree(pLogStore);
+    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -103,7 +96,6 @@ void logStoreDestory(SSyncLogStore* pLogStore) {
   }
 }
 
-//-------------------------------
 // log[m .. n]
 static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncIndex snapshotIndex) {
   ASSERT(snapshotIndex >= 0);
@@ -126,29 +118,29 @@ static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncI
   return 0;
 }
 
-static SyncIndex raftLogBeginIndex(struct SSyncLogStore* pLogStore) {
+SyncIndex raftLogBeginIndex(struct SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   SyncIndex          firstVer = walGetFirstVer(pWal);
   return firstVer;
 }
 
-static SyncIndex raftLogEndIndex(struct SSyncLogStore* pLogStore) { return raftLogLastIndex(pLogStore); }
+SyncIndex raftLogEndIndex(struct SSyncLogStore* pLogStore) { return raftLogLastIndex(pLogStore); }
 
-static bool raftLogIsEmpty(struct SSyncLogStore* pLogStore) {
+bool raftLogIsEmpty(struct SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   return walIsEmpty(pWal);
 }
 
-static int32_t raftLogEntryCount(struct SSyncLogStore* pLogStore) {
+int32_t raftLogEntryCount(struct SSyncLogStore* pLogStore) {
   SyncIndex beginIndex = raftLogBeginIndex(pLogStore);
   SyncIndex endIndex = raftLogEndIndex(pLogStore);
   int32_t   count = endIndex - beginIndex + 1;
   return count > 0 ? count : 0;
 }
 
-static SyncIndex raftLogLastIndex(struct SSyncLogStore* pLogStore) {
+SyncIndex raftLogLastIndex(struct SSyncLogStore* pLogStore) {
   SyncIndex          lastIndex;
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -157,7 +149,7 @@ static SyncIndex raftLogLastIndex(struct SSyncLogStore* pLogStore) {
   return lastVer;
 }
 
-static SyncIndex raftLogWriteIndex(struct SSyncLogStore* pLogStore) {
+SyncIndex raftLogWriteIndex(struct SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   SyncIndex          lastVer = walGetLastVer(pWal);
@@ -174,7 +166,7 @@ static bool raftLogExist(struct SSyncLogStore* pLogStore, SyncIndex index) {
 // if success, return last term
 // if not log, return 0
 // if error, return SYNC_TERM_INVALID
-static SyncTerm raftLogLastTerm(struct SSyncLogStore* pLogStore) {
+SyncTerm raftLogLastTerm(struct SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   if (walIsEmpty(pWal)) {
@@ -225,7 +217,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 // entry found, return 0
 // entry not found, return -1, terrno = TSDB_CODE_WAL_LOG_NOT_EXIST
 // other error, return -1
-static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry) {
+int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   int32_t            code = 0;
@@ -301,6 +293,12 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
     return 0;
   }
 
+  // need not truncate
+  SyncIndex walCommitVer = walGetCommittedVer(pWal);
+  if (fromIndex <= walCommitVer) {
+    return 0;
+  }
+
   int32_t code = walRollback(pWal, fromIndex);
   if (code != 0) {
     int32_t     err = terrno;
@@ -364,111 +362,6 @@ SyncIndex raftlogCommitIndex(SSyncLogStore* pLogStore) {
   return pData->pSyncNode->commitIndex;
 }
 
-cJSON* logStore2Json(SSyncLogStore* pLogStore) {
-  char               u64buf[128] = {0};
-  SSyncLogStoreData* pData = (SSyncLogStoreData*)pLogStore->data;
-  cJSON*             pRoot = cJSON_CreateObject();
-
-  if (pData != NULL && pData->pWal != NULL) {
-    snprintf(u64buf, sizeof(u64buf), "%p", pData->pSyncNode);
-    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pData->pWal);
-    cJSON_AddStringToObject(pRoot, "pWal", u64buf);
-
-    SyncIndex beginIndex = raftLogBeginIndex(pLogStore);
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, beginIndex);
-    cJSON_AddStringToObject(pRoot, "beginIndex", u64buf);
-
-    SyncIndex endIndex = raftLogEndIndex(pLogStore);
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, endIndex);
-    cJSON_AddStringToObject(pRoot, "endIndex", u64buf);
-
-    int32_t count = raftLogEntryCount(pLogStore);
-    cJSON_AddNumberToObject(pRoot, "entryCount", count);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, raftLogWriteIndex(pLogStore));
-    cJSON_AddStringToObject(pRoot, "WriteIndex", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%d", raftLogIsEmpty(pLogStore));
-    cJSON_AddStringToObject(pRoot, "IsEmpty", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, raftLogLastIndex(pLogStore));
-    cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, raftLogLastTerm(pLogStore));
-    cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
-
-    cJSON* pEntries = cJSON_CreateArray();
-    cJSON_AddItemToObject(pRoot, "pEntries", pEntries);
-
-    if (!raftLogIsEmpty(pLogStore)) {
-      for (SyncIndex i = beginIndex; i <= endIndex; ++i) {
-        SSyncRaftEntry* pEntry = NULL;
-        raftLogGetEntry(pLogStore, i, &pEntry);
-
-        cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
-        syncEntryDestory(pEntry);
-      }
-    }
-  }
-
-  cJSON* pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SSyncLogStore", pRoot);
-  return pJson;
-}
-
-char* logStore2Str(SSyncLogStore* pLogStore) {
-  cJSON* pJson = logStore2Json(pLogStore);
-  char*  serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
-cJSON* logStoreSimple2Json(SSyncLogStore* pLogStore) {
-  char               u64buf[128] = {0};
-  SSyncLogStoreData* pData = (SSyncLogStoreData*)pLogStore->data;
-  cJSON*             pRoot = cJSON_CreateObject();
-
-  if (pData != NULL && pData->pWal != NULL) {
-    snprintf(u64buf, sizeof(u64buf), "%p", pData->pSyncNode);
-    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pData->pWal);
-    cJSON_AddStringToObject(pRoot, "pWal", u64buf);
-
-    SyncIndex beginIndex = raftLogBeginIndex(pLogStore);
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, beginIndex);
-    cJSON_AddStringToObject(pRoot, "beginIndex", u64buf);
-
-    SyncIndex endIndex = raftLogEndIndex(pLogStore);
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, endIndex);
-    cJSON_AddStringToObject(pRoot, "endIndex", u64buf);
-
-    int32_t count = raftLogEntryCount(pLogStore);
-    cJSON_AddNumberToObject(pRoot, "entryCount", count);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, raftLogWriteIndex(pLogStore));
-    cJSON_AddStringToObject(pRoot, "WriteIndex", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%d", raftLogIsEmpty(pLogStore));
-    cJSON_AddStringToObject(pRoot, "IsEmpty", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, raftLogLastIndex(pLogStore));
-    cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, raftLogLastTerm(pLogStore));
-    cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
-  }
-
-  cJSON* pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SSyncLogStoreSimple", pRoot);
-  return pJson;
-}
-
-char* logStoreSimple2Str(SSyncLogStore* pLogStore) {
-  cJSON* pJson = logStoreSimple2Json(pLogStore);
-  char*  serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
 SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -479,64 +372,4 @@ SyncIndex logStoreWalCommitVer(SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   return walGetCommittedVer(pWal);
-}
-
-// for debug -----------------
-void logStorePrint(SSyncLogStore* pLogStore) {
-  char* serialized = logStore2Str(pLogStore);
-  printf("logStorePrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void logStorePrint2(char* s, SSyncLogStore* pLogStore) {
-  char* serialized = logStore2Str(pLogStore);
-  printf("logStorePrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void logStoreLog(SSyncLogStore* pLogStore) {
-  if (gRaftDetailLog) {
-    char* serialized = logStore2Str(pLogStore);
-    sLTrace("logStoreLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
-    taosMemoryFree(serialized);
-  }
-}
-
-void logStoreLog2(char* s, SSyncLogStore* pLogStore) {
-  if (gRaftDetailLog) {
-    char* serialized = logStore2Str(pLogStore);
-    sLTrace("logStoreLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
-    taosMemoryFree(serialized);
-  }
-}
-
-// for debug -----------------
-void logStoreSimplePrint(SSyncLogStore* pLogStore) {
-  char* serialized = logStoreSimple2Str(pLogStore);
-  printf("logStoreSimplePrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void logStoreSimplePrint2(char* s, SSyncLogStore* pLogStore) {
-  char* serialized = logStoreSimple2Str(pLogStore);
-  printf("logStoreSimplePrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void logStoreSimpleLog(SSyncLogStore* pLogStore) {
-  char* serialized = logStoreSimple2Str(pLogStore);
-  sTrace("logStoreSimpleLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
-  taosMemoryFree(serialized);
-}
-
-void logStoreSimpleLog2(char* s, SSyncLogStore* pLogStore) {
-  if (gRaftDetailLog) {
-    char* serialized = logStoreSimple2Str(pLogStore);
-    sTrace("logStoreSimpleLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
-    taosMemoryFree(serialized);
-  }
 }

@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -32,7 +28,7 @@ void test2() {
   uint32_t     len = pMsg->bytes;
   char        *serialized = (char *)taosMemoryMalloc(len);
   syncTimeoutSerialize(pMsg, serialized, len);
-  SyncTimeout *pMsg2 = syncTimeoutBuild();
+  SyncTimeout *pMsg2 = syncTimeoutBuildX();
   syncTimeoutDeserialize(serialized, len, pMsg2);
   syncTimeoutLog2((char *)"test2: syncTimeoutSerialize -> syncTimeoutDeserialize ", pMsg2);
 

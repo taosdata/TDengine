@@ -89,8 +89,8 @@ if $data01 != 40 then
 endi
 
 print ======== step4 import new data
-sql_error import into tb values (now + 30d , 30 )
-sql_error import into tb values (now + 31d , 31 )
+#sql_error import into tb values (now + 30d , 30 )
+#sql_error import into tb values (now + 31d , 31 )
 
 sql select * from tb order by ts desc
 print ===> rows $rows

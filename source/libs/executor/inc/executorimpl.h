@@ -264,6 +264,7 @@ typedef struct SExchangeInfo {
   SLoadRemoteDataInfo loadInfo;
   uint64_t            self;
   SLimitInfo          limitInfo;
+  int64_t             openedTs;         // start exec time stamp
 } SExchangeInfo;
 
 typedef struct SScanInfo {
@@ -841,10 +842,8 @@ typedef struct SJoinOperatorInfo {
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
 #define OPTR_SET_OPENED(_optr) ((_optr)->status |= OP_OPENED)
 
-void doDestroyExchangeOperatorInfo(void* param);
-
-SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t streamFn,
-                                   __optr_fn_t cleanup, __optr_close_fn_t closeFn, __optr_explain_fn_t explain);
+SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
+                                   __optr_close_fn_t closeFn, __optr_explain_fn_t explain);
 
 int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
 int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
@@ -880,7 +879,11 @@ STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInter
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scanFlag);
 int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz);
 
-void    doSetOperatorCompleted(SOperatorInfo* pOperator);
+void    doDestroyExchangeOperatorInfo(void* param);
+
+void    setOperatorCompleted(SOperatorInfo* pOperator);
+void    setOperatorInfo(SOperatorInfo* pOperator, const char* name, int32_t type, bool blocking, int32_t status, void* pInfo,
+                        SExecTaskInfo* pTaskInfo);
 void    doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr,
                                SSDataBlock* pBlock, int32_t rows, const char* idStr, STableMetaCacheInfo * pCache);
@@ -978,6 +981,7 @@ void setTaskKilled(SExecTaskInfo* pTaskInfo);
 void queryCostStatis(SExecTaskInfo* pTaskInfo);
 
 void    doDestroyTask(SExecTaskInfo* pTaskInfo);
+void destroyOperatorInfo(SOperatorInfo* pOperator);
 int32_t getMaximumIdleDurationSec();
 
 /*

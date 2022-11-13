@@ -1,8 +1,10 @@
 ---
 sidebar_label: taosTools 发布历史
-title: taosTools 发布历史
+title: taosTools 发布历史及下载链接
 description: taosTools 的发布历史、Release Notes 和下载链接
 ---
+
+各版本 taosTools 安装包下载链接如下：
 
 import Release from "/components/ReleaseV3";
 

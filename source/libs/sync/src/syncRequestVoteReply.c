@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncRequestVoteReply.h"
-#include "syncInt.h"
-#include "syncRaftCfg.h"
+#include "syncMessage.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
@@ -37,8 +37,18 @@
 //    /\ Discard(m)
 //    /\ UNCHANGED <<serverVars, votedFor, leaderVars, logVars>>
 //
-int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
-  int32_t ret = 0;
+
+static void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+  sNTrace(pSyncNode, "recv sync-request-vote-reply from %s:%d {term:%" PRId64 ", grant:%d}, %s", host, port, pMsg->term,
+          pMsg->voteGranted, s);
+}
+
+int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  int32_t               ret = 0;
+  SyncRequestVoteReply* pMsg = pRpcMsg->pCont;
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {

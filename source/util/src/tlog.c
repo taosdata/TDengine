@@ -317,14 +317,14 @@ static void taosGetLogFileName(char *fn) {
     for (int32_t i = 0; i < tsLogObj.fileNum; i++) {
       char fileName[LOG_FILE_NAME_LEN];
 
-      sprintf(fileName, "%s%d.0", fn, i);
+      snprintf(fileName, LOG_FILE_NAME_LEN, "%s%d.0", fn, i);
       bool file1open = taosCheckFileIsOpen(fileName);
 
-      sprintf(fileName, "%s%d.1", fn, i);
+      snprintf(fileName, LOG_FILE_NAME_LEN, "%s%d.1", fn, i);
       bool file2open = taosCheckFileIsOpen(fileName);
 
       if (!file1open && !file2open) {
-        sprintf(tsLogObj.logName, "%s%d", fn, i);
+        snprintf(tsLogObj.logName, LOG_FILE_NAME_LEN, "%s%d", fn, i);
         return;
       }
     }
@@ -435,7 +435,7 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 
   taosGetTimeOfDay(&timeSecs);
   time_t curTime = timeSecs.tv_sec;
-  ptm = taosLocalTimeNolock(&Tm, &curTime, taosGetDaylight());
+  ptm = taosLocalTime(&curTime, &Tm);
 
   return sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                  ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(), flags);
@@ -586,7 +586,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   int32_t        end = 0;
   int32_t        remainSize = 0;
   static int64_t lostLine = 0;
-  char           tmpBuf[40] = {0};
+  char           tmpBuf[128] = {0};
   int32_t        tmpBufLen = 0;
 
   if (pLogBuf == NULL || pLogBuf->stop) return -1;
@@ -598,7 +598,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   remainSize = (start > end) ? (start - end - 1) : (start + LOG_BUF_SIZE(pLogBuf) - end - 1);
 
   if (lostLine > 0) {
-    sprintf(tmpBuf, "...Lost %" PRId64 " lines here...\n", lostLine);
+    snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
     tmpBufLen = (int32_t)strlen(tmpBuf);
   }
 

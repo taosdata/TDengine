@@ -205,8 +205,23 @@ static void mndBecomeLeader(const SSyncFSM *pFsm) {
 static bool mndApplyQueueEmpty(const SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
 
-  int32_t itemSize = tmsgGetQueueSize(&pMnode->msgCb, 1, APPLY_QUEUE);
-  return (itemSize == 0);
+  if (pMnode != NULL && pMnode->msgCb.qsizeFp != NULL) {
+    int32_t itemSize = tmsgGetQueueSize(&pMnode->msgCb, 1, APPLY_QUEUE);
+    return (itemSize == 0);
+  } else {
+    return true;
+  }
+}
+
+static int32_t mndApplyQueueItems(const SSyncFSM *pFsm) {
+  SMnode *pMnode = pFsm->data;
+
+  if (pMnode != NULL && pMnode->msgCb.qsizeFp != NULL) {
+    int32_t itemSize = tmsgGetQueueSize(&pMnode->msgCb, 1, APPLY_QUEUE);
+    return itemSize;
+  } else {
+    return -1;
+  }
 }
 
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
@@ -218,6 +233,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
   pFsm->FpLeaderTransferCb = NULL;
   pFsm->FpApplyQueueEmptyCb = mndApplyQueueEmpty;
+  pFsm->FpApplyQueueItems = mndApplyQueueItems;
   pFsm->FpReConfigCb = NULL;
   pFsm->FpBecomeLeaderCb = mndBecomeLeader;
   pFsm->FpBecomeFollowerCb = mndBecomeFollower;
@@ -291,7 +307,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
 
   SRpcMsg req = {.msgType = TDMT_MND_APPLY_MSG, .contLen = sdbGetRawTotalSize(pRaw)};
   if (req.contLen <= 0) return -1;
-  
+
   req.pCont = rpcMallocCont(req.contLen);
   if (req.pCont == NULL) return -1;
   memcpy(req.pCont, pRaw, req.contLen);

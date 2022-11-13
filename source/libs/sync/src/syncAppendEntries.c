@@ -13,15 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncAppendEntries.h"
-#include "syncInt.h"
-#include "syncRaftCfg.h"
+#include "syncMessage.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
-#include "syncSnapshot.h"
 #include "syncUtil.h"
-#include "syncVoteMgr.h"
-#include "wal.h"
 
 // TLA+ Spec
 // HandleAppendEntriesRequest(i, j, m) ==
@@ -127,7 +124,22 @@ int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
   return 0;
 }
 
-int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
+void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+
+  sNTrace(pSyncNode,
+          "recv sync-append-entries from %s:%d {term:%" PRId64 ", pre-index:%" PRId64 ", pre-term:%" PRId64
+          ", cmt:%" PRId64 ", pterm:%" PRId64 ", datalen:%d}, %s",
+          host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+          pMsg->dataLen, s);
+}
+
+int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  SyncAppendEntries* pMsg = pRpcMsg->pCont;
+  SRpcMsg            rpcRsp = {0};
+
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
     syncLogRecvAppendEntries(ths, pMsg, "not in my config");
@@ -135,7 +147,13 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
   }
 
   // prepare response msg
-  SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
+  int32_t code = syncBuildAppendEntriesReply(&rpcRsp, ths->vgId);
+  if (code != 0) {
+    syncLogRecvAppendEntries(ths, pMsg, "build rsp error");
+    goto _IGNORE;
+  }
+
+  SyncAppendEntriesReply* pReply = rpcRsp.pCont;
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
   pReply->term = ths->pRaftStore->currentTerm;
@@ -179,7 +197,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
   pReply->success = true;
   bool hasAppendEntries = pMsg->dataLen > 0;
   if (hasAppendEntries) {
-    SSyncRaftEntry* pAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
+    SSyncRaftEntry* pAppendEntry = syncEntryBuildFromAppendEntries(pMsg);
     ASSERT(pAppendEntry != NULL);
 
     SyncIndex       appendIndex = pMsg->prevLogIndex + 1;
@@ -246,7 +264,8 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
       } else {
         // error
         char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "ignore, get local entry error, append-index:%" PRId64, appendIndex);
+        snprintf(logBuf, sizeof(logBuf), "ignore, get local entry error, append-index:%" PRId64 " err:%d", appendIndex,
+                 terrno);
         syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
         syncEntryDestory(pLocalEntry);
@@ -276,7 +295,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
   goto _SEND_RESPONSE;
 
 _IGNORE:
-  syncAppendEntriesReplyDestroy(pReply);
+  rpcFreeCont(rpcRsp.pCont);
   return 0;
 
 _SEND_RESPONSE:
@@ -284,10 +303,6 @@ _SEND_RESPONSE:
   syncLogSendAppendEntriesReply(ths, pReply, "");
 
   // send response
-  SRpcMsg rpcMsg;
-  syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
-  syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
-  syncAppendEntriesReplyDestroy(pReply);
-
+  syncNodeSendMsgById(&pReply->destId, ths, &rpcRsp);
   return 0;
 }

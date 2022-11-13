@@ -58,7 +58,6 @@ typedef int64_t  SyncIndex;
 typedef uint64_t SyncTerm;
 
 typedef struct SSyncNode      SSyncNode;
-typedef struct SSyncBuffer    SSyncBuffer;
 typedef struct SWal           SWal;
 typedef struct SSyncRaftEntry SSyncRaftEntry;
 
@@ -139,6 +138,7 @@ typedef struct SSyncFSM {
   void (*FpReConfigCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SReConfigCbMeta* pMeta);
   void (*FpLeaderTransferCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
   bool (*FpApplyQueueEmptyCb)(const struct SSyncFSM* pFsm);
+  int32_t (*FpApplyQueueItems)(const struct SSyncFSM* pFsm);
 
   void (*FpBecomeLeaderCb)(const struct SSyncFSM* pFsm);
   void (*FpBecomeFollowerCb)(const struct SSyncFSM* pFsm);

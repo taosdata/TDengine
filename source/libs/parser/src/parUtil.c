@@ -138,7 +138,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_CANNOT_DROP_PRIMARY_KEY:
       return "Primary timestamp column cannot be dropped";
     case TSDB_CODE_PAR_INVALID_MODIFY_COL:
-      return "Only binary/nchar column length could be modified";
+      return "Only binary/nchar column length could be modified, and the length can only be increased, not decreased";
     case TSDB_CODE_PAR_INVALID_TBNAME:
       return "Invalid tbname pseudo column";
     case TSDB_CODE_PAR_INVALID_FUNCTION_NAME:
@@ -876,13 +876,14 @@ int32_t reserveDbVgVersionInCache(int32_t acctId, const char* pDb, SParseMetaCac
 }
 
 int32_t getDbVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, int32_t* pVersion, int64_t* pDbId,
-                                int32_t* pTableNum) {
+                                int32_t* pTableNum, int64_t* pStateTs) {
   SDbInfo* pDbInfo = NULL;
   int32_t  code = getMetaDataFromHash(pDbFName, strlen(pDbFName), pMetaCache->pDbInfo, (void**)&pDbInfo);
   if (TSDB_CODE_SUCCESS == code) {
     *pVersion = pDbInfo->vgVer;
     *pDbId = pDbInfo->dbId;
     *pTableNum = pDbInfo->tbNum;
+    *pStateTs = pDbInfo->stateTs;
   }
   return code;
 }

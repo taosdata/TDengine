@@ -41,15 +41,15 @@ void syncUtilU642Addr(uint64_t u64, char* host, int64_t len, uint16_t* port) {
   *port = (uint16_t)((u64 & 0x00000000FFFF0000) >> 16);
 }
 
-void syncUtilnodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet) {
+void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet) {
   pEpSet->inUse = 0;
   pEpSet->numOfEps = 0;
   addEpIntoEpSet(pEpSet, pInfo->nodeFqdn, pInfo->nodePort);
 }
 
-void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet) {
+void syncUtilRaftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet) {
   char     host[TSDB_FQDN_LEN] = {0};
-  uint16_t port;
+  uint16_t port = 0;
 
   syncUtilU642Addr(raftId->addr, host, sizeof(host), &port);
   pEpSet->inUse = 0;
@@ -57,7 +57,7 @@ void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet) {
   addEpIntoEpSet(pEpSet, host, port);
 }
 
-bool syncUtilnodeInfo2raftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId) {
+bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId) {
   uint32_t ipv4 = taosGetIpv4FromFqdn(pInfo->nodeFqdn);
   if (ipv4 == 0xFFFFFFFF || ipv4 == 1) {
     sError("failed to resolve ipv4 addr, fqdn: %s", pInfo->nodeFqdn);
@@ -73,8 +73,7 @@ bool syncUtilnodeInfo2raftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* 
 }
 
 bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2) {
-  bool ret = pId1->addr == pId2->addr && pId1->vgId == pId2->vgId;
-  return ret;
+  return pId1->addr == pId2->addr && pId1->vgId == pId2->vgId;
 }
 
 bool syncUtilEmptyId(const SRaftId* pId) { return (pId->addr == 0 && pId->vgId == 0); }
@@ -89,18 +88,6 @@ int32_t syncUtilElectRandomMS(int32_t min, int32_t max) {
 }
 
 int32_t syncUtilQuorum(int32_t replicaNum) { return replicaNum / 2 + 1; }
-
-cJSON* syncUtilNodeInfo2Json(const SNodeInfo* p) {
-  char   u64buf[128] = {0};
-  cJSON* pRoot = cJSON_CreateObject();
-
-  cJSON_AddStringToObject(pRoot, "nodeFqdn", p->nodeFqdn);
-  cJSON_AddNumberToObject(pRoot, "nodePort", p->nodePort);
-
-  cJSON* pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SNodeInfo", pRoot);
-  return pJson;
-}
 
 cJSON* syncUtilRaftId2Json(const SRaftId* p) {
   char   u64buf[128] = {0};
@@ -118,13 +105,6 @@ cJSON* syncUtilRaftId2Json(const SRaftId* p) {
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SRaftId", pRoot);
   return pJson;
-}
-
-char* syncUtilRaftId2Str(const SRaftId* p) {
-  cJSON* pJson = syncUtilRaftId2Json(p);
-  char*  serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
 }
 
 static inline bool syncUtilCanPrint(char c) {
@@ -165,14 +145,12 @@ char* syncUtilPrintBin2(char* ptr, uint32_t len) {
 }
 
 void syncUtilMsgHtoN(void* msg) {
-  // htonl
   SMsgHead* pHead = msg;
   pHead->contLen = htonl(pHead->contLen);
   pHead->vgId = htonl(pHead->vgId);
 }
 
 void syncUtilMsgNtoH(void* msg) {
-  // ntohl
   SMsgHead* pHead = msg;
   pHead->contLen = ntohl(pHead->contLen);
   pHead->vgId = ntohl(pHead->vgId);
@@ -205,7 +183,7 @@ static void syncPeerState2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
 
     if (i < pSyncNode->replicaNum - 1) {
       len += snprintf(buf + len, bufLen - len, "%d:%" PRId64 " %" PRId64 ", ", i, pState->lastSendIndex,
-                     pState->lastSendTime);
+                      pState->lastSendTime);
     } else {
       len += snprintf(buf + len, bufLen - len, "%d:%" PRId64 " %" PRId64 "}", i, pState->lastSendIndex,
                       pState->lastSendTime);
@@ -215,6 +193,9 @@ static void syncPeerState2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
 
 void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNode* pNode, const char* format, ...) {
   if (pNode == NULL || pNode->pRaftCfg != NULL && pNode->pRaftStore == NULL || pNode->pLogStore == NULL) return;
+
+  // save error code, otherwise it will be overwritten
+  int32_t errCode = terrno;
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
   if (pNode->pFsm != NULL && pNode->pFsm->FpGetSnapshotInfo != NULL) {
@@ -242,16 +223,21 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
   int32_t writeLen = vsnprintf(eventLog, sizeof(eventLog), format, argpointer);
   va_end(argpointer);
 
+  int32_t aqItems = pNode->pFsm->FpApplyQueueItems(pNode->pFsm);
+
+  // restore error code
+  terrno = errCode;
+
   taosPrintLog(flags, level, dflag,
                "vgId:%d, sync %s "
                "%s"
                ", tm:%" PRIu64 ", cmt:%" PRId64 ", fst:%" PRId64 ", lst:%" PRId64 ", min:%" PRId64 ", snap:%" PRId64
-               ", snap-tm:%" PRIu64 ", sby:%d, stgy:%d, bch:%d, r-num:%d, lcfg:%" PRId64
+               ", snap-tm:%" PRIu64 ", sby:%d, aq:%d, bch:%d, r-num:%d, lcfg:%" PRId64
                ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s, %s",
                pNode->vgId, syncStr(pNode->state), eventLog, pNode->pRaftStore->currentTerm, pNode->commitIndex,
                logBeginIndex, logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
-               pNode->pRaftCfg->isStandBy, pNode->pRaftCfg->snapshotStrategy, pNode->pRaftCfg->batchSize,
-               pNode->replicaNum, pNode->pRaftCfg->lastConfigIndex, pNode->changing, pNode->restoreFinish, quorum,
+               pNode->pRaftCfg->isStandBy, aqItems, pNode->pRaftCfg->batchSize, pNode->replicaNum,
+               pNode->pRaftCfg->lastConfigIndex, pNode->changing, pNode->restoreFinish, quorum,
                pNode->electTimerLogicClock, pNode->heartbeatTimerLogicClockUser, peerStr, cfgStr);
 }
 
