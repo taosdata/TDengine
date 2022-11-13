@@ -172,159 +172,21 @@ int32_t syncBuildHeartbeat(SRpcMsg* pMsg, int32_t vgId) {
   return 0;
 }
 
-
-// ---- message process SyncHeartbeatReply----
-SyncHeartbeatReply* syncHeartbeatReplyBuild(int32_t vgId) {
-  uint32_t            bytes = sizeof(SyncHeartbeatReply);
-  SyncHeartbeatReply* pMsg = taosMemoryMalloc(bytes);
-  memset(pMsg, 0, bytes);
-  pMsg->bytes = bytes;
-  pMsg->vgId = vgId;
+int32_t syncBuildHeartbeatReply(SRpcMsg* pMsg, int32_t vgId) {
+  int32_t bytes = sizeof(SyncHeartbeatReply);
+  pMsg->pCont = rpcMallocCont(bytes);
   pMsg->msgType = TDMT_SYNC_HEARTBEAT_REPLY;
-  return pMsg;
-}
-
-void syncHeartbeatReplyDestroy(SyncHeartbeatReply* pMsg) {
-  if (pMsg != NULL) {
-    taosMemoryFree(pMsg);
-  }
-}
-
-void syncHeartbeatReplySerialize(const SyncHeartbeatReply* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
-  memcpy(buf, pMsg, pMsg->bytes);
-}
-
-void syncHeartbeatReplyDeserialize(const char* buf, uint32_t len, SyncHeartbeatReply* pMsg) {
-  memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
-}
-
-char* syncHeartbeatReplySerialize2(const SyncHeartbeatReply* pMsg, uint32_t* len) {
-  char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
-  syncHeartbeatReplySerialize(pMsg, buf, pMsg->bytes);
-  if (len != NULL) {
-    *len = pMsg->bytes;
-  }
-  return buf;
-}
-
-SyncHeartbeatReply* syncHeartbeatReplyDeserialize2(const char* buf, uint32_t len) {
-  uint32_t            bytes = *((uint32_t*)buf);
-  SyncHeartbeatReply* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
-  syncHeartbeatReplyDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
-  return pMsg;
-}
-
-void syncHeartbeatReply2RpcMsg(const SyncHeartbeatReply* pMsg, SRpcMsg* pRpcMsg) {
-  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
-  pRpcMsg->msgType = pMsg->msgType;
-  pRpcMsg->contLen = pMsg->bytes;
-  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
-  syncHeartbeatReplySerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
-}
-
-void syncHeartbeatReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncHeartbeatReply* pMsg) {
-  syncHeartbeatReplyDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
-}
-
-SyncHeartbeatReply* syncHeartbeatReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
-  SyncHeartbeatReply* pMsg = syncHeartbeatReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
-  return pMsg;
-}
-
-cJSON* syncHeartbeatReply2Json(const SyncHeartbeatReply* pMsg) {
-  char   u64buf[128] = {0};
-  cJSON* pRoot = cJSON_CreateObject();
-
-  if (pMsg != NULL) {
-    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
-    cJSON_AddNumberToObject(pRoot, "vgId", pMsg->vgId);
-    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
-
-    cJSON* pSrcId = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->srcId.addr);
-    cJSON_AddStringToObject(pSrcId, "addr", u64buf);
-    {
-      uint64_t u64 = pMsg->srcId.addr;
-      cJSON*   pTmp = pSrcId;
-      char     host[128] = {0};
-      uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
-      cJSON_AddStringToObject(pTmp, "addr_host", host);
-      cJSON_AddNumberToObject(pTmp, "addr_port", port);
-    }
-    cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
-    cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
-
-    cJSON* pDestId = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->destId.addr);
-    cJSON_AddStringToObject(pDestId, "addr", u64buf);
-    {
-      uint64_t u64 = pMsg->destId.addr;
-      cJSON*   pTmp = pDestId;
-      char     host[128] = {0};
-      uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
-      cJSON_AddStringToObject(pTmp, "addr_host", host);
-      cJSON_AddNumberToObject(pTmp, "addr_port", port);
-    }
-    cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
-    cJSON_AddItemToObject(pRoot, "destId", pDestId);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->privateTerm);
-    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->term);
-    cJSON_AddStringToObject(pRoot, "term", u64buf);
-
-    cJSON_AddStringToObject(pRoot, "matchIndex", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->startTime);
-    cJSON_AddStringToObject(pRoot, "startTime", u64buf);
+  pMsg->contLen = bytes;
+  if (pMsg->pCont == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
   }
 
-  cJSON* pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SyncHeartbeatReply", pRoot);
-  return pJson;
-}
-
-char* syncHeartbeatReply2Str(const SyncHeartbeatReply* pMsg) {
-  cJSON* pJson = syncHeartbeatReply2Json(pMsg);
-  char*  serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
-void syncHeartbeatReplyPrint(const SyncHeartbeatReply* pMsg) {
-  char* serialized = syncHeartbeatReply2Str(pMsg);
-  printf("syncHeartbeatReplyPrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncHeartbeatReplyPrint2(char* s, const SyncHeartbeatReply* pMsg) {
-  char* serialized = syncHeartbeatReply2Str(pMsg);
-  printf("syncHeartbeatReplyPrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncHeartbeatReplyLog(const SyncHeartbeatReply* pMsg) {
-  char* serialized = syncHeartbeatReply2Str(pMsg);
-  sTrace("syncHeartbeatReplyLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
-  taosMemoryFree(serialized);
-}
-
-void syncHeartbeatReplyLog2(char* s, const SyncHeartbeatReply* pMsg) {
-  if (gRaftDetailLog) {
-    char* serialized = syncHeartbeatReply2Str(pMsg);
-    sTrace("syncHeartbeatReplyLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
-    taosMemoryFree(serialized);
-  }
+  SyncHeartbeatReply* pHeartbeatReply = pMsg->pCont;
+  pHeartbeatReply->bytes = bytes;
+  pHeartbeatReply->msgType = TDMT_SYNC_HEARTBEAT_REPLY;
+  pHeartbeatReply->vgId = vgId;
+  return 0;
 }
 
 // ---- message process SyncPreSnapshot----

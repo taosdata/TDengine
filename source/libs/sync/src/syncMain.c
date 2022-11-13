@@ -136,21 +136,19 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
   if (pMsg->msgType == TDMT_SYNC_HEARTBEAT) {
     code = syncNodeOnHeartbeat(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_HEARTBEAT_REPLY) {
-    SyncHeartbeatReply* pSyncMsg = syncHeartbeatReplyFromRpcMsg2(pMsg);
-    code = syncNodeOnHeartbeatReply(pSyncNode, pSyncMsg);
-    syncHeartbeatReplyDestroy(pSyncMsg);
+    code = syncNodeOnHeartbeatReply(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
     code = syncNodeOnTimer(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
     code = syncNodeOnClientRequest(pSyncNode, pMsg, NULL);
   } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
-    syncNodeOnRequestVote(pSyncNode, pMsg);
+    code = syncNodeOnRequestVote(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
     code = syncNodeOnRequestVoteReply(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
-    syncNodeOnAppendEntries(pSyncNode, pMsg);
+    code = syncNodeOnAppendEntries(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
-    syncNodeOnAppendEntriesReply(pSyncNode, pMsg);
+    code = syncNodeOnAppendEntriesReply(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
     SyncSnapshotSend* pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
     code = syncNodeOnSnapshot(pSyncNode, pSyncMsg);
@@ -1912,7 +1910,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
   if (pSyncNode->replicaNum > 1) {
     if (timerLogicClock == msgLogicClock) {
-      SRpcMsg        rpcMsg = {0};
+      SRpcMsg rpcMsg = {0};
       (void)syncBuildHeartbeat(&rpcMsg, pSyncNode->vgId);
 
       SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
@@ -2010,14 +2008,14 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
   syncLogRecvHeartbeat(ths, pMsg, "");
 
-  SyncHeartbeatReply* pMsgReply = syncHeartbeatReplyBuild(ths->vgId);
+  SRpcMsg rpcMsg = {0};
+  (void)syncBuildHeartbeatReply(&rpcMsg, ths->vgId);
+
+  SyncHeartbeatReply* pMsgReply = rpcMsg.pCont;
   pMsgReply->destId = pMsg->srcId;
   pMsgReply->srcId = ths->myRaftId;
   pMsgReply->term = ths->pRaftStore->currentTerm;
   pMsgReply->privateTerm = 8864;  // magic number
-
-  SRpcMsg rpcMsg;
-  syncHeartbeatReply2RpcMsg(pMsgReply, &rpcMsg);
 
   if (pMsg->term == ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_LEADER) {
     syncNodeResetElectTimer(ths);
@@ -2075,17 +2073,15 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   // reply
   syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg);
-  syncHeartbeatReplyDestroy(pMsgReply);
-
   return 0;
 }
 
-int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, SyncHeartbeatReply* pMsg) {
+int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
   syncLogRecvHeartbeatReply(ths, pMsg, "");
 
   // update last reply time, make decision whether the other node is alive or not
-  syncIndexMgrSetRecvTime(ths->pMatchIndex, &(pMsg->destId), pMsg->startTime);
-
+  syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->destId, pMsg->startTime);
   return 0;
 }
 
