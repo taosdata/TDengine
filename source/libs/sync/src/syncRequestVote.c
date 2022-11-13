@@ -88,23 +88,6 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* pSyncNode, SyncRequestVote* pM
   return false;
 }
 
-static void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s) {
-  char     logBuf[256];
-  char     host[64];
-  uint16_t port;
-  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "recv sync-request-vote from %s:%d, {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, %s",
-          host, port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
-}
-
-static void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
-  char     host[64];
-  uint16_t port;
-  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "send sync-request-vote-reply to %s:%d {term:%" PRId64 ", grant:%d}, %s", host, port, pMsg->term,
-          pMsg->voteGranted, s);
-}
-
 int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   int32_t          ret = 0;
   SyncRequestVote* pMsg = pRpcMsg->pCont;

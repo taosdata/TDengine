@@ -15,12 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "syncAppendEntriesReply.h"
-#include "syncMessage.h"
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
+#include "syncMessage.h"
 #include "syncRaftStore.h"
 #include "syncReplication.h"
 #include "syncSnapshot.h"
+#include "syncUtil.h"
 
 // TLA+ Spec
 // HandleAppendEntriesResponse(i, j, m) ==

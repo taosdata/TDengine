@@ -17,6 +17,7 @@
 #include "syncRaftLog.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
+#include "syncUtil.h"
 
 // log[m .. n]
 

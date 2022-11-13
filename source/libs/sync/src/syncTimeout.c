@@ -19,12 +19,13 @@
 #include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncReplication.h"
+#include "syncUtil.h"
 
 static void syncNodeCleanConfigIndex(SSyncNode* ths) {
   int32_t   newArrIndex = 0;
   SyncIndex newConfigIndexArr[MAX_CONFIG_INDEX_COUNT] = {0};
   SSnapshot snapshot = {0};
-  
+
   ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
   if (snapshot.lastApplyIndex != SYNC_INDEX_INVALID) {
     for (int32_t i = 0; i < ths->pRaftCfg->configIndexCount; ++i) {
