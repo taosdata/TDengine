@@ -1,8 +1,4 @@
-#include "syncRespMgr.h"
-//#include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -58,19 +54,19 @@ void syncRespMgrGetTest(uint64_t i) {
   if (ret == 1) {
     printStub(&stub);
   } else if (ret == 0) {
-    printf("" PRId64 " notFound \n", i);
+    printf("%" PRId64 " notFound \n", i);
   }
 }
 
 void syncRespMgrGetAndDelTest(uint64_t i) {
-  printf("------syncRespMgrGetAndDelTest-------" PRIu64 "-- \n", i);
-  SRespStub stub;
-  int32_t   ret = syncRespMgrGetAndDel(pMgr, i, &stub);
-  if (ret == 1) {
-    printStub(&stub);
-  } else if (ret == 0) {
-    printf("" PRId64 " notFound \n", i);
-  }
+  printf("------syncRespMgrGetAndDelTest-------%" PRIu64 "-- \n", i);
+  // SRespStub stub;
+  // int32_t   ret = syncRespMgrGetAndDel(pMgr, i, &stub);
+  // if (ret == 1) {
+  //   printStub(&stub);
+  // } else if (ret == 0) {
+  //   printf("%" PRId64 " notFound \n", i);
+  // }
 }
 
 SSyncNode *createSyncNode() {

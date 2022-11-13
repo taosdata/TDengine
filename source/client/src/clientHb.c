@@ -61,7 +61,8 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
   int32_t numOfBatchs = taosArrayGetSize(batchUseRsp.pArray);
   for (int32_t i = 0; i < numOfBatchs; ++i) {
     SUseDbRsp *rsp = taosArrayGet(batchUseRsp.pArray, i);
-    tscDebug("hb db rsp, db:%s, vgVersion:%d, uid:%" PRIx64, rsp->db, rsp->vgVersion, rsp->uid);
+    tscDebug("hb db rsp, db:%s, vgVersion:%d, stateTs:%" PRId64 ", uid:%" PRIx64, rsp->db, rsp->vgVersion, rsp->stateTs,
+             rsp->uid);
 
     if (rsp->vgVersion < 0) {
       code = catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
@@ -72,6 +73,7 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
       }
 
       vgInfo->vgVersion = rsp->vgVersion;
+      vgInfo->stateTs = rsp->stateTs;
       vgInfo->hashMethod = rsp->hashMethod;
       vgInfo->hashPrefix = rsp->hashPrefix;
       vgInfo->hashSuffix = rsp->hashSuffix;
@@ -173,7 +175,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
       pTscObj->pAppInfo->totalDnodes = pRsp->query->totalDnodes;
       pTscObj->pAppInfo->onlineDnodes = pRsp->query->onlineDnodes;
       pTscObj->connId = pRsp->query->connId;
-      tscTrace("conn %p hb rsp, dnodes %d/%d", pTscObj->connId, pTscObj->pAppInfo->onlineDnodes,
+      tscTrace("conn %u hb rsp, dnodes %d/%d", pTscObj->connId, pTscObj->pAppInfo->onlineDnodes,
                pTscObj->pAppInfo->totalDnodes);
 
       if (pRsp->query->killRid) {
@@ -274,13 +276,13 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   SClientHbBatchRsp pRsp = {0};
   if (TSDB_CODE_SUCCESS == code) {
     tDeserializeSClientHbBatchRsp(pMsg->pData, pMsg->len, &pRsp);
-  }
 
-  int32_t now = taosGetTimestampSec();
-  int32_t delta = abs(now - pRsp.svrTimestamp);
-  if (delta > timestampDeltaLimit) {
-    code = TSDB_CODE_TIME_UNSYNCED;
-    tscError("time diff: %ds is too big", delta);
+    int32_t now = taosGetTimestampSec();
+    int32_t delta = abs(now - pRsp.svrTimestamp);
+    if (delta > timestampDeltaLimit) {
+      code = TSDB_CODE_TIME_UNSYNCED;
+      tscError("time diff: %ds is too big", delta);
+    }
   }
 
   int32_t rspNum = taosArrayGetSize(pRsp.rsps);
@@ -292,6 +294,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
     taosThreadMutexUnlock(&appInfo.mutex);
     tscError("cluster not exist, key:%s", key);
     taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
     tFreeClientHbBatchRsp(&pRsp);
     return -1;
   }
@@ -321,6 +324,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   tFreeClientHbBatchRsp(&pRsp);
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
   return code;
 }
 
@@ -440,6 +444,7 @@ int32_t hbGetExpiredUserInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
   }
 
   if (userNum <= 0) {
+    taosMemoryFree(users);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -476,6 +481,7 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
   }
 
   if (dbNum <= 0) {
+    taosMemoryFree(dbs);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -484,6 +490,7 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
     db->dbId = htobe64(db->dbId);
     db->vgVersion = htonl(db->vgVersion);
     db->numOfTable = htonl(db->numOfTable);
+    db->stateTs = htobe64(db->stateTs);
   }
 
   SKv kv = {
@@ -514,6 +521,7 @@ int32_t hbGetExpiredStbInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SC
   }
 
   if (stbNum <= 0) {
+    taosMemoryFree(stbs);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -606,28 +614,34 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
   int32_t connKeyCnt = atomic_load_32(&pAppHbMgr->connKeyCnt);
   pBatchReq->reqs = taosArrayInit(connKeyCnt, sizeof(SClientHbReq));
 
+  int64_t rid = -1;
   int32_t code = 0;
-  void   *pIter = taosHashIterate(pAppHbMgr->activeInfo, NULL);
+
+  void *pIter = taosHashIterate(pAppHbMgr->activeInfo, NULL);
+
+  SClientHbReq *pOneReq = pIter;
+  SClientHbKey *connKey = pOneReq ? &pOneReq->connKey : NULL;
+  if (connKey != NULL) rid = connKey->tscRid;
+
+  STscObj *pTscObj = (STscObj *)acquireTscObj(rid);
+  if (pTscObj == NULL) {
+    tFreeClientHbBatchReq(pBatchReq);
+    return NULL;
+  }
+
   while (pIter != NULL) {
-    SClientHbReq *pOneReq = pIter;
-
     pOneReq = taosArrayPush(pBatchReq->reqs, pOneReq);
-
     code = (*clientHbMgr.reqHandle[pOneReq->connKey.connType])(&pOneReq->connKey, &pOneReq->clusterId, pOneReq);
     if (code) {
       pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
+      pOneReq = pIter;
       continue;
     }
 
-    // hbClearClientHbReq(pOneReq);
-
     pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
+    pOneReq = pIter;
   }
-
-  //  if (code) {
-  //    taosArrayDestroyEx(pBatchReq->reqs, hbFreeReq);
-  //    taosMemoryFreeClear(pBatchReq);
-  //  }
+  releaseTscObj(rid);
 
   return pBatchReq;
 }

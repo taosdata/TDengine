@@ -11,7 +11,7 @@ SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW
 SELECT [DISTINCT] select_list
     from_clause
     [WHERE condition]
-    [PARTITION BY tag_list]
+    [partition_by_clause]
     [window_clause]
     [group_by_clause]
     [order_by_clasue]
@@ -52,6 +52,9 @@ window_clause: {
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
 
+partition_by_clause:
+    PARTITION BY expr [, expr] ... 
+
 group_by_clause:
     GROUP BY expr [, expr] ... HAVING condition
 
@@ -68,7 +71,7 @@ A query can be performed on some or all columns. Data and tag columns can all be
 
 ### Wildcards
 
-You can use an asterisk (\*) as a wildcard character to indicate all columns. For standard tables, the asterisk indicates only data columns. For supertables and subtables, tag columns are also included.
+You can use an asterisk (\*) as a wildcard character to indicate all columns. For normal tables or sub-tables, the asterisk indicates only data columns. For supertables, tag columns are also included when using asterisk (\*).
 
 ```sql
 SELECT * FROM d1001;
@@ -181,6 +184,14 @@ In TDengine, the first column of all tables must be a timestamp. This column is 
 select _rowts, max(current) from meters;
 ```
 
+**\_IROWTS**
+
+The \_IROWTS pseudocolumn can only be used with INTERP function. This pseudocolumn can be used to retrieve the corresponding timestamp column associated with the interpolation results.
+
+```sql
+select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
+```
+
 ## Query Objects
 
 `FROM` can be followed by a number of tables or super tables, or can be followed by a sub-query.
@@ -244,7 +255,7 @@ Note: If you include an ORDER BY clause, only one partition can be displayed.
 
 Some special query functions can be invoked without `FROM` sub-clause.
 
-## Obtain Current Database
+### Obtain Current Database
 
 The following SQL statement returns the current database. If a database has not been specified on login or with the `USE` command, a null value is returned.
 
@@ -259,7 +270,7 @@ SELECT CLIENT_VERSION();
 SELECT SERVER_VERSION();
 ```
 
-## Obtain Server Status
+### Obtain Server Status
 
 The following SQL statement returns the status of the TDengine server. An integer indicates that the server is running normally. An error code indicates that an error has occurred. This statement can also detect whether a connection pool or third-party tool is connected to TDengine properly. By using this statement, you can ensure that connections in a pool are not lost due to an incorrect heartbeat detection statement.
 
@@ -302,6 +313,40 @@ TDengine supports POSIX regular expression syntax. For more information, see [Re
 Regular expression filtering is supported only on table names (TBNAME), BINARY tags, and NCHAR tags. Regular expression filtering cannot be performed on data columns.
 
 A regular expression string cannot exceed 128 bytes. You can configure this value by modifying the maxRegexStringLen parameter on the TDengine Client. The modified value takes effect when the client is restarted.
+
+## CASE Expressions
+
+### Syntax
+
+```txt
+CASE value WHEN compare_value THEN result [WHEN compare_value THEN result ...] [ELSE result] END
+CASE WHEN condition THEN result [WHEN condition THEN result ...] [ELSE result] END
+```
+
+### Description
+CASE expressions let you use IF ... THEN ... ELSE logic in SQL statements without having to invoke procedures. 
+
+The first CASE syntax returns the `result` for the first `value`=`compare_value` comparison that is true. 
+
+The second syntax returns the `result` for the first `condition` that is true. 
+
+If no comparison or condition is true, the result after ELSE is returned, or NULL if there is no ELSE part.
+
+The return type of the CASE expression is the result type of the first WHEN WHEN part, and the result type of the other WHEN WHEN parts and ELSE parts can be converted to them, otherwise TDengine will report an error.
+
+### Examples
+
+A device has three status codes to display its status. The statements are as follows:
+
+```sql
+SELECT CASE dev_status WHEN 1 THEN 'Running' WHEN 2 THEN 'Warning' WHEN 3 THEN 'Downtime' ELSE 'Unknown' END FROM dev_table;
+```
+
+The average voltage value of the smart meter is counted. When the voltage is less than 200 or more than 250, it is considered that the statistics is wrong, and the value is corrected to 220. The statement is as follows:
+
+```sql
+SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) FROM meters;
+```
 
 ## JOIN
 

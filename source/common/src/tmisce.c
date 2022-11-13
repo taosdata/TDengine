@@ -21,7 +21,8 @@
 
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
-  strcpy(pEp->fqdn, ep);
+  memset(pEp->fqdn, 0, TSDB_FQDN_LEN);
+  strncpy(pEp->fqdn, ep, TSDB_FQDN_LEN - 1);
 
   char* temp = strchr(pEp->fqdn, ':');
   if (temp) {
@@ -61,17 +62,15 @@ bool isEpsetEqual(const SEpSet* s1, const SEpSet* s2) {
 
 void updateEpSet_s(SCorEpSet* pEpSet, SEpSet* pNewEpSet) {
   taosCorBeginWrite(&pEpSet->version);
-    pEpSet->epSet = *pNewEpSet;
+  pEpSet->epSet = *pNewEpSet;
   taosCorEndWrite(&pEpSet->version);
 }
 
 SEpSet getEpSet_s(SCorEpSet* pEpSet) {
   SEpSet ep = {0};
   taosCorBeginRead(&pEpSet->version);
-    ep = pEpSet->epSet;
+  ep = pEpSet->epSet;
   taosCorEndRead(&pEpSet->version);
 
   return ep;
 }
-
-

@@ -41,11 +41,12 @@ class PlannerTestBase : public testing::Test {
   std::unique_ptr<PlannerTestBaseImpl> impl_;
 };
 
-extern void    setDumpModule(const char* pModule);
-extern void    setSkipSqlNum(const char* pNum);
-extern void    setLimitSqlNum(const char* pNum);
-extern void    setLogLevel(const char* pLogLevel);
-extern void    setQueryPolicy(const char* pQueryPolicy);
+extern void    setDumpModule(const char* pArg);
+extern void    setSkipSqlNum(const char* pArg);
+extern void    setLimitSqlNum(const char* pArg);
+extern void    setLogLevel(const char* pArg);
+extern void    setQueryPolicy(const char* pArg);
+extern void    setUseNodeAllocator(const char* pArg);
 extern int32_t getLogLevel();
 
 #endif  // PLAN_TEST_UTIL_H

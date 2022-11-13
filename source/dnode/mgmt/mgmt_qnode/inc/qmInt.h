@@ -32,14 +32,12 @@ typedef struct SQnodeMgmt {
   const char   *name;
   SSingleWorker queryWorker;
   SSingleWorker fetchWorker;
-  SSingleWorker monitorWorker;
 } SQnodeMgmt;
 
 // qmHandle.c
 SArray *qmGetMsgHandles();
 int32_t qmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 int32_t qmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
-int32_t qmProcessGetMonitorInfoReq(SQnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // qmWorker.c
 int32_t qmPutRpcMsgToQueue(SQnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pMsg);
@@ -49,9 +47,8 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt);
 void    qmStopWorker(SQnodeMgmt *pMgmt);
 int32_t qmPutNodeMsgToQueryQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t qmPutNodeMsgToFetchQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t qmPutNodeMsgToMonitorQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
-int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg * pMsg);
+int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

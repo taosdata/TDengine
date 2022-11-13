@@ -241,6 +241,19 @@ typedef struct SFillNode {
   STimeWindow timeRange;
 } SFillNode;
 
+typedef struct SWhenThenNode {
+  SExprNode node;  // QUERY_NODE_WHEN_THEN
+  SNode*    pWhen;
+  SNode*    pThen;
+} SWhenThenNode;
+
+typedef struct SCaseWhenNode {
+  SExprNode  node;  // QUERY_NODE_CASE_WHEN
+  SNode*     pCase;
+  SNode*     pElse;
+  SNodeList* pWhenThenList;
+} SCaseWhenNode;
+
 typedef struct SSelectStmt {
   ENodeType   type;  // QUERY_NODE_SELECT_STMT
   bool        isDistinct;
@@ -248,6 +261,8 @@ typedef struct SSelectStmt {
   SNode*      pFromTable;
   SNode*      pWhere;
   SNodeList*  pPartitionByList;
+  SNodeList*  pTags;      // for create stream
+  SNode*      pSubtable;  // for create stream
   SNode*      pWindow;
   SNodeList*  pGroupByList;  // SGroupingSetNode
   SNode*      pHaving;
@@ -276,11 +291,13 @@ typedef struct SSelectStmt {
   bool        hasTailFunc;
   bool        hasInterpFunc;
   bool        hasLastRowFunc;
+  bool        hasLastFunc;
   bool        hasTimeLineFunc;
   bool        hasUdaf;
   bool        hasStateKey;
   bool        onlyHasKeepOrderFunc;
   bool        groupSort;
+  bool        tagScan;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -331,25 +348,40 @@ typedef struct SInsertStmt {
   uint8_t    precision;
 } SInsertStmt;
 
-typedef enum {
-  PAYLOAD_TYPE_KV = 0,
-  PAYLOAD_TYPE_RAW = 1,
-} EPayloadType;
-
 typedef struct SVgDataBlocks {
   SVgroupInfo vg;
   int32_t     numOfTables;  // number of tables in current submit block
   uint32_t    size;
-  char*       pData;  // SMsgDesc + SSubmitReq + SSubmitBlk + ...
+  void*       pData;  // SMsgDesc + SSubmitReq + SSubmitBlk + ...
 } SVgDataBlocks;
 
+typedef void (*FFreeDataBlockHash)(SHashObj*);
+typedef void (*FFreeDataBlockArray)(SArray*);
+
 typedef struct SVnodeModifOpStmt {
-  ENodeType   nodeType;
-  ENodeType   sqlNodeType;
-  SArray*     pDataBlocks;  // data block for each vgroup, SArray<SVgDataBlocks*>.
-  uint8_t     payloadType;  // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
-  uint32_t    insertType;   // insert data from [file|sql statement| bound statement]
-  const char* sql;          // current sql statement position
+  ENodeType           nodeType;
+  ENodeType           sqlNodeType;
+  SArray*             pDataBlocks;  // data block for each vgroup, SArray<SVgDataBlocks*>.
+  uint32_t            insertType;   // insert data from [file|sql statement| bound statement]
+  const char*         pSql;         // current sql statement position
+  int32_t             totalRowsNum;
+  int32_t             totalTbNum;
+  SName               targetTableName;
+  SName               usingTableName;
+  const char*         pBoundCols;
+  struct STableMeta*  pTableMeta;
+  SHashObj*           pVgroupsHashObj;
+  SHashObj*           pTableBlockHashObj;
+  SHashObj*           pSubTableHashObj;
+  SHashObj*           pTableNameHashObj;
+  SHashObj*           pDbFNameHashObj;
+  SArray*             pVgDataBlocks;
+  SVCreateTbReq       createTblReq;
+  TdFilePtr           fp;
+  FFreeDataBlockHash  freeHashFunc;
+  FFreeDataBlockArray freeArrayFunc;
+  bool                usingTableProcessing;
+  bool                fileProcessing;
 } SVnodeModifOpStmt;
 
 typedef struct SExplainOptions {
@@ -370,7 +402,6 @@ typedef struct SCmdMsgInfo {
   SEpSet  epSet;
   void*   pMsg;
   int32_t msgLen;
-  void*   pExtension;  // todo remove it soon
 } SCmdMsgInfo;
 
 typedef enum EQueryExecMode {
@@ -380,24 +411,32 @@ typedef enum EQueryExecMode {
   QUERY_EXEC_MODE_EMPTY_RESULT
 } EQueryExecMode;
 
+typedef enum EQueryExecStage {
+  QUERY_EXEC_STAGE_PARSE = 1,
+  QUERY_EXEC_STAGE_ANALYSE,
+  QUERY_EXEC_STAGE_SCHEDULE,
+  QUERY_EXEC_STAGE_END
+} EQueryExecStage;
+
 typedef struct SQuery {
-  ENodeType      type;
-  EQueryExecMode execMode;
-  bool           haveResultSet;
-  SNode*         pRoot;
-  int32_t        numOfResCols;
-  SSchema*       pResSchema;
-  int8_t         precision;
-  SCmdMsgInfo*   pCmdMsg;
-  int32_t        msgType;
-  SArray*        pTargetTableList;
-  SArray*        pTableList;
-  SArray*        pDbList;
-  bool           showRewrite;
-  int32_t        placeholderNum;
-  SArray*        pPlaceholderValues;
-  SNode*         pPrepareRoot;
-  bool           stableQuery;
+  ENodeType       type;
+  EQueryExecStage execStage;
+  EQueryExecMode  execMode;
+  bool            haveResultSet;
+  SNode*          pRoot;
+  int32_t         numOfResCols;
+  SSchema*        pResSchema;
+  int8_t          precision;
+  SCmdMsgInfo*    pCmdMsg;
+  int32_t         msgType;
+  SArray*         pTargetTableList;
+  SArray*         pTableList;
+  SArray*         pDbList;
+  bool            showRewrite;
+  int32_t         placeholderNum;
+  SArray*         pPlaceholderValues;
+  SNode*          pPrepareRoot;
+  bool            stableQuery;
 } SQuery;
 
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);

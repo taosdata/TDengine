@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -21,7 +17,6 @@ SyncSnapshotSend *createMsg() {
   pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 5678);
   pMsg->destId.vgId = 100;
   pMsg->term = 11;
-  pMsg->privateTerm = 99;
   pMsg->lastIndex = 22;
   pMsg->lastTerm = 33;
 
@@ -48,7 +43,7 @@ void test1() {
 void test2() {
   SyncSnapshotSend *pMsg = createMsg();
   uint32_t          len = pMsg->bytes;
-  char *            serialized = (char *)taosMemoryMalloc(len);
+  char             *serialized = (char *)taosMemoryMalloc(len);
   syncSnapshotSendSerialize(pMsg, serialized, len);
   SyncSnapshotSend *pMsg2 = syncSnapshotSendBuild(pMsg->dataLen, 1000);
   syncSnapshotSendDeserialize(serialized, len, pMsg2);
@@ -62,7 +57,7 @@ void test2() {
 void test3() {
   SyncSnapshotSend *pMsg = createMsg();
   uint32_t          len;
-  char *            serialized = syncSnapshotSendSerialize2(pMsg, &len);
+  char             *serialized = syncSnapshotSendSerialize2(pMsg, &len);
   SyncSnapshotSend *pMsg2 = syncSnapshotSendDeserialize2(serialized, len);
   syncSnapshotSendLog2((char *)"test3: syncSnapshotSendSerialize2 -> syncSnapshotSendDeserialize2 ", pMsg2);
 

@@ -34,32 +34,30 @@ typedef struct SMnodeMgmt {
   SSingleWorker  readWorker;
   SSingleWorker  writeWorker;
   SSingleWorker  syncWorker;
-  SSingleWorker  monitorWorker;
+  SSingleWorker  syncCtrlWorker;
   bool           stopped;
   int32_t        refCount;
   TdThreadRwlock lock;
 } SMnodeMgmt;
 
 // mmFile.c
-int32_t mmReadFile(SMnodeMgmt *pMgmt, SReplica *pReplica, bool *pDeployed);
-int32_t mmWriteFile(SMnodeMgmt *pMgmt, const SReplica *pReplica, bool deployed);
+int32_t mmReadFile(const char *path, SMnodeOpt *pOption);
+int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption);
 
 // mmHandle.c
 SArray *mmGetMsgHandles();
 int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
-int32_t mmProcessGetMonitorInfoReq(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t mmProcessGetLoadsReq(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // mmWorker.c
 int32_t mmStartWorker(SMnodeMgmt *pMgmt);
 void    mmStopWorker(SMnodeMgmt *pMgmt);
 int32_t mmPutMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutMsgToSyncCtrlQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t mmPutMsgToMonitorQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc);
 
 #ifdef __cplusplus

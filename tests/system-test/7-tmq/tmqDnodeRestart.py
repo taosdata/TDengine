@@ -21,7 +21,8 @@ class TDTestCase:
         self.ctbNum     = 100
         self.rowsPerTbl = 1000
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
 
@@ -64,7 +65,7 @@ class TDTestCase:
                                                ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
                                                startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
 
-        tdLog.info("restart taosd to ensure that the data falls into the disk")
+        tdLog.info("flush database to ensure that the data falls into the disk")
         # tdDnodes.stop(1)
         # tdDnodes.start(1)
         tdSql.query("flush database %s"%(paraDict['dbName']))
@@ -87,7 +88,7 @@ class TDTestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  5,
+                    'pollDelay':  30,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -173,7 +174,7 @@ class TDTestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  20,
+                    'pollDelay':  30,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}

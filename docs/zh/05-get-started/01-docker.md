@@ -8,7 +8,19 @@ description: 使用 Docker 快速体验 TDengine 的高效写入和查询
 
 ## 启动 TDengine
 
-如果已经安装了 Docker，只需执行下面的命令：
+如果已经安装了 Docker，首先拉取最新的 TDengine 容器镜像：
+
+```shell
+docker pull tdengine/tdengine:latest
+```
+
+或者指定版本的容器镜像：
+
+```shell
+docker pull tdengine/tdengine:3.0.1.4
+```
+
+然后只需执行下面的命令：
 
 ```shell
 docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
@@ -46,7 +58,7 @@ taos>
 
 可以使用 TDengine 的自带工具 taosBenchmark 快速体验 TDengine 的写入速度。
 
-启动 TDengine 的服务，在 Linux 或 Windows 终端执行 `taosBenchmark`（曾命名为 `taosdemo`）：
+启动 TDengine 的服务，在终端执行 `taosBenchmark`（曾命名为 `taosdemo`）：
 
 ```bash
 $ taosBenchmark

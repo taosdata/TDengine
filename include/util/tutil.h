@@ -19,8 +19,8 @@
 #include "os.h"
 #include "tcrc32c.h"
 #include "tdef.h"
-#include "tmd5.h"
 #include "thash.h"
+#include "tmd5.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,6 +62,7 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
   tMD5Final(&context);
   char buf[TSDB_PASSWORD_LEN + 1];
 
+  buf[TSDB_PASSWORD_LEN] = 0;
   sprintf(buf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0], context.digest[1],
           context.digest[2], context.digest[3], context.digest[4], context.digest[5], context.digest[6],
           context.digest[7], context.digest[8], context.digest[9], context.digest[10], context.digest[11],
@@ -70,7 +71,7 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
 }
 
 static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, int32_t method, int32_t prefix,
-                                      int32_t suffix) {
+                                             int32_t suffix) {
   if (prefix == 0 && suffix == 0) {
     return MurmurHash3_32(tbname, tblen);
   } else {
@@ -81,6 +82,12 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     }
   }
 }
+
+#define TSDB_CHECK_CODE(CODE, LINO, LABEL) \
+  if (CODE) {                              \
+    LINO = __LINE__;                       \
+    goto LABEL;                            \
+  }
 
 #ifdef __cplusplus
 }

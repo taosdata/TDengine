@@ -27,7 +27,7 @@ extern "C" {
 #define TSDB_INS_TABLE_MNODES            "ins_mnodes"
 #define TSDB_INS_TABLE_MODULES           "ins_modules"
 #define TSDB_INS_TABLE_QNODES            "ins_qnodes"
-#define TSDB_INS_TABLE_BNODES            "ins_bnodes"
+#define TSDB_INS_TABLE_BNODES            "ins_bnodes"  // no longer used
 #define TSDB_INS_TABLE_SNODES            "ins_snodes"
 #define TSDB_INS_TABLE_CLUSTER           "ins_cluster"
 #define TSDB_INS_TABLE_DATABASES         "ins_databases"
@@ -47,14 +47,14 @@ extern "C" {
 #define TSDB_INS_TABLE_TOPICS            "ins_topics"
 #define TSDB_INS_TABLE_STREAMS           "ins_streams"
 
-#define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
-#define TSDB_PERFS_TABLE_SMAS          "perf_smas"
-#define TSDB_PERFS_TABLE_CONNECTIONS   "perf_connections"
-#define TSDB_PERFS_TABLE_QUERIES       "perf_queries"
-#define TSDB_PERFS_TABLE_CONSUMERS     "perf_consumers"
-#define TSDB_PERFS_TABLE_OFFSETS       "perf_offsets"
-#define TSDB_PERFS_TABLE_TRANS         "perf_trans"
-#define TSDB_PERFS_TABLE_APPS          "perf_apps"
+#define TSDB_PERFORMANCE_SCHEMA_DB   "performance_schema"
+#define TSDB_PERFS_TABLE_SMAS        "perf_smas"
+#define TSDB_PERFS_TABLE_CONNECTIONS "perf_connections"
+#define TSDB_PERFS_TABLE_QUERIES     "perf_queries"
+#define TSDB_PERFS_TABLE_CONSUMERS   "perf_consumers"
+#define TSDB_PERFS_TABLE_OFFSETS     "perf_offsets"
+#define TSDB_PERFS_TABLE_TRANS       "perf_trans"
+#define TSDB_PERFS_TABLE_APPS        "perf_apps"
 
 typedef struct SSysDbTableSchema {
   const char*   name;

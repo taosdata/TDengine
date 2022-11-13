@@ -247,7 +247,8 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       pExpr->userAlias[len] = '\0';
     }
   }
-  taosMemoryFreeClear(pNode);
+  pRawExpr->pNode = NULL;
+  nodesDestroyNode(pNode);
   return pRealizedExpr;
 }
 
@@ -307,6 +308,11 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   val->isDuration = false;
   val->translate = false;
   return (SNode*)val;
+}
+
+SNode* createIdentifierValueNode(SAstCreateContext* pCxt, SToken* pLiteral) {
+  trimEscape(pLiteral);
+  return createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, pLiteral);
 }
 
 SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) {
@@ -512,7 +518,7 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTa
   if (NULL != pDbName) {
     COPY_STRING_FORM_ID_TOKEN(realTable->table.dbName, pDbName);
   } else {
-    strcpy(realTable->table.dbName, pCxt->pQueryCxt->db);
+    snprintf(realTable->table.dbName, sizeof(realTable->table.dbName), "%s", pCxt->pQueryCxt->db);
   }
   if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
     COPY_STRING_FORM_ID_TOKEN(realTable->table.tableAlias, pTableAlias);
@@ -593,7 +599,7 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr) {
   state->pCol = createPrimaryKeyCol(pCxt, NULL);
   if (NULL == state->pCol) {
     nodesDestroyNode((SNode*)state);
-    CHECK_OUT_OF_MEM(state->pCol);
+    CHECK_OUT_OF_MEM(NULL);
   }
   state->pExpr = pExpr;
   return (SNode*)state;
@@ -607,7 +613,7 @@ SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode
   interval->pCol = createPrimaryKeyCol(pCxt, NULL);
   if (NULL == interval->pCol) {
     nodesDestroyNode((SNode*)interval);
-    CHECK_OUT_OF_MEM(interval->pCol);
+    CHECK_OUT_OF_MEM(NULL);
   }
   interval->pInterval = pInterval;
   interval->pOffset = pOffset;
@@ -625,7 +631,7 @@ SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues) {
   fill->pWStartTs = nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == fill->pWStartTs) {
     nodesDestroyNode((SNode*)fill);
-    CHECK_OUT_OF_MEM(fill->pWStartTs);
+    CHECK_OUT_OF_MEM(NULL);
   }
   strcpy(((SFunctionNode*)fill->pWStartTs)->functionName, "_wstart");
   return (SNode*)fill;
@@ -644,6 +650,25 @@ SNode* createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode) {
 SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd) {
   CHECK_PARSER_STATUS(pCxt);
   return createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt, NULL), pStart, pEnd);
+}
+
+SNode* createWhenThenNode(SAstCreateContext* pCxt, SNode* pWhen, SNode* pThen) {
+  CHECK_PARSER_STATUS(pCxt);
+  SWhenThenNode* pWhenThen = (SWhenThenNode*)nodesMakeNode(QUERY_NODE_WHEN_THEN);
+  CHECK_OUT_OF_MEM(pWhenThen);
+  pWhenThen->pWhen = pWhen;
+  pWhenThen->pThen = pThen;
+  return (SNode*)pWhenThen;
+}
+
+SNode* createCaseWhenNode(SAstCreateContext* pCxt, SNode* pCase, SNodeList* pWhenThenList, SNode* pElse) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)nodesMakeNode(QUERY_NODE_CASE_WHEN);
+  CHECK_OUT_OF_MEM(pCaseWhen);
+  pCaseWhen->pCase = pCase;
+  pCaseWhen->pWhenThenList = pWhenThenList;
+  pCaseWhen->pElse = pElse;
+  return (SNode*)pCaseWhen;
 }
 
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias) {
@@ -1035,7 +1060,7 @@ SNode* createFlushDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   return (SNode*)pStmt;
 }
 
-SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, int32_t maxSpeed) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkDbName(pCxt, pDbName, false)) {
     return NULL;
@@ -1043,6 +1068,7 @@ SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   STrimDatabaseStmt* pStmt = (STrimDatabaseStmt*)nodesMakeNode(QUERY_NODE_TRIM_DATABASE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  pStmt->maxSpeed = maxSpeed;
   return (SNode*)pStmt;
 }
 
@@ -1289,7 +1315,7 @@ SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
 static bool needDbShowStmt(ENodeType type) {
   return QUERY_NODE_SHOW_TABLES_STMT == type || QUERY_NODE_SHOW_STABLES_STMT == type ||
          QUERY_NODE_SHOW_VGROUPS_STMT == type || QUERY_NODE_SHOW_INDEXES_STMT == type ||
-         QUERY_NODE_SHOW_TAGS_STMT == type;
+         QUERY_NODE_SHOW_TAGS_STMT == type || QUERY_NODE_SHOW_TABLE_TAGS_STMT == type;
 }
 
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
@@ -1346,11 +1372,12 @@ SNode* createShowTableDistributedStmt(SAstCreateContext* pCxt, SNode* pRealTable
   return (SNode*)pStmt;
 }
 
-SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId) {
+SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId, SNode* pLikePattern) {
   CHECK_PARSER_STATUS(pCxt);
   SShowDnodeVariablesStmt* pStmt = (SShowDnodeVariablesStmt*)nodesMakeNode(QUERY_NODE_SHOW_DNODE_VARIABLES_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->pDnodeId = pDnodeId;
+  pStmt->pLikePattern = pLikePattern;
   return (SNode*)pStmt;
 }
 
@@ -1360,6 +1387,21 @@ SNode* createShowVnodesStmt(SAstCreateContext* pCxt, SNode* pDnodeId, SNode* pDn
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->pDnodeId = pDnodeId;
   pStmt->pDnodeEndpoint = pDnodeEndpoint;
+  return (SNode*)pStmt;
+}
+
+SNode* createShowTableTagsStmt(SAstCreateContext* pCxt, SNode* pTbName, SNode* pDbName, SNodeList* pTags) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pDbName) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    return NULL;
+  }
+  SShowTableTagsStmt* pStmt = (SShowTableTagsStmt*)nodesMakeNode(QUERY_NODE_SHOW_TABLE_TAGS_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->pDbName = pDbName;
+  pStmt->pTbName = pTbName;
+  pStmt->pTags = pTags;
   return (SNode*)pStmt;
 }
 
@@ -1430,7 +1472,7 @@ SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const
   return (SNode*)pStmt;
 }
 
-SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode) {
+SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, bool force) {
   CHECK_PARSER_STATUS(pCxt);
   SDropDnodeStmt* pStmt = (SDropDnodeStmt*)nodesMakeNode(QUERY_NODE_DROP_DNODE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
@@ -1442,6 +1484,7 @@ SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode) {
       return NULL;
     }
   }
+  pStmt->force = force;
   return (SNode*)pStmt;
 }
 
@@ -1469,10 +1512,10 @@ SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool igno
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->indexType = type;
   pStmt->ignoreExists = ignoreExists;
-  strcpy(pStmt->indexDbName, ((SRealTableNode*)pIndexName)->table.dbName);
-  strcpy(pStmt->indexName, ((SRealTableNode*)pIndexName)->table.tableName);
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  snprintf(pStmt->indexDbName, sizeof(pStmt->indexDbName), "%s", ((SRealTableNode*)pIndexName)->table.dbName);
+  snprintf(pStmt->indexName, sizeof(pStmt->indexName), "%s", ((SRealTableNode*)pIndexName)->table.tableName);
+  snprintf(pStmt->dbName, sizeof(pStmt->dbName), "%s", ((SRealTableNode*)pRealTable)->table.dbName);
+  snprintf(pStmt->tableName, sizeof(pStmt->tableName), "%s", ((SRealTableNode*)pRealTable)->table.tableName);
   nodesDestroyNode(pIndexName);
   nodesDestroyNode(pRealTable);
   pStmt->pCols = pCols;
@@ -1498,8 +1541,8 @@ SNode* createDropIndexStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode*
   SDropIndexStmt* pStmt = (SDropIndexStmt*)nodesMakeNode(QUERY_NODE_DROP_INDEX_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->ignoreNotExists = ignoreNotExists;
-  strcpy(pStmt->indexDbName, ((SRealTableNode*)pIndexName)->table.dbName);
-  strcpy(pStmt->indexName, ((SRealTableNode*)pIndexName)->table.tableName);
+  snprintf(pStmt->indexDbName, sizeof(pStmt->indexDbName), "%s", ((SRealTableNode*)pIndexName)->table.dbName);
+  snprintf(pStmt->indexName, sizeof(pStmt->indexName), "%s", ((SRealTableNode*)pIndexName)->table.tableName);
   nodesDestroyNode(pIndexName);
   return (SNode*)pStmt;
 }
@@ -1675,12 +1718,13 @@ SNode* createStreamOptions(SAstCreateContext* pCxt) {
   SStreamOptions* pOptions = (SStreamOptions*)nodesMakeNode(QUERY_NODE_STREAM_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->triggerType = STREAM_TRIGGER_AT_ONCE;
+  pOptions->fillHistory = STREAM_DEFAULT_FILL_HISTORY;
   pOptions->ignoreExpired = STREAM_DEFAULT_IGNORE_EXPIRED;
   return (SNode*)pOptions;
 }
 
 SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pStreamName, SNode* pRealTable,
-                              SNode* pOptions, SNode* pQuery) {
+                              SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateStreamStmt* pStmt = (SCreateStreamStmt*)nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT);
   CHECK_OUT_OF_MEM(pStmt);
@@ -1693,6 +1737,8 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, const 
   pStmt->ignoreExists = ignoreExists;
   pStmt->pOptions = (SStreamOptions*)pOptions;
   pStmt->pQuery = pQuery;
+  pStmt->pTags = pTags;
+  pStmt->pSubtable = pSubtable;
   return (SNode*)pStmt;
 }
 
@@ -1790,7 +1836,7 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDb
 SNode* createFuncForDelete(SAstCreateContext* pCxt, const char* pFuncName) {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   CHECK_OUT_OF_MEM(pFunc);
-  strcpy(pFunc->functionName, pFuncName);
+  snprintf(pFunc->functionName, sizeof(pFunc->functionName), "%s", pFuncName);
   if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pFunc->pParameterList, createPrimaryKeyCol(pCxt, NULL))) {
     nodesDestroyNode((SNode*)pFunc);
     CHECK_OUT_OF_MEM(NULL);

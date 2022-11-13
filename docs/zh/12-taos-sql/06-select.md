@@ -12,7 +12,7 @@ SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW
 SELECT [DISTINCT] select_list
     from_clause
     [WHERE condition]
-    [PARTITION BY tag_list]
+    [partition_by_clause]
     [window_clause]
     [group_by_clause]
     [order_by_clasue]
@@ -53,6 +53,9 @@ window_clause: {
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
 
+partition_by_clause:
+    PARTITION BY expr [, expr] ... 
+
 group_by_clause:
     GROUP BY expr [, expr] ... HAVING condition
 
@@ -69,7 +72,7 @@ order_expr:
 
 ### 通配符
 
-通配符 \* 可以用于代指全部列。对于普通表，结果中只有普通列。对于超级表和子表，还包含了 TAG 列。
+通配符 \* 可以用于代指全部列。对于普通表和子表，结果中只有普通列。对于超级表，还包含了 TAG 列。
 
 ```sql
 SELECT * FROM d1001;
@@ -182,6 +185,14 @@ TDengine 中，所有表的第一列都必须是时间戳类型，且为其主�
 select _rowts, max(current) from meters;
 ```
 
+**\_IROWTS**
+
+\_irowts 伪列只能与 interp 函数一起使用，用于返回 interp 函数插值结果对应的时间戳列。
+
+```sql
+select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
+```
+
 ## 查询对象
 
 FROM 关键字后面可以是若干个表（超级表）列表，也可以是子查询的结果。
@@ -213,7 +224,7 @@ GROUP BY 子句中的表达式可以包含表或视图中的任何列，这些�
 该子句对行进行分组，但不保证结果集的顺序。若要对分组进行排序，请使用 ORDER BY 子句
 
 
-## PARTITON BY
+## PARTITION BY
 
 PARTITION BY 子句是 TDengine 特色语法，按 part_list 对数据进行切分，在每个切分的分片中进行计算。
 
@@ -303,6 +314,39 @@ WHERE (column|tbname) **match/MATCH/nmatch/NMATCH** _regex_
 只能针对表名（即 tbname 筛选）、binary/nchar 类型标签值进行正则表达式过滤，不支持普通列的过滤。
 
 正则匹配字符串长度不能超过 128 字节。可以通过参数 _maxRegexStringLen_ 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启才能生效。
+
+## CASE 表达式
+
+### 语法
+
+```txt
+CASE value WHEN compare_value THEN result [WHEN compare_value THEN result ...] [ELSE result] END
+CASE WHEN condition THEN result [WHEN condition THEN result ...] [ELSE result] END
+```
+
+### 说明
+
+TDengine 通过 CASE 表达式让用户可以在 SQL 语句中使用 IF ... THEN ... ELSE 逻辑。
+
+第一种 CASE 语法返回第一个 value 等于 compare_value 的 result，如果没有 compare_value 符合，则返回 ELSE 之后的 result，如果没有 ELSE 部分，则返回 NULL。
+
+第二种语法返回第一个 condition 为真的 result。 如果没有 condition 符合，则返回 ELSE 之后的 result，如果没有 ELSE 部分，则返回 NULL。
+
+CASE 表达式的返回类型为第一个 WHEN THEN 部分的 result 类型，其余 WHEN THEN 部分和 ELSE 部分，result 类型都需要可以向其转换，否则 TDengine 会报错。
+
+### 示例
+
+某设备有三个状态码，显示其状态，语句如下：
+
+```sql
+SELECT CASE dev_status WHEN 1 THEN 'Running' WHEN 2 THEN 'Warning' WHEN 3 THEN 'Downtime' ELSE 'Unknown' END FROM dev_table;
+```
+
+统计智能电表的电压平均值，当电压小于 200 或大于 250 时认为是统计有误，修正其值为 220，语句如下：
+
+```sql
+SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) FROM meters;
+```
 
 ## JOIN 子句
 

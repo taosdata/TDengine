@@ -94,11 +94,11 @@ typedef void* queue[2];
 /* Return the structure holding the given element. */
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
-#define TRANS_RETRY_COUNT_LIMIT 100   // retry count limit
-#define TRANS_RETRY_INTERVAL    15    // retry interval (ms)
-#define TRANS_CONN_TIMEOUT      3     // connect timeout (s)
-#define TRANS_READ_TIMEOUT      3000  // read timeout  (ms)
-#define TRANS_PACKET_LIMIT      1024 * 1024 * 512
+//#define TRANS_RETRY_COUNT_LIMIT 100   // retry count limit
+//#define TRANS_RETRY_INTERVAL    15    // retry interval (ms)
+#define TRANS_CONN_TIMEOUT 3000  // connect timeout (ms)
+#define TRANS_READ_TIMEOUT 3000  // read timeout  (ms)
+#define TRANS_PACKET_LIMIT 1024 * 1024 * 512
 
 #define TRANS_MAGIC_NUM 0x5f375a86
 
@@ -200,15 +200,13 @@ typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } Co
 
 #define TRANS_MSG_OVERHEAD           (sizeof(STransMsgHead))
 #define transHeadFromCont(cont)      ((STransMsgHead*)((char*)cont - sizeof(STransMsgHead)))
-#define transContFromHead(msg)       (msg + sizeof(STransMsgHead))
+#define transContFromHead(msg)       (((char*)msg) + sizeof(STransMsgHead))
 #define transMsgLenFromCont(contLen) (contLen + sizeof(STransMsgHead))
 #define transContLenFromMsg(msgLen)  (msgLen - sizeof(STransMsgHead));
 #define transIsReq(type)             (type & 1U)
 
 #define transLabel(trans) ((STrans*)trans)->label
 
-void transFreeMsg(void* msg);
-//
 typedef struct SConnBuffer {
   char* buf;
   int   len;
@@ -415,6 +413,10 @@ void transThreadOnce();
 void transInit();
 void transCleanup();
 
+void    transFreeMsg(void* msg);
+int32_t transCompressMsg(char* msg, int32_t len);
+int32_t transDecompressMsg(char** msg, int32_t len);
+
 int32_t transOpenRefMgt(int size, void (*func)(void*));
 void    transCloseRefMgt(int32_t refMgt);
 int64_t transAddExHandle(int32_t refMgt, void* p);
@@ -426,6 +428,7 @@ void    transDestoryExHandle(void* handle);
 int32_t transGetRefMgt();
 int32_t transGetInstMgt();
 
+void transHttpEnvDestroy();
 #ifdef __cplusplus
 }
 #endif

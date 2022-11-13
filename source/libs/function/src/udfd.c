@@ -71,7 +71,7 @@ typedef struct SUdf {
   uv_cond_t  condReady;
   bool resident;
 
-  char    name[TSDB_FUNC_NAME_LEN];
+  char    name[TSDB_FUNC_NAME_LEN + 1];
   int8_t  funcType;
   int8_t  scriptType;
   int8_t  outputType;
@@ -188,11 +188,12 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     SUdf *udfNew = taosMemoryCalloc(1, sizeof(SUdf));
     udfNew->refCount = 1;
     udfNew->state = UDF_STATE_INIT;
-
     uv_mutex_init(&udfNew->lock);
     uv_cond_init(&udfNew->condReady);
+
     udf = udfNew;
-    taosHashPut(global.udfsHash, request->setup.udfName, strlen(request->setup.udfName), &udfNew, sizeof(&udfNew));
+    SUdf** pUdf = &udf;
+    taosHashPut(global.udfsHash, request->setup.udfName, strlen(request->setup.udfName), pUdf, POINTER_BYTES);
     uv_mutex_unlock(&global.udfsMutex);
   }
 
@@ -246,7 +247,7 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
 void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   SUdfCallRequest *call = &request->call;
-  fnDebug("%" PRId64 "call request. call type %d, handle: %" PRIx64, request->seqNum, call->callType, call->udfHandle);
+  fnDebug("call request. call type %d, handle: %" PRIx64 ", seq num %" PRId64 , call->callType, call->udfHandle, request->seqNum);
   SUdfcFuncHandle * handle = (SUdfcFuncHandle *)(call->udfHandle);
   SUdf *            udf = handle->udf;
   SUdfResponse      response = {0};
@@ -372,7 +373,7 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   }
   taosMemoryFree(handle);
 
-  SUdfResponse  response;
+  SUdfResponse  response = {0};
   SUdfResponse *rsp = &response;
   rsp->seqNum = request->seqNum;
   rsp->type = request->type;
@@ -428,7 +429,9 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   } else if (msgInfo->rpcType == UDFD_RPC_RETRIVE_FUNC) {
     SRetrieveFuncRsp retrieveRsp = {0};
     tDeserializeSRetrieveFuncRsp(pMsg->pCont, pMsg->contLen, &retrieveRsp);
-
+    if (retrieveRsp.pFuncInfos == NULL) {
+      goto _return;
+    }
     SFuncInfo *pFuncInfo = (SFuncInfo *)taosArrayGet(retrieveRsp.pFuncInfos, 0);
     SUdf *     udf = msgInfo->param;
     udf->funcType = pFuncInfo->funcType;
@@ -540,7 +543,7 @@ int32_t udfdConnectToMnode() {
 }
 
 int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
-  strcpy(udf->name, udfName);
+  strncpy(udf->name, udfName, TSDB_FUNC_NAME_LEN);
   int32_t err = 0;
 
   err = udfdFillUdfInfoFromMNode(global.clientRpc, udf->name, udf);
@@ -657,7 +660,8 @@ int32_t udfdOpenClientRpc() {
   rpcInit.user = TSDB_DEFAULT_USER;
   rpcInit.parent = &global;
   rpcInit.rfp = udfdRpcRfp;
-
+  rpcInit.compressSize = tsCompressMsgSize;
+  
   global.clientRpc = rpcOpen(&rpcInit);
   if (global.clientRpc == NULL) {
     fnError("failed to init dnode rpc client");
@@ -879,13 +883,16 @@ static int32_t udfdUvInit() {
   uv_loop_t *loop = taosMemoryMalloc(sizeof(uv_loop_t));
   if (loop) {
     uv_loop_init(loop);
+  } else {
+    return -1;
   }
   global.loop = loop;
 
-  uv_pipe_init(global.loop, &global.ctrlPipe, 1);
-  uv_pipe_open(&global.ctrlPipe, 0);
-  uv_read_start((uv_stream_t *)&global.ctrlPipe, udfdCtrlAllocBufCb, udfdCtrlReadCb);
-
+  if (tsStartUdfd) { // udfd is started by taosd, which shall exit when taosd exit
+    uv_pipe_init(global.loop, &global.ctrlPipe, 1);
+    uv_pipe_open(&global.ctrlPipe, 0);
+    uv_read_start((uv_stream_t *)&global.ctrlPipe, udfdCtrlAllocBufCb, udfdCtrlReadCb);
+  }
   getUdfdPipeName(global.listenPipeName, sizeof(global.listenPipeName));
 
   removeListeningPipe();
@@ -900,12 +907,12 @@ static int32_t udfdUvInit() {
   if ((r = uv_pipe_bind(&global.listeningPipe, global.listenPipeName))) {
     fnError("Bind error %s", uv_err_name(r));
     removeListeningPipe();
-    return -1;
+    return -2;
   }
   if ((r = uv_listen((uv_stream_t *)&global.listeningPipe, 128, udfdOnNewConnection))) {
     fnError("Listen error %s", uv_err_name(r));
     removeListeningPipe();
-    return -2;
+    return -3;
   }
   return 0;
 }
@@ -959,8 +966,9 @@ int32_t udfdInitResidentFuncs() {
   char* pSave = tsUdfdResFuncs;
   char* token;
   while ((token = strtok_r(pSave, ",", &pSave)) != NULL) {
-    char func[TSDB_FUNC_NAME_LEN] = {0};
-    strncpy(func, token, strlen(token));
+    char func[TSDB_FUNC_NAME_LEN+1] = {0};
+    strncpy(func, token, TSDB_FUNC_NAME_LEN);
+    fnInfo("udfd add resident function %s", func);
     taosArrayPush(global.residentFuncs, func);
   }
 
@@ -972,13 +980,13 @@ int32_t udfdDeinitResidentFuncs() {
     char* funcName = taosArrayGet(global.residentFuncs, i);
     SUdf** udfInHash =  taosHashGet(global.udfsHash, funcName, strlen(funcName));
     if (udfInHash) {
-      taosHashRemove(global.udfsHash, funcName, strlen(funcName));
       SUdf* udf = *udfInHash;
       if (udf->destroyFunc) {
         (udf->destroyFunc)();
       }
       uv_dlclose(&udf->lib);
       taosMemoryFree(udf);
+      taosHashRemove(global.udfsHash, funcName, strlen(funcName));
     }
   }
   taosArrayDestroy(global.residentFuncs);

@@ -47,7 +47,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
   }
 
   // do retention
-  STsdbFS fs;
+  STsdbFS fs = {0};
 
   code = tsdbFSCopy(pTsdb, &fs);
   if (code) goto _err;
@@ -86,12 +86,12 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
   }
 
   // do change fs
-  code = tsdbFSCommit1(pTsdb, &fs);
+  code = tsdbFSPrepareCommit(pTsdb, &fs);
   if (code) goto _err;
 
   taosThreadRwlockWrlock(&pTsdb->rwLock);
 
-  code = tsdbFSCommit2(pTsdb, &fs);
+  code = tsdbFSCommit(pTsdb);
   if (code) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     goto _err;

@@ -22,11 +22,11 @@ extern "C" {
 
 #include "os.h"
 
-#include "tname.h"
-#include "taosdef.h"
-#include "tvariant.h"
 #include "function.h"
+#include "taosdef.h"
+#include "tname.h"
 #include "tudf.h"
+#include "tvariant.h"
 
 bool topbot_datablock_filter(SqlFunctionCtx *pCtx, const char *minval, const char *maxval);
 
@@ -37,8 +37,8 @@ bool topbot_datablock_filter(SqlFunctionCtx *pCtx, const char *minval, const cha
 static FORCE_INLINE void initResultRowEntry(SResultRowEntryInfo *pResInfo, int32_t bufLen) {
   pResInfo->initialized = true;  // the this struct has been initialized flag
 
-  pResInfo->complete  = false;
-  pResInfo->numOfRes  = 0;
+  pResInfo->complete = false;
+  pResInfo->numOfRes = 0;
   memset(GET_ROWCELL_INTERBUF(pResInfo), 0, bufLen);
 }
 

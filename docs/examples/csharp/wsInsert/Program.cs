@@ -13,7 +13,7 @@ namespace Examples
             // Assert if connection is validate
             if (wsConn == IntPtr.Zero)
             {
-                throw new Exception($"get WS connection failed,reason:{LibTaosWS.WSErrorStr(IntPtr.Zero)} code:{LibTaosWS.WSErrorNo(IntPtr.Zero)}");
+                throw new Exception("get WS connection failed");
             }
             else
             {
@@ -47,7 +47,7 @@ namespace Examples
             }
             else
             {
-                Console.WriteLine("{0} success affect {2} rows, cost {1} nanoseconds", desc, LibTaosWS.WSTakeTiming(wsRes),LibTaosWS.WSAffectRows(wsRes));
+                Console.WriteLine("{0} success affect {2} rows, cost {1} nanoseconds", desc, LibTaosWS.WSTakeTiming(wsRes), LibTaosWS.WSAffectRows(wsRes));
             }
         }
     }

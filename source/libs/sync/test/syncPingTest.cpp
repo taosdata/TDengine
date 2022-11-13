@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -33,7 +29,7 @@ void test1() {
 void test2() {
   SyncPing *pMsg = createMsg();
   uint32_t  len = pMsg->bytes;
-  char *    serialized = (char *)taosMemoryMalloc(len);
+  char     *serialized = (char *)taosMemoryMalloc(len);
   syncPingSerialize(pMsg, serialized, len);
   SyncPing *pMsg2 = syncPingBuild(pMsg->dataLen);
   syncPingDeserialize(serialized, len, pMsg2);
@@ -47,7 +43,7 @@ void test2() {
 void test3() {
   SyncPing *pMsg = createMsg();
   uint32_t  len;
-  char *    serialized = syncPingSerialize2(pMsg, &len);
+  char     *serialized = syncPingSerialize2(pMsg, &len);
   SyncPing *pMsg2 = syncPingDeserialize2(serialized, len);
   syncPingLog2((char *)"test3: syncPingSerialize2 -> syncPingDeserialize2 ", pMsg2);
 
@@ -84,7 +80,7 @@ void test5() {
 void test6() {
   SyncPing *pMsg = createMsg();
   int32_t   bufLen = syncPingSerialize3(pMsg, NULL, 0);
-  char *    serialized = (char *)taosMemoryMalloc(bufLen);
+  char     *serialized = (char *)taosMemoryMalloc(bufLen);
   syncPingSerialize3(pMsg, serialized, bufLen);
   SyncPing *pMsg2 = syncPingDeserialize3(serialized, bufLen);
   assert(pMsg2 != NULL);

@@ -188,7 +188,7 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
       goto _err;
     }
     pTsmaStat->pTSma = pTSma;
-    pTsmaStat->pTSchema = metaGetTbTSchema(SMA_META(pSma), pTSma->dstTbUid, -1);
+    pTsmaStat->pTSchema = metaGetTbTSchema(SMA_META(pSma), pTSma->dstTbUid, -1, 1);
     if (!pTsmaStat->pTSchema) {
       smaError("vgId:%d, failed to get STSchema while tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),
                indexUid, tstrerror(terrno));
@@ -197,15 +197,16 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
   }
 
   if (pTsmaStat->pTSma->indexUid != indexUid) {
-    terrno = TSDB_CODE_VND_APP_ERROR;
+    terrno = TSDB_CODE_APP_ERROR;
     smaError("vgId:%d, tsma insert for smaIndex %" PRIi64 "(!=%" PRIi64 ") failed since %s", SMA_VID(pSma), indexUid,
              pTsmaStat->pTSma->indexUid, tstrerror(terrno));
     goto _err;
   }
 
   SBatchDeleteReq deleteReq;
-  SSubmitReq     *pSubmitReq = tqBlockToSubmit(pSma->pVnode, (const SArray *)msg, pTsmaStat->pTSchema, &pTsmaStat->pTSma->schemaTag, true,
-                                               pTsmaStat->pTSma->dstTbUid, pTsmaStat->pTSma->dstTbName, &deleteReq);
+  SSubmitReq     *pSubmitReq =
+      tqBlockToSubmit(pSma->pVnode, (const SArray *)msg, pTsmaStat->pTSchema, &pTsmaStat->pTSma->schemaTag, true,
+                      pTsmaStat->pTSma->dstTbUid, pTsmaStat->pTSma->dstTbName, &deleteReq);
 
   if (!pSubmitReq) {
     smaError("vgId:%d, failed to gen submit blk while tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),

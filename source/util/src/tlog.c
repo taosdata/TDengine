@@ -68,6 +68,7 @@ static int8_t   tsLogInited = 0;
 static SLogObj  tsLogObj = {.fileNum = 1};
 static int64_t  tsAsyncLogLostLines = 0;
 static int32_t  tsWriteInterval = LOG_DEFAULT_INTERVAL;
+static int32_t  tsDaylightActive; /* Currently in daylight saving time. */
 
 bool    tsLogEmbedded = 0;
 bool    tsAsyncLog = true;
@@ -80,25 +81,25 @@ int64_t tsNumOfDebugLogs = 0;
 int64_t tsNumOfTraceLogs = 0;
 
 // log
-int32_t dDebugFlag = 135;
-int32_t vDebugFlag = 135;
-int32_t mDebugFlag = 135;
+int32_t dDebugFlag = 131;
+int32_t vDebugFlag = 131;
+int32_t mDebugFlag = 131;
 int32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t tmrDebugFlag = 131;
 int32_t uDebugFlag = 131;
 int32_t rpcDebugFlag = 131;
 int32_t qDebugFlag = 131;
-int32_t wDebugFlag = 135;
-int32_t sDebugFlag = 135;
+int32_t wDebugFlag = 131;
+int32_t sDebugFlag = 131;
 int32_t tsdbDebugFlag = 131;
 int32_t tdbDebugFlag = 131;
-int32_t tqDebugFlag = 135;
-int32_t fsDebugFlag = 135;
-int32_t metaDebugFlag = 135;
-int32_t udfDebugFlag = 135;
+int32_t tqDebugFlag = 131;
+int32_t fsDebugFlag = 131;
+int32_t metaDebugFlag = 131;
+int32_t udfDebugFlag = 131;
 int32_t smaDebugFlag = 131;
-int32_t idxDebugFlag = 135;
+int32_t idxDebugFlag = 131;
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
@@ -112,6 +113,16 @@ static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(TdFilePtr pFile);
 static int32_t   taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum);
 static int32_t   taosCompressFile(char *srcFileName, char *destFileName);
+
+static FORCE_INLINE void taosUpdateDaylight() {
+  struct tm      Tm, *ptm;
+  struct timeval timeSecs;
+  taosGetTimeOfDay(&timeSecs);
+  time_t curTime = timeSecs.tv_sec;
+  ptm = taosLocalTime(&curTime, &Tm);
+  tsDaylightActive = ptm->tm_isdst;
+}
+static FORCE_INLINE int32_t taosGetDaylight() { return tsDaylightActive; }
 
 static int32_t taosStartLog() {
   TdThreadAttr threadAttr;
@@ -133,6 +144,7 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles) {
   } else {
     snprintf(fullName, PATH_MAX, "%s", logName);
   }
+  taosUpdateDaylight();
 
   tsLogObj.logHandle = taosLogBuffNew(LOG_DEFAULT_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return -1;
@@ -195,7 +207,8 @@ static void taosKeepOldLog(char *oldName) {
   char    fileName[LOG_FILE_NAME_LEN + 20];
   snprintf(fileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
 
-  taosRenameFile(oldName, fileName);
+  (void)taosRenameFile(oldName, fileName);
+
   if (tsLogKeepDays < 0) {
     char compressFileName[LOG_FILE_NAME_LEN + 20];
     snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64 ".gz", tsLogObj.logName, fileSec);
@@ -304,14 +317,14 @@ static void taosGetLogFileName(char *fn) {
     for (int32_t i = 0; i < tsLogObj.fileNum; i++) {
       char fileName[LOG_FILE_NAME_LEN];
 
-      sprintf(fileName, "%s%d.0", fn, i);
+      snprintf(fileName, LOG_FILE_NAME_LEN, "%s%d.0", fn, i);
       bool file1open = taosCheckFileIsOpen(fileName);
 
-      sprintf(fileName, "%s%d.1", fn, i);
+      snprintf(fileName, LOG_FILE_NAME_LEN, "%s%d.1", fn, i);
       bool file2open = taosCheckFileIsOpen(fileName);
 
       if (!file1open && !file2open) {
-        sprintf(tsLogObj.logName, "%s%d", fn, i);
+        snprintf(tsLogObj.logName, LOG_FILE_NAME_LEN, "%s%d", fn, i);
         return;
       }
     }
@@ -431,10 +444,13 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
   if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceAvailable()) {
     taosUpdateLogNums(level);
-    if (tsAsyncLog) {
+    if (tsAsyncLog && level != DEBUG_FATAL) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
       taosWriteFile(tsLogObj.logHandle->pFile, buffer, len);
+      if (level == DEBUG_FATAL) {
+        taosFsyncFile(tsLogObj.logHandle->pFile);
+      }
     }
 
     if (tsLogObj.maxLines > 0) {
@@ -570,7 +586,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   int32_t        end = 0;
   int32_t        remainSize = 0;
   static int64_t lostLine = 0;
-  char           tmpBuf[40] = {0};
+  char           tmpBuf[128] = {0};
   int32_t        tmpBufLen = 0;
 
   if (pLogBuf == NULL || pLogBuf->stop) return -1;
@@ -582,7 +598,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   remainSize = (start > end) ? (start - end - 1) : (start + LOG_BUF_SIZE(pLogBuf) - end - 1);
 
   if (lostLine > 0) {
-    sprintf(tmpBuf, "...Lost %" PRId64 " lines here...\n", lostLine);
+    snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
     tmpBufLen = (int32_t)strlen(tmpBuf);
   }
 
@@ -694,8 +710,10 @@ static void *taosAsyncOutputLog(void *param) {
   SLogBuff *pLogBuf = (SLogBuff *)param;
   setThreadName("log");
   int32_t count = 0;
+  int32_t updateCron = 0;
   while (1) {
     count += tsWriteInterval;
+    updateCron++;
     taosMsleep(tsWriteInterval);
     if (count > 1000) {
       osUpdate();
@@ -704,6 +722,11 @@ static void *taosAsyncOutputLog(void *param) {
 
     // Polling the buffer
     taosWriteLog(pLogBuf);
+
+    if (updateCron >= 3600 * 24 * 40 / 2) {
+      taosUpdateDaylight();
+      updateCron = 0;
+    }
 
     if (pLogBuf->stop) break;
   }

@@ -267,10 +267,12 @@ static int32_t tfSearchPrefix(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
     uint64_t offset = *(uint64_t*)taosArrayGet(offsets, i);
     ret = tfileReaderLoadTableIds((TFileReader*)reader, offset, tr->total);
     if (ret != 0) {
+      taosArrayDestroy(offsets);
       indexError("failed to find target tablelist");
       return TSDB_CODE_TDB_FILE_CORRUPTED;
     }
   }
+  taosArrayDestroy(offsets);
   return 0;
 }
 static int32_t tfSearchSuffix(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
@@ -336,6 +338,7 @@ static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr,
   }
   stmStDestroy(st);
   stmBuilderDestroy(sb);
+  taosArrayDestroy(offsets);
   return TSDB_CODE_SUCCESS;
 }
 static int32_t tfSearchLessThan(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
@@ -379,6 +382,7 @@ static int32_t tfSearchTerm_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
               ", size: %d, time cost: %" PRIu64 "us",
               tem->suid, tem->colName, tem->colVal, offset, (int)taosArrayGetSize(tr->total), cost);
   }
+  taosMemoryFree(p);
   fstSliceDestroy(&key);
   return 0;
 }
@@ -471,6 +475,9 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
   }
   stmStDestroy(st);
   stmBuilderDestroy(sb);
+  taosArrayDestroy(offsets);
+  taosMemoryFree(p);
+
   return TSDB_CODE_SUCCESS;
 }
 int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTRslt* tr) {
@@ -499,7 +506,9 @@ TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int64_t version, const c
   tfh.suid = suid;
   tfh.version = version;
   tfh.colType = colType;
-  memcpy(tfh.colName, colName, strlen(colName));
+  if (strlen(colName) <= sizeof(tfh.colName)) {
+    memcpy(tfh.colName, colName, strlen(colName));
+  }
 
   return tfileWriterCreate(wcx, &tfh);
 }
@@ -555,6 +564,7 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     taosArraySort(v->tableId, idxUidCompare);
     taosArrayRemoveDuplicate(v->tableId, idxUidCompare, NULL);
     int32_t tbsz = taosArrayGetSize(v->tableId);
+    if (tbsz == 0) continue;
     fstOffset += TF_TABLE_TATOAL_SIZE(tbsz);
   }
   tfileWriteFstOffset(tw, fstOffset);
@@ -566,13 +576,20 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     TFileValue* v = taosArrayGetP((SArray*)data, i);
 
     int32_t tbsz = taosArrayGetSize(v->tableId);
+    if (tbsz == 0) continue;
     // check buf has enough space or not
     int32_t ttsz = TF_TABLE_TATOAL_SIZE(tbsz);
 
     if (cap < ttsz) {
       cap = ttsz;
-      buf = (char*)taosMemoryRealloc(buf, cap);
+      char* t = (char*)taosMemoryRealloc(buf, cap);
+      if (t == NULL) {
+        taosMemoryFree(buf);
+        return -1;
+      }
+      buf = t;
     }
+
     char* p = buf;
     tfileSerialTableIdsToBuf(p, v->tableId);
     tw->ctx->write(tw->ctx, buf, ttsz);
@@ -592,12 +609,14 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
   for (size_t i = 0; i < sz; i++) {
     // TODO, fst batch write later
     TFileValue* v = taosArrayGetP((SArray*)data, i);
+
+    int32_t tbsz = taosArrayGetSize(v->tableId);
+    if (tbsz == 0) continue;
+
     if (tfileWriteData(tw, v) != 0) {
       indexError("failed to write data: %s, offset: %d len: %d", v->colVal, v->offset,
                  (int)taosArrayGetSize(v->tableId));
     } else {
-      indexInfo("success to write data: %s, offset: %d len: %d", v->colVal, v->offset,
-                (int)taosArrayGetSize(v->tableId));
     }
   }
   fstBuilderDestroy(tw->fb);
@@ -892,9 +911,8 @@ static int tfileReaderLoadFst(TFileReader* reader) {
   int64_t ts = taosGetTimestampUs();
   int32_t nread = ctx->readFrom(ctx, buf, fstSize, reader->header.fstOffset);
   int64_t cost = taosGetTimestampUs() - ts;
-  indexInfo("nread = %d, and fst offset=%d, fst size: %d, filename: %s, file size: %" PRId64 ", time cost: %" PRId64
-            "us",
-            nread, reader->header.fstOffset, fstSize, ctx->file.buf, size, cost);
+  indexInfo("nread = %d, and fst offset=%d, fst size: %d, filename: %s, file size: %d, time cost: %" PRId64 "us", nread,
+            reader->header.fstOffset, fstSize, ctx->file.buf, size, cost);
   // we assuse fst size less than FST_MAX_SIZE
   assert(nread > 0 && nread <= fstSize);
 
@@ -983,6 +1001,7 @@ static SArray* tfileGetFileList(const char* path) {
 
   TdDirPtr pDir = taosOpenDir(path);
   if (NULL == pDir) {
+    taosArrayDestroy(files);
     return NULL;
   }
   TdDirEntryPtr pDirEntry;

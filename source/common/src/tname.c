@@ -90,8 +90,10 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 SName* toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName) {
   pName->type = TSDB_TABLE_NAME_T;
   pName->acctId = acctId;
-  strcpy(pName->dbname, pDbName);
-  strcpy(pName->tname, pTableName);
+  memset(pName->dbname, 0, TSDB_DB_NAME_LEN);
+  strncpy(pName->dbname, pDbName, TSDB_DB_NAME_LEN - 1);
+  memset(pName->tname, 0, TSDB_TABLE_NAME_LEN);
+  strncpy(pName->tname, pTableName, TSDB_TABLE_NAME_LEN - 1);
   return pName;
 }
 
@@ -313,7 +315,7 @@ static int compareKv(const void* p1, const void* p2) {
  */
 void buildChildTableName(RandTableName* rName) {
   SStringBuilder sb = {0};
-  taosStringBuilderAppendStringLen(&sb, rName->sTableName, rName->sTableNameLen);
+  taosStringBuilderAppendStringLen(&sb, rName->stbFullName, rName->stbFullNameLen);
   taosArraySort(rName->tags, compareKv);
   for (int j = 0; j < taosArrayGetSize(rName->tags); ++j) {
     taosStringBuilderAppendChar(&sb, ',');
@@ -334,11 +336,11 @@ void buildChildTableName(RandTableName* rName) {
   tMD5Final(&context);
 
   char temp[8] = {0};
-  rName->childTableName[0] = 't';
-  rName->childTableName[1] = '_';
+  rName->ctbShortName[0] = 't';
+  rName->ctbShortName[1] = '_';
   for (int i = 0; i < 16; i++) {
     sprintf(temp, "%02x", context.digest[i]);
-    strcat(rName->childTableName, temp);
+    strcat(rName->ctbShortName, temp);
   }
   taosStringBuilderDestroy(&sb);
   rName->uid = *(uint64_t*)(context.digest);

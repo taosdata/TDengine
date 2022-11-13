@@ -39,6 +39,7 @@ typedef struct SPlanContext {
   int32_t     msgLen;
   const char* pUser;
   bool        sysInfo;
+  int64_t     allocatorId;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.
@@ -60,7 +61,6 @@ int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan);
 int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
 int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan);
 
-char*       qQueryPlanToString(const SQueryPlan* pPlan);
 SQueryPlan* qStringToQueryPlan(const char* pStr);
 
 void qDestroyQueryPlan(SQueryPlan* pPlan);

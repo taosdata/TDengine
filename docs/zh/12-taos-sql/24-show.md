@@ -14,14 +14,6 @@ SHOW APPS;
 
 显示接入集群的应用（客户端）信息。
 
-## SHOW BNODES
-
-```sql
-SHOW BNODES;
-```
-
-显示当前系统中存在的 BNODE (backup node, 即备份节点）的信息。
-
 ## SHOW CLUSTER
 
 ```sql
@@ -129,14 +121,6 @@ SHOW MNODES;
 
 显示当前系统中 MNODE 的信息。
 
-## SHOW MODULES
-
-```sql
-SHOW MODULES;
-```
-
-显示当前系统中所安装的组件的信息。
-
 ## SHOW QNODES
 
 ```sql
@@ -153,15 +137,7 @@ SHOW SCORES;
 
 显示系统被许可授权的容量的信息。
 
-注：企业版独有
-
-## SHOW SNODES
-
-```sql
-SHOW SNODES;
-```
-
-显示当前系统中 SNODE （流计算节点）的信息。
+注：企业版独有。
 
 ## SHOW STABLES
 
@@ -225,7 +201,7 @@ SHOW TOPICS;
 SHOW TRANSACTIONS;
 ```
 
-显示当前系统中正在执行的事务的信息
+显示当前系统中正在执行的事务的信息(该事务仅针对除普通表以外的元数据级别)
 
 ## SHOW USERS
 
@@ -235,10 +211,10 @@ SHOW USERS;
 
 显示当前系统中所有用户的信息。包括用户自定义的用户和系统默认用户。
 
-## SHOW VARIABLES
+## SHOW CLUSTER VARIABLES(3.0.1.6 之前为 SHOW VARIABLES)
 
 ```sql
-SHOW VARIABLES;
+SHOW CLUSTER VARIABLES;
 SHOW DNODE dnode_id VARIABLES;
 ```
 

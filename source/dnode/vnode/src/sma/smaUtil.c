@@ -16,7 +16,7 @@
 #include "sma.h"
 
 // smaFileUtil ================
-
+#if 0
 #define TD_FILE_STATE_OK  0
 #define TD_FILE_STATE_BAD 1
 
@@ -182,6 +182,8 @@ void tdCloseTFile(STFile *pTFile) {
 
 void tdDestroyTFile(STFile *pTFile) { taosMemoryFreeClear(TD_TFILE_FULL_NAME(pTFile)); }
 
+#endif
+
 void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t version,
                       char *outputName) {
   if (version < 0) {
@@ -221,6 +223,7 @@ void tdGetVndDirName(int32_t vgId, const char *pdname, const char *dname, bool e
   }
 }
 
+#if 0
 int32_t tdInitTFile(STFile *pTFile, const char *dname, const char *fname) {
   TD_TFILE_SET_STATE(pTFile, TD_FILE_STATE_OK);
   TD_TFILE_SET_CLOSED(pTFile);
@@ -286,23 +289,25 @@ int32_t tdRemoveTFile(STFile *pTFile) {
   return 0;
 }
 
+#endif
+
 // smaXXXUtil ================
 void *tdAcquireSmaRef(int32_t rsetId, int64_t refId) {
   void *pResult = taosAcquireRef(rsetId, refId);
   if (!pResult) {
-    smaWarn("rsma acquire ref for rsetId:%" PRIi64 " refId:%d failed since %s", rsetId, refId, terrstr());
+    smaWarn("rsma acquire ref for rsetId:%d refId:%" PRIi64 " failed since %s", rsetId, refId, terrstr());
   } else {
-    smaDebug("rsma acquire ref for rsetId:%" PRIi64 " refId:%d success", rsetId, refId);
+    smaDebug("rsma acquire ref for rsetId:%d refId:%" PRIi64 " success", rsetId, refId);
   }
   return pResult;
 }
 
 int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId) {
   if (taosReleaseRef(rsetId, refId) < 0) {
-    smaWarn("rsma release ref for rsetId:%" PRIi64 " refId:%d failed since %s", rsetId, refId, terrstr());
+    smaWarn("rsma release ref for rsetId:%d refId:%" PRIi64 " failed since %s", rsetId, refId, terrstr());
     return TSDB_CODE_FAILED;
   }
-  smaDebug("rsma release ref for rsetId:%" PRIi64 " refId:%d success", rsetId, refId);
+  smaDebug("rsma release ref for rsetId:%d refId:%" PRIi64 " success", rsetId, refId);
 
   return TSDB_CODE_SUCCESS;
 }

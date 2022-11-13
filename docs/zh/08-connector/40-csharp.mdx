@@ -7,7 +7,7 @@ title: C# Connector
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-import Preparition from "./_preparition.mdx"
+import Preparation from "./_preparation.mdx"
 import CSInsert from "../07-develop/03-insert-data/_cs_sql.mdx"
 import CSInfluxLine from "../07-develop/03-insert-data/_cs_line.mdx"
 import CSOpenTSDBTelnet from "../07-develop/03-insert-data/_cs_opts_telnet.mdx"
@@ -35,7 +35,7 @@ import CSAsyncQuery from "../07-develop/04-query-data/_cs_async.mdx"
 
 ## 支持的功能特性
 
-<Tabs defaultValue="native">
+<Tabs defaultValue="rest">
 
 <TabItem value="native" label="原生连接">
 
@@ -96,7 +96,7 @@ dotnet add exmaple.csproj reference src/TDengine.csproj
 
 ## 建立连接
 
-<Tabs defaultValue="native">
+<Tabs defaultValue="rest">
 
 <TabItem value="native" label="原生连接">
 
@@ -154,7 +154,7 @@ namespace TDengineExample
   
 * **host/port**: 指定创建连接的服务器及端口，WebSocket 连接默认为 `localhost:6041` 。
   
-* **database**: 指定默认连接的数据库名。
+* **database**: 指定默认连接的数据库名，可选参数。
 
 * **params**：其他可选参数。
 
@@ -171,7 +171,7 @@ namespace TDengineExample
 
 #### SQL 写入
 
-<Tabs defaultValue="native">
+<Tabs defaultValue="rest">
 
 <TabItem value="native" label="原生连接">
 
@@ -203,12 +203,12 @@ namespace TDengineExample
 
 #### 参数绑定
 
-<Tabs defaultValue="native">
+<Tabs defaultValue="rest">
 
 <TabItem value="native" label="原生连接">
 
 ``` csharp
-{{#include docs/examples/csharp/StmtInsertExample.cs}}
+{{#include docs/examples/csharp/stmtInsert/Program.cs}}
 ```
 
 </TabItem>
@@ -227,7 +227,7 @@ namespace TDengineExample
 
 #### 同步查询
 
-<Tabs defaultValue="native">
+<Tabs defaultValue="rest">
 
 <TabItem value="native" label="原生连接">
 

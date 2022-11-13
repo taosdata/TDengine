@@ -119,13 +119,13 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
   return cret;
 }
 
-TEST(TdbOVFLPagesTest, TbUpsertTest) {
+// TEST(TdbOVFLPagesTest, DISABLED_TbUpsertTest) {
+//  TEST(TdbOVFLPagesTest, TbUpsertTest) {
+//}
 
-}
-
-TEST(TdbOVFLPagesTest, TbPGetTest) {
-
-}
+// TEST(TdbOVFLPagesTest, DISABLED_TbPGetTest) {
+//  TEST(TdbOVFLPagesTest, TbPGetTest) {
+//}
 
 static void generateBigVal(char *val, int valLen) {
   for (int i = 0; i < valLen; ++i) {
@@ -140,7 +140,7 @@ static void generateBigVal(char *val, int valLen) {
 static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) {
   TDB *pEnv = NULL;
 
-  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv);
+  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0);
   if (ret) {
     pEnv = NULL;
   }
@@ -156,32 +156,36 @@ static void insertOfp(void) {
   // open Env
   int const pageSize = 4096;
   int const pageNum = 64;
-  TDB *pEnv = openEnv("tdb", pageSize, pageNum);
+  TDB      *pEnv = openEnv("tdb", pageSize, pageNum);
   GTEST_ASSERT_NE(pEnv, nullptr);
 
   // open db
-  TTB *pDb = NULL;
+  TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc = tKeyCmpr;
-  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb);
+  // ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  ret = tdbTbOpen("ofp_insert.db", 12, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // open the pool
   SPoolMem *pPool = openPool();
 
   // start a transaction
-  TXN txn;
+  TXN     txn;
   int64_t txnid = 0;
   ++txnid;
   tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
   tdbBegin(pEnv, &txn);
 
   // generate value payload
-  char val[((4083 - 4 - 3 - 2)+1)*100]; // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
-  int valLen = sizeof(val) / sizeof(val[0]);
+  // char val[((4083 - 4 - 3 - 2) + 1) * 100];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+  char val[32605];
+  int  valLen = sizeof(val) / sizeof(val[0]);
   generateBigVal(val, valLen);
 
   // insert the generated big data
-  ret = tdbTbInsert(pDb, "key1", strlen("key1"), val, valLen, &txn);
+  // char const *key = "key1";
+  char const *key = "key123456789";
+  ret = tdbTbInsert(pDb, key, strlen(key), val, valLen, &txn);
   GTEST_ASSERT_EQ(ret, 0);
 
   // commit current transaction
@@ -189,37 +193,39 @@ static void insertOfp(void) {
   tdbTxnClose(&txn);
 }
 
-//TEST(TdbOVFLPagesTest, DISABLED_TbInsertTest) {
-TEST(TdbOVFLPagesTest, TbInsertTest) {
-  insertOfp();
-}
+// TEST(TdbOVFLPagesTest, DISABLED_TbInsertTest) {
+TEST(TdbOVFLPagesTest, TbInsertTest) { insertOfp(); }
 
-//TEST(TdbOVFLPagesTest, DISABLED_TbGetTest) {
+// TEST(TdbOVFLPagesTest, DISABLED_TbGetTest) {
 TEST(TdbOVFLPagesTest, TbGetTest) {
   insertOfp();
 
   // open Env
   int const pageSize = 4096;
   int const pageNum = 64;
-  TDB *pEnv = openEnv("tdb", pageSize, pageNum);
+  TDB      *pEnv = openEnv("tdb", pageSize, pageNum);
   GTEST_ASSERT_NE(pEnv, nullptr);
 
   // open db
-  TTB *pDb = NULL;
+  TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc = tKeyCmpr;
-  int ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb);
+  // int           ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  int ret = tdbTbOpen("ofp_insert.db", 12, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // generate value payload
-  char val[((4083 - 4 - 3 - 2)+1)*100]; // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
-  int valLen = sizeof(val) / sizeof(val[0]);
+  // char val[((4083 - 4 - 3 - 2) + 1) * 100];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+  char val[32605];
+  int  valLen = sizeof(val) / sizeof(val[0]);
   generateBigVal(val, valLen);
 
   {  // Query the data
     void *pVal = NULL;
     int   vLen;
 
-    ret = tdbTbGet(pDb, "key1", strlen("key1"), &pVal, &vLen);
+    // char const *key = "key1";
+    char const *key = "key123456789";
+    ret = tdbTbGet(pDb, key, strlen(key), &pVal, &vLen);
     ASSERT(ret == 0);
     GTEST_ASSERT_EQ(ret, 0);
 
@@ -230,6 +236,7 @@ TEST(TdbOVFLPagesTest, TbGetTest) {
   }
 }
 
+// TEST(TdbOVFLPagesTest, DISABLED_TbDeleteTest) {
 TEST(TdbOVFLPagesTest, TbDeleteTest) {
   int ret = 0;
 
@@ -238,31 +245,32 @@ TEST(TdbOVFLPagesTest, TbDeleteTest) {
   // open Env
   int const pageSize = 4096;
   int const pageNum = 64;
-  TDB *pEnv = openEnv("tdb", pageSize, pageNum);
+  TDB      *pEnv = openEnv("tdb", pageSize, pageNum);
   GTEST_ASSERT_NE(pEnv, nullptr);
 
   // open db
-  TTB *pDb = NULL;
+  TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc = tKeyCmpr;
-  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb);
+  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // open the pool
   SPoolMem *pPool = openPool();
 
   // start a transaction
-  TXN txn;
+  TXN     txn;
   int64_t txnid = 0;
   ++txnid;
   tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
   tdbBegin(pEnv, &txn);
 
   // generate value payload
-  char val[((4083 - 4 - 3 - 2)+1)*100]; // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
-  int valLen = sizeof(val) / sizeof(val[0]);
+  // char val[((4083 - 4 - 3 - 2) + 1) * 100];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+  char val[((4083 - 4 - 3 - 2) + 1) * 2];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+  int  valLen = sizeof(val) / sizeof(val[0]);
   generateBigVal(val, valLen);
 
-  { // insert the generated big data
+  {  // insert the generated big data
     ret = tdbTbInsert(pDb, "key1", strlen("key1"), val, valLen, &txn);
     GTEST_ASSERT_EQ(ret, 0);
   }
@@ -280,15 +288,15 @@ TEST(TdbOVFLPagesTest, TbDeleteTest) {
 
     tdbFree(pVal);
   }
-    /* open to debug committed file
-  tdbCommit(pEnv, &txn);
-  tdbTxnClose(&txn);
+  /* open to debug committed file
+tdbCommit(pEnv, &txn);
+tdbTxnClose(&txn);
 
-  ++txnid;
-  tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
-  tdbBegin(pEnv, &txn);
-    */
-  { // upsert the data
+++txnid;
+tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+tdbBegin(pEnv, &txn);
+  */
+  {  // upsert the data
     ret = tdbTbUpsert(pDb, "key1", strlen("key1"), "value1", strlen("value1"), &txn);
     GTEST_ASSERT_EQ(ret, 0);
   }
@@ -307,7 +315,7 @@ TEST(TdbOVFLPagesTest, TbDeleteTest) {
     tdbFree(pVal);
   }
 
-  { // delete the data
+  {  // delete the data
     ret = tdbTbDelete(pDb, "key1", strlen("key1"), &txn);
     GTEST_ASSERT_EQ(ret, 0);
   }
@@ -331,8 +339,8 @@ TEST(TdbOVFLPagesTest, TbDeleteTest) {
   tdbTxnClose(&txn);
 }
 
-TEST(tdb_test, DISABLED_simple_insert1) {
-//TEST(tdb_test, simple_insert1) {
+// TEST(tdb_test, DISABLED_simple_insert1) {
+TEST(tdb_test, simple_insert1) {
   int           ret;
   TDB          *pEnv;
   TTB          *pDb;
@@ -344,19 +352,19 @@ TEST(tdb_test, DISABLED_simple_insert1) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", pageSize, 64, &pEnv);
+  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
   compFunc = tKeyCmpr;
-  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
+  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   {
-    char      key[64];
-    //char      val[(4083 - 4 - 3 - 2)]; // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
-    char      val[(4083 - 4 - 3 - 2)+1]; // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
-    int64_t   poolLimit = 4096;  // 1M pool limit
+    char key[64];
+    // char      val[(4083 - 4 - 3 - 2)]; // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+    char      val[(4083 - 4 - 3 - 2) + 1];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+    int64_t   poolLimit = 4096;             // 1M pool limit
     int64_t   txnid = 0;
     SPoolMem *pPool;
 
@@ -372,17 +380,17 @@ TEST(tdb_test, DISABLED_simple_insert1) {
       sprintf(key, "key0");
       sprintf(val, "value%d", iData);
 
-      //ret = tdbTbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
-      //GTEST_ASSERT_EQ(ret, 0);
+      // ret = tdbTbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
+      // GTEST_ASSERT_EQ(ret, 0);
 
       // generate value payload
       int valLen = sizeof(val) / sizeof(val[0]);
       for (int i = 6; i < valLen; ++i) {
-	char c = char(i & 0xff);
-	if (c == 0) {
-	  c = 1;
-	}
-	val[i] = c;
+        char c = char(i & 0xff);
+        if (c == 0) {
+          c = 1;
+        }
+        val[i] = c;
       }
 
       ret = tdbTbInsert(pDb, "key1", strlen("key1"), val, valLen, &txn);
@@ -412,13 +420,13 @@ TEST(tdb_test, DISABLED_simple_insert1) {
 
       for (int i = 1; i <= nData; i++) {
         sprintf(key, "key%d", i);
-        sprintf(val, "value%d", i);
+        // sprintf(val, "value%d", i);
 
         ret = tdbTbGet(pDb, key, strlen(key), &pVal, &vLen);
         ASSERT(ret == 0);
         GTEST_ASSERT_EQ(ret, 0);
 
-        GTEST_ASSERT_EQ(vLen, strlen(val));
+        GTEST_ASSERT_EQ(vLen, sizeof(val) / sizeof(val[0]));
         GTEST_ASSERT_EQ(memcmp(val, pVal, vLen), 0);
       }
 

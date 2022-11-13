@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncRaftStore.h"
-#include "tref.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -25,7 +21,7 @@ int            g = 100;
 
 typedef struct SyncObj {
   int64_t rid;
-  void *  data;
+  void   *data;
   char    name[32];
   int     counter;
 } SyncObj;

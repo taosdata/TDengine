@@ -139,6 +139,7 @@ bool dfaBuilderCacheState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *r
     }
   }
   if (taosArrayGetSize(tinsts) == 0) {
+    taosArrayDestroy(tinsts);
     return false;
   }
   uint32_t *v = taosHashGet(builder->cache, &tinsts, sizeof(POINTER_BYTES));

@@ -70,7 +70,7 @@ int32_t ctgInitGetTbMetasTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   taosArrayPush(pJob->pTasks, &task);
 
-  qDebug("QID:0x%" PRIx64 " the %dth task type %s initialized, dbNum:%d, tbNum:%d", pJob->queryId, taskIdx,
+  qDebug("QID:0x%" PRIx64 " the %dth task type %s initialized, dbNum:%lu, tbNum:%d", pJob->queryId, taskIdx,
          ctgTaskTypeStr(task.type), taosArrayGetSize(ctx->pNames), pJob->tbMetaNum);
 
   return TSDB_CODE_SUCCESS;
@@ -201,7 +201,7 @@ int32_t ctgInitGetTbHashsTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   taosArrayPush(pJob->pTasks, &task);
 
-  qDebug("QID:0x%" PRIx64 " the %dth task type %s initialized, dbNum:%d, tbNum:%d", pJob->queryId, taskIdx,
+  qDebug("QID:0x%" PRIx64 " the %dth task type %s initialized, dbNum:%lu, tbNum:%d", pJob->queryId, taskIdx,
          ctgTaskTypeStr(task.type), taosArrayGetSize(ctx->pNames), pJob->tbHashNum);
 
   return TSDB_CODE_SUCCESS;
@@ -252,7 +252,7 @@ int32_t ctgInitGetIndexTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   SCtgIndexCtx* ctx = task.taskCtx;
 
-  strcpy(ctx->indexFName, name);
+  tstrncpy(ctx->indexFName, name, sizeof(ctx->indexFName));
 
   taosArrayPush(pJob->pTasks, &task);
 
@@ -277,7 +277,7 @@ int32_t ctgInitGetUdfTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   SCtgUdfCtx* ctx = task.taskCtx;
 
-  strcpy(ctx->udfName, name);
+  tstrncpy(ctx->udfName, name, sizeof(ctx->udfName));
 
   taosArrayPush(pJob->pTasks, &task);
 
@@ -487,6 +487,8 @@ int32_t ctgInitTask(SCtgJob* pJob, CTG_TASK_TYPE type, void* param, int32_t* tas
 int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const SCatalogReq* pReq, catalogCallback fp,
                    void* param) {
   int32_t code = 0;
+  int64_t st = taosGetTimestampUs();
+
   int32_t tbMetaNum = (int32_t)ctgGetTablesReqNum(pReq->pTableMeta);
   int32_t dbVgNum = (int32_t)taosArrayGetSize(pReq->pDbVgroup);
   int32_t tbHashNum = (int32_t)ctgGetTablesReqNum(pReq->pTableHash);
@@ -634,12 +636,12 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
 
   taosAcquireRef(gCtgMgmt.jobPool, pJob->refId);
 
-  qDebug("QID:0x%" PRIx64 ", jobId: 0x%" PRIx64 " initialized, task num %d, forceUpdate %d", pJob->queryId, pJob->refId,
-         taskNum, pReq->forceUpdate);
+  double el = (taosGetTimestampUs() - st) / 1000.0;
+  qDebug("QID:0x%" PRIx64 ", jobId: 0x%" PRIx64 " initialized, task num %d, forceUpdate %d, elapsed time:%.2f ms",
+         pJob->queryId, pJob->refId, taskNum, pReq->forceUpdate, el);
   return TSDB_CODE_SUCCESS;
 
 _return:
-
   ctgFreeJob(*job);
   CTG_RET(code);
 }
@@ -1054,7 +1056,6 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
     default:
       ctgError("invalid reqType %d", reqType);
       CTG_ERR_JRET(TSDB_CODE_INVALID_MSG);
-      break;
   }
 
   STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
@@ -1203,11 +1204,15 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
           stbCtx.flag = flag;
           stbCtx.pName = &stbName;
 
-          taosMemoryFreeClear(pOut->tbMeta);
-          CTG_ERR_JRET(ctgReadTbMetaFromCache(pCtg, &stbCtx, &pOut->tbMeta));
-          if (pOut->tbMeta) {
+          STableMeta *stbMeta = NULL;
+          ctgReadTbMetaFromCache(pCtg, &stbCtx, &stbMeta);
+          if (stbMeta && stbMeta->sversion >= pOut->tbMeta->sversion) {
             ctgDebug("use cached stb meta, tbName:%s", tNameGetTableName(pName));
             exist = 1;
+          } else {
+            ctgDebug("need to get/update stb meta, tbName:%s", tNameGetTableName(pName));
+            taosMemoryFreeClear(pOut->tbMeta);
+            taosMemoryFreeClear(stbMeta);
           }
         }
 
@@ -1221,7 +1226,6 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
     default:
       ctgError("invalid reqType %d", reqType);
       CTG_ERR_JRET(TSDB_CODE_INVALID_MSG);
-      break;
   }
 
   STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
@@ -1307,7 +1311,6 @@ int32_t ctgHandleGetDbVgRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* 
     default:
       ctgError("invalid reqType %d", reqType);
       CTG_ERR_JRET(TSDB_CODE_INVALID_MSG);
-      break;
   }
 
 _return:
@@ -1344,7 +1347,6 @@ int32_t ctgHandleGetTbHashRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
     default:
       ctgError("invalid reqType %d", reqType);
       CTG_ERR_JRET(TSDB_CODE_INVALID_MSG);
-      break;
   }
 
 _return:
@@ -1380,7 +1382,6 @@ int32_t ctgHandleGetTbHashsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
     default:
       ctgError("invalid reqType %d", reqType);
       CTG_ERR_JRET(TSDB_CODE_INVALID_MSG);
-      break;
   }
 
   if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
@@ -1644,7 +1645,7 @@ int32_t ctgLaunchGetTbMetaTask(SCtgTask* pTask) {
     pMsgCtx->pBatchs = pJob->pBatchs;
   }
 
-  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, pConn, (SCtgTbMetaCtx*)pTask->taskCtx, (STableMeta**)&pTask->res));
+  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, (SCtgTbMetaCtx*)pTask->taskCtx, (STableMeta**)&pTask->res));
   if (pTask->res) {
     CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
     return TSDB_CODE_SUCCESS;
@@ -1670,7 +1671,7 @@ int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
   int32_t baseResIdx = 0;
   for (int32_t i = 0; i < dbNum; ++i) {
     STablesReq* pReq = taosArrayGet(pCtx->pNames, i);
-    ctgDebug("start to check tb metas in db %s, tbNum %d", pReq->dbFName, taosArrayGetSize(pReq->pTables));
+    ctgDebug("start to check tb metas in db %s, tbNum %ld", pReq->dbFName, taosArrayGetSize(pReq->pTables));
     CTG_ERR_RET(ctgGetTbMetasFromCache(pCtg, pConn, pCtx, i, &fetchIdx, baseResIdx, pReq->pTables));
     baseResIdx += taosArrayGetSize(pReq->pTables);
   }
@@ -1997,6 +1998,7 @@ int32_t ctgLaunchGetDbInfoTask(SCtgTask* pTask) {
     pInfo->vgVer = dbCache->vgCache.vgInfo->vgVersion;
     pInfo->dbId = dbCache->dbId;
     pInfo->tbNum = dbCache->vgCache.vgInfo->numOfTable;
+    pInfo->stateTs = dbCache->vgCache.vgInfo->stateTs;
 
     ctgReleaseVgInfoToCache(pCtg, dbCache);
     dbCache = NULL;
@@ -2007,10 +2009,6 @@ int32_t ctgLaunchGetDbInfoTask(SCtgTask* pTask) {
   CTG_ERR_JRET(ctgHandleTaskEnd(pTask, 0));
 
 _return:
-
-  if (dbCache) {
-    ctgReleaseVgInfoToCache(pCtg, dbCache);
-  }
 
   CTG_RET(code);
 }

@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -37,7 +33,7 @@ void test1() {
 void test2() {
   SyncAppendEntries *pMsg = createMsg();
   uint32_t           len = pMsg->bytes;
-  char *             serialized = (char *)taosMemoryMalloc(len);
+  char              *serialized = (char *)taosMemoryMalloc(len);
   syncAppendEntriesSerialize(pMsg, serialized, len);
   SyncAppendEntries *pMsg2 = syncAppendEntriesBuild(pMsg->dataLen, 1000);
   syncAppendEntriesDeserialize(serialized, len, pMsg2);
@@ -51,7 +47,7 @@ void test2() {
 void test3() {
   SyncAppendEntries *pMsg = createMsg();
   uint32_t           len;
-  char *             serialized = syncAppendEntriesSerialize2(pMsg, &len);
+  char              *serialized = syncAppendEntriesSerialize2(pMsg, &len);
   SyncAppendEntries *pMsg2 = syncAppendEntriesDeserialize2(serialized, len);
   syncAppendEntriesLog2((char *)"test3: syncAppendEntriesSerialize3 -> syncAppendEntriesDeserialize2 ", pMsg2);
 

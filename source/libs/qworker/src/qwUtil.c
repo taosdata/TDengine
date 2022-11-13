@@ -295,7 +295,7 @@ void qwFreeTaskCtx(SQWTaskCtx *ctx) {
   if (ctx->ctrlConnInfo.handle) {
     tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
   }
-  
+
   ctx->ctrlConnInfo.handle = NULL;
   ctx->ctrlConnInfo.refId = -1;
 
@@ -412,7 +412,7 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
   while (true) {
     paramIdx = atomic_load_32(&gQwMgmt.paramIdx);
     if (paramIdx == tListLen(gQwMgmt.param)) {
-      newParamIdx = 0;
+      newParamIdx = 1;
     } else {
       newParamIdx = paramIdx + 1;
     }
@@ -420,6 +420,10 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
     if (paramIdx == atomic_val_compare_exchange_32(&gQwMgmt.paramIdx, paramIdx, newParamIdx)) {
       break;
     }
+  }
+
+  if (paramIdx == tListLen(gQwMgmt.param)) {
+    paramIdx = 0;
   }
 
   gQwMgmt.param[paramIdx].qwrId = gQwMgmt.qwRef;
@@ -454,21 +458,21 @@ void qwDestroySchStatus(SQWSchStatus *pStatus) { taosHashCleanup(pStatus->tasksH
 
 void qwDestroyImpl(void *pMgmt) {
   SQWorker *mgmt = (SQWorker *)pMgmt;
-  int8_t nodeType = mgmt->nodeType;
-  int32_t nodeId = mgmt->nodeId;
-  
-  qDebug("start to destroy qworker, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);  
+  int8_t    nodeType = mgmt->nodeType;
+  int32_t   nodeId = mgmt->nodeId;
+
+  qDebug("start to destroy qworker, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);
 
   taosTmrStop(mgmt->hbTimer);
   mgmt->hbTimer = NULL;
   taosTmrCleanUp(mgmt->timer);
 
   uint64_t qId, tId;
-  int32_t eId;
-  void *pIter = taosHashIterate(mgmt->ctxHash, NULL);
+  int32_t  eId;
+  void    *pIter = taosHashIterate(mgmt->ctxHash, NULL);
   while (pIter) {
     SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
-    void *key = taosHashGetKey(pIter, NULL);
+    void       *key = taosHashGetKey(pIter, NULL);
     QW_GET_QTID(key, qId, tId, eId);
 
     qwFreeTaskCtx(ctx);
@@ -485,13 +489,15 @@ void qwDestroyImpl(void *pMgmt) {
   }
   taosHashCleanup(mgmt->schHash);
 
+  *mgmt->destroyed = 1;
+
   taosMemoryFree(mgmt);
 
   atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
 
   qwCloseRef();
 
-  qDebug("qworker destroyed, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);  
+  qDebug("qworker destroyed, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);
 }
 
 int32_t qwOpenRef(void) {
@@ -548,11 +554,10 @@ int64_t qwGetTimeInQueue(SQWorker *mgmt, EQueueType type) {
   return -1;
 }
 
-
-void qwClearExpiredSch(SQWorker *mgmt, SArray* pExpiredSch) {
+void qwClearExpiredSch(SQWorker *mgmt, SArray *pExpiredSch) {
   int32_t num = taosArrayGetSize(pExpiredSch);
   for (int32_t i = 0; i < num; ++i) {
-    uint64_t *sId = taosArrayGet(pExpiredSch, i);
+    uint64_t     *sId = taosArrayGet(pExpiredSch, i);
     SQWSchStatus *pSch = NULL;
     if (qwAcquireScheduler(mgmt, *sId, QW_WRITE, &pSch)) {
       continue;
@@ -567,5 +572,3 @@ void qwClearExpiredSch(SQWorker *mgmt, SArray* pExpiredSch) {
     qwReleaseScheduler(QW_WRITE, mgmt);
   }
 }
-
-

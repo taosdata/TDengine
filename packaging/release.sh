@@ -6,7 +6,7 @@ set -e
 #set -x
 
 # release.sh  -v [cluster | edge]
-#             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...]
+#             -c [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64...]
 #             -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 #             -V [stable | beta]
 #             -l [full | lite]
@@ -17,9 +17,9 @@ set -e
 #             -H [ false | true]
 
 # set parameters by default value
-verMode=edge    # [cluster, edge]
+verMode=edge    # [cluster, edge, cloud]
 verType=stable  # [stable, beta]
-cpuType=x64     # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
+cpuType=x64     # [aarch32 | aarch64 | x64 | x86 | mips64 loongarch64...]
 osType=Linux    # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 pagMode=full    # [full | lite]
 soMode=dynamic  # [static | dynamic]
@@ -77,7 +77,7 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:" arg; do
     ;;
   h)
     echo "Usage: $(basename $0) -v [cluster | edge] "
-    echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] "
+    echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...] "
     echo "                  -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...] "
     echo "                  -V [stable | beta] "
     echo "                  -l [full | lite] "
@@ -169,7 +169,7 @@ build_time=$(date +"%F %R")
 # get commint id from git
 gitinfo=$(git rev-parse --verify HEAD)
 
-if [[ "$verMode" == "cluster" ]]; then
+if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
   enterprise_dir="${top_dir}/../enterprise"
   cd ${enterprise_dir}
   gitinfoOfInternal=$(git rev-parse --verify HEAD)
@@ -205,7 +205,7 @@ else
   BUILD_HTTP=false
 fi
 
-if [[ "$verMode" == "cluster" ]]; then
+if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
   BUILD_HTTP=internal
 fi
 
@@ -216,15 +216,17 @@ else
 fi
 
 # check support cpu type
-if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "arm64" ]] || [[ "$cpuType" == "arm32" ]] || [[ "$cpuType" == "mips64" ]]; then
-  if [ "$verMode" != "cluster" ]; then
+if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "arm64" ]] || [[ "$cpuType" == "arm32" ]] || [[ "$cpuType" == "mips64" ]] || [[ "$cpuType" == "loongarch64" ]] ; then
+  if [ "$verMode" == "edge" ]; then
     # community-version compile
-    cmake ../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
-  else
+    cmake ../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
+  elif [ "$verMode" == "cloud" ]; then
+    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_CLOUD=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
+  elif [ "$verMode" == "cluster" ]; then
     if [[ "$dbName" != "taos" ]]; then
       replace_enterprise_$dbName
     fi
-    cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
+    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   fi
 else
   echo "input cpuType=${cpuType} error!!!"
@@ -244,7 +246,7 @@ cd ${curr_dir}
 
 # 3. Call the corresponding script for packaging
 if [ "$osType" != "Darwin" ]; then
-  if [[ "$verMode" != "cluster" ]] && [[ "$pagMode" == "full" ]] && [[ "$cpuType" == "x64" ]] && [[ "$dbName" == "taos" ]]; then
+  if [[ "$verMode" != "cluster" ]] && [[ "$verMode" != "cloud" ]] && [[ "$pagMode" == "full" ]] && [[ "$cpuType" == "x64" ]] && [[ "$dbName" == "taos" ]]; then
     ret='0'
     command -v dpkg >/dev/null 2>&1 || { ret='1'; }
     if [ "$ret" -eq 0 ]; then
@@ -260,7 +262,7 @@ if [ "$osType" != "Darwin" ]; then
       if [[ "$pagMode" == "full" ]]; then
         if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
           cd ${top_dir}/tools/taos-tools/packaging/deb
-          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
+          taos_tools_ver=$(git tag |grep -v taos | sort | tail -1)
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
           ${csudo}./make-taos-tools-deb.sh ${top_dir} \
@@ -285,7 +287,7 @@ if [ "$osType" != "Darwin" ]; then
       if [[ "$pagMode" == "full" ]]; then
         if [ -d ${top_dir}/tools/taos-tools/packaging/rpm ]; then
           cd ${top_dir}/tools/taos-tools/packaging/rpm
-          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}' | sed -e 's/-/_/g')
+          taos_tools_ver=$(git tag |grep -v taos | sort | tail -1)
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
           ${csudo}./make-taos-tools-rpm.sh ${top_dir} \
