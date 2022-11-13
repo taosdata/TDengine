@@ -150,13 +150,9 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
   } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
     code = syncNodeOnAppendEntriesReply(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
-    SyncSnapshotSend* pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
-    code = syncNodeOnSnapshot(pSyncNode, pSyncMsg);
-    syncSnapshotSendDestroy(pSyncMsg);
+    code = syncNodeOnSnapshot(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
-    SyncSnapshotRsp* pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
-    code = syncNodeOnSnapshotReply(pSyncNode, pSyncMsg);
-    syncSnapshotRspDestroy(pSyncMsg);
+    code = syncNodeOnSnapshotReply(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_LOCAL_CMD) {
     SyncLocalCmd* pSyncMsg = syncLocalCmdFromRpcMsg2(pMsg);
     code = syncNodeOnLocalCmd(pSyncNode, pSyncMsg);
@@ -415,17 +411,15 @@ int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
 
   sNTrace(pSyncNode, "begin leader transfer to %s:%u", newLeader.nodeFqdn, newLeader.nodePort);
 
-  SyncLeaderTransfer* pMsg = syncLeaderTransferBuild(pSyncNode->vgId);
+  SRpcMsg rpcMsg = {0};
+  (void)syncBuildLeaderTransfer(&rpcMsg, pSyncNode->vgId);
+
+  SyncLeaderTransfer* pMsg = rpcMsg.pCont;
   pMsg->newLeaderId.addr = syncUtilAddr2U64(newLeader.nodeFqdn, newLeader.nodePort);
   pMsg->newLeaderId.vgId = pSyncNode->vgId;
   pMsg->newNodeInfo = newLeader;
-  ASSERT(pMsg != NULL);
-  SRpcMsg rpcMsg = {0};
-  syncLeaderTransfer2RpcMsg(pMsg, &rpcMsg);
-  syncLeaderTransferDestroy(pMsg);
 
-  int32_t ret = syncNodePropose(pSyncNode, &rpcMsg, false);
-  return ret;
+  return syncNodePropose(pSyncNode, &rpcMsg, false);
 }
 
 SSyncState syncGetState(int64_t rid) {
@@ -2214,6 +2208,7 @@ const char* syncStr(ESyncState state) {
   }
 }
 
+#if 0
 int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry) {
   if (ths->state != TAOS_SYNC_STATE_FOLLOWER) {
     sNTrace(ths, "I am not follower, can not do leader transfer");
@@ -2242,7 +2237,7 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
     }
   */
 
-  SyncLeaderTransfer* pSyncLeaderTransfer = syncLeaderTransferFromRpcMsg2(pRpcMsg);
+  SyncLeaderTransfer* pSyncLeaderTransfer = pRpcMsg->pCont;
   sNTrace(ths, "do leader transfer, index:%" PRId64, pEntry->index);
 
   bool sameId = syncUtilSameId(&(pSyncLeaderTransfer->newLeaderId), &(ths->myRaftId));
@@ -2275,9 +2270,10 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
     ths->pFsm->FpLeaderTransferCb(ths->pFsm, pRpcMsg, &cbMeta);
   }
 
-  syncLeaderTransferDestroy(pSyncLeaderTransfer);
   return 0;
 }
+
+#endif
 
 int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg) {
   for (int32_t i = 0; i < pNewCfg->replicaNum; ++i) {
