@@ -37,7 +37,7 @@ class LongTimeInsert(TDCase):
         self.restart_timeout = 10
         # self.query_interval = 7200
         # self.query_interval = 3600
-        self.query_interval = 1200
+        self.query_interval = 120
         self._remote: Remote = Remote(self.logger)
         self.taosd = TaosD(self._remote)
         self.taosd_setting = self.tdCom.get_components_setting(
@@ -71,45 +71,49 @@ class LongTimeInsert(TDCase):
 
     def alter_replica(self, dbname, dnode_count=3):
         self.write_log(f'--------- alter database: {dbname} replica 1 \t--------\n')
-        self.tdSql.execute(f'alter {dbname} replica 1')
+        self.tdSql.execute(f'alter database {dbname} replica 1')
         sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, True, dnode_count=dnode_count))
         self.write_log(f'--------- alter {dbname} replica 1 sync time --- {sync_time}s \t--------\n')
 
         self.write_log(f'--------- alter database: {dbname} replica 3 \t--------\n')
-        self.tdSql.execute(f'alter {dbname} replica 3')
+        self.tdSql.execute(f'alter database {dbname} replica {dnode_count}')
         sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, True, dnode_count=dnode_count))
-        self.write_log(f'--------- alter {dbname} replica 3 sync time --- {sync_time}s \t--------\n')
+        self.write_log(f'--------- alter {dbname} replica {dnode_count} sync time --- {sync_time}s \t--------\n')
 
-    def restart_sync(self, db_list, dnode_count=3):
+    def create_new_table(self):
+        pass
+
+    def restart_sync(self, db_list, dnode_count=3, stop_dnode=True, alter_replica=False):
         dnodes_out_mnodes = self.tdSql.get_dnodes_out_mnodes()
         random_endpoint = random.choice(dnodes_out_mnodes[1])
-        self.tdSql.query(f'select name,ntables from information_schema.ins_databases;')
-        self.write_log(f'--------- (dbname, ntables) --- {self.tdSql.query_data} \t--------\n')
-        for dbname in db_list:
-            self.tdSql.query(f'select count(*) from {dbname}.stb0;')
-            if len(self.tdSql.query_data) > 0:
-                self.write_log(f'--------- select count(*) from {dbname}.stb0 --- {self.tdSql.query_data[0][0]} rows \t--------\n')
-            else:
-                self.write_log(f'--------- select count(*) from {dbname}.stb0 --- 0 rows \t--------\n')
+        if stop_dnode:
+            self.tdSql.query(f'select name,ntables from information_schema.ins_databases;')
+            self.write_log(f'--------- (dbname, ntables) --- {self.tdSql.query_data} \t--------\n')
+            for dbname in db_list:
+                self.tdSql.query(f'select count(*) from {dbname}.stb0;')
+                if len(self.tdSql.query_data) > 0:
+                    self.write_log(f'--------- select count(*) from {dbname}.stb0 --- {self.tdSql.query_data[0][0]} rows \t--------\n')
+                else:
+                    self.write_log(f'--------- select count(*) from {dbname}.stb0 --- 0 rows \t--------\n')
 
-        self.write_log(f'--------- killing dnode: --- {random_endpoint} \t--------\n')
-        self.taosd.kill_by_port(random_endpoint)
-        for dbname in db_list:
-            sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, True))
-            self.write_log(f'--------- dbname: {dbname} sync time --- {sync_time}s \t--------\n')
+            self.write_log(f'--------- killing dnode: --- {random_endpoint} \t--------\n')
+            self.taosd.kill_by_port(random_endpoint)
+            for dbname in db_list:
+                sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, True))
+                self.write_log(f'--------- dbname: {dbname} sync time --- {sync_time}s \t--------\n')
 
 
-        for taosd_setting in self.taosd_setting["spec"]["dnodes"]:
-            if taosd_setting["endpoint"] == random_endpoint:
-                random_dnode = taosd_setting
-        self.write_log(f'--------- starting dnode: --- {random_endpoint} \t--------\n')
-        self.taosd.start(random_dnode)
-        for dbname in db_list:
-            sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, False))
-            self.write_log(f'--------- dbname: {dbname} sync time --- {sync_time}s \t--------\n')
-
-        for dbname in db_list:
-            self.alter_replica(dbname, dnode_count)
+            for taosd_setting in self.taosd_setting["spec"]["dnodes"]:
+                if taosd_setting["endpoint"] == random_endpoint:
+                    random_dnode = taosd_setting
+            self.write_log(f'--------- starting dnode: --- {random_endpoint} \t--------\n')
+            self.taosd.start(random_dnode)
+            for dbname in db_list:
+                sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, False))
+                self.write_log(f'--------- dbname: {dbname} sync time --- {sync_time}s \t--------\n')
+        if alter_replica:
+            for dbname in db_list:
+                self.alter_replica(dbname, dnode_count)
 
 
     def desc(self):
@@ -138,7 +142,7 @@ class LongTimeInsert(TDCase):
         # print(self.tdSql.get_vnode_status_list("sml_line_rest"))
         # # print(self.tdSql.wait_sync_ready("sml_line_rest"))
         # print(self.tdSql.wait_sync_ready("sml_line_rest", sync_value=[("follower", "follower", "leader")]))
-        return
+        # return
         json_data: List = []
         file_name = []
         test_root = os.environ['TEST_ROOT']
@@ -302,19 +306,33 @@ class LongTimeInsert(TDCase):
             Insert_file.put_file(taosBenchmark_iplist, json_data, file_name)
             self.result_file_name = self.run_log_dir + "/perf_report.txt"
             self.write_log("-------- \tinsert\t" + str(cases) + ":\tinsert result--------\n")
-            scheduler = BackgroundScheduler()
-            scheduler.add_job(self.restart_sync, 'interval', seconds=self.query_interval, max_instances=1, args=[db_list])
-            # for stbname in self.stb_list:
-            #     scheduler.add_job(self.query_last_row, 'interval', seconds=self.query_interval, max_instances=10, args=[f'{cfg[cases][json_file]["db_info"]["db_name"]}.{stbname}'])
-            # for stbname in self.stb_list:
-            #     scheduler.add_job(self.query_count, 'interval', seconds=self.query_interval, max_instances=10, args=[f'{cfg[cases][json_file]["db_info"]["db_name"]}.{stbname}'])
-            scheduler.start()
-            timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-            # # run taosBenchmark
-            taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
-            result_filename = Insert_file.threads_run_taosBenchmark(
-                taosBenchmark_iplist, json_data, file_name, taosBenchmark_env_setting
-            )
+            if "repeat_delete_times" in cfg[cases][json_file]["stb_info"]:
+                timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+                # # run taosBenchmark
+                taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
+                for i in range(cfg[cases][json_file]["stb_info"]["repeat_delete_times"]):
+                    self.write_log(f"-------- \loop time {i+1} create db&table, insert rows, drop table&db --------\n")
+                    Insert_file.threads_run_taosBenchmark(
+                        taosBenchmark_iplist, json_data, file_name, taosBenchmark_env_setting
+                    )
+                    self.tdSql.query(f'select count(*) from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0], cfg[cases][json_file]["stb_info"]["childtable_count"] * cfg[cases][json_file]["stb_info"]["insert_rows"])
+                    for j in range(int(cfg[cases][json_file]["stb_info"]["childtable_count"])):
+                        self.tdSql.execute(f'drop table {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["childtable_prefix"]}0{j}')
+                    self.tdSql.execute(f'drop stable {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
+                    self.tdSql.error(f'select * from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
+                    self.tdSql.execute(f'drop database {cfg[cases][json_file]["db_info"]["db_name"]}')
+                    self.tdSql.error(f'use {cfg[cases][json_file]["db_info"]["db_name"]}')
+            else:
+                scheduler = BackgroundScheduler()
+                scheduler.add_job(self.restart_sync, 'interval', seconds=self.query_interval, max_instances=1, args=[db_list])
+                scheduler.start()
+                timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+                # # run taosBenchmark
+                taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
+                result_filename = Insert_file.threads_run_taosBenchmark(
+                    taosBenchmark_iplist, json_data, file_name, taosBenchmark_env_setting
+                )
 
             timestamp_end = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
             # get insert result
