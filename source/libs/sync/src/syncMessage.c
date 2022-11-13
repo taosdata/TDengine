@@ -223,70 +223,22 @@ int32_t syncBuildPreSnapshotReply(SRpcMsg* pMsg, int32_t vgId) {
   return 0;
 }
 
-// ---------------------------------------------
-SyncSnapshotSend* syncSnapshotSendBuild(uint32_t dataLen, int32_t vgId) {
-  uint32_t          bytes = sizeof(SyncSnapshotSend) + dataLen;
-  SyncSnapshotSend* pMsg = taosMemoryMalloc(bytes);
-  memset(pMsg, 0, bytes);
-  pMsg->bytes = bytes;
-  pMsg->vgId = vgId;
+int32_t syncBuildSnapshotSend(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
+  int32_t bytes = sizeof(SyncSnapshotSend) + dataLen;
+  pMsg->pCont = rpcMallocCont(bytes);
   pMsg->msgType = TDMT_SYNC_SNAPSHOT_SEND;
-  pMsg->dataLen = dataLen;
-  return pMsg;
-}
-
-void syncSnapshotSendDestroy(SyncSnapshotSend* pMsg) {
-  if (pMsg != NULL) {
-    taosMemoryFree(pMsg);
+  pMsg->contLen = bytes;
+  if (pMsg->pCont == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
   }
-}
 
-void syncSnapshotSendSerialize(const SyncSnapshotSend* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
-  memcpy(buf, pMsg, pMsg->bytes);
-}
-
-void syncSnapshotSendDeserialize(const char* buf, uint32_t len, SyncSnapshotSend* pMsg) {
-  memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
-  ASSERT(pMsg->bytes == sizeof(SyncSnapshotSend) + pMsg->dataLen);
-}
-
-char* syncSnapshotSendSerialize2(const SyncSnapshotSend* pMsg, uint32_t* len) {
-  char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
-  syncSnapshotSendSerialize(pMsg, buf, pMsg->bytes);
-  if (len != NULL) {
-    *len = pMsg->bytes;
-  }
-  return buf;
-}
-
-SyncSnapshotSend* syncSnapshotSendDeserialize2(const char* buf, uint32_t len) {
-  uint32_t          bytes = *((uint32_t*)buf);
-  SyncSnapshotSend* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
-  syncSnapshotSendDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
-  return pMsg;
-}
-
-void syncSnapshotSend2RpcMsg(const SyncSnapshotSend* pMsg, SRpcMsg* pRpcMsg) {
-  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
-  pRpcMsg->msgType = pMsg->msgType;
-  pRpcMsg->contLen = pMsg->bytes;
-  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
-  syncSnapshotSendSerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
-}
-
-void syncSnapshotSendFromRpcMsg(const SRpcMsg* pRpcMsg, SyncSnapshotSend* pMsg) {
-  syncSnapshotSendDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
-}
-
-SyncSnapshotSend* syncSnapshotSendFromRpcMsg2(const SRpcMsg* pRpcMsg) {
-  SyncSnapshotSend* pMsg = syncSnapshotSendDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
-  return pMsg;
+  SyncSnapshotSend* pSnapshotSend = pMsg->pCont;
+  pSnapshotSend->bytes = bytes;
+  pSnapshotSend->vgId = vgId;
+  pSnapshotSend->msgType = TDMT_SYNC_SNAPSHOT_SEND;
+  pSnapshotSend->dataLen = dataLen;
+  return 0;
 }
 
 SyncSnapshotRsp* syncSnapshotRspBuild(int32_t vgId) {

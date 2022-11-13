@@ -150,9 +150,7 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
   } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
     code = syncNodeOnAppendEntriesReply(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
-    SyncSnapshotSend* pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
-    code = syncNodeOnSnapshot(pSyncNode, pSyncMsg);
-    syncSnapshotSendDestroy(pSyncMsg);
+    code = syncNodeOnSnapshot(pSyncNode, pMsg);
   } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
     SyncSnapshotRsp* pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
     code = syncNodeOnSnapshotReply(pSyncNode, pSyncMsg);

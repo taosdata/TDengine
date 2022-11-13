@@ -2392,3 +2392,69 @@ void syncApplyMsgLog2(char* s, const SyncApplyMsg* pMsg) {
     taosMemoryFree(serialized);
   }
 }
+
+// ---------------------------------------------
+SyncSnapshotSend* syncSnapshotSendBuild(uint32_t dataLen, int32_t vgId) {
+  uint32_t          bytes = sizeof(SyncSnapshotSend) + dataLen;
+  SyncSnapshotSend* pMsg = taosMemoryMalloc(bytes);
+  memset(pMsg, 0, bytes);
+  pMsg->bytes = bytes;
+  pMsg->vgId = vgId;
+  pMsg->msgType = TDMT_SYNC_SNAPSHOT_SEND;
+  pMsg->dataLen = dataLen;
+  return pMsg;
+}
+
+void syncSnapshotSendDestroy(SyncSnapshotSend* pMsg) {
+  if (pMsg != NULL) {
+    taosMemoryFree(pMsg);
+  }
+}
+
+void syncSnapshotSendSerialize(const SyncSnapshotSend* pMsg, char* buf, uint32_t bufLen) {
+  ASSERT(pMsg->bytes <= bufLen);
+  memcpy(buf, pMsg, pMsg->bytes);
+}
+
+void syncSnapshotSendDeserialize(const char* buf, uint32_t len, SyncSnapshotSend* pMsg) {
+  memcpy(pMsg, buf, len);
+  ASSERT(len == pMsg->bytes);
+  ASSERT(pMsg->bytes == sizeof(SyncSnapshotSend) + pMsg->dataLen);
+}
+
+char* syncSnapshotSendSerialize2(const SyncSnapshotSend* pMsg, uint32_t* len) {
+  char* buf = taosMemoryMalloc(pMsg->bytes);
+  ASSERT(buf != NULL);
+  syncSnapshotSendSerialize(pMsg, buf, pMsg->bytes);
+  if (len != NULL) {
+    *len = pMsg->bytes;
+  }
+  return buf;
+}
+
+SyncSnapshotSend* syncSnapshotSendDeserialize2(const char* buf, uint32_t len) {
+  uint32_t          bytes = *((uint32_t*)buf);
+  SyncSnapshotSend* pMsg = taosMemoryMalloc(bytes);
+  ASSERT(pMsg != NULL);
+  syncSnapshotSendDeserialize(buf, len, pMsg);
+  ASSERT(len == pMsg->bytes);
+  return pMsg;
+}
+
+void syncSnapshotSend2RpcMsg(const SyncSnapshotSend* pMsg, SRpcMsg* pRpcMsg) {
+  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
+  pRpcMsg->msgType = pMsg->msgType;
+  pRpcMsg->contLen = pMsg->bytes;
+  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  syncSnapshotSendSerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
+}
+
+void syncSnapshotSendFromRpcMsg(const SRpcMsg* pRpcMsg, SyncSnapshotSend* pMsg) {
+  syncSnapshotSendDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+SyncSnapshotSend* syncSnapshotSendFromRpcMsg2(const SRpcMsg* pRpcMsg) {
+  SyncSnapshotSend* pMsg = syncSnapshotSendDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  ASSERT(pMsg != NULL);
+  return pMsg;
+}

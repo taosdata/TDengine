@@ -105,7 +105,10 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   pSender->finish = false;
 
   // build begin msg
-  SyncSnapshotSend *pMsg = syncSnapshotSendBuild(0, pSender->pSyncNode->vgId);
+  SRpcMsg rpcMsg = {0};
+  (void)syncBuildSnapshotSend(&rpcMsg, 0, pSender->pSyncNode->vgId);
+
+  SyncSnapshotSend *pMsg = rpcMsg.pCont;
   pMsg->srcId = pSender->pSyncNode->myRaftId;
   pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
   pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
@@ -118,11 +121,8 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   pMsg->seq = SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT;
 
   // send msg
-  SRpcMsg rpcMsg;
-  syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
-  syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
+  syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg);
   syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "");
-  syncSnapshotSendDestroy(pMsg);
 
   // event log
   sSTrace(pSender, "snapshot sender start");
@@ -176,7 +176,10 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   }
 
   // build msg
-  SyncSnapshotSend *pMsg = syncSnapshotSendBuild(pSender->blockLen, pSender->pSyncNode->vgId);
+  SRpcMsg rpcMsg = {0};
+  (void)syncBuildSnapshotSend(&rpcMsg, pSender->blockLen, pSender->pSyncNode->vgId);
+
+  SyncSnapshotSend *pMsg = rpcMsg.pCont;
   pMsg->srcId = pSender->pSyncNode->myRaftId;
   pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
   pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
@@ -192,11 +195,8 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
 
   // send msg
-  SRpcMsg rpcMsg;
-  syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
-  syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
+  syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg);
   syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "");
-  syncSnapshotSendDestroy(pMsg);
 
   // event log
   if (pSender->seq == SYNC_SNAPSHOT_SEQ_END) {
@@ -212,7 +212,10 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   // send current block data
   if (pSender->pCurrentBlock != NULL && pSender->blockLen > 0) {
     // build msg
-    SyncSnapshotSend *pMsg = syncSnapshotSendBuild(pSender->blockLen, pSender->pSyncNode->vgId);
+    SRpcMsg rpcMsg = {0};
+    (void)syncBuildSnapshotSend(&rpcMsg, pSender->blockLen, pSender->pSyncNode->vgId);
+
+    SyncSnapshotSend *pMsg = rpcMsg.pCont;
     pMsg->srcId = pSender->pSyncNode->myRaftId;
     pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
     pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
@@ -224,15 +227,11 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
     pMsg->seq = pSender->seq;
 
     //  pMsg->privateTerm = pSender->privateTerm;
-
     memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
 
     // send msg
-    SRpcMsg rpcMsg;
-    syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
-    syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
+    syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg);
     syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "");
-    syncSnapshotSendDestroy(pMsg);
 
     // event log
     sSTrace(pSender, "snapshot sender resend");
@@ -705,7 +704,9 @@ static int32_t syncNodeOnSnapshotEnd(SSyncNode *pSyncNode, SyncSnapshotSend *pMs
 //
 // condition 5, got data, update ack
 //
-int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
+int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
+  SyncSnapshotSend *pMsg = pRpcMsg->pCont;
+
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(pSyncNode, &(pMsg->srcId))) {
     syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "not in my config");
@@ -797,13 +798,16 @@ int32_t syncNodeOnSnapshotReplyPre(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) 
   }
 
   // update next index
-  syncIndexMgrSetIndex(pSyncNode->pNextIndex, &(pMsg->srcId), snapshot.lastApplyIndex + 1);
+  syncIndexMgrSetIndex(pSyncNode->pNextIndex, &pMsg->srcId, snapshot.lastApplyIndex + 1);
 
   // update seq
   pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
 
   // build begin msg
-  SyncSnapshotSend *pSendMsg = syncSnapshotSendBuild(0, pSender->pSyncNode->vgId);
+  SRpcMsg rpcMsg = {0};
+  (void)syncBuildSnapshotSend(&rpcMsg, 0, pSender->pSyncNode->vgId);
+
+  SyncSnapshotSend *pSendMsg = rpcMsg.pCont;
   pSendMsg->srcId = pSender->pSyncNode->myRaftId;
   pSendMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
   pSendMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
@@ -816,11 +820,8 @@ int32_t syncNodeOnSnapshotReplyPre(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) 
   pSendMsg->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
 
   // send msg
-  SRpcMsg rpcMsg;
-  syncSnapshotSend2RpcMsg(pSendMsg, &rpcMsg);
-  syncNodeSendMsgById(&(pSendMsg->destId), pSender->pSyncNode, &rpcMsg);
+  syncNodeSendMsgById(&pSendMsg->destId, pSender->pSyncNode, &rpcMsg);
   syncLogSendSyncSnapshotSend(pSyncNode, pSendMsg, "");
-  syncSnapshotSendDestroy(pSendMsg);
 
   return 0;
 }
