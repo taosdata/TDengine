@@ -427,6 +427,25 @@ void syncSnapshotSendPrint2(char* s, const SyncSnapshotSend* pMsg);
 void syncSnapshotSendLog(const SyncSnapshotSend* pMsg);
 void syncSnapshotSendLog2(char* s, const SyncSnapshotSend* pMsg);
 
+SyncSnapshotRsp* syncSnapshotRspBuild(int32_t vgId);
+void             syncSnapshotRspDestroy(SyncSnapshotRsp* pMsg);
+void             syncSnapshotRspSerialize(const SyncSnapshotRsp* pMsg, char* buf, uint32_t bufLen);
+void             syncSnapshotRspDeserialize(const char* buf, uint32_t len, SyncSnapshotRsp* pMsg);
+char*            syncSnapshotRspSerialize2(const SyncSnapshotRsp* pMsg, uint32_t* len);
+SyncSnapshotRsp* syncSnapshotRspDeserialize2(const char* buf, uint32_t len);
+void             syncSnapshotRsp2RpcMsg(const SyncSnapshotRsp* pMsg, SRpcMsg* pRpcMsg);
+void             syncSnapshotRspFromRpcMsg(const SRpcMsg* pRpcMsg, SyncSnapshotRsp* pMsg);
+SyncSnapshotRsp* syncSnapshotRspFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*           syncSnapshotRsp2Json(const SyncSnapshotRsp* pMsg);
+char*            syncSnapshotRsp2Str(const SyncSnapshotRsp* pMsg);
+
+// for debug ----------------------
+void syncSnapshotRspPrint(const SyncSnapshotRsp* pMsg);
+void syncSnapshotRspPrint2(char* s, const SyncSnapshotRsp* pMsg);
+void syncSnapshotRspLog(const SyncSnapshotRsp* pMsg);
+void syncSnapshotRspLog2(char* s, const SyncSnapshotRsp* pMsg);
+
+// ---------------------------------------------
 #ifdef __cplusplus
 }
 #endif

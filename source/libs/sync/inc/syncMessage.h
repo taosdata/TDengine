@@ -207,25 +207,6 @@ typedef struct SyncSnapshotRsp {
   SyncIndex snapBeginIndex;  // when ack = SYNC_SNAPSHOT_SEQ_BEGIN, it's valid
 } SyncSnapshotRsp;
 
-SyncSnapshotRsp* syncSnapshotRspBuild(int32_t vgId);
-void             syncSnapshotRspDestroy(SyncSnapshotRsp* pMsg);
-void             syncSnapshotRspSerialize(const SyncSnapshotRsp* pMsg, char* buf, uint32_t bufLen);
-void             syncSnapshotRspDeserialize(const char* buf, uint32_t len, SyncSnapshotRsp* pMsg);
-char*            syncSnapshotRspSerialize2(const SyncSnapshotRsp* pMsg, uint32_t* len);
-SyncSnapshotRsp* syncSnapshotRspDeserialize2(const char* buf, uint32_t len);
-void             syncSnapshotRsp2RpcMsg(const SyncSnapshotRsp* pMsg, SRpcMsg* pRpcMsg);
-void             syncSnapshotRspFromRpcMsg(const SRpcMsg* pRpcMsg, SyncSnapshotRsp* pMsg);
-SyncSnapshotRsp* syncSnapshotRspFromRpcMsg2(const SRpcMsg* pRpcMsg);
-cJSON*           syncSnapshotRsp2Json(const SyncSnapshotRsp* pMsg);
-char*            syncSnapshotRsp2Str(const SyncSnapshotRsp* pMsg);
-
-// for debug ----------------------
-void syncSnapshotRspPrint(const SyncSnapshotRsp* pMsg);
-void syncSnapshotRspPrint2(char* s, const SyncSnapshotRsp* pMsg);
-void syncSnapshotRspLog(const SyncSnapshotRsp* pMsg);
-void syncSnapshotRspLog2(char* s, const SyncSnapshotRsp* pMsg);
-
-// ---------------------------------------------
 typedef struct SyncLeaderTransfer {
   uint32_t bytes;
   int32_t  vgId;
@@ -294,7 +275,7 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnAppendEntries(SSyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnSnapshot(SSyncNode* ths, const SRpcMsg* pMsg);
-int32_t syncNodeOnSnapshotReply(SSyncNode* ths, SyncSnapshotRsp* pMsg);
+int32_t syncNodeOnSnapshotReply(SSyncNode* ths, const SRpcMsg* pMsg);
 
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pMsg);
@@ -323,6 +304,7 @@ int32_t syncBuildPreSnapshot(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildPreSnapshotReply(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildApplyMsg(SRpcMsg* pMsg, const SRpcMsg* pOriginal, int32_t vgId, SFsmCbMeta* pMeta);
 int32_t syncBuildSnapshotSend(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId);
+int32_t syncBuildSnapshotSendRsp(SRpcMsg* pMsg, int32_t vgId);
 
 #ifdef __cplusplus
 }
