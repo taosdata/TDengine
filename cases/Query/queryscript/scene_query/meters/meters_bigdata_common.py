@@ -89,7 +89,10 @@ class TDTestQuery(TDCase):
         #删除子表
         for i in range(n):
             self.tdSql.execute("drop table %s.stb%d;"%(database,i))
-                   
+                
+    def delete_ts_data(self,database,time):
+        #删除子表
+        self.tdSql.execute("delete from %s.meters where ts = %s;"%(database,time))                   
             
     def where_filter_old(self): 
         fake = Faker('zh_CN') 
@@ -149,10 +152,10 @@ class TDTestQuery(TDCase):
         data_filters = ['voltage >= -127 ' , 'voltage <= 127 ' , 'voltage <= 2147483647 ' , 'voltage >= -2147483647 ',  
                         'current >= -1.7E308 ','current <= 1.7E308 ', 
                         'phase >= -1.7E308 ','phase <= 1.7E308 ', 
-                        'groupid >= -127 ' , 'groupid <= 127 ' ,'groupid <= 2147483647 ' , 'groupid >= -2147483647 ',
+                        #'groupid >= -127 ' , 'groupid <= 127 ' ,'groupid <= 2147483647 ' , 'groupid >= -2147483647 ',
                         'voltage between -2147483647 and 2147483647 ','voltage between -127 and 127  ',
                         'current between -1.7E308 and 1.7E308 ' ,'phase between -1.7E308 and 1.7E308 ' ,
-                        'groupid between -127 and 127 ','groupid between -2147483647 and 2147483647 ',
+                        #'groupid between -127 and 127 ','groupid between -2147483647 and 2147483647 ',
                         'current is not null ', 'voltage is not null ' ,'phase is not null ' ,'groupid is not null ' ,'location is not null ' ,                   
                         'ts is not null ' ,'_c0 is not null ' ,'_C0 is not null ' ,'_rowts is not null ' ,
                         'ts <= now ' , 'ts >=  1500000000000' ,' ts between 1500000000000 and now +1h  ', 
@@ -161,8 +164,8 @@ class TDTestQuery(TDCase):
                         '_rowts <= now +1h ' ,'_rowts >= 1500000000000 ' ,' _rowts between 1500000000000 and now +1h  ']        
         data_filter = random.sample(data_filters,1)
 
-        like_filters = ['c3 like \'varchar%\' and ','(c3 like \'varchar%\'  or c3 = \'0\'  or c3 = \'varchar_\' or c3 is not null ) and ','c4 like \'nchar%\' and ','(c4 like \'nchar%\' or c4 = \'0\'  or c4 = \'nchar_\' or c4 is not null  ) and ','t1 like \'varchar%\' and ','(t1 like \'varchar%\' or t1 = \'0\'  or t1 = \'varchar_\'  or t1 is not null ) and ',]
-        match_filters = ['c3 match \'va\' and ','c4 nmatch \'varcharnchar\' and ','c4 match \'nc\' and ','c3 nmatch \'varcharnchar\' and ','t1 match \'va\' and ','t1 nmatch \'ncharvarchar\' and ',]
+        like_filters = ['location like \'California%\' ','(location like \'California%\'  or location = \'0\'  or location = \'California_\' or location is not null ) ',]
+        match_filters = ['location match \'California\' ','location nmatch \'california\' ','location match \'[California]\' ','location nmatch \'^[California]\' ',]
         like_match_filters = random.sample(random.sample(like_filters,1) + random.sample(match_filters,1),1)
         like_match_filter = str(like_match_filters).replace("[","").replace("]","").replace("\"","")
 
@@ -183,12 +186,12 @@ class TDTestQuery(TDCase):
         orderby_filter = str(random.sample(orderby_filters,i)).replace("[","").replace("]","").replace("'","")
         orderby_filter = str('order by ' + orderby_filter).replace("[","").replace("]","").replace("'","")
         
-        groupby_filters = ['ts','_c0','_C0','_rowts','c1','c2','c3','c4','t0','t1']
+        groupby_filters = ['ts','_c0','_C0','_rowts','current','voltage','phase','groupid','location']
         i = random.randint(1,8)
         groupby_filter = str(random.sample(groupby_filters,i)).replace("[","").replace("]","").replace("'","")
         groupby_filter = str('group by ' + groupby_filter).replace("[","").replace("]","").replace("'","")
         
-        partitionby_filters = ['ts','_c0','_C0','_rowts','c1','c2','c3','c4','t0','t1']
+        partitionby_filters = ['ts','_c0','_C0','_rowts','current','voltage','phase','groupid','location']
         i = random.randint(1,8)
         partitionby_filter = str(random.sample(partitionby_filters,i)).replace("[","").replace("]","").replace("'","")
         partitionby_filter = str('partition by ' + partitionby_filter).replace("[","").replace("]","").replace("'","")
@@ -233,16 +236,7 @@ class TDTestQuery(TDCase):
             #f.write(str(self.tdSql.error(sql)) + "; \n")
             f.close()
             
-            
-    def value_check(self,base_value,check_value,sql1,sql2):
-        #两个sql及执行数据检查
-        self.logger.debug(f"sql1={sql1},sql2={sql2}")
-        if (base_value == check_value) :
-            self.logger.info(("sql1:'%s' result '%s' = sql2:'%s' result '%s' ") %(sql1,base_value,sql2,check_value))
-        else:
-            self.logger.info(("sql1:'%s' result '%s' != sql2:'%s' result '%s'") %(sql1,base_value,sql2,check_value))
-            return self.tdSql.checkEqual(base_value,check_value)
-               
+
           
     def sql_base_check(self,dbname,sql1,sql2) :        
         sql1 = "select count(*) from %s.meters" %dbname
@@ -262,40 +256,87 @@ class TDTestQuery(TDCase):
         base_data = self.tdSql.getData(0,0)
         self.explain_sql(sql1)
         
+        self.tdSql.execute("reset query cache;")
+        
         self.tdSql.query(sql2)
         check_data = self.tdSql.getData(0,0)
         self.explain_sql(sql2)
         
         self.value_check(base_data,check_data,sql1,sql2)
-                
             
-    # def after_flush_check(self,dbname,sql):
-    #落盘后检查，暂时不用
-    #     sql = "select count(*) from %s.meters" %dbname
-    #     # self.tdSql.query(sql)
-    #     # base_data1 = self.tdSql.getData(0,0)
-    #     # self.tdSql.query(sql)
-    #     # base_data2 = self.tdSql.getData(0,0)
-    #     # self.tdSql.query(sql)
-    #     # base_data3 = self.tdSql.getData(0,0)
+    def value_check(self,base_value,check_value,sql1,sql2):
+        #两个sql及执行数据检查
+        self.logger.debug(f"sql1={sql1},sql2={sql2}")
+        if (base_value == check_value) :
+            self.logger.info(("sql1:'%s' result '%s' = sql2:'%s' result '%s' ") %(sql1,base_value,sql2,check_value))
+        else:
+            self.logger.info(("sql1:'%s' result '%s' != sql2:'%s' result '%s'") %(sql1,base_value,sql2,check_value))
+            return self.tdSql.checkEqual(base_value,check_value)
+
+          
+    def sql_in_check(self,dbname,sql1,sql2) :  
+        self.logger.info(("sql1:'%s' |||||| sql2:'%s' ") %(sql1,sql2))   
         
-    #     for i in range(5):
-    #         self.tdSql.query(sql)
-    #         base_data1 = self.tdSql.getData(0,0)
-    #         self.tdSql.query(sql)
-    #         base_data2 = self.tdSql.getData(0,0)
-    #         self.tdSql.query(sql)
-    #         base_data3 = self.tdSql.getData(0,0)
-    #         if (base_data1 != base_data2) or (base_data2 != base_data3) :
-    #             time.sleep(1)
-    #         else:
-    #             return True
+        self.explain_sql(sql1)
+        self.explain_sql(sql2)
         
+        base_data =[]   
+        self.tdSql.query(sql1)
+        base_data.append(self.tdSql.getData(0,0))
+                
+        check_data =[]
+        rows = self.tdSql.query(sql2).row_count   
+        self.tdSql.query(sql2)
+        for i2 in range(rows):
+            check_data.append(self.tdSql.getData(i2,0))
         
+        #两个sql及执行数据检查
+        self.logger.debug(f"sql1={sql1},sql2={sql2}")
+        if (set(base_data)).issubset(set(check_data)) :
+            self.logger.info(("sql1:'%s' result is in  sql2:'%s' result ") %(sql1,sql2))
+            #self.logger.info(("sql1:'%s' result '%s' is in  sql2:'%s' result '%s' ") %(sql1,base_data,sql2,check_data))
+        else:
+            self.logger.info(("sql1:'%s' result '%s' is not in sql2:'%s' result '%s'") %(sql1,base_data,sql2,check_data))
+            return self.tdSql.checkEqual(base_data,check_data)       
+          
+    def sql_in_check_ignore_error(self,dbname,sql1,sql2) :  
+        self.logger.info(("sql1:'%s' |||||| sql2:'%s' ") %(sql1,sql2))           
+        rows = -1;
+        
+        try:
+            self.tdSql.query(sql1,queryTimes=1)
+            self.tdSql.query(sql2,queryTimes=1)            
+            rows = self.tdSql.query(sql1).row_count   
+            if rows>=0:
+                rows_1 = rows 
+                rows_2 = self.tdSql.query(sql2).row_count 
+                
+                base_data =[]   
+                self.tdSql.query(sql1)
+                base_data.append(self.tdSql.getData(0,0))
+                
+                check_data =[]  
+                self.tdSql.query(sql2)
+                for i2 in range(rows_2):
+                    check_data.append(self.tdSql.getData(i2,0))
+                
+                if (rows_1 == 0) and (rows_2 == 0):
+                    self.logger.info(("=====sql1.rows:'%s',=====sql2.rows:'%s'") %(rows_1,rows_2))
+                    self.explain_sql(sql1)
+                    self.explain_sql(sql2)         
+                elif (set(base_data)).issubset(set(check_data)) :
+                    self.logger.info(("sql1:'%s' result is in  sql2:'%s' result ") %(sql1,sql2))
+                    self.explain_sql(sql1)
+                    self.explain_sql(sql2) 
+                else:                        
+                    self.logger.info(("sql1:'%s' result is not in sql2:'%s' result ") %(sql1,sql2))
+                    return self.tdSql.checkEqual(base_data,check_data)
+        except:
+            self.logger.info("sql1 is not support :=====%s; sql2 is not support :=====%s; " %(sql1,sql2))        
                     
     def column_select(self,num):
         column = ''
-        column_lists = ['ts','_c0 as ts1','_C0 as ts2','_rowts as ts3','current','voltage','phase','groupid','location',]
+        column_lists = ['ts','_c0 as ts1','_C0 as ts2','_rowts as ts3','current','voltage','phase','groupid','location','tbname']
         if num == 0:    
             column = '*'
         elif num == 1:    
@@ -308,8 +349,8 @@ class TDTestQuery(TDCase):
             
         return column   
      
-    def select_column(self,dbname):
-        self.logger.info("\n==========================select_column==========================\n")
+    def count_select_column(self,dbname):
+        self.logger.info("\n==========================count_select_column==========================\n")
                           
         for i in (1,):
             func = self.base_function_all(i)
@@ -357,6 +398,15 @@ class TDTestQuery(TDCase):
                         sql2 = "select count(*) from (select %s from %s.meters %s desc)" %(self.column_select(3),dbname,orderby_filter)
                         self.sql_check(dbname,sql1,sql2)
                         
+                        # sql2 = "select count(*) from (select %s from %s.meters %s )" %(self.column_select(0),dbname,groupby_filter)
+                        # self.sql_check(dbname,sql1,sql2)                       
+                        # sql2 = "select count(*) from (select %s from %s.meters %s )" %(self.column_select(1),dbname,groupby_filter)
+                        # self.sql_check(dbname,sql1,sql2)
+                        # sql2 = "select count(*) from (select %s from %s.meters %s )" %(self.column_select(2),dbname,groupby_filter)
+                        # self.sql_check(dbname,sql1,sql2)
+                        # sql2 = "select count(*) from (select %s from %s.meters %s )" %(self.column_select(3),dbname,groupby_filter)
+                        # self.sql_check(dbname,sql1,sql2)
+                        
                         sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(0),dbname,data_filter)
                         self.sql_check(dbname,sql1,sql2)                       
                         sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(1),dbname,data_filter)
@@ -375,6 +425,15 @@ class TDTestQuery(TDCase):
                         sql2 = "select count(*) from (select %s from %s.meters where  %s %s)" %(self.column_select(3),dbname,data_filter,orderby_filter)
                         self.sql_check(dbname,sql1,sql2)
                         
+                        # sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(0),dbname,like_match_filter)
+                        # self.sql_check(dbname,sql1,sql2)                       
+                        # sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(1),dbname,like_match_filter)
+                        # self.sql_check(dbname,sql1,sql2)
+                        # sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(2),dbname,like_match_filter)
+                        # self.sql_check(dbname,sql1,sql2)
+                        # sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(3),dbname,like_match_filter)
+                        # self.sql_check(dbname,sql1,sql2)
+                        
                         sql2 = "select count(*) from (select %s from %s.meters where  %s %s desc)" %(self.column_select(0),dbname,data_filter,orderby_filter)
                         self.sql_check(dbname,sql1,sql2)                       
                         sql2 = "select count(*) from (select %s from %s.meters where  %s %s desc)" %(self.column_select(1),dbname,data_filter,orderby_filter)
@@ -391,7 +450,236 @@ class TDTestQuery(TDCase):
             except Exception as e:
                 raise e   
                     
-                              
+    def base_function_all(self,i):
+        columns_datas = ['(current,1)','(voltage,1)','(phase,1)','(groupid,1)',]
+        columns_data = random.sample(columns_datas,1)
+        columns_and_tbname = ['(*)','(ts)','(_c0)','(_C0)','(_rowts)','(current)','(voltage)','(phase)','(groupid)','(location)','(tbname)'] 
+        columns_and_tbname_1 = random.sample(columns_and_tbname,1) 
+        columns = ['(*)','(ts)','(_c0)','(_C0)','(_rowts)','(current)','(voltage)','(phase)','(groupid)','(location)'] 
+        column_1 = random.sample(columns,1) 
+        if i == 1: 
+            func = ['MAX']
+            func_column_process = str(func + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","").replace(",1","")
+            func_1 = ['TOP']
+            func_column_process_1 = str(func_1 + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process,func_column_process_1
+        elif i == 2:             
+            func = ['MIN']
+            func_column_process = str(func + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","").replace(",1","")
+            func_1 = ['BOTTOM']
+            func_column_process_1 = str(func_1 + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process,func_column_process_1
+        elif i == 3: 
+            func = ['FIRST']
+            func_column_tbname_process = str(func + columns_and_tbname_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_tbname_process,func_column_process
+        elif i == 4:             
+            func = ['LAST']
+            func_column_tbname_process = str(func + columns_and_tbname_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_tbname_process,func_column_process
+        elif i == 5:             
+            func = ['LAST_ROW']
+            func_column_tbname_process = str(func + columns_and_tbname_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_tbname_process,func_column_process
+                                
+     
+    def max_min_top_bottom_select_column(self,dbname):
+        self.logger.info("\n==========================max_min_top_bottom_select_column==========================\n")
+                          
+        for i in (1,2,):
+            func_all = self.base_function_all(i)
+            func = func_all[0]
+            func_1 = func_all[1]
+            print(func,func_1,func_all)
+            try:                
+                self.tdSql.execute('use %s;' %dbname)                          
+                where_filters = self.where_filter()
+                print(where_filters[0])
+                for i in range(0,len(where_filters[0])+1):
+                    data_filter = list(combinations(where_filters[0],i+1))
+                    print(data_filter)
+                    for data_filter in data_filter:
+                        data_filter = str(data_filter).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
+                        like_match_filter = where_filters[1]
+                        in_filter = where_filters[2] 
+                        orderby_filter = where_filters[3]  
+                        groupby_filter = where_filters[4] 
+                        partitonby_filter = where_filters[5] 
+                        # limit_filter = where_filters[6]  
+                        sql1 =  "select %s from %s.meters " %(func,dbname)                                
+                        sql3 =  "select %s from %s.meters " %(func_1,dbname) 
+                        self.sql_check(dbname,sql1,sql3)              
+                        
+                        sql12 = "select %s from (select * from %s.meters)" %(func,dbname)
+                        self.sql_check(dbname,sql1,sql12)  
+                        sql32 = "select %s from (select * from %s.meters)" %(func_1,dbname)
+                        self.sql_check(dbname,sql3,sql32) 
+                        self.sql_check(dbname,sql12,sql32) 
+                                             
+                        sql12 = "select %s from (select * from %s.meters %s)" %(func,dbname,orderby_filter)
+                        self.sql_check(dbname,sql1,sql12)
+                        sql32 = "select %s from (select * from %s.meters %s)" %(func_1,dbname,orderby_filter)
+                        self.sql_check(dbname,sql3,sql32)
+                        self.sql_check(dbname,sql12,sql32)
+                        
+                        
+                        sql12 = "select %s from (select * from %s.meters %s desc)" %(func,dbname,orderby_filter)
+                        self.sql_check(dbname,sql1,sql12)
+                        sql32 = "select %s from (select * from %s.meters %s desc)" %(func_1,dbname,orderby_filter)
+                        self.sql_check(dbname,sql3,sql32)
+                        self.sql_check(dbname,sql12,sql32)
+                        
+                        
+                        sql12 = "select %s from (select * from %s.meters where %s)" %(func,dbname,data_filter)
+                        self.sql_check(dbname,sql1,sql12)
+                        sql32 = "select %s from (select * from %s.meters where %s)" %(func,dbname,data_filter)
+                        self.sql_check(dbname,sql3,sql32)
+                        self.sql_check(dbname,sql12,sql32)
+                        
+                        sql12 = "select %s from (select * from %s.meters where %s %s)" %(func,dbname,data_filter,orderby_filter)
+                        self.sql_check(dbname,sql1,sql12)
+                        sql32 = "select %s from (select * from %s.meters where %s %s)" %(func,dbname,data_filter,orderby_filter)
+                        self.sql_check(dbname,sql3,sql32)
+                        self.sql_check(dbname,sql12,sql32)
+                        
+                        
+                        sql12 = "select %s from (select * from %s.meters where %s %s desc)" %(func,dbname,data_filter,orderby_filter)
+                        self.sql_check(dbname,sql1,sql12)
+                        sql32 = "select %s from (select * from %s.meters where %s %s desc)" %(func,dbname,data_filter,orderby_filter)
+                        self.sql_check(dbname,sql3,sql32)
+                        self.sql_check(dbname,sql12,sql32)
+                        
+                        sql12 = "select %s from (select * from %s.meters %s)" %(func,dbname,partitonby_filter)
+                        self.sql_in_check(dbname,sql1,sql12)
+                        sql32 = "select %s from (select * from %s.meters %s)" %(func,dbname,partitonby_filter)
+                        self.sql_in_check(dbname,sql3,sql32)
+                        self.sql_check(dbname,sql12,sql32)
+                        
+                        sql12 = "select %s from (select * from %s.meters where %s %s)" %(func,dbname,data_filter,partitonby_filter)
+                        self.sql_in_check(dbname,sql1,sql12)
+                        sql32 = "select %s from (select * from %s.meters where %s %s)" %(func,dbname,data_filter,partitonby_filter)
+                        self.sql_in_check(dbname,sql3,sql32)
+                        self.sql_check(dbname,sql12,sql32)
+                        
+                        sql12 = "select %s from (select * from %s.meters where %s %s %s)" %(func,dbname,data_filter,partitonby_filter,orderby_filter)
+                        self.sql_in_check(dbname,sql1,sql12)
+                        sql32 = "select %s from (select * from %s.meters where %s %s %s)" %(func,dbname,data_filter,partitonby_filter,orderby_filter)
+                        self.sql_in_check(dbname,sql3,sql32)
+                        self.sql_check(dbname,sql12,sql32)
+                        
+                        sql12 = "select %s from (select * from %s.meters where %s %s %s desc)" %(func,dbname,data_filter,partitonby_filter,orderby_filter)
+                        self.sql_in_check(dbname,sql1,sql12)
+                        sql32 = "select %s from (select * from %s.meters where %s %s %s desc)" %(func,dbname,data_filter,partitonby_filter,orderby_filter)
+                        self.sql_in_check(dbname,sql3,sql32)
+                        self.sql_check(dbname,sql12,sql32)
+                        
+
+            except Exception as e:
+                raise e   
+            
+    def first_last_select_column(self,dbname):
+        self.logger.info("\n==========================first_last_select_column==========================\n")
+                          
+        for i in (3,4,5,):
+            func_all = self.base_function_all(i)
+            func = func_all[0]   #include tbname
+            func_1 = func_all[1]  #not include tbname
+            print(func,func_1,func_all)
+            try:                
+                self.tdSql.execute('use %s;' %dbname)                          
+                where_filters = self.where_filter()
+                print(where_filters[0])
+                for i in range(0,len(where_filters[0])+1):
+                    data_filter = list(combinations(where_filters[0],i+1))
+                    print(data_filter)
+                    for data_filter in data_filter:
+                        data_filter = str(data_filter).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
+                        like_match_filter = where_filters[1]
+                        in_filter = where_filters[2] 
+                        orderby_filter = where_filters[3]  
+                        groupby_filter = where_filters[4] 
+                        partitonby_filter = where_filters[5] 
+                        # limit_filter = where_filters[6]  
+                        
+                        sql1 =  "select %s from %s.meters " %(func,dbname)                                
+                        sql3 =  "select %s from %s.meters partition by tbname" %(func,dbname) 
+                        self.sql_in_check(dbname,sql1,sql3)     
+                        sql11 =  "select %s from %s.meters " %(func_1,dbname)                                
+                        sql31 =  "select %s from %s.meters partition by tbname" %(func_1,dbname) 
+                        self.sql_in_check(dbname,sql11,sql31)                                   
+                        sql2 = "select %s from (select * from %s.meters)" %(func_1,dbname)
+                        self.sql_in_check_ignore_error(dbname,sql2,sql31) 
+                                             
+                        sql2 = "select %s from %s.meters %s" %(func,dbname,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql2,sql3)  
+                        sql21 = "select * from (select %s from %s.meters %s)" %(func,dbname,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql21,sql3) 
+                        sql22 = "select %s from (select * from %s.meters %s)" %(func_1,dbname,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql22,sql31) 
+                                                
+                        sql2 = "select %s from %s.meters %s desc" %(func,dbname,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql2,sql3)  
+                        sql21 = "select * from (select %s from %s.meters %s desc)" %(func,dbname,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql21,sql3) 
+                        sql22 = "select %s from (select * from %s.meters %s desc)" %(func_1,dbname,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql22,sql31) 
+                                                
+                        sql2 = "select %s from %s.meters where %s" %(func,dbname,data_filter)
+                        self.sql_in_check(dbname,sql2,sql3)  
+                        sql21 = "select * from (select %s from %s.meters where %s)" %(func,dbname,data_filter)
+                        self.sql_in_check(dbname,sql21,sql3) 
+                        sql22 = "select %s from (select * from %s.meters where %s)" %(func_1,dbname,data_filter)
+                        self.sql_in_check_ignore_error(dbname,sql22,sql31)                        
+                        
+                        sql2 = "select %s from %s.meters where %s %s" %(func,dbname,data_filter,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql2,sql3)
+                        sql21 = "select * from (select %s from %s.meters where %s %s)" %(func,dbname,data_filter,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql21,sql3)  
+                        sql22 = "select %s from (select * from %s.meters where %s %s)" %(func_1,dbname,data_filter,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql22,sql31)                        
+                        
+                        sql2 = "select %s from %s.meters where %s %s desc" %(func,dbname,data_filter,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql2,sql3) 
+                        sql21 = "select * from (select %s from %s.meters where %s %s desc)" %(func,dbname,data_filter,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql21,sql3)                          
+                        sql22 = "select %s from (select * from %s.meters where %s %s desc)" %(func_1,dbname,data_filter,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql22,sql31) 
+                        
+                        sql2 = "select %s from %s.meters %s" %(func,dbname,partitonby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql2,sql3) 
+                        sql21 = "select * from (select %s from %s.meters %s)" %(func,dbname,partitonby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql21,sql3) 
+                        sql22 = "select %s from (select * from %s.meters %s)" %(func_1,dbname,partitonby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql22,sql31) 
+                        
+                        sql2 = "select %s from %s.meters where %s %s" %(func,dbname,data_filter,partitonby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql2,sql3) 
+                        sql21 = "select * from (select %s from %s.meters where %s %s)" %(func,dbname,data_filter,partitonby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql21,sql3) 
+                        sql22 = "select %s from (select * from %s.meters where %s %s)" %(func_1,dbname,data_filter,partitonby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql22,sql31) 
+                        
+                        sql1 = "select %s from %s.meters where %s %s %s" %(func,dbname,data_filter,partitonby_filter,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql2,sql3) 
+                        sql21 = "select * from (select %s from %s.meters where %s %s %s)" %(func,dbname,data_filter,partitonby_filter,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql21,sql3) 
+                        sql22 = "select %s from (select * from %s.meters where %s %s %s)" %(func_1,dbname,data_filter,partitonby_filter,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql22,sql31) 
+                        
+                        sql2 = "select %s from %s.meters where %s %s %s desc" %(func,dbname,data_filter,partitonby_filter,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql2,sql3) 
+                        sql21 = "select * from (select %s from %s.meters where %s %s %s desc)" %(func,dbname,data_filter,partitonby_filter,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql21,sql3) 
+                        sql22 = "select %s from (select * from %s.meters where %s %s %s desc)" %(func_1,dbname,data_filter,partitonby_filter,orderby_filter)
+                        self.sql_in_check_ignore_error(dbname,sql22,sql31) 
+                        
+
+            except Exception as e:
+                raise e   
+                                                                       
     def select_column_old(self):
         self.logger.info("\n==========================select_column==========================\n")
                           
@@ -528,7 +816,7 @@ class TDTestQuery(TDCase):
                 raise e   
                     
 
-    def base_function_all(self,i):   
+    def base_function_all_old(self,i):   
         base_function_all = ''
         
         columns = ['(*)','(ts)','(_c0)','(_C0)','(_rowts)','(c0)','(c1)','(c2)','(c3)','(c4)','(t0)','(t1)'] 
@@ -601,7 +889,7 @@ class TDTestQuery(TDCase):
         
         #for i in (1,2,3,4,5,):
         for i in (num):
-            func = self.base_function_all(i)
+            func = self.base_function_all_old(i)
             try:                
                 self.tdSql.execute('use %s;' %self.db)            
                 self.logger.info("\n\n\n=======func num = %d======base_function======\n\n\n" %i)                
@@ -869,25 +1157,37 @@ class TDTestQuery(TDCase):
           
                             
     def count_db_common(self,dbname): 
-        #每个库的通用检查
+        # #每个库的通用检查
         self.sql_base_check(dbname,sql1='',sql2='') 
-        self.select_column(dbname)
+        self.count_select_column(dbname)
+        self.max_min_top_bottom_select_column(dbname)
+        self.first_last_select_column(dbname)
         
         self.drop_n_table(dbname,random.randint(1,5),flush='N')  
         self.sql_base_check(dbname,sql1='',sql2='') 
-        self.select_column(dbname)
+        self.count_select_column(dbname)
+        self.max_min_top_bottom_select_column(dbname)
+        self.first_last_select_column(dbname)
+        
+        self.delete_ts_data(dbname,1500000000000)  
+        self.sql_base_check(dbname,sql1='',sql2='') 
+        self.count_select_column(dbname)
+        self.max_min_top_bottom_select_column(dbname)
+        self.first_last_select_column(dbname)
         
         self.taosd.kill_and_start(self.env_setting['settings'][0],3)
         
         #drop and flush database 
         self.drop_n_table(dbname,random.randint(6,9),flush='Y')  
+        self.delete_ts_data(dbname,1500000000000) 
         self.sql_base_check(dbname,sql1='',sql2='') 
-        self.select_column(dbname)
+        self.count_select_column(dbname)
+        self.max_min_top_bottom_select_column(dbname)
+        self.first_last_select_column(dbname)
         
         self.taosd.kill_and_start(self.env_setting['settings'][0],3)
         
         self.tdSql.execute("flush database %s;" %dbname) 
-        #self.after_flush_check(dbname,sql='')
         self.sql_base_check(dbname,sql1='',sql2='')
         self.tdSql.execute("drop database %s;" %dbname) 
         self.tdSql.error("flush database %s;" %dbname) 
@@ -897,7 +1197,7 @@ class TDTestQuery(TDCase):
         #每个库的个性设置+数据创建+通用检查，支持单/3副本，下同
         dbname = 'db_1w'
         table_num = 10000
-        table_per_row = 1
+        table_per_row = 2
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica)  
         self.count_db_common(dbname)
           
