@@ -330,7 +330,7 @@ void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
       sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
 
-    *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
   }
 }
 
@@ -345,14 +345,14 @@ void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
       sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
 
-    *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
   }
 }
 
 void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
-    *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, "%s`%s`", ((i > 0) ? ", " : ""), pSchema->name);
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s`", ((i > 0) ? ", " : ""), pSchema->name);
   }
 }
 
@@ -368,7 +368,7 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
   if (tTagIsJson(pTag)) {
     char* pJson = parseTagDatatoJson(pTag);
     if (pJson) {
-      *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, "%s", pJson);
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s", pJson);
       taosMemoryFree(pJson);
     }
 
@@ -386,11 +386,11 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     if (i > 0) {
-      *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, ", ");
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", ");
     }
 
     if (j >= valueNum) {
-      *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, "NULL");
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "NULL");
       continue;
     }
 
@@ -404,14 +404,14 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
       int32_t tlen = 0;
 
       if (IS_VAR_DATA_TYPE(type)) {
-        dataConverToStr(buf + EXTVARSTR_HEADER_SIZE + *len, type, pTagVal->pData, pTagVal->nData, &tlen);
+        dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, pTagVal->pData, pTagVal->nData, &tlen);
       } else {
-        dataConverToStr(buf + EXTVARSTR_HEADER_SIZE + *len, type, &pTagVal->i64, tDataTypes[type].bytes, &tlen);
+        dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, &pTagVal->i64, tDataTypes[type].bytes, &tlen);
       }
       *len += tlen;
       j++;
     } else {
-      *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, "NULL");
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "NULL");
     }
 
     /*
@@ -450,37 +450,37 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
 
 void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* pCfg) {
   if (pCfg->commentLen > 0) {
-    *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, " COMMENT '%s'", pCfg->pComment);
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " COMMENT '%s'", pCfg->pComment);
   } else if (0 == pCfg->commentLen) {
-    *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, " COMMENT ''");
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " COMMENT ''");
   }
 
   if (NULL != pDbCfg->pRetensions && pCfg->watermark1 > 0) {
-    *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, " WATERMARK %" PRId64 "a", pCfg->watermark1);
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " WATERMARK %" PRId64 "a", pCfg->watermark1);
     if (pCfg->watermark2 > 0) {
-      *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, ", %" PRId64 "a", pCfg->watermark2);
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", %" PRId64 "a", pCfg->watermark2);
     }
   }
 
   if (NULL != pDbCfg->pRetensions && pCfg->delay1 > 0) {
-    *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, " MAX_DELAY %" PRId64 "a", pCfg->delay1);
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " MAX_DELAY %" PRId64 "a", pCfg->delay1);
     if (pCfg->delay2 > 0) {
-      *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, ", %" PRId64 "a", pCfg->delay2);
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", %" PRId64 "a", pCfg->delay2);
     }
   }
 
   int32_t funcNum = taosArrayGetSize(pCfg->pFuncs);
   if (NULL != pDbCfg->pRetensions && funcNum > 0) {
-    *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, " ROLLUP(");
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " ROLLUP(");
     for (int32_t i = 0; i < funcNum; ++i) {
       char* pFunc = taosArrayGet(pCfg->pFuncs, i);
-      *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, "%s%s", ((i > 0) ? ", " : ""), pFunc);
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s%s", ((i > 0) ? ", " : ""), pFunc);
     }
-    *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, ")");
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ")");
   }
 
   if (pCfg->ttl > 0) {
-    *len += sprintf(buf + EXTVARSTR_HEADER_SIZE + *len, " TTL %d", pCfg->ttl);
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " TTL %d", pCfg->ttl);
   }
 }
 
@@ -504,33 +504,33 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
   int32_t          len = 0;
 
   if (TSDB_SUPER_TABLE == pCfg->tableType) {
-    len += sprintf(buf2 + EXTVARSTR_HEADER_SIZE, "CREATE STABLE `%s` (", tbName);
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE STABLE `%s` (", tbName);
     appendColumnFields(buf2, &len, pCfg);
-    len += sprintf(buf2 + EXTVARSTR_HEADER_SIZE + len, ") TAGS (");
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ") TAGS (");
     appendTagFields(buf2, &len, pCfg);
-    len += sprintf(buf2 + EXTVARSTR_HEADER_SIZE + len, ")");
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else if (TSDB_CHILD_TABLE == pCfg->tableType) {
-    len += sprintf(buf2 + EXTVARSTR_HEADER_SIZE, "CREATE TABLE `%s` USING `%s` (", tbName, pCfg->stbName);
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE TABLE `%s` USING `%s` (", tbName, pCfg->stbName);
     appendTagNameFields(buf2, &len, pCfg);
-    len += sprintf(buf2 + EXTVARSTR_HEADER_SIZE + len, ") TAGS (");
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ") TAGS (");
     code = appendTagValues(buf2, &len, pCfg);
     if (code) {
       taosMemoryFree(buf2);
       return code;
     }
-    len += sprintf(buf2 + EXTVARSTR_HEADER_SIZE + len, ")");
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else {
-    len += sprintf(buf2 + EXTVARSTR_HEADER_SIZE, "CREATE TABLE `%s` (", tbName);
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE TABLE `%s` (", tbName);
     appendColumnFields(buf2, &len, pCfg);
-    len += sprintf(buf2 + EXTVARSTR_HEADER_SIZE + len, ")");
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   }
 
-  setExtVarDataLen(buf2, len);
+  varDataLen(buf2) = (len > 65535) ? 65535 : len;
 
-  colDataLenAppend(pCol2, 0, buf2, len + EXTVARSTR_HEADER_SIZE);
+  colDataAppend(pCol2, 0, buf2, false);
 
   taosMemoryFree(buf2);
   
