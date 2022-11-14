@@ -10,5 +10,5 @@ require (
 	github.com/spf13/viper v1.9.0
 	github.com/stretchr/testify v1.7.1
 	github.com/taosdata/driver-go/v3 v3.0.3-0.20221024070501-b0214385ebfa
-	github.com/taosdata/taosadapter/v3 v3.0.0-20221108023827-0d5663d8b8a3
+	github.com/taosdata/taosadapter/v3 v3.0.0-20221114085048-ff7de07ed5fa
 )
