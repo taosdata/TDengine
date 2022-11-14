@@ -321,7 +321,7 @@
 ,,y,script,./test.sh -f tsim/compress/compress.sim
 ,,y,script,./test.sh -f tsim/compress/uncompress.sim
 ,,y,script,./test.sh -f tsim/compute/avg.sim
-,,,script,./test.sh -f tsim/compute/block_dist.sim
+,,y,script,./test.sh -f tsim/compute/block_dist.sim
 ,,y,script,./test.sh -f tsim/compute/bottom.sim
 ,,y,script,./test.sh -f tsim/compute/count.sim
 ,,y,script,./test.sh -f tsim/compute/diff.sim
