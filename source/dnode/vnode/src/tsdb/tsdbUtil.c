@@ -565,15 +565,15 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   }
 }
 
-int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow) {
-  int32_t n = 0;
+// int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow) {
+//   int32_t n = 0;
 
-  n += tPutI64(p, pRow->version);
-  if (p) memcpy(p + n, pRow->pTSRow, pRow->pTSRow->len);
-  n += pRow->pTSRow->len;
+//   n += tPutI64(p, pRow->version);
+//   if (p) memcpy(p + n, pRow->pTSRow, pRow->pTSRow->len);
+//   n += pRow->pTSRow->len;
 
-  return n;
-}
+//   return n;
+// }
 
 int32_t tsdbRowCmprFn(const void *p1, const void *p2) {
   return tsdbKeyCmprFn(&TSDBROW_KEY((TSDBROW *)p1), &TSDBROW_KEY((TSDBROW *)p2));
@@ -1084,7 +1084,7 @@ static int32_t tBlockDataAppendTPRow(SBlockData *pBlockData, STSRow *pRow, STSch
           cv.flag = CV_FLAG_VALUE;
 
           if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-            void *pData = (char*)pRow + *(int32_t *)(pRow->data + pTColumn->offset - sizeof(TSKEY));
+            void *pData = (char *)pRow + *(int32_t *)(pRow->data + pTColumn->offset - sizeof(TSKEY));
             cv.value.nData = varDataLen(pData);
             cv.value.pData = varDataVal(pData);
           } else {
@@ -1106,7 +1106,7 @@ static int32_t tBlockDataAppendTPRow(SBlockData *pBlockData, STSRow *pRow, STSch
         cv.flag = CV_FLAG_VALUE;
 
         if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-          void *pData = (char*)pRow + *(int32_t *)(pRow->data + pTColumn->offset - sizeof(TSKEY));
+          void *pData = (char *)pRow + *(int32_t *)(pRow->data + pTColumn->offset - sizeof(TSKEY));
           cv.value.nData = varDataLen(pData);
           cv.value.pData = varDataVal(pData);
         } else {
@@ -1151,7 +1151,7 @@ static int32_t tBlockDataAppendKVRow(SBlockData *pBlockData, STSRow *pRow, STSch
       ASSERT(pTColumn->type == pColData->type);
 
       SColVal    cv = {.cid = pTColumn->colId, .type = pTColumn->type};
-      TDRowValT  vt = TD_VTYPE_NONE; // default is NONE
+      TDRowValT  vt = TD_VTYPE_NONE;  // default is NONE
       SKvRowIdx *pKvIdx = NULL;
 
       while (kvIter < nKvCols) {
