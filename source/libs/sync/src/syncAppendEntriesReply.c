@@ -39,43 +39,6 @@
 //    /\ UNCHANGED <<serverVars, candidateVars, logVars, elections>>
 //
 
-// only start once
-static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, SyncTerm lastApplyTerm,
-                                      SyncAppendEntriesReply* pMsg) {
-  if (beginIndex > endIndex) {
-    sNError(ths, "snapshot param error, start:%" PRId64 ", end:%" PRId64, beginIndex, endIndex);
-    return;
-  }
-
-  // get sender
-  SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(pMsg->srcId));
-  ASSERT(pSender != NULL);
-
-  if (snapshotSenderIsStart(pSender)) {
-    sSError(pSender, "snapshot sender already start");
-    return;
-  }
-
-  SSnapshot snapshot = {
-      .data = NULL, .lastApplyIndex = endIndex, .lastApplyTerm = lastApplyTerm, .lastConfigIndex = SYNC_INDEX_INVALID};
-  void*          pReader = NULL;
-  SSnapshotParam readerParam = {.start = beginIndex, .end = endIndex};
-  int32_t        code = ths->pFsm->FpSnapshotStartRead(ths->pFsm, &readerParam, &pReader);
-  ASSERT(code == 0);
-
-#if 0
-  if (pMsg->privateTerm < pSender->privateTerm) {
-    ASSERT(pReader != NULL);
-    snapshotSenderStart(pSender, readerParam, snapshot, pReader);
-
-  } else {
-    if (pReader != NULL) {
-      ths->pFsm->FpSnapshotStopRead(ths->pFsm, pReader);
-    }
-  }
-#endif
-}
-
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
   int32_t ret = 0;
 
