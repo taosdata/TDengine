@@ -2953,6 +2953,12 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
 
   SQueryTableRsp *pQueryAttr = (SQueryTableRsp *)pRes->pRsp;
+
+  if (pQueryAttr == NULL) {
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return pRes->code;
+  }
+  
   pQueryAttr->qId = htobe64(pQueryAttr->qId);
 
   pRes->qId  = pQueryAttr->qId;
