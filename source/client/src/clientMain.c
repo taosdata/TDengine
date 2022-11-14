@@ -677,6 +677,7 @@ static void destoryCatalogReq(SCatalogReq *pCatalogReq) {
   taosArrayDestroy(pCatalogReq->pIndex);
   taosArrayDestroy(pCatalogReq->pUser);
   taosArrayDestroy(pCatalogReq->pTableIndex);
+  taosArrayDestroy(pCatalogReq->pTableCfg);
   taosMemoryFree(pCatalogReq);
 }
 
