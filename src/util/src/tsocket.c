@@ -391,37 +391,27 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
 
   ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
   if (ret == -1) {
-    if (errno == EHOSTUNREACH) {
-      uError("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
-      taosCloseSocket(sockFd);
-      return -1;
-    } else if (errno == EINPROGRESS || errno == EAGAIN || errno == EWOULDBLOCK) {
-      struct timeval timeout;
-      fd_set set;
+    struct timeval timeout;
+    fd_set set;
 
-      timeout.tv_sec = 0;
-      timeout.tv_usec = tsTcpConnTimeout * 1000;
-      FD_ZERO(&set);
-      FD_SET(sockFd, &set);
+    timeout.tv_sec = 0;
+    timeout.tv_usec = tsTcpConnTimeout * 1000;
+    FD_ZERO(&set);
+    FD_SET(sockFd, &set);
 
-      if (select(sockFd + 1, NULL, &set, NULL, &timeout) <= 0) {
-        uError("failed to connect socket, ip:0x%x, port:%hu(poll error/conn timeout)", destIp, destPort);
-        taosCloseSocket(sockFd); //
-        return -1;
-      }
-
-      int optVal = -1, optLen = sizeof(int);
-      if ((0 != taosGetSockOpt(sockFd, SOL_SOCKET, SO_ERROR, &optVal, &optLen)) || (optVal != 0)) {
-        uError("failed to connect socket, ip:0x%x, port:%hu(connect host error)", destIp, destPort);
-        taosCloseSocket(sockFd); //
-        return -1;
-      }
-      ret = 0;
-    } else {
-      uError("failed to connect socket, ip:0x%x, port:%hu(target host cannot be reached)", destIp, destPort);
+    if (select(sockFd + 1, NULL, &set, NULL, &timeout) <= 0) {
+      uError("failed to connect socket, ip:0x%x, port:%hu(select error/conn timeout)", destIp, destPort);
       taosCloseSocket(sockFd); //
       return -1;
     }
+
+    int optVal = -1, optLen = sizeof(int);
+    if ((0 != taosGetSockOpt(sockFd, SOL_SOCKET, SO_ERROR, &optVal, &optLen)) || (optVal != 0)) {
+      uError("failed to connect socket, ip:0x%x, port:%hu(connect host error)", destIp, destPort);
+      taosCloseSocket(sockFd); //
+      return -1;
+    }
+    ret = 0;
   }
   taosSetNonblocking(sockFd, 0);
 #else
