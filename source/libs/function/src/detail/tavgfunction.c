@@ -152,8 +152,8 @@ static void i32VectorSumAVX2(const int32_t* plist, int32_t numOfRows, SAvgRes* p
   }
 
   // let sum up the final results
-  const int64_t* q = (const int64_t*)&sum;
-  pRes->sum.isum += q[0] + q[1] + q[2] + q[3];
+  const int32_t* q = (const int32_t*)&sum;
+  pRes->sum.isum += q[0] + q[1] + q[2] + q[3] + q[4] + q[5] + q[6] + q[7];
 
   int32_t startIndex = rounds * bitWidth;
   for (int32_t j = 0; j < remainder; ++j) {
