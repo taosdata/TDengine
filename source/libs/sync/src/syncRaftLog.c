@@ -197,7 +197,12 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
+
+  int64_t tsWriteBegin = taosGetTimestampMs();
   index = walAppendLog(pWal, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  int64_t tsWriteEnd = taosGetTimestampMs();
+  int64_t tsElapsed = tsWriteEnd - tsWriteBegin;
+
   if (index < 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
@@ -210,8 +215,8 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   }
   pEntry->index = index;
 
-  sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s", pEntry->index,
-          TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType));
+  sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s, elapsed:%" PRId64, pEntry->index,
+          TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType), tsElapsed);
   return 0;
 }
 
@@ -236,7 +241,11 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
 
   taosThreadMutexLock(&(pData->mutex));
 
+  int64_t tsBegin = taosGetTimestampMs();
   code = walReadVer(pWalHandle, index);
+  int64_t tsEnd = taosGetTimestampMs();
+  int64_t tsElapsed = tsEnd - tsBegin;
+
   // code = walReadVerCached(pWalHandle, index);
   if (code != 0) {
     int32_t     err = terrno;
