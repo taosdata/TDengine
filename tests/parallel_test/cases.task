@@ -181,12 +181,12 @@
 ,,,script,./test.sh -f tsim/show/basic.sim
 ,,y,script,./test.sh -f tsim/table/autocreate.sim
 ,,y,script,./test.sh -f tsim/table/basic1.sim
-,,,script,./test.sh -f tsim/table/basic2.sim
+,,y,script,./test.sh -f tsim/table/basic2.sim
 ,,y,script,./test.sh -f tsim/table/basic3.sim
 ,,y,script,./test.sh -f tsim/table/bigint.sim
 ,,y,script,./test.sh -f tsim/table/binary.sim
 ,,y,script,./test.sh -f tsim/table/bool.sim
-,,,script,./test.sh -f tsim/table/column_name.sim
+,,y,script,./test.sh -f tsim/table/column_name.sim
 ,,y,script,./test.sh -f tsim/table/column_num.sim
 ,,y,script,./test.sh -f tsim/table/column_value.sim
 ,,y,script,./test.sh -f tsim/table/column2.sim
@@ -208,6 +208,7 @@
 ,,y,script,./test.sh -f tsim/table/tinyint.sim
 ,,y,script,./test.sh -f tsim/table/vgroup.sim
 ,,,script,./test.sh -f tsim/stream/basic0.sim -g
+,,,script,./test.sh -f tsim/stream/basic1.sim
 ,,y,script,./test.sh -f tsim/stream/basic2.sim
 ,,,script,./test.sh -f tsim/stream/drop_stream.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic1.sim
