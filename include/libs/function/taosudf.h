@@ -104,7 +104,7 @@ typedef int32_t (*TUdfDestroyFunc)();
   } while (0)
 #define udfColDataSetNull_var(pColumn, row) ((pColumn->colData.varLenCol.varOffsets)[row] = -1)
 
-typedef uint16_t VarDataLenT;  // maxVarDataLen: 32767
+typedef int16_t VarDataLenT;  // maxVarDataLen: 32767
 #define VARSTR_HEADER_SIZE     sizeof(VarDataLenT)
 #define varDataLen(v)          ((VarDataLenT *)(v))[0]
 #define varDataVal(v)          ((char *)(v) + VARSTR_HEADER_SIZE)

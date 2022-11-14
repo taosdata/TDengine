@@ -1482,6 +1482,10 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
 
         pResultInfo->length[i] = varDataLen(pStart);
         pResultInfo->row[i] = varDataVal(pStart);
+        if (-1 == pResultInfo->length[i]) {
+          pResultInfo->length[i] = extVarDataLen(pStart);
+          pResultInfo->row[i] = extVarDataVal(pStart);
+        }
       } else {
         pResultInfo->row[i] = NULL;
         pResultInfo->length[i] = 0;

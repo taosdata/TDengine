@@ -62,6 +62,44 @@ int32_t getJsonValueLen(const char* data) {
   return dataLen;
 }
 
+int32_t colDataLenAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t dataLen) {
+  ASSERT(pColumnInfoData != NULL);
+
+  int32_t type = pColumnInfoData->info.type;
+  if (IS_VAR_DATA_TYPE(type)) {
+    SVarColAttr* pAttr = &pColumnInfoData->varmeta;
+    if (pAttr->allocLen < pAttr->length + dataLen) {
+      uint32_t newSize = pAttr->allocLen;
+      if (newSize <= 1) {
+        newSize = 8;
+      }
+
+      while (newSize < pAttr->length + dataLen) {
+        newSize = newSize * 1.5;
+      }
+
+      char* buf = taosMemoryRealloc(pColumnInfoData->pData, newSize);
+      if (buf == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+
+      pColumnInfoData->pData = buf;
+      pAttr->allocLen = newSize;
+    }
+
+    uint32_t len = pColumnInfoData->varmeta.length;
+    pColumnInfoData->varmeta.offset[currentRow] = len;
+
+    memcpy(pColumnInfoData->pData + len, pData, dataLen);
+    pColumnInfoData->varmeta.length += dataLen;
+  } else {
+    memcpy(pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow, pData, pColumnInfoData->info.bytes);
+  }
+
+  return 0;
+}
+
+
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull) {
   ASSERT(pColumnInfoData != NULL);
 

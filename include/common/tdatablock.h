@@ -186,6 +186,7 @@ static FORCE_INLINE void colDataAppendDouble(SColumnInfoData* pColumnInfoData, u
 
 int32_t getJsonValueLen(const char* data);
 
+int32_t colDataLenAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t dataLen);
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
 int32_t colDataAppendNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData,
                             uint32_t numOfRows);
