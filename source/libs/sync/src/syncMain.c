@@ -1832,6 +1832,9 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   SElectTimer* pElectTimer = param;
   SSyncNode*   pNode = pElectTimer->pSyncNode;
 
+  if (pNode == NULL) return;
+  if (pNode->syncEqMsg == NULL) return;
+
   SRpcMsg rpcMsg = {0};
   int32_t code = syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_ELECTION, pElectTimer->logicClock, pNode->electTimerMS, pNode);
 
