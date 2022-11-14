@@ -110,6 +110,7 @@ void   logStoreSimpleLog2(char* s, SSyncLogStore* pLogStore);
 
 cJSON* syncNode2Json(const SSyncNode* pSyncNode);
 char*  syncNode2Str(const SSyncNode* pSyncNode);
+char*  syncNode2SimpleStr(const SSyncNode* pSyncNode);
 
 cJSON* voteGranted2Json(SVotesGranted* pVotesGranted);
 char*  voteGranted2Str(SVotesGranted* pVotesGranted);
@@ -276,6 +277,204 @@ void syncRequestVoteReplyPrint(const SyncRequestVoteReply* pMsg);
 void syncRequestVoteReplyPrint2(char* s, const SyncRequestVoteReply* pMsg);
 void syncRequestVoteReplyLog(const SyncRequestVoteReply* pMsg);
 void syncRequestVoteReplyLog2(char* s, const SyncRequestVoteReply* pMsg);
+
+SyncAppendEntries* syncAppendEntriesBuild(uint32_t dataLen, int32_t vgId);
+void               syncAppendEntriesDestroy(SyncAppendEntries* pMsg);
+void               syncAppendEntriesSerialize(const SyncAppendEntries* pMsg, char* buf, uint32_t bufLen);
+void               syncAppendEntriesDeserialize(const char* buf, uint32_t len, SyncAppendEntries* pMsg);
+char*              syncAppendEntriesSerialize2(const SyncAppendEntries* pMsg, uint32_t* len);
+SyncAppendEntries* syncAppendEntriesDeserialize2(const char* buf, uint32_t len);
+void               syncAppendEntries2RpcMsg(const SyncAppendEntries* pMsg, SRpcMsg* pRpcMsg);
+void               syncAppendEntriesFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntries* pMsg);
+SyncAppendEntries* syncAppendEntriesFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*             syncAppendEntries2Json(const SyncAppendEntries* pMsg);
+char*              syncAppendEntries2Str(const SyncAppendEntries* pMsg);
+
+// for debug ----------------------
+void syncAppendEntriesPrint(const SyncAppendEntries* pMsg);
+void syncAppendEntriesPrint2(char* s, const SyncAppendEntries* pMsg);
+void syncAppendEntriesLog(const SyncAppendEntries* pMsg);
+void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg);
+
+SyncAppendEntriesReply* syncAppendEntriesReplyBuild(int32_t vgId);
+void                    syncAppendEntriesReplyDestroy(SyncAppendEntriesReply* pMsg);
+void                    syncAppendEntriesReplySerialize(const SyncAppendEntriesReply* pMsg, char* buf, uint32_t bufLen);
+void                    syncAppendEntriesReplyDeserialize(const char* buf, uint32_t len, SyncAppendEntriesReply* pMsg);
+char*                   syncAppendEntriesReplySerialize2(const SyncAppendEntriesReply* pMsg, uint32_t* len);
+SyncAppendEntriesReply* syncAppendEntriesReplyDeserialize2(const char* buf, uint32_t len);
+void                    syncAppendEntriesReply2RpcMsg(const SyncAppendEntriesReply* pMsg, SRpcMsg* pRpcMsg);
+void                    syncAppendEntriesReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntriesReply* pMsg);
+SyncAppendEntriesReply* syncAppendEntriesReplyFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*                  syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg);
+char*                   syncAppendEntriesReply2Str(const SyncAppendEntriesReply* pMsg);
+
+// for debug ----------------------
+void syncAppendEntriesReplyPrint(const SyncAppendEntriesReply* pMsg);
+void syncAppendEntriesReplyPrint2(char* s, const SyncAppendEntriesReply* pMsg);
+void syncAppendEntriesReplyLog(const SyncAppendEntriesReply* pMsg);
+void syncAppendEntriesReplyLog2(char* s, const SyncAppendEntriesReply* pMsg);
+
+SyncHeartbeat* syncHeartbeatBuild(int32_t vgId);
+void           syncHeartbeatDestroy(SyncHeartbeat* pMsg);
+void           syncHeartbeatSerialize(const SyncHeartbeat* pMsg, char* buf, uint32_t bufLen);
+void           syncHeartbeatDeserialize(const char* buf, uint32_t len, SyncHeartbeat* pMsg);
+char*          syncHeartbeatSerialize2(const SyncHeartbeat* pMsg, uint32_t* len);
+SyncHeartbeat* syncHeartbeatDeserialize2(const char* buf, uint32_t len);
+void           syncHeartbeat2RpcMsg(const SyncHeartbeat* pMsg, SRpcMsg* pRpcMsg);
+void           syncHeartbeatFromRpcMsg(const SRpcMsg* pRpcMsg, SyncHeartbeat* pMsg);
+SyncHeartbeat* syncHeartbeatFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*         syncHeartbeat2Json(const SyncHeartbeat* pMsg);
+char*          syncHeartbeat2Str(const SyncHeartbeat* pMsg);
+
+// for debug ----------------------
+void syncHeartbeatPrint(const SyncHeartbeat* pMsg);
+void syncHeartbeatPrint2(char* s, const SyncHeartbeat* pMsg);
+void syncHeartbeatLog(const SyncHeartbeat* pMsg);
+void syncHeartbeatLog2(char* s, const SyncHeartbeat* pMsg);
+
+SyncHeartbeatReply* syncHeartbeatReplyBuild(int32_t vgId);
+void                syncHeartbeatReplyDestroy(SyncHeartbeatReply* pMsg);
+void                syncHeartbeatReplySerialize(const SyncHeartbeatReply* pMsg, char* buf, uint32_t bufLen);
+void                syncHeartbeatReplyDeserialize(const char* buf, uint32_t len, SyncHeartbeatReply* pMsg);
+char*               syncHeartbeatReplySerialize2(const SyncHeartbeatReply* pMsg, uint32_t* len);
+SyncHeartbeatReply* syncHeartbeatReplyDeserialize2(const char* buf, uint32_t len);
+void                syncHeartbeatReply2RpcMsg(const SyncHeartbeatReply* pMsg, SRpcMsg* pRpcMsg);
+void                syncHeartbeatReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncHeartbeatReply* pMsg);
+SyncHeartbeatReply* syncHeartbeatReplyFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*              syncHeartbeatReply2Json(const SyncHeartbeatReply* pMsg);
+char*               syncHeartbeatReply2Str(const SyncHeartbeatReply* pMsg);
+
+// for debug ----------------------
+void syncHeartbeatReplyPrint(const SyncHeartbeatReply* pMsg);
+void syncHeartbeatReplyPrint2(char* s, const SyncHeartbeatReply* pMsg);
+void syncHeartbeatReplyLog(const SyncHeartbeatReply* pMsg);
+void syncHeartbeatReplyLog2(char* s, const SyncHeartbeatReply* pMsg);
+
+SyncPreSnapshot* syncPreSnapshotBuild(int32_t vgId);
+void             syncPreSnapshotDestroy(SyncPreSnapshot* pMsg);
+void             syncPreSnapshotSerialize(const SyncPreSnapshot* pMsg, char* buf, uint32_t bufLen);
+void             syncPreSnapshotDeserialize(const char* buf, uint32_t len, SyncPreSnapshot* pMsg);
+char*            syncPreSnapshotSerialize2(const SyncPreSnapshot* pMsg, uint32_t* len);
+SyncPreSnapshot* syncPreSnapshotDeserialize2(const char* buf, uint32_t len);
+void             syncPreSnapshot2RpcMsg(const SyncPreSnapshot* pMsg, SRpcMsg* pRpcMsg);
+void             syncPreSnapshotFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPreSnapshot* pMsg);
+SyncPreSnapshot* syncPreSnapshotFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*           syncPreSnapshot2Json(const SyncPreSnapshot* pMsg);
+char*            syncPreSnapshot2Str(const SyncPreSnapshot* pMsg);
+
+// for debug ----------------------
+void syncPreSnapshotPrint(const SyncPreSnapshot* pMsg);
+void syncPreSnapshotPrint2(char* s, const SyncPreSnapshot* pMsg);
+void syncPreSnapshotLog(const SyncPreSnapshot* pMsg);
+void syncPreSnapshotLog2(char* s, const SyncPreSnapshot* pMsg);
+
+SyncPreSnapshotReply* syncPreSnapshotReplyBuild(int32_t vgId);
+void                  syncPreSnapshotReplyDestroy(SyncPreSnapshotReply* pMsg);
+void                  syncPreSnapshotReplySerialize(const SyncPreSnapshotReply* pMsg, char* buf, uint32_t bufLen);
+void                  syncPreSnapshotReplyDeserialize(const char* buf, uint32_t len, SyncPreSnapshotReply* pMsg);
+char*                 syncPreSnapshotReplySerialize2(const SyncPreSnapshotReply* pMsg, uint32_t* len);
+SyncPreSnapshotReply* syncPreSnapshotReplyDeserialize2(const char* buf, uint32_t len);
+void                  syncPreSnapshotReply2RpcMsg(const SyncPreSnapshotReply* pMsg, SRpcMsg* pRpcMsg);
+void                  syncPreSnapshotReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPreSnapshotReply* pMsg);
+SyncPreSnapshotReply* syncPreSnapshotReplyFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*                syncPreSnapshotReply2Json(const SyncPreSnapshotReply* pMsg);
+char*                 syncPreSnapshotReply2Str(const SyncPreSnapshotReply* pMsg);
+
+// for debug ----------------------
+void syncPreSnapshotReplyPrint(const SyncPreSnapshotReply* pMsg);
+void syncPreSnapshotReplyPrint2(char* s, const SyncPreSnapshotReply* pMsg);
+void syncPreSnapshotReplyLog(const SyncPreSnapshotReply* pMsg);
+void syncPreSnapshotReplyLog2(char* s, const SyncPreSnapshotReply* pMsg);
+
+// ---------------------------------------------
+int32_t syncNodeOnPreSnapshot(SSyncNode* ths, SyncPreSnapshot* pMsg);
+int32_t syncNodeOnPreSnapshotReply(SSyncNode* ths, SyncPreSnapshotReply* pMsg);
+
+SyncApplyMsg* syncApplyMsgBuild(uint32_t dataLen);
+SyncApplyMsg* syncApplyMsgBuild2(const SRpcMsg* pOriginalRpcMsg, int32_t vgId, SFsmCbMeta* pMeta);
+void          syncApplyMsgDestroy(SyncApplyMsg* pMsg);
+void          syncApplyMsgSerialize(const SyncApplyMsg* pMsg, char* buf, uint32_t bufLen);
+void          syncApplyMsgDeserialize(const char* buf, uint32_t len, SyncApplyMsg* pMsg);
+char*         syncApplyMsgSerialize2(const SyncApplyMsg* pMsg, uint32_t* len);
+SyncApplyMsg* syncApplyMsgDeserialize2(const char* buf, uint32_t len);
+void syncApplyMsg2RpcMsg(const SyncApplyMsg* pMsg, SRpcMsg* pRpcMsg);     // SyncApplyMsg to SRpcMsg, put it into ApplyQ
+void syncApplyMsgFromRpcMsg(const SRpcMsg* pRpcMsg, SyncApplyMsg* pMsg);  // get SRpcMsg from ApplyQ, to SyncApplyMsg
+SyncApplyMsg* syncApplyMsgFromRpcMsg2(const SRpcMsg* pRpcMsg);
+void syncApplyMsg2OriginalRpcMsg(const SyncApplyMsg* pMsg, SRpcMsg* pOriginalRpcMsg);  // SyncApplyMsg to OriginalRpcMsg
+cJSON* syncApplyMsg2Json(const SyncApplyMsg* pMsg);
+char*  syncApplyMsg2Str(const SyncApplyMsg* pMsg);
+
+// for debug ----------------------
+void syncApplyMsgPrint(const SyncApplyMsg* pMsg);
+void syncApplyMsgPrint2(char* s, const SyncApplyMsg* pMsg);
+void syncApplyMsgLog(const SyncApplyMsg* pMsg);
+void syncApplyMsgLog2(char* s, const SyncApplyMsg* pMsg);
+
+SyncSnapshotSend* syncSnapshotSendBuild(uint32_t dataLen, int32_t vgId);
+void              syncSnapshotSendDestroy(SyncSnapshotSend* pMsg);
+void              syncSnapshotSendSerialize(const SyncSnapshotSend* pMsg, char* buf, uint32_t bufLen);
+void              syncSnapshotSendDeserialize(const char* buf, uint32_t len, SyncSnapshotSend* pMsg);
+char*             syncSnapshotSendSerialize2(const SyncSnapshotSend* pMsg, uint32_t* len);
+SyncSnapshotSend* syncSnapshotSendDeserialize2(const char* buf, uint32_t len);
+void              syncSnapshotSend2RpcMsg(const SyncSnapshotSend* pMsg, SRpcMsg* pRpcMsg);
+void              syncSnapshotSendFromRpcMsg(const SRpcMsg* pRpcMsg, SyncSnapshotSend* pMsg);
+SyncSnapshotSend* syncSnapshotSendFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*            syncSnapshotSend2Json(const SyncSnapshotSend* pMsg);
+char*             syncSnapshotSend2Str(const SyncSnapshotSend* pMsg);
+
+// for debug ----------------------
+void syncSnapshotSendPrint(const SyncSnapshotSend* pMsg);
+void syncSnapshotSendPrint2(char* s, const SyncSnapshotSend* pMsg);
+void syncSnapshotSendLog(const SyncSnapshotSend* pMsg);
+void syncSnapshotSendLog2(char* s, const SyncSnapshotSend* pMsg);
+
+SyncSnapshotRsp* syncSnapshotRspBuild(int32_t vgId);
+void             syncSnapshotRspDestroy(SyncSnapshotRsp* pMsg);
+void             syncSnapshotRspSerialize(const SyncSnapshotRsp* pMsg, char* buf, uint32_t bufLen);
+void             syncSnapshotRspDeserialize(const char* buf, uint32_t len, SyncSnapshotRsp* pMsg);
+char*            syncSnapshotRspSerialize2(const SyncSnapshotRsp* pMsg, uint32_t* len);
+SyncSnapshotRsp* syncSnapshotRspDeserialize2(const char* buf, uint32_t len);
+void             syncSnapshotRsp2RpcMsg(const SyncSnapshotRsp* pMsg, SRpcMsg* pRpcMsg);
+void             syncSnapshotRspFromRpcMsg(const SRpcMsg* pRpcMsg, SyncSnapshotRsp* pMsg);
+SyncSnapshotRsp* syncSnapshotRspFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*           syncSnapshotRsp2Json(const SyncSnapshotRsp* pMsg);
+char*            syncSnapshotRsp2Str(const SyncSnapshotRsp* pMsg);
+
+// for debug ----------------------
+void syncSnapshotRspPrint(const SyncSnapshotRsp* pMsg);
+void syncSnapshotRspPrint2(char* s, const SyncSnapshotRsp* pMsg);
+void syncSnapshotRspLog(const SyncSnapshotRsp* pMsg);
+void syncSnapshotRspLog2(char* s, const SyncSnapshotRsp* pMsg);
+
+SyncLeaderTransfer* syncLeaderTransferBuild(int32_t vgId);
+void                syncLeaderTransferDestroy(SyncLeaderTransfer* pMsg);
+void                syncLeaderTransferSerialize(const SyncLeaderTransfer* pMsg, char* buf, uint32_t bufLen);
+void                syncLeaderTransferDeserialize(const char* buf, uint32_t len, SyncLeaderTransfer* pMsg);
+char*               syncLeaderTransferSerialize2(const SyncLeaderTransfer* pMsg, uint32_t* len);
+SyncLeaderTransfer* syncLeaderTransferDeserialize2(const char* buf, uint32_t len);
+void                syncLeaderTransfer2RpcMsg(const SyncLeaderTransfer* pMsg, SRpcMsg* pRpcMsg);
+void                syncLeaderTransferFromRpcMsg(const SRpcMsg* pRpcMsg, SyncLeaderTransfer* pMsg);
+SyncLeaderTransfer* syncLeaderTransferFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*              syncLeaderTransfer2Json(const SyncLeaderTransfer* pMsg);
+char*               syncLeaderTransfer2Str(const SyncLeaderTransfer* pMsg);
+
+SyncLocalCmd* syncLocalCmdBuild(int32_t vgId);
+void          syncLocalCmdDestroy(SyncLocalCmd* pMsg);
+void          syncLocalCmdSerialize(const SyncLocalCmd* pMsg, char* buf, uint32_t bufLen);
+void          syncLocalCmdDeserialize(const char* buf, uint32_t len, SyncLocalCmd* pMsg);
+char*         syncLocalCmdSerialize2(const SyncLocalCmd* pMsg, uint32_t* len);
+SyncLocalCmd* syncLocalCmdDeserialize2(const char* buf, uint32_t len);
+void          syncLocalCmd2RpcMsg(const SyncLocalCmd* pMsg, SRpcMsg* pRpcMsg);
+void          syncLocalCmdFromRpcMsg(const SRpcMsg* pRpcMsg, SyncLocalCmd* pMsg);
+SyncLocalCmd* syncLocalCmdFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*        syncLocalCmd2Json(const SyncLocalCmd* pMsg);
+char*         syncLocalCmd2Str(const SyncLocalCmd* pMsg);
+
+// for debug ----------------------
+void syncLocalCmdPrint(const SyncLocalCmd* pMsg);
+void syncLocalCmdPrint2(char* s, const SyncLocalCmd* pMsg);
+void syncLocalCmdLog(const SyncLocalCmd* pMsg);
+void syncLocalCmdLog2(char* s, const SyncLocalCmd* pMsg);
 
 #ifdef __cplusplus
 }

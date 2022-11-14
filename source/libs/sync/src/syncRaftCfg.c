@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "syncRaftCfg.h"
+#include "syncUtil.h"
 
 // file must already exist!
 SRaftCfgIndex *raftCfgIndexOpen(const char *path) {

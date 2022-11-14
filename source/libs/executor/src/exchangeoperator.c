@@ -65,6 +65,9 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
   while (1) {
     tsem_wait(&pExchangeInfo->ready);
+    if (isTaskKilled(pTaskInfo)) {
+      longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+    }
 
     for (int32_t i = 0; i < totalSources; ++i) {
       SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, i);
@@ -286,6 +289,9 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
   pInfo->pDummyBlock = createResDataBlock(pExNode->node.pOutputDataBlockDesc);
   pInfo->pResultBlockList = taosArrayInit(1, POINTER_BYTES);
 
+  SExchangeOpStopInfo stopInfo = {QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, pInfo->self};
+  qAppendTaskStopInfo(pTaskInfo, &stopInfo);
+  
   pInfo->seqLoadData = false;
   pInfo->pTransporter = pTransporter;
 
@@ -543,6 +549,10 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
   pOperator->cost.openCost = taosGetTimestampUs() - startTs;
 
   tsem_wait(&pExchangeInfo->ready);
+  if (isTaskKilled(pTaskInfo)) {
+    longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+  }
+  
   tsem_post(&pExchangeInfo->ready);
   return TSDB_CODE_SUCCESS;
 }
@@ -562,6 +572,9 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
 
     doSendFetchDataRequest(pExchangeInfo, pTaskInfo, pExchangeInfo->current);
     tsem_wait(&pExchangeInfo->ready);
+    if (isTaskKilled(pTaskInfo)) {
+      longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+    }
 
     SSourceDataInfo*       pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, pExchangeInfo->current);
     SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);

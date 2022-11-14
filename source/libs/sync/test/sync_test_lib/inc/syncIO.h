@@ -36,6 +36,8 @@ extern "C" {
 typedef struct SyncPing      SyncPing;
 typedef struct SyncPingReply SyncPingReply;
 
+extern bool gRaftDetailLog;
+
 typedef struct SSyncIO {
   STaosQueue *pMsgQ;
   STaosQset  *pQset;

@@ -18,6 +18,7 @@
 #include "syncMessage.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
+#include "syncUtil.h"
 
 // TLA+ Spec
 // HandleAppendEntriesRequest(i, j, m) ==
@@ -123,7 +124,10 @@ int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
   return 0;
 }
 
-int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
+int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  SyncAppendEntries* pMsg = pRpcMsg->pCont;
+  SRpcMsg            rpcRsp = {0};
+
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
     syncLogRecvAppendEntries(ths, pMsg, "not in my config");
@@ -131,7 +135,13 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
   }
 
   // prepare response msg
-  SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
+  int32_t code = syncBuildAppendEntriesReply(&rpcRsp, ths->vgId);
+  if (code != 0) {
+    syncLogRecvAppendEntries(ths, pMsg, "build rsp error");
+    goto _IGNORE;
+  }
+
+  SyncAppendEntriesReply* pReply = rpcRsp.pCont;
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
   pReply->term = ths->pRaftStore->currentTerm;
@@ -163,7 +173,11 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
 
   if (pMsg->prevLogIndex >= startIndex) {
     SyncTerm myPreLogTerm = syncNodeGetPreTerm(ths, pMsg->prevLogIndex + 1);
-    ASSERT(myPreLogTerm != SYNC_TERM_INVALID);
+    // ASSERT(myPreLogTerm != SYNC_TERM_INVALID);
+    if (myPreLogTerm == SYNC_TERM_INVALID) {
+      syncLogRecvAppendEntries(ths, pMsg, "reject, pre-term invalid");
+      goto _SEND_RESPONSE;
+    }
 
     if (myPreLogTerm != pMsg->prevLogTerm) {
       syncLogRecvAppendEntries(ths, pMsg, "reject, pre-term not match");
@@ -273,7 +287,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
   goto _SEND_RESPONSE;
 
 _IGNORE:
-  syncAppendEntriesReplyDestroy(pReply);
+  rpcFreeCont(rpcRsp.pCont);
   return 0;
 
 _SEND_RESPONSE:
@@ -281,10 +295,6 @@ _SEND_RESPONSE:
   syncLogSendAppendEntriesReply(ths, pReply, "");
 
   // send response
-  SRpcMsg rpcMsg;
-  syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
-  syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
-  syncAppendEntriesReplyDestroy(pReply);
-
+  syncNodeSendMsgById(&pReply->destId, ths, &rpcRsp);
   return 0;
 }

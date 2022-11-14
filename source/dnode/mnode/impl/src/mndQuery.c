@@ -178,8 +178,10 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     offset += sizeof(p->msgLen);
     *(int32_t *)((char *)pRsp + offset) = htonl(p->rspCode);
     offset += sizeof(p->rspCode);
-    memcpy((char *)pRsp + offset, p->msg, p->msgLen);
-    offset += p->msgLen;
+    if (p->msg != NULL) {
+      memcpy((char *)pRsp + offset, p->msg, p->msgLen);
+      offset += p->msgLen;
+    }
 
     rpcFreeCont(p->msg);
   }

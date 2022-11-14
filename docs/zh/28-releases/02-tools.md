@@ -4,7 +4,9 @@ title: taosTools 发布历史及下载链接
 description: taosTools 的发布历史、Release Notes 和下载链接
 ---
 
-各版本 taosTools 安装包下载链接如下：
+taosTools 各版本安装包下载链接如下：
+
+其他历史版本安装包请访问[这里](https://www.taosdata.com/all-downloads)
 
 import Release from "/components/ReleaseV3";
 
