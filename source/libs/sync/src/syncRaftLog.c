@@ -239,12 +239,12 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
     return -1;
   }
 
+  int64_t ts1 = taosGetTimestampMs();
   taosThreadMutexLock(&(pData->mutex));
 
-  int64_t tsBegin = taosGetTimestampMs();
+  int64_t ts2 = taosGetTimestampMs();
   code = walReadVer(pWalHandle, index);
-  int64_t tsEnd = taosGetTimestampMs();
-  int64_t tsElapsed = tsEnd - tsBegin;
+  int64_t ts3 = taosGetTimestampMs();
 
   // code = walReadVerCached(pWalHandle, index);
   if (code != 0) {
@@ -289,6 +289,18 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
   */
 
   taosThreadMutexUnlock(&(pData->mutex));
+  int64_t ts4 = taosGetTimestampMs();
+
+  int64_t tsElapsed = ts4 - ts1;
+  int64_t tsElapsedLock = ts2 - ts1;
+  int64_t tsElapsedRead = ts3 - ts2;
+  int64_t tsElapsedBuild = ts4 - ts3;
+
+  sNTrace(pData->pSyncNode,
+          "read index:%" PRId64 ", elapsed:%" PRId64 ", elapsed-lock:%" PRId64 ", elapsed-read:%" PRId64
+          ", elapsed-build:%" PRId64,
+          index, tsElapsed, tsElapsedLock, tsElapsedRead, tsElapsedBuild);
+
   return code;
 }
 
