@@ -334,10 +334,12 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
     }
 
     pColumnInfoData->varmeta.length = pSource->varmeta.length;
-    memcpy(pColumnInfoData->pData, pSource->pData, pSource->varmeta.length);
+    if (pColumnInfoData->pData != NULL && pSource->pData != NULL) {
+      memcpy(pColumnInfoData->pData, pSource->pData, pSource->varmeta.length);
+    }
   } else {
     memcpy(pColumnInfoData->nullbitmap, pSource->nullbitmap, BitmapLen(numOfRows));
-    if (pSource->pData) {
+    if (pSource->pData != NULL) {
       memcpy(pColumnInfoData->pData, pSource->pData, pSource->info.bytes * numOfRows);
     }
   }
@@ -2261,7 +2263,9 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
 
     colSizes[col] = colDataGetLength(pColRes, numOfRows);
     dataLen += colSizes[col];
-    memmove(data, pColRes->pData, colSizes[col]);
+    if (pColRes->pData != NULL) {
+      memmove(data, pColRes->pData, colSizes[col]);
+    }
     data += colSizes[col];
 
     colSizes[col] = htonl(colSizes[col]);

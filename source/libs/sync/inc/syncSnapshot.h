@@ -84,8 +84,8 @@ bool                   snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver)
 void                   snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver);
 
 // on message
-int32_t syncNodeOnSnapshot(SSyncNode *ths, SyncSnapshotSend *pMsg);
-int32_t syncNodeOnSnapshotReply(SSyncNode *ths, SyncSnapshotRsp *pMsg);
+int32_t syncNodeOnSnapshot(SSyncNode *ths, const SRpcMsg *pMsg);
+int32_t syncNodeOnSnapshotReply(SSyncNode *ths, const SRpcMsg *pMsg);
 
 // start
 

@@ -269,7 +269,7 @@ typedef struct SModeInfo {
   STuplePos nullTuplePos;
   bool      nullTupleSaved;
 
-  char      pItems[];
+  char pItems[];
 } SModeInfo;
 
 typedef struct SDerivInfo {
@@ -911,7 +911,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
 
       case TSDB_DATA_TYPE_FLOAT: {
         float* plist = (float*)pCol->pData;
-//        float val = 0;
+        //        float val = 0;
         for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
           if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
             continue;
@@ -919,9 +919,9 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
 
           numOfElem += 1;
           pAvgRes->count += 1;
-          pAvgRes->sum.dsum  += plist[i];
+          pAvgRes->sum.dsum += plist[i];
         }
-//        pAvgRes->sum.dsum = val;
+        //        pAvgRes->sum.dsum = val;
         break;
       }
 
@@ -1187,7 +1187,11 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
     }
 
     if (!pBuf->assign) {
-      pBuf->v = *(int64_t*)tval;
+      if (type == TSDB_DATA_TYPE_FLOAT) {
+        *(float*)&pBuf->v = GET_DOUBLE_VAL(tval);
+      } else {
+        pBuf->v = *(int64_t*)tval;
+      }
       if (pCtx->subsidiaries.num > 0) {
         index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
         if (index >= 0) {
@@ -3007,7 +3011,7 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
     }
   }
 #else
-  int64_t* pts = (int64_t*) pInput->pPTS->pData;
+  int64_t* pts = (int64_t*)pInput->pPTS->pData;
   for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
     if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
       continue;
@@ -3111,61 +3115,61 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       }
     }
 #else
-    if (!pInputCol->hasNull) {
-      numOfElems = 1;
+  if (!pInputCol->hasNull) {
+    numOfElems = 1;
 
-      int32_t round = pInput->numOfRows >> 2;
-      int32_t reminder = pInput->numOfRows & 0x03;
+    int32_t round = pInput->numOfRows >> 2;
+    int32_t reminder = pInput->numOfRows & 0x03;
 
-      int32_t tick = 0;
-      for (int32_t i = pInput->startRowIndex; tick < round; i += 4, tick += 1) {
-        int64_t cts = pts[i];
-        int32_t chosen = i;
+    int32_t tick = 0;
+    for (int32_t i = pInput->startRowIndex; tick < round; i += 4, tick += 1) {
+      int64_t cts = pts[i];
+      int32_t chosen = i;
 
-        if (cts < pts[i + 1]) {
-          cts = pts[i + 1];
-          chosen = i + 1;
-        }
-
-        if (cts < pts[i + 2]) {
-          cts = pts[i + 2];
-          chosen = i + 2;
-        }
-
-        if (cts < pts[i + 3]) {
-          cts = pts[i + 3];
-          chosen = i + 3;
-        }
-
-        if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
-          char* data = colDataGetData(pInputCol, chosen);
-          doSaveCurrentVal(pCtx, i, cts, type, data);
-          pResInfo->numOfRes = 1;
-        }
+      if (cts < pts[i + 1]) {
+        cts = pts[i + 1];
+        chosen = i + 1;
       }
 
-      for (int32_t i = pInput->startRowIndex + round * 4; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
-        if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
-          char* data = colDataGetData(pInputCol, i);
-          doSaveCurrentVal(pCtx, i, pts[i], type, data);
-          pResInfo->numOfRes = 1;
-        }
+      if (cts < pts[i + 2]) {
+        cts = pts[i + 2];
+        chosen = i + 2;
       }
-    } else {
-      for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
-        if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
-          continue;
-        }
 
-        numOfElems++;
+      if (cts < pts[i + 3]) {
+        cts = pts[i + 3];
+        chosen = i + 3;
+      }
 
-        if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
-          char* data = colDataGetData(pInputCol, i);
-          doSaveCurrentVal(pCtx, i, pts[i], type, data);
-          pResInfo->numOfRes = 1;
-        }
+      if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
+        char* data = colDataGetData(pInputCol, chosen);
+        doSaveCurrentVal(pCtx, i, cts, type, data);
+        pResInfo->numOfRes = 1;
       }
     }
+
+    for (int32_t i = pInput->startRowIndex + round * 4; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+      if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
+        char* data = colDataGetData(pInputCol, i);
+        doSaveCurrentVal(pCtx, i, pts[i], type, data);
+        pResInfo->numOfRes = 1;
+      }
+    }
+  } else {
+    for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+        continue;
+      }
+
+      numOfElems++;
+
+      if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
+        char* data = colDataGetData(pInputCol, i);
+        doSaveCurrentVal(pCtx, i, pts[i], type, data);
+        pResInfo->numOfRes = 1;
+      }
+    }
+  }
 #endif
 
 #endif
@@ -3175,7 +3179,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
   }
 
-//  SET_VAL(pResInfo, numOfElems, 1);
+  //  SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5276,7 +5280,6 @@ int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return pInfo->numSampled;
 }
 
-
 bool getTailFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
 #if 0
   SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
@@ -6073,11 +6076,19 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   int32_t row = 0;
   char    st[256] = {0};
-  double  totalRawSize = pData->totalRows * pData->rowSize;
+  double  averageSize = 0;
+  if (pData->numOfBlocks != 0) {
+    averageSize = ((double)pData->totalSize) / pData->numOfBlocks;
+  }
+  uint64_t totalRawSize = pData->totalRows * pData->rowSize;
+  double   compRatio = 0;
+  if (totalRawSize != 0) {
+    compRatio = pData->totalSize * 100 / (double)totalRawSize;
+  }
+
   int32_t len = sprintf(st + VARSTR_HEADER_SIZE,
                         "Total_Blocks=[%d] Total_Size=[%.2f Kb] Average_size=[%.2f Kb] Compression_Ratio=[%.2f %c]",
-                        pData->numOfBlocks, pData->totalSize / 1024.0, ((double)pData->totalSize) / pData->numOfBlocks,
-                        pData->totalSize * 100 / totalRawSize, '%');
+                        pData->numOfBlocks, pData->totalSize / 1024.0, averageSize, compRatio, '%');
 
   varDataSetLen(st, len);
   colDataAppend(pColInfo, row++, st, false);

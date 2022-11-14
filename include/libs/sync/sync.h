@@ -59,7 +59,6 @@ typedef int64_t  SyncIndex;
 typedef uint64_t SyncTerm;
 
 typedef struct SSyncNode      SSyncNode;
-typedef struct SSyncBuffer    SSyncBuffer;
 typedef struct SWal           SWal;
 typedef struct SSyncRaftEntry SSyncRaftEntry;
 

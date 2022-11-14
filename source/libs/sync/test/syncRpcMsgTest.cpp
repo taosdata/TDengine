@@ -45,7 +45,7 @@ SyncClientRequest *createSyncClientRequest() {
   strcpy((char *)rpcMsg.pCont, "hello rpc");
 
   SRpcMsg clientRequestMsg;
-  syncClientRequestBuildFromRpcMsg(&clientRequestMsg, &rpcMsg, 123, true, 1000);
+  syncBuildClientRequest(&clientRequestMsg, &rpcMsg, 123, true, 1000);
   SyncClientRequest *pMsg = (SyncClientRequest *)taosMemoryMalloc(clientRequestMsg.contLen);
   memcpy(pMsg->data, clientRequestMsg.pCont, clientRequestMsg.contLen);
   return pMsg;

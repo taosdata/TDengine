@@ -138,20 +138,20 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     cJSON_AddStringToObject(pRoot, "heartbeatTimerCounter", u64buf);
 
     // callback
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnPing);
-    cJSON_AddStringToObject(pRoot, "FpOnPing", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnPingReply);
-    cJSON_AddStringToObject(pRoot, "FpOnPingReply", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnRequestVote);
-    cJSON_AddStringToObject(pRoot, "FpOnRequestVote", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnRequestVoteReply);
-    cJSON_AddStringToObject(pRoot, "FpOnRequestVoteReply", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnAppendEntries);
-    cJSON_AddStringToObject(pRoot, "FpOnAppendEntries", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnAppendEntriesReply);
-    cJSON_AddStringToObject(pRoot, "FpOnAppendEntriesReply", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnTimeout);
-    cJSON_AddStringToObject(pRoot, "FpOnTimeout", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnPing);
+    // cJSON_AddStringToObject(pRoot, "FpOnPing", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnPingReply);
+    // cJSON_AddStringToObject(pRoot, "FpOnPingReply", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnRequestVote);
+    // cJSON_AddStringToObject(pRoot, "FpOnRequestVote", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnRequestVoteReply);
+    // cJSON_AddStringToObject(pRoot, "FpOnRequestVoteReply", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnAppendEntries);
+    // cJSON_AddStringToObject(pRoot, "FpOnAppendEntries", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnAppendEntriesReply);
+    // cJSON_AddStringToObject(pRoot, "FpOnAppendEntriesReply", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnTimeout);
+    // cJSON_AddStringToObject(pRoot, "FpOnTimeout", u64buf);
 
     // restoreFinish
     cJSON_AddNumberToObject(pRoot, "restoreFinish", pSyncNode->restoreFinish);
@@ -253,3 +253,29 @@ int32_t syncNodePingAll(SSyncNode* pSyncNode) {
   return ret;
 }
 
+// on message ----
+int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg) {
+  sTrace("vgId:%d, recv sync-ping", ths->vgId);
+
+  SyncPingReply* pMsgReply = syncPingReplyBuild3(&ths->myRaftId, &pMsg->srcId, ths->vgId);
+  SRpcMsg        rpcMsg;
+  syncPingReply2RpcMsg(pMsgReply, &rpcMsg);
+
+  /*
+    // htonl
+    SMsgHead* pHead = rpcMsg.pCont;
+    pHead->contLen = htonl(pHead->contLen);
+    pHead->vgId = htonl(pHead->vgId);
+  */
+
+  syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg);
+  syncPingReplyDestroy(pMsgReply);
+
+  return 0;
+}
+
+int32_t syncNodeOnPingReply(SSyncNode* ths, SyncPingReply* pMsg) {
+  int32_t ret = 0;
+  sTrace("vgId:%d, recv sync-ping-reply", ths->vgId);
+  return ret;
+}

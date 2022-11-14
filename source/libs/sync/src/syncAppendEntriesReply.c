@@ -13,17 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncAppendEntriesReply.h"
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
-#include "syncInt.h"
-#include "syncRaftCfg.h"
-#include "syncRaftLog.h"
+#include "syncMessage.h"
 #include "syncRaftStore.h"
 #include "syncReplication.h"
 #include "syncSnapshot.h"
 #include "syncUtil.h"
-#include "syncVoteMgr.h"
 
 // TLA+ Spec
 // HandleAppendEntriesResponse(i, j, m) ==
@@ -39,8 +37,9 @@
 //    /\ UNCHANGED <<serverVars, candidateVars, logVars, elections>>
 //
 
-int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
-  int32_t ret = 0;
+int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  int32_t                 ret = 0;
+  SyncAppendEntriesReply* pMsg = pRpcMsg->pCont;
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {

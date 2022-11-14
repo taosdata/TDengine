@@ -1097,18 +1097,12 @@ int sml_time_Test() {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  char* tmp = (char*)taosMemoryCalloc(1024, 1);
-  memcpy(tmp, sql[0], strlen(sql[0]));
-  *(char*)(tmp+44) = 0;
-  int32_t totalRows = 0;
-  pRes = taos_schemaless_insert_raw(taos, tmp, strlen(sql[0]), &totalRows, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
 
-  ASSERT(totalRows == 3);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
   taos_close(taos);
-  taosMemoryFree(tmp);
 
   return code;
 }

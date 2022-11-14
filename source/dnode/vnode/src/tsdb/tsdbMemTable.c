@@ -458,11 +458,10 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *p
 }
 
 static FORCE_INLINE int8_t tsdbMemSkipListRandLevel(SMemSkipList *pSl) {
-  int8_t         level = 1;
-  int8_t         tlevel = TMIN(pSl->maxLevel, pSl->level + 1);
-  const uint32_t factor = 4;
+  int8_t level = 1;
+  int8_t tlevel = TMIN(pSl->maxLevel, pSl->level + 1);
 
-  while ((taosRandR(&pSl->seed) % factor) == 0 && level < tlevel) {
+  while ((taosRandR(&pSl->seed) & 0x3) == 0 && level < tlevel) {
     level++;
   }
 
@@ -568,7 +567,9 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
     do {
       key.ts = row.pTSRow->ts;
       nRow++;
-      tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_FROM_POS);
+      if (SL_NODE_FORWARD(pos[0], 0) != pTbData->sl.pTail) {
+        tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_FROM_POS);
+      }
       code = tbDataDoPut(pMemTable, pTbData, pos, &row, 1);
       if (code) {
         goto _err;
