@@ -36,7 +36,7 @@ static int32_t i32VectorCmpAVX2(const int32_t* pData, int32_t numOfRows, bool is
 
   if (!isMinFunc) {  // max function
     for (int32_t i = 0; i < rounds; ++i) {
-      next = _mm256_loadu_si256((__m256i*)p);
+      next = _mm256_lddqu_si256((__m256i*)p);
       initialVal = _mm256_max_epi32(initialVal, next);
       p += bitWidth;
     }
@@ -61,7 +61,7 @@ static int32_t i32VectorCmpAVX2(const int32_t* pData, int32_t numOfRows, bool is
     }
   } else {  // min function
     for (int32_t i = 0; i < rounds; ++i) {
-      next = _mm256_loadu_si256((__m256i*)p);
+      next = _mm256_lddqu_si256((__m256i*)p);
       initialVal = _mm256_min_epi32(initialVal, next);
       p += bitWidth;
     }
@@ -369,7 +369,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
   }
 
   // data in current data block are qualified to the query
-  if (pInput->colDataAggIsSet) {
+  if (pInput->colDataSMAIsSet) {
     numOfElems = pInput->numOfRows - pAgg->numOfNull;
     ASSERT(pInput->numOfRows == pInput->totalRows && numOfElems >= 0);
     if (numOfElems == 0) {

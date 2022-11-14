@@ -349,13 +349,13 @@ typedef struct {
 } SFunctionCtxStatus;
 
 static void functionCtxSave(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
-  pStatus->hasAgg = pCtx->input.colDataAggIsSet;
+  pStatus->hasAgg = pCtx->input.colDataSMAIsSet;
   pStatus->numOfRows = pCtx->input.numOfRows;
   pStatus->startOffset = pCtx->input.startRowIndex;
 }
 
 static void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
-  pCtx->input.colDataAggIsSet = pStatus->hasAgg;
+  pCtx->input.colDataSMAIsSet = pStatus->hasAgg;
   pCtx->input.numOfRows = pStatus->numOfRows;
   pCtx->input.startRowIndex = pStatus->startOffset;
 }
@@ -372,8 +372,8 @@ void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfo
 
     // not a whole block involved in query processing, statistics data can not be used
     // NOTE: the original value of isSet have been changed here
-    if (pCtx[k].input.colDataAggIsSet && forwardStep < numOfTotal) {
-      pCtx[k].input.colDataAggIsSet = false;
+    if (pCtx[k].input.colDataSMAIsSet && forwardStep < numOfTotal) {
+      pCtx[k].input.colDataSMAIsSet = false;
     }
 
     if (fmIsWindowPseudoColumnFunc(pCtx[k].functionId)) {
@@ -486,7 +486,7 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
 
     SInputColumnInfoData* pInput = &pCtx[i].input;
     pInput->uid = pBlock->info.uid;
-    pInput->colDataAggIsSet = false;
+    pInput->colDataSMAIsSet = false;
 
     SExprInfo* pOneExpr = &pExprSup->pExprInfo[i];
     for (int32_t j = 0; j < pOneExpr->base.numOfParams; ++j) {
@@ -798,7 +798,7 @@ void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock* pB
   pInput->totalRows = numOfRows;
 
   if (pBlock->pBlockAgg != NULL) {
-    pInput->colDataAggIsSet = true;
+    pInput->colDataSMAIsSet = true;
 
     for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
       SFunctParam* pFuncParam = &pExprInfo->base.pParam[j];
@@ -807,7 +807,7 @@ void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock* pB
         int32_t slotId = pFuncParam->pCol->slotId;
         pInput->pColumnDataAgg[j] = pBlock->pBlockAgg[slotId];
         if (pInput->pColumnDataAgg[j] == NULL) {
-          pInput->colDataAggIsSet = false;
+          pInput->colDataSMAIsSet = false;
         }
 
         // Here we set the column info data since the data type for each column data is required, but
@@ -818,7 +818,7 @@ void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock* pB
       }
     }
   } else {
-    pInput->colDataAggIsSet = false;
+    pInput->colDataSMAIsSet = false;
   }
 }
 

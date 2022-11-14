@@ -48,15 +48,14 @@ typedef struct SAvgRes {
   int16_t type;  // store the original input type, used in merge function
 } SAvgRes;
 
-static void floatVectorSumAVX(const SInputColumnInfoData* pInput, const float* plist, SAvgRes* pRes) {
+static void floatVectorSumAVX(const float* plist, int32_t numOfRows, SAvgRes* pRes) {
 #if __AVX__
   // find the start position that are aligned to 32bytes address in memory
-  int32_t startIndex = 0;  //((uint64_t)plist) & ((1<<8u)-1);
   int32_t bitWidth = 8;
+  int32_t remainder = numOfRows % bitWidth;
+  int32_t rounds = numOfRows / bitWidth;
 
-  int32_t      remain = (pInput->numOfRows - startIndex) % bitWidth;
-  int32_t      rounds = (pInput->numOfRows - startIndex) / bitWidth;
-  const float* p = &plist[startIndex];
+  const float* p = plist;
 
   __m256 val;
   __m256 sum = _mm256_setzero_ps();
@@ -71,14 +70,122 @@ static void floatVectorSumAVX(const SInputColumnInfoData* pInput, const float* p
   const float* q = (const float*)&sum;
   pRes->sum.dsum += q[0] + q[1] + q[2] + q[3] + q[4] + q[5] + q[6] + q[7];
 
-  // calculate the front and the reminder items in array list
-  for (int32_t j = 0; j < startIndex; ++j) {
-    pRes->sum.dsum += plist[j];
+  int32_t startIndex = rounds * bitWidth;
+  for (int32_t j = 0; j < remainder; ++j) {
+    pRes->sum.dsum += plist[j + startIndex];
+  }
+#endif
+}
+
+static void doubleVectorSumAVX(const double* plist, int32_t numOfRows, SAvgRes* pRes) {
+#if __AVX__
+  // find the start position that are aligned to 32bytes address in memory
+  int32_t bitWidth = 4;
+  int32_t remainder = numOfRows % bitWidth;
+  int32_t rounds = numOfRows / bitWidth;
+
+  const double* p = plist;
+
+  __m256d val;
+  __m256d sum = _mm256_setzero_pd();
+
+  for (int32_t i = 0; i < rounds; ++i) {
+    val = _mm256_loadu_pd(p);
+    sum = _mm256_add_pd(sum, val);
+    p += bitWidth;
   }
 
-  startIndex += rounds * bitWidth;
-  for (int32_t j = 0; j < remain; ++j) {
+  // let sum up the final results
+  const double* q = (const double*)&sum;
+  pRes->sum.dsum += q[0] + q[1] + q[2] + q[3];
+
+  int32_t startIndex = rounds * bitWidth;
+  for (int32_t j = 0; j < remainder; ++j) {
     pRes->sum.dsum += plist[j + startIndex];
+  }
+#endif
+}
+
+static void i8VectorSumAVX2(const int8_t* plist, int32_t numOfRows, SAvgRes* pRes) {
+#if __AVX2__
+  // find the start position that are aligned to 32bytes address in memory
+  int32_t bitWidth = 16;
+  int32_t remainder = numOfRows % bitWidth;
+  int32_t rounds = numOfRows / bitWidth;
+
+  const int8_t* p = plist;
+
+  __m256i sum = _mm256_setzero_si256();
+
+  for (int32_t i = 0; i < rounds; ++i) {
+    __m256i val = _mm256_lddqu_si256((__m256i*)p);
+//    __m256i extVal = _mm256_cvtepi8_epi64(val);
+    sum = _mm256_add_epi8(sum, val);
+    p += bitWidth;
+  }
+
+  // let sum up the final results
+  const int8_t* q = (const int8_t*)&sum;
+  pRes->sum.isum += q[0] + q[1] + q[2] + q[3];
+
+  int32_t startIndex = rounds * bitWidth;
+  for (int32_t j = 0; j < remainder; ++j) {
+    pRes->sum.isum += plist[j + startIndex];
+  }
+#endif
+}
+
+static void i32VectorSumAVX2(const int32_t* plist, int32_t numOfRows, SAvgRes* pRes) {
+#if __AVX2__
+  // find the start position that are aligned to 32bytes address in memory
+  int32_t bitWidth = 8;
+  int32_t remainder = numOfRows % bitWidth;
+  int32_t rounds = numOfRows / bitWidth;
+
+  const int32_t* p = plist;
+
+  __m256i sum = _mm256_setzero_si256();
+  for (int32_t i = 0; i < rounds; ++i) {
+    __m256i val = _mm256_lddqu_si256((__m256i*)p);
+    sum = _mm256_add_epi32(sum, val);
+    p += bitWidth;
+  }
+
+  // let sum up the final results
+  const int64_t* q = (const int64_t*)&sum;
+  pRes->sum.isum += q[0] + q[1] + q[2] + q[3];
+
+  int32_t startIndex = rounds * bitWidth;
+  for (int32_t j = 0; j < remainder; ++j) {
+    pRes->sum.isum += plist[j + startIndex];
+  }
+#endif
+}
+
+static void i64VectorSumAVX2(const int64_t* plist, int32_t numOfRows, SAvgRes* pRes) {
+#if __AVX2__
+  // find the start position that are aligned to 32bytes address in memory
+  int32_t bitWidth = 4;
+  int32_t remainder = numOfRows % bitWidth;
+  int32_t rounds = numOfRows / bitWidth;
+
+  const int64_t* p = plist;
+
+  __m256i sum = _mm256_setzero_si256();
+
+  for (int32_t i = 0; i < rounds; ++i) {
+    __m256i val = _mm256_lddqu_si256((__m256i*)p);
+    sum = _mm256_add_epi64(sum, val);
+    p += bitWidth;
+  }
+
+  // let sum up the final results
+  const int64_t* q = (const int64_t*)&sum;
+  pRes->sum.isum += q[0] + q[1] + q[2] + q[3];
+
+  int32_t startIndex = rounds * bitWidth;
+  for (int32_t j = 0; j < remainder; ++j) {
+    pRes->sum.isum += plist[j + startIndex];
   }
 #endif
 }
@@ -105,7 +212,7 @@ static int32_t handleFloatCols(const SColumnInfoData* pCol, const SInputColumnIn
 
     // 3. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
     if (tsAVXEnable && tsSIMDEnable) {
-      floatVectorSumAVX(pInput, plist, pRes);
+      floatVectorSumAVX(plist, pInput->numOfRows, pRes);
     } else {
       for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
         pRes->sum.dsum += plist[i];
@@ -133,8 +240,25 @@ bool avgFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
   return true;
 }
 
+static int32_t calculateAvgBySMAInfo(SAvgRes* pRes, int32_t numOfRows, int32_t type, const SColumnDataAgg* pAgg) {
+  int32_t numOfElem = numOfRows - pAgg->numOfNull;
+  ASSERT(numOfElem >= 0);
+
+  pRes->count += numOfElem;
+  if (IS_SIGNED_NUMERIC_TYPE(type)) {
+    pRes->sum.isum += pAgg->sum;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    pRes->sum.usum += pAgg->sum;
+  } else if (IS_FLOAT_TYPE(type)) {
+    pRes->sum.dsum += GET_DOUBLE_VAL((const char*)&(pAgg->sum));
+  }
+
+  return numOfElem;
+}
+
 int32_t avgFunction(SqlFunctionCtx* pCtx) {
-  int32_t numOfElem = 0;
+  int32_t       numOfElem = 0;
+  const int32_t THRESHOLD_SIZE = 8;
 
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnDataAgg*       pAgg = pInput->pColumnDataAgg[0];
@@ -154,19 +278,149 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
     goto _avg_over;
   }
 
-  if (pInput->colDataAggIsSet) {
-    numOfElem = numOfRows - pAgg->numOfNull;
-    ASSERT(numOfElem >= 0);
+  if (pInput->colDataSMAIsSet) {  // try to use SMA if available
+    numOfElem = calculateAvgBySMAInfo(pAvgRes, numOfRows, type, pAgg);
+  } else if (!pCol->hasNull) {  // try to employ the simd instructions to speed up the loop
+    numOfElem = pInput->numOfRows;
+    pAvgRes->count += pInput->numOfRows;
 
-    pAvgRes->count += numOfElem;
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      pAvgRes->sum.isum += pAgg->sum;
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      pAvgRes->sum.usum += pAgg->sum;
-    } else if (IS_FLOAT_TYPE(type)) {
-      pAvgRes->sum.dsum += GET_DOUBLE_VAL((const char*)&(pAgg->sum));
+    bool simdAvaiable = tsAVXEnable && tsSIMDEnable && (numOfRows > THRESHOLD_SIZE);
+
+    switch(type) {
+      case TSDB_DATA_TYPE_TINYINT: {
+        const int8_t* plist = (const int8_t*) pCol->pData;
+
+        // 1. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
+        if (simdAvaiable) {
+          i8VectorSumAVX2(plist, numOfRows, pAvgRes);
+        } else {
+          for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+            pAvgRes->sum.isum += plist[i];
+          }
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT: {
+        const double* plist = (const double*)pCol->pData;
+
+        // 1. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
+        if (simdAvaiable) {
+          doubleVectorSumAVX(plist, numOfRows, pAvgRes);
+        } else {
+          for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+            pAvgRes->sum.isum += plist[i];
+          }
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_INT: {
+        const int32_t* plist = (const int32_t*) pCol->pData;
+
+        // 1. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
+        if (simdAvaiable) {
+          i32VectorSumAVX2(plist, numOfRows, pAvgRes);
+        } else {
+          for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+            pAvgRes->sum.isum += plist[i];
+          }
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_BIGINT: {
+        const int64_t* plist = (const int64_t*) pCol->pData;
+
+        // 1. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
+        if (simdAvaiable) {
+          i64VectorSumAVX2(plist, numOfRows, pAvgRes);
+        } else {
+          for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+            pAvgRes->sum.isum += plist[i];
+          }
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_FLOAT: {
+        const float* plist = (const float*) pCol->pData;
+
+        // 1. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
+        if (simdAvaiable) {
+          floatVectorSumAVX(plist, numOfRows, pAvgRes);
+        } else {
+          for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+            pAvgRes->sum.dsum += plist[i];
+          }
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        const double* plist = (const double*) pCol->pData;
+
+        // 1. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
+        if (simdAvaiable) {
+          doubleVectorSumAVX(plist, numOfRows, pAvgRes);
+        } else {
+          for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+            pAvgRes->sum.dsum += plist[i];
+          }
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_UTINYINT: {
+        const double* plist = (const double*) pCol->pData;
+
+        // 1. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
+        if (simdAvaiable) {
+          doubleVectorSumAVX(plist, numOfRows, pAvgRes);
+        } else {
+          for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+            pAvgRes->sum.usum += plist[i];
+          }
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT: {
+        const double* plist = (const double*) pCol->pData;
+
+        // 1. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
+        if (simdAvaiable) {
+          doubleVectorSumAVX(plist, numOfRows, pAvgRes);
+        } else {
+          for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+            pAvgRes->sum.usum += plist[i];
+          }
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT: {
+        const double* plist = (const double*) pCol->pData;
+
+        // 1. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
+        if (simdAvaiable) {
+          doubleVectorSumAVX(plist, numOfRows, pAvgRes);
+        } else {
+          for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+            pAvgRes->sum.usum += plist[i];
+          }
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_UBIGINT: {
+        const double* plist = (const double*) pCol->pData;
+
+        // 1. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
+        if (simdAvaiable) {
+          doubleVectorSumAVX(plist, numOfRows, pAvgRes);
+        } else {
+          for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+            pAvgRes->sum.usum += plist[i];
+          }
+        }
+        break;
+      }
+      default:
+        ASSERT(0);
     }
-  } else {  // computing based on the true data block
+  } else {
     switch (type) {
       case TSDB_DATA_TYPE_TINYINT: {
         int8_t* plist = (int8_t*)pCol->pData;

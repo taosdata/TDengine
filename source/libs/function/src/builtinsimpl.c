@@ -498,13 +498,13 @@ static int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
 
   /*
-   * 1. column data missing (schema modified) causes pInputCol->hasNull == true. pInput->colDataAggIsSet == true;
-   * 2. for general non-primary key columns, pInputCol->hasNull may be true or false, pInput->colDataAggIsSet == true;
-   * 3. for primary key column, pInputCol->hasNull always be false, pInput->colDataAggIsSet == false;
+   * 1. column data missing (schema modified) causes pInputCol->hasNull == true. pInput->colDataSMAIsSet == true;
+   * 2. for general non-primary key columns, pInputCol->hasNull may be true or false, pInput->colDataSMAIsSet == true;
+   * 3. for primary key column, pInputCol->hasNull always be false, pInput->colDataSMAIsSet == false;
    */
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
-  if (pInput->colDataAggIsSet && pInput->totalRows == pInput->numOfRows) {
+  if (pInput->colDataSMAIsSet && pInput->totalRows == pInput->numOfRows) {
     numOfElem = pInput->numOfRows - pInput->pColumnDataAgg[0]->numOfNull;
     ASSERT(numOfElem >= 0);
   } else {
@@ -593,7 +593,7 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
     goto _sum_over;
   }
 
-  if (pInput->colDataAggIsSet) {
+  if (pInput->colDataSMAIsSet) {
     numOfElem = pInput->numOfRows - pAgg->numOfNull;
     ASSERT(numOfElem >= 0);
 
@@ -658,7 +658,7 @@ int32_t sumInvertFunction(SqlFunctionCtx* pCtx) {
 
   SSumRes* pSumRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  if (pInput->colDataAggIsSet) {
+  if (pInput->colDataSMAIsSet) {
     numOfElem = pInput->numOfRows - pAgg->numOfNull;
     ASSERT(numOfElem >= 0);
 
@@ -770,7 +770,7 @@ bool getSumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
 //    goto _avg_over;
 //  }
 //
-//  if (pInput->colDataAggIsSet) {
+//  if (pInput->colDataSMAIsSet) {
 //    numOfElem = numOfRows - pAgg->numOfNull;
 //    ASSERT(numOfElem >= 0);
 //
@@ -1161,7 +1161,7 @@ bool getMinmaxFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
 //  }
 //
 //  // data in current data block are qualified to the query
-//  if (pInput->colDataAggIsSet) {
+//  if (pInput->colDataSMAIsSet) {
 //    numOfElems = pInput->numOfRows - pAgg->numOfNull;
 //    ASSERT(pInput->numOfRows == pInput->totalRows && numOfElems >= 0);
 //    if (numOfElems == 0) {
@@ -2471,7 +2471,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
 
   // the first stage, only acquire the min/max value
   if (pInfo->stage == 0) {
-    if (pCtx->input.colDataAggIsSet) {
+    if (pCtx->input.colDataSMAIsSet) {
       double tmin = 0.0, tmax = 0.0;
       if (IS_SIGNED_NUMERIC_TYPE(type)) {
         tmin = (double)GET_INT64_VAL(&pAgg->min);
@@ -2933,14 +2933,14 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
   pInfo->bytes = pInputCol->info.bytes;
 
   // All null data column, return directly.
-  if (pInput->colDataAggIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
+  if (pInput->colDataSMAIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
     ASSERT(pInputCol->hasNull == true);
     // save selectivity value for column consisted of all null values
     firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
     return 0;
   }
 
-  SColumnDataAgg* pColAgg = (pInput->colDataAggIsSet) ? pInput->pColumnDataAgg[0] : NULL;
+  SColumnDataAgg* pColAgg = (pInput->colDataSMAIsSet) ? pInput->pColumnDataAgg[0] : NULL;
 
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
   TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
@@ -3037,14 +3037,14 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   pInfo->bytes = bytes;
 
   // All null data column, return directly.
-  if (pInput->colDataAggIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
+  if (pInput->colDataSMAIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
     ASSERT(pInputCol->hasNull == true);
     // save selectivity value for column consisted of all null values
     firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
     return 0;
   }
 
-  SColumnDataAgg* pColAgg = (pInput->colDataAggIsSet) ? pInput->pColumnDataAgg[0] : NULL;
+  SColumnDataAgg* pColAgg = (pInput->colDataSMAIsSet) ? pInput->pColumnDataAgg[0] : NULL;
 
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
   TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
@@ -3988,7 +3988,7 @@ int32_t spreadFunction(SqlFunctionCtx* pCtx) {
 
   SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  if (pInput->colDataAggIsSet) {
+  if (pInput->colDataSMAIsSet) {
     numOfElems = pInput->numOfRows - pAgg->numOfNull;
     if (numOfElems == 0) {
       goto _spread_over;
@@ -4163,7 +4163,7 @@ int32_t elapsedFunction(SqlFunctionCtx* pCtx) {
     goto _elapsed_over;
   }
 
-  if (pInput->colDataAggIsSet) {
+  if (pInput->colDataSMAIsSet) {
     if (pInfo->min == TSKEY_MAX) {
       pInfo->min = GET_INT64_VAL(&pAgg->min);
       pInfo->max = GET_INT64_VAL(&pAgg->max);
