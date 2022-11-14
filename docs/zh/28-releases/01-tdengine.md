@@ -4,7 +4,9 @@ title: TDengine 发布历史及下载链接
 description: TDengine 发布历史、Release Notes 及下载链接
 ---
 
-各版本 TDengine 安装包下载链接如下：
+TDengine 3.x 各版本安装包下载链接如下：
+
+TDengine 2.x 各版本安装包请访问[这里](https://www.taosdata.com/all-downloads)
 
 import Release from "/components/ReleaseV3";
 
