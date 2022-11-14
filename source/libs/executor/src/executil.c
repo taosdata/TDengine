@@ -1770,7 +1770,7 @@ STableListInfo* tableListCreate() {
     goto _error;
   }
 
-  pListInfo->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  pListInfo->map = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   if (pListInfo->map == NULL) {
     goto _error;
   }
