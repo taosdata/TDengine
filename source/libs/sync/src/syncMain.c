@@ -1806,7 +1806,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     int32_t code = syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_PING, atomic_load_64(&pNode->pingTimerLogicClock),
                                     pNode->pingTimerMS, pNode);
     if (code != 0) {
-      sNError(pNode, "failed to build ping msg");
+      sError("failed to build ping msg");
       rpcFreeCont(rpcMsg.pCont);
       return;
     }
@@ -1814,7 +1814,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     sNTrace(pNode, "enqueue ping msg");
     code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
     if (code != 0) {
-      sNError(pNode, "failed to sync enqueue ping msg since %s", terrstr());
+      sError("failed to sync enqueue ping msg since %s", terrstr());
       rpcFreeCont(rpcMsg.pCont);
       return;
     }
@@ -1839,7 +1839,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   int32_t code = syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_ELECTION, pElectTimer->logicClock, pNode->electTimerMS, pNode);
 
   if (code != 0) {
-    sNError(pNode, "failed to build elect msg");
+    sError("failed to build elect msg");
     taosMemoryFree(pElectTimer);
     return;
   }
@@ -1849,7 +1849,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
 
   code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
   if (code != 0) {
-    sNError(pNode, "failed to sync enqueue elect msg since %s", terrstr());
+    sError("failed to sync enqueue elect msg since %s", terrstr());
     rpcFreeCont(rpcMsg.pCont);
     taosMemoryFree(pElectTimer);
     return;
@@ -1879,14 +1879,14 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
                                       pNode->heartbeatTimerMS, pNode);
 
       if (code != 0) {
-        sNError(pNode, "failed to build heartbeat msg");
+        sError("failed to build heartbeat msg");
         return;
       }
 
       sNTrace(pNode, "enqueue heartbeat timer");
       code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
       if (code != 0) {
-        sNError(pNode, "failed to enqueue heartbeat msg since %s", terrstr());
+        sError("failed to enqueue heartbeat msg since %s", terrstr());
         rpcFreeCont(rpcMsg.pCont);
         return;
       }
@@ -1971,7 +1971,7 @@ static int32_t syncNodeEqNoop(SSyncNode* pNode) {
   sNTrace(pNode, "propose msg, type:noop");
   code = (*pNode->syncEqMsg)(pNode->msgcb, &rpcMsg);
   if (code != 0) {
-    sNError(pNode, "failed to propose noop msg while enqueue since %s", terrstr());
+    sError("failed to propose noop msg while enqueue since %s", terrstr());
   }
 
   return code;
@@ -2005,7 +2005,7 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
     if (code != 0) {
-      sNError(ths, "append noop error");
+      sError("append noop error");
       return -1;
     }
   }
@@ -2109,7 +2109,7 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     syncNodeFollowerCommit(ths, pMsg->fcIndex);
 
   } else {
-    sNError(ths, "error local cmd");
+    sError("error local cmd");
   }
 
   return 0;
