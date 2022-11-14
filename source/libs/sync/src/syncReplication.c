@@ -72,7 +72,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
   SRpcMsg            rpcMsg = {0};
   SyncAppendEntries* pMsg = NULL;
 
-  SSyncRaftEntry* pEntry;
+  SSyncRaftEntry* pEntry = NULL;
   int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, nextIndex, &pEntry);
 
   if (code == 0) {
@@ -98,6 +98,8 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
       return -1;
     }
   }
+
+  syncEntryDestory(pEntry);
 
   // prepare msg
   ASSERT(pMsg != NULL);
