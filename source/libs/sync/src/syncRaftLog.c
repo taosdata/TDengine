@@ -198,9 +198,9 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
 
-  int64_t tsWriteBegin = taosGetTimestampMs();
+  int64_t tsWriteBegin = taosGetTimestampNs();
   index = walAppendLog(pWal, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
-  int64_t tsWriteEnd = taosGetTimestampMs();
+  int64_t tsWriteEnd = taosGetTimestampNs();
   int64_t tsElapsed = tsWriteEnd - tsWriteBegin;
 
   if (index < 0) {
@@ -239,12 +239,12 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
     return -1;
   }
 
-  int64_t ts1 = taosGetTimestampMs();
+  int64_t ts1 = taosGetTimestampNs();
   taosThreadMutexLock(&(pData->mutex));
 
-  int64_t ts2 = taosGetTimestampMs();
+  int64_t ts2 = taosGetTimestampNs();
   code = walReadVer(pWalHandle, index);
-  int64_t ts3 = taosGetTimestampMs();
+  int64_t ts3 = taosGetTimestampNs();
 
   // code = walReadVerCached(pWalHandle, index);
   if (code != 0) {
@@ -289,7 +289,7 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
   */
 
   taosThreadMutexUnlock(&(pData->mutex));
-  int64_t ts4 = taosGetTimestampMs();
+  int64_t ts4 = taosGetTimestampNs();
 
   int64_t tsElapsed = ts4 - ts1;
   int64_t tsElapsedLock = ts2 - ts1;

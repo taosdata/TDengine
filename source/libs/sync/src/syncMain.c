@@ -1806,7 +1806,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     int32_t code = syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_PING, atomic_load_64(&pNode->pingTimerLogicClock),
                                     pNode->pingTimerMS, pNode);
     if (code != 0) {
-      sNError(pNode, "failed to build ping msg");
+      sError(pNode, "failed to build ping msg");
       rpcFreeCont(rpcMsg.pCont);
       return;
     }
@@ -1814,7 +1814,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     sNTrace(pNode, "enqueue ping msg");
     code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
     if (code != 0) {
-      sNError(pNode, "failed to sync enqueue ping msg since %s", terrstr());
+      sError(pNode, "failed to sync enqueue ping msg since %s", terrstr());
       rpcFreeCont(rpcMsg.pCont);
       return;
     }
@@ -1839,7 +1839,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   int32_t code = syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_ELECTION, pElectTimer->logicClock, pNode->electTimerMS, pNode);
 
   if (code != 0) {
-    sNError(pNode, "failed to build elect msg");
+    sError(pNode, "failed to build elect msg");
     taosMemoryFree(pElectTimer);
     return;
   }
@@ -1849,7 +1849,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
 
   code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
   if (code != 0) {
-    sNError(pNode, "failed to sync enqueue elect msg since %s", terrstr());
+    sError(pNode, "failed to sync enqueue elect msg since %s", terrstr());
     rpcFreeCont(rpcMsg.pCont);
     taosMemoryFree(pElectTimer);
     return;
