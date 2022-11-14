@@ -386,7 +386,7 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
     }
   }
   taosSetNonblocking(sockFd, 0);
-#elif defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined(_TD_WINDOWS)
+#elif defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   taosSetNonblocking(sockFd, 1);
 
   ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
@@ -396,7 +396,7 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
       taosCloseSocket(sockFd);
       return -1;
     } else if (errno == EINPROGRESS || errno == EAGAIN || errno == EWOULDBLOCK) {
-      timeval timeout;
+      struct timeval timeout;
       fd_set set;
 
       timeout.tv_sec = 0;
