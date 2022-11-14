@@ -274,10 +274,7 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
   pItem->stype = stype;
 
   // apply new timezone
-  char szTimezone[TD_TIMEZONE_LEN] = {0};
-  int8_t dl;
-  enum TdTimezone tdOffset = TdZeroZone;
-  taosSetSystemTimezone(value, szTimezone, &dl, &tdOffset);
+  osSetTimezone(value);
 
   return 0;
 }
