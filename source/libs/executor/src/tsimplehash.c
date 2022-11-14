@@ -189,7 +189,7 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
   }
 
   while (pNode) {
-    if ((*(pHashObj->equalFp))(GET_SHASH_NODE_KEY(pNode, pNode->dataLen), key, keyLen) == 0) {
+    if ((keyLen == pNode->keyLen) && (*(pHashObj->equalFp))(GET_SHASH_NODE_KEY(pNode, pNode->dataLen), key, keyLen) == 0) {
       break;
     }
     pNode = pNode->next;
@@ -213,10 +213,12 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
 static FORCE_INLINE SHNode *doSearchInEntryList(SSHashObj *pHashObj, const void *key, size_t keyLen, int32_t index) {
   SHNode *pNode = pHashObj->hashList[index];
   while (pNode) {
-    if ((*(pHashObj->equalFp))(GET_SHASH_NODE_KEY(pNode, pNode->dataLen), key, keyLen) == 0) {
+    const char* p = GET_SHASH_NODE_KEY(pNode, pNode->dataLen);
+    ASSERT(keyLen > 0);
+
+    if (pNode->keyLen == keyLen && ((*(pHashObj->equalFp))(p, key, keyLen) == 0)) {
       break;
     }
-
     pNode = pNode->next;
   }
 
