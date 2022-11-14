@@ -262,30 +262,27 @@ void tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDa
 }
 
 bool tsdbTbDataIterNext(STbDataIter *pIter) {
-  SMemSkipListNode *pHead = pIter->pTbData->sl.pHead;
-  SMemSkipListNode *pTail = pIter->pTbData->sl.pTail;
-
   pIter->pRow = NULL;
   if (pIter->backward) {
-    ASSERT(pIter->pNode != pTail);
+    ASSERT(pIter->pNode != pIter->pTbData->sl.pTail);
 
-    if (pIter->pNode == pHead) {
+    if (pIter->pNode == pIter->pTbData->sl.pHead) {
       return false;
     }
 
     pIter->pNode = SL_NODE_BACKWARD(pIter->pNode, 0);
-    if (pIter->pNode == pHead) {
+    if (pIter->pNode == pIter->pTbData->sl.pHead) {
       return false;
     }
   } else {
-    ASSERT(pIter->pNode != pHead);
+    ASSERT(pIter->pNode != pIter->pTbData->sl.pHead);
 
-    if (pIter->pNode == pTail) {
+    if (pIter->pNode == pIter->pTbData->sl.pTail) {
       return false;
     }
 
     pIter->pNode = SL_NODE_FORWARD(pIter->pNode, 0);
-    if (pIter->pNode == pTail) {
+    if (pIter->pNode == pIter->pTbData->sl.pTail) {
       return false;
     }
   }
