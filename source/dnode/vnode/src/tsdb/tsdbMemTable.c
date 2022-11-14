@@ -18,7 +18,8 @@
 #define MEM_MIN_HASH 1024
 #define SL_MAX_LEVEL 5
 
-#define SL_NODE_SIZE(l)        (sizeof(SMemSkipListNode) + sizeof(SMemSkipListNode *) * (l)*2)
+// sizeof(SMemSkipListNode) + sizeof(SMemSkipListNode *) * (l) * 2
+#define SL_NODE_SIZE(l)        (sizeof(SMemSkipListNode) + ((l) << 4))
 #define SL_NODE_FORWARD(n, l)  ((n)->forwards[l])
 #define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
 
