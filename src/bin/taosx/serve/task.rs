@@ -385,6 +385,11 @@ impl TaskController {
     }
 
     pub async fn create(&self, task: NewTask) -> anyhow::Result<Task> {
+        if let Some(topic) = task.oneshot_topic.as_deref() {
+            if topic.len() > 64 {
+                anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
+            }
+        }
         let res = sqlx::query(
             "INSERT INTO tasks (`from`, `from_cluster`, `oneshot_topic`, `to`, `to_cluster`, `stream_type`, `jobs`, `compression_level`, `force`, \
                  `created_at`, `status`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
