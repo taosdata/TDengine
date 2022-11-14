@@ -21,7 +21,10 @@ extern "C" {
 
 #include "function.h"
 
-int32_t makepointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t geomFromTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t asTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 #ifdef __cplusplus
 }

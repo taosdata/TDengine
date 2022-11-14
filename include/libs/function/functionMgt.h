@@ -155,7 +155,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STDDEV_MERGE,
 
   // geometry functions
-  FUNCTION_TYPE_MAKEPOINT = 4250,
+  FUNCTION_TYPE_GEOM_FROM_TEXT = 4250,
+  FUNCTION_TYPE_AS_TEXT,
+  FUNCTION_TYPE_MAKE_POINT,
 
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
