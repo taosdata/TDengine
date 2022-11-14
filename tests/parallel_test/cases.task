@@ -68,7 +68,7 @@
 ,,y,script,./test.sh -f tsim/insert/basic0.sim
 ,,y,script,./test.sh -f tsim/insert/basic1.sim
 ,,y,script,./test.sh -f tsim/insert/basic2.sim
-,,,script,./test.sh -f tsim/insert/commit-merge0.sim
+,,y,script,./test.sh -f tsim/insert/commit-merge0.sim
 ,,y,script,./test.sh -f tsim/insert/insert_drop.sim
 ,,y,script,./test.sh -f tsim/insert/insert_select.sim
 ,,y,script,./test.sh -f tsim/insert/null.sim
@@ -109,7 +109,7 @@
 ,,y,script,./test.sh -f tsim/parser/dbtbnameValidate.sim
 ,,y,script,./test.sh -f tsim/parser/distinct.sim
 ,,y,script,./test.sh -f tsim/parser/fill_us.sim
-,,,script,./test.sh -f tsim/parser/fill.sim
+,,y,script,./test.sh -f tsim/parser/fill.sim
 ,,y,script,./test.sh -f tsim/parser/first_last.sim
 ,,y,script,./test.sh -f tsim/parser/fourArithmetic-basic.sim
 ,,,script,./test.sh -f tsim/parser/function.sim
