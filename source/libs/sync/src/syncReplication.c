@@ -140,9 +140,10 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
 int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
   int32_t            ret = 0;
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
-
-  syncLogSendAppendEntries(pSyncNode, pMsg, "");
-  syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
+  if (pMsg == NULL) {
+    sError("vgId:%d, sync-append-entries msg is NULL", pSyncNode->vgId);
+    return 0;
+  }
 
   SPeerState* pState = syncNodeGetPeerState(pSyncNode, destRaftId);
   if (pState == NULL) {
@@ -150,8 +151,19 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
     return 0;
   }
 
+  // save index, otherwise pMsg will be free by rpc
+  SyncIndex saveLastSendIndex = pState->lastSendIndex;
+  bool      update = false;
   if (pMsg->dataLen > 0) {
-    pState->lastSendIndex = pMsg->prevLogIndex + 1;
+    saveLastSendIndex = pMsg->prevLogIndex + 1;
+    update = true;
+  }
+
+  syncLogSendAppendEntries(pSyncNode, pMsg, "");
+  syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
+
+  if (update) {
+    pState->lastSendIndex = saveLastSendIndex;
     pState->lastSendTime = taosGetTimestampMs();
   }
 
