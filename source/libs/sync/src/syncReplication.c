@@ -153,14 +153,16 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
 
   // save index, otherwise pMsg will be free by rpc
   SyncIndex saveLastSendIndex = pState->lastSendIndex;
+  bool      update = false;
   if (pMsg->dataLen > 0) {
     saveLastSendIndex = pMsg->prevLogIndex + 1;
+    update = true;
   }
 
   syncLogSendAppendEntries(pSyncNode, pMsg, "");
   syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
 
-  if (pMsg->dataLen > 0) {
+  if (update) {
     pState->lastSendIndex = saveLastSendIndex;
     pState->lastSendTime = taosGetTimestampMs();
   }
