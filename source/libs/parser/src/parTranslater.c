@@ -6060,11 +6060,11 @@ static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** 
   }
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[0].bytes = TSDB_TABLE_NAME_LEN;
+  (*pSchema)[0].bytes = SHOW_CREATE_TB_RESULT_FIELD1_LEN;
   strcpy((*pSchema)[0].name, "Table");
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[1].bytes = TSDB_MAX_BINARY_LEN;
+  (*pSchema)[1].bytes = SHOW_CREATE_TB_RESULT_FIELD2_LEN;
   strcpy((*pSchema)[1].name, "Create Table");
 
   return TSDB_CODE_SUCCESS;

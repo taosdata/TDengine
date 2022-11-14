@@ -528,7 +528,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   }
 
-  varDataLen(buf2) = len;
+  varDataLen(buf2) = (len > 65535) ? 65535 : len;
 
   colDataAppend(pCol2, 0, buf2, false);
 
