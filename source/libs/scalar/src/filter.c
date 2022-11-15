@@ -336,6 +336,10 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
 __compar_fn_t filterGetCompFunc(int32_t type, int32_t optr) { return gDataCompare[filterGetCompFuncIdx(type, optr)]; }
 
 __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr) {
+  if (TSDB_DATA_TYPE_NULL == rType) {
+    return NULL;
+  }
+  
   switch (lType) {
     case TSDB_DATA_TYPE_TINYINT: {
       if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
