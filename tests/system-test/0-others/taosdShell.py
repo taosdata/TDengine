@@ -2,6 +2,7 @@
 import taos
 import sys
 import time
+from datetime import datetime
 import socket
 import os
 import platform
@@ -44,7 +45,8 @@ class TDTestCase:
 
     # print ("===================: ", updatecfgDict)
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -90,7 +92,7 @@ class TDTestCase:
                 break
             else:
                 tdLog.info( "wait start taosd ,times: %d "%i)
-            sleep
+            time.sleep(1)
             i+= 1
         else :
             tdLog.exit("taosd %s is not running "%startAction)    
@@ -99,8 +101,11 @@ class TDTestCase:
         processName="taosd"
         taosdCmd = taosdCmdRun + startAction
         tdLog.printNoPrefix("%s"%taosdCmd)
-        os.system(f"nohup {taosdCmd}  & ")
+        logTime=datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+        os.system(f"nohup {taosdCmd}  >  {logTime}.log  2>&1 &  ")
         self.checkAndstopPro(processName,startAction)
+        os.system(f"rm -rf  {logTime}.log")
+
 
     def taosdCommandExe(self,startAction,taosdCmdRun):
         taosdCmd = taosdCmdRun + startAction
@@ -134,7 +139,11 @@ class TDTestCase:
         tdSql.query("create stream s1 into source_db.output_stb as select _wstart AS start, min(k), max(k), sum(k) from source_db.stb interval(10m);")
 
 
+        #TD-19944 -Q=3 
+        tdsqlN=tdCom.newTdSql()
 
+        tdsqlN.query("select * from source_db.stb")
+        tdsqlN.query("select * from db0.stb")
 
     def run(self):  
         # tdSql.prepare()
@@ -164,6 +173,7 @@ class TDTestCase:
         startAction = " -s -c " + taosdCfgPath 
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
         self.taosdCommandExe(startAction,taosdCmdRun)
+        os.system(" rm -rf sdb.json ") 
 
 
         startAction = " --help"
@@ -198,10 +208,10 @@ class TDTestCase:
 
         startAction=" -E taosdCaseTmp/.env"
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        os.system(" mkdir -p taosdCaseTmp/.env ") 
+        os.system(" mkdir -p taosdCaseTmp ") 
         os.system("echo \'TAOS_QUERY_POLICY=3\' > taosdCaseTmp/.env ")
         self.taosdCommandStop(startAction,taosdCmdRun)
-        os.system(" rm -rf taosdCaseTmp/.env ") 
+        os.system(" rm -rf taosdCaseTmp ") 
 
         startAction = " -V"
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)

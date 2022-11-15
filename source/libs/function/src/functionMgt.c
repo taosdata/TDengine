@@ -241,7 +241,11 @@ bool fmIsNotNullOutputFunc(int32_t funcId) {
          FUNCTION_TYPE_LAST_MERGE == funcMgtBuiltins[funcId].type ||
          FUNCTION_TYPE_FIRST == funcMgtBuiltins[funcId].type ||
          FUNCTION_TYPE_FIRST_PARTIAL == funcMgtBuiltins[funcId].type ||
-         FUNCTION_TYPE_FIRST_MERGE == funcMgtBuiltins[funcId].type;
+         FUNCTION_TYPE_FIRST_MERGE == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_COUNT == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_HYPERLOGLOG == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_HYPERLOGLOG_PARTIAL == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_HYPERLOGLOG_MERGE == funcMgtBuiltins[funcId].type;
 }
 
 bool fmIsSelectValueFunc(int32_t funcId) {
@@ -249,6 +253,13 @@ bool fmIsSelectValueFunc(int32_t funcId) {
     return false;
   }
   return FUNCTION_TYPE_SELECT_VALUE == funcMgtBuiltins[funcId].type;
+}
+
+bool fmIsGroupKeyFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_GROUP_KEY == funcMgtBuiltins[funcId].type;
 }
 
 void fmFuncMgtDestroy() {

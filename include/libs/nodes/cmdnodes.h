@@ -235,6 +235,7 @@ typedef struct SDropDnodeStmt {
   int32_t   dnodeId;
   char      fqdn[TSDB_FQDN_LEN];
   int32_t   port;
+  bool      force;
 } SDropDnodeStmt;
 
 typedef struct SAlterDnodeStmt {
@@ -282,6 +283,13 @@ typedef struct SShowVnodesStmt {
   SNode*    pDnodeId;
   SNode*    pDnodeEndpoint;
 } SShowVnodesStmt;
+
+typedef struct SShowTableTagsStmt {
+  ENodeType  type;
+  SNode*     pDbName;  // SValueNode
+  SNode*     pTbName;  // SValueNode
+  SNodeList* pTags;
+} SShowTableTagsStmt;
 
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT } EIndexType;
 
@@ -374,6 +382,7 @@ typedef struct SStreamOptions {
   int8_t    triggerType;
   SNode*    pDelay;
   SNode*    pWatermark;
+  int8_t    fillHistory;
   int8_t    ignoreExpired;
 } SStreamOptions;
 

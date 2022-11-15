@@ -1,8 +1,4 @@
-#include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncRaftStore.h"
+#include "syncTest.h"
 
 void print(SHashObj *pNextIndex) {
   printf("----------------\n");
@@ -13,7 +9,7 @@ void print(SHashObj *pNextIndex) {
 
     SRaftId *pRaftId = (SRaftId *)key;
 
-    printf("key:<" PRIu64 ", %d>, value:%" PRIu64 " \n", pRaftId->addr, pRaftId->vgId, *p);
+    printf("key:<%" PRIu64 ", %d>, value:%" PRIu64 " \n", pRaftId->addr, pRaftId->vgId, *p);
     p = (uint64_t *)taosHashIterate(pNextIndex, p);
   }
 }

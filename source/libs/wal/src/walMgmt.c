@@ -187,6 +187,13 @@ int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
   return 0;
 }
 
+int32_t walPersist(SWal *pWal) {
+  taosThreadMutexLock(&pWal->mutex);
+  int32_t ret = walSaveMeta(pWal);
+  taosThreadMutexUnlock(&pWal->mutex);
+  return ret;
+}
+
 void walClose(SWal *pWal) {
   taosThreadMutexLock(&pWal->mutex);
   (void)walSaveMeta(pWal);
@@ -196,6 +203,14 @@ void walClose(SWal *pWal) {
   pWal->pIdxFile = NULL;
   taosArrayDestroy(pWal->fileInfoSet);
   pWal->fileInfoSet = NULL;
+
+  void *pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pWal->pRefHash, pIter);
+    if (pIter == NULL) break;
+    SWalRef *pRef = *(SWalRef **)pIter;
+    taosMemoryFree(pRef);
+  }
   taosHashCleanup(pWal->pRefHash);
   taosThreadMutexUnlock(&pWal->mutex);
 

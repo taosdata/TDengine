@@ -120,8 +120,8 @@ priv_level(A) ::= db_name(B) NK_DOT NK_STAR.                                    
 /************************************************ create/drop/alter dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }
 cmd ::= CREATE DNODE dnode_endpoint(A) PORT NK_INTEGER(B).                        { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, &B); }
-cmd ::= DROP DNODE NK_INTEGER(A).                                                 { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A); }
-cmd ::= DROP DNODE dnode_endpoint(A).                                             { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A); }
+cmd ::= DROP DNODE NK_INTEGER(A) force_opt(B).                                    { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, B); }
+cmd ::= DROP DNODE dnode_endpoint(A) force_opt(B).                                { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, B); }
 cmd ::= ALTER DNODE NK_INTEGER(A) NK_STRING(B).                                   { pCxt->pRootNode = createAlterDnodeStmt(pCxt, &A, &B, NULL); }
 cmd ::= ALTER DNODE NK_INTEGER(A) NK_STRING(B) NK_STRING(C).                      { pCxt->pRootNode = createAlterDnodeStmt(pCxt, &A, &B, &C); }
 cmd ::= ALTER ALL DNODES NK_STRING(A).                                            { pCxt->pRootNode = createAlterDnodeStmt(pCxt, NULL, &A, NULL); }
@@ -132,6 +132,11 @@ cmd ::= ALTER ALL DNODES NK_STRING(A) NK_STRING(B).                             
 dnode_endpoint(A) ::= NK_STRING(B).                                               { A = B; }
 dnode_endpoint(A) ::= NK_ID(B).                                                   { A = B; }
 dnode_endpoint(A) ::= NK_IPTOKEN(B).                                              { A = B; }
+
+%type force_opt                                                                   { bool }
+%destructor force_opt                                                             { }
+force_opt(A) ::= .                                                                { A = false; }
+force_opt(A) ::= FORCE.                                                           { A = true; }
 
 /************************************************ alter local *********************************************************/
 cmd ::= ALTER LOCAL NK_STRING(A).                                                 { pCxt->pRootNode = createAlterLocalStmt(pCxt, &A, NULL); }
@@ -421,7 +426,7 @@ cmd ::= SHOW TABLE DISTRIBUTED full_table_name(A).                              
 cmd ::= SHOW CONSUMERS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CONSUMERS_STMT); }
 cmd ::= SHOW SUBSCRIPTIONS.                                                       { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT); }
 cmd ::= SHOW TAGS FROM table_name_cond(A) from_db_opt(B).                         { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TAGS_STMT, B, A, OP_TYPE_EQUAL); }
-cmd ::= SHOW TABLE TAGS FROM table_name_cond(A) from_db_opt(B).                   { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TABLE_TAGS_STMT, B, A, OP_TYPE_EQUAL); }
+cmd ::= SHOW TABLE TAGS tag_list_opt(C) FROM table_name_cond(A) from_db_opt(B).   { pCxt->pRootNode = createShowTableTagsStmt(pCxt, A, B, C); }
 cmd ::= SHOW VNODES NK_INTEGER(A).                                                { pCxt->pRootNode = createShowVnodesStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A), NULL); }
 cmd ::= SHOW VNODES NK_STRING(A).                                                 { pCxt->pRootNode = createShowVnodesStmt(pCxt, NULL, createValueNode(pCxt, TSDB_DATA_TYPE_VARCHAR, &A)); }
 
@@ -435,6 +440,18 @@ table_name_cond(A) ::= table_name(B).                                           
 
 from_db_opt(A) ::= .                                                              { A = createDefaultDatabaseCondValue(pCxt); }
 from_db_opt(A) ::= FROM db_name(B).                                               { A = createIdentifierValueNode(pCxt, &B); }
+
+%type tag_list_opt                                                                { SNodeList* }
+%destructor tag_list_opt                                                          { nodesDestroyList($$); }
+tag_list_opt(A) ::= .                                                             { A = NULL; }
+tag_list_opt(A) ::= tag_item(B).                                                  { A = createNodeList(pCxt, B); }
+tag_list_opt(A) ::= tag_list_opt(B) NK_COMMA tag_item(C).                         { A = addNodeToList(pCxt, B, C); }
+
+tag_item(A) ::= TBNAME(B).                                                        { A = setProjectionAlias(pCxt, createFunctionNode(pCxt, &B, NULL), &B); }
+tag_item(A) ::= QTAGS(B).                                                         { A = createFunctionNode(pCxt, &B, NULL); }
+tag_item(A) ::= column_name(B).                                                   { A = createColumnNode(pCxt, NULL, &B); }
+tag_item(A) ::= column_name(B) column_alias(C).                                   { A = setProjectionAlias(pCxt, createColumnNode(pCxt, NULL, &B), &C); }
+tag_item(A) ::= column_name(B) AS column_alias(C).                                { A = setProjectionAlias(pCxt, createColumnNode(pCxt, NULL, &B), &C); }
 
 /************************************************ create index ********************************************************/
 cmd ::= CREATE SMA INDEX not_exists_opt(D) 
@@ -518,6 +535,7 @@ stream_options(A) ::= stream_options(B) TRIGGER WINDOW_CLOSE.                   
 stream_options(A) ::= stream_options(B) TRIGGER MAX_DELAY duration_literal(C).    { ((SStreamOptions*)B)->triggerType = STREAM_TRIGGER_MAX_DELAY; ((SStreamOptions*)B)->pDelay = releaseRawExprNode(pCxt, C); A = B; }
 stream_options(A) ::= stream_options(B) WATERMARK duration_literal(C).            { ((SStreamOptions*)B)->pWatermark = releaseRawExprNode(pCxt, C); A = B; }
 stream_options(A) ::= stream_options(B) IGNORE EXPIRED NK_INTEGER(C).             { ((SStreamOptions*)B)->ignoreExpired = taosStr2Int8(C.z, NULL, 10); A = B; }
+stream_options(A) ::= stream_options(B) FILL_HISTORY NK_INTEGER(C).               { ((SStreamOptions*)B)->fillHistory = taosStr2Int8(C.z, NULL, 10); A = B; }
 
 subtable_opt(A) ::= .                                                             { A = NULL; }
 subtable_opt(A) ::= SUBTABLE NK_LP expression(B) NK_RP.                           { A = releaseRawExprNode(pCxt, B); }

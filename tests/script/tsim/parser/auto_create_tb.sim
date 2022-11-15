@@ -186,6 +186,7 @@ endi
 
 sql select t1, count(*), first(c9) from $stb partition by t1 order by t1 asc slimit 3
 if $rows != 3 then
+  print expect 3, actual: $rows
   return -1
 endi
 if $data(1)[1] != 1 then

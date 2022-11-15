@@ -495,6 +495,10 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   pCommitter->commitFid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
   tsdbFidKeyRange(pCommitter->commitFid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
                   &pCommitter->maxKey);
+#if 0
+  ASSERT(pCommitter->minKey <= pCommitter->nextKey && pCommitter->maxKey >= pCommitter->nextKey);
+#endif
+  
   pCommitter->nextKey = TSKEY_MAX;
 
   // Reader

@@ -28,6 +28,8 @@ int vnodeQueryOpen(SVnode *pVnode) {
   return qWorkerInit(NODE_TYPE_VNODE, TD_VID(pVnode), (void **)&pVnode->pQuery, &pVnode->msgCb);
 }
 
+void vnodeQueryPreClose(SVnode *pVnode) { qWorkerStopAllTasks((void *)pVnode->pQuery); }
+
 void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery); }
 
 int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
@@ -290,7 +292,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   for (int32_t i = 0; i < msgNum; ++i) {
     if (offset >= pMsg->contLen) {
       qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      terrno = TSDB_CODE_INVALID_MSG_LEN;
       taosArrayDestroy(batchRsp);
       return -1;
     }    
@@ -300,7 +302,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
     if (offset >= pMsg->contLen) {
       qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      terrno = TSDB_CODE_INVALID_MSG_LEN;
       taosArrayDestroy(batchRsp);
       return -1;
     } 
@@ -310,7 +312,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
     if (offset >= pMsg->contLen) {
       qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      terrno = TSDB_CODE_INVALID_MSG_LEN;
       taosArrayDestroy(batchRsp);
       return -1;
     } 
@@ -320,7 +322,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
     if (offset >= pMsg->contLen) {
       qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      terrno = TSDB_CODE_INVALID_MSG_LEN;
       taosArrayDestroy(batchRsp);
       return -1;
     } 
@@ -362,6 +364,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   offset = 0;
 
   if (rspSize > MAX_META_BATCH_RSP_SIZE) {
+    qError("rspSize:%d overload", rspSize);
     code = TSDB_CODE_INVALID_MSG_LEN;
     goto _exit;
   }
@@ -385,8 +388,10 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     offset += sizeof(p->msgLen);
     *(int32_t *)((char *)pRsp + offset) = htonl(p->rspCode);
     offset += sizeof(p->rspCode);
-    memcpy((char *)pRsp + offset, p->msg, p->msgLen);
-    offset += p->msgLen;
+    if (p->msg) {
+      memcpy((char *)pRsp + offset, p->msg, p->msgLen);
+      offset += p->msgLen;
+    }
 
     taosMemoryFreeClear(p->msg);
   }
@@ -414,9 +419,11 @@ _exit:
 }
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
+  SSyncState state = syncGetState(pVnode->sync);
+
   pLoad->vgId = TD_VID(pVnode);
-  pLoad->syncState = syncGetMyRole(pVnode->sync);
-  pLoad->syncRestore = pVnode->restored;
+  pLoad->syncState = state.state;
+  pLoad->syncRestore = state.restored;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
   pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta);

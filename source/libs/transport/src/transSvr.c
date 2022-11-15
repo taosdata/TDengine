@@ -127,7 +127,7 @@ static void uvFreeCb(uv_handle_t* handle);
 
 static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg);
 
-static void uvPrepareSendData(SSvrMsg* msg, uv_buf_t* wb);
+static int  uvPrepareSendData(SSvrMsg* msg, uv_buf_t* wb);
 static void uvStartSendResp(SSvrMsg* msg);
 
 static void uvNotifyLinkBrokenToApp(SSvrConn* conn);
@@ -363,9 +363,11 @@ void uvOnSendCb(uv_write_t* req, int status) {
     }
     transUnrefSrvHandle(conn);
   } else {
-    tError("conn %p failed to write data, %s", conn, uv_err_name(status));
-    conn->broken = true;
-    transUnrefSrvHandle(conn);
+    if (!uv_is_closing((uv_handle_t*)(conn->pTcp))) {
+      tError("conn %p failed to write data, %s", conn, uv_err_name(status));
+      conn->broken = true;
+      transUnrefSrvHandle(conn);
+    }
   }
 }
 static void uvOnPipeWriteCb(uv_write_t* req, int status) {
@@ -382,7 +384,7 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
   taosMemoryFree(req);
 }
 
-static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
+static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   SSvrConn*  pConn = smsg->pConn;
   STransMsg* pMsg = &smsg->msg;
   if (pMsg->pCont == 0) {
@@ -394,6 +396,13 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
   pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+
+  // handle invalid drop_task resp, TD-20098
+  if (pMsg->msgType == TDMT_SCH_DROP_TASK && pMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+    transQueuePop(&pConn->srvMsgs);
+    destroySmsg(smsg);
+    return -1;
+  }
 
   if (pConn->status == ConnNormal) {
     pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
@@ -429,6 +438,7 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
 
   wb->base = (char*)pHead;
   wb->len = len;
+  return 0;
 }
 
 static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
@@ -438,7 +448,9 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
   }
 
   uv_buf_t wb;
-  uvPrepareSendData(smsg, &wb);
+  if (uvPrepareSendData(smsg, &wb) < 0) {
+    return;
+  }
 
   transRefSrvHandle(pConn);
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
@@ -449,8 +461,9 @@ static void uvStartSendResp(SSvrMsg* smsg) {
   SSvrConn* pConn = smsg->pConn;
   if (pConn->broken == true) {
     // persist by
-    transFreeMsg(smsg->msg.pCont);
-    taosMemoryFree(smsg);
+    destroySmsg(smsg);
+    // transFreeMsg(smsg->msg.pCont);
+    // taosMemoryFree(smsg);
     transUnrefSrvHandle(pConn);
     return;
   }
@@ -655,7 +668,7 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
   uv_tcp_init(pObj->loop, cli);
 
   if (uv_accept(stream, (uv_stream_t*)cli) == 0) {
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(DARWIN)
     if (pObj->numOfWorkerReady < pObj->numOfThreads) {
       tError("worker-threads are not ready for all, need %d instead of %d.", pObj->numOfThreads,
              pObj->numOfWorkerReady);
@@ -746,10 +759,11 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
     transSockInfo2Str(&sockname, pConn->src);
-    struct sockaddr_in addr = *(struct sockaddr_in*)&sockname;
 
+    struct sockaddr_in addr = *(struct sockaddr_in*)&peername;
     pConn->clientIp = addr.sin_addr.s_addr;
     pConn->port = ntohs(addr.sin_port);
+
     uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
 
   } else {
@@ -779,7 +793,7 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
     return false;
   }
 
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(DARWIN)
   uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
 #else
   uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
@@ -798,8 +812,8 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   // conn set
   QUEUE_INIT(&pThrd->conn);
 
-  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 5, pThrd, uvWorkerAsyncCb);
-#ifdef WINDOWS
+  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 8, pThrd, uvWorkerAsyncCb);
+#if defined(WINDOWS) || defined(DARWIN)
   uv_pipe_connect(&pThrd->connect_req, pThrd->pipe, pipeName, uvOnPipeConnectionCb);
 #else
   uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
@@ -976,17 +990,18 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   uv_loop_init(srv->loop);
 
   char pipeName[PATH_MAX];
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(DARWIN)
   int ret = uv_pipe_init(srv->loop, &srv->pipeListen, 0);
   if (ret != 0) {
     tError("failed to init pipe, errmsg: %s", uv_err_name(ret));
     goto End;
   }
-
+#if defined(WINDOWS)
   snprintf(pipeName, sizeof(pipeName), "\\\\?\\pipe\\trans.rpc.%d-%" PRIu64, taosSafeRand(), GetCurrentProcessId());
-  // char pipeName[PATH_MAX] = {0};
-  // snprintf(pipeName, sizeof(pipeName), "%s%spipe.trans.rpc.%08d-%" PRIu64, tsTempDir, TD_DIRSEP, taosSafeRand(),
-  //          taosGetSelfPthreadId());
+#elif defined(DARWIN)
+  snprintf(pipeName, sizeof(pipeName), "%s%spipe.trans.rpc.%08d-%" PRIu64, tsTempDir, TD_DIRSEP, taosSafeRand(),
+           taosGetSelfPthreadId());
+#endif
 
   ret = uv_pipe_bind(&srv->pipeListen, pipeName);
   if (ret != 0) {
@@ -1036,7 +1051,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     srv->pThreadObj[i] = thrd;
 
     uv_os_sock_t fds[2];
-    if (uv_socketpair(AF_UNIX, SOCK_STREAM, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
+    if (uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
       goto End;
     }
 
@@ -1059,8 +1074,8 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
       goto End;
     }
   }
-
 #endif
+
   if (false == taosValidIpAndPort(srv->ip, srv->port)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     tError("invalid ip/port, %d:%d, reason:%s", srv->ip, srv->port, terrstr());

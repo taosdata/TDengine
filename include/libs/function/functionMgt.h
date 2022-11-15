@@ -216,6 +216,7 @@ bool fmIsMultiRowsFunc(int32_t funcId);
 bool fmIsKeepOrderFunc(int32_t funcId);
 bool fmIsCumulativeFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
+bool fmIsGroupKeyFunc(int32_t funcId);
 
 void getLastCacheDataType(SDataType* pType);
 
@@ -223,7 +224,7 @@ int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc
 
 typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_DATA_LOAD = 1,
-  FUNC_DATA_REQUIRED_STATIS_LOAD,
+  FUNC_DATA_REQUIRED_SMA_LOAD,
   FUNC_DATA_REQUIRED_NOT_LOAD,
   FUNC_DATA_REQUIRED_FILTEROUT,
 } EFuncDataRequired;

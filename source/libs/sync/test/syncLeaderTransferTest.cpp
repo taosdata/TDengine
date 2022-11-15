@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -25,6 +21,35 @@ SyncLeaderTransfer *createMsg() {
   pMsg->newLeaderId.addr = syncUtilAddr2U64("127.0.0.1", 9999);
   pMsg->newLeaderId.vgId = 100;
   return pMsg;
+}
+
+// for debug ----------------------
+void syncLeaderTransferPrint(const SyncLeaderTransfer *pMsg) {
+  char *serialized = syncLeaderTransfer2Str(pMsg);
+  printf("syncLeaderTransferPrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncLeaderTransferPrint2(char *s, const SyncLeaderTransfer *pMsg) {
+  char *serialized = syncLeaderTransfer2Str(pMsg);
+  printf("syncLeaderTransferPrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncLeaderTransferLog(const SyncLeaderTransfer *pMsg) {
+  char *serialized = syncLeaderTransfer2Str(pMsg);
+  sTrace("syncLeaderTransferLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
+  taosMemoryFree(serialized);
+}
+
+void syncLeaderTransferLog2(char *s, const SyncLeaderTransfer *pMsg) {
+  if (gRaftDetailLog) {
+    char *serialized = syncLeaderTransfer2Str(pMsg);
+    sTrace("syncLeaderTransferLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 void test1() {

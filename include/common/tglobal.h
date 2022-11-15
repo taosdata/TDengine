@@ -55,13 +55,11 @@ extern int32_t tsNumOfMnodeReadThreads;
 extern int32_t tsNumOfVnodeQueryThreads;
 extern int32_t tsNumOfVnodeStreamThreads;
 extern int32_t tsNumOfVnodeFetchThreads;
-extern int32_t tsNumOfVnodeWriteThreads;
-extern int32_t tsNumOfVnodeSyncThreads;
 extern int32_t tsNumOfVnodeRsmaThreads;
 extern int32_t tsNumOfQnodeQueryThreads;
 extern int32_t tsNumOfQnodeFetchThreads;
-extern int32_t tsNumOfSnodeSharedThreads;
-extern int32_t tsNumOfSnodeUniqueThreads;
+extern int32_t tsNumOfSnodeStreamThreads;
+extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsRpcQueueMemoryAllowed;
 
 // monitor
@@ -119,11 +117,15 @@ extern SDiskCfg tsDiskCfg[];
 // udf
 extern bool tsStartUdfd;
 extern char tsUdfdResFuncs[];
+extern char tsUdfdLdLibPath[];
 
 // schemaless
 extern char tsSmlChildTableName[];
 extern char tsSmlTagName[];
 extern bool tsSmlDataFormat;
+
+// wal
+extern int64_t tsWalFsyncDataSizeLimit;
 
 // internal
 extern int32_t tsTransPullupInterval;
@@ -132,6 +134,9 @@ extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushInterval;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
+
+extern int32_t tsRpcRetryLimit;
+extern int32_t tsRpcRetryInterval;
 
 //#define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 

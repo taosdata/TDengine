@@ -50,13 +50,11 @@ int32_t tsNumOfMnodeReadThreads = 1;
 int32_t tsNumOfVnodeQueryThreads = 4;
 int32_t tsNumOfVnodeStreamThreads = 2;
 int32_t tsNumOfVnodeFetchThreads = 4;
-int32_t tsNumOfVnodeWriteThreads = 2;
-int32_t tsNumOfVnodeSyncThreads = 2;
 int32_t tsNumOfVnodeRsmaThreads = 2;
 int32_t tsNumOfQnodeQueryThreads = 4;
 int32_t tsNumOfQnodeFetchThreads = 1;
-int32_t tsNumOfSnodeSharedThreads = 2;
-int32_t tsNumOfSnodeUniqueThreads = 2;
+int32_t tsNumOfSnodeStreamThreads = 4;
+int32_t tsNumOfSnodeWriteThreads = 1;
 
 // monitor
 bool     tsEnableMonitor = true;
@@ -133,7 +131,7 @@ int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
 
 // stream scheduler
-bool tsSchedStreamToSnode = true;
+bool tsDeployOnSnode = true;
 
 /*
  * minimum scale for whole system, millisecond by default
@@ -156,15 +154,21 @@ char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPR
 // udf
 bool tsStartUdfd = true;
 
+// wal
+int64_t tsWalFsyncDataSizeLimit = (100 * 1024 * 1024L);
+
 // internal
 int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushInterval = 86400;
 int32_t tsGrantHBInterval = 60;
-int32_t tsUptimeInterval = 300;     // seconds
-char    tsUdfdResFuncs[1024] = "";  // udfd resident funcs that teardown when udfd exits
+int32_t tsUptimeInterval = 300;    // seconds
+char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
+char    tsUdfdLdLibPath[512] = "";
 
+int32_t tsRpcRetryLimit = 100;
+int32_t tsRpcRetryInterval = 15;
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "dataDir");
@@ -295,6 +299,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxMemUsedByInsert", tsMaxMemUsedByInsert, 1, INT32_MAX, true) != 0) return -1;
+  if (cfgAddInt32(pCfg, "rpcRetryLimit", tsRpcRetryLimit, 1, 100000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "rpcRetryInterval", tsRpcRetryInterval, 1, 100000, 0) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
@@ -370,14 +376,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfVnodeFetchThreads = TMAX(tsNumOfVnodeFetchThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeFetchThreads", tsNumOfVnodeFetchThreads, 4, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeWriteThreads = tsNumOfCores;
-  tsNumOfVnodeWriteThreads = TMAX(tsNumOfVnodeWriteThreads, 1);
-  if (cfgAddInt32(pCfg, "numOfVnodeWriteThreads", tsNumOfVnodeWriteThreads, 1, 1024, 0) != 0) return -1;
-
-  tsNumOfVnodeSyncThreads = tsNumOfCores * 2;
-  tsNumOfVnodeSyncThreads = TMAX(tsNumOfVnodeSyncThreads, 16);
-  if (cfgAddInt32(pCfg, "numOfVnodeSyncThreads", tsNumOfVnodeSyncThreads, 1, 1024, 0) != 0) return -1;
-
   tsNumOfVnodeRsmaThreads = tsNumOfCores;
   tsNumOfVnodeRsmaThreads = TMAX(tsNumOfVnodeRsmaThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeRsmaThreads", tsNumOfVnodeRsmaThreads, 1, 1024, 0) != 0) return -1;
@@ -390,13 +388,13 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   //  tsNumOfQnodeFetchThreads = TMAX(tsNumOfQnodeFetchThreads, 4);
   //  if (cfgAddInt32(pCfg, "numOfQnodeFetchThreads", tsNumOfQnodeFetchThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfSnodeSharedThreads = tsNumOfCores / 4;
-  tsNumOfSnodeSharedThreads = TRANGE(tsNumOfSnodeSharedThreads, 2, 4);
-  if (cfgAddInt32(pCfg, "numOfSnodeSharedThreads", tsNumOfSnodeSharedThreads, 2, 1024, 0) != 0) return -1;
+  tsNumOfSnodeStreamThreads = tsNumOfCores / 4;
+  tsNumOfSnodeStreamThreads = TRANGE(tsNumOfSnodeStreamThreads, 2, 4);
+  if (cfgAddInt32(pCfg, "numOfSnodeSharedThreads", tsNumOfSnodeStreamThreads, 2, 1024, 0) != 0) return -1;
 
-  tsNumOfSnodeUniqueThreads = tsNumOfCores / 4;
-  tsNumOfSnodeUniqueThreads = TRANGE(tsNumOfSnodeUniqueThreads, 2, 4);
-  if (cfgAddInt32(pCfg, "numOfSnodeUniqueThreads", tsNumOfSnodeUniqueThreads, 2, 1024, 0) != 0) return -1;
+  tsNumOfSnodeWriteThreads = tsNumOfCores / 4;
+  tsNumOfSnodeWriteThreads = TRANGE(tsNumOfSnodeWriteThreads, 2, 4);
+  if (cfgAddInt32(pCfg, "numOfSnodeUniqueThreads", tsNumOfSnodeWriteThreads, 2, 1024, 0) != 0) return -1;
 
   tsRpcQueueMemoryAllowed = tsTotalMemoryKB * 1024 * 0.1;
   tsRpcQueueMemoryAllowed = TRANGE(tsRpcQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
@@ -422,8 +420,16 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "uptimeInterval", tsUptimeInterval, 1, 100000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryRsmaTolerance", tsQueryRsmaTolerance, 0, 900000, 0) != 0) return -1;
 
+  if (cfgAddInt64(pCfg, "walFsyncDataSizeLimit", tsWalFsyncDataSizeLimit, 100 * 1024 * 1024, INT64_MAX, 0) != 0)
+    return -1;
+
   if (cfgAddBool(pCfg, "udf", tsStartUdfd, 0) != 0) return -1;
   if (cfgAddString(pCfg, "udfdResFuncs", tsUdfdResFuncs, 0) != 0) return -1;
+  if (cfgAddString(pCfg, "udfdLdLibPath", tsUdfdLdLibPath, 0) != 0) return -1;
+
+  if (cfgAddInt32(pCfg, "rpcRetryLimit", tsRpcRetryLimit, 1, 100000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "rpcRetryInterval", tsRpcRetryInterval, 1, 100000, 0) != 0) return -1;
+
   GRANT_CFG_ADD;
   return 0;
 }
@@ -498,22 +504,6 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     pItem->stype = stype;
   }
 
-  pItem = cfgGetItem(tsCfg, "numOfVnodeWriteThreads");
-  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfVnodeWriteThreads = numOfCores;
-    tsNumOfVnodeWriteThreads = TMAX(tsNumOfVnodeWriteThreads, 1);
-    pItem->i32 = tsNumOfVnodeWriteThreads;
-    pItem->stype = stype;
-  }
-
-  pItem = cfgGetItem(tsCfg, "numOfVnodeSyncThreads");
-  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfVnodeSyncThreads = numOfCores * 2;
-    tsNumOfVnodeSyncThreads = TMAX(tsNumOfVnodeSyncThreads, 16);
-    pItem->i32 = tsNumOfVnodeSyncThreads;
-    pItem->stype = stype;
-  }
-
   pItem = cfgGetItem(tsCfg, "numOfVnodeRsmaThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsNumOfVnodeRsmaThreads = numOfCores;
@@ -542,17 +532,17 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(tsCfg, "numOfSnodeSharedThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfSnodeSharedThreads = numOfCores / 4;
-    tsNumOfSnodeSharedThreads = TRANGE(tsNumOfSnodeSharedThreads, 2, 4);
-    pItem->i32 = tsNumOfSnodeSharedThreads;
+    tsNumOfSnodeStreamThreads = numOfCores / 4;
+    tsNumOfSnodeStreamThreads = TRANGE(tsNumOfSnodeStreamThreads, 2, 4);
+    pItem->i32 = tsNumOfSnodeStreamThreads;
     pItem->stype = stype;
   }
 
   pItem = cfgGetItem(tsCfg, "numOfSnodeUniqueThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfSnodeUniqueThreads = numOfCores / 4;
-    tsNumOfSnodeUniqueThreads = TRANGE(tsNumOfSnodeUniqueThreads, 2, 4);
-    pItem->i32 = tsNumOfSnodeUniqueThreads;
+    tsNumOfSnodeWriteThreads = numOfCores / 4;
+    tsNumOfSnodeWriteThreads = TRANGE(tsNumOfSnodeWriteThreads, 2, 4);
+    pItem->i32 = tsNumOfSnodeWriteThreads;
     pItem->stype = stype;
   }
 
@@ -652,6 +642,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsQueryNodeChunkSize = cfgGetItem(pCfg, "queryNodeChunkSize")->i32;
   tsQueryUseNodeAllocator = cfgGetItem(pCfg, "queryUseNodeAllocator")->bval;
   tsKeepColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
+
+  tsRpcRetryLimit = cfgGetItem(pCfg, "rpcRetryLimit")->i32;
+  tsRpcRetryInterval = cfgGetItem(pCfg, "rpcRetryInterval")->i32;
   return 0;
 }
 
@@ -691,13 +684,11 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfVnodeQueryThreads = cfgGetItem(pCfg, "numOfVnodeQueryThreads")->i32;
   tsNumOfVnodeStreamThreads = cfgGetItem(pCfg, "numOfVnodeStreamThreads")->i32;
   tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
-  tsNumOfVnodeWriteThreads = cfgGetItem(pCfg, "numOfVnodeWriteThreads")->i32;
-  tsNumOfVnodeSyncThreads = cfgGetItem(pCfg, "numOfVnodeSyncThreads")->i32;
   tsNumOfVnodeRsmaThreads = cfgGetItem(pCfg, "numOfVnodeRsmaThreads")->i32;
   tsNumOfQnodeQueryThreads = cfgGetItem(pCfg, "numOfQnodeQueryThreads")->i32;
   //  tsNumOfQnodeFetchThreads = cfgGetItem(pCfg, "numOfQnodeFetchThreads")->i32;
-  tsNumOfSnodeSharedThreads = cfgGetItem(pCfg, "numOfSnodeSharedThreads")->i32;
-  tsNumOfSnodeUniqueThreads = cfgGetItem(pCfg, "numOfSnodeUniqueThreads")->i32;
+  tsNumOfSnodeStreamThreads = cfgGetItem(pCfg, "numOfSnodeSharedThreads")->i32;
+  tsNumOfSnodeWriteThreads = cfgGetItem(pCfg, "numOfSnodeUniqueThreads")->i32;
   tsRpcQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
 
   tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
@@ -720,12 +711,17 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsUptimeInterval = cfgGetItem(pCfg, "uptimeInterval")->i32;
   tsQueryRsmaTolerance = cfgGetItem(pCfg, "queryRsmaTolerance")->i32;
 
+  tsWalFsyncDataSizeLimit = cfgGetItem(pCfg, "walFsyncDataSizeLimit")->i64;
+
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
   tstrncpy(tsUdfdResFuncs, cfgGetItem(pCfg, "udfdResFuncs")->str, sizeof(tsUdfdResFuncs));
-
+  tstrncpy(tsUdfdLdLibPath, cfgGetItem(pCfg, "udfdLdLibPath")->str, sizeof(tsUdfdLdLibPath));
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
+
+  tsRpcRetryLimit = cfgGetItem(pCfg, "rpcRetryLimit")->i32;
+  tsRpcRetryInterval = cfgGetItem(pCfg, "rpcRetryInterval")->i32;
   GRANT_CFG_GET;
   return 0;
 }
@@ -776,6 +772,9 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
     case 'd': {
       if (strcasecmp("dDebugFlag", name) == 0) {
         dDebugFlag = cfgGetItem(pCfg, "dDebugFlag")->i32;
+      } else if (strcasecmp("debugFlag", name) == 0) {
+        int32_t flag = cfgGetItem(pCfg, "debugFlag")->i32;
+        taosSetAllDebugFlag(flag, true);
       }
       break;
     }
@@ -933,10 +932,6 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
               } else if (strcasecmp("numOfVnodeFetchThreads", name) == 0) {
                 tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
         */
-      } else if (strcasecmp("numOfVnodeWriteThreads", name) == 0) {
-        tsNumOfVnodeWriteThreads = cfgGetItem(pCfg, "numOfVnodeWriteThreads")->i32;
-      } else if (strcasecmp("numOfVnodeSyncThreads", name) == 0) {
-        tsNumOfVnodeSyncThreads = cfgGetItem(pCfg, "numOfVnodeSyncThreads")->i32;
       } else if (strcasecmp("numOfVnodeRsmaThreads", name) == 0) {
         tsNumOfVnodeRsmaThreads = cfgGetItem(pCfg, "numOfVnodeRsmaThreads")->i32;
       } else if (strcasecmp("numOfQnodeQueryThreads", name) == 0) {
@@ -946,9 +941,9 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
                 tsNumOfQnodeFetchThreads = cfgGetItem(pCfg, "numOfQnodeFetchThreads")->i32;
         */
       } else if (strcasecmp("numOfSnodeSharedThreads", name) == 0) {
-        tsNumOfSnodeSharedThreads = cfgGetItem(pCfg, "numOfSnodeSharedThreads")->i32;
+        tsNumOfSnodeStreamThreads = cfgGetItem(pCfg, "numOfSnodeSharedThreads")->i32;
       } else if (strcasecmp("numOfSnodeUniqueThreads", name) == 0) {
-        tsNumOfSnodeUniqueThreads = cfgGetItem(pCfg, "numOfSnodeUniqueThreads")->i32;
+        tsNumOfSnodeWriteThreads = cfgGetItem(pCfg, "numOfSnodeUniqueThreads")->i32;
       } else if (strcasecmp("numOfLogLines", name) == 0) {
         tsNumOfLogLines = cfgGetItem(pCfg, "numOfLogLines")->i32;
       }

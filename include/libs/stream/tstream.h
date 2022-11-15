@@ -46,7 +46,7 @@ enum {
   TASK_STATUS__DROPPING,
   TASK_STATUS__FAIL,
   TASK_STATUS__STOP,
-  TASK_STATUS__RECOVER_DOWNSTREAM,
+  TASK_STATUS__WAIT_DOWNSTREAM,
   TASK_STATUS__RECOVER_PREPARE,
   TASK_STATUS__RECOVER1,
   TASK_STATUS__RECOVER2,
@@ -317,6 +317,8 @@ typedef struct SStreamTask {
   int8_t inputStatus;
   int8_t outputStatus;
 
+  // STaosQueue*   inputQueue1;
+  // STaosQall*    inputQall;
   SStreamQueue* inputQueue;
   SStreamQueue* outputQueue;
 
@@ -332,7 +334,10 @@ typedef struct SStreamTask {
   SStreamState* pState;
 
   // do not serialize
-  int32_t recoverWaitingChild;
+  int32_t recoverTryingDownstream;
+  int32_t recoverWaitingUpstream;
+  int64_t checkReqId;
+  SArray* checkReqIds;  // shuffle
 
 } SStreamTask;
 
@@ -418,7 +423,10 @@ typedef struct {
 
 typedef struct {
   int64_t streamId;
-  int32_t taskId;
+  int32_t upstreamNodeId;
+  int32_t upstreamTaskId;
+  int32_t downstreamNodeId;
+  int32_t downstreamTaskId;
   int8_t  inputStatus;
 } SStreamDispatchRsp;
 
@@ -441,8 +449,30 @@ typedef struct {
 } SStreamRetrieveRsp;
 
 typedef struct {
+  int64_t reqId;
   int64_t streamId;
-  int32_t taskId;
+  int32_t upstreamNodeId;
+  int32_t upstreamTaskId;
+  int32_t downstreamNodeId;
+  int32_t downstreamTaskId;
+  int32_t childId;
+} SStreamTaskCheckReq;
+
+typedef struct {
+  int64_t reqId;
+  int64_t streamId;
+  int32_t upstreamNodeId;
+  int32_t upstreamTaskId;
+  int32_t downstreamNodeId;
+  int32_t downstreamTaskId;
+  int32_t childId;
+  int8_t  status;
+} SStreamTaskCheckRsp;
+
+typedef struct {
+  SMsgHead msgHead;
+  int64_t  streamId;
+  int32_t  taskId;
 } SStreamRecoverStep1Req, SStreamRecoverStep2Req;
 
 typedef struct {
@@ -453,47 +483,6 @@ typedef struct {
 
 int32_t tEncodeSStreamRecoverFinishReq(SEncoder* pEncoder, const SStreamRecoverFinishReq* pReq);
 int32_t tDecodeSStreamRecoverFinishReq(SDecoder* pDecoder, SStreamRecoverFinishReq* pReq);
-
-#if 0
-typedef struct {
-  int64_t streamId;
-  int32_t taskId;
-  int32_t upstreamTaskId;
-  int32_t upstreamNodeId;
-} SStreamTaskRecoverReq;
-
-typedef struct {
-  int64_t streamId;
-  int32_t rspTaskId;
-  int32_t reqTaskId;
-  int8_t  inputStatus;
-} SStreamTaskRecoverRsp;
-
-int32_t tEncodeStreamTaskRecoverReq(SEncoder* pEncoder, const SStreamTaskRecoverReq* pReq);
-int32_t tDecodeStreamTaskRecoverReq(SDecoder* pDecoder, SStreamTaskRecoverReq* pReq);
-
-int32_t tEncodeStreamTaskRecoverRsp(SEncoder* pEncoder, const SStreamTaskRecoverRsp* pRsp);
-int32_t tDecodeStreamTaskRecoverRsp(SDecoder* pDecoder, SStreamTaskRecoverRsp* pRsp);
-
-typedef struct {
-  int64_t streamId;
-  int32_t taskId;
-} SMStreamTaskRecoverReq;
-
-typedef struct {
-  int64_t streamId;
-  int32_t taskId;
-} SMStreamTaskRecoverRsp;
-
-int32_t tEncodeSMStreamTaskRecoverReq(SEncoder* pEncoder, const SMStreamTaskRecoverReq* pReq);
-int32_t tDecodeSMStreamTaskRecoverReq(SDecoder* pDecoder, SMStreamTaskRecoverReq* pReq);
-
-int32_t tEncodeSMStreamTaskRecoverRsp(SEncoder* pEncoder, const SMStreamTaskRecoverRsp* pRsp);
-int32_t tDecodeSMStreamTaskRecoverRsp(SDecoder* pDecoder, SMStreamTaskRecoverRsp* pRsp);
-
-int32_t streamProcessRecoverReq(SStreamTask* pTask, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg);
-int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp);
-#endif
 
 typedef struct {
   int64_t streamId;
@@ -508,19 +497,17 @@ typedef struct {
   SArray* checkpointVer;  // SArray<SStreamCheckpointInfo>
 } SStreamRecoverDownstreamRsp;
 
+int32_t tEncodeSStreamTaskCheckReq(SEncoder* pEncoder, const SStreamTaskCheckReq* pReq);
+int32_t tDecodeSStreamTaskCheckReq(SDecoder* pDecoder, SStreamTaskCheckReq* pReq);
+
+int32_t tEncodeSStreamTaskCheckRsp(SEncoder* pEncoder, const SStreamTaskCheckRsp* pRsp);
+int32_t tDecodeSStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp);
+
 int32_t tEncodeSStreamTaskRecoverReq(SEncoder* pEncoder, const SStreamRecoverDownstreamReq* pReq);
 int32_t tDecodeSStreamTaskRecoverReq(SDecoder* pDecoder, SStreamRecoverDownstreamReq* pReq);
 
 int32_t tEncodeSStreamTaskRecoverRsp(SEncoder* pEncoder, const SStreamRecoverDownstreamRsp* pRsp);
 int32_t tDecodeSStreamTaskRecoverRsp(SDecoder* pDecoder, SStreamRecoverDownstreamRsp* pRsp);
-
-typedef struct {
-  int64_t streamId;
-  int32_t taskId;
-  int32_t waitingRspCnt;
-  int32_t totReq;
-  SArray* info;  // SArray<SArray<SStreamCheckpointInfo>*>
-} SStreamRecoverStatus;
 
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
@@ -532,7 +519,7 @@ int32_t streamSetupTrigger(SStreamTask* pTask);
 
 int32_t streamProcessRunReq(SStreamTask* pTask);
 int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, bool exec);
-int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp);
+int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
 int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
@@ -543,6 +530,10 @@ int32_t streamSchedExec(SStreamTask* pTask);
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 
 // recover and fill history
+int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version);
+int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version);
+int32_t streamProcessTaskCheckReq(SStreamTask* pTask, const SStreamTaskCheckReq* pReq);
+int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp, int64_t version);
 // common
 int32_t streamSetParamForRecover(SStreamTask* pTask);
 int32_t streamRestoreParam(SStreamTask* pTask);

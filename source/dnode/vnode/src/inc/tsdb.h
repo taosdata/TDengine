@@ -108,9 +108,8 @@ static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
 #define TSDBROW_KEY(ROW)                      ((TSDBKEY){.version = TSDBROW_VERSION(ROW), .ts = TSDBROW_TS(ROW)})
 #define tsdbRowFromTSRow(VERSION, TSROW)      ((TSDBROW){.type = 0, .version = (VERSION), .pTSRow = (TSROW)})
 #define tsdbRowFromBlockData(BLOCKDATA, IROW) ((TSDBROW){.type = 1, .pBlockData = (BLOCKDATA), .iRow = (IROW)})
-void    tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
-int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow);
-int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow);
+void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
+// int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow);
 int32_t tsdbRowCmprFn(const void *p1, const void *p2);
 // SRowIter
 void     tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
@@ -155,15 +154,13 @@ int32_t tCmprBlockL(void const *lhs, void const *rhs);
 int32_t   tBlockDataCreate(SBlockData *pBlockData);
 void      tBlockDataDestroy(SBlockData *pBlockData, int8_t deepClear);
 int32_t   tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid);
-int32_t   tBlockDataInitEx(SBlockData *pBlockData, SBlockData *pBlockDataFrom);
 void      tBlockDataReset(SBlockData *pBlockData);
 int32_t   tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
 void      tBlockDataClear(SBlockData *pBlockData);
 SColData *tBlockDataGetColDataByIdx(SBlockData *pBlockData, int32_t idx);
 void      tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
-int32_t   tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
 int32_t   tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
-int32_t   tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
+int32_t   tBlockDataAddColData(SBlockData *pBlockData, SColData **ppColData);
 int32_t   tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut, uint8_t *aBuf[],
                          int32_t aBufN[]);
 int32_t   tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uint8_t *aBuf[]);
@@ -193,7 +190,6 @@ int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision);
 void    tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minKey, TSKEY *maxKey);
 int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now);
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline);
-void    tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg);
 int32_t tPutColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
 int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
 int32_t tsdbCmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t nOut,
@@ -213,11 +209,10 @@ void     tsdbRefMemTable(SMemTable *pMemTable);
 void     tsdbUnrefMemTable(SMemTable *pMemTable);
 SArray  *tsdbMemTableGetTbDataArray(SMemTable *pMemTable);
 // STbDataIter
-int32_t  tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
-void    *tsdbTbDataIterDestroy(STbDataIter *pIter);
-void     tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
-TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter);
-bool     tsdbTbDataIterNext(STbDataIter *pIter);
+int32_t tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
+void   *tsdbTbDataIterDestroy(STbDataIter *pIter);
+void    tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
+bool    tsdbTbDataIterNext(STbDataIter *pIter);
 // STbData
 int32_t tsdbGetNRowsInTbData(STbData *pTbData);
 // tsdbFile.c ==============================================================================================
@@ -338,6 +333,8 @@ struct SVersionRange {
 typedef struct SMemSkipListNode SMemSkipListNode;
 struct SMemSkipListNode {
   int8_t            level;
+  int64_t           version;
+  STSRow           *pTSRow;
   SMemSkipListNode *forwards[0];
 };
 typedef struct SMemSkipList {
@@ -473,7 +470,7 @@ struct SBlockData {
   int64_t *aUid;      // uids of each row, only exist in block data in .last file (uid == 0)
   int64_t *aVersion;  // versions of each row
   TSKEY   *aTSKEY;    // timestamp of each row
-  SArray  *aIdx;      // SArray<int32_t>
+  int32_t  nColData;
   SArray  *aColData;  // SArray<SColData>
 };
 
@@ -643,6 +640,14 @@ typedef struct SSttBlockLoadInfo {
   STSchema  *pSchema;
   int16_t   *colIds;
   int32_t    numOfCols;
+  bool       sttBlockLoaded;
+
+  // keep the last access position, this position may be used to reduce the binary times for
+  // starting last block data for a new table
+  struct {
+    int32_t blockIndex;
+    int32_t rowIndex;
+  } prevEndPos;
 } SSttBlockLoadInfo;
 
 typedef struct SMergeTree {
@@ -708,15 +713,17 @@ void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 
 // tsdbCache ==============================================================================================
 typedef struct SCacheRowsReader {
-  SVnode            *pVnode;
-  STSchema          *pSchema;
-  uint64_t           uid;
-  uint64_t           suid;
-  char             **transferBuf;  // todo remove it soon
-  int32_t            numOfCols;
-  int32_t            type;
-  int32_t            tableIndex;  // currently returned result tables
-  SArray            *pTableList;  // table id list
+  SVnode   *pVnode;
+  STSchema *pSchema;
+  uint64_t  uid;
+  uint64_t  suid;
+  char    **transferBuf;  // todo remove it soon
+  int32_t   numOfCols;
+  int32_t   type;
+  int32_t   tableIndex;  // currently returned result tables
+
+  STableKeyInfo     *pTableList;  // table id list
+  int32_t            numOfTables;
   SSttBlockLoadInfo *pLoadInfo;
   STsdbReadSnap     *pReadSnap;
   SDataFReader      *pDataFReader;
@@ -763,6 +770,33 @@ static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
   }
 
   return 0;
+}
+
+#define SL_NODE_FORWARD(n, l)  ((n)->forwards[l])
+#define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
+
+static FORCE_INLINE TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
+  if (pIter == NULL) return NULL;
+
+  if (pIter->pRow) {
+    return pIter->pRow;
+  }
+
+  if (pIter->backward) {
+    if (pIter->pNode == pIter->pTbData->sl.pHead) {
+      return NULL;
+    }
+  } else {
+    if (pIter->pNode == pIter->pTbData->sl.pTail) {
+      return NULL;
+    }
+  }
+
+  pIter->pRow = &pIter->row;
+  pIter->pRow->version = pIter->pNode->version;
+  pIter->pRow->pTSRow = pIter->pNode->pTSRow;
+
+  return pIter->pRow;
 }
 
 #ifdef __cplusplus
