@@ -122,6 +122,7 @@ void smStopWorker(SSnodeMgmt *pMgmt) {
   for (int32_t i = 0; i < taosArrayGetSize(pMgmt->writeWroker); i++) {
     SMultiWorker *pWorker = taosArrayGetP(pMgmt->writeWroker, i);
     tMultiWorkerCleanup(pWorker);
+    taosMemoryFree(pWorker);
   }
   taosArrayDestroy(pMgmt->writeWroker);
   tSingleWorkerCleanup(&pMgmt->streamWorker);
