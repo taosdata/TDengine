@@ -3,9 +3,6 @@ sidebar_label: Docker
 title: Quick Install on Docker
 ---
 
-import Tabs from "@theme/Tabs";
-import TabItem from "@theme/TabItem";
-
 This document describes how to install TDengine in a Docker container and perform queries and inserts.
 
 - The easiest way to explore TDengine is through [TDengine Cloud](http://cloud.tdengine.com).
