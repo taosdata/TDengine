@@ -17,6 +17,7 @@
 #include "tmsgcb.h"
 #include "taoserror.h"
 #include "trpc.h"
+#include "tlog.h"
 
 static SMsgCb defaultMsgCb;
 
@@ -44,7 +45,10 @@ int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
   return code;
 }
 
-void tmsgSendRsp(SRpcMsg* pMsg) { return (*defaultMsgCb.sendRspFp)(pMsg); }
+void tmsgSendRsp(SRpcMsg* pMsg) {
+  uInfo("==> sendrspFp:%p rpcSendResponse:%p", defaultMsgCb.sendRspFp, rpcSendResponse);
+  return (*defaultMsgCb.sendRspFp)(pMsg);
+}
 
 void tmsgSendRedirectRsp(SRpcMsg* pMsg, const SEpSet* pNewEpSet) { (*defaultMsgCb.sendRedirectRspFp)(pMsg, pNewEpSet); }
 
