@@ -833,6 +833,7 @@ static int32_t partitionAggCondConj(SAggLogicNode* pAgg, SNode** ppAggFuncCond, 
     nodesDestroyNode(pTempAggFuncCond);
     nodesDestroyNode(pTempGroupKeyCond);
   }
+  nodesDestroyNode(pAgg->node.pConditions);
   pAgg->node.pConditions = NULL;
   return code;
 }
@@ -853,8 +854,7 @@ static int32_t partitionAggCond(SAggLogicNode* pAgg, SNode** ppAggFunCond, SNode
 }
 
 static int32_t pushCondToAggCond(SOptimizeContext* pCxt, SAggLogicNode* pAgg, SNode** pAggFuncCond) {
-  pushDownCondOptAppendCond(&pAgg->node.pConditions, pAggFuncCond);
-  return TSDB_CODE_SUCCESS;
+  return pushDownCondOptAppendCond(&pAgg->node.pConditions, pAggFuncCond);
 }
 
 typedef struct SRewriteAggGroupKeyCondContext {
