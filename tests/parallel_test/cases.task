@@ -6,7 +6,7 @@
 ,,y,unit-test,bash test.sh
 
 #tsim test
-,,,script,./test.sh -f tsim/mnode/basic1.sim
-,,,script,./test.sh -f tsim/mnode/basic2.sim
-,,,script,./test.sh -f tsim/mnode/basic3.sim
-,,,script,./test.sh -f tsim/vnode/replica3_basic.sim
+,,y,script,./test.sh -f tsim/mnode/basic1.sim
+,,y,script,./test.sh -f tsim/mnode/basic2.sim
+,,y,script,./test.sh -f tsim/mnode/basic3.sim
+,,y,script,./test.sh -f tsim/vnode/replica3_basic.sim
