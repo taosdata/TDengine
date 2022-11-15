@@ -192,13 +192,34 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     SSyncRaftEntry* pAppendEntry = syncEntryBuildFromAppendEntries(pMsg);
     ASSERT(pAppendEntry != NULL);
 
-    SyncIndex       appendIndex = pMsg->prevLogIndex + 1;
+    SyncIndex appendIndex = pMsg->prevLogIndex + 1;
+
+    LRUHandle* hLocal = NULL;
+    LRUHandle* hAppend = NULL;
+
+    int32_t         code = 0;
     SSyncRaftEntry* pLocalEntry = NULL;
-    int32_t         code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, appendIndex, &pLocalEntry);
+    SLRUCache*      pCache = ths->pLogStore->pCache;
+    hLocal = taosLRUCacheLookup(pCache, &appendIndex, sizeof(appendIndex));
+    if (hLocal) {
+      pLocalEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, hLocal);
+      code = 0;
+
+      sNTrace(ths, "hit cache index:%" PRId64 ", bytes:%u, %p", appendIndex, pLocalEntry->bytes, pLocalEntry);
+
+    } else {
+      sNTrace(ths, "miss cache index:%" PRId64, appendIndex);
+
+      code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, appendIndex, &pLocalEntry);
+    }
+
     if (code == 0) {
+      // get local entry success
+
       if (pLocalEntry->term == pAppendEntry->term) {
         // do nothing
         sNTrace(ths, "log match, do nothing, index:%" PRId64, appendIndex);
+
       } else {
         // truncate
         code = ths->pLogStore->syncLogTruncate(ths->pLogStore, appendIndex);
@@ -207,8 +228,18 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
           snprintf(logBuf, sizeof(logBuf), "ignore, truncate error, append-index:%" PRId64, appendIndex);
           syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
-          syncEntryDestory(pLocalEntry);
-          syncEntryDestory(pAppendEntry);
+          if (hLocal) {
+            taosLRUCacheRelease(ths->pLogStore->pCache, hLocal, false);
+          } else {
+            syncEntryDestory(pLocalEntry);
+          }
+
+          if (hAppend) {
+            taosLRUCacheRelease(ths->pLogStore->pCache, hAppend, false);
+          } else {
+            syncEntryDestory(pAppendEntry);
+          }
+
           goto _IGNORE;
         }
 
@@ -219,10 +250,22 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
           snprintf(logBuf, sizeof(logBuf), "ignore, append error, append-index:%" PRId64, appendIndex);
           syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
-          syncEntryDestory(pLocalEntry);
-          syncEntryDestory(pAppendEntry);
+          if (hLocal) {
+            taosLRUCacheRelease(ths->pLogStore->pCache, hLocal, false);
+          } else {
+            syncEntryDestory(pLocalEntry);
+          }
+
+          if (hAppend) {
+            taosLRUCacheRelease(ths->pLogStore->pCache, hAppend, false);
+          } else {
+            syncEntryDestory(pAppendEntry);
+          }
+
           goto _IGNORE;
         }
+
+        syncCacheEntry(ths->pLogStore, pAppendEntry, &hAppend);
       }
 
     } else {
@@ -248,20 +291,42 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
           snprintf(logBuf, sizeof(logBuf), "ignore, log not exist, append error, append-index:%" PRId64, appendIndex);
           syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
-          syncEntryDestory(pLocalEntry);
-          syncEntryDestory(pAppendEntry);
+          if (hLocal) {
+            taosLRUCacheRelease(ths->pLogStore->pCache, hLocal, false);
+          } else {
+            syncEntryDestory(pLocalEntry);
+          }
+
+          if (hAppend) {
+            taosLRUCacheRelease(ths->pLogStore->pCache, hAppend, false);
+          } else {
+            syncEntryDestory(pAppendEntry);
+          }
+
           goto _IGNORE;
         }
 
+        syncCacheEntry(ths->pLogStore, pAppendEntry, &hAppend);
+
       } else {
-        // error
+        // get local entry success
         char logBuf[128];
         snprintf(logBuf, sizeof(logBuf), "ignore, get local entry error, append-index:%" PRId64 " err:%d", appendIndex,
                  terrno);
         syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
-        syncEntryDestory(pLocalEntry);
-        syncEntryDestory(pAppendEntry);
+        if (hLocal) {
+          taosLRUCacheRelease(ths->pLogStore->pCache, hLocal, false);
+        } else {
+          syncEntryDestory(pLocalEntry);
+        }
+
+        if (hAppend) {
+          taosLRUCacheRelease(ths->pLogStore->pCache, hAppend, false);
+        } else {
+          syncEntryDestory(pAppendEntry);
+        }
+
         goto _IGNORE;
       }
     }
@@ -269,8 +334,17 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     // update match index
     pReply->matchIndex = pAppendEntry->index;
 
-    syncEntryDestory(pLocalEntry);
-    syncEntryDestory(pAppendEntry);
+    if (hLocal) {
+      taosLRUCacheRelease(ths->pLogStore->pCache, hLocal, false);
+    } else {
+      syncEntryDestory(pLocalEntry);
+    }
+
+    if (hAppend) {
+      taosLRUCacheRelease(ths->pLogStore->pCache, hAppend, false);
+    } else {
+      syncEntryDestory(pAppendEntry);
+    }
 
   } else {
     // no append entries, do nothing

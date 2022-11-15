@@ -92,6 +92,8 @@ SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId)
 void syncEntryDestory(SSyncRaftEntry* pEntry) {
   if (pEntry != NULL) {
     taosMemoryFree(pEntry);
+
+    sTrace("free entry: %p", pEntry);
   }
 }
 

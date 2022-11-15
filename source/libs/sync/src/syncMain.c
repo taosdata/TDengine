@@ -383,15 +383,33 @@ bool syncIsReadyForRead(int64_t rid) {
 
     } else {
       if (!pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore)) {
+        SyncIndex       lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
         SSyncRaftEntry* pEntry = NULL;
-        int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(
-            pSyncNode->pLogStore, pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore), &pEntry);
+        SLRUCache*      pCache = pSyncNode->pLogStore->pCache;
+        LRUHandle*      h = taosLRUCacheLookup(pCache, &lastIndex, sizeof(lastIndex));
+        int32_t         code = 0;
+        if (h) {
+          pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+          code = 0;
+
+          sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", lastIndex, pEntry->bytes, pEntry);
+
+        } else {
+          sNTrace(pSyncNode, "miss cache index:%" PRId64, lastIndex);
+
+          code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, lastIndex, &pEntry);
+        }
+
         if (code == 0 && pEntry != NULL) {
           if (pEntry->originalRpcType == TDMT_SYNC_NOOP && pEntry->term == pSyncNode->pRaftStore->currentTerm) {
             ready = true;
           }
 
-          syncEntryDestory(pEntry);
+          if (h) {
+            taosLRUCacheRelease(pCache, h, false);
+          } else {
+            syncEntryDestory(pEntry);
+          }
         }
       }
     }
@@ -1761,10 +1779,24 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
     return 0;
   }
 
-  SyncTerm        preTerm = 0;
-  SyncIndex       preIndex = index - 1;
+  SyncTerm  preTerm = 0;
+  SyncIndex preIndex = index - 1;
+
   SSyncRaftEntry* pPreEntry = NULL;
-  int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, preIndex, &pPreEntry);
+  SLRUCache*      pCache = pSyncNode->pLogStore->pCache;
+  LRUHandle*      h = taosLRUCacheLookup(pCache, &preIndex, sizeof(preIndex));
+  int32_t         code = 0;
+  if (h) {
+    pPreEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+    code = 0;
+
+    sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", preIndex, pPreEntry->bytes, pPreEntry);
+
+  } else {
+    sNTrace(pSyncNode, "miss cache index:%" PRId64, preIndex);
+
+    code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, preIndex, &pPreEntry);
+  }
 
   SSnapshot snapshot = {.data = NULL,
                         .lastApplyIndex = SYNC_INDEX_INVALID,
@@ -1774,7 +1806,13 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
   if (code == 0) {
     ASSERT(pPreEntry != NULL);
     preTerm = pPreEntry->term;
-    taosMemoryFree(pPreEntry);
+
+    if (h) {
+      taosLRUCacheRelease(pCache, h, false);
+    } else {
+      syncEntryDestory(pPreEntry);
+    }
+
     return preTerm;
   } else {
     if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
@@ -1820,9 +1858,6 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     }
 
     taosTmrReset(syncNodeEqPingTimer, pNode->pingTimerMS, pNode, syncEnv()->pTimerManager, &pNode->pPingTimer);
-  } else {
-    sTrace("==syncNodeEqPingTimer== pingTimerLogicClock:%" PRId64 ", pingTimerLogicClockUser:%" PRId64,
-           pNode->pingTimerLogicClock, pNode->pingTimerLogicClockUser);
   }
 }
 
@@ -1856,16 +1891,6 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   }
 
   taosMemoryFree(pElectTimer);
-
-#if 0
-  // reset timer ms
-  if (syncIsInit() && pNode->electBaseLine > 0) {
-    pNode->electTimerMS = syncUtilElectRandomMS(pNode->electBaseLine, 2 * pNode->electBaseLine);
-    taosTmrReset(syncNodeEqElectTimer, pNode->electTimerMS, pNode, syncEnv()->pTimerManager, &pNode->pElectTimer);
-  } else {
-    sError("sync env is stop, syncNodeEqElectTimer");
-  }
-#endif
 }
 
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
@@ -1979,7 +2004,10 @@ static int32_t syncNodeEqNoop(SSyncNode* pNode) {
 
 static void deleteCacheEntry(const void* key, size_t keyLen, void* value) { taosMemoryFree(value); }
 
-static int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHandle** h) {
+int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHandle** h) {
+  SSyncLogStoreData* pData = pLogStore->data;
+  sNTrace(pData->pSyncNode, "in cache index:%" PRId64 ", bytes:%u, %p", pEntry->index, pEntry->bytes, pEntry);
+
   int32_t   code = 0;
   int32_t   entryLen = sizeof(*pEntry) + pEntry->dataLen;
   LRUStatus status = taosLRUCacheInsert(pLogStore->pCache, &pEntry->index, sizeof(pEntry->index), pEntry, entryLen,
@@ -2000,7 +2028,6 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   ASSERT(pEntry != NULL);
 
   LRUHandle* h = NULL;
-  syncCacheEntry(ths->pLogStore, pEntry, &h);
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
@@ -2008,6 +2035,8 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
       sError("append noop error");
       return -1;
     }
+
+    syncCacheEntry(ths->pLogStore, pEntry, &h);
   }
 
   if (h) {
@@ -2143,7 +2172,6 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
   }
 
   LRUHandle* h = NULL;
-  syncCacheEntry(ths->pLogStore, pEntry, &h);
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     // append entry
@@ -2182,6 +2210,8 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
         return -1;
       }
     }
+
+    syncCacheEntry(ths->pLogStore, pEntry, &h);
 
     // if mulit replica, start replicate right now
     if (ths->replicaNum > 1) {
@@ -2349,7 +2379,12 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
         LRUHandle*      h = taosLRUCacheLookup(pCache, &i, sizeof(i));
         if (h) {
           pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+
+          sNTrace(ths, "hit cache index:%" PRId64 ", bytes:%u, %p", i, pEntry->bytes, pEntry);
+
         } else {
+          sNTrace(ths, "miss cache index:%" PRId64, i);
+
           code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
           // ASSERT(code == 0);
           // ASSERT(pEntry != NULL);

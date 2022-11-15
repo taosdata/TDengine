@@ -73,7 +73,20 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
   SyncAppendEntries* pMsg = NULL;
 
   SSyncRaftEntry* pEntry = NULL;
-  int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, nextIndex, &pEntry);
+  SLRUCache*      pCache = pSyncNode->pLogStore->pCache;
+  LRUHandle*      h = taosLRUCacheLookup(pCache, &nextIndex, sizeof(nextIndex));
+  int32_t         code = 0;
+  if (h) {
+    pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+    code = 0;
+
+    sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", nextIndex, pEntry->bytes, pEntry);
+
+  } else {
+    sNTrace(pSyncNode, "miss cache index:%" PRId64, nextIndex);
+
+    code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, nextIndex, &pEntry);
+  }
 
   if (code == 0) {
     ASSERT(pEntry != NULL);
@@ -99,7 +112,11 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
     }
   }
 
-  syncEntryDestory(pEntry);
+  if (h) {
+    taosLRUCacheRelease(pCache, h, false);
+  } else {
+    syncEntryDestory(pEntry);
+  }
 
   // prepare msg
   ASSERT(pMsg != NULL);
