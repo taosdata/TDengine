@@ -2132,6 +2132,11 @@ int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t               type = pStddevRes->type;
   double                avg;
 
+  if (pStddevRes->count == 0) {
+    GET_RES_INFO(pCtx)->numOfRes = 0;
+    return functionFinalize(pCtx, pBlock);
+  }
+
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
     avg = pStddevRes->isum / ((double)pStddevRes->count);
     pStddevRes->result = sqrt(fabs(pStddevRes->quadraticISum / ((double)pStddevRes->count) - avg * avg));
@@ -5651,6 +5656,10 @@ bool twaFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
 }
 
 static double twa_get_area(SPoint1 s, SPoint1 e) {
+  if (e.key == INT64_MAX || s.key == INT64_MIN) {
+    return 0;
+  }
+
   if ((s.val >= 0 && e.val >= 0) || (s.val <= 0 && e.val <= 0)) {
     return (s.val + e.val) * (e.key - s.key) / 2;
   }
@@ -5945,6 +5954,8 @@ int32_t twaFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   } else {
     if (pInfo->win.ekey == pInfo->win.skey) {
       pInfo->dOutput = pInfo->p.val;
+    } else if (pInfo->win.ekey == INT64_MAX || pInfo->win.skey == INT64_MIN) { //no data in timewindow
+      pInfo->dOutput = 0;
     } else {
       pInfo->dOutput = pInfo->dOutput / (pInfo->win.ekey - pInfo->win.skey);
     }
