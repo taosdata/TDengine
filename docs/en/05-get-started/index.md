@@ -24,10 +24,10 @@ import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 
 <table width="100%">
 <tr align="center">
-<td width="20%" style="border:0"><a href="https://github.com/taosdata/TDengine" target="_blank"><img src={github} alt="Star GitHub" width="50" /><p>Star GitHub</p></a></td>
-<td width="20%" style="border:0"><a href="https://discord.com/invite/VZdSuUg4pS" target="_blank"><img src={discord} alt="Join Discord" width="50" /><p>Join Discord</p></a></td>
-<td width="20%" style="border:0"><a href="https://twitter.com/TDengineDB" target="_blank"><img src={twitter} alt="Follow Twitter" width="50" /><p>Follow Twitter</p></a></td>
-<td width="20%" style="border:0"><a href="https://www.youtube.com/@tdengine" target="_blank"><img src={youtube} alt="Subscribe YouTube" width="50" /><p>Subscribe YouTube</p></a></td>
-<td width="20%" style="border:0"><a href="https://www.linkedin.com/company/tdengine" target="_blank"><img src={linkedin} alt="Follow LinkedIn" width="50" /><p>Follow LinkedIn</p></a></td>
+<td width="20%" style={{border:0}}><a href="https://github.com/taosdata/TDengine" target="_blank"><img src={github} alt="Star GitHub" width="50" /><p>Star GitHub</p></a></td>
+<td width="20%" style={{border:0}}><a href="https://discord.com/invite/VZdSuUg4pS" target="_blank"><img src={discord} alt="Join Discord" width="50" /><p>Join Discord</p></a></td>
+<td width="20%" style={{border:0}}><a href="https://twitter.com/TDengineDB" target="_blank"><img src={twitter} alt="Follow Twitter" width="50" /><p>Follow Twitter</p></a></td>
+<td width="20%" style={{border:0}}><a href="https://www.youtube.com/@tdengine" target="_blank"><img src={youtube} alt="Subscribe YouTube" width="50" /><p>Subscribe YouTube</p></a></td>
+<td width="20%" style={{border:0}}><a href="https://www.linkedin.com/company/tdengine" target="_blank"><img src={linkedin} alt="Follow LinkedIn" width="50" /><p>Follow LinkedIn</p></a></td>
 </tr>
 </table>
