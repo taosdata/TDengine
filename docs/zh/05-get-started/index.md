@@ -24,13 +24,13 @@ import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 
 <table width="100%">
 <tr align="center">
-<td style="padding:1em;border:0"><img src={xiaot} alt="小 T 的二维码" width="200" /></td>
-<td style="padding:1em;border:0"><img src={channel} alt="TDengine 微信视频号" width="200" /></td>
-<td style="padding:1em;border:0"><img src={official_account} alt="TDengine 微信公众号" width="200" /></td>
+<td style={{padding:'1em',border:0}}><img src={xiaot} alt="小 T 的二维码" width="200" /></td>
+<td style={{padding:'1em',border:0}}><img src={channel} alt="TDengine 微信视频号" width="200" /></td>
+<td style={{padding:'1em',border:0}}><img src={official_account} alt="TDengine 微信公众号" width="200" /></td>
 </tr>
 <tr align="center">
-<td style="padding:1em;border:0">加入“物联网大数据技术前沿群”<br/>与大家进行技术交流</td>
-<td style="padding:1em;border:0">关注 TDengine 微信视频号<br/>收看技术直播与教学视频</td>
-<td style="padding:1em;border:0">关注 TDengine 微信公众号<br/>阅读核心技术与行业案例文章</td>
+<td style={{padding:'1em',border:0}}>加入“物联网大数据技术前沿群”<br/>与大家进行技术交流</td>
+<td style={{padding:'1em',border:0}}>关注 TDengine 微信视频号<br/>收看技术直播与教学视频</td>
+<td style={{padding:'1em',border:0}}>关注 TDengine 微信公众号<br/>阅读核心技术与行业案例文章</td>
 </tr>
 </table>
