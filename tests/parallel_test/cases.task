@@ -228,7 +228,7 @@
 ,,y,script,./test.sh -f tsim/stream/partitionby.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby1.sim
 ,,y,script,./test.sh -f tsim/stream/schedSnode.sim
-,,y,script,./test.sh -f tsim/stream/windowClose.sim
+,,,script,./test.sh -f tsim/stream/windowClose.sim
 ,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
 ,,y,script,./test.sh -f tsim/stream/sliding.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
