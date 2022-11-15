@@ -134,9 +134,9 @@ ELSE ()
 
         IF("${SIMD_SUPPORT}" MATCHES "true")
             ADD_DEFINITIONS("-mavx -mavx2")
-            MESSAGE(STATUS "cpu simd instruction AVX/AVX2 supported")
+            MESSAGE(STATUS "SIMD instructions (AVX/AVX2) is ACTIVATED")
         ELSE()
-            MESSAGE(STATUS "cpu simd instruction AVX/AVX2 NOT supported")
+            MESSAGE(STATUS "SIMD instruction (AVX/AVX2)is NOT ACTIVATED")
         ENDIF()
     ENDIF ()
 
