@@ -70,8 +70,8 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   taosArrayClear(pWal->fileInfoSet);
   pWal->vers.firstVer = -1;
   pWal->vers.lastVer = ver;
-  pWal->vers.commitVer = ver - 1;
-  pWal->vers.snapshotVer = ver - 1;
+  pWal->vers.commitVer = ver;
+  pWal->vers.snapshotVer = ver;
   pWal->vers.verInSnapshotting = -1;
 
   taosThreadMutexUnlock(&pWal->mutex);
