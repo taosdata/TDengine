@@ -22,6 +22,8 @@
 int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   taosThreadMutexLock(&pWal->mutex);
 
+  wInfo("vgId:%d, restore from snapshot, version %" PRId64, pWal->cfg.vgId, ver);
+
   void *pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pWal->pRefHash, pIter);
