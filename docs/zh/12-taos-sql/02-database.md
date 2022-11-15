@@ -142,7 +142,7 @@ SHOW CREATE DATABASE db_name;
 ### 查看数据库参数
 
 ```sql
-SHOW DATABASES \G;
+select * from information_schema.ins_databases \G;
 ```
 
 会列出系统中所有数据库的配置参数，并且每行只显示一个参数。
