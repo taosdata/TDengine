@@ -124,8 +124,8 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       goto _err;
     }
 
-    char* candidate = NULL;
-    char* haystack = buf;
+    char*       candidate = NULL;
+    char*       haystack = buf;
     int64_t     pos = 0;
     SWalCkHead* logContent = NULL;
 
@@ -414,8 +414,10 @@ int walCheckAndRepairMeta(SWal* pWal) {
       }
       ASSERT(pFileInfo->fileSize == 0);
       // remove the empty wal log, and its idx
+      wInfo("vgId:%d, wal remove empty file %s", pWal->cfg.vgId, fnameStr);
       taosRemoveFile(fnameStr);
       walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
+      wInfo("vgId:%d, wal remove empty file %s", pWal->cfg.vgId, fnameStr);
       taosRemoveFile(fnameStr);
       // remove its meta entry
       taosArrayRemove(pWal->fileInfoSet, fileIdx);
