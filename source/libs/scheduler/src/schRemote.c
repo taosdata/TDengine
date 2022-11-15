@@ -286,9 +286,11 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
         if (pJob->execRes.res) {
           SSubmitRsp *sum = pJob->execRes.res;
           sum->affectedRows += rsp->affectedRows;
-          sum->nBlocks += rsp->nBlocks;
-          sum->pBlocks = taosMemoryRealloc(sum->pBlocks, sum->nBlocks * sizeof(*sum->pBlocks));
-          memcpy(sum->pBlocks + sum->nBlocks - rsp->nBlocks, rsp->pBlocks, rsp->nBlocks * sizeof(*sum->pBlocks));
+          sum->nBlocks += rsp->nBlocks;          
+          if (rsp->nBlocks > 0 && rsp->pBlocks) {
+            sum->pBlocks = taosMemoryRealloc(sum->pBlocks, sum->nBlocks * sizeof(*sum->pBlocks));
+            memcpy(sum->pBlocks + sum->nBlocks - rsp->nBlocks, rsp->pBlocks, rsp->nBlocks * sizeof(*sum->pBlocks));
+          }
           taosMemoryFree(rsp->pBlocks);
           taosMemoryFree(rsp);
         } else {

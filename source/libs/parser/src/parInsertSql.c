@@ -1364,6 +1364,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt,
       break;
     }
   }
+  taosMemoryFree(pLine);
 
   if (TSDB_CODE_SUCCESS == code && 0 == (*pNumOfRows) &&
       (!TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) && !pStmt->fileProcessing) {

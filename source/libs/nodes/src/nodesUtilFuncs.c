@@ -622,7 +622,7 @@ void nodesDestroyNode(SNode* pNode) {
   }
 
   switch (nodeType(pNode)) {
-    case QUERY_NODE_COLUMN:  // pProjectRef is weak reference, no need to release
+    case QUERY_NODE_COLUMN:
       destroyExprNode((SExprNode*)pNode);
       break;
     case QUERY_NODE_VALUE: {

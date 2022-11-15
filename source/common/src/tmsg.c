@@ -2591,7 +2591,10 @@ int32_t tDeserializeSUseDbBatchRsp(void *buf, int32_t bufLen, SUseDbBatchRsp *pR
 
   for (int32_t i = 0; i < numOfBatch; ++i) {
     SUseDbRsp usedbRsp = {0};
-    if (tDeserializeSUseDbRspImp(&decoder, &usedbRsp) < 0) return -1;
+    if (tDeserializeSUseDbRspImp(&decoder, &usedbRsp) < 0) {
+      tDecoderClear(&decoder);
+      return -1;
+    }
     taosArrayPush(pRsp->pArray, &usedbRsp);
   }
   tEndDecode(&decoder);

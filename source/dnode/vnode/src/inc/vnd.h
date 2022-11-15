@@ -77,6 +77,7 @@ void    vnodeBufPoolReset(SVBufPool* pPool);
 
 // vnodeQuery.c
 int32_t vnodeQueryOpen(SVnode* pVnode);
+void    vnodeQueryPreClose(SVnode *pVnode);
 void    vnodeQueryClose(SVnode* pVnode);
 int32_t vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 int     vnodeGetTableCfg(SVnode* pVnode, SRpcMsg* pMsg, bool direct);

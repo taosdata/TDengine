@@ -197,7 +197,12 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
+
+  int64_t tsWriteBegin = taosGetTimestampNs();
   index = walAppendLog(pWal, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  int64_t tsWriteEnd = taosGetTimestampNs();
+  int64_t tsElapsed = tsWriteEnd - tsWriteBegin;
+
   if (index < 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
@@ -210,8 +215,8 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   }
   pEntry->index = index;
 
-  sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s", pEntry->index,
-          TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType));
+  sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s, elapsed:%" PRId64, pEntry->index,
+          TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType), tsElapsed);
   return 0;
 }
 
@@ -234,9 +239,13 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
     return -1;
   }
 
+  int64_t ts1 = taosGetTimestampNs();
   taosThreadMutexLock(&(pData->mutex));
 
+  int64_t ts2 = taosGetTimestampNs();
   code = walReadVer(pWalHandle, index);
+  int64_t ts3 = taosGetTimestampNs();
+
   // code = walReadVerCached(pWalHandle, index);
   if (code != 0) {
     int32_t     err = terrno;
@@ -280,6 +289,18 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
   */
 
   taosThreadMutexUnlock(&(pData->mutex));
+  int64_t ts4 = taosGetTimestampNs();
+
+  int64_t tsElapsed = ts4 - ts1;
+  int64_t tsElapsedLock = ts2 - ts1;
+  int64_t tsElapsedRead = ts3 - ts2;
+  int64_t tsElapsedBuild = ts4 - ts3;
+
+  sNTrace(pData->pSyncNode,
+          "read index:%" PRId64 ", elapsed:%" PRId64 ", elapsed-lock:%" PRId64 ", elapsed-read:%" PRId64
+          ", elapsed-build:%" PRId64,
+          index, tsElapsed, tsElapsedLock, tsElapsedRead, tsElapsedBuild);
+
   return code;
 }
 

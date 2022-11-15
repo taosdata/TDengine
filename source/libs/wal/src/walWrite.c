@@ -319,7 +319,7 @@ int32_t walEndSnapshot(SWal *pWal) {
   SWalFileInfo *pInfo = taosArraySearch(pWal->fileInfoSet, &tmp, compareWalFileInfo, TD_LE);
   if (pInfo) {
     if (ver >= pInfo->lastVer) {
-      pInfo--;
+      pInfo++;
     }
     if (POINTER_DISTANCE(pInfo, pWal->fileInfoSet->pData) > 0) {
       wDebug("vgId:%d, begin remove from %" PRId64, pWal->cfg.vgId, pInfo->firstVer);
@@ -407,6 +407,7 @@ int32_t walRollImpl(SWal *pWal) {
   }
   walBuildLogName(pWal, newFileFirstVer, fnameStr);
   pLogFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  wDebug("vgId:%d, wal create new file for write:%s", pWal->cfg.vgId, fnameStr);
   if (pLogFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     code = -1;
