@@ -98,7 +98,7 @@
 ,,y,script,./test.sh -f tsim/parser/columnValue_int.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_smallint.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_tinyint.sim
-,,,script,./test.sh -f tsim/parser/columnValue_unsign.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_unsign.sim
 ,,y,script,./test.sh -f tsim/parser/commit.sim
 ,,y,script,./test.sh -f tsim/parser/condition.sim
 ,,y,script,./test.sh -f tsim/parser/constCol.sim
@@ -140,7 +140,7 @@
 ,,,script,./test.sh -f tsim/parser/nestquery.sim
 ,,y,script,./test.sh -f tsim/parser/null_char.sim
 ,,y,script,./test.sh -f tsim/parser/precision_ns.sim
-,,,script,./test.sh -f tsim/parser/projection_limit_offset.sim
+,,y,script,./test.sh -f tsim/parser/projection_limit_offset.sim
 ,,y,script,./test.sh -f tsim/parser/regex.sim
 ,,y,script,./test.sh -f tsim/parser/select_across_vnodes.sim
 ,,y,script,./test.sh -f tsim/parser/select_distinct_tag.sim
@@ -172,7 +172,7 @@
 ,,,script,./test.sh -f tsim/query/session.sim
 ,,,script,./test.sh -f tsim/query/udf.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
-,,,script,./test.sh -f tsim/snode/basic1.sim
+,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,,script,./test.sh -f tsim/mnode/basic1.sim
 ,,,script,./test.sh -f tsim/mnode/basic2.sim
 ,,,script,./test.sh -f tsim/mnode/basic3.sim
@@ -208,12 +208,12 @@
 ,,y,script,./test.sh -f tsim/table/tinyint.sim
 ,,y,script,./test.sh -f tsim/table/vgroup.sim
 ,,,script,./test.sh -f tsim/stream/basic0.sim -g
-,,,script,./test.sh -f tsim/stream/basic1.sim
+,,y,script,./test.sh -f tsim/stream/basic1.sim
 ,,y,script,./test.sh -f tsim/stream/basic2.sim
 ,,,script,./test.sh -f tsim/stream/drop_stream.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic1.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic2.sim
-,,,script,./test.sh -f tsim/stream/fillHistoryBasic3.sim
+,,y,script,./test.sh -f tsim/stream/fillHistoryBasic3.sim
 ,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
 ,,,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
 ,,,script,./test.sh -f tsim/stream/distributeSession0.sim
@@ -222,11 +222,11 @@
 ,,,script,./test.sh -f tsim/stream/state0.sim
 ,,,script,./test.sh -f tsim/stream/triggerInterval0.sim
 ,,,script,./test.sh -f tsim/stream/triggerSession0.sim
-,,,script,./test.sh -f tsim/stream/partitionby.sim
-,,,script,./test.sh -f tsim/stream/partitionby1.sim
+,,y,script,./test.sh -f tsim/stream/partitionby.sim
+,,y,script,./test.sh -f tsim/stream/partitionby1.sim
 ,,y,script,./test.sh -f tsim/stream/schedSnode.sim
 ,,,script,./test.sh -f tsim/stream/windowClose.sim
-,,,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
+,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
 ,,y,script,./test.sh -f tsim/stream/sliding.sim
 ,,,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
 ,,,script,./test.sh -f tsim/stream/partitionbyColumnSession.sim
