@@ -55,6 +55,7 @@ static void destroySTqHandle(void* data) {
   STqHandle* pData = (STqHandle*)data;
   qDestroyTask(pData->execHandle.task);
   if (pData->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+    taosMemoryFreeClear(pData->execHandle.execCol.qmsg);
   } else if (pData->execHandle.subType == TOPIC_SUB_TYPE__DB) {
     tqCloseReader(pData->execHandle.pExecReader);
     walCloseReader(pData->pWalReader);
@@ -80,7 +81,6 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   pTq->pVnode = pVnode;
 
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
-
   taosHashSetFreeFp(pTq->pHandle, destroySTqHandle);
 
   taosInitRWLatch(&pTq->pushLock);
@@ -88,6 +88,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   taosHashSetFreeFp(pTq->pPushMgr, tqPushEntryFree);
 
   pTq->pCheckInfo = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
+  taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
 
   if (tqMetaOpen(pTq) < 0) {
     ASSERT(0);
@@ -779,6 +780,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
     }
     if (req.newConsumerId == -1) {
       tqError("vgId:%d, tq invalid rebalance request, new consumerId %" PRId64 "", req.vgId, req.newConsumerId);
+      taosMemoryFree(req.qmsg);
       return 0;
     }
     STqHandle tqHandle = {0};
@@ -815,8 +817,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
       req.qmsg = NULL;
 
       pHandle->execHandle.task =
-          qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols,
-                                   &pHandle->execHandle.pSchemaWrapper);
+          qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols, NULL);
       ASSERT(pHandle->execHandle.task);
       void* scanner = NULL;
       qExtractStreamScanner(pHandle->execHandle.task, &scanner);
@@ -864,6 +865,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
     atomic_store_32(&pHandle->epoch, -1);
     atomic_store_64(&pHandle->consumerId, req.newConsumerId);
     atomic_add_fetch_32(&pHandle->epoch, 1);
+    taosMemoryFree(req.qmsg);
     if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
       // TODO
       ASSERT(0);
