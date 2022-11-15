@@ -93,7 +93,7 @@ static SHNode *doCreateHashNode(const void *key, size_t keyLen, const void *data
   pNewNode->keyLen = keyLen;
   pNewNode->dataLen = dataLen;
   pNewNode->next = NULL;
-  memcpy(GET_SHASH_NODE_DATA(pNewNode), data, dataLen);
+  if (data) memcpy(GET_SHASH_NODE_DATA(pNewNode), data, dataLen);
   memcpy(GET_SHASH_NODE_KEY(pNewNode, dataLen), key, keyLen);
   return pNewNode;
 }
@@ -203,7 +203,7 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
     pNewNode->next = pHashObj->hashList[slot];
     pHashObj->hashList[slot] = pNewNode;
     atomic_add_fetch_64(&pHashObj->size, 1);
-  } else {  // update data
+  } else if (data) {  // update data
     memcpy(GET_SHASH_NODE_DATA(pNode), data, dataLen);
   }
 
