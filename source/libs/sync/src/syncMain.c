@@ -1842,7 +1842,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
       return;
     }
 
-    sNTrace(pNode, "enqueue ping msg");
+    sTrace(pNode, "enqueue ping msg");
     code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
     if (code != 0) {
       sError("failed to sync enqueue ping msg since %s", terrstr());
@@ -1870,7 +1870,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   }
 
   SyncTimeout* pTimeout = rpcMsg.pCont;
-  sNTrace(pNode, "enqueue elect msg lc:%" PRId64, pTimeout->logicClock);
+  sTrace(pNode, "enqueue elect msg lc:%" PRId64, pTimeout->logicClock);
 
   code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
   if (code != 0) {
@@ -1894,7 +1894,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
         return;
       }
 
-      sNTrace(pNode, "enqueue heartbeat timer");
+      sTrace(pNode, "enqueue heartbeat timer");
       code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
       if (code != 0) {
         sError("failed to enqueue heartbeat msg since %s", terrstr());
