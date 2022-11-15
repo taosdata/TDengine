@@ -7339,18 +7339,19 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   bool dbIncluded = false;
 
   SStrToken tmpToken = pAlterSQL->name;
-  tmpToken.z= strndup(pAlterSQL->name.z, pAlterSQL->name.n);
+  char* z0 = strndup(pAlterSQL->name.z, pAlterSQL->name.n);
+  tmpToken.z = z0;
   if (tscValidateName(&tmpToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
-    free(tmpToken.z);
+    free(z0);
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
   code = tscSetTableFullName(&pTableMetaInfo->name, &tmpToken, pSql, dbIncluded);
   if (code != TSDB_CODE_SUCCESS) {
-    free(tmpToken.z);
+    free(z0);
     return code;
   }
-  free(tmpToken.z);
+  free(z0);
 
   code = tscGetTableMeta(pSql, pTableMetaInfo);
   if (code != TSDB_CODE_SUCCESS) {
