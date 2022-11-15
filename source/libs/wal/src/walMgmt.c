@@ -203,6 +203,14 @@ void walClose(SWal *pWal) {
   pWal->pIdxFile = NULL;
   taosArrayDestroy(pWal->fileInfoSet);
   pWal->fileInfoSet = NULL;
+
+  void *pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pWal->pRefHash, pIter);
+    if (pIter == NULL) break;
+    SWalRef *pRef = *(SWalRef **)pIter;
+    taosMemoryFree(pRef);
+  }
   taosHashCleanup(pWal->pRefHash);
   taosThreadMutexUnlock(&pWal->mutex);
 

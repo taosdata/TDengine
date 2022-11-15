@@ -5903,6 +5903,7 @@ int32_t tDecodeSTqCheckInfo(SDecoder *pDecoder, STqCheckInfo *pInfo) {
   }
   return 0;
 }
+void tDeleteSTqCheckInfo(STqCheckInfo *pInfo) { taosArrayDestroy(pInfo->colIdList); }
 
 int32_t tEncodeDeleteRes(SEncoder *pCoder, const SDeleteRes *pRes) {
   int32_t nUid = taosArrayGetSize(pRes->uidList);
