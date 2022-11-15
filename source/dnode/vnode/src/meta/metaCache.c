@@ -31,6 +31,12 @@ typedef struct SMetaStbStatsEntry {
   SMetaStbStats              info;
 } SMetaStbStatsEntry;
 
+typedef struct STagFilterResEntry {
+  uint64_t suid;  // uid for super table
+  SList*   pList; // the linked list of md5 digest, extracted from the serialized tag query condition
+  uint32_t qTimes;// queried times for current super table
+} STagFilterResEntry;
+
 struct SMetaCache {
   // child, normal, super, table entry cache
   struct SEntryCache {
@@ -47,6 +53,10 @@ struct SMetaCache {
   } sStbStatsCache;
 
   // query cache
+  struct STagFilterResCache {
+    SHashObj*  pTableEntry;
+    SLRUCache* pUidResCache;
+  } sTagFilterResCache;
 };
 
 static void entryCacheClose(SMeta* pMeta) {
@@ -388,3 +398,82 @@ int32_t metaStatsCacheGet(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo) {
 
   return code;
 }
+
+int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, LRUHandle** pHandle) {
+  // generate the composed key for LRU cache
+  char* p = taosMemoryMalloc(keyLen + sizeof(uint64_t));
+  *(uint64_t*) p = suid;
+  memcpy(p + sizeof(suid), pKey, keyLen);
+
+  int32_t len = keyLen + sizeof(uint64_t);
+  *pHandle = taosLRUCacheLookup(pMeta->pCache->sTagFilterResCache.pUidResCache, p, len);
+  if (*pHandle == NULL) {
+    taosMemoryFree(p);
+    return TSDB_CODE_SUCCESS;
+  } else {  // do some book mark work after acquiring the filter result from cache
+    STagFilterResEntry* pEntry = taosHashGet(pMeta->pCache->sTagFilterResCache.pTableEntry, &suid, sizeof(uint64_t));
+    ASSERT(pEntry != NULL);
+
+    pEntry->qTimes += 1;
+
+    // check if scanning all items are necessary or not
+    if (pEntry->qTimes > 5000 && TD_DLIST_NELES(pEntry->pList) > 10) {
+      SArray* pList = taosArrayInit(64, POINTER_BYTES);
+
+      SListIter iter = {0};
+      tdListInitIter(pEntry->pList, &iter, TD_LIST_FORWARD);
+
+      SListNode* pNode = NULL;
+      while ((pNode = tdListNext(&iter)) != NULL) {
+        memcpy(p + sizeof(suid), pNode->data, keyLen);
+
+        // check whether it is existed in LRU cache, and remove it from linked list if not.
+        void* pRes = taosLRUCacheLookup(pMeta->pCache->sTagFilterResCache.pUidResCache, p, len);
+        if (pRes == NULL) {  // remove the item in the linked list
+          taosArrayPush(pList, &pNode);
+        }
+      }
+
+      // remove the keys, of which query uid lists have been replaced already.
+      size_t s = taosArrayGetSize(pList);
+      for(int32_t i = 0; i < s; ++i) {
+        SListNode** p1 = taosArrayGet(pList, i);
+        tdListPopNode(pEntry->pList, *p1);
+      }
+    }
+
+    taosMemoryFree(p);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// check both the payload size and selectivity ratio
+int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload) {
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// remove the lru cache that are expired due to the tags value update, or creating, or dropping, of child tables
+int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid) {
+  STagFilterResEntry* pEntry = taosHashGet(pMeta->pCache->sTagFilterResCache.pTableEntry, &suid, sizeof(uint64_t));
+  if (pEntry == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t keyLen = sizeof(uint64_t) + 128;
+  char* p = taosMemoryMalloc(keyLen);
+  *(uint64_t*)p = pEntry->suid;
+
+  SListIter iter = {0};
+  tdListInitIter(pEntry->pList, &iter, TD_LIST_FORWARD);
+
+  SListNode* pNode = NULL;
+  while ((pNode = tdListNext(&iter)) != NULL) {
+    memcpy(p + sizeof(suid), pNode->data, 128);
+    taosLRUCacheErase(pMeta->pCache->sTagFilterResCache.pUidResCache, p, keyLen);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
