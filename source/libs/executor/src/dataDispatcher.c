@@ -76,7 +76,7 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
   pEntry->dataLen = 0;
 
   pBuf->useSize = sizeof(SDataCacheEntry);
-  blockEncode(pInput->pData, pEntry->data, &pEntry->dataLen, numOfCols, pEntry->compressed);
+  pEntry->dataLen = blockEncode(pInput->pData, pEntry->data, numOfCols);
   ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
   ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
 

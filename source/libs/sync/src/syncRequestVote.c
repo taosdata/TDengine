@@ -13,8 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncRequestVote.h"
-#include "syncInt.h"
+#include "syncMessage.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
@@ -47,59 +48,49 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* pSyncNode, SyncRequestVote* pM
   SyncTerm  myLastTerm = syncNodeGetLastTerm(pSyncNode);
   SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
 
-  if (myLastTerm == SYNC_TERM_INVALID) {
-    do {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf),
-               "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
-               ", recv-term:%" PRIu64 "}",
-               myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
-      syncNodeEventLog(pSyncNode, logBuf);
-    } while (0);
+  if (pMsg->lastLogIndex < pSyncNode->commitIndex) {
+    sNTrace(pSyncNode,
+            "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
+            ", recv-term:%" PRIu64 "}",
+            myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
 
     return false;
   }
 
-  if (pMsg->lastLogTerm > myLastTerm) {
-    do {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf),
-               "logok:1, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
-               ", recv-term:%" PRIu64 "}",
-               myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
-      syncNodeEventLog(pSyncNode, logBuf);
-    } while (0);
+  if (myLastTerm == SYNC_TERM_INVALID) {
+    sNTrace(pSyncNode,
+            "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
+            ", recv-term:%" PRIu64 "}",
+            myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+    return false;
+  }
 
+  if (pMsg->lastLogTerm > myLastTerm) {
+    sNTrace(pSyncNode,
+            "logok:1, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
+            ", recv-term:%" PRIu64 "}",
+            myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
     return true;
   }
 
   if (pMsg->lastLogTerm == myLastTerm && pMsg->lastLogIndex >= myLastIndex) {
-    do {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf),
-               "logok:1, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
-               ", recv-term:%" PRIu64 "}",
-               myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
-      syncNodeEventLog(pSyncNode, logBuf);
-    } while (0);
-
+    sNTrace(pSyncNode,
+            "logok:1, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
+            ", recv-term:%" PRIu64 "}",
+            myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
     return true;
   }
 
-  do {
-    char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf),
-             "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
-             ", recv-term:%" PRIu64 "}",
-             myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
-    syncNodeEventLog(pSyncNode, logBuf);
-  } while (0);
-
+  sNTrace(pSyncNode,
+          "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
+          ", recv-term:%" PRIu64 "}",
+          myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
   return false;
 }
 
-int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg) {
-  int32_t ret = 0;
+int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  int32_t          ret = 0;
+  SyncRequestVote* pMsg = pRpcMsg->pCont;
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
@@ -131,7 +122,11 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg) {
   }
 
   // send msg
-  SyncRequestVoteReply* pReply = syncRequestVoteReplyBuild(ths->vgId);
+  SRpcMsg rpcMsg = {0};
+  ret = syncBuildRequestVoteReply(&rpcMsg, ths->vgId);
+  ASSERT(ret == 0 );
+
+  SyncRequestVoteReply* pReply = rpcMsg.pCont;
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
   pReply->term = ths->pRaftStore->currentTerm;
@@ -145,10 +140,6 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg) {
     syncLogSendRequestVoteReply(ths, pReply, "");
   } while (0);
 
-  SRpcMsg rpcMsg;
-  syncRequestVoteReply2RpcMsg(pReply, &rpcMsg);
   syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
-  syncRequestVoteReplyDestroy(pReply);
-
   return 0;
 }

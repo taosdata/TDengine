@@ -73,11 +73,11 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndSubActionDelete,
   };
 
-  mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_CHANGE_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_DELETE_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP, mndProcessDropCgroupReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_TMQ_SUBSCRIBE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_TMQ_DELETE_SUB_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_DO_REBALANCE, mndProcessRebalanceReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_DROP_CGROUP, mndProcessDropCgroupReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_DROP_CGROUP_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_SUBSCRIPTIONS, mndRetrieveSubscribe);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndCancelGetNextSubscribe);
@@ -164,7 +164,7 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, const SM
   action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
   action.pCont = buf;
   action.contLen = tlen;
-  action.msgType = TDMT_VND_MQ_VG_CHANGE;
+  action.msgType = TDMT_VND_TMQ_SUBSCRIBE;
 
   mndReleaseVgroup(pMnode, pVgObj);
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -612,14 +612,14 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
       mndReleaseSubscribe(pMnode, pSub);
     }
 
-    // TODO replace assert with error check
-    ASSERT(mndDoRebalance(pMnode, &rebInput, &rebOutput) == 0);
+    if (mndDoRebalance(pMnode, &rebInput, &rebOutput) < 0) {
+      mError("mq rebalance internal error");
+    }
 
     // if add more consumer to balanced subscribe,
     // possibly no vg is changed
     /*ASSERT(taosArrayGetSize(rebOutput.rebVgs) != 0);*/
 
-    // TODO replace assert with error check
     if (mndPersistRebResult(pMnode, pMsg, &rebOutput) < 0) {
       mError("mq rebalance persist rebalance output error, possibly vnode splitted or dropped");
     }
@@ -920,7 +920,7 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
       action.epSet = pVgEp->epSet;
       action.pCont = pReq;
       action.contLen = sizeof(SMqVDeleteReq);
-      action.msgType = TDMT_VND_MQ_VG_DELETE;
+      action.msgType = TDMT_VND_TMQ_DELETE_SUB;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(pReq);
         return -1;
@@ -943,6 +943,8 @@ static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   SSdb            *pSdb = pMnode->pSdb;
   int32_t          numOfRows = 0;
   SMqSubscribeObj *pSub = NULL;
+
+  mDebug("mnd show subscriptions begin");
 
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pShow->pIter, (void **)&pSub);
@@ -989,6 +991,9 @@ static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataAppend(pColInfo, numOfRows, (const char *)&pConsumerEp->consumerId, false);
 
+        mDebug("mnd show subscrptions: topic %s, consumer %" PRId64 "cgroup %s vgid %d", varDataVal(topic),
+               pConsumerEp->consumerId, varDataVal(cgroup), pVgEp->vgId);
+
         // offset
 #if 0
       // subscribe time
@@ -1034,6 +1039,9 @@ static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, NULL, true);
 
+      mDebug("mnd show subscrptions(unassigned): topic %s, cgroup %s vgid %d", varDataVal(topic), varDataVal(cgroup),
+             pVgEp->vgId);
+
       // offset
 #if 0
       // subscribe time
@@ -1052,6 +1060,8 @@ static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     taosRUnLockLatch(&pSub->lock);
     sdbRelease(pSdb, pSub);
   }
+
+  mDebug("mnd end show subscriptions");
 
   pShow->numOfRows += numOfRows;
   return numOfRows;

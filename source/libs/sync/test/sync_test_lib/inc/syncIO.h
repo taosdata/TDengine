@@ -25,12 +25,18 @@ extern "C" {
 #include <stdlib.h>
 #include "os.h"
 #include "syncInt.h"
+#include "syncTest.h"
 #include "taosdef.h"
 #include "tqueue.h"
 #include "trpc.h"
 
 #define TICK_Q_TIMER_MS    1000
 #define TICK_Ping_TIMER_MS 1000
+
+typedef struct SyncPing      SyncPing;
+typedef struct SyncPingReply SyncPingReply;
+
+extern bool gRaftDetailLog;
 
 typedef struct SSyncIO {
   STaosQueue *pMsgQ;
@@ -50,7 +56,7 @@ typedef struct SSyncIO {
   void *pSyncNode;
   int32_t (*FpOnSyncPing)(SSyncNode *pSyncNode, SyncPing *pMsg);
   int32_t (*FpOnSyncPingReply)(SSyncNode *pSyncNode, SyncPingReply *pMsg);
-  int32_t (*FpOnSyncClientRequest)(SSyncNode *pSyncNode, SyncClientRequest *pMsg, SyncIndex *pRetIndex);
+  int32_t (*FpOnSyncClientRequest)(SSyncNode *pSyncNode, SRpcMsg *pMsg, SyncIndex *pRetIndex);
   int32_t (*FpOnSyncRequestVote)(SSyncNode *pSyncNode, SyncRequestVote *pMsg);
   int32_t (*FpOnSyncRequestVoteReply)(SSyncNode *pSyncNode, SyncRequestVoteReply *pMsg);
   int32_t (*FpOnSyncAppendEntries)(SSyncNode *pSyncNode, SyncAppendEntries *pMsg);

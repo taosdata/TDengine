@@ -72,8 +72,10 @@ if __name__ == "__main__":
     queryPolicy = 1
     createDnodeNums = 1
     restful = False
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RD:', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','adaptercfgupdate'])
+    replicaVar = 1
+    independentMnode = True
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RD:n:i:', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','adaptercfgupdate','replicaVar','independentMnode'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -95,7 +97,8 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-C create Dnode Numbers in one cluster')
             tdLog.printNoPrefix('-R restful realization form')
             tdLog.printNoPrefix('-D taosadapter update cfg dict ')
-
+            tdLog.printNoPrefix('-n the number of replicas')
+            tdLog.printNoPrefix('-i independentMnode Mnode')
 
             sys.exit(0)
 
@@ -158,6 +161,9 @@ if __name__ == "__main__":
         if key in ['-C', '--createDnodeNums']:
             createDnodeNums = value
 
+        if key in ['-i', '--independentMnode']:
+            independentMnode = value
+
         if key in ['-R', '--restful']:
             restful = True
 
@@ -167,6 +173,9 @@ if __name__ == "__main__":
             except:
                 print('adapter cfg update convert fail.')
                 sys.exit(0)
+
+        if key in ['-n', '--replicaVar']:
+            replicaVar = value
 
     if not execCmd == "":
         if restful:
@@ -206,7 +215,7 @@ if __name__ == "__main__":
             time.sleep(2)
 
         if restful:
-            toBeKilled = "taosadapt"
+            toBeKilled = "taosadapter"
 
             # killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
             killCmd = f"pkill {toBeKilled}"
@@ -310,7 +319,7 @@ if __name__ == "__main__":
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
         else :
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
-            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums,mnodeNums=mnodeNums)
+            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode)
             tdDnodes = ClusterDnodes(dnodeslist)
             tdDnodes.init(deployPath, masterIp)
             tdDnodes.setTestCluster(testCluster)
@@ -336,6 +345,7 @@ if __name__ == "__main__":
             else:
                 createDnodeNums=createDnodeNums
             cluster.create_dnode(conn,createDnodeNums)
+            cluster.create_mnode(conn,mnodeNums)
             try:
                 if cluster.check_dnode(conn) :
                     print("check dnode ready")
@@ -443,7 +453,7 @@ if __name__ == "__main__":
 
         else :
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
-            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums,mnodeNums=mnodeNums)
+            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode)
             tdDnodes = ClusterDnodes(dnodeslist)
             tdDnodes.init(deployPath, masterIp)
             tdDnodes.setTestCluster(testCluster)
@@ -469,6 +479,8 @@ if __name__ == "__main__":
             else:
                 createDnodeNums=createDnodeNums
             cluster.create_dnode(conn,createDnodeNums)
+            cluster.create_mnode(conn,mnodeNums)
+
             try:
                 if cluster.check_dnode(conn) :
                     print("check dnode ready")
@@ -512,7 +524,7 @@ if __name__ == "__main__":
             if fileName == "all":
                 tdCases.runAllLinux(conn)
             else:
-                tdCases.runOneLinux(conn, fileName)
+                tdCases.runOneLinux(conn, fileName, replicaVar)
 
         if restart:
             if fileName == "all":
@@ -529,7 +541,7 @@ if __name__ == "__main__":
                         conn = taosrest.connect(url=f"http://{host}:6041")
                     tdLog.info("Procedures for tdengine deployed in %s" % (host))
                     tdLog.info("query test after taosd restart")
-                    tdCases.runOneLinux(conn, sp[0] + "_" + "restart.py")
+                    tdCases.runOneLinux(conn, sp[0] + "_" + "restart.py", replicaVar)
                 else:
                     tdLog.info("not need to query")
 

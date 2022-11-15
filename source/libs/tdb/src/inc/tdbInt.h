@@ -191,6 +191,7 @@ int  tdbPagerWrite(SPager *pPager, SPage *pPage);
 int  tdbPagerBegin(SPager *pPager, TXN *pTxn);
 int  tdbPagerCommit(SPager *pPager, TXN *pTxn);
 int  tdbPagerPostCommit(SPager *pPager, TXN *pTxn);
+int  tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn);
 int  tdbPagerAbort(SPager *pPager, TXN *pTxn);
 int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *, int), void *arg,
                        TXN *pTxn);
@@ -383,6 +384,8 @@ struct STDB {
 #endif
 };
 
+typedef struct hashset_st *hashset_t;
+
 struct SPager {
   char    *dbFileName;
   char    *jFileName;
@@ -393,7 +396,8 @@ struct SPager {
   SPCache *pCache;
   SPgno    dbFileSize;
   SPgno    dbOrigSize;
-  SPage   *pDirty;
+  //SPage   *pDirty;
+  hashset_t jPageSet;
   SRBTree  rbt;
   u8       inTran;
   SPager  *pNext;      // used by TDB
