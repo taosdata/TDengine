@@ -42,8 +42,8 @@
 ,,,script,./test.sh -f tsim/dnode/balance3.sim
 ,,,script,./test.sh -f tsim/dnode/balancex.sim
 ,,y,script,./test.sh -f tsim/dnode/create_dnode.sim
-,,,script,./test.sh -f tsim/dnode/drop_dnode_has_mnode.sim
-,,,script,./test.sh -f tsim/dnode/drop_dnode_has_qnode_snode.sim
+,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_mnode.sim
+,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_qnode_snode.sim
 ,,,script,./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica1.sim
 ,,,script,./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica3.sim
 ,,,script,./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica1.sim
