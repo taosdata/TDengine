@@ -68,6 +68,7 @@ static void destroySTqHandle(void* data) {
 
 static void tqPushEntryFree(void* data) {
   STqPushEntry* p = *(void**)data;
+  tDeleteSMqDataRsp(&p->dataRsp);
   taosMemoryFree(p);
 }
 
@@ -576,8 +577,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         return 0;
       }
     }
-    taosWUnLockLatch(&pTq->pushLock);
 #endif
+    taosWUnLockLatch(&pTq->pushLock);
 
     if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
       code = -1;
