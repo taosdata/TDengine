@@ -5679,6 +5679,7 @@ static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionS
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_FUNC, (FSerializeFunc)tSerializeSCreateFuncReq, &req);
   }
+  tFreeSCreateFuncReq(&req);
   return code;
 }
 
