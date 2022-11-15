@@ -277,7 +277,9 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
       pColumnInfoData->varmeta.allocLen = len + oldLen;
     }
 
-    memcpy(pColumnInfoData->pData + oldLen, pSource->pData, len);
+    if (pColumnInfoData->pData && pSource->pData) { // TD-20382
+      memcpy(pColumnInfoData->pData + oldLen, pSource->pData, len);
+    }
     pColumnInfoData->varmeta.length = len + oldLen;
   } else {
     if (finalNumOfRows > (*capacity)) {

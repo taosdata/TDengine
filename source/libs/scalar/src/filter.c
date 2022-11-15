@@ -512,15 +512,17 @@ int32_t filterReuseRangeCtx(SFilterRangeCtx *ctx, int32_t type, int32_t options)
 }
 
 int32_t filterConvertRange(SFilterRangeCtx *cur, SFilterRange *ra, bool *notNull) {
+  int64_t tmp = 0;
+  
   if (!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
-    int32_t sr = cur->pCompareFunc(&ra->s, getDataMin(cur->type));
+    int32_t sr = cur->pCompareFunc(&ra->s, getDataMin(cur->type, &tmp));
     if (sr == 0) {
       FILTER_SET_FLAG(ra->sflag, RANGE_FLG_NULL);
     }
   }
 
   if (!FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL)) {
-    int32_t er = cur->pCompareFunc(&ra->e, getDataMax(cur->type));
+    int32_t er = cur->pCompareFunc(&ra->e, getDataMax(cur->type, &tmp));
     if (er == 0) {
       FILTER_SET_FLAG(ra->eflag, RANGE_FLG_NULL);
     }
@@ -696,14 +698,15 @@ int32_t filterAddRangeImpl(void *h, SFilterRange *ra, int32_t optr) {
 
 int32_t filterAddRange(void *h, SFilterRange *ra, int32_t optr) {
   SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
-
+  int64_t tmp = 0;
+  
   if (FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
-    SIMPLE_COPY_VALUES(&ra->s, getDataMin(ctx->type));
+    SIMPLE_COPY_VALUES(&ra->s, getDataMin(ctx->type, &tmp));
     // FILTER_CLR_FLAG(ra->sflag, RA_NULL);
   }
 
   if (FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL)) {
-    SIMPLE_COPY_VALUES(&ra->e, getDataMax(ctx->type));
+    SIMPLE_COPY_VALUES(&ra->e, getDataMax(ctx->type, &tmp));
     // FILTER_CLR_FLAG(ra->eflag, RA_NULL);
   }
 
