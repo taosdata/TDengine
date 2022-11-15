@@ -173,9 +173,9 @@
 ,,,script,./test.sh -f tsim/query/udf.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
-,,y,script,./test.sh -f tsim/mnode/basic1.sim
-,,y,script,./test.sh -f tsim/mnode/basic2.sim
-,,y,script,./test.sh -f tsim/mnode/basic3.sim
+,,,script,./test.sh -f tsim/mnode/basic1.sim
+,,,script,./test.sh -f tsim/mnode/basic2.sim
+,,,script,./test.sh -f tsim/mnode/basic3.sim
 ,,,script,./test.sh -f tsim/mnode/basic4.sim
 ,,,script,./test.sh -f tsim/mnode/basic5.sim
 ,,y,script,./test.sh -f tsim/show/basic.sim
@@ -288,7 +288,7 @@
 ,,n,script,./test.sh -f tsim/valgrind/checkError7.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkError8.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkUdf.sim
-,,y,script,./test.sh -f tsim/vnode/replica3_basic.sim
+,,,script,./test.sh -f tsim/vnode/replica3_basic.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_repeat.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_vgroup.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_many.sim
