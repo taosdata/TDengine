@@ -142,10 +142,10 @@ SHOW CREATE DATABASE db_name;
 ### 查看数据库参数
 
 ```sql
-select * from information_schema.ins_databases \G;
+SELECT * FROM INFORMATION_SCHEMA.INS_DATABASES WHERE NAME='DBNAME' \G;
 ```
 
-会列出系统中所有数据库的配置参数，并且每行只显示一个参数。
+会列出指定数据库的配置参数，并且每行只显示一个参数。
 
 ## 删除过期数据
 
