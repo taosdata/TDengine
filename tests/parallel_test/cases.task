@@ -242,8 +242,8 @@
 ,,y,script,./test.sh -f tsim/stream/fillIntervalValue.sim
 ,,y,script,./test.sh -f tsim/trans/lossdata1.sim
 ,,y,script,./test.sh -f tsim/trans/create_db.sim
-,,,script,./test.sh -f tsim/tmq/basic1.sim
-,,,script,./test.sh -f tsim/tmq/basic2.sim
+,,y,script,./test.sh -f tsim/tmq/basic1.sim
+,,y,script,./test.sh -f tsim/tmq/basic2.sim
 ,,,script,./test.sh -f tsim/tmq/basic3.sim
 ,,,script,./test.sh -f tsim/tmq/basic4.sim
 ,,,script,./test.sh -f tsim/tmq/basic1Of2Cons.sim
