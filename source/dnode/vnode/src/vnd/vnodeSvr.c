@@ -1189,6 +1189,8 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t version, void 
       vError("vgId:%d, delete error since %s, suid:%" PRId64 ", uid:%" PRId64 ", start ts:%" PRId64 ", end ts:%" PRId64,
              TD_VID(pVnode), terrstr(), deleteReq.suid, uid, pOneReq->ts, pOneReq->ts);
     }
+
+    tDecoderClear(&mr.coder);
   }
   metaReaderClear(&mr);
   taosArrayDestroy(deleteReq.deleteReqs);
