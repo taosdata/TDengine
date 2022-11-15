@@ -131,16 +131,14 @@ static FORCE_INLINE bool syncLogIsReplicationBarrier(SSyncRaftEntry* pEntry) {
   return pEntry->originalRpcType == TDMT_SYNC_NOOP;
 }
 
-int32_t syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index, SRaftId* pDestId,
-                                    bool* pBarrier) {
+int32_t syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index, SyncTerm* pTerm,
+                                    SRaftId* pDestId, bool* pBarrier) {
   SSyncRaftEntry*    pEntry = NULL;
   SyncAppendEntries* pMsgOut = NULL;
   bool               inBuf = false;
   int32_t            ret = -1;
   SyncTerm           prevLogTerm = -1;
   SSyncLogBuffer*    pBuf = pNode->pLogBuf;
-
-  sDebug("vgId:%d, replicate one msg index: %" PRId64 " to dest: 0x%016" PRIx64, pNode->vgId, index, pDestId->addr);
 
   pEntry = syncLogBufferGetOneEntry(pBuf, pNode, index, &inBuf);
   if (pEntry == NULL) {
@@ -154,7 +152,7 @@ int32_t syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, Syn
     sError("vgId:%d, failed to get prev log term since %s. index: %" PRId64 "", pNode->vgId, terrstr(), index);
     goto _out;
   }
-  (void)syncLogReplMgrUpdateTerm(pMgr, pEntry->index, pEntry->term);
+  if (pTerm) *pTerm = pEntry->term;
 
   pMsgOut = syncLogToAppendEntries(pNode, pEntry, prevLogTerm);
   if (pMsgOut == NULL) {
@@ -164,6 +162,9 @@ int32_t syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, Syn
 
   (void)syncNodeSendAppendEntries(pNode, pDestId, pMsgOut);
   ret = 0;
+
+  sInfo("vgId:%d, replicate one msg index: %" PRId64 " term: %" PRId64 " prevterm: %" PRId64 " to dest: 0x%016" PRIx64,
+        pNode->vgId, pEntry->index, pEntry->term, prevLogTerm, pDestId->addr);
 
 _out:
   syncAppendEntriesDestroy(pMsgOut);

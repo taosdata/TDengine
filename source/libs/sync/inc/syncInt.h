@@ -120,16 +120,15 @@ static FORCE_INLINE int32_t syncLogGetNextRetryBackoff(SSyncLogReplMgr* pMgr) {
 }
 
 static FORCE_INLINE int32_t syncLogReplMgrUpdateTerm(SSyncLogReplMgr* pMgr, SyncIndex index, SyncTerm term) {
-  if (index < pMgr->startIndex || index >= pMgr->endIndex) {
-    return -1;
-  }
+  if (pMgr->endIndex == 0) return -1;
+  ASSERT(pMgr->startIndex <= index && index < pMgr->endIndex);
   pMgr->states[(index + pMgr->size) % pMgr->size].term = term;
   return 0;
 }
 
 SyncTerm syncLogReplMgrGetPrevLogTerm(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index);
-int32_t  syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index, SRaftId* pDestId,
-                                     bool* pBarrier);
+int32_t  syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index, SyncTerm* pTerm,
+                                     SRaftId* pDestId, bool* pBarrier);
 int32_t  syncLogReplMgrProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg);
 int32_t  syncLogBufferReplicateOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode);
 int32_t  syncLogReplMgrReplicateAttemptedOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode);

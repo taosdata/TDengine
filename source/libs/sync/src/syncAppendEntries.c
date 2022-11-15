@@ -328,9 +328,16 @@ int32_t syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   SyncTerm  commitTerm = snapshot.lastApplyTerm;
 
   SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
-  SyncIndex toIndex = lastVer;
-  ASSERT(lastVer >= commitIndex);
+  if (lastVer < commitIndex) {
+    sError("vgId:%d, lastVer of WAL log less than tsdb commit version. lastVer: %" PRId64
+           ", tsdb commit version: %" PRId64 "",
+           pNode->vgId, lastVer, commitIndex);
+    // TODO: terrno = TSDB_CODE_WAL_LOG_INCOMPLETE;
+    goto _err;
+  }
 
+  ASSERT(lastVer >= commitIndex);
+  SyncIndex toIndex = lastVer;
   // update match index
   pBuf->commitIndex = commitIndex;
   pBuf->matchIndex = toIndex;
@@ -547,7 +554,7 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
     ASSERT(prevLogIndex == pMatch->index);
 
     if (pMatch->term != prevLogTerm) {
-      sError(
+      sInfo(
           "vgId:%d, mismatching raft log entries encountered. "
           "{ index:%" PRId64 ", term:%" PRId64
           " } "
