@@ -882,6 +882,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
   }
 
+  pTask->refCnt = 1;
   pTask->schedStatus = TASK_SCHED_STATUS__INACTIVE;
 
   pTask->inputQueue = streamQueueOpen();
@@ -975,12 +976,14 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
       .upstreamNodeId = req.upstreamNodeId,
       .upstreamTaskId = req.upstreamTaskId,
   };
-  SStreamTask* pTask = streamMetaGetTask(pTq->pStreamMeta, taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
   if (pTask && atomic_load_8(&pTask->taskStatus) == TASK_STATUS__NORMAL) {
     rsp.status = 1;
   } else {
     rsp.status = 0;
   }
+
+  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
 
   tqDebug("tq recv task check req(reqId: %" PRId64 ") %d at node %d check req from task %d at node %d, status %d",
           rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
@@ -1027,12 +1030,14 @@ int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t version, char* msg, int32_
   tqDebug("tq recv task check rsp(reqId: %" PRId64 ") %d at node %d check req from task %d at node %d, status %d",
           rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
 
-  SStreamTask* pTask = streamMetaGetTask(pTq->pStreamMeta, rsp.upstreamTaskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, rsp.upstreamTaskId);
   if (pTask == NULL) {
     return -1;
   }
 
-  return streamProcessTaskCheckRsp(pTask, &rsp, version);
+  code = streamProcessTaskCheckRsp(pTask, &rsp, version);
+  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+  return code;
 }
 
 int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen) {
@@ -1077,15 +1082,17 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   int32_t msgLen = pMsg->contLen;
 
   SStreamRecoverStep1Req* pReq = (SStreamRecoverStep1Req*)msg;
-  SStreamTask*            pTask = streamMetaGetTask(pTq->pStreamMeta, pReq->taskId);
+  SStreamTask*            pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
   if (pTask == NULL) {
     return -1;
   }
+  ASSERT(pReq->taskId == pTask->taskId);
 
   // check param
   int64_t fillVer1 = pTask->startVer;
   if (fillVer1 <= 0) {
     ASSERT(0);
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
   }
 
@@ -1096,10 +1103,11 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   SStreamRecoverStep2Req req;
   code = streamBuildSourceRecover2Req(pTask, &req);
   if (code < 0) {
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
   }
 
-  ASSERT(pReq->taskId == pTask->taskId);
+  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
 
   // serialize msg
   int32_t len = sizeof(SStreamRecoverStep1Req);
@@ -1127,7 +1135,7 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t version, char* msg, int32_t msgLen) {
   int32_t                 code;
   SStreamRecoverStep2Req* pReq = (SStreamRecoverStep2Req*)msg;
-  SStreamTask*            pTask = streamMetaGetTask(pTq->pStreamMeta, pReq->taskId);
+  SStreamTask*            pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
   if (pTask == NULL) {
     return -1;
   }
@@ -1135,26 +1143,32 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t version, char* msg, int32_t m
   // do recovery step 2
   code = streamSourceRecoverScanStep2(pTask, version);
   if (code < 0) {
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
   }
 
   // restore param
   code = streamRestoreParam(pTask);
   if (code < 0) {
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
   }
 
   // set status normal
   code = streamSetStatusNormal(pTask);
   if (code < 0) {
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
   }
 
   // dispatch recover finish req to all related downstream task
   code = streamDispatchRecoverFinishReq(pTask);
   if (code < 0) {
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
   }
+
+  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
 
   return 0;
 }
@@ -1172,15 +1186,17 @@ int32_t tqProcessTaskRecoverFinishReq(STQ* pTq, SRpcMsg* pMsg) {
   tDecoderClear(&decoder);
 
   // find task
-  SStreamTask* pTask = streamMetaGetTask(pTq->pStreamMeta, req.taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, req.taskId);
   if (pTask == NULL) {
     return -1;
   }
   // do process request
   if (streamProcessRecoverFinishReq(pTask, req.childId) < 0) {
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
   }
 
+  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
   return 0;
 }
 
@@ -1354,9 +1370,10 @@ int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTaskRunReq* pReq = pMsg->pCont;
   int32_t            taskId = pReq->taskId;
-  SStreamTask*       pTask = streamMetaGetTask(pTq->pStreamMeta, taskId);
+  SStreamTask*       pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
   if (pTask) {
     streamProcessRunReq(pTask);
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   } else {
     return -1;
@@ -1373,13 +1390,14 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec) {
   tDecodeStreamDispatchReq(&decoder, &req);
   int32_t taskId = req.taskId;
 
-  SStreamTask* pTask = streamMetaGetTask(pTq->pStreamMeta, taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
   if (pTask) {
     SRpcMsg rsp = {
         .info = pMsg->info,
         .code = 0,
     };
     streamProcessDispatchReq(pTask, &req, &rsp, exec);
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   } else {
     return -1;
@@ -1389,10 +1407,11 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec) {
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
   SStreamDispatchRsp* pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t             taskId = ntohl(pRsp->upstreamTaskId);
-  SStreamTask*        pTask = streamMetaGetTask(pTq->pStreamMeta, taskId);
+  SStreamTask*        pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
   tqDebug("recv dispatch rsp, code: %x", pMsg->code);
   if (pTask) {
     streamProcessDispatchRsp(pTask, pRsp, pMsg->code);
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   } else {
     return -1;
@@ -1401,7 +1420,8 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
 
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
-  return streamMetaRemoveTask(pTq->pStreamMeta, pReq->taskId);
+  streamMetaRemoveTask1(pTq->pStreamMeta, pReq->taskId);
+  return 0;
 }
 
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg) {
@@ -1414,13 +1434,14 @@ int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg) {
   tDecodeStreamRetrieveReq(&decoder, &req);
   tDecoderClear(&decoder);
   int32_t      taskId = req.dstTaskId;
-  SStreamTask* pTask = streamMetaGetTask(pTq->pStreamMeta, taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
   if (pTask) {
     SRpcMsg rsp = {
         .info = pMsg->info,
         .code = 0,
     };
     streamProcessRetrieveReq(pTask, &req, &rsp);
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     tDeleteStreamRetrieveReq(&req);
     return 0;
   } else {
@@ -1452,13 +1473,14 @@ int32_t vnodeEnqueueStreamMsg(SVnode* pVnode, SRpcMsg* pMsg) {
 
   int32_t taskId = req.taskId;
 
-  SStreamTask* pTask = streamMetaGetTask(pTq->pStreamMeta, taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
   if (pTask) {
     SRpcMsg rsp = {
         .info = pMsg->info,
         .code = 0,
     };
     streamProcessDispatchReq(pTask, &req, &rsp, false);
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
     return 0;
