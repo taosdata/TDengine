@@ -203,11 +203,13 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
   }
 
   if (NULL == pScanCols) {
-    return NULL == pScanPseudoCols
-               ? SCAN_TYPE_TABLE
-               : ((FUNCTION_TYPE_BLOCK_DIST_INFO == ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType)
-                      ? SCAN_TYPE_BLOCK_INFO
-                      : SCAN_TYPE_TABLE);
+    if (NULL == pScanPseudoCols) {
+      return SCAN_TYPE_TABLE;
+    }
+    int32_t funcType = ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType;
+    return FUNCTION_TYPE_BLOCK_DIST_INFO == funcType
+               ? SCAN_TYPE_BLOCK_INFO
+               : (FUNCTION_TYPE_TABLE_COUNT == funcType ? SCAN_TYPE_TABLE_COUNT : SCAN_TYPE_TABLE);
   }
 
   return SCAN_TYPE_TABLE;
@@ -286,6 +288,8 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
   return TSDB_CODE_SUCCESS;
 }
 
+static bool needScanDefaultCol(EScanType scanType) { return SCAN_TYPE_TABLE_COUNT != scanType; }
+
 static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
                                    SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = NULL;
@@ -320,7 +324,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     pScan->hasNormalCols = true;
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && needScanDefaultCol(pScan->scanType)) {
     code = addDefaultScanCol(pRealTable->pMeta, &pScan->pScanCols);
   }
 

@@ -7464,6 +7464,112 @@ static int32_t rewriteFlushDatabase(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
+static bool isTableCountProject(SNodeList* pProjectionList) {
+  if (1 != LIST_LENGTH(pProjectionList)) {
+    return false;
+  }
+  SNode* pProj = nodesListGetNode(pProjectionList, 0);
+  return QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp(((SFunctionNode*)pProj)->functionName, "count");
+}
+
+static bool isTableCountFrom(SNode* pTable) {
+  if (NULL == pTable || QUERY_NODE_REAL_TABLE != nodeType(pTable)) {
+    return false;
+  }
+  SRealTableNode* pRtable = (SRealTableNode*)pTable;
+  return 0 == strcmp(pRtable->table.dbName, TSDB_INFORMATION_SCHEMA_DB) &&
+         0 == strcmp(pRtable->table.tableName, TSDB_INS_TABLE_TABLES);
+}
+
+static bool isTableCountCond(SNode* pCond, const char* pCol) {
+  if (QUERY_NODE_OPERATOR != nodeType(pCond) || OP_TYPE_EQUAL != ((SOperatorNode*)pCond)->opType) {
+    return false;
+  }
+  SNode* pLeft = ((SOperatorNode*)pCond)->pLeft;
+  SNode* pRight = ((SOperatorNode*)pCond)->pRight;
+  if (QUERY_NODE_COLUMN == nodeType(pLeft) && QUERY_NODE_VALUE == nodeType(pRight)) {
+    return 0 == strcmp(((SColumnNode*)pLeft)->colName, pCol);
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pRight) && QUERY_NODE_VALUE == nodeType(pLeft)) {
+    return 0 == strcmp(((SColumnNode*)pRight)->colName, pCol);
+  }
+  return false;
+}
+
+static bool isTableCountWhere(SNode* pWhere) {
+  if (NULL == pWhere || QUERY_NODE_LOGIC_CONDITION != nodeType(pWhere)) {
+    return false;
+  }
+  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)pWhere;
+  if (LOGIC_COND_TYPE_AND != pLogicCond->condType || 2 != LIST_LENGTH(pLogicCond->pParameterList)) {
+    return false;
+  }
+  SNode* pCond1 = nodesListGetNode(pLogicCond->pParameterList, 0);
+  SNode* pCond2 = nodesListGetNode(pLogicCond->pParameterList, 1);
+  return (isTableCountCond(pCond1, "db_name") && isTableCountCond(pCond2, "stable_name")) ||
+         (isTableCountCond(pCond1, "stable_name") && isTableCountCond(pCond2, "db_name"));
+}
+
+static bool isTableCountQuery(const SSelectStmt* pSelect) {
+  if (!isTableCountProject(pSelect->pProjectionList) || !isTableCountFrom(pSelect->pFromTable) ||
+      !isTableCountWhere(pSelect->pWhere) || NULL != pSelect->pPartitionByList || NULL != pSelect->pWindow ||
+      NULL != pSelect->pGroupByList || NULL != pSelect->pHaving || NULL != pSelect->pRange || NULL != pSelect->pEvery ||
+      NULL != pSelect->pFill) {
+    return false;
+  }
+  return true;
+}
+
+static SNode* createTableCountPseudoColumn() {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    return NULL;
+  }
+  snprintf(pFunc->functionName, sizeof(pFunc->functionName), "%s", "_table_count");
+  return (SNode*)pFunc;
+}
+
+static int32_t rewriteCountFuncForTableCount(SSelectStmt* pSelect) {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesListGetNode(pSelect->pProjectionList, 0);
+  NODES_DESTORY_LIST(pFunc->pParameterList);
+  snprintf(pFunc->functionName, sizeof(pFunc->functionName), "%s", "sum");
+  return nodesListMakeStrictAppend(&pFunc->pParameterList, createTableCountPseudoColumn());
+}
+
+static const char* getNameFromCond(SLogicConditionNode* pLogicCond, const char* pCol) {
+  SOperatorNode* pCond1 = (SOperatorNode*)nodesListGetNode(pLogicCond->pParameterList, 0);
+  SOperatorNode* pCond2 = (SOperatorNode*)nodesListGetNode(pLogicCond->pParameterList, 1);
+  if (QUERY_NODE_COLUMN == nodeType(pCond1->pLeft) && 0 == strcmp(((SColumnNode*)pCond1->pLeft)->colName, pCol)) {
+    return ((SValueNode*)pCond1->pRight)->literal;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pCond1->pRight) && 0 == strcmp(((SColumnNode*)pCond1->pRight)->colName, pCol)) {
+    return ((SValueNode*)pCond1->pLeft)->literal;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pCond2->pLeft) && 0 == strcmp(((SColumnNode*)pCond2->pLeft)->colName, pCol)) {
+    return ((SValueNode*)pCond2->pRight)->literal;
+  }
+  return ((SValueNode*)pCond2->pLeft)->literal;
+}
+
+static int32_t rewriteRealTableForTableCount(SSelectStmt* pSelect) {
+  STableNode* pTable = (STableNode*)pSelect->pFromTable;
+  snprintf(pTable->dbName, sizeof(pTable->dbName), "%s",
+           getNameFromCond((SLogicConditionNode*)pSelect->pWhere, "db_name"));
+  snprintf(pTable->tableName, sizeof(pTable->tableName), "%s",
+           getNameFromCond((SLogicConditionNode*)pSelect->pWhere, "stable_name"));
+  nodesDestroyNode(pSelect->pWhere);
+  pSelect->pWhere = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t rewriteTableCountQuery(SSelectStmt* pSelect) {
+  int32_t code = rewriteCountFuncForTableCount(pSelect);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteRealTableForTableCount(pSelect);
+  }
+  return code;
+}
+
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
@@ -7523,6 +7629,11 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_FLUSH_DATABASE_STMT:
       code = rewriteFlushDatabase(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SELECT_STMT:
+      if (isTableCountQuery((SSelectStmt*)pQuery->pRoot)) {
+        code = rewriteTableCountQuery((SSelectStmt*)pQuery->pRoot);
+      }
       break;
     default:
       break;

@@ -489,6 +489,8 @@ static ENodeType getScanOperatorType(EScanType scanType) {
       return QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
     case SCAN_TYPE_BLOCK_INFO:
       return QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN;
+    case SCAN_TYPE_TABLE_COUNT:
+      return QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN;
     default:
       break;
   }
@@ -623,6 +625,7 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
   switch (pScanLogicNode->scanType) {
     case SCAN_TYPE_TAG:
     case SCAN_TYPE_BLOCK_INFO:
+    case SCAN_TYPE_TABLE_COUNT:
       return createSimpleScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
     case SCAN_TYPE_LAST_ROW:
       return createLastRowScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);

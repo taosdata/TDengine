@@ -221,6 +221,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiTableScan";
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
       return "PhysiTableSeqScan";
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+      return "PhysiTableMergeScan";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       return "PhysiSreamScan";
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
@@ -229,8 +231,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiBlockDistScan";
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
       return "PhysiLastRowScan";
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
-      return "PhysiTableMergeScan";
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
+      return "PhysiTableCountScan";
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return "PhysiProject";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
@@ -4630,6 +4632,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicPlanToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
       return physiScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
       return physiLastRowScanNodeToJson(pObj, pJson);
@@ -4786,6 +4789,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicPlan(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
       return jsonToPhysiScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
       return jsonToPhysiLastRowScanNode(pJson, pObj);

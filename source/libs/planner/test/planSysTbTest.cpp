@@ -38,3 +38,9 @@ TEST_F(PlanSysTableTest, withAgg) {
 
   run("SELECT COUNT(1) FROM ins_users");
 }
+
+TEST_F(PlanSysTableTest, tableCount) {
+  useDb("root", "information_schema");
+
+  run("SELECT COUNT(*) FROM ins_tables WHERE db_name = 'test' AND stable_name = 'st1'");
+}

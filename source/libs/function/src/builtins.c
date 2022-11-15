@@ -475,7 +475,7 @@ static int32_t translateNowToday(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  int32_t code   = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1506,7 +1506,7 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
 
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  int32_t code   = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1519,7 +1519,7 @@ static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   uint8_t dbPrec = pFunc->node.resType.precision;
 
-  //if (1 != numOfParams && 3 != numOfParams && 4 != numOfParams) {
+  // if (1 != numOfParams && 3 != numOfParams && 4 != numOfParams) {
   if (1 != numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -1835,7 +1835,7 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  int32_t code   = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1894,7 +1894,7 @@ static int32_t translateToUnixtimestamp(SFunctionNode* pFunc, char* pErrBuf, int
 
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  int32_t code   = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2057,6 +2057,11 @@ static int32_t translateUserFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
 static int32_t translateTagsPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // The _tags pseudo-column will be expanded to the actual tags on the client side
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTableCountPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes, .type = TSDB_DATA_TYPE_INT};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3213,6 +3218,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_TAGS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_MULTI_RES_FUNC,
     .translateFunc = translateTagsPseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_table_count",
+    .type = FUNCTION_TYPE_TABLE_COUNT,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
+    .translateFunc = translateTableCountPseudoColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = NULL,
