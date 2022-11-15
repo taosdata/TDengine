@@ -96,8 +96,8 @@ int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
   if (indexLikely > ths->commitIndex && syncNodeAgreedUpon(ths, indexLikely)) {
     SyncIndex commitIndex = indexLikely;
     syncNodeUpdateCommitIndex(ths, commitIndex);
-    sInfo("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index: %" PRId64 "", ths->vgId, ths->state,
-          ths->pRaftStore->currentTerm, commitIndex);
+    sDebug("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index: %" PRId64 "", ths->vgId, ths->state,
+           ths->pRaftStore->currentTerm, commitIndex);
   }
   return ths->commitIndex;
 }
@@ -140,7 +140,7 @@ int32_t syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, Syn
   SyncTerm           prevLogTerm = -1;
   SSyncLogBuffer*    pBuf = pNode->pLogBuf;
 
-  sInfo("vgId:%d, replicate one msg index: %" PRId64 " to dest: 0x%016" PRIx64, pNode->vgId, index, pDestId->addr);
+  sDebug("vgId:%d, replicate one msg index: %" PRId64 " to dest: 0x%016" PRIx64, pNode->vgId, index, pDestId->addr);
 
   pEntry = syncLogBufferGetOneEntry(pBuf, pNode, index, &inBuf);
   if (pEntry == NULL) {
@@ -199,8 +199,8 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMs
 
     ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
 
-    sInfo("vgId:%d received append entries reply. srcId:0x%016" PRIx64 ",  term:%" PRId64 ", matchIndex:%" PRId64 "",
-          pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);
+    sDebug("vgId:%d received append entries reply. srcId:0x%016" PRIx64 ",  term:%" PRId64 ", matchIndex:%" PRId64 "",
+           pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);
 
     if (pMsg->success) {
       SyncIndex oldMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
@@ -216,7 +216,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMs
 
     // replicate log
     SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(ths, &pMsg->srcId);
-    ASSERT(pMgr != NULL);
+    // ASSERT(pMgr != NULL);
     if (pMgr != NULL) {
       (void)syncLogReplMgrProcessReply(pMgr, ths, pMsg);
     }

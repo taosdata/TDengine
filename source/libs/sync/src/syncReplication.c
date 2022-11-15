@@ -173,8 +173,8 @@ int32_t syncNodeReplicateOld(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, SRaftId* destRaftId, SyncAppendEntries* pMsg) {
-  sInfo("vgId:%d, send append entries msg index: %" PRId64 " to dest: 0x%016" PRId64, pSyncNode->vgId,
-        pMsg->prevLogIndex + 1, destRaftId->addr);
+  sTrace("vgId:%d, send append entries msg index: %" PRId64 " to dest: 0x%016" PRId64, pSyncNode->vgId,
+         pMsg->prevLogIndex + 1, destRaftId->addr);
   int32_t ret = 0;
   pMsg->destId = *destRaftId;
   SRpcMsg rpcMsg;

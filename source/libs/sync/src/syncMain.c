@@ -1116,6 +1116,8 @@ int32_t syncLogResetLogReplMgr(SSyncLogReplMgr* pMgr) {
   return 0;
 }
 
+_Atomic int64_t tsRetryCnt = 0;
+
 int32_t syncLogReplMgrRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
   if (pMgr->endIndex <= pMgr->startIndex) {
     return 0;
@@ -1147,6 +1149,7 @@ int32_t syncLogReplMgrRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
     pMgr->states[pos].timeMs = nowMs;
     pMgr->states[pos].acked = false;
     retried = true;
+    tsRetryCnt++;
   }
 
   ret = 0;
@@ -1185,10 +1188,10 @@ int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNod
     (void)syncLogResetLogReplMgr(pMgr);
   }
 
+  // send match index
   SyncIndex index = TMIN(pMsg->matchIndex, pNode->pLogBuf->matchIndex);
   bool      barrier = false;
   ASSERT(index >= 0);
-  // send match index
   if (syncLogBufferReplicateOneTo(pMgr, pNode, index, &destId, &barrier) < 0) {
     sError("vgId:%d, failed to replicate log entry since %s. index: %" PRId64 ", dest: 0x%016" PRIx64 "", pNode->vgId,
            terrstr(), index, destId.addr);
@@ -1203,6 +1206,17 @@ int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNod
   pMgr->matchIndex = index;
   pMgr->startIndex = index;
   pMgr->endIndex = index + 1;
+  return 0;
+}
+
+int32_t syncLogReplMgrProcessHeartbeatReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncHeartbeatReply* pMsg) {
+  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+  taosThreadMutexLock(&pBuf->mutex);
+  if (pMsg->startTime != pMgr->peerStartTime) {
+    syncLogResetLogReplMgr(pMgr);
+    pMgr->peerStartTime = pMsg->startTime;
+  }
+  taosThreadMutexUnlock(&pBuf->mutex);
   return 0;
 }
 
@@ -1245,17 +1259,19 @@ int32_t syncLogReplMgrReplicateProbeOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode
   }
 
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  sInfo("vgId:%d, attempted to probe the %d'th peer. pMgr(restored:%d): [%" PRId64 " %" PRId64 ", %" PRId64
+  sInfo("vgId:%d, attempted to probe the %d'th peer. pMgr(rs:%d): [%" PRId64 " %" PRId64 ", %" PRId64
         "), pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
         pNode->vgId, pMgr->peerId, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex, pBuf->startIndex,
         pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
   return 0;
 }
 
+_Atomic int64_t tsSendCnt = 0;
+
 int32_t syncLogReplMgrReplicateAttemptedOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
   ASSERT(pMgr->restored);
   SRaftId* pDestId = &pNode->replicasId[pMgr->peerId];
-  int32_t  batchSize = TMAX(1, pMgr->size / 10);
+  int32_t  batchSize = TMAX(1, pMgr->size / 20);
   int32_t  count = 0;
 
   for (SyncIndex index = pMgr->endIndex; index <= pNode->pLogBuf->matchIndex; index++) {
@@ -1278,16 +1294,17 @@ int32_t syncLogReplMgrReplicateAttemptedOnce(SSyncLogReplMgr* pMgr, SSyncNode* p
     pMgr->states[pos].acked = false;
 
     pMgr->endIndex = index + 1;
+    tsSendCnt++;
     if (barrier) {
       break;
     }
   }
 
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  sInfo("vgId:%d, attempted to replicate %d msgs to the %d'th peer. pMgr(restored:%d): [%" PRId64 " %" PRId64
-        ", %" PRId64 "), pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
-        pNode->vgId, count, pMgr->peerId, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
-        pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+  sDebug("vgId:%d, attempted to replicate %d msgs to the %d'th peer. pMgr(rs:%d): [%" PRId64 " %" PRId64 ", %" PRId64
+         "), pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+         pNode->vgId, count, pMgr->peerId, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
+         pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
   syncLogReplMgrRetryOnNeed(pMgr, pNode);
   return 0;
 }
@@ -1704,15 +1721,10 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   SyncIndex commitIndex = pSyncNode->pLogStore->syncLogCommitIndex(pSyncNode->pLogStore);
   SyncIndex endIndex = pSyncNode->pLogBuf->endIndex;
 
+  ASSERT(endIndex == lastVer + 1);
   commitIndex = TMAX(pSyncNode->commitIndex, commitIndex);
 
   if (syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, commitIndex) < 0) {
-    return -1;
-  }
-
-  if (endIndex <= lastVer) {
-    sError("vgId:%d, failed to load log entries into log buffers. commit index:%" PRId64 ", lastVer: %" PRId64 "",
-           pSyncNode->vgId, commitIndex, lastVer);
     return -1;
   }
 
@@ -2722,9 +2734,8 @@ int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
 
   (void)syncLogBufferRollback(pBuf, pBuf->matchIndex + 1);
 
-  sInfo("vgId:%d, reset log buffer. start index: %" PRId64 ", commit index: %" PRId64 ", match Index: %" PRId64
-        ", end index: %" PRId64 "",
-        pNode->vgId, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+  sInfo("vgId:%d, reset log buffer. pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pNode->vgId,
+        pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
 
   pBuf->endIndex = pBuf->matchIndex + 1;
 
@@ -3380,10 +3391,10 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   // proceed match index, with replicating on needed
   SyncIndex matchIndex = syncLogBufferProceed(ths->pLogBuf, ths);
 
-  sInfo("vgId:%d, append raft log index: %" PRId64 ", term: %" PRId64 " log buffer: [%" PRId64 " %" PRId64 " %" PRId64
-        ", %" PRId64 ")",
-        ths->vgId, pEntry->index, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
-        ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
+  sDebug("vgId:%d, append raft entry. index: %" PRId64 ", term: %" PRId64 " pBuf: [%" PRId64 " %" PRId64 " %" PRId64
+         ", %" PRId64 ")",
+         ths->vgId, pEntry->index, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
+         ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
 
   // multi replica
   if (ths->replicaNum > 1) {
@@ -3521,6 +3532,15 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
 }
 
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, SyncHeartbeatReply* pMsg) {
+  SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(ths, &pMsg->srcId);
+  if (pMgr == NULL) {
+    sError("vgId:%d, failed to get log repl mgr for the peer at addr 0x016%" PRIx64 "", ths->vgId, pMsg->srcId.addr);
+    return -1;
+  }
+  return syncLogReplMgrProcessHeartbeatReply(pMgr, ths, pMsg);
+}
+
+int32_t syncNodeOnHeartbeatReplyOld(SSyncNode* ths, SyncHeartbeatReply* pMsg) {
   syncLogRecvHeartbeatReply(ths, pMsg, "");
 
   // update last reply time, make decision whether the other node is alive or not

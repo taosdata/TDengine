@@ -166,20 +166,20 @@ int32_t         syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode);
 int64_t syncLogBufferGetEndIndex(SSyncLogBuffer* pBuf);
 int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry);
 int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevTerm);
-int64_t syncLogBufferLoad(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex toIndex);
 int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode);
 int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t commitIndex);
-SSyncRaftEntry* syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex index, bool* pInBuf);
 
 int64_t            syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commtIndex);
 SyncAppendEntries* syncLogToAppendEntries(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm);
 
 // private
+SSyncRaftEntry* syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex index, bool* pInBuf);
 int32_t syncLogBufferValidate(SSyncLogBuffer* pBuf);
 int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SyncIndex toIndex);
 int32_t syncLogBufferReplicate(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm);
-void syncIndexMgrSetIndex(SSyncIndexMgr* pSyncIndexMgr, const SRaftId* pRaftId, SyncIndex index);
 bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index);
+
+void syncIndexMgrSetIndex(SSyncIndexMgr* pSyncIndexMgr, const SRaftId* pRaftId, SyncIndex index);
 
 typedef struct SSyncNode {
   // init by SSyncInfo
