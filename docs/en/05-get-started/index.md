@@ -3,11 +3,11 @@ title: Get Started
 description: This article describes how to install TDengine and test its performance.
 ---
 
-import github from './github.svg'
-import discord from './discord.svg'
-import twitter from './twitter.svg'
-import youtube from './youtube.svg'
-import linkedin from './linkedin.svg'
+import GitHubSVG from './github.svg'
+import DiscordSVG from './discord.svg'
+import TwitterSVG from './twitter.svg'
+import YouTubeSVG from './youtube.svg'
+import LinkedInSVG from './linkedin.svg'
 
 You can install and run TDengine on Linux/Windows/macOS machines as well as Docker containers. You can also deploy TDengine as a managed service with TDengine Cloud.
 
@@ -23,11 +23,11 @@ import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 ### Join TDengine Community
 
 <table width="100%">
-<tr align="center">
-<td width="20%" style={{border:0}}><a href="https://github.com/taosdata/TDengine" target="_blank"><img src={github} alt="Star GitHub" width="50" /><p>Star GitHub</p></a></td>
-<td width="20%" style={{border:0}}><a href="https://discord.com/invite/VZdSuUg4pS" target="_blank"><img src={discord} alt="Join Discord" width="50" /><p>Join Discord</p></a></td>
-<td width="20%" style={{border:0}}><a href="https://twitter.com/TDengineDB" target="_blank"><img src={twitter} alt="Follow Twitter" width="50" /><p>Follow Twitter</p></a></td>
-<td width="20%" style={{border:0}}><a href="https://www.youtube.com/@tdengine" target="_blank"><img src={youtube} alt="Subscribe YouTube" width="50" /><p>Subscribe YouTube</p></a></td>
-<td width="20%" style={{border:0}}><a href="https://www.linkedin.com/company/tdengine" target="_blank"><img src={linkedin} alt="Follow LinkedIn" width="50" /><p>Follow LinkedIn</p></a></td>
+<tr align="center" style={{border:0}}>
+<td width="20%" style={{border:0}}><a href="https://github.com/taosdata/TDengine" target="_blank"><GitHubSVG /><p>Star GitHub</p></a></td>
+<td width="20%" style={{border:0}}><a href="https://discord.com/invite/VZdSuUg4pS" target="_blank"><DiscordSVG /><p>Join Discord</p></a></td>
+<td width="20%" style={{border:0}}><a href="https://twitter.com/TDengineDB" target="_blank"><TwitterSVG /><p>Follow Twitter</p></a></td>
+<td width="20%" style={{border:0}}><a href="https://www.youtube.com/@tdengine" target="_blank"><YouTubeSVG /><p>Subscribe YouTube</p></a></td>
+<td width="20%" style={{border:0}}><a href="https://www.linkedin.com/company/tdengine" target="_blank"><LinkedInSVG /><p>Follow LinkedIn</p></a></td>
 </tr>
 </table>
