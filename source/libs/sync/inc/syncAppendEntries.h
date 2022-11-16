@@ -21,7 +21,6 @@ extern "C" {
 #endif
 
 #include "syncInt.h"
-#include "syncMessage.h"
 
 // TLA+ Spec
 // HandleAppendEntriesRequest(i, j, m) ==
@@ -89,7 +88,7 @@ extern "C" {
 //       /\ UNCHANGED <<candidateVars, leaderVars>>
 //
 
-int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg);
+int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pMsg);
 
 #ifdef __cplusplus
 }

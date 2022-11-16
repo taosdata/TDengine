@@ -22,11 +22,13 @@
 int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   taosThreadMutexLock(&pWal->mutex);
 
+  wInfo("vgId:%d, restore from snapshot, version %" PRId64, pWal->cfg.vgId, ver);
+
   void *pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pWal->pRefHash, pIter);
     if (pIter == NULL) break;
-    SWalRef *pRef = (SWalRef *)pIter;
+    SWalRef *pRef = *(SWalRef **)pIter;
     if (pRef->refVer != -1 && pRef->refVer <= ver) {
       taosHashCancelIterate(pWal->pRefHash, pIter);
       taosThreadMutexUnlock(&pWal->mutex);
@@ -70,8 +72,8 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   taosArrayClear(pWal->fileInfoSet);
   pWal->vers.firstVer = -1;
   pWal->vers.lastVer = ver;
-  pWal->vers.commitVer = ver - 1;
-  pWal->vers.snapshotVer = ver - 1;
+  pWal->vers.commitVer = ver;
+  pWal->vers.snapshotVer = ver;
   pWal->vers.verInSnapshotting = -1;
 
   taosThreadMutexUnlock(&pWal->mutex);
@@ -319,7 +321,7 @@ int32_t walEndSnapshot(SWal *pWal) {
   SWalFileInfo *pInfo = taosArraySearch(pWal->fileInfoSet, &tmp, compareWalFileInfo, TD_LE);
   if (pInfo) {
     if (ver >= pInfo->lastVer) {
-      pInfo--;
+      pInfo++;
     }
     if (POINTER_DISTANCE(pInfo, pWal->fileInfoSet->pData) > 0) {
       wDebug("vgId:%d, begin remove from %" PRId64, pWal->cfg.vgId, pInfo->firstVer);
@@ -407,6 +409,7 @@ int32_t walRollImpl(SWal *pWal) {
   }
   walBuildLogName(pWal, newFileFirstVer, fnameStr);
   pLogFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  wDebug("vgId:%d, wal create new file for write:%s", pWal->cfg.vgId, fnameStr);
   if (pLogFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     code = -1;

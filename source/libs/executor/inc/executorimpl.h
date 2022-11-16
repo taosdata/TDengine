@@ -153,6 +153,16 @@ typedef struct {
   SSchemaWrapper* qsw;
 } SSchemaInfo;
 
+typedef struct {
+  int32_t  operatorType;
+  int64_t  refId;
+} SExchangeOpStopInfo;
+
+typedef struct {
+  SRWLatch lock;
+  SArray*  pStopInfo;
+} STaskStopInfo;
+
 typedef struct SExecTaskInfo {
   STaskIdInfo   id;
   uint32_t      status;
@@ -171,6 +181,7 @@ typedef struct SExecTaskInfo {
   SSubplan*             pSubplan;
   struct SOperatorInfo* pRoot;
   SLocalFetch           localFetch;
+  STaskStopInfo         stopInfo;
 } SExecTaskInfo;
 
 enum {
@@ -1050,6 +1061,7 @@ int32_t setOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResul
 int32_t releaseOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult);
 int32_t saveOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult, int32_t resSize);
 void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order);
+int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo *pInfo);
 
 #ifdef __cplusplus
 }

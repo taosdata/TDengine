@@ -41,6 +41,8 @@ static int32_t mndProcessStreamMetaReq(SRpcMsg *pReq);
 static int32_t mndGetStreamMeta(SRpcMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextStream(SMnode *pMnode, void *pIter);
+static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void    mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter);
 
 int32_t mndInitStream(SMnode *pMnode) {
   SSdbTable table = {
@@ -62,6 +64,8 @@ int32_t mndInitStream(SMnode *pMnode) {
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStream);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndCancelGetNextStream);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAM_TASKS, mndRetrieveStreamTask);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAM_TASKS, mndCancelGetNextStreamTask);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -734,6 +738,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   }
 
   sdbRelease(pMnode->pSdb, pStream);
+  mndTransDrop(pTrans);
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
@@ -891,7 +896,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     SName            n;
     int32_t          cols = 0;
 
-    char streamName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetDbStr(pStream->name), sizeof(streamName));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)streamName, false);
@@ -950,6 +955,108 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 }
 
 static void mndCancelGetNextStream(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetch(pSdb, pIter);
+}
+
+static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
+  SMnode     *pMnode = pReq->info.node;
+  SSdb       *pSdb = pMnode->pSdb;
+  int32_t     numOfRows = 0;
+  SStreamObj *pStream = NULL;
+
+  while (numOfRows < rowsCapacity) {
+    pShow->pIter = sdbFetch(pSdb, SDB_STREAM, pShow->pIter, (void **)&pStream);
+    if (pShow->pIter == NULL) break;
+
+    // lock
+    taosRLockLatch(&pStream->lock);
+    // count task num
+    int32_t sz = taosArrayGetSize(pStream->tasks);
+    int32_t count = 0;
+    for (int32_t i = 0; i < sz; i++) {
+      SArray *pLevel = taosArrayGetP(pStream->tasks, i);
+      count += taosArrayGetSize(pLevel);
+    }
+
+    if (numOfRows + count > rowsCapacity) {
+      blockDataEnsureCapacity(pBlock, numOfRows + count);
+    }
+    // add row for each task
+    for (int32_t i = 0; i < sz; i++) {
+      SArray *pLevel = taosArrayGetP(pStream->tasks, i);
+      int32_t levelCnt = taosArrayGetSize(pLevel);
+      for (int32_t j = 0; j < levelCnt; j++) {
+        SStreamTask *pTask = taosArrayGetP(pLevel, j);
+
+        SColumnInfoData *pColInfo;
+        int32_t          cols = 0;
+
+        // stream name
+        char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+        STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetDbStr(pStream->name), sizeof(streamName));
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataAppend(pColInfo, numOfRows, (const char *)streamName, false);
+
+        // task id
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataAppend(pColInfo, numOfRows, (const char *)&pTask->taskId, false);
+
+        // node type
+        char nodeType[20 + VARSTR_HEADER_SIZE] = {0};
+        varDataSetLen(nodeType, 5);
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        if (pTask->nodeId > 0) {
+          memcpy(varDataVal(nodeType), "vnode", 5);
+        } else {
+          memcpy(varDataVal(nodeType), "snode", 5);
+        }
+        colDataAppend(pColInfo, numOfRows, nodeType, false);
+
+        // node id
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        int32_t nodeId = TMAX(pTask->nodeId, 0);
+        colDataAppend(pColInfo, numOfRows, (const char *)&nodeId, false);
+
+        // level
+        char level[20 + VARSTR_HEADER_SIZE] = {0};
+        if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+          memcpy(varDataVal(level), "source", 6);
+          varDataSetLen(level, 6);
+        } else if (pTask->taskLevel == TASK_LEVEL__AGG) {
+          memcpy(varDataVal(level), "agg", 3);
+          varDataSetLen(level, 3);
+        } else if (pTask->taskLevel == TASK_LEVEL__SINK) {
+          memcpy(varDataVal(level), "sink", 4);
+          varDataSetLen(level, 4);
+        } else if (pTask->taskLevel == TASK_LEVEL__SINK) {
+        }
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataAppend(pColInfo, numOfRows, (const char *)&level, false);
+
+        // status
+        char status[20 + VARSTR_HEADER_SIZE] = {0};
+        char status2[20] = {0};
+        strcpy(status, "normal");
+        STR_WITH_MAXSIZE_TO_VARSTR(status, status2, sizeof(status));
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataAppend(pColInfo, numOfRows, (const char *)&status, false);
+
+        numOfRows++;
+      }
+    }
+
+    // unlock
+    taosRUnLockLatch(&pStream->lock);
+
+    sdbRelease(pSdb, pStream);
+  }
+
+  pShow->numOfRows += numOfRows;
+  return numOfRows;
+}
+
+static void mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
 }

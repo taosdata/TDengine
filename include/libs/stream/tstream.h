@@ -338,7 +338,7 @@ typedef struct SStreamTask {
   int32_t recoverWaitingUpstream;
   int64_t checkReqId;
   SArray* checkReqIds;  // shuffle
-
+  int32_t refCnt;
 } SStreamTask;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -565,6 +565,7 @@ typedef struct SStreamMeta {
   TXN          txn;
   FTaskExpand* expandFunc;
   int32_t      vgId;
+  SRWLatch     lock;
 } SStreamMeta;
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId);
@@ -574,6 +575,10 @@ int32_t      streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
 int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* msg, int32_t msgLen);
 int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
+
+SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId);
+void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
+void         streamMetaRemoveTask1(SStreamMeta* pMeta, int32_t taskId);
 
 int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);

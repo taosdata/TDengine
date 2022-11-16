@@ -235,6 +235,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
         taosHashPut(pHash, &pVgEp->vgId, sizeof(int32_t), &outputVg, sizeof(SMqRebOutputVg));
         mInfo("mq rebalance: remove vgId:%d from consumer:%" PRId64, pVgEp->vgId, consumerId);
       }
+      taosArrayDestroy(pConsumerEp->vgs);
       taosHashRemove(pOutput->pSub->consumerHash, &consumerId, sizeof(int64_t));
       // put into removed
       taosArrayPush(pOutput->removedConsumers, &consumerId);
@@ -470,8 +471,12 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     pConsumerNew->updateType = CONSUMER_UPDATE__TOUCH;
     mndReleaseConsumer(pMnode, pConsumerOld);
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
+      tDeleteSMqConsumerObj(pConsumerNew);
+      taosMemoryFree(pConsumerNew);
       goto REB_FAIL;
     }
+    tDeleteSMqConsumerObj(pConsumerNew);
+    taosMemoryFree(pConsumerNew);
   }
   // 3.2 set new consumer
   consumerNum = taosArrayGetSize(pOutput->newConsumers);
@@ -944,6 +949,8 @@ static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   int32_t          numOfRows = 0;
   SMqSubscribeObj *pSub = NULL;
 
+  mDebug("mnd show subscriptions begin");
+
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pShow->pIter, (void **)&pSub);
     if (pShow->pIter == NULL) break;
@@ -988,6 +995,9 @@ static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
         // consumer id
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataAppend(pColInfo, numOfRows, (const char *)&pConsumerEp->consumerId, false);
+
+        mDebug("mnd show subscrptions: topic %s, consumer %" PRId64 "cgroup %s vgid %d", varDataVal(topic),
+               pConsumerEp->consumerId, varDataVal(cgroup), pVgEp->vgId);
 
         // offset
 #if 0
@@ -1034,6 +1044,9 @@ static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, NULL, true);
 
+      mDebug("mnd show subscrptions(unassigned): topic %s, cgroup %s vgid %d", varDataVal(topic), varDataVal(cgroup),
+             pVgEp->vgId);
+
       // offset
 #if 0
       // subscribe time
@@ -1052,6 +1065,8 @@ static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     taosRUnLockLatch(&pSub->lock);
     sdbRelease(pSdb, pSub);
   }
+
+  mDebug("mnd end show subscriptions");
 
   pShow->numOfRows += numOfRows;
   return numOfRows;

@@ -3580,6 +3580,11 @@ static void removeSessionResult(SSHashObj* pHashMap, SSHashObj* pResMap, SSessio
   tSimpleHashRemove(pResMap, &key, sizeof(SSessionKey));
 }
 
+static void getSessionHashKey(const SSessionKey* pKey, SSessionKey* pHashKey) {
+  *pHashKey = *pKey;
+  pHashKey->win.ekey = pKey->win.skey;
+}
+
 static void removeSessionResults(SSHashObj* pHashMap, SArray* pWins) {
   if (tSimpleHashGetSize(pHashMap) == 0) {
     return;
@@ -3588,8 +3593,8 @@ static void removeSessionResults(SSHashObj* pHashMap, SArray* pWins) {
   for (int32_t i = 0; i < size; i++) {
     SSessionKey* pWin = taosArrayGet(pWins, i);
     if (!pWin) continue;
-    SSessionKey key = *pWin;
-    key.win.ekey = key.win.skey;
+    SSessionKey key = {0};
+    getSessionHashKey(pWin, &key);
     tSimpleHashRemove(pHashMap, &key, sizeof(SSessionKey));
   }
 }
@@ -3642,7 +3647,9 @@ static int32_t doOneWindowAggImpl(SColumnInfoData* pTimeWindowData, SResultWindo
 
 static bool doDeleteSessionWindow(SStreamAggSupporter* pAggSup, SSessionKey* pKey) {
   streamStateSessionDel(pAggSup->pState, pKey);
-  tSimpleHashRemove(pAggSup->pResultRows, pKey, sizeof(SSessionKey));
+  SSessionKey hashKey = {0};
+  getSessionHashKey(pKey, &hashKey);
+  tSimpleHashRemove(pAggSup->pResultRows, &hashKey, sizeof(SSessionKey));
   return true;
 }
 
@@ -3753,8 +3760,8 @@ static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSData
       }
     }
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
-      SSessionKey key = winInfo.sessionWin;
-      key.win.ekey = key.win.skey;
+      SSessionKey key = {0};
+      getSessionHashKey(&winInfo.sessionWin, &key);
       tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &winInfo, sizeof(SResultWindowInfo));
     }
 
@@ -3853,23 +3860,28 @@ void doBuildDeleteDataBlock(SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlo
     colDataAppendNULL(pCalEdCol, pBlock->info.rows);
 
     SHashObj* pGroupIdTbNameMap = NULL;
-    if (pOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
+    if (pOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
+        pOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
         pOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
       SStreamSessionAggOperatorInfo* pInfo = pOp->info;
       pGroupIdTbNameMap = pInfo->pGroupIdTbNameMap;
     } else if (pOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) {
       SStreamStateAggOperatorInfo* pInfo = pOp->info;
       pGroupIdTbNameMap = pInfo->pGroupIdTbNameMap;
+    } else {
+      ASSERT(0);
     }
 
     char*            tbname = taosHashGet(pGroupIdTbNameMap, &res->groupId, sizeof(int64_t));
     SColumnInfoData* pTableCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
     if (tbname == NULL) {
+      /*printf("\n\n no tbname for group id %" PRId64 "%p %p\n\n", res->groupId, pOp->info, pGroupIdTbNameMap);*/
       colDataAppendNULL(pTableCol, pBlock->info.rows);
     } else {
       char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
       STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
       colDataAppend(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
+      /*printf("\n\n get tbname %s group id %" PRId64 "\n\n", tbname, res->groupId);*/
     }
     pBlock->info.rows += 1;
   }
@@ -3896,8 +3908,8 @@ static void rebuildSessionWindow(SOperatorInfo* pOperator, SArray* pWinArray, SS
       SOperatorInfo*                 pChild = taosArrayGetP(pInfo->pChildren, j);
       SStreamSessionAggOperatorInfo* pChInfo = pChild->info;
       SStreamAggSupporter*           pChAggSup = &pChInfo->streamAggSup;
-      SSessionKey                    chWinKey = *pWinKey;
-      chWinKey.win.ekey = chWinKey.win.skey;
+      SSessionKey                    chWinKey = {0};
+      getSessionHashKey(pWinKey, &chWinKey);
       SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentNext(pChAggSup->pState, &chWinKey);
       SResultRow*      pResult = NULL;
       SResultRow*      pChResult = NULL;
@@ -3978,8 +3990,8 @@ static void copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted) {
   for (int32_t i = 0; i < size; i++) {
     SSessionKey* pWinKey = taosArrayGet(pResWins, i);
     if (!pWinKey) continue;
-    SSessionKey winInfo = *pWinKey;
-    winInfo.win.ekey = winInfo.win.skey;
+    SSessionKey winInfo = {0};
+    getSessionHashKey(pWinKey, &winInfo);
     tSimpleHashPut(pStDeleted, &winInfo, sizeof(SSessionKey), NULL, 0);
   }
 }
@@ -4046,7 +4058,8 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
     if (pBlock->info.parTbName[0]) {
       taosHashPut(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t), &pBlock->info.parTbName,
                   TSDB_TABLE_NAME_LEN);
-      /*printf("\n\n put tbname %s\n\n", pBlock->info.parTbName);*/
+      /*printf("\n\n put tbname %s group id %" PRId64 "\n\n into %p %p", pBlock->info.parTbName, pBlock->info.groupId,*/
+      /*pInfo, pInfo->pGroupIdTbNameMap);*/
     }
 
     if (pBlock->info.parTbName[0]) {
@@ -4283,7 +4296,7 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
         pBlock->info.type == STREAM_CLEAR) {
       // gap must be 0
-      SArray* pWins = taosArrayInit(16, sizeof(SResultWindowInfo));
+      SArray* pWins = taosArrayInit(16, sizeof(SSessionKey));
       doDeleteTimeWindows(&pInfo->streamAggSup, pBlock, pWins);
       removeSessionResults(pStUpdated, pWins);
       copyDeleteWindowInfo(pWins, pInfo->pStDeleted);
@@ -4561,8 +4574,8 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
     }
 
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
-      SSessionKey key = curWin.winInfo.sessionWin;
-      key.win.ekey = key.win.skey;
+      SSessionKey key = {0};
+      getSessionHashKey(&curWin.winInfo.sessionWin, &key);
       tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &curWin.winInfo, sizeof(SResultWindowInfo));
     }
   }
@@ -4644,6 +4657,12 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
 
   initGroupResInfoFromArrayList(&pInfo->groupResInfo, pUpdated);
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
+
+#if 0
+  char* pBuf = streamStateSessionDump(pInfo->streamAggSup.pState);
+  qDebug("===stream===final session%s", pBuf);
+  taosMemoryFree(pBuf);
+#endif
 
   doBuildDeleteDataBlock(pOperator, pInfo->pSeDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
   if (pInfo->pDelRes->info.rows > 0) {

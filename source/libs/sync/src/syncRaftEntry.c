@@ -92,6 +92,8 @@ SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId)
 void syncEntryDestory(SSyncRaftEntry* pEntry) {
   if (pEntry != NULL) {
     taosMemoryFree(pEntry);
+
+    sTrace("free entry: %p", pEntry);
   }
 }
 
@@ -102,7 +104,6 @@ void syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg) {
   memcpy(pRpcMsg->pCont, pEntry->data, pRpcMsg->contLen);
 }
 
-//-----------------------------------
 SRaftEntryHashCache* raftCacheCreate(SSyncNode* pSyncNode, int32_t maxCount) {
   SRaftEntryHashCache* pCache = taosMemoryMalloc(sizeof(SRaftEntryHashCache));
   if (pCache == NULL) {
@@ -256,8 +257,6 @@ int32_t raftCacheClear(struct SRaftEntryHashCache* pCache) {
   return 0;
 }
 
-
-//-----------------------------------
 static char* keyFn(const void* pData) {
   SSyncRaftEntry* pEntry = (SSyncRaftEntry*)pData;
   return (char*)(&(pEntry->index));

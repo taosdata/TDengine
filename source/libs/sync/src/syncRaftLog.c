@@ -13,33 +13,35 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncRaftLog.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
+#include "syncUtil.h"
 
-//-------------------------------
 // log[m .. n]
 
 // public function
 static int32_t   raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncIndex snapshotIndex);
-
 static int32_t   raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
 static int32_t   raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
 static bool      raftLogExist(struct SSyncLogStore* pLogStore, SyncIndex index);
 static int32_t   raftLogUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
 static SyncIndex raftlogCommitIndex(SSyncLogStore* pLogStore);
+static int32_t   raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** ppLastEntry);
 
-static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** ppLastEntry);
-
-//-------------------------------
 SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
-  SSyncLogStore* pLogStore = taosMemoryMalloc(sizeof(SSyncLogStore));
-  ASSERT(pLogStore != NULL);
+  SSyncLogStore* pLogStore = taosMemoryCalloc(1, sizeof(SSyncLogStore));
+  if (pLogStore == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
-  pLogStore->pCache = taosLRUCacheInit(10 * 1024 * 1024, 1, .5);
+  // pLogStore->pCache = taosLRUCacheInit(10 * 1024 * 1024, 1, .5);
+  pLogStore->pCache = taosLRUCacheInit(100 * 1024 * 1024, 1, .5);
   if (pLogStore->pCache == NULL) {
-    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
     taosMemoryFree(pLogStore);
+    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -96,7 +98,6 @@ void logStoreDestory(SSyncLogStore* pLogStore) {
   }
 }
 
-//-------------------------------
 // log[m .. n]
 static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncIndex snapshotIndex) {
   ASSERT(snapshotIndex >= 0);
@@ -197,7 +198,12 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
+
+  int64_t tsWriteBegin = taosGetTimestampNs();
   index = walAppendLog(pWal, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  int64_t tsWriteEnd = taosGetTimestampNs();
+  int64_t tsElapsed = tsWriteEnd - tsWriteBegin;
+
   if (index < 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
@@ -210,8 +216,8 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   }
   pEntry->index = index;
 
-  sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s", pEntry->index,
-          TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType));
+  sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s, elapsed:%" PRId64, pEntry->index,
+          TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType), tsElapsed);
   return 0;
 }
 
@@ -234,9 +240,13 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
     return -1;
   }
 
+  int64_t ts1 = taosGetTimestampNs();
   taosThreadMutexLock(&(pData->mutex));
 
+  int64_t ts2 = taosGetTimestampNs();
   code = walReadVer(pWalHandle, index);
+  int64_t ts3 = taosGetTimestampNs();
+
   // code = walReadVerCached(pWalHandle, index);
   if (code != 0) {
     int32_t     err = terrno;
@@ -280,6 +290,18 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
   */
 
   taosThreadMutexUnlock(&(pData->mutex));
+  int64_t ts4 = taosGetTimestampNs();
+
+  int64_t tsElapsed = ts4 - ts1;
+  int64_t tsElapsedLock = ts2 - ts1;
+  int64_t tsElapsedRead = ts3 - ts2;
+  int64_t tsElapsedBuild = ts4 - ts3;
+
+  sNTrace(pData->pSyncNode,
+          "read index:%" PRId64 ", elapsed:%" PRId64 ", elapsed-lock:%" PRId64 ", elapsed-read:%" PRId64
+          ", elapsed-build:%" PRId64,
+          index, tsElapsed, tsElapsedLock, tsElapsedRead, tsElapsedBuild);
+
   return code;
 }
 
@@ -298,6 +320,17 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
   SyncIndex walCommitVer = walGetCommittedVer(pWal);
   if (fromIndex <= walCommitVer) {
     return 0;
+  }
+
+  // delete from cache
+  for (SyncIndex index = fromIndex; index <= wallastVer; ++index) {
+    SLRUCache* pCache = pData->pSyncNode->pLogStore->pCache;
+    LRUHandle* h = taosLRUCacheLookup(pCache, &index, sizeof(index));
+    if (h) {
+      sNTrace(pData->pSyncNode, "cache delete index:%" PRId64, index);
+
+      taosLRUCacheRelease(pData->pSyncNode->pLogStore->pCache, h, true);
+    }
   }
 
   int32_t code = walRollback(pWal, fromIndex);

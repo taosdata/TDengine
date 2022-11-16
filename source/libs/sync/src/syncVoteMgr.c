@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "syncVoteMgr.h"
+#include "syncMessage.h"
 #include "syncUtil.h"
 
 static void voteGrantedClearVotes(SVotesGranted *pVotesGranted) {

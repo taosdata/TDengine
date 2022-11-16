@@ -38,6 +38,7 @@ extern "C" {
 #define SYNC_MNODE_LOG_RETENTION     10000
 #define SYNC_VNODE_LOG_RETENTION     100
 #define SNAPSHOT_MAX_CLOCK_SKEW_MS   1000 * 10
+#define SNAPSHOT_WAIT_MS             1000 * 30
 
 #define SYNC_APPEND_ENTRIES_TIMEOUT_MS 10000
 
@@ -58,7 +59,6 @@ typedef int64_t  SyncIndex;
 typedef uint64_t SyncTerm;
 
 typedef struct SSyncNode      SSyncNode;
-typedef struct SSyncBuffer    SSyncBuffer;
 typedef struct SWal           SWal;
 typedef struct SSyncRaftEntry SSyncRaftEntry;
 
