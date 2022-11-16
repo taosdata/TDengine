@@ -508,6 +508,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         qDestroyQueryPlan(pPlan);
         return -1;
       }
+      sdbRelease(pSdb, pVgroup);
     }
   }
   qDestroyQueryPlan(pPlan);
