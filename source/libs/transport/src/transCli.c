@@ -451,7 +451,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
 
     if (pCtx == NULL || pCtx->pSem == NULL) {
       if (transMsg.info.ahandle == NULL) {
-        if (REQUEST_NO_RESP(&pMsg->msg) || pMsg->type == Release) destroyCmsg(pMsg);
+        if (pMsg == NULL || REQUEST_NO_RESP(&pMsg->msg) || pMsg->type == Release) destroyCmsg(pMsg);
         once = true;
         continue;
       }
