@@ -1014,6 +1014,8 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
       metaUidFilterCachePut(metaHandle, pScanNode->suid, context.digest, tListLen(context.digest), pPayload,
           size, 1);
+    } else {
+      qDebug("retrieve table uid list from cache, numOfTables:%d", (int32_t) taosArrayGetSize(res))
     }
   } else {  // Create one table group.
     if (metaIsTableExist(metaHandle, tableUid)) {
