@@ -7,7 +7,7 @@
 ##################################################
 
 set +e
-set -x
+#set -x
 
 FILE_NAME=
 RELEASE=0
@@ -138,7 +138,8 @@ if [ -n "$FILE_NAME" ]; then
     $PROGRAM -c $CFG_DIR -f $FILE_NAME -v
   else
     echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME
-    $PROGRAM -c $CFG_DIR -f $FILE_NAME 2> $ASAN_DIR/tsim.asan
+    echo "AsanDir:" $ASAN_DIR/tsim.asan
+    eval $PROGRAM -c $CFG_DIR -f $FILE_NAME 2> $ASAN_DIR/tsim.asan
     result=$?
     echo "Execute result: " $result
 
