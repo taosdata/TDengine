@@ -988,7 +988,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     }
 
     bool acquired = false;
-//    metaGetCachedTableUidList(metaHandle, pScanNode->suid, context.digest, tListLen(context.digest), res, &acquired);
+    metaGetCachedTableUidList(metaHandle, pScanNode->suid, context.digest, tListLen(context.digest), res, &acquired);
     if (!acquired) {
       // failed to find the result in the cache, let try to calculate the results
       if (pTagIndexCond) {
@@ -1006,7 +1006,6 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       }
 
       // let's add the filter results into meta-cache
-#if 0
       size_t numOfTables = taosArrayGetSize(res);
       size_t size = numOfTables * sizeof(uint64_t) + sizeof(int32_t);
       char*  pPayload = taosMemoryMalloc(size);
@@ -1015,8 +1014,6 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
       metaUidFilterCachePut(metaHandle, pScanNode->suid, context.digest, tListLen(context.digest), pPayload,
           size, 1);
-#endif
-
     } else {
       qDebug("retrieve table uid list from cache, numOfTables:%d", (int32_t) taosArrayGetSize(res));
     }
