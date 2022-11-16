@@ -4822,8 +4822,8 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
 
   int32_t rowSize = pInfo->pResBlock->info.rowSize;
-  uint32_t numOfCols = taosArrayGetSize(pInfo->pResBlock->pDataBlock);
-  pInfo->bufPageSize = getProperSortPageSize(rowSize, numOfCols);
+  uint32_t nCols = taosArrayGetSize(pInfo->pResBlock->pDataBlock);
+  pInfo->bufPageSize = getProperSortPageSize(rowSize, nCols);
 
   setOperatorInfo(pOperator, "TableMergeScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
