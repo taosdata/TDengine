@@ -151,8 +151,6 @@ void metaCacheClose(SMeta* pMeta) {
 
     taosHashCleanup(pMeta->pCache->sTagFilterResCache.pTableEntry);
     taosLRUCacheCleanup(pMeta->pCache->sTagFilterResCache.pUidResCache);
-
-    taosMemoryFree(pMeta->pCache->sTagFilterResCache.keyBuf);
     taosMemoryFree(pMeta->pCache);
     pMeta->pCache = NULL;
   }
