@@ -595,7 +595,7 @@ int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTS
   if (pBuilder->bi.minKey > kRow.ts) pBuilder->bi.minKey = kRow.ts;
   if (pBuilder->bi.maxKey < kRow.ts) pBuilder->bi.maxKey = kRow.ts;
 
-  SRowIter iter = {0};
+  STSDBRowIter iter = {0};
   tRowIterInit(&iter, pRow, pTSchema);
 
   SColVal *pColVal = tRowIterNext(&iter);
