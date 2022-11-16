@@ -117,7 +117,7 @@
 ,,y,script,./test.sh -f tsim/parser/fourArithmetic-basic.sim
 ,,y,script,./test.sh -f tsim/parser/function.sim
 ,,y,script,./test.sh -f tsim/parser/groupby-basic.sim
-,,,script,./test.sh -f tsim/parser/groupby.sim
+,,y,script,./test.sh -f tsim/parser/groupby.sim
 ,,y,script,./test.sh -f tsim/parser/having_child.sim
 ,,y,script,./test.sh -f tsim/parser/having.sim
 ,,y,script,./test.sh -f tsim/parser/import_commit1.sim
