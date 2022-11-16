@@ -1980,7 +1980,9 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     SSDataBlock* pBlock = doTableScan(pInfo->pTableScanOp);
     if (pBlock != NULL) {
       calBlockTbName(pInfo, pBlock);
-      updateInfoFillBlockData(pInfo->pUpdateInfo, pBlock, pInfo->primaryTsIndex);
+      if (pInfo->pUpdateInfo) {
+        updateInfoFillBlockData(pInfo->pUpdateInfo, pBlock, pInfo->primaryTsIndex);
+      }
       qDebug("stream recover scan get block, rows %d", pBlock->info.rows);
       return pBlock;
     }
