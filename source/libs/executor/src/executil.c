@@ -1064,7 +1064,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    qDebug("tagfilter get uid:%" PRIu64 "", info.uid);
+    qTrace("tagfilter get uid:%" PRIu64 "", info.uid);
   }
 
   taosArrayDestroy(res);
