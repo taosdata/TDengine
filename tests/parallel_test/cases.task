@@ -118,8 +118,8 @@
 ,,,script,./test.sh -f tsim/parser/function.sim
 ,,y,script,./test.sh -f tsim/parser/groupby-basic.sim
 ,,,script,./test.sh -f tsim/parser/groupby.sim
-,,,script,./test.sh -f tsim/parser/having_child.sim
-,,,script,./test.sh -f tsim/parser/having.sim
+,,y,script,./test.sh -f tsim/parser/having_child.sim
+,,y,script,./test.sh -f tsim/parser/having.sim
 ,,y,script,./test.sh -f tsim/parser/import_commit1.sim
 ,,y,script,./test.sh -f tsim/parser/import_commit2.sim
 ,,y,script,./test.sh -f tsim/parser/import_commit3.sim
@@ -173,7 +173,7 @@
 ,,y,script,./test.sh -f tsim/query/scalarFunction.sim
 ,,y,script,./test.sh -f tsim/query/scalarNull.sim
 ,,y,script,./test.sh -f tsim/query/session.sim
-,,,script,./test.sh -f tsim/query/udf.sim
+,,y,script,./test.sh -f tsim/query/udf.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,,script,./test.sh -f tsim/mnode/basic1.sim
@@ -215,11 +215,11 @@
 ,,y,script,./test.sh -f tsim/stream/basic2.sim
 ,,,script,./test.sh -f tsim/stream/drop_stream.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic1.sim
-,,,script,./test.sh -f tsim/stream/fillHistoryBasic2.sim
+,,y,script,./test.sh -f tsim/stream/fillHistoryBasic2.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic3.sim
 ,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
-,,,script,./test.sh -f tsim/stream/distributeSession0.sim
+,,y,script,./test.sh -f tsim/stream/distributeSession0.sim
 ,,,script,./test.sh -f tsim/stream/session0.sim
 ,,y,script,./test.sh -f tsim/stream/session1.sim
 ,,y,script,./test.sh -f tsim/stream/state0.sim
@@ -232,10 +232,10 @@
 ,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
 ,,y,script,./test.sh -f tsim/stream/sliding.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
-,,,script,./test.sh -f tsim/stream/partitionbyColumnSession.sim
+,,y,script,./test.sh -f tsim/stream/partitionbyColumnSession.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnState.sim
 ,,y,script,./test.sh -f tsim/stream/deleteInterval.sim
-,,,script,./test.sh -f tsim/stream/deleteSession.sim
+,,y,script,./test.sh -f tsim/stream/deleteSession.sim
 ,,y,script,./test.sh -f tsim/stream/deleteState.sim
 ,,y,script,./test.sh -f tsim/stream/fillIntervalDelete0.sim
 ,,y,script,./test.sh -f tsim/stream/fillIntervalDelete1.sim
