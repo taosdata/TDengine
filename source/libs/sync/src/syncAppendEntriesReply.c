@@ -83,6 +83,10 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     ASSERT(pState != NULL);
 
     if (pMsg->lastSendIndex == pState->lastSendIndex) {
+      int64_t timeNow = taosGetTimestampMs();
+      int64_t elapsed = timeNow - pState->lastSendTime;
+      sNTrace(ths, "sync-append-entries rtt elapsed:%" PRId64 ", index:%" PRId64, elapsed, pState->lastSendIndex);
+
       syncNodeReplicateOne(ths, &(pMsg->srcId), true);
     }
   }
