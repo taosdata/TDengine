@@ -1942,13 +1942,15 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
     return code;
   }
 
+  int32_t numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
   ASSERT(pTableListInfo->numOfOuputGroups == 1);
 
   int64_t st1 = taosGetTimestampUs();
   pTaskInfo->cost.extractListTime = (st1 - st) / 1000.0;
-  qDebug("extract queried table list completed, elapsed time:%.2f ms %s", pTaskInfo->cost.extractListTime, idStr);
+  qDebug("extract queried table list completed, %d tables, elapsed time:%.2f ms %s", numOfTables,
+         pTaskInfo->cost.extractListTime, idStr);
 
-  if (taosArrayGetSize(pTableListInfo->pTableList) == 0) {
+  if (numOfTables == 0) {
     qDebug("no table qualified for query, %s" PRIx64, idStr);
     return TSDB_CODE_SUCCESS;
   }
