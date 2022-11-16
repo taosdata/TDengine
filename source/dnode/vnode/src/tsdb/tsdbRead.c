@@ -4128,7 +4128,8 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg*** pBlockS
   taosArrayClear(pSup->pColAgg);
   taosArrayAddAll(pSup->pColAgg, pNewAggList);
 
-  for(int32_t k = 0; k < numOfCols; ++k) {
+  size_t num = taosArrayGetSize(pSup->pColAgg);
+  for(int32_t k = 0; k < num; ++k) {
     pSup->plist[k] = taosArrayGet(pSup->pColAgg, k);
   }
 
