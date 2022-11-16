@@ -220,7 +220,7 @@
 ,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeSession0.sim
-,,,script,./test.sh -f tsim/stream/session0.sim
+,,y,script,./test.sh -f tsim/stream/session0.sim
 ,,y,script,./test.sh -f tsim/stream/session1.sim
 ,,y,script,./test.sh -f tsim/stream/state0.sim
 ,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
