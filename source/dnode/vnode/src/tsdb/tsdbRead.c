@@ -4132,6 +4132,8 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg*** pBlockS
     pSup->plist[k] = taosArrayGet(pSup->pColAgg, k);
   }
 
+  taosArrayDestroy(pNewAggList);
+
 #endif
 
   pReader->cost.smaDataLoad += 1;
