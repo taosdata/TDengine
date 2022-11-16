@@ -1167,15 +1167,18 @@ int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNod
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
   SRaftId destId = pMsg->srcId;
   ASSERT(pMgr->restored == false);
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
 
   if (pMgr->endIndex == 0) {
     ASSERT(pMgr->startIndex == 0);
     ASSERT(pMgr->matchIndex == 0);
     if (pMsg->matchIndex < 0) {
       pMgr->restored = true;
-      sInfo("vgId:%d, sync log repl mgr of the %d'th peer restored. pMgr(rs:%d): [%" PRId64 " %" PRId64 ", %" PRId64
+      sInfo("vgId:%d, sync log repl mgr of peer %s:%d restored. pMgr(rs:%d): [%" PRId64 " %" PRId64 ", %" PRId64
             "), pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
-            pNode->vgId, pMgr->peerId, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
+            pNode->vgId, host, port, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
             pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
       return 0;
     }
@@ -1189,9 +1192,9 @@ int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNod
 
     if (pMsg->matchIndex == pMsg->lastSendIndex) {
       pMgr->restored = true;
-      sInfo("vgId:%d, sync log repl mgr of the %d'th peer restored. pMgr(rs:%d): [%" PRId64 " %" PRId64 ", %" PRId64
+      sInfo("vgId:%d, sync log repl mgr of peer %s:%d restored. pMgr(rs:%d): [%" PRId64 " %" PRId64 ", %" PRId64
             "), pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
-            pNode->vgId, pMgr->peerId, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
+            pNode->vgId, host, port, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
             pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
       return 0;
     }
@@ -1278,11 +1281,11 @@ int32_t syncLogReplMgrReplicateProbeOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode
   }
 
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  sInfo("vgId:%d, attempted to probe the %d'th peer with msg of index:%" PRId64 " term: %" PRId64
-        ". pMgr(rs:%d): [%" PRId64 " %" PRId64 ", %" PRId64 "), pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64
-        ")",
-        pNode->vgId, pMgr->peerId, index, term, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
-        pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+  sDebug("vgId:%d, attempted to probe the %d'th peer with msg of index:%" PRId64 " term: %" PRId64
+         ". pMgr(rs:%d): [%" PRId64 " %" PRId64 ", %" PRId64 "), pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64
+         ")",
+         pNode->vgId, pMgr->peerId, index, term, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
+         pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
   return 0;
 }
 
@@ -1962,6 +1965,8 @@ int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
 int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   int32_t electMS;
+
+  syncNodePegLastMsgRecvTime(pSyncNode);
 
   if (pSyncNode->pRaftCfg->isStandBy) {
     electMS = TIMER_MAX_MS;
@@ -3231,6 +3236,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   }
   syncTimeoutDestroy(pSyncMsg);
 
+#if 0
   // reset timer ms
   if (syncEnvIsStart() && pSyncNode->electBaseLine > 0) {
     pSyncNode->electTimerMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
@@ -3239,12 +3245,17 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   } else {
     sError("sync env is stop, syncNodeEqElectTimer");
   }
+#endif
 }
 
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
   SSyncNode* pSyncNode = (SSyncNode*)param;
 
   syncNodeEventLog(pSyncNode, "eq hb timer");
+
+#if 0
+  sInfo("vgId:%d, heartbeat timer tick.", pSyncNode->vgId);
+#endif
 
   if (pSyncNode->replicaNum > 1) {
     if (atomic_load_64(&pSyncNode->heartbeatTimerLogicClockUser) <=
@@ -3484,6 +3495,11 @@ int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
   return ret;
 }
 
+void syncNodePegLastMsgRecvTime(SSyncNode* ths) {
+  int64_t nowMs = taosGetMonoTimestampMs();
+  ths->lastMsgRecvTime = nowMs;
+}
+
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
   syncLogRecvHeartbeat(ths, pMsg, "");
 
@@ -3496,6 +3512,13 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
 
   SRpcMsg rpcMsg;
   syncHeartbeatReply2RpcMsg(pMsgReply, &rpcMsg);
+
+#if 0
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+  sInfo("vgId:%d, recv heartbeat msg from %s:%d", ths->vgId, host, port);
+#endif
 
 #if 1
   if (pMsg->term >= ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_FOLLOWER) {

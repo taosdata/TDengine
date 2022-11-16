@@ -34,6 +34,13 @@
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
   syncNodeEventLog(pSyncNode, "begin election");
 
+  int64_t nowMs = taosGetMonoTimestampMs();
+  if (nowMs < pSyncNode->lastMsgRecvTime + pSyncNode->electTimerMS) {
+    sError("vgId:%d, election timer triggered ahead of time for %" PRId64 "ms", pSyncNode->vgId,
+           pSyncNode->lastMsgRecvTime + pSyncNode->electTimerMS - nowMs);
+    return -1;
+  }
+
   int32_t ret = 0;
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
     syncNodeFollower2Candidate(pSyncNode);
@@ -105,7 +112,11 @@ int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
 
 int32_t syncNodeSendRequestVote(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncRequestVote* pMsg) {
   int32_t ret = 0;
-  syncLogSendRequestVote(pSyncNode, pMsg, "");
+  // syncLogSendRequestVote(pSyncNode, pMsg, "");
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
+  sInfo("vgId:%d, send request vote of term: %" PRId64 " to %s:%d", pSyncNode->vgId, pMsg->term, host, port);
 
   SRpcMsg rpcMsg;
   syncRequestVote2RpcMsg(pMsg, &rpcMsg);

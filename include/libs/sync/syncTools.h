@@ -696,6 +696,8 @@ int32_t syncNodeOnSnapshotReply(SSyncNode* ths, SyncSnapshotRsp* pMsg);
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg);
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, SyncHeartbeatReply* pMsg);
 
+void syncNodePegLastMsgRecvTime(SSyncNode* ths);
+
 // -----------------------------------------
 typedef int32_t (*FpOnPingCb)(SSyncNode* ths, SyncPing* pMsg);
 typedef int32_t (*FpOnPingReplyCb)(SSyncNode* ths, SyncPingReply* pMsg);

@@ -148,7 +148,7 @@ int32_t syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, Syn
   *pBarrier = syncLogIsReplicationBarrier(pEntry);
 
   prevLogTerm = syncLogReplMgrGetPrevLogTerm(pMgr, pNode, index);
-  if (prevLogTerm < 0 && terrno != TSDB_CODE_SUCCESS) {
+  if (prevLogTerm < 0) {
     sError("vgId:%d, failed to get prev log term since %s. index: %" PRId64 "", pNode->vgId, terrstr(), index);
     goto _out;
   }
@@ -163,8 +163,8 @@ int32_t syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, Syn
   (void)syncNodeSendAppendEntries(pNode, pDestId, pMsgOut);
   ret = 0;
 
-  sInfo("vgId:%d, replicate one msg index: %" PRId64 " term: %" PRId64 " prevterm: %" PRId64 " to dest: 0x%016" PRIx64,
-        pNode->vgId, pEntry->index, pEntry->term, prevLogTerm, pDestId->addr);
+  sDebug("vgId:%d, replicate one msg index: %" PRId64 " term: %" PRId64 " prevterm: %" PRId64 " to dest: 0x%016" PRIx64,
+         pNode->vgId, pEntry->index, pEntry->term, prevLogTerm, pDestId->addr);
 
 _out:
   syncAppendEntriesDestroy(pMsgOut);

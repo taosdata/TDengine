@@ -239,6 +239,13 @@ int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destRaftId, c
   int32_t ret = 0;
   syncLogSendHeartbeat(pSyncNode, pMsg, "");
 
+#if 0
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
+  sInfo("vgId:%d, send heartbeat msg to %s:%d", pSyncNode->vgId, host, port);
+#endif
+
   SRpcMsg rpcMsg;
   syncHeartbeat2RpcMsg(pMsg, &rpcMsg);
   syncNodeSendMsgById(&(pMsg->destId), pSyncNode, &rpcMsg);

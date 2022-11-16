@@ -298,6 +298,7 @@ typedef struct SSyncNode {
   int64_t startTime;
   int64_t leaderTime;
   int64_t lastReplicateTime;
+  int64_t lastMsgRecvTime;
 
 } SSyncNode;
 
