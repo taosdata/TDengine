@@ -328,7 +328,7 @@ int32_t walEndSnapshot(SWal *pWal) {
       pInfo++;
     }
     if (POINTER_DISTANCE(pInfo, pWal->fileInfoSet->pData) > 0) {
-      wDebug("vgId:%d, wal end remove from %" PRId64, pWal->cfg.vgId, pInfo->firstVer);
+      wDebug("vgId:%d, wal end remove for %" PRId64, pWal->cfg.vgId, pInfo->firstVer);
     } else {
       wDebug("vgId:%d, wal no remove", pWal->cfg.vgId);
     }
