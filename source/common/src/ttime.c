@@ -445,14 +445,12 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
           if (utime > INT64_MAX / 1000) {
             return INT64_MAX;
           }
-          utime *= 1000;
-          goto end_;
+          return utime * 1000;
         case TSDB_TIME_PRECISION_NANO:
           if (utime > INT64_MAX / 1000000) {
             return INT64_MAX;
           }
-          utime *= 1000000;
-          goto end_;
+          return utime * 1000000;
       }
     }  // end from milli
     case TSDB_TIME_PRECISION_MICRO: {
@@ -465,8 +463,7 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
           if (utime > INT64_MAX / 1000) {
             return INT64_MAX;
           }
-          utime *= 1000;
-          goto end_;
+          return utime * 1000;
       }
     }  // end from micro
     case TSDB_TIME_PRECISION_NANO: {
