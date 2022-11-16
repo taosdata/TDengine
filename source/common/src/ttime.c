@@ -482,7 +482,6 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
     }
   }  // end switch fromPrecision
 
-end_:
   return utime;
 }
 
