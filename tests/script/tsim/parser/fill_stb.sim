@@ -354,7 +354,7 @@ endi
 
 ## NULL fill
 print fill(NULL)
-print select _wstart, max(c1), min(c2), avg(c3), sum(c4), count(c5), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 4 partition by t1 interval(5m) fill(value, NULL) limit 5
+print select _wstart, max(c1), min(c2), avg(c3), sum(c4), count(c5), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 4 partition by t1 interval(5m) fill(value, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) limit 5
 sql select _wstart, max(c1), min(c2), avg(c3), sum(c4), count(c5), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 4 partition by t1 interval(5m) fill(NULL) limit 5
 if $rows != 25 then
   return -1

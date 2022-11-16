@@ -2762,17 +2762,17 @@ static bool needFill(SNode* pNode) {
   return hasFillFunc;
 }
 
-static bool mismatchFillDataType(SDataType origDt, SDataType fillDt) {
-  if (TSDB_DATA_TYPE_NULL == fillDt.type) {
-    return false;
+static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList* pValues, int32_t index) {
+  SListCell* pCell = nodesListGetCell(pValues, index);
+  if (dataTypeEqual(&dt, &((SExprNode*)pCell->pNode)->resType)) {
+    return TSDB_CODE_SUCCESS;
   }
-  if (IS_NUMERIC_TYPE(origDt.type) && !IS_NUMERIC_TYPE(fillDt.type)) {
-    return true;
+  SNode*  pCaseFunc = NULL;
+  int32_t code = createCastFunc(pCxt, pCell->pNode, dt, &pCaseFunc);
+  if (TSDB_CODE_SUCCESS == code) {
+    pCell->pNode = pCaseFunc;
   }
-  if (IS_VAR_DATA_TYPE(origDt.type) && !IS_VAR_DATA_TYPE(fillDt.type)) {
-    return true;
-  }
-  return false;
+  return code;
 }
 
 static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeList* pProjectionList) {
@@ -2788,8 +2788,8 @@ static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeL
       if (fillNo >= LIST_LENGTH(pFillValues->pNodeList)) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
       }
-      if (mismatchFillDataType(((SExprNode*)pProject)->resType,
-                               ((SExprNode*)nodesListGetNode(pFillValues->pNodeList, fillNo))->resType)) {
+      if (TSDB_CODE_SUCCESS !=
+          convertFillValue(pCxt, ((SExprNode*)pProject)->resType, pFillValues->pNodeList, fillNo)) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled data type mismatch");
       }
       ++fillNo;
