@@ -43,7 +43,7 @@ build_binary() {
   if [ "$FORCE" = "0" ] && [ -s taoskeeper ]; then
     true
   else
-    go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeper/version.Version=$latest'"
+    go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeperinternal/version.Version=$latest'" -o taoskeeper main.go
     upx taoskeeper > /dev/null 2>&1 || :
   fi
   readlink -f taoskeeper
