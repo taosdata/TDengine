@@ -3062,7 +3062,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
 
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
-    int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
+    int32_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
 
     char* p = pRes->data + (pField->bytes + offset) * pRes->numOfRows;
 
