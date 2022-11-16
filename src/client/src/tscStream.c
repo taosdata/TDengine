@@ -264,7 +264,7 @@ static void tscStreamFillTimeGap(SSqlStream* pStream, TSKEY ts) {
     pStream->stime += pStream->slidingTime;
     *(TSKEY*)row[0] =  pStream->stime;
     for (int32_t i = 1; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-      int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, i);
+      int32_t     offset = tscFieldInfoGetOffset(pQueryInfo, i);
       TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
       assignVal(pSql->res.data + offset, (char *)(&pQueryInfo->fillVal[i]), pField->bytes, pField->type);
       row[i] = pSql->res.data + offset;
