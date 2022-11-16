@@ -120,7 +120,7 @@ int32_t tsMinIntervalTime = 1;
 int32_t tsMaxMemUsedByInsert = 1024;
 
 float   tsSelectivityRatio = 1.0;
-int32_t tsTagFilterResCacheSize = 4096;
+int32_t tsTagFilterResCacheSize = 1024*10;
 
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)

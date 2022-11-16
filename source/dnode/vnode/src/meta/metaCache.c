@@ -476,10 +476,16 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
 // check both the payload size and selectivity ratio
 int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload, int32_t payloadLen, double selectivityRatio) {
   if (selectivityRatio > tsSelectivityRatio) {
+    metaDebug("vgId:%d, suid:%" PRIu64
+              " failed to add to uid list cache, due to selectivity ratio %.2f less than threshold %.2f",
+              TD_VID(pMeta->pVnode), suid, selectivityRatio, tsSelectivityRatio);
     return TSDB_CODE_SUCCESS;
   }
 
   if (payloadLen > tsTagFilterResCacheSize) {
+    metaDebug("vgId:%d, suid:%" PRIu64
+              " failed to add to uid list cache, due to payload length %d greater than threshold %d",
+              TD_VID(pMeta->pVnode), suid, payloadLen, tsTagFilterResCacheSize);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -506,6 +512,9 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
 
   // add to cache.
   taosLRUCacheInsert(pCache, pBuf, sizeof(uint64_t) + keyLen, pPayload, payloadLen, NULL, NULL, TAOS_LRU_PRIORITY_LOW);
+  metaDebug("vgId:%d, suid:%"PRIu64" list cache added into cache, total:%d, tables:%d", TD_VID(pMeta->pVnode),
+            suid, (int32_t) taosLRUCacheGetUsage(pCache), taosHashGetSize(pTableEntry));
+
   return TSDB_CODE_SUCCESS;
 }
 
