@@ -418,10 +418,10 @@ static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta c
       rpcMsg.info.conn.applyIndex = cbMeta.index;
       rpcMsg.info.conn.applyTerm = cbMeta.term;
 
-      vInfo("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
-            ", weak:%d, code:%d, state:%d %s, type:%s",
-            syncGetVgId(pVnode->sync), pFsm, cbMeta.index, cbMeta.term, rpcMsg.info.conn.applyIndex, cbMeta.isWeak,
-            cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), TMSG_INFO(pMsg->msgType));
+      vDebug("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
+             ", weak:%d, code:%d, state:%d %s, type:%s",
+             syncGetVgId(pVnode->sync), pFsm, cbMeta.index, cbMeta.term, rpcMsg.info.conn.applyIndex, cbMeta.isWeak,
+             cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), TMSG_INFO(pMsg->msgType));
 
       tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
     } else {

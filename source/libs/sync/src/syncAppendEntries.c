@@ -618,10 +618,12 @@ int32_t syncLogBufferValidate(SSyncLogBuffer* pBuf) {
   ASSERT(pBuf->commitIndex <= pBuf->matchIndex);
   ASSERT(pBuf->matchIndex < pBuf->endIndex);
   ASSERT(pBuf->endIndex - pBuf->startIndex <= pBuf->size);
+#if 0
   for (SyncIndex index = pBuf->startIndex; index <= pBuf->matchIndex; index++) {
     SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
     ASSERT(pEntry != NULL);
   }
+#endif
   return 0;
 }
 
