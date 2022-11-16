@@ -2924,6 +2924,8 @@ static void firstlastSaveTupleData(const SSDataBlock* pSrcBlock, int32_t rowInde
 
   if (!pInfo->hasResult) {
     pInfo->pos = saveTupleData(pCtx, rowIndex, pSrcBlock, NULL);
+    ASSERT(pCtx->subsidiaries.buf != NULL);
+    ASSERT(pCtx->subsidiaries.rowLen > 0);
   } else {
     updateTupleData(pCtx, rowIndex, pSrcBlock, &pInfo->pos);
   }
