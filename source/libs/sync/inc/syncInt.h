@@ -41,7 +41,7 @@ typedef struct SSyncRespMgr           SSyncRespMgr;
 typedef struct SSyncSnapshotSender    SSyncSnapshotSender;
 typedef struct SSyncSnapshotReceiver  SSyncSnapshotReceiver;
 typedef struct SSyncTimer             SSyncTimer;
-typedef struct SSyncHbTimerData       SSyncHbTimerData;
+typedef struct SSyncHbTimerParam      SSyncHbTimerParam;
 typedef struct SyncSnapshotSend       SyncSnapshotSend;
 typedef struct SyncSnapshotRsp        SyncSnapshotRsp;
 typedef struct SyncLocalCmd           SyncLocalCmd;
@@ -56,12 +56,13 @@ typedef struct SRaftId {
   SyncGroupId vgId;
 } SRaftId;
 
-typedef struct SSyncHbTimerData {
+typedef struct SSyncHbTimerParam {
   SSyncNode*  pSyncNode;
   SSyncTimer* pTimer;
   SRaftId     destId;
   uint64_t    logicClock;
-} SSyncHbTimerData;
+  int64_t     executeTime;
+} SSyncHbTimerParam;
 
 typedef struct SSyncTimer {
   void*             pTimer;
@@ -73,11 +74,12 @@ typedef struct SSyncTimer {
   void*             pData;
 } SSyncTimer;
 
-typedef struct SElectTimer {
+typedef struct SElectTimerParam {
   uint64_t   logicClock;
   SSyncNode* pSyncNode;
+  int64_t    executeTime;
   void*      pData;
-} SElectTimer;
+} SElectTimerParam;
 
 typedef struct SPeerState {
   SyncIndex lastSendIndex;
@@ -153,6 +155,7 @@ typedef struct SSyncNode {
   uint64_t          electTimerLogicClock;
   TAOS_TMR_CALLBACK FpElectTimerCB;  // Timer Fp
   uint64_t          electTimerCounter;
+  SElectTimerParam  electTimerParam;
 
   // heartbeat timer
   tmr_h             pHeartbeatTimer;
@@ -161,6 +164,7 @@ typedef struct SSyncNode {
   uint64_t          heartbeatTimerLogicClockUser;
   TAOS_TMR_CALLBACK FpHeartbeatTimerCB;  // Timer Fp
   uint64_t          heartbeatTimerCounter;
+  SSyncHbTimerParam hbTimerParam;
 
   // peer heartbeat timer
   SSyncTimer peerHeartbeatTimerArr[TSDB_MAX_REPLICA];

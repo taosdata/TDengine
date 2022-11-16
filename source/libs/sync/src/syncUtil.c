@@ -193,7 +193,7 @@ static void syncPeerState2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
 }
 
 void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNode* pNode, const char* format, ...) {
-  if (pNode == NULL || pNode->pRaftCfg != NULL && pNode->pRaftStore == NULL || pNode->pLogStore == NULL) return;
+  if (pNode == NULL || pNode->pRaftCfg == NULL && pNode->pRaftStore == NULL || pNode->pLogStore == NULL) return;
   int64_t currentTerm = pNode->pRaftStore->currentTerm;
 
   // save error code, otherwise it will be overwritten

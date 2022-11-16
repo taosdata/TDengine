@@ -665,7 +665,7 @@ static int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRa
 static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   int32_t ret = 0;
   if (syncIsInit()) {
-    SSyncHbTimerData* pData = taosMemoryMalloc(sizeof(SSyncHbTimerData));
+    SSyncHbTimerParam* pData = taosMemoryMalloc(sizeof(SSyncHbTimerParam));
     pData->pSyncNode = pSyncNode;
     pData->pTimer = pSyncTimer;
     pData->destId = pSyncTimer->destId;
@@ -1106,12 +1106,13 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
   if (syncIsInit()) {
     pSyncNode->electTimerMS = ms;
 
-    SElectTimer* pElectTimer = taosMemoryMalloc(sizeof(SElectTimer));
-    pElectTimer->logicClock = pSyncNode->electTimerLogicClock;
-    pElectTimer->pSyncNode = pSyncNode;
-    pElectTimer->pData = NULL;
+    int64_t execTime = taosGetTimestampMs() + ms;
+    atomic_store_64(&(pSyncNode->electTimerParam.executeTime), execTime);
+    atomic_store_64(&(pSyncNode->electTimerParam.logicClock), pSyncNode->electTimerLogicClock);
+    pSyncNode->electTimerParam.pSyncNode = pSyncNode;
+    pSyncNode->electTimerParam.pData = NULL;
 
-    taosTmrReset(pSyncNode->FpElectTimerCB, pSyncNode->electTimerMS, pElectTimer, syncEnv()->pTimerManager,
+    taosTmrReset(pSyncNode->FpElectTimerCB, pSyncNode->electTimerMS, pSyncNode, syncEnv()->pTimerManager,
                  &pSyncNode->pElectTimer);
 
   } else {
@@ -1865,18 +1866,21 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
 static void syncNodeEqElectTimer(void* param, void* tmrId) {
   if (!syncIsInit()) return;
 
-  SElectTimer* pElectTimer = param;
-  SSyncNode*   pNode = pElectTimer->pSyncNode;
+  SSyncNode* pNode = (SSyncNode*)param;
 
   if (pNode == NULL) return;
   if (pNode->syncEqMsg == NULL) return;
 
+  int64_t tsNow = taosGetTimestampMs();
+  if (tsNow < pNode->electTimerParam.executeTime) return;
+
   SRpcMsg rpcMsg = {0};
-  int32_t code = syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_ELECTION, pElectTimer->logicClock, pNode->electTimerMS, pNode);
+  int32_t code =
+      syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_ELECTION, pNode->electTimerParam.logicClock, pNode->electTimerMS, pNode);
 
   if (code != 0) {
     sError("failed to build elect msg");
-    taosMemoryFree(pElectTimer);
+
     return;
   }
 
@@ -1887,21 +1891,9 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   if (code != 0) {
     sError("failed to sync enqueue elect msg since %s", terrstr());
     rpcFreeCont(rpcMsg.pCont);
-    taosMemoryFree(pElectTimer);
+
     return;
   }
-
-  taosMemoryFree(pElectTimer);
-
-#if 0
-  // reset timer ms
-  if (syncIsInit() && pNode->electBaseLine > 0) {
-    pNode->electTimerMS = syncUtilElectRandomMS(pNode->electBaseLine, 2 * pNode->electBaseLine);
-    taosTmrReset(syncNodeEqElectTimer, pNode->electTimerMS, pNode, syncEnv()->pTimerManager, &pNode->pElectTimer);
-  } else {
-    sError("sync env is stop, syncNodeEqElectTimer");
-  }
-#endif
 }
 
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
@@ -1938,9 +1930,9 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
 }
 
 static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
-  SSyncHbTimerData* pData = (SSyncHbTimerData*)param;
-  SSyncNode*        pSyncNode = pData->pSyncNode;
-  SSyncTimer*       pSyncTimer = pData->pTimer;
+  SSyncHbTimerParam* pData = (SSyncHbTimerParam*)param;
+  SSyncNode*         pSyncNode = pData->pSyncNode;
+  SSyncTimer*        pSyncTimer = pData->pTimer;
 
   if (pSyncNode == NULL) {
     return;
