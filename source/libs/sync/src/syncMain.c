@@ -90,6 +90,7 @@ void syncStart(int64_t rid) {
 
 void syncStop(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  pSyncNode->isStart = false;
   if (pSyncNode != NULL) {
     syncNodeRelease(pSyncNode);
     syncNodeRemove(rid);
@@ -131,6 +132,7 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
     }
 
     syncNodeStartHeartbeatTimer(pSyncNode);
+
     syncNodeReplicate(pSyncNode);
   }
 
@@ -665,12 +667,17 @@ static int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRa
 static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   int32_t ret = 0;
   if (syncIsInit()) {
-    SSyncHbTimerData* pData = &pSyncTimer->hbData;
-    pData->pSyncNode = pSyncNode;
+    SSyncHbTimerData* pData = taosMemoryMalloc(sizeof(SSyncHbTimerData));
+    pData->rid = pSyncNode->rid;
     pData->pTimer = pSyncTimer;
     pData->destId = pSyncTimer->destId;
     pData->logicClock = pSyncTimer->logicClock;
 
+    if (pSyncTimer->pData != NULL) {
+      taosMemoryFree(pSyncTimer->pData);
+    }
+
+    pSyncTimer->pData = pData;
     taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS, pData, syncEnv()->pTimerManager, &pSyncTimer->pTimer);
   } else {
     sError("vgId:%d, start ctrl hb timer error, sync env is stop", pSyncNode->vgId);
@@ -683,6 +690,8 @@ static int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   atomic_add_fetch_64(&pSyncTimer->logicClock, 1);
   taosTmrStop(pSyncTimer->pTimer);
   pSyncTimer->pTimer = NULL;
+  taosMemoryFree(pSyncTimer->pData);
+  pSyncTimer->pData = NULL;
   return ret;
 }
 
@@ -1035,8 +1044,6 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   }
   int32_t ret;
 
-  pSyncNode->isStart = false;
-
   sNTrace(pSyncNode, "sync close");
 
   syncNodeStopPingTimer(pSyncNode);
@@ -1044,7 +1051,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   syncNodeStopHeartbeatTimer(pSyncNode);
 
   // wait for timer expired queue empty
-  taosMsleep(HEARTBEAT_TIMER_MS);
+  // taosMsleep(HEARTBEAT_TIMER_MS);
 
   ret = raftStoreClose(pSyncNode->pRaftStore);
   ASSERT(ret == 0);
@@ -1168,11 +1175,6 @@ static int32_t syncNodeDoStartHeartbeatTimer(SSyncNode* pSyncNode) {
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
 
-#if 0
-  pSyncNode->heartbeatTimerMS = pSyncNode->hbBaseLine;
-  ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
-#endif
-
   for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
     if (pSyncTimer != NULL) {
@@ -1186,19 +1188,21 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
 
-#if 0
-  atomic_add_fetch_64(&pSyncNode->heartbeatTimerLogicClockUser, 1);
-  taosTmrStop(pSyncNode->pHeartbeatTimer);
-  pSyncNode->pHeartbeatTimer = NULL;
-#endif
-
-  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
-    SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
+  for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
+    SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->replicasId[i]));
     if (pSyncTimer != NULL) {
       syncHbTimerStop(pSyncNode, pSyncTimer);
     }
   }
 
+  /*
+    for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
+      SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
+      if (pSyncTimer != NULL) {
+        syncHbTimerStop(pSyncNode, pSyncTimer);
+      }
+    }
+  */
   return ret;
 }
 
@@ -1921,22 +1925,29 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
 
 static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
   SSyncHbTimerData* pData = (SSyncHbTimerData*)param;
-  SSyncNode*        pSyncNode = pData->pSyncNode;
-  SSyncTimer*       pSyncTimer = pData->pTimer;
+  if (pData == NULL) {
+    return;
+  }
 
+  SSyncNode* pSyncNode = syncNodeAcquire(pData->rid);
   if (pSyncNode == NULL) {
     return;
   }
 
+  SSyncTimer* pSyncTimer = pData->pTimer;
+
   if (!pSyncNode->isStart) {
+    syncNodeRelease(pSyncNode);
     return;
   }
 
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    syncNodeRelease(pSyncNode);
     return;
   }
 
   if (pSyncNode->pRaftStore == NULL) {
+    syncNodeRelease(pSyncNode);
     return;
   }
 
@@ -1973,6 +1984,8 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
              msgLogicClock);
     }
   }
+
+  syncNodeRelease(pSyncNode);
 }
 
 static int32_t syncNodeEqNoop(SSyncNode* pNode) {

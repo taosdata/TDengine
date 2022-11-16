@@ -57,7 +57,7 @@ typedef struct SRaftId {
 } SRaftId;
 
 typedef struct SSyncHbTimerData {
-  SSyncNode*  pSyncNode;
+  int64_t     rid;
   SSyncTimer* pTimer;
   SRaftId     destId;
   uint64_t    logicClock;
@@ -70,7 +70,7 @@ typedef struct SSyncTimer {
   uint64_t          counter;
   int32_t           timerMS;
   SRaftId           destId;
-  SSyncHbTimerData  hbData;
+  void*             pData;
 } SSyncTimer;
 
 typedef struct SElectTimer {
