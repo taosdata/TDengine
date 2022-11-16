@@ -4495,18 +4495,23 @@ bool histogramFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
   pInfo->totalCount = 0;
   pInfo->normalized = 0;
 
-  int8_t binType = getHistogramBinType(varDataVal(pCtx->param[1].param.pz));
+  char *binTypeStr = strndup(varDataVal(pCtx->param[1].param.pz), varDataLen(pCtx->param[1].param.pz));
+  int8_t binType = getHistogramBinType(binTypeStr);
+  taosMemoryFree(binTypeStr);
+
   if (binType == UNKNOWN_BIN) {
     return false;
   }
-  char*   binDesc = varDataVal(pCtx->param[2].param.pz);
+  char*   binDesc = strndup(varDataVal(pCtx->param[2].param.pz), varDataLen(pCtx->param[2].param.pz));
   int64_t normalized = pCtx->param[3].param.i;
   if (normalized != 0 && normalized != 1) {
     return false;
   }
   if (!getHistogramBinDesc(pInfo, binDesc, binType, (bool)normalized)) {
+    taosMemoryFree(binDesc);
     return false;
   }
+  taosMemoryFree(binDesc);
 
   return true;
 }

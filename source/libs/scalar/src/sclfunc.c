@@ -2748,14 +2748,19 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   int32_t        numOfBins = 0;
   int32_t        totalCount = 0;
 
-  int8_t  binType = getHistogramBinType(varDataVal(pInput[1].columnData->pData));
-  char   *binDesc = varDataVal(pInput[2].columnData->pData);
+  char *binTypeStr = strndup(varDataVal(pInput[1].columnData->pData), varDataLen(pInput[1].columnData->pData));
+  int8_t binType = getHistogramBinType(binTypeStr);
+  taosMemoryFree(binTypeStr);
+
+  char   *binDesc = strndup(varDataVal(pInput[2].columnData->pData), varDataLen(pInput[2].columnData->pData));
   int64_t normalized = *(int64_t *)(pInput[3].columnData->pData);
 
   int32_t type = GET_PARAM_TYPE(pInput);
   if (!getHistogramBinDesc(&bins, &numOfBins, binDesc, binType, (bool)normalized)) {
+    taosMemoryFree(binDesc);
     return TSDB_CODE_FAILED;
   }
+  taosMemoryFree(binDesc);
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
@@ -2784,6 +2789,8 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
       }
     }
   }
+
+  colInfoDataEnsureCapacity(pOutputData, numOfBins, false);
 
   for (int32_t k = 0; k < numOfBins; ++k) {
     int32_t len;
