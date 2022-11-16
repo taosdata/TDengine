@@ -70,7 +70,7 @@ typedef struct SSyncTimer {
   uint64_t          counter;
   int32_t           timerMS;
   SRaftId           destId;
-  SSyncHbTimerData  hbData;
+  void*             pData;
 } SSyncTimer;
 
 typedef struct SElectTimer {
