@@ -451,6 +451,9 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
             return INT64_MAX;
           }
           return utime * 1000000;
+        default:
+          ASSERT(0);
+          return utime;
       }
     }  // end from milli
     case TSDB_TIME_PRECISION_MICRO: {
@@ -464,6 +467,9 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
             return INT64_MAX;
           }
           return utime * 1000;
+        default:
+          ASSERT(0);
+          return utime;
       }
     }  // end from micro
     case TSDB_TIME_PRECISION_NANO: {
@@ -474,10 +480,13 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
           return utime / 1000;
         case TSDB_TIME_PRECISION_NANO:
           return utime;
+        default:
+          ASSERT(0);
+          return utime;
       }
     }  // end from nano
     default: {
-      assert(0);
+      ASSERT(0);
       return utime;  // only to pass windows compilation
     }
   }  // end switch fromPrecision
