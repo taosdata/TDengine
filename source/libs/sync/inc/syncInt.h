@@ -41,7 +41,7 @@ typedef struct SSyncRespMgr           SSyncRespMgr;
 typedef struct SSyncSnapshotSender    SSyncSnapshotSender;
 typedef struct SSyncSnapshotReceiver  SSyncSnapshotReceiver;
 typedef struct SSyncTimer             SSyncTimer;
-typedef struct SSyncHbTimerParam      SSyncHbTimerParam;
+typedef struct SSyncHbTimerData       SSyncHbTimerData;
 typedef struct SyncSnapshotSend       SyncSnapshotSend;
 typedef struct SyncSnapshotRsp        SyncSnapshotRsp;
 typedef struct SyncLocalCmd           SyncLocalCmd;
