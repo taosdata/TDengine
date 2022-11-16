@@ -988,7 +988,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     }
 
     bool acquired = false;
-    metaGetCachedTableUidList(metaHandle, pScanNode->suid, context.digest, tListLen(context.digest), res, &acquired);
+//    metaGetCachedTableUidList(metaHandle, pScanNode->suid, context.digest, tListLen(context.digest), res, &acquired);
     if (!acquired) {
       // failed to find the result in the cache, let try to calculate the results
       if (pTagIndexCond) {
