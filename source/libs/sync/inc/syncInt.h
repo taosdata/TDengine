@@ -73,11 +73,12 @@ typedef struct SSyncTimer {
   SSyncHbTimerData  hbData;
 } SSyncTimer;
 
-typedef struct SElectTimer {
+typedef struct SElectTimerParam {
   uint64_t   logicClock;
   SSyncNode* pSyncNode;
+  int64_t    executeTime;
   void*      pData;
-} SElectTimer;
+} SElectTimerParam;
 
 typedef struct SPeerState {
   SyncIndex lastSendIndex;
@@ -153,6 +154,7 @@ typedef struct SSyncNode {
   uint64_t          electTimerLogicClock;
   TAOS_TMR_CALLBACK FpElectTimerCB;  // Timer Fp
   uint64_t          electTimerCounter;
+  SElectTimerParam  electTimerParam;
 
   // heartbeat timer
   tmr_h             pHeartbeatTimer;

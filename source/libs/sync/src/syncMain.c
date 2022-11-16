@@ -429,7 +429,7 @@ bool syncIsReadyForRead(int64_t rid) {
 
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
-    sDebug("only one replica, cannot leader transfer");
+    sDebug("vgId:%d, only one replica, cannot leader transfer", pSyncNode->vgId);
     terrno = TSDB_CODE_SYN_ONE_REPLICA;
     return -1;
   }
@@ -445,7 +445,7 @@ int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
 
 int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   if (pSyncNode->replicaNum == 1) {
-    sDebug("only one replica, cannot leader transfer");
+    sDebug("vgId:%d, only one replica, cannot leader transfer", pSyncNode->vgId);
     terrno = TSDB_CODE_SYN_ONE_REPLICA;
     return -1;
   }
@@ -1104,8 +1104,16 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
   int32_t ret = 0;
   if (syncIsInit()) {
     pSyncNode->electTimerMS = ms;
+
+    int64_t execTime = taosGetTimestampMs() + ms;
+    atomic_store_64(&(pSyncNode->electTimerParam.executeTime), execTime);
+    atomic_store_64(&(pSyncNode->electTimerParam.logicClock), pSyncNode->electTimerLogicClock);
+    pSyncNode->electTimerParam.pSyncNode = pSyncNode;
+    pSyncNode->electTimerParam.pData = NULL;
+
     taosTmrReset(pSyncNode->FpElectTimerCB, pSyncNode->electTimerMS, pSyncNode, syncEnv()->pTimerManager,
                  &pSyncNode->pElectTimer);
+
   } else {
     sError("vgId:%d, start elect timer error, sync env is stop", pSyncNode->vgId);
   }
@@ -1855,27 +1863,35 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
 }
 
 static void syncNodeEqElectTimer(void* param, void* tmrId) {
-  SSyncNode* pNode = param;
-
   if (!syncIsInit()) return;
+
+  SSyncNode* pNode = (SSyncNode*)param;
+
   if (pNode == NULL) return;
   if (pNode->syncEqMsg == NULL) return;
 
+  int64_t tsNow = taosGetTimestampMs();
+  if (tsNow < pNode->electTimerParam.executeTime) return;
+
   SRpcMsg rpcMsg = {0};
   int32_t code =
-      syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_ELECTION, pNode->electTimerLogicClock, pNode->electTimerMS, pNode);
+      syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_ELECTION, pNode->electTimerParam.logicClock, pNode->electTimerMS, pNode);
+
   if (code != 0) {
     sError("failed to build elect msg");
+
     return;
   }
 
   SyncTimeout* pTimeout = rpcMsg.pCont;
-  sTrace("enqueue elect msg lc:%" PRId64, pTimeout->logicClock);
+  sNTrace(pNode, "enqueue elect msg lc:%" PRId64, pTimeout->logicClock);
 
   code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
   if (code != 0) {
     sError("failed to sync enqueue elect msg since %s", terrstr());
     rpcFreeCont(rpcMsg.pCont);
+
+    return;
   }
 }
 
@@ -2059,6 +2075,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
       pSyncMsg->cmd = SYNC_LOCAL_CMD_FOLLOWER_CMT;
       pSyncMsg->fcIndex = pMsg->commitIndex;
+      SyncIndex fcIndex = pSyncMsg->fcIndex;
 
       if (ths->syncEqMsg != NULL && ths->msgcb != NULL) {
         int32_t code = ths->syncEqMsg(ths->msgcb, &rpcMsgLocalCmd);
@@ -2066,7 +2083,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
           sError("vgId:%d, sync enqueue fc-commit msg error, code:%d", ths->vgId, code);
           rpcFreeCont(rpcMsgLocalCmd.pCont);
         } else {
-          sTrace("vgId:%d, sync enqueue fc-commit msg, fc-index:%" PRId64, ths->vgId, pSyncMsg->fcIndex);
+          sTrace("vgId:%d, sync enqueue fc-commit msg, fc-index:%" PRId64, ths->vgId, fcIndex);
         }
       }
     }

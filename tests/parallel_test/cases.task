@@ -37,10 +37,10 @@
 ,,y,script,./test.sh -f tsim/db/taosdlog.sim
 ,,,script,./test.sh -f tsim/dnode/balance_replica1.sim
 ,,,script,./test.sh -f tsim/dnode/balance_replica3.sim
-#,,,script,./test.sh -f tsim/dnode/balance1.sim
-#,,,script,./test.sh -f tsim/dnode/balance2.sim
-#,,,script,./test.sh -f tsim/dnode/balance3.sim
-#,,,script,./test.sh -f tsim/dnode/balancex.sim
+,,,script,./test.sh -f tsim/dnode/balance1.sim
+,,,script,./test.sh -f tsim/dnode/balance2.sim
+,,,script,./test.sh -f tsim/dnode/balance3.sim
+,,,script,./test.sh -f tsim/dnode/balancex.sim
 ,,y,script,./test.sh -f tsim/dnode/create_dnode.sim
 ,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_mnode.sim
 ,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_qnode_snode.sim
@@ -55,7 +55,7 @@
 ,,,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
 ,,,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v2.sim
 ,,,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
-#,,,script,./test.sh -f tsim/dnode/vnode_clean.sim
+,,,script,./test.sh -f tsim/dnode/vnode_clean.sim
 ,,,script,./test.sh -f tsim/dnode/use_dropped_dnode.sim 
 ,,,script,./test.sh -f tsim/dnode/split_vgroup_replica1.sim 
 ,,,script,./test.sh -f tsim/dnode/split_vgroup_replica3.sim 
@@ -117,7 +117,7 @@
 ,,y,script,./test.sh -f tsim/parser/fourArithmetic-basic.sim
 ,,y,script,./test.sh -f tsim/parser/function.sim
 ,,y,script,./test.sh -f tsim/parser/groupby-basic.sim
-,,,script,./test.sh -f tsim/parser/groupby.sim
+,,y,script,./test.sh -f tsim/parser/groupby.sim
 ,,y,script,./test.sh -f tsim/parser/having_child.sim
 ,,y,script,./test.sh -f tsim/parser/having.sim
 ,,y,script,./test.sh -f tsim/parser/import_commit1.sim
@@ -220,7 +220,7 @@
 ,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeSession0.sim
-,,,script,./test.sh -f tsim/stream/session0.sim
+,,y,script,./test.sh -f tsim/stream/session0.sim
 ,,y,script,./test.sh -f tsim/stream/session1.sim
 ,,y,script,./test.sh -f tsim/stream/state0.sim
 ,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
@@ -296,7 +296,7 @@
 ,,y,script,./test.sh -f tsim/vnode/replica3_vgroup.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_many.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_import.sim
-#,,,script,./test.sh -f tsim/vnode/stable_balance_replica1.sim
+,,,script,./test.sh -f tsim/vnode/stable_balance_replica1.sim
 ,,y,script,./test.sh -f tsim/vnode/stable_dnode2_stop.sim
 ,,y,script,./test.sh -f tsim/vnode/stable_dnode2.sim
 ,,y,script,./test.sh -f tsim/vnode/stable_dnode3.sim
