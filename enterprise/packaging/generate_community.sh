@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#set -x
+# set -x
 
 version=$1
 versionComp=$2
@@ -82,13 +82,18 @@ echo "append taoskeeper to community server package"
 rm -rf $prefix/
 rm -rf build-taoskeeper
 
+osName=`cat /etc/os-release |grep ^NAME=|awk -F '=' '{print $2}'`
 # mv package to path:/nas/TDengine/version/
 if [ -d $archiveDir ]; then
     cd $archiveDir
     cp -f $communityDir/release/* ./
-    if [ "${cpuType}" == "x64" ]; then
-        cp -f $communityDir/debs/* ./
+    if [[ "${cpuType}" == "x64"  &&  $osName == "\"Ubuntu\"" ]]; then
         cp -f $communityDir/rpms/* ./
+        cp -f $communityDir/debs/* ./
+        echo "build rpms and debs package at Ubuntu"
+    elif [[ "${cpuType}" == "x64"  &&  $osName == "\"CentOS Linux\"" ]]; then
+        cp -f $communityDir/rpms/* ./
+        echo "build rpms package at CentOS Linux"
     fi
 else
     echo "Cannont found $archiveDir on this machine"
@@ -100,4 +105,3 @@ fi
 #git checkout -b release/v$version
 #git merge master
 #git push origin release/v$version
-

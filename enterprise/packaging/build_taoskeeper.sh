@@ -30,9 +30,9 @@ prepare_repo() {
 
 checkout_latest_tag() {
   cd build-taoskeeper
-  latest=$(git tag --sort=-taggerdate|grep -o 'v.*'|head -n1)
+  latest=$(git tag --sort=-taggerdate|head -n1)
   if [ "$latest" = "" ]; then
-    latest="3.0"
+    latest=$(git log --pretty=format:"%h"|head -n1)
   else
     git checkout $latest
   fi
@@ -43,7 +43,7 @@ build_binary() {
   if [ "$FORCE" = "0" ] && [ -s taoskeeper ]; then
     true
   else
-    go build -ldflags="-s -w"
+    go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeper/version.Version=$latest'"
     upx taoskeeper > /dev/null 2>&1 || :
   fi
   readlink -f taoskeeper
