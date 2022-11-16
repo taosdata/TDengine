@@ -1496,7 +1496,7 @@ static FORCE_INLINE void tColDataGetValue4(SColData *pColData, int32_t iVal, SCo
     }
     value.pData = pColData->pData + pColData->aOffset[iVal];
   } else {
-    tGetValue(pColData->pData + tDataTypes[pColData->type].bytes * iVal, &value, pColData->type);
+    memcpy(&value.val, pColData->pData + tDataTypes[pColData->type].bytes * iVal, tDataTypes[pColData->type].bytes);
   }
   *pColVal = COL_VAL_VALUE(pColData->cid, pColData->type, value);
 }

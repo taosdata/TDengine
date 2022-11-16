@@ -74,7 +74,6 @@ int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema *
 void    tTSchemaDestroy(STSchema *pTSchema);
 
 // SValue ================================
-static FORCE_INLINE int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type);
 
 // SColVal ================================
 #define CV_FLAG_VALUE ((int8_t)0x0)
@@ -279,15 +278,6 @@ void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
 void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
 int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, col_id_t colId, col_bytes_t bytes);
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
-
-static FORCE_INLINE int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type) {
-  if (IS_VAR_DATA_TYPE(type)) {
-    return tGetBinary(p, &pValue->pData, pValue ? &pValue->nData : NULL);
-  } else {
-    memcpy(&pValue->val, p, tDataTypes[type].bytes);
-    return tDataTypes[type].bytes;
-  }
-}
 
 #endif
 
