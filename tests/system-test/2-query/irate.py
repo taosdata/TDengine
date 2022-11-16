@@ -34,7 +34,7 @@ class TDTestCase:
 
             ts = self.ts
             for row in range(rownums):
-                ts = self.ts + time_step*row
+                ts = self.ts + (time_step) * row + tbnum * 60 * 1000
                 c1 = random.randint(0,1000)
                 c2 = random.randint(0,100000)
                 c3 = random.randint(0,125)

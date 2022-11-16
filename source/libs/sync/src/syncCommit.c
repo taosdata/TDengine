@@ -116,7 +116,12 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       LRUHandle*      h = taosLRUCacheLookup(pCache, &index, sizeof(index));
       if (h) {
         pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+
+        sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", index, pEntry->bytes, pEntry);
+
       } else {
+        sNTrace(pSyncNode, "miss cache index:%" PRId64, index);
+
         int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index, &pEntry);
         if (code != 0) {
           sNError(pSyncNode, "advance commit index error, read wal index:%" PRId64, index);
