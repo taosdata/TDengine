@@ -584,15 +584,11 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
   return 0;
 }
 
-// TODO consider the page meta size
-int32_t getProperSortPageSize(size_t rowSize) {
-  uint32_t defaultPageSize = 4096;
-
-  uint32_t pgSize = 0;
-  if (rowSize * 4 > defaultPageSize) {
-    pgSize = rowSize * 4;
-  } else {
-    pgSize = defaultPageSize;
+// get sort page size
+int32_t getProperSortPageSize(size_t rowSize, uint32_t numOfCols) {
+  uint32_t pgSize = rowSize * 4 + blockDataGetSerialMetaSize(numOfCols);
+  if (pgSize < DEFAULT_PAGESIZE) {
+    return DEFAULT_PAGESIZE;
   }
 
   return pgSize;
@@ -612,7 +608,8 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
       }
 
       if (pHandle->pDataBlock == NULL) {
-        pHandle->pageSize = getProperSortPageSize(blockDataGetRowSize(pBlock));
+        uint32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+        pHandle->pageSize = getProperSortPageSize(blockDataGetRowSize(pBlock), numOfCols);
 
         // todo, number of pages are set according to the total available sort buffer
         pHandle->numOfPages = 1024;
