@@ -983,7 +983,7 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
     rsp.status = 0;
   }
 
-  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+  if (pTask) streamMetaReleaseTask(pTq->pStreamMeta, pTask);
 
   tqDebug("tq recv task check req(reqId: %" PRId64 ") %d at node %d check req from task %d at node %d, status %d",
           rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
