@@ -580,7 +580,7 @@ int32_t tsdbRowCmprFn(const void *p1, const void *p2) {
 }
 
 // STSDBRowIter ======================================================
-void tRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
+void tsdbRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
   pIter->pRow = pRow;
   if (pRow->type == 0) {
     ASSERT(pTSchema);
@@ -594,7 +594,7 @@ void tRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
   }
 }
 
-SColVal *tRowIterNext(STSDBRowIter *pIter) {
+SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
   if (pIter->pRow->type == 0) {
     if (pIter->i < pIter->pTSchema->numOfCols) {
       tTSRowGetVal(pIter->pRow->pTSRow, pIter->pTSchema, pIter->i, &pIter->colVal);

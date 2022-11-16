@@ -27,17 +27,17 @@
 extern "C" {
 #endif
 
-typedef struct SBuffer       SBuffer;
-typedef struct SSchema       SSchema;
-typedef struct STColumn      STColumn;
-typedef struct STSchema      STSchema;
-typedef struct SValue        SValue;
-typedef struct SColVal       SColVal;
-typedef struct STSRow2       STSRow2;
-typedef struct STSRowBuilder STSRowBuilder;
-typedef struct STagVal       STagVal;
-typedef struct STag          STag;
-typedef struct SColData      SColData;
+typedef struct SBuffer  SBuffer;
+typedef struct SSchema  SSchema;
+typedef struct STColumn STColumn;
+typedef struct STSchema STSchema;
+typedef struct SValue   SValue;
+typedef struct SColVal  SColVal;
+typedef struct SRow     SRow;
+typedef struct SRowIter SRowIter;
+typedef struct STagVal  STagVal;
+typedef struct STag     STag;
+typedef struct SColData SColData;
 
 #define HAS_NONE  ((uint8_t)0x1)
 #define HAS_NULL  ((uint8_t)0x2)
@@ -70,8 +70,7 @@ int32_t tBufferInit(SBuffer *pBuffer, int64_t size);
 int32_t tBufferPut(SBuffer *pBuffer, const void *pData, int64_t nData);
 
 // STSchema ================================
-int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
-void    tTSchemaDestroy(STSchema *pTSchema);
+void tTSchemaDestroy(STSchema *pTSchema);
 
 // SValue ================================
 
@@ -88,26 +87,12 @@ void    tTSchemaDestroy(STSchema *pTSchema);
 #define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
-// STSRow2 ================================
-#define TSROW_LEN(PROW, V)  tGetI32v((uint8_t *)(PROW)->data, (V) ? &(V) : NULL)
-#define TSROW_SVER(PROW, V) tGetI32v((PROW)->data + TSROW_LEN(PROW, NULL), (V) ? &(V) : NULL)
+// SRow ================================
+int32_t tTSRowPut(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer);
+void    tTSRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
+int32_t tTSRowToArray(SRow *pRow, STSchema *pTSchema, SArray **ppArray);
 
-int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow);
-int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow);
-void    tTSRowFree(STSRow2 *pRow);
-void    tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
-int32_t tTSRowToArray(STSRow2 *pRow, STSchema *pTSchema, SArray **ppArray);
-int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow);
-int32_t tGetTSRow(uint8_t *p, STSRow2 **ppRow);
-
-// STSRowBuilder ================================
-#define tsRowBuilderInit() ((STSRowBuilder){0})
-#define tsRowBuilderClear(B)     \
-  do {                           \
-    if ((B)->pBuf) {             \
-      taosMemoryFree((B)->pBuf); \
-    }                            \
-  } while (0)
+// SRowIter ================================
 
 // STag ================================
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
@@ -151,23 +136,12 @@ struct STSchema {
   STColumn columns[];
 };
 
-#define TSROW_HAS_NONE ((uint8_t)0x1)
-#define TSROW_HAS_NULL ((uint8_t)0x2U)
-#define TSROW_HAS_VAL  ((uint8_t)0x4U)
-#define TSROW_KV_SMALL ((uint8_t)0x10U)
-#define TSROW_KV_MID   ((uint8_t)0x20U)
-#define TSROW_KV_BIG   ((uint8_t)0x40U)
-#pragma pack(push, 1)
-struct STSRow2 {
-  TSKEY   ts;
-  uint8_t flags;
-  uint8_t data[];
-};
-#pragma pack(pop)
-
-struct STSRowBuilder {
-  int32_t  szBuf;
-  uint8_t *pBuf;
+struct SRow {
+  uint8_t  flag;
+  uint8_t  rsv;
+  uint16_t sver;
+  uint32_t len;
+  uint8_t  data[];
 };
 
 struct SValue {

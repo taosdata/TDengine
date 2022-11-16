@@ -112,8 +112,8 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
 // int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow);
 int32_t tsdbRowCmprFn(const void *p1, const void *p2);
 // STSDBRowIter
-void     tRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
-SColVal *tRowIterNext(STSDBRowIter *pIter);
+void     tsdbRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
+SColVal *tsdbRowIterNext(STSDBRowIter *pIter);
 // SRowMerger
 int32_t tRowMergerInit2(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRow, STSchema *pTSchema);
 int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
