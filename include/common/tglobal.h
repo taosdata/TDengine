@@ -44,6 +44,8 @@ extern int32_t tsCompatibleModel;
 extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
 extern int32_t tsCountAlwaysReturnValue;
+extern float   tsSelectivityRatio;
+extern int32_t tsTagFilterResCacheSize;
 
 // queue & threads
 extern int32_t tsNumOfRpcThreads;

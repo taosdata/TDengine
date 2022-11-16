@@ -108,6 +108,9 @@ int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
 int         metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid);
 int         metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType);
 bool        metaIsTableExist(SMeta *pMeta, tb_uid_t uid);
+int32_t     metaGetCachedTableUidList(SMeta *pMeta, tb_uid_t suid, const uint8_t *key, int32_t keyLen, SArray *pList, bool* acquired);
+int32_t     metaUidFilterCachePut(SMeta *pMeta, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
+                                  int32_t payloadLen, double selectivityRatio);
 
 typedef struct SMetaFltParam {
   tb_uid_t suid;

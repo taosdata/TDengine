@@ -973,19 +973,47 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   SArray* res = taosArrayInit(8, sizeof(uint64_t));
 
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {
-    if (pTagIndexCond) {
-      SIndexMetaArg metaArg = {
-          .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
+    // try to retrieve the result from meta cache
+    // generate the cache key
+    T_MD5_CTX context = {0};
 
-      //      int64_t stt = taosGetTimestampUs();
-      SIdxFltStatus status = SFLT_NOT_INDEX;
-      code = doFilterTag(pTagIndexCond, &metaArg, res, &status);
-      if (code != 0 || status == SFLT_NOT_INDEX) {
-        qError("failed to get tableIds from index, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
-        code = TDB_CODE_SUCCESS;
+    if (pTagIndexCond) {
+      char*   payload = NULL;
+      int32_t len = 0;
+      nodesNodeToMsg(pTagCond, &payload, &len);
+
+      tMD5Init(&context);
+      tMD5Update(&context, (uint8_t*)payload, (uint32_t)len);
+      tMD5Final(&context);
+    }
+
+    bool acquired = false;
+    metaGetCachedTableUidList(metaHandle, pScanNode->suid, context.digest, tListLen(context.digest), res, &acquired);
+    if (!acquired) {
+      // failed to find the result in the cache, let try to calculate the results
+      if (pTagIndexCond) {
+        SIndexMetaArg metaArg = {
+            .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
+
+        SIdxFltStatus status = SFLT_NOT_INDEX;
+        code = doFilterTag(pTagIndexCond, &metaArg, res, &status);
+        if (code != 0 || status == SFLT_NOT_INDEX) {
+          qError("failed to get tableIds from index, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
+          code = TDB_CODE_SUCCESS;
+        }
+      } else if (!pTagCond) {
+        vnodeGetCtbIdList(pVnode, pScanNode->suid, res);
       }
-    } else if (!pTagCond) {
-      vnodeGetCtbIdList(pVnode, pScanNode->suid, res);
+
+      // let's add the filter results into meta-cache
+      size_t numOfTables = taosArrayGetSize(res);
+      size_t size = numOfTables * sizeof(uint64_t) + sizeof(int32_t);
+      char*  pPayload = taosMemoryMalloc(size);
+      *(int32_t*)pPayload = numOfTables;
+      memcpy(pPayload + sizeof(int32_t), taosArrayGet(res, 0), numOfTables * sizeof(uint64_t));
+
+      metaUidFilterCachePut(metaHandle, pScanNode->suid, context.digest, tListLen(context.digest), pPayload,
+          size, 1);
     }
   } else {  // Create one table group.
     if (metaIsTableExist(metaHandle, tableUid)) {

@@ -119,6 +119,9 @@ int32_t tsMinIntervalTime = 1;
 // maximum memory allowed to be allocated for a single csv load (in MB)
 int32_t tsMaxMemUsedByInsert = 1024;
 
+float   tsSelectivityRatio = 1.0;
+int32_t tsTagFilterResCacheSize = 4096;
+
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
 // 0  no query allowed, queries are disabled
