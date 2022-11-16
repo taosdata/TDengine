@@ -2620,6 +2620,7 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
     int32_t numOfParams = cJSON_GetArraySize(binDesc);
     int32_t startIndex;
     if (numOfParams != 4) {
+      cJSON_Delete(binDesc);
       return false;
     }
 
@@ -2630,15 +2631,18 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
     cJSON *infinity = cJSON_GetObjectItem(binDesc, "infinity");
 
     if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) || !cJSON_IsBool(infinity)) {
+      cJSON_Delete(binDesc);
       return false;
     }
 
     if (count->valueint <= 0 || count->valueint > 1000) {  // limit count to 1000
+      cJSON_Delete(binDesc);
       return false;
     }
 
     if (isinf(start->valuedouble) || (width != NULL && isinf(width->valuedouble)) ||
         (factor != NULL && isinf(factor->valuedouble)) || (count != NULL && isinf(count->valuedouble))) {
+      cJSON_Delete(binDesc);
       return false;
     }
 
@@ -2656,12 +2660,14 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
       // linear bin process
       if (width->valuedouble == 0) {
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       for (int i = 0; i < counter + 1; ++i) {
         intervals[startIndex] = start->valuedouble + i * width->valuedouble;
         if (isinf(intervals[startIndex])) {
           taosMemoryFree(intervals);
+          cJSON_Delete(binDesc);
           return false;
         }
         startIndex++;
@@ -2670,22 +2676,26 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
       // log bin process
       if (start->valuedouble == 0) {
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       if (factor->valuedouble < 0 || factor->valuedouble == 0 || factor->valuedouble == 1) {
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       for (int i = 0; i < counter + 1; ++i) {
         intervals[startIndex] = start->valuedouble * pow(factor->valuedouble, i * 1.0);
         if (isinf(intervals[startIndex])) {
           taosMemoryFree(intervals);
+          cJSON_Delete(binDesc);
           return false;
         }
         startIndex++;
       }
     } else {
       taosMemoryFree(intervals);
+      cJSON_Delete(binDesc);
       return false;
     }
 
@@ -2700,6 +2710,7 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
     }
   } else if (cJSON_IsArray(binDesc)) { /* user input bins */
     if (binType != USER_INPUT_BIN) {
+      cJSON_Delete(binDesc);
       return false;
     }
     numOfBins = cJSON_GetArraySize(binDesc);
@@ -2707,6 +2718,7 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
     cJSON *bin = binDesc->child;
     if (bin == NULL) {
       taosMemoryFree(intervals);
+      cJSON_Delete(binDesc);
       return false;
     }
     int i = 0;
@@ -2714,16 +2726,19 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
       intervals[i] = bin->valuedouble;
       if (!cJSON_IsNumber(bin)) {
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       if (i != 0 && intervals[i] <= intervals[i - 1]) {
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       bin = bin->next;
       i++;
     }
   } else {
+    cJSON_Delete(binDesc);
     return false;
   }
 
@@ -2735,8 +2750,9 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
     (*bins)[i].count = 0;
   }
 
-  cJSON_Delete(binDesc);
   taosMemoryFree(intervals);
+  cJSON_Delete(binDesc);
+
   return true;
 }
 
@@ -2748,14 +2764,19 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   int32_t        numOfBins = 0;
   int32_t        totalCount = 0;
 
-  int8_t  binType = getHistogramBinType(varDataVal(pInput[1].columnData->pData));
-  char   *binDesc = varDataVal(pInput[2].columnData->pData);
+  char *binTypeStr = strndup(varDataVal(pInput[1].columnData->pData), varDataLen(pInput[1].columnData->pData));
+  int8_t binType = getHistogramBinType(binTypeStr);
+  taosMemoryFree(binTypeStr);
+
+  char   *binDesc = strndup(varDataVal(pInput[2].columnData->pData), varDataLen(pInput[2].columnData->pData));
   int64_t normalized = *(int64_t *)(pInput[3].columnData->pData);
 
   int32_t type = GET_PARAM_TYPE(pInput);
   if (!getHistogramBinDesc(&bins, &numOfBins, binDesc, binType, (bool)normalized)) {
+    taosMemoryFree(binDesc);
     return TSDB_CODE_FAILED;
   }
+  taosMemoryFree(binDesc);
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
@@ -2784,6 +2805,8 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
       }
     }
   }
+
+  colInfoDataEnsureCapacity(pOutputData, numOfBins, false);
 
   for (int32_t k = 0; k < numOfBins; ++k) {
     int32_t len;

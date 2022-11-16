@@ -31,7 +31,11 @@ int32_t tqBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
     int64_t ts = *(int64_t*)colDataGetData(pTsCol, row);
     int64_t groupId = *(int64_t*)colDataGetData(pGidCol, row);
     char*   name;
-    void*   varTbName = colDataGetVarData(pTbNameCol, row);
+    void*   varTbName = NULL;
+    if (!colDataIsNull(pTbNameCol, totRow, row, NULL)) {
+      varTbName = colDataGetVarData(pTbNameCol, row);
+    }
+
     if (varTbName != NULL && varTbName != (void*)-1) {
       name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       memcpy(name, varDataVal(varTbName), varDataLen(varTbName));

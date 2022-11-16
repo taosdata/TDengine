@@ -384,6 +384,8 @@ struct STDB {
 #endif
 };
 
+typedef struct hashset_st *hashset_t;
+
 struct SPager {
   char    *dbFileName;
   char    *jFileName;
@@ -394,7 +396,8 @@ struct SPager {
   SPCache *pCache;
   SPgno    dbFileSize;
   SPgno    dbOrigSize;
-  SPage   *pDirty;
+  //SPage   *pDirty;
+  hashset_t jPageSet;
   SRBTree  rbt;
   u8       inTran;
   SPager  *pNext;      // used by TDB

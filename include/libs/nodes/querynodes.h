@@ -74,9 +74,8 @@ typedef struct SColumnNode {
   char        tableName[TSDB_TABLE_NAME_LEN];
   char        tableAlias[TSDB_TABLE_NAME_LEN];
   char        colName[TSDB_COL_NAME_LEN];
-  // SNode*      pProjectRef;
-  int16_t dataBlockId;
-  int16_t slotId;
+  int16_t     dataBlockId;
+  int16_t     slotId;
 } SColumnNode;
 
 typedef struct SColumnRefNode {

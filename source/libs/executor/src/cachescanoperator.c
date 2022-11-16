@@ -208,7 +208,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         if (pInfo->pseudoExprSup.numOfExprs > 0) {
           SExprSupp* pSup = &pInfo->pseudoExprSup;
 
-          STableKeyInfo* pKeyInfo = &((STableKeyInfo*)pTableList)[0];
+          STableKeyInfo* pKeyInfo = &((STableKeyInfo*)pList)[0];
           pInfo->pRes->info.groupId = pKeyInfo->groupId;
 
           if (taosArrayGetSize(pInfo->pUidList) > 0) {
