@@ -37,7 +37,8 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
     return NULL;
   }
 
-  pLogStore->pCache = taosLRUCacheInit(10 * 1024 * 1024, 1, .5);
+  // pLogStore->pCache = taosLRUCacheInit(10 * 1024 * 1024, 1, .5);
+  pLogStore->pCache = taosLRUCacheInit(100 * 1024 * 1024, 1, .5);
   if (pLogStore->pCache == NULL) {
     taosMemoryFree(pLogStore);
     terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
@@ -319,6 +320,17 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
   SyncIndex walCommitVer = walGetCommittedVer(pWal);
   if (fromIndex <= walCommitVer) {
     return 0;
+  }
+
+  // delete from cache
+  for (SyncIndex index = fromIndex; index <= wallastVer; ++index) {
+    SLRUCache* pCache = pData->pSyncNode->pLogStore->pCache;
+    LRUHandle* h = taosLRUCacheLookup(pCache, &index, sizeof(index));
+    if (h) {
+      sNTrace(pData->pSyncNode, "cache delete index:%" PRId64, index);
+
+      taosLRUCacheRelease(pData->pSyncNode->pLogStore->pCache, h, true);
+    }
   }
 
   int32_t code = walRollback(pWal, fromIndex);

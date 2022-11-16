@@ -179,6 +179,7 @@ int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
     if (tDecodeSTqCheckInfo(&decoder, &info) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       tdbFree(pKey);
+      tdbFree(pVal);
       tdbTbcClose(pCur);
       return -1;
     }
@@ -186,11 +187,13 @@ int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
     if (taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo)) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       tdbFree(pKey);
+      tdbFree(pVal);
       tdbTbcClose(pCur);
       return -1;
     }
   }
   tdbFree(pKey);
+  tdbFree(pVal);
   tdbTbcClose(pCur);
   return 0;
 }

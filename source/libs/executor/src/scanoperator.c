@@ -2385,6 +2385,8 @@ static void destroyStreamScanOperatorInfo(void* param) {
     taosMemoryFree(pStreamScan->pPseudoExpr);
   }
 
+  cleanupExprSupp(&pStreamScan->tbnameCalSup);
+
   updateInfoDestroy(pStreamScan->pUpdateInfo);
   blockDataDestroy(pStreamScan->pRes);
   blockDataDestroy(pStreamScan->pUpdateRes);

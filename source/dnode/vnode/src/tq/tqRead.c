@@ -425,6 +425,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
       tqWarn("cannot found tsschema for table: uid:%" PRId64 " (suid:%" PRId64 "), version %d, possibly dropped table",
              pReader->msgIter.uid, pReader->msgIter.suid, pReader->cachedSchemaVer);
       /*ASSERT(0);*/
+      pReader->cachedSchemaSuid = 0;
       terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
       return -1;
     }
@@ -435,6 +436,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
       tqWarn("cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",
              pReader->msgIter.uid, pReader->cachedSchemaVer);
       /*ASSERT(0);*/
+      pReader->cachedSchemaSuid = 0;
       terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
       return -1;
     }

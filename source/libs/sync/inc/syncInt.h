@@ -70,7 +70,7 @@ typedef struct SSyncTimer {
   uint64_t          counter;
   int32_t           timerMS;
   SRaftId           destId;
-  void*             pData;
+  SSyncHbTimerData  hbData;
 } SSyncTimer;
 
 typedef struct SElectTimer {
@@ -225,6 +225,7 @@ int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t   syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 int32_t   syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode);
+int32_t   syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHandle** h);
 
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
