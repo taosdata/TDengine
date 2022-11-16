@@ -119,7 +119,7 @@
 ,,y,script,./test.sh -f tsim/parser/groupby-basic.sim
 ,,,script,./test.sh -f tsim/parser/groupby.sim
 ,,,script,./test.sh -f tsim/parser/having_child.sim
-,,,script,./test.sh -f tsim/parser/having.sim
+,,y,script,./test.sh -f tsim/parser/having.sim
 ,,y,script,./test.sh -f tsim/parser/import_commit1.sim
 ,,y,script,./test.sh -f tsim/parser/import_commit2.sim
 ,,y,script,./test.sh -f tsim/parser/import_commit3.sim
@@ -220,7 +220,7 @@
 ,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
 ,,,script,./test.sh -f tsim/stream/distributeSession0.sim
-,,,script,./test.sh -f tsim/stream/session0.sim
+,,y,script,./test.sh -f tsim/stream/session0.sim
 ,,y,script,./test.sh -f tsim/stream/session1.sim
 ,,y,script,./test.sh -f tsim/stream/state0.sim
 ,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
