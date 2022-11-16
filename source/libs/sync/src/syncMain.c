@@ -960,6 +960,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   // snapshotting
   atomic_store_64(&pSyncNode->snapshottingIndex, SYNC_INDEX_INVALID);
 
+  pSyncNode->isStart = true;
+
   sNTrace(pSyncNode, "sync open");
 
   return pSyncNode;
@@ -1033,7 +1035,16 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   }
   int32_t ret;
 
+  pSyncNode->isStart = false;
+
   sNTrace(pSyncNode, "sync close");
+
+  syncNodeStopPingTimer(pSyncNode);
+  syncNodeStopElectTimer(pSyncNode);
+  syncNodeStopHeartbeatTimer(pSyncNode);
+
+  // wait for timer expired queue empty
+  taosMsleep(HEARTBEAT_TIMER_MS);
 
   ret = raftStoreClose(pSyncNode->pRaftStore);
   ASSERT(ret == 0);
@@ -1053,10 +1064,6 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   pSyncNode->pLogStore = NULL;
   raftCfgClose(pSyncNode->pRaftCfg);
   pSyncNode->pRaftCfg = NULL;
-
-  syncNodeStopPingTimer(pSyncNode);
-  syncNodeStopElectTimer(pSyncNode);
-  syncNodeStopHeartbeatTimer(pSyncNode);
 
   if (pSyncNode->pFsm != NULL) {
     taosMemoryFree(pSyncNode->pFsm);
@@ -1918,6 +1925,10 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
   SSyncTimer*       pSyncTimer = pData->pTimer;
 
   if (pSyncNode == NULL) {
+    return;
+  }
+
+  if (!pSyncNode->isStart) {
     return;
   }
 

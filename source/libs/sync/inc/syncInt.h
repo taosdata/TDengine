@@ -187,6 +187,8 @@ typedef struct SSyncNode {
   int64_t leaderTime;
   int64_t lastReplicateTime;
 
+  bool isStart;
+
 } SSyncNode;
 
 // open/close --------------
