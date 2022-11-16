@@ -56,13 +56,12 @@ typedef struct SRaftId {
   SyncGroupId vgId;
 } SRaftId;
 
-typedef struct SSyncHbTimerParam {
+typedef struct SSyncHbTimerData {
   SSyncNode*  pSyncNode;
   SSyncTimer* pTimer;
   SRaftId     destId;
   uint64_t    logicClock;
-  int64_t     executeTime;
-} SSyncHbTimerParam;
+} SSyncHbTimerData;
 
 typedef struct SSyncTimer {
   void*             pTimer;
@@ -71,7 +70,7 @@ typedef struct SSyncTimer {
   uint64_t          counter;
   int32_t           timerMS;
   SRaftId           destId;
-  void*             pData;
+  SSyncHbTimerData  hbData;
 } SSyncTimer;
 
 typedef struct SElectTimerParam {
@@ -164,7 +163,6 @@ typedef struct SSyncNode {
   uint64_t          heartbeatTimerLogicClockUser;
   TAOS_TMR_CALLBACK FpHeartbeatTimerCB;  // Timer Fp
   uint64_t          heartbeatTimerCounter;
-  SSyncHbTimerParam hbTimerParam;
 
   // peer heartbeat timer
   SSyncTimer peerHeartbeatTimerArr[TSDB_MAX_REPLICA];

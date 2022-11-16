@@ -665,13 +665,12 @@ static int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRa
 static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   int32_t ret = 0;
   if (syncIsInit()) {
-    SSyncHbTimerParam* pData = taosMemoryMalloc(sizeof(SSyncHbTimerParam));
+    SSyncHbTimerData* pData = &pSyncTimer->hbData;
     pData->pSyncNode = pSyncNode;
     pData->pTimer = pSyncTimer;
     pData->destId = pSyncTimer->destId;
     pData->logicClock = pSyncTimer->logicClock;
 
-    pSyncTimer->pData = pData;
     taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS, pData, syncEnv()->pTimerManager, &pSyncTimer->pTimer);
   } else {
     sError("vgId:%d, start ctrl hb timer error, sync env is stop", pSyncNode->vgId);
@@ -1930,9 +1929,9 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
 }
 
 static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
-  SSyncHbTimerParam* pData = (SSyncHbTimerParam*)param;
-  SSyncNode*         pSyncNode = pData->pSyncNode;
-  SSyncTimer*        pSyncTimer = pData->pTimer;
+  SSyncHbTimerData* pData = (SSyncHbTimerData*)param;
+  SSyncNode*        pSyncNode = pData->pSyncNode;
+  SSyncTimer*       pSyncTimer = pData->pTimer;
 
   if (pSyncNode == NULL) {
     return;
