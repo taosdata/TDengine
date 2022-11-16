@@ -80,7 +80,12 @@ void streamMetaClose(SStreamMeta* pMeta) {
     pIter = taosHashIterate(pMeta->pTasks, pIter);
     if (pIter == NULL) break;
     SStreamTask* pTask = *(SStreamTask**)pIter;
+    if (pTask->timer) {
+      taosTmrStop(pTask->timer);
+      pTask->timer = NULL;
+    }
     tFreeSStreamTask(pTask);
+    /*streamMetaReleaseTask(pMeta, pTask);*/
   }
   taosHashCleanup(pMeta->pTasks);
   taosMemoryFree(pMeta->path);
@@ -202,6 +207,10 @@ void streamMetaRemoveTask1(SStreamMeta* pMeta, int32_t taskId) {
   if (ppTask) {
     SStreamTask* pTask = *ppTask;
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
+    /*if (pTask->timer) {
+     * taosTmrStop(pTask->timer);*/
+    /*pTask->timer = NULL;*/
+    /*}*/
     atomic_store_8(&pTask->taskStatus, TASK_STATUS__DROPPING);
 
     taosWLockLatch(&pMeta->lock);
