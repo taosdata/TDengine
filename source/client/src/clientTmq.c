@@ -728,12 +728,26 @@ void tmqSendHbReq(void* param, void* tmrId) {
     taosMemoryFree(param);
     return;
   }
-  int64_t   consumerId = tmq->consumerId;
-  int32_t   epoch = tmq->epoch;
-  SMqHbReq* pReq = taosMemoryMalloc(sizeof(SMqHbReq));
-  if (pReq == NULL) goto OVER;
-  pReq->consumerId = htobe64(consumerId);
-  pReq->epoch = epoch;
+
+  SMqHbReq req = {0};
+  req.consumerId = tmq->consumerId;
+  req.epoch = tmq->epoch;
+
+  int32_t      tlen = tSerializeSMqHbReq(NULL, 0, &req);
+  if (tlen < 0) {
+    tscError("tSerializeSMqHbReq failed");
+    return;
+  }
+  void *pReq = taosMemoryCalloc(1, tlen);
+  if (tlen < 0) {
+    tscError("failed to malloc MqHbReq msg, size:%d", tlen);
+    return;
+  }
+  if (tSerializeSMqHbReq(pReq, tlen, &req) < 0) {
+    tscError("tSerializeSMqHbReq %d failed", tlen);
+    taosMemoryFree(pReq);
+    return;
+  }
 
   SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
@@ -1378,21 +1392,31 @@ int32_t tmqAskEp(tmq_t* tmq, bool async) {
   }
   atomic_store_32(&tmq->epSkipCnt, 0);
 #endif
-  int32_t      tlen = sizeof(SMqAskEpReq);
-  SMqAskEpReq* req = taosMemoryCalloc(1, tlen);
-  if (req == NULL) {
-    tscError("failed to malloc get subscribe ep buf");
-    /*atomic_store_8(&tmq->epStatus, 0);*/
+  SMqAskEpReq req = {0};
+  req.consumerId = tmq->consumerId;
+  req.epoch = tmq->epoch;
+  strcpy(req.cgroup, tmq->groupId);
+
+  int32_t      tlen = tSerializeSMqAskEpReq(NULL, 0, &req);
+  if (tlen < 0) {
+    tscError("tSerializeSMqAskEpReq failed");
     return -1;
   }
-  req->consumerId = htobe64(tmq->consumerId);
-  req->epoch = htonl(tmq->epoch);
-  strcpy(req->cgroup, tmq->groupId);
+  void *pReq = taosMemoryCalloc(1, tlen);
+  if (tlen < 0) {
+    tscError("failed to malloc askEpReq msg, size:%d", tlen);
+    return -1;
+  }
+  if (tSerializeSMqAskEpReq(pReq, tlen, &req) < 0) {
+    tscError("tSerializeSMqAskEpReq %d failed", tlen);
+    taosMemoryFree(pReq);
+    return -1;
+  }
 
   SMqAskEpCbParam* pParam = taosMemoryCalloc(1, sizeof(SMqAskEpCbParam));
   if (pParam == NULL) {
     tscError("failed to malloc subscribe param");
-    taosMemoryFree(req);
+    taosMemoryFree(pReq);
     /*atomic_store_8(&tmq->epStatus, 0);*/
     return -1;
   }
@@ -1405,13 +1429,13 @@ int32_t tmqAskEp(tmq_t* tmq, bool async) {
   if (sendInfo == NULL) {
     tsem_destroy(&pParam->rspSem);
     taosMemoryFree(pParam);
-    taosMemoryFree(req);
+    taosMemoryFree(pReq);
     /*atomic_store_8(&tmq->epStatus, 0);*/
     return -1;
   }
 
   sendInfo->msgInfo = (SDataBuf){
-      .pData = req,
+      .pData = pReq,
       .len = tlen,
       .handle = NULL,
   };

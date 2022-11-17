@@ -3198,6 +3198,12 @@ static FORCE_INLINE void tFreeSBatchRspMsg(void* p) {
   taosMemoryFree(pRsp->msg);
 }
 
+int32_t tSerializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq);
+int32_t tDeserializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq);
+int32_t tSerializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq);
+int32_t tDeserializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq);
+
+
 #pragma pack(pop)
 
 #ifdef __cplusplus

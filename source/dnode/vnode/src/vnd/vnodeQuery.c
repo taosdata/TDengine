@@ -301,6 +301,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   batchRsp.pRsps = taosArrayInit(msgNum, sizeof(SBatchRspMsg));
   if (NULL == batchRsp.pRsps) {
     code = TSDB_CODE_OUT_OF_MEMORY;
+    qError("taosArrayInit %d SBatchRspMsg failed", msgNum);
     goto _exit;
   }
 
@@ -337,15 +338,18 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
   rspSize = tSerializeSBatchRsp(NULL, 0, &batchRsp);
   if (rspSize < 0) {
+    qError("tSerializeSBatchRsp failed");
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
   pRsp = rpcMallocCont(rspSize);
   if (pRsp == NULL) {
+    qError("rpcMallocCont %d failed", rspSize);
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  if (tSerializeSBatchRsp(pRsp, rspSize, &batchRsp)) {
+  if (tSerializeSBatchRsp(pRsp, rspSize, &batchRsp) < 0) {
+    qError("tSerializeSBatchRsp %d failed", rspSize);
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
@@ -362,7 +366,7 @@ _exit:
     qError("vnd get batch meta failed cause of %s", tstrerror(code));
   }
 
-  taosArrayDestroyEx(batchRsp.pRsps, vnodeFreeSBatchRspMsg);
+  taosArrayDestroyEx(batchRsp.pRsps, tFreeSBatchRspMsg);
 
   tmsgSendRsp(&rspMsg);
 
