@@ -4898,6 +4898,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
     if (pMiaInfo->groupId == 0) {
       if (pMiaInfo->groupId != pBlock->info.groupId) {
         pMiaInfo->groupId = pBlock->info.groupId;
+        pRes->info.groupId = pMiaInfo->groupId;
       }
     } else {
       if (pMiaInfo->groupId != pBlock->info.groupId) {
@@ -4911,6 +4912,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
         break;
       } else {
         // continue
+        pRes->info.groupId = pMiaInfo->groupId;
       }
     }
 
