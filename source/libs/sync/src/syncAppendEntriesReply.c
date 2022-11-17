@@ -17,6 +17,7 @@
 #include "syncAppendEntriesReply.h"
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
+#include "syncLogBuffer.h"
 #include "syncMessage.h"
 #include "syncRaftEntry.h"
 #include "syncRaftStore.h"
@@ -54,82 +55,6 @@ int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
           ths->pRaftStore->currentTerm, commitIndex);
   }
   return ths->commitIndex;
-}
-
-SSyncRaftEntry* syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex index, bool* pInBuf) {
-  SSyncRaftEntry* pEntry = NULL;
-  if (index >= pBuf->endIndex) {
-    return NULL;
-  }
-  if (index > pBuf->startIndex) {  // startIndex might be dummy
-    *pInBuf = true;
-    pEntry = pBuf->entries[index % pBuf->size].pItem;
-  } else {
-    *pInBuf = false;
-    if (pNode->pLogStore->syncLogGetEntry(pNode->pLogStore, index, &pEntry) < 0) {
-      sError("vgId:%d, failed to get log entry since %s. index:%" PRId64 "", pNode->vgId, terrstr(), index);
-    }
-  }
-  return pEntry;
-}
-
-bool syncLogReplMgrValidate(SSyncLogReplMgr* pMgr) {
-  ASSERT(pMgr->startIndex <= pMgr->endIndex);
-  for (SyncIndex index = pMgr->startIndex; index < pMgr->endIndex; index++) {
-    ASSERT(pMgr->states[(index + pMgr->size) % pMgr->size].barrier == false || index + 1 == pMgr->endIndex);
-  }
-  return true;
-}
-
-int32_t syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index, SyncTerm* pTerm,
-                                    SRaftId* pDestId, bool* pBarrier) {
-  SSyncRaftEntry*    pEntry = NULL;
-  SRpcMsg            msgOut = {0};
-  bool               inBuf = false;
-  int32_t            ret = -1;
-  SyncTerm           prevLogTerm = -1;
-  SSyncLogBuffer*    pBuf = pNode->pLogBuf;
-
-  pEntry = syncLogBufferGetOneEntry(pBuf, pNode, index, &inBuf);
-  if (pEntry == NULL) {
-    sError("vgId:%d, failed to get raft entry for index: %" PRId64 "", pNode->vgId, index);
-    goto _err;
-  }
-  *pBarrier = syncLogIsReplicationBarrier(pEntry);
-
-  prevLogTerm = syncLogReplMgrGetPrevLogTerm(pMgr, pNode, index);
-  if (prevLogTerm < 0) {
-    sError("vgId:%d, failed to get prev log term since %s. index: %" PRId64 "", pNode->vgId, terrstr(), index);
-    goto _err;
-  }
-  if (pTerm) *pTerm = pEntry->term;
-
-  int32_t code = syncLogToAppendEntries(pNode, pEntry, prevLogTerm, &msgOut);
-  if (code < 0) {
-    sError("vgId:%d, failed to get append entries for index:%" PRId64 "", pNode->vgId, index);
-    goto _err;
-  }
-
-  (void)syncNodeSendAppendEntries(pNode, pDestId, &msgOut);
-  ret = 0;
-
-  sInfo("vgId:%d, replicate one msg index: %" PRId64 " term: %" PRId64 " prevterm: %" PRId64 " to dest: 0x%016" PRIx64,
-        pNode->vgId, pEntry->index, pEntry->term, prevLogTerm, pDestId->addr);
-
-  if (!inBuf) {
-    syncEntryDestroy(pEntry);
-    pEntry = NULL;
-  }
-  return 0;
-
-_err:
-  rpcFreeCont(msgOut.pCont);
-  msgOut.pCont = NULL;
-  if (!inBuf) {
-    syncEntryDestroy(pEntry);
-    pEntry = NULL;
-  }
-  return -1;
 }
 
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {

@@ -216,7 +216,7 @@ int64_t taosGetMonotonicMs() {
 #if 0  
   return getMonotonicUs() / 1000;
 #else
-  return taosGetMonoTimestampMs();
+  return taosGetTimestampMs();
 #endif
 }
 

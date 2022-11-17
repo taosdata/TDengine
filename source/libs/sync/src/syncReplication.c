@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "syncReplication.h"
 #include "syncIndexMgr.h"
+#include "syncLogBuffer.h"
 #include "syncRaftEntry.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
@@ -44,6 +45,8 @@
 //                msource        |-> i,
 //                mdest          |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
+
+int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
 
 int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapshot) {
   // next index
