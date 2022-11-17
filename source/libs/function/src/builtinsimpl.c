@@ -2217,8 +2217,8 @@ bool leastSQRFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInf
 
   SLeastSQRInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
 
-  GET_TYPED_DATA(pInfo->startVal, double, pCtx->param[1].param.nType, pCtx->param[1].param.i);
-  GET_TYPED_DATA(pInfo->stepVal, double, pCtx->param[2].param.nType, pCtx->param[2].param.i);
+  GET_TYPED_DATA(pInfo->startVal, double, pCtx->param[1].param.nType, &pCtx->param[1].param.i);
+  GET_TYPED_DATA(pInfo->stepVal, double, pCtx->param[2].param.nType, &pCtx->param[2].param.i);
   return true;
 }
 
@@ -2563,7 +2563,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
 int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SVariant* pVal = &pCtx->param[1].param;
   double    v = 0;
-  GET_TYPED_DATA(v, double, pVal->nType, pVal->i);
+  GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo*     ppInfo = (SPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
@@ -2623,7 +2623,7 @@ bool apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResult
 
   SVariant* pVal = &pCtx->param[1].param;
   pInfo->percent = 0;
-  GET_TYPED_DATA(pInfo->percent, double, pVal->nType, pVal->i);
+  GET_TYPED_DATA(pInfo->percent, double, pVal->nType, &pVal->i);
 
   if (pCtx->numOfParams == 2) {
     pInfo->algo = APERCT_ALGO_DEFAULT;
