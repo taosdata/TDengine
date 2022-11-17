@@ -245,19 +245,19 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   SyncTerm  lastMatchTerm = syncLogBufferGetLastMatchTerm(pBuf);
 
   if (index <= pBuf->commitIndex) {
-    sDebug("vgId:%d, raft entry already committed. index: %" PRId64 ", term: %" PRId64 ". log buffer: [%" PRId64
-           " %" PRId64 " %" PRId64 ", %" PRId64 ")",
-           pNode->vgId, pEntry->index, pEntry->term, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex,
-           pBuf->endIndex);
+    sInfo("vgId:%d, raft entry already committed. index: %" PRId64 ", term: %" PRId64 ". log buffer: [%" PRId64
+          " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+          pNode->vgId, pEntry->index, pEntry->term, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex,
+          pBuf->endIndex);
     ret = 0;
     goto _out;
   }
 
   if (index - pBuf->startIndex >= pBuf->size) {
-    sDebug("vgId:%d, raft entry out of buffer capacity. index: %" PRId64 ", term: %" PRId64 ". log buffer: [%" PRId64
-           " %" PRId64 " %" PRId64 ", %" PRId64 ")",
-           pNode->vgId, pEntry->index, pEntry->term, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex,
-           pBuf->endIndex);
+    sInfo("vgId:%d, raft entry out of buffer capacity. index: %" PRId64 ", term: %" PRId64 ". log buffer: [%" PRId64
+          " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+          pNode->vgId, pEntry->index, pEntry->term, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex,
+          pBuf->endIndex);
     goto _out;
   }
 
@@ -382,8 +382,8 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
     // increase match index
     pBuf->matchIndex = index;
 
-    sDebug("vgId:%d, log buffer proceed. start index: %" PRId64 ", match index: %" PRId64 ", end index: %" PRId64,
-           pNode->vgId, pBuf->startIndex, pBuf->matchIndex, pBuf->endIndex);
+    sInfo("vgId:%d, log buffer proceed. start index: %" PRId64 ", match index: %" PRId64 ", end index: %" PRId64,
+          pNode->vgId, pBuf->startIndex, pBuf->matchIndex, pBuf->endIndex);
 
     // replicate on demand
     (void)syncNodeReplicate(pNode);
@@ -586,9 +586,9 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
-  sDebug("vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
-         ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 "",
-         pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex);
+  sInfo("vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
+        ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 "",
+        pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex);
 
   // accept
   if (syncLogBufferAccept(ths->pLogBuf, ths, pEntry, pMsg->prevLogTerm) < 0) {

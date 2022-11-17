@@ -50,8 +50,8 @@ int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
   if (indexLikely > ths->commitIndex && syncNodeAgreedUpon(ths, indexLikely)) {
     SyncIndex commitIndex = indexLikely;
     syncNodeUpdateCommitIndex(ths, commitIndex);
-    sDebug("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index: %" PRId64 "", ths->vgId, ths->state,
-           ths->pRaftStore->currentTerm, commitIndex);
+    sInfo("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index: %" PRId64 "", ths->vgId, ths->state,
+          ths->pRaftStore->currentTerm, commitIndex);
   }
   return ths->commitIndex;
 }
@@ -113,8 +113,8 @@ int32_t syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, Syn
   (void)syncNodeSendAppendEntries(pNode, pDestId, &msgOut);
   ret = 0;
 
-  sDebug("vgId:%d, replicate one msg index: %" PRId64 " term: %" PRId64 " prevterm: %" PRId64 " to dest: 0x%016" PRIx64,
-         pNode->vgId, pEntry->index, pEntry->term, prevLogTerm, pDestId->addr);
+  sInfo("vgId:%d, replicate one msg index: %" PRId64 " term: %" PRId64 " prevterm: %" PRId64 " to dest: 0x%016" PRIx64,
+        pNode->vgId, pEntry->index, pEntry->term, prevLogTerm, pDestId->addr);
 
   if (!inBuf) {
     syncEntryDestroy(pEntry);
@@ -157,8 +157,8 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
     ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
 
-    sDebug("vgId:%d received append entries reply. srcId:0x%016" PRIx64 ",  term:%" PRId64 ", matchIndex:%" PRId64 "",
-           pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);
+    sInfo("vgId:%d received append entries reply. srcId:0x%016" PRIx64 ",  term:%" PRId64 ", matchIndex:%" PRId64 "",
+          pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);
 
     if (pMsg->success) {
       SyncIndex oldMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));

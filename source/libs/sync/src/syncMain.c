@@ -93,13 +93,13 @@ int32_t syncStart(int64_t rid) {
     goto _err;
   }
 
-    if (syncNodeStart(pSyncNode) < 0) {
-      sError("vgId:%d, failed to start sync node since %s", pSyncNode->vgId, terrstr());
-      goto _err;
-    }
+  if (syncNodeStart(pSyncNode) < 0) {
+    sError("vgId:%d, failed to start sync node since %s", pSyncNode->vgId, terrstr());
+    goto _err;
+  }
 
-    syncNodeRelease(pSyncNode);
-    return 0;
+  syncNodeRelease(pSyncNode);
+  return 0;
 
 _err:
   syncNodeRelease(pSyncNode);
@@ -524,13 +524,8 @@ int32_t syncGetSnapshotByIndex(int64_t rid, SyncIndex index, SSnapshot* pSnapsho
   pSnapshot->lastApplyTerm = pEntry->term;
   pSnapshot->lastConfigIndex = syncNodeGetSnapshotConfigIndex(pSyncNode, index);
 
-<<<<<<< HEAD
-  syncEntryDestroy(pEntry);
-  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-=======
   syncEntryDestroy(pEntry);
   syncNodeRelease(pSyncNode);
->>>>>>> 3.0
   return 0;
 }
 
@@ -771,7 +766,7 @@ _out:
 int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNode* pNode,
                                                  SyncAppendEntriesReply* pMsg) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  SRaftId destId = pMsg->srcId;
+  SRaftId         destId = pMsg->srcId;
   ASSERT(pMgr->restored == false);
   char     host[64];
   uint16_t port;
@@ -2508,10 +2503,10 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   // proceed match index, with replicating on needed
   SyncIndex matchIndex = syncLogBufferProceed(ths->pLogBuf, ths);
 
-  sDebug("vgId:%d, append raft entry. index: %" PRId64 ", term: %" PRId64 " pBuf: [%" PRId64 " %" PRId64 " %" PRId64
-         ", %" PRId64 ")",
-         ths->vgId, pEntry->index, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
-         ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
+  sInfo("vgId:%d, append raft entry. index: %" PRId64 ", term: %" PRId64 " pBuf: [%" PRId64 " %" PRId64 " %" PRId64
+        ", %" PRId64 ")",
+        ths->vgId, pEntry->index, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
+        ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
 
   // multi replica
   if (ths->replicaNum > 1) {
@@ -2646,7 +2641,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
-  SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(ths, &pMsg->srcId);
+  SSyncLogReplMgr*    pMgr = syncNodeGetLogReplMgr(ths, &pMsg->srcId);
   if (pMgr == NULL) {
     sError("vgId:%d, failed to get log repl mgr for the peer at addr 0x016%" PRIx64 "", ths->vgId, pMsg->srcId.addr);
     return -1;
@@ -2797,17 +2792,6 @@ int32_t syncLogToAppendEntries(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTer
   return 0;
 }
 
-#if 0
-void syncLogReplicateAppendEntries(SSyncNode* pNode, SyncAppendEntries* pMsg) {
-  for (int i = 0; i < pNode->replicaNum; i++) {
-    SRaftId* pDestId = &pNode->peersId[i];
-    if (!syncUtilSameId(pDestId, &pNode->myRaftId)) {
-      (void)syncNodeSendAppendEntries(pNode, pDestId, pMsg);
-    }
-  }
-}
-#endif
-
 // TLA+ Spec
 // ClientRequest(i, v) ==
 //     /\ state[i] = Leader
@@ -2824,9 +2808,9 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
 
   int32_t code = 0;
 
-  SyncIndex          index = syncLogBufferGetEndIndex(ths->pLogBuf);
-  SyncTerm           term = ths->pRaftStore->currentTerm;
-  SSyncRaftEntry*    pEntry = NULL;
+  SyncIndex       index = syncLogBufferGetEndIndex(ths->pLogBuf);
+  SyncTerm        term = ths->pRaftStore->currentTerm;
+  SSyncRaftEntry* pEntry = NULL;
   if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
     pEntry = syncEntryBuildFromClientRequest(pMsg->pCont, term, index);
   } else {
@@ -2841,7 +2825,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
     return syncNodeAppend(ths, pEntry);
   }
 
-  return 0;
+  return -1;
 }
 
 int32_t syncNodeOnClientRequestOld(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex) {

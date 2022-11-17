@@ -307,10 +307,10 @@ static void vnodeSyncApplyMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const S
     rpcMsg.info.conn.applyTerm = pMeta->term;
 
     const STraceId *trace = &pMsg->info.traceId;
-    vGTrace("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
-            ", weak:%d, code:%d, state:%d %s, type:%s",
-            pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, rpcMsg.info.conn.applyIndex, pMeta->isWeak,
-            pMeta->code, pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType));
+    vGInfo("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
+           ", weak:%d, code:%d, state:%d %s, type:%s",
+           pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, rpcMsg.info.conn.applyIndex, pMeta->isWeak,
+           pMeta->code, pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType));
 
     tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
   } else {
@@ -558,12 +558,12 @@ bool vnodeIsLeader(SVnode *pVnode) {
     } else {
       terrno = TSDB_CODE_APP_NOT_READY;
     }
-    vDebug("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncStr(state.state), state.restored);
+    vInfo("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncStr(state.state), state.restored);
     return false;
   }
 
   if (!pVnode->restored) {
-    vDebug("vgId:%d, vnode not restored", pVnode->config.vgId);
+    vInfo("vgId:%d, vnode not restored", pVnode->config.vgId);
     terrno = TSDB_CODE_APP_NOT_READY;
     return false;
   }
