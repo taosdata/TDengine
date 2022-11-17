@@ -147,11 +147,11 @@ struct SBTC {
   SPage       *pgStack[BTREE_MAX_DEPTH + 1];
   SCellDecoder coder;
   TXN         *pTxn;
-  TXN          txn;
+  i8           freeTxn;
 };
 
 // SBTree
-int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr,
+int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr, TDB *pEnv,
                  SBTree **ppBt);
 int tdbBtreeClose(SBTree *pBt);
 int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
@@ -396,12 +396,12 @@ struct SPager {
   SPCache *pCache;
   SPgno    dbFileSize;
   SPgno    dbOrigSize;
-  //SPage   *pDirty;
+  // SPage   *pDirty;
   hashset_t jPageSet;
-  SRBTree  rbt;
-  u8       inTran;
-  SPager  *pNext;      // used by TDB
-  SPager  *pHashNext;  // used by TDB
+  SRBTree   rbt;
+  u8        inTran;
+  SPager   *pNext;      // used by TDB
+  SPager   *pHashNext;  // used by TDB
 #ifdef USE_MAINDB
   TDB *pEnv;
 #endif

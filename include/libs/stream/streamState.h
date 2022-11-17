@@ -35,7 +35,7 @@ typedef struct {
   TTB*         pFuncStateDb;
   TTB*         pFillStateDb;  // todo refactor
   TTB*         pSessionStateDb;
-  TXN          txn;
+  TXN*         txn;
   int32_t      number;
 } SStreamState;
 
