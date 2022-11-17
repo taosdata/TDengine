@@ -131,7 +131,7 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
       syncHbTimerInit(pSyncNode, &pSyncNode->peerHeartbeatTimerArr[i], pSyncNode->replicasId[i]);
     }
 
-    syncNodeStartHeartbeatTimer(pSyncNode);
+    // syncNodeStartHeartbeatTimer(pSyncNode);
 
     syncNodeReplicate(pSyncNode);
   }
@@ -660,6 +660,7 @@ static int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRa
   pSyncTimer->timerMS = pSyncNode->hbBaseLine;
   pSyncTimer->timerCb = syncNodeEqPeerHeartbeatTimer;
   pSyncTimer->destId = destId;
+  pSyncTimer->pData = NULL;
   atomic_store_64(&pSyncTimer->logicClock, 0);
   return 0;
 }
@@ -1432,6 +1433,12 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     char tmpbuf[1024] = {0};
     snprintf(tmpbuf, sizeof(tmpbuf), "config change from %d to %d, index:%" PRId64 ", %s  -->  %s",
              oldConfig.replicaNum, pNewConfig->replicaNum, lastConfigChangeIndex, oldCfgStr, newCfgStr);
+
+    // update heartbeat timer
+    syncNodeStopHeartbeatTimer(pSyncNode);
+    for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
+      syncHbTimerInit(pSyncNode, &pSyncNode->peerHeartbeatTimerArr[i], pSyncNode->replicasId[i]);
+    }
 
     // change isStandBy to normal (election timeout)
     if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
