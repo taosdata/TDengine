@@ -337,9 +337,13 @@ static void doSetTagColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlo
 
     int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock, rows,
                                           GET_TASKID(pTaskInfo), &pTableScanInfo->metaCache);
-    if (code != TSDB_CODE_SUCCESS) {
+    // ignore the table not exists error, since this table may have been dropped during the scan procedure.
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
+
+    // reset the error code.
+    terrno = 0;
   }
 }
 
@@ -513,6 +517,21 @@ static void freeTableCachedVal(void* param) {
   taosMemoryFree(pVal);
 }
 
+static STableCachedVal* createTableCacheVal(const SMetaReader* pMetaReader) {
+  STableCachedVal* pVal = taosMemoryMalloc(sizeof(STableCachedVal));
+  pVal->pName = strdup(pMetaReader->me.name);
+  pVal->pTags = NULL;
+
+  // only child table has tag value
+  if (pMetaReader->me.type == TSDB_CHILD_TABLE) {
+    STag* pTag = (STag*) pMetaReader->me.ctbEntry.pTags;
+    pVal->pTags = taosMemoryMalloc(pTag->len);
+    memcpy(pVal->pTags, pTag, pTag->len);
+  }
+
+  return pVal;
+}
+
 // const void *key, size_t keyLen, void *value
 static void freeCachedMetaItem(const void* key, size_t keyLen, void* value) { freeTableCachedVal(value); }
 
@@ -540,7 +559,11 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     metaReaderInit(&mr, pHandle->meta, 0);
     code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
     if (code != TSDB_CODE_SUCCESS) {
-      qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+      if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+        qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+      } else {
+        qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+      }
       metaReaderClear(&mr);
       return terrno;
     }
@@ -559,23 +582,18 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       metaReaderInit(&mr, pHandle->meta, 0);
       code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
       if (code != TSDB_CODE_SUCCESS) {
-        qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+        if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+          qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+        } else {
+          qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+        }
         metaReaderClear(&mr);
         return terrno;
       }
 
       metaReaderReleaseLock(&mr);
 
-      STableCachedVal* pVal = taosMemoryMalloc(sizeof(STableCachedVal));
-      pVal->pName = strdup(mr.me.name);
-      pVal->pTags = NULL;
-
-      // only child table has tag value
-      if (mr.me.type == TSDB_CHILD_TABLE) {
-        STag* pTag = (STag*)mr.me.ctbEntry.pTags;
-        pVal->pTags = taosMemoryMalloc(pTag->len);
-        memcpy(pVal->pTags, mr.me.ctbEntry.pTags, pTag->len);
-      }
+      STableCachedVal* pVal = createTableCacheVal(&mr);
 
       val = *pVal;
       freeReader = true;
@@ -590,6 +608,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       pCache->cacheHit += 1;
       STableCachedVal* pVal = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
       val = *pVal;
+
       taosLRUCacheRelease(pCache->pTableMetaEntryCache, h, false);
     }
 
