@@ -1931,6 +1931,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
   SSyncNode* pSyncNode = syncNodeAcquire(pData->rid);
   if (pSyncNode == NULL) {
+    taosMemoryFree(pData);
     return;
   }
 
