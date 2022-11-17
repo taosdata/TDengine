@@ -9,7 +9,7 @@
 ,,y,script,./test.sh -f tsim/user/basic.sim
 ,,y,script,./test.sh -f tsim/user/password.sim
 ,,y,script,./test.sh -f tsim/user/privilege_db.sim
-,,,script,./test.sh -f tsim/user/privilege_sysinfo.sim
+,,y,script,./test.sh -f tsim/user/privilege_sysinfo.sim
 ,,,script,./test.sh -f tsim/db/alter_option.sim
 ,,,script,./test.sh -f tsim/db/alter_replica_13.sim
 ,,,script,./test.sh -f tsim/db/alter_replica_31.sim
@@ -23,16 +23,16 @@
 ,,,script,./test.sh -f tsim/db/create_all_options.sim
 ,,y,script,./test.sh -f tsim/db/delete_reuse1.sim
 ,,y,script,./test.sh -f tsim/db/delete_reuse2.sim
-,,,script,./test.sh -f tsim/db/delete_reusevnode.sim
+,,y,script,./test.sh -f tsim/db/delete_reusevnode.sim
 ,,y,script,./test.sh -f tsim/db/delete_reusevnode2.sim
-,,,script,./test.sh -f tsim/db/delete_writing1.sim
-,,,script,./test.sh -f tsim/db/delete_writing2.sim
+,,y,script,./test.sh -f tsim/db/delete_writing1.sim
+,,y,script,./test.sh -f tsim/db/delete_writing2.sim
 ,,y,script,./test.sh -f tsim/db/error1.sim
 ,,y,script,./test.sh -f tsim/db/keep.sim
 ,,y,script,./test.sh -f tsim/db/len.sim
 ,,y,script,./test.sh -f tsim/db/repeat.sim
 ,,y,script,./test.sh -f tsim/db/show_create_db.sim
-,,,script,./test.sh -f tsim/db/show_create_table.sim
+,,y,script,./test.sh -f tsim/db/show_create_table.sim
 ,,y,script,./test.sh -f tsim/db/tables.sim
 ,,y,script,./test.sh -f tsim/db/taosdlog.sim
 ,,,script,./test.sh -f tsim/dnode/balance_replica1.sim
@@ -80,8 +80,8 @@
 ,,y,script,./test.sh -f tsim/insert/query_multi_file.sim
 ,,y,script,./test.sh -f tsim/insert/tcp.sim
 ,,y,script,./test.sh -f tsim/insert/update0.sim
-,,,script,./test.sh -f tsim/insert/update1_sort_merge.sim
-,,,script,./test.sh -f tsim/parser/alter__for_community_version.sim
+,,y,script,./test.sh -f tsim/insert/update1_sort_merge.sim
+,,y,script,./test.sh -f tsim/parser/alter__for_community_version.sim
 ,,y,script,./test.sh -f tsim/parser/alter_column.sim
 ,,y,script,./test.sh -f tsim/parser/alter_stable.sim
 ,,y,script,./test.sh -f tsim/parser/alter.sim
@@ -92,21 +92,21 @@
 ,,y,script,./test.sh -f tsim/parser/binary_escapeCharacter.sim
 ,,,script,./test.sh -f tsim/parser/col_arithmetic_operation.sim     
 ,,y,script,./test.sh -f tsim/parser/columnValue_bigint.sim
-,,,script,./test.sh -f tsim/parser/columnValue_bool.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_bool.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_double.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_float.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_int.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_smallint.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_tinyint.sim
 ,,,script,./test.sh -f tsim/parser/columnValue_unsign.sim
-,,,script,./test.sh -f tsim/parser/commit.sim
-,,,script,./test.sh -f tsim/parser/condition.sim
+,,y,script,./test.sh -f tsim/parser/commit.sim
+,,y,script,./test.sh -f tsim/parser/condition.sim
 ,,y,script,./test.sh -f tsim/parser/constCol.sim
-,,,script,./test.sh -f tsim/parser/create_db.sim
-,,,script,./test.sh -f tsim/parser/create_mt.sim
+,,y,script,./test.sh -f tsim/parser/create_db.sim
+,,y,script,./test.sh -f tsim/parser/create_mt.sim
 ,,y,script,./test.sh -f tsim/parser/create_tb_with_tag_name.sim
 ,,y,script,./test.sh -f tsim/parser/create_tb.sim
-,,,script,./test.sh -f tsim/parser/dbtbnameValidate.sim
+,,y,script,./test.sh -f tsim/parser/dbtbnameValidate.sim
 ,,y,script,./test.sh -f tsim/parser/distinct.sim
 ,,y,script,./test.sh -f tsim/parser/fill_us.sim
 ,,,script,./test.sh -f tsim/parser/fill.sim
@@ -120,9 +120,9 @@
 ,,y,script,./test.sh -f tsim/parser/import_commit1.sim
 ,,y,script,./test.sh -f tsim/parser/import_commit2.sim
 ,,y,script,./test.sh -f tsim/parser/import_commit3.sim
-,,,script,./test.sh -f tsim/parser/import_file.sim
+,,y,script,./test.sh -f tsim/parser/import_file.sim
 ,,y,script,./test.sh -f tsim/parser/import.sim
-,,,script,./test.sh -f tsim/parser/insert_multiTbl.sim
+,,y,script,./test.sh -f tsim/parser/insert_multiTbl.sim
 ,,y,script,./test.sh -f tsim/parser/insert_tb.sim
 ,,,script,./test.sh -f tsim/parser/join_manyblocks.sim
 ,,y,script,./test.sh -f tsim/parser/join_multitables.sim
@@ -131,12 +131,12 @@
 ,,y,script,./test.sh -f tsim/parser/last_cache.sim
 ,,y,script,./test.sh -f tsim/parser/last_groupby.sim
 ,,y,script,./test.sh -f tsim/parser/lastrow.sim
-,,,script,./test.sh -f tsim/parser/lastrow2.sim
+,,y,script,./test.sh -f tsim/parser/lastrow2.sim
 ,,y,script,./test.sh -f tsim/parser/like.sim
 ,,,script,./test.sh -f tsim/parser/limit.sim
 ,,,script,./test.sh -f tsim/parser/limit1.sim
 ,,y,script,./test.sh -f tsim/parser/mixed_blocks.sim
-,,,script,./test.sh -f tsim/parser/nchar.sim
+,,y,script,./test.sh -f tsim/parser/nchar.sim
 ,,,script,./test.sh -f tsim/parser/nestquery.sim
 ,,,script,./test.sh -f tsim/parser/null_char.sim
 ,,y,script,./test.sh -f tsim/parser/precision_ns.sim
@@ -146,7 +146,7 @@
 ,,y,script,./test.sh -f tsim/parser/select_distinct_tag.sim
 ,,y,script,./test.sh -f tsim/parser/select_from_cache_disk.sim
 ,,y,script,./test.sh -f tsim/parser/select_with_tags.sim
-,,,script,./test.sh -f tsim/parser/selectResNum.sim
+,,y,script,./test.sh -f tsim/parser/selectResNum.sim
 ,,,script,./test.sh -f tsim/parser/set_tag_vals.sim
 ,,y,script,./test.sh -f tsim/parser/single_row_in_tb.sim
 ,,,script,./test.sh -f tsim/parser/sliding.sim
@@ -271,7 +271,7 @@
 ,,y,script,./test.sh -f tsim/stable/tag_filter.sim
 ,,y,script,./test.sh -f tsim/stable/tag_modify.sim
 ,,y,script,./test.sh -f tsim/stable/tag_rename.sim
-,,,script,./test.sh -f tsim/stable/values.sim
+,,y,script,./test.sh -f tsim/stable/values.sim
 ,,y,script,./test.sh -f tsim/stable/vnode3.sim
 ,,y,script,./test.sh -f tsim/stable/metrics_idx.sim
 ,,,script,./test.sh -f tsim/sma/drop_sma.sim
@@ -325,7 +325,7 @@
 ,,y,script,./test.sh -f tsim/compute/bottom.sim
 ,,y,script,./test.sh -f tsim/compute/count.sim
 ,,y,script,./test.sh -f tsim/compute/diff.sim
-,,,script,./test.sh -f tsim/compute/diff2.sim
+,,y,script,./test.sh -f tsim/compute/diff2.sim
 ,,y,script,./test.sh -f tsim/compute/first.sim
 ,,y,script,./test.sh -f tsim/compute/interval.sim
 ,,y,script,./test.sh -f tsim/compute/last_row.sim
@@ -358,7 +358,7 @@
 ,,y,script,./test.sh -f tsim/vector/metrics_query.sim
 ,,y,script,./test.sh -f tsim/vector/metrics_tag.sim
 ,,y,script,./test.sh -f tsim/vector/metrics_time.sim
-,,,script,./test.sh -f tsim/vector/multi.sim
+,,y,script,./test.sh -f tsim/vector/multi.sim
 ,,y,script,./test.sh -f tsim/vector/single.sim
 ,,y,script,./test.sh -f tsim/vector/table_field.sim
 ,,y,script,./test.sh -f tsim/vector/table_mix.sim
@@ -380,7 +380,7 @@
 ,,y,script,./test.sh -f tsim/tag/column.sim
 ,,y,script,./test.sh -f tsim/tag/commit.sim
 ,,y,script,./test.sh -f tsim/tag/create.sim
-,,,script,./test.sh -f tsim/tag/delete.sim
+,,y,script,./test.sh -f tsim/tag/delete.sim
 ,,y,script,./test.sh -f tsim/tag/double.sim
 ,,y,script,./test.sh -f tsim/tag/filter.sim
 ,,y,script,./test.sh -f tsim/tag/float.sim
@@ -392,7 +392,7 @@
 ,,y,script,./test.sh -f tsim/tag/tinyint.sim
 ,,y,script,./test.sh -f tsim/tag/drop_tag.sim
 ,,y,script,./test.sh -f tsim/tag/tbNameIn.sim
-,,,script,./test.sh -f tmp/monitor.sim
+,,y,script,./test.sh -f tmp/monitor.sim
 
 #system test
 

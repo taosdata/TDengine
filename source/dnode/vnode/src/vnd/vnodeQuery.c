@@ -388,8 +388,10 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     offset += sizeof(p->msgLen);
     *(int32_t *)((char *)pRsp + offset) = htonl(p->rspCode);
     offset += sizeof(p->rspCode);
-    memcpy((char *)pRsp + offset, p->msg, p->msgLen);
-    offset += p->msgLen;
+    if (p->msg) {
+      memcpy((char *)pRsp + offset, p->msg, p->msgLen);
+      offset += p->msgLen;
+    }
 
     taosMemoryFreeClear(p->msg);
   }

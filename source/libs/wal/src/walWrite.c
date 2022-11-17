@@ -319,7 +319,7 @@ int32_t walEndSnapshot(SWal *pWal) {
   SWalFileInfo *pInfo = taosArraySearch(pWal->fileInfoSet, &tmp, compareWalFileInfo, TD_LE);
   if (pInfo) {
     if (ver >= pInfo->lastVer) {
-      pInfo--;
+      pInfo++;
     }
     if (POINTER_DISTANCE(pInfo, pWal->fileInfoSet->pData) > 0) {
       wDebug("vgId:%d, begin remove from %" PRId64, pWal->cfg.vgId, pInfo->firstVer);
