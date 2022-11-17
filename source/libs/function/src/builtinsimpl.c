@@ -2924,6 +2924,8 @@ static void firstlastSaveTupleData(const SSDataBlock* pSrcBlock, int32_t rowInde
 
   if (!pInfo->hasResult) {
     pInfo->pos = saveTupleData(pCtx, rowIndex, pSrcBlock, NULL);
+    ASSERT(pCtx->subsidiaries.buf != NULL);
+    ASSERT(pCtx->subsidiaries.rowLen > 0);
   } else {
     updateTupleData(pCtx, rowIndex, pSrcBlock, &pInfo->pos);
   }
@@ -4366,6 +4368,7 @@ static bool getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8_t 
     int32_t numOfParams = cJSON_GetArraySize(binDesc);
     int32_t startIndex;
     if (numOfParams != 4) {
+      cJSON_Delete(binDesc);
       return false;
     }
 
@@ -4376,15 +4379,18 @@ static bool getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8_t 
     cJSON* infinity = cJSON_GetObjectItem(binDesc, "infinity");
 
     if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) || !cJSON_IsBool(infinity)) {
+      cJSON_Delete(binDesc);
       return false;
     }
 
     if (count->valueint <= 0 || count->valueint > 1000) {  // limit count to 1000
+      cJSON_Delete(binDesc);
       return false;
     }
 
     if (isinf(start->valuedouble) || (width != NULL && isinf(width->valuedouble)) ||
         (factor != NULL && isinf(factor->valuedouble)) || (count != NULL && isinf(count->valuedouble))) {
+      cJSON_Delete(binDesc);
       return false;
     }
 
@@ -4402,12 +4408,14 @@ static bool getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8_t 
       // linear bin process
       if (width->valuedouble == 0) {
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       for (int i = 0; i < counter + 1; ++i) {
         intervals[startIndex] = start->valuedouble + i * width->valuedouble;
         if (isinf(intervals[startIndex])) {
           taosMemoryFree(intervals);
+          cJSON_Delete(binDesc);
           return false;
         }
         startIndex++;
@@ -4416,22 +4424,26 @@ static bool getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8_t 
       // log bin process
       if (start->valuedouble == 0) {
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       if (factor->valuedouble < 0 || factor->valuedouble == 0 || factor->valuedouble == 1) {
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       for (int i = 0; i < counter + 1; ++i) {
         intervals[startIndex] = start->valuedouble * pow(factor->valuedouble, i * 1.0);
         if (isinf(intervals[startIndex])) {
           taosMemoryFree(intervals);
+          cJSON_Delete(binDesc);
           return false;
         }
         startIndex++;
       }
     } else {
       taosMemoryFree(intervals);
+      cJSON_Delete(binDesc);
       return false;
     }
 
@@ -4446,6 +4458,7 @@ static bool getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8_t 
     }
   } else if (cJSON_IsArray(binDesc)) { /* user input bins */
     if (binType != USER_INPUT_BIN) {
+      cJSON_Delete(binDesc);
       return false;
     }
     numOfBins = cJSON_GetArraySize(binDesc);
@@ -4453,6 +4466,7 @@ static bool getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8_t 
     cJSON* bin = binDesc->child;
     if (bin == NULL) {
       taosMemoryFree(intervals);
+      cJSON_Delete(binDesc);
       return false;
     }
     int i = 0;
@@ -4460,16 +4474,19 @@ static bool getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8_t 
       intervals[i] = bin->valuedouble;
       if (!cJSON_IsNumber(bin)) {
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       if (i != 0 && intervals[i] <= intervals[i - 1]) {
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       bin = bin->next;
       i++;
     }
   } else {
+    cJSON_Delete(binDesc);
     return false;
   }
 
@@ -4482,6 +4499,8 @@ static bool getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8_t 
   }
 
   taosMemoryFree(intervals);
+  cJSON_Delete(binDesc);
+
   return true;
 }
 
@@ -4495,18 +4514,23 @@ bool histogramFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
   pInfo->totalCount = 0;
   pInfo->normalized = 0;
 
-  int8_t binType = getHistogramBinType(varDataVal(pCtx->param[1].param.pz));
+  char *binTypeStr = strndup(varDataVal(pCtx->param[1].param.pz), varDataLen(pCtx->param[1].param.pz));
+  int8_t binType = getHistogramBinType(binTypeStr);
+  taosMemoryFree(binTypeStr);
+
   if (binType == UNKNOWN_BIN) {
     return false;
   }
-  char*   binDesc = varDataVal(pCtx->param[2].param.pz);
+  char*   binDesc = strndup(varDataVal(pCtx->param[2].param.pz), varDataLen(pCtx->param[2].param.pz));
   int64_t normalized = pCtx->param[3].param.i;
   if (normalized != 0 && normalized != 1) {
     return false;
   }
   if (!getHistogramBinDesc(pInfo, binDesc, binType, (bool)normalized)) {
+    taosMemoryFree(binDesc);
     return false;
   }
+  taosMemoryFree(binDesc);
 
   return true;
 }
