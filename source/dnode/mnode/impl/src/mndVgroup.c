@@ -1739,6 +1739,7 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
   code = 0;
 
 _OVER:
+  taosArrayDestroy(pArray);
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
   return code;
