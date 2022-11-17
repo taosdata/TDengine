@@ -349,6 +349,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   }
 
   rpcFreeCont(req.pCont);
+  req.pCont = NULL;
   if (code != 0) {
     mError("trans:%d, failed to propose, code:0x%x", pMgmt->transId, code);
     return code;

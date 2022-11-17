@@ -1191,6 +1191,8 @@ void qWorkerStopAllTasks(void *qWorkerMgmt) {
     
     if (QW_QUERY_RUNNING(ctx)) {
       qwKillTaskHandle(ctx);
+    } else if (!QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
+      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
     }
 
     QW_UNLOCK(QW_WRITE, &ctx->lock);

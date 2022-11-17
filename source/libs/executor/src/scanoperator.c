@@ -1534,10 +1534,17 @@ static int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pS
   for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
     uint64_t srcUid = srcUidData[i];
     uint64_t groupId = srcGp[i];
+    char*    tbname[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN] = {0};
     if (groupId == 0) {
       groupId = getGroupIdByData(pInfo, srcUid, srcStartTsCol[i], version);
     }
-    appendOneRowToStreamSpecialBlock(pDestBlock, srcStartTsCol + i, srcEndTsCol + i, srcUidData + i, &groupId, NULL);
+    if (pInfo->tbnameCalSup.pExprInfo) {
+      char* parTbname = taosHashGet(pInfo->pGroupIdTbNameMap, &groupId, sizeof(int64_t));
+      memcpy(varDataVal(tbname), parTbname, TSDB_TABLE_NAME_LEN);
+      varDataSetLen(tbname, strlen(varDataVal(tbname)));
+    }
+    appendOneRowToStreamSpecialBlock(pDestBlock, srcStartTsCol + i, srcEndTsCol + i, srcUidData + i, &groupId,
+                                     tbname[0] == 0 ? NULL : tbname);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1581,9 +1588,16 @@ static void calBlockTag(SExprSupp* pTagCalSup, SSDataBlock* pBlock, SSDataBlock*
   blockDataDestroy(pSrcBlock);
 }
 
-static void calBlockTbName(SExprSupp* pTbNameCalSup, SSDataBlock* pBlock) {
+void calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
+  SExprSupp* pTbNameCalSup = &pInfo->tbnameCalSup;
   if (pTbNameCalSup == NULL || pTbNameCalSup->numOfExprs == 0) return;
   if (pBlock == NULL || pBlock->info.rows == 0) return;
+  if (pBlock->info.groupId) {
+    char* tbname = taosHashGet(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t));
+    if (tbname != NULL) {
+      memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
+    }
+  }
 
   SSDataBlock* pSrcBlock = blockCopyOneRow(pBlock, 0);
   ASSERT(pSrcBlock->info.rows == 1);
@@ -1609,6 +1623,11 @@ static void calBlockTbName(SExprSupp* pTbNameCalSup, SSDataBlock* pBlock) {
     /*pBlock->info.parTbName[len + 1] = 0;*/
   } else {
     pBlock->info.parTbName[0] = 0;
+  }
+
+  if (pBlock->info.groupId) {
+    taosHashPut(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t), pBlock->info.parTbName,
+                TSDB_TABLE_NAME_LEN);
   }
 
   blockDataDestroy(pSrcBlock);
@@ -1732,7 +1751,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
   blockDataFreeRes((SSDataBlock*)pBlock);
 
-  calBlockTbName(&pInfo->tbnameCalSup, pInfo->pRes);
+  calBlockTbName(pInfo, pInfo->pRes);
   return 0;
 }
 
@@ -1979,9 +1998,13 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__SCAN) {
     SSDataBlock* pBlock = doTableScan(pInfo->pTableScanOp);
     if (pBlock != NULL) {
-      calBlockTbName(&pInfo->tbnameCalSup, pBlock);
-      updateInfoFillBlockData(pInfo->pUpdateInfo, pBlock, pInfo->primaryTsIndex);
+      calBlockTbName(pInfo, pBlock);
+      if (pInfo->pUpdateInfo) {
+        TSKEY maxTs = updateInfoFillBlockData(pInfo->pUpdateInfo, pBlock, pInfo->primaryTsIndex);
+        pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
+      }
       qDebug("stream recover scan get block, rows %d", pBlock->info.rows);
+      printDataBlock(pBlock, "scan recover");
       return pBlock;
     }
     pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__NONE;
@@ -2100,7 +2123,7 @@ FETCH_NEXT_BLOCK:
           pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
           checkUpdateData(pInfo, true, pSDB, false);
           // printDataBlock(pSDB, "stream scan update");
-          calBlockTbName(&pInfo->tbnameCalSup, pSDB);
+          calBlockTbName(pInfo, pSDB);
           return pSDB;
         }
         blockDataCleanup(pInfo->pUpdateDataRes);
@@ -2404,6 +2427,9 @@ static void destroyStreamScanOperatorInfo(void* param) {
     taosMemoryFree(pStreamScan->pPseudoExpr);
   }
 
+  cleanupExprSupp(&pStreamScan->tbnameCalSup);
+  taosHashCleanup(pStreamScan->pGroupIdTbNameMap);
+
   updateInfoDestroy(pStreamScan->pUpdateInfo);
   blockDataDestroy(pStreamScan->pRes);
   blockDataDestroy(pStreamScan->pUpdateRes);
@@ -2460,6 +2486,8 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     if (initExprSupp(&pInfo->tbnameCalSup, pSubTableExpr, 1) != 0) {
       goto _error;
     }
+    pInfo->pGroupIdTbNameMap =
+        taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
   }
 
   if (pTableScanNode->pTags != NULL) {

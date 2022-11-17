@@ -4296,7 +4296,7 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
         pBlock->info.type == STREAM_CLEAR) {
       // gap must be 0
-      SArray* pWins = taosArrayInit(16, sizeof(SResultWindowInfo));
+      SArray* pWins = taosArrayInit(16, sizeof(SSessionKey));
       doDeleteTimeWindows(&pInfo->streamAggSup, pBlock, pWins);
       removeSessionResults(pStUpdated, pWins);
       copyDeleteWindowInfo(pWins, pInfo->pStDeleted);
@@ -4898,6 +4898,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
     if (pMiaInfo->groupId == 0) {
       if (pMiaInfo->groupId != pBlock->info.groupId) {
         pMiaInfo->groupId = pBlock->info.groupId;
+        pRes->info.groupId = pMiaInfo->groupId;
       }
     } else {
       if (pMiaInfo->groupId != pBlock->info.groupId) {
@@ -4911,6 +4912,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
         break;
       } else {
         // continue
+        pRes->info.groupId = pMiaInfo->groupId;
       }
     }
 

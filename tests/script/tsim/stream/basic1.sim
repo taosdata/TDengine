@@ -751,5 +751,40 @@ if $rows != 0 then
 endi
 
 
+sql insert into t1 values(1648791223000,2,2,3,1.0);
+sql insert into t1 values(1648791223000,10,2,3,1.0);
+sql insert into t1 values(1648791233000,10,2,3,1.0);
+
+$loop_count = 0
+loop16:
+sleep 200
+sql select * from streamt4;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 2 then
+  print =====rows=$rows
+  goto loop16
+endi
+
+sql insert into t1 values(1648791233000,2,2,3,1.0);
+
+$loop_count = 0
+loop17:
+sleep 200
+sql select * from streamt4;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop17
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

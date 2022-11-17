@@ -513,6 +513,22 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
   //    taosMemoryFreeClear(pFillInfo->pTags[i].tagVal);
   //  }
 
+  // free pFillCol
+  if (pFillInfo->pFillCol) {
+    for (int32_t i = 0; i < pFillInfo->numOfCols; i++) {
+      SFillColInfo* pCol = &pFillInfo->pFillCol[i];
+      if (!pCol->notFillCol) {
+        if (pCol->fillVal.nType == TSDB_DATA_TYPE_VARBINARY || pCol->fillVal.nType == TSDB_DATA_TYPE_VARCHAR ||
+            pCol->fillVal.nType == TSDB_DATA_TYPE_NCHAR || pCol->fillVal.nType == TSDB_DATA_TYPE_JSON) {
+          if (pCol->fillVal.pz) {
+            taosMemoryFree(pCol->fillVal.pz);
+            pCol->fillVal.pz = NULL;
+          }
+        }
+      }
+    }
+  }
+
   taosMemoryFreeClear(pFillInfo->pTags);
   taosMemoryFreeClear(pFillInfo->pFillCol);
   taosMemoryFreeClear(pFillInfo);
