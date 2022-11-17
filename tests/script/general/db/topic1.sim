@@ -471,8 +471,9 @@ sql_error alter topic db blocks 10001
 
 print ============== step minrows
 sql_error alter database db minrows 1
-sql_error alter database db minrows 100
-sql_error alter database db minrows 1000
+sql alter database db minrows 100
+sql alter database db minrows 399
+sql_error alter database db minrows 1001
 
 sql_error alter topic db minrows 1
 sql_error alter topic db minrows 100

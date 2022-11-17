@@ -256,12 +256,12 @@ do { \
 #define TSDB_VERSION_LEN          12
 #define TSDB_LOCALE_LEN           64
 #define TSDB_TIMEZONE_LEN         96
-#define TSDB_LABEL_LEN            8 
+#define TSDB_LABEL_LEN            8
 
 #define TSDB_CLUSTER_ID_LEN       40
 #define TSDB_FQDN_LEN             128
 #define TSDB_EP_LEN               (TSDB_FQDN_LEN+6)
-#define TSDB_IPv4ADDR_LEN      	  16
+#define TSDB_IPv4ADDR_LEN         16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_SHOW_SQL_LEN         512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
@@ -325,7 +325,7 @@ do { \
 #define TSDB_META_COMPACT_RATIO         0       // disable tsdb meta compact by default
 
 #define TSDB_MIN_DAYS_PER_FILE          1
-#define TSDB_MAX_DAYS_PER_FILE          3650 
+#define TSDB_MAX_DAYS_PER_FILE          3650
 #define TSDB_DEFAULT_DAYS_PER_FILE      10
 
 #define TSDB_MIN_KEEP                   1        // data in db to be reserved.
@@ -429,7 +429,7 @@ do { \
 
 #define TSDB_ORDER_ASC                         1
 #define TSDB_ORDER_DESC                        2
-                                               
+
 #define TSDB_DEFAULT_CLUSTER_HASH_SIZE         1
 #define TSDB_DEFAULT_MNODES_HASH_SIZE          5
 #define TSDB_DEFAULT_DNODES_HASH_SIZE          10
