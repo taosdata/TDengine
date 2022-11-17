@@ -275,7 +275,7 @@ void qwFreeTaskHandle(qTaskInfo_t *taskHandle) {
   qTaskInfo_t otaskHandle = atomic_load_ptr(taskHandle);
   if (otaskHandle && atomic_val_compare_exchange_ptr(taskHandle, otaskHandle, NULL)) {
     qDestroyTask(otaskHandle);
-    qDebug("task handle destryed");
+    qDebug("task handle destroyed");
   }
 }
 
@@ -306,7 +306,7 @@ void qwFreeTaskCtx(SQWTaskCtx *ctx) {
   if (ctx->sinkHandle) {
     dsDestroyDataSinker(ctx->sinkHandle);
     ctx->sinkHandle = NULL;
-    qDebug("sink handle destryed");
+    qDebug("sink handle destroyed");
   }
 }
 

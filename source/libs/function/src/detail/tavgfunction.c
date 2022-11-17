@@ -31,7 +31,7 @@
   do {                                                                    \
     T* plist = (T*)pCol->pData;                                           \
     for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) { \
-      if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {        \
+      if (colDataIsNull_f(pCol->nullbitmap, i)) {                         \
         continue;                                                         \
       }                                                                   \
                                                                           \
@@ -661,8 +661,6 @@ int32_t avgInvertFunction(SqlFunctionCtx* pCtx) {
 
   // Only the pre-computing information loaded and actual data does not loaded
   SInputColumnInfoData* pInput = &pCtx->input;
-  int32_t               type = pInput->pData[0]->info.type;
-
   SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   // computing based on the true data block
@@ -671,7 +669,7 @@ int32_t avgInvertFunction(SqlFunctionCtx* pCtx) {
   int32_t start = pInput->startRowIndex;
   int32_t numOfRows = pInput->numOfRows;
 
-  switch (type) {
+  switch (pCol->info.type) {
     case TSDB_DATA_TYPE_TINYINT: {
       LIST_AVG_N(pAvgRes->sum.isum, int8_t);
       break;
