@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::migrate::Migrator;
 use sqlx::SqlitePool;
 use std::str::FromStr;
-use taos::{Code, Dsn};
+use taos::{AsyncQueryable, Code, Dsn, TBuilder, TaosBuilder};
 use taosx::TaskOpts;
 use tokio::{runtime::Runtime, sync::RwLock};
 use tokio_util::sync::CancellationToken;
@@ -174,11 +174,20 @@ impl TaskController {
             anyhow::bail!("task {id} is running");
         }
 
+        let from = if let Some(topic) = task.oneshot_topic.as_deref() {
+            let mut from: Dsn = task.from.parse()?;
+            from.set("use.topic.name", topic);
+            log::info!("Set task from: {from}");
+            from
+        } else {
+            task.from.parse()?
+        };
+
         let token = tokio_util::sync::CancellationToken::new();
         let cloned_token = token.clone();
         let opts = TaskOpts {
             transform: vec![],
-            from: task.from.parse()?,
+            from,
             to: task.to.parse()?,
             jobs: task.jobs as _,
             compression_level: task.compression_level.map(Into::into),
@@ -376,12 +385,18 @@ impl TaskController {
     }
 
     pub async fn create(&self, task: NewTask) -> anyhow::Result<Task> {
+        if let Some(topic) = task.oneshot_topic.as_deref() {
+            if topic.len() > 64 {
+                anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
+            }
+        }
         let res = sqlx::query(
-            "INSERT INTO tasks (`from`, `from_cluster`, `to`, `to_cluster`, `stream_type`, `jobs`, `compression_level`, `force`, \
-                 `created_at`, `status`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (`from`, `from_cluster`, `oneshot_topic`, `to`, `to_cluster`, `stream_type`, `jobs`, `compression_level`, `force`, \
+                 `created_at`, `status`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&task.from)
         .bind(&task.from_cluster)
+        .bind(&task.oneshot_topic)
         .bind(&task.to)
         .bind(&task.to_cluster)
         .bind(&task.stream_type)
@@ -456,7 +471,7 @@ impl TaskController {
             token.cancel();
             if !handle.is_finished() {
                 // token.cancel();
-                log::error!("Cancel task by id {id}");
+                log::info!("Cancel task {id} before deleted");
                 let _ = handle.await;
             }
         }
@@ -472,6 +487,27 @@ impl TaskController {
         // dbg!(res);
         if res.rows_affected() == 1 {
             log::info!("successfully deleted task by id {id}");
+        }
+
+        let task = sqlx::query_as_unchecked!(Task, "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where id = ?", id)
+        .fetch_one(&self.pool)
+        .await?;
+        if let Some(topic) = task.oneshot_topic {
+            let mut dsn: Dsn = task.from.parse()?;
+            let _ = dsn.subject.take();
+            let taos = TaosBuilder::from_dsn(dsn)?.build()?;
+            let mut retries = 0;
+            loop {
+                if retries > 20 {
+                    log::error!("can not drop topic {topic}");
+                }
+                if let Err(err) = taos.exec(format!("drop topic if exists {topic}")).await {
+                    retries += 1;
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                } else {
+                    break;
+                }
+            }
         }
         Ok(Some(()))
     }
@@ -636,6 +672,10 @@ pub(super) struct Task {
     #[schema(example = "null")]
     from_cluster: Option<String>,
 
+    /// Use oneshot topic for a task, delete the topic after task deleted.
+    #[serde(default)]
+    oneshot_topic: Option<String>,
+
     /// The target of the stream.
     #[schema(example = "local:/path/to/backup/test")]
     to: String,
@@ -712,6 +752,10 @@ pub(super) struct NewTask {
     #[schema(example = "")]
     from_cluster: Option<String>,
 
+    /// Use oneshot topic for a task, delete the topic after task deleted.
+    // #[serde(default)]
+    oneshot_topic: Option<String>,
+
     /// The target of the stream.
     #[schema(example = "local:/path/to/backup/test")]
     to: String,
@@ -734,32 +778,47 @@ pub(super) struct NewTask {
     force: bool,
 }
 
-impl TryFrom<NewTask> for taosx::TaskOpts {
-    type Error = anyhow::Error;
+// impl TryFrom<NewTask> for taosx::TaskOpts {
+//     type Error = anyhow::Error;
 
-    fn try_from(value: NewTask) -> Result<Self, Self::Error> {
-        let NewTask {
-            from,
-            from_cluster,
-            to,
-            clear,
-            jobs,
-            compression_level,
-            force,
-            stream_type: _,
-            to_cluster,
-        } = value;
-        Ok(Self {
-            from: from.parse()?,
-            transform: Vec::new(),
-            to: to.parse()?,
-            jobs: jobs as _,
-            compression_level: compression_level.map(Into::into),
-            force,
-            cancel: Default::default(),
-        })
-    }
-}
+//     fn try_from(value: NewTask) -> Result<Self, Self::Error> {
+//         let NewTask {
+//             from,
+//             from_cluster,
+//             oneshot_topic,
+//             to,
+//             clear,
+//             jobs,
+//             compression_level,
+//             force,
+//             stream_type: _,
+//             to_cluster,
+//         } = value;
+
+//         if let Some(topic) = oneshot_topic {
+//             let mut from: Dsn = from.parse()?;
+//             from.set("use.topic.name", topic);
+//             return Ok(Self {
+//                 from,
+//                 transform: Vec::new(),
+//                 to: to.parse()?,
+//                 jobs: jobs as _,
+//                 compression_level: compression_level.map(Into::into),
+//                 force,
+//                 cancel: Default::default(),
+//             });
+//         }
+//         Ok(Self {
+//             from: from.parse()?,
+//             transform: Vec::new(),
+//             to: to.parse()?,
+//             jobs: jobs as _,
+//             compression_level: compression_level.map(Into::into),
+//             force,
+//             cancel: Default::default(),
+//         })
+//     }
+// }
 
 // /// Task endpoint error responses
 // #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -962,6 +1021,7 @@ impl NewReplicate {
         Ok(NewTask {
             stream_type: StreamType::Replicate,
             from,
+            oneshot_topic: None,
             to,
             force,
             jobs: 0,
@@ -1100,6 +1160,7 @@ impl NewSubscribe {
             from_cluster: None,
             to_cluster: None,
             clear,
+            oneshot_topic: None,
         })
     }
 }

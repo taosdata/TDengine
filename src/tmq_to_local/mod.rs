@@ -215,6 +215,7 @@ async fn backup(
     log::info!("[{id}] total backup {} rows", rows);
     drop(stream);
     consumer.unsubscribe().await;
+    log::info!("[{id}] backup done");
     Ok(())
 }
 
@@ -391,7 +392,9 @@ pub async fn tmq_to_local(
     }
     for handle in handles {
         let _ = handle.await?;
+        log::info!("worker done");
     }
+    log::info!("all workers done for backup");
     Ok(())
 }
 

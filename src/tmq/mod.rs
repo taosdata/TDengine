@@ -33,20 +33,75 @@ pub(crate) struct Topic {
 ///     4.4            if the `table` is child table or normal, create a topic named `database_table` as select * from table.
 ///     4.5            else, bail unexpected input topics error to upstream.
 pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic>)> {
+    let origin = from.clone();
     let database = from.subject.take().ok_or(RawError::new(
         Code::Failed,
         format!("requires topic or database in source dsn: {from}"),
     ))?;
     // dbg!(&from, &database);
+    let use_topic_name = from.remove("use.topic.name");
 
     let builder = TaosBuilder::from_dsn(&from)?;
     let source = builder.build()?;
-    let source_topics = source.topics().await?;
 
-    let topics = database.split(",").map(|s| s.trim()).collect_vec();
+    let mut topics = database
+        .split(",")
+        .map(|s| s.trim().to_string())
+        .collect_vec();
+
+    if let Some(topic) = use_topic_name {
+        if topics.len() > 1 {
+            anyhow::bail!("`use.topic.name` option does not work for multi databases, use \"{from}\" directly");
+        }
+        let database = topics.pop().unwrap();
+
+        source.exec(format!("use {database}")).await?;
+
+        // if !source.database_exists(&database).await? {
+        //     anyhow::bail!("database(`{database}`) doest not exist, please check DSN: \"{origin}\"");
+        // }
+
+        // todo: should check the topic creation as we need.
+        source.create_topic_as_database(&topic, &database).await?;
+
+        let vgroups = source
+            .query_one(format!(
+                "select `vgroups` from information_schema.ins_databases where name='{database}'"
+            ))
+            // .await?
+            // .expect("database not exists");
+            .await
+            .ok()
+            .unwrap_or_default()
+            .unwrap_or(2);
+
+        let database_sql = match source
+            .query_one::<_, ((), String)>(format!("SHOW CREATE DATABASE `{}`", database))
+            .await
+        {
+            Ok(Some((_, sql))) => Some(sql),
+            Err(err) => {
+                log::warn!("SHOW CREATE DATABASE `{}` error: {}", database, err);
+                None
+            }
+            _ => unreachable!(),
+        };
+        return Ok((
+            from,
+            builder,
+            vec![Topic {
+                name: topic,
+                database: database.to_string(),
+                database_sql,
+                vgroups,
+                table: None,
+            }],
+        ));
+    }
+    let source_topics = source.topics().await?;
     let mut databases = Vec::new();
     if topics.len() == 1 {
-        let topic = topics[0];
+        let topic = topics.get(0).unwrap();
         if let Some(topic) = source_topics.iter().find(|t| t.name() == topic) {
             databases.push(topic.db_name().to_string());
             let vgroups = source
@@ -85,7 +140,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                 }],
             ))
         } else if source
-            .database_exists(topic)
+            .database_exists(&topic)
             .await
             .context(format!("check database exists: {topic}"))?
         {
@@ -374,7 +429,12 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
     } else {
         let found = source_topics
             .iter()
-            .filter(|t| topics.contains(&t.name()))
+            .filter(|t| {
+                topics
+                    .iter()
+                    .find(|name| name.as_str() == t.name())
+                    .is_some()
+            })
             .collect_vec();
         let mut out = Vec::new();
         for topic in found {
@@ -415,13 +475,13 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                 .collect_vec();
             for topic in invalids {
                 if !source
-                    .database_exists(topic)
+                    .database_exists(&topic)
                     .await
                     .context(format!("check database exists: {topic}"))?
                 {
                     anyhow::bail!("{} is not either a topic or a database name", topic);
                 } else {
-                    source.create_topic_as_database(topic, topic).await?;
+                    source.create_topic_as_database(&topic, &topic).await?;
                     let vgroups = source
                         .query_one(format!(
                             "SELECT `vgroups` FROM information_schema.ins_databases WHERE name='{topic}'"
