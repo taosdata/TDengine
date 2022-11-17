@@ -1981,9 +1981,11 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     if (pBlock != NULL) {
       calBlockTbName(pInfo, pBlock);
       if (pInfo->pUpdateInfo) {
-        updateInfoFillBlockData(pInfo->pUpdateInfo, pBlock, pInfo->primaryTsIndex);
+        TSKEY maxTs = updateInfoFillBlockData(pInfo->pUpdateInfo, pBlock, pInfo->primaryTsIndex);
+        pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
       }
       qDebug("stream recover scan get block, rows %d", pBlock->info.rows);
+      printDataBlock(pBlock, "scan recover");
       return pBlock;
     }
     pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__NONE;
