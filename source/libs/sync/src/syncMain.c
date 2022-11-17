@@ -383,15 +383,33 @@ bool syncIsReadyForRead(int64_t rid) {
 
     } else {
       if (!pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore)) {
+        SyncIndex       lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
         SSyncRaftEntry* pEntry = NULL;
-        int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(
-            pSyncNode->pLogStore, pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore), &pEntry);
+        SLRUCache*      pCache = pSyncNode->pLogStore->pCache;
+        LRUHandle*      h = taosLRUCacheLookup(pCache, &lastIndex, sizeof(lastIndex));
+        int32_t         code = 0;
+        if (h) {
+          pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+          code = 0;
+
+          sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", lastIndex, pEntry->bytes, pEntry);
+
+        } else {
+          sNTrace(pSyncNode, "miss cache index:%" PRId64, lastIndex);
+
+          code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, lastIndex, &pEntry);
+        }
+
         if (code == 0 && pEntry != NULL) {
           if (pEntry->originalRpcType == TDMT_SYNC_NOOP && pEntry->term == pSyncNode->pRaftStore->currentTerm) {
             ready = true;
           }
 
-          syncEntryDestory(pEntry);
+          if (h) {
+            taosLRUCacheRelease(pCache, h, false);
+          } else {
+            syncEntryDestory(pEntry);
+          }
         }
       }
     }
@@ -411,7 +429,7 @@ bool syncIsReadyForRead(int64_t rid) {
 
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
-    sDebug("only one replica, cannot leader transfer");
+    sDebug("vgId:%d, only one replica, cannot leader transfer", pSyncNode->vgId);
     terrno = TSDB_CODE_SYN_ONE_REPLICA;
     return -1;
   }
@@ -427,7 +445,7 @@ int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
 
 int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   if (pSyncNode->replicaNum == 1) {
-    sDebug("only one replica, cannot leader transfer");
+    sDebug("vgId:%d, only one replica, cannot leader transfer", pSyncNode->vgId);
     terrno = TSDB_CODE_SYN_ONE_REPLICA;
     return -1;
   }
@@ -442,7 +460,9 @@ int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   pMsg->newLeaderId.vgId = pSyncNode->vgId;
   pMsg->newNodeInfo = newLeader;
 
-  return syncNodePropose(pSyncNode, &rpcMsg, false);
+  int32_t ret = syncNodePropose(pSyncNode, &rpcMsg, false);
+  rpcFreeCont(rpcMsg.pCont);
+  return ret;
 }
 
 SSyncState syncGetState(int64_t rid) {
@@ -645,13 +665,12 @@ static int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRa
 static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   int32_t ret = 0;
   if (syncIsInit()) {
-    SSyncHbTimerData* pData = taosMemoryMalloc(sizeof(SSyncHbTimerData));
+    SSyncHbTimerData* pData = &pSyncTimer->hbData;
     pData->pSyncNode = pSyncNode;
     pData->pTimer = pSyncTimer;
     pData->destId = pSyncTimer->destId;
     pData->logicClock = pSyncTimer->logicClock;
 
-    pSyncTimer->pData = pData;
     taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS, pData, syncEnv()->pTimerManager, &pSyncTimer->pTimer);
   } else {
     sError("vgId:%d, start ctrl hb timer error, sync env is stop", pSyncNode->vgId);
@@ -664,7 +683,6 @@ static int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   atomic_add_fetch_64(&pSyncTimer->logicClock, 1);
   taosTmrStop(pSyncTimer->pTimer);
   pSyncTimer->pTimer = NULL;
-  // taosMemoryFree(pSyncTimer->pData);
   return ret;
 }
 
@@ -1087,12 +1105,13 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
   if (syncIsInit()) {
     pSyncNode->electTimerMS = ms;
 
-    SElectTimer* pElectTimer = taosMemoryMalloc(sizeof(SElectTimer));
-    pElectTimer->logicClock = pSyncNode->electTimerLogicClock;
-    pElectTimer->pSyncNode = pSyncNode;
-    pElectTimer->pData = NULL;
+    int64_t execTime = taosGetTimestampMs() + ms;
+    atomic_store_64(&(pSyncNode->electTimerParam.executeTime), execTime);
+    atomic_store_64(&(pSyncNode->electTimerParam.logicClock), pSyncNode->electTimerLogicClock);
+    pSyncNode->electTimerParam.pSyncNode = pSyncNode;
+    pSyncNode->electTimerParam.pData = NULL;
 
-    taosTmrReset(pSyncNode->FpElectTimerCB, pSyncNode->electTimerMS, pElectTimer, syncEnv()->pTimerManager,
+    taosTmrReset(pSyncNode->FpElectTimerCB, pSyncNode->electTimerMS, pSyncNode, syncEnv()->pTimerManager,
                  &pSyncNode->pElectTimer);
 
   } else {
@@ -1761,10 +1780,24 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
     return 0;
   }
 
-  SyncTerm        preTerm = 0;
-  SyncIndex       preIndex = index - 1;
+  SyncTerm  preTerm = 0;
+  SyncIndex preIndex = index - 1;
+
   SSyncRaftEntry* pPreEntry = NULL;
-  int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, preIndex, &pPreEntry);
+  SLRUCache*      pCache = pSyncNode->pLogStore->pCache;
+  LRUHandle*      h = taosLRUCacheLookup(pCache, &preIndex, sizeof(preIndex));
+  int32_t         code = 0;
+  if (h) {
+    pPreEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+    code = 0;
+
+    sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", preIndex, pPreEntry->bytes, pPreEntry);
+
+  } else {
+    sNTrace(pSyncNode, "miss cache index:%" PRId64, preIndex);
+
+    code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, preIndex, &pPreEntry);
+  }
 
   SSnapshot snapshot = {.data = NULL,
                         .lastApplyIndex = SYNC_INDEX_INVALID,
@@ -1774,7 +1807,13 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
   if (code == 0) {
     ASSERT(pPreEntry != NULL);
     preTerm = pPreEntry->term;
-    taosMemoryFree(pPreEntry);
+
+    if (h) {
+      taosLRUCacheRelease(pCache, h, false);
+    } else {
+      syncEntryDestory(pPreEntry);
+    }
+
     return preTerm;
   } else {
     if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
@@ -1811,7 +1850,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
       return;
     }
 
-    sNTrace(pNode, "enqueue ping msg");
+    sTrace("enqueue ping msg");
     code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
     if (code != 0) {
       sError("failed to sync enqueue ping msg since %s", terrstr());
@@ -1820,27 +1859,27 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     }
 
     taosTmrReset(syncNodeEqPingTimer, pNode->pingTimerMS, pNode, syncEnv()->pTimerManager, &pNode->pPingTimer);
-  } else {
-    sTrace("==syncNodeEqPingTimer== pingTimerLogicClock:%" PRId64 ", pingTimerLogicClockUser:%" PRId64,
-           pNode->pingTimerLogicClock, pNode->pingTimerLogicClockUser);
   }
 }
 
 static void syncNodeEqElectTimer(void* param, void* tmrId) {
   if (!syncIsInit()) return;
 
-  SElectTimer* pElectTimer = param;
-  SSyncNode*   pNode = pElectTimer->pSyncNode;
+  SSyncNode* pNode = (SSyncNode*)param;
 
   if (pNode == NULL) return;
   if (pNode->syncEqMsg == NULL) return;
 
+  int64_t tsNow = taosGetTimestampMs();
+  if (tsNow < pNode->electTimerParam.executeTime) return;
+
   SRpcMsg rpcMsg = {0};
-  int32_t code = syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_ELECTION, pElectTimer->logicClock, pNode->electTimerMS, pNode);
+  int32_t code =
+      syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_ELECTION, pNode->electTimerParam.logicClock, pNode->electTimerMS, pNode);
 
   if (code != 0) {
     sError("failed to build elect msg");
-    taosMemoryFree(pElectTimer);
+
     return;
   }
 
@@ -1851,21 +1890,9 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   if (code != 0) {
     sError("failed to sync enqueue elect msg since %s", terrstr());
     rpcFreeCont(rpcMsg.pCont);
-    taosMemoryFree(pElectTimer);
+
     return;
   }
-
-  taosMemoryFree(pElectTimer);
-
-#if 0
-  // reset timer ms
-  if (syncIsInit() && pNode->electBaseLine > 0) {
-    pNode->electTimerMS = syncUtilElectRandomMS(pNode->electBaseLine, 2 * pNode->electBaseLine);
-    taosTmrReset(syncNodeEqElectTimer, pNode->electTimerMS, pNode, syncEnv()->pTimerManager, &pNode->pElectTimer);
-  } else {
-    sError("sync env is stop, syncNodeEqElectTimer");
-  }
-#endif
 }
 
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
@@ -1883,7 +1910,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
         return;
       }
 
-      sNTrace(pNode, "enqueue heartbeat timer");
+      sTrace("enqueue heartbeat timer");
       code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
       if (code != 0) {
         sError("failed to enqueue heartbeat msg since %s", terrstr());
@@ -1979,7 +2006,10 @@ static int32_t syncNodeEqNoop(SSyncNode* pNode) {
 
 static void deleteCacheEntry(const void* key, size_t keyLen, void* value) { taosMemoryFree(value); }
 
-static int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHandle** h) {
+int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHandle** h) {
+  SSyncLogStoreData* pData = pLogStore->data;
+  sNTrace(pData->pSyncNode, "in cache index:%" PRId64 ", bytes:%u, %p", pEntry->index, pEntry->bytes, pEntry);
+
   int32_t   code = 0;
   int32_t   entryLen = sizeof(*pEntry) + pEntry->dataLen;
   LRUStatus status = taosLRUCacheInsert(pLogStore->pCache, &pEntry->index, sizeof(pEntry->index), pEntry, entryLen,
@@ -2000,7 +2030,6 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   ASSERT(pEntry != NULL);
 
   LRUHandle* h = NULL;
-  syncCacheEntry(ths->pLogStore, pEntry, &h);
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
@@ -2008,6 +2037,8 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
       sError("append noop error");
       return -1;
     }
+
+    syncCacheEntry(ths->pLogStore, pEntry, &h);
   }
 
   if (h) {
@@ -2044,6 +2075,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
       pSyncMsg->cmd = SYNC_LOCAL_CMD_FOLLOWER_CMT;
       pSyncMsg->fcIndex = pMsg->commitIndex;
+      SyncIndex fcIndex = pSyncMsg->fcIndex;
 
       if (ths->syncEqMsg != NULL && ths->msgcb != NULL) {
         int32_t code = ths->syncEqMsg(ths->msgcb, &rpcMsgLocalCmd);
@@ -2051,7 +2083,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
           sError("vgId:%d, sync enqueue fc-commit msg error, code:%d", ths->vgId, code);
           rpcFreeCont(rpcMsgLocalCmd.pCont);
         } else {
-          sTrace("vgId:%d, sync enqueue fc-commit msg, fc-index:%" PRId64, ths->vgId, pSyncMsg->fcIndex);
+          sTrace("vgId:%d, sync enqueue fc-commit msg, fc-index:%" PRId64, ths->vgId, fcIndex);
         }
       }
     }
@@ -2143,7 +2175,6 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
   }
 
   LRUHandle* h = NULL;
-  syncCacheEntry(ths->pLogStore, pEntry, &h);
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     // append entry
@@ -2182,6 +2213,8 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
         return -1;
       }
     }
+
+    syncCacheEntry(ths->pLogStore, pEntry, &h);
 
     // if mulit replica, start replicate right now
     if (ths->replicaNum > 1) {
@@ -2349,7 +2382,12 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
         LRUHandle*      h = taosLRUCacheLookup(pCache, &i, sizeof(i));
         if (h) {
           pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+
+          sNTrace(ths, "hit cache index:%" PRId64 ", bytes:%u, %p", i, pEntry->bytes, pEntry);
+
         } else {
+          sNTrace(ths, "miss cache index:%" PRId64, i);
+
           code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
           // ASSERT(code == 0);
           // ASSERT(pEntry != NULL);
