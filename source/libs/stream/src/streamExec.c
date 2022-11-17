@@ -138,63 +138,39 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 }
 
 #if 0
-int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum, bool dispatch) {
-  ASSERT(pTask->taskLevel != TASK_LEVEL__SINK);
-
-  void* exec = pTask->exec.executor;
-
-  while (1) {
-    SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
-    if (pRes == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
-
-    int32_t batchCnt = 0;
-    while (1) {
-      SSDataBlock* output = NULL;
-      uint64_t     ts = 0;
-      if (qExecTask(exec, &output, &ts) < 0) {
-        ASSERT(0);
-      }
-      if (output == NULL) break;
-
-      SSDataBlock block = {0};
-      assignOneDataBlock(&block, output);
-      block.info.childId = pTask->selfChildId;
-      taosArrayPush(pRes, &block);
-
-      if (++batchCnt >= batchNum) break;
-    }
-    if (taosArrayGetSize(pRes) == 0) {
-      taosArrayDestroy(pRes);
-      break;
-    }
-    if (dispatch) {
-      SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
-      if (qRes == NULL) {
-        taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-        return -1;
-      }
-
-      qRes->type = STREAM_INPUT__DATA_BLOCK;
-      qRes->blocks = pRes;
-      qRes->childId = pTask->selfChildId;
-
-      if (streamTaskOutput(pTask, qRes) < 0) {
-        taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-        taosFreeQitem(qRes);
-        return -1;
-      }
-
-      if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-        streamDispatch(pTask);
-      }
+int32_t streamBatchExec(SStreamTask* pTask, int32_t batchLimit) {
+  // fetch all queue item, merge according to batchLimit
+  int32_t numOfItems = taosReadAllQitems(pTask->inputQueue1, pTask->inputQall);
+  if (numOfItems == 0) {
+    qDebug("task: %d, stream task exec over, queue empty", pTask->taskId);
+    return 0;
+  }
+  SStreamQueueItem* pMerged = NULL;
+  SStreamQueueItem* pItem = NULL;
+  taosGetQitem(pTask->inputQall, (void**)&pItem);
+  if (pItem == NULL) {
+    if (pMerged != NULL) {
+      // process merged item
     } else {
-      taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
+      return 0;
     }
   }
 
+  // if drop
+  if (pItem->type == STREAM_INPUT__DESTROY) {
+    // set status drop
+    return -1;
+  }
+
+  if (pTask->taskLevel == TASK_LEVEL__SINK) {
+    ASSERT(((SStreamQueueItem*)pItem)->type == STREAM_INPUT__DATA_BLOCK);
+    streamTaskOutput(pTask, (SStreamDataBlock*)pItem);
+  }
+
+  // exec impl
+
+  // output
+  // try dispatch
   return 0;
 }
 #endif

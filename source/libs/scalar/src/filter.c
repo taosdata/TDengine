@@ -248,9 +248,9 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     }
   }
 
-//  if (optr == OP_TYPE_JSON_CONTAINS && type == TSDB_DATA_TYPE_JSON) {
-//    return 28;
-//  }
+  //  if (optr == OP_TYPE_JSON_CONTAINS && type == TSDB_DATA_TYPE_JSON) {
+  //    return 28;
+  //  }
 
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -336,6 +336,10 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
 __compar_fn_t filterGetCompFunc(int32_t type, int32_t optr) { return gDataCompare[filterGetCompFuncIdx(type, optr)]; }
 
 __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr) {
+  if (TSDB_DATA_TYPE_NULL == rType) {
+    return NULL;
+  }
+  
   switch (lType) {
     case TSDB_DATA_TYPE_TINYINT: {
       if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
@@ -512,15 +516,17 @@ int32_t filterReuseRangeCtx(SFilterRangeCtx *ctx, int32_t type, int32_t options)
 }
 
 int32_t filterConvertRange(SFilterRangeCtx *cur, SFilterRange *ra, bool *notNull) {
+  int64_t tmp = 0;
+  
   if (!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
-    int32_t sr = cur->pCompareFunc(&ra->s, getDataMin(cur->type));
+    int32_t sr = cur->pCompareFunc(&ra->s, getDataMin(cur->type, &tmp));
     if (sr == 0) {
       FILTER_SET_FLAG(ra->sflag, RANGE_FLG_NULL);
     }
   }
 
   if (!FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL)) {
-    int32_t er = cur->pCompareFunc(&ra->e, getDataMax(cur->type));
+    int32_t er = cur->pCompareFunc(&ra->e, getDataMax(cur->type, &tmp));
     if (er == 0) {
       FILTER_SET_FLAG(ra->eflag, RANGE_FLG_NULL);
     }
@@ -696,14 +702,15 @@ int32_t filterAddRangeImpl(void *h, SFilterRange *ra, int32_t optr) {
 
 int32_t filterAddRange(void *h, SFilterRange *ra, int32_t optr) {
   SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
-
+  int64_t tmp = 0;
+  
   if (FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
-    SIMPLE_COPY_VALUES(&ra->s, getDataMin(ctx->type));
+    SIMPLE_COPY_VALUES(&ra->s, getDataMin(ctx->type, &tmp));
     // FILTER_CLR_FLAG(ra->sflag, RA_NULL);
   }
 
   if (FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL)) {
-    SIMPLE_COPY_VALUES(&ra->e, getDataMax(ctx->type));
+    SIMPLE_COPY_VALUES(&ra->e, getDataMax(ctx->type, &tmp));
     // FILTER_CLR_FLAG(ra->eflag, RA_NULL);
   }
 
@@ -912,8 +919,8 @@ int32_t filterDetachCnfGroups(SArray *group, SArray *left, SArray *right) {
 
   if (taosArrayGetSize(left) <= 0) {
     if (taosArrayGetSize(right) <= 0) {
-      fltError("both groups are empty");
-      FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+      fltDebug("both groups are empty");
+      return TSDB_CODE_SUCCESS;
     }
 
     SFilterGroup *gp = NULL;
@@ -1087,7 +1094,7 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    info->units = (SFilterUnit*)tmp;
+    info->units = (SFilterUnit *)tmp;
     memset(info->units + psize, 0, sizeof(*info->units) * FILTER_DEFAULT_UNIT_SIZE);
   }
 
@@ -1169,7 +1176,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
 
     SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
     out.columnData->info.type = type;
-    out.columnData->info.bytes = tDataTypes[type].bytes;
+    out.columnData->info.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;  // reserved space for simple_copy
 
     for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
       SValueNode *valueNode = (SValueNode *)cell->pNode;
@@ -1191,7 +1198,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
         filterAddField(info, NULL, (void **)&out.columnData->pData, FLD_TYPE_VALUE, &right, len, true);
         out.columnData->pData = NULL;
       } else {
-        void *data = taosMemoryCalloc(1, tDataTypes[type].bytes);
+        void *data = taosMemoryCalloc(1, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);  // reserved space for simple_copy
         if (NULL == data) {
           FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
         }
@@ -1633,11 +1640,11 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
 
           SValueNode *var = (SValueNode *)field->desc;
           SDataType  *dType = &var->node.resType;
-          //if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {
-          //  qDebug("VAL%d => [type:TS][val:[%" PRIi64 "] - [%" PRId64 "]]", i, *(int64_t *)field->data,
-          //         *(((int64_t *)field->data) + 1));
-          //} else {
-            qDebug("VAL%d => [type:%d][val:%" PRIx64 "]", i, dType->type, var->datum.i);  // TODO
+          // if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {
+          //   qDebug("VAL%d => [type:TS][val:[%" PRIi64 "] - [%" PRId64 "]]", i, *(int64_t *)field->data,
+          //          *(((int64_t *)field->data) + 1));
+          // } else {
+          qDebug("VAL%d => [type:%d][val:%" PRIx64 "]", i, dType->type, var->datum.i);  // TODO
           //}
         } else if (field->data) {
           qDebug("VAL%d => [type:NIL][val:NIL]", i);  // TODO
@@ -1719,7 +1726,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
                ctx->isrange);
         if (ctx->isrange) {
           SFilterRangeNode *r = ctx->rs;
-          int32_t tlen = 0;
+          int32_t           tlen = 0;
           while (r) {
             char str[256] = {0};
             if (FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) {

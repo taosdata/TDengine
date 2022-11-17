@@ -87,11 +87,11 @@ typedef struct SLimit {
 typedef struct STableScanAnalyzeInfo SFileBlockLoadRecorder;
 
 typedef struct STaskCostInfo {
-  int64_t  created;
-  int64_t  start;
-  uint64_t elapsedTime;
-  double   extractListTime;
-  double   groupIdMapTime;
+  int64_t                 created;
+  int64_t                 start;
+  uint64_t                elapsedTime;
+  double                  extractListTime;
+  double                  groupIdMapTime;
   SFileBlockLoadRecorder* pRecoder;
 } STaskCostInfo;
 
@@ -153,6 +153,16 @@ typedef struct {
   SSchemaWrapper* qsw;
 } SSchemaInfo;
 
+typedef struct {
+  int32_t operatorType;
+  int64_t refId;
+} SExchangeOpStopInfo;
+
+typedef struct {
+  SRWLatch lock;
+  SArray*  pStopInfo;
+} STaskStopInfo;
+
 typedef struct SExecTaskInfo {
   STaskIdInfo   id;
   uint32_t      status;
@@ -171,6 +181,7 @@ typedef struct SExecTaskInfo {
   SSubplan*             pSubplan;
   struct SOperatorInfo* pRoot;
   SLocalFetch           localFetch;
+  STaskStopInfo         stopInfo;
 } SExecTaskInfo;
 
 enum {
@@ -184,8 +195,7 @@ enum {
 typedef struct SOperatorFpSet {
   __optr_open_fn_t    _openFn;  // DO NOT invoke this function directly
   __optr_fn_t         getNextFn;
-  __optr_fn_t         getStreamResFn;  // execute the aggregate in the stream model, todo remove it
-  __optr_fn_t         cleanupFn;       // call this function to release the allocated resources ASAP
+  __optr_fn_t         cleanupFn;  // call this function to release the allocated resources ASAP
   __optr_close_fn_t   closeFn;
   __optr_encode_fn_t  encodeResultRow;
   __optr_decode_fn_t  decodeResultRow;
@@ -265,6 +275,7 @@ typedef struct SExchangeInfo {
   SLoadRemoteDataInfo loadInfo;
   uint64_t            self;
   SLimitInfo          limitInfo;
+  int64_t             openedTs;  // start exec time stamp
 } SExchangeInfo;
 
 typedef struct SScanInfo {
@@ -298,6 +309,12 @@ typedef struct {
   SExprSupp*     pExprSup;  // expr supporter of aggregate operator
 } SAggOptrPushDownInfo;
 
+typedef struct STableMetaCacheInfo {
+  SLRUCache* pTableMetaEntryCache;  // 100 by default
+  uint64_t   metaFetch;
+  uint64_t   cacheHit;
+} STableMetaCacheInfo;
+
 typedef struct STableScanInfo {
   STsdbReader*           dataReader;
   SReadHandle            readHandle;
@@ -317,6 +334,7 @@ typedef struct STableScanInfo {
   int8_t                 scanMode;
   SAggOptrPushDownInfo   pdInfo;
   int8_t                 assignBlockUid;
+  STableMetaCacheInfo    metaCache;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
@@ -325,8 +343,7 @@ typedef struct STableMergeScanInfo {
   int32_t                tableEndIndex;
   bool                   hasGroupId;
   uint64_t               groupId;
-  SArray*                dataReaders;  // array of tsdbReaderT*
-  SArray*                queryConds;   // array of queryTableDataCond
+  SArray*                queryConds;  // array of queryTableDataCond
   STsdbReader*           pReader;
   SReadHandle            readHandle;
   int32_t                bufPageSize;
@@ -341,7 +358,7 @@ typedef struct STableMergeScanInfo {
   int64_t                numOfRows;
   SScanInfo              scanInfo;
   int32_t                scanTimes;
-  SqlFunctionCtx*        pCtx;         // which belongs to the direct upstream operator operator query context
+  SqlFunctionCtx*        pCtx;  // which belongs to the direct upstream operator operator query context
   SResultRowInfo*        pResultRowInfo;
   int32_t*               rowEntryInfoOffset;
   SExprInfo*             pExpr;
@@ -487,6 +504,7 @@ typedef struct SStreamScanInfo {
   STimeWindow           updateWin;
   STimeWindowAggSupp    twAggSup;
   SSDataBlock*          pUpdateDataRes;
+  SHashObj*             pGroupIdTbNameMap;
   // status for tmq
   SNodeList* pGroupTags;
   SNode*     pTagCond;
@@ -533,10 +551,10 @@ typedef struct SSysTableScanInfo {
 } SSysTableScanInfo;
 
 typedef struct SBlockDistInfo {
-  SSDataBlock*   pResBlock;
-  STsdbReader*   pHandle;
-  SReadHandle    readHandle;
-  uint64_t       uid;  // table uid
+  SSDataBlock* pResBlock;
+  STsdbReader* pHandle;
+  SReadHandle  readHandle;
+  uint64_t     uid;  // table uid
 } SBlockDistInfo;
 
 // todo remove this
@@ -646,9 +664,9 @@ typedef struct SGroupbyOperatorInfo {
   SAggSupporter  aggSup;
   SArray*        pGroupCols;     // group by columns, SArray<SColumn>
   SArray*        pGroupColVals;  // current group column values, SArray<SGroupKeys>
-  bool           isInit;       // denote if current val is initialized or not
-  char*          keyBuf;       // group by keys for hash
-  int32_t        groupKeyLen;  // total group by column width
+  bool           isInit;         // denote if current val is initialized or not
+  char*          keyBuf;         // group by keys for hash
+  int32_t        groupKeyLen;    // total group by column width
   SGroupResInfo  groupResInfo;
   SExprSupp      scalarSup;
 } SGroupbyOperatorInfo;
@@ -835,10 +853,8 @@ typedef struct SJoinOperatorInfo {
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
 #define OPTR_SET_OPENED(_optr) ((_optr)->status |= OP_OPENED)
 
-void doDestroyExchangeOperatorInfo(void* param);
-
-SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t streamFn,
-                                   __optr_fn_t cleanup, __optr_close_fn_t closeFn, __optr_explain_fn_t explain);
+SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
+                                   __optr_close_fn_t closeFn, __optr_explain_fn_t explain);
 
 int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
 int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
@@ -874,10 +890,14 @@ STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInter
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scanFlag);
 int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz);
 
-void    doSetOperatorCompleted(SOperatorInfo* pOperator);
+void doDestroyExchangeOperatorInfo(void* param);
+
+void    setOperatorCompleted(SOperatorInfo* pOperator);
+void    setOperatorInfo(SOperatorInfo* pOperator, const char* name, int32_t type, bool blocking, int32_t status,
+                        void* pInfo, SExecTaskInfo* pTaskInfo);
 void    doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo);
-int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
-                               SSDataBlock* pBlock, int32_t rows, const char* idStr);
+int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
+                               int32_t rows, const char* idStr, STableMetaCacheInfo* pCache);
 
 void cleanupAggSup(SAggSupporter* pAggSup);
 void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
@@ -972,6 +992,7 @@ void setTaskKilled(SExecTaskInfo* pTaskInfo);
 void queryCostStatis(SExecTaskInfo* pTaskInfo);
 
 void    doDestroyTask(SExecTaskInfo* pTaskInfo);
+void    destroyOperatorInfo(SOperatorInfo* pOperator);
 int32_t getMaximumIdleDurationSec();
 
 /*
@@ -1017,6 +1038,7 @@ void appendOneRowToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKE
                                       uint64_t* pGp, void* pTbName);
 void printDataBlock(SSDataBlock* pBlock, const char* flag);
 uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
+void     calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock);
 
 int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
@@ -1040,6 +1062,7 @@ int32_t setOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResul
 int32_t releaseOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult);
 int32_t saveOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult, int32_t resSize);
 void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order);
+int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo);
 
 #ifdef __cplusplus
 }

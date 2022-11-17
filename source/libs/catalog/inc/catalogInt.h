@@ -538,7 +538,8 @@ typedef struct SCtgOperation {
   (sizeof(STableMeta) + ((pMeta)->tableInfo.numOfTags + (pMeta)->tableInfo.numOfColumns) * sizeof(SSchema))
 
 #define CTG_TABLE_NOT_EXIST(code) (code == CTG_ERR_CODE_TABLE_NOT_EXIST)
-#define CTG_DB_NOT_EXIST(code)    (code == TSDB_CODE_MND_DB_NOT_EXIST)
+#define CTG_DB_NOT_EXIST(code) \
+  (code == TSDB_CODE_MND_DB_NOT_EXIST || code == TSDB_CODE_MND_DB_IN_CREATING || code == TSDB_CODE_MND_DB_IN_DROPPING)
 
 #define ctgFatal(param, ...) qFatal("CTG:%p " param, pCtg, __VA_ARGS__)
 #define ctgError(param, ...) qError("CTG:%p " param, pCtg, __VA_ARGS__)

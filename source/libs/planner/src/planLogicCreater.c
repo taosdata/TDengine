@@ -189,13 +189,17 @@ static int32_t createSelectRootLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
 }
 
 static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols, SNodeList* pScanCols,
-                             int8_t tableType) {
+                             int8_t tableType, bool tagScan) {
   if (pCxt->pPlanCxt->topicQuery || pCxt->pPlanCxt->streamQuery) {
     return SCAN_TYPE_STREAM;
   }
 
   if (TSDB_SYSTEM_TABLE == tableType) {
     return SCAN_TYPE_SYSTEM_TABLE;
+  }
+
+  if (tagScan) {
+    return SCAN_TYPE_TAG;
   }
 
   if (NULL == pScanCols) {
@@ -310,7 +314,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = rewriteExprsForSelect(pScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM);
   }
 
-  pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType);
+  pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
 
   if (NULL != pScan->pScanCols) {
     pScan->hasNormalCols = true;

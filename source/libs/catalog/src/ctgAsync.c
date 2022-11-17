@@ -1204,11 +1204,12 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
           stbCtx.flag = flag;
           stbCtx.pName = &stbName;
 
-          STableMeta *stbMeta = NULL;
+          STableMeta* stbMeta = NULL;
           ctgReadTbMetaFromCache(pCtg, &stbCtx, &stbMeta);
           if (stbMeta && stbMeta->sversion >= pOut->tbMeta->sversion) {
             ctgDebug("use cached stb meta, tbName:%s", tNameGetTableName(pName));
             exist = 1;
+            taosMemoryFreeClear(stbMeta);
           } else {
             ctgDebug("need to get/update stb meta, tbName:%s", tNameGetTableName(pName));
             taosMemoryFreeClear(pOut->tbMeta);
@@ -1998,6 +1999,7 @@ int32_t ctgLaunchGetDbInfoTask(SCtgTask* pTask) {
     pInfo->vgVer = dbCache->vgCache.vgInfo->vgVersion;
     pInfo->dbId = dbCache->dbId;
     pInfo->tbNum = dbCache->vgCache.vgInfo->numOfTable;
+    pInfo->stateTs = dbCache->vgCache.vgInfo->stateTs;
 
     ctgReleaseVgInfoToCache(pCtg, dbCache);
     dbCache = NULL;

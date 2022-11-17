@@ -22,6 +22,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 
+bool     gRaftDetailLog = false;
 SSyncIO *gSyncIO = NULL;
 
 // local function ------------
@@ -279,10 +280,7 @@ static void *syncIOConsumerFunc(void *param) {
 
       } else if (pRpcMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
         if (io->FpOnSyncClientRequest != NULL) {
-          SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pRpcMsg);
-          ASSERT(pSyncMsg != NULL);
-          io->FpOnSyncClientRequest(io->pSyncNode, pSyncMsg, NULL);
-          syncClientRequestDestroy(pSyncMsg);
+          io->FpOnSyncClientRequest(io->pSyncNode, pRpcMsg, NULL);
         }
 
       } else if (pRpcMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {

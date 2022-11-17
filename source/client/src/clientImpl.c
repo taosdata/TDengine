@@ -873,6 +873,10 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   return code;
 }
 
+static bool incompletaFileParsing(SNode* pStmt) {
+  return QUERY_NODE_VNODE_MODIF_STMT != nodeType(pStmt) ? false : ((SVnodeModifOpStmt*)pStmt)->fileProcessing;
+}
+
 // todo refacto the error code  mgmt
 void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   SSqlCallbackWrapper* pWrapper = param;
@@ -927,11 +931,10 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     pRequest->code = code1;
   }
 
-  if (pRequest->code == TSDB_CODE_SUCCESS && NULL != pWrapper->pParseCtx && pWrapper->pParseCtx->needMultiParse) {
-    code = continueInsertFromCsv(pWrapper, pRequest);
-    if (TSDB_CODE_SUCCESS == code) {
-      return;
-    }
+  if (pRequest->code == TSDB_CODE_SUCCESS && NULL != pRequest->pQuery &&
+      incompletaFileParsing(pRequest->pQuery->pRoot)) {
+    continueInsertFromCsv(pWrapper, pRequest);
+    return;
   }
 
   destorySqlCallbackWrapper(pWrapper);
@@ -1055,7 +1058,9 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   }
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
     SArray* pNodeList = NULL;
-    buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
+    if (QUERY_NODE_VNODE_MODIF_STMT != nodeType(pQuery->pRoot)) {
+      buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
+    }
 
     SRequestConnInfo conn = {.pTrans = getAppInfo(pRequest)->pTransporter,
                              .requestId = pRequest->requestId,
@@ -1966,6 +1971,8 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.user = "_dnd";
+  rpcInit.retryLimit = tsRpcRetryLimit;
+  rpcInit.retryInterval = tsRpcRetryInterval;
 
   clientRpc = rpcOpen(&rpcInit);
   if (clientRpc == NULL) {

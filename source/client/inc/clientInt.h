@@ -384,7 +384,6 @@ void hbMgrInitMqHbRspHandle();
 typedef struct SSqlCallbackWrapper {
   SParseContext* pParseCtx;
   SCatalogReq*   pCatalogReq;
-  SMetaData*     pResultMeta;
   SRequestObj*   pRequest;
 } SSqlCallbackWrapper;
 
@@ -398,7 +397,7 @@ int32_t removeMeta(STscObj* pTscObj, SArray* tbList);
 int32_t handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
 int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
 bool    qnodeRequired(SRequestObj* pRequest);
-int32_t continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
+void    continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
 void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);
 
 #ifdef __cplusplus

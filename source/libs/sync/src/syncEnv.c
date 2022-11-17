@@ -15,11 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "syncEnv.h"
+#include "syncUtil.h"
 #include "tref.h"
 
 static SSyncEnv gSyncEnv = {0};
 static int32_t  gNodeRefId = -1;
-bool            gRaftDetailLog = false;
 static void     syncEnvTick(void *param, void *tmrId);
 
 SSyncEnv *syncEnv() { return &gSyncEnv; }
@@ -79,7 +79,7 @@ void syncNodeRemove(int64_t rid) { taosRemoveRef(gNodeRefId, rid); }
 SSyncNode *syncNodeAcquire(int64_t rid) {
   SSyncNode *pNode = taosAcquireRef(gNodeRefId, rid);
   if (pNode == NULL) {
-    sTrace("failed to acquire node from refId:%" PRId64, rid);
+    sError("failed to acquire node from refId:%" PRId64, rid);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
   }
 
@@ -105,6 +105,7 @@ void syncEnvStopTimer() {
 #endif
 
 static void syncEnvTick(void *param, void *tmrId) {
+#if 0
   SSyncEnv *pSyncEnv = param;
   if (atomic_load_64(&gSyncEnv.envTickTimerLogicClockUser) <= atomic_load_64(&gSyncEnv.envTickTimerLogicClock)) {
     gSyncEnv.envTickTimerCounter++;
@@ -121,4 +122,5 @@ static void syncEnvTick(void *param, void *tmrId) {
            gSyncEnv.envTickTimerLogicClockUser, gSyncEnv.envTickTimerLogicClock, gSyncEnv.envTickTimerCounter,
            gSyncEnv.envTickTimerMS, tmrId);
   }
+#endif
 }

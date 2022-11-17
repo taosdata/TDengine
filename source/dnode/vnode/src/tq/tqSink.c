@@ -25,22 +25,31 @@ int32_t tqBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
   SColumnInfoData* pGidCol = taosArrayGet(pDataBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pTbNameCol = taosArrayGet(pDataBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
 
+  tqDebug("stream delete msg: row %d", totRow);
+
   for (int32_t row = 0; row < totRow; row++) {
     int64_t ts = *(int64_t*)colDataGetData(pTsCol, row);
     int64_t groupId = *(int64_t*)colDataGetData(pGidCol, row);
     char*   name;
-    void*   varTbName = colDataGetVarData(pTbNameCol, row);
+    void*   varTbName = NULL;
+    if (!colDataIsNull(pTbNameCol, totRow, row, NULL)) {
+      varTbName = colDataGetVarData(pTbNameCol, row);
+    }
+
     if (varTbName != NULL && varTbName != (void*)-1) {
       name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       memcpy(name, varDataVal(varTbName), varDataLen(varTbName));
     } else {
       name = buildCtbNameByGroupId(stbFullName, groupId);
     }
-    tqDebug("stream delete msg: groupId :%" PRId64 ", name: %s", groupId, name);
+    tqDebug("stream delete msg: vgId:%d, groupId :%" PRId64 ", name: %s, ts:%" PRId64, pVnode->config.vgId, groupId,
+            name, ts);
+#if 0
     SMetaReader mr = {0};
     metaReaderInit(&mr, pVnode->pMeta, 0);
     if (metaGetTableEntryByName(&mr, name) < 0) {
       metaReaderClear(&mr);
+      tqDebug("stream delete msg, skip vgId:%d since no table: %s", pVnode->config.vgId, name);
       taosMemoryFree(name);
       continue;
     }
@@ -48,10 +57,13 @@ int32_t tqBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
     int64_t uid = mr.me.uid;
     metaReaderClear(&mr);
     taosMemoryFree(name);
+#endif
     SSingleDeleteReq req = {
         .ts = ts,
-        .uid = uid,
     };
+    strncpy(req.tbname, name, TSDB_TABLE_NAME_LEN);
+    taosMemoryFree(name);
+    /*tqDebug("stream delete msg, active: vgId:%d, ts:%" PRId64 " name:%s", pVnode->config.vgId, ts, name);*/
     taosArrayPush(deleteReq->deleteReqs, &req);
   }
   return 0;
@@ -236,7 +248,7 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
 
     int32_t rows = pDataBlock->info.rows;
 
-    tqDebug("tq sink, convert block %d, rows: %d", i, rows);
+    tqDebug("tq sink, convert block1 %d, rows: %d", i, rows);
 
     int32_t dataLen = 0;
     int32_t schemaLen = 0;
@@ -309,6 +321,10 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       deleteReq.deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
       deleteReq.suid = suid;
       tqBuildDeleteReq(pVnode, stbFullName, pDataBlock, &deleteReq);
+      if (taosArrayGetSize(deleteReq.deleteReqs) == 0) {
+        taosArrayDestroy(deleteReq.deleteReqs);
+        continue;
+      }
 
       int32_t len;
       int32_t code;
@@ -474,7 +490,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       blkHead->uid = 0;
       blkHead->schemaLen = 0;
 
-      tqDebug("tq sink, convert block %d, rows: %d", i, rows);
+      tqDebug("tq sink, convert block2 %d, rows: %d", i, rows);
 
       int32_t dataLen = 0;
       void*   blkSchema = POINTER_SHIFT(blkHead, sizeof(SSubmitBlk));
@@ -502,6 +518,9 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
             tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, pColumn->offset, k);
           } else {
             void* colData = colDataGetData(pColData, j);
+            if (k == 0) {
+              tqDebug("tq sink, row %d ts %" PRId64, j, *(int64_t*)colData);
+            }
             tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, colData, true, pColumn->offset, k);
           }
         }

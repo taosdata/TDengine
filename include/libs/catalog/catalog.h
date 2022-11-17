@@ -56,6 +56,7 @@ typedef struct SDbInfo {
   int32_t vgVer;
   int32_t tbNum;
   int64_t dbId;
+  int64_t stateTs;
 } SDbInfo;
 
 typedef struct STablesReq {
@@ -124,6 +125,7 @@ typedef struct SDbVgVersion {
   int64_t dbId;
   int32_t vgVersion;
   int32_t numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
+  int64_t stateTs;
 } SDbVgVersion;
 
 typedef struct STbSVersion {
@@ -152,7 +154,7 @@ int32_t catalogInit(SCatalogCfg* cfg);
  */
 int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle);
 
-int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId, int32_t* tableNum);
+int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId, int32_t* tableNum, int64_t* stateTs);
 
 /**
  * Get a DB's all vgroup info.
@@ -207,7 +209,7 @@ int32_t catalogGetCachedTableMeta(SCatalog* pCtg, const SName* pTableName, STabl
 
 int32_t catalogGetCachedSTableMeta(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta);
 
-int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, const SName* pTableName,           SVgroupInfo* pVgroup, bool* exists);
+int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, const SName* pTableName, SVgroupInfo* pVgroup, bool* exists);
 
 /**
  * Force refresh DB's local cached vgroup info.
@@ -307,8 +309,8 @@ int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* f
 int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
                        bool* pass);
 
-int32_t catalogChkAuthFromCache(SCatalog* pCtg, const char* user, const char* dbFName, AUTH_TYPE type,
-                                       bool* pass, bool* exists);
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, const char* user, const char* dbFName, AUTH_TYPE type, bool* pass,
+                                bool* exists);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 
@@ -324,9 +326,9 @@ SMetaData* catalogCloneMetaData(SMetaData* pData);
 
 void catalogFreeMetaData(SMetaData* pData);
 
-int32_t ctgdEnableDebug(char *option, bool enable);
+int32_t ctgdEnableDebug(char* option, bool enable);
 
-int32_t ctgdHandleDbgCommand(char *command);
+int32_t ctgdHandleDbgCommand(char* command);
 
 /**
  * Destroy catalog and relase all resources
