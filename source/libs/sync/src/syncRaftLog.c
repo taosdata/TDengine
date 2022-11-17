@@ -325,15 +325,12 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
   // delete from cache
   for (SyncIndex index = fromIndex; index <= wallastVer; ++index) {
     SLRUCache* pCache = pData->pSyncNode->pLogStore->pCache;
-    taosLRUCacheErase(pData->pSyncNode->pLogStore->pCache, &index, sizeof(index));
-#if 0  
     LRUHandle* h = taosLRUCacheLookup(pCache, &index, sizeof(index));
     if (h) {
       sNTrace(pData->pSyncNode, "cache delete index:%" PRId64, index);
 
       taosLRUCacheRelease(pData->pSyncNode->pLogStore->pCache, h, true);
     }
-#endif
   }
 
   int32_t code = walRollback(pWal, fromIndex);
