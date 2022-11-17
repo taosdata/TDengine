@@ -1704,7 +1704,8 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
       }
 
       qDebug("GROUP Num:%u", info->groupNum);
-      for (uint32_t i = 0; i < info->groupNum; ++i) {
+      uint32_t maxDbgGrpNum = MIN(info->groupNum, 1000);
+      for (uint32_t i = 0; i < maxDbgGrpNum; ++i) {
         SFilterGroup *group = &info->groups[i];
         qDebug("Group%d : unit num[%u]", i, group->unitNum);
 
@@ -3916,6 +3917,10 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       } else {
         SColumnNode   *refNode = (SColumnNode *)node->pLeft;
         SNodeListNode *listNode = (SNodeListNode *)node->pRight;
+        if (LIST_LENGTH(listNode->pNodeList) > 10) {
+          stat->scalarMode = true;
+          return DEAL_RES_CONTINUE;
+        }
         int32_t        type = vectorGetConvertType(refNode->node.resType.type, listNode->dataType.type);
         if (0 != type && type != refNode->node.resType.type) {
           stat->scalarMode = true;
