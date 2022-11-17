@@ -756,7 +756,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
   }
   sendInfo->msgInfo = (SDataBuf){
       .pData = pReq,
-      .len = sizeof(SMqHbReq),
+      .len = tlen,
       .handle = NULL,
   };
 
