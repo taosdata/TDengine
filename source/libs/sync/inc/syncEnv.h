@@ -57,6 +57,11 @@ void       syncNodeRemove(int64_t rid);
 SSyncNode* syncNodeAcquire(int64_t rid);
 void       syncNodeRelease(SSyncNode* pNode);
 
+int64_t           syncHbTimerDataAdd(SSyncHbTimerData* pData);
+void              syncHbTimerDataRemove(int64_t rid);
+SSyncHbTimerData* syncHbTimerDataAcquire(int64_t rid);
+void              syncHbTimerDataRelease(SSyncHbTimerData* pData);
+
 #ifdef __cplusplus
 }
 #endif
