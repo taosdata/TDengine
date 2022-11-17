@@ -33,7 +33,7 @@ class TDTestCase:
         self.colname_length_boundary = self.boundary.COL_KEY_MAX_LENGTH
         self.tagname_length_boundary = self.boundary.TAG_KEY_MAX_LENGTH
         self.username_length_boundary = 23
-        self.password_length_boundary = 15
+        self.password_length_boundary = 128
     def dbname_length_check(self):
         dbname_length = randint(1,self.dbname_length_boundary-1)
         for dbname in [tdCom.get_long_name(self.dbname_length_boundary),tdCom.get_long_name(dbname_length)]:
@@ -153,13 +153,11 @@ class TDTestCase:
         value = tdCom.get_long_name(1013)
         for num in range(insert_rows):
             values_sql += f' (now+{num}s,"{value}")'
-        
         value = tdCom.get_long_name(65)
         values_sql += f"(now-1s,'{value}')"
         tdSql.execute(f'insert into ntb values{values_sql}')
         tdSql.query('select * from ntb')
         tdSql.checkRows(insert_rows+1)
-        
         tdSql.execute('create table ntb1 (ts timestamp,c0 binary(1013))')
         tdSql.error(f'insert into ntb1 values{values_sql};')
         print(tdSql.error_info)
@@ -167,7 +165,6 @@ class TDTestCase:
             tdLog.info("error info is true!")
         else:
             tdLog.exit("error info is not true")
-
         tdSql.execute('drop database db')
     def run(self):
         self.dbname_length_check()
@@ -175,7 +172,7 @@ class TDTestCase:
         self.colname_length_check()
         self.tagname_length_check()
         self.username_length_check()
-        # self.password_length_check()
+        self.password_length_check()
         self.sql_length_check()
 
     def stop(self):
