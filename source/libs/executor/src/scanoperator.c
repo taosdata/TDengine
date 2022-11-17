@@ -559,7 +559,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     metaReaderInit(&mr, pHandle->meta, 0);
     code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
     if (code != TSDB_CODE_SUCCESS) {
-      if (code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+      if (terrno == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
         qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
       } else {
         qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
@@ -582,7 +582,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       metaReaderInit(&mr, pHandle->meta, 0);
       code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
       if (code != TSDB_CODE_SUCCESS) {
-        if (code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+        if (terrno == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
           qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
         } else {
           qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
