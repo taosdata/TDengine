@@ -157,6 +157,7 @@ _exit:
     mError("mnd get batch meta failed cause of %s", tstrerror(code));
   }
 
+  taosArrayDestroyEx(batchReq.pMsgs, tFreeSBatchReqMsg);
   taosArrayDestroyEx(batchRsp.pRsps, mnodeFreeSBatchRspMsg);
 
   return code;
