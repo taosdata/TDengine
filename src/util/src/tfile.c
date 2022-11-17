@@ -93,6 +93,13 @@ int64_t tfRead(int64_t tfd, void *buf, int64_t count) {
   return ret;
 }
 
+int64_t fdRead(int32_t fd, void *buf, int64_t count) {
+  int64_t ret = taosRead(fd, buf, count);
+  if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
+  return ret;
+}
+
+
 int32_t tfFsync(int64_t tfd) {
   void *p = taosAcquireRef(tsFileRsetId, tfd);
   if (p == NULL) return -1;

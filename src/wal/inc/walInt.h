@@ -34,8 +34,6 @@ extern int32_t wDebugFlag;
 #define WAL_PREFIX     "wal"
 #define WAL_PREFIX_LEN 3
 #define WAL_REFRESH_MS 1000
-#define WAL_MAX_SIZE   (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + 16)
-#define WAL_SIGNATURE  ((uint32_t)(0xFAFBFDFE))
 #define WAL_PATH_LEN   (TSDB_FILENAME_LEN + 12)
 #define WAL_FILE_LEN   (WAL_PATH_LEN + 32)
 #define WAL_FILE_NUM   1 // 3

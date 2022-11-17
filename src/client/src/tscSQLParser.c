@@ -862,7 +862,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg3 = "name too long";
       const char* msg5 = "invalid user rights";
       const char* msg7 = "not support options";
-      const char* msg8 = "tags filter length must over 3 bytes.";
+      const char* msg8 = "tags filter string length must less than 255 bytes.";
 
       pCmd->command = pInfo->type;
 
@@ -903,15 +903,14 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           }
         } else if (pUser->type == TSDB_ALTER_USER_TAGS) {
           SStrToken* pTags = &pUser->tags;
-          if(pTags->n < 4)
-            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
-       } else {
+          if (pTags->n > TSDB_TAGS_LEN - 1 ) return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
+        } else {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
         }
       }
 
-      break;
-    }
+    break;
+  }
 
     case TSDB_SQL_CFG_LOCAL: {
       SMiscInfo  *pMiscInfo = pInfo->pMiscInfo;
@@ -7340,18 +7339,19 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   bool dbIncluded = false;
 
   SStrToken tmpToken = pAlterSQL->name;
-  tmpToken.z= strndup(pAlterSQL->name.z, pAlterSQL->name.n);
+  char* z0 = strndup(pAlterSQL->name.z, pAlterSQL->name.n);
+  tmpToken.z = z0;
   if (tscValidateName(&tmpToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
-    free(tmpToken.z);
+    free(z0);
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
   code = tscSetTableFullName(&pTableMetaInfo->name, &tmpToken, pSql, dbIncluded);
   if (code != TSDB_CODE_SUCCESS) {
-    free(tmpToken.z);
+    free(z0);
     return code;
   }
-  free(tmpToken.z);
+  free(z0);
 
   code = tscGetTableMeta(pSql, pTableMetaInfo);
   if (code != TSDB_CODE_SUCCESS) {

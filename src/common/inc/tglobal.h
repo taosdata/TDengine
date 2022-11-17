@@ -92,6 +92,9 @@ extern int32_t tsRetryStreamCompDelay;
 extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the whole time window
 extern int32_t tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
+extern bool    tsWriteBatchThreadLocal;
+extern int32_t tsWriteBatchSize;
+extern int32_t tsWriteBatchTimeout;
 
 // db parameters in client
 extern int32_t tsCacheBlockSize;
@@ -150,6 +153,10 @@ extern int8_t  tsMonitorReplica;
 extern char    tsMonitorDbName[];
 extern char    tsInternalPass[];
 extern int32_t tsMonitorInterval;
+
+// audit
+extern int8_t  tsEnableAudit;
+extern char    tsAuditDbName[];
 
 // stream
 extern int8_t tsEnableStream;
@@ -219,6 +226,7 @@ extern int32_t  cqDebugFlag;
 extern int32_t  debugFlag;
 
 extern int8_t tsClientMerge;
+extern int8_t tsAggAlways;
 
 // probe alive connection
 extern int32_t tsProbeSeconds;

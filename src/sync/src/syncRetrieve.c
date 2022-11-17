@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
+#include "tchecksum.h"
 #include "tlog.h"
 #include "tutil.h"
 #include "tglobal.h"
@@ -23,6 +24,7 @@
 #include "tsocket.h"
 #include "twal.h"
 #include "tsync.h"
+#include "tfile.h"
 #include "syncInt.h"
 
 static int32_t syncGetWalVersion(SSyncNode *pNode, SSyncPeer *pPeer) {
@@ -134,8 +136,69 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
   return 0;
 }
 
+static int syncValidateChecksum(SWalHead *pHead) {
+  if (pHead->sver == 0) { // for compatible with wal before sver 1
+    return taosCheckChecksumWhole((uint8_t *)pHead, sizeof(*pHead));
+  } else {
+    // new wal format
+    uint32_t cksum = pHead->cksum;
+    pHead->cksum = 0;
+    int ret = taosCheckChecksum((uint8_t *)pHead, sizeof(*pHead) + pHead->len, cksum);
+    pHead->cksum = cksum;  // must restore cksum for next call walValiteCheckSum
+    return ret;
+  }
+}
+
+static int32_t syncSkipCorruptedRecord(SWalHead *pHead, int32_t fd) {
+  int64_t pos = taosLSeek(fd, 0, SEEK_CUR);
+  if (pos < 0) {
+    sError("fd:%d, skip corrupte taosLSeek return error. pos=%" PRId64, fd, pos);
+    return TSDB_CODE_WAL_FILE_CORRUPTED;
+  }
+  // save start bad bytes positioin
+  int64_t start = pos;
+  while (1) {
+    pos++;
+    if (taosLSeek(fd, pos, SEEK_SET) < 0) {
+      sError("fd:%d, failed to seek from corrupted wal file pos=%" PRId64 ".since %s", fd, pos, strerror(errno));
+      return TSDB_CODE_WAL_FILE_CORRUPTED;
+    }
+
+    if (fdRead(fd, pHead, sizeof(SWalHead)) <= 0) {
+      sError("fd:%d, failed to read wal head from corrupted wal. pos=%" PRId64 ".since %s", fd, pos, strerror(errno));
+      return TSDB_CODE_WAL_FILE_CORRUPTED;
+    }
+
+    if (pHead->signature != WAL_SIGNATURE) {
+      continue;
+    }
+
+    if (pHead->sver == 0) {
+      // old format wal, only check head crc
+      if (syncValidateChecksum(pHead)) {
+        sInfo("fd:%d, old wal read head ok, pHead->len=%d, skip bad bytes=%" PRId64 " right pos:%" PRId64, fd, pHead->len, pos - start, pos);
+        return TSDB_CODE_SUCCESS;
+      }
+    } else {
+      // new format wal, check head + body crc
+      if (fdRead(fd, pHead->cont, pHead->len) < pHead->len) {
+        sError("fd:%d, read to end of corrupted wal file, offset:%" PRId64, fd, pos);
+        return TSDB_CODE_WAL_FILE_CORRUPTED;
+      }
+
+      if (syncValidateChecksum(pHead)) {
+        sInfo("fd:%d, wal read head ok, pHead->len=%d, skip bad bytes=%" PRId64 " right pos:%" PRId64, fd, pHead->len, pos - start, pos);
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
+
+  return TSDB_CODE_WAL_FILE_CORRUPTED;
+}
+
 // if only a partial record is read out, upper layer will reload the file to get a complete record
 static int32_t syncReadOneWalRecord(int32_t sfd, SWalHead *pHead) {
+  int32_t code = TSDB_CODE_SUCCESS;
   int32_t ret = read(sfd, pHead, sizeof(SWalHead));
   if (ret < 0) {
     sError("sfd:%d, failed to read wal head since %s, ret:%d", sfd, strerror(errno), ret);
@@ -153,18 +216,48 @@ static int32_t syncReadOneWalRecord(int32_t sfd, SWalHead *pHead) {
     return 0;
   }
 
-  assert(pHead->len <= TSDB_MAX_WAL_SIZE);
+  // check wal head valid
+  if (pHead->sver == 0 && !syncValidateChecksum(pHead)) {
+    sError("sfd:%d, old wal head cksum is messed up, sver=%d version:%" PRIu64 " len:%d", sfd, pHead->sver, pHead->version, pHead->len);
+    code = syncSkipCorruptedRecord(pHead, sfd);
+    if (code != TSDB_CODE_SUCCESS) {
+      sError("sfd:%d, wal corrupted and skip failed crc check, code:%d", sfd, code);
+      return -1;
+    }
+    // found next valid item
+    if (pHead->sver != 0) return sizeof(SWalHead) + pHead->len;
+  }
 
-  ret = read(sfd, pHead->cont, pHead->len);
+  if (pHead->len < 0 || pHead->len > WAL_MAX_SIZE - sizeof(SWalHead)) {
+    sError("sfd:%d, wal head len out of range, hver:%" PRIu64 " len:%d", sfd, pHead->version, pHead->len);
+    code = syncSkipCorruptedRecord(pHead, sfd);
+    if (code != TSDB_CODE_SUCCESS) {
+      sError("sfd:%d, wal corrupted and skip failed length check, code:%d", sfd, code);
+      return -1;
+    }
+    // found next valid item
+    if (pHead->sver != 0) return sizeof(SWalHead) + pHead->len;
+  }
+
+  // read body
+  ret = (int32_t)read(sfd, pHead->cont, pHead->len);
   if (ret < 0) {
-    sError("sfd:%d, failed to read wal content since %s, ret:%d", sfd, strerror(errno), ret);
+    sError("sfd:%d, wal read wal cont failed. read len=%d, ret:%d", sfd, pHead->len, ret);
     return -1;
   }
 
-  if (ret != pHead->len) {
-    // file is not at end yet, it shall be reloaded
-    sInfo("sfd:%d, a partial wal conetnt is read out, ret:%d", sfd, ret);
-    return 0;
+  if (ret < pHead->len) {
+    sError("sfd:%d, wal read wal cont length small. need read len=%d, ret len:%d", sfd, pHead->len, ret);
+    return -1;
+  }
+
+  if (pHead->sver != 0 && !syncValidateChecksum(pHead)) {
+    sError("sfd:%d, wal check sum failed, sver=%d version:%" PRIu64 " len:%d", sfd, pHead->sver, pHead->version, pHead->len);
+    code = syncSkipCorruptedRecord(pHead, sfd);
+    if (code != TSDB_CODE_SUCCESS) {
+      sError("sfd:%d, wal read body check sum not right and skip corrupted failed, code:%d", sfd, code);
+      return -1;
+    }
   }
 
   return sizeof(SWalHead) + pHead->len;

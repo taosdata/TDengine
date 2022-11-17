@@ -31,7 +31,7 @@
 
 
 // extern function
-void insertChar(Command *cmd, char *c, int size);
+void insertStr(Command *cmd, char *str, int size);
 
 
 typedef struct SAutoPtr {
@@ -337,24 +337,23 @@ int      cntDel    = 0;   // delete byte count after next press tab
 
 // show auto tab introduction
 void printfIntroduction() {
-  printf("   ****************************  How To Use TAB Key  ********************************\n"); 
-  printf("   *   TDengine Command Line supports pressing TAB key to complete word,            *\n"); 
-  printf("   *   including database name, table name, function name and keywords.             *\n");
-  printf("   *   Press TAB key anywhere, you'll get surprise.                                 *\n");
-  printf("   *   KEYBOARD SHORTCUT:                                                           *\n");
-  printf("   *    [ TAB ]        ......  Complete the word or show help if no input           *\n");
-  printf("   *    [ Ctrl + A ]   ......  move cursor to [A]head of line                       *\n");
-  printf("   *    [ Ctrl + E ]   ......  move cursor to [E]nd of line                         *\n");
-  printf("   *    [ Ctrl + W ]   ......  move cursor to line of middle                        *\n");  
-  printf("   *    [ Ctrl + L ]   ......  clean screen                                         *\n");
-  printf("   *    [ Ctrl + K ]   ......  clean after cursor                                   *\n");
-  printf("   *    [ Ctrl + U ]   ......  clean before cursor                                  *\n");
-  printf("   *                                                                                *\n");
-  printf("   **********************************************************************************\n\n"); 
+  printf("   ******************************  Tab Completion  **********************************\n");
+  printf("   *   The TDengine CLI supports tab completion for a variety of items,             *\n");
+  printf("   *   including database names, table names, function names and keywords.          *\n");
+  printf("   *   The full list of shortcut keys is as follows:                                *\n");
+  printf("   *    [ TAB ]        ......  complete the current word                            *\n");
+  printf("   *                   ......  if used on a blank line, display all valid commands  *\n");
+  printf("   *    [ Ctrl + A ]   ......  move cursor to the st[A]rt of the line               *\n");
+  printf("   *    [ Ctrl + E ]   ......  move cursor to the [E]nd of the line                 *\n");
+  printf("   *    [ Ctrl + W ]   ......  move cursor to the middle of the line                *\n");
+  printf("   *    [ Ctrl + L ]   ......  clear the entire screen                              *\n");
+  printf("   *    [ Ctrl + K ]   ......  clear the screen after the cursor                    *\n");
+  printf("   *    [ Ctrl + U ]   ......  clear the screen before the cursor                   *\n");
+  printf("   **********************************************************************************\n\n");
 }
 
 void showHelp() {
-  printf("\nThe following are supported commands for TDengine Command Line:");
+  printf("\nFThe TDengine CLI supports the following commands:");
   printf("\n\
   ----- A ----- \n\
     alter database <db_name> <db_options> \n\
@@ -534,26 +533,16 @@ void parseCommand(SWords * command, bool pattern) {
 }
 
 // free Command
-void freeCommand(SWords * command) {
-  SWord * word = command->head;
-  if (word == NULL) {
-    return ;
-  }
-
-  // loop 
-  while (word->next) {
-    SWord * tmp = word;
-    word = word->next;
+void freeCommand(SWords* command) {
+  SWord* item = command->head;
+  // loop
+  while (item) {
+    SWord* tmp = item;
+    item = item->next;
     // if malloc need free
-    if(tmp->free && tmp->word)
-      free(tmp->word);
+    if (tmp->free && tmp->word) free(tmp->word);
     free(tmp);
   }
-
-  // if malloc need free
-  if(word->free && word->word)
-    free(word->word);
-  free(word);
 }
 
 void GenerateVarType(int type, char** p, int count) {
@@ -1088,7 +1077,7 @@ void printScreen(TAOS * con, Command * cmd, SWords * match) {
   }
   
   // insert new
-  insertChar(cmd, (char *)str, strLen);
+  insertStr(cmd, (char *)str, strLen);
 }
 
 
@@ -1179,11 +1168,11 @@ bool nextMatchCommand(TAOS * con, Command * cmd, SWords * firstMatch) {
   printScreen(con, cmd, match);
 
   // free
+  freeCommand(input);
   if (input->source) {
     free(input->source);
     input->source = NULL;
   }
-  freeCommand(input);
   free(input);
 
   return true;
@@ -1203,7 +1192,7 @@ bool fillWithType(TAOS * con, Command * cmd, char* pre, int type) {
 
   // show
   int count = strlen(part);
-  insertChar(cmd, part, count);
+  insertStr(cmd, part, count);
   cntDel = count; // next press tab delete current append count
 
   free(str);
@@ -1231,7 +1220,7 @@ bool fillTableName(TAOS * con, Command * cmd, char* pre) {
 
   // show
   int count = strlen(part);
-  insertChar(cmd, part, count);
+  insertStr(cmd, part, count);
   cntDel = count; // next press tab delete current append count
   
   free(str);
@@ -1251,7 +1240,7 @@ char * lastWord(char * p) {
   char * p2 = strrchr(p, ',');
 
   if (p1 && p2) {
-    return p1 > p2 ? p1 : p2 + 1;
+    return p1 > p2 ? p1 + 1 : p2 + 1;
   } else if (p1) {
     return p1 + 1;
   } else if(p2) {
@@ -1355,7 +1344,7 @@ bool appendAfterSelect(TAOS * con, Command * cmd, char* sql, int32_t len) {
     bool fieldEnd = fieldsInputEnd(p);
     // cheeck fields input end then insert from keyword
     if (fieldEnd && p[len-1] == ' ') {
-      insertChar(cmd, "from", 4);
+      insertStr(cmd, "from", 4);
       free(p);
       return true;
     }
@@ -1538,7 +1527,7 @@ bool matchOther(TAOS * con, Command * cmd) {
   if (p[len - 1] == '\\') {
     // append '\G'
     char a[] = "G;";
-    insertChar(cmd, a, 2);
+    insertStr(cmd, a, 2);
     return true;
   }
 

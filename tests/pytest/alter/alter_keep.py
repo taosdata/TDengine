@@ -22,7 +22,7 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-    
+
     def alterKeepCommunity(self):
         tdLog.notice('running Keep Test, Community Version')
         tdLog.notice('running parameter test for keep during create')
@@ -174,7 +174,7 @@ class TDTestCase:
         tdSql.error('insert into tb values (now-15d, 10)')
         tdSql.query('select * from tb')
         tdSql.checkRows(2)
-        
+
         rowNum = 2
         tdLog.notice('testing keep will be altered if sudden change from small to big')
         for i in range(30):
