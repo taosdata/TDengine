@@ -260,7 +260,25 @@ impl TaskController {
                                     let err_string = err.to_string();
 
                                     match err_string.as_str() {
-                                        e if e.contains("WebSocket protocol error") || e.contains("WebSocket internal error") || e.contains("0x000B")=> {
+                                        e if e.contains("Unsupported HTTP method used - only GET is allowed") => {
+                                            // todo(@huolinhe): we got 401 Authentication failure with HTTPS, but this error with HTTP.
+                                            //   Maybe you should check the websocket implementations for the low-level reason.
+                                            let err = "Authentication failure";
+                                            log::error!("run task {id} failed with: {err}, please check the instance status or token");
+                                            let err = err.to_string();
+                                            let now = Utc::now();
+                                            let _ = sqlx::query!(
+                                                "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE",
+                                                now,
+                                                Status::Failed,
+                                                err,
+                                                id
+                                            )
+                                            .execute(&pool)
+                                            .await?;
+                                            break;
+                                        }
+                                        e if e.contains("WebSocket protocol error") || e.contains("WebSocket internal error") || e.contains("0x000B") => {
                                             log::warn!("run task {id} failed: {err}, wait for resume...");
                                             let err = err.to_string();
                                             let now = Utc::now();
