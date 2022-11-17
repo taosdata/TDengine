@@ -37,10 +37,16 @@ static inline void mmRelease(SMnodeMgmt *pMgmt) {
 static inline void mmSendRsp(SRpcMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {
       .code = code,
-      .pCont = pMsg->info.rsp,
-      .contLen = pMsg->info.rspLen,
+      // .pCont = pMsg->info.rsp,
+      // .contLen = pMsg->info.rspLen,
       .info = pMsg->info,
   };
+  rsp.pCont = pMsg->info.rsp;
+  rsp.contLen = pMsg->info.rspLen;
+#if 1
+  dInfo("cont:%p len:%d send response, code:0x%x hasEpSet:%d msgType:%s", rsp.pCont, rsp.contLen, rsp.code,
+        rsp.info.hasEpSet, TMSG_INFO(pMsg->msgType));
+#endif
   tmsgSendRsp(&rsp);
 }
 

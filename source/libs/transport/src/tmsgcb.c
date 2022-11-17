@@ -44,7 +44,10 @@ int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
   return code;
 }
 
-void tmsgSendRsp(SRpcMsg* pMsg) { return (*defaultMsgCb.sendRspFp)(pMsg); }
+void tmsgSendRsp(SRpcMsg* pMsg) {
+  return rpcSendResponse(pMsg);
+  // return (*defaultMsgCb.sendRspFp)(pMsg);
+}
 
 void tmsgSendRedirectRsp(SRpcMsg* pMsg, const SEpSet* pNewEpSet) { (*defaultMsgCb.sendRedirectRspFp)(pMsg, pNewEpSet); }
 

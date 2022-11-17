@@ -577,10 +577,13 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
 
     int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
     pMsg->info.rsp = rpcMallocCont(contLen);
-    pMsg->info.hasEpSet = 1;
     if (pMsg->info.rsp != NULL) {
       tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
+      pMsg->info.hasEpSet = 1;
       pMsg->info.rspLen = contLen;
+#if 1
+      mInfo("cont:%p len:%d malloced", pMsg->info.rsp, contLen);
+#endif
       terrno = TSDB_CODE_RPC_REDIRECT;
     } else {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
