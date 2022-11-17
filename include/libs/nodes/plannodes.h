@@ -567,6 +567,7 @@ typedef struct SSubplan {
   SDataSinkNode* pDataSink;     // data of the subplan flow into the datasink
   SNode*         pTagCond;
   SNode*         pTagIndexCond;
+  bool           showRewrite;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;
@@ -584,8 +585,6 @@ typedef struct SQueryPlan {
   SNodeList*   pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
   SExplainInfo explainInfo;
 } SQueryPlan;
-
-void nodesWalkPhysiPlan(SNode* pNode, FNodeWalker walker, void* pContext);
 
 const char* dataOrderStr(EDataOrderLevel order);
 

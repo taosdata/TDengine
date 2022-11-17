@@ -88,8 +88,7 @@ typedef struct {
     STqExecTb  execTb;
     STqExecDb  execDb;
   };
-  int32_t         numOfCols;       // number of out pout column, temporarily used
-  SSchemaWrapper* pSchemaWrapper;  // columns that are involved in query
+  int32_t numOfCols;  // number of out pout column, temporarily used
 } STqExecHandle;
 
 typedef struct {
@@ -155,7 +154,7 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
 
 // tqExec
 int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp* pRsp);
-int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols);
+int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
 int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp);
 int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry);
 
@@ -181,15 +180,15 @@ int32_t         tqOffsetDelete(STqOffsetStore* pStore, const char* subscribeKey)
 int32_t         tqOffsetCommitFile(STqOffsetStore* pStore);
 
 // tqSink
-void tqSinkToTableMerge(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
+// void tqSinkToTableMerge(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
 void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
 
 // tqOffset
-char*   tqOffsetBuildFName(const char* path, int32_t ver);
+char*   tqOffsetBuildFName(const char* path, int32_t fVer);
 int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 
 // tqStream
-int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask);
+int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
 
 #ifdef __cplusplus
 }

@@ -20,11 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "taosdef.h"
 
 // \* Leader i advances its commitIndex.
 // \* This is done as a separate step from handling AppendEntries responses,
@@ -49,6 +45,7 @@ extern "C" {
 //        IN commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
+void syncOneReplicaAdvance(SSyncNode* pSyncNode);
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode);
 bool syncAgreeIndex(SSyncNode* pSyncNode, SRaftId* pRaftId, SyncIndex index);
 bool syncAgree(SSyncNode* pSyncNode, SyncIndex index);

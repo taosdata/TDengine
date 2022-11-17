@@ -9,12 +9,12 @@ description: 对表的各种管理操作
 `CREATE TABLE` 语句用于创建普通表和以超级表为模板创建子表。
 
 ```sql
-CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definitionn] ...) [table_options]
+CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definition] ...) [table_options]
 
 CREATE TABLE create_subtable_clause
 
-CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definitionn] ...)
-    [TAGS (create_definition [, create_definitionn] ...)]
+CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definition] ...)
+    [TAGS (create_definition [, create_definition] ...)]
     [table_options]
 
 create_subtable_clause: {

@@ -34,6 +34,7 @@ typedef struct {
   int64_t createTs;
   int64_t closeTs;
   int64_t fileSize;
+  int64_t syncedOffset;
 } SWalFileInfo;
 
 typedef struct WalIdxEntry {
@@ -64,6 +65,12 @@ static inline int64_t walGetLastFileSize(SWal* pWal) {
   if (taosArrayGetSize(pWal->fileInfoSet) == 0) return 0;
   SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
   return pInfo->fileSize;
+}
+
+static inline int64_t walGetLastFileCachedSize(SWal* pWal) {
+  if (taosArrayGetSize(pWal->fileInfoSet) == 0) return 0;
+  SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
+  return (pInfo->fileSize - pInfo->syncedOffset);
 }
 
 static inline int64_t walGetLastFileFirstVer(SWal* pWal) {

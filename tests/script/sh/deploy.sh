@@ -139,9 +139,10 @@ echo "fsDebugFlag            143"                >> $TAOS_CFG
 echo "idxDebugFlag           143"                >> $TAOS_CFG
 echo "udfDebugFlag           143"                >> $TAOS_CFG
 echo "smaDebugFlag           143"                >> $TAOS_CFG
-echo "idxDebugFlag           143"                >> $TAOS_CFG
+echo "metaDebugFlag          143"                >> $TAOS_CFG
 echo "numOfLogLines          20000000"           >> $TAOS_CFG
 echo "asyncLog               0"                  >> $TAOS_CFG
 echo "locale                 en_US.UTF-8"        >> $TAOS_CFG
 echo "telemetryReporting     0"                  >> $TAOS_CFG
+echo "querySmaOptimize       1"                  >> $TAOS_CFG
 echo " "                                         >> $TAOS_CFG  

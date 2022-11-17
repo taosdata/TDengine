@@ -1,9 +1,4 @@
-#include "syncEnv.h"
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncRaftStore.h"
-#include "ttime.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -22,23 +17,21 @@ int main() {
 
   logTest();
 
-  ret = syncEnvStart();
+  ret = syncInit();
   assert(ret == 0);
 
   for (int i = 0; i < 5; ++i) {
-    ret = syncEnvStartTimer();
+    // ret = syncEnvStartTimer();
     assert(ret == 0);
 
     taosMsleep(5000);
 
-    ret = syncEnvStopTimer();
+    // ret = syncEnvStopTimer();
     assert(ret == 0);
 
     taosMsleep(5000);
   }
 
-  ret = syncEnvStop();
-  assert(ret == 0);
-
+  syncCleanUp();
   return 0;
 }

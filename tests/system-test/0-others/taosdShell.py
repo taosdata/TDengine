@@ -2,6 +2,7 @@
 import taos
 import sys
 import time
+from datetime import datetime
 import socket
 import os
 import platform
@@ -14,6 +15,7 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
+from util.cluster import *
 
 class TDTestCase:
     #updatecfgDict = {'clientCfg': {'serverPort': 7080, 'firstEp': 'trd02:7080', 'secondEp':'trd02:7080'},\
@@ -43,7 +45,8 @@ class TDTestCase:
 
     # print ("===================: ", updatecfgDict)
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -89,7 +92,7 @@ class TDTestCase:
                 break
             else:
                 tdLog.info( "wait start taosd ,times: %d "%i)
-            sleep
+            time.sleep(1)
             i+= 1
         else :
             tdLog.exit("taosd %s is not running "%startAction)    
@@ -98,20 +101,54 @@ class TDTestCase:
         processName="taosd"
         taosdCmd = taosdCmdRun + startAction
         tdLog.printNoPrefix("%s"%taosdCmd)
-        os.system(f"nohup {taosdCmd}  & ")
+        logTime=datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+        os.system(f"nohup {taosdCmd}  >  {logTime}.log  2>&1 &  ")
         self.checkAndstopPro(processName,startAction)
+        os.system(f"rm -rf  {logTime}.log")
+
 
     def taosdCommandExe(self,startAction,taosdCmdRun):
         taosdCmd = taosdCmdRun + startAction
         tdLog.printNoPrefix("%s"%taosdCmd)
         os.system(f"{taosdCmd}")
 
-    def run(self):  
-        tdSql.prepare()
-        # time.sleep(2)
-        tdSql.query("create user testpy pass 'testpy'")
+    def preData(self):
+        # database\stb\tb\chiild-tb\rows\topics
+        tdSql.execute("create user testpy pass 'testpy'")
+        tdSql.execute("drop database if exists db0;")
+        tdSql.execute("create database db0;")
+        tdSql.execute("use db0;")
+        tdSql.execute("create table if not exists db0.stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned);")
+        tdSql.execute("create table db0.ct1 using db0.stb tags(1000);")
+        tdSql.execute("create table db0.ct2 using db0.stb tags(2000);")
+        tdSql.execute("create table if not exists db0.ntb (ts timestamp, c1 int, c2 float, c3 double) ;")
+        tdSql.query("show db0.stables;")
+        tdSql.execute("insert into db0.ct1 values(now+0s, 10, 2.0, 3.0);")
+        tdSql.execute("insert into db0.ct1 values(now+1s, 11, 2.1, 3.1)(now+2s, 12, 2.2, 3.2)(now+3s, 13, 2.3, 3.3);")
+        tdSql.execute("insert into db0.ntb values(now+2s, 10, 2.0, 3.0);")
+        tdSql.execute("create sma index sma_index_name1 on db0.stb function(max(c1),max(c2),min(c1)) interval(6m,10s) sliding(6m);")
+        tdSql.execute("create topic tpc1 as select * from db0.ct2; ")
 
-        #hostname = socket.gethostname()
+
+        #stream
+        tdSql.execute("drop database if exists source_db;")
+        tdSql.query("create database source_db vgroups 3;")
+        tdSql.query("use source_db")
+        tdSql.query("create table if not exists source_db.stb (ts timestamp, k int) tags (a int);")
+        tdSql.query("create table source_db.ct1 using source_db.stb tags(1000);create table source_db.ct2 using source_db.stb tags(2000);create table source_db.ct3 using source_db.stb tags(3000);")
+        tdSql.query("create stream s1 into source_db.output_stb as select _wstart AS start, min(k), max(k), sum(k) from source_db.stb interval(10m);")
+
+
+        #TD-19944 -Q=3 
+        tdsqlN=tdCom.newTdSql()
+
+        tdsqlN.query("select * from source_db.stb")
+        tdsqlN.query("select * from db0.stb")
+
+    def run(self):  
+        # tdSql.prepare()
+        # time.sleep(2)
+        self.preData()
         #tdLog.info ("hostname: %s" % hostname)
 
         buildPath = self.getBuildPath()
@@ -128,7 +165,16 @@ class TDTestCase:
         # keyDict['h'] = self.hostname
         # keyDict['c'] = cfgPath
         # keyDict['P'] = self.serverPort
-        tdDnodes.stop(1)        
+        tdDnodes=cluster.dnodes
+        for i in range(5):
+            tdDnodes[i].stoptaosd()  
+        
+        
+        startAction = " -s -c " + taosdCfgPath 
+        tdLog.printNoPrefix("================================ parameter: %s"%startAction)
+        self.taosdCommandExe(startAction,taosdCmdRun)
+        os.system(" rm -rf sdb.json ") 
+
 
         startAction = " --help"
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
@@ -153,9 +199,7 @@ class TDTestCase:
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
         self.taosdCommandStop(startAction,taosdCmdRun)
 
-        startAction = " -s"
-        tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        self.taosdCommandExe(startAction,taosdCmdRun)
+
 
         startAction = " -e  TAOS_QUERY_POLICY=2 "
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
@@ -164,10 +208,10 @@ class TDTestCase:
 
         startAction=" -E taosdCaseTmp/.env"
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        os.system(" mkdir -p taosdCaseTmp/.env ") 
+        os.system(" mkdir -p taosdCaseTmp ") 
         os.system("echo \'TAOS_QUERY_POLICY=3\' > taosdCaseTmp/.env ")
         self.taosdCommandStop(startAction,taosdCmdRun)
-        os.system(" rm -rf taosdCaseTmp/.env ") 
+        os.system(" rm -rf taosdCaseTmp ") 
 
         startAction = " -V"
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)

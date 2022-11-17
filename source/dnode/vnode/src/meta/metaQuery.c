@@ -153,7 +153,7 @@ bool metaIsTableExist(SMeta *pMeta, tb_uid_t uid) {
 
 int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   SMeta  *pMeta = pReader->pMeta;
-  int64_t version;
+  int64_t version1;
 
   // query uid.idx
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
@@ -161,8 +161,8 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
     return -1;
   }
 
-  version = ((SUidIdxVal *)pReader->pBuf)[0].version;
-  return metaGetTableEntryByVersion(pReader, version, uid);
+  version1 = ((SUidIdxVal *)pReader->pBuf)[0].version;
+  return metaGetTableEntryByVersion(pReader, version1, uid);
 }
 
 int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
@@ -1062,7 +1062,7 @@ int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) 
   if (tdbTbcMoveTo(pCursor->pCur, &ctimeKey, sizeof(ctimeKey), &cmp) < 0) {
     goto END;
   }
-  bool    first = true;
+
   int32_t valid = 0;
   while (1) {
     void   *entryKey = NULL;
@@ -1074,7 +1074,13 @@ int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) 
 
     int32_t cmp = (*param->filterFunc)((void *)&p->ctime, (void *)&pCtimeKey->ctime, param->type);
     if (cmp == 0) taosArrayPush(pUids, &p->uid);
-    if (cmp == -1) break;
+
+    if (param->reverse == false) {
+      if (cmp == -1) break;
+    } else if (param->reverse) {
+      if (cmp == 1) break;
+    }
+
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) break;
   }
@@ -1438,4 +1444,14 @@ int32_t metaGetStbStats(SMeta *pMeta, int64_t uid, SMetaStbStats *pInfo) {
 
 _exit:
   return code;
+}
+
+void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t delta) {
+  SMetaStbStats stats = {0};
+
+  if (metaStatsCacheGet(pMeta, uid, &stats) == TSDB_CODE_SUCCESS) {
+    stats.ctbNum += delta;
+
+    metaStatsCacheUpsert(pMeta, &stats);
+  }
 }

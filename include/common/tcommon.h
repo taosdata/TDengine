@@ -161,15 +161,8 @@ typedef enum EStreamType {
   STREAM_RETRIEVE,
   STREAM_PULL_DATA,
   STREAM_PULL_OVER,
+  STREAM_FILL_OVER,
 } EStreamType;
-
-typedef struct {
-  SArray*   pGroupList;
-  SArray*   pTableList;
-  SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
-  bool      needSortTableByGroupId;
-  uint64_t  suid;
-} STableListInfo;
 
 #pragma pack(push, 1)
 typedef struct SColumnDataAgg {
@@ -232,13 +225,13 @@ typedef struct SVarColAttr {
 // pBlockAgg->numOfNull == info.rows, all data are null
 // pBlockAgg->numOfNull == 0, no data are null.
 typedef struct SColumnInfoData {
-  SColumnInfo info;     // column info
-  bool        hasNull;  // if current column data has null value.
-  char*       pData;    // the corresponding block data in memory
+  char*         pData;    // the corresponding block data in memory
   union {
     char*       nullbitmap;  // bitmap, one bit for each item in the list
     SVarColAttr varmeta;
   };
+  SColumnInfo info;     // column info
+  bool        hasNull;  // if current column data has null value.
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {

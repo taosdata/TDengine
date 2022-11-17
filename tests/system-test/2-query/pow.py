@@ -10,7 +10,8 @@ from util.cases import *
 
 class TDTestCase:
 
-    def init(self, conn, powSql):
+    def init(self, conn,  logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -214,6 +215,36 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query(f"select pow(c6 ,2) from {dbname}.ct3")
         tdSql.checkRows(0)
+
+
+        # pow used for different param types
+
+        tdSql.query(f"select pow(c1,c2) from {dbname}.ct1;")
+        tdSql.query(f"select pow(c1,c2) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select pow(c1,2) from {dbname}.ct1;")
+        tdSql.query(f"select pow(c1,2) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select pow(2,c2) from {dbname}.ct1;")
+        tdSql.query(f"select pow(2,c2) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select pow(2,1) from {dbname}.ct1;")
+        tdSql.query(f"select pow(2,2) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select pow(2,floor(1)) from {dbname}.ct1;")
+        tdSql.query(f"select pow(2,floor(2)) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select pow(abs(2),floor(1)) from {dbname}.ct1;")
+        tdSql.query(f"select pow(abs(2),floor(2)) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select pow(abs(c2),c1) from {dbname}.ct1;")
+        tdSql.query(f"select pow(abs(c2),c1) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select pow(c2,abs(c1)) from {dbname}.ct1;")
+        tdSql.query(f"select pow(c2,abs(c1)) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select pow(abs(c2),2) from {dbname}.ct1;")
+        tdSql.query(f"select pow(abs(c2),2) from {dbname}.stb1 partition by tbname order by tbname;")
 
 
         # # used for regular table

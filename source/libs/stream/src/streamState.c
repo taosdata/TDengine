@@ -29,7 +29,7 @@ typedef struct SStateSessionKey {
   int64_t     opNum;
 } SStateSessionKey;
 
-static inline int sessionKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
+static inline int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
   if (pWin1->groupId > pWin2->groupId) {
     return 1;
   } else if (pWin1->groupId < pWin2->groupId) {
@@ -39,6 +39,28 @@ static inline int sessionKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pW
   if (pWin1->win.skey > pWin2->win.ekey) {
     return 1;
   } else if (pWin1->win.ekey < pWin2->win.skey) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static inline int sessionWinKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
+  if (pWin1->groupId > pWin2->groupId) {
+    return 1;
+  } else if (pWin1->groupId < pWin2->groupId) {
+    return -1;
+  }
+
+  if (pWin1->win.skey > pWin2->win.skey) {
+    return 1;
+  } else if (pWin1->win.skey < pWin2->win.skey) {
+    return -1;
+  }
+
+  if (pWin1->win.ekey > pWin2->win.ekey) {
+    return 1;
+  } else if (pWin1->win.ekey < pWin2->win.ekey) {
     return -1;
   }
 
@@ -55,7 +77,7 @@ static inline int stateSessionKeyCmpr(const void* pKey1, int kLen1, const void* 
     return -1;
   }
 
-  return sessionKeyCmpr(&pWin1->key, &pWin2->key);
+  return sessionWinKeyCmpr(&pWin1->key, &pWin2->key);
 }
 
 static inline int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
@@ -92,12 +114,12 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     return NULL;
   }
 
-  char statePath[300];
+  char statePath[1024];
   if (!specPath) {
     sprintf(statePath, "%s/%d", path, pTask->taskId);
   } else {
-    memset(statePath, 0, 300);
-    tstrncpy(statePath, path, 300);
+    memset(statePath, 0, 1024);
+    tstrncpy(statePath, path, 1024);
   }
   if (tdbOpen(statePath, szPage, pages, &pState->db, 0) < 0) {
     goto _err;
@@ -142,6 +164,7 @@ _err:
 
 void streamStateClose(SStreamState* pState) {
   tdbCommit(pState->db, &pState->txn);
+  tdbPostCommit(pState->db, &pState->txn);
   tdbTbClose(pState->pStateDb);
   tdbTbClose(pState->pFuncStateDb);
   tdbTbClose(pState->pFillStateDb);
@@ -166,6 +189,9 @@ int32_t streamStateBegin(SStreamState* pState) {
 
 int32_t streamStateCommit(SStreamState* pState) {
   if (tdbCommit(pState->db, &pState->txn) < 0) {
+    return -1;
+  }
+  if (tdbPostCommit(pState->db, &pState->txn) < 0) {
     return -1;
   }
   memset(&pState->txn, 0, sizeof(TXN));
@@ -396,7 +422,6 @@ SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key
   SStateKey sKey = {.key = *key, .opNum = pState->number};
   int32_t   c = 0;
   if (tdbTbcMoveTo(pCur->pCur, &sKey, sizeof(SStateKey), &c) < 0) {
-    tdbTbcClose(pCur->pCur);
     streamStateFreeCur(pCur);
     return NULL;
   }
@@ -422,7 +447,6 @@ SStreamStateCur* streamStateFillSeekKeyNext(SStreamState* pState, const SWinKey*
 
   int32_t c = 0;
   if (tdbTbcMoveTo(pCur->pCur, key, sizeof(SWinKey), &c) < 0) {
-    tdbTbcClose(pCur->pCur);
     streamStateFreeCur(pCur);
     return NULL;
   }
@@ -448,7 +472,6 @@ SStreamStateCur* streamStateFillSeekKeyPrev(SStreamState* pState, const SWinKey*
 
   int32_t c = 0;
   if (tdbTbcMoveTo(pCur->pCur, key, sizeof(SWinKey), &c) < 0) {
-    tdbTbcClose(pCur->pCur);
     streamStateFreeCur(pCur);
     return NULL;
   }
@@ -492,33 +515,22 @@ int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, cons
   return tdbTbUpsert(pState->pSessionStateDb, &sKey, sizeof(SStateSessionKey), value, vLen, &pState->txn);
 }
 
-SStreamStateCur* streamStateSessionGetRanomCur(SStreamState* pState, const SSessionKey* key) {
-  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
-  if (pCur == NULL) return NULL;
-  tdbTbcOpen(pState->pSessionStateDb, &pCur->pCur, NULL);
-
-  int32_t          c = 0;
-  SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
-  tdbTbcMoveTo(pCur->pCur, &sKey, sizeof(SStateSessionKey), &c);
-  if (c != 0) {
-    streamStateFreeCur(pCur);
-    return NULL;
-  }
-  pCur->number = pState->number;
-  return pCur;
-}
-
 int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen) {
-  SStreamStateCur* pCur = streamStateSessionGetRanomCur(pState, key);
+  SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentNext(pState, key);
+  SSessionKey      resKey = *key;
   void*            tmp = NULL;
-  if (streamStateSessionGetKVByCur(pCur, key, (const void**)&tmp, pVLen) == 0) {
-    *pVal = tdbRealloc(NULL, *pVLen);
-    memcpy(*pVal, tmp, *pVLen);
-    streamStateFreeCur(pCur);
-    return 0;
+  int32_t          code = streamStateSessionGetKVByCur(pCur, &resKey, &tmp, pVLen);
+  if (code == 0) {
+    if (key->win.skey != resKey.win.skey) {
+      code = -1;
+    } else {
+      *key = resKey;
+      *pVal = tdbRealloc(NULL, *pVLen);
+      memcpy(*pVal, tmp, *pVLen);
+    }
   }
   streamStateFreeCur(pCur);
-  return -1;
+  return code;
 }
 
 int32_t streamStateSessionDel(SStreamState* pState, const SSessionKey* key) {
@@ -540,13 +552,40 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev(SStreamState* pState, cons
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
   int32_t          c = 0;
   if (tdbTbcMoveTo(pCur->pCur, &sKey, sizeof(SStateSessionKey), &c) < 0) {
-    tdbTbcClose(pCur->pCur);
     streamStateFreeCur(pCur);
     return NULL;
   }
   if (c >= 0) return pCur;
 
   if (tdbTbcMoveToPrev(pCur->pCur) < 0) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+
+  return pCur;
+}
+
+SStreamStateCur* streamStateSessionSeekKeyCurrentNext(SStreamState* pState, const SSessionKey* key) {
+  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
+  if (pCur == NULL) {
+    return NULL;
+  }
+  pCur->number = pState->number;
+  if (tdbTbcOpen(pState->pSessionStateDb, &pCur->pCur, NULL) < 0) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+
+  SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
+  int32_t          c = 0;
+  if (tdbTbcMoveTo(pCur->pCur, &sKey, sizeof(SStateSessionKey), &c) < 0) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+
+  if (c <= 0) return pCur;
+
+  if (tdbTbcMoveToNext(pCur->pCur) < 0) {
     streamStateFreeCur(pCur);
     return NULL;
   }
@@ -568,7 +607,6 @@ SStreamStateCur* streamStateSessionSeekKeyNext(SStreamState* pState, const SSess
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
   int32_t          c = 0;
   if (tdbTbcMoveTo(pCur->pCur, &sKey, sizeof(SStateSessionKey), &c) < 0) {
-    tdbTbcClose(pCur->pCur);
     streamStateFreeCur(pCur);
     return NULL;
   }
@@ -582,13 +620,13 @@ SStreamStateCur* streamStateSessionSeekKeyNext(SStreamState* pState, const SSess
   return pCur;
 }
 
-int32_t streamStateSessionGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, const void** pVal, int32_t* pVLen) {
+int32_t streamStateSessionGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
   if (!pCur) {
     return -1;
   }
-  const SStateSessionKey* pKTmp = NULL;
-  int32_t                 kLen;
-  if (tdbTbcGet(pCur->pCur, (const void**)&pKTmp, &kLen, pVal, pVLen) < 0) {
+  SStateSessionKey* pKTmp = NULL;
+  int32_t           kLen;
+  if (tdbTbcGet(pCur->pCur, (const void**)&pKTmp, &kLen, (const void**)pVal, pVLen) < 0) {
     return -1;
   }
   if (pKTmp->opNum != pCur->number) {
@@ -602,15 +640,15 @@ int32_t streamStateSessionGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, c
 }
 
 int32_t streamStateSessionClear(SStreamState* pState) {
-  SSessionKey key = {.win.skey = 0, .win.ekey = 0, .groupId = 0};
-  streamStateSessionPut(pState, &key, NULL, 0);
-  SStreamStateCur* pCur = streamStateSessionSeekKeyNext(pState, &key);
+  SSessionKey      key = {.win.skey = 0, .win.ekey = 0, .groupId = 0};
+  SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentNext(pState, &key);
   while (1) {
     SSessionKey delKey = {0};
     void*       buf = NULL;
     int32_t     size = 0;
-    int32_t     code = streamStateSessionGetKVByCur(pCur, &delKey, buf, &size);
+    int32_t     code = streamStateSessionGetKVByCur(pCur, &delKey, &buf, &size);
     if (code == 0) {
+      ASSERT(size > 0);
       memset(buf, 0, size);
       streamStateSessionPut(pState, &delKey, buf, size);
     } else {
@@ -619,61 +657,104 @@ int32_t streamStateSessionClear(SStreamState* pState) {
     streamStateCurNext(pState, pCur);
   }
   streamStateFreeCur(pCur);
-  streamStateSessionDel(pState, &key);
   return 0;
 }
 
-SStreamStateCur* streamStateSessionGetCur(SStreamState* pState, const SSessionKey* key) {
-  SStreamStateCur* pCur = streamStateSessionGetRanomCur(pState, key);
-  SSessionKey      resKey = *key;
-  while (1) {
+int32_t streamStateSessionGetKeyByRange(SStreamState* pState, const SSessionKey* key, SSessionKey* curKey) {
+  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
+  if (pCur == NULL) {
+    return -1;
+  }
+  pCur->number = pState->number;
+  if (tdbTbcOpen(pState->pSessionStateDb, &pCur->pCur, NULL) < 0) {
+    streamStateFreeCur(pCur);
+    return -1;
+  }
+
+  SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
+  int32_t          c = 0;
+  if (tdbTbcMoveTo(pCur->pCur, &sKey, sizeof(SStateSessionKey), &c) < 0) {
+    streamStateFreeCur(pCur);
+    return -1;
+  }
+
+  SSessionKey resKey = *key;
+  int32_t     code = streamStateSessionGetKVByCur(pCur, &resKey, NULL, 0);
+  if (code == 0 && sessionRangeKeyCmpr(key, &resKey) == 0) {
+    *curKey = resKey;
+    streamStateFreeCur(pCur);
+    return code;
+  }
+
+  if (c > 0) {
+    streamStateCurNext(pState, pCur);
+    code = streamStateSessionGetKVByCur(pCur, &resKey, NULL, 0);
+    if (code == 0 && sessionRangeKeyCmpr(key, &resKey) == 0) {
+      *curKey = resKey;
+      streamStateFreeCur(pCur);
+      return code;
+    }
+  } else if (c < 0) {
     streamStateCurPrev(pState, pCur);
-    SSessionKey tmpKey = *key;
-    int32_t     code = streamStateSessionGetKVByCur(pCur, &tmpKey, NULL, 0);
-    if (code == 0 && sessionKeyCmpr(key, &tmpKey) == 0) {
-      resKey = tmpKey;
-    } else {
-      break;
+    code = streamStateSessionGetKVByCur(pCur, &resKey, NULL, 0);
+    if (code == 0 && sessionRangeKeyCmpr(key, &resKey) == 0) {
+      *curKey = resKey;
+      streamStateFreeCur(pCur);
+      return code;
     }
   }
+
   streamStateFreeCur(pCur);
-  return streamStateSessionGetRanomCur(pState, &resKey);
+  return -1;
 }
 
-int32_t streamStateSessionGetKey(SStreamState* pState, const SSessionKey* key, SSessionKey* curKey) {
-  SStreamStateCur* pCur = streamStateSessionGetRanomCur(pState, key);
-  SSessionKey      resKey = *key;
-  int32_t          res = -1;
-  while (1) {
-    SSessionKey tmpKey = *key;
-    int32_t     code = streamStateSessionGetKVByCur(pCur, &tmpKey, NULL, 0);
-    if (code == 0 && sessionKeyCmpr(key, &tmpKey) == 0) {
-      res = 0;
-      resKey = tmpKey;
-    } else {
-      break;
-    }
-    streamStateCurPrev(pState, pCur);
+int32_t streamStateSessionAddIfNotExist(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
+                                        int32_t* pVLen) {
+  // todo refactor
+  int32_t     res = 0;
+  SSessionKey originKey = *key;
+  SSessionKey searchKey = *key;
+  searchKey.win.skey = key->win.skey - gap;
+  searchKey.win.ekey = key->win.ekey + gap;
+  int32_t valSize = *pVLen;
+  void*   tmp = tdbRealloc(NULL, valSize);
+  if (!tmp) {
+    return -1;
   }
-  *curKey = resKey;
+
+  SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentPrev(pState, key);
+  int32_t          code = streamStateSessionGetKVByCur(pCur, key, pVal, pVLen);
+  if (code == 0) {
+    if (sessionRangeKeyCmpr(&searchKey, key) == 0) {
+      memcpy(tmp, *pVal, valSize);
+      streamStateSessionDel(pState, key);
+      goto _end;
+    }
+    streamStateCurNext(pState, pCur);
+  } else {
+    *key = originKey;
+    streamStateFreeCur(pCur);
+    pCur = streamStateSessionSeekKeyNext(pState, key);
+  }
+
+  code = streamStateSessionGetKVByCur(pCur, key, pVal, pVLen);
+  if (code == 0) {
+    if (sessionRangeKeyCmpr(&searchKey, key) == 0) {
+      memcpy(tmp, *pVal, valSize);
+      streamStateSessionDel(pState, key);
+      goto _end;
+    }
+  }
+
+  *key = originKey;
+  res = 1;
+  memset(tmp, 0, valSize);
+
+_end:
+
+  *pVal = tmp;
   streamStateFreeCur(pCur);
   return res;
-}
-
-int32_t streamStateSessionAddIfNotExist(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen) {
-  // todo refactor
-  SStreamStateCur* pCur = streamStateSessionGetRanomCur(pState, key);
-  int32_t          size = *pVLen;
-  void*            tmp = NULL;
-  *pVal = tdbRealloc(NULL, size);
-  memset(*pVal, 0, size);
-  if (streamStateSessionGetKVByCur(pCur, key, (const void**)&tmp, pVLen) == 0) {
-    memcpy(*pVal, tmp, *pVLen);
-    streamStateFreeCur(pCur);
-    return 0;
-  }
-  streamStateFreeCur(pCur);
-  return 1;
 }
 
 int32_t streamStateStateAddIfNotExist(SStreamState* pState, SSessionKey* key, char* pKeyData, int32_t keyDataLen,
@@ -688,26 +769,34 @@ int32_t streamStateStateAddIfNotExist(SStreamState* pState, SSessionKey* key, ch
   }
 
   SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentPrev(pState, key);
-  int32_t          code = streamStateSessionGetKVByCur(pCur, key, (const void**)pVal, pVLen);
+  int32_t          code = streamStateSessionGetKVByCur(pCur, key, pVal, pVLen);
   if (code == 0) {
     if (key->win.skey <= tmpKey.win.skey && tmpKey.win.ekey <= key->win.ekey) {
       memcpy(tmp, *pVal, valSize);
+      streamStateSessionDel(pState, key);
       goto _end;
     }
 
     void* stateKey = (char*)(*pVal) + (valSize - keyDataLen);
     if (fn(pKeyData, stateKey) == true) {
       memcpy(tmp, *pVal, valSize);
+      streamStateSessionDel(pState, key);
       goto _end;
     }
+
+    streamStateCurNext(pState, pCur);
+  } else {
+    *key = tmpKey;
+    streamStateFreeCur(pCur);
+    pCur = streamStateSessionSeekKeyNext(pState, key);
   }
 
-  streamStateCurNext(pState, pCur);
-  code = streamStateSessionGetKVByCur(pCur, key, (const void**)pVal, pVLen);
+  code = streamStateSessionGetKVByCur(pCur, key, pVal, pVLen);
   if (code == 0) {
     void* stateKey = (char*)(*pVal) + (valSize - keyDataLen);
     if (fn(pKeyData, stateKey) == true) {
       memcpy(tmp, *pVal, valSize);
+      streamStateSessionDel(pState, key);
       goto _end;
     }
   }
@@ -722,3 +811,48 @@ _end:
   streamStateFreeCur(pCur);
   return res;
 }
+
+#if 0
+char* streamStateSessionDump(SStreamState* pState) {
+  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
+  if (pCur == NULL) {
+    return NULL;
+  }
+  pCur->number = pState->number;
+  if (tdbTbcOpen(pState->pSessionStateDb, &pCur->pCur, NULL) < 0) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+  tdbTbcMoveToFirst(pCur->pCur);
+
+  SSessionKey key = {0};
+  void*       buf = NULL;
+  int32_t     bufSize = 0;
+  int32_t     code = streamStateSessionGetKVByCur(pCur, &key, &buf, &bufSize);
+  if (code != 0) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+
+  int32_t size = 2048;
+  char*   dumpBuf = taosMemoryCalloc(size, 1);
+  int64_t len = 0;
+  len += snprintf(dumpBuf + len, size - len, "||s:%15" PRId64 ",", key.win.skey);
+  len += snprintf(dumpBuf + len, size - len, "e:%15" PRId64 ",", key.win.ekey);
+  len += snprintf(dumpBuf + len, size - len, "g:%15" PRId64 "||", key.groupId);
+  while (1) {
+    tdbTbcMoveToNext(pCur->pCur);
+    key = (SSessionKey){0};
+    code = streamStateSessionGetKVByCur(pCur, &key, NULL, 0);
+    if (code != 0) {
+      streamStateFreeCur(pCur);
+      return dumpBuf;
+    }
+    len += snprintf(dumpBuf + len, size - len, "||s:%15" PRId64 ",", key.win.skey);
+    len += snprintf(dumpBuf + len, size - len, "e:%15" PRId64 ",", key.win.ekey);
+    len += snprintf(dumpBuf + len, size - len, "g:%15" PRId64 "||", key.groupId);
+  }
+  streamStateFreeCur(pCur);
+  return dumpBuf;
+}
+#endif

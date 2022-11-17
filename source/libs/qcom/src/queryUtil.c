@@ -146,6 +146,12 @@ void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   }
   taosMemoryFreeClear(pMsgBody);
 }
+void destroyAhandle(void *ahandle) {
+  SMsgSendInfo *pSendInfo = ahandle;
+  if (pSendInfo == NULL) return;
+
+  destroySendMsgInfo(pSendInfo);
+}
 
 int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo,
                                 bool persistHandle, void* rpcCtx) {
@@ -202,6 +208,7 @@ char* jobTaskStatusStr(int32_t status) {
   return "UNKNOWN";
 }
 
+#if 0
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name) {
   SSchema s = {0};
   s.type = type;
@@ -211,6 +218,7 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
   tstrncpy(s.name, name, tListLen(s.name));
   return s;
 }
+#endif
 
 void freeSTableMetaRspPointer(void *p) {
   tFreeSTableMetaRsp(*(void**)p);
@@ -454,6 +462,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
     (*pDst)->vgHash = taosHashInit(taosHashGetSize(pSrc->vgHash), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true,
                                    HASH_ENTRY_LOCK);
     if (NULL == (*pDst)->vgHash) {
+      taosMemoryFreeClear(*pDst);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 

@@ -203,7 +203,6 @@ int32_t nodesReleaseAllocator(int64_t allocatorId) {
   return taosReleaseRef(g_allocatorReqRefPool, allocatorId);
 }
 
-
 int64_t nodesMakeAllocatorWeakRef(int64_t allocatorId) {
   if (allocatorId <= 0) {
     return 0;
@@ -329,6 +328,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       return makeNode(type, sizeof(SDropSuperTableStmt));
     case QUERY_NODE_ALTER_TABLE_STMT:
+    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       return makeNode(type, sizeof(SAlterTableStmt));
     case QUERY_NODE_CREATE_USER_STMT:
       return makeNode(type, sizeof(SCreateUserStmt));
@@ -424,8 +424,9 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
     case QUERY_NODE_SHOW_TAGS_STMT:
-    case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
       return makeNode(type, sizeof(SShowStmt));
+    case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
+      return makeNode(type, sizeof(SShowTableTagsStmt));
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return makeNode(type, sizeof(SShowDnodeVariablesStmt));
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
@@ -621,7 +622,7 @@ void nodesDestroyNode(SNode* pNode) {
   }
 
   switch (nodeType(pNode)) {
-    case QUERY_NODE_COLUMN:  // pProjectRef is weak reference, no need to release
+    case QUERY_NODE_COLUMN:
       destroyExprNode((SExprNode*)pNode);
       break;
     case QUERY_NODE_VALUE: {
@@ -792,9 +793,24 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->pSlimit);
       break;
     }
-    case QUERY_NODE_VNODE_MODIF_STMT:
-      destroyVgDataBlockArray(((SVnodeModifOpStmt*)pNode)->pDataBlocks);
+    case QUERY_NODE_VNODE_MODIF_STMT: {
+      SVnodeModifOpStmt* pStmt = (SVnodeModifOpStmt*)pNode;
+      destroyVgDataBlockArray(pStmt->pDataBlocks);
+      taosMemoryFreeClear(pStmt->pTableMeta);
+      taosHashCleanup(pStmt->pVgroupsHashObj);
+      taosHashCleanup(pStmt->pSubTableHashObj);
+      taosHashCleanup(pStmt->pTableNameHashObj);
+      taosHashCleanup(pStmt->pDbFNameHashObj);
+      if (pStmt->freeHashFunc) {
+        pStmt->freeHashFunc(pStmt->pTableBlockHashObj);
+      }
+      if (pStmt->freeArrayFunc) {
+        pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
+      }
+      tdDestroySVCreateTbReq(&pStmt->createTblReq);
+      taosCloseFile(&pStmt->fp);
       break;
+    }
     case QUERY_NODE_CREATE_DATABASE_STMT:
       nodesDestroyNode((SNode*)((SCreateDatabaseStmt*)pNode)->pOptions);
       break;
@@ -927,15 +943,22 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
-    case QUERY_NODE_SHOW_TAGS_STMT:
-    case QUERY_NODE_SHOW_TABLE_TAGS_STMT: {
+    case QUERY_NODE_SHOW_TAGS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
       break;
     }
+    case QUERY_NODE_SHOW_TABLE_TAGS_STMT: {
+      SShowTableTagsStmt* pStmt = (SShowTableTagsStmt*)pNode;
+      nodesDestroyNode(pStmt->pDbName);
+      nodesDestroyNode(pStmt->pTbName);
+      nodesDestroyList(pStmt->pTags);
+      break;
+    }
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pDnodeId);
+      nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pLikePattern);
       break;
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       taosMemoryFreeClear(((SShowCreateDatabaseStmt*)pNode)->pCfg);

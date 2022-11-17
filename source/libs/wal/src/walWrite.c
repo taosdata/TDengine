@@ -16,16 +16,19 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tchecksum.h"
+#include "tglobal.h"
 #include "walInt.h"
 
 int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   taosThreadMutexLock(&pWal->mutex);
 
+  wInfo("vgId:%d, restore from snapshot, version %" PRId64, pWal->cfg.vgId, ver);
+
   void *pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pWal->pRefHash, pIter);
     if (pIter == NULL) break;
-    SWalRef *pRef = (SWalRef *)pIter;
+    SWalRef *pRef = *(SWalRef **)pIter;
     if (pRef->refVer != -1 && pRef->refVer <= ver) {
       taosHashCancelIterate(pWal->pRefHash, pIter);
       taosThreadMutexUnlock(&pWal->mutex);
@@ -69,8 +72,8 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   taosArrayClear(pWal->fileInfoSet);
   pWal->vers.firstVer = -1;
   pWal->vers.lastVer = ver;
-  pWal->vers.commitVer = ver - 1;
-  pWal->vers.snapshotVer = ver - 1;
+  pWal->vers.commitVer = ver;
+  pWal->vers.snapshotVer = ver;
   pWal->vers.verInSnapshotting = -1;
 
   taosThreadMutexUnlock(&pWal->mutex);
@@ -99,9 +102,10 @@ int32_t walCommit(SWal *pWal, int64_t ver) {
 
 int32_t walRollback(SWal *pWal, int64_t ver) {
   taosThreadMutexLock(&pWal->mutex);
+  wInfo("vgId:%d, wal rollback for version %" PRId64, pWal->cfg.vgId, ver);
   int64_t code;
   char    fnameStr[WAL_FILE_LEN];
-  if (ver > pWal->vers.lastVer || ver < pWal->vers.commitVer) {
+  if (ver > pWal->vers.lastVer || ver < pWal->vers.commitVer || ver <= pWal->vers.snapshotVer) {
     terrno = TSDB_CODE_WAL_INVALID_VER;
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
@@ -120,8 +124,10 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     int fileSetSize = taosArrayGetSize(pWal->fileInfoSet);
     for (int i = pWal->writeCur + 1; i < fileSetSize; i++) {
       walBuildLogName(pWal, ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, i))->firstVer, fnameStr);
+      wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
       taosRemoveFile(fnameStr);
       walBuildIdxName(pWal, ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, i))->firstVer, fnameStr);
+      wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
       taosRemoveFile(fnameStr);
     }
     // pop from fileInfoSet
@@ -154,6 +160,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
 
   walBuildLogName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
   TdFilePtr pLogFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
+  wDebug("vgId:%d, wal truncate file %s", pWal->cfg.vgId, fnameStr);
   if (pLogFile == NULL) {
     // TODO
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -252,23 +259,36 @@ static FORCE_INLINE int32_t walCheckAndRoll(SWal *pWal) {
     }
   }
 
+  if (walGetLastFileCachedSize(pWal) > tsWalFsyncDataSizeLimit) {
+    if (walSaveMeta(pWal) < 0) {
+      return -1;
+    }
+  }
+
   return 0;
 }
 
 int32_t walBeginSnapshot(SWal *pWal, int64_t ver) {
+  taosThreadMutexLock(&pWal->mutex);
+
   pWal->vers.verInSnapshotting = ver;
   wDebug("vgId:%d, wal begin snapshot for version %" PRId64 ", first ver %" PRId64 ", last ver %" PRId64,
          pWal->cfg.vgId, ver, pWal->vers.firstVer, pWal->vers.lastVer);
   // check file rolling
   if (pWal->cfg.retentionPeriod == 0) {
-    taosThreadMutexLock(&pWal->mutex);
     if (walGetLastFileSize(pWal) != 0) {
-      walRollImpl(pWal);
+      if (walRollImpl(pWal) < 0) {
+        wError("vgId:%d, failed to roll wal files since %s", pWal->cfg.vgId, terrstr());
+        goto _err;
+      }
     }
-    taosThreadMutexUnlock(&pWal->mutex);
   }
-
+  taosThreadMutexUnlock(&pWal->mutex);
   return 0;
+
+_err:
+  taosThreadMutexUnlock(&pWal->mutex);
+  return -1;
 }
 
 int32_t walEndSnapshot(SWal *pWal) {
@@ -308,9 +328,9 @@ int32_t walEndSnapshot(SWal *pWal) {
       pInfo--;
     }
     if (POINTER_DISTANCE(pInfo, pWal->fileInfoSet->pData) > 0) {
-      wDebug("vgId:%d, begin remove from %" PRId64, pWal->cfg.vgId, pInfo->firstVer);
+      wDebug("vgId:%d, wal end remove for %" PRId64, pWal->cfg.vgId, pInfo->firstVer);
     } else {
-      wDebug("vgId:%d, no remove", pWal->cfg.vgId);
+      wDebug("vgId:%d, wal no remove", pWal->cfg.vgId);
     }
     // iterate files, until the searched result
     for (SWalFileInfo *iter = pWal->fileInfoSet->pData; iter < pInfo; iter++) {
@@ -327,12 +347,12 @@ int32_t walEndSnapshot(SWal *pWal) {
     for (int i = 0; i < deleteCnt; i++) {
       pInfo = taosArrayGet(pWal->fileInfoSet, i);
       walBuildLogName(pWal, pInfo->firstVer, fnameStr);
-      wDebug("vgId:%d, remove file %s", pWal->cfg.vgId, fnameStr);
+      wDebug("vgId:%d, wal remove file %s", pWal->cfg.vgId, fnameStr);
       if (taosRemoveFile(fnameStr) < 0) {
         goto UPDATE_META;
       }
       walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
-      wDebug("vgId:%d, remove file %s", pWal->cfg.vgId, fnameStr);
+      wDebug("vgId:%d, wal remove file %s", pWal->cfg.vgId, fnameStr);
       if (taosRemoveFile(fnameStr) < 0) {
         ASSERT(0);
       }
@@ -393,6 +413,7 @@ int32_t walRollImpl(SWal *pWal) {
   }
   walBuildLogName(pWal, newFileFirstVer, fnameStr);
   pLogFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  wDebug("vgId:%d, wal create new file for write:%s", pWal->cfg.vgId, fnameStr);
   if (pLogFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     code = -1;
@@ -468,7 +489,8 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
   pWal->writeHead.cksumBody = walCalcBodyCksum(body, bodyLen);
-  wDebug("vgId:%d, wal write log %" PRId64 ", msgType: %s", pWal->cfg.vgId, index, TMSG_INFO(msgType));
+  wDebug("vgId:%d, wal write log %" PRId64 ", msgType: %s, cksum head %u cksum body %u", pWal->cfg.vgId, index,
+         TMSG_INFO(msgType), pWal->writeHead.cksumHead, pWal->writeHead.cksumBody);
 
   code = walWriteIndex(pWal, index, offset);
   if (code < 0) {

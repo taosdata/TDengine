@@ -107,7 +107,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId:%d, vnode info is saved, fname:%s", pInfo->config.vgId, fname);
+  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d", pInfo->config.vgId, fname, pInfo->config.syncCfg.replicaNum);
 
   return 0;
 
@@ -211,6 +211,12 @@ int vnodeCommit(SVnode *pVnode) {
 
   vInfo("vgId:%d, start to commit, commit ID:%" PRId64 " version:%" PRId64, TD_VID(pVnode), pVnode->state.commitID,
         pVnode->state.applied);
+
+  // persist wal before starting
+  if (walPersist(pVnode->pWal) < 0) {
+    vError("vgId:%d, failed to persist wal since %s", TD_VID(pVnode), terrstr());
+    return -1;
+  }
 
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 

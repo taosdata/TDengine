@@ -495,6 +495,10 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   pCommitter->commitFid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
   tsdbFidKeyRange(pCommitter->commitFid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
                   &pCommitter->maxKey);
+#if 0
+  ASSERT(pCommitter->minKey <= pCommitter->nextKey && pCommitter->maxKey >= pCommitter->nextKey);
+#endif
+  
   pCommitter->nextKey = TSKEY_MAX;
 
   // Reader
@@ -1506,7 +1510,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 #else
-      if (pCommitter->dWriter.bData.nRow >= pCommitter->maxRow) {
+      if (pCommitter->dWriter.bDatal.nRow >= pCommitter->maxRow) {
         code = tsdbWriteSttBlock(pCommitter->dWriter.pWriter, &pCommitter->dWriter.bDatal, pCommitter->dWriter.aSttBlk,
                                  pCommitter->cmprAlg);
         TSDB_CHECK_CODE(code, lino, _exit);

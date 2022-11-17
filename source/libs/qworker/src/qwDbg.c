@@ -91,9 +91,51 @@ _return:
 
 void qwDbgDumpSchInfo(SQWorker *mgmt, SQWSchStatus *sch, int32_t i) {
   QW_LOCK(QW_READ, &sch->tasksLock);
-  QW_DLOG("the %dth scheduler status, hbBrokenTs:%" PRId64 ",taskNum:%d", i, sch->hbBrokenTs,
-          taosHashGetSize(sch->tasksHash));
+  int32_t taskNum = taosHashGetSize(sch->tasksHash);
+  QW_DLOG("***The %dth scheduler status, hbBrokenTs:%" PRId64 ",taskNum:%d", i, sch->hbBrokenTs, taskNum);
+
+  uint64_t qId, tId;
+  int32_t  eId;
+  SQWTaskStatus *pTask = NULL;
+  void *pIter = taosHashIterate(sch->tasksHash, NULL);
+  while (pIter) {
+    pTask = (SQWTaskStatus *)pIter;
+    void       *key = taosHashGetKey(pIter, NULL);
+    QW_GET_QTID(key, qId, tId, eId);
+
+    QW_TASK_DLOG("job refId:%" PRIx64 ", code:%x, task status:%d", pTask->refId, pTask->code, pTask->status);
+
+    pIter = taosHashIterate(sch->tasksHash, pIter);
+  }
+  
   QW_UNLOCK(QW_READ, &sch->tasksLock);
+}
+
+void qwDbgDumpTasksInfo(SQWorker *mgmt) {
+  QW_DUMP("***Total remain ctx num %d", taosHashGetSize(mgmt->ctxHash));
+
+  int32_t i = 0;
+  SQWTaskCtx *ctx = NULL;
+  uint64_t qId, tId;
+  int32_t  eId;
+  void *pIter = taosHashIterate(mgmt->ctxHash, NULL);
+  while (pIter) {
+    ctx = (SQWTaskCtx *)pIter;
+    void       *key = taosHashGetKey(pIter, NULL);
+    QW_GET_QTID(key, qId, tId, eId);
+    
+    QW_TASK_DLOG("%p lock:%x, phase:%d, type:%d, explain:%d, needFetch:%d, localExec:%d, msgType:%d, fetchType:%d, "
+      "execId:%x, level:%d, queryGotData:%d, queryRsped:%d, queryEnd:%d, queryContinue:%d, queryInQueue:%d, "
+      "rspCode:%x, affectedRows:%" PRId64 ", taskHandle:%p, sinkHandle:%p, tbFName:%s, sver:%d, tver:%d, events:%d,%d,%d,%d,%d",
+      ctx, ctx->lock, ctx->phase, ctx->taskType, ctx->explain, ctx->needFetch, ctx->localExec, ctx->msgType,
+      ctx->fetchType, ctx->execId, ctx->level, ctx->queryGotData, ctx->queryRsped, ctx->queryEnd, ctx->queryContinue, 
+      ctx->queryInQueue, ctx->rspCode, ctx->affectedRows, ctx->taskHandle, ctx->sinkHandle, ctx->tbInfo.tbFName,
+      ctx->tbInfo.sversion, ctx->tbInfo.tversion, ctx->events[QW_EVENT_CANCEL], ctx->events[QW_EVENT_READY], 
+      ctx->events[QW_EVENT_FETCH], ctx->events[QW_EVENT_DROP], ctx->events[QW_EVENT_CQUERY]);
+      
+    pIter = taosHashIterate(mgmt->ctxHash, pIter);
+  }
+
 }
 
 void qwDbgDumpMgmtInfo(SQWorker *mgmt) {
@@ -120,7 +162,7 @@ void qwDbgDumpMgmtInfo(SQWorker *mgmt) {
 
   QW_UNLOCK(QW_READ, &mgmt->schLock);
 
-  QW_DUMP("total remain ctx num %d", taosHashGetSize(mgmt->ctxHash));
+  qwDbgDumpTasksInfo(mgmt);
 }
 
 int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SEpSet *pEpSet) {
@@ -253,7 +295,7 @@ int32_t qwDbgEnableDebug(char *option) {
   }
 
   if (0 == strcasecmp(option, "dead")) {
-    gQWDebug.sleepSimulate = true;
+    gQWDebug.deadSimulate = true;
     qError("qw dead debug enabled");
     return TSDB_CODE_SUCCESS;
   }

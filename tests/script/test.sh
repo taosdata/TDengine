@@ -7,6 +7,7 @@
 ##################################################
 
 set +e
+#set -x
 
 FILE_NAME=
 RELEASE=0
@@ -15,7 +16,7 @@ VALGRIND=0
 UNIQUE=0
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
-while getopts "f:avum" arg
+while getopts "f:agvum" arg
 do
   case $arg in
     f)
@@ -27,6 +28,9 @@ do
     u)
       UNIQUE=1
       ;;
+    g)
+      VALGRIND=2
+      ;;  
     ?)
       echo "unknow argument"
       ;;
@@ -71,6 +75,7 @@ PRG_DIR=$SIM_DIR/tsim
 CFG_DIR=$PRG_DIR/cfg
 LOG_DIR=$PRG_DIR/log
 DATA_DIR=$PRG_DIR/data
+ASAN_DIR=$PRG_DIR/asan
 
 chmod -R 777 $PRG_DIR
 echo "------------------------------------------------------------------------"
@@ -79,14 +84,17 @@ echo "BUILD_DIR: $BUILD_DIR"
 echo "SIM_DIR  : $SIM_DIR"
 echo "CODE_DIR : $CODE_DIR"
 echo "CFG_DIR  : $CFG_DIR"
+echo "ASAN_DIR  : $ASAN_DIR"
 
 rm -rf $SIM_DIR/*
 rm -rf $LOG_DIR
 rm -rf $CFG_DIR
+rm -rf $ASAN_DIR
 
 mkdir -p $PRG_DIR
 mkdir -p $LOG_DIR
 mkdir -p $CFG_DIR
+mkdir -p $ASAN_DIR
 
 TAOS_CFG=$PRG_DIR/cfg/taos.cfg
 touch -f $TAOS_CFG
@@ -125,9 +133,21 @@ if [ -n "$FILE_NAME" ]; then
     FLAG="-v"
     echo valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --child-silent-after-fork=yes --show-leak-kinds=all --num-callers=20 -v  --workaround-gcc296-bugs=yes  --log-file=${LOG_DIR}/valgrind-tsim.log $PROGRAM -c $CFG_DIR -f $FILE_NAME $FLAG
     valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --child-silent-after-fork=yes --show-leak-kinds=all --num-callers=20 -v  --workaround-gcc296-bugs=yes  --log-file=${LOG_DIR}/valgrind-tsim.log $PROGRAM -c $CFG_DIR -f $FILE_NAME $FLAG
+  elif [ $VALGRIND -eq 2 ]; then
+    echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME -v
+    $PROGRAM -c $CFG_DIR -f $FILE_NAME -v
   else
-    echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME  
-    $PROGRAM -c $CFG_DIR -f $FILE_NAME
+    echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME
+    echo "AsanDir:" $ASAN_DIR/tsim.asan
+    eval $PROGRAM -c $CFG_DIR -f $FILE_NAME 2> $ASAN_DIR/tsim.asan
+    result=$?
+    echo "Execute result: " $result
+
+    if [ $result -eq 0 ]; then
+      $CODE_DIR/sh/checkAsan.sh
+    else
+      exit 1
+    fi
   fi
 else
   echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f basicSuite.sim

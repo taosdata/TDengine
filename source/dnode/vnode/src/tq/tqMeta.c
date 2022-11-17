@@ -125,6 +125,10 @@ int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_
     return -1;
   }
 
+  if (tdbPostCommit(pTq->pMetaDB, &txn) < 0) {
+    return -1;
+  }
+
   return 0;
 }
 
@@ -144,6 +148,10 @@ int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key) {
   }
 
   if (tdbCommit(pTq->pMetaDB, &txn) < 0) {
+    ASSERT(0);
+  }
+
+  if (tdbPostCommit(pTq->pMetaDB, &txn) < 0) {
     ASSERT(0);
   }
 
@@ -171,6 +179,7 @@ int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
     if (tDecodeSTqCheckInfo(&decoder, &info) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       tdbFree(pKey);
+      tdbFree(pVal);
       tdbTbcClose(pCur);
       return -1;
     }
@@ -178,11 +187,13 @@ int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
     if (taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo)) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       tdbFree(pKey);
+      tdbFree(pVal);
       tdbTbcClose(pCur);
       return -1;
     }
   }
   tdbFree(pKey);
+  tdbFree(pVal);
   tdbTbcClose(pCur);
   return 0;
 }
@@ -226,6 +237,10 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
     ASSERT(0);
   }
 
+  if (tdbPostCommit(pTq->pMetaDB, &txn) < 0) {
+    ASSERT(0);
+  }
+
   tEncoderClear(&encoder);
   taosMemoryFree(buf);
   return 0;
@@ -247,6 +262,10 @@ int32_t tqMetaDeleteHandle(STQ* pTq, const char* key) {
   }
 
   if (tdbCommit(pTq->pMetaDB, &txn) < 0) {
+    ASSERT(0);
+  }
+
+  if (tdbPostCommit(pTq->pMetaDB, &txn) < 0) {
     ASSERT(0);
   }
 
@@ -289,8 +308,8 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     };
 
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      handle.execHandle.task = qCreateQueueExecTaskInfo(
-          handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols, &handle.execHandle.pSchemaWrapper);
+      handle.execHandle.task =
+          qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols, NULL);
       ASSERT(handle.execHandle.task);
       void* scanner = NULL;
       qExtractStreamScanner(handle.execHandle.task, &scanner);

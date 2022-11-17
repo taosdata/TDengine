@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "filter.h"
 #include "executorimpl.h"
 #include "functionMgt.h"
 
@@ -71,13 +72,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
 
   pInfo->binfo.pRes = pResBlock;
   pInfo->pFinalRes = createOneDataBlock(pResBlock, false);
-  pInfo->pFilterNode = pProjPhyNode->node.pConditions;
-
-  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-    pInfo->mergeDataBlocks = false;
-  } else {
-    pInfo->mergeDataBlocks = pProjPhyNode->mergeDataBlock;
-  }
+  pInfo->mergeDataBlocks = (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM)? false:pProjPhyNode->mergeDataBlock;
 
   int32_t numOfRows = 4096;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
@@ -97,15 +92,16 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   initBasicInfo(&pInfo->binfo, pResBlock);
   setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfCols);
 
-  pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfCols);
-  pOperator->name = "ProjectOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PROJECT;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
+  code = filterInitFromNode((SNode*)pProjPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doProjectOperation, NULL, NULL,
-                                         destroyProjectOperatorInfo, NULL, NULL, NULL);
+  pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfCols);
+
+  setOperatorInfo(pOperator, "ProjectOperator", QUERY_NODE_PHYSICAL_PLAN_PROJECT, false, OP_NOT_OPENED, pInfo, pTaskInfo);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doProjectOperation, NULL,
+                                         destroyProjectOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -153,7 +149,7 @@ static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, S
   if (pLimitInfo->currentGroupId != 0 && pLimitInfo->currentGroupId != pBlock->info.groupId) {
     pLimitInfo->numOfOutputGroups += 1;
     if ((pLimitInfo->slimit.limit > 0) && (pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
-      doSetOperatorCompleted(pOperator);
+      setOperatorCompleted(pOperator);
       return PROJECT_RETRIEVE_DONE;
     }
 
@@ -187,7 +183,7 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
     // TODO: optimize it later when partition by + limit
     if ((pLimitInfo->slimit.limit == -1 && pLimitInfo->currentGroupId == 0) ||
         (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
-      doSetOperatorCompleted(pOperator);
+      setOperatorCompleted(pOperator);
     }
   }
 
@@ -209,8 +205,6 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.pReq) {
     pOperator->status = OP_OPENED;
   }
-
-  qDebug("enter project");
 
   if (pOperator->status == OP_EXEC_DONE) {
     if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
@@ -254,7 +248,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
         }
         qDebug("set op close, exec %d, status %d rows %d", pTaskInfo->execModel, pOperator->status,
                pFinalRes->info.rows);
-        doSetOperatorCompleted(pOperator);
+        setOperatorCompleted(pOperator);
         break;
       }
       if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
@@ -315,7 +309,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       }
 
       // do apply filter
-      doFilter(pProjectInfo->pFilterNode, pFinalRes, NULL, NULL);
+      doFilter(pFinalRes, pOperator->exprSupp.pFilterInfo, NULL);
 
       // when apply the limit/offset for each group, pRes->info.rows may be 0, due to limit constraint.
       if (pFinalRes->info.rows > 0 || (pOperator->status == OP_EXEC_DONE)) {
@@ -325,7 +319,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     } else {
       // do apply filter
       if (pRes->info.rows > 0) {
-        doFilter(pProjectInfo->pFilterNode, pRes, NULL, NULL);
+        doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
         if (pRes->info.rows == 0) {
           continue;
         }
@@ -386,6 +380,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
 
   initBasicInfo(&pInfo->binfo, pResBlock);
   initResultSizeInfo(&pOperator->resultInfo, numOfRows);
+  blockDataEnsureCapacity(pResBlock, numOfRows);
 
   int32_t code = initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
@@ -393,19 +388,16 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   }
 
   setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfExpr);
+  code = filterInitFromNode((SNode*)pPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   pInfo->binfo.pRes = pResBlock;
-  pInfo->pCondition = pPhyNode->node.pConditions;
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr);
 
-  pOperator->name = "IndefinitOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doApplyIndefinitFunction, NULL, NULL,
-                                         destroyIndefinitOperatorInfo, NULL, NULL, NULL);
+  setOperatorInfo(pOperator, "IndefinitOperator", QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC, false, OP_NOT_OPENED, pInfo, pTaskInfo);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doApplyIndefinitFunction, NULL, destroyIndefinitOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -497,7 +489,7 @@ SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
         // The downstream exec may change the value of the newgroup, so use a local variable instead.
         SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
         if (pBlock == NULL) {
-          doSetOperatorCompleted(pOperator);
+          setOperatorCompleted(pOperator);
           break;
         }
 
@@ -518,7 +510,7 @@ SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
       }
     }
 
-    doFilter(pIndefInfo->pCondition, pInfo->pRes, NULL, NULL);
+    doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
     size_t rows = pInfo->pRes->info.rows;
     if (rows > 0 || pOperator->status == OP_EXEC_DONE) {
       break;
@@ -620,13 +612,13 @@ SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
   }
 
   pRes->info.rows = 1;
-  doFilter(pProjectInfo->pFilterNode, pRes, NULL, NULL);
+  doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
 
   /*int32_t status = */ doIngroupLimitOffset(&pProjectInfo->limitInfo, 0, pRes, pOperator);
 
   pOperator->resultInfo.totalRows += pRes->info.rows;
 
-  doSetOperatorCompleted(pOperator);
+  setOperatorCompleted(pOperator);
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }

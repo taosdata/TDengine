@@ -142,7 +142,7 @@ The preceding SQL statement can be used in migration scenarios. This command can
 ### View Database Configuration
 
 ```sql
-SHOW DATABASES \G;
+SELECT * FROM INFORMATION_SCHEMA.INS_DATABASES WHERE NAME='DBNAME' \G;
 ```
 
 The preceding SQL statement shows the value of each parameter for the specified database. One value is displayed per line.

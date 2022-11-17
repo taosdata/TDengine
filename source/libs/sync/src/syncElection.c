@@ -13,10 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncElection.h"
 #include "syncMessage.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
+#include "syncUtil.h"
 #include "syncVoteMgr.h"
 
 // TLA+ Spec
@@ -31,15 +33,35 @@
 //             mdest         |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 
-int32_t syncNodeElect(SSyncNode* pSyncNode) {
-  syncNodeEventLog(pSyncNode, "begin election");
-
-  int64_t nowMs = taosGetMonoTimestampMs();
-  if (nowMs < pSyncNode->lastMsgRecvTime + pSyncNode->electTimerMS) {
-    sError("vgId:%d, election timer triggered ahead of time for %" PRId64 "ms", pSyncNode->vgId,
-           pSyncNode->lastMsgRecvTime + pSyncNode->electTimerMS - nowMs);
-    return -1;
+static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
+  if (pNode->state != TAOS_SYNC_STATE_CANDIDATE) {
+    sNTrace(pNode, "not candidate, stop elect");
+    return 0;
   }
+
+  int32_t ret = 0;
+  for (int i = 0; i < pNode->peersNum; ++i) {
+    SRpcMsg rpcMsg = {0};
+    ret = syncBuildRequestVote(&rpcMsg, pNode->vgId);
+    ASSERT(ret == 0);
+
+    SyncRequestVote* pMsg = rpcMsg.pCont;
+    pMsg->srcId = pNode->myRaftId;
+    pMsg->destId = pNode->peersId[i];
+    pMsg->term = pNode->pRaftStore->currentTerm;
+
+    ret = syncNodeGetLastIndexTerm(pNode, &pMsg->lastLogIndex, &pMsg->lastLogTerm);
+    ASSERT(ret == 0);
+
+    ret = syncNodeSendMsgById(&pNode->peersId[i], pNode, &rpcMsg);
+    ASSERT(ret == 0);
+  }
+
+  return ret;
+}
+
+int32_t syncNodeElect(SSyncNode* pSyncNode) {
+  sNTrace(pSyncNode, "begin election");
 
   int32_t ret = 0;
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
@@ -47,7 +69,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   }
 
   if (pSyncNode->state != TAOS_SYNC_STATE_CANDIDATE) {
-    syncNodeErrorLog(pSyncNode, "not candidate, can not elect");
+    sNError(pSyncNode, "not candidate, can not elect");
     return -1;
   }
 
@@ -84,42 +106,5 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
 
   syncNodeResetElectTimer(pSyncNode);
 
-  return ret;
-}
-
-int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
-  if (pSyncNode->state != TAOS_SYNC_STATE_CANDIDATE) {
-    syncNodeEventLog(pSyncNode, "not candidate, stop elect");
-    return 0;
-  }
-
-  int32_t ret = 0;
-  for (int i = 0; i < pSyncNode->peersNum; ++i) {
-    SyncRequestVote* pMsg = syncRequestVoteBuild(pSyncNode->vgId);
-    pMsg->srcId = pSyncNode->myRaftId;
-    pMsg->destId = pSyncNode->peersId[i];
-    pMsg->term = pSyncNode->pRaftStore->currentTerm;
-
-    ret = syncNodeGetLastIndexTerm(pSyncNode, &(pMsg->lastLogIndex), &(pMsg->lastLogTerm));
-    ASSERT(ret == 0);
-
-    ret = syncNodeSendRequestVote(pSyncNode, &pSyncNode->peersId[i], pMsg);
-    ASSERT(ret == 0);
-    syncRequestVoteDestroy(pMsg);
-  }
-  return ret;
-}
-
-int32_t syncNodeSendRequestVote(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncRequestVote* pMsg) {
-  int32_t ret = 0;
-  // syncLogSendRequestVote(pSyncNode, pMsg, "");
-  char     host[64];
-  uint16_t port;
-  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
-  sInfo("vgId:%d, send request vote of term: %" PRId64 " to %s:%d", pSyncNode->vgId, pMsg->term, host, port);
-
-  SRpcMsg rpcMsg;
-  syncRequestVote2RpcMsg(pMsg, &rpcMsg);
-  syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
   return ret;
 }

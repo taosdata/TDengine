@@ -265,34 +265,47 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     if (ret < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       mError("failed to read sdb file:%s since %s", file, tstrerror(code));
-      break;
+      goto _OVER;
     }
 
     if (ret != readLen) {
       code = TSDB_CODE_FILE_CORRUPTED;
-      mError("failed to read sdb file:%s since %s", file, tstrerror(code));
-      break;
+      mError("failed to read sdb file:%s since %s, ret:%" PRId64 " != readLen:%d", file, tstrerror(code), ret, readLen);
+      goto _OVER;
     }
 
     readLen = pRaw->dataLen + sizeof(int32_t);
+    if (readLen >= pRaw->dataLen) {
+      SSdbRaw *pNewRaw = taosMemoryMalloc(pRaw->dataLen + TSDB_MAX_MSG_SIZE);
+      if (pNewRaw == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        mError("failed read sdb file since malloc new sdbRaw size:%d failed", pRaw->dataLen + TSDB_MAX_MSG_SIZE);
+        goto _OVER;
+      }
+      mInfo("malloc new sdbRaw size:%d, type:%d", pRaw->dataLen + TSDB_MAX_MSG_SIZE, pRaw->type);
+      memcpy(pNewRaw, pRaw, sizeof(SSdbRaw));
+      sdbFreeRaw(pRaw);
+      pRaw = pNewRaw;
+    }
+
     ret = taosReadFile(pFile, pRaw->pData, readLen);
     if (ret < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
-      mError("failed to read sdb file:%s since %s", file, tstrerror(code));
-      break;
+      mError("failed to read sdb file:%s since %s, ret:%" PRId64 " readLen:%d", file, tstrerror(code), ret, readLen);
+      goto _OVER;
     }
 
     if (ret != readLen) {
       code = TSDB_CODE_FILE_CORRUPTED;
-      mError("failed to read sdb file:%s since %s", file, tstrerror(code));
-      break;
+      mError("failed to read sdb file:%s since %s, ret:%" PRId64 " != readLen:%d", file, tstrerror(code), ret, readLen);
+      goto _OVER;
     }
 
     int32_t totalLen = sizeof(SSdbRaw) + pRaw->dataLen + sizeof(int32_t);
     if ((!taosCheckChecksumWhole((const uint8_t *)pRaw, totalLen)) != 0) {
       code = TSDB_CODE_CHECKSUM_ERROR;
-      mError("failed to read sdb file:%s since %s", file, tstrerror(code));
-      break;
+      mError("failed to read sdb file:%s since %s, readLen:%d", file, tstrerror(code), readLen);
+      goto _OVER;
     }
 
     code = sdbWriteWithoutFree(pSdb, pRaw);
@@ -654,15 +667,12 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
   }
 
   if (config > 0) {
-    ASSERT(pSdb->commitConfig == config);
     pSdb->commitConfig = config;
   }
   if (term > 0) {
-    ASSERT(pSdb->commitTerm == term);
     pSdb->commitTerm = term;
   }
   if (index > 0) {
-    ASSERT(pSdb->commitIndex == index);
     pSdb->commitIndex = index;
   }
 
