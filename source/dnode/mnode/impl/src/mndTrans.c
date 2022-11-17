@@ -1277,9 +1277,11 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
             pAction->id);
       code = mndTransSync(pMnode, pTrans);
       if (code != 0) {
+        pTrans->redoActionPos--;
         pTrans->code = terrno;
         mError("trans:%d, %s:%d is executed and failed to sync to other mnodes since %s", pTrans->id,
                mndTransStr(pAction->stage), pAction->id, terrstr());
+        break;
       }
     } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
       mInfo("trans:%d, %s:%d is in progress and wait it finish", pTrans->id, mndTransStr(pAction->stage), pAction->id);
