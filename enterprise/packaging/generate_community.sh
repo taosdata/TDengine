@@ -99,6 +99,7 @@ else
     echo "Cannont found $archiveDir on this machine"
 fi
 
+echo " packaging release done! "
 #echo "build new version branch >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 #cd $communityDir
 #git branch -d release/v$version

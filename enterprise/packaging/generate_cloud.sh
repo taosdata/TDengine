@@ -78,3 +78,4 @@ else
     echo "Cannont found $archiveDir on this machine"
 fi
 
+echo " packaging release done! "
