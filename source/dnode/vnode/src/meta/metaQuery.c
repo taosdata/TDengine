@@ -157,7 +157,7 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
 
   // query uid.idx
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
-    terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
 
@@ -171,7 +171,7 @@ int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
 
   // query name.idx
   if (tdbTbGet(pMeta->pNameIdx, name, strlen(name) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
-    terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
 
