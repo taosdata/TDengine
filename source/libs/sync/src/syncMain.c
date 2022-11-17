@@ -125,13 +125,15 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
   syncNodeDoConfigChange(pSyncNode, pNewCfg, SYNC_INDEX_INVALID);
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    /*
     syncNodeStopHeartbeatTimer(pSyncNode);
 
     for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
       syncHbTimerInit(pSyncNode, &pSyncNode->peerHeartbeatTimerArr[i], pSyncNode->replicasId[i]);
     }
 
-    // syncNodeStartHeartbeatTimer(pSyncNode);
+    syncNodeStartHeartbeatTimer(pSyncNode);
+    */
 
     syncNodeReplicate(pSyncNode);
   }
