@@ -57,8 +57,8 @@
 ,,,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
 ,,,script,./test.sh -f tsim/dnode/vnode_clean.sim
 ,,,script,./test.sh -f tsim/dnode/use_dropped_dnode.sim 
-,,,script,./test.sh -f tsim/dnode/split_vgroup_replica1.sim 
-,,,script,./test.sh -f tsim/dnode/split_vgroup_replica3.sim 
+,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica1.sim 
+,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica3.sim 
 ,,y,script,./test.sh -f tsim/import/basic.sim
 ,,y,script,./test.sh -f tsim/import/commit.sim
 ,,y,script,./test.sh -f tsim/import/large.sim
