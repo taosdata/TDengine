@@ -391,7 +391,7 @@ pub async fn tmq_to_local(
         }
     }
     for handle in handles {
-        let _ = handle.await?;
+        let _ = handle.await??;
         log::info!("worker done");
     }
     log::info!("all workers done for backup");

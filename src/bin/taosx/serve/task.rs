@@ -4,7 +4,7 @@ use std::{
 };
 
 use actix_web::{
-    delete, get, post,
+    delete, get, patch, post,
     web::{Data, Json, Path, Query, ServiceConfig},
     HttpResponse, Responder,
 };
@@ -255,22 +255,22 @@ impl TaskController {
                                     )
                                     .execute(&pool)
                                     .await?;
-
                                 }
                                 Err(err) => {
                                     let err_string = err.to_string();
 
                                     match err_string.as_str() {
-                                        e if e.contains("WebSocket protocol error") | e.contains("WebSocket internal error") => {
+                                        e if e.contains("WebSocket protocol error") || e.contains("WebSocket internal error") || e.contains("0x000B")=> {
                                             log::warn!("run task {id} failed: {err}, wait for resume...");
                                             let err = err.to_string();
                                             let now = Utc::now();
                                             let _ = sqlx::query!(
-                                                "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE",
+                                                "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE AND status != ?",
                                                 now,
                                                 Status::Interrupted,
                                                 err,
-                                                id
+                                                id,
+                                                Status::Failed
                                             )
                                             .execute(&pool)
                                             .await?;
@@ -427,6 +427,60 @@ impl TaskController {
         Ok(task)
     }
 
+    pub async fn update(&self, id: i64, task: UpdateTask) -> anyhow::Result<Option<Task>> {
+        if let Some(topic) = task.oneshot_topic.as_deref() {
+            if topic.len() > 64 {
+                anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
+            }
+        }
+
+        let mut sql = Vec::new();
+        macro_rules! add_bind_sql {
+            ($($field:ident )*) => {
+                $(if task.$field.is_some() {
+                    sql.push(concat!("`", stringify!($field), "` = ?"));
+                })*
+            };
+        }
+        add_bind_sql!(stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force);
+
+        if sql.len() == 0 {
+            let task = sqlx::query_as_unchecked!(Task, "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where id = ?", id)
+            .fetch_one(&self.pool)
+            .await
+            .unwrap();
+
+            self.start_task(&task).await?;
+            return Ok(Some(task));
+        }
+
+        let query = format!("UPDATE `tasks` SET {} WHERE `id` = {}", sql.join(","), id);
+        let mut query = sqlx::query(&query);
+
+        macro_rules! bind_fields {
+            ($($field:ident )*) => {
+                $(if let Some(field) = task.$field.as_ref() {
+                    query = query.bind(field);
+                })*
+            };
+        }
+        bind_fields!(stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force);
+
+        let res = query.execute(&self.pool).await?;
+
+        if res.rows_affected() == 1 {
+            let task = sqlx::query_as_unchecked!(Task, "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where id = ?", id)
+                .fetch_one(&self.pool)
+                .await
+                .unwrap();
+
+            self.start_task(&task).await?;
+            Ok(Some(task))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub async fn start_all(&self) -> anyhow::Result<usize> {
         let tasks = sqlx::query_as_unchecked!(
             Task,
@@ -495,11 +549,13 @@ impl TaskController {
         if let Some(topic) = task.oneshot_topic {
             let mut dsn: Dsn = task.from.parse()?;
             let _ = dsn.subject.take();
-            let taos = TaosBuilder::from_dsn(dsn)?.build()?;
+            let builder = TaosBuilder::from_dsn(dsn).context("cannot drop oneshot topic")?;
+            let taos = builder.build().context("cannot drop oneshot topic")?;
             let mut retries = 0;
             loop {
                 if retries > 20 {
                     log::error!("can not drop topic {topic}");
+                    break;
                 }
                 if let Err(err) = taos.exec(format!("drop topic if exists {topic}")).await {
                     retries += 1;
@@ -599,6 +655,7 @@ pub(super) fn configure(store: Data<TaskController>) -> impl FnOnce(&mut Service
             .service(get_tasks)
             .service(get_tasks_count)
             .service(create_task)
+            .service(update_task)
             .service(delete_task)
             .service(replicate)
             .service(subscribe)
@@ -778,58 +835,35 @@ pub(super) struct NewTask {
     force: bool,
 }
 
-// impl TryFrom<NewTask> for taosx::TaskOpts {
-//     type Error = anyhow::Error;
-
-//     fn try_from(value: NewTask) -> Result<Self, Self::Error> {
-//         let NewTask {
-//             from,
-//             from_cluster,
-//             oneshot_topic,
-//             to,
-//             clear,
-//             jobs,
-//             compression_level,
-//             force,
-//             stream_type: _,
-//             to_cluster,
-//         } = value;
-
-//         if let Some(topic) = oneshot_topic {
-//             let mut from: Dsn = from.parse()?;
-//             from.set("use.topic.name", topic);
-//             return Ok(Self {
-//                 from,
-//                 transform: Vec::new(),
-//                 to: to.parse()?,
-//                 jobs: jobs as _,
-//                 compression_level: compression_level.map(Into::into),
-//                 force,
-//                 cancel: Default::default(),
-//             });
-//         }
-//         Ok(Self {
-//             from: from.parse()?,
-//             transform: Vec::new(),
-//             to: to.parse()?,
-//             jobs: jobs as _,
-//             compression_level: compression_level.map(Into::into),
-//             force,
-//             cancel: Default::default(),
-//         })
-//     }
-// }
-
-// /// Task endpoint error responses
-// #[derive(Serialize, Deserialize, Clone, ToSchema)]
-// pub(super) enum ErrorResponse {
-//     /// When Task is not found by search term.
-//     NotFound(String),
-//     /// When there is a conflict storing a new task.
-//     Conflict(String),
-//     /// When task endpoint was called without correct credentials
-//     Unauthorized(String),
-// }
+#[derive(
+    Serialize,
+    Deserialize,
+    ToSchema,
+    Default,
+    Clone,
+    Debug,
+    sqlx::Decode,
+    sqlx::Encode,
+    sqlx::FromRow,
+)]
+#[serde(default)]
+pub(super) struct UpdateTask {
+    stream_type: Option<StreamType>,
+    /// The stream data source.
+    from: Option<String>,
+    /// The stream data source cluster id.
+    from_cluster: Option<String>,
+    /// Use oneshot topic for a task, delete the topic after task deleted.
+    oneshot_topic: Option<String>,
+    /// The target of the stream.
+    to: Option<String>,
+    /// The stream data target cluster id.
+    to_cluster: Option<String>,
+    /// Jobs number
+    jobs: Option<u16>,
+    compression_level: Option<u8>,
+    force: Option<bool>,
+}
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -1202,6 +1236,38 @@ pub(super) async fn subscribe(
             }
         }
         Err(err) => HttpResponse::BadRequest().json(Failed {
+            code: Code::Failed,
+            message: err.to_string(),
+        }),
+    }
+}
+/// Update Task by given path variable id.
+///
+/// This endpoint needs `api_key` authentication in order to call. Api key can be found from README.md.
+///
+/// Api will delete task from shared in-memory storage by the provided id and return success 200.
+/// If storage does not contain `Task` with given id 404 not found will be returned.
+#[utoipa::path(
+    request_body = UpdateTask,
+    responses(
+        (status = 200, description = "Task deleted successfully"),
+        // (status = 401, description = "Unauthorized to delete Task", body = ErrorResponse, example = json!(ErrorResponse::Unauthorized(String::from("missing api key")))),
+        (status = 404, description = "Task not found by id", body = Failed)
+    ),
+    params(
+        ("id", description = "Unique storage id of Task")
+    ),
+)]
+#[patch("/tasks/{id}")]
+pub(super) async fn update_task(
+    id: Path<i64>,
+    task: Json<UpdateTask>,
+    task_store: Data<TaskController>,
+) -> impl Responder {
+    match task_store.update(id.into_inner(), task.into_inner()).await {
+        Ok(Some(_)) => HttpResponse::Ok().finish(),
+        Ok(None) => HttpResponse::NotFound().finish(),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::Failed,
             message: err.to_string(),
         }),
