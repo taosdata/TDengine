@@ -180,7 +180,7 @@
 ,,,script,./test.sh -f tsim/mnode/basic2.sim
 ,,,script,./test.sh -f tsim/mnode/basic3.sim
 ,,,script,./test.sh -f tsim/mnode/basic4.sim
-,,,script,./test.sh -f tsim/mnode/basic5.sim
+#,,,script,./test.sh -f tsim/mnode/basic5.sim
 ,,y,script,./test.sh -f tsim/show/basic.sim
 ,,y,script,./test.sh -f tsim/table/autocreate.sim
 ,,y,script,./test.sh -f tsim/table/basic1.sim
