@@ -1907,6 +1907,7 @@ static int32_t mndBalanceVgroup(SMnode *pMnode, SRpcMsg *pReq, SArray *pArray) {
   }
 
 _OVER:
+  taosHashCleanup(pBalancedVgroups);
   mndTransDrop(pTrans);
   return code;
 }

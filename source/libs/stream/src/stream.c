@@ -51,6 +51,7 @@ void streamSchedByTimer(void* param, void* tmrId) {
   SStreamTask* pTask = (void*)param;
 
   if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+    streamMetaReleaseTask(NULL, pTask);
     return;
   }
 
@@ -80,6 +81,8 @@ void streamSchedByTimer(void* param, void* tmrId) {
 
 int32_t streamSetupTrigger(SStreamTask* pTask) {
   if (pTask->triggerParam != 0) {
+    int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
+    ASSERT(ref == 2);
     pTask->timer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer);
     pTask->triggerStatus = TASK_TRIGGER_STATUS__INACTIVE;
   }
