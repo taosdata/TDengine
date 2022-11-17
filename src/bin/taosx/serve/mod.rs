@@ -46,9 +46,10 @@ impl Cli {
         #[openapi(
             components(
             schemas(
-                NewReplicate,
-                NewSubscribe,
+                // NewReplicate,
+                // NewSubscribe,
                 NewTask,
+                UpdateTask,
                 Cluster,
                 StreamType,
                 Task,
@@ -61,6 +62,7 @@ impl Cli {
                 task::get_tasks,
                 task::get_tasks_count,
                 task::create_task,
+                task::update_task,
                 task::delete_task,
                 task::start_task,
                 task::stop_task,
