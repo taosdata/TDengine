@@ -1083,7 +1083,10 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   int32_t  type = pAvgRes->type;
 
-  if (IS_SIGNED_NUMERIC_TYPE(type)) {
+  if (pAvgRes->count == 0) {
+    // [ASAN] runtime error: division by zero
+    GET_RES_INFO(pCtx)->numOfRes = 0;
+  } else if (IS_SIGNED_NUMERIC_TYPE(type)) {
     pAvgRes->result = pAvgRes->sum.isum / ((double)pAvgRes->count);
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
     pAvgRes->result = pAvgRes->sum.usum / ((double)pAvgRes->count);
