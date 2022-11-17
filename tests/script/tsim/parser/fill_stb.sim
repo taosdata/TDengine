@@ -170,7 +170,7 @@ endi
 sql_error select max(c1), max(c2), max(c3), max(c4), max(c5) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill (6, 6, 6, 6, 6)
 
 # fill_char_values_to_arithmetic_fields
-sql_error select sum(c1), avg(c2), max(c3), min(c4), avg(c4), count(c6), last(c7), last(c8) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c')
+sql select sum(c1), avg(c2), max(c3), min(c4), avg(c4), count(c6), last(c7), last(c8) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c')
 
 # fill_multiple_columns
 sql_error select sum(c1), avg(c2), min(c3), max(c4), count(c6), first(c7), last(c8) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 99, 99, 99, 99, 99, abc, abc)
@@ -240,10 +240,10 @@ sql select first(c7), first(c8), first(c9) from $stb where ts >= $ts0 and ts <= 
 sql select first(c7), first(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'true', 'true','true')
 
 # fill nonarithmetic values into arithmetic fields
-sql_error select count(*) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'abc');
-sql_error select count(*) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'true');
+sql select count(*) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'abc');
+sql select count(*) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'true');
 
-sql_error select _wstart, count(*) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '2e1');
+sql select _wstart, count(*) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '2e1');
 
 sql select _wstart, count(*) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 20);
 if $rows != $val then

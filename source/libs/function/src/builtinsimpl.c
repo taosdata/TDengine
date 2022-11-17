@@ -48,8 +48,8 @@ typedef struct SSumRes {
     double   dsum;
   };
   int16_t type;
-  int64_t prevTs; // used for csum only
-  bool    isPrevTsSet; //used for csum only
+  int64_t prevTs;       // used for csum only
+  bool    isPrevTsSet;  // used for csum only
 
 } SSumRes;
 
@@ -2217,8 +2217,8 @@ bool leastSQRFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInf
 
   SLeastSQRInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
 
-  pInfo->startVal = IS_FLOAT_TYPE(pCtx->param[1].param.nType) ? pCtx->param[1].param.d : (double)pCtx->param[1].param.i;
-  pInfo->stepVal = IS_FLOAT_TYPE(pCtx->param[2].param.nType) ? pCtx->param[2].param.d : (double)pCtx->param[2].param.i;
+  GET_TYPED_DATA(pInfo->startVal, double, pCtx->param[1].param.nType, pCtx->param[1].param.i);
+  GET_TYPED_DATA(pInfo->stepVal, double, pCtx->param[2].param.nType, pCtx->param[2].param.i);
   return true;
 }
 
@@ -2562,8 +2562,8 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
 
 int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SVariant* pVal = &pCtx->param[1].param;
-  double    v =
-      (IS_SIGNED_NUMERIC_TYPE(pVal->nType) ? pVal->i : (IS_UNSIGNED_NUMERIC_TYPE(pVal->nType) ? pVal->u : pVal->d));
+  double    v = 0;
+  GET_TYPED_DATA(v, double, pVal->nType, pVal->i);
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo*     ppInfo = (SPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
@@ -2622,8 +2622,8 @@ bool apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResult
   SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
 
   SVariant* pVal = &pCtx->param[1].param;
-  pInfo->percent =
-      (IS_SIGNED_NUMERIC_TYPE(pVal->nType) ? pVal->i : (IS_UNSIGNED_NUMERIC_TYPE(pVal->nType) ? pVal->u : pVal->d));
+  pInfo->percent = 0;
+  GET_TYPED_DATA(pInfo->percent, double, pVal->nType, pVal->i);
 
   if (pCtx->numOfParams == 2) {
     pInfo->algo = APERCT_ALGO_DEFAULT;
@@ -3717,6 +3717,12 @@ static int32_t topBotResComparFn(const void* p1, const void* p2, const void* par
     }
 
     return (val1->v.u > val2->v.u) ? 1 : -1;
+  } else if (TSDB_DATA_TYPE_FLOAT == type) {
+    if (val1->v.f == val2->v.f) {
+      return 0;
+    }
+
+    return (val1->v.f > val2->v.f) ? 1 : -1;
   }
 
   if (val1->v.d == val2->v.d) {
@@ -3757,10 +3763,12 @@ void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSData
   } else {  // replace the minimum value in the result
     if ((isTopQuery && ((IS_SIGNED_NUMERIC_TYPE(type) && val.i > pItems[0].v.i) ||
                         (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u > pItems[0].v.u) ||
-                        (IS_FLOAT_TYPE(type) && val.d > pItems[0].v.d))) ||
+                        (TSDB_DATA_TYPE_FLOAT == type && val.f > pItems[0].v.f) ||
+                        (TSDB_DATA_TYPE_DOUBLE == type && val.d > pItems[0].v.d))) ||
         (!isTopQuery && ((IS_SIGNED_NUMERIC_TYPE(type) && val.i < pItems[0].v.i) ||
                          (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u < pItems[0].v.u) ||
-                         (IS_FLOAT_TYPE(type) && val.d < pItems[0].v.d)))) {
+                         (TSDB_DATA_TYPE_FLOAT == type && val.f < pItems[0].v.f) ||
+                         (TSDB_DATA_TYPE_DOUBLE == type && val.d < pItems[0].v.d)))) {
       // replace the old data and the coresponding tuple data
       STopBotResItem* pItem = &pItems[0];
       pItem->v = val;
@@ -3923,12 +3931,7 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
   for (int32_t i = 0; i < pEntryInfo->numOfRes; ++i) {
     STopBotResItem* pItem = &pRes->pItems[i];
-    if (type == TSDB_DATA_TYPE_FLOAT) {
-      float v = pItem->v.d;
-      colDataAppend(pCol, currentRow, (const char*)&v, false);
-    } else {
-      colDataAppend(pCol, currentRow, (const char*)&pItem->v.i, false);
-    }
+    colDataAppend(pCol, currentRow, (const char*)&pItem->v.i, false);
 #ifdef BUF_PAGE_DEBUG
     qDebug("page_finalize i:%d,item:%p,pageId:%d, offset:%d\n", i, pItem, pItem->tuplePos.pageId,
            pItem->tuplePos.offset);
@@ -3959,10 +3962,12 @@ void addResult(SqlFunctionCtx* pCtx, STopBotResItem* pSourceItem, int16_t type, 
   } else {  // replace the minimum value in the result
     if ((isTopQuery && ((IS_SIGNED_NUMERIC_TYPE(type) && pSourceItem->v.i > pItems[0].v.i) ||
                         (IS_UNSIGNED_NUMERIC_TYPE(type) && pSourceItem->v.u > pItems[0].v.u) ||
-                        (IS_FLOAT_TYPE(type) && pSourceItem->v.d > pItems[0].v.d))) ||
+                        (TSDB_DATA_TYPE_FLOAT == type && pSourceItem->v.f > pItems[0].v.f) ||
+                        (TSDB_DATA_TYPE_DOUBLE == type && pSourceItem->v.d > pItems[0].v.d))) ||
         (!isTopQuery && ((IS_SIGNED_NUMERIC_TYPE(type) && pSourceItem->v.i < pItems[0].v.i) ||
                          (IS_UNSIGNED_NUMERIC_TYPE(type) && pSourceItem->v.u < pItems[0].v.u) ||
-                         (IS_FLOAT_TYPE(type) && pSourceItem->v.d < pItems[0].v.d)))) {
+                         (TSDB_DATA_TYPE_FLOAT == type && pSourceItem->v.f < pItems[0].v.f) ||
+                         (TSDB_DATA_TYPE_DOUBLE == type && pSourceItem->v.d < pItems[0].v.d)))) {
       // replace the old data and the coresponding tuple data
       STopBotResItem* pItem = &pItems[0];
       pItem->v = pSourceItem->v;
@@ -6011,7 +6016,7 @@ int32_t twaFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   } else {
     if (pInfo->win.ekey == pInfo->win.skey) {
       pInfo->dOutput = pInfo->p.val;
-    } else if (pInfo->win.ekey == INT64_MAX || pInfo->win.skey == INT64_MIN) { //no data in timewindow
+    } else if (pInfo->win.ekey == INT64_MAX || pInfo->win.skey == INT64_MIN) {  // no data in timewindow
       pInfo->dOutput = 0;
     } else {
       pInfo->dOutput = pInfo->dOutput / (pInfo->win.ekey - pInfo->win.skey);

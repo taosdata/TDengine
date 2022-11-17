@@ -2770,7 +2770,7 @@ static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList
   SNode*  pCaseFunc = NULL;
   int32_t code = createCastFunc(pCxt, pCell->pNode, dt, &pCaseFunc);
   if (TSDB_CODE_SUCCESS == code) {
-    pCell->pNode = pCaseFunc;
+    code = scalarCalculateConstants(pCaseFunc, &pCell->pNode);
   }
   return code;
 }
