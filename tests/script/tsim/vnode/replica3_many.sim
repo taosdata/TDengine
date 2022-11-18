@@ -201,11 +201,11 @@ system sh/exec.sh -n dnode2 -s start
 sleep 3000
 
 print ======== step6
-$x = 0
+$y = 0
 step6: 
-	$x = $x + 1
+	$y = $y + 1
 	sleep 1000
-	if $x == 50 then
+	if $y == 50 then
 		return -1
 	endi
 
