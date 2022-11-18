@@ -1704,7 +1704,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
       }
 
       qDebug("GROUP Num:%u", info->groupNum);
-      uint32_t maxDbgGrpNum = MIN(info->groupNum, 1000);
+      uint32_t maxDbgGrpNum = TMIN(info->groupNum, 1000);
       for (uint32_t i = 0; i < maxDbgGrpNum; ++i) {
         SFilterGroup *group = &info->groups[i];
         qDebug("Group%d : unit num[%u]", i, group->unitNum);
