@@ -384,7 +384,7 @@ static uint8_t UNUSED_FUNC isQueryOnPrimaryKey(const char *primaryColumnName, co
   }
 }
 
-static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOfRows, int16_t colSize) {
+static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOfRows, uint16_t colSize) {
   switch(type) {
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_UTINYINT:{
@@ -2054,7 +2054,7 @@ void vectorLength(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInpu
   }
 }
 
-void castConvert(int16_t inputType, int16_t inputBytes, char *input, int16_t OutputType, int16_t outputBytes, char *output) {
+void castConvert(int16_t inputType, uint16_t inputBytes, char *input, int16_t OutputType, uint16_t outputBytes, char *output) {
   switch (OutputType) {
     case TSDB_DATA_TYPE_BIGINT:
       if (inputType == TSDB_DATA_TYPE_BINARY) {
