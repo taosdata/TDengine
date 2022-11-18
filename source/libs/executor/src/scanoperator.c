@@ -4722,6 +4722,12 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
 
+  pInfo->base.metaCache.pTableMetaEntryCache = taosLRUCacheInit(1024 * 128, -1, .5);
+  if (pInfo->base.metaCache.pTableMetaEntryCache == NULL) {
+    code = terrno;
+    goto _error;
+  }
+
   pInfo->base.dataBlockLoadFlag = FUNC_DATA_REQUIRED_DATA_LOAD;
   pInfo->base.scanFlag = MAIN_SCAN;
   pInfo->base.readHandle = *readHandle;
