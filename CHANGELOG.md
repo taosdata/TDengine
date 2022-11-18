@@ -1,3 +1,30 @@
+<a name="v0.2.1"></a>
+## v0.2.1 TDengine Data Replication Toolkit (2022-11-18)
+
+
+#### Bug Fixes
+
+*   fix cancellation unexpected errors ([441dc9d8](https://github.com/taosdata/taosx.git/commit/441dc9d8d5ebcfc528646e4b0dc84d222aa931f8))
+*   let tmq tasks cancelable ([78c8db69](https://github.com/taosdata/taosx.git/commit/78c8db69561fd9ec43c3a62d0b11e81651c21290))
+*   support timeout=never with websocket ([3d10b601](https://github.com/taosdata/taosx.git/commit/3d10b6011968c3509aafe757cd0c6b1c9d8dc182))
+* **serve:**
+  *  default listen to 0.0.0.0:6050 ([38053ab9](https://github.com/taosdata/taosx.git/commit/38053ab9a98697053dbdb8653a005da610b4c2c8))
+  *  fix websocket connection with 401 unexpected error with HTTP ([6cbc7727](https://github.com/taosdata/taosx.git/commit/6cbc7727cc2457c6d91ef8ea74ca1898badf2930))
+  *  decide to connect or not by error handling ([0dc31d7f](https://github.com/taosdata/taosx.git/commit/0dc31d7f341b35c99eb721a9942c01d95d4995c0))
+
+#### Features
+
+*   add Dockerfile for taosx/serve:0.2.0 ([c9496e4c](https://github.com/taosdata/taosx.git/commit/c9496e4cf0dac861696fd6ad9549a8660db523e5))
+* **serve:**
+  *  add PATCH task/:id for update a task ([9c6e8aff](https://github.com/taosdata/taosx.git/commit/9c6e8affb8e5fbc4d65dd6853b6bf2332c6b0f04))
+  *  support oneshot topic for task ([2ae2e4ff](https://github.com/taosdata/taosx.git/commit/2ae2e4ffaf3db91a75513f99e9d95e904a44c339))
+  *  support clear target database in create api ([d96b9d1a](https://github.com/taosdata/taosx.git/commit/d96b9d1a445c3ad7aa4cad9bee306a4e31c5a433))
+  *  invode all unfinished tasks after restart ([b78b7b91](https://github.com/taosdata/taosx.git/commit/b78b7b918f7b9064217a0daeaf8ed4170b61ab17))
+  *  add /tasks/count api, also work for HEAD /tasks ([61bfd8c3](https://github.com/taosdata/taosx.git/commit/61bfd8c3b858da4f3301bdba31db8417c10ab75e))
+  *  try re-run tasks when timeout=never ([da704e8f](https://github.com/taosdata/taosx.git/commit/da704e8f29a23d20987a38d67f44abdcd1c8450f))
+
+
+
 <a name="v0.2.0"></a>
 ## v0.2.0 TDengine Data Replication Toolkit (2022-11-18)
 
