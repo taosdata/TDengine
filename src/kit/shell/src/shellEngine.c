@@ -872,7 +872,7 @@ static int calcColWidth(TAOS_FIELD* field, int precision) {
 
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:{
-      int16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
+      int32_t bytes = field->bytes * TSDB_NCHAR_SIZE;
       if (bytes > tsMaxBinaryDisplayWidth) {
         return MAX(tsMaxBinaryDisplayWidth, width);
       } else {
@@ -1453,7 +1453,7 @@ TAOS_FIELD *wsclient_print_header(cJSON *query, int *pcols, int *pprecison) {
       for (int i = 0; i < (int)fields_count->valueint; i++) {
         strncpy(fields[i].name, cJSON_GetArrayItem(fields_names, i)->valuestring, 65);
         fields[i].type = (uint8_t)cJSON_GetArrayItem(fields_types, i)->valueint;
-        fields[i].bytes = (int16_t)cJSON_GetArrayItem(fields_lengths, i)->valueint;
+        fields[i].bytes = (uint16_t)cJSON_GetArrayItem(fields_lengths, i)->valueint;
       }
       cJSON *precision = cJSON_GetObjectItem(query, "precision");
       if (cJSON_IsNumber(precision)) {
@@ -1610,7 +1610,7 @@ void wsclient_query(char *command) {
                       cJSON *lengths = cJSON_GetObjectItem(fetch, "lengths");
                       if (cJSON_IsArray(lengths)) {
                         for (int i = 0; i < cols; i++) {
-                          fields[i].bytes = (int16_t)(cJSON_GetArrayItem(lengths, i)->valueint);
+                          fields[i].bytes = (uint16_t)(cJSON_GetArrayItem(lengths, i)->valueint);
                         }
                         if (showed_rows < DEFAULT_RES_SHOW_NUM) {
                           if (wsclient_send_sql(NULL, WS_FETCH_BLOCK, (int)id->valueint) == 0) {

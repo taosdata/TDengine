@@ -335,18 +335,18 @@ typedef struct {
 } SAlterTableMsg;
 
 typedef struct {
-  SMsgHead  head;
-  int8_t    extend;
-  int64_t   uid;
-  int32_t   tid;
-  int16_t   tversion;
-  int16_t   colId;
-  int8_t    type;
-  int16_t   bytes;
-  int32_t   tagValLen;
-  int16_t   numOfTags;
-  int32_t   schemaLen;
-  char      data[];
+  SMsgHead head;
+  int8_t   extend;
+  int64_t  uid;
+  int32_t  tid;
+  int16_t  tversion;
+  int16_t  colId;
+  int8_t   type;
+  uint16_t bytes;
+  int32_t  tagValLen;
+  int16_t  numOfTags;
+  int32_t  schemaLen;
+  char     data[];
 } SUpdateTableTagValMsg;
 
 typedef struct {
