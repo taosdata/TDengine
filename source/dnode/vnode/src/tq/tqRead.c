@@ -398,6 +398,35 @@ bool tqNextDataBlock(STqReader* pReader) {
   return false;
 }
 
+int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrapper* pSrc, char* mask) {
+  int32_t code;
+
+  int32_t cnt = 0;
+  for (int32_t i = 0; i < pSrc->nCols; i++) {
+    cnt += mask[i];
+  }
+
+  pDst->nCols = cnt;
+  pDst->pSchema = taosMemoryCalloc(cnt, sizeof(SSchema));
+  if (pDst->pSchema == NULL) {
+    return -1;
+  }
+
+  int32_t j = 0;
+  for (int32_t i = 0; i < pSrc->nCols; i++) {
+    if (mask[i]) {
+      pDst->pSchema[j++] = pSrc->pSchema[i];
+      SColumnInfoData colInfo =
+          createColumnInfoData(pSrc->pSchema[i].type, pSrc->pSchema[i].bytes, pSrc->pSchema[i].colId);
+      code = blockDataAppendColInfo(pBlock, &colInfo);
+      if (code != 0) {
+        return -1;
+      }
+    }
+  }
+  return 0;
+}
+
 bool tqNextDataBlockFilterOut(STqReader* pHandle, SHashObj* filterOutUids) {
   while (1) {
     if (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock) < 0) {
@@ -524,6 +553,119 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
 
 FAIL:
   blockDataFreeRes(pBlock);
+  return -1;
+}
+
+int32_t tqSplitRetrieveDataBlock(STqReader* pReader, SArray* blocks, SArray* schemas) {
+  int32_t sversion = htonl(pReader->pBlock->sversion);
+
+  if (pReader->cachedSchemaSuid == 0 || pReader->cachedSchemaVer != sversion ||
+      pReader->cachedSchemaSuid != pReader->msgIter.suid) {
+    if (pReader->pSchema) taosMemoryFree(pReader->pSchema);
+    pReader->pSchema = metaGetTbTSchema(pReader->pVnodeMeta, pReader->msgIter.uid, sversion, 1);
+    if (pReader->pSchema == NULL) {
+      tqWarn("cannot found tsschema for table: uid:%" PRId64 " (suid:%" PRId64 "), version %d, possibly dropped table",
+             pReader->msgIter.uid, pReader->msgIter.suid, pReader->cachedSchemaVer);
+      /*ASSERT(0);*/
+      pReader->cachedSchemaSuid = 0;
+      terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
+      return -1;
+    }
+
+    if (pReader->pSchemaWrapper) tDeleteSSchemaWrapper(pReader->pSchemaWrapper);
+    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, pReader->msgIter.uid, sversion, 1);
+    if (pReader->pSchemaWrapper == NULL) {
+      tqWarn("cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",
+             pReader->msgIter.uid, pReader->cachedSchemaVer);
+      /*ASSERT(0);*/
+      pReader->cachedSchemaSuid = 0;
+      terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
+      return -1;
+    }
+    pReader->cachedSchemaVer = sversion;
+    pReader->cachedSchemaSuid = pReader->msgIter.suid;
+  }
+
+  STSchema*       pTschema = pReader->pSchema;
+  SSchemaWrapper* pSchemaWrapper = pReader->pSchemaWrapper;
+
+  int32_t colAtMost = pSchemaWrapper->nCols;
+
+  int32_t curRow = 0;
+
+  char* assigned = taosMemoryCalloc(1, pSchemaWrapper->nCols);
+  if (assigned) return -1;
+
+  tInitSubmitBlkIter(&pReader->msgIter, pReader->pBlock, &pReader->blkIter);
+  STSRowIter iter = {0};
+  tdSTSRowIterInit(&iter, pTschema);
+  STSRow* row;
+
+  while ((row = tGetSubmitBlkNext(&pReader->blkIter)) != NULL) {
+    bool buildNew = false;
+    tdSTSRowIterReset(&iter, row);
+
+    for (int32_t i = 0; i < colAtMost; i++) {
+      SCellVal sVal = {0};
+      if (!tdSTSRowIterFetch(&iter, pSchemaWrapper->pSchema[i].colId, pSchemaWrapper->pSchema[i].type, &sVal)) {
+        break;
+      }
+      if (curRow == 0) {
+        assigned[i] = sVal.valType != TD_VTYPE_NONE;
+        buildNew = true;
+      } else {
+        bool currentRowAssigned = sVal.valType != TD_VTYPE_NONE;
+        if (currentRowAssigned != assigned[i]) {
+          assigned[i] = currentRowAssigned;
+          buildNew = true;
+        }
+      }
+    }
+
+    if (buildNew) {
+      SSDataBlock    block;
+      SSchemaWrapper sw;
+      if (tqMaskBlock(&sw, &block, pSchemaWrapper, assigned) < 0) {
+        goto FAIL;
+      }
+
+      taosArrayPush(blocks, &block);
+      taosArrayPush(schemas, &sw);
+    }
+
+    SSDataBlock* pBlock = taosArrayGetLast(blocks);
+    pBlock->info.uid = pReader->msgIter.uid;
+    pBlock->info.rows = pReader->msgIter.numOfRows;
+    pBlock->info.version = pReader->pMsg->version;
+
+    if (blockDataEnsureCapacity(pBlock, pReader->msgIter.numOfRows - curRow) < 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto FAIL;
+    }
+
+    tdSTSRowIterInit(&iter, pTschema);
+    for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
+      SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
+      SCellVal         sVal = {0};
+
+      if (!tdSTSRowIterFetch(&iter, pColData->info.colId, pColData->info.type, &sVal)) {
+        break;
+      }
+
+      ASSERT(sVal.valType != TD_VTYPE_NONE);
+
+      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType != TD_VTYPE_NORM) < 0) {
+        goto FAIL;
+      }
+    }
+    curRow++;
+  }
+
+  taosMemoryFree(assigned);
+  return 0;
+
+FAIL:
+  taosMemoryFree(assigned);
   return -1;
 }
 

@@ -16,6 +16,7 @@
 #include "executor.h"
 #include "streamInc.h"
 #include "tcommon.h"
+#include "tcompare.h"
 #include "ttimer.h"
 
 // todo refactor
@@ -144,6 +145,11 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     goto _err;
   }
 
+  if (tdbTbOpen("parname.state.db", sizeof(int64_t), TSDB_TABLE_NAME_LEN, NULL, pState->db, &pState->pParNameDb, 0) <
+      0) {
+    goto _err;
+  }
+
   if (streamStateBegin(pState) < 0) {
     goto _err;
   }
@@ -157,6 +163,7 @@ _err:
   tdbTbClose(pState->pFuncStateDb);
   tdbTbClose(pState->pFillStateDb);
   tdbTbClose(pState->pSessionStateDb);
+  tdbTbClose(pState->pParNameDb);
   tdbClose(pState->db);
   taosMemoryFree(pState);
   return NULL;
@@ -169,6 +176,7 @@ void streamStateClose(SStreamState* pState) {
   tdbTbClose(pState->pFuncStateDb);
   tdbTbClose(pState->pFillStateDb);
   tdbTbClose(pState->pSessionStateDb);
+  tdbTbClose(pState->pParNameDb);
   tdbClose(pState->db);
 
   taosMemoryFree(pState);
@@ -810,6 +818,16 @@ _end:
   *pVal = tmp;
   streamStateFreeCur(pCur);
   return res;
+}
+
+int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
+  tdbTbUpsert(pState->pParNameDb, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN, &pState->txn);
+  return 0;
+}
+
+int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal) {
+  int32_t len;
+  return tdbTbGet(pState->pParNameDb, &groupId, sizeof(int64_t), pVal, &len);
 }
 
 #if 0
