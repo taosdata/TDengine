@@ -334,7 +334,6 @@ typedef struct STableScanInfo {
   SScanInfo              scanInfo;
   int32_t                scanTimes;
   SSDataBlock*           pResBlock;
-  int32_t                scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
   SSampleExecInfo        sample;  // sample execution info
   int32_t                currentGroupId;
   int32_t                currentTable;
