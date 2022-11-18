@@ -16,10 +16,13 @@
 #define _DEFAULT_SOURCE
 
 #include "syncLogBuffer.h"
+#include "syncIndexMgr.h"
 #include "syncInt.h"
 #include "syncRaftEntry.h"
 #include "syncRaftStore.h"
 #include "syncReplication.h"
+#include "syncRespMgr.h"
+#include "syncSnapshot.h"
 #include "syncUtil.h"
 
 int64_t syncLogBufferGetEndIndex(SSyncLogBuffer* pBuf) {
@@ -384,7 +387,7 @@ _out:
   return matchIndex;
 }
 
-int32_t syncLogFsmExecute(SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry) {
+int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry) {
   ASSERT(pFsm->FpCommitCb != NULL && "No commit cb registered for the FSM");
 
   SRpcMsg rpcMsg;
@@ -392,7 +395,7 @@ int32_t syncLogFsmExecute(SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncR
 
   SFsmCbMeta cbMeta = {0};
   cbMeta.index = pEntry->index;
-  cbMeta.lastConfigIndex = -1;
+  cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(pNode, pEntry->index);
   cbMeta.isWeak = pEntry->isWeak;
   cbMeta.code = 0;
   cbMeta.state = role;
@@ -401,6 +404,7 @@ int32_t syncLogFsmExecute(SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncR
   cbMeta.currentTerm = term;
   cbMeta.flag = -1;
 
+  (void)syncRespMgrGetAndDel(pNode->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info);
   pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
   return 0;
 }
@@ -423,7 +427,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   ESyncState      role = pNode->state;
   SyncTerm        term = pNode->pRaftStore->currentTerm;
   SyncGroupId     vgId = pNode->vgId;
-  int32_t         ret = 0;
+  int32_t         ret = -1;
   int64_t         upperIndex = TMIN(commitIndex, pBuf->matchIndex);
   SSyncRaftEntry* pEntry = NULL;
   bool            inBuf = false;
@@ -459,10 +463,9 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
       continue;
     }
 
-    if (syncLogFsmExecute(pFsm, role, term, pEntry) != 0) {
+    if (syncLogFsmExecute(pNode, pFsm, role, term, pEntry) != 0) {
       sError("vgId:%d, failed to execute raft entry in FSM. log index:%" PRId64 ", term:%" PRId64 "", vgId,
              pEntry->index, pEntry->term);
-      ret = -1;
       goto _out;
     }
     pBuf->commitIndex = index;
@@ -487,6 +490,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
     pBuf->startIndex = index + 1;
   }
 
+  ret = 0;
 _out:
   // mark as restored if needed
   if (!pNode->restoreFinish && pBuf->commitIndex >= pNode->commitIndex) {
@@ -505,7 +509,7 @@ _out:
   return ret;
 }
 
-int32_t syncLogResetLogReplMgr(SSyncLogReplMgr* pMgr) {
+int32_t syncLogReplMgrReset(SSyncLogReplMgr* pMgr) {
   ASSERT(pMgr->startIndex >= 0);
   for (SyncIndex index = pMgr->startIndex; index < pMgr->endIndex; index++) {
     memset(&pMgr->states[index % pMgr->size], 0, sizeof(pMgr->states[0]));
@@ -601,7 +605,7 @@ int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNod
       return 0;
     }
 
-    (void)syncLogResetLogReplMgr(pMgr);
+    (void)syncLogReplMgrReset(pMgr);
   }
 
   // send match index
@@ -633,7 +637,7 @@ int32_t syncLogReplMgrProcessHeartbeatReply(SSyncLogReplMgr* pMgr, SSyncNode* pN
   if (pMsg->startTime != 0 && pMsg->startTime != pMgr->peerStartTime) {
     sInfo("vgId:%d, reset sync log repl mgr in heartbeat. start time:%" PRId64 ", old start time:%" PRId64 "",
           pNode->vgId, pMsg->startTime, pMgr->peerStartTime);
-    syncLogResetLogReplMgr(pMgr);
+    syncLogReplMgrReset(pMgr);
     pMgr->peerStartTime = pMsg->startTime;
   }
   taosThreadMutexUnlock(&pBuf->mutex);
@@ -647,7 +651,7 @@ int32_t syncLogReplMgrProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, Sync
     sInfo("vgId:%d, reset sync log repl mgr in append entries reply. start time:%" PRId64 ", old start time:%" PRId64
           "",
           pNode->vgId, pMsg->startTime, pMgr->peerStartTime);
-    syncLogResetLogReplMgr(pMgr);
+    syncLogReplMgrReset(pMgr);
     pMgr->peerStartTime = pMsg->startTime;
   }
 
@@ -861,7 +865,7 @@ int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   // reset repl mgr
   for (int i = 0; i < pNode->replicaNum; i++) {
     SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
-    syncLogResetLogReplMgr(pMgr);
+    syncLogReplMgrReset(pMgr);
   }
   taosThreadMutexUnlock(&pBuf->mutex);
   return 0;
@@ -882,14 +886,6 @@ SSyncRaftEntry* syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode,
     }
   }
   return pEntry;
-}
-
-bool syncLogReplMgrValidate(SSyncLogReplMgr* pMgr) {
-  ASSERT(pMgr->startIndex <= pMgr->endIndex);
-  for (SyncIndex index = pMgr->startIndex; index < pMgr->endIndex; index++) {
-    ASSERT(pMgr->states[(index + pMgr->size) % pMgr->size].barrier == false || index + 1 == pMgr->endIndex);
-  }
-  return true;
 }
 
 int32_t syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index, SyncTerm* pTerm,

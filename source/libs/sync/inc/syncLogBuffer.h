@@ -41,8 +41,28 @@ typedef struct SSyncLogReplMgr {
   int32_t       peerId;
 } SSyncLogReplMgr;
 
+typedef struct SSyncLogBufEntry {
+  SSyncRaftEntry* pItem;
+  SyncIndex       prevLogIndex;
+  SyncTerm        prevLogTerm;
+} SSyncLogBufEntry;
+
+typedef struct SSyncLogBuffer {
+  SSyncLogBufEntry entries[TSDB_SYNC_LOG_BUFFER_SIZE];
+  int64_t          startIndex;
+  int64_t          commitIndex;
+  int64_t          matchIndex;
+  int64_t          endIndex;
+  int64_t          size;
+  TdThreadMutex    mutex;
+} SSyncLogBuffer;
+
+// SSyncLogRepMgr
+
 SSyncLogReplMgr* syncLogReplMgrCreate();
 void             syncLogReplMgrDestroy(SSyncLogReplMgr* pMgr);
+int32_t          syncLogReplMgrReset(SSyncLogReplMgr* pMgr);
+
 int32_t          syncNodeLogReplMgrInit(SSyncNode* pNode);
 void             syncNodeLogReplMgrDestroy(SSyncNode* pNode);
 
@@ -69,35 +89,12 @@ int32_t  syncLogReplMgrProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, Syn
 int32_t  syncLogBufferReplicateOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode);
 int32_t  syncLogReplMgrReplicateAttemptedOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode);
 int32_t  syncLogReplMgrReplicateProbeOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode);
-int32_t  syncLogResetLogReplMgr(SSyncLogReplMgr* pMgr);
 int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg);
 int32_t syncLogReplMgrProcessReplyInNormalMode(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg);
 int32_t syncLogReplMgrRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode);
 int32_t syncLogReplMgrProcessHeartbeatReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncHeartbeatReply* pMsg);
 
-int32_t syncNodeSendAppendEntries(SSyncNode* pNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
-int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
-void    syncLogDestroyAppendEntries(SRpcMsg* pRpcMsg);
-
-// others
-bool syncLogReplMgrValidate(SSyncLogReplMgr* pMgr);
-
-typedef struct SSyncLogBufEntry {
-  SSyncRaftEntry* pItem;
-  SyncIndex       prevLogIndex;
-  SyncTerm        prevLogTerm;
-} SSyncLogBufEntry;
-
-typedef struct SSyncLogBuffer {
-  SSyncLogBufEntry entries[TSDB_SYNC_LOG_BUFFER_SIZE];
-  int64_t          startIndex;
-  int64_t          commitIndex;
-  int64_t          matchIndex;
-  int64_t          endIndex;
-  int64_t          size;
-  TdThreadMutex    mutex;
-} SSyncLogBuffer;
-
+// SSyncLogBuffer
 SSyncLogBuffer* syncLogBufferCreate();
 void            syncLogBufferDestroy(SSyncLogBuffer* pBuf);
 int32_t         syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode);
@@ -117,8 +114,6 @@ int32_t         syncLogBufferRollback(SSyncLogBuffer* pBuf, SyncIndex toIndex);
 int32_t syncLogBufferReplicate(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm);
 
 // others
-bool    syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index);
-void    syncIndexMgrSetIndex(SSyncIndexMgr* pSyncIndexMgr, const SRaftId* pRaftId, SyncIndex index);
 int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commtIndex);
 int32_t syncLogToAppendEntries(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm, SRpcMsg* pRpcMsg);
 

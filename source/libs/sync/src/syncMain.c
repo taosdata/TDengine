@@ -58,7 +58,6 @@ static int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeade
 static int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry);
 
 static ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
-static SyncIndex     syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex);
 
 int64_t syncOpen(SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);

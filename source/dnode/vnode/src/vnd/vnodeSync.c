@@ -415,7 +415,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm) {
   walApplyVer(pVnode->pWal, pVnode->state.applied);
 
   pVnode->restored = true;
-  vDebug("vgId:%d, sync restore finished", pVnode->config.vgId);
+  vInfo("vgId:%d, sync restore finished", pVnode->config.vgId);
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
