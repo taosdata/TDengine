@@ -524,7 +524,7 @@ static STableCachedVal* createTableCacheVal(const SMetaReader* pMetaReader) {
 
   // only child table has tag value
   if (pMetaReader->me.type == TSDB_CHILD_TABLE) {
-    STag* pTag = (STag*) pMetaReader->me.ctbEntry.pTags;
+    STag* pTag = (STag*)pMetaReader->me.ctbEntry.pTags;
     pVal->pTags = taosMemoryMalloc(pTag->len);
     memcpy(pVal->pTags, pTag, pTag->len);
   }
@@ -560,7 +560,8 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
     if (code != TSDB_CODE_SUCCESS) {
       if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-        qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+        qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid,
+              tstrerror(terrno), idStr);
       } else {
         qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
       }
@@ -583,9 +584,11 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
       if (code != TSDB_CODE_SUCCESS) {
         if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-          qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+          qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s",
+                pBlock->info.uid, tstrerror(terrno), idStr);
         } else {
-          qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+          qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno),
+                 idStr);
         }
         metaReaderClear(&mr);
         return terrno;
@@ -4675,6 +4678,7 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
   taosArrayClear(pInfo->sortSourceParams);
 
   tsortDestroySortHandle(pInfo->pSortHandle);
+  pInfo->pSortHandle = NULL;
 
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->queryConds); i++) {
     SQueryTableDataCond* cond = taosArrayGet(pInfo->queryConds, i);
@@ -4773,6 +4777,8 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   }
 
   taosArrayDestroy(pTableScanInfo->sortSourceParams);
+  tsortDestroySortHandle(pTableScanInfo->pSortHandle);
+  pTableScanInfo->pSortHandle = NULL;
 
   tsdbReaderClose(pTableScanInfo->pReader);
   pTableScanInfo->pReader = NULL;
@@ -4866,7 +4872,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   pInfo->pSortInputBlock = createOneDataBlock(pInfo->pResBlock, false);
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
 
-  int32_t rowSize = pInfo->pResBlock->info.rowSize;
+  int32_t  rowSize = pInfo->pResBlock->info.rowSize;
   uint32_t nCols = taosArrayGetSize(pInfo->pResBlock->pDataBlock);
   pInfo->bufPageSize = getProperSortPageSize(rowSize, nCols);
 
