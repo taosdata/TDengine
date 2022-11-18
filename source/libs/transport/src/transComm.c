@@ -87,6 +87,7 @@ void transFreeMsg(void* msg) {
     return;
   }
   taosMemoryFree((char*)msg - sizeof(STransMsgHead));
+  tDebug("memleak free mem: %p", (char*)msg - sizeof(STransMsgHead));
 }
 int transSockInfo2Str(struct sockaddr* sockname, char* dst) {
   struct sockaddr_in addr = *(struct sockaddr_in*)sockname;

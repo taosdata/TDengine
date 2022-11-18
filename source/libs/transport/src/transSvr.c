@@ -462,8 +462,6 @@ static void uvStartSendResp(SSvrMsg* smsg) {
   if (pConn->broken == true) {
     // persist by
     destroySmsg(smsg);
-    // transFreeMsg(smsg->msg.pCont);
-    // taosMemoryFree(smsg);
     transUnrefSrvHandle(pConn);
     return;
   }

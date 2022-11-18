@@ -103,6 +103,7 @@ void rpcCloseImpl(void* arg) {
 void* rpcMallocCont(int64_t contLen) {
   int64_t size = contLen + TRANS_MSG_OVERHEAD;
   char*   start = taosMemoryCalloc(1, size);
+  tDebug("memleak malloc mem: %p", start);
   if (start == NULL) {
     tError("failed to malloc msg, size:%" PRId64, size);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -116,6 +117,8 @@ void* rpcMallocCont(int64_t contLen) {
 
 void rpcFreeCont(void* cont) {
   if (cont == NULL) return;
+  tDebug("memleak free mem: %p", (char*)cont - sizeof(STransMsgHead));
+
   taosMemoryFree((char*)cont - TRANS_MSG_OVERHEAD);
   tTrace("rpc free cont:%p", (char*)cont - TRANS_MSG_OVERHEAD);
 }
@@ -123,7 +126,8 @@ void rpcFreeCont(void* cont) {
 void* rpcReallocCont(void* ptr, int64_t contLen) {
   if (ptr == NULL) return rpcMallocCont(contLen);
 
-  char*   st = (char*)ptr - TRANS_MSG_OVERHEAD;
+  char* st = (char*)ptr - TRANS_MSG_OVERHEAD;
+  tDebug("memleak malloc relloc mem : %p", st);
   int64_t sz = contLen + TRANS_MSG_OVERHEAD;
   st = taosMemoryRealloc(st, sz);
   if (st == NULL) {
