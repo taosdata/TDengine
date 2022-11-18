@@ -241,7 +241,7 @@ func taskInit(db *sql.DB, dbname string, srcdbname string, metatable string, exp
 		for _, f := range fields {
 			count := 0
 			{
-				checkSql := fmt.Sprintf("select * from %s.%s where dbname = \"%s\" and tablename = \"%s\" and colname = \"%s\"", dbname, metatable, dbname, tbname, f)
+				checkSql := fmt.Sprintf("select * from %s.%s where dbname = \"%s\" and tablename = \"%s\" and colname = \"%s\"", dbname, metatable, srcdbname, tbname, f)
 				checkRow, err := db.Query(checkSql)
 				if err != nil {
 					checkErr(err, checkSql)
@@ -382,7 +382,7 @@ func (d *demo) Init() {
 					threshold     int
 				)
 
-				checkSql := fmt.Sprintf("select * from %s.%s where dbname = \"%s\" and tablename = \"%s\" and colname = \"%s\"", d.dbname, d.metaTable, d.dbname, tbname, f)
+				checkSql := fmt.Sprintf("select * from %s.%s where dbname = \"%s\" and tablename = \"%s\" and colname = \"%s\"", d.dbname, d.metaTable, d.srcdbname, tbname, f)
 				checkRow, err := d.db.Query(checkSql)
 				if err != nil {
 					checkErr(err, checkSql)
