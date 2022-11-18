@@ -1,33 +1,28 @@
 package main
 
 import (
+	"container/heap"
 	"database/sql"
 	"database/sql/driver"
 	"flag"
 	"fmt"
+	"reflect"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
-	"strings"
-	"container/heap"
-	"strconv"
-	"reflect"
-	
-  
+
 	_ "github.com/taosdata/driver-go/v2/taosSql"
 )
 
-
-
 type heapElem struct {
-	timeout int64 
-    colName string 	
+	timeout int64
+	colName string
 }
 
-type MinHeap []heapElem 
-
+type MinHeap []heapElem
 
 type Column struct {
-	  
 }
 
 func (h MinHeap) Len() int {
@@ -37,16 +32,16 @@ func (h MinHeap) Len() int {
 func (h MinHeap) Less(i, j int) bool {
 	res := h[i].timeout - h[j].timeout
 	if res < 0 {
-		return true;
+		return true
 	} else if res > 0 {
-		return false;
+		return false
 	}
-	
-  cmp := strings.Compare(h[i].colName, h[j].colName)	
-	if (cmp <= 0) {
-		return true;
+
+	cmp := strings.Compare(h[i].colName, h[j].colName)
+	if cmp <= 0 {
+		return true
 	} else {
-		return false;
+		return false
 	}
 }
 
@@ -69,20 +64,20 @@ func (h *MinHeap) Top() heapElem {
 	return (*h)[0]
 }
 
-func (h *MinHeap) Pop() interface{}{
+func (h *MinHeap) Pop() interface{} {
 	res := (*h)[len(*h)-1]
 	*h = (*h)[:len(*h)-1]
 	return res
 }
 
 type config struct {
-	hostName             string
-	serverPort           int
-	user                 string
-	password             string
-	dbName               string
-	srcdbName               string
-	supTblName           string
+	hostName   string
+	serverPort int
+	user       string
+	password   string
+	dbName     string
+	srcdbName  string
+	supTblName string
 }
 
 var configPara config
@@ -97,7 +92,7 @@ func init() {
 	flag.StringVar(&configPara.dbName, "d", "test1", "check  database.")
 	flag.StringVar(&configPara.srcdbName, "s", "test", "Destination database.")
 	flag.Parse()
-	
+
 }
 
 func checkErr(err error, prompt string) {
@@ -107,15 +102,13 @@ func checkErr(err error, prompt string) {
 	}
 }
 
-
 type schema struct {
 	idx        int
 	numOfField int
-	timestamp  time.Time 
-	colName   string
-	interval  int32
-	threshold int32
-	
+	timestamp  time.Time
+	colName    string
+	interval   int32
+	threshold  int32
 }
 type demo struct {
 	db *sql.DB
@@ -129,13 +122,13 @@ type demo struct {
 	dInterval  int32
 	dThreshold int32
 
-  suptabname string
+	suptabname string
 
 	metaDict map[string]*schema
 	heap     MinHeap
 	timer    *time.Timer
 
-  wg       *sync.WaitGroup
+	wg *sync.WaitGroup
 }
 
 /***
@@ -148,10 +141,9 @@ type demo struct {
 ***/
 
 type taskInfo struct {
-   wg      *sync.WaitGroup
-   subtask map[string] *demo
+	wg      *sync.WaitGroup
+	subtask map[string]*demo
 }
-
 
 type tableInfo struct {
 	tbname     string
@@ -162,7 +154,6 @@ type tableInfo struct {
 	tid        int64
 	vgId       int32
 }
-
 
 func taskInit(db *sql.DB, dbname string, srcdbname string, metatable string, exptable string, tskinfo *taskInfo) {
 	{
@@ -216,7 +207,7 @@ func taskInit(db *sql.DB, dbname string, srcdbname string, metatable string, exp
 
 	fieldTs := time.Now().Add(time.Hour * -1000)
 
-  for _, e := range tbs {
+	for _, e := range tbs {
 		tbname := e.tbname
 		columns := e.columns
 		stbname := e.stbname
@@ -237,7 +228,7 @@ func taskInit(db *sql.DB, dbname string, srcdbname string, metatable string, exp
 				var note string
 				subRows.Scan(&field, &ty, &len, &note)
 
-        // ignore time and tag col
+				// ignore time and tag col
 				if count != 0 && strings.Compare(note, "TAG") != 0 {
 					// skip first and skip tag col
 					fields = append(fields, field)
@@ -258,7 +249,7 @@ func taskInit(db *sql.DB, dbname string, srcdbname string, metatable string, exp
 
 				for checkRow.Next() {
 					count = count + 1
-          break
+					break
 				}
 				if count != 0 {
 					continue
@@ -266,37 +257,37 @@ func taskInit(db *sql.DB, dbname string, srcdbname string, metatable string, exp
 				defer checkRow.Close()
 			}
 
-      if count == 0 {
-				sql := fmt.Sprintf("insert into %s.%s values(%v, \"%s\", \"%s\", \"%s\", %d, %d)", dbname, metatable, fieldTs.UnixMilli(), dbname, tbname, f, 2, 2)
+			if count == 0 {
+				sql := fmt.Sprintf("insert into %s.%s values(%v, \"%s\", \"%s\", \"%s\", %d, %d)", dbname, metatable, fieldTs.UnixMilli(), srcdbname, tbname, f, 2, 2)
 				_, err := db.Exec(sql)
 				if err != nil {
 					checkErr(err, sql)
 				}
-      }
+			}
 			fieldTs = fieldTs.Add(time.Millisecond * 2)
-    }
+		}
 
-    key := fmt.Sprintf("%s_%s", srcdbname, stbname)
-    _, ok := tskinfo.subtask[key]
-    if !ok {
-      tskinfo.subtask[key] = &demo{db: db, dbname: dbname, srcdbname: srcdbname, suptabname: stbname, metaTable: metatable, exceptTable: exptable, wg: tskinfo.wg}
-    }
-  }
-} 
+		key := fmt.Sprintf("%s_%s", srcdbname, stbname)
+		_, ok := tskinfo.subtask[key]
+		if !ok {
+			tskinfo.subtask[key] = &demo{db: db, dbname: dbname, srcdbname: srcdbname, suptabname: stbname, metaTable: metatable, exceptTable: exptable, wg: tskinfo.wg}
+		}
+	}
+}
 
 func subTaskStart(d *demo) {
-    
+
 	d.Init()
 	for {
-	  select {
-	  case <-d.timer.C:
-		  timeout := d.NextTimout()
-		  fmt.Printf("stbname %s, timeout %d\n", d.suptabname, timeout)
-		  d.timer.Reset(time.Second * time.Duration(timeout))
+		select {
+		case <-d.timer.C:
+			timeout := d.NextTimout()
+			fmt.Printf("stbname %s, timeout %d\n", d.suptabname, timeout)
+			d.timer.Reset(time.Second * time.Duration(timeout))
+		}
 	}
-	}
-  d.wg.Done()
-  
+	d.wg.Done()
+
 }
 func (d *demo) Init() {
 	d.heap = make(MinHeap, 0, 200)
@@ -322,13 +313,12 @@ func (d *demo) Init() {
 		if err != nil {
 			checkErr(err, sql)
 		}
-    if (strings.Compare(stbname, d.suptabname) == 0) {
-		  tbs = append(tbs, tableInfo{tbname: tbname, createTime: createTime, columns: columns, stbname: stbname, uid: uid, tid: tid, vgId: vgId})
-    }
+		if strings.Compare(stbname, d.suptabname) == 0 {
+			tbs = append(tbs, tableInfo{tbname: tbname, createTime: createTime, columns: columns, stbname: stbname, uid: uid, tid: tid, vgId: vgId})
+		}
 
 	}
 	rows.Close()
-
 
 	for _, e := range tbs {
 		tbname := e.tbname
@@ -353,7 +343,7 @@ func (d *demo) Init() {
 				var note string
 				subRows.Scan(&field, &ty, &len, &note)
 
-        // ignore time and tag col
+				// ignore time and tag col
 				if count != 0 && strings.Compare(note, "TAG") != 0 {
 					// skip first and skip tag col
 					fields = append(fields, field)
@@ -555,7 +545,7 @@ func (d *demo) NextTimout() int32 {
 		if cost == 0 {
 			elem.timestamp = ts
 			sql := fmt.Sprintf("insert into %s.%s using %s.%s tags(\"%s\") values(%v, \"%s\", \"%s\", \"%s\", %v, %d)", d.dbname, exceptTableName, d.dbname, d.exceptTable, exceptTableName, time.Now().UnixMilli(), d.dbname, tabName, colName, ts.UnixMilli(), int(time.Now().Sub(elem.timestamp).Seconds()))
-      fmt.Printf("INSERT SQL: %s\n", sql) 
+			fmt.Printf("INSERT SQL: %s\n", sql)
 			_, err := d.db.Exec(sql)
 			if err != nil {
 				checkErr(err, sql)
@@ -564,7 +554,7 @@ func (d *demo) NextTimout() int32 {
 			elem.timestamp = ts
 			if cost > elem.threshold {
 				sql := fmt.Sprintf("insert into %s.%s using %s.%s tags(\"%s\") values(%v, \"%s\", \"%s\", \"%s\", %v, %d)", d.dbname, exceptTableName, d.dbname, d.exceptTable, exceptTableName, time.Now().UnixMilli(), d.dbname, tabName, colName, ts.UnixMilli(), int(time.Now().Sub(elem.timestamp).Seconds()))
-        fmt.Printf("INSERT SQL: %s\n", sql) 
+				fmt.Printf("INSERT SQL: %s\n", sql)
 
 				_, err := d.db.Exec(sql)
 				if err != nil {
@@ -611,12 +601,12 @@ func main() {
 		checkErr(err, "failed to connect db")
 	}
 	wg := sync.WaitGroup{}
-  info := &taskInfo{subtask : make(map[string] *demo), wg: &wg}
-  
-  taskInit(db, configPara.dbName, configPara.srcdbName, "metatable", "exptable", info)
-  for _, v := range info.subtask {
-    wg.Add(1)
-    go subTaskStart(v) 
-  }
-  wg.Wait()
+	info := &taskInfo{subtask: make(map[string]*demo), wg: &wg}
+
+	taskInit(db, configPara.dbName, configPara.srcdbName, "metatable", "exptable", info)
+	for _, v := range info.subtask {
+		wg.Add(1)
+		go subTaskStart(v)
+	}
+	wg.Wait()
 }
