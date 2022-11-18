@@ -1945,10 +1945,8 @@ static void doKeepPrevRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
-    // null data should not be kept since it can not be used to perform interpolation
-    if (!colDataIsNull_s(pColInfoData, i)) {
-      SGroupKeys* pkey = taosArrayGet(pSliceInfo->pPrevRow, i);
-
+    SGroupKeys* pkey = taosArrayGet(pSliceInfo->pPrevRow, i);
+    if (!colDataIsNull_s(pColInfoData, rowIndex)) {
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
       if (!IS_VAR_DATA_TYPE(pkey->type)) {
@@ -1956,6 +1954,8 @@ static void doKeepPrevRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
       } else {
         memcpy(pkey->pData, val, varDataLen(val));
       }
+    } else {
+      pkey->isNull = true;
     }
   }
 
@@ -1967,10 +1967,8 @@ static void doKeepNextRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
-    // null data should not be kept since it can not be used to perform interpolation
-    if (!colDataIsNull_s(pColInfoData, i)) {
-      SGroupKeys* pkey = taosArrayGet(pSliceInfo->pNextRow, i);
-
+    SGroupKeys* pkey = taosArrayGet(pSliceInfo->pNextRow, i);
+    if (!colDataIsNull_s(pColInfoData, rowIndex)) {
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
       if (!IS_VAR_DATA_TYPE(pkey->type)) {
@@ -1978,6 +1976,8 @@ static void doKeepNextRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
       } else {
         memcpy(pkey->pData, val, varDataLen(val));
       }
+    } else {
+      pkey->isNull = true;
     }
   }
 
@@ -2100,7 +2100,11 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         }
 
         SGroupKeys* pkey = taosArrayGet(pSliceInfo->pPrevRow, srcSlot);
-        colDataAppend(pDst, rows, pkey->pData, false);
+        if (pkey->isNull == false) {
+          colDataAppend(pDst, rows, pkey->pData, false);
+        } else {
+          colDataAppendNULL(pDst, rows);
+        }
         break;
       }
 
@@ -2111,7 +2115,11 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         }
 
         SGroupKeys* pkey = taosArrayGet(pSliceInfo->pNextRow, srcSlot);
-        colDataAppend(pDst, rows, pkey->pData, false);
+        if (pkey->isNull == false) {
+          colDataAppend(pDst, rows, pkey->pData, false);
+        } else {
+          colDataAppendNULL(pDst, rows);
+        }
         break;
       }
 
