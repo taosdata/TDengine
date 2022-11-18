@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_LOG_BUFFER_H
-#define _TD_LIBS_SYNC_LOG_BUFFER_H
+#ifndef _TD_LIBS_SYNC_PIPELINE_H
+#define _TD_LIBS_SYNC_PIPELINE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,7 +58,6 @@ typedef struct SSyncLogBuffer {
 } SSyncLogBuffer;
 
 // SSyncLogRepMgr
-
 SSyncLogReplMgr* syncLogReplMgrCreate();
 void             syncLogReplMgrDestroy(SSyncLogReplMgr* pMgr);
 int32_t          syncLogReplMgrReset(SSyncLogReplMgr* pMgr);
@@ -113,12 +112,8 @@ int32_t         syncLogBufferValidate(SSyncLogBuffer* pBuf);
 int32_t         syncLogBufferRollback(SSyncLogBuffer* pBuf, SyncIndex toIndex);
 int32_t syncLogBufferReplicate(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm);
 
-// others
-int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commtIndex);
-int32_t syncLogToAppendEntries(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm, SRpcMsg* pRpcMsg);
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_LIBS_SYNC_LOG_BUFFER_H*/
+#endif /*_TD_LIBS_SYNC_PIPELINE_H*/

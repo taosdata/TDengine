@@ -15,12 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "syncAppendEntries.h"
-#include "syncLogBuffer.h"
+#include "syncPipeline.h"
 #include "syncMessage.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncReplication.h"
 #include "syncUtil.h"
+#include "syncCommit.h"
 
 // TLA+ Spec
 // HandleAppendEntriesRequest(i, j, m) ==

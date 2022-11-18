@@ -22,7 +22,7 @@
 #include "syncEnv.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
-#include "syncLogBuffer.h"
+#include "syncPipeline.h"
 #include "syncMessage.h"
 #include "syncRaftCfg.h"
 #include "syncRaftLog.h"

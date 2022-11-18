@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 
-#include "syncLogBuffer.h"
+#include "syncPipeline.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
 #include "syncRaftEntry.h"

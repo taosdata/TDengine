@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "syncReplication.h"
 #include "syncIndexMgr.h"
-#include "syncLogBuffer.h"
+#include "syncPipeline.h"
 #include "syncRaftEntry.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
