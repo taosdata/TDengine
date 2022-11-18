@@ -209,28 +209,28 @@ step6:
 		return -1
 	endi
 
-sql select count(*) from db1.tb1
+sql select count(*) from db1.tb1 -x step6
 print select count(*) from db1.tb1 ==> $data00 $lastRows1 
 if $data00 <= $lastRows1 then
   goto step6
 endi
 $lastRows1 = $data00
 
-sql select count(*) from db2.tb2
+sql select count(*) from db2.tb2 -x step6
 print select count(*) from db2.tb2 ==> $data00 $lastRows2 
 if $data00 <= $lastRows2 then
   goto step6
 endi
 $lastRows2 = $data00
 
-sql select count(*) from db3.tb3
+sql select count(*) from db3.tb3 -x step6
 print select count(*) from  db3.tb3 ==> $data00 $lastRows3 
 if $data00 <= $lastRows3 then
   goto step6
 endi
 $lastRows3 = $data00
 
-sql select count(*) from db4.tb4
+sql select count(*) from db4.tb4 -x step6
 print select count(*) from  db4.tb4 ==> $data00 $lastRows4 
 if $data00 <= $lastRows4 then
   goto step6
