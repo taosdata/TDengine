@@ -4685,6 +4685,10 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   taosArrayDestroy(pTableScanInfo->pSortInfo);
   cleanupExprSupp(&pTableScanInfo->base.pseudoSup);
 
+  tsdbReaderClose(pTableScanInfo->base.dataReader);
+  pTableScanInfo->base.dataReader = NULL;
+  taosLRUCacheCleanup(pTableScanInfo->base.metaCache.pTableMetaEntryCache);
+
   taosMemoryFreeClear(param);
 }
 
