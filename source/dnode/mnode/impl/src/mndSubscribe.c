@@ -996,7 +996,7 @@ static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataAppend(pColInfo, numOfRows, (const char *)&pConsumerEp->consumerId, false);
 
-        mDebug("mnd show subscrptions: topic %s, consumer %" PRId64 "cgroup %s vgid %d", varDataVal(topic),
+        mDebug("mnd show subscriptions: topic %s, consumer %" PRId64 " cgroup %s vgid %d", varDataVal(topic),
                pConsumerEp->consumerId, varDataVal(cgroup), pVgEp->vgId);
 
         // offset
@@ -1044,7 +1044,7 @@ static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, NULL, true);
 
-      mDebug("mnd show subscrptions(unassigned): topic %s, cgroup %s vgid %d", varDataVal(topic), varDataVal(cgroup),
+      mDebug("mnd show subscriptions(unassigned): topic %s, cgroup %s vgid %d", varDataVal(topic), varDataVal(cgroup),
              pVgEp->vgId);
 
       // offset

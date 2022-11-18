@@ -1739,6 +1739,7 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
   code = 0;
 
 _OVER:
+  taosArrayDestroy(pArray);
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
   return code;
@@ -1907,6 +1908,7 @@ static int32_t mndBalanceVgroup(SMnode *pMnode, SRpcMsg *pReq, SArray *pArray) {
   }
 
 _OVER:
+  taosHashCleanup(pBalancedVgroups);
   mndTransDrop(pTrans);
   return code;
 }

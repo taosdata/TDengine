@@ -1994,8 +1994,7 @@ static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOp
   int32_t scanFlag = MAIN_SCAN;
   getTableScanInfo(pOperator, &order, &scanFlag);
 
-  int64_t ekey =
-      Q_STATUS_EQUAL(pTaskInfo->status, TASK_COMPLETED) ? pInfo->win.ekey : pInfo->existNewGroupBlock->info.window.ekey;
+  int64_t ekey = pInfo->existNewGroupBlock->info.window.ekey;
   taosResetFillInfo(pInfo->pFillInfo, getFillInfoStart(pInfo->pFillInfo));
 
   blockDataCleanup(pInfo->pRes);

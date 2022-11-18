@@ -1610,10 +1610,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo* pChildOp = taosArrayGetP(pInfo->pChildren, i);
-      destroyStreamFinalIntervalOperatorInfo(pChildOp->info);
-      taosMemoryFree(pChildOp->pDownstream);
-      cleanupExprSupp(&pChildOp->exprSupp);
-      taosMemoryFreeClear(pChildOp);
+      destroyOperatorInfo(pChildOp);
     }
     taosArrayDestroy(pInfo->pChildren);
   }
@@ -3420,11 +3417,10 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   if (pInfo->pChildren != NULL) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
     for (int32_t i = 0; i < size; i++) {
-      SOperatorInfo*                 pChild = taosArrayGetP(pInfo->pChildren, i);
-      SStreamSessionAggOperatorInfo* pChInfo = pChild->info;
-      destroyStreamSessionAggOperatorInfo(pChInfo);
-      taosMemoryFreeClear(pChild);
+      SOperatorInfo* pChild = taosArrayGetP(pInfo->pChildren, i);
+      destroyOperatorInfo(pChild);
     }
+    taosArrayDestroy(pInfo->pChildren);
   }
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   blockDataDestroy(pInfo->pDelRes);
@@ -3472,7 +3468,9 @@ void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, int
   }
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->windowSup = (SWindowSupporter){.pStreamAggSup = pAggSup, .gap = pAggSup->gap, .parentType = type};
-  pScanInfo->pUpdateInfo = updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, waterMark);
+  if (!pScanInfo->pUpdateInfo) {
+    pScanInfo->pUpdateInfo = updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, waterMark);
+  }
 }
 
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SqlFunctionCtx* pCtx, int32_t numOfOutput, int64_t gap,
@@ -4376,9 +4374,6 @@ SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream
 
   setOperatorInfo(pOperator, name, pPhyNode->type, false, OP_NOT_OPENED, pInfo, pTaskInfo);
 
-  pInfo->pGroupIdTbNameMap =
-      taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
-
   pOperator->operatorType = pPhyNode->type;
   if (numOfChild > 0) {
     pInfo->pChildren = taosArrayInit(numOfChild, sizeof(void*));
@@ -4417,11 +4412,10 @@ void destroyStreamStateOperatorInfo(void* param) {
   if (pInfo->pChildren != NULL) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
     for (int32_t i = 0; i < size; i++) {
-      SOperatorInfo*                 pChild = taosArrayGetP(pInfo->pChildren, i);
-      SStreamSessionAggOperatorInfo* pChInfo = pChild->info;
-      destroyStreamSessionAggOperatorInfo(pChInfo);
-      taosMemoryFreeClear(pChild);
+      SOperatorInfo* pChild = taosArrayGetP(pInfo->pChildren, i);
+      destroyOperatorInfo(pChild);
     }
+    taosArrayDestroy(pInfo->pChildren);
   }
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   blockDataDestroy(pInfo->pDelRes);
@@ -4900,6 +4894,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
     if (pMiaInfo->groupId == 0) {
       if (pMiaInfo->groupId != pBlock->info.groupId) {
         pMiaInfo->groupId = pBlock->info.groupId;
+        pRes->info.groupId = pMiaInfo->groupId;
       }
     } else {
       if (pMiaInfo->groupId != pBlock->info.groupId) {
@@ -4913,6 +4908,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
         break;
       } else {
         // continue
+        pRes->info.groupId = pMiaInfo->groupId;
       }
     }
 
