@@ -140,7 +140,7 @@ void qwtBuildDropReqMsg(STaskDropReq *dropMsg, SRpcMsg *dropRpc) {
     return;
   }
   
-  char *msg = taosMemoryCalloc(1, msgSize);
+  char *msg = (char*)taosMemoryCalloc(1, msgSize);
   if (NULL == msg) {
     return;
   }
