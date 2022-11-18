@@ -374,23 +374,16 @@ void applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo
   }
 }
 
-
-
-
-
 static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableScanInfo, SSDataBlock* pBlock,
                              uint32_t* status) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
-  STableScanInfo* pInfo = pOperator->info;
-
   SFileBlockLoadRecorder* pCost = &pTableScanInfo->readRecorder;
 
   pCost->totalBlocks += 1;
   pCost->totalRows += pBlock->info.rows;
 
   bool loadSMA = false;
-
-  *status = pInfo->dataBlockLoadFlag;
+  *status = pTableScanInfo->dataBlockLoadFlag;
   if (pOperator->exprSupp.pFilterInfo != NULL ||
       overlapWithTimeWindow(&pTableScanInfo->pdInfo.interval, &pBlock->info, pTableScanInfo->cond.order)) {
     (*status) = FUNC_DATA_REQUIRED_DATA_LOAD;
@@ -489,10 +482,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     }
   }
 
-  applyLimitOffset(&pInfo->limitInfo, pBlock, pTaskInfo, pOperator);
+  applyLimitOffset(&pTableScanInfo->limitInfo, pBlock, pTaskInfo, pOperator);
 
   pCost->totalRows += pBlock->info.rows;
-  pInfo->limitInfo.numOfOutputRows = pCost->totalRows;
+  pTableScanInfo->limitInfo.numOfOutputRows = pCost->totalRows;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -871,8 +864,8 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
     // reset value for the next group data output
     pOperator->status = OP_OPENED;
-    pInfo->limitInfo.numOfOutputRows = 0;
-    pInfo->limitInfo.remainOffset = pInfo->limitInfo.limit.offset;
+    pInfo->base.limitInfo.numOfOutputRows = 0;
+    pInfo->base.limitInfo.remainOffset = pInfo->base.limitInfo.limit.offset;
 
     int32_t        num = 0;
     STableKeyInfo* pList = NULL;
@@ -936,7 +929,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
     goto _error;
   }
 
-  initLimitInfo(pScanNode->node.pLimit, pScanNode->node.pSlimit, &pInfo->limitInfo);
+  initLimitInfo(pScanNode->node.pLimit, pScanNode->node.pSlimit, &pInfo->base.limitInfo);
   code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -954,7 +947,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->sample.sampleRatio = pTableScanNode->ratio;
   pInfo->sample.seed = taosGetTimestampSec();
 
-  pInfo->dataBlockLoadFlag = pTableScanNode->dataRequired;
+  pInfo->base.dataBlockLoadFlag = pTableScanNode->dataRequired;
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createResDataBlock(pDescNode);
@@ -4729,8 +4722,11 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
 
+  pInfo->base.dataBlockLoadFlag = FUNC_DATA_REQUIRED_DATA_LOAD;
+  pInfo->base.scanFlag = MAIN_SCAN;
   pInfo->base.readHandle = *readHandle;
-  pInfo->interval = extractIntervalInfo(pTableScanNode);
+  initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->base.limitInfo);
+
   pInfo->sample.sampleRatio = pTableScanNode->ratio;
   pInfo->sample.seed = taosGetTimestampSec();
 
@@ -4739,7 +4735,6 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     goto _error;
   }
 
-  pInfo->base.scanFlag = MAIN_SCAN;
 
   initResultSizeInfo(&pOperator->resultInfo, 1024);
   pInfo->pResBlock = createResDataBlock(pDescNode);

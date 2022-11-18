@@ -325,16 +325,16 @@ typedef struct STableScanBase {
   SExprSupp              pseudoSup;
   STableMetaCacheInfo    metaCache;
   int32_t                scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
+  int32_t                dataBlockLoadFlag;
+  SLimitInfo             limitInfo;
 } STableScanBase;
 
 typedef struct STableScanInfo {
   STableScanBase         base;
-  SLimitInfo             limitInfo;
   SScanInfo              scanInfo;
   int32_t                scanTimes;
   SSDataBlock*           pResBlock;
   int32_t                scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
-  int32_t                dataBlockLoadFlag;
   SSampleExecInfo        sample;  // sample execution info
   int32_t                currentGroupId;
   int32_t                currentTable;
@@ -361,13 +361,8 @@ typedef struct STableMergeScanInfo {
   SScanInfo              scanInfo;
   int32_t                scanTimes;
   SSDataBlock*           pResBlock;
-  int32_t                numOfOutput;
-
-  // if the upstream is an interval operator, the interval info is also kept here to get the time
-  // window to check if current data block needs to be loaded.
-  SInterval       interval;
-  SSampleExecInfo sample;  // sample execution info
-  SSortExecInfo   sortExecInfo;
+  SSampleExecInfo        sample;  // sample execution info
+  SSortExecInfo          sortExecInfo;
 } STableMergeScanInfo;
 
 typedef struct STagScanInfo {
@@ -380,17 +375,17 @@ typedef struct STagScanInfo {
 } STagScanInfo;
 
 typedef struct SLastrowScanInfo {
-  SSDataBlock*  pRes;
-  SReadHandle   readHandle;
-  void*         pLastrowReader;
-  SColMatchInfo matchInfo;
-  int32_t*      pSlotIds;
-  SExprSupp     pseudoExprSup;
-  int32_t       retrieveType;
-  int32_t       currentGroupIndex;
-  SSDataBlock*  pBufferredRes;
-  SArray*       pUidList;
-  int32_t       indexOfBufferedRes;
+  SSDataBlock*    pRes;
+  SReadHandle     readHandle;
+  void*           pLastrowReader;
+  SColMatchInfo   matchInfo;
+  int32_t*        pSlotIds;
+  SExprSupp       pseudoExprSup;
+  int32_t         retrieveType;
+  int32_t         currentGroupIndex;
+  SSDataBlock*    pBufferredRes;
+  SArray*         pUidList;
+  int32_t         indexOfBufferedRes;
 } SLastrowScanInfo;
 
 typedef enum EStreamScanMode {
@@ -406,13 +401,6 @@ enum {
   PROJECT_RETRIEVE_CONTINUE = 0x1,
   PROJECT_RETRIEVE_DONE = 0x2,
 };
-
-typedef struct SCatchSupporter {
-  SHashObj*      pWindowHashTable;  // quick locate the window object for each window
-  SDiskbasedBuf* pDataBuf;          // buffer based on blocked-wised disk file
-  int32_t        keySize;
-  int64_t*       pKeyBuf;
-} SCatchSupporter;
 
 typedef struct SStreamAggSupporter {
   int32_t         resultRowSize;  // the result buffer size for each result row, with the meta data size for each row
