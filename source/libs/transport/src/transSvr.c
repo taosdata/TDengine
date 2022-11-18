@@ -462,8 +462,6 @@ static void uvStartSendResp(SSvrMsg* smsg) {
   if (pConn->broken == true) {
     // persist by
     destroySmsg(smsg);
-    // transFreeMsg(smsg->msg.pCont);
-    // taosMemoryFree(smsg);
     transUnrefSrvHandle(pConn);
     return;
   }
@@ -1234,7 +1232,9 @@ int transReleaseSrvHandle(void* handle) {
   m->type = Release;
 
   tTrace("%s conn %p start to release", transLabel(pThrd->pTransInst), exh->handle);
-  transAsyncSend(pThrd->asyncPool, &m->q);
+  if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
+    destroySmsg(m);
+  }
 
   transReleaseExHandle(transGetRefMgt(), refId);
   return 0;
@@ -1269,7 +1269,9 @@ int transSendResponse(const STransMsg* msg) {
 
   STraceId* trace = (STraceId*)&msg->info.traceId;
   tGTrace("conn %p start to send resp (1/2)", exh->handle);
-  transAsyncSend(pThrd->asyncPool, &m->q);
+  if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
+    destroySmsg(m);
+  }
 
   transReleaseExHandle(transGetRefMgt(), refId);
   return 0;
@@ -1303,7 +1305,9 @@ int transRegisterMsg(const STransMsg* msg) {
 
   STrans* pTransInst = pThrd->pTransInst;
   tTrace("%s conn %p start to register brokenlink callback", transLabel(pTransInst), exh->handle);
-  transAsyncSend(pThrd->asyncPool, &m->q);
+  if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
+    destroySmsg(m);
+  }
 
   transReleaseExHandle(transGetRefMgt(), refId);
   return 0;
