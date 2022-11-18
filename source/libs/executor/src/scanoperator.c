@@ -4392,7 +4392,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
 
   int64_t st = taosGetTimestampUs();
 
-  void*        p = tableListGetInfo(pInfo->tableListInfo, readIdx + pInfo->tableStartIndex);
+  void*        p = tableListGetInfo(pTaskInfo->pTableInfoList, readIdx + pInfo->tableStartIndex);
   SReadHandle* pHandle = &pInfo->base.readHandle;
 
   int32_t code = tsdbReaderOpen(pHandle->vnode, pQueryCond, p, 1, &pInfo->base.dataReader, GET_TASKID(pTaskInfo));
@@ -4486,10 +4486,10 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
 
   {
-    size_t  numOfTables = tableListGetSize(pInfo->tableListInfo);
+    size_t  numOfTables = tableListGetSize(pTaskInfo->pTableInfoList);
     int32_t i = pInfo->tableStartIndex + 1;
     for (; i < numOfTables; ++i) {
-      STableKeyInfo* tableKeyInfo = tableListGetInfo(pInfo->tableListInfo, i);
+      STableKeyInfo* tableKeyInfo = tableListGetInfo(pTaskInfo->pTableInfoList, i);
       if (tableKeyInfo->groupId != pInfo->groupId) {
         break;
       }
@@ -4613,7 +4613,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  size_t tableListSize = tableListGetSize(pInfo->tableListInfo);
+  size_t tableListSize = tableListGetSize(pTaskInfo->pTableInfoList);
   if (!pInfo->hasGroupId) {
     pInfo->hasGroupId = true;
 
@@ -4622,7 +4622,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
       return NULL;
     }
     pInfo->tableStartIndex = 0;
-    pInfo->groupId = ((STableKeyInfo*)tableListGetInfo(pInfo->tableListInfo, pInfo->tableStartIndex))->groupId;
+    pInfo->groupId = ((STableKeyInfo*)tableListGetInfo(pTaskInfo->pTableInfoList, pInfo->tableStartIndex))->groupId;
     startGroupTableMergeScan(pOperator);
   }
 
@@ -4641,7 +4641,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
         break;
       }
       pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
-      pInfo->groupId = tableListGetInfo(pInfo->tableListInfo, pInfo->tableStartIndex)->groupId;
+      pInfo->groupId = tableListGetInfo(pTaskInfo->pTableInfoList, pInfo->tableStartIndex)->groupId;
       startGroupTableMergeScan(pOperator);
     }
   }
@@ -4698,8 +4698,8 @@ int32_t getTableMergeScanExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExpla
   return TSDB_CODE_SUCCESS;
 }
 
-SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, STableListInfo* pTableListInfo,
-                                                SReadHandle* readHandle, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
+                                                SExecTaskInfo* pTaskInfo) {
   STableMergeScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableMergeScanInfo));
   SOperatorInfo*       pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -4733,14 +4733,12 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   pInfo->interval = extractIntervalInfo(pTableScanNode);
   pInfo->sample.sampleRatio = pTableScanNode->ratio;
   pInfo->sample.seed = taosGetTimestampSec();
-  pInfo->dataBlockLoadFlag = pTableScanNode->dataRequired;
 
   code = filterInitFromNode((SNode*)pTableScanNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
-  pInfo->tableListInfo = pTableListInfo;
   pInfo->base.scanFlag = MAIN_SCAN;
 
   initResultSizeInfo(&pOperator->resultInfo, 1024);

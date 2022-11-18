@@ -163,7 +163,7 @@ typedef struct {
   SArray*  pStopInfo;
 } STaskStopInfo;
 
-typedef struct SExecTaskInfo {
+struct SExecTaskInfo {
   STaskIdInfo   id;
   uint32_t      status;
   STimeWindow   window;
@@ -182,7 +182,7 @@ typedef struct SExecTaskInfo {
   struct SOperatorInfo* pRoot;
   SLocalFetch           localFetch;
   STaskStopInfo         stopInfo;
-} SExecTaskInfo;
+};
 
 enum {
   OP_NOT_OPENED = 0x0,
@@ -343,7 +343,6 @@ typedef struct STableScanInfo {
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
-  STableListInfo*        tableListInfo;
   int32_t                tableStartIndex;
   int32_t                tableEndIndex;
   bool                   hasGroupId;
@@ -363,7 +362,6 @@ typedef struct STableMergeScanInfo {
   int32_t                scanTimes;
   SSDataBlock*           pResBlock;
   int32_t                numOfOutput;
-  int32_t                dataBlockLoadFlag;
 
   // if the upstream is an interval operator, the interval info is also kept here to get the time
   // window to check if current data block needs to be loaded.
@@ -1041,8 +1039,8 @@ int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPos
 
 SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNode* pSortPhyNode,
                                            SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, STableListInfo* pTableListInfo,
-                                                SReadHandle* readHandle, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
+                                                SExecTaskInfo* pTaskInfo);
 
 void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex);
 

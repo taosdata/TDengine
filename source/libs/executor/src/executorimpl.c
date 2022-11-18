@@ -1000,12 +1000,6 @@ int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableSc
   return TSDB_CODE_SUCCESS;
 }
 
-static void updateTableQueryInfoForReverseScan(STableQueryInfo* pTableQueryInfo) {
-  if (pTableQueryInfo == NULL) {
-    return;
-  }
-}
-
 void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status) {
   if (status == TASK_NOT_COMPLETED) {
     pTaskInfo->status = status;
@@ -1664,55 +1658,6 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
 
 static int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t numOfOutput, size_t keyBufSize,
                                 const char* pKey);
-
-static bool needToMerge(SSDataBlock* pBlock, SArray* groupInfo, char** buf, int32_t rowIndex) {
-  size_t size = taosArrayGetSize(groupInfo);
-  if (size == 0) {
-    return true;
-  }
-
-  for (int32_t i = 0; i < size; ++i) {
-    int32_t* index = taosArrayGet(groupInfo, i);
-
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, *index);
-    bool             isNull = colDataIsNull(pColInfo, rowIndex, pBlock->info.rows, NULL);
-
-    if ((isNull && buf[i] != NULL) || (!isNull && buf[i] == NULL)) {
-      return false;
-    }
-
-    char* pCell = colDataGetData(pColInfo, rowIndex);
-    if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
-      if (varDataLen(pCell) != varDataLen(buf[i])) {
-        return false;
-      } else {
-        if (memcmp(varDataVal(pCell), varDataVal(buf[i]), varDataLen(pCell)) != 0) {
-          return false;
-        }
-      }
-    } else {
-      if (memcmp(pCell, buf[i], pColInfo->info.bytes) != 0) {
-        return false;
-      }
-    }
-  }
-
-  return 0;
-}
-
-static bool saveCurrentTuple(char** rowColData, SArray* pColumnList, SSDataBlock* pBlock, int32_t rowIndex) {
-  int32_t size = (int32_t)taosArrayGetSize(pColumnList);
-
-  for (int32_t i = 0; i < size; ++i) {
-    int32_t*         index = taosArrayGet(pColumnList, i);
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, *index);
-
-    char* data = colDataGetData(pColInfo, rowIndex);
-    memcpy(rowColData[i], data, colDataGetLength(pColInfo, rowIndex));
-  }
-
-  return true;
-}
 
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scanFlag) {
   // todo add more information about exchange operation
@@ -2762,7 +2707,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      pOperator = createTableMergeScanOperatorInfo(pTableScanNode, pTableListInfo, pHandle, pTaskInfo);
+      pOperator = createTableMergeScanOperatorInfo(pTableScanNode, pHandle, pTaskInfo);
       if (NULL == pOperator) {
         pTaskInfo->code = terrno;
         return NULL;
