@@ -201,31 +201,39 @@ system sh/exec.sh -n dnode2 -s start
 sleep 3000
 
 print ======== step6
-sql select count(*) from db1.tb1
+$y = 0
+step6: 
+	$y = $y + 1
+	sleep 1000
+	if $y == 50 then
+		return -1
+	endi
+
+sql select count(*) from db1.tb1 -x step6
 print select count(*) from db1.tb1 ==> $data00 $lastRows1 
 if $data00 <= $lastRows1 then
-  return -1
+  goto step6
 endi
 $lastRows1 = $data00
 
-sql select count(*) from db2.tb2
+sql select count(*) from db2.tb2 -x step6
 print select count(*) from db2.tb2 ==> $data00 $lastRows2 
 if $data00 <= $lastRows2 then
-  return -1
+  goto step6
 endi
 $lastRows2 = $data00
 
-sql select count(*) from db3.tb3
+sql select count(*) from db3.tb3 -x step6
 print select count(*) from  db3.tb3 ==> $data00 $lastRows3 
 if $data00 <= $lastRows3 then
-  return -1
+  goto step6
 endi
 $lastRows3 = $data00
 
-sql select count(*) from db4.tb4
+sql select count(*) from db4.tb4 -x step6
 print select count(*) from  db4.tb4 ==> $data00 $lastRows4 
 if $data00 <= $lastRows4 then
-  return -1
+  goto step6
 endi
 $lastRows4 = $data00
 
