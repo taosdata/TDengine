@@ -207,7 +207,7 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     tb_uid_t uid = *(tb_uid_t *)pData;
     tdbFree(pData);
     SMetaInfo info;
-    metaGetInfo(pMeta, uid, &info);
+    metaGetInfo(pMeta, uid, &info, NULL);
     if (info.uid == info.suid) {
       return 0;
     } else {
