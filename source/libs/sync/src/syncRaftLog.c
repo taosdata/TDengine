@@ -38,7 +38,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   }
 
   // pLogStore->pCache = taosLRUCacheInit(10 * 1024 * 1024, 1, .5);
-  pLogStore->pCache = taosLRUCacheInit(100 * 1024 * 1024, 1, .5);
+  pLogStore->pCache = taosLRUCacheInit(30 * 1024 * 1024, 1, .5);
   if (pLogStore->pCache == NULL) {
     taosMemoryFree(pLogStore);
     terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;

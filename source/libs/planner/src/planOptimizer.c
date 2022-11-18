@@ -348,7 +348,9 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   int32_t  code = scanPathOptMatch(pCxt, pLogicSubplan->pNode, &info);
   if (TSDB_CODE_SUCCESS == code && info.pScan) {
     scanPathOptSetScanWin(info.pScan);
-    scanPathOptSetScanOrder(info.scanOrder, info.pScan);
+    if (!pCxt->pPlanCxt->streamQuery) {
+      scanPathOptSetScanOrder(info.scanOrder, info.pScan);
+    }
   }
   if (TSDB_CODE_SUCCESS == code && (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs)) {
     info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);

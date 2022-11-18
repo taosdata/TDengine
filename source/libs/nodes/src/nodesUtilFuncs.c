@@ -2039,6 +2039,8 @@ void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
       pVal->u = pNode->datum.u;
       break;
     case TSDB_DATA_TYPE_FLOAT:
+      pVal->f = pNode->datum.d;
+      break;
     case TSDB_DATA_TYPE_DOUBLE:
       pVal->d = pNode->datum.d;
       break;

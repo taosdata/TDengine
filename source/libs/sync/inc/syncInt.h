@@ -57,10 +57,11 @@ typedef struct SRaftId {
 } SRaftId;
 
 typedef struct SSyncHbTimerData {
-  SSyncNode*  pSyncNode;
+  int64_t     syncNodeRid;
   SSyncTimer* pTimer;
   SRaftId     destId;
   uint64_t    logicClock;
+  int64_t     rid;
 } SSyncHbTimerData;
 
 typedef struct SSyncTimer {
@@ -70,14 +71,15 @@ typedef struct SSyncTimer {
   uint64_t          counter;
   int32_t           timerMS;
   SRaftId           destId;
-  SSyncHbTimerData  hbData;
+  int64_t           hbDataRid;
 } SSyncTimer;
 
-typedef struct SElectTimer {
+typedef struct SElectTimerParam {
   uint64_t   logicClock;
   SSyncNode* pSyncNode;
+  int64_t    executeTime;
   void*      pData;
-} SElectTimer;
+} SElectTimerParam;
 
 typedef struct SPeerState {
   SyncIndex lastSendIndex;
@@ -153,6 +155,7 @@ typedef struct SSyncNode {
   uint64_t          electTimerLogicClock;
   TAOS_TMR_CALLBACK FpElectTimerCB;  // Timer Fp
   uint64_t          electTimerCounter;
+  SElectTimerParam  electTimerParam;
 
   // heartbeat timer
   tmr_h             pHeartbeatTimer;
@@ -187,6 +190,8 @@ typedef struct SSyncNode {
   int64_t leaderTime;
   int64_t lastReplicateTime;
 
+  bool isStart;
+
 } SSyncNode;
 
 // open/close --------------
@@ -196,6 +201,7 @@ void       syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
 void       syncNodePreClose(SSyncNode* pSyncNode);
 int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak);
+void       syncHbTimerDataFree(SSyncHbTimerData* pData);
 
 // on message ---------------------
 int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pMsg);

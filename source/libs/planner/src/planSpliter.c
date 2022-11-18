@@ -611,6 +611,7 @@ static int32_t stbSplSplitSessionForStream(SSplitContext* pCxt, SStableSplitInfo
     int32_t index = 0;
     int32_t code = stbSplAppendWEnd(pPartWin, &index);
     if (TSDB_CODE_SUCCESS == code) {
+      nodesDestroyNode(pMergeWin->pTsEnd);
       pMergeWin->pTsEnd = nodesCloneNode(nodesListGetNode(pPartWin->node.pTargets, index));
       if (NULL == pMergeWin->pTsEnd) {
         code = TSDB_CODE_OUT_OF_MEMORY;

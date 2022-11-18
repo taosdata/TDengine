@@ -917,6 +917,7 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
     int32_t startIndex;
     if (numOfParams != 4) {
       snprintf(errMsg, msgLen, "%s", msg1);
+      cJSON_Delete(binDesc);
       return false;
     }
 
@@ -928,17 +929,20 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
 
     if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) || !cJSON_IsBool(infinity)) {
       snprintf(errMsg, msgLen, "%s", msg3);
+      cJSON_Delete(binDesc);
       return false;
     }
 
     if (count->valueint <= 0 || count->valueint > 1000) {  // limit count to 1000
       snprintf(errMsg, msgLen, "%s", msg4);
+      cJSON_Delete(binDesc);
       return false;
     }
 
     if (isinf(start->valuedouble) || (width != NULL && isinf(width->valuedouble)) ||
         (factor != NULL && isinf(factor->valuedouble)) || (count != NULL && isinf(count->valuedouble))) {
       snprintf(errMsg, msgLen, "%s", msg5);
+      cJSON_Delete(binDesc);
       return false;
     }
 
@@ -957,6 +961,7 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
       if (width->valuedouble == 0) {
         snprintf(errMsg, msgLen, "%s", msg6);
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       for (int i = 0; i < counter + 1; ++i) {
@@ -964,6 +969,7 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
         if (isinf(intervals[startIndex])) {
           snprintf(errMsg, msgLen, "%s", msg5);
           taosMemoryFree(intervals);
+          cJSON_Delete(binDesc);
           return false;
         }
         startIndex++;
@@ -973,11 +979,13 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
       if (start->valuedouble == 0) {
         snprintf(errMsg, msgLen, "%s", msg7);
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       if (factor->valuedouble < 0 || factor->valuedouble == 0 || factor->valuedouble == 1) {
         snprintf(errMsg, msgLen, "%s", msg8);
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       for (int i = 0; i < counter + 1; ++i) {
@@ -985,6 +993,7 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
         if (isinf(intervals[startIndex])) {
           snprintf(errMsg, msgLen, "%s", msg5);
           taosMemoryFree(intervals);
+          cJSON_Delete(binDesc);
           return false;
         }
         startIndex++;
@@ -992,6 +1001,7 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
     } else {
       snprintf(errMsg, msgLen, "%s", msg3);
       taosMemoryFree(intervals);
+      cJSON_Delete(binDesc);
       return false;
     }
 
@@ -1007,6 +1017,7 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
   } else if (cJSON_IsArray(binDesc)) { /* user input bins */
     if (binType != USER_INPUT_BIN) {
       snprintf(errMsg, msgLen, "%s", msg3);
+      cJSON_Delete(binDesc);
       return false;
     }
     numOfBins = cJSON_GetArraySize(binDesc);
@@ -1015,6 +1026,7 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
     if (bin == NULL) {
       snprintf(errMsg, msgLen, "%s", msg3);
       taosMemoryFree(intervals);
+      cJSON_Delete(binDesc);
       return false;
     }
     int i = 0;
@@ -1023,11 +1035,13 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
       if (!cJSON_IsNumber(bin)) {
         snprintf(errMsg, msgLen, "%s", msg3);
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       if (i != 0 && intervals[i] <= intervals[i - 1]) {
         snprintf(errMsg, msgLen, "%s", msg3);
         taosMemoryFree(intervals);
+        cJSON_Delete(binDesc);
         return false;
       }
       bin = bin->next;
@@ -1035,6 +1049,7 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
     }
   } else {
     snprintf(errMsg, msgLen, "%s", msg3);
+    cJSON_Delete(binDesc);
     return false;
   }
 
@@ -1464,9 +1479,14 @@ static int32_t translateDerivative(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
 
   // param1
-  SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
+  SNode*      pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
+  SValueNode* pValue1 = (SValueNode*)pParamNode1;
   if (QUERY_NODE_VALUE != nodeType(pParamNode1)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (pValue1->datum.i <= 0) {
+    return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
   SValueNode* pValue = (SValueNode*)pParamNode1;

@@ -295,6 +295,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     return -1;
   }
   pObj->sourceDbUid = pSourceDb->uid;
+  mndReleaseDb(pMnode, pSourceDb);
 
   memcpy(pObj->targetSTbName, pCreate->targetStbFullName, TSDB_TABLE_FNAME_LEN);
 
@@ -307,6 +308,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
   pObj->targetStbUid = mndGenerateUid(pObj->targetSTbName, TSDB_TABLE_FNAME_LEN);
   pObj->targetDbUid = pTargetDb->uid;
+  mndReleaseDb(pMnode, pTargetDb);
 
   pObj->sql = pCreate->sql;
   pObj->ast = pCreate->ast;
@@ -523,6 +525,7 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
 
   tFreeSMCreateStbReq(&createReq);
   mndFreeStb(&stbObj);
+  mndReleaseDb(pMnode, pDb);
 
   return 0;
 _OVER:
