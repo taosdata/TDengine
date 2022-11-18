@@ -130,7 +130,7 @@ typedef struct {
   char          database_name[TSDB_DB_NAME_LEN];
   int32_t       tables_num;
   char          status[MON_STATUS_LEN];
-  SMonVnodeDesc vnodes[TSDB_MAX_REPLICA];
+  SMonVnodeDesc vnodes[TSDB_MAX_DB_REPLICA];
 } SMonVgroupDesc;
 
 typedef struct {

@@ -159,7 +159,7 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     // snapshot senders
     cJSON* pSenders = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "senders", pSenders);
-    for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    for (int32_t i = 0; i < TSDB_MAX_DB_REPLICA; ++i) {
       cJSON_AddItemToArray(pSenders, snapshotSender2Json((pSyncNode->senders)[i]));
     }
 

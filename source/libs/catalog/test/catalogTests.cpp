@@ -244,7 +244,7 @@ void ctgTestBuildDBVgroup(SDBVgInfo **pdbVgroup) {
     vgInfo.vgId = i + 1;
     vgInfo.hashBegin = i * hashUnit;
     vgInfo.hashEnd = hashUnit * (i + 1) - 1;
-    vgInfo.epSet.numOfEps = i % TSDB_MAX_REPLICA + 1;
+    vgInfo.epSet.numOfEps = i % TSDB_MAX_DB_REPLICA + 1;
     vgInfo.epSet.inUse = i % vgInfo.epSet.numOfEps;
     for (int32_t n = 0; n < vgInfo.epSet.numOfEps; ++n) {
       SEp *addr = &vgInfo.epSet.eps[n];
@@ -318,7 +318,7 @@ void ctgTestRspDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *
       vg.hashEnd = htonl(UINT32_MAX);
     }
 
-    vg.epSet.numOfEps = i % TSDB_MAX_REPLICA + 1;
+    vg.epSet.numOfEps = i % TSDB_MAX_DB_REPLICA + 1;
     vg.epSet.inUse = i % vg.epSet.numOfEps;
     for (int32_t n = 0; n < vg.epSet.numOfEps; ++n) {
       SEp *addr = &vg.epSet.eps[n];

@@ -91,7 +91,7 @@ typedef struct {
   SRWLatch lock;
   int8_t   selfIndex;
   int8_t   numOfReplicas;
-  SReplica replicas[TSDB_MAX_REPLICA];
+  SReplica replicas[TSDB_MAX_DB_REPLICA];
 } SSyncMgmt;
 
 typedef struct {

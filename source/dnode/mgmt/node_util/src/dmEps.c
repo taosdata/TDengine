@@ -260,7 +260,7 @@ static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
   for (int32_t i = 0; i < numOfEps; i++) {
     SDnodeEp *pDnodeEp = taosArrayGet(dnodeEps, i);
     if (!pDnodeEp->isMnode) continue;
-    if (mIndex >= TSDB_MAX_REPLICA) continue;
+    if (mIndex >= TSDB_MAX_DB_REPLICA) continue;
     pData->mnodeEps.numOfEps++;
 
     pData->mnodeEps.eps[mIndex] = pDnodeEp->ep;

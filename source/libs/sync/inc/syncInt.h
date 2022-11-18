@@ -106,11 +106,11 @@ typedef struct SSyncNode {
   SRaftId   myRaftId;
 
   int32_t   peersNum;
-  SNodeInfo peersNodeInfo[TSDB_MAX_REPLICA];
-  SRaftId   peersId[TSDB_MAX_REPLICA];
+  SNodeInfo peersNodeInfo[TSDB_MAX_DB_REPLICA];
+  SRaftId   peersId[TSDB_MAX_DB_REPLICA];
 
   int32_t replicaNum;
-  SRaftId replicasId[TSDB_MAX_REPLICA];
+  SRaftId replicasId[TSDB_MAX_DB_REPLICA];
 
   // raft algorithm
   SSyncFSM* pFsm;
@@ -166,7 +166,7 @@ typedef struct SSyncNode {
   uint64_t          heartbeatTimerCounter;
 
   // peer heartbeat timer
-  SSyncTimer peerHeartbeatTimerArr[TSDB_MAX_REPLICA];
+  SSyncTimer peerHeartbeatTimerArr[TSDB_MAX_DB_REPLICA];
 
   // tools
   SSyncRespMgr* pSyncRespMgr;
@@ -174,10 +174,10 @@ typedef struct SSyncNode {
   // restore state
   bool restoreFinish;
   // SSnapshot*             pSnapshot;
-  SSyncSnapshotSender*   senders[TSDB_MAX_REPLICA];
+  SSyncSnapshotSender*   senders[TSDB_MAX_DB_REPLICA];
   SSyncSnapshotReceiver* pNewNodeReceiver;
 
-  SPeerState peerStates[TSDB_MAX_REPLICA];
+  SPeerState peerStates[TSDB_MAX_DB_REPLICA];
 
   // is config changing
   bool changing;

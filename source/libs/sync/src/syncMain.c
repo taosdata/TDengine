@@ -58,6 +58,12 @@ static int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
 static ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
 static SyncIndex     syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex);
 
+void syncPrintSnapshotSender(SSyncNode* pSyncNode) {
+  for (int i = 0; i < TSDB_MAX_DB_REPLICA; ++i) {
+    sTrace("vgId:%d, print sender[%d]:%p", pSyncNode->vgId, i, pSyncNode->senders[i]);
+  }
+}
+
 int64_t syncOpen(SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
   if (pSyncNode == NULL) {
@@ -127,7 +133,7 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     syncNodeStopHeartbeatTimer(pSyncNode);
 
-    for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    for (int32_t i = 0; i < TSDB_MAX_DB_REPLICA; ++i) {
       syncHbTimerInit(pSyncNode, &pSyncNode->peerHeartbeatTimerArr[i], pSyncNode->replicasId[i]);
     }
 
@@ -925,7 +931,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   pSyncNode->heartbeatTimerCounter = 0;
 
   // init peer heartbeat timer
-  for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_DB_REPLICA; ++i) {
     syncHbTimerInit(pSyncNode, &(pSyncNode->peerHeartbeatTimerArr[i]), (pSyncNode->replicasId)[i]);
   }
 
@@ -940,7 +946,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   pSyncNode->restoreFinish = false;
 
   // snapshot senders
-  for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_DB_REPLICA; ++i) {
     SSyncSnapshotSender* pSender = snapshotSenderCreate(pSyncNode, i);
     // ASSERT(pSender != NULL);
     (pSyncNode->senders)[i] = pSender;
@@ -974,6 +980,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   pSyncNode->isStart = true;
   sNTrace(pSyncNode, "sync open, node:%p", pSyncNode);
 
+  syncPrintSnapshotSender(pSyncNode);
   return pSyncNode;
 
 _error:
@@ -1044,6 +1051,7 @@ void syncHbTimerDataFree(SSyncHbTimerData* pData) { taosMemoryFree(pData); }
 void syncNodeClose(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) return;
   sNTrace(pSyncNode, "sync close, data:%p", pSyncNode);
+  syncPrintSnapshotSender(pSyncNode);
 
   int32_t ret = raftStoreClose(pSyncNode->pRaftStore);
   ASSERT(ret == 0);
@@ -1072,9 +1080,10 @@ void syncNodeClose(SSyncNode* pSyncNode) {
     taosMemoryFree(pSyncNode->pFsm);
   }
 
-  for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_DB_REPLICA; ++i) {
     if ((pSyncNode->senders)[i] != NULL) {
-      sSTrace((pSyncNode->senders)[i], "snapshot sender destroy while close, data:%p", (pSyncNode->senders)[i]);
+      sTrace("vgId:%d, snapshot sender destroy while close, data:%p", pSyncNode->vgId, (pSyncNode->senders)[i]);
+      // sSTrace((pSyncNode->senders)[i], "snapshot sender destroy while close, data:%p", (pSyncNode->senders)[i]);
       snapshotSenderDestroy((pSyncNode->senders)[i]);
       (pSyncNode->senders)[i] = NULL;
     }
@@ -1345,10 +1354,10 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 
     // save snapshot senders
     int32_t oldReplicaNum = pSyncNode->replicaNum;
-    SRaftId oldReplicasId[TSDB_MAX_REPLICA];
+    SRaftId oldReplicasId[TSDB_MAX_DB_REPLICA];
     memcpy(oldReplicasId, pSyncNode->replicasId, sizeof(oldReplicasId));
-    SSyncSnapshotSender* oldSenders[TSDB_MAX_REPLICA];
-    for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    SSyncSnapshotSender* oldSenders[TSDB_MAX_DB_REPLICA];
+    for (int32_t i = 0; i < TSDB_MAX_DB_REPLICA; ++i) {
       oldSenders[i] = (pSyncNode->senders)[i];
       sSTrace(oldSenders[i], "snapshot sender save old");
     }
@@ -1387,7 +1396,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     // reset snapshot senders
 
     // clear new
-    for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    for (int32_t i = 0; i < TSDB_MAX_DB_REPLICA; ++i) {
       (pSyncNode->senders)[i] = NULL;
     }
 
@@ -1395,8 +1404,8 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
       // reset sender
       bool reset = false;
-      for (int32_t j = 0; j < TSDB_MAX_REPLICA; ++j) {
-        if (syncUtilSameId(&(pSyncNode->replicasId)[i], &oldReplicasId[j])) {
+      for (int32_t j = 0; j < TSDB_MAX_DB_REPLICA; ++j) {
+        if (syncUtilSameId(&(pSyncNode->replicasId)[i], &oldReplicasId[j]) && oldSenders[j] != NULL) {
           char     host[128];
           uint16_t port;
           syncUtilU642Addr((pSyncNode->replicasId)[i].addr, host, sizeof(host), &port);
@@ -1413,12 +1422,14 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 
           sNTrace(pSyncNode, "snapshot sender udpate replicaIndex from %d to %d, %s:%d, %p, reset:%d", oldreplicaIndex,
                   i, host, port, (pSyncNode->senders)[i], reset);
+
+          break;
         }
       }
     }
 
     // create new
-    for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    for (int32_t i = 0; i < TSDB_MAX_DB_REPLICA; ++i) {
       if ((pSyncNode->senders)[i] == NULL) {
         (pSyncNode->senders)[i] = snapshotSenderCreate(pSyncNode, i);
         sSTrace((pSyncNode->senders)[i], "snapshot sender create new while reconfig, data:%p", (pSyncNode->senders)[i]);
@@ -1428,7 +1439,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     }
 
     // free old
-    for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    for (int32_t i = 0; i < TSDB_MAX_DB_REPLICA; ++i) {
       if (oldSenders[i] != NULL) {
         sNTrace(pSyncNode, "snapshot sender destroy old, data:%p replica-index:%d", oldSenders[i], i);
         snapshotSenderDestroy(oldSenders[i]);
@@ -1650,7 +1661,7 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
 bool syncNodeIsMnode(SSyncNode* pSyncNode) { return (pSyncNode->vgId == 1); }
 
 int32_t syncNodePeerStateInit(SSyncNode* pSyncNode) {
-  for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_DB_REPLICA; ++i) {
     pSyncNode->peerStates[i].lastSendIndex = SYNC_INDEX_INVALID;
     pSyncNode->peerStates[i].lastSendTime = 0;
   }

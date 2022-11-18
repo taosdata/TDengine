@@ -944,7 +944,7 @@ static int32_t udfdRun() {
 void udfdConnectMnodeThreadFunc(void *args) {
   int32_t retryMnodeTimes = 0;
   int32_t code = 0;
-  while (retryMnodeTimes++ <= TSDB_MAX_REPLICA) {
+  while (retryMnodeTimes++ <= TSDB_MAX_DB_REPLICA) {
     uv_sleep(100 * (1 << retryMnodeTimes));
     code = udfdConnectToMnode();
     if (code == 0) {

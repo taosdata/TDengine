@@ -178,7 +178,7 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
   pOld->hashEnd = pNew->hashEnd;
   pOld->replica = pNew->replica;
   pOld->isTsma = pNew->isTsma;
-  memcpy(pOld->vnodeGid, pNew->vnodeGid, TSDB_MAX_REPLICA * sizeof(SVnodeGid));
+  memcpy(pOld->vnodeGid, pNew->vnodeGid, TSDB_MAX_DB_REPLICA * sizeof(SVnodeGid));
   return 0;
 }
 

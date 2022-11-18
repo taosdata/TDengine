@@ -14,7 +14,7 @@ uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
 int32_t  replicaNum = 1;
 int32_t  myIndex = 0;
 
-SRaftId    ids[TSDB_MAX_REPLICA];
+SRaftId    ids[TSDB_MAX_DB_REPLICA];
 SSyncInfo  syncInfo;
 SSyncFSM  *pFsm;
 SWal      *pWal;

@@ -265,7 +265,7 @@ static void monGenVgroupJson(SMonInfo *pMonitor) {
     SJson *pVnodesJson = tjsonAddArrayToObject(pVgroupJson, "vnodes");
     if (pVnodesJson == NULL) continue;
 
-    for (int32_t j = 0; j < TSDB_MAX_REPLICA; ++j) {
+    for (int32_t j = 0; j < TSDB_MAX_DB_REPLICA; ++j) {
       SMonVnodeDesc *pVnodeDesc = &pVgroupDesc->vnodes[j];
       if (pVnodeDesc->dnode_id <= 0) continue;
 

@@ -23,8 +23,8 @@ extern "C" {
 #include "syncInt.h"
 
 typedef struct SVotesGranted {
-  SRaftId (*replicas)[TSDB_MAX_REPLICA];
-  bool       isGranted[TSDB_MAX_REPLICA];
+  SRaftId (*replicas)[TSDB_MAX_DB_REPLICA];
+  bool       isGranted[TSDB_MAX_DB_REPLICA];
   int32_t    replicaNum;
   int32_t    votes;
   SyncTerm   term;
@@ -41,8 +41,8 @@ void           voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteRepl
 void           voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term);
 
 typedef struct SVotesRespond {
-  SRaftId (*replicas)[TSDB_MAX_REPLICA];
-  bool       isRespond[TSDB_MAX_REPLICA];
+  SRaftId (*replicas)[TSDB_MAX_DB_REPLICA];
+  bool       isRespond[TSDB_MAX_DB_REPLICA];
   int32_t    replicaNum;
   SyncTerm   term;
   SSyncNode *pSyncNode;

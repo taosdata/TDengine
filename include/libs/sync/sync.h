@@ -77,7 +77,7 @@ typedef struct SNodeInfo {
 typedef struct SSyncCfg {
   int32_t   replicaNum;
   int32_t   myIndex;
-  SNodeInfo nodeInfo[TSDB_MAX_REPLICA];
+  SNodeInfo nodeInfo[TSDB_MAX_DB_REPLICA];
 } SSyncCfg;
 
 typedef struct SFsmCbMeta {

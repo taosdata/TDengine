@@ -33,7 +33,7 @@ typedef struct {
   bool     deploy;
   int8_t   selfIndex;
   int8_t   numOfReplicas;
-  SReplica replicas[TSDB_MAX_REPLICA];
+  SReplica replicas[TSDB_MAX_DB_REPLICA];
   SMsgCb   msgCb;
 } SMnodeOpt;
 

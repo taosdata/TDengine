@@ -13,7 +13,7 @@ void logTest() {
 uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
 int32_t  replicaNum = 5;
 int32_t  myIndex = 0;
-SRaftId  ids[TSDB_MAX_REPLICA];
+SRaftId  ids[TSDB_MAX_DB_REPLICA];
 
 void initRaftId() {
   for (int i = 0; i < replicaNum; ++i) {

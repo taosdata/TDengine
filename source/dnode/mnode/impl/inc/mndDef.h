@@ -348,7 +348,7 @@ typedef struct {
   int8_t    compact;
   int8_t    isTsma;
   int8_t    replica;
-  SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
+  SVnodeGid vnodeGid[TSDB_MAX_DB_REPLICA];
   void*     pTsma;
 } SVgObj;
 

@@ -539,7 +539,7 @@ void    tFreeSMAltertbReq(SMAlterStbReq* pReq);
 typedef struct SEpSet {
   int8_t inUse;
   int8_t numOfEps;
-  SEp    eps[TSDB_MAX_REPLICA];
+  SEp    eps[TSDB_MAX_DB_REPLICA];
 } SEpSet;
 
 int32_t tEncodeSEpSet(SEncoder* pEncoder, const SEpSet* pEp);
@@ -1206,7 +1206,7 @@ typedef struct {
   int8_t   isTsma;
   int8_t   replica;
   int8_t   selfIndex;
-  SReplica replicas[TSDB_MAX_REPLICA];
+  SReplica replicas[TSDB_MAX_DB_REPLICA];
   int32_t  numOfRetensions;
   SArray*  pRetensions;  // SRetention
   void*    pTsma;
@@ -1270,7 +1270,7 @@ typedef struct {
   int8_t   strict;
   int8_t   selfIndex;
   int8_t   replica;
-  SReplica replicas[TSDB_MAX_REPLICA];
+  SReplica replicas[TSDB_MAX_DB_REPLICA];
   int64_t  reserved[8];
 } SAlterVnodeReplicaReq;
 
@@ -1523,7 +1523,7 @@ int32_t tDeserializeSCreateDropMQSNodeReq(void* buf, int32_t bufLen, SMCreateQno
 
 typedef struct {
   int8_t   replica;
-  SReplica replicas[TSDB_MAX_REPLICA];
+  SReplica replicas[TSDB_MAX_DB_REPLICA];
 } SDCreateMnodeReq, SDAlterMnodeReq;
 
 int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
@@ -3168,8 +3168,8 @@ typedef struct {
 } SBatchMsg;
 
 typedef struct {
-  SMsgHead  header;
-  SArray*   pMsgs; //SArray<SBatchMsg>
+  SMsgHead header;
+  SArray*  pMsgs;  // SArray<SBatchMsg>
 } SBatchReq;
 
 typedef struct {
@@ -3181,11 +3181,11 @@ typedef struct {
 } SBatchRspMsg;
 
 typedef struct {
-  SArray* pRsps; //SArray<SBatchRspMsg>
+  SArray* pRsps;  // SArray<SBatchRspMsg>
 } SBatchRsp;
 
-int32_t tSerializeSBatchReq(void *buf, int32_t bufLen, SBatchReq *pReq);
-int32_t tDeserializeSBatchReq(void *buf, int32_t bufLen, SBatchReq *pReq);
+int32_t                  tSerializeSBatchReq(void* buf, int32_t bufLen, SBatchReq* pReq);
+int32_t                  tDeserializeSBatchReq(void* buf, int32_t bufLen, SBatchReq* pReq);
 static FORCE_INLINE void tFreeSBatchReqMsg(void* msg) {
   if (NULL == msg) {
     return;
@@ -3194,8 +3194,8 @@ static FORCE_INLINE void tFreeSBatchReqMsg(void* msg) {
   taosMemoryFree(pMsg->msg);
 }
 
-int32_t tSerializeSBatchRsp(void *buf, int32_t bufLen, SBatchRsp *pRsp);
-int32_t tDeserializeSBatchRsp(void *buf, int32_t bufLen, SBatchRsp *pRsp);
+int32_t tSerializeSBatchRsp(void* buf, int32_t bufLen, SBatchRsp* pRsp);
+int32_t tDeserializeSBatchRsp(void* buf, int32_t bufLen, SBatchRsp* pRsp);
 
 static FORCE_INLINE void tFreeSBatchRspMsg(void* p) {
   if (NULL == p) {
@@ -3206,11 +3206,10 @@ static FORCE_INLINE void tFreeSBatchRspMsg(void* p) {
   taosMemoryFree(pRsp->msg);
 }
 
-int32_t tSerializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq);
-int32_t tDeserializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq);
-int32_t tSerializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq);
-int32_t tDeserializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq);
-
+int32_t tSerializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
+int32_t tDeserializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
+int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
+int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 
 #pragma pack(pop)
 
