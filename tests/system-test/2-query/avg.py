@@ -114,16 +114,10 @@ class TDTestCase:
         avg_result = tdSql.getResult(origin_query)
         origin_result = tdSql.getResult(check_query)
 
-        check_status = True
+        tdSql.query(origin_query)
         for row_index , row in enumerate(avg_result):
             for col_index , elem in enumerate(row):
-                if avg_result[row_index][col_index] != origin_result[row_index][col_index]:
-                    check_status = False
-        if not check_status:
-            tdLog.notice("avg function value has not as expected , sql is \"%s\" "%origin_query )
-            sys.exit(1)
-        else:
-            tdLog.info("avg value check pass , it work as expected ,sql is \"%s\"   "%check_query )
+                tdSql.checkData(row_index,col_index,origin_result[row_index][col_index])
 
     def test_errors(self, dbname="db"):
         error_sql_lists = [
