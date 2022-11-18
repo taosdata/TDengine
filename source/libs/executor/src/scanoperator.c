@@ -4788,3 +4788,83 @@ _error:
   taosMemoryFree(pOperator);
   return NULL;
 }
+
+// ====================================================================================================================
+// TableCountScanOperator
+static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator);
+static void destoryTableCountScanOperator(void* param);
+
+SOperatorInfo* createTableCountScanOperatorInfo(SReadHandle* readHandle, STableCountScanPhysiNode* pScanNode,
+                                                SExecTaskInfo* pTaskInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  STableCountScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableCountScanInfo));
+  SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+
+  if (!pInfo || !pOperator) {
+    goto _error;
+  }
+
+  pInfo->readHandle = *readHandle;
+
+  if (pScanNode->pScanPseudoCols != NULL) {
+    SExprSupp* pSup = &pInfo->pseudoSup;
+    pSup->pExprInfo = createExprInfo(pScanNode->pScanPseudoCols, NULL, &pSup->numOfExprs);
+    pSup->pCtx = createSqlFunctionCtx(pSup->pExprInfo, pSup->numOfExprs, &pSup->rowEntryInfoOffset);
+  }
+
+  SDataBlockDescNode* pDescNode = pScanNode->node.pOutputDataBlockDesc;
+  initResultSizeInfo(&pOperator->resultInfo, 1);
+  pInfo->pRes = createResDataBlock(pDescNode);
+  blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
+
+  tNameAssign(&pInfo->name, &pScanNode->tableName);
+
+  pInfo->suid = pScanNode->suid; // 0 for super table, super table uid for child table
+  pInfo->uid = pScanNode->uid; // super table uid, or child table uid
+  pInfo->tableType = pScanNode->tableType;
+
+  setOperatorInfo(pOperator, "TableCountScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN, false, OP_NOT_OPENED,
+                  pInfo, pTaskInfo);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableCountScan, NULL, destoryTableCountScanOperator, NULL);
+  return pOperator;
+
+_error:
+  if (pInfo != NULL) {
+    destoryTableCountScanOperator(pInfo);
+  }
+  taosMemoryFreeClear(pOperator);
+  pTaskInfo->code = code;
+  return NULL;
+}
+
+static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  STableCountScanInfo* pInfo = pOperator->info;
+
+  SExprSupp* pSup = &pInfo->pseudoSup;
+  if (pSup->numOfExprs != 1 || pSup->pExprInfo[0].pExpr->nodeType != QUERY_NODE_FUNCTION ||
+      pSup->pExprInfo[0].pExpr->_function.functionType != FUNCTION_TYPE_TABLE_COUNT ) {
+    qError("%s table count scan operator invalid pseduo columns", GET_TASKID(pTaskInfo));
+  }
+  SColumnInfoData* pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, 0);
+  if (pInfo->uid != 0) {
+    SMetaStbStats stats = {0};
+    metaGetStbStats(pInfo->readHandle.meta, pInfo->uid, &stats);
+    int64_t ctbNum = stats.ctbNum;
+    //TODO: wxy about the return type bigint or int?
+    colDataAppend(pColInfoData, 0, (char*)&ctbNum, false);
+    pInfo->pRes->info.rows = 1;
+  } else {
+    //TODO: get table count in this vnode?
+  }
+  return NULL;
+}
+
+static void destoryTableCountScanOperator(void* param) {
+  STableCountScanInfo* pTableCountScanInfo = param;
+  blockDataDestroy(pTableCountScanInfo->pRes);
+
+  cleanupExprSupp(&pTableCountScanInfo->pseudoSup);
+  taosMemoryFreeClear(param);
+}

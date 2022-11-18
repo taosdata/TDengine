@@ -1283,6 +1283,7 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
 
     pExprNode->_function.functionId = pFuncNode->funcId;
     pExprNode->_function.pFunctNode = pFuncNode;
+    pExprNode->_function.functionType = pFuncNode->funcType;
 
     tstrncpy(pExprNode->_function.functionName, pFuncNode->functionName, tListLen(pExprNode->_function.functionName));
 

@@ -109,6 +109,12 @@ int         metaGetTableUidByName(void *meta, char *tbName, int64_t *uid);
 int         metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType);
 bool        metaIsTableExist(SMeta *pMeta, tb_uid_t uid);
 
+typedef struct {
+  int64_t uid;
+  int64_t ctbNum;
+} SMetaStbStats;
+int32_t metaGetStbStats(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo);
+
 typedef struct SMetaFltParam {
   tb_uid_t suid;
   int16_t  cid;
