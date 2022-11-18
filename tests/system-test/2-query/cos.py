@@ -84,26 +84,10 @@ class TDTestCase:
                 row_check.append(elem)
             auto_result.append(row_check)
 
-        check_status = True
-        print("========",pow_query, origin_query )
-
+        tdSql.query(pow_query)
         for row_index , row in enumerate(pow_result):
             for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] == None  and elem:
-                    check_status = False
-                elif auto_result[row_index][col_index] != None  and ((auto_result[row_index][col_index] != elem) and (str(auto_result[row_index][col_index])[:6] != str(elem)[:6] )):
-                # elif auto_result[row_index][col_index] != None  and (abs(auto_result[row_index][col_index] - elem) > 0.000001):
-                    print("=====")
-                    print(row_index, col_index)
-                    print(auto_result[row_index][col_index], elem, origin_result[row_index][col_index])
-                    check_status = False
-                else:
-                    pass
-        if not check_status:
-            tdLog.notice("cos function value has not as expected , sql is \"%s\" "%pow_query )
-            sys.exit(1)
-        else:
-            tdLog.info("cos value check pass , it work as expected ,sql is \"%s\"   "%pow_query )
+                tdSql.checkData(row_index,col_index,auto_result[row_index][col_index])
 
     def test_errors(self, dbname="db"):
         error_sql_lists = [

@@ -85,16 +85,11 @@ class TDTestCase:
                 row_check.append(elem)
             auto_result.append(row_check)
 
-        check_status = True
+        tdSql.query(ceil_query)
         for row_index , row in enumerate(ceil_result):
             for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] != elem:
-                    check_status = False
-        if not check_status:
-            tdLog.notice("ceil function value has not as expected , sql is \"%s\" "%ceil_query )
-            sys.exit(1)
-        else:
-            tdLog.info("ceil value check pass , it work as expected ,sql is \"%s\"   "%ceil_query )
+                tdSql.checkData(row_index,col_index,auto_result[row_index][col_index])
+               
 
     def test_errors(self, dbname="db"):
         error_sql_lists = [

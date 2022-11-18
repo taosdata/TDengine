@@ -81,16 +81,12 @@ class TDTestCase:
                 row_check.append(elem)
             auto_result.append(row_check)
 
-        check_status = True
+        tdSql.query(round_query)
         for row_index , row in enumerate(round_result):
             for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] != elem:
-                    check_status = False
-        if not check_status:
-            tdLog.notice("round function value has not as expected , sql is \"%s\" "%round_query )
-            sys.exit(1)
-        else:
-            tdLog.info("round value check pass , it work as expected ,sql is \"%s\"   "%round_query )
+                tdSql.checkData(row_index , col_index ,auto_result[row_index][col_index])
+                    
+       
 
     def test_errors(self, dbname="db"):
         error_sql_lists = [

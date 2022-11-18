@@ -86,21 +86,13 @@ class TDTestCase:
                 row_check.append(elem)
             auto_result.append(row_check)
 
-        check_status = True
-
+      
+        tdSql.query(pow_query)
         for row_index , row in enumerate(pow_result):
             for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] == None  and not (auto_result[row_index][col_index] == None and elem == None):
-                    check_status = False
-                elif auto_result[row_index][col_index] != None  and (auto_result[row_index][col_index] - elem > 0.00000001):
-                    check_status = False
-                else:
-                    pass
-        if not check_status:
-            tdLog.notice("asin function value has not as expected , sql is \"%s\" "%pow_query )
-            sys.exit(1)
-        else:
-            tdLog.info("asin value check pass , it work as expected ,sql is \"%s\"   "%pow_query )
+                tdSql.checkData(row_index,col_index,auto_result[row_index][col_index])
+              
+      
 
     def test_errors(self, dbname="db"):
         error_sql_lists = [

@@ -85,16 +85,11 @@ class TDTestCase:
                 row_check.append(elem)
             auto_result.append(row_check)
 
-        check_status = True
+        tdSql.query(floor_query)
         for row_index , row in enumerate(floor_result):
             for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] != elem:
-                    check_status = False
-        if not check_status:
-            tdLog.notice("floor function value has not as expected , sql is \"%s\" "%floor_query )
-            sys.exit(1)
-        else:
-            tdLog.info("floor value check pass , it work as expected ,sql is \"%s\"   "%floor_query )
+                tdSql.checkData(row_index,col_index,auto_result[row_index][col_index])
+                
 
     def test_errors(self, dbname=DBNAME):
         error_sql_lists = [

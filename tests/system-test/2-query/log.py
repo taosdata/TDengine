@@ -91,7 +91,6 @@ class TDTestCase:
                             elem = math.log(elem , base)
                     elif elem <=0:
                         elem = None
-                    
                 row_check.append(elem)
             auto_result.append(row_check)
 
