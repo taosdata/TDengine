@@ -11,7 +11,7 @@
 ,,y,script,./test.sh -f tsim/user/privilege_db.sim
 ,,y,script,./test.sh -f tsim/user/privilege_sysinfo.sim
 ,,y,script,./test.sh -f tsim/db/alter_option.sim
-#,,y,script,./test.sh -f tsim/db/alter_replica_13.sim
+,,y,script,./test.sh -f tsim/db/alter_replica_13.sim
 ,,y,script,./test.sh -f tsim/db/alter_replica_31.sim
 ,,y,script,./test.sh -f tsim/db/basic1.sim
 ,,y,script,./test.sh -f tsim/db/basic2.sim
@@ -48,7 +48,7 @@
 ,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica3.sim
 ,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica1.sim
 ,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica3.sim
-,,,script,./test.sh -f tsim/dnode/drop_dnode_force.sim
+,,y,script,./test.sh -f tsim/dnode/drop_dnode_force.sim
 ,,y,script,./test.sh -f tsim/dnode/offline_reason.sim
 ,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica1.sim
 ,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim
