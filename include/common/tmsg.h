@@ -3169,8 +3169,7 @@ typedef struct {
 
 typedef struct {
   SMsgHead  header;
-  int32_t   msgNum;
-  SBatchMsg msg[];
+  SArray*   pMsgs; //SArray<SBatchMsg>
 } SBatchReq;
 
 typedef struct {
@@ -3179,16 +3178,39 @@ typedef struct {
   int32_t msgLen;
   int32_t rspCode;
   void*   msg;
+} SBatchRspMsg;
+
+typedef struct {
+  SArray* pRsps; //SArray<SBatchRspMsg>
 } SBatchRsp;
 
-static FORCE_INLINE void tFreeSBatchRsp(void* p) {
+int32_t tSerializeSBatchReq(void *buf, int32_t bufLen, SBatchReq *pReq);
+int32_t tDeserializeSBatchReq(void *buf, int32_t bufLen, SBatchReq *pReq);
+static FORCE_INLINE void tFreeSBatchReqMsg(void* msg) {
+  if (NULL == msg) {
+    return;
+  }
+  SBatchMsg* pMsg = (SBatchMsg*)msg;
+  taosMemoryFree(pMsg->msg);
+}
+
+int32_t tSerializeSBatchRsp(void *buf, int32_t bufLen, SBatchRsp *pRsp);
+int32_t tDeserializeSBatchRsp(void *buf, int32_t bufLen, SBatchRsp *pRsp);
+
+static FORCE_INLINE void tFreeSBatchRspMsg(void* p) {
   if (NULL == p) {
     return;
   }
 
-  SBatchRsp* pRsp = (SBatchRsp*)p;
+  SBatchRspMsg* pRsp = (SBatchRspMsg*)p;
   taosMemoryFree(pRsp->msg);
 }
+
+int32_t tSerializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq);
+int32_t tDeserializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq);
+int32_t tSerializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq);
+int32_t tDeserializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq);
+
 
 #pragma pack(pop)
 
