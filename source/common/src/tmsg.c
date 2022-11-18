@@ -4778,6 +4778,43 @@ int32_t tDeserializeSTaskDropReq(void *buf, int32_t bufLen, STaskDropReq *pReq) 
   return 0;
 }
 
+int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeI32(&encoder, pRsp->code) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->tbFName) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->sversion) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->tversion) < 0) return -1;
+  if (tEncodeI64(&encoder, pRsp->affectedRows) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+
+  return tlen;
+}
+
+int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, (char *)buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  if (tDecodeI32(&decoder, &pRsp->code) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pRsp->tbFName) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->sversion) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->tversion) < 0) return -1;
+  if (tDecodeI64(&decoder, &pRsp->affectedRows) < 0) return -1;
+  
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 
 int32_t tSerializeSSchedulerHbReq(void *buf, int32_t bufLen, SSchedulerHbReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);

@@ -65,19 +65,37 @@ int32_t qwBuildAndSendErrorRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t c
 int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SQWTaskCtx *ctx) {
   STbVerInfo     *tbInfo = ctx ? &ctx->tbInfo : NULL;
   int64_t         affectedRows = ctx ? ctx->affectedRows : 0;
-  SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
-  pRsp->code = htonl(code);
-  pRsp->affectedRows = htobe64(affectedRows);
+  SQueryTableRsp  rsp = {0};
+  rsp.code = code;
+  rsp.affectedRows = affectedRows;
+
   if (tbInfo) {
-    strcpy(pRsp->tbFName, tbInfo->tbFName);
-    pRsp->sversion = htonl(tbInfo->sversion);
-    pRsp->tversion = htonl(tbInfo->tversion);
+    strcpy(rsp.tbFName, tbInfo->tbFName);
+    rsp.sversion = tbInfo->sversion;
+    rsp.tversion = tbInfo->tversion;
+  }
+
+  int32_t msgSize = tSerializeSQueryTableRsp(NULL, 0, &rsp);
+  if (msgSize < 0) {
+    qError("tSerializeSQueryTableRsp failed");
+    QW_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+  
+  void *pRsp = rpcMallocCont(msgSize);
+  if (NULL == pRsp) {
+    qError("rpcMallocCont %d failed", msgSize);
+    QW_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  if (tSerializeSQueryTableRsp(pRsp, msgSize, &rsp) < 0) {
+    qError("tSerializeSQueryTableRsp %d failed", msgSize);
+    QW_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
   SRpcMsg rpcRsp = {
       .msgType = rspType,
       .pCont = pRsp,
-      .contLen = sizeof(*pRsp),
+      .contLen = msgSize,
       .code = code,
       .info = *pConn,
   };
