@@ -91,9 +91,6 @@ static void destroyAggOperatorInfo(void* param);
 
 static void destroyIntervalOperatorInfo(void* param);
 
-
-static void destroyOperatorInfo(SOperatorInfo* pOperator);
-
 void setOperatorCompleted(SOperatorInfo* pOperator) {
   pOperator->status = OP_EXEC_DONE;
   ASSERT(pOperator->pTaskInfo != NULL);
@@ -662,7 +659,11 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
           pfCtx->pDstBlock = pResult;
         }
 
-        numOfRows = pfCtx->fpSet.process(pfCtx);
+        int32_t code = pfCtx->fpSet.process(pfCtx);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+        numOfRows = pResInfo->numOfRes;
       } else if (fmIsAggFunc(pfCtx->functionId)) {
         // selective value output should be set during corresponding function execution
         if (fmIsSelectValueFunc(pfCtx->functionId)) {
@@ -1993,8 +1994,7 @@ static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOp
   int32_t scanFlag = MAIN_SCAN;
   getTableScanInfo(pOperator, &order, &scanFlag);
 
-  int64_t ekey =
-      Q_STATUS_EQUAL(pTaskInfo->status, TASK_COMPLETED) ? pInfo->win.ekey : pInfo->existNewGroupBlock->info.window.ekey;
+  int64_t ekey = pInfo->existNewGroupBlock->info.window.ekey;
   taosResetFillInfo(pInfo->pFillInfo, getFillInfoStart(pInfo->pFillInfo));
 
   blockDataCleanup(pInfo->pRes);
@@ -2172,7 +2172,7 @@ void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
   }
 }
 
-static void destroyOperatorInfo(SOperatorInfo* pOperator) {
+void destroyOperatorInfo(SOperatorInfo* pOperator) {
   if (pOperator == NULL) {
     return;
   }
@@ -2600,6 +2600,7 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
   pTaskInfo->id.queryId = queryId;
   pTaskInfo->execModel = model;
   pTaskInfo->pTableInfoList = tableListCreate();
+  pTaskInfo->stopInfo.pStopInfo = taosArrayInit(4, sizeof(SExchangeOpStopInfo));
 
   char* p = taosMemoryCalloc(1, 128);
   snprintf(p, 128, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
@@ -3213,6 +3214,7 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
     nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
   }
 
+  taosArrayDestroy(pTaskInfo->stopInfo.pStopInfo);
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);
@@ -3426,6 +3428,7 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
     ASSERT(code == 0);
     if (code == -1) {
       // coverity scan
+      pGroupResInfo->index += 1;
       continue;
     }
     SResultRow* pRow = (SResultRow*)pVal;

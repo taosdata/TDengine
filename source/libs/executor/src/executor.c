@@ -246,7 +246,9 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
     }
   }
 
-  *pSchema = tCloneSSchemaWrapper(((SExecTaskInfo*)pTaskInfo)->schemaInfo.qsw);
+  if (pSchema) {
+    *pSchema = tCloneSSchemaWrapper(((SExecTaskInfo*)pTaskInfo)->schemaInfo.qsw);
+  }
   return pTaskInfo;
 }
 
@@ -659,6 +661,54 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
   return pTaskInfo->code;
 }
 
+int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo) {
+  taosWLockLatch(&pTaskInfo->stopInfo.lock);
+  taosArrayPush(pTaskInfo->stopInfo.pStopInfo, pInfo);
+  taosWUnLockLatch(&pTaskInfo->stopInfo.lock);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t stopInfoComp(void const* lp, void const* rp) {
+  SExchangeOpStopInfo* key = (SExchangeOpStopInfo*)lp;
+  SExchangeOpStopInfo* pInfo = (SExchangeOpStopInfo*)rp;
+
+  if (key->refId < pInfo->refId) {
+    return -1;
+  } else if (key->refId > pInfo->refId) {
+    return 1;
+  }
+
+  return 0;
+}
+
+void qRemoveTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo) {
+  taosWLockLatch(&pTaskInfo->stopInfo.lock);
+  int32_t idx = taosArraySearchIdx(pTaskInfo->stopInfo.pStopInfo, pInfo, stopInfoComp, TD_EQ);
+  if (idx >= 0) {
+    taosArrayRemove(pTaskInfo->stopInfo.pStopInfo, idx);
+  }
+  taosWUnLockLatch(&pTaskInfo->stopInfo.lock);
+
+  return;
+}
+
+void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
+  taosWLockLatch(&pTaskInfo->stopInfo.lock);
+
+  int32_t num = taosArrayGetSize(pTaskInfo->stopInfo.pStopInfo);
+  for (int32_t i = 0; i < num; ++i) {
+    SExchangeOpStopInfo* pStop = taosArrayGet(pTaskInfo->stopInfo.pStopInfo, i);
+    SExchangeInfo*       pExchangeInfo = taosAcquireRef(exchangeObjRefPool, pStop->refId);
+    if (pExchangeInfo) {
+      tsem_post(&pExchangeInfo->ready);
+      taosReleaseRef(exchangeObjRefPool, pStop->refId);
+    }
+  }
+
+  taosWUnLockLatch(&pTaskInfo->stopInfo.lock);
+}
+
 int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qinfo;
 
@@ -667,7 +717,11 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
   }
 
   qDebug("%s execTask async killed", GET_TASKID(pTaskInfo));
+
   setTaskKilled(pTaskInfo);
+
+  qStopTaskOperators(pTaskInfo);
+
   return TSDB_CODE_SUCCESS;
 }
 

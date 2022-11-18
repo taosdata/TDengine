@@ -148,8 +148,8 @@ void RestoreFinishCb(struct SSyncFSM* pFsm) { sTrace("==callback== ==RestoreFini
 
 void ReConfigCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta* cbMeta) {
   char* s = syncCfg2Str(&(cbMeta->newCfg));
-  sTrace("==callback== ==ReConfigCb== flag:0x%lX, index:%" PRId64 ", code:%d, currentTerm:%" PRIu64 ", term:%" PRIu64
-         ", newCfg:%s",
+  sTrace("==callback== ==ReConfigCb== flag:%" PRIx64 ", index:%" PRId64 ", code:%d, currentTerm:%" PRIu64
+         ", term:%" PRIu64 ", newCfg:%s",
          cbMeta->flag, cbMeta->index, cbMeta->code, cbMeta->currentTerm, cbMeta->term, s);
   taosMemoryFree(s);
 }
@@ -257,16 +257,16 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
 
   SSyncNode* pSyncNode = (SSyncNode*)syncNodeAcquire(rid);
   assert(pSyncNode != NULL);
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
-  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
-  gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
-  gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
-  gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
-  gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
-  gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
-  gSyncIO->FpOnSyncSnapshot = pSyncNode->FpOnSnapshot;
-  gSyncIO->FpOnSyncSnapshotReply = pSyncNode->FpOnSnapshotReply;
+  // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
+  // gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
+  // gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
+  // gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
+  // gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
+  // gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
+  // gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
+  // gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
+  // gSyncIO->FpOnSyncSnapshot = pSyncNode->FpOnSnapshot;
+  // gSyncIO->FpOnSyncSnapshotReply = pSyncNode->FpOnSnapshotReply;
 
   gSyncIO->pSyncNode = pSyncNode;
   syncNodeRelease(pSyncNode);

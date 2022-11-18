@@ -234,7 +234,6 @@ typedef struct SCatalog {
 typedef struct SCtgBatch {
   int32_t          batchId;
   int32_t          msgType;
-  int32_t          msgSize;
   SArray*          pMsgs;
   SRequestConnInfo conn;
   char             dbFName[TSDB_DB_FNAME_LEN];

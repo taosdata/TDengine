@@ -119,6 +119,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_QUERIES,
   TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_APPS,
+  TSDB_MGMT_TABLE_STREAM_TASKS,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -418,13 +419,17 @@ static FORCE_INLINE int32_t taosEncodeSSchemaWrapper(void** buf, const SSchemaWr
 static FORCE_INLINE void* taosDecodeSSchemaWrapper(const void* buf, SSchemaWrapper* pSW) {
   buf = taosDecodeVariantI32(buf, &pSW->nCols);
   buf = taosDecodeVariantI32(buf, &pSW->version);
-  pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
-  if (pSW->pSchema == NULL) {
-    return NULL;
-  }
+  if (pSW->nCols > 0) {
+    pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
+    if (pSW->pSchema == NULL) {
+      return NULL;
+    }
 
-  for (int32_t i = 0; i < pSW->nCols; i++) {
-    buf = taosDecodeSSchema(buf, &pSW->pSchema[i]);
+    for (int32_t i = 0; i < pSW->nCols; i++) {
+      buf = taosDecodeSSchema(buf, &pSW->pSchema[i]);
+    }
+  } else {
+    pSW->pSchema = NULL;
   }
   return (void*)buf;
 }
@@ -839,7 +844,7 @@ typedef struct {
   int64_t dbId;
   int32_t vgVersion;
   int32_t numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
-  int64_t stateTs;      // ms
+  int64_t stateTs;     // ms
 } SUseDbReq;
 
 int32_t tSerializeSUseDbReq(void* buf, int32_t bufLen, SUseDbReq* pReq);
@@ -2622,6 +2627,7 @@ typedef struct {
 
 int32_t tEncodeSTqCheckInfo(SEncoder* pEncoder, const STqCheckInfo* pInfo);
 int32_t tDecodeSTqCheckInfo(SDecoder* pDecoder, STqCheckInfo* pInfo);
+void    tDeleteSTqCheckInfo(STqCheckInfo* pInfo);
 
 typedef struct {
   char topic[TSDB_TOPIC_FNAME_LEN];
@@ -2990,7 +2996,8 @@ static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicE
 }
 
 static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) {
-  if (pSubTopicEp->schema.nCols) taosMemoryFreeClear(pSubTopicEp->schema.pSchema);
+  taosMemoryFreeClear(pSubTopicEp->schema.pSchema);
+  pSubTopicEp->schema.nCols = 0;
   taosArrayDestroy(pSubTopicEp->vgs);
 }
 
@@ -3162,8 +3169,7 @@ typedef struct {
 
 typedef struct {
   SMsgHead  header;
-  int32_t   msgNum;
-  SBatchMsg msg[];
+  SArray*   pMsgs; //SArray<SBatchMsg>
 } SBatchReq;
 
 typedef struct {
@@ -3172,16 +3178,39 @@ typedef struct {
   int32_t msgLen;
   int32_t rspCode;
   void*   msg;
+} SBatchRspMsg;
+
+typedef struct {
+  SArray* pRsps; //SArray<SBatchRspMsg>
 } SBatchRsp;
 
-static FORCE_INLINE void tFreeSBatchRsp(void* p) {
+int32_t tSerializeSBatchReq(void *buf, int32_t bufLen, SBatchReq *pReq);
+int32_t tDeserializeSBatchReq(void *buf, int32_t bufLen, SBatchReq *pReq);
+static FORCE_INLINE void tFreeSBatchReqMsg(void* msg) {
+  if (NULL == msg) {
+    return;
+  }
+  SBatchMsg* pMsg = (SBatchMsg*)msg;
+  taosMemoryFree(pMsg->msg);
+}
+
+int32_t tSerializeSBatchRsp(void *buf, int32_t bufLen, SBatchRsp *pRsp);
+int32_t tDeserializeSBatchRsp(void *buf, int32_t bufLen, SBatchRsp *pRsp);
+
+static FORCE_INLINE void tFreeSBatchRspMsg(void* p) {
   if (NULL == p) {
     return;
   }
 
-  SBatchRsp* pRsp = (SBatchRsp*)p;
+  SBatchRspMsg* pRsp = (SBatchRspMsg*)p;
   taosMemoryFree(pRsp->msg);
 }
+
+int32_t tSerializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq);
+int32_t tDeserializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq);
+int32_t tSerializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq);
+int32_t tDeserializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq);
+
 
 #pragma pack(pop)
 

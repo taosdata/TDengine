@@ -80,7 +80,12 @@ void streamMetaClose(SStreamMeta* pMeta) {
     pIter = taosHashIterate(pMeta->pTasks, pIter);
     if (pIter == NULL) break;
     SStreamTask* pTask = *(SStreamTask**)pIter;
+    if (pTask->timer) {
+      taosTmrStop(pTask->timer);
+      pTask->timer = NULL;
+    }
     tFreeSStreamTask(pTask);
+    /*streamMetaReleaseTask(pMeta, pTask);*/
   }
   taosHashCleanup(pMeta->pTasks);
   taosMemoryFree(pMeta->path);
@@ -166,6 +171,51 @@ SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId) {
     return *ppTask;
   } else {
     return NULL;
+  }
+}
+
+SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
+  taosRLockLatch(&pMeta->lock);
+
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
+  if (ppTask) {
+    SStreamTask* pTask = *ppTask;
+    if (atomic_load_8(&pTask->taskStatus) != TASK_STATUS__DROPPING) {
+      atomic_add_fetch_32(&pTask->refCnt, 1);
+      taosRUnLockLatch(&pMeta->lock);
+      return pTask;
+    } else {
+      taosRUnLockLatch(&pMeta->lock);
+      return NULL;
+    }
+  }
+  taosRUnLockLatch(&pMeta->lock);
+  return NULL;
+}
+
+void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
+  int32_t left = atomic_sub_fetch_32(&pTask->refCnt, 1);
+  ASSERT(left >= 0);
+  if (left == 0) {
+    ASSERT(atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING);
+    tFreeSStreamTask(pTask);
+  }
+}
+
+void streamMetaRemoveTask1(SStreamMeta* pMeta, int32_t taskId) {
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
+  if (ppTask) {
+    SStreamTask* pTask = *ppTask;
+    taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
+    /*if (pTask->timer) {
+     * taosTmrStop(pTask->timer);*/
+    /*pTask->timer = NULL;*/
+    /*}*/
+    atomic_store_8(&pTask->taskStatus, TASK_STATUS__DROPPING);
+
+    taosWLockLatch(&pMeta->lock);
+    streamMetaReleaseTask(pMeta, pTask);
+    taosWUnLockLatch(&pMeta->lock);
   }
 }
 

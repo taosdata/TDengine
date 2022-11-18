@@ -513,6 +513,22 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
   //    taosMemoryFreeClear(pFillInfo->pTags[i].tagVal);
   //  }
 
+  // free pFillCol
+  if (pFillInfo->pFillCol) {
+    for (int32_t i = 0; i < pFillInfo->numOfCols; i++) {
+      SFillColInfo* pCol = &pFillInfo->pFillCol[i];
+      if (!pCol->notFillCol) {
+        if (pCol->fillVal.nType == TSDB_DATA_TYPE_VARBINARY || pCol->fillVal.nType == TSDB_DATA_TYPE_VARCHAR ||
+            pCol->fillVal.nType == TSDB_DATA_TYPE_NCHAR || pCol->fillVal.nType == TSDB_DATA_TYPE_JSON) {
+          if (pCol->fillVal.pz) {
+            taosMemoryFree(pCol->fillVal.pz);
+            pCol->fillVal.pz = NULL;
+          }
+        }
+      }
+    }
+  }
+
   taosMemoryFreeClear(pFillInfo->pTags);
   taosMemoryFreeClear(pFillInfo->pFillCol);
   taosMemoryFreeClear(pFillInfo);
@@ -680,9 +696,9 @@ SResultCellData* getResultCell(SResultRowData* pRaw, int32_t index) {
 void* destroyFillColumnInfo(SFillColInfo* pFillCol, int32_t start, int32_t end) {
   for (int32_t i = start; i < end; i++) {
     destroyExprInfo(pFillCol[i].pExpr, 1);
-    taosMemoryFreeClear(pFillCol[i].pExpr);
     taosVariantDestroy(&pFillCol[i].fillVal);
   }
+  taosMemoryFreeClear(pFillCol[start].pExpr);
   taosMemoryFree(pFillCol);
   return NULL;
 }

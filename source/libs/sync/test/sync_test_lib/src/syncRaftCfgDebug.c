@@ -16,4 +16,20 @@
 #define _DEFAULT_SOURCE
 #include "syncTest.h"
 
+char *syncCfg2Str(SSyncCfg *pSyncCfg) {
+  cJSON *pJson = syncCfg2Json(pSyncCfg);
+  char  *serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
 
+int32_t syncCfgFromStr(const char *s, SSyncCfg *pSyncCfg) {
+  cJSON *pRoot = cJSON_Parse(s);
+  ASSERT(pRoot != NULL);
+
+  int32_t ret = syncCfgFromJson(pRoot, pSyncCfg);
+  ASSERT(ret == 0);
+
+  cJSON_Delete(pRoot);
+  return 0;
+}

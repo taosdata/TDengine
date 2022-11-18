@@ -21,7 +21,6 @@ extern "C" {
 #endif
 
 #include "syncInt.h"
-#include "syncMessage.h"
 
 // TLA+ Spec
 // HandleRequestVoteRequest(i, j, m) ==
@@ -45,7 +44,7 @@ extern "C" {
 //                 m)
 //       /\ UNCHANGED <<state, currentTerm, candidateVars, leaderVars, logVars>>
 //
-int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg);
+int32_t syncNodeOnRequestVote(SSyncNode* pNode, const SRpcMsg* pMsg);
 
 #ifdef __cplusplus
 }

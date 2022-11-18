@@ -38,15 +38,15 @@ SSyncNode* syncNodeInit() {
   SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
   assert(pSyncNode != NULL);
 
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
-  gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
-  gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
-  gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
-  gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
-  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
+  // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
+  // gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
+  // gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
+  // gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
+  // gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
+  // gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
+  // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
+  // gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
+  // gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
   gSyncIO->pSyncNode = pSyncNode;
 
   return pSyncNode;

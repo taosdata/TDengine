@@ -15,11 +15,12 @@
 
 #define _DEFAULT_SOURCE
 #include "syncEnv.h"
+#include "syncUtil.h"
 #include "tref.h"
 
 static SSyncEnv gSyncEnv = {0};
 static int32_t  gNodeRefId = -1;
-bool            gRaftDetailLog = false;
+static int32_t  gHbDataRefId = -1;
 static void     syncEnvTick(void *param, void *tmrId);
 
 SSyncEnv *syncEnv() { return &gSyncEnv; }
@@ -50,6 +51,13 @@ int32_t syncInit() {
     return -1;
   }
 
+  gHbDataRefId = taosOpenRef(200, (RefFp)syncHbTimerDataFree);
+  if (gHbDataRefId < 0) {
+    sError("failed to init hb-data ref");
+    syncCleanUp();
+    return -1;
+  }
+
   sDebug("sync rsetId:%d is open", gNodeRefId);
   return 0;
 }
@@ -63,6 +71,12 @@ void syncCleanUp() {
     sDebug("sync rsetId:%d is closed", gNodeRefId);
     taosCloseRef(gNodeRefId);
     gNodeRefId = -1;
+  }
+
+  if (gHbDataRefId != -1) {
+    sDebug("sync rsetId:%d is closed", gHbDataRefId);
+    taosCloseRef(gHbDataRefId);
+    gHbDataRefId = -1;
   }
 }
 
@@ -88,6 +102,26 @@ SSyncNode *syncNodeAcquire(int64_t rid) {
 
 void syncNodeRelease(SSyncNode *pNode) { taosReleaseRef(gNodeRefId, pNode->rid); }
 
+int64_t syncHbTimerDataAdd(SSyncHbTimerData *pData) {
+  pData->rid = taosAddRef(gHbDataRefId, pData);
+  if (pData->rid < 0) return -1;
+  return pData->rid;
+}
+
+void syncHbTimerDataRemove(int64_t rid) { taosRemoveRef(gHbDataRefId, rid); }
+
+SSyncHbTimerData *syncHbTimerDataAcquire(int64_t rid) {
+  SSyncHbTimerData *pData = taosAcquireRef(gHbDataRefId, rid);
+  if (pData == NULL) {
+    sError("failed to acquire hb-timer-data from refId:%" PRId64, rid);
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
+
+  return pData;
+}
+
+void syncHbTimerDataRelease(SSyncHbTimerData *pData) { taosReleaseRef(gHbDataRefId, pData->rid); }
+
 #if 0
 void syncEnvStartTimer() {
   taosTmrReset(gSyncEnv.FpEnvTickTimer, gSyncEnv.envTickTimerMS, &gSyncEnv, gSyncEnv.pTimerManager,
@@ -105,6 +139,7 @@ void syncEnvStopTimer() {
 #endif
 
 static void syncEnvTick(void *param, void *tmrId) {
+#if 0
   SSyncEnv *pSyncEnv = param;
   if (atomic_load_64(&gSyncEnv.envTickTimerLogicClockUser) <= atomic_load_64(&gSyncEnv.envTickTimerLogicClock)) {
     gSyncEnv.envTickTimerCounter++;
@@ -121,4 +156,5 @@ static void syncEnvTick(void *param, void *tmrId) {
            gSyncEnv.envTickTimerLogicClockUser, gSyncEnv.envTickTimerLogicClock, gSyncEnv.envTickTimerCounter,
            gSyncEnv.envTickTimerMS, tmrId);
   }
+#endif
 }

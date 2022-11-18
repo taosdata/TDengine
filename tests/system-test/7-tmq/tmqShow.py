@@ -135,12 +135,21 @@ class TDTestCase:
         if rows != len(topicNameList):
             tdLog.exit("show consumers rows error")
 
-        tdLog.info("check show subscriptions")
-        tdSql.query("show subscriptions")
-        # tdLog.debug(tdSql.queryResult)
-        rows = tdSql.getRows()
-        expectSubscriptions = paraDict['vgroups'] * len(topicNameList)
-        tdLog.info("show subscriptions rows: %d, expect Subscriptions: %d"%(rows,expectSubscriptions))
+        for i in range(0, 10, 1):
+            tdLog.info("check show subscriptions")
+            tdSql.query("show subscriptions")
+            tdLog.debug(tdSql.queryResult)
+            rows = tdSql.getRows()
+            expectSubscriptions = paraDict['vgroups'] * len(topicNameList)
+            tdLog.info("show subscriptions rows: %d, expect Subscriptions: %d"%(rows,expectSubscriptions))
+            if rows != expectSubscriptions:
+                # tdLog.exit("show subscriptions rows error")
+                tdLog.info("continue retry[%d] to show subscriptions"%(i))
+                time.sleep(1)
+                continue
+            else: 
+                break
+
         if rows != expectSubscriptions:
             tdLog.exit("show subscriptions rows error")
 

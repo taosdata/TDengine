@@ -505,8 +505,8 @@ int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision) {
 }
 
 void tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minKey, TSKEY *maxKey) {
-  *minKey = fid * minutes * tsTickPerMin[precision];
-  *maxKey = *minKey + minutes * tsTickPerMin[precision] - 1;
+  *minKey = tsTickPerMin[precision] * fid * minutes;
+  *maxKey = *minKey + tsTickPerMin[precision] * minutes - 1;
 }
 
 int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now) {
@@ -565,15 +565,15 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   }
 }
 
-int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow) {
-  int32_t n = 0;
+// int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow) {
+//   int32_t n = 0;
 
-  n += tPutI64(p, pRow->version);
-  if (p) memcpy(p + n, pRow->pTSRow, pRow->pTSRow->len);
-  n += pRow->pTSRow->len;
+//   n += tPutI64(p, pRow->version);
+//   if (p) memcpy(p + n, pRow->pTSRow, pRow->pTSRow->len);
+//   n += pRow->pTSRow->len;
 
-  return n;
-}
+//   return n;
+// }
 
 int32_t tsdbRowCmprFn(const void *p1, const void *p2) {
   return tsdbKeyCmprFn(&TSDBROW_KEY((TSDBROW *)p1), &TSDBROW_KEY((TSDBROW *)p2));
@@ -1015,6 +1015,191 @@ _err:
   return code;
 }
 
+static int32_t tBlockDataAppendBlockRow(SBlockData *pBlockData, SBlockData *pBlockDataFrom, int32_t iRow) {
+  int32_t code = 0;
+
+  SColVal   cv = {0};
+  int32_t   iColDataFrom = 0;
+  SColData *pColDataFrom =
+      (iColDataFrom < pBlockDataFrom->nColData) ? &((SColData *)pBlockDataFrom->aColData->pData)[iColDataFrom] : NULL;
+
+  for (int32_t iColDataTo = 0; iColDataTo < pBlockData->nColData; iColDataTo++) {
+    SColData *pColDataTo = &((SColData *)pBlockData->aColData->pData)[iColDataTo];
+
+    while (pColDataFrom && pColDataFrom->cid < pColDataTo->cid) {
+      iColDataFrom++;
+      pColDataFrom = (iColDataFrom < pBlockDataFrom->nColData)
+                         ? &((SColData *)pBlockDataFrom->aColData->pData)[iColDataFrom]
+                         : NULL;
+    }
+
+    if (pColDataFrom == NULL || pColDataFrom->cid > pColDataTo->cid) {
+      code = tColDataAppendValue(pColDataTo, &COL_VAL_NONE(pColDataTo->cid, pColDataTo->type));
+      if (code) goto _exit;
+    } else {
+      tColDataGetValue(pColDataFrom, iRow, &cv);
+
+      code = tColDataAppendValue(pColDataTo, &cv);
+      if (code) goto _exit;
+
+      iColDataFrom++;
+      pColDataFrom = (iColDataFrom < pBlockDataFrom->nColData)
+                         ? &((SColData *)pBlockDataFrom->aColData->pData)[iColDataFrom]
+                         : NULL;
+    }
+  }
+
+_exit:
+  return code;
+}
+
+static int32_t tBlockDataAppendTPRow(SBlockData *pBlockData, STSRow *pRow, STSchema *pTSchema) {
+  int32_t code = 0;
+
+  int32_t   iTColumn = 1;
+  STColumn *pTColumn = (iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
+  void     *pBitmap = pRow->statis ? tdGetBitmapAddrTp(pRow, pTSchema->flen) : NULL;
+
+  for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
+    SColData *pColData = &((SColData *)pBlockData->aColData->pData)[iColData];
+
+    while (pTColumn && pTColumn->colId < pColData->cid) {
+      iTColumn++;
+      pTColumn = (iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
+    }
+
+    if (pTColumn == NULL || pTColumn->colId > pColData->cid) {
+      code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
+      if (code) goto _exit;
+    } else {
+      ASSERT(pTColumn->type == pColData->type);
+
+      SColVal cv = {.cid = pTColumn->colId, .type = pTColumn->type};
+
+      if (pRow->statis) {
+        TDRowValT vt = TD_VTYPE_MAX;
+        tdGetBitmapValTypeII(pBitmap, iTColumn - 1, &vt);
+
+        if (vt == TD_VTYPE_NORM) {
+          cv.flag = CV_FLAG_VALUE;
+
+          if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+            void *pData = (char *)pRow + *(int32_t *)(pRow->data + pTColumn->offset - sizeof(TSKEY));
+            cv.value.nData = varDataLen(pData);
+            cv.value.pData = varDataVal(pData);
+          } else {
+            memcpy(&cv.value.val, pRow->data + pTColumn->offset - sizeof(TSKEY), pTColumn->bytes);
+          }
+
+          code = tColDataAppendValue(pColData, &cv);
+          if (code) goto _exit;
+        } else if (vt == TD_VTYPE_NONE) {
+          code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
+          if (code) goto _exit;
+        } else if (vt == TD_VTYPE_NULL) {
+          code = tColDataAppendValue(pColData, &COL_VAL_NULL(pColData->cid, pColData->type));
+          if (code) goto _exit;
+        } else {
+          ASSERT(0);
+        }
+      } else {
+        cv.flag = CV_FLAG_VALUE;
+
+        if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+          void *pData = (char *)pRow + *(int32_t *)(pRow->data + pTColumn->offset - sizeof(TSKEY));
+          cv.value.nData = varDataLen(pData);
+          cv.value.pData = varDataVal(pData);
+        } else {
+          memcpy(&cv.value.val, pRow->data + pTColumn->offset - sizeof(TSKEY), pTColumn->bytes);
+        }
+
+        code = tColDataAppendValue(pColData, &cv);
+        if (code) goto _exit;
+      }
+
+      iTColumn++;
+      pTColumn = (iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
+    }
+  }
+
+_exit:
+  return code;
+}
+
+static int32_t tBlockDataAppendKVRow(SBlockData *pBlockData, STSRow *pRow, STSchema *pTSchema) {
+  int32_t code = 0;
+
+  col_id_t  kvIter = 0;
+  col_id_t  nKvCols = tdRowGetNCols(pRow) - 1;
+  void     *pColIdx = TD_ROW_COL_IDX(pRow);
+  void     *pBitmap = tdGetBitmapAddrKv(pRow, tdRowGetNCols(pRow));
+  int32_t   iTColumn = 1;
+  STColumn *pTColumn = (iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
+
+  for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
+    SColData *pColData = &((SColData *)pBlockData->aColData->pData)[iColData];
+
+    while (pTColumn && pTColumn->colId < pColData->cid) {
+      iTColumn++;
+      pTColumn = (iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
+    }
+
+    if (pTColumn == NULL || pTColumn->colId > pColData->cid) {
+      code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
+      if (code) goto _exit;
+    } else {
+      ASSERT(pTColumn->type == pColData->type);
+
+      SColVal    cv = {.cid = pTColumn->colId, .type = pTColumn->type};
+      TDRowValT  vt = TD_VTYPE_NONE;  // default is NONE
+      SKvRowIdx *pKvIdx = NULL;
+
+      while (kvIter < nKvCols) {
+        pKvIdx = (SKvRowIdx *)POINTER_SHIFT(pColIdx, kvIter * sizeof(SKvRowIdx));
+        if (pKvIdx->colId == pTColumn->colId) {
+          tdGetBitmapValTypeII(pBitmap, kvIter, &vt);
+          ++kvIter;
+          break;
+        } else if (pKvIdx->colId > pTColumn->colId) {
+          vt = TD_VTYPE_NONE;
+          break;
+        } else {
+          ++kvIter;
+        }
+      }
+
+      if (vt == TD_VTYPE_NORM) {
+        cv.flag = CV_FLAG_VALUE;
+
+        void *pData = POINTER_SHIFT(pRow, pKvIdx->offset);
+        if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+          cv.value.nData = varDataLen(pData);
+          cv.value.pData = varDataVal(pData);
+        } else {
+          memcpy(&cv.value.val, pData, pTColumn->bytes);
+        }
+
+        code = tColDataAppendValue(pColData, &cv);
+        if (code) goto _exit;
+      } else if (vt == TD_VTYPE_NONE) {
+        code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
+        if (code) goto _exit;
+      } else if (vt == TD_VTYPE_NULL) {
+        code = tColDataAppendValue(pColData, &COL_VAL_NULL(pColData->cid, pColData->type));
+        if (code) goto _exit;
+      } else {
+        ASSERT(0);
+      }
+
+      iTColumn++;
+      pTColumn = (iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
+    }
+  }
+
+_exit:
+  return code;
+}
+
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid) {
   int32_t code = 0;
 
@@ -1036,27 +1221,20 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   if (code) goto _err;
   pBlockData->aTSKEY[pBlockData->nRow] = TSDBROW_TS(pRow);
 
-  // OTHER
-  SRowIter rIter = {0};
-  SColVal *pColVal;
-
-  tRowIterInit(&rIter, pRow, pTSchema);
-  pColVal = tRowIterNext(&rIter);
-  for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
-    SColData *pColData = &((SColData *)pBlockData->aColData->pData)[iColData];
-
-    while (pColVal && pColVal->cid < pColData->cid) {
-      pColVal = tRowIterNext(&rIter);
-    }
-
-    if (pColVal == NULL || pColVal->cid > pColData->cid) {
-      code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
+  SColVal cv = {0};
+  if (pRow->type == 0) {
+    if (TD_IS_TP_ROW(pRow->pTSRow)) {
+      code = tBlockDataAppendTPRow(pBlockData, pRow->pTSRow, pTSchema);
+      if (code) goto _err;
+    } else if (TD_IS_KV_ROW(pRow->pTSRow)) {
+      code = tBlockDataAppendKVRow(pBlockData, pRow->pTSRow, pTSchema);
       if (code) goto _err;
     } else {
-      code = tColDataAppendValue(pColData, pColVal);
-      if (code) goto _err;
-      pColVal = tRowIterNext(&rIter);
+      ASSERT(0);
     }
+  } else {
+    code = tBlockDataAppendBlockRow(pBlockData, pRow->pBlockData, pRow->iRow);
+    if (code) goto _err;
   }
   pBlockData->nRow++;
 

@@ -760,7 +760,8 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   pInfo->groupSort = pMergePhyNode->groupSort;
   pInfo->pSortInfo = createSortInfo(pMergePhyNode->pMergeKeys);
   pInfo->pInputBlock = pInputBlock;
-  pInfo->bufPageSize = getProperSortPageSize(rowSize);
+  size_t numOfCols = taosArrayGetSize(pInfo->binfo.pRes->pDataBlock);
+  pInfo->bufPageSize = getProperSortPageSize(rowSize, numOfCols);
   pInfo->sortBufSize = pInfo->bufPageSize * (numStreams + 1);  // one additional is reserved for merged result.
 
   setOperatorInfo(pOperator, "MultiwayMergeOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE, false, OP_NOT_OPENED, pInfo, pTaskInfo);
