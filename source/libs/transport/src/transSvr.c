@@ -1233,7 +1233,7 @@ int transReleaseSrvHandle(void* handle) {
 
   tTrace("%s conn %p start to release", transLabel(pThrd->pTransInst), exh->handle);
   if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
-    // do nothing
+    destroySmsg(m);
   }
 
   transReleaseExHandle(transGetRefMgt(), refId);
@@ -1270,7 +1270,7 @@ int transSendResponse(const STransMsg* msg) {
   STraceId* trace = (STraceId*)&msg->info.traceId;
   tGTrace("conn %p start to send resp (1/2)", exh->handle);
   if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
-    rpcFreeCont(msg->pCont);
+    destroySmsg(m);
   }
 
   transReleaseExHandle(transGetRefMgt(), refId);
@@ -1306,7 +1306,7 @@ int transRegisterMsg(const STransMsg* msg) {
   STrans* pTransInst = pThrd->pTransInst;
   tTrace("%s conn %p start to register brokenlink callback", transLabel(pTransInst), exh->handle);
   if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
-    rpcFreeCont(msg->pCont);
+    destroySmsg(m);
   }
 
   transReleaseExHandle(transGetRefMgt(), refId);
