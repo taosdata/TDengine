@@ -6,6 +6,7 @@
 ,,y,unit-test,bash test.sh
 
 #tsim test
+<<<<<<< HEAD
 ,,y,script,./test.sh -f tsim/user/basic.sim
 ,,y,script,./test.sh -f tsim/user/password.sim
 ,,y,script,./test.sh -f tsim/user/privilege_db.sim
@@ -172,6 +173,8 @@
 ,,y,script,./test.sh -f tsim/query/interval.sim
 ,,y,script,./test.sh -f tsim/query/scalarFunction.sim
 ,,y,script,./test.sh -f tsim/query/scalarNull.sim
+=======
+
 ,,y,script,./test.sh -f tsim/query/session.sim
 ,,y,script,./test.sh -f tsim/query/udf.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
@@ -1012,6 +1015,13 @@
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_json_alltypes.py
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestQueryWithJson.py -R
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/telnet_tcp.py -R
+=======
+,,y,script,./test.sh -f tsim/mnode/basic1.sim
+,,y,script,./test.sh -f tsim/mnode/basic2.sim
+,,y,script,./test.sh -f tsim/mnode/basic3.sim
+,,y,script,./test.sh -f tsim/mnode/basic4.sim
+,,y,script,./test.sh -f tsim/mnode/basic5.sim
+>>>>>>> rep
 
 #docs-examples test
 ,,,docs-examples-test,bash python.sh
