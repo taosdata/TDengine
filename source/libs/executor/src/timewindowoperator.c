@@ -2548,9 +2548,11 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   pInfo->interval.interval = pInterpPhyNode->interval;
   pInfo->current = pInfo->win.skey;
 
-  STableScanInfo* pScanInfo = (STableScanInfo*)downstream->info;
-  pScanInfo->cond.twindows = pInfo->win;
-  pScanInfo->cond.type = TIMEWINDOW_RANGE_EXTERNAL;
+  if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanInfo* pScanInfo = (STableScanInfo*)downstream->info;
+    pScanInfo->cond.twindows = pInfo->win;
+    pScanInfo->cond.type = TIMEWINDOW_RANGE_EXTERNAL;
+  }
 
   setOperatorInfo(pOperator, "TimeSliceOperator", QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
