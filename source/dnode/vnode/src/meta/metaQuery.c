@@ -165,8 +165,9 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   version1 = ((SUidIdxVal *)pReader->pBuf)[0].version;
   return metaGetTableEntryByVersion(pReader, version1, uid);
   */
+
   SMetaInfo info;
-  if (metaGetInfo(pMeta, uid, &info) == TSDB_CODE_NOT_FOUND) {
+  if (metaGetInfo(pMeta, uid, &info, pReader) == TSDB_CODE_NOT_FOUND) {
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
@@ -623,7 +624,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   SSkmDbKey skmDbKey;
   if (sver <= 0) {
     SMetaInfo info;
-    if (metaGetInfo(pMeta, suid ? suid : uid, &info) == 0) {
+    if (metaGetInfo(pMeta, suid ? suid : uid, &info, NULL) == 0) {
       sver = info.skmVer;
     } else {
       TBC *pSkmDbC = NULL;
@@ -1388,10 +1389,11 @@ int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj 
 
 int32_t metaCacheGet(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo);
 
-int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo) {
+int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo, SMetaReader *pReader) {
   int32_t code = 0;
   void   *pData = NULL;
   int     nData = 0;
+  int     lock = 0;
 
   metaRLock(pMeta);
 
@@ -1416,10 +1418,21 @@ int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo) {
   pInfo->version = ((SUidIdxVal *)pData)->version;
   pInfo->skmVer = ((SUidIdxVal *)pData)->skmVer;
 
+  if (pReader != NULL) {
+    lock = !(pReader->flags & META_READER_NOLOCK);
+    if (lock) {
+      metaULock(pReader->pMeta);
+      // metaReaderReleaseLock(pReader);
+    }
+  }
   // upsert the cache
   metaWLock(pMeta);
   metaCacheUpsert(pMeta, pInfo);
   metaULock(pMeta);
+
+  if (lock) {
+    metaRLock(pReader->pMeta);
+  }
 
 _exit:
   tdbFree(pData);
