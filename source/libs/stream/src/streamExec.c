@@ -91,6 +91,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
   void* exec = pTask->exec.executor;
 
   qSetStreamOpOpen(exec);
+  bool finished = false;
 
   while (1) {
     SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
@@ -106,7 +107,10 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       if (qExecTask(exec, &output, &ts) < 0) {
         ASSERT(0);
       }
-      if (output == NULL) break;
+      if (output == NULL) {
+        finished = true;
+        break;
+      }
 
       SSDataBlock block = {0};
       assignOneDataBlock(&block, output);
@@ -133,6 +137,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
     if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       streamDispatch(pTask);
     }
+    if (finished) break;
   }
   return 0;
 }

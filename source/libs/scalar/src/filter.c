@@ -3248,14 +3248,18 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes, SC
       for (uint32_t u = 0; u < group->unitNum; ++u) {
         uint32_t        uidx = group->unitIdxs[u];
         SFilterComUnit *cunit = &info->cunits[uidx];
-        void           *colData = colDataGetData((SColumnInfoData *)(cunit->colData), i);
-
+        void           *colData = NULL;
+        bool            isNull = colDataIsNull((SColumnInfoData *)(cunit->colData), 0, i, NULL);
         // if (FILTER_UNIT_GET_F(info, uidx)) {
         //   p[i] = FILTER_UNIT_GET_R(info, uidx);
         // } else {
         uint8_t optr = cunit->optr;
 
-        if (colData == NULL || colDataIsNull((SColumnInfoData *)(cunit->colData), 0, i, NULL)) {
+        if (!isNull) {
+          colData = colDataGetData((SColumnInfoData *)(cunit->colData), i);
+        }
+        
+        if (colData == NULL || isNull) {
           p[i] = optr == OP_TYPE_IS_NULL ? true : false;
         } else {
           if (optr == OP_TYPE_IS_NOT_NULL) {

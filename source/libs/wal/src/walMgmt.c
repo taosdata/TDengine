@@ -251,7 +251,7 @@ static void walFsyncAll() {
       int32_t code = taosFsyncFile(pWal->pLogFile);
       if (code != 0) {
         wError("vgId:%d, file:%" PRId64 ".log, failed to fsync since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
-               strerror(code));
+               strerror(errno));
       }
     }
     pWal = taosIterateRef(tsWal.refSetId, pWal->refId);
