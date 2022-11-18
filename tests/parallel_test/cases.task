@@ -3,10 +3,22 @@
 #NA,NA,y or n,script,./test.sh -f tsim/user/basic.sim
 
 #unit-test
-,,y,unit-test,bash test.sh
+
 
 #tsim test
-
+,,y,script,./test.sh -f tsim/user/basic.sim
+,,y,script,./test.sh -f tsim/user/password.sim
+,,y,script,./test.sh -f tsim/user/privilege_db.sim
+,,y,script,./test.sh -f tsim/user/privilege_sysinfo.sim
+,,y,script,./test.sh -f tsim/db/alter_option.sim
+,,y,script,./test.sh -f tsim/db/alter_replica_13.sim
+,,y,script,./test.sh -f tsim/db/alter_replica_31.sim
+,,y,script,./test.sh -f tsim/db/basic1.sim
+,,y,script,./test.sh -f tsim/db/basic2.sim
+,,y,script,./test.sh -f tsim/db/basic3.sim
+,,y,script,./test.sh -f tsim/db/basic4.sim
+,,y,script,./test.sh -f tsim/db/basic5.sim
+,,y,script,./test.sh -f tsim/db/basic6.sim
 
 ,,y,./test.sh -f tsim/mnode/basic1.sim
 ,,y,./test.sh -f tsim/mnode/basic2.sim
