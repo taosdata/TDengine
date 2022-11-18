@@ -427,7 +427,7 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
     *acquireRes = 0;
     return TSDB_CODE_SUCCESS;
   } else {  // do some book mark work after acquiring the filter result from cache
-    STagFilterResEntry* pEntry = taosHashGet(pMeta->pCache->sTagFilterResCache.pTableEntry, &suid, sizeof(uint64_t));
+    STagFilterResEntry** pEntry = taosHashGet(pMeta->pCache->sTagFilterResCache.pTableEntry, &suid, sizeof(uint64_t));
     ASSERT(pEntry != NULL);
     *acquireRes = 1;
 
@@ -435,14 +435,14 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
     int32_t size = *(int32_t*) p;
     taosArrayAddBatch(pList1, p + sizeof(int32_t), size);
 
-    pEntry->qTimes += 1;
+    (*pEntry)->qTimes += 1;
 
     // check if scanning all items are necessary or not
-    if (pEntry->qTimes >= 5000 && TD_DLIST_NELES(&pEntry->list) > 10) {
+    if ((*pEntry)->qTimes >= 5000 && TD_DLIST_NELES(&(*pEntry)->list) > 10) {
       SArray* pList = taosArrayInit(64, POINTER_BYTES);
 
       SListIter iter = {0};
-      tdListInitIter(&pEntry->list, &iter, TD_LIST_FORWARD);
+      tdListInitIter(&(*pEntry)->list, &iter, TD_LIST_FORWARD);
 
       SListNode* pNode = NULL;
       while ((pNode = tdListNext(&iter)) != NULL) {
@@ -461,10 +461,10 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
       size_t s = taosArrayGetSize(pList);
       for(int32_t i = 0; i < s; ++i) {
         SListNode** p1 = taosArrayGet(pList, i);
-        tdListPopNode(&pEntry->list, *p1);
+        tdListPopNode(&(*pEntry)->list, *p1);
       }
 
-      pEntry->qTimes = 0; // reset the query times
+      (*pEntry)->qTimes = 0; // reset the query times
     }
   }
 
