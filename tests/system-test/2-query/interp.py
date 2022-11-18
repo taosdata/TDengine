@@ -900,6 +900,8 @@ class TDTestCase:
         tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:55', NULL, NULL)")
         tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:01:00', 55,   60)")
 
+        # test fill linear
+
         # check c0
         tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-01 23:59:59', '2020-02-02 00:00:00') every(1s) fill(linear)")
         tdSql.checkRows(1)
@@ -1370,35 +1372,406 @@ class TDTestCase:
         tdSql.query(f"select interp(c0),interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:01:00') every(1s) fill(linear)")
         tdSql.checkRows(61)
         tdSql.checkCols(2)
-        tdSql.checkData(0,  0, 0)
-        tdSql.checkData(10, 0, 10)
-        tdSql.checkData(20, 0, 20)
-        tdSql.checkData(30, 0, 30)
+        tdSql.checkData(0,  0, 0)    #
+        tdSql.checkData(1,  0, None)
+        tdSql.checkData(4,  0, None)
+        tdSql.checkData(5,  0, None) #
+        tdSql.checkData(6,  0, None)
+        tdSql.checkData(9,  0, None)
+        tdSql.checkData(10, 0, 10)   #
+        tdSql.checkData(11, 0, None)
+        tdSql.checkData(14, 0, None)
+        tdSql.checkData(15, 0, None) #
+        tdSql.checkData(16, 0, None)
+        tdSql.checkData(19, 0, None)
+        tdSql.checkData(20, 0, 20)   #
+        tdSql.checkData(21, 0, None)
+        tdSql.checkData(24, 0, None)
+        tdSql.checkData(25, 0, None) #
+        tdSql.checkData(26, 0, None)
+        tdSql.checkData(29, 0, None)
+        tdSql.checkData(30, 0, 30)   #
         tdSql.checkData(31, 0, 31)
         tdSql.checkData(32, 0, 32)
         tdSql.checkData(33, 0, 33)
         tdSql.checkData(34, 0, 34)
-        tdSql.checkData(35, 0, 35)
+        tdSql.checkData(35, 0, 35)   #
         tdSql.checkData(36, 0, 36)
         tdSql.checkData(37, 0, 37)
         tdSql.checkData(38, 0, 38)
         tdSql.checkData(39, 0, 39)
-        tdSql.checkData(40, 0, 40)
-        tdSql.checkData(50, 0, 50)
-        tdSql.checkData(60, 0, 55)
+        tdSql.checkData(40, 0, 40)   #
+        tdSql.checkData(41, 0, None)
+        tdSql.checkData(44, 0, None)
+        tdSql.checkData(45, 0, None) #
+        tdSql.checkData(46, 0, None)
+        tdSql.checkData(49, 0, None)
+        tdSql.checkData(50, 0, 50)   #
+        tdSql.checkData(51, 0, None)
+        tdSql.checkData(54, 0, None)
+        tdSql.checkData(55, 0, None) #
+        tdSql.checkData(56, 0, None)
+        tdSql.checkData(59, 0, None)
+        tdSql.checkData(60, 0, 55)   #
 
-        tdSql.checkData(0,  1, None)
-        tdSql.checkData(10, 1, 10)
-        tdSql.checkData(20, 1, None)
-        tdSql.checkData(30, 1, 30)
-        tdSql.checkData(40, 1, 40)
+        tdSql.checkData(0,  1, None) #
+        tdSql.checkData(1,  1, None)
+        tdSql.checkData(4,  1, None)
+        tdSql.checkData(5,  1, None) #
+        tdSql.checkData(6,  1, None)
+        tdSql.checkData(9,  1, None)
+        tdSql.checkData(10, 1, 10)   #
+        tdSql.checkData(11, 1, None)
+        tdSql.checkData(14, 1, None)
+        tdSql.checkData(15, 1, None) #
+        tdSql.checkData(16, 1, None)
+        tdSql.checkData(19, 1, None)
+        tdSql.checkData(20, 1, None) #
+        tdSql.checkData(21, 1, None)
+        tdSql.checkData(24, 1, None)
+        tdSql.checkData(25, 1, None) #
+        tdSql.checkData(26, 1, None)
+        tdSql.checkData(29, 1, None)
+        tdSql.checkData(30, 1, 30)   #
+        tdSql.checkData(31, 1, None)
+        tdSql.checkData(34, 1, None)
+        tdSql.checkData(35, 1, None) #
+        tdSql.checkData(36, 1, None)
+        tdSql.checkData(39, 1, None)
+        tdSql.checkData(40, 1, 40)   #
         tdSql.checkData(41, 1, 41)
         tdSql.checkData(42, 1, 42)
         tdSql.checkData(43, 1, 43)
         tdSql.checkData(44, 1, 44)
-        tdSql.checkData(45, 1, 45)
-        tdSql.checkData(50, 1, None)
-        tdSql.checkData(60, 1, 60)
+        tdSql.checkData(45, 1, 45)   #
+        tdSql.checkData(46, 1, None)
+        tdSql.checkData(49, 1, None)
+        tdSql.checkData(50, 1, None) #
+        tdSql.checkData(51, 1, None)
+        tdSql.checkData(54, 1, None)
+        tdSql.checkData(55, 1, None) #
+        tdSql.checkData(56, 1, None)
+        tdSql.checkData(59, 1, None)
+        tdSql.checkData(60, 1, 60)   #
+
+        # test fill null
+        tdSql.query(f"select interp(c0),interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:01:00') every(1s) fill(null)")
+        tdSql.checkRows(61)
+        tdSql.checkCols(2)
+        tdSql.checkData(0,  0, 0)    #
+        tdSql.checkData(1,  0, None)
+        tdSql.checkData(4,  0, None)
+        tdSql.checkData(5,  0, None) #
+        tdSql.checkData(6,  0, None)
+        tdSql.checkData(9,  0, None)
+        tdSql.checkData(10, 0, 10)   #
+        tdSql.checkData(11, 0, None)
+        tdSql.checkData(14, 0, None)
+        tdSql.checkData(15, 0, None) #
+        tdSql.checkData(16, 0, None)
+        tdSql.checkData(19, 0, None)
+        tdSql.checkData(20, 0, 20)   #
+        tdSql.checkData(21, 0, None)
+        tdSql.checkData(24, 0, None)
+        tdSql.checkData(25, 0, None) #
+        tdSql.checkData(26, 0, None)
+        tdSql.checkData(29, 0, None)
+        tdSql.checkData(30, 0, 30)   #
+        tdSql.checkData(31, 0, None)
+        tdSql.checkData(34, 0, None)
+        tdSql.checkData(35, 0, 35)   #
+        tdSql.checkData(36, 0, None)
+        tdSql.checkData(39, 0, None)
+        tdSql.checkData(40, 0, 40)   #
+        tdSql.checkData(41, 0, None)
+        tdSql.checkData(44, 0, None)
+        tdSql.checkData(45, 0, None) #
+        tdSql.checkData(46, 0, None)
+        tdSql.checkData(49, 0, None)
+        tdSql.checkData(50, 0, 50)   #
+        tdSql.checkData(51, 0, None)
+        tdSql.checkData(54, 0, None)
+        tdSql.checkData(55, 0, None) #
+        tdSql.checkData(56, 0, None)
+        tdSql.checkData(59, 0, None)
+        tdSql.checkData(60, 0, 55)   #
+
+        tdSql.checkData(0,  1, None) #
+        tdSql.checkData(1,  1, None)
+        tdSql.checkData(4,  1, None)
+        tdSql.checkData(5,  1, None) #
+        tdSql.checkData(6,  1, None)
+        tdSql.checkData(9,  1, None)
+        tdSql.checkData(10, 1, 10)   #
+        tdSql.checkData(11, 1, None)
+        tdSql.checkData(14, 1, None)
+        tdSql.checkData(15, 1, None) #
+        tdSql.checkData(16, 1, None)
+        tdSql.checkData(19, 1, None)
+        tdSql.checkData(20, 1, None) #
+        tdSql.checkData(21, 1, None)
+        tdSql.checkData(24, 1, None)
+        tdSql.checkData(25, 1, None) #
+        tdSql.checkData(26, 1, None)
+        tdSql.checkData(29, 1, None)
+        tdSql.checkData(30, 1, 30)   #
+        tdSql.checkData(31, 1, None)
+        tdSql.checkData(34, 1, None)
+        tdSql.checkData(35, 1, None) #
+        tdSql.checkData(36, 1, None)
+        tdSql.checkData(39, 1, None)
+        tdSql.checkData(40, 1, 40)   #
+        tdSql.checkData(41, 1, None)
+        tdSql.checkData(44, 1, None)
+        tdSql.checkData(45, 1, 45)   #
+        tdSql.checkData(46, 1, None)
+        tdSql.checkData(49, 1, None)
+        tdSql.checkData(50, 1, None) #
+        tdSql.checkData(51, 1, None)
+        tdSql.checkData(54, 1, None)
+        tdSql.checkData(55, 1, None) #
+        tdSql.checkData(56, 1, None)
+        tdSql.checkData(59, 1, None)
+        tdSql.checkData(60, 1, 60)   #
+
+        # test fill value
+        tdSql.query(f"select interp(c0),interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:01:00') every(1s) fill(value, 123)")
+        tdSql.checkRows(61)
+        tdSql.checkCols(2)
+        tdSql.checkData(0,  0, 0)    #
+        tdSql.checkData(1,  0, 123)
+        tdSql.checkData(4,  0, 123)
+        tdSql.checkData(5,  0, None) #
+        tdSql.checkData(6,  0, 123)
+        tdSql.checkData(9,  0, 123)
+        tdSql.checkData(10, 0, 10)   #
+        tdSql.checkData(11, 0, 123)
+        tdSql.checkData(14, 0, 123)
+        tdSql.checkData(15, 0, None) #
+        tdSql.checkData(16, 0, 123)
+        tdSql.checkData(19, 0, 123)
+        tdSql.checkData(20, 0, 20)   #
+        tdSql.checkData(21, 0, 123)
+        tdSql.checkData(24, 0, 123)
+        tdSql.checkData(25, 0, None) #
+        tdSql.checkData(26, 0, 123)
+        tdSql.checkData(29, 0, 123)
+        tdSql.checkData(30, 0, 30)   #
+        tdSql.checkData(31, 0, 123)
+        tdSql.checkData(34, 0, 123)
+        tdSql.checkData(35, 0, 35)   #
+        tdSql.checkData(36, 0, 123)
+        tdSql.checkData(39, 0, 123)
+        tdSql.checkData(40, 0, 40)   #
+        tdSql.checkData(41, 0, 123)
+        tdSql.checkData(44, 0, 123)
+        tdSql.checkData(45, 0, None) #
+        tdSql.checkData(46, 0, 123)
+        tdSql.checkData(49, 0, 123)
+        tdSql.checkData(50, 0, 50)   #
+        tdSql.checkData(51, 0, 123)
+        tdSql.checkData(54, 0, 123)
+        tdSql.checkData(55, 0, None) #
+        tdSql.checkData(59, 0, 123)
+        tdSql.checkData(60, 0, 55)   #
+
+        tdSql.checkData(0,  1, None) #
+        tdSql.checkData(1,  1, 123)
+        tdSql.checkData(4,  1, 123)
+        tdSql.checkData(5,  1, None) #
+        tdSql.checkData(6,  1, 123)
+        tdSql.checkData(9,  1, 123)
+        tdSql.checkData(10, 1, 10)   #
+        tdSql.checkData(11, 1, 123)
+        tdSql.checkData(14, 1, 123)
+        tdSql.checkData(15, 1, None) #
+        tdSql.checkData(16, 1, 123)
+        tdSql.checkData(19, 1, 123)
+        tdSql.checkData(20, 1, None) #
+        tdSql.checkData(21, 1, 123)
+        tdSql.checkData(24, 1, 123)
+        tdSql.checkData(25, 1, None) #
+        tdSql.checkData(26, 1, 123)
+        tdSql.checkData(29, 1, 123)
+        tdSql.checkData(30, 1, 30)   #
+        tdSql.checkData(31, 1, 123)
+        tdSql.checkData(34, 1, 123)
+        tdSql.checkData(35, 1, None) #
+        tdSql.checkData(36, 1, 123)
+        tdSql.checkData(39, 1, 123)
+        tdSql.checkData(40, 1, 40)   #
+        tdSql.checkData(41, 1, 123)
+        tdSql.checkData(44, 1, 123)
+        tdSql.checkData(45, 1, 45)   #
+        tdSql.checkData(46, 1, 123)
+        tdSql.checkData(49, 1, 123)
+        tdSql.checkData(50, 1, None) #
+        tdSql.checkData(51, 1, 123)
+        tdSql.checkData(54, 1, 123)
+        tdSql.checkData(55, 1, None) #
+        tdSql.checkData(56, 1, 123)
+        tdSql.checkData(59, 1, 123)
+        tdSql.checkData(60, 1, 60)   #
+
+        # test fill prev
+        tdSql.query(f"select interp(c0),interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:01:00') every(1s) fill(prev)")
+        tdSql.checkRows(61)
+        tdSql.checkCols(2)
+        tdSql.checkData(0,  0, 0)    #
+        tdSql.checkData(1,  0, 0)
+        tdSql.checkData(4,  0, 0)
+        tdSql.checkData(5,  0, None) #
+        tdSql.checkData(6,  0, None)
+        tdSql.checkData(9,  0, None)
+        tdSql.checkData(10, 0, 10)   #
+        tdSql.checkData(11, 0, 10)
+        tdSql.checkData(14, 0, 10)
+        tdSql.checkData(15, 0, None) #
+        tdSql.checkData(16, 0, None)
+        tdSql.checkData(19, 0, None)
+        tdSql.checkData(20, 0, 20)   #
+        tdSql.checkData(21, 0, 20)
+        tdSql.checkData(24, 0, 20)
+        tdSql.checkData(25, 0, None) #
+        tdSql.checkData(26, 0, None)
+        tdSql.checkData(29, 0, None)
+        tdSql.checkData(30, 0, 30)   #
+        tdSql.checkData(31, 0, 30)
+        tdSql.checkData(34, 0, 30)
+        tdSql.checkData(35, 0, 35)   #
+        tdSql.checkData(36, 0, 35)
+        tdSql.checkData(39, 0, 35)
+        tdSql.checkData(40, 0, 40)   #
+        tdSql.checkData(41, 0, 40)
+        tdSql.checkData(44, 0, 40)
+        tdSql.checkData(45, 0, None) #
+        tdSql.checkData(46, 0, None)
+        tdSql.checkData(49, 0, None)
+        tdSql.checkData(50, 0, 50)   #
+        tdSql.checkData(51, 0, 50)
+        tdSql.checkData(54, 0, 50)
+        tdSql.checkData(55, 0, None) #
+        tdSql.checkData(56, 0, None)
+        tdSql.checkData(59, 0, None)
+        tdSql.checkData(60, 0, 55)   #
+
+        tdSql.checkData(0,  1, None) #
+        tdSql.checkData(1,  1, None)
+        tdSql.checkData(4,  1, None)
+        tdSql.checkData(5,  1, None) #
+        tdSql.checkData(6,  1, None)
+        tdSql.checkData(9,  1, None)
+        tdSql.checkData(10, 1, 10)   #
+        tdSql.checkData(11, 1, 10)
+        tdSql.checkData(14, 1, 10)
+        tdSql.checkData(15, 1, None) #
+        tdSql.checkData(16, 1, None)
+        tdSql.checkData(19, 1, None)
+        tdSql.checkData(20, 1, None) #
+        tdSql.checkData(21, 1, None)
+        tdSql.checkData(24, 1, None)
+        tdSql.checkData(25, 1, None) #
+        tdSql.checkData(26, 1, None)
+        tdSql.checkData(29, 1, None)
+        tdSql.checkData(30, 1, 30)   #
+        tdSql.checkData(31, 1, 30)
+        tdSql.checkData(34, 1, 30)
+        tdSql.checkData(35, 1, None) #
+        tdSql.checkData(36, 1, None)
+        tdSql.checkData(39, 1, None)
+        tdSql.checkData(40, 1, 40)   #
+        tdSql.checkData(41, 1, 40)
+        tdSql.checkData(44, 1, 40)
+        tdSql.checkData(45, 1, 45)   #
+        tdSql.checkData(46, 1, 45)
+        tdSql.checkData(49, 1, 45)
+        tdSql.checkData(50, 1, None) #
+        tdSql.checkData(51, 1, None)
+        tdSql.checkData(54, 1, None)
+        tdSql.checkData(55, 1, None) #
+        tdSql.checkData(56, 1, None)
+        tdSql.checkData(59, 1, None)
+        tdSql.checkData(60, 1, 60)   #
+
+        # test fill next
+        tdSql.query(f"select interp(c0),interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:01:00') every(1s) fill(next)")
+        tdSql.checkRows(61)
+        tdSql.checkCols(2)
+        tdSql.checkData(0,  0, 0)    #
+        tdSql.checkData(1,  0, None)
+        tdSql.checkData(4,  0, None)
+        tdSql.checkData(5,  0, None) #
+        tdSql.checkData(6,  0, 10)
+        tdSql.checkData(9,  0, 10)
+        tdSql.checkData(10, 0, 10)   #
+        tdSql.checkData(11, 0, None)
+        tdSql.checkData(14, 0, None)
+        tdSql.checkData(15, 0, None) #
+        tdSql.checkData(16, 0, 20)
+        tdSql.checkData(19, 0, 20)
+        tdSql.checkData(20, 0, 20)   #
+        tdSql.checkData(21, 0, None)
+        tdSql.checkData(24, 0, None)
+        tdSql.checkData(25, 0, None) #
+        tdSql.checkData(26, 0, 30)
+        tdSql.checkData(29, 0, 30)
+        tdSql.checkData(30, 0, 30)   #
+        tdSql.checkData(31, 0, 35)
+        tdSql.checkData(34, 0, 35)
+        tdSql.checkData(35, 0, 35)   #
+        tdSql.checkData(36, 0, 40)
+        tdSql.checkData(39, 0, 40)
+        tdSql.checkData(40, 0, 40)   #
+        tdSql.checkData(41, 0, None)
+        tdSql.checkData(44, 0, None)
+        tdSql.checkData(45, 0, None) #
+        tdSql.checkData(46, 0, 50)
+        tdSql.checkData(49, 0, 50)
+        tdSql.checkData(50, 0, 50)   #
+        tdSql.checkData(51, 0, None)
+        tdSql.checkData(54, 0, None)
+        tdSql.checkData(55, 0, None) #
+        tdSql.checkData(56, 0, 55)
+        tdSql.checkData(59, 0, 55)
+        tdSql.checkData(60, 0, 55)   #
+
+        tdSql.checkData(0,  1, None) #
+        tdSql.checkData(1,  1, None)
+        tdSql.checkData(4,  1, None)
+        tdSql.checkData(5,  1, None) #
+        tdSql.checkData(6,  1, 10)
+        tdSql.checkData(9,  1, 10)
+        tdSql.checkData(10, 1, 10)   #
+        tdSql.checkData(11, 1, None)
+        tdSql.checkData(14, 1, None)
+        tdSql.checkData(15, 1, None) #
+        tdSql.checkData(16, 1, None)
+        tdSql.checkData(19, 1, None)
+        tdSql.checkData(20, 1, None) #
+        tdSql.checkData(21, 1, None)
+        tdSql.checkData(24, 1, None)
+        tdSql.checkData(25, 1, None) #
+        tdSql.checkData(26, 1, 30)
+        tdSql.checkData(29, 1, 30)
+        tdSql.checkData(30, 1, 30)   #
+        tdSql.checkData(31, 1, None)
+        tdSql.checkData(34, 1, None)
+        tdSql.checkData(35, 1, None) #
+        tdSql.checkData(36, 1, 40)
+        tdSql.checkData(39, 1, 40)
+        tdSql.checkData(40, 1, 40)   #
+        tdSql.checkData(41, 1, 45)
+        tdSql.checkData(44, 1, 45)
+        tdSql.checkData(45, 1, 45)   #
+        tdSql.checkData(46, 1, None)
+        tdSql.checkData(49, 1, None)
+        tdSql.checkData(50, 1, None) #
+        tdSql.checkData(51, 1, None)
+        tdSql.checkData(54, 1, None)
+        tdSql.checkData(55, 1, None) #
+        tdSql.checkData(56, 1, 60)
+        tdSql.checkData(59, 1, 60)
+        tdSql.checkData(60, 1, 60)   #
 
         tdLog.printNoPrefix("==========step11:test multi-interp cases")
         tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3) from {dbname}.{tbname} range('2020-02-09 00:00:05', '2020-02-13 00:00:05') every(1d) fill(null)")
