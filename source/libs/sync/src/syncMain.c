@@ -1946,12 +1946,14 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
   SSyncHbTimerData* pData = syncHbTimerDataAcquire(hbDataRid);
   if (pData == NULL) {
+    sError("hb timer get pData NULL, %" PRId64, hbDataRid);
     return;
   }
 
   SSyncNode* pSyncNode = syncNodeAcquire(pData->syncNodeRid);
   if (pSyncNode == NULL) {
     syncHbTimerDataRelease(pData);
+    sError("hb timer get pSyncNode NULL");
     return;
   }
 
@@ -1960,28 +1962,39 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
   if (!pSyncNode->isStart) {
     syncNodeRelease(pSyncNode);
     syncHbTimerDataRelease(pData);
+    sError("vgId:%d, hb timer sync node already stop", pSyncNode->vgId);
     return;
   }
 
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
     syncNodeRelease(pSyncNode);
     syncHbTimerDataRelease(pData);
+    sError("vgId:%d, hb timer sync node not leader", pSyncNode->vgId);
     return;
   }
 
   if (pSyncNode->pRaftStore == NULL) {
     syncNodeRelease(pSyncNode);
     syncHbTimerDataRelease(pData);
+    sError("vgId:%d, hb timer raft store already stop", pSyncNode->vgId);
     return;
   }
 
-  // sNTrace(pSyncNode, "eq peer hb timer");
-
-  int64_t timerLogicClock = atomic_load_64(&pSyncTimer->logicClock);
-  int64_t msgLogicClock = atomic_load_64(&pData->logicClock);
+  // sTrace("vgId:%d, eq peer hb timer", pSyncNode->vgId);
 
   if (pSyncNode->replicaNum > 1) {
+    int64_t timerLogicClock = atomic_load_64(&pSyncTimer->logicClock);
+    int64_t msgLogicClock = atomic_load_64(&pData->logicClock);
+
     if (timerLogicClock == msgLogicClock) {
+      if (syncIsInit()) {
+        // sTrace("vgId:%d, reset peer hb timer", pSyncNode->vgId);
+        taosTmrReset(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS, (void*)hbDataRid, syncEnv()->pTimerManager,
+                     &pSyncTimer->pTimer);
+      } else {
+        sError("sync env is stop, reset peer hb timer error");
+      }
+
       SRpcMsg rpcMsg = {0};
       (void)syncBuildHeartbeat(&rpcMsg, pSyncNode->vgId);
 
@@ -1996,16 +2009,9 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
       // send msg
       syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
 
-      if (syncIsInit()) {
-        taosTmrReset(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS, pData, syncEnv()->pTimerManager,
-                     &pSyncTimer->pTimer);
-      } else {
-        sError("sync env is stop, syncNodeEqHeartbeatTimer");
-      }
-
     } else {
-      sTrace("==syncNodeEqPeerHeartbeatTimer== timerLogicClock:%" PRId64 ", msgLogicClock:%" PRId64 "", timerLogicClock,
-             msgLogicClock);
+      sTrace("vgId:%d, do not send hb, timerLogicClock:%" PRId64 ", msgLogicClock:%" PRId64 "", pSyncNode->vgId,
+             timerLogicClock, msgLogicClock);
     }
   }
 
