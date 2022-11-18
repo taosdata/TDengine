@@ -911,7 +911,7 @@ int32_t syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, Syn
   }
   if (pTerm) *pTerm = pEntry->term;
 
-  int32_t code = syncLogToAppendEntries(pNode, pEntry, prevLogTerm, &msgOut);
+  int32_t code = syncBuildAppendEntriesFromRaftLog(pNode, pEntry, prevLogTerm, &msgOut);
   if (code < 0) {
     sError("vgId:%d, failed to get append entries for index:%" PRId64 "", pNode->vgId, index);
     goto _err;
