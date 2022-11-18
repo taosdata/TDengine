@@ -1725,13 +1725,13 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
     return TSDB_CODE_SUCCESS;
   } else if (type == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = pOperator->info;
-    *order = pTableScanInfo->cond.order;
-    *scanFlag = pTableScanInfo->scanFlag;
+    *order = pTableScanInfo->base.cond.order;
+    *scanFlag = pTableScanInfo->base.scanFlag;
     return TSDB_CODE_SUCCESS;
   } else if (type == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
     STableMergeScanInfo* pTableScanInfo = pOperator->info;
-    *order = pTableScanInfo->cond.order;
-    *scanFlag = pTableScanInfo->scanFlag;
+    *order = pTableScanInfo->base.cond.order;
+    *scanFlag = pTableScanInfo->base.scanFlag;
     return TSDB_CODE_SUCCESS;
   } else {
     if (pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL) {
@@ -2378,8 +2378,8 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
 
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = downstream->info;
-    pTableScanInfo->pdInfo.pExprSup = &pOperator->exprSupp;
-    pTableScanInfo->pdInfo.pAggSup = &pInfo->aggSup;
+    pTableScanInfo->base.pdInfo.pExprSup = &pOperator->exprSupp;
+    pTableScanInfo->base.pdInfo.pAggSup = &pInfo->aggSup;
   }
 
   code = appendDownstream(pOperator, &downstream, 1);
@@ -2744,7 +2744,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       STableScanInfo* pScanInfo = pOperator->info;
-      pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
+      pTaskInfo->cost.pRecoder = &pScanInfo->base.readRecorder;
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
       STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
 
@@ -2769,7 +2769,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       STableScanInfo* pScanInfo = pOperator->info;
-      pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
+      pTaskInfo->cost.pRecoder = &pScanInfo->base.readRecorder;
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       pOperator = createExchangeOperatorInfo(pHandle ? pHandle->pMsgCb->clientRpc : NULL, (SExchangePhysiNode*)pPhyNode,
                                              pTaskInfo);

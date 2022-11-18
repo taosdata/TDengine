@@ -315,26 +315,31 @@ typedef struct STableMetaCacheInfo {
   uint64_t   cacheHit;
 } STableMetaCacheInfo;
 
-typedef struct STableScanInfo {
+typedef struct STableScanBase {
   STsdbReader*           dataReader;
-  SReadHandle            readHandle;
-  SLimitInfo             limitInfo;
   SFileBlockLoadRecorder readRecorder;
+  SQueryTableDataCond    cond;
+  SAggOptrPushDownInfo   pdInfo;
+  SColMatchInfo          matchInfo;
+  SReadHandle            readHandle;
+  SExprSupp              pseudoSup;
+  STableMetaCacheInfo    metaCache;
+  int32_t                scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
+} STableScanBase;
+
+typedef struct STableScanInfo {
+  STableScanBase         base;
+  SLimitInfo             limitInfo;
   SScanInfo              scanInfo;
   int32_t                scanTimes;
   SSDataBlock*           pResBlock;
-  SColMatchInfo          matchInfo;
-  SExprSupp              pseudoSup;
-  SQueryTableDataCond    cond;
   int32_t                scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
   int32_t                dataBlockLoadFlag;
   SSampleExecInfo        sample;  // sample execution info
   int32_t                currentGroupId;
   int32_t                currentTable;
   int8_t                 scanMode;
-  SAggOptrPushDownInfo   pdInfo;
   int8_t                 assignBlockUid;
-  STableMetaCacheInfo    metaCache;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
@@ -344,8 +349,7 @@ typedef struct STableMergeScanInfo {
   bool                   hasGroupId;
   uint64_t               groupId;
   SArray*                queryConds;  // array of queryTableDataCond
-  STsdbReader*           pReader;
-  SReadHandle            readHandle;
+  STableScanBase         base;
   int32_t                bufPageSize;
   uint32_t               sortBufSize;  // max buffer size for in-memory sort
   SArray*                pSortInfo;
@@ -354,20 +358,11 @@ typedef struct STableMergeScanInfo {
   int64_t                startTs;  // sort start time
   SArray*                sortSourceParams;
   SLimitInfo             limitInfo;
-  SFileBlockLoadRecorder readRecorder;
   int64_t                numOfRows;
   SScanInfo              scanInfo;
   int32_t                scanTimes;
-  SqlFunctionCtx*        pCtx;  // which belongs to the direct upstream operator operator query context
-  SResultRowInfo*        pResultRowInfo;
-  int32_t*               rowEntryInfoOffset;
-  SExprInfo*             pExpr;
   SSDataBlock*           pResBlock;
-  SColMatchInfo          matchInfo;
   int32_t                numOfOutput;
-  SExprSupp              pseudoSup;
-  SQueryTableDataCond    cond;
-  int32_t                scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
   int32_t                dataBlockLoadFlag;
 
   // if the upstream is an interval operator, the interval info is also kept here to get the time
