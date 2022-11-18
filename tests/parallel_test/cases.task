@@ -136,8 +136,8 @@
 ,,y,script,./test.sh -f tsim/parser/lastrow.sim
 ,,y,script,./test.sh -f tsim/parser/lastrow2.sim
 ,,y,script,./test.sh -f tsim/parser/like.sim
-,,,script,./test.sh -f tsim/parser/limit.sim
-,,,script,./test.sh -f tsim/parser/limit1.sim
+,,y,script,./test.sh -f tsim/parser/limit.sim
+,,y,script,./test.sh -f tsim/parser/limit1.sim
 ,,y,script,./test.sh -f tsim/parser/mixed_blocks.sim
 ,,y,script,./test.sh -f tsim/parser/nchar.sim
 ,,y,script,./test.sh -f tsim/parser/nestquery.sim
@@ -163,7 +163,7 @@
 ,,y,script,./test.sh -f tsim/parser/timestamp.sim
 ,,y,script,./test.sh -f tsim/parser/top_groupby.sim
 ,,y,script,./test.sh -f tsim/parser/topbot.sim
-,,,script,./test.sh -f tsim/parser/union.sim
+,,y,script,./test.sh -f tsim/parser/union.sim
 ,,y,script,./test.sh -f tsim/parser/union_sysinfo.sim
 ,,y,script,./test.sh -f tsim/parser/where.sim
 ,,y,script,./test.sh -f tsim/query/charScalarFunction.sim
