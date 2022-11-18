@@ -4682,6 +4682,7 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
   taosArrayClear(pInfo->sortSourceParams);
 
   tsortDestroySortHandle(pInfo->pSortHandle);
+  pInfo->pSortHandle = NULL;
 
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->queryConds); i++) {
     SQueryTableDataCond* cond = taosArrayGet(pInfo->queryConds, i);
@@ -4780,6 +4781,8 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   }
 
   taosArrayDestroy(pTableScanInfo->sortSourceParams);
+  tsortDestroySortHandle(pTableScanInfo->pSortHandle);
+  pTableScanInfo->pSortHandle = NULL;
 
   tsdbReaderClose(pTableScanInfo->pReader);
   pTableScanInfo->pReader = NULL;
@@ -4873,7 +4876,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   pInfo->pSortInputBlock = createOneDataBlock(pInfo->pResBlock, false);
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
 
-  int32_t rowSize = pInfo->pResBlock->info.rowSize;
+  int32_t  rowSize = pInfo->pResBlock->info.rowSize;
   uint32_t nCols = taosArrayGetSize(pInfo->pResBlock->pDataBlock);
   pInfo->bufPageSize = getProperSortPageSize(rowSize, nCols);
 
