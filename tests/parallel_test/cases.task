@@ -113,7 +113,7 @@
 ,,y,script,./test.sh -f tsim/parser/first_last.sim
 ,,y,script,./test.sh -f tsim/parser/fill_stb.sim
 ,,y,script,./test.sh -f tsim/parser/interp.sim
-#,,y,script,./test.sh -f tsim/parser/limit2.sim
+,,y,script,./test.sh -f tsim/parser/limit2.sim
 ,,y,script,./test.sh -f tsim/parser/fourArithmetic-basic.sim
 ,,y,script,./test.sh -f tsim/parser/function.sim
 ,,y,script,./test.sh -f tsim/parser/groupby-basic.sim
@@ -608,6 +608,8 @@
 ,,,system-test,python3 ./test.py -f 2-query/upper.py -R
 ,,,system-test,python3 ./test.py -f 2-query/varchar.py
 ,,,system-test,python3 ./test.py -f 2-query/varchar.py -R
+,,,system-test,python3 ./test.py -f 2-query/case_when.py 
+,,,system-test,python3 ./test.py -f 2-query/case_when.py -R
 ,,,system-test,python3 ./test.py -f 1-insert/update_data.py
 ,,,system-test,python3 ./test.py -f 1-insert/tb_100w_data_order.py
 ,,,system-test,python3 ./test.py -f 1-insert/delete_stable.py
@@ -814,6 +816,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/last_row.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/sml.py -Q 2
+,,,system-test,python3 ./test.py -f 2-query/case_when.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/between.py -Q  3
 ,,,system-test,python3 ./test.py -f 2-query/distinct.py -Q  3
 ,,,system-test,python3 ./test.py -f 2-query/varchar.py -Q  3
@@ -907,6 +910,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
 ,,,system-test,python3 ./test.py -f 2-query/sml.py -Q 3
 ,,,system-test,python3 ./test.py -f 2-query/interp.py -Q 3
+,,,system-test,python3 ./test.py -f 2-query/case_when.py -Q 3
 ,,,system-test,python3 ./test.py -f 2-query/between.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/distinct.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/varchar.py -Q  4
@@ -999,6 +1003,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
 ,,,system-test,python3 ./test.py -f 2-query/sml.py -Q 4
 ,,,system-test,python3 ./test.py -f 2-query/interp.py -Q 4
+,,,system-test,python3 ./test.py -f 2-query/case_when.py -Q 4
 
 #develop test
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/auto_create_table_json.py
