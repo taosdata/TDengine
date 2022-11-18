@@ -152,7 +152,8 @@ bool metaIsTableExist(SMeta *pMeta, tb_uid_t uid) {
 }
 
 int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
-  SMeta  *pMeta = pReader->pMeta;
+  SMeta *pMeta = pReader->pMeta;
+  /*
   int64_t version1;
 
   // query uid.idx
@@ -163,6 +164,14 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
 
   version1 = ((SUidIdxVal *)pReader->pBuf)[0].version;
   return metaGetTableEntryByVersion(pReader, version1, uid);
+  */
+  SMetaInfo info;
+  if (metaGetInfo(pMeta, uid, &info) == TSDB_CODE_NOT_FOUND) {
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    return -1;
+  }
+
+  return metaGetTableEntryByVersion(pReader, info.version, uid);
 }
 
 int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
@@ -1126,7 +1135,7 @@ int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     valid = tdbTbcGet(pCursor->pCur, (const void **)pEntryKey, &nEntryKey, (const void **)&pEntryVal, &nEntryVal);
     if (valid < 0) break;
 
-    char   *pTableKey = (char *)pEntryKey;
+    char *pTableKey = (char *)pEntryKey;
     cmp = (*param->filterFunc)(pTableKey, pName, pCursor->type);
     if (cmp == 0) {
       tb_uid_t tuid = *(tb_uid_t *)pEntryVal;
