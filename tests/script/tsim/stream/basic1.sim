@@ -710,6 +710,11 @@ sleep 200
 
 sql select * from streamt4;
 
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
 # row 0
 if $rows != 0 then
   print =====rows=$rows

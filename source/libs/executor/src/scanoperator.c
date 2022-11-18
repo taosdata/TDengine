@@ -521,7 +521,7 @@ static STableCachedVal* createTableCacheVal(const SMetaReader* pMetaReader) {
 
   // only child table has tag value
   if (pMetaReader->me.type == TSDB_CHILD_TABLE) {
-    STag* pTag = (STag*) pMetaReader->me.ctbEntry.pTags;
+    STag* pTag = (STag*)pMetaReader->me.ctbEntry.pTags;
     pVal->pTags = taosMemoryMalloc(pTag->len);
     memcpy(pVal->pTags, pTag, pTag->len);
   }
@@ -557,7 +557,8 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
     if (code != TSDB_CODE_SUCCESS) {
       if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-        qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+        qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid,
+              tstrerror(terrno), idStr);
       } else {
         qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
       }
@@ -580,9 +581,11 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
       if (code != TSDB_CODE_SUCCESS) {
         if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-          qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+          qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s",
+                pBlock->info.uid, tstrerror(terrno), idStr);
         } else {
-          qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+          qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno),
+                 idStr);
         }
         metaReaderClear(&mr);
         return terrno;
@@ -1537,7 +1540,9 @@ static int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pS
       groupId = getGroupIdByData(pInfo, srcUid, srcStartTsCol[i], version);
     }
     if (pInfo->tbnameCalSup.pExprInfo) {
-      char* parTbname = taosHashGet(pInfo->pGroupIdTbNameMap, &groupId, sizeof(int64_t));
+      void* parTbname = NULL;
+      streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, groupId, &parTbname);
+
       memcpy(varDataVal(tbname), parTbname, TSDB_TABLE_NAME_LEN);
       varDataSetLen(tbname, strlen(varDataVal(tbname)));
     }
@@ -1587,15 +1592,18 @@ static void calBlockTag(SExprSupp* pTagCalSup, SSDataBlock* pBlock, SSDataBlock*
 }
 
 void calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
-  SExprSupp* pTbNameCalSup = &pInfo->tbnameCalSup;
+  SExprSupp*    pTbNameCalSup = &pInfo->tbnameCalSup;
+  SStreamState* pState = pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState;
   if (pTbNameCalSup == NULL || pTbNameCalSup->numOfExprs == 0) return;
   if (pBlock == NULL || pBlock->info.rows == 0) return;
-  if (pBlock->info.groupId) {
-    char* tbname = taosHashGet(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t));
-    if (tbname != NULL) {
-      memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
-    }
+
+  void* tbname = NULL;
+  if (streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, pBlock->info.groupId, &tbname) < 0) {
+    pBlock->info.parTbName[0] = 0;
+  } else {
+    memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
   }
+  tdbFree(tbname);
 
   SSDataBlock* pSrcBlock = blockCopyOneRow(pBlock, 0);
   ASSERT(pSrcBlock->info.rows == 1);
@@ -1623,9 +1631,8 @@ void calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
     pBlock->info.parTbName[0] = 0;
   }
 
-  if (pBlock->info.groupId) {
-    taosHashPut(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t), pBlock->info.parTbName,
-                TSDB_TABLE_NAME_LEN);
+  if (pBlock->info.groupId && pBlock->info.parTbName[0]) {
+    streamStatePutParName(pState, pBlock->info.groupId, pBlock->info.parTbName);
   }
 
   blockDataDestroy(pSrcBlock);
@@ -2028,6 +2035,9 @@ FETCH_NEXT_BLOCK:
 
     int32_t      current = pInfo->validBlockIndex++;
     SSDataBlock* pBlock = taosArrayGetP(pInfo->pBlockLists, current);
+    if (pBlock->info.groupId && pBlock->info.parTbName[0]) {
+      streamStatePutParName(pTaskInfo->streamInfo.pState, pBlock->info.groupId, pBlock->info.parTbName);
+    }
     // TODO move into scan
     pBlock->info.calWin.skey = INT64_MIN;
     pBlock->info.calWin.ekey = INT64_MAX;
@@ -2426,7 +2436,6 @@ static void destroyStreamScanOperatorInfo(void* param) {
   }
 
   cleanupExprSupp(&pStreamScan->tbnameCalSup);
-  taosHashCleanup(pStreamScan->pGroupIdTbNameMap);
 
   updateInfoDestroy(pStreamScan->pUpdateInfo);
   blockDataDestroy(pStreamScan->pRes);
@@ -2484,8 +2493,6 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     if (initExprSupp(&pInfo->tbnameCalSup, pSubTableExpr, 1) != 0) {
       goto _error;
     }
-    pInfo->pGroupIdTbNameMap =
-        taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
   }
 
   if (pTableScanNode->pTags != NULL) {
@@ -4557,6 +4564,7 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
   taosArrayClear(pInfo->sortSourceParams);
 
   tsortDestroySortHandle(pInfo->pSortHandle);
+  pInfo->pSortHandle = NULL;
 
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->queryConds); i++) {
     SQueryTableDataCond* cond = taosArrayGet(pInfo->queryConds, i);
@@ -4655,6 +4663,8 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   }
 
   taosArrayDestroy(pTableScanInfo->sortSourceParams);
+  tsortDestroySortHandle(pTableScanInfo->pSortHandle);
+  pTableScanInfo->pSortHandle = NULL;
 
   tsdbReaderClose(pTableScanInfo->base.dataReader);
   pTableScanInfo->base.dataReader = NULL;
@@ -4753,8 +4763,9 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   pInfo->pSortInputBlock = createOneDataBlock(pInfo->pResBlock, false);
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
 
-  int32_t rowSize = pInfo->pResBlock->info.rowSize;
-  pInfo->bufPageSize = getProperSortPageSize(rowSize);
+  int32_t  rowSize = pInfo->pResBlock->info.rowSize;
+  uint32_t nCols = taosArrayGetSize(pInfo->pResBlock->pDataBlock);
+  pInfo->bufPageSize = getProperSortPageSize(rowSize, nCols);
 
   setOperatorInfo(pOperator, "TableMergeScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);

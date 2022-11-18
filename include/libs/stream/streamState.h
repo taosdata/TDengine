@@ -35,6 +35,7 @@ typedef struct {
   TTB*         pFuncStateDb;
   TTB*         pFillStateDb;  // todo refactor
   TTB*         pSessionStateDb;
+  TTB*         pParNameDb;
   TXN          txn;
   int32_t      number;
 } SStreamState;
@@ -98,6 +99,9 @@ int32_t streamStateSeekLast(SStreamState* pState, SStreamStateCur* pCur);
 
 int32_t streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur);
 int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
+
+int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char* tbname);
+int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal);
 
 #if 0
 char* streamStateSessionDump(SStreamState* pState);
