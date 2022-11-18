@@ -2612,6 +2612,8 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
 
 SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode);
 
+SOperatorInfo* createTableCountScanOperatorInfo(SReadHandle* handle, STableCountScanPhysiNode* pNode,
+                                                SExecTaskInfo* pTaskInfo);
 int32_t extractTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pHandle->meta, 0);
@@ -2802,6 +2804,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
       pOperator = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pUser, pTaskInfo);
+    } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN == type) {
+      STableCountScanPhysiNode* pTblCountScanNode = (STableCountScanPhysiNode*)pPhyNode;
+      pOperator = createTableCountScanOperatorInfo(pHandle, pTblCountScanNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
       STagScanPhysiNode* pScanPhyNode = (STagScanPhysiNode*)pPhyNode;
 
