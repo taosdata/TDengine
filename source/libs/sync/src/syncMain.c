@@ -944,6 +944,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
     SSyncSnapshotSender* pSender = snapshotSenderCreate(pSyncNode, i);
     // ASSERT(pSender != NULL);
     (pSyncNode->senders)[i] = pSender;
+    sSTrace(pSender, "snapshot sender create new while open, data:%p", pSender);
   }
 
   // snapshot receivers
@@ -971,7 +972,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   atomic_store_64(&pSyncNode->snapshottingIndex, SYNC_INDEX_INVALID);
 
   pSyncNode->isStart = true;
-  sNTrace(pSyncNode, "sync open");
+  sNTrace(pSyncNode, "sync open, node:%p", pSyncNode);
 
   return pSyncNode;
 
@@ -1041,14 +1042,10 @@ void syncNodePreClose(SSyncNode* pSyncNode) {
 void syncHbTimerDataFree(SSyncHbTimerData* pData) { taosMemoryFree(pData); }
 
 void syncNodeClose(SSyncNode* pSyncNode) {
-  if (pSyncNode == NULL) {
-    return;
-  }
-  int32_t ret;
+  if (pSyncNode == NULL) return;
+  sNTrace(pSyncNode, "sync close, data:%p", pSyncNode);
 
-  sNTrace(pSyncNode, "sync close");
-
-  ret = raftStoreClose(pSyncNode->pRaftStore);
+  int32_t ret = raftStoreClose(pSyncNode->pRaftStore);
   ASSERT(ret == 0);
   pSyncNode->pRaftStore = NULL;
 
@@ -1077,6 +1074,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
 
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     if ((pSyncNode->senders)[i] != NULL) {
+      sSTrace((pSyncNode->senders)[i], "snapshot sender destroy while close, data:%p", (pSyncNode->senders)[i]);
       snapshotSenderDestroy((pSyncNode->senders)[i]);
       (pSyncNode->senders)[i] = NULL;
     }
@@ -1423,15 +1421,17 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
       if ((pSyncNode->senders)[i] == NULL) {
         (pSyncNode->senders)[i] = snapshotSenderCreate(pSyncNode, i);
-        sSTrace((pSyncNode->senders)[i], "snapshot sender create new");
+        sSTrace((pSyncNode->senders)[i], "snapshot sender create new while reconfig, data:%p", (pSyncNode->senders)[i]);
+      } else {
+        sSTrace((pSyncNode->senders)[i], "snapshot sender already exist, data:%p", (pSyncNode->senders)[i]);
       }
     }
 
     // free old
     for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
       if (oldSenders[i] != NULL) {
+        sNTrace(pSyncNode, "snapshot sender destroy old, data:%p replica-index:%d", oldSenders[i], i);
         snapshotSenderDestroy(oldSenders[i]);
-        sNTrace(pSyncNode, "snapshot sender delete old %p replica-index:%d", oldSenders[i], i);
         oldSenders[i] = NULL;
       }
     }

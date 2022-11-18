@@ -12,7 +12,7 @@
 ,,y,script,./test.sh -f tsim/user/privilege_db.sim
 ,,y,script,./test.sh -f tsim/user/privilege_sysinfo.sim
 ,,y,script,./test.sh -f tsim/db/alter_option.sim
-,,y,script,./test.sh -f tsim/db/alter_replica_13.sim
+#,,y,script,./test.sh -f tsim/db/alter_replica_13.sim
 ,,y,script,./test.sh -f tsim/db/alter_replica_31.sim
 ,,y,script,./test.sh -f tsim/db/basic1.sim
 ,,y,script,./test.sh -f tsim/db/basic2.sim
@@ -216,7 +216,7 @@
 ,,n,script,./test.sh -f tsim/stream/basic0.sim -g
 ,,y,script,./test.sh -f tsim/stream/basic1.sim
 ,,y,script,./test.sh -f tsim/stream/basic2.sim
-,,,script,./test.sh -f tsim/stream/drop_stream.sim
+,,y,script,./test.sh -f tsim/stream/drop_stream.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic1.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic2.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic3.sim
@@ -231,7 +231,7 @@
 ,,y,script,./test.sh -f tsim/stream/partitionby.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby1.sim
 ,,y,script,./test.sh -f tsim/stream/schedSnode.sim
-,,,script,./test.sh -f tsim/stream/windowClose.sim
+,,y,script,./test.sh -f tsim/stream/windowClose.sim
 ,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
 ,,y,script,./test.sh -f tsim/stream/sliding.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
@@ -282,7 +282,7 @@
 ,,y,script,./test.sh -f tsim/stable/vnode3.sim
 ,,y,script,./test.sh -f tsim/stable/metrics_idx.sim
 ,,,script,./test.sh -f tsim/sma/drop_sma.sim
-,,,script,./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
+,,y,script,./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkError1.sim
