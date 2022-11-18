@@ -36,6 +36,8 @@ typedef struct SFillColInfo {
 typedef struct SFillLinearInfo {
   SPoint  start;
   SPoint  end;
+  bool    isStartSet;
+  bool    isEndSet;
   int16_t type;
   int32_t bytes;
 } SFillLinearInfo;
