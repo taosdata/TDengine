@@ -1,6 +1,6 @@
 
 # taos-tools
-ExternalProject_d981cee
+ExternalProject_Add(taos-tools
         GIT_REPOSITORY https://github.com/taosdata/taos-tools.git
         GIT_TAG 2cb1d69
         SOURCE_DIR "${TD_SOURCE_DIR}/tools/taos-tools"
