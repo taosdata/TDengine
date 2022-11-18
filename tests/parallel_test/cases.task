@@ -56,7 +56,7 @@
 ,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v2.sim
 ,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
 ,,y,script,./test.sh -f tsim/dnode/vnode_clean.sim
-,,,script,./test.sh -f tsim/dnode/use_dropped_dnode.sim 
+,,y,script,./test.sh -f tsim/dnode/use_dropped_dnode.sim 
 ,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica1.sim 
 ,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica3.sim 
 ,,y,script,./test.sh -f tsim/import/basic.sim
@@ -176,11 +176,11 @@
 ,,y,script,./test.sh -f tsim/query/udf.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
-,,,script,./test.sh -f tsim/mnode/basic1.sim
-,,,script,./test.sh -f tsim/mnode/basic2.sim
-,,,script,./test.sh -f tsim/mnode/basic3.sim
-,,,script,./test.sh -f tsim/mnode/basic4.sim
-,,,script,./test.sh -f tsim/mnode/basic5.sim
+,,y,script,./test.sh -f tsim/mnode/basic1.sim
+,,y,script,./test.sh -f tsim/mnode/basic2.sim
+,,y,script,./test.sh -f tsim/mnode/basic3.sim
+,,y,script,./test.sh -f tsim/mnode/basic4.sim
+,,y,script,./test.sh -f tsim/mnode/basic5.sim
 ,,y,script,./test.sh -f tsim/show/basic.sim
 ,,y,script,./test.sh -f tsim/table/autocreate.sim
 ,,y,script,./test.sh -f tsim/table/basic1.sim
@@ -278,7 +278,7 @@
 ,,y,script,./test.sh -f tsim/stable/values.sim
 ,,y,script,./test.sh -f tsim/stable/vnode3.sim
 ,,y,script,./test.sh -f tsim/stable/metrics_idx.sim
-,,,script,./test.sh -f tsim/sma/drop_sma.sim
+,,n,script,./test.sh -f tsim/sma/drop_sma.sim
 ,,y,script,./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
@@ -291,7 +291,7 @@
 ,,n,script,./test.sh -f tsim/valgrind/checkError7.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkError8.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkUdf.sim
-,,,script,./test.sh -f tsim/vnode/replica3_basic.sim
+,,y,script,./test.sh -f tsim/vnode/replica3_basic.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_repeat.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_vgroup.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_many.sim
