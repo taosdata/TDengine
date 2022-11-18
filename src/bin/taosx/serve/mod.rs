@@ -15,7 +15,7 @@ mod task;
 
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
-    #[clap(short = 'l', long, default_value = "127.0.0.1:6050")]
+    #[clap(short = 'l', long, default_value = "0.0.0.0:6050")]
     listen: String,
     #[clap(short = 'D', long)]
     database_url: Option<String>,
@@ -29,7 +29,7 @@ pub(super) struct Cli {
 impl Default for Cli {
     fn default() -> Self {
         Self {
-            listen: "127.0.0.1:6050".parse().unwrap(),
+            listen: "0.0.0.0:6050".parse().unwrap(),
             database_url: None,
             log_dir: None,
         }
