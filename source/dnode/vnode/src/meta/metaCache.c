@@ -495,9 +495,9 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
     STagFilterResEntry* p = taosMemoryMalloc(sizeof(STagFilterResEntry));
     p->qTimes = 0;
     tdListInit(&p->list, keyLen);
-    taosHashPut(pTableEntry, &suid, sizeof(uint64_t), pEntry, POINTER_BYTES);
 
     pEntry = &p;
+    taosHashPut(pTableEntry, &suid, sizeof(uint64_t), pEntry, POINTER_BYTES);
   }
 
   tdListAppend(&(*(STagFilterResEntry**)pEntry)->list, pKey);
