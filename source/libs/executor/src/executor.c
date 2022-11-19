@@ -1026,8 +1026,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     SStreamScanInfo* pInfo = pOperator->info;
     if (pOffset->type == TMQ_OFFSET__LOG) {
       STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
-      tsdbReaderClose(pTSInfo->dataReader);
-      pTSInfo->dataReader = NULL;
+      tsdbReaderClose(pTSInfo->base.dataReader);
+      pTSInfo->base.dataReader = NULL;
 #if 0
       if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus) &&
           pInfo->tqReader->pWalReader->curVersion != pOffset->version) {
@@ -1079,23 +1079,23 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       // TODO after dropping table, table may not found
       ASSERT(found);
 
-      if (pTableScanInfo->dataReader == NULL) {
+      if (pTableScanInfo->base.dataReader == NULL) {
         STableKeyInfo* pList = tableListGetInfo(pTaskInfo->pTableInfoList, 0);
         int32_t        num = tableListGetSize(pTaskInfo->pTableInfoList);
 
-        if (tsdbReaderOpen(pTableScanInfo->readHandle.vnode, &pTableScanInfo->cond, pList, num,
-                           &pTableScanInfo->dataReader, NULL) < 0 ||
-            pTableScanInfo->dataReader == NULL) {
+        if (tsdbReaderOpen(pTableScanInfo->base.readHandle.vnode, &pTableScanInfo->base.cond, pList, num,
+                           &pTableScanInfo->base.dataReader, NULL) < 0 ||
+            pTableScanInfo->base.dataReader == NULL) {
           ASSERT(0);
         }
       }
 
       STableKeyInfo tki = {.uid = uid};
-      tsdbSetTableList(pTableScanInfo->dataReader, &tki, 1);
-      int64_t oldSkey = pTableScanInfo->cond.twindows.skey;
-      pTableScanInfo->cond.twindows.skey = ts + 1;
-      tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond);
-      pTableScanInfo->cond.twindows.skey = oldSkey;
+      tsdbSetTableList(pTableScanInfo->base.dataReader, &tki, 1);
+      int64_t oldSkey = pTableScanInfo->base.cond.twindows.skey;
+      pTableScanInfo->base.cond.twindows.skey = ts + 1;
+      tsdbReaderReset(pTableScanInfo->base.dataReader, &pTableScanInfo->base.cond);
+      pTableScanInfo->base.cond.twindows.skey = oldSkey;
       pTableScanInfo->scanTimes = 0;
 
       qDebug("tsdb reader offset seek to uid %" PRId64 " ts %" PRId64 ", table cur set to %d , all table num %d", uid,
