@@ -70,7 +70,14 @@ AsanFile=$ASAN_DIR/psim.asan
 echo "AsanFile:" $AsanFile
 
 unset LD_PRELOAD
-export LD_PRELOAD=libasan.so.5
+#export LD_PRELOAD=libasan.so.5
+#echo "export1:" $?
+export LD_PRELOAD=`gcc -print-file-name=libasan.so`
+echo "export2:" $?
+
+echo "export4:" "$BUILD_DIR/build/bin/taos"  
+ldd $BUILD_DIR/build/bin/taos
+
 $* -a 2> $AsanFile
 
 unset LD_PRELOAD
