@@ -146,6 +146,15 @@ typedef struct {
   SCvtAddr   cvtAddr;
   bool       setMaxRetry;
 
+  int32_t retryMinInterval;
+  int32_t retryMaxInterval;
+  int32_t retryStepFactor;
+  int32_t retryMaxTimeout;
+  int64_t retryInitTimestamp;
+  int64_t retryNextInterval;
+  bool    retryInit;
+  int32_t retryStep;
+
   int hThrdIdx;
 } STransConnCtx;
 

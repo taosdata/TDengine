@@ -1371,7 +1371,8 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
   arg->param1 = pMsg;
   arg->param2 = pThrd;
-  transDQSched(pThrd->delayQueue, doDelayTask, arg, pTransInst->retryInterval);
+
+  transDQSched(pThrd->delayQueue, doDelayTask, arg, pCtx->retryNextInterval);
 }
 
 FORCE_INLINE void cliCompareAndSwap(int8_t* val, int8_t exp, int8_t newVal) {
@@ -1419,18 +1420,47 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   int32_t        code = pResp->code;
 
   bool retry = (pTransInst->retry != NULL && pTransInst->retry(code, pResp->msgType - 1)) ? true : false;
+  if (retry == true) {
+    if (!pCtx->retryInit) {
+      pCtx->retryMinInterval = pTransInst->retryMinInterval;
+      pCtx->retryMaxInterval = pTransInst->retryMaxInterval;
+      pCtx->retryStepFactor = pTransInst->retryStepFactor;
+      pCtx->retryMaxTimeout = pTransInst->retryMaxTimouet;
+      pCtx->retryInit = true;
+      pCtx->retryStep = 1;
+      pCtx->retryInitTimestamp = taosGetTimestampMs();
+      pCtx->retryNextInterval = pCtx->retryMinInterval;
+    } else {
+      pCtx->retryStep++;
+      int64_t factor = 1;
+      for (int i = 0; i < pCtx->retryStep - 1; i++) {
+        factor *= pCtx->retryStepFactor;
+      }
+
+      pCtx->retryNextInterval = factor * pCtx->retryMinInterval;
+      if (pCtx->retryNextInterval >= pCtx->retryMaxInterval) {
+        pCtx->retryNextInterval = pCtx->retryMaxInterval;
+      }
+    }
+
+    if (taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
+      retry = false;
+    }
+  }
+
   if (retry) {
     pMsg->sent = 0;
     pCtx->retryCnt += 1;
+
     if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK) {
       cliCompareAndSwap(&pCtx->retryLimit, pTransInst->retryLimit, EPSET_GET_SIZE(&pCtx->epSet) * 3);
-      if (pCtx->retryCnt < pCtx->retryLimit) {
-        transUnrefCliHandle(pConn);
-        EPSET_FORWARD_INUSE(&pCtx->epSet);
-        transFreeMsg(pResp->pCont);
-        cliSchedMsgToNextNode(pMsg, pThrd);
-        return -1;
-      }
+      // if (pCtx->retryCnt < pCtx->retryLimit) {
+      transUnrefCliHandle(pConn);
+      EPSET_FORWARD_INUSE(&pCtx->epSet);
+      transFreeMsg(pResp->pCont);
+      cliSchedMsgToNextNode(pMsg, pThrd);
+      return -1;
+      //}
     } else {
       cliCompareAndSwap(&pCtx->retryLimit, pTransInst->retryLimit, pTransInst->retryLimit);
       if (pCtx->retryCnt < pCtx->retryLimit) {
