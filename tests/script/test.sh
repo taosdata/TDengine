@@ -66,11 +66,8 @@ else
 fi
 
 declare -x BUILD_DIR=$TOP_DIR/$BIN_DIR
-
 declare -x SIM_DIR=$TOP_DIR/sim
-
 PROGRAM=$BUILD_DIR/build/bin/tsim
-
 PRG_DIR=$SIM_DIR/tsim
 CFG_DIR=$PRG_DIR/cfg
 LOG_DIR=$PRG_DIR/log
