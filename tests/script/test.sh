@@ -138,11 +138,14 @@ if [ -n "$FILE_NAME" ]; then
     echo "AsanDir:" $ASAN_DIR/tsim.asan
     eval $PROGRAM -c $CFG_DIR -f $FILE_NAME 2> $ASAN_DIR/tsim.asan
     result=$?
-    echo "Execute result: " $result
+    echo "Execute result:" $result
 
     if [ $result -eq 0 ]; then
       $CODE_DIR/sh/checkAsan.sh
     else
+      echo "TSIM has asan errors"
+      sleep 1
+      $CODE_DIR/sh/checkAsan.sh
       exit 1
     fi
   fi
