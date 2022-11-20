@@ -45,13 +45,11 @@ declare -x SIM_DIR=$TOP_DIR/sim
 PROGRAM=$BUILD_DIR/build/bin/tsim
 PRG_DIR=$SIM_DIR/tsim
 ASAN_DIR=$SIM_DIR/asan
-SYSTEM_TEST_DIR=$CODE_DIR/tests/system-test
 
 chmod -R 777 $PRG_DIR
 echo "------------------------------------------------------------------------"
 echo "Start TDengine Testing Case ..."
 echo "BUILD_DIR: $BUILD_DIR"
-echo "SYSTEM_TEST_DIR : $SYSTEM_TEST_DIR"
 echo "SIM_DIR  : $SIM_DIR"
 echo "CODE_DIR : $CODE_DIR"
 echo "ASAN_DIR  : $ASAN_DIR"
@@ -61,24 +59,36 @@ rm -rf $SIM_DIR/*
 mkdir -p $PRG_DIR
 mkdir -p $ASAN_DIR
 
-cd $SYSTEM_TEST_DIR
+cd $CODE_DIR
 ulimit -n 600000
 ulimit -c unlimited
 
 #sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e
 
 echo "ExcuteCmd:" $*
-echo "AsanDir:" $ASAN_DIR/psim.info
+AsanFile=$ASAN_DIR/psim.asan
+echo "AsanFile:" $AsanFile
 
 export LD_PRELOAD=libasan.so.5
-$* -a 2> $ASAN_DIR/psim.info
+$* -a 2> $AsanFile
 
-result=$?
-echo "Execute result:" $result
+export LD_PRELOAD=
+AsanFileLen=`cat $AsanFile | wc -l`
+while [ $AsanFileLen -lt 10 ]
+do
+  sleep 1
+  `cat $AsanFile | wc -l`
+done 
+echo "AsanFileLen:" $AsanFileLen
 
-if [ $result -eq 0 ]; then
-  $CODE_DIR/tests/script/sh/checkAsan.sh
+AsanFileSuccessLen=`grep -w successfully $AsanFile | wc -l`
+echo "AsanFileSuccessLen:" $AsanFileSuccessLen
+
+if [ $AsanFileSuccessLen -gt 0 ]; then
+  echo "Execute script successfully and check asan"
+  $CODE_DIR/../script/sh/checkAsan.sh
 else
+  echo "Execute script failure"
   exit 1
 fi
 
