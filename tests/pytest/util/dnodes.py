@@ -390,7 +390,7 @@ class TDDnode:
                     binPath, self.cfgDir)
             else:
                 if self.asan:
-                    asanDir = "%s/sim/tsim/asan/dnode%d.asan" % (
+                    asanDir = "%s/sim/asan/dnode%d.asan" % (
                         self.path, self.index)
                     cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
                         binPath, self.cfgDir, asanDir)
@@ -457,7 +457,7 @@ class TDDnode:
 
         if self.valgrind == 0:
             if self.asan:
-               asanDir = "%s/sim/tsim/asan/dnode%d.asan" % (
+               asanDir = "%s/sim/asan/dnode%d.asan" % (
                    self.path, self.index)
                cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
                    binPath, self.cfgDir, asanDir)
