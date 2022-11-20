@@ -46,37 +46,21 @@ int32_t tBufferPut(SBuffer *pBuffer, const void *pData, int64_t nData) {
 // ================================
 static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 
-#pragma pack(push, 1)
-typedef struct {
-  int16_t nCols;
-  uint8_t idx[];
-} STSKVRow;
-#pragma pack(pop)
-
-#define TSROW_IS_KV_ROW(r) ((r)->flags & TSROW_KV_ROW)
-
-// SValue
-static FORCE_INLINE int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type) {
-  if (IS_VAR_DATA_TYPE(type)) {
-    return tPutBinary(p, pValue->pData, pValue->nData);
-  } else {
-    if (p) memcpy(p, &pValue->val, tDataTypes[type].bytes);
-    return tDataTypes[type].bytes;
-  }
-}
-
 // SRow ========================================================================
-int32_t tTSRowPut(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
-  int32_t code = 0;
+#define ROW_FLG_KV ((uint8_t)0x10)
 
-  ASSERT(taosArrayGetSize(aColVal) == 0);
+int32_t tRowPut(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
+  int32_t code = 0;
 
   uint8_t   flag = 0;
   int32_t   iColVal = 0;
-  SColVal  *pColVal = taosArrayGet(aColVal, iColVal);
+  int32_t   nColVal = (int32_t)taosArrayGetSize(aColVal);
+  SColVal  *pColVal = (SColVal *)taosArrayGet(aColVal, iColVal);
   int32_t   iTColumn = 0;
   STColumn *pTColumn = pTSchema->columns + iTColumn;
 
+  int32_t ntp = sizeof(SRow);
+  int32_t nkv = sizeof(SRow);
   while (pTColumn) {
     if (pColVal) {
       if (pColVal->cid == pTColumn->colId) {
@@ -88,16 +72,81 @@ int32_t tTSRowPut(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
           flag |= HAS_NULL;
         }
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
-        pColVal = (++iColVal < taosArrayGetSize(aColVal)) ? taosArrayGet(aColVal, iColVal) : NULL;
-      } else if (pColVal->cid < pTColumn->colId) {
-        pColVal = (++iColVal < taosArrayGetSize(aColVal)) ? taosArrayGet(aColVal, iColVal) : NULL;
-      } else {  // NONE
+        pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+      } else if (pColVal->cid > pTColumn->colId) {  // NONE
         flag |= HAS_NONE;
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
+      } else {
+        pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
       }
     } else {  // NONE
       flag |= HAS_NONE;
       pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
+    }
+  }
+
+  SRow *pRow = NULL;  // todo
+
+  iColVal = 0;
+  pColVal = (SColVal *)taosArrayGet(aColVal, iColVal);
+  iTColumn = 0;
+  pTColumn = pTSchema->columns + iTColumn;
+  if (ntp <= nkv) {  // tuple row
+    pRow->flag = flag;
+    pRow->sver = pTSchema->version;
+    pRow->len = ntp;
+
+    while (pTColumn) {
+      if (pColVal) {
+        if (pColVal->cid == pTColumn->colId) {
+          if (COL_VAL_IS_VALUE(pColVal)) {  // VALUE
+            flag |= HAS_VALUE;
+          } else if (COL_VAL_IS_NONE(pColVal)) {  // NONE
+            flag |= HAS_NONE;
+          } else {  // NULL
+            flag |= HAS_NULL;
+          }
+          pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
+          pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+        } else if (pColVal->cid > pTColumn->colId) {  // NONE
+          flag |= HAS_NONE;
+          pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
+        } else {
+          pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+        }
+      } else {  // NONE
+        flag |= HAS_NONE;
+        pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
+      }
+    }
+
+  } else {  // kv row
+    pRow->flag = flag | ROW_FLG_KV;
+    pRow->sver = pTSchema->version;
+    pRow->len = ntp;
+
+    while (pTColumn) {
+      if (pColVal) {
+        if (pColVal->cid == pTColumn->colId) {
+          if (COL_VAL_IS_VALUE(pColVal)) {  // VALUE
+            flag |= HAS_VALUE;
+          } else if (COL_VAL_IS_NONE(pColVal)) {  // NONE
+            flag |= HAS_NONE;
+          } else {  // NULL
+            flag |= HAS_NULL;
+          }
+          pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
+          pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+        } else if (pColVal->cid > pTColumn->colId) {  // NONE
+          flag |= HAS_NONE;
+          pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
+        } else {
+          pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+        }
+      } else {  // NONE
+        flag |= HAS_NONE;
+        pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
+      }
     }
   }
 
