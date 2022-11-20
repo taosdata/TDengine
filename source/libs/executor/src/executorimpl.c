@@ -1000,12 +1000,6 @@ int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableSc
   return TSDB_CODE_SUCCESS;
 }
 
-static void updateTableQueryInfoForReverseScan(STableQueryInfo* pTableQueryInfo) {
-  if (pTableQueryInfo == NULL) {
-    return;
-  }
-}
-
 void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status) {
   if (status == TASK_NOT_COMPLETED) {
     pTaskInfo->status = status;
@@ -1054,7 +1048,7 @@ void doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pCol
   }
 
   SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
-  int32_t code = filterSetDataFromSlotId(pFilterInfo, &param1);
+  int32_t            code = filterSetDataFromSlotId(pFilterInfo, &param1);
 
   SColumnInfoData* p = NULL;
   int32_t          status = 0;
@@ -1064,7 +1058,7 @@ void doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pCol
   extractQualifiedTupleByFilterResult(pBlock, p, keep, status);
 
   if (pColMatchInfo != NULL) {
-    size_t  size = taosArrayGetSize(pColMatchInfo->pList);
+    size_t size = taosArrayGetSize(pColMatchInfo->pList);
     for (int32_t i = 0; i < size; ++i) {
       SColMatchItem* pInfo = taosArrayGet(pColMatchInfo->pList, i);
       if (pInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
@@ -1336,27 +1330,14 @@ void doBuildStreamResBlock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGr
   pBlock->info.groupId = 0;
   ASSERT(!pbInfo->mergeResultBlock);
   doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo);
-  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) {
-    SStreamStateAggOperatorInfo* pInfo = pOperator->info;
 
-    char* tbname = taosHashGet(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t));
-    if (tbname != NULL) {
-      memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
-    } else {
-      pBlock->info.parTbName[0] = 0;
-    }
-  } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
-             pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
-             pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
-    SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
-
-    char* tbname = taosHashGet(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t));
-    if (tbname != NULL) {
-      memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
-    } else {
-      pBlock->info.parTbName[0] = 0;
-    }
+  void* tbname = NULL;
+  if (streamStateGetParName(pTaskInfo->streamInfo.pState, pBlock->info.groupId, &tbname) < 0) {
+    pBlock->info.parTbName[0] = 0;
+  } else {
+    memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
   }
+  tdbFree(tbname);
 }
 
 void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
@@ -1665,55 +1646,6 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
 static int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t numOfOutput, size_t keyBufSize,
                                 const char* pKey);
 
-static bool needToMerge(SSDataBlock* pBlock, SArray* groupInfo, char** buf, int32_t rowIndex) {
-  size_t size = taosArrayGetSize(groupInfo);
-  if (size == 0) {
-    return true;
-  }
-
-  for (int32_t i = 0; i < size; ++i) {
-    int32_t* index = taosArrayGet(groupInfo, i);
-
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, *index);
-    bool             isNull = colDataIsNull(pColInfo, rowIndex, pBlock->info.rows, NULL);
-
-    if ((isNull && buf[i] != NULL) || (!isNull && buf[i] == NULL)) {
-      return false;
-    }
-
-    char* pCell = colDataGetData(pColInfo, rowIndex);
-    if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
-      if (varDataLen(pCell) != varDataLen(buf[i])) {
-        return false;
-      } else {
-        if (memcmp(varDataVal(pCell), varDataVal(buf[i]), varDataLen(pCell)) != 0) {
-          return false;
-        }
-      }
-    } else {
-      if (memcmp(pCell, buf[i], pColInfo->info.bytes) != 0) {
-        return false;
-      }
-    }
-  }
-
-  return 0;
-}
-
-static bool saveCurrentTuple(char** rowColData, SArray* pColumnList, SSDataBlock* pBlock, int32_t rowIndex) {
-  int32_t size = (int32_t)taosArrayGetSize(pColumnList);
-
-  for (int32_t i = 0; i < size; ++i) {
-    int32_t*         index = taosArrayGet(pColumnList, i);
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, *index);
-
-    char* data = colDataGetData(pColInfo, rowIndex);
-    memcpy(rowColData[i], data, colDataGetLength(pColInfo, rowIndex));
-  }
-
-  return true;
-}
-
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scanFlag) {
   // todo add more information about exchange operation
   int32_t type = pOperator->operatorType;
@@ -1725,13 +1657,13 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
     return TSDB_CODE_SUCCESS;
   } else if (type == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = pOperator->info;
-    *order = pTableScanInfo->cond.order;
-    *scanFlag = pTableScanInfo->scanFlag;
+    *order = pTableScanInfo->base.cond.order;
+    *scanFlag = pTableScanInfo->base.scanFlag;
     return TSDB_CODE_SUCCESS;
   } else if (type == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
     STableMergeScanInfo* pTableScanInfo = pOperator->info;
-    *order = pTableScanInfo->cond.order;
-    *scanFlag = pTableScanInfo->scanFlag;
+    *order = pTableScanInfo->base.cond.order;
+    *scanFlag = pTableScanInfo->base.scanFlag;
     return TSDB_CODE_SUCCESS;
   } else {
     if (pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL) {
@@ -2145,7 +2077,7 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
       break;
     }
 
-    doFilter(fillResult, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo );
+    doFilter(fillResult, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo);
     if (fillResult->info.rows > 0) {
       break;
     }
@@ -2372,14 +2304,14 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
   pInfo->groupId = UINT64_MAX;
 
-  setOperatorInfo(pOperator, "TableAggregate", QUERY_NODE_PHYSICAL_PLAN_HASH_AGG, true, OP_NOT_OPENED, pInfo, pTaskInfo);
-  pOperator->fpSet =
-      createOperatorFpSet(doOpenAggregateOptr, getAggregateResult, NULL, destroyAggOperatorInfo, NULL);
+  setOperatorInfo(pOperator, "TableAggregate", QUERY_NODE_PHYSICAL_PLAN_HASH_AGG, true, OP_NOT_OPENED, pInfo,
+                  pTaskInfo);
+  pOperator->fpSet = createOperatorFpSet(doOpenAggregateOptr, getAggregateResult, NULL, destroyAggOperatorInfo, NULL);
 
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = downstream->info;
-    pTableScanInfo->pdInfo.pExprSup = &pOperator->exprSupp;
-    pTableScanInfo->pdInfo.pAggSup = &pInfo->aggSup;
+    pTableScanInfo->base.pdInfo.pExprSup = &pOperator->exprSupp;
+    pTableScanInfo->base.pdInfo.pAggSup = &pInfo->aggSup;
   }
 
   code = appendDownstream(pOperator, &downstream, 1);
@@ -2744,7 +2676,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       STableScanInfo* pScanInfo = pOperator->info;
-      pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
+      pTaskInfo->cost.pRecoder = &pScanInfo->base.readRecorder;
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
       STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
 
@@ -2762,14 +2694,14 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      pOperator = createTableMergeScanOperatorInfo(pTableScanNode, pTableListInfo, pHandle, pTaskInfo);
+      pOperator = createTableMergeScanOperatorInfo(pTableScanNode, pHandle, pTaskInfo);
       if (NULL == pOperator) {
         pTaskInfo->code = terrno;
         return NULL;
       }
 
       STableScanInfo* pScanInfo = pOperator->info;
-      pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
+      pTaskInfo->cost.pRecoder = &pScanInfo->base.readRecorder;
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       pOperator = createExchangeOperatorInfo(pHandle ? pHandle->pMsgCb->clientRpc : NULL, (SExchangePhysiNode*)pPhyNode,
                                              pTaskInfo);
@@ -3351,13 +3283,13 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
 
     if (pBlock->info.groupId == 0) {
       pBlock->info.groupId = pPos->groupId;
-      SStreamIntervalOperatorInfo* pInfo = pOperator->info;
-      char* tbname = taosHashGet(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t));
-      if (tbname != NULL) {
-        memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
-      } else {
+      void* tbname = NULL;
+      if (streamStateGetParName(pTaskInfo->streamInfo.pState, pBlock->info.groupId, &tbname) < 0) {
         pBlock->info.parTbName[0] = 0;
+      } else {
+        memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
       }
+      tdbFree(tbname);
     } else {
       // current value belongs to different group, it can't be packed into one datablock
       if (pBlock->info.groupId != pPos->groupId) {
@@ -3443,30 +3375,13 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
     if (pBlock->info.groupId == 0) {
       pBlock->info.groupId = pKey->groupId;
 
-      if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) {
-        SStreamStateAggOperatorInfo* pInfo = pOperator->info;
-
-        char* tbname = taosHashGet(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t));
-        if (tbname != NULL) {
-          memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
-        } else {
-          pBlock->info.parTbName[0] = 0;
-        }
-      } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
-                 pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
-                 pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
-        SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
-
-        char* tbname = taosHashGet(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t));
-        if (tbname != NULL) {
-          memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
-        } else {
-          pBlock->info.parTbName[0] = 0;
-        }
+      void* tbname = NULL;
+      if (streamStateGetParName(pTaskInfo->streamInfo.pState, pBlock->info.groupId, &tbname) < 0) {
+        pBlock->info.parTbName[0] = 0;
       } else {
-        ASSERT(0);
+        memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
       }
-
+      tdbFree(tbname);
     } else {
       // current value belongs to different group, it can't be packed into one datablock
       if (pBlock->info.groupId != pKey->groupId) {
