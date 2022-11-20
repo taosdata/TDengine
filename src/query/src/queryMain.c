@@ -71,6 +71,13 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   assert(pQueryMsg != NULL && tsdb != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
+  float procMemory = 0;
+  if (taosGetProcMemory(&procMemory)) {
+    if (tsQueryRssThreshold > 0 && procMemory >= tsQueryRssThreshold) {
+      code = TSDB_CODE_QRY_RSS_THRESHOLD;
+      goto _over;
+    }
+  } 
 
   SQueryParam param = {0};
   code = convertQueryMsg(pQueryMsg, &param);
