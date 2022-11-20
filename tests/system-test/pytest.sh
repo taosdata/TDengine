@@ -69,10 +69,11 @@ echo "ExcuteCmd:" $*
 AsanFile=$ASAN_DIR/psim.asan
 echo "AsanFile:" $AsanFile
 
+unset LD_PRELOAD
 export LD_PRELOAD=libasan.so.5
 $* -a 2> $AsanFile
 
-export LD_PRELOAD=
+unset LD_PRELOAD
 AsanFileLen=`cat $AsanFile | wc -l`
 while [ $AsanFileLen -lt 10 ]
 do

@@ -3,7 +3,7 @@
 set +e
 #set -x
 
-export LD_PRELOAD=
+unset LD_PRELOAD
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
 
