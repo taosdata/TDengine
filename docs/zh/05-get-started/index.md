@@ -24,7 +24,7 @@ TDengine 知识地图中涵盖了 TDengine 的各种知识点，揭示了各概�
 
 <figure>
 <center>
-<a href="./tdengine-map" target="_blank"><img src="/img/tdengine-map.svg" width="80%" /></a>
+<a href="/img/tdengine-map.svg" target="_blank"><img src="/img/tdengine-map.svg" width="80%" /></a>
 <figcaption>图 1. TDengine 知识地图</figcaption>
 </center>
 </figure>
