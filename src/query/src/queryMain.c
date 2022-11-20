@@ -74,6 +74,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   float procMemory = 0;
   if (taosGetProcMemory(&procMemory)) {
     if (tsQueryRssThreshold > 0 && procMemory >= tsQueryRssThreshold) {
+      qError("Exceeds query memory RSS threshold. RSS: %f, threshold: %d", procMemory, tsQueryRssThreshold);
       code = TSDB_CODE_QRY_RSS_THRESHOLD;
       goto _over;
     }

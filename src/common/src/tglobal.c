@@ -1831,7 +1831,7 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "queryRssThresold";
+  cfg.option = "queryRssThreshold";
   cfg.ptr = &tsQueryRssThreshold;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
