@@ -128,10 +128,10 @@ typedef struct SResultRowInfo {
 } SResultRowInfo;
 
 typedef struct SColumnFilterElem {
-  int16_t           bytes;  // column length
+  uint16_t          bytes;  // column length
   __filter_func_t   fp;
   SColumnFilterInfo filterInfo;
-  void              *q;
+  void*             q;
 } SColumnFilterElem;
 
 typedef struct SSingleColumnFilterInfo {

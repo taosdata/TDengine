@@ -255,7 +255,7 @@ static int32_t doCopyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* 
 
 static int32_t getGroupbyColumnIndex(SGroupbyExpr* pGroupbyExpr, SSDataBlock* pDataBlock);
 static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv* pRuntimeEnv, SOptrBasicInfo* binf, int32_t numOfCols,
-                                       char* pData, int16_t type, int16_t bytes, int32_t groupIndex);
+                                       char* pData, int16_t type, uint16_t bytes, int32_t groupIndex);
 
 static void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size);
 static void getAlignQueryTimeWindow(SQueryAttr* pQueryAttr, int64_t key, int64_t keyFirst, int64_t keyLast,
@@ -552,7 +552,7 @@ static void prepareResultListBuffer(SResultRowInfo* pResultRowInfo, SQueryRuntim
 }
 
 static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResultRowInfo* pResultRowInfo, int64_t tid,
-                                          char* pData, int16_t bytes, bool masterscan, uint64_t tableGroupId) {
+                                          char* pData, uint16_t bytes, bool masterscan, uint64_t tableGroupId) {
   bool existed = false;
   SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, pData, bytes, tableGroupId);
 
@@ -2066,7 +2066,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
 }
 
 static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv* pRuntimeEnv, SOptrBasicInfo* binfo, int32_t numOfCols,
-                                       char* pData, int16_t type, int16_t bytes, int32_t groupIndex) {
+                                       char* pData, int16_t type, uint16_t bytes, int32_t groupIndex) {
   SDiskbasedResultBuf* pResultBuf = pRuntimeEnv->pResultBuf;
 
   int32_t*        rowCellInfoOffset = binfo->rowCellInfoOffset;
@@ -2075,7 +2075,7 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv* pRuntimeEnv, SOptrBasic
 
   // not assign result buffer yet, add new result buffer, TODO remove it
   char*   d = pData;
-  int16_t len = bytes;
+  uint16_t len = bytes;
 
   int64_t     tid = 0;
   SResultRow* pResultRow = doSetResultOutBufByKey(pRuntimeEnv, pResultRowInfo, tid, d, len, true, groupIndex);
