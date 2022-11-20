@@ -15,7 +15,7 @@ else
 fi
 
 TAOS_DIR=`pwd`
-LOG_DIR=$TAOS_DIR/sim/tsim/asan
+LOG_DIR=$TAOS_DIR/sim/asan
 
 error_num=`cat ${LOG_DIR}/*.asan | grep "ERROR" | wc -l`
 memory_leak=`cat ${LOG_DIR}/*.asan | grep "Direct leak" | wc -l`

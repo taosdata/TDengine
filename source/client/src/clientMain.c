@@ -98,6 +98,8 @@ setConfRet taos_set_config(const char *config) {
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
+  void *testLeak = taosMemoryMalloc(100);
+
   tscDebug("try to connect to %s:%u, user:%s db:%s", ip, port, user, db);
   if (user == NULL) {
     user = TSDB_DEFAULT_USER;

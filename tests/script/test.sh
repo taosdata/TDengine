@@ -72,7 +72,7 @@ PRG_DIR=$SIM_DIR/tsim
 CFG_DIR=$PRG_DIR/cfg
 LOG_DIR=$PRG_DIR/log
 DATA_DIR=$PRG_DIR/data
-ASAN_DIR=$PRG_DIR/asan
+ASAN_DIR=$SIM_DIR/asan
 
 chmod -R 777 $PRG_DIR
 echo "------------------------------------------------------------------------"
