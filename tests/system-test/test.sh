@@ -45,7 +45,7 @@ declare -x SIM_DIR=$TOP_DIR/sim
 PROGRAM=$BUILD_DIR/build/bin/tsim
 PRG_DIR=$SIM_DIR/tsim
 ASAN_DIR=$SIM_DIR/asan
-SYSTEM_TEST_DIR=$TOP_DIR/tests/system-test
+SYSTEM_TEST_DIR=$CODE_DIR/tests/system-test
 
 chmod -R 777 $PRG_DIR
 echo "------------------------------------------------------------------------"
@@ -77,7 +77,7 @@ result=$?
 echo "Execute result:" $result
 
 if [ $result -eq 0 ]; then
-  $TOP_DIR/tests/script/sh/checkAsan.sh
+  $CODE_DIR/tests/script/sh/checkAsan.sh
 else
   exit 1
 fi
