@@ -71,6 +71,13 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   assert(pQueryMsg != NULL && tsdb != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
+
+  SQueryParam param = {0};
+  code = convertQueryMsg(pQueryMsg, &param);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _over;
+  }
+  
   float procMemory = 0;
   if (taosGetProcMemory(&procMemory)) {
     if (tsQueryRssThreshold > 0 && procMemory >= tsQueryRssThreshold) {
@@ -79,12 +86,6 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
       goto _over;
     }
   } 
-
-  SQueryParam param = {0};
-  code = convertQueryMsg(pQueryMsg, &param);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _over;
-  }
 
   if (pQueryMsg->numOfTables <= 0) {
     qError("Invalid number of tables to query, numOfTables:%d", pQueryMsg->numOfTables);
