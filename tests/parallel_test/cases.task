@@ -278,7 +278,7 @@
 ,,y,script,./test.sh -f tsim/stable/values.sim
 ,,y,script,./test.sh -f tsim/stable/vnode3.sim
 ,,y,script,./test.sh -f tsim/stable/metrics_idx.sim
-,,n,script,./test.sh -f tsim/sma/drop_sma.sim
+,,y,script,./test.sh -f tsim/sma/drop_sma.sim
 ,,y,script,./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
@@ -438,11 +438,11 @@
 ,,,system-test,python3 ./test.py -f 1-insert/database_pre_suf.py
 ,,,system-test,python3 ./test.py -f 1-insert/InsertFuturets.py
 ,,,system-test,python3 ./test.py -f 0-others/show.py
-,,,system-test,python3 ./test.py -f 2-query/abs.py
+,,,system-test,./test.sh python3 ./test.py -f 2-query/abs.py
 ,,,system-test,python3 ./test.py -f 2-query/abs.py -R
 ,,,system-test,python3 ./test.py -f 2-query/and_or_for_byte.py
 ,,,system-test,python3 ./test.py -f 2-query/and_or_for_byte.py -R
-,,,system-test,python3 ./test.py -f 2-query/apercentile.py
+,,,system-test,./test.sh python3 ./test.py -f 2-query/apercentile.py
 ,,,system-test,python3 ./test.py -f 2-query/apercentile.py -R
 ,,,system-test,python3 ./test.py -f 2-query/arccos.py
 ,,,system-test,python3 ./test.py -f 2-query/arccos.py -R

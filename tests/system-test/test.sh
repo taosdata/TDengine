@@ -68,15 +68,16 @@ ulimit -c unlimited
 #sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e
 
 echo "ExcuteCmd:" $*
-echo "AsanDir:" $ASAN_DIR/psim.asan
+echo "AsanDir:" $ASAN_DIR/psim.info
 
 export LD_PRELOAD=libasan.so.5
-$* -a 2> $ASAN_DIR/psim.asan
+$* -a 2> $ASAN_DIR/psim.info
+
 result=$?
 echo "Execute result:" $result
 
 if [ $result -eq 0 ]; then
-  $CODE_DIR/sh/checkAsan.sh
+  $TOP_DIR/tests/script/sh/checkAsan.sh
 else
   exit 1
 fi
