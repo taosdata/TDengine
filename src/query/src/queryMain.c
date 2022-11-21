@@ -77,6 +77,15 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   if (code != TSDB_CODE_SUCCESS) {
     goto _over;
   }
+  
+  float procMemory = 0;
+  if (taosGetProcMemory(&procMemory)) {
+    if (tsQueryRssThreshold > 0 && procMemory >= tsQueryRssThreshold) {
+      qError("Exceeds query memory RSS threshold. RSS: %f, threshold: %d", procMemory, tsQueryRssThreshold);
+      code = TSDB_CODE_QRY_RSS_THRESHOLD;
+      goto _over;
+    }
+  } 
 
   if (pQueryMsg->numOfTables <= 0) {
     qError("Invalid number of tables to query, numOfTables:%d", pQueryMsg->numOfTables);
