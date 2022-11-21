@@ -2955,7 +2955,8 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   SQueryTableRsp *pQueryAttr = (SQueryTableRsp *)pRes->pRsp;
 
   if (pQueryAttr == NULL) {
-    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    tscError("0x%"PRIx64" invalid NULL query rsp received", pSql->self);
+    pRes->code = TSDB_CODE_QRY_APP_ERROR;
     return pRes->code;
   }
   
