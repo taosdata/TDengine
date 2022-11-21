@@ -138,10 +138,10 @@ while $i < 10
   if $data[0][4] != leader then
     return -1
   endi
-  if $data[0][6] != follower then
+  if $data[0][6] == leader then
     return -1
   endi
-  if $data[0][8] != follower then
+  if $data[0][8] == leader then
     return -1
   endi
 endw 

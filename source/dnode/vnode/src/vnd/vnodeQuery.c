@@ -366,6 +366,7 @@ _exit:
     qError("vnd get batch meta failed cause of %s", tstrerror(code));
   }
 
+  taosArrayDestroyEx(batchReq.pMsgs, tFreeSBatchReqMsg);
   taosArrayDestroyEx(batchRsp.pRsps, tFreeSBatchRspMsg);
 
   tmsgSendRsp(&rspMsg);

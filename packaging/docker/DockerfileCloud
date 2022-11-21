@@ -7,6 +7,9 @@ ARG dirName
 ARG cpuType
 RUN echo ${pkgFile} && echo ${dirName}
 
+RUN apt update
+RUN apt install -y curl
+
 COPY ${pkgFile} /root/
 ENV TINI_VERSION v0.19.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${cpuType} /tini

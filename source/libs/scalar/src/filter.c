@@ -1704,7 +1704,8 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
       }
 
       qDebug("GROUP Num:%u", info->groupNum);
-      for (uint32_t i = 0; i < info->groupNum; ++i) {
+      uint32_t maxDbgGrpNum = TMIN(info->groupNum, 1000);
+      for (uint32_t i = 0; i < maxDbgGrpNum; ++i) {
         SFilterGroup *group = &info->groups[i];
         qDebug("Group%d : unit num[%u]", i, group->unitNum);
 
@@ -3248,14 +3249,18 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes, SC
       for (uint32_t u = 0; u < group->unitNum; ++u) {
         uint32_t        uidx = group->unitIdxs[u];
         SFilterComUnit *cunit = &info->cunits[uidx];
-        void           *colData = colDataGetData((SColumnInfoData *)(cunit->colData), i);
-
+        void           *colData = NULL;
+        bool            isNull = colDataIsNull((SColumnInfoData *)(cunit->colData), 0, i, NULL);
         // if (FILTER_UNIT_GET_F(info, uidx)) {
         //   p[i] = FILTER_UNIT_GET_R(info, uidx);
         // } else {
         uint8_t optr = cunit->optr;
 
-        if (colData == NULL || colDataIsNull((SColumnInfoData *)(cunit->colData), 0, i, NULL)) {
+        if (!isNull) {
+          colData = colDataGetData((SColumnInfoData *)(cunit->colData), i);
+        }
+        
+        if (colData == NULL || isNull) {
           p[i] = optr == OP_TYPE_IS_NULL ? true : false;
         } else {
           if (optr == OP_TYPE_IS_NOT_NULL) {
@@ -3916,6 +3921,10 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       } else {
         SColumnNode   *refNode = (SColumnNode *)node->pLeft;
         SNodeListNode *listNode = (SNodeListNode *)node->pRight;
+        if (LIST_LENGTH(listNode->pNodeList) > 10) {
+          stat->scalarMode = true;
+          return DEAL_RES_CONTINUE;
+        }
         int32_t        type = vectorGetConvertType(refNode->node.resType.type, listNode->dataType.type);
         if (0 != type && type != refNode->node.resType.type) {
           stat->scalarMode = true;

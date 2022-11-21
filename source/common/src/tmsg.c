@@ -4510,7 +4510,7 @@ int32_t tDeserializeSBatchReq(void *buf, int32_t bufLen, SBatchReq *pReq) {
     if (tDecodeI32(&decoder, &msg.msgIdx) < 0) return -1;
     if (tDecodeI32(&decoder, &msg.msgType) < 0) return -1;
     if (tDecodeI32(&decoder, &msg.msgLen) < 0) return -1;
-    if (tDecodeBinary(&decoder, (uint8_t**)&msg.msg, NULL) < 0) return -1;
+    if (tDecodeBinaryAlloc(&decoder, &msg.msg, NULL) < 0) return -1;
     if (NULL == taosArrayPush(pReq->pMsgs, &msg)) return -1;
   }
   
