@@ -90,7 +90,6 @@ void tTSchemaDestroy(STSchema *pTSchema);
 // SRow ================================
 int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer);
 void    tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
-int32_t tRowToArr(SRow *pRow, STSchema *pTSchema, SArray **aColValP);
 
 // SRowIter ================================
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
