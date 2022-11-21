@@ -959,7 +959,7 @@ FORCE_INLINE void cliMayCvtFqdnToIp(SEpSet* pEpSet, SCvtAddr* pCvtAddr) {
 
 FORCE_INLINE bool cliIsEpsetUpdated(int32_t code, STransConnCtx* pCtx) {
   if (code != 0) return false;
-  if (pCtx->retryCnt == 0) return false;
+  // if (pCtx->retryCnt == 0) return false;
   if (transEpSetIsEqual(&pCtx->epSet, &pCtx->origEpSet)) return false;
   return true;
 }
@@ -1365,8 +1365,8 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   STraceId* trace = &pMsg->msg.info.traceId;
   char      tbuf[256] = {0};
   EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
-  tGDebug("%s retry on next node, use %s, retryCnt:%d, limit:%d", transLabel(pThrd->pTransInst), tbuf,
-          pCtx->retryCnt + 1, pCtx->retryLimit);
+  tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", transLabel(pThrd->pTransInst), tbuf,
+          pCtx->retryStep, pCtx->retryNextInterval);
 
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
   arg->param1 = pMsg;
@@ -1406,6 +1406,86 @@ FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
   *dst = epset;
   return true;
 }
+bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp) {
+  bool noDelay = true;
+  if (pResp->contLen == 0) {
+    if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
+      noDelay = false;
+    } else {
+      EPSET_FORWARD_INUSE(&pCtx->epSet);
+    }
+  } else {
+    SEpSet epset;
+    if (tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epset) < 0) {
+      // invalid epset
+      EPSET_FORWARD_INUSE(&pCtx->epSet);
+    } else if (!transEpSetIsEqual(&pCtx->epSet, &epset)) {
+      noDelay = false;
+    } else {
+      EPSET_FORWARD_INUSE(&pCtx->epSet);
+    }
+  }
+  return noDelay;
+}
+bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
+  SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pTransInst = pThrd->pTransInst;
+
+  STransConnCtx* pCtx = pMsg->ctx;
+  int32_t        code = pResp->code;
+
+  bool retry = pTransInst->retry(code, pResp->msgType - 1);
+  if (retry == false) {
+    return false;
+  }
+
+  bool noDelay = false;
+  if (code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    noDelay = cliResetEpset(pCtx, pResp);
+    transFreeMsg(pResp->pCont);
+    transUnrefCliHandle(pConn);
+  } else if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_INTERNAL_ERROR) {
+    noDelay = cliResetEpset(pCtx, pResp);
+    transFreeMsg(pResp->pCont);
+    addConnToPool(pThrd->pool, pConn);
+  } else {
+    noDelay = cliResetEpset(pCtx, pResp);
+    addConnToPool(pThrd->pool, pConn);
+    transFreeMsg(pResp->pCont);
+  }
+
+  if (!pCtx->retryInit) {
+    pCtx->retryMinInterval = pTransInst->retryMinInterval;
+    pCtx->retryMaxInterval = pTransInst->retryMaxInterval;
+    pCtx->retryStepFactor = pTransInst->retryStepFactor;
+    pCtx->retryMaxTimeout = pTransInst->retryMaxTimouet;
+    pCtx->retryInitTimestamp = taosGetTimestampMs();
+    pCtx->retryNextInterval = pCtx->retryMinInterval;
+    pCtx->retryStep = 1;
+    pCtx->retryInit = true;
+  } else {
+    if (noDelay == false) {
+      pCtx->epsetRetryCnt = 0;
+      pCtx->retryStep++;
+
+      int64_t factor = pow(pCtx->retryStepFactor, pCtx->retryStep - 1);
+      pCtx->retryNextInterval = factor * pCtx->retryMinInterval;
+      if (pCtx->retryNextInterval >= pCtx->retryMaxInterval) {
+        pCtx->retryNextInterval = pCtx->retryMaxInterval;
+      }
+
+      if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
+        return false;
+      }
+    } else {
+      pCtx->retryNextInterval = 0;
+      pCtx->epsetRetryCnt++;
+    }
+  }
+
+  cliSchedMsgToNextNode(pMsg, pThrd);
+  return false;
+}
 int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
@@ -1419,69 +1499,10 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   STransConnCtx* pCtx = pMsg->ctx;
   int32_t        code = pResp->code;
 
-  bool retry = (pTransInst->retry != NULL && pTransInst->retry(code, pResp->msgType - 1)) ? true : false;
+  bool retry = cliGenRetryRule(pConn, pResp, pMsg);
   if (retry == true) {
-    if (!pCtx->retryInit) {
-      pCtx->retryMinInterval = pTransInst->retryMinInterval;
-      pCtx->retryMaxInterval = pTransInst->retryMaxInterval;
-      pCtx->retryStepFactor = pTransInst->retryStepFactor;
-      pCtx->retryMaxTimeout = pTransInst->retryMaxTimouet;
-      pCtx->retryInit = true;
-      pCtx->retryStep = 1;
-      pCtx->retryInitTimestamp = taosGetTimestampMs();
-      pCtx->retryNextInterval = pCtx->retryMinInterval;
-    } else {
-      pCtx->retryStep++;
-      int64_t factor = 1;
-      for (int i = 0; i < pCtx->retryStep - 1; i++) {
-        factor *= pCtx->retryStepFactor;
-      }
-
-      pCtx->retryNextInterval = factor * pCtx->retryMinInterval;
-      if (pCtx->retryNextInterval >= pCtx->retryMaxInterval) {
-        pCtx->retryNextInterval = pCtx->retryMaxInterval;
-      }
-    }
-
-    if (taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
-      retry = false;
-    }
+    return -1;
   }
-
-  if (retry) {
-    pMsg->sent = 0;
-    pCtx->retryCnt += 1;
-
-    if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK) {
-      cliCompareAndSwap(&pCtx->retryLimit, pTransInst->retryLimit, EPSET_GET_SIZE(&pCtx->epSet) * 3);
-      // if (pCtx->retryCnt < pCtx->retryLimit) {
-      transUnrefCliHandle(pConn);
-      EPSET_FORWARD_INUSE(&pCtx->epSet);
-      transFreeMsg(pResp->pCont);
-      cliSchedMsgToNextNode(pMsg, pThrd);
-      return -1;
-      //}
-    } else {
-      cliCompareAndSwap(&pCtx->retryLimit, pTransInst->retryLimit, pTransInst->retryLimit);
-      if (pCtx->retryCnt < pCtx->retryLimit) {
-        if (pResp->contLen == 0) {
-          EPSET_FORWARD_INUSE(&pCtx->epSet);
-        } else {
-          if (tDeserializeSEpSet(pResp->pCont, pResp->contLen, &pCtx->epSet) < 0) {
-            tError("%s conn %p failed to deserialize epset", CONN_GET_INST_LABEL(pConn), pConn);
-          }
-        }
-        addConnToPool(pThrd->pool, pConn);
-        transFreeMsg(pResp->pCont);
-        cliSchedMsgToNextNode(pMsg, pThrd);
-        return -1;
-      } else {
-        // change error code for taos client driver if retryCnt exceeds limit
-        if (0 == strncmp(pTransInst->label, "TSC", strlen("TSC"))) pResp->code = TSDB_CODE_APP_NOT_READY;
-      }
-    }
-  }
-
   STraceId* trace = &pResp->info.traceId;
 
   bool hasEpSet = cliTryExtractEpSet(pResp, &pCtx->epSet);
