@@ -487,6 +487,8 @@ class TDTestCase:
         self.check_result_auto(
             f"select abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))) nest_col_func from {dbname}.sub1_bound;", f"select abs(c1) from {dbname}.sub1_bound")
 
+        tdSql.query(f"select t1 xxx")
+        
         # check basic elem for table per row
         tdSql.query(
             f"select abs(c1) ,abs(c2) , abs(c3) , abs(c4), abs(c5), abs(c6) from {dbname}.sub1_bound ")

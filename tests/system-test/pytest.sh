@@ -66,17 +66,13 @@ ulimit -c unlimited
 #sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e
 
 echo "ExcuteCmd:" $*
-AsanFile=$ASAN_DIR/psim.asan
+AsanFile=$ASAN_DIR/psim.info
 echo "AsanFile:" $AsanFile
 
 unset LD_PRELOAD
 #export LD_PRELOAD=libasan.so.5
-#echo "export1:" $?
 export LD_PRELOAD=`gcc -print-file-name=libasan.so`
-echo "export2:" $?
-
-echo "export4:" "$BUILD_DIR/build/bin/taos"  
-ldd $BUILD_DIR/build/bin/taos
+echo "Preload AsanSo:" $?
 
 $* -a 2> $AsanFile
 
