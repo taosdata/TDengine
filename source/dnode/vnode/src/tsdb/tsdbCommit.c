@@ -1258,7 +1258,7 @@ static int32_t tsdbCommitMergeBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) 
         }
       }
     } else {
-      ASSERT(0);
+      ASSERT(0 && "dup rows not allowed");
     }
 
     if (pBDataW->nRow >= pCommitter->maxRow) {

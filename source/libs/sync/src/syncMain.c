@@ -595,7 +595,7 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
     tstrncpy(pEp->fqdn, pSyncNode->pRaftCfg->cfg.nodeInfo[i].nodeFqdn, TSDB_FQDN_LEN);
     pEp->port = (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodePort;
     pEpSet->numOfEps++;
-    sInfo("vgId:%d, sync get retry epset, index:%d %s:%d", pSyncNode->vgId, i, pEp->fqdn, pEp->port);
+    sDebug("vgId:%d, sync get retry epset, index:%d %s:%d", pSyncNode->vgId, i, pEp->fqdn, pEp->port);
   }
   if (pEpSet->numOfEps > 0) {
     pEpSet->inUse = (pSyncNode->pRaftCfg->cfg.myIndex + 1) % pEpSet->numOfEps;
@@ -1028,6 +1028,12 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   SyncIndex lastVer = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
   SyncIndex commitIndex = pSyncNode->pLogStore->syncLogCommitIndex(pSyncNode->pLogStore);
   SyncIndex endIndex = pSyncNode->pLogBuf->endIndex;
+  if (lastVer != -1 && endIndex != lastVer + 1) {
+    terrno = TSDB_CODE_WAL_LOG_INCOMPLETE;
+    sError("vgId:%d, failed to restore sync node since %s. expected lastLogIndex: %" PRId64 ", lastVer: %" PRId64 "",
+           pSyncNode->vgId, terrstr(), endIndex - 1, lastVer);
+    return -1;
+  }
 
   ASSERT(endIndex == lastVer + 1);
   commitIndex = TMAX(pSyncNode->commitIndex, commitIndex);
@@ -2141,10 +2147,10 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   // proceed match index, with replicating on needed
   SyncIndex matchIndex = syncLogBufferProceed(ths->pLogBuf, ths);
 
-  sInfo("vgId:%d, append raft entry. index: %" PRId64 ", term: %" PRId64 " pBuf: [%" PRId64 " %" PRId64 " %" PRId64
-        ", %" PRId64 ")",
-        ths->vgId, pEntry->index, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
-        ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
+  sDebug("vgId:%d, append raft entry. index: %" PRId64 ", term: %" PRId64 " pBuf: [%" PRId64 " %" PRId64 " %" PRId64
+         ", %" PRId64 ")",
+         ths->vgId, pEntry->index, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
+         ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
 
   // multi replica
   if (ths->replicaNum > 1) {
@@ -2297,6 +2303,26 @@ int32_t syncNodeOnHeartbeatReplyOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 }
 
 int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  SyncLocalCmd* pMsg = pRpcMsg->pCont;
+  syncLogRecvLocalCmd(ths, pMsg, "");
+
+  if (pMsg->cmd == SYNC_LOCAL_CMD_STEP_DOWN) {
+    syncNodeStepDown(ths, pMsg->sdNewTerm);
+
+  } else if (pMsg->cmd == SYNC_LOCAL_CMD_FOLLOWER_CMT) {
+    (void)syncNodeUpdateCommitIndex(ths, pMsg->fcIndex);
+    if (syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
+      sError("vgId:%d, failed to commit raft log since %s. commit index: %" PRId64 "", ths->vgId, terrstr(),
+             ths->commitIndex);
+    }
+  } else {
+    sError("error local cmd");
+  }
+
+  return 0;
+}
+
+int32_t syncNodeOnLocalCmdOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncLocalCmd* pMsg = pRpcMsg->pCont;
   syncLogRecvLocalCmd(ths, pMsg, "");
 
@@ -2535,11 +2561,11 @@ int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg) {
 }
 
 bool syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg) {
-  // return false;
   return (ths->replicaNum == 1 && syncUtilUserCommit(pMsg->msgType) && ths->vgId != 1);
 }
 
 int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
+  ASSERT(false);
   if (beginIndex > endIndex) {
     return 0;
   }
