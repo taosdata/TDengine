@@ -72,6 +72,7 @@ static STscObj* taosConnectImpl(const char* user, const char* auth, const char* 
 
 STscObj* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
                                uint16_t port, int connType) {
+  void *p2 = taosMemoryMalloc(100);
   if (taos_init() != TSDB_CODE_SUCCESS) {
     return NULL;
   }
