@@ -2948,6 +2948,10 @@ typedef struct {
   STqOffsetVal reqOffset;
 } SMqPollReq;
 
+int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq);
+int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq);
+
+
 typedef struct {
   int32_t vgId;
   int64_t offset;

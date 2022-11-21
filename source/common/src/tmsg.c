@@ -4766,7 +4766,7 @@ int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
 
   if (buf != NULL) {
     SMsgHead *pHead = (SMsgHead *)((char *)buf - headLen);
-    pHead->vgId = htonl(pReq->header.vgId);
+    pHead->vgId = htonl(pReq->head.vgId);
     pHead->contLen = htonl(tlen + headLen);
   }
 
@@ -4777,8 +4777,8 @@ int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);
 
   SMsgHead *pHead = buf;
-  pHead->vgId = pReq->header.vgId;
-  pHead->contLen = pReq->header.contLen;
+  pHead->vgId = pReq->head.vgId;
+  pHead->contLen = pReq->head.contLen;
 
   SDecoder decoder = {0};
   tDecoderInit(&decoder, (char *)buf + headLen, bufLen - headLen);
