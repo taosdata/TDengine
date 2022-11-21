@@ -88,7 +88,7 @@ void tTSchemaDestroy(STSchema *pTSchema);
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
 // SRow ================================
-int32_t tRowPut(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer);
+int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer);
 void    tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 int32_t tRowToArr(SRow *pRow, STSchema *pTSchema, SArray **aColValP);
 
