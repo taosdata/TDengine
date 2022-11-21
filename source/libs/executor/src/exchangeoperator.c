@@ -44,7 +44,7 @@ typedef struct SFetchRspHandleWrapper {
 static void destroyExchangeOperatorInfo(void* param);
 static void freeBlock(void* pParam);
 static void freeSourceDataInfo(void* param);
-static void* setAllSourcesCompleted(SOperatorInfo* pOperator, int64_t startTs);
+static void* setAllSourcesCompleted(SOperatorInfo* pOperator);
 
 static int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code);
 static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex);
@@ -59,7 +59,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
   size_t  totalSources = taosArrayGetSize(pExchangeInfo->pSourceDataInfo);
   int32_t completed = getCompletedSources(pExchangeInfo->pSourceDataInfo);
   if (completed == totalSources) {
-    setAllSourcesCompleted(pOperator, pExchangeInfo->openedTs);
+    setAllSourcesCompleted(pOperator);
     return;
   }
 
@@ -113,7 +113,8 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
         taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
       }
 
-      updateLoadRemoteInfo(pLoadInfo, pRetrieveRsp->numOfRows, pRetrieveRsp->compLen, pExchangeInfo->openedTs, pOperator);
+      updateLoadRemoteInfo(pLoadInfo, pRetrieveRsp->numOfRows, pRetrieveRsp->compLen, pDataInfo->startTime, pOperator);
+      pDataInfo->totalRows += pRetrieveRsp->numOfRows;
 
       if (pRsp->completed == 1) {
         pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
@@ -388,6 +389,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
   SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, sourceIndex);
   SSourceDataInfo*       pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, sourceIndex);
+  pDataInfo->startTime = taosGetTimestampUs();
 
   ASSERT(pDataInfo->status == EX_SOURCE_DATA_NOT_READY);
 
@@ -493,18 +495,14 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
   return TSDB_CODE_SUCCESS;
 }
 
-void* setAllSourcesCompleted(SOperatorInfo* pOperator, int64_t startTs) {
+void* setAllSourcesCompleted(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
-  int64_t              el = taosGetTimestampUs() - startTs;
   SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
-
-  pLoadInfo->totalElapsed += el;
-
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
-  qDebug("%s all %" PRIzu " sources are exhausted, total rows: %" PRIu64 " bytes:%" PRIu64 ", elapsed:%.2f ms",
-         GET_TASKID(pTaskInfo), totalSources, pLoadInfo->totalRows, pLoadInfo->totalSize,
+  qDebug("%s all %" PRIzu " sources are exhausted, total rows: %" PRIu64 ", %.2f Kb, elapsed:%.2f ms",
+         GET_TASKID(pTaskInfo), totalSources, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0,
          pLoadInfo->totalElapsed / 1000.0);
 
   setOperatorCompleted(pOperator);
@@ -566,7 +564,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
 
   while (1) {
     if (pExchangeInfo->current >= totalSources) {
-      setAllSourcesCompleted(pOperator, startTs);
+      setAllSourcesCompleted(pOperator);
       return TSDB_CODE_SUCCESS;
     }
 
