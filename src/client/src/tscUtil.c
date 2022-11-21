@@ -3264,7 +3264,7 @@ int32_t tscColCondCopy(SArray** dest, const SArray* src, uint64_t uid, int16_t t
   }
 
   size_t s = taosArrayGetSize(src);
-  *dest = taosArrayInit(s, sizeof(SCond));
+  *dest = taosArrayInit(s, sizeof(STblCond));
 
   for (int32_t i = 0; i < s; ++i) {
     STblCond* pCond = taosArrayGet(src, i);
