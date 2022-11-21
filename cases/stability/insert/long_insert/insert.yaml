@@ -1,7 +1,7 @@
 case1:
   json_file1:
     json_info:
-      host: "u1-53"
+      host: "u1-55"
       port: 6030
       rest_port: 6041
       thread_count: 40
@@ -21,7 +21,7 @@ case1:
     stb_info:
       stb_name: "stb0"
       child_table_exists: "no"
-      childtable_count: 20000
+      childtable_count: 2000
       childtable_prefix: "ctb"
       escape_character: "no"
       auto_create_table: "no"
@@ -32,7 +32,7 @@ case1:
       partial_col_num: 0
       line_protocol: null
       tcp_transfer: "no"
-      insert_rows: 100000
+      insert_rows: 1000
       childtable_limit: 0
       childtable_offset: 0
       rows_per_tbl: 0
@@ -80,9 +80,10 @@ case1:
       tag_nchar_length: 16
       tag_timestamp_count: 1
       tag_bool_count: 1
+      no_wait_restart_times: 10
       # repeat_delete_times: 10
-      drop_kill_rows: 1000000
-      syncing_drop: 1
+      # drop_kill_rows: 1000000
+      syncing_drop: 0
       alter_table: 1
 # case2:
 #   json_file1:
