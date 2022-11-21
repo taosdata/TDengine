@@ -556,7 +556,7 @@ FAIL:
   return -1;
 }
 
-int32_t tqSplitRetrieveDataBlock(STqReader* pReader, SArray* blocks, SArray* schemas) {
+int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas) {
   int32_t sversion = htonl(pReader->pBlock->sversion);
 
   if (pReader->cachedSchemaSuid == 0 || pReader->cachedSchemaVer != sversion ||
@@ -594,7 +594,7 @@ int32_t tqSplitRetrieveDataBlock(STqReader* pReader, SArray* blocks, SArray* sch
   int32_t curRow = 0;
 
   char* assigned = taosMemoryCalloc(1, pSchemaWrapper->nCols);
-  if (assigned) return -1;
+  if (assigned == NULL) return -1;
 
   tInitSubmitBlkIter(&pReader->msgIter, pReader->pBlock, &pReader->blkIter);
   STSRowIter iter = {0};
