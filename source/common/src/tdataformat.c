@@ -338,6 +338,7 @@ struct SRowIter {
   union {
     struct {  // kv
       int32_t  iCol;
+      SKVIdx  *pIdx;
       uint8_t *pv;
     };
     struct {  // tupl
@@ -405,16 +406,44 @@ SColVal *tRowIterNext(SRowIter *pIter) {
   }
 
   if (pIter->pRow->flag & ROW_FLG_KV) {  // KV
-    SKVIdx *pIdx = (SKVIdx *)pIter->pRow->data;
+    if (pIter->iCol < pIter->pIdx->nCol) {
+      uint8_t *pData = pIter->pv + pIter->pIdx->idx[pIter->iCol];  // todo
+      int16_t  cid;
 
-    while (pIter->iCol < pIdx->nCol) {
-      /* code */
+      pData += tGetI16v(pData, &cid);
+
+      if (TABS(cid) == pTColumn->colId) {
+        if (cid < 0) {
+          pIter->cv = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
+        } else {
+          pIter->cv.cid = pTColumn->colId;
+          pIter->cv.type = pTColumn->type;
+          pIter->cv.flag = CV_FLAG_VALUE;
+
+          if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+            pData += tGetU32v(pData, &pIter->cv.value.nData);
+            if (pIter->cv.value.nData > 0) {
+              pIter->cv.value.pData = pData;
+            } else {
+              pIter->cv.value.pData = NULL;
+            }
+          } else {
+            memcpy(&pIter->cv.value.val, pData, pTColumn->bytes);
+          }
+        }
+
+        pIter->iCol++;
+        goto _exit;
+      } else if (TABS(cid) > pTColumn->colId) {
+        pIter->cv = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+        goto _exit;
+      } else {
+        ASSERT(0);
+      }
+    } else {
+      pIter->cv = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+      goto _exit;
     }
-
-    // if (pIter->iIdx >= pIdx->nidx) {
-    //   pIter->cv = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
-    //   goto _exit;
-    // }
   } else {  // Tuple
     // todo
   }
