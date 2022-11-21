@@ -60,6 +60,12 @@ extern "C" {
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
        (NULL != cell ? (node = &(cell->pNode), true) : (node = NULL, false)); cell = cell->pNext)
 
+#define NODES_DESTORY_NODE(node) \
+  do {                           \
+    nodesDestroyNode((node));    \
+    (node) = NULL;               \
+  } while (0)
+
 #define NODES_DESTORY_LIST(list) \
   do {                           \
     nodesDestroyList((list));    \

@@ -206,10 +206,9 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
     if (NULL == pScanPseudoCols) {
       return SCAN_TYPE_TABLE;
     }
-    int32_t funcType = ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType;
-    return FUNCTION_TYPE_BLOCK_DIST_INFO == funcType
+    return FUNCTION_TYPE_BLOCK_DIST_INFO == ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType
                ? SCAN_TYPE_BLOCK_INFO
-               : (FUNCTION_TYPE_TABLE_COUNT == funcType ? SCAN_TYPE_TABLE_COUNT : SCAN_TYPE_TABLE);
+               : SCAN_TYPE_TABLE;
   }
 
   return SCAN_TYPE_TABLE;

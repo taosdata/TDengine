@@ -16,6 +16,7 @@
 #include "filter.h"
 #include "functionMgt.h"
 #include "planInt.h"
+#include "systable.h"
 #include "tglobal.h"
 #include "ttime.h"
 
@@ -64,6 +65,7 @@ typedef enum ECondAction {
 } ECondAction;
 
 typedef bool (*FMayBeOptimized)(SLogicNode* pNode);
+typedef bool (*FShouldBeOptimized)(SLogicNode* pNode, void* pInfo);
 
 static SLogicNode* optFindPossibleNode(SLogicNode* pNode, FMayBeOptimized func) {
   if (func(pNode)) {
@@ -77,6 +79,19 @@ static SLogicNode* optFindPossibleNode(SLogicNode* pNode, FMayBeOptimized func) 
     }
   }
   return NULL;
+}
+
+static bool optFindEligibleNode(SLogicNode* pNode, FShouldBeOptimized func, void* pInfo) {
+  if (func(pNode, pInfo)) {
+    return true;
+  }
+  SNode* pChild;
+  FOREACH(pChild, pNode->pChildren) {
+    if (optFindEligibleNode((SLogicNode*)pChild, func, pInfo)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 static void optResetParent(SLogicNode* pNode) {
@@ -2440,6 +2455,188 @@ static int32_t pushDownLimitOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct STbCntScanOptInfo {
+  SAggLogicNode*  pAgg;
+  SScanLogicNode* pScan;
+  SName           table;
+} STbCntScanOptInfo;
+
+static bool tbCntScanOptIsEligibleAgg(SAggLogicNode* pAgg) {
+  if (1 != LIST_LENGTH(pAgg->pAggFuncs) || NULL != pAgg->pGroupKeys) {
+    return false;
+  }
+  SFunctionNode* pFunc = (SFunctionNode*)nodesListGetNode(pAgg->pAggFuncs, 0);
+  if (FUNCTION_TYPE_COUNT != pFunc->funcType) {
+    return false;
+  }
+  return true;
+}
+
+static bool tbCntScanOptGetColValFromCond(SOperatorNode* pOper, SColumnNode** pCol, SValueNode** pVal) {
+  if (OP_TYPE_EQUAL != pOper->opType) {
+    return false;
+  }
+
+  *pCol = NULL;
+  *pVal = NULL;
+  if (QUERY_NODE_COLUMN == nodeType(pOper->pLeft)) {
+    *pCol = (SColumnNode*)pOper->pLeft;
+  } else if (QUERY_NODE_VALUE == nodeType(pOper->pLeft)) {
+    *pVal = (SValueNode*)pOper->pLeft;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pOper->pRight)) {
+    *pCol = (SColumnNode*)pOper->pRight;
+  } else if (QUERY_NODE_VALUE == nodeType(pOper->pRight)) {
+    *pVal = (SValueNode*)pOper->pRight;
+  }
+
+  return NULL != *pCol && NULL != *pVal;
+}
+
+static bool tbCntScanOptIsEligibleLogicCond(STbCntScanOptInfo* pInfo, SLogicConditionNode* pCond) {
+  if (LOGIC_COND_TYPE_AND != pCond->condType) {
+    return false;
+  }
+
+  bool         hasDbCond = false;
+  bool         hasStbCond = false;
+  SColumnNode* pCol = NULL;
+  SValueNode*  pVal = NULL;
+  SNode*       pNode = NULL;
+  FOREACH(pNode, pCond->pParameterList) {
+    if (QUERY_NODE_OPERATOR != nodeType(pNode) || !tbCntScanOptGetColValFromCond((SOperatorNode*)pNode, &pCol, &pVal)) {
+      return false;
+    }
+    if (!hasDbCond && 0 == strcmp(pCol->colName, "db_name")) {
+      hasDbCond = true;
+      strcpy(pInfo->table.dbname, pVal->literal);
+    } else if (!hasStbCond && 0 == strcmp(pCol->colName, "stable_name")) {
+      hasStbCond = true;
+      strcpy(pInfo->table.tname, pVal->literal);
+    } else {
+      return false;
+    }
+  }
+  return hasDbCond;
+}
+
+static bool tbCntScanOptIsEligibleOpCond(SOperatorNode* pCond) {
+  SColumnNode* pCol = NULL;
+  SValueNode*  pVal = NULL;
+  if (!tbCntScanOptGetColValFromCond(pCond, &pCol, &pVal)) {
+    return false;
+  }
+  return 0 == strcmp(pCol->colName, "db_name");
+}
+
+static bool tbCntScanOptIsEligibleConds(STbCntScanOptInfo* pInfo, SNode* pConditions) {
+  if (NULL == pConditions) {
+    return true;
+  }
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pConditions)) {
+    return tbCntScanOptIsEligibleLogicCond(pInfo, (SLogicConditionNode*)pConditions);
+  }
+
+  if (QUERY_NODE_OPERATOR == nodeType(pConditions)) {
+    return tbCntScanOptIsEligibleOpCond((SOperatorNode*)pConditions);
+  }
+
+  return false;
+}
+
+static bool tbCntScanOptIsEligibleScan(STbCntScanOptInfo* pInfo) {
+  if (0 != strcmp(pInfo->pScan->tableName.dbname, TSDB_INFORMATION_SCHEMA_DB) ||
+      0 != strcmp(pInfo->pScan->tableName.tname, TSDB_INS_TABLE_TABLES) || NULL != pInfo->pScan->pGroupTags) {
+    return false;
+  }
+  return tbCntScanOptIsEligibleConds(pInfo, pInfo->pScan->node.pConditions);
+}
+
+static bool tbCntScanOptShouldBeOptimized(SLogicNode* pNode, STbCntScanOptInfo* pInfo) {
+  if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
+      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+    return false;
+  }
+
+  pInfo->pAgg = (SAggLogicNode*)pNode;
+  pInfo->pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  return tbCntScanOptIsEligibleAgg(pInfo->pAgg) && tbCntScanOptIsEligibleScan(pInfo);
+}
+
+static SNode* tbCntScanOptCreateTableCountFunc() {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    return NULL;
+  }
+  strcpy(pFunc->functionName, "_table_count");
+  strcpy(pFunc->node.aliasName, "_table_count");
+  if (TSDB_CODE_SUCCESS != fmGetFuncInfo(pFunc, NULL, 0)) {
+    nodesDestroyNode((SNode*)pFunc);
+    return NULL;
+  }
+  return (SNode*)pFunc;
+}
+
+static int32_t tbCntScanOptRewriteScan(STbCntScanOptInfo* pInfo, SScanLogicNode* pScan) {
+  pScan->scanType = SCAN_TYPE_TABLE_COUNT;
+  strcpy(pScan->tableName.dbname, pInfo->table.dbname);
+  strcpy(pScan->tableName.tname, pInfo->table.tname);
+  NODES_DESTORY_LIST(pScan->node.pTargets);
+  NODES_DESTORY_NODE(pScan->node.pConditions);
+  NODES_DESTORY_LIST(pScan->pScanCols);
+  NODES_DESTORY_LIST(pScan->pScanPseudoCols);
+  int32_t code = nodesListMakeStrictAppend(&pScan->pScanPseudoCols, tbCntScanOptCreateTableCountFunc());
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createColumnByRewriteExpr(nodesListGetNode(pScan->pScanPseudoCols, 0), &pScan->node.pTargets);
+  }
+  return code;
+}
+
+static int32_t tbCntScanOptCreateSumFunc(SFunctionNode* pCntFunc, SNode* pParam, SNode** pOutput) {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  strcpy(pFunc->functionName, "sum");
+  strcpy(pFunc->node.aliasName, pCntFunc->node.aliasName);
+  int32_t code = nodesListMakeStrictAppend(&pFunc->pParameterList, nodesCloneNode(pParam));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = fmGetFuncInfo(pFunc, NULL, 0);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = (SNode*)pFunc;
+  } else {
+    nodesDestroyNode((SNode*)pFunc);
+  }
+  return code;
+}
+
+static int32_t tbCntScanOptRewriteAgg(SAggLogicNode* pAgg) {
+  SNode*  pSum = NULL;
+  int32_t code = tbCntScanOptCreateSumFunc(
+      (SFunctionNode*)nodesListGetNode(pAgg->pAggFuncs, 0),
+      nodesListGetNode(((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0))->pTargets, 0), &pSum);
+  if (TSDB_CODE_SUCCESS == code) {
+    NODES_DESTORY_LIST(pAgg->pAggFuncs);
+    code = nodesListMakeStrictAppend(&pAgg->pAggFuncs, pSum);
+  }
+  return code;
+}
+
+static int32_t tableCountScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  STbCntScanOptInfo info = {0};
+  if (!optFindEligibleNode(pLogicSubplan->pNode, (FShouldBeOptimized)tbCntScanOptShouldBeOptimized, &info)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = tbCntScanOptRewriteScan(&info, info.pScan);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tbCntScanOptRewriteAgg(info.pAgg);
+  }
+  return code;
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
@@ -2454,7 +2651,8 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize},
   {.pName = "LastRowScan",                .optimizeFunc = lastRowScanOptimize},
   {.pName = "TagScan",                    .optimizeFunc = tagScanOptimize},
-  {.pName = "PushDownLimit",              .optimizeFunc = pushDownLimitOptimize}
+  {.pName = "PushDownLimit",              .optimizeFunc = pushDownLimitOptimize},
+  {.pName = "TableCountScan",             .optimizeFunc = tableCountScanOptimize},
 };
 // clang-format on
 

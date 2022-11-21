@@ -474,7 +474,7 @@ static int32_t getInsTagsTableTargetNameFromCond(int32_t acctId, SLogicCondition
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getInsTagsTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) {
+int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) {
   if (NULL == pWhere) {
     return TSDB_CODE_SUCCESS;
   }
