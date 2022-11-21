@@ -489,6 +489,9 @@ enum {
 #define MAX_META_MSG_IN_BATCH   1048576
 #define MAX_META_BATCH_RSP_SIZE (1 * 1048576 * 1024)
 
+// sort page size by default
+#define DEFAULT_PAGESIZE 4096
+
 #ifdef __cplusplus
 }
 #endif

@@ -205,13 +205,13 @@ typedef struct SUdfInterBuf {
 
 用户定义函数的 C 语言源代码无法直接被 TDengine 系统使用，而是需要先编译为 动态链接库，之后才能载入 TDengine 系统。
 
-例如，按照上一章节描述的规则准备好了用户定义函数的源代码 add_one.c，以 Linux 为例可以执行如下指令编译得到动态链接库文件：
+例如，按照上一章节描述的规则准备好了用户定义函数的源代码 bit_and.c，以 Linux 为例可以执行如下指令编译得到动态链接库文件：
 
 ```bash
-gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
+gcc -g -O0 -fPIC -shared bit_and.c -o libbitand.so
 ```
 
-这样就准备好了动态链接库 add_one.so 文件，可以供后文创建 UDF 时使用了。为了保证可靠的系统运行，编译器 GCC 推荐使用 7.5 及以上版本。
+这样就准备好了动态链接库 libbitand.so 文件，可以供后文创建 UDF 时使用了。为了保证可靠的系统运行，编译器 GCC 推荐使用 7.5 及以上版本。
 
 ## 管理和使用UDF
 编译好的UDF，还需要将其加入到系统才能被正常的SQL调用。关于如何管理和使用UDF，参见[UDF使用说明](../12-taos-sql/26-udf.md)

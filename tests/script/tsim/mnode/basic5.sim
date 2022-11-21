@@ -96,7 +96,7 @@ sql_error drop mnode on dnode 4
 sql_error drop mnode on dnode 5
 sql_error drop mnode on dnode 6
 
-system sh/exec.sh -n dnode2 -s stop -x SIGKILL
+system sh/exec.sh -n dnode2 -s stop 
 $x = 0
 step5: 
 	$x = $x + 1
@@ -151,7 +151,7 @@ if $data(4)[4] != ready then
 endi
 
 print =============== step6: stop mnode1 
-system sh/exec.sh -n dnode1 -s stop -x SIGKILL
+system sh/exec.sh -n dnode1 -s stop 
 # sql_error drop mnode on dnode 1
 
 $x = 0
@@ -205,7 +205,7 @@ if $data(4)[4] != ready then
 endi
 
 print =============== step8: stop mnode1 and drop it
-system sh/exec.sh -n dnode1 -s stop -x SIGKILL
+system sh/exec.sh -n dnode1 -s stop 
 
 $x = 0
 step81: 

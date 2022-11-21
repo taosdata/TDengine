@@ -66,16 +66,13 @@ else
 fi
 
 declare -x BUILD_DIR=$TOP_DIR/$BIN_DIR
-
 declare -x SIM_DIR=$TOP_DIR/sim
-
 PROGRAM=$BUILD_DIR/build/bin/tsim
-
 PRG_DIR=$SIM_DIR/tsim
 CFG_DIR=$PRG_DIR/cfg
 LOG_DIR=$PRG_DIR/log
 DATA_DIR=$PRG_DIR/data
-ASAN_DIR=$PRG_DIR/asan
+ASAN_DIR=$SIM_DIR/asan
 
 chmod -R 777 $PRG_DIR
 echo "------------------------------------------------------------------------"
@@ -141,11 +138,15 @@ if [ -n "$FILE_NAME" ]; then
     echo "AsanDir:" $ASAN_DIR/tsim.asan
     eval $PROGRAM -c $CFG_DIR -f $FILE_NAME 2> $ASAN_DIR/tsim.asan
     result=$?
-    echo "Execute result: " $result
+    echo "Execute result:" $result
 
     if [ $result -eq 0 ]; then
+      $CODE_DIR/sh/sigint_stop_dnodes.sh
       $CODE_DIR/sh/checkAsan.sh
     else
+      echo "TSIM has asan errors"
+      sleep 1
+      $CODE_DIR/sh/checkAsan.sh
       exit 1
     fi
   fi
