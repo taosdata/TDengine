@@ -334,17 +334,17 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
-      SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
-      rsp->code = ntohl(rsp->code);
-      rsp->sversion = ntohl(rsp->sversion);
-      rsp->tversion = ntohl(rsp->tversion);
-      rsp->affectedRows = be64toh(rsp->affectedRows);
+      SQueryTableRsp rsp = {0};
+      if (tDeserializeSQueryTableRsp(msg, msgSize, &rsp) < 0) {
+        SCH_TASK_ELOG("tDeserializeSQueryTableRsp failed, msgSize:%d", msgSize);
+        SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_MSG);
+      }
+      
+      SCH_ERR_JRET(rsp.code);
 
-      SCH_ERR_JRET(rsp->code);
+      SCH_ERR_JRET(schSaveJobExecRes(pJob, &rsp));
 
-      SCH_ERR_JRET(schSaveJobExecRes(pJob, rsp));
-
-      atomic_add_fetch_32(&pJob->resNumOfRows, rsp->affectedRows);
+      atomic_add_fetch_32(&pJob->resNumOfRows, rsp.affectedRows);
 
       taosMemoryFreeClear(msg);
 
