@@ -59,7 +59,8 @@ function check_taosd_exit_type() {
     if [ ! -z "$core_files" ]; then
         # move core files to another folder
         mkdir -p ${BACKUP_CORE_FOLDER}
-        mv ${core_folder}/${core_prefix}* ${BACKUP_CORE_FOLDER}/
+        cp ${core_folder}/${core_prefix}* ${BACKUP_CORE_FOLDER}/
+        rm -f ${core_folder}/${core_prefix}*
         set_service_state "error" "taosd exit with core file"
     else
         set_service_state "error" "taosd exit without core file"
