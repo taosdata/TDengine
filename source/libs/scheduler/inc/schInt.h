@@ -27,6 +27,7 @@ extern "C" {
 #include "tarray.h"
 #include "thash.h"
 #include "trpc.h"
+#include "ttimer.h"
 
 enum {
   SCH_READ = 1,
@@ -507,6 +508,7 @@ extern SSchedulerMgmt schMgmt;
 void     schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask);
 void     schCleanClusterHb(void *pTrans);
 int32_t  schLaunchTask(SSchJob *job, SSchTask *task);
+int32_t  schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask);
 int32_t  schBuildAndSendMsg(SSchJob *job, SSchTask *task, SQueryNodeAddr *addr, int32_t msgType);
 SSchJob *schAcquireJob(int64_t refId);
 int32_t  schReleaseJob(int64_t refId);
