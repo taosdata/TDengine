@@ -411,6 +411,7 @@ int32_t streamStateGetFirst(SStreamState* pState, SWinKey* key) {
   streamStatePut(pState, &tmp, NULL, 0);
   SStreamStateCur* pCur = streamStateSeekKeyNext(pState, &tmp);
   int32_t          code = streamStateGetKVByCur(pCur, key, NULL, 0);
+  streamStateFreeCur(pCur);
   streamStateDel(pState, &tmp);
   return code;
 }

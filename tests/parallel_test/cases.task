@@ -216,7 +216,7 @@
 ,,y,script,./test.sh -f tsim/stream/drop_stream.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic1.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic2.sim
-,,y,script,./test.sh -f tsim/stream/fillHistoryBasic3.sim
+,,n,script,./test.sh -f tsim/stream/fillHistoryBasic3.sim
 ,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeSession0.sim
@@ -227,11 +227,11 @@
 ,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby1.sim
-,,y,script,./test.sh -f tsim/stream/schedSnode.sim
+,,n,script,./test.sh -f tsim/stream/schedSnode.sim
 ,,y,script,./test.sh -f tsim/stream/windowClose.sim
 ,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
 ,,y,script,./test.sh -f tsim/stream/sliding.sim
-,,y,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
+,,n,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnSession.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnState.sim
 ,,y,script,./test.sh -f tsim/stream/deleteInterval.sim
@@ -279,6 +279,7 @@
 ,,y,script,./test.sh -f tsim/stable/vnode3.sim
 ,,y,script,./test.sh -f tsim/stable/metrics_idx.sim
 ,,n,script,./test.sh -f tsim/sma/drop_sma.sim
+,,n,script,./test.sh -f tsim/sma/sma_leak.sim
 ,,y,script,./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
@@ -438,31 +439,31 @@
 ,,,system-test,python3 ./test.py -f 1-insert/database_pre_suf.py
 ,,,system-test,python3 ./test.py -f 1-insert/InsertFuturets.py
 ,,,system-test,python3 ./test.py -f 0-others/show.py
-,,,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py
 ,,,system-test,python3 ./test.py -f 2-query/abs.py -R
-,,,system-test,python3 ./test.py -f 2-query/and_or_for_byte.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/and_or_for_byte.py
 ,,,system-test,python3 ./test.py -f 2-query/and_or_for_byte.py -R
-,,,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py
 ,,,system-test,python3 ./test.py -f 2-query/apercentile.py -R
-,,,system-test,python3 ./test.py -f 2-query/arccos.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arccos.py
 ,,,system-test,python3 ./test.py -f 2-query/arccos.py -R
-,,,system-test,python3 ./test.py -f 2-query/arcsin.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arcsin.py
 ,,,system-test,python3 ./test.py -f 2-query/arcsin.py -R
-,,,system-test,python3 ./test.py -f 2-query/arctan.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py
 ,,,system-test,python3 ./test.py -f 2-query/arctan.py -R
 ,,,system-test,python3 ./test.py -f 2-query/avg.py
 ,,,system-test,python3 ./test.py -f 2-query/avg.py -R
-,,,system-test,python3 ./test.py -f 2-query/between.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py
 ,,,system-test,python3 ./test.py -f 2-query/between.py -R
-,,,system-test,python3 ./test.py -f 2-query/bottom.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py
 ,,,system-test,python3 ./test.py -f 2-query/bottom.py -R
-,,,system-test,python3 ./test.py -f 2-query/cast.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py
 ,,,system-test,python3 ./test.py -f 2-query/cast.py -R
-,,,system-test,python3 ./test.py -f 2-query/ceil.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py
 ,,,system-test,python3 ./test.py -f 2-query/ceil.py -R
-,,,system-test,python3 ./test.py -f 2-query/char_length.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py
 ,,,system-test,python3 ./test.py -f 2-query/char_length.py -R
-,,,system-test,python3 ./test.py -f 2-query/check_tsdb.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py
 ,,,system-test,python3 ./test.py -f 2-query/check_tsdb.py -R
 ,,,system-test,python3 ./test.py -f 2-query/concat.py
 ,,,system-test,python3 ./test.py -f 2-query/concat.py -R
