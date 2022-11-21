@@ -117,19 +117,26 @@ pipeline {
                                 verMode="community enterprise"
                             fi
                             verModeList=${verMode}
+                            '''   
+
+                            sh '''                            
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
                                 bash testpackage.sh -f server -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                                 python3 checkPackageRuning.py
-
-                                cd ${TDENGINE_ROOT_DIR}/packaging
-                                bash testpackage.sh -f server -m ${verModeSin} -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
-                                python3 checkPackageRuning.py
                             done 
+                            '''  
 
+                            sh '''                              
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -f server -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t deb 
+                            bash testpackage.sh -f server -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                            python3 checkPackageRuning.py
+                            '''   
+
+                            sh ''' 
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh -f server -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t deb 
                             python3 checkPackageRuning.py
                             '''
                         }
@@ -145,19 +152,26 @@ pipeline {
                                 verMode="community enterprise"
                             fi
                             verModeList=${verMode}
+                            '''
+
+                            sh '''
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
                                 bash testpackage.sh -f server -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                                 python3 checkPackageRuning.py
-
-                                cd ${TDENGINE_ROOT_DIR}/packaging
-                                bash testpackage.sh -f server -m ${verModeSin} -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
-                                python3 checkPackageRuning.py
                             done 
+                            '''
 
+                            sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -f server -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t deb 
+                            bash testpackage.sh -f server -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                            python3 checkPackageRuning.py
+                            '''
+
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh -f server -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t deb 
                             python3 checkPackageRuning.py
                             dpkg -r tdengine
                             '''                                
@@ -174,19 +188,25 @@ pipeline {
                                 verMode="community enterprise"
                             fi                            
                             verModeList=${verMode}
+                            '''
+                            sh '''
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
-                                bash testpackage.sh -f server -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
-                                python3 checkPackageRuning.py
-                            
-                                cd ${TDENGINE_ROOT_DIR}/packaging
-                                bash testpackage.sh -f server -m ${verModeSin} -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                bash testpackage.sh -f server -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                                 python3 checkPackageRuning.py
                             done 
+                            '''
 
+                            sh '''                            
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -f server -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t rpm 
+                            bash testpackage.sh -f server -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                            python3 checkPackageRuning.py
+                            '''
+
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh -f server -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t rpm 
                             python3 checkPackageRuning.py
                             '''
                         }
@@ -202,19 +222,25 @@ pipeline {
                                 verMode="community enterprise"
                             fi                            
                             verModeList=${verMode}
+                            '''
+                            sh '''
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
                                 bash testpackage.sh -f server -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                                 python3 checkPackageRuning.py
-                            
-                                cd ${TDENGINE_ROOT_DIR}/packaging
-                                bash testpackage.sh -f server -m ${verModeSin} -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
-                                python3 checkPackageRuning.py
-                            done 
+                            done
+                            '''
 
+                            sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -f server -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t rpm 
+                            bash testpackage.sh -f server -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                            python3 checkPackageRuning.py
+                            '''
+
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh -f server -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t rpm 
                             python3 checkPackageRuning.py
                             sudo rpm -e tdengine 
                             '''
@@ -231,6 +257,9 @@ pipeline {
                                 verMode="community enterprise"
                             fi                            
                             verModeList=${verMode}
+                            '''
+
+                            sh '''
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
@@ -254,6 +283,8 @@ pipeline {
                                 verMode="community enterprise"
                             fi  
                             verModeList=${verMode}
+                            '''
+                            sh '''
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
@@ -270,16 +301,10 @@ pipeline {
                     steps {
                         timeout(time: 30, unit: 'MINUTES'){
                             sh '''
-                            if [ "${verMode}" = "all" ];then
-                                verMode="community enterprise"
-                            fi  
-                            verModeList=${verMode}
-                            for verModeSin in ${verModeList}
-                            do
-                                cd ${TDENGINE_ROOT_DIR}/packaging
-                                bash testpackage.sh -f server -m ${verModeSin} -f client  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
-                                python3 checkPackageRuning.py
-                            done 
+                            verModeList=community
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh -f server -m ${verModeSin} -f client  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
+                            python3 checkPackageRuning.py
                             python3 checkPackageRuning.py  192.168.0.24
                             '''         
                         }
@@ -296,10 +321,12 @@ pipeline {
                         verMode="community enterprise"
                     fi  
                     verModeList=${verMode}
+                    '''
+                    sh '''
                     for verModeSin in ${verModeList}
                     do
                         cd ${TDENGINE_ROOT_DIR}/packaging
-                        bash testpackage.sh -f server -m ${verModeSin} -f client  -l true -c arm64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
+                        bash testpackage.sh -f server -m ${verModeSin} -f client  -l false -c arm64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
                         python3 checkPackageRuning.py
                     done 
                     python3 checkPackageRuning.py  192.168.0.21
