@@ -159,9 +159,9 @@ class TDWhere():
         # t_like_match = column + like  + condition
         t_like = ['t_binary like \'binary%\' and','t_nchar like \'nchar%\' and','(t_binary like \'binary%\'  or t_nchar = \'0\' ) and','(t_nchar like \'nchar%\' or t_binary = \'0\' ) and',]
         t_match = ['t_binary match \'binary\' and','t_binary nmatch \'binarynchar\' and','t_nchar match \'nchar\' and','t_nchar nmatch \'binarynchar\' and',]
-        t_match_regular = ['loc match \'[table]\' and', 'loc match \'[^qwryuiop]\' and','loc nmatch \'[qwryuiop]\' and', 'loc nmatch \'[^table]\' and',
-                           't_binary match \'[binary]\' and', 't_binary match \'[^中国]\' and','t_binary nmatch \'[涛思]\' and', 't_binary nmatch \'[^binary]\' and',
-                           't_nchar match \'[nchar]\' and', 't_nchar match \'[^涛思]\' and','t_nchar nmatch \'[中国]\' and', 't_nchar nmatch \'[^nchar]\' and',]
+        t_match_regular = ['loc match \'\'[table\']\' and', 'loc match \'\'[^qwryuiop\']\' and','loc nmatch \'\'[qwryuiop\']\' and', 'loc nmatch \'\'[^table\']\' and',
+                           't_binary match \'\'[binary\']\' and', 't_binary match \'\'[^中国\']\' and','t_binary nmatch \'\'[涛思\']\' and', 't_binary nmatch \'\'[^binary\']\' and',
+                           't_nchar match \'\'[nchar\']\' and', 't_nchar match \'\'[^涛思\']\' and','t_nchar nmatch \'\'[中国\']\' and', 't_nchar nmatch \'\'[^nchar\']\' and',]
         t_like_match = random.sample(t_like,1) + random.sample(t_match,1) + random.sample(t_match_regular,2)
         t_like_match = random.sample(t_like_match,1)
 
