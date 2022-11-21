@@ -141,6 +141,7 @@ struct SRow {
   uint8_t  rsv;
   uint16_t sver;
   uint32_t len;
+  TSKEY    ts;
   uint8_t  data[];
 };
 
