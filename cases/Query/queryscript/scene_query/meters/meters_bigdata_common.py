@@ -238,7 +238,7 @@ class TDTestQuery(TDCase):
             
 
           
-    def sql_base_check(self,dbname,sql1,sql2) :        
+    def sql_base_check(self,dbname,sql1,sql2) :               
         sql1 = "select count(*) from %s.meters" %dbname
         self.tdSql.query(sql1)
         base_data = self.tdSql.getData(0,0)
@@ -1154,28 +1154,56 @@ class TDTestQuery(TDCase):
         sql = "select count(*) from %s.meters" %dbname
         self.tdSql.query(sql)
         self.tdSql.checkData(0,0,table_num*table_per_row)
+        
+    def dnodes_database_replica_check(self,dbname,replica): 
+        if replica == 1 :
+            sql = " show dnodes;" 
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,4,'ready')
+            
+            sql = " select name,status from information_schema.ins_databases where name = '%s';" %dbname
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'%s' %dbname)
+            self.tdSql.checkData(0,1,'ready')
+                
+        elif replica == 3 :
+            sql = " show dnodes;" 
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,4,'ready')
+            self.tdSql.checkData(1,4,'ready')
+            self.tdSql.checkData(1,4,'ready')
+            
+            sql = " select name,status from information_schema.ins_databases where name = '%s';" %dbname
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'%s' %dbname)
+            self.tdSql.checkData(0,1,'ready')
           
                             
-    def count_db_common(self,dbname): 
+    def count_db_common(self,dbname,replica): 
         # #每个库的通用检查
         self.sql_base_check(dbname,sql1='',sql2='') 
+        self.dnodes_database_replica_check(dbname,replica)
         self.count_select_column(dbname)
         self.max_min_top_bottom_select_column(dbname)
         self.first_last_select_column(dbname)
         
         self.drop_n_table(dbname,random.randint(1,5),flush='N')  
         self.sql_base_check(dbname,sql1='',sql2='') 
+        self.dnodes_database_replica_check(dbname,replica)
         self.count_select_column(dbname)
         self.max_min_top_bottom_select_column(dbname)
         self.first_last_select_column(dbname)
         
         self.delete_ts_data(dbname,1500000000000)  
         self.sql_base_check(dbname,sql1='',sql2='') 
+        self.dnodes_database_replica_check(dbname,replica)
         self.count_select_column(dbname)
         self.max_min_top_bottom_select_column(dbname)
         self.first_last_select_column(dbname)
         
         self.taosd.kill_and_start(self.env_setting['settings'][0],3)
+        time.sleep(10)
+        self.dnodes_database_replica_check(dbname,replica)
         
         #drop and flush database 
         self.drop_n_table(dbname,random.randint(6,9),flush='Y')  
@@ -1186,6 +1214,8 @@ class TDTestQuery(TDCase):
         self.first_last_select_column(dbname)
         
         self.taosd.kill_and_start(self.env_setting['settings'][0],3)
+        time.sleep(10)
+        self.dnodes_database_replica_check(dbname,replica)
         
         self.tdSql.execute("flush database %s;" %dbname) 
         self.sql_base_check(dbname,sql1='',sql2='')
@@ -1199,7 +1229,7 @@ class TDTestQuery(TDCase):
         table_num = 10000
         table_per_row = 2
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica)  
-        self.count_db_common(dbname)
+        self.count_db_common(dbname,replica)
           
 
     def countdb_2w_table100_row200(self,replica):
@@ -1207,7 +1237,7 @@ class TDTestQuery(TDCase):
         table_num = 100
         table_per_row = 200
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica)         
-        self.count_db_common(dbname) 
+        self.count_db_common(dbname,replica) 
           
 
     def countdb_10w_table100_row1000(self,replica):
@@ -1215,7 +1245,7 @@ class TDTestQuery(TDCase):
         table_num = 100
         table_per_row = 1000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname)  
+        self.count_db_common(dbname,replica)  
         
                  
 
@@ -1224,28 +1254,28 @@ class TDTestQuery(TDCase):
         table_num = 10000
         table_per_row = 10
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname)   
+        self.count_db_common(dbname,replica)   
 
     def countdb_20w_table1w_row20(self,replica):
         dbname = 'db_20w'
         table_num = 10000
         table_per_row = 20
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname)    
+        self.count_db_common(dbname,replica)    
 
     def countdb_40w_table1w_row40(self,replica):
         dbname = 'db_40w'
         table_num = 10000
         table_per_row = 40
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname)   
+        self.count_db_common(dbname,replica)   
 
     def countdb_80w_table1w_row80(self,replica):
         dbname = 'db_80w'
         table_num = 10000
         table_per_row = 80
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname)        
+        self.count_db_common(dbname,replica)        
         
             
 
@@ -1254,28 +1284,28 @@ class TDTestQuery(TDCase):
         table_num = 10000
         table_per_row = 100
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname)           
+        self.count_db_common(dbname,replica)           
 
     def countdb_200w_table1w_row200(self,replica):
         dbname = 'db_200w'
         table_num = 10000
         table_per_row = 200
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname)    
+        self.count_db_common(dbname,replica)    
 
     def countdb_400w_table1w_row400(self,replica):
         dbname = 'db_400w'
         table_num = 10000
         table_per_row = 400
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname)   
+        self.count_db_common(dbname,replica)   
 
     def countdb_800w_table1w_row800(self,replica):
         dbname = 'db_800w'
         table_num = 10000
         table_per_row = 800
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname)       
+        self.count_db_common(dbname,replica)       
         
              
 
@@ -1284,35 +1314,35 @@ class TDTestQuery(TDCase):
         table_num = 10000
         table_per_row = 1000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname)   
+        self.count_db_common(dbname,replica)   
 
     def countdb_2000w_table1w_row2000(self,replica):
         dbname = 'db_2000w'
         table_num = 10000
         table_per_row = 2000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname)    
+        self.count_db_common(dbname,replica)    
 
     def countdb_4000w_table1w_row4000(self,replica):
         dbname = 'db_4000w'
         table_num = 10000
         table_per_row = 4000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname)   
+        self.count_db_common(dbname,replica)   
 
     def countdb_8000w_table1w_row8000(self,replica):
         dbname = 'db_8000w'
         table_num = 10000
         table_per_row = 8000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname)    
+        self.count_db_common(dbname,replica)    
 
     def countdb_10000w_table1w_row1w(self,replica):
         dbname = 'db_10000w'
         table_num = 10000
         table_per_row = 10000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname)   
+        self.count_db_common(dbname,replica)   
                                                           
     def run(self):
         startTime = time.time() 
