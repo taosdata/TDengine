@@ -194,7 +194,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 /* Our argp parser. */
 static struct argp argp = {options, parse_opt, args_doc, doc};
 
-char      LINUXCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
+char      LINUXCLIENT_VERSION[] = "Welcome to the TDengine Command Line Interface from %s, Client Version:%s\n"
                              "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
 char g_password[SHELL_MAX_PASSWORD_LEN];
 

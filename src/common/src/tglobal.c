@@ -124,8 +124,16 @@ int32_t tsMaxSqlGroups = 1000000;
 // order by first group by column when group by
 int8_t tsSortWhenGroupBy = 1;
 
+// memory rss thresold for creating new query in MB. 0 means no threshold limitation
+int32_t tsQueryRssThreshold = 0;
+
 int32_t tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
+
+// The tsc async write batching feature (using ABWD).
+bool    tsWriteBatchThreadLocal = false;    // if thread local enable, each thread will allocate a dispatcher.
+int32_t tsWriteBatchSize = 0;               // suggest: 64 - 512, default 0, 0 means disable batching.
+int32_t tsWriteBatchTimeout = 10;           // suggest: 2 - 100 (unit: milliseconds)
 
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
@@ -200,6 +208,10 @@ char    tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
 char    tsInternalPass[] = "secretkey";
 int32_t tsMonitorInterval = 30;  // seconds
 
+// audit
+int8_t  tsEnableAudit = 0;
+char    tsAuditDbName[TSDB_DB_NAME_LEN] = "audit";
+
 // stream
 int8_t tsEnableStream = 1;
 
@@ -273,6 +285,7 @@ int32_t  cqDebugFlag = 131;
 int32_t  fsDebugFlag = 135;
 
 int8_t tsClientMerge = 0;
+int8_t tsAggAlways = 0; // Agg function always return value even if zero row 
 
 // probe alive connection
 int32_t tsProbeSeconds     =  5 * 60; // start probe link alive after tsProbeSeconds from starting query
@@ -1286,6 +1299,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "audit";
+  cfg.ptr = &tsEnableAudit;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "stream";
   cfg.ptr = &tsEnableStream;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -1690,6 +1713,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "aggAlways";
+  cfg.ptr = &tsAggAlways;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   // default JSON string type option "binary"/"nchar"
   cfg.option = "defaultJSONStrType";
   cfg.ptr = tsDefaultJSONStrType;
@@ -1798,6 +1831,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "queryRssThreshold";
+  cfg.ptr = &tsQueryRssThreshold;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 2048*1024;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
 #ifdef TD_TSZ
   // lossy compress
   cfg.option = "lossyColumns";
@@ -1849,6 +1892,37 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
+  
+  cfg.option = "writeBatchThreadLocal";
+  cfg.ptr = &tsWriteBatchThreadLocal;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "writeBatchSize";
+  cfg.ptr = &tsWriteBatchSize;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 4096;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "writeBatchTimeout";
+  cfg.ptr = &tsWriteBatchTimeout;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 1;
+  cfg.maxValue = 2048;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM);
 #else
   // if TD_TSZ macro define, have 5 count configs, so must add 5

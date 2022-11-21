@@ -352,43 +352,70 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
   serverAddr.sin_addr.s_addr = destIp;
   serverAddr.sin_port = (uint16_t)htons((uint16_t)destPort);
 
-#ifdef _TD_LINUX 
-  taosSetNonblocking(sockFd, 1);   
-  ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)); 
+#if defined(_TD_LINUX)
+  taosSetNonblocking(sockFd, 1);
+  ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
   if (ret == -1) {
     if (errno == EHOSTUNREACH) {
       uError("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
       taosCloseSocket(sockFd);
-      return -1; 
+      return -1;
     } else if (errno == EINPROGRESS || errno == EAGAIN || errno == EWOULDBLOCK) {
-      struct pollfd wfd[1]; 
+      struct pollfd wfd[1];
 
       wfd[0].fd = sockFd;
       wfd[0].events = POLLOUT;
-    
+
       int res = poll(wfd, 1, tsTcpConnTimeout);
       if (res == -1 || res == 0) {
         uError("failed to connect socket, ip:0x%x, port:%hu(poll error/conn timeout)", destIp, destPort);
-        taosCloseSocket(sockFd); //  
+        taosCloseSocket(sockFd); //
         return -1;
       }
-      int optVal = -1, optLen = sizeof(int);  
+      int optVal = -1, optLen = sizeof(int);
       if ((0 != taosGetSockOpt(sockFd, SOL_SOCKET, SO_ERROR, &optVal, &optLen)) || (optVal != 0)) {
         uError("failed to connect socket, ip:0x%x, port:%hu(connect host error)", destIp, destPort);
-        taosCloseSocket(sockFd); //  
+        taosCloseSocket(sockFd); //
         return -1;
       }
       ret = 0;
     } else { // Other error
       uError("failed to connect socket, ip:0x%x, port:%hu(target host cannot be reached)", destIp, destPort);
-      taosCloseSocket(sockFd); //  
-      return -1; 
-    } 
+      taosCloseSocket(sockFd); //
+      return -1;
+    }
   }
-  taosSetNonblocking(sockFd, 0);   
+  taosSetNonblocking(sockFd, 0);
+#elif defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  taosSetNonblocking(sockFd, 1);
 
+  ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+  if (ret == -1) {
+    struct timeval timeout;
+    fd_set set;
+
+    timeout.tv_sec = 0;
+    timeout.tv_usec = tsTcpConnTimeout * 1000;
+    FD_ZERO(&set);
+    FD_SET(sockFd, &set);
+
+    if (select(sockFd + 1, NULL, &set, NULL, &timeout) <= 0) {
+      uError("failed to connect socket, ip:0x%x, port:%hu(select error/conn timeout)", destIp, destPort);
+      taosCloseSocket(sockFd); //
+      return -1;
+    }
+
+    int optVal = -1, optLen = sizeof(int);
+    if ((0 != taosGetSockOpt(sockFd, SOL_SOCKET, SO_ERROR, &optVal, &optLen)) || (optVal != 0)) {
+      uError("failed to connect socket, ip:0x%x, port:%hu(connect host error)", destIp, destPort);
+      taosCloseSocket(sockFd); //
+      return -1;
+    }
+    ret = 0;
+  }
+  taosSetNonblocking(sockFd, 0);
 #else
-  ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)); 
+  ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
 #endif
 
   if (ret != 0) {

@@ -46,7 +46,7 @@ class TDTestCase:
         tdLog.info('=============== step2')
         tdSql.query('select * from %s' % (mt))
         tdSql.checkRows(5 * rowNum)
-        
+
         tdSql.query('select * from %s where tgTs = %ld and tgcol2 = 0' % (mt, ts))
         tdSql.checkRows(rowNum)
 
@@ -54,7 +54,7 @@ class TDTestCase:
         tdSql.checkRows(rowNum)
 
         tdLog.info('=============== step3')
-        i = 0 
+        i = 0
         while (i < 5):
             tb = "%s%d" % (tbPrefix, i + 100)
             tdLog.info('create table %s using %s tags(%d, \"%s\", %d)' % (tb, mt, i + 100, tsStr, i + 100))
@@ -80,7 +80,7 @@ class TDTestCase:
         tdLog.info('=============== step4')
 
         i = 0
-        tb = "%s%d"%(tbPrefix, i + 1000) 
+        tb = "%s%d"%(tbPrefix, i + 1000)
         tdSql.execute('insert into  %s using %s tags(%d, \"%s\", %d) values(now, 10)' % (tb, mt, i + 100, tsStr, i + 1000))
         tdSql.execute('insert into  %s using %s tags(%d, \"%s\", %d) values(now+2s, 10)' % (tb, mt, i + 100, tsStr, i + 1000))
         tdSql.execute('insert into  %s using %s tags(%d, \"%s\", %d) values(now+3s, 10)' % (tb, mt, i + 100, tsStr, i + 1000))
@@ -88,11 +88,11 @@ class TDTestCase:
         tdSql.checkRows(3)
 
         i = 0
-        tb = "%s%d"%(tbPrefix, i + 10000) 
+        tb = "%s%d"%(tbPrefix, i + 10000)
         tdSql.execute('create table %s using %s tags(%d, now, %d)' % (tb, mt, i + 10000,i + 10000))
         tdSql.checkRows(3)
-         
-         
+
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

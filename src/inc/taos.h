@@ -60,7 +60,10 @@ typedef enum {
   TSDB_OPTION_TIMEZONE,
   TSDB_OPTION_CONFIGDIR,
   TSDB_OPTION_SHELL_ACTIVITY_TIMER,
-  TSDB_MAX_OPTIONS
+  TSDB_MAX_OPTIONS,
+  TSDB_WRITE_BATCH_SIZE,
+  TSDB_WRITE_BATCH_TIMEOUT,
+  TSDB_WRITE_BATCH_THREAD_LOCAL
 } TSDB_OPTION;
 
 typedef struct taosField {
@@ -215,6 +218,7 @@ DLL_EXPORT void      taos_unsubscribe(TAOS_SUB *tsub, int keepProgress);
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char* tableNameList);
 
 DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision);
+DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw(TAOS* taos, char* lines, int len, int32_t *totalRows, int protocol, int precision);
 
 DLL_EXPORT int32_t taos_parse_time(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t dayligth);
 
