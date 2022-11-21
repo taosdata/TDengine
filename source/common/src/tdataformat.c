@@ -168,16 +168,42 @@ int32_t tRowPut(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
     goto _exit;
   }
 
+  iColVal = 1;
+  pColVal = (iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+  iTColumn = 1;
+  pTColumn = pTSchema->columns + iTColumn;
   if (flag & ROW_FLG_KV) {  // KV
-  } else {                  // TUPLE
+    SKVIdx  *pIdx = (SKVIdx *)pRow->data;
+    uint8_t *pv = NULL;  // todo
+
+    while (pTColumn) {
+      if (pColVal) {
+        if (pColVal->cid == pTColumn->colId) {
+          if (COL_VAL_IS_VALUE(pColVal)) {
+            // todo
+          } else if (COL_VAL_IS_NONE(pColVal)) {
+            // todo
+          } else {
+            // todo
+          }
+
+          pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
+          pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+        } else if (pColVal->cid > pTColumn->colId) {  // NONE
+          pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
+        } else {
+          pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+        }
+
+      } else {  // NONE
+        pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
+      }
+    }
+  } else {  // TUPLE
     uint8_t *pb = NULL;
     uint8_t *pf = NULL;
     uint8_t *pv = NULL;  // todo
 
-    iColVal = 1;
-    pColVal = (iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
-    iTColumn = 1;
-    pTColumn = pTSchema->columns + iTColumn;
     while (pTColumn) {
       if (pColVal) {
         if (pColVal->cid == pTColumn->colId) {
