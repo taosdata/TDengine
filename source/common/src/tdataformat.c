@@ -97,7 +97,7 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
             ntp = ntp + tPutU32v(NULL, pColVal->value.nData) + pColVal->value.nData;
             nkv = nkv + tPutI16v(NULL, pTColumn->colId) + tPutU32v(NULL, pColVal->value.nData) + pColVal->value.nData;
           } else {
-            nkv = nkv + tPutI16v(NULL, pTColumn->colId) + TYPE_BYTES[pTColumn->type];
+            nkv = nkv + tPutI16v(NULL, pTColumn->colId) + pTColumn->bytes;
           }
           nIdx++;
         } else if (COL_VAL_IS_NONE(pColVal)) {  // NONE
