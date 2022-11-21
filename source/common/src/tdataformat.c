@@ -52,11 +52,14 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 #define KV_TYPE_LIT 0
 #define KV_TYPE_MID 1
 #define KV_TYPE_BIG 2
+
+#pragma pack(push, 1)
 typedef struct {
   int8_t  kvType;
   int16_t nidx;
-  uint8_t idx[];
+  char    idx[];
 } SKVIdx;
+#pragma pack(pop)
 
 int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
   int32_t code = 0;
@@ -93,7 +96,7 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
           flag |= HAS_NONE;
         } else if (COL_VAL_IS_NULL(pColVal)) {  // NULL
           flag |= HAS_NULL;
-          nkv += tPutI16v(NULL, pTColumn->colId);
+          nkv += tPutI16v(NULL, -pTColumn->colId);
           nidx++;
         } else {
           ASSERT(0);
@@ -125,9 +128,11 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
     case HAS_VALUE:
       nRow = ntp;
       break;
-    case HAS_NULL | HAS_NONE:
-    case HAS_VALUE | HAS_NONE:
-    case HAS_VALUE | HAS_NULL:
+    case (HAS_NULL | HAS_NONE):
+      // TODO
+      break;
+    case (HAS_VALUE | HAS_NONE):
+    case (HAS_VALUE | HAS_NULL):
       ntp = ntp + BIT1_SIZE(pTSchema->numOfCols);
       nkv = nkv + sizeof(int32_t) * nidx;
       if (ntp <= nkv) {
@@ -137,7 +142,7 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
         flag |= ROW_FLG_KV;
       }
       break;
-    case HAS_VALUE | HAS_NULL | HAS_NONE:
+    case (HAS_VALUE | HAS_NULL | HAS_NONE):
       ntp = ntp + BIT2_SIZE(pTSchema->numOfCols);
       nkv = nkv + sizeof(int32_t) * nidx;
       if (ntp <= nkv) {
@@ -205,7 +210,9 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
     uint8_t *pv = NULL;
     int32_t  nv = 0;
 
-    // todo
+    if (flag == HAS_VALUE) {
+    } else if (flag == HAS_VALUE) {
+    }
 
     // build impl
     while (pTColumn) {
