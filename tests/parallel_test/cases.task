@@ -529,8 +529,8 @@
 ,,,system-test,python3 ./test.py -f 2-query/leastsquares.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py
 ,,,system-test,python3 ./test.py -f 2-query/length.py -R
-,,,system-test,python3 ./test.py -f 2-query/log.py
-,,,system-test,python3 ./test.py -f 2-query/log.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -R
 ,,,system-test,python3 ./test.py -f 2-query/lower.py
 ,,,system-test,python3 ./test.py -f 2-query/lower.py -R
 ,,,system-test,python3 ./test.py -f 2-query/ltrim.py
@@ -558,8 +558,8 @@
 ,,,system-test,python3 ./test.py -f 2-query/rtrim.py
 ,,,system-test,python3 ./test.py -f 2-query/rtrim.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py
-,,,system-test,python3 ./test.py -f 2-query/sample.py -R
-,,,system-test,python3 ./test.py -f 2-query/sin.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -R
 ,,,system-test,python3 ./test.py -f 2-query/smaTest.py
 ,,,system-test,python3 ./test.py -f 2-query/smaTest.py -R
@@ -772,7 +772,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py -Q 2
-,,,system-test,python3 ./test.py -f 2-query/log.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -Q 2
@@ -866,7 +866,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py -Q  3
-,,,system-test,python3 ./test.py -f 2-query/log.py -Q  3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -Q  3
@@ -959,7 +959,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py -Q  4
-,,,system-test,python3 ./test.py -f 2-query/log.py -Q  4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -Q  4
