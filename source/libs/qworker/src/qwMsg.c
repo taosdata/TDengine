@@ -385,6 +385,8 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
   code = qwPreprocessQuery(QW_FPARAMS(), &qwMsg);
   QW_SCH_TASK_DLOG("prerocessQuery end, handle:%p, code:%x", pMsg->info.handle, code);
 
+  tFreeSSubQueryMsg(&msg);
+
   return TSDB_CODE_SUCCESS;
 }
 
