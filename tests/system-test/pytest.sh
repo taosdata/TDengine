@@ -77,13 +77,14 @@ echo "Preload AsanSo:" $?
 $* -a 2> $AsanFile
 
 unset LD_PRELOAD
-AsanFileLen=`cat $AsanFile | wc -l`
-while [ $AsanFileLen -lt 10 ]
+for ((i=1;i<=20;i++))
 do
-  sleep 1
-  `cat $AsanFile | wc -l`
+  AsanFileLen=`cat $AsanFile | wc -l`
+  echo "AsanFileLen:" $AsanFileLen
+  if [ $AsanFileLen -gt 10 ]; then
+    break
+  fi
 done 
-echo "AsanFileLen:" $AsanFileLen
 
 AsanFileSuccessLen=`grep -w successfully $AsanFile | wc -l`
 echo "AsanFileSuccessLen:" $AsanFileSuccessLen
