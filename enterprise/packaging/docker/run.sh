@@ -4,7 +4,7 @@ TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=0
 #ADMIN_URL=${ADMIN_URL:-http://172.26.10.84:10001}
 TAOSD_STARTUP_TIMEOUT_SECOND=${TAOSD_STARTUP_TIMEOUT_SECOND:-160}
 TAOS_TIMEOUT_SECOND=${TAOS_TIMEOUT_SECOND:-5}
-BACKUP_CORE_FOLDER=/data/corefile
+BACKUP_CORE_FOLDER=/var/log/corefile
 ALERT_URL=app/system/alert/add
 
 echo "ADMIN_URL: ${ADMIN_URL}"
@@ -37,7 +37,7 @@ function post_error_msg() {
         echo "service_state: ${service_state}"
         echo "`date` service_msg: ${service_msg}"
         echo "${taos_version}"
-        curl -X POST -H "Content-Type: application/json" \
+        curl --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/json" \
             -d"{\"appName\":\"${app_name}\",\
             \"alertLevel\":\"${service_state}\",\
             \"taosVersion\":\"${taos_version}\",\
@@ -77,7 +77,7 @@ function post_disk_error_msg() {
         echo "disk_state: ${disk_state}"
         echo "`date` disk_msg: ${disk_msg}"
         echo "${taos_version}"
-        curl -X POST -H "Content-Type: application/json" \
+        curl --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/json" \
             -d"{\"appName\":\"${app_name}\",\
             \"alertLevel\":\"${disk_state}\",\
             \"taosVersion\":\"${taos_version}\",\
@@ -200,5 +200,5 @@ do
     if [ $? -ne 0 ]; then
         taosadapter &
     fi
-    sleep 30
+    sleep 10
 done
