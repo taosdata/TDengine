@@ -93,6 +93,10 @@ void    tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 int32_t tRowToArr(SRow *pRow, STSchema *pTSchema, SArray **aColValP);
 
 // SRowIter ================================
+int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
+void     tRowIterClose(SRowIter **ppIter);
+SColVal *tRowIterNext(SRowIter *pIter);
+SColVal *tRowIterNextNotNone(SRowIter *pIter);
 
 // STag ================================
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
