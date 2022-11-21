@@ -361,9 +361,15 @@ static void resetAllDataBlockScanInfo(SHashObj* pTableMap, int64_t ts) {
     STableBlockScanInfo* pInfo = *(STableBlockScanInfo**)p;
 
     pInfo->iterInit = false;
+    pInfo->iter.hasVal = false;
     pInfo->iiter.hasVal = false;
+
     if (pInfo->iter.iter != NULL) {
       pInfo->iter.iter = tsdbTbDataIterDestroy(pInfo->iter.iter);
+    }
+
+    if (pInfo->iiter.iter != NULL) {
+      pInfo->iiter.iter = tsdbTbDataIterDestroy(pInfo->iiter.iter);
     }
 
     pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
@@ -373,6 +379,8 @@ static void resetAllDataBlockScanInfo(SHashObj* pTableMap, int64_t ts) {
 
 static void clearBlockScanInfo(STableBlockScanInfo* p) {
   p->iterInit = false;
+
+  p->iter.hasVal = false;
   p->iiter.hasVal = false;
 
   if (p->iter.iter != NULL) {
@@ -388,9 +396,9 @@ static void clearBlockScanInfo(STableBlockScanInfo* p) {
   tMapDataClear(&p->mapData);
 }
 
-static void destroyAllBlockScanInfo(SHashObj* pTableMap, bool clearEntry) {
+static void destroyAllBlockScanInfo(SHashObj* pTableMap) {
   void* p = NULL;
-  while (clearEntry && ((p = taosHashIterate(pTableMap, p)) != NULL)) {
+  while ((p = taosHashIterate(pTableMap, p)) != NULL) {
     clearBlockScanInfo(*(STableBlockScanInfo**)p);
   }
 
@@ -2226,6 +2234,7 @@ static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbRea
   if (pReader->pReadSnap->pMem != NULL) {
     d = tsdbGetTbDataFromMemTable(pReader->pReadSnap->pMem, pReader->suid, pBlockScanInfo->uid);
     if (d != NULL) {
+      ASSERT(pBlockScanInfo->iter.iter == NULL);
       code = tsdbTbDataIterCreate(d, &startKey, backward, &pBlockScanInfo->iter.iter);
       if (code == TSDB_CODE_SUCCESS) {
         pBlockScanInfo->iter.hasVal = (tsdbTbDataIterGet(pBlockScanInfo->iter.iter) != NULL);
@@ -3789,9 +3798,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     updateBlockSMAInfo(pReader->pSchema, &pReader->suppInfo);
   }
 
-  STsdbReader* p = pReader->innerReader[0] != NULL ? pReader->innerReader[0] : pReader;
-
-  pReader->status.pTableMap = createDataBlockScanInfo(p, pTableList, numOfTables);
+  pReader->status.pTableMap = createDataBlockScanInfo(pReader, pTableList, numOfTables);
   if (pReader->status.pTableMap == NULL) {
     tsdbReaderClose(pReader);
     *ppReader = NULL;
@@ -3849,7 +3856,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
   }
 
   {
-    if (pReader->innerReader[0] != NULL) {
+    if (pReader->innerReader[0] != NULL || pReader->innerReader[1] != NULL) {
       STsdbReader* p = pReader->innerReader[0];
 
       p->status.pTableMap = NULL;
@@ -3887,9 +3894,12 @@ void tsdbReaderClose(STsdbReader* pReader) {
   cleanupDataBlockIterator(&pReader->status.blockIter);
 
   size_t numOfTables = taosHashGetSize(pReader->status.pTableMap);
-  destroyAllBlockScanInfo(pReader->status.pTableMap, (pReader->innerReader[0] == NULL) ? true : false);
+  if (pReader->status.pTableMap != NULL) {
+    destroyAllBlockScanInfo(pReader->status.pTableMap);
+    clearBlockScanInfoBuf(&pReader->blockInfoBuf);
+  }
+
   blockDataDestroy(pReader->pResBlock);
-  clearBlockScanInfoBuf(&pReader->blockInfoBuf);
 
   if (pReader->pFileReader != NULL) {
     tsdbDataFReaderClose(&pReader->pFileReader);
