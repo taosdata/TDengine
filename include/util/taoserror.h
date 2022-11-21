@@ -92,6 +92,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_NO_AVAIL_DISK                 TAOS_DEF_ERROR_CODE(0, 0x0129)
 #define TSDB_CODE_NOT_FOUND                     TAOS_DEF_ERROR_CODE(0, 0x012A)
 #define TSDB_CODE_NO_DISKSPACE                  TAOS_DEF_ERROR_CODE(0, 0x012B)
+#define TSDB_CODE_TIMEOUT_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x012C)
 
 //client
 #define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)
