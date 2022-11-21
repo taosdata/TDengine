@@ -152,7 +152,6 @@ class LongTimeInsert(TDCase):
             print(stb_info_dict)
             print(self.tdSql.query_data)
             print(self.tdSql.query_data[0][0])
-            print(stb_info_dict["drop_kill_rows"])
             if "syncing_drop" in stb_info_dict and not self.drop_tag:
                 if stb_info_dict["syncing_drop"] == 1:
                     self.write_log(f'--------- syncing_drop will start when row_count > {drop_kill_rows} \t--------\n')
@@ -221,7 +220,7 @@ class LongTimeInsert(TDCase):
             # return
             for json_file in cfg[cases]:
                 db_list.append(cfg[cases][json_file]["db_info"]["db_name"])
-            
+
             for json_file in cfg[cases]:
                 self.streams = None
                 if cfg[cases][json_file]["stb_info"]["line_protocol"] == "telnet" or cfg[cases][json_file]["stb_info"]["line_protocol"] == "json":
@@ -379,13 +378,45 @@ class LongTimeInsert(TDCase):
                     )
                     self.tdSql.query(f'select count(*) from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0], cfg[cases][json_file]["stb_info"]["childtable_count"] * cfg[cases][json_file]["stb_info"]["insert_rows"])
-                    self.restart_sync(db_list=[cfg[cases][json_file]["db_info"]["db_name"]])
+                    self.restart_sync(db_list=[cfg[cases][json_file]["db_info"]["db_name"]], db_info_dict=cfg[cases][json_file]["db_info"], stb_info_dict=cfg[cases][json_file]["stb_info"])
                     for j in range(int(cfg[cases][json_file]["stb_info"]["childtable_count"])):
                         self.tdSql.execute(f'drop table {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["childtable_prefix"]}0{j}')
                     self.tdSql.execute(f'drop stable {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
                     self.tdSql.error(f'select * from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
                     self.tdSql.execute(f'drop database {cfg[cases][json_file]["db_info"]["db_name"]}')
                     self.tdSql.error(f'use {cfg[cases][json_file]["db_info"]["db_name"]}')
+            elif "no_wait_restart_times" in cfg[cases][json_file]["stb_info"]:
+                timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+                # # run taosBenchmark
+                taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
+                result_filename = Insert_file.threads_run_taosBenchmark(
+                    taosBenchmark_iplist, json_data, file_name, taosBenchmark_env_setting
+                )
+                self.tdSql.query(f'select count(*) from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0], cfg[cases][json_file]["stb_info"]["childtable_count"] * cfg[cases][json_file]["stb_info"]["insert_rows"])
+                dnodes_out_mnodes = self.tdSql.get_dnodes_out_mnodes()
+                random_endpoint = random.choice(dnodes_out_mnodes[1])
+                for i in range(cfg[cases][json_file]["stb_info"]["no_wait_restart_times"]):
+                    self.write_log(f'--------- killing dnode: --- {random_endpoint} \t--------\n')
+                    self.taosd.kill_by_port(random_endpoint)
+                    # get a random dnode
+                    for taosd_setting in self.taosd_setting["spec"]["dnodes"]:
+                        if taosd_setting["endpoint"] == random_endpoint:
+                            random_dnode = taosd_setting
+                    self.write_log(f'--------- starting dnode: --- {random_endpoint} \t--------\n')
+                    self.taosd.start(random_dnode)
+            
+                self.tdSql.query(f'select name,ntables from information_schema.ins_databases;')
+                self.write_log(f'--------- (dbname, ntables) --- {self.tdSql.query_data} \t--------\n')
+                for dbname in db_list:
+                    sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, False))
+                    self.write_log(f'--------- dbname: {dbname} sync time --- {sync_time}s \t--------\n')
+
+                    self.tdSql.query(f'select count(*) from {dbname}.stb0;')
+                    if len(self.tdSql.query_data) > 0:
+                        self.write_log(f'--------- select count(*) from {dbname}.stb0 --- {self.tdSql.query_data[0][0]} rows \t--------\n')
+                    else:
+                        self.write_log(f'--------- select count(*) from {dbname}.stb0 --- 0 rows \t--------\n')
             else:
                 scheduler = BackgroundScheduler()
                 scheduler.add_job(self.restart_sync, 'interval', seconds=self.query_interval, max_instances=1, args=[db_list, cfg[cases][json_file]["db_info"], cfg[cases][json_file]["stb_info"], 3, True, False, 10])
