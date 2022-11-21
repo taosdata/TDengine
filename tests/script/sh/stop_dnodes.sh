@@ -3,10 +3,10 @@
 set +e
 #set -x
 
+unset LD_PRELOAD
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
 
-export LD_PRELOAD=
 PID=`ps -ef|grep /usr/bin/taosd | grep -v grep | awk '{print $2}'`
 if [ -n "$PID" ]; then
   echo systemctl stop taosd

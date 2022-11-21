@@ -555,5 +555,5 @@ if __name__ == "__main__":
         conn.close()
     if asan:
         tdDnodes.StopAllSigint()
-        tdLog.info("address sanitizer mode finished")
+        tdLog.info("Address sanitizer mode finished")
     sys.exit(0)

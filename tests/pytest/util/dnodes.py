@@ -162,7 +162,11 @@ class TDDnode:
     def setAsan(self, value):
         self.asan = value
         if value:
-            self.execPath = os.path.abspath(self.path + "/tests/script/sh/exec.sh")        
+            selfPath = os.path.dirname(os.path.realpath(__file__))
+            if ("community" in selfPath):
+                self.execPath = os.path.abspath(self.path + "/community/tests/script/sh/exec.sh")        
+            else:
+                self.execPath = os.path.abspath(self.path + "/tests/script/sh/exec.sh")        
 
     def getDataSize(self):
         totalSize = 0
@@ -670,8 +674,13 @@ class TDDnodes:
     def setAsan(self, value):
         self.asan = value
         if value:
-            self.stopDnodesPath = os.path.abspath(self.path + "/tests/script/sh/stop_dnodes.sh")
-            self.stopDnodesSigintPath = os.path.abspath(self.path + "/tests/script/sh/sigint_stop_dnodes.sh")
+            selfPath = os.path.dirname(os.path.realpath(__file__))
+            if ("community" in selfPath):
+                self.stopDnodesPath = os.path.abspath(self.path + "/community/tests/script/sh/stop_dnodes.sh")
+                self.stopDnodesSigintPath = os.path.abspath(self.path + "/community/tests/script/sh/sigint_stop_dnodes.sh")
+            else:    
+                self.stopDnodesPath = os.path.abspath(self.path + "/tests/script/sh/stop_dnodes.sh")
+                self.stopDnodesSigintPath = os.path.abspath(self.path + "/tests/script/sh/sigint_stop_dnodes.sh")
             tdLog.info("run in address sanitizer mode")
 
     def setKillValgrind(self, value):
