@@ -159,11 +159,12 @@ class TDWhere():
         # t_like_match = column + like  + condition
         t_like = ['t_binary like \'binary%\' and','t_nchar like \'nchar%\' and','(t_binary like \'binary%\'  or t_nchar = \'0\' ) and','(t_nchar like \'nchar%\' or t_binary = \'0\' ) and',]
         t_match = ['t_binary match \'binary\' and','t_binary nmatch \'binarynchar\' and','t_nchar match \'nchar\' and','t_nchar nmatch \'binarynchar\' and',]
-        t_match_regular = ['loc match \'[table]\' and', 'loc match \'[^qwryuiop]\' and','loc nmatch \'[qwryuiop]\' and', 'loc nmatch \'[^table]\' and',
-                           't_binary match \'[binary]\' and', 't_binary match \'[^中国]\' and','t_binary nmatch \'[涛思]\' and', 't_binary nmatch \'[^binary]\' and',
-                           't_nchar match \'[nchar]\' and', 't_nchar match \'[^涛思]\' and','t_nchar nmatch \'[中国]\' and', 't_nchar nmatch \'[^nchar]\' and',]
-        t_like_match = random.sample(t_like,1) + random.sample(t_match,1) + random.sample(t_match_regular,2)
-        t_like_match = random.sample(t_like_match,1)
+        t_match_regular = ['loc match \'(table)\' and', 'loc match \'(^qwryuiop)\' and','loc nmatch \'(qwryuiop)\' and', 'loc nmatch \'(^table)\' and',
+                           't_binary match \'(binary)\' and', 't_binary match \'(^中国)\' and','t_binary nmatch \'(涛思)\' and', 't_binary nmatch \'(^binary)\' and',
+                           't_nchar match \'(nchar)\' and', 't_nchar match \'(^涛思)\' and','t_nchar nmatch \'(中国)\' and', 't_nchar nmatch \'(^nchar)\' and',]
+        # t_like_match = random.sample(t_like,1) + random.sample(t_match,1) + random.sample(t_match_regular,2)
+        # t_like_match = random.sample(t_like_match,1)
+        t_like_match = random.sample(t_match_regular,1)
 
         t_tinyint_list=[]
         for i in range(-1000,1000):
@@ -199,7 +200,7 @@ class TDWhere():
         t_like = ['t_binary like \'binary_\' and','t_binary like \'0%\' and','t_nchar like \'nchar_\' and','t_nchar like \'0%\' and',]
         t_match = ['t_binary nmatch \'binary\' and','t_binary match \'binarynchar\' and','t_nchar nmatch \'nchar\' and','t_nchar match \'binarynchar\' and',]
         t_like_match = random.sample(t_like,1) + random.sample(t_match,1)
-        t_match_regular = ['loc match \'[elbats]\' and', 'loc match \'[^qwertyuiopzxcvnmdfghj]\' and',]
+        t_match_regular = ['loc match \'(elbats)\' and', 'loc match \'(^qwertyuiopzxcvnmdfghj)\' and',]
         t_like_match = random.sample(t_like,1) + random.sample(t_match,1) + random.sample(t_match_regular,2)
         t_like_match_null = random.sample(t_like_match,1)
 
@@ -484,7 +485,7 @@ class TDWhere():
         q_where = random.sample(regular_q_where[0],5)        
 
         if self.NUM%3 ==0:
-            q_like_match = str(regular_q_where[1]).replace("[","").replace("]","").replace("\"","")
+            q_like_match = str(regular_q_where[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
         else :
             q_like_match = " "
 
@@ -505,7 +506,7 @@ class TDWhere():
         q_where_null = random.sample(regular_q_where_null[0],5) 
 
         if self.NUM%3 ==0:
-            q_like_match_null = str(regular_q_where_null[1]).replace("[","").replace("]","").replace("\"","")
+            q_like_match_null = str(regular_q_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
         else :
             q_like_match_null = " "
 
@@ -525,7 +526,7 @@ class TDWhere():
         q_where = random.sample(regular_q_where[0],5) 
 
         if self.NUM%3 ==0:
-            q_like_match = str(regular_q_where[1]).replace("[","").replace("]","").replace("\"","")
+            q_like_match = str(regular_q_where[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
         else :
             q_like_match = " "
 
@@ -538,7 +539,7 @@ class TDWhere():
         if self.NUM%3 ==0:
             q_like_match_null = " "
         else :
-            q_like_match_null = str(regular_q_where_null[1]).replace("[","").replace("]","").replace("\"","")
+            q_like_match_null = str(regular_q_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
             
         q_in_where_null = str(regular_q_where_null[2]).replace("[","").replace("]","").replace("'","")
 
@@ -558,9 +559,9 @@ class TDWhere():
         qt_where = random.sample(stable_q_where[0],3) + random.sample(stable_t_where[0],3)
         
         if self.NUM%3 ==0:
-            qt_like_match = str(stable_q_where[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match = str(stable_q_where[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
         elif self.NUM%3 ==1:
-            qt_like_match = str(stable_t_where[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match = str(stable_t_where[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
         else :
             qt_like_match = " "
 
@@ -583,9 +584,9 @@ class TDWhere():
         qt_where_null = random.sample(stable_q_where_null[0],3) + random.sample(stable_t_where_null[0],3) 
 
         if self.NUM%3 ==0:
-            qt_like_match_null = str(stable_q_where_null[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match_null = str(stable_q_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
         elif self.NUM%3 ==1:
-            qt_like_match_null = str(stable_t_where_null[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match_null = str(stable_t_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
         else :
             qt_like_match_null = " "
 
@@ -608,9 +609,9 @@ class TDWhere():
         qt_where = random.sample(stable_q_where[0],3) + random.sample(stable_t_where[0],3)
         
         if self.NUM%3 ==0:
-            qt_like_match = str(stable_q_where[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match = str(stable_q_where[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
         elif self.NUM%3 ==1:
-            qt_like_match = str(stable_t_where[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match = str(stable_t_where[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
         else :
             qt_like_match = " "
 
@@ -624,9 +625,9 @@ class TDWhere():
         qt_where_null = random.sample(stable_q_where_null[0],3) + random.sample(stable_t_where_null[0],3) 
 
         if self.NUM%3 ==0:
-            qt_like_match_null = str(stable_q_where_null[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match_null = str(stable_q_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
         elif self.NUM%3 ==1:
-            qt_like_match_null = str(stable_t_where_null[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match_null = str(stable_t_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
         else :
             qt_like_match_null = " "
 
