@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -554,6 +555,11 @@ func printAllArgs() {
 func main() {
 
 	printAllArgs()
+
+	cpuNum := runtime.NumCPU()
+	fmt.Println("cpu核心数:", cpuNum)
+	runtime.GOMAXPROCS(cpuNum)
+
 	url = "root:taosdata@/tcp(" + configPara.hostName + ":" + strconv.Itoa(configPara.serverPort) + ")/"
 
 	db, err := sql.Open(taosDriverName, url)
