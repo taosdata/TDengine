@@ -134,6 +134,9 @@ class TDTestQuery(TDCase):
 
         self.tdSql.query("select count(*) from stb0;")
         self.logger.info("\n==========================count(result)=%d=======\n" %self.tdSql.getData(0,0))
+        
+        self.tdSql.query("select * from stb0 order by ts desc;")
+        self.logger.info("\n==========================*(result)=%d=======\n" %self.tdSql.getData(0,0))
     
     
         
