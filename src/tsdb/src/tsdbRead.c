@@ -627,7 +627,7 @@ static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
 
   if (!pQueryHandle->pTableCheckInfo) {
     tsdbError("%p table check info is NULL", pQueryHandle);
-    terrno = TSDB_CODE_QRY_APP_ERROR;
+//    terrno = TSDB_CODE_QRY_APP_ERROR;
     return -1;
   }
 
