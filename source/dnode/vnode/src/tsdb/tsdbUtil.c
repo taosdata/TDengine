@@ -1698,7 +1698,7 @@ int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol
   size += pBlockCol->szBitmap;
 
   // offset
-  if (IS_VAR_DATA_TYPE(pColData->type)) {
+  if (IS_VAR_DATA_TYPE(pColData->type) && pColData->flag != (HAS_NULL | HAS_NONE)) {
     code = tsdbCmprData((uint8_t *)pColData->aOffset, sizeof(int32_t) * pColData->nVal, TSDB_DATA_TYPE_INT, cmprAlg,
                         ppOut, nOut + size, &pBlockCol->szOffset, ppBuf);
     if (code) goto _exit;
