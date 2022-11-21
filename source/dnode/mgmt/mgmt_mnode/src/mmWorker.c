@@ -56,6 +56,9 @@ static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   if (IsReq(pMsg) && pMsg->info.handle != NULL && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (code != 0 && terrno != 0) code = terrno;
     mmSendRsp(pMsg, code);
+  } else {
+    rpcFreeCont(pMsg->info.rsp);
+    pMsg->info.rsp = NULL;
   }
 
   if (code == TSDB_CODE_RPC_REDIRECT) {

@@ -56,7 +56,7 @@
 ,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v2.sim
 ,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
 ,,y,script,./test.sh -f tsim/dnode/vnode_clean.sim
-,,,script,./test.sh -f tsim/dnode/use_dropped_dnode.sim 
+,,y,script,./test.sh -f tsim/dnode/use_dropped_dnode.sim 
 ,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica1.sim 
 ,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica3.sim 
 ,,y,script,./test.sh -f tsim/import/basic.sim
@@ -113,7 +113,7 @@
 ,,y,script,./test.sh -f tsim/parser/first_last.sim
 ,,y,script,./test.sh -f tsim/parser/fill_stb.sim
 ,,y,script,./test.sh -f tsim/parser/interp.sim
-#,,y,script,./test.sh -f tsim/parser/limit2.sim
+,,y,script,./test.sh -f tsim/parser/limit2.sim
 ,,y,script,./test.sh -f tsim/parser/fourArithmetic-basic.sim
 ,,y,script,./test.sh -f tsim/parser/function.sim
 ,,y,script,./test.sh -f tsim/parser/groupby-basic.sim
@@ -136,8 +136,8 @@
 ,,y,script,./test.sh -f tsim/parser/lastrow.sim
 ,,y,script,./test.sh -f tsim/parser/lastrow2.sim
 ,,y,script,./test.sh -f tsim/parser/like.sim
-,,,script,./test.sh -f tsim/parser/limit.sim
-,,,script,./test.sh -f tsim/parser/limit1.sim
+,,y,script,./test.sh -f tsim/parser/limit.sim
+,,y,script,./test.sh -f tsim/parser/limit1.sim
 ,,y,script,./test.sh -f tsim/parser/mixed_blocks.sim
 ,,y,script,./test.sh -f tsim/parser/nchar.sim
 ,,y,script,./test.sh -f tsim/parser/nestquery.sim
@@ -163,7 +163,7 @@
 ,,y,script,./test.sh -f tsim/parser/timestamp.sim
 ,,y,script,./test.sh -f tsim/parser/top_groupby.sim
 ,,y,script,./test.sh -f tsim/parser/topbot.sim
-,,,script,./test.sh -f tsim/parser/union.sim
+,,y,script,./test.sh -f tsim/parser/union.sim
 ,,y,script,./test.sh -f tsim/parser/union_sysinfo.sim
 ,,y,script,./test.sh -f tsim/parser/where.sim
 ,,y,script,./test.sh -f tsim/query/charScalarFunction.sim
@@ -176,11 +176,11 @@
 ,,y,script,./test.sh -f tsim/query/udf.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
-,,,script,./test.sh -f tsim/mnode/basic1.sim
-,,,script,./test.sh -f tsim/mnode/basic2.sim
-,,,script,./test.sh -f tsim/mnode/basic3.sim
-,,,script,./test.sh -f tsim/mnode/basic4.sim
-,,,script,./test.sh -f tsim/mnode/basic5.sim
+,,y,script,./test.sh -f tsim/mnode/basic1.sim
+,,y,script,./test.sh -f tsim/mnode/basic2.sim
+,,y,script,./test.sh -f tsim/mnode/basic3.sim
+,,y,script,./test.sh -f tsim/mnode/basic4.sim
+,,y,script,./test.sh -f tsim/mnode/basic5.sim
 ,,y,script,./test.sh -f tsim/show/basic.sim
 ,,y,script,./test.sh -f tsim/table/autocreate.sim
 ,,y,script,./test.sh -f tsim/table/basic1.sim
@@ -278,7 +278,7 @@
 ,,y,script,./test.sh -f tsim/stable/values.sim
 ,,y,script,./test.sh -f tsim/stable/vnode3.sim
 ,,y,script,./test.sh -f tsim/stable/metrics_idx.sim
-,,,script,./test.sh -f tsim/sma/drop_sma.sim
+,,n,script,./test.sh -f tsim/sma/drop_sma.sim
 ,,y,script,./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
@@ -291,7 +291,7 @@
 ,,n,script,./test.sh -f tsim/valgrind/checkError7.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkError8.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkUdf.sim
-,,,script,./test.sh -f tsim/vnode/replica3_basic.sim
+,,y,script,./test.sh -f tsim/vnode/replica3_basic.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_repeat.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_vgroup.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_many.sim
@@ -424,6 +424,7 @@
 ,,,system-test,python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
 ,,,system-test,python3 ./test.py -f 1-insert/alter_stable.py
 ,,,system-test,python3 ./test.py -f 1-insert/alter_table.py
+,,,system-test,python3 ./test.py -f 1-insert/boundary.py
 ,,,system-test,python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 ,,,system-test,python3 ./test.py -f 1-insert/table_comment.py
 ,,,system-test,python3 ./test.py -f 1-insert/time_range_wise.py
@@ -607,6 +608,8 @@
 ,,,system-test,python3 ./test.py -f 2-query/upper.py -R
 ,,,system-test,python3 ./test.py -f 2-query/varchar.py
 ,,,system-test,python3 ./test.py -f 2-query/varchar.py -R
+,,,system-test,python3 ./test.py -f 2-query/case_when.py 
+,,,system-test,python3 ./test.py -f 2-query/case_when.py -R
 ,,,system-test,python3 ./test.py -f 1-insert/update_data.py
 ,,,system-test,python3 ./test.py -f 1-insert/tb_100w_data_order.py
 ,,,system-test,python3 ./test.py -f 1-insert/delete_stable.py
@@ -813,6 +816,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/last_row.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/sml.py -Q 2
+,,,system-test,python3 ./test.py -f 2-query/case_when.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/between.py -Q  3
 ,,,system-test,python3 ./test.py -f 2-query/distinct.py -Q  3
 ,,,system-test,python3 ./test.py -f 2-query/varchar.py -Q  3
@@ -906,6 +910,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
 ,,,system-test,python3 ./test.py -f 2-query/sml.py -Q 3
 ,,,system-test,python3 ./test.py -f 2-query/interp.py -Q 3
+,,,system-test,python3 ./test.py -f 2-query/case_when.py -Q 3
 ,,,system-test,python3 ./test.py -f 2-query/between.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/distinct.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/varchar.py -Q  4
@@ -998,6 +1003,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
 ,,,system-test,python3 ./test.py -f 2-query/sml.py -Q 4
 ,,,system-test,python3 ./test.py -f 2-query/interp.py -Q 4
+,,,system-test,python3 ./test.py -f 2-query/case_when.py -Q 4
 
 #develop test
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/auto_create_table_json.py

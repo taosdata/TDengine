@@ -436,8 +436,15 @@ int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   }
 
   int32_t ret = 0;
-  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER && pSyncNode->replicaNum > 1) {
     SNodeInfo newLeader = (pSyncNode->peersNodeInfo)[0];
+    if (pSyncNode->peersNum == 2) {
+      SyncIndex matchIndex0 = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[0]));
+      SyncIndex matchIndex1 = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[1]));
+      if (matchIndex1 > matchIndex0) {
+        newLeader = (pSyncNode->peersNodeInfo)[1];
+      }
+    }
     ret = syncNodeLeaderTransferTo(pSyncNode, newLeader);
   }
 
@@ -1396,7 +1403,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
       // reset sender
       bool reset = false;
       for (int32_t j = 0; j < TSDB_MAX_REPLICA; ++j) {
-        if (syncUtilSameId(&(pSyncNode->replicasId)[i], &oldReplicasId[j])) {
+        if (syncUtilSameId(&(pSyncNode->replicasId)[i], &oldReplicasId[j]) && oldSenders[j] != NULL) {
           char     host[128];
           uint16_t port;
           syncUtilU642Addr((pSyncNode->replicasId)[i].addr, host, sizeof(host), &port);
@@ -1413,6 +1420,8 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 
           sNTrace(pSyncNode, "snapshot sender udpate replicaIndex from %d to %d, %s:%d, %p, reset:%d", oldreplicaIndex,
                   i, host, port, (pSyncNode->senders)[i], reset);
+
+          break;
         }
       }
     }
