@@ -68,11 +68,10 @@ struct SBuffer {
 void    tBufferDestroy(SBuffer *pBuffer);
 int32_t tBufferInit(SBuffer *pBuffer, int64_t size);
 int32_t tBufferPut(SBuffer *pBuffer, const void *pData, int64_t nData);
+int32_t tBufferReserve(SBuffer *pBuffer, int64_t nData, void **ppData);
 
 // STSchema ================================
 void tTSchemaDestroy(STSchema *pTSchema);
-
-// SValue ================================
 
 // SColVal ================================
 #define CV_FLAG_VALUE ((int8_t)0x0)

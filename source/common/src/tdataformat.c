@@ -43,6 +43,16 @@ int32_t tBufferPut(SBuffer *pBuffer, const void *pData, int64_t nData) {
   return code;
 }
 
+int32_t tBufferReserve(SBuffer *pBuffer, int64_t nData, void **ppData) {
+  int32_t code = tRealloc(&pBuffer->pBuf, pBuffer->nBuf + nData);
+  if (code) return code;
+
+  *ppData = pBuffer->pBuf + pBuffer->nBuf;
+  pBuffer->nBuf += nData;
+
+  return code;
+}
+
 // ================================
 static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 
@@ -66,16 +76,16 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
   ASSERT(((SColVal *)aColVal->pData)[0].type == TSDB_DATA_TYPE_TIMESTAMP);
 
   // scan ---------------
-  uint8_t   flag = 0;
-  int32_t   iColVal = 1;
-  int32_t   nColVal = taosArrayGetSize(aColVal);
-  SColVal  *pColVal = (iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
-  int32_t   iTColumn = 1;
-  STColumn *pTColumn = pTSchema->columns + iTColumn;
-  int32_t   ntp = 0;
-  int32_t   nkv = 0;
-  int32_t   maxIdx = 0;
-  int32_t   nidx = 0;
+  uint8_t       flag = 0;
+  int32_t       iColVal = 1;
+  const int32_t nColVal = taosArrayGetSize(aColVal);
+  SColVal      *pColVal = (iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+  int32_t       iTColumn = 1;
+  STColumn     *pTColumn = pTSchema->columns + iTColumn;
+  int32_t       ntp = 0;
+  int32_t       nkv = 0;
+  int32_t       maxIdx = 0;
+  int32_t       nIdx = 0;
   while (pTColumn) {
     if (pColVal) {
       if (pColVal->cid == pTColumn->colId) {
@@ -89,14 +99,14 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
           } else {
             nkv = nkv + tPutI16v(NULL, pTColumn->colId) + TYPE_BYTES[pTColumn->type];
           }
-          nidx++;
+          nIdx++;
         } else if (COL_VAL_IS_NONE(pColVal)) {  // NONE
           flag |= HAS_NONE;
         } else if (COL_VAL_IS_NULL(pColVal)) {  // NULL
           flag |= HAS_NULL;
           maxIdx = nkv;
           nkv += tPutI16v(NULL, -pTColumn->colId);
-          nidx++;
+          nIdx++;
         } else {
           ASSERT(0);
         }
@@ -141,13 +151,13 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
       break;
   }
   if (maxIdx <= UINT8_MAX) {
-    nkv = sizeof(SRow) + sizeof(SKVIdx) + sizeof(uint8_t) * nidx + nkv;
+    nkv = sizeof(SRow) + sizeof(SKVIdx) + nIdx + nkv;
     flag |= KV_FLG_LIT;
   } else if (maxIdx <= UINT16_MAX) {
-    nkv = sizeof(SRow) + sizeof(SKVIdx) + sizeof(uint16_t) * nidx + nkv;
+    nkv = sizeof(SRow) + sizeof(SKVIdx) + (nIdx << 1) + nkv;
     flag |= KV_FLG_MID;
   } else {
-    nkv = sizeof(SRow) + sizeof(SKVIdx) + sizeof(uint32_t) * nidx + nkv;
+    nkv = sizeof(SRow) + sizeof(SKVIdx) + (nIdx << 2) + nkv;
     flag |= KV_FLG_BIG;
   }
   int32_t nRow;
@@ -159,7 +169,9 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
   }
 
   // alloc --------------
-  SRow *pRow = NULL;  // todo
+  SRow *pRow = NULL;
+  code = tBufferReserve(pBuffer, nRow, (void **)&pRow);
+  if (code) return code;
 
   // build --------------
   pColVal = (SColVal *)taosArrayGet(aColVal, 0);
@@ -180,17 +192,35 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
   pTColumn = pTSchema->columns + iTColumn;
   if (flag & 0xf0) {  // KV
     SKVIdx  *pIdx = (SKVIdx *)pRow->data;
-    uint8_t *pv = NULL;  // todo
+    int32_t  iIdx = 0;
+    int32_t  nv = 0;
+    uint8_t *pv = NULL;
+    if (flag & KV_FLG_LIT) {
+      pv = pIdx->idx + nIdx;
+    } else if (flag & KV_FLG_MID) {
+      pv = pIdx->idx + (nIdx << 1);
+    } else {
+      pv = pIdx->idx + (nIdx << 2);
+    }
+    pIdx->nCol = nIdx;
 
     while (pTColumn) {
       if (pColVal) {
         if (pColVal->cid == pTColumn->colId) {
           if (COL_VAL_IS_VALUE(pColVal)) {
-            // todo
-          } else if (COL_VAL_IS_NONE(pColVal)) {
-            // todo
-          } else {
-            // todo
+            // offset = nv; todo
+            nv += tPutI16v(pv + nv, pTColumn->colId);
+            if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+              nv += tPutU32v(pv + nv, pColVal->value.nData);
+              memcpy(pv + nv, pColVal->value.pData, pColVal->value.nData);
+              nv += pColVal->value.nData;
+            } else {
+              memcpy(pv + nv, &pColVal->value.val, pTColumn->bytes);
+              nv += pTColumn->bytes;
+            }
+          } else if (COL_VAL_IS_NULL(pColVal)) {
+            // offset = nv; todo
+            nv += tPutI16v(pv + nv, -pTColumn->colId);
           }
 
           pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
@@ -200,7 +230,6 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
         } else {
           pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
         }
-
       } else {  // NONE
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
       }
