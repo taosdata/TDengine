@@ -141,6 +141,7 @@ if [ -n "$FILE_NAME" ]; then
     echo "Execute result:" $result
 
     if [ $result -eq 0 ]; then
+      $CODE_DIR/sh/sigint_stop_dnodes.sh
       $CODE_DIR/sh/checkAsan.sh
     else
       echo "TSIM has asan errors"

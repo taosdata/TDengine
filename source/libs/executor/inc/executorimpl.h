@@ -239,6 +239,7 @@ typedef struct SSourceDataInfo {
   int32_t            index;
   SRetrieveTableRsp* pRsp;
   uint64_t           totalRows;
+  int64_t            startTime;
   int32_t            code;
   EX_SOURCE_STATUS   status;
   const char*        taskId;
@@ -776,7 +777,6 @@ typedef struct STimeSliceOperatorInfo {
   SArray*              pPrevRow;     // SArray<SGroupValue>
   SArray*              pNextRow;     // SArray<SGroupValue>
   SArray*              pLinearInfo;  // SArray<SFillLinearInfo>
-  bool                 fillLastPoint;
   bool                 isPrevRowSet;
   bool                 isNextRowSet;
   int32_t              fillType;      // fill type
