@@ -431,40 +431,40 @@
 ,,,system-test,python3 ./test.py -f 1-insert/time_range_wise.py
 ,,,system-test,python3 ./test.py -f 1-insert/block_wise.py
 ,,,system-test,python3 ./test.py -f 1-insert/create_retentions.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py
 ,,,system-test,python3 ./test.py -f 1-insert/mutil_stage.py
-,,,system-test,python3 ./test.py -f 1-insert/table_param_ttl.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/update_data_muti_rows.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/db_tb_name_check.py
 ,,,system-test,python3 ./test.py -f 1-insert/database_pre_suf.py
 ,,,system-test,python3 ./test.py -f 1-insert/InsertFuturets.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py
-,,,system-test,python3 ./test.py -f 2-query/abs.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/and_or_for_byte.py
-,,,system-test,python3 ./test.py -f 2-query/and_or_for_byte.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/and_or_for_byte.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py
-,,,system-test,python3 ./test.py -f 2-query/apercentile.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arccos.py
-,,,system-test,python3 ./test.py -f 2-query/arccos.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arccos.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arcsin.py
-,,,system-test,python3 ./test.py -f 2-query/arcsin.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arcsin.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py
-,,,system-test,python3 ./test.py -f 2-query/arctan.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -R
 ,,,system-test,python3 ./test.py -f 2-query/avg.py
 ,,,system-test,python3 ./test.py -f 2-query/avg.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py
-,,,system-test,python3 ./test.py -f 2-query/between.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py
-,,,system-test,python3 ./test.py -f 2-query/bottom.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py
-,,,system-test,python3 ./test.py -f 2-query/cast.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py
-,,,system-test,python3 ./test.py -f 2-query/ceil.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py
-,,,system-test,python3 ./test.py -f 2-query/char_length.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py
-,,,system-test,python3 ./test.py -f 2-query/check_tsdb.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py -R
 ,,,system-test,python3 ./test.py -f 2-query/concat.py
 ,,,system-test,python3 ./test.py -f 2-query/concat.py -R
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws.py
@@ -472,63 +472,63 @@
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws2.py
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws2.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py
-,,,system-test,python3 ./test.py -f 2-query/cos.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py
-,,,system-test,python3 ./test.py -f 2-query/count_partition.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py
-,,,system-test,python3 ./test.py -f 2-query/count.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py
-,,,system-test,python3 ./test.py -f 2-query/countAlwaysReturnValue.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py
-,,,system-test,python3 ./test.py -f 2-query/db.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py
-,,,system-test,python3 ./test.py -f 2-query/diff.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py
-,,,system-test,python3 ./test.py -f 2-query/distinct.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_apercentile.py
-,,,system-test,python3 ./test.py -f 2-query/distribute_agg_apercentile.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_apercentile.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_avg.py
-,,,system-test,python3 ./test.py -f 2-query/distribute_agg_avg.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_avg.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py
-,,,system-test,python3 ./test.py -f 2-query/distribute_agg_count.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py
-,,,system-test,python3 ./test.py -f 2-query/distribute_agg_max.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py
-,,,system-test,python3 ./test.py -f 2-query/distribute_agg_min.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_spread.py
-,,,system-test,python3 ./test.py -f 2-query/distribute_agg_spread.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_spread.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_stddev.py
-,,,system-test,python3 ./test.py -f 2-query/distribute_agg_stddev.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_stddev.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_sum.py
-,,,system-test,python3 ./test.py -f 2-query/distribute_agg_sum.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_sum.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/explain.py
-,,,system-test,python3 ./test.py -f 2-query/explain.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/explain.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/first.py
-,,,system-test,python3 ./test.py -f 2-query/first.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/first.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py
-,,,system-test,python3 ./test.py -f 2-query/floor.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py
-,,,system-test,python3 ./test.py -f 2-query/function_null.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py
-,,,system-test,python3 ./test.py -f 2-query/function_stateduration.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/histogram.py
-,,,system-test,python3 ./test.py -f 2-query/histogram.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/histogram.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hyperloglog.py
-,,,system-test,python3 ./test.py -f 2-query/hyperloglog.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hyperloglog.py -R
 ,,,system-test,python3 ./test.py -f 2-query/interp.py
 ,,,system-test,python3 ./test.py -f 2-query/interp.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py
-,,,system-test,python3 ./test.py -f 2-query/irate.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py
-,,,system-test,python3 ./test.py -f 2-query/join.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -R
 ,,,system-test,python3 ./test.py -f 2-query/last_row.py
 ,,,system-test,python3 ./test.py -f 2-query/last_row.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py
-,,,system-test,python3 ./test.py -f 2-query/last.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py
-,,,system-test,python3 ./test.py -f 2-query/leastsquares.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py
-,,,system-test,python3 ./test.py -f 2-query/length.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -R
 ,,,system-test,python3 ./test.py -f 2-query/lower.py
@@ -536,25 +536,25 @@
 ,,,system-test,python3 ./test.py -f 2-query/ltrim.py
 ,,,system-test,python3 ./test.py -f 2-query/ltrim.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py
-,,,system-test,python3 ./test.py -f 2-query/mavg.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py
-,,,system-test,python3 ./test.py -f 2-query/max_partition.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py
-,,,system-test,python3 ./test.py -f 2-query/max.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py
-,,,system-test,python3 ./test.py -f 2-query/min.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -R
 ,,,system-test,python3 ./test.py -f 2-query/mode.py
 ,,,system-test,python3 ./test.py -f 2-query/mode.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py
-,,,system-test,python3 ./test.py -f 2-query/Now.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py
-,,,system-test,python3 ./test.py -f 2-query/percentile.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py
-,,,system-test,python3 ./test.py -f 2-query/pow.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py
-,,,system-test,python3 ./test.py -f 2-query/query_cols_tags_and_or.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py
-,,,system-test,python3 ./test.py -f 2-query/round.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py -R
 ,,,system-test,python3 ./test.py -f 2-query/rtrim.py
 ,,,system-test,python3 ./test.py -f 2-query/rtrim.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py
@@ -566,51 +566,51 @@
 ,,,system-test,python3 ./test.py -f 2-query/sml.py
 ,,,system-test,python3 ./test.py -f 2-query/sml.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py
-,,,system-test,python3 ./test.py -f 2-query/spread.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py
-,,,system-test,python3 ./test.py -f 2-query/sqrt.py -R
+,,y,system-test,./pytest.sh python3./test.py -f 2-query/sqrt.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py
-,,,system-test,python3 ./test.py -f 2-query/statecount.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py
 ,,,system-test,python3 ./test.py -f 2-query/stateduration.py -R
 ,,,system-test,python3 ./test.py -f 2-query/substr.py
 ,,,system-test,python3 ./test.py -f 2-query/substr.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sum.py
-,,,system-test,python3 ./test.py -f 2-query/sum.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sum.py -R
 ,,,system-test,python3 ./test.py -f 2-query/tail.py
 ,,,system-test,python3 ./test.py -f 2-query/tail.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tan.py
-,,,system-test,python3 ./test.py -f 2-query/tan.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tan.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py
-,,,system-test,python3 ./test.py -f 2-query/Timediff.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py
-,,,system-test,python3 ./test.py -f 2-query/timetruncate.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timezone.py
-,,,system-test,python3 ./test.py -f 2-query/timezone.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timezone.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_iso8601.py
-,,,system-test,python3 ./test.py -f 2-query/To_iso8601.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_iso8601.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_unixtimestamp.py
-,,,system-test,python3 ./test.py -f 2-query/To_unixtimestamp.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_unixtimestamp.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py
-,,,system-test,python3 ./test.py -f 2-query/Today.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py
-,,,system-test,python3 ./test.py -f 2-query/top.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -R
 ,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py
 ,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py -R
 ,,,system-test,python3 ./test.py -f 2-query/ttl_comment.py
 ,,,system-test,python3 ./test.py -f 2-query/ttl_comment.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py
-,,,system-test,python3 ./test.py -f 2-query/twa.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py -R
 ,,,system-test,python3 ./test.py -f 2-query/union.py
 ,,,system-test,python3 ./test.py -f 2-query/union.py -R
 ,,,system-test,python3 ./test.py -f 2-query/unique.py
 ,,,system-test,python3 ./test.py -f 2-query/unique.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py
-,,,system-test,python3 ./test.py -f 2-query/upper.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py
-,,,system-test,python3 ./test.py -f 2-query/varchar.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py 
-,,,system-test,python3 ./test.py -f 2-query/case_when.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -R
 ,,,system-test,python3 ./test.py -f 1-insert/update_data.py
 ,,,system-test,python3 ./test.py -f 1-insert/tb_100w_data_order.py
 ,,,system-test,python3 ./test.py -f 1-insert/delete_stable.py
