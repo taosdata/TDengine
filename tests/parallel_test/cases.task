@@ -980,6 +980,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/csum.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/sample.py -Q  4
+,,,system-test,python3 ./test.py -f 2-query/cast.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/function_diff.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/unique.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -Q  4
