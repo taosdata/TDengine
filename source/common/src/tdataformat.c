@@ -354,6 +354,7 @@ _exit:
 
 void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
   ASSERT(iCol < pTSchema->numOfCols);
+  ASSERT(pRow->sver == pTSchema->version);
 
   STColumn *pTColumn = pTSchema->columns + iCol;
 
@@ -431,9 +432,60 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
 
     *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
   } else {  // Tuple Row
-    if (pRow->flag == HAS_VALUE) {
+    uint8_t *pf = NULL;
+    uint8_t *pv = NULL;
+    uint8_t  bv = ROW_BIT_VALUE;
+
+    switch (pRow->flag) {
+      case HAS_VALUE:
+        pf = pRow->data;
+        pv = pf + pTSchema->flen;
+        break;
+      case (HAS_NULL | HAS_NONE):
+        bv = GET_BIT1(pRow->data, iCol - 1);
+        break;
+      case (HAS_VALUE | HAS_NONE):
+        bv = GET_BIT1(pRow->data, iCol - 1);
+        if (bv) bv++;
+        pf = pRow->data + BIT1_SIZE(pTSchema->numOfCols - 1);
+        pv = pf + pTSchema->flen;
+        break;
+      case (HAS_VALUE | HAS_NULL):
+        bv = GET_BIT1(pRow->data, iCol - 1);
+        bv++;
+        pf = pRow->data + BIT1_SIZE(pTSchema->numOfCols - 1);
+        pv = pf + pTSchema->flen;
+        break;
+      case (HAS_VALUE | HAS_NULL | HAS_NONE):
+        bv = GET_BIT2(pRow->data, iCol - 1);
+        pf = pRow->data + BIT2_SIZE(pTSchema->numOfCols - 1);
+        pv = pf + pTSchema->flen;
+        break;
+      default:
+        break;
+    }
+
+    if (bv == ROW_BIT_NONE) {
+      *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+      return;
+    } else if (bv == ROW_BIT_NULL) {
+      *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
+      return;
+    }
+
+    pColVal->cid = pTColumn->colId;
+    pColVal->type = pTColumn->type;
+    pColVal->flag = CV_FLAG_VALUE;
+    if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+      uint8_t *pData = pv + *(int32_t *)(pf + pTColumn->offset);
+      pData += tGetU32v(pData, &pColVal->value.nData);
+      if (pColVal->value.nData) {
+        pColVal->value.pData = pData;
+      } else {
+        pColVal->value.pData = NULL;
+      }
     } else {
-      // todo
+      memcpy(&pColVal->value.val, pv + pTColumn->offset, pTColumn->bytes);
     }
   }
 }
