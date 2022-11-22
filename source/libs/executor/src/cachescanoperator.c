@@ -26,7 +26,7 @@
 #include "ttypes.h"
 
 static SSDataBlock* doScanCache(SOperatorInfo* pOperator);
-static void         destroyLastrowScanOperator(void* param);
+static void         destroyCacheScanOperator(void* param);
 static int32_t      extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds);
 static int32_t      removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pColMatchInfo);
 
@@ -97,14 +97,14 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
 
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doScanCache, NULL, destroyLastrowScanOperator, NULL);
+      createOperatorFpSet(operatorDummyOpenFn, doScanCache, NULL, destroyCacheScanOperator, NULL);
 
   pOperator->cost.openCost = 0;
   return pOperator;
 
   _error:
   pTaskInfo->code = code;
-  destroyLastrowScanOperator(pInfo);
+  destroyCacheScanOperator(pInfo);
   taosMemoryFree(pOperator);
   return NULL;
 }
@@ -234,7 +234,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
   }
 }
 
-void destroyLastrowScanOperator(void* param) {
+void destroyCacheScanOperator(void* param) {
   SLastrowScanInfo* pInfo = (SLastrowScanInfo*)param;
   blockDataDestroy(pInfo->pRes);
   blockDataDestroy(pInfo->pBufferredRes);
