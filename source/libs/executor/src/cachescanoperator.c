@@ -157,9 +157,12 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         SColumnInfoData* pSrc = taosArrayGet(pInfo->pBufferredRes->pDataBlock, slotId);
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, slotId);
 
-        char* p = colDataGetData(pSrc, pInfo->indexOfBufferedRes);
-        bool  isNull = colDataIsNull_s(pSrc, pInfo->indexOfBufferedRes);
-        colDataAppend(pDst, 0, p, isNull);
+        if (colDataIsNull_s(pSrc, pInfo->indexOfBufferedRes)) {
+          colDataAppendNULL(pDst, 0);
+        } else {
+          char* p = colDataGetData(pSrc, pInfo->indexOfBufferedRes);
+          colDataAppend(pDst, 0, p, false);
+        }
       }
 
       pRes->info.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, pInfo->indexOfBufferedRes);
@@ -226,6 +229,8 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 
         pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
         return pInfo->pRes;
+      } else {
+        pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
       }
     }
 
