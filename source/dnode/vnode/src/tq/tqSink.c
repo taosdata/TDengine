@@ -349,7 +349,6 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
           .contLen = len + sizeof(SMsgHead),
       };
       if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
-        rpcFreeCont(serializedDeleteReq);
         tqDebug("failed to put delete req into write-queue since %s", terrstr());
       }
     } else {
@@ -476,12 +475,12 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
 
       cap += sizeof(SSubmitBlk) + schemaLen + rows * maxLen;
 
-      SSubmitReq* ret = rpcMallocCont(cap);
-      ret->header.vgId = pVnode->config.vgId;
-      ret->length = sizeof(SSubmitReq);
-      ret->numOfBlocks = htonl(1);
+      SSubmitReq* pSubmit = rpcMallocCont(cap);
+      pSubmit->header.vgId = pVnode->config.vgId;
+      pSubmit->length = sizeof(SSubmitReq);
+      pSubmit->numOfBlocks = htonl(1);
 
-      SSubmitBlk* blkHead = POINTER_SHIFT(ret, sizeof(SSubmitReq));
+      SSubmitBlk* blkHead = POINTER_SHIFT(pSubmit, sizeof(SSubmitReq));
 
       blkHead->numOfRows = htonl(pDataBlock->info.rows);
       blkHead->sversion = htonl(pTSchema->version);
@@ -531,17 +530,16 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       }
       blkHead->dataLen = htonl(dataLen);
 
-      ret->length += sizeof(SSubmitBlk) + schemaLen + dataLen;
-      ret->length = htonl(ret->length);
+      pSubmit->length += sizeof(SSubmitBlk) + schemaLen + dataLen;
+      pSubmit->length = htonl(pSubmit->length);
 
       SRpcMsg msg = {
           .msgType = TDMT_VND_SUBMIT,
-          .pCont = ret,
-          .contLen = ntohl(ret->length),
+          .pCont = pSubmit,
+          .contLen = ntohl(pSubmit->length),
       };
 
       if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
-        rpcFreeCont(ret);
         tqDebug("failed to put into write-queue since %s", terrstr());
       }
     }
