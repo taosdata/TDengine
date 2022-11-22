@@ -135,6 +135,14 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
 }
 
 int32_t syncNodeReplicate(SSyncNode* pNode) {
+  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+  taosThreadMutexLock(&pBuf->mutex);
+  int32_t ret = syncNodeReplicateWithoutLock(pNode);
+  taosThreadMutexUnlock(&pBuf->mutex);
+  return ret;
+}
+
+int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
   if (pNode->state != TAOS_SYNC_STATE_LEADER || pNode->replicaNum == 1) {
     return -1;
   }
@@ -143,7 +151,7 @@ int32_t syncNodeReplicate(SSyncNode* pNode) {
       continue;
     }
     SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
-    (void)syncLogBufferReplicateOnce(pMgr, pNode);
+    (void)syncLogReplMgrReplicateOnce(pMgr, pNode);
   }
   return 0;
 }

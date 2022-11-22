@@ -234,10 +234,10 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   SyncTerm  lastMatchTerm = syncLogBufferGetLastMatchTerm(pBuf);
 
   if (index <= pBuf->commitIndex) {
-    sInfo("vgId:%d, raft entry already committed. index: %" PRId64 ", term: %" PRId64 ". log buffer: [%" PRId64
-          " %" PRId64 " %" PRId64 ", %" PRId64 ")",
-          pNode->vgId, pEntry->index, pEntry->term, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex,
-          pBuf->endIndex);
+    sTrace("vgId:%d, raft entry already committed. index: %" PRId64 ", term: %" PRId64 ". log buffer: [%" PRId64
+           " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+           pNode->vgId, pEntry->index, pEntry->term, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex,
+           pBuf->endIndex);
     ret = 0;
     goto _out;
   }
@@ -364,7 +364,7 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
            pNode->vgId, pBuf->startIndex, pBuf->matchIndex, pBuf->endIndex);
 
     // replicate on demand
-    (void)syncNodeReplicate(pNode);
+    (void)syncNodeReplicateWithoutLock(pNode);
 
     // persist
     if (syncLogStorePersist(pLogStore, pEntry) < 0) {
@@ -393,7 +393,7 @@ int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, Syn
     return 0;
   }
 
-  SRpcMsg rpcMsg;
+  SRpcMsg rpcMsg = {0};
   syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
   SFsmCbMeta cbMeta = {0};
@@ -666,8 +666,7 @@ int32_t syncLogReplMgrProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, Sync
   return 0;
 }
 
-int32_t syncLogBufferReplicateOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
-  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+int32_t syncLogReplMgrReplicateOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
   if (pMgr->restored) {
     (void)syncLogReplMgrReplicateAttemptedOnce(pMgr, pNode);
   } else {
