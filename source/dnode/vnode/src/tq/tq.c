@@ -677,7 +677,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
 
         if (tqTaosxScanLog(pTq, pHandle, pCont, &taosxRsp) < 0) {
-          /*ASSERT(0);*/
         }
         if (taosxRsp.blockNum > 0 /* threshold */) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
