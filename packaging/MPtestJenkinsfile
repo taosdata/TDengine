@@ -116,10 +116,7 @@ pipeline {
                             if [ "${verMode}" = "all" ];then
                                 verMode="community enterprise"
                             fi
-                            verModeList=${verMode}
-                            '''   
-
-                            sh '''                            
+                            verModeList=${verMode}                          
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
@@ -152,9 +149,6 @@ pipeline {
                                 verMode="community enterprise"
                             fi
                             verModeList=${verMode}
-                            '''
-
-                            sh '''
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
@@ -188,8 +182,6 @@ pipeline {
                                 verMode="community enterprise"
                             fi                            
                             verModeList=${verMode}
-                            '''
-                            sh '''
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
@@ -222,8 +214,6 @@ pipeline {
                                 verMode="community enterprise"
                             fi                            
                             verModeList=${verMode}
-                            '''
-                            sh '''
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
@@ -257,9 +247,6 @@ pipeline {
                                 verMode="community enterprise"
                             fi                            
                             verModeList=${verMode}
-                            '''
-
-                            sh '''
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
@@ -283,8 +270,6 @@ pipeline {
                                 verMode="community enterprise"
                             fi  
                             verModeList=${verMode}
-                            '''
-                            sh '''
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
@@ -321,8 +306,6 @@ pipeline {
                         verMode="community enterprise"
                     fi  
                     verModeList=${verMode}
-                    '''
-                    sh '''
                     for verModeSin in ${verModeList}
                     do
                         cd ${TDENGINE_ROOT_DIR}/packaging
