@@ -21,6 +21,7 @@
 #include "query.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "geosWrapper.h"
 #include "ttypes.h"
 
 #define NEXT_TOKEN(pSql, sToken)                \
@@ -68,6 +69,7 @@ typedef struct SInsertParseContext {
   SArray*            pVgDataBlocks;       // global
   SHashObj*          pTableNameHashObj;   // global
   SHashObj*          pDbFNameHashObj;     // global
+  SGEOSGeomFromTextContext geosCxt;
   int32_t            totalNum;
   SVnodeModifOpStmt* pOutput;
   SStmtCallback*     pStmtCb;
@@ -439,6 +441,26 @@ static int parseTime(char** end, SToken* pToken, int16_t timePrec, int64_t* time
   return TSDB_CODE_SUCCESS;
 }
 
+// need to call GEOSFree_r(pGeosCxt->handle, output) later
+static int parseGeometry(SGEOSGeomFromTextContext *pGeosCxt, SToken *pToken, unsigned char **output, size_t *size) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  //[ToDo] support to parse WKB as well as WKT
+  if (pToken->type == TK_NK_STRING) {
+    code = prepareGeomFromText(pGeosCxt);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    code = doGeomFromText(pGeosCxt, pToken->z, output, size);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  return code;
+}
+
 static FORCE_INLINE int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf) {
   if ((pToken->type != TK_NOW && pToken->type != TK_TODAY && pToken->type != TK_NK_INTEGER &&
        pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT && pToken->type != TK_NK_BOOL &&
@@ -484,7 +506,7 @@ static FORCE_INLINE int32_t toDouble(SToken* pToken, double* value, char** endPt
 }
 
 static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, char* tmpTokenBuf,
-                               _row_append_fn_t func, void* param, SMsgBuf* pMsgBuf) {
+                               _row_append_fn_t func, void* param, SGEOSGeomFromTextContext *pGeosCxt, SMsgBuf* pMsgBuf) {
   int64_t  iv;
   uint64_t uv;
   char*    endptr = NULL;
@@ -630,8 +652,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
       return func(pMsgBuf, &dv, pSchema->bytes, param);
     }
 
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_GEOMETRY: {
+    case TSDB_DATA_TYPE_BINARY: {
       // Too long values will raise the invalid sql error message
       if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
@@ -649,6 +670,30 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
         return buildSyntaxErrMsg(pMsgBuf, "json string too long than 4095", pToken->z);
       }
       return func(pMsgBuf, pToken->z, pToken->n, param);
+    }
+
+    case TSDB_DATA_TYPE_GEOMETRY: {
+      unsigned char *output = NULL;
+      size_t size = 0;
+
+      code = parseGeometry(pGeosCxt, pToken, &output, &size);
+      if (code != TSDB_CODE_SUCCESS) {
+        code = generateSyntaxErrMsg(pMsgBuf, code, "Failed to parse geometry, the input may not be a valid WTK string");
+      }
+      // Too long values will raise the invalid sql error message
+      else if (size > pSchema->bytes) {
+        code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
+      else {
+        code = func(pMsgBuf, output, size, param);
+      }
+
+      if (output) {
+        GEOSFree_r(pGeosCxt->handle, output);
+        output = NULL;
+      }
+
+      return code;
     }
 
     case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -1254,7 +1299,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
 
     param.schema = pSchema;
     getSTSRowAppendInfo(pBuilder->rowType, spd, i, &param.toffset, &param.colIdx);
-    CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pSchema, timePrec, tmpTokenBuf, MemRowAppend, &param, &pCxt->msg));
+    CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pSchema, timePrec, tmpTokenBuf, MemRowAppend, &param, &pCxt->geosCxt, &pCxt->msg));
 
     if (i < spd->numOfBound - 1) {
       NEXT_VALID_TOKEN(pCxt->pSql, sToken);
@@ -1444,6 +1489,8 @@ static void destroyInsertParseContext(SInsertParseContext* pCxt) {
 
   destroyBlockHashmap(pCxt->pTableBlockHashObj);
   destroyBlockArrayList(pCxt->pVgDataBlocks);
+
+  cleanGeomFromText(&pCxt->geosCxt);
 }
 
 static int32_t parseTableName(SInsertParseContext* pCxt, SToken* pTbnameToken, SName* pName, char* pDbFName,

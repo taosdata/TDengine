@@ -18,7 +18,7 @@
 #include "cJSON.h"
 #include "querynodes.h"
 #include "scalar.h"
-#include "geomfunc.h"
+#include "geomFunc.h"
 #include "taoserror.h"
 #include "ttime.h"
 

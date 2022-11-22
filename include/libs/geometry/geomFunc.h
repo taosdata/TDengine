@@ -12,8 +12,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef TDENGINE_GEOMFUNC_H
-#define TDENGINE_GEOMFUNC_H
+
+#ifndef TDENGINE_GEOM_FUNC_H
+#define TDENGINE_GEOM_FUNC_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,4 +31,4 @@ int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 }
 #endif
 
-#endif  // TDENGINE_GEOMFUNC_H
+#endif  // TDENGINE_GEOM_FUNC_H

@@ -1,61 +1,80 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <geos_c.h>
-#include "geomfunc.h"
+#include "geosWrapper.h"
+#include "geomFunc.h"
 #include "querynodes.h"
 #include "tdatablock.h"
 #include "sclInt.h"
 #include "sclvector.h"
 
-static int32_t geomFromText(GEOSContextHandle_t handle, GEOSWKTReader *reader, GEOSWKBWriter *writer, unsigned char *input, unsigned char *output) {
+// both input and output are with VARSTR format
+// need to call taosMemoryFree(*output) later
+int32_t doGeomFromTextFunc(SGEOSGeomFromTextContext *context, const char *input, unsigned char **output) {
   int32_t code = TSDB_CODE_FAILED;
 
-  GEOSGeometry *geom = 0;
-  unsigned char *wkb = 0;
-
+  //make input as a zero ending string
   char *end = varDataVal(input) + varDataLen(input);
   char endValue = *end;
-  *end = 0; //make input as a zero ending string
-  geom = GEOSWKTReader_read_r(handle, reader, varDataVal(input));
-  *end = endValue;  //recover the string after reading it
-  if (geom == 0) {
-    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
-    goto _exit;
-  }
+  *end = 0; 
 
+  unsigned char *outputGeom = NULL;
   size_t size = 0;
-  wkb = GEOSWKBWriter_write_r(handle, writer, geom, &size);
-  if (wkb == 0) {
+
+  code = doGeomFromText(context, varDataVal(input), &outputGeom, &size);
+  if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
 
-  memcpy(varDataVal(output), wkb, size);
-  varDataSetLen(output, size);
+  *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
+  if (*output == NULL) {
+    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  memcpy(varDataVal(*output), outputGeom, size);
+  varDataSetLen(*output, size);
   code = TSDB_CODE_SUCCESS;
 
 _exit:
-  if (wkb) {
-    GEOSFree_r(handle, wkb);
+  if (outputGeom) {
+    GEOSFree_r(context->handle, outputGeom);
+    outputGeom = NULL;
   }
-  if (geom) {
-    GEOSGeom_destroy_r(handle, geom);
-  }
+
+  *end = endValue;  //recover the input string
 
   return code;
 }
 
-static int32_t asText(GEOSContextHandle_t handle, GEOSWKBReader *reader, GEOSWKTWriter *writer, unsigned char *input, unsigned char *output) {
+int32_t asText(GEOSContextHandle_t handle, GEOSWKBReader *reader, GEOSWKTWriter *writer,
+               unsigned char *input, unsigned char *output) {
   int32_t code = TSDB_CODE_FAILED;
 
-  GEOSGeometry *geom = 0;
-  unsigned char *wkt = 0;
+  GEOSGeometry *geom = NULL;
+  unsigned char *wkt = NULL;
 
   geom = GEOSWKBReader_read_r(handle, reader, varDataVal(input), varDataLen(input));
-  if (geom == 0) {
+  if (geom == NULL) {
     code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
     goto _exit;
   }
 
   wkt = GEOSWKTWriter_write_r(handle, writer, geom);
-  if (wkt == 0) {
+  if (wkt == NULL) {
     goto _exit;
   }
   size_t size = strlen(wkt);
@@ -75,21 +94,22 @@ _exit:
   return code;
 }
 
-static int32_t makePoint(GEOSContextHandle_t handle, GEOSWKBWriter *writer, double x, double y, unsigned char *output) {
+int32_t makePoint(GEOSContextHandle_t handle, GEOSWKBWriter *writer,
+                  double x, double y, unsigned char *output) {
   int32_t code = TSDB_CODE_FAILED;
 
-  GEOSGeometry *geom = 0;
-  unsigned char *wkb = 0;
+  GEOSGeometry *geom = NULL;
+  unsigned char *wkb = NULL;
 
   geom = GEOSGeom_createPointFromXY_r(handle, x, y);
-  if (geom == 0) {
+  if (geom == NULL) {
     code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
     goto _exit;
   }
 
   size_t size = 0;
   wkb = GEOSWKBWriter_write_r(handle, writer, geom, &size);
-  if (wkb == 0) {
+  if (wkb == NULL) {
     goto _exit;
   }
 
@@ -114,52 +134,38 @@ int32_t geomFromTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  GEOSContextHandle_t handle = GEOS_init_r();
-  GEOSWKTReader *reader = 0;
-  GEOSWKBWriter *writer = 0;
-  char *output = 0;
-
-  reader = GEOSWKTReader_create_r(handle);
-  if (reader == 0) {
-    goto _exit;
-  }
-  writer = GEOSWKBWriter_create_r(handle);
-  if (writer == 0) {
-    goto _exit;
-  }
-  output = taosMemoryCalloc(TSDB_MAX_GEOMETRY_LEN, 1);
-  if (output == 0) {
+  SGEOSGeomFromTextContext context = {0};
+  code = prepareGeomFromText(&context);
+  if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
       colDataAppendNULL(pOutputData, i);
+      code = TSDB_CODE_SUCCESS;
       continue;
     }
 
     char *input = colDataGetData(pInputData, i);
-    code = geomFromText(handle, reader, writer, input, output);
+    unsigned char *output = NULL;
+    code = doGeomFromTextFunc(&context, input, &output);
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }
 
     colDataAppend(pOutputData, i, output, false);
+
+    if (output) {
+      taosMemoryFree(output);
+      output = NULL;
+    }
   }
 
   pOutput->numOfRows = pInput->numOfRows;
 
 _exit:
-  if (output) {
-    taosMemoryFree(output);
-  }
-  if (writer) {
-    GEOSWKBWriter_destroy_r(handle, writer);
-  }
-  if (reader) {
-    GEOSWKTReader_destroy_r(handle, reader);
-  }
-  GEOS_finish_r(handle);
+  cleanGeomFromText(&context);
 
   return code;
 }
@@ -171,30 +177,32 @@ int32_t asTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   GEOSContextHandle_t handle = GEOS_init_r();
-  GEOSWKBReader *reader = 0;
-  GEOSWKTWriter *writer = 0;
-  char *output = 0;
+  GEOSWKBReader *reader = NULL;
+  GEOSWKTWriter *writer = NULL;
+  unsigned char *output = NULL;
 
   reader = GEOSWKBReader_create_r(handle);
-  if (reader == 0) {
+  if (reader == NULL) {
     goto _exit;
   }
   writer = GEOSWKTWriter_create_r(handle);
-  if (writer == 0) {
+  if (writer == NULL) {
     goto _exit;
   }
-  output = taosMemoryCalloc(TSDB_MAX_BINARY_LEN, 1);
-  if (output == 0) {
+  output = taosMemoryCalloc(1, TSDB_MAX_BINARY_LEN);
+  if (output == NULL) {
+    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _exit;
   }
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
       colDataAppendNULL(pOutputData, i);
+      code = TSDB_CODE_SUCCESS;
       continue;
     }
 
-    char *input = colDataGetData(pInputData, i);
+    unsigned char *input = colDataGetData(pInputData, i);
     code = asText(handle, reader, writer, input, output);
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
@@ -233,15 +241,16 @@ int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   }
 
   GEOSContextHandle_t handle = GEOS_init_r();
-  GEOSWKBWriter *writer = 0;
-  char *output = 0;
+  GEOSWKBWriter *writer = NULL;
+  unsigned char *output = NULL;
 
   writer = GEOSWKBWriter_create_r(handle);
-  if (writer == 0) {
+  if (writer == NULL) {
     goto _exit;
   }
-  output = taosMemoryCalloc(TSDB_MAX_GEOMETRY_LEN, 1);
-  if (output == 0) {
+  output = taosMemoryCalloc(1, TSDB_MAX_GEOMETRY_LEN);
+  if (output == NULL) {
+    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _exit;
   }
 
@@ -255,6 +264,7 @@ int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
           colDataIsNull_s(pInputData[1], i) ||
           hasNullType) {
         colDataAppendNULL(pOutputData, i);
+        code = TSDB_CODE_SUCCESS;
         continue;
       }
 
@@ -267,10 +277,12 @@ int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   } else if (pInput[0].numOfRows == 1) { //left operand is constant
     if (colDataIsNull_s(pInputData[0], 0) || hasNullType) {
       colDataAppendNNULL(pOutputData, 0, pInput[1].numOfRows);
+      code = TSDB_CODE_SUCCESS;
     } else {
       for (int32_t i = 0; i < numOfRows; ++i) {
         if (colDataIsNull_s(pInputData[1], i)) {
           colDataAppendNULL(pOutputData, i);
+          code = TSDB_CODE_SUCCESS;
           continue;
         }
 
@@ -284,10 +296,12 @@ int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   } else if (pInput[1].numOfRows == 1) {
     if (colDataIsNull_s(pInputData[1], 0) || hasNullType) {
       colDataAppendNNULL(pOutputData, 0, pInput[0].numOfRows);
+      code = TSDB_CODE_SUCCESS;
     } else {
       for (int32_t i = 0; i < numOfRows; ++i) {
         if (colDataIsNull_s(pInputData[0], i)) {
           colDataAppendNULL(pOutputData, i);
+          code = TSDB_CODE_SUCCESS;
           continue;
         }
 
