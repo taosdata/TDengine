@@ -31,7 +31,7 @@ The TDengine Knowledge Map covers the various knowledge points of TDengine, reve
 </center>
 </figure>
 
-### Join TDengine Community
+## Join TDengine Community
 
 <table width="100%">
 <tr align="center" style={{border:0}}>
