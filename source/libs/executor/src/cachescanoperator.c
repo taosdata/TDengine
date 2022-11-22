@@ -246,6 +246,7 @@ void destroyLastrowScanOperator(void* param) {
     pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
   }
 
+  cleanupExprSupp(&pInfo->pseudoExprSup);
   taosMemoryFreeClear(param);
 }
 
