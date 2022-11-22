@@ -227,6 +227,10 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, S
     }
   }
 
+  if (pColList->cols[0].valStat == VAL_STAT_NONE) {
+    return buildInvalidOperationMsg(&pCxt->msg, "primary timestamp column can not be null");
+  }
+
   pColList->orderStatus = isOrdered ? ORDER_STATUS_ORDERED : ORDER_STATUS_DISORDERED;
 
   if (!isOrdered) {
