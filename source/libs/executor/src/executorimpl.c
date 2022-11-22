@@ -2056,6 +2056,8 @@ void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
     for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
       if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_COLUMN) {
         taosMemoryFreeClear(pExprInfo->base.pParam[j].pCol);
+      } else if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_VALUE) {
+        taosVariantDestroy(&pExprInfo->base.pParam[j].param);
       }
     }
 

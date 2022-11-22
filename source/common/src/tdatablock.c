@@ -1962,6 +1962,7 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
           memset(pBuf, 0, sizeof(pBuf));
           char*   pData = colDataGetVarData(pColInfoData, j);
           int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
+          dataSize = TMIN(dataSize, 50);
           memcpy(pBuf, varDataVal(pData), dataSize);
           len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) return dumpBuf;
