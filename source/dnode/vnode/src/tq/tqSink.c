@@ -25,6 +25,8 @@ int32_t tqBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
   SColumnInfoData* pGidCol = taosArrayGet(pDataBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pTbNameCol = taosArrayGet(pDataBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
 
+
+
   tqDebug("stream delete msg: row %d", totRow);
 
   for (int32_t row = 0; row < totRow; row++) {
@@ -236,6 +238,7 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
     SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
     if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
       pDeleteReq->suid = suid;
+      pDeleteReq->deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
       tqBuildDeleteReq(pVnode, stbFullName, pDataBlock, pDeleteReq);
       continue;
     }
