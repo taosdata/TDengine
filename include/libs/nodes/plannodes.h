@@ -315,7 +315,6 @@ typedef struct SScanPhysiNode {
 
 typedef SScanPhysiNode STagScanPhysiNode;
 typedef SScanPhysiNode SBlockDistScanPhysiNode;
-typedef SScanPhysiNode STableCountScanPhysiNode;
 
 typedef struct SLastRowScanPhysiNode {
   SScanPhysiNode scan;
@@ -323,6 +322,8 @@ typedef struct SLastRowScanPhysiNode {
   bool           groupSort;
   bool           ignoreNull;
 } SLastRowScanPhysiNode;
+
+typedef SLastRowScanPhysiNode STableCountScanPhysiNode;
 
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;

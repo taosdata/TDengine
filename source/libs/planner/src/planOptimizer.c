@@ -2461,15 +2461,49 @@ typedef struct STbCntScanOptInfo {
   SName           table;
 } STbCntScanOptInfo;
 
-static bool tbCntScanOptIsEligibleAgg(SAggLogicNode* pAgg) {
-  if (1 != LIST_LENGTH(pAgg->pAggFuncs) || NULL != pAgg->pGroupKeys) {
+static bool tbCntScanOptIsEligibleGroupKeys(SNodeList* pGroupKeys) {
+  if (NULL == pGroupKeys) {
+    return true;
+  }
+
+  SNode* pGroupKey = NULL;
+  FOREACH(pGroupKey, pGroupKeys) {
+    SNode* pKey = nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0);
+    if (QUERY_NODE_COLUMN != nodeType(pKey)) {
+      return false;
+    }
+    SColumnNode* pCol = (SColumnNode*)pKey;
+    if (0 != strcmp(pCol->colName, "db_name") && 0 != strcmp(pCol->colName, "stable_name")) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool tbCntScanOptNotNullableExpr(SNode* pNode) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
     return false;
   }
-  SFunctionNode* pFunc = (SFunctionNode*)nodesListGetNode(pAgg->pAggFuncs, 0);
-  if (FUNCTION_TYPE_COUNT != pFunc->funcType) {
-    return false;
+  const char* pColName = ((SColumnNode*)pNode)->colName;
+  return 0 == strcmp(pColName, "*") || 0 == strcmp(pColName, "db_name") || 0 == strcmp(pColName, "stable_name") ||
+         0 == strcmp(pColName, "table_name");
+}
+
+static bool tbCntScanOptIsEligibleAggFuncs(SNodeList* pAggFuncs) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pAggFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)nodesListGetNode(pAggFuncs, 0);
+    if (FUNCTION_TYPE_COUNT != pFunc->funcType ||
+        !tbCntScanOptNotNullableExpr(nodesListGetNode(pFunc->pParameterList, 0))) {
+      return false;
+    }
   }
   return true;
+}
+
+static bool tbCntScanOptIsEligibleAgg(SAggLogicNode* pAgg) {
+  return tbCntScanOptIsEligibleGroupKeys(pAgg->pGroupKeys) && tbCntScanOptIsEligibleAggFuncs(pAgg->pAggFuncs);
 }
 
 static bool tbCntScanOptGetColValFromCond(SOperatorNode* pOper, SColumnNode** pCol, SValueNode** pVal) {
@@ -2578,17 +2612,25 @@ static SNode* tbCntScanOptCreateTableCountFunc() {
   return (SNode*)pFunc;
 }
 
-static int32_t tbCntScanOptRewriteScan(STbCntScanOptInfo* pInfo, SScanLogicNode* pScan) {
-  pScan->scanType = SCAN_TYPE_TABLE_COUNT;
-  strcpy(pScan->tableName.dbname, pInfo->table.dbname);
-  strcpy(pScan->tableName.tname, pInfo->table.tname);
-  NODES_DESTORY_LIST(pScan->node.pTargets);
-  NODES_DESTORY_NODE(pScan->node.pConditions);
-  NODES_DESTORY_LIST(pScan->pScanCols);
-  NODES_DESTORY_LIST(pScan->pScanPseudoCols);
-  int32_t code = nodesListMakeStrictAppend(&pScan->pScanPseudoCols, tbCntScanOptCreateTableCountFunc());
+static int32_t tbCntScanOptRewriteScan(STbCntScanOptInfo* pInfo) {
+  pInfo->pScan->scanType = SCAN_TYPE_TABLE_COUNT;
+  strcpy(pInfo->pScan->tableName.dbname, pInfo->table.dbname);
+  strcpy(pInfo->pScan->tableName.tname, pInfo->table.tname);
+  NODES_DESTORY_LIST(pInfo->pScan->node.pTargets);
+  NODES_DESTORY_NODE(pInfo->pScan->node.pConditions);
+  NODES_DESTORY_LIST(pInfo->pScan->pScanCols);
+  NODES_DESTORY_LIST(pInfo->pScan->pScanPseudoCols);
+  int32_t code = nodesListMakeStrictAppend(&pInfo->pScan->pScanPseudoCols, tbCntScanOptCreateTableCountFunc());
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExpr(nodesListGetNode(pScan->pScanPseudoCols, 0), &pScan->node.pTargets);
+    code = createColumnByRewriteExpr(nodesListGetNode(pInfo->pScan->pScanPseudoCols, 0), &pInfo->pScan->node.pTargets);
+  }
+  SNode* pGroupKey = NULL;
+  FOREACH(pGroupKey, pInfo->pAgg->pGroupKeys) {
+    code = nodesListMakeStrictAppend(
+        &pInfo->pScan->pGroupTags, nodesCloneNode(nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0)));
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
   }
   return code;
 }
@@ -2621,6 +2663,7 @@ static int32_t tbCntScanOptRewriteAgg(SAggLogicNode* pAgg) {
     NODES_DESTORY_LIST(pAgg->pAggFuncs);
     code = nodesListMakeStrictAppend(&pAgg->pAggFuncs, pSum);
   }
+  NODES_DESTORY_LIST(pAgg->pGroupKeys);
   return code;
 }
 
@@ -2630,7 +2673,7 @@ static int32_t tableCountScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLo
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t code = tbCntScanOptRewriteScan(&info, info.pScan);
+  int32_t code = tbCntScanOptRewriteScan(&info);
   if (TSDB_CODE_SUCCESS == code) {
     code = tbCntScanOptRewriteAgg(info.pAgg);
   }
