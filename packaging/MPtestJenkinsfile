@@ -285,9 +285,8 @@ pipeline {
                     steps {
                         timeout(time: 30, unit: 'MINUTES'){
                             sh '''
-                            verModeList=community
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -f server -m ${verModeSin} -f client  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
+                            bash testpackage.sh -f server -m community -f client  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
                             python3 checkPackageRuning.py  192.168.0.24
                             '''         
                         }
