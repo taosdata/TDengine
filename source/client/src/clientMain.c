@@ -1106,6 +1106,8 @@ int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId
     return terrno;
   }
 
+  pRequest->syncQuery = true;
+
   STscObj  *pTscObj = pRequest->pTscObj;
   SCatalog *pCtg = NULL;
   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCtg);
