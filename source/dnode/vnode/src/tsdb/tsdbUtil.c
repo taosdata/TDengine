@@ -101,6 +101,30 @@ void tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t 
   tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem);
 }
 
+int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItemFn)(uint8_t *, void *),
+                        SArray **ppArray) {
+  int32_t code = 0;
+
+  SArray *pArray = taosArrayInit(pMapData->nItem, itemSize);
+  if (pArray == NULL) {
+    code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < pMapData->nItem; i++) {
+    tMapDataGetItemByIdx(pMapData, i, taosArrayReserve(pArray, 1), tGetItemFn);
+  }
+
+_exit:
+  if (code) {
+    *ppArray = NULL;
+    if (pArray) taosArrayDestroy(pArray);
+  } else {
+    *ppArray = pArray;
+  }
+  return code;
+}
+
 int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
   int32_t n = 0;
 
