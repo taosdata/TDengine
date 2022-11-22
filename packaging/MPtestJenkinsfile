@@ -274,9 +274,8 @@ pipeline {
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
                                 bash testpackage.sh -f server -m ${verModeSin} -f client  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
-                                python3 checkPackageRuning.py
+                                python3 checkPackageRuning.py 192.168.0.21
                             done 
-                            python3 checkPackageRuning.py  192.168.0.21
                             '''
                         }
                     }
@@ -289,7 +288,6 @@ pipeline {
                             verModeList=community
                             cd ${TDENGINE_ROOT_DIR}/packaging
                             bash testpackage.sh -f server -m ${verModeSin} -f client  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
-                            python3 checkPackageRuning.py
                             python3 checkPackageRuning.py  192.168.0.24
                             '''         
                         }
@@ -310,9 +308,8 @@ pipeline {
                     do
                         cd ${TDENGINE_ROOT_DIR}/packaging
                         bash testpackage.sh -f server -m ${verModeSin} -f client  -l false -c arm64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
-                        python3 checkPackageRuning.py
+                        python3 checkPackageRuning.py 192.168.0.21
                     done 
-                    python3 checkPackageRuning.py  192.168.0.21
                     '''  
                 }
             }
