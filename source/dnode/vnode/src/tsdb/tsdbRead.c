@@ -695,39 +695,42 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
     tsdbReadDataBlk(pReader->pFileReader, pBlockIdx, &pScanInfo->mapData);
     taosArrayEnsureCap(pScanInfo->pBlockList, pScanInfo->mapData.nItem);
 
-    SDataBlk* p = taosMemoryMalloc(sizeof(SDataBlk) * pScanInfo->mapData.nItem);
-    for (int32_t k = 0; k < pScanInfo->mapData.nItem; k++) {
-      tMapDataGetItemByIdx(&pScanInfo->mapData, i, &p[k], tGetDataBlk);
-    }
+//    SDataBlk* p = taosMemoryMalloc(sizeof(SDataBlk) * pScanInfo->mapData.nItem);
+//    for (int32_t k = 0; k < pScanInfo->mapData.nItem; k++) {
+//      tMapDataGetItemByIdx(&pScanInfo->mapData, k, &p[k], tGetDataBlk);
+//    }
 
     sizeInDisk += pScanInfo->mapData.nData;
+    SDataBlk block = {0};
+
     for (int32_t j = 0; j < pScanInfo->mapData.nItem; ++j) {
-      SDataBlk* pBlock = &p[j];
+      tGetDataBlk(pScanInfo->mapData.pData + pScanInfo->mapData.aOffset[j], &block);
+//      SDataBlk* pBlock = &p[j];
 
       // 1. time range check
-      if (pBlock->minKey.ts > pReader->window.ekey || pBlock->maxKey.ts < pReader->window.skey) {
+      if (block.minKey.ts > pReader->window.ekey || block.maxKey.ts < pReader->window.skey) {
         continue;
       }
 
       // 2. version range check
-      if (pBlock->minVer > pReader->verRange.maxVer || pBlock->maxVer < pReader->verRange.minVer) {
+      if (block.minVer > pReader->verRange.maxVer || block.maxVer < pReader->verRange.minVer) {
         continue;
       }
 
-      SBlockIndex bIndex = {.ordinalIndex = j, .inFileOffset = pBlock->aSubBlock->offset};
-      bIndex.window = (STimeWindow){.skey = pBlock->minKey.ts, .ekey = pBlock->maxKey.ts};
+      SBlockIndex bIndex = {.ordinalIndex = j, .inFileOffset = block.aSubBlock->offset};
+      bIndex.window = (STimeWindow){.skey = block.minKey.ts, .ekey = block.maxKey.ts};
 
-      void* p = taosArrayPush(pScanInfo->pBlockList, &bIndex);
-      if (p == NULL) {
+      void* p1 = taosArrayPush(pScanInfo->pBlockList, &bIndex);
+      if (p1 == NULL) {
         tMapDataClear(&pScanInfo->mapData);
-        taosMemoryFree(p);
+//        taosMemoryFree(p);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
       pBlockNum->numOfBlocks += 1;
     }
 
-    taosMemoryFree(p);
+//    taosMemoryFree(p);
     if (pScanInfo->pBlockList != NULL && taosArrayGetSize(pScanInfo->pBlockList) > 0) {
       numOfQTable += 1;
     }
