@@ -349,7 +349,6 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
           .contLen = len + sizeof(SMsgHead),
       };
       if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
-        rpcFreeCont(serializedDeleteReq);
         tqDebug("failed to put delete req into write-queue since %s", terrstr());
       }
     } else {
@@ -541,7 +540,6 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       };
 
       if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
-        rpcFreeCont(ret);
         tqDebug("failed to put into write-queue since %s", terrstr());
       }
     }
