@@ -38,7 +38,7 @@ typedef struct {
 typedef struct SBlockIndex {
   int32_t     ordinalIndex;
   int64_t     inFileOffset;
-  STimeWindow window;
+  STimeWindow window;  // todo replace it with overlap flag.
 } SBlockIndex;
 
 typedef struct STableBlockScanInfo {
@@ -1440,6 +1440,7 @@ static int32_t setFileBlockActiveInBlockIter(SDataBlockIter* pBlockIter, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+// todo: this attribute could be acquired during extractin the global ordered block list.
 static bool overlapWithNeighborBlock(SDataBlk* pBlock, SBlockIndex* pNeighborBlockIndex, int32_t order) {
   // it is the last block in current file, no chance to overlap with neighbor blocks.
   if (ASCENDING_TRAVERSE(order)) {
