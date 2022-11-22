@@ -67,6 +67,9 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       if (pMsg->matchIndex > oldMatchIndex) {
         syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
         syncMaybeAdvanceCommitIndex(ths);
+
+        // maybe update minMatchIndex
+        ths->minMatchIndex = syncMinMatchIndex(ths);
       }
       syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), pMsg->matchIndex + 1);
 
