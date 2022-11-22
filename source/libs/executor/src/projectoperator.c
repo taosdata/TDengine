@@ -17,6 +17,24 @@
 #include "executorimpl.h"
 #include "functionMgt.h"
 
+typedef struct SProjectOperatorInfo {
+  SOptrBasicInfo binfo;
+  SAggSupporter  aggSup;
+  SArray*        pPseudoColInfo;
+  SLimitInfo     limitInfo;
+  bool           mergeDataBlocks;
+  SSDataBlock*   pFinalRes;
+} SProjectOperatorInfo;
+
+typedef struct SIndefOperatorInfo {
+  SOptrBasicInfo binfo;
+  SAggSupporter  aggSup;
+  SArray*        pPseudoColInfo;
+  SExprSupp      scalarSup;
+  uint64_t       groupId;
+  SSDataBlock*   pNextGroupRes;
+} SIndefOperatorInfo;
+
 static SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator);
 static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator);
 static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator);

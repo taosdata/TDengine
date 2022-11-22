@@ -41,6 +41,16 @@ typedef struct SFetchRspHandleWrapper {
   int32_t  sourceIndex;
 } SFetchRspHandleWrapper;
 
+typedef struct SSourceDataInfo {
+  int32_t            index;
+  SRetrieveTableRsp* pRsp;
+  uint64_t           totalRows;
+  int64_t            startTime;
+  int32_t            code;
+  EX_SOURCE_STATUS   status;
+  const char*        taskId;
+} SSourceDataInfo;
+
 static void destroyExchangeOperatorInfo(void* param);
 static void freeBlock(void* pParam);
 static void freeSourceDataInfo(void* param);
@@ -52,6 +62,7 @@ static int32_t getCompletedSources(const SArray* pArray);
 static int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator);
 static int32_t seqLoadRemoteData(SOperatorInfo* pOperator);
 static int32_t prepareLoadRemoteData(SOperatorInfo* pOperator);
+static int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, bool holdDataInBuf);
 
 static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo,
                                            SExecTaskInfo* pTaskInfo) {
@@ -646,4 +657,81 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   OPTR_SET_OPENED(pOperator);
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, bool holdDataInBuf) {
+  if (pLimitInfo->remainGroupOffset > 0) {
+    if (pLimitInfo->currentGroupId == 0) {  // it is the first group
+      pLimitInfo->currentGroupId = pBlock->info.groupId;
+      blockDataCleanup(pBlock);
+      return PROJECT_RETRIEVE_CONTINUE;
+    } else if (pLimitInfo->currentGroupId != pBlock->info.groupId) {
+      // now it is the data from a new group
+      pLimitInfo->remainGroupOffset -= 1;
+
+      // ignore data block in current group
+      if (pLimitInfo->remainGroupOffset > 0) {
+        blockDataCleanup(pBlock);
+        return PROJECT_RETRIEVE_CONTINUE;
+      }
+    }
+
+    // set current group id of the project operator
+    pLimitInfo->currentGroupId = pBlock->info.groupId;
+  }
+
+  // here check for a new group data, we need to handle the data of the previous group.
+  if (pLimitInfo->currentGroupId != 0 && pLimitInfo->currentGroupId != pBlock->info.groupId) {
+    pLimitInfo->numOfOutputGroups += 1;
+    if ((pLimitInfo->slimit.limit > 0) && (pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
+      pOperator->status = OP_EXEC_DONE;
+      blockDataCleanup(pBlock);
+
+      return PROJECT_RETRIEVE_DONE;
+    }
+
+    // reset the value for a new group data
+    pLimitInfo->numOfOutputRows = 0;
+    pLimitInfo->remainOffset = pLimitInfo->limit.offset;
+
+    // existing rows that belongs to previous group.
+    if (pBlock->info.rows > 0) {
+      return PROJECT_RETRIEVE_DONE;
+    }
+  }
+
+  // here we reach the start position, according to the limit/offset requirements.
+
+  // set current group id
+  pLimitInfo->currentGroupId = pBlock->info.groupId;
+
+  if (pLimitInfo->remainOffset >= pBlock->info.rows) {
+    pLimitInfo->remainOffset -= pBlock->info.rows;
+    blockDataCleanup(pBlock);
+    return PROJECT_RETRIEVE_CONTINUE;
+  } else if (pLimitInfo->remainOffset < pBlock->info.rows && pLimitInfo->remainOffset > 0) {
+    blockDataTrimFirstNRows(pBlock, pLimitInfo->remainOffset);
+    pLimitInfo->remainOffset = 0;
+  }
+
+  // check for the limitation in each group
+  if (pLimitInfo->limit.limit >= 0 && pLimitInfo->numOfOutputRows + pBlock->info.rows >= pLimitInfo->limit.limit) {
+    int32_t keepRows = (int32_t)(pLimitInfo->limit.limit - pLimitInfo->numOfOutputRows);
+    blockDataKeepFirstNRows(pBlock, keepRows);
+    if (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups) {
+      pOperator->status = OP_EXEC_DONE;
+    }
+
+    return PROJECT_RETRIEVE_DONE;
+  }
+
+  // todo optimize performance
+  // If there are slimit/soffset value exists, multi-round result can not be packed into one group, since the
+  // they may not belong to the same group the limit/offset value is not valid in this case.
+  if ((!holdDataInBuf) || (pBlock->info.rows >= pOperator->resultInfo.threshold) || pLimitInfo->slimit.offset != -1 ||
+      pLimitInfo->slimit.limit != -1) {
+    return PROJECT_RETRIEVE_DONE;
+  } else {  // not full enough, continue to accumulate the output data in the buffer.
+    return PROJECT_RETRIEVE_CONTINUE;
+  }
 }
