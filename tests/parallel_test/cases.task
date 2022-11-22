@@ -216,7 +216,7 @@
 ,,y,script,./test.sh -f tsim/stream/drop_stream.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic1.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic2.sim
-,,n,script,./test.sh -f tsim/stream/fillHistoryBasic3.sim
+,,y,script,./test.sh -f tsim/stream/fillHistoryBasic3.sim
 ,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeSession0.sim
@@ -227,7 +227,7 @@
 ,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby1.sim
-,,n,script,./test.sh -f tsim/stream/schedSnode.sim
+,,y,script,./test.sh -f tsim/stream/schedSnode.sim
 ,,y,script,./test.sh -f tsim/stream/windowClose.sim
 ,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
 ,,y,script,./test.sh -f tsim/stream/sliding.sim
@@ -800,7 +800,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/function_stateduration.py  -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/statecount.py  -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/tail.py  -Q 2
-,,,system-test,python3 ./test.py -f 2-query/ttl_comment.py  -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py  -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py  -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py  -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py  -Q 2
@@ -813,7 +813,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py  -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py  -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 2
-,,,system-test,python3 ./test.py -f 2-query/max_partition.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/last_row.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 2
@@ -860,8 +860,8 @@
 ,,,system-test,python3 ./test.py -f 2-query/json_tag.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -Q  3
-,,,system-test,python3 ./test.py -f 2-query/percentile.py -Q  3
-,,,system-test,python3 ./test.py -f 2-query/apercentile.py -Q  3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -Q  3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py -Q  3
@@ -874,7 +874,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tan.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arcsin.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arccos.py -Q  3
-,,,system-test,python3 ./test.py -f 2-query/arctan.py -Q  3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q  3
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery.py -Q 3
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_str.py -Q 3
@@ -893,11 +893,11 @@
 ,,,system-test,python3 ./test.py -f 2-query/function_stateduration.py -Q  3
 ,,,system-test,python3 ./test.py -f 2-query/statecount.py -Q  3
 ,,,system-test,python3 ./test.py -f 2-query/tail.py -Q  3
-,,,system-test,python3 ./test.py -f 2-query/ttl_comment.py -Q  3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py -Q  3
-,,,system-test,python3 ./test.py -f 2-query/distribute_agg_sum.py -Q  3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_sum.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_spread.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_apercentile.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_avg.py -Q  3
@@ -919,7 +919,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/rtrim.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py -Q  4
-,,,system-test,python3 ./test.py -f 2-query/upper.py -Q  4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/join2.py -Q  4
@@ -980,14 +980,14 @@
 ,,,system-test,python3 ./test.py -f 2-query/csum.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/sample.py -Q  4
-,,,system-test,python3 ./test.py -f 2-query/cast.py -Q  4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/function_diff.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/unique.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/function_stateduration.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/statecount.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/tail.py -Q  4
-,,,system-test,python3 ./test.py -f 2-query/ttl_comment.py -Q  4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py -Q  4
@@ -995,7 +995,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_spread.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_apercentile.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_avg.py -Q  4
-,,,system-test,python3 ./test.py -f 2-query/distribute_agg_stddev.py -Q  4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_stddev.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -Q  4
