@@ -236,6 +236,7 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
     SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
     if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
       pDeleteReq->suid = suid;
+      pDeleteReq->deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
       tqBuildDeleteReq(pVnode, stbFullName, pDataBlock, pDeleteReq);
       continue;
     }
