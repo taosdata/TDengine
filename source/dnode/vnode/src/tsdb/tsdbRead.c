@@ -695,13 +695,14 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
     tsdbReadDataBlk(pReader->pFileReader, pBlockIdx, &pScanInfo->mapData);
     taosArrayEnsureCap(pScanInfo->pBlockList, pScanInfo->mapData.nItem);
 
-    SArray* pList = NULL;
-    tMapDataToArray(&pScanInfo->mapData, sizeof(SDataBlk), tGetDataBlk, &pList);
+    SDataBlk* p = taosMemoryMalloc(sizeof(SDataBlk) * pScanInfo->mapData.nItem);
+    for (int32_t k = 0; k < pScanInfo->mapData.nItem; k++) {
+      tMapDataGetItemByIdx(&pScanInfo->mapData, i, &p[k], tGetDataBlk);
+    }
+
     sizeInDisk += pScanInfo->mapData.nData;
     for (int32_t j = 0; j < pScanInfo->mapData.nItem; ++j) {
-//      SDataBlk block = {0};
-//      tMapDataGetItemByIdx(&pScanInfo->mapData, j, &block, tGetDataBlk);
-      SDataBlk* pBlock = taosArrayGet(pList, j);
+      SDataBlk* pBlock = &p[j];
 
       // 1. time range check
       if (pBlock->minKey.ts > pReader->window.ekey || pBlock->maxKey.ts < pReader->window.skey) {
@@ -719,14 +720,14 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       void* p = taosArrayPush(pScanInfo->pBlockList, &bIndex);
       if (p == NULL) {
         tMapDataClear(&pScanInfo->mapData);
-        taosArrayDestroy(pList);
+        taosMemoryFree(p);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
       pBlockNum->numOfBlocks += 1;
     }
 
-    taosArrayDestroy(pList);
+    taosMemoryFree(p);
     if (pScanInfo->pBlockList != NULL && taosArrayGetSize(pScanInfo->pBlockList) > 0) {
       numOfQTable += 1;
     }
@@ -741,6 +742,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       "time:%.2f ms %s",
       numOfTables, pBlockNum->numOfBlocks, numOfQTable, pBlockNum->numOfLastFiles, sizeInDisk / 1000.0, el,
       pReader->idStr);
+
 
   pReader->cost.numOfBlocks += total;
   pReader->cost.headFileLoadTime += el;
