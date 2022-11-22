@@ -24,6 +24,8 @@ static double tlog2(double v, double base) {
     return a;
   } else if (isnan(b) || isinf(b)) {
     return b;
+  } else if (b == 0) {
+    return INFINITY;
   } else {
     return a / b;
   }
