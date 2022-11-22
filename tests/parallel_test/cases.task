@@ -465,8 +465,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py -R
-,,,system-test,python3 ./test.py -f 2-query/concat.py
-,,,system-test,python3 ./test.py -f 2-query/concat.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -R
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws.py
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws.py -R
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws2.py
@@ -739,7 +739,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/substr.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/union.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/union1.py -Q 2
-,,,system-test,python3 ./test.py -f 2-query/concat.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/concat2.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws2.py -Q 2
@@ -833,7 +833,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/substr.py -Q  3
 ,,,system-test,python3 ./test.py -f 2-query/union.py -Q  3
 ,,,system-test,python3 ./test.py -f 2-query/union1.py -Q  3
-,,,system-test,python3 ./test.py -f 2-query/concat.py -Q  3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -Q  3
 ,,,system-test,python3 ./test.py -f 2-query/concat2.py -Q  3
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws.py -Q  3
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws2.py -Q  3
@@ -926,7 +926,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/substr.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/union.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/union1.py -Q  4
-,,,system-test,python3 ./test.py -f 2-query/concat.py -Q  4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/concat2.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws.py -Q  4
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws2.py -Q  4
