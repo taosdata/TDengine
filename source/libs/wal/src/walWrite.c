@@ -324,12 +324,17 @@ int32_t walEndSnapshot(SWal *pWal) {
   // find files safe to delete
   SWalFileInfo *pInfo = taosArraySearch(pWal->fileInfoSet, &tmp, compareWalFileInfo, TD_LE);
   if (pInfo) {
+    SWalFileInfo *pLastFileInfo = taosArrayGetLast(pWal->fileInfoSet);
+    wDebug("vgId:%d, wal search found file info: first:%" PRId64 "last:%" PRId64, pWal->cfg.vgId, pInfo->firstVer,
+           pInfo->lastVer);
     if (ver >= pInfo->lastVer) {
-      //pInfo--;
       pInfo++;
+      wDebug("vgId:%d, wal remove advance one file: first:%" PRId64 "last:%" PRId64, pWal->cfg.vgId, pInfo->firstVer,
+             pInfo->lastVer);
     }
-    if (POINTER_DISTANCE(pInfo, pWal->fileInfoSet->pData) > 0) {
-      wDebug("vgId:%d, wal end remove for %" PRId64, pWal->cfg.vgId, pInfo->firstVer);
+    if (pInfo <= pLastFileInfo) {
+      wDebug("vgId:%d, wal end remove for first:%" PRId64 "last:%" PRId64, pWal->cfg.vgId, pInfo->firstVer,
+             pInfo->lastVer);
     } else {
       wDebug("vgId:%d, wal no remove", pWal->cfg.vgId);
     }
