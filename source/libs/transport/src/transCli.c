@@ -1406,24 +1406,33 @@ FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
   *dst = epset;
   return true;
 }
-bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp) {
+bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
   bool noDelay = true;
-  if (pResp->contLen == 0) {
-    if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
-      noDelay = false;
-    } else {
-      EPSET_FORWARD_INUSE(&pCtx->epSet);
+  if (hasEpSet == false) {
+    assert(pResp->contLen == 0);
+    if (pResp->contLen == 0) {
+      if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
+        noDelay = false;
+      } else {
+        EPSET_FORWARD_INUSE(&pCtx->epSet);
+      }
     }
   } else {
-    SEpSet epset;
-    if (tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epset) < 0) {
-      // invalid epset
-      EPSET_FORWARD_INUSE(&pCtx->epSet);
-    } else if (!transEpSetIsEqual(&pCtx->epSet, &epset)) {
-      noDelay = false;
+    SEpSet epSet;
+
+    assert(pResp->contLen == sizeof(epSet));
+    int32_t valid = tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
+    if (valid < 0) {
+      assert(0);
+    }
+    if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
+      tDebug("epset not equal, retry new epset");
+      pCtx->epSet = epSet;
     } else {
+      tDebug("epset equal, continue");
       EPSET_FORWARD_INUSE(&pCtx->epSet);
     }
+    noDelay = false;
   }
   return noDelay;
 }
@@ -1440,18 +1449,20 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   }
 
   bool noDelay = false;
+
   if (code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-    noDelay = cliResetEpset(pCtx, pResp);
+    noDelay = cliResetEpset(pCtx, pResp, false);
     transFreeMsg(pResp->pCont);
     transUnrefCliHandle(pConn);
   } else if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_INTERNAL_ERROR) {
-    noDelay = cliResetEpset(pCtx, pResp);
+    noDelay = cliResetEpset(pCtx, pResp, true);
     transFreeMsg(pResp->pCont);
     addConnToPool(pThrd->pool, pConn);
+  } else if (code == TSDB_CODE_SYN_RESTORING) {
+    noDelay = cliResetEpset(pCtx, pResp, false);
+    addConnToPool(pThrd->pool, pConn);
+    transFreeMsg(pResp->pCont);
   } else {
-    noDelay = cliResetEpset(pCtx, pResp);
-    addConnToPool(pThrd->pool, pConn);
-    transFreeMsg(pResp->pCont);
   }
 
   if (!pCtx->retryInit) {
