@@ -103,10 +103,66 @@ class TestStabilityScenario(TDCase):
             self.tdSql.query(f'select count(*) from {self.dbname}.{tbname}')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.range_count * 2)
 
+    def one_dnode_stop_work(self):
+        self.prepare_data()
+        for endpoint in self.dnodes_out_mnodes[1]:
+            if endpoint != self.dnodes_out_mnodes[1][-1]:
+                host = endpoint.split(":")[0]
+                port = endpoint.split(":")[1]
+                self.tdCom.drop_remote_ports(self._remote, host, [port], "OUTPUT", "tcp")
+        for tbname in [self.ctb_name, self.tb_name]:
+            self.tdSql.error(f'insert into {self.dbname}.{tbname} (ts, c1) values (now, 1);')
+            self.tdSql.error(f'select count(*) from {self.dbname}.{tbname};')
+        for endpoint in self.dnodes_out_mnodes[1]:
+            if endpoint == self.dnodes_out_mnodes[1][1]:
+                host = endpoint.split(":")[0]
+                port = endpoint.split(":")[1]
+                self.tdCom.accept_remote_ports(self._remote, host, [port], "OUTPUT", "tcp")
+        for tbname in [self.ctb_name, self.tb_name]:
+            self.tdSql.execute(f'insert into {self.dbname}.{tbname} (ts, c1) values (now, 1);')
+            self.tdSql.query(f'select count(*) from {self.dbname}.{tbname}')
+            self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.range_count + 1)
+
+    def two_dnode_restore_work(self):
+        self.prepare_data()
+        for endpoint in self.dnodes_out_mnodes[1]:
+            host = endpoint.split(":")[0]
+            port = endpoint.split(":")[1]
+            self.tdCom.drop_remote_ports(self._remote, host, [port], "OUTPUT", "tcp")
+        time.sleep(self.dnode_kill_time)
+        for tbname in [self.ctb_name, self.tb_name]:
+            self.tdSql.error(f'insert into {self.dbname}.{tbname} (ts, c1) values (now, 1);')
+            self.tdSql.error(f'select count(*) from {self.dbname}.{tbname};')
+        for endpoint in self.dnodes_out_mnodes[1]:
+            if endpoint != self.dnodes_out_mnodes[1][-1]:
+                host = endpoint.split(":")[0]
+                port = endpoint.split(":")[1]
+                self.tdCom.accept_remote_ports(self._remote, host, [port], "OUTPUT", "tcp")
+        time.sleep(self.dnode_kill_time)
+
+        for tbname in [self.ctb_name, self.tb_name]:
+            self.tdSql.execute(f'insert into {self.dbname}.{tbname} (ts, c1) values (now, 1);')
+            self.tdSql.query(f'select count(*) from {self.dbname}.{tbname}')
+            self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.range_count + 1)
+
+    def full_vnodes_create_drop(self):
+        last_dnode_id = self.dnodes_out_mnodes[0][-1]
+        dnode_list = self.taosd_setting["spec"]["dnodes"]
+        end_tag = 0
+        for dnode in dnode_list:
+            print(dnode)
+            if dnode["config"]["supportVnodes"] != 0 and end_tag == 0:
+                self.vgroups = dnode["config"]["supportVnodes"]
+                end_tag = 1
+        self.tdCom.createDb(dbname=self.dbname, vgroups=self.vgroups)
+        self.tdSql.error(f'drop dnode {last_dnode_id}')
+        self.tdSql.error(f'create dababase test_erro replica 3 vgroups 1')
 
     def run(self):
         self.loop_dnode_net_restore()
-        # self.stability_test()
+        self.one_dnode_stop_work()
+        self.two_dnode_restore_work()
+        self.full_vnodes_create_drop()
 
     def cleanup(self):
         pass
