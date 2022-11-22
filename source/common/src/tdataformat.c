@@ -708,11 +708,6 @@ _exit:
   return &pIter->cv;
 }
 
-SColVal *tRowIterNextNotNone(SRowIter *pIter) {
-  // todo
-  return NULL;
-}
-
 // STSchema ========================================
 void tTSchemaDestroy(STSchema *pTSchema) {
   if (pTSchema) taosMemoryFree(pTSchema);
