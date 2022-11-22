@@ -1629,7 +1629,6 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq);
 int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq);
 void tFreeSSubQueryMsg(SSubQueryMsg *pReq);
 
-
 typedef struct {
   SMsgHead header;
   uint64_t sId;
@@ -1666,6 +1665,10 @@ typedef struct {
   uint64_t taskId;
   int32_t  execId;
 } SResFetchReq;
+
+int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq);
+int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq);
+
 
 typedef struct {
   SMsgHead header;
