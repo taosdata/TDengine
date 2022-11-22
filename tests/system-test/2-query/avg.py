@@ -114,16 +114,10 @@ class TDTestCase:
         avg_result = tdSql.getResult(origin_query)
         origin_result = tdSql.getResult(check_query)
 
-        check_status = True
+        tdSql.query(origin_query)
         for row_index , row in enumerate(avg_result):
             for col_index , elem in enumerate(row):
-                if avg_result[row_index][col_index] != origin_result[row_index][col_index]:
-                    check_status = False
-        if not check_status:
-            tdLog.notice("avg function value has not as expected , sql is \"%s\" "%origin_query )
-            sys.exit(1)
-        else:
-            tdLog.info("avg value check pass , it work as expected ,sql is \"%s\"   "%check_query )
+                tdSql.checkData(row_index,col_index,origin_result[row_index][col_index])
 
     def test_errors(self, dbname="db"):
         error_sql_lists = [
@@ -378,33 +372,33 @@ class TDTestCase:
         )
         tdSql.execute(f'create table {dbname}.sub1_bound using {dbname}.stb_bound tags ( 1 )')
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()-1s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-10s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()-1s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
-            )
-        tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
-            )
-
-        tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now(), 2147483645, 9223372036854775805, 32765, 125, 3.40E+37, 1.7e+307, True, 'binary_tb1', 'nchar_tb1', now() )"
-            )
-
-        tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now(), 2147483644, 9223372036854775804, 32764, 124, 3.40E+37, 1.7e+307, True, 'binary_tb1', 'nchar_tb1', now() )"
-            )
-
-        tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now(), -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-5s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
                 f"insert into {dbname}.sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+5s, 2147483645, 9223372036854775805, 32765, 125, 3.40E+37, 1.7e+307, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+10s, 2147483644, 9223372036854775804, 32764, 124, 3.40E+37, 1.7e+307, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+15s, -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+20s, 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
 
 
         tdSql.error(
-                f"insert into {dbname}.sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()+5s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         #self.check_avg(f"select avg(c1), avg(c2), avg(c3) , avg(c4), avg(c5) ,avg(c6) from {dbname}.sub1_bound " , f" select sum(c1)/count(c1), sum(c2)/count(c2) ,sum(c3)/count(c3), sum(c4)/count(c4), sum(c5)/count(c5) ,sum(c6)/count(c6) from {dbname}.sub1_bound ")
 

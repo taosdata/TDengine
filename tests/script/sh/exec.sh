@@ -11,6 +11,7 @@
 set +e
 #set -x
 
+unset LD_PRELOAD
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
 
@@ -80,7 +81,7 @@ LOG_DIR=$NODE_DIR/log
 DATA_DIR=$NODE_DIR/data
 MGMT_DIR=$NODE_DIR/data/mgmt
 TSDB_DIR=$NODE_DIR/data/tsdb
-ASAN_DIR=$SIM_DIR/tsim/asan
+ASAN_DIR=$SIM_DIR/asan
 TAOS_CFG=$NODE_DIR/cfg/taos.cfg
 
 echo ------------ $EXEC_OPTON $NODE_NAME
