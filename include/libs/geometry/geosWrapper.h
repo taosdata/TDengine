@@ -23,15 +23,26 @@ extern "C" {
 #include <stdint.h>
 #include <geos_c.h>
 
-typedef struct SGEOSGeomFromTextContext {
+typedef struct SGeosContext {
   GEOSContextHandle_t handle;
-  GEOSWKTReader *reader;
-  GEOSWKBWriter *writer;
-} SGEOSGeomFromTextContext;
 
-int32_t prepareGeomFromText(SGEOSGeomFromTextContext *context);
-int32_t doGeomFromText(SGEOSGeomFromTextContext *context, const char *inputWKT, unsigned char **outputGeom, size_t *size);
-void cleanGeomFromText(SGEOSGeomFromTextContext *context);
+  GEOSWKTReader *WKTReader;
+  GEOSWKTWriter *WKTWriter;
+
+  GEOSWKBReader *WKBReader;
+  GEOSWKBWriter *WKBWriter;
+} SGeosContext;
+
+void destroyGeosContext(SGeosContext *context);
+
+int32_t prepareGeomFromText(SGeosContext *context);
+int32_t doGeomFromText(SGeosContext *context, const char *inputWKT, unsigned char **outputGeom, size_t *size);
+
+int32_t prepareAsText(SGeosContext *context);
+int32_t doAsText(SGeosContext *context, const unsigned char *inputGeom, size_t size, char **outputWKT);
+
+int32_t prepareMakePoint(SGeosContext *context);
+int32_t doMakePoint(SGeosContext *context, double x, double y, unsigned char **outputGeom, size_t *size);
 
 #ifdef __cplusplus
 }

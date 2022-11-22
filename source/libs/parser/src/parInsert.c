@@ -69,7 +69,7 @@ typedef struct SInsertParseContext {
   SArray*            pVgDataBlocks;       // global
   SHashObj*          pTableNameHashObj;   // global
   SHashObj*          pDbFNameHashObj;     // global
-  SGEOSGeomFromTextContext geosCxt;
+  SGeosContext       geosCxt;
   int32_t            totalNum;
   SVnodeModifOpStmt* pOutput;
   SStmtCallback*     pStmtCb;
@@ -442,7 +442,7 @@ static int parseTime(char** end, SToken* pToken, int16_t timePrec, int64_t* time
 }
 
 // need to call GEOSFree_r(pGeosCxt->handle, output) later
-static int parseGeometry(SGEOSGeomFromTextContext *pGeosCxt, SToken *pToken, unsigned char **output, size_t *size) {
+static int parseGeometry(SGeosContext *pGeosCxt, SToken *pToken, unsigned char **output, size_t *size) {
   int32_t code = TSDB_CODE_FAILED;
 
   //[ToDo] support to parse WKB as well as WKT
@@ -506,7 +506,7 @@ static FORCE_INLINE int32_t toDouble(SToken* pToken, double* value, char** endPt
 }
 
 static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, char* tmpTokenBuf,
-                               _row_append_fn_t func, void* param, SGEOSGeomFromTextContext *pGeosCxt, SMsgBuf* pMsgBuf) {
+                               _row_append_fn_t func, void* param, SGeosContext *pGeosCxt, SMsgBuf* pMsgBuf) {
   int64_t  iv;
   uint64_t uv;
   char*    endptr = NULL;
@@ -1490,7 +1490,7 @@ static void destroyInsertParseContext(SInsertParseContext* pCxt) {
   destroyBlockHashmap(pCxt->pTableBlockHashObj);
   destroyBlockArrayList(pCxt->pVgDataBlocks);
 
-  cleanGeomFromText(&pCxt->geosCxt);
+  destroyGeosContext(&pCxt->geosCxt);
 }
 
 static int32_t parseTableName(SInsertParseContext* pCxt, SToken* pTbnameToken, SName* pName, char* pDbFName,
