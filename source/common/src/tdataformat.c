@@ -61,12 +61,39 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 #define KV_FLG_MID ((uint8_t)0x20)
 #define KV_FLG_BIG ((uint8_t)0x30)
 
+#define ROW_BIT_NONE  ((uint8_t)0x0)
+#define ROW_BIT_NULL  ((uint8_t)0x1)
+#define ROW_BIT_VALUE ((uint8_t)0x2)
+
 #pragma pack(push, 1)
 typedef struct {
   int16_t nCol;
   char    idx[];  // uint8_t * | uint16_t * | uint32_t *
 } SKVIdx;
 #pragma pack(pop)
+
+#define ROW_SET_BITMAP(PB, FLAG, IDX, VAL)        \
+  do {                                            \
+    if (PB) {                                     \
+      switch (FLAG) {                             \
+        case (HAS_NULL | HAS_NONE):               \
+          SET_BIT1(PB, IDX, VAL);                 \
+          break;                                  \
+        case (HAS_VALUE | HAS_NONE):              \
+          SET_BIT1(PB, IDX, (VAL) ? (VAL)-1 : 0); \
+          break;                                  \
+        case (HAS_VALUE | HAS_NULL):              \
+          SET_BIT1(PB, IDX, (VAL)-1);             \
+          break;                                  \
+        case (HAS_VALUE | HAS_NULL | HAS_NONE):   \
+          SET_BIT2(PB, IDX, VAL);                 \
+          break;                                  \
+        default:                                  \
+          ASSERT(0);                              \
+          break;                                  \
+      }                                           \
+    }                                             \
+  } while (0)
 
 int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
   int32_t code = 0;
@@ -208,7 +235,15 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
       if (pColVal) {
         if (pColVal->cid == pTColumn->colId) {
           if (COL_VAL_IS_VALUE(pColVal)) {
-            // offset = nv; todo
+            if (flag & KV_FLG_LIT) {
+              ((uint8_t *)pIdx->idx)[iIdx] = (uint8_t)nv;
+            } else if (flag & KV_FLG_MID) {
+              ((uint16_t *)pIdx->idx)[iIdx] = (uint16_t)nv;
+            } else {
+              ((uint32_t *)pIdx->idx)[iIdx] = (uint32_t)nv;
+            }
+            iIdx++;
+
             nv += tPutI16v(pv + nv, pTColumn->colId);
             if (IS_VAR_DATA_TYPE(pTColumn->type)) {
               nv += tPutU32v(pv + nv, pColVal->value.nData);
@@ -219,7 +254,14 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
               nv += pTColumn->bytes;
             }
           } else if (COL_VAL_IS_NULL(pColVal)) {
-            // offset = nv; todo
+            if (flag & KV_FLG_LIT) {
+              ((uint8_t *)pIdx->idx)[iIdx] = (uint8_t)nv;
+            } else if (flag & KV_FLG_MID) {
+              ((uint16_t *)pIdx->idx)[iIdx] = (uint16_t)nv;
+            } else {
+              ((uint32_t *)pIdx->idx)[iIdx] = (uint32_t)nv;
+            }
+            iIdx++;
             nv += tPutI16v(pv + nv, -pTColumn->colId);
           }
 
@@ -240,16 +282,36 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
     uint8_t *pv = NULL;
     int32_t  nv = 0;
 
-    if (flag == HAS_VALUE) {
-    } else if (flag == HAS_VALUE) {
+    switch (flag) {
+      case (HAS_NULL | HAS_NONE):
+        pb = pRow->data;
+        break;
+      case HAS_VALUE:
+        pf = pRow->data;
+        pv = pf + pTSchema->flen;
+        break;
+      case (HAS_VALUE | HAS_NONE):
+      case (HAS_VALUE | HAS_NULL):
+        pb = pRow->data;
+        pf = pb + BIT1_SIZE(pTSchema->numOfCols - 1);
+        pv = pf + pTSchema->flen;
+        break;
+      case (HAS_VALUE | HAS_NULL | HAS_NONE):
+        pb = pRow->data;
+        pf = pb + BIT2_SIZE(pTSchema->numOfCols - 1);
+        pv = pf + pTSchema->flen;
+        break;
+      default:
+        ASSERT(0);
+        break;
     }
 
     // build impl
     while (pTColumn) {
       if (pColVal) {
         if (pColVal->cid == pTColumn->colId) {
-          if (COL_VAL_IS_VALUE(pColVal)) {
-            // set bit map
+          if (COL_VAL_IS_VALUE(pColVal)) {  // VALUE
+            ROW_SET_BITMAP(pb, flag, iTColumn - 1, ROW_BIT_VALUE);
 
             if (IS_VAR_DATA_TYPE(pTColumn->type)) {
               *(int32_t *)(pf + pTColumn->offset) = nv;
@@ -261,21 +323,26 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
             } else {
               memcpy(pf + pTColumn->offset, &pColVal->value.val, TYPE_BYTES[pTColumn->type]);
             }
-          } else if (COL_VAL_IS_NONE(pColVal)) {
-            // set bitmap
-          } else {
-            // set bitmap
+          } else if (COL_VAL_IS_NONE(pColVal)) {  // NONE
+            ROW_SET_BITMAP(pb, flag, iTColumn - 1, ROW_BIT_NONE);
+            if (pf) memset(pf + pTColumn->offset, 0, TYPE_BYTES[pTColumn->type]);
+          } else {  // NULL
+            ROW_SET_BITMAP(pb, flag, iTColumn - 1, ROW_BIT_NULL);
+            if (pf) memset(pf + pTColumn->offset, 0, TYPE_BYTES[pTColumn->type]);
           }
 
           pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
           pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
         } else if (pColVal->cid > pTColumn->colId) {  // NONE
+          ROW_SET_BITMAP(pb, flag, iTColumn - 1, ROW_BIT_NONE);
+          if (pf) memset(pf + pTColumn->offset, 0, TYPE_BYTES[pTColumn->type]);
           pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
         } else {
           pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
         }
       } else {  // NONE
-        // set bitmap
+        ROW_SET_BITMAP(pb, flag, iTColumn - 1, ROW_BIT_NONE);
+        if (pf) memset(pf + pTColumn->offset, 0, TYPE_BYTES[pTColumn->type]);
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
       }
     }
