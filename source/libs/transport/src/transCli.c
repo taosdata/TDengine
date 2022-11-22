@@ -820,7 +820,7 @@ void cliSend(SCliConn* pConn) {
     uv_timer_start((uv_timer_t*)pConn->timer, cliReadTimeoutCb, TRANS_READ_TIMEOUT, 0);
   }
 
-  if (pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
+  if (pHead->comp == 0 && pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
     msgLen = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
     pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
   }
