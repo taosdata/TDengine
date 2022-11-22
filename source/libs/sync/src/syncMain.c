@@ -243,7 +243,9 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
     goto _DEL_WAL;
 
   } else {
-    lastApplyIndex -= SYNC_VNODE_LOG_RETENTION;
+    if (pSyncNode->replicaNum > 1) {
+      lastApplyIndex -= SYNC_VNODE_LOG_RETENTION;
+    }
 
     SyncIndex beginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
     SyncIndex endIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
