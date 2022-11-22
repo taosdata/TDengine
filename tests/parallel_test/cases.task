@@ -572,7 +572,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py
-,,,system-test,python3 ./test.py -f 2-query/stateduration.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -R
 ,,,system-test,python3 ./test.py -f 2-query/substr.py
 ,,,system-test,python3 ./test.py -f 2-query/substr.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sum.py
@@ -601,8 +601,8 @@
 ,,,system-test,python3 ./test.py -f 2-query/ttl_comment.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py -R
-,,,system-test,python3 ./test.py -f 2-query/union.py
-,,,system-test,python3 ./test.py -f 2-query/union.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union.py -R
 ,,,system-test,python3 ./test.py -f 2-query/unique.py
 ,,,system-test,python3 ./test.py -f 2-query/unique.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py
