@@ -348,7 +348,9 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   int32_t  code = scanPathOptMatch(pCxt, pLogicSubplan->pNode, &info);
   if (TSDB_CODE_SUCCESS == code && info.pScan) {
     scanPathOptSetScanWin(info.pScan);
-    scanPathOptSetScanOrder(info.scanOrder, info.pScan);
+    if (!pCxt->pPlanCxt->streamQuery) {
+      scanPathOptSetScanOrder(info.scanOrder, info.pScan);
+    }
   }
   if (TSDB_CODE_SUCCESS == code && (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs)) {
     info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
@@ -833,6 +835,7 @@ static int32_t partitionAggCondConj(SAggLogicNode* pAgg, SNode** ppAggFuncCond, 
     nodesDestroyNode(pTempAggFuncCond);
     nodesDestroyNode(pTempGroupKeyCond);
   }
+  nodesDestroyNode(pAgg->node.pConditions);
   pAgg->node.pConditions = NULL;
   return code;
 }
@@ -853,8 +856,7 @@ static int32_t partitionAggCond(SAggLogicNode* pAgg, SNode** ppAggFunCond, SNode
 }
 
 static int32_t pushCondToAggCond(SOptimizeContext* pCxt, SAggLogicNode* pAgg, SNode** pAggFuncCond) {
-  pushDownCondOptAppendCond(&pAgg->node.pConditions, pAggFuncCond);
-  return TSDB_CODE_SUCCESS;
+  return pushDownCondOptAppendCond(&pAgg->node.pConditions, pAggFuncCond);
 }
 
 typedef struct SRewriteAggGroupKeyCondContext {

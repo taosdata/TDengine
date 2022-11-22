@@ -51,6 +51,7 @@ void streamSchedByTimer(void* param, void* tmrId) {
   SStreamTask* pTask = (void*)param;
 
   if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+    streamMetaReleaseTask(NULL, pTask);
     return;
   }
 
@@ -80,6 +81,8 @@ void streamSchedByTimer(void* param, void* tmrId) {
 
 int32_t streamSetupTrigger(SStreamTask* pTask) {
   if (pTask->triggerParam != 0) {
+    int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
+    ASSERT(ref == 2);
     pTask->timer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer);
     pTask->triggerStatus = TASK_TRIGGER_STATUS__INACTIVE;
   }
@@ -239,43 +242,6 @@ int32_t streamProcessRunReq(SStreamTask* pTask) {
   }
   return 0;
 }
-
-#if 0
-int32_t streamProcessRecoverReq(SStreamTask* pTask, SStreamTaskRecoverReq* pReq, SRpcMsg* pRsp) {
-  void* buf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamTaskRecoverRsp));
-  ((SMsgHead*)buf)->vgId = htonl(pReq->upstreamNodeId);
-
-  SStreamTaskRecoverRsp* pCont = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  pCont->inputStatus = pTask->inputStatus;
-  pCont->streamId = pTask->streamId;
-  pCont->reqTaskId = pTask->taskId;
-  pCont->rspTaskId = pReq->upstreamTaskId;
-
-  pRsp->pCont = buf;
-  pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamTaskRecoverRsp);
-  tmsgSendRsp(pRsp);
-  return 0;
-}
-
-int32_t streamProcessRecoverRsp(SStreamMeta* pMeta, SStreamTask* pTask, SStreamRecoverDownstreamRsp* pRsp) {
-  streamProcessRunReq(pTask);
-
-  if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
-    // scan data to recover
-    pTask->inputStatus = TASK_INPUT_STATUS__RECOVER;
-    pTask->taskStatus = TASK_STATUS__RECOVER_SELF;
-    qStreamPrepareRecover(pTask->exec.executor, pTask->startVer, pTask->recoverSnapVer);
-    if (streamPipelineExec(pTask, 100, true) < 0) {
-      return -1;
-    }
-  } else {
-    pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
-    pTask->taskStatus = TASK_STATUS__NORMAL;
-  }
-
-  return 0;
-}
-#endif
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pRsp) {
   qDebug("task %d receive retrieve req from node %d task %d", pTask->taskId, pReq->srcNodeId, pReq->srcTaskId);

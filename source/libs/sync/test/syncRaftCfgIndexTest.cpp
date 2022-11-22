@@ -1,10 +1,5 @@
 #include "syncRaftStore.h"
-//#include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncRaftCfg.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -60,7 +55,6 @@ void test1() {
   ASSERT(code == 0);
 
   SRaftCfgIndex* pRaftCfgIndex = raftCfgIndexOpen(pFile);
-  raftCfgIndexLog2((char*)"==test1==", pRaftCfgIndex);
 
   raftCfgIndexClose(pRaftCfgIndex);
 }
@@ -71,15 +65,11 @@ void test2() {
     raftCfgIndexAddConfigIndex(pRaftCfgIndex, i);
   }
   raftCfgIndexPersist(pRaftCfgIndex);
-
-  raftCfgIndexLog2((char*)"==test2==", pRaftCfgIndex);
   raftCfgIndexClose(pRaftCfgIndex);
 }
 
 void test3() {
   SRaftCfgIndex* pRaftCfgIndex = raftCfgIndexOpen(pFile);
-
-  raftCfgIndexLog2((char*)"==test3==", pRaftCfgIndex);
   raftCfgIndexClose(pRaftCfgIndex);
 }
 

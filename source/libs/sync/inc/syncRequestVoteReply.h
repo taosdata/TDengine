@@ -20,12 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "syncMessage.h"
-#include "taosdef.h"
 
 // TLA+ Spec
 // HandleRequestVoteResponse(i, j, m) ==
@@ -44,7 +39,7 @@ extern "C" {
 //    /\ Discard(m)
 //    /\ UNCHANGED <<serverVars, votedFor, leaderVars, logVars>>
 //
-int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, SyncRequestVoteReply* pMsg);
+int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pMsg);
 
 #ifdef __cplusplus
 }

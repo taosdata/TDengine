@@ -145,7 +145,6 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   pHead->contLen = ntohl(pHead->contLen);
   pHead->vgId = ntohl(pHead->vgId);
-  pHead->msgMask = ntohl(pHead->msgMask);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) {
@@ -156,12 +155,10 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   switch (qtype) {
     case QUERY_QUEUE:
-      if ((pMsg->msgType == TDMT_SCH_QUERY) && (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) && !TEST_SHOW_REWRITE_MASK(pHead->msgMask)) {
-        terrno = TSDB_CODE_GRANT_EXPIRED;
-        code = terrno;
-        dDebug("vgId:%d, msg:%p put into vnode-query queue failed since %s", pVnode->vgId, pMsg, terrstr(code));
+      code = vnodePreprocessQueryMsg(pVnode->pImpl, pMsg);
+      if (code) {
+        dError("vgId:%d, msg:%p preprocess query msg failed since %s", pVnode->vgId, pMsg, terrstr(code));
       } else {
-        vnodePreprocessQueryMsg(pVnode->pImpl, pMsg);
         dGTrace("vgId:%d, msg:%p put into vnode-query queue", pVnode->vgId, pMsg);
         taosWriteQitem(pVnode->pQueryQ, pMsg);
       }
@@ -290,7 +287,7 @@ int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
     vmReleaseVnode(pMgmt, pVnode);
   }
   if (size < 0) {
-    dError("vgId:%d, can't get size from queue since %s, qtype:%d", vgId, terrstr(), qtype);
+    dTrace("vgId:%d, can't get size from queue since %s, qtype:%d", vgId, terrstr(), qtype);
     size = 0;
   }
   return size;

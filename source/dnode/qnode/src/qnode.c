@@ -69,7 +69,7 @@ int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
     return 0;
   }
 
-  return qWorkerPreprocessQueryMsg(pQnode->pQuery, pMsg);
+  return qWorkerPreprocessQueryMsg(pQnode->pQuery, pMsg, false);
 }
 
 int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {

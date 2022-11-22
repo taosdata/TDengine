@@ -36,8 +36,9 @@ extern "C" {
 #define SYNC_DEL_WAL_MS              (1000 * 60)
 #define SYNC_ADD_QUORUM_COUNT        3
 #define SYNC_MNODE_LOG_RETENTION     10000
-#define SYNC_VNODE_LOG_RETENTION     100
+#define SYNC_VNODE_LOG_RETENTION     20
 #define SNAPSHOT_MAX_CLOCK_SKEW_MS   1000 * 10
+#define SNAPSHOT_WAIT_MS             1000 * 30
 
 #define SYNC_APPEND_ENTRIES_TIMEOUT_MS 10000
 
@@ -58,7 +59,6 @@ typedef int64_t  SyncIndex;
 typedef uint64_t SyncTerm;
 
 typedef struct SSyncNode      SSyncNode;
-typedef struct SSyncBuffer    SSyncBuffer;
 typedef struct SWal           SWal;
 typedef struct SSyncRaftEntry SSyncRaftEntry;
 
@@ -138,6 +138,8 @@ typedef struct SSyncFSM {
   void (*FpRestoreFinishCb)(const struct SSyncFSM* pFsm);
   void (*FpReConfigCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SReConfigCbMeta* pMeta);
   void (*FpLeaderTransferCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
+  bool (*FpApplyQueueEmptyCb)(const struct SSyncFSM* pFsm);
+  int32_t (*FpApplyQueueItems)(const struct SSyncFSM* pFsm);
 
   void (*FpBecomeLeaderCb)(const struct SSyncFSM* pFsm);
   void (*FpBecomeFollowerCb)(const struct SSyncFSM* pFsm);

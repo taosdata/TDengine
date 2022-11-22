@@ -282,7 +282,6 @@ class TDTestCase:
         tdSql.error("select udf1(num1) , irate(num1) from tb;")
         tdSql.error("select udf1(num1) , sum(num1) from tb;")
         tdSql.error("select udf1(num1) , stddev(num1) from tb;")
-        tdSql.error("select udf1(num1) , mode(num1) from tb;")
         tdSql.error("select udf1(num1) , HYPERLOGLOG(num1) from tb;")
         # stable
         tdSql.error("select udf1(c1) , count(c1) from stb1;")
@@ -291,7 +290,6 @@ class TDTestCase:
         tdSql.error("select udf1(c1) , irate(c1) from stb1;")
         tdSql.error("select udf1(c1) , sum(c1) from stb1;")
         tdSql.error("select udf1(c1) , stddev(c1) from stb1;")
-        tdSql.error("select udf1(c1) , mode(c1) from stb1;")
         tdSql.error("select udf1(c1) , HYPERLOGLOG(c1) from stb1;")
 
         # regular table with select functions

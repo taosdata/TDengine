@@ -39,8 +39,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   (*pRsp)->numOfRows = htonl(pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(numOfCols);
 
-  int32_t len = 0;
-  blockEncode(pBlock, (*pRsp)->data, &len, numOfCols, false);
+  int32_t len = blockEncode(pBlock, (*pRsp)->data, numOfCols);
   ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
 
   return TSDB_CODE_SUCCESS;
@@ -529,7 +528,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   }
 
-  varDataLen(buf2) = len;
+  varDataLen(buf2) = (len > 65535) ? 65535 : len;
 
   colDataAppend(pCol2, 0, buf2, false);
 

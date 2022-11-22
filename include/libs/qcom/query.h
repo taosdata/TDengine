@@ -57,6 +57,10 @@ typedef enum {
 #define QUERY_RSP_POLICY_DELAY 0
 #define QUERY_RSP_POLICY_QUICK 1
 
+#define QUERY_MSG_MASK_SHOW_REWRITE() (1 << 0)
+#define TEST_SHOW_REWRITE_MASK(m) (((m) & QUERY_MSG_MASK_SHOW_REWRITE()) != 0)
+
+
 typedef struct STableComInfo {
   uint8_t  numOfTags;     // the number of tags in schema
   uint8_t  precision;     // the number of precision
@@ -123,6 +127,7 @@ typedef struct SDBVgInfo {
   int16_t   hashSuffix;
   int8_t    hashMethod;
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
+  int64_t   stateTs;
   SHashObj* vgHash;      // key:vgId, value:SVgroupInfo
 } SDBVgInfo;
 
@@ -198,6 +203,8 @@ int32_t cleanupTaskQueue();
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
+
+void destroyAhandle(void* ahandle);
 
 int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo,
                                 bool persistHandle, void* ctx);

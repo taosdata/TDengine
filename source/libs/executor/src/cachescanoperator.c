@@ -93,16 +93,11 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
     p->pCtx = createSqlFunctionCtx(p->pExprInfo, p->numOfExprs, &p->rowEntryInfoOffset);
   }
 
-  pOperator->name = "LastrowScanOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
+  setOperatorInfo(pOperator, "CachedRowScanOperator", QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
 
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doScanCache, NULL, NULL, destroyLastrowScanOperator, NULL);
+      createOperatorFpSet(operatorDummyOpenFn, doScanCache, NULL, destroyLastrowScanOperator, NULL);
 
   pOperator->cost.openCost = 0;
   return pOperator;
@@ -126,7 +121,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
   uint64_t suid = tableListGetSuid(pTableList);
   int32_t  size = tableListGetSize(pTableList);
   if (size == 0) {
-    doSetOperatorCompleted(pOperator);
+    setOperatorCompleted(pOperator);
     return NULL;
   }
 
@@ -172,7 +167,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 
       SExprSupp* pSup = &pInfo->pseudoExprSup;
       int32_t code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pRes,
-                                            pRes->info.rows, GET_TASKID(pTaskInfo));
+                                            pRes->info.rows, GET_TASKID(pTaskInfo), NULL);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         return NULL;
@@ -182,7 +177,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       pInfo->indexOfBufferedRes += 1;
       return pRes;
     } else {
-      doSetOperatorCompleted(pOperator);
+      setOperatorCompleted(pOperator);
       return NULL;
     }
   } else {
@@ -213,7 +208,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         if (pInfo->pseudoExprSup.numOfExprs > 0) {
           SExprSupp* pSup = &pInfo->pseudoExprSup;
 
-          STableKeyInfo* pKeyInfo = &((STableKeyInfo*)pTableList)[0];
+          STableKeyInfo* pKeyInfo = &((STableKeyInfo*)pList)[0];
           pInfo->pRes->info.groupId = pKeyInfo->groupId;
 
           if (taosArrayGetSize(pInfo->pUidList) > 0) {
@@ -221,7 +216,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 
             pInfo->pRes->info.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, 0);
             code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes, pInfo->pRes->info.rows,
-                                          GET_TASKID(pTaskInfo));
+                                          GET_TASKID(pTaskInfo), NULL);
             if (code != TSDB_CODE_SUCCESS) {
               pTaskInfo->code = code;
               return NULL;
@@ -234,7 +229,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       }
     }
 
-    doSetOperatorCompleted(pOperator);
+    setOperatorCompleted(pOperator);
     return NULL;
   }
 }
@@ -251,6 +246,7 @@ void destroyLastrowScanOperator(void* param) {
     pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
   }
 
+  cleanupExprSupp(&pInfo->pseudoExprSup);
   taosMemoryFreeClear(param);
 }
 

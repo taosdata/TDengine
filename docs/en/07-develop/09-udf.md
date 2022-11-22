@@ -205,13 +205,13 @@ Additional functions are defined in `taosudf.h` to make it easier to work with t
 
 To use your user-defined function in TDengine, first compile it to a dynamically linked library (DLL).
 
-For example, the sample UDF `add_one.c` can be compiled into a DLL as follows:
+For example, the sample UDF `bit_and.c` can be compiled into a DLL as follows:
 
 ```bash
-gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
+gcc -g -O0 -fPIC -shared bit_and.c -o libbitand.so
 ```
 
-The generated DLL file `add_one.so` can now be used to implement your function. Note: GCC 7.5 or later is required.
+The generated DLL file `libbitand.so` can now be used to implement your function. Note: GCC 7.5 or later is required.
 
 ## Manage and Use User-Defined Functions
 After compiling your function into a DLL, you add it to TDengine. For more information, see [User-Defined Functions](../12-taos-sql/26-udf.md).

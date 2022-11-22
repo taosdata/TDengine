@@ -83,7 +83,7 @@ sql select diff(c1), diff(c2) from $tb
 sql select 2+diff(c1) from $tb
 sql select diff(c1+2) from $tb
 sql_error select diff(c1) from $tb where ts > 0 and ts < now + 100m interval(10m)
-sql select diff(c1) from $mt
+#sql select diff(c1) from $mt
 sql_error select diff(diff(c1)) from $tb
 sql_error select diff(c1) from m_di_tb1 where c2 like '2%'
 

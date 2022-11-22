@@ -169,7 +169,7 @@ int tdbPCacheAlter(SPCache *pCache, int32_t nPage) {
 
 SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn) {
   SPage *pPage;
-  i32    nRef;
+  i32    nRef = 0;
 
   tdbPCacheLock(pCache);
 
@@ -178,14 +178,17 @@ SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn) {
     nRef = tdbRefPage(pPage);
   }
 
-  ASSERT(pPage);
-
   tdbPCacheUnlock(pCache);
 
   // printf("thread %" PRId64 " fetch page %d pgno %d pPage %p nRef %d\n", taosGetSelfPthreadId(), pPage->id,
   //        TDB_PAGE_PGNO(pPage), pPage, nRef);
 
-  tdbDebug("pcache/fetch page %p/%d/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id, nRef);
+  if (pPage) {
+    tdbDebug("pcache/fetch page %p/%d/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id, nRef);
+  } else {
+    tdbDebug("pcache/fetch page %p", pPage);
+  }
+
   return pPage;
 }
 
@@ -266,7 +269,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   }
 
   // 4. Try a create new page
-  if (!pPage) {
+  if (!pPage && pTxn->xMalloc != NULL) {
     ret = tdbPageCreate(pCache->szPage, &pPage, pTxn->xMalloc, pTxn->xArg);
     if (ret < 0 || pPage == NULL) {
       // TODO

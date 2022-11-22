@@ -332,7 +332,7 @@ if $data11 != -1 then
 endi
 
 # fill_char_values_to_arithmetic_fields
-sql_error select sum(c1), avg(c2), max(c3), min(c4), avg(c4), count(c6), last(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c')
+sql select sum(c1), avg(c2), max(c3), min(c4), avg(c4), count(c6), last(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c')
 
 # fill_multiple_columns
 sql_error select _wstart, sum(c1), avg(c2), min(c3), max(c4), count(c6), first(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 99, 99, 99, 99, 99, abc, abc)
@@ -358,24 +358,24 @@ endi
 
 
 # fill_into_nonarithmetic_fieds
-sql_error select _wstart, first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 20000000, 20000000, 20000000)
+sql select _wstart, first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 20000000, 20000000, 20000000)
 
-sql_error select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1, 1, 1)
-sql_error select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1.1, 1.1, 1.1)
-sql_error select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1e1, 1e1, 1e1)
+sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1, 1, 1)
+sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1.1, 1.1, 1.1)
+sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1e1, 1e1, 1e1)
 sql select first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e', '1e1')
 # fill quoted values into bool column will throw error unless the value is 'true' or 'false' Note:2018-10-24
 # fill values into binary or nchar columns will be set to null automatically Note:2018-10-24
 sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e', '1e1','1e1')
-sql_error select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, true, true, true)
+sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, true, true, true)
 sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'true', 'true','true')
 
 
 # fill nonarithmetic values into arithmetic fields
 sql_error select count(*) where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, abc);
-sql_error select count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'true');
+sql select count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'true');
 
-sql_error select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e1');
+sql select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e1');
 
 sql select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1e1);
 if $rows != 9 then
@@ -385,7 +385,7 @@ if $data01 != 1 then
   return -1
 endi
 
-sql_error select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '10');
+sql select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '10');
 
 ## linear fill
 # feature currently switched off 2018/09/29
