@@ -324,24 +324,36 @@ int32_t walEndSnapshot(SWal *pWal) {
   // find files safe to delete
   SWalFileInfo *pInfo = taosArraySearch(pWal->fileInfoSet, &tmp, compareWalFileInfo, TD_LE);
   if (pInfo) {
+    SWalFileInfo *pLastFileInfo = taosArrayGetLast(pWal->fileInfoSet);
+    wDebug("vgId:%d, wal search found file info: first:%" PRId64 " last:%" PRId64, pWal->cfg.vgId, pInfo->firstVer,
+           pInfo->lastVer);
     if (ver >= pInfo->lastVer) {
-      //pInfo--;
       pInfo++;
+      wDebug("vgId:%d, wal remove advance one file: first:%" PRId64 " last:%" PRId64, pWal->cfg.vgId, pInfo->firstVer,
+             pInfo->lastVer);
     }
-    if (POINTER_DISTANCE(pInfo, pWal->fileInfoSet->pData) > 0) {
-      wDebug("vgId:%d, wal end remove for %" PRId64, pWal->cfg.vgId, pInfo->firstVer);
+    if (pInfo <= pLastFileInfo) {
+      wDebug("vgId:%d, wal end remove for first:%" PRId64 " last:%" PRId64, pWal->cfg.vgId, pInfo->firstVer,
+             pInfo->lastVer);
     } else {
       wDebug("vgId:%d, wal no remove", pWal->cfg.vgId);
     }
     // iterate files, until the searched result
     for (SWalFileInfo *iter = pWal->fileInfoSet->pData; iter < pInfo; iter++) {
-      if ((pWal->cfg.retentionSize != -1 && newTotSize > pWal->cfg.retentionSize) ||
-          (pWal->cfg.retentionPeriod != -1 && iter->closeTs + pWal->cfg.retentionPeriod > ts)) {
+      wDebug("vgId:%d, wal check remove file %" PRId64 "(file size %" PRId64 " close ts %" PRId64
+             "), new tot size %" PRId64,
+             pWal->cfg.vgId, iter->firstVer, iter->fileSize, iter->closeTs, newTotSize);
+      if (((pWal->cfg.retentionSize == 0) || (pWal->cfg.retentionSize != -1 && newTotSize > pWal->cfg.retentionSize)) ||
+          ((pWal->cfg.retentionPeriod == 0) ||
+           (pWal->cfg.retentionPeriod != -1 && iter->closeTs + pWal->cfg.retentionPeriod > ts))) {
         // delete according to file size or close time
+        wDebug("vgId:%d, check pass", pWal->cfg.vgId);
         deleteCnt++;
         newTotSize -= iter->fileSize;
       }
+      wDebug("vgId:%d, check not pass", pWal->cfg.vgId);
     }
+    wDebug("vgId:%d, wal should delete %d files", pWal->cfg.vgId, deleteCnt);
     int32_t actualDelete = 0;
     char    fnameStr[WAL_FILE_LEN];
     // remove file

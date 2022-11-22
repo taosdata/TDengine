@@ -1618,6 +1618,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   cleanupGroupResInfo(&pInfo->groupResInfo);
+  cleanupExprSupp(&pInfo->scalarSupp);
 
   taosMemoryFreeClear(param);
 }
@@ -5362,15 +5363,6 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
 
   pInfo->primaryTsIndex = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
-
-  if (pIntervalPhyNode->window.pExprs != NULL) {
-    int32_t    numOfScalar = 0;
-    SExprInfo* pScalarExprInfo = createExprInfo(pIntervalPhyNode->window.pExprs, NULL, &numOfScalar);
-    code = initExprSupp(&pInfo->scalarSupp, pScalarExprInfo, numOfScalar);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _error;
-    }
-  }
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   code = initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
