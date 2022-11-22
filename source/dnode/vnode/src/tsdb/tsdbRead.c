@@ -695,33 +695,38 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
     tsdbReadDataBlk(pReader->pFileReader, pBlockIdx, &pScanInfo->mapData);
     taosArrayEnsureCap(pScanInfo->pBlockList, pScanInfo->mapData.nItem);
 
+    SArray* pList = NULL;
+    tMapDataToArray(&pScanInfo->mapData, sizeof(SDataBlk), tGetDataBlk, &pList);
     sizeInDisk += pScanInfo->mapData.nData;
     for (int32_t j = 0; j < pScanInfo->mapData.nItem; ++j) {
-      SDataBlk block = {0};
-      tMapDataGetItemByIdx(&pScanInfo->mapData, j, &block, tGetDataBlk);
+//      SDataBlk block = {0};
+//      tMapDataGetItemByIdx(&pScanInfo->mapData, j, &block, tGetDataBlk);
+      SDataBlk* pBlock = taosArrayGet(pList, j);
 
       // 1. time range check
-      if (block.minKey.ts > pReader->window.ekey || block.maxKey.ts < pReader->window.skey) {
+      if (pBlock->minKey.ts > pReader->window.ekey || pBlock->maxKey.ts < pReader->window.skey) {
         continue;
       }
 
       // 2. version range check
-      if (block.minVer > pReader->verRange.maxVer || block.maxVer < pReader->verRange.minVer) {
+      if (pBlock->minVer > pReader->verRange.maxVer || pBlock->maxVer < pReader->verRange.minVer) {
         continue;
       }
 
-      SBlockIndex bIndex = {.ordinalIndex = j, .inFileOffset = block.aSubBlock->offset};
-      bIndex.window = (STimeWindow){.skey = block.minKey.ts, .ekey = block.maxKey.ts};
+      SBlockIndex bIndex = {.ordinalIndex = j, .inFileOffset = pBlock->aSubBlock->offset};
+      bIndex.window = (STimeWindow){.skey = pBlock->minKey.ts, .ekey = pBlock->maxKey.ts};
 
       void* p = taosArrayPush(pScanInfo->pBlockList, &bIndex);
       if (p == NULL) {
         tMapDataClear(&pScanInfo->mapData);
+        taosArrayDestroy(pList);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
       pBlockNum->numOfBlocks += 1;
     }
 
+    taosArrayDestroy(pList);
     if (pScanInfo->pBlockList != NULL && taosArrayGetSize(pScanInfo->pBlockList) > 0) {
       numOfQTable += 1;
     }
