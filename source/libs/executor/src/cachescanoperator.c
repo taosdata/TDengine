@@ -26,7 +26,7 @@
 #include "ttypes.h"
 
 static SSDataBlock* doScanCache(SOperatorInfo* pOperator);
-static void         destroyLastrowScanOperator(void* param);
+static void         destroyCacheScanOperator(void* param);
 static int32_t      extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds);
 static int32_t      removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pColMatchInfo);
 
@@ -97,14 +97,14 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
 
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doScanCache, NULL, destroyLastrowScanOperator, NULL);
+      createOperatorFpSet(operatorDummyOpenFn, doScanCache, NULL, destroyCacheScanOperator, NULL);
 
   pOperator->cost.openCost = 0;
   return pOperator;
 
   _error:
   pTaskInfo->code = code;
-  destroyLastrowScanOperator(pInfo);
+  destroyCacheScanOperator(pInfo);
   taosMemoryFree(pOperator);
   return NULL;
 }
@@ -157,9 +157,12 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         SColumnInfoData* pSrc = taosArrayGet(pInfo->pBufferredRes->pDataBlock, slotId);
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, slotId);
 
-        char* p = colDataGetData(pSrc, pInfo->indexOfBufferedRes);
-        bool  isNull = colDataIsNull_s(pSrc, pInfo->indexOfBufferedRes);
-        colDataAppend(pDst, 0, p, isNull);
+        if (colDataIsNull_s(pSrc, pInfo->indexOfBufferedRes)) {
+          colDataAppendNULL(pDst, 0);
+        } else {
+          char* p = colDataGetData(pSrc, pInfo->indexOfBufferedRes);
+          colDataAppend(pDst, 0, p, false);
+        }
       }
 
       pRes->info.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, pInfo->indexOfBufferedRes);
@@ -226,6 +229,8 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 
         pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
         return pInfo->pRes;
+      } else {
+        pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
       }
     }
 
@@ -234,7 +239,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
   }
 }
 
-void destroyLastrowScanOperator(void* param) {
+void destroyCacheScanOperator(void* param) {
   SLastrowScanInfo* pInfo = (SLastrowScanInfo*)param;
   blockDataDestroy(pInfo->pRes);
   blockDataDestroy(pInfo->pBufferredRes);
@@ -246,6 +251,7 @@ void destroyLastrowScanOperator(void* param) {
     pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
   }
 
+  cleanupExprSupp(&pInfo->pseudoExprSup);
   taosMemoryFreeClear(param);
 }
 

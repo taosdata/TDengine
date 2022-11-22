@@ -116,6 +116,7 @@ class TDDnode:
         self.deployed = 0
         self.testCluster = False
         self.valgrind = 0
+        self.asan = False
         self.remoteIP = ""
         self.cfgDict = {
             "monitor": "0",
@@ -157,6 +158,15 @@ class TDDnode:
 
     def setValgrind(self, value):
         self.valgrind = value
+
+    def setAsan(self, value):
+        self.asan = value
+        if value:
+            selfPath = os.path.dirname(os.path.realpath(__file__))
+            if ("community" in selfPath):
+                self.execPath = os.path.abspath(self.path + "/community/tests/script/sh/exec.sh")        
+            else:
+                self.execPath = os.path.abspath(self.path + "/tests/script/sh/exec.sh")        
 
     def getDataSize(self):
         totalSize = 0
@@ -383,8 +393,14 @@ class TDDnode:
                 cmd = "mintty -h never %s -c %s" % (
                     binPath, self.cfgDir)
             else:
-                cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
-                    binPath, self.cfgDir)
+                if self.asan:
+                    asanDir = "%s/sim/asan/dnode%d.asan" % (
+                        self.path, self.index)
+                    cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
+                        binPath, self.cfgDir, asanDir)
+                else:
+                    cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
+                        binPath, self.cfgDir)
         else:
             valgrindCmdline = "valgrind --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
 
@@ -444,8 +460,14 @@ class TDDnode:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
 
         if self.valgrind == 0:
-            cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
-                binPath, self.cfgDir)
+            if self.asan:
+               asanDir = "%s/sim/asan/dnode%d.asan" % (
+                   self.path, self.index)
+               cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
+                   binPath, self.cfgDir, asanDir)
+            else:
+                cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
+                    binPath, self.cfgDir)
         else:
             valgrindCmdline = "valgrind  --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
 
@@ -464,6 +486,12 @@ class TDDnode:
         tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
 
     def stop(self):
+        if self.asan:
+            stopCmd = "%s -s stop -n dnode%d" % (self.execPath, self.index)
+            tdLog.info("execute script: " + stopCmd)
+            os.system(stopCmd)
+            return
+
         if (not self.remoteIP == ""):
             self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].running=1\ntdDnodes.dnodes[%d].stop()"%(self.index-1,self.index-1))
             tdLog.info("stop dnode%d"%self.index)
@@ -501,6 +529,12 @@ class TDDnode:
 
 
     def stoptaosd(self):
+        if self.asan:
+            stopCmd = "%s -s stop -n dnode%d" % (self.execPath, self.index)
+            tdLog.info("execute script: " + stopCmd)
+            os.system(stopCmd)
+            return
+
         if (not self.remoteIP == ""):
             self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].running=1\ntdDnodes.dnodes[%d].stop()"%(self.index-1,self.index-1))
             tdLog.info("stop dnode%d"%self.index)
@@ -534,6 +568,13 @@ class TDDnode:
             tdLog.debug("dnode:%d is stopped by kill -INT" % (self.index))
 
     def forcestop(self):
+        if self.asan:
+            stopCmd = "%s -s stop -n dnode%d -x SIGKILL" + \
+                (self.execPath, self.index)
+            tdLog.info("execute script: " + stopCmd)
+            os.system(stopCmd)
+            return
+
         if (not self.remoteIP == ""):
             self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].running=1\ntdDnodes.dnodes[%d].forcestop()"%(self.index-1,self.index-1))
             return
@@ -606,6 +647,7 @@ class TDDnodes:
         self.simDeployed = False
         self.testCluster = False
         self.valgrind = 0
+        self.asan = False
         self.killValgrind = 1
 
     def init(self, path, remoteIP = ""):
@@ -629,6 +671,18 @@ class TDDnodes:
     def setValgrind(self, value):
         self.valgrind = value
 
+    def setAsan(self, value):
+        self.asan = value
+        if value:
+            selfPath = os.path.dirname(os.path.realpath(__file__))
+            if ("community" in selfPath):
+                self.stopDnodesPath = os.path.abspath(self.path + "/community/tests/script/sh/stop_dnodes.sh")
+                self.stopDnodesSigintPath = os.path.abspath(self.path + "/community/tests/script/sh/sigint_stop_dnodes.sh")
+            else:    
+                self.stopDnodesPath = os.path.abspath(self.path + "/tests/script/sh/stop_dnodes.sh")
+                self.stopDnodesSigintPath = os.path.abspath(self.path + "/tests/script/sh/sigint_stop_dnodes.sh")
+            tdLog.info("run in address sanitizer mode")
+
     def setKillValgrind(self, value):
         self.killValgrind = value
 
@@ -642,6 +696,7 @@ class TDDnodes:
         self.check(index)
         self.dnodes[index - 1].setTestCluster(self.testCluster)
         self.dnodes[index - 1].setValgrind(self.valgrind)
+        self.dnodes[index - 1].setAsan(self.asan)
         self.dnodes[index - 1].deploy(updatecfgDict)
 
     def cfg(self, index, option, value):
@@ -692,8 +747,22 @@ class TDDnodes:
         if index < 1 or index > 10:
             tdLog.exit("index:%d should on a scale of [1, 10]" % (index))
 
+    def StopAllSigint(self):
+        tdLog.info("stop all dnodes sigint")
+        if self.asan:
+            tdLog.info("execute script: %s" % self.stopDnodesSigintPath)
+            os.system(self.stopDnodesSigintPath)
+            tdLog.info("execute finished")
+            return
+
     def stopAll(self):
         tdLog.info("stop all dnodes")
+        if self.asan:
+            tdLog.info("execute script: %s" % self.stopDnodesPath)
+            os.system(self.stopDnodesPath)
+            tdLog.info("execute finished")
+            return
+
         if (not self.dnodes[0].remoteIP == ""):
             self.dnodes[0].remoteExec(self.dnodes[0].cfgDict, "for i in range(len(tdDnodes.dnodes)):\n    tdDnodes.dnodes[i].running=1\ntdDnodes.stopAll()")
             return

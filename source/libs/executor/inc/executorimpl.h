@@ -239,6 +239,7 @@ typedef struct SSourceDataInfo {
   int32_t            index;
   SRetrieveTableRsp* pRsp;
   uint64_t           totalRows;
+  int64_t            startTime;
   int32_t            code;
   EX_SOURCE_STATUS   status;
   const char*        taskId;
@@ -753,6 +754,23 @@ typedef struct SStreamPartitionOperatorInfo {
   SSDataBlock*          pDelRes;
 } SStreamPartitionOperatorInfo;
 
+typedef struct SStreamFillSupporter {
+  int32_t        type;  // fill type
+  SInterval      interval;
+  SResultRowData prev;
+  SResultRowData cur;
+  SResultRowData next;
+  SResultRowData nextNext;
+  SFillColInfo*  pAllColInfo;  // fill exprs and not fill exprs
+  SExprSupp      notFillExprSup;
+  int32_t        numOfAllCols;  // number of all exprs, including the tags columns
+  int32_t        numOfFillCols;
+  int32_t        numOfNotFillCols;
+  int32_t        rowSize;
+  SSHashObj*     pResMap;
+  bool           hasDelete;
+} SStreamFillSupporter;
+
 typedef struct SStreamFillOperatorInfo {
   SStreamFillSupporter* pFillSup;
   SSDataBlock*          pRes;
@@ -776,7 +794,6 @@ typedef struct STimeSliceOperatorInfo {
   SArray*              pPrevRow;     // SArray<SGroupValue>
   SArray*              pNextRow;     // SArray<SGroupValue>
   SArray*              pLinearInfo;  // SArray<SFillLinearInfo>
-  bool                 fillLastPoint;
   bool                 isPrevRowSet;
   bool                 isNextRowSet;
   int32_t              fillType;      // fill type

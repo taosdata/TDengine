@@ -243,6 +243,18 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
     goto _DEL_WAL;
 
   } else {
+    lastApplyIndex -= SYNC_VNODE_LOG_RETENTION;
+
+    SyncIndex beginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
+    SyncIndex endIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
+    bool      isEmpty = pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore);
+
+    if (isEmpty || !(lastApplyIndex >= beginIndex && lastApplyIndex <= endIndex)) {
+      sNTrace(pSyncNode, "new-snapshot-index:%" PRId64 ", empty:%d, do not delete wal", lastApplyIndex, isEmpty);
+      syncNodeRelease(pSyncNode);
+      return 0;
+    }
+
     // vnode
     if (pSyncNode->replicaNum > 1) {
       // multi replicas
@@ -300,26 +312,31 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
 _DEL_WAL:
 
   do {
-    SyncIndex snapshottingIndex = atomic_load_64(&pSyncNode->snapshottingIndex);
+    SSyncLogStoreData* pData = pSyncNode->pLogStore->data;
+    SyncIndex          snapshotVer = walGetSnapshotVer(pData->pWal);
+    SyncIndex          walCommitVer = walGetCommittedVer(pData->pWal);
+    SyncIndex          wallastVer = walGetLastVer(pData->pWal);
+    if (lastApplyIndex <= walCommitVer) {
+      SyncIndex snapshottingIndex = atomic_load_64(&pSyncNode->snapshottingIndex);
 
-    if (snapshottingIndex == SYNC_INDEX_INVALID) {
-      atomic_store_64(&pSyncNode->snapshottingIndex, lastApplyIndex);
-      pSyncNode->snapshottingTime = taosGetTimestampMs();
+      if (snapshottingIndex == SYNC_INDEX_INVALID) {
+        atomic_store_64(&pSyncNode->snapshottingIndex, lastApplyIndex);
+        pSyncNode->snapshottingTime = taosGetTimestampMs();
 
-      SSyncLogStoreData* pData = pSyncNode->pLogStore->data;
-      code = walBeginSnapshot(pData->pWal, lastApplyIndex);
-      if (code == 0) {
-        sNTrace(pSyncNode, "wal snapshot begin, index:%" PRId64 ", last apply index:%" PRId64,
-                pSyncNode->snapshottingIndex, lastApplyIndex);
+        code = walBeginSnapshot(pData->pWal, lastApplyIndex);
+        if (code == 0) {
+          sNTrace(pSyncNode, "wal snapshot begin, index:%" PRId64 ", last apply index:%" PRId64,
+                  pSyncNode->snapshottingIndex, lastApplyIndex);
+        } else {
+          sNError(pSyncNode, "wal snapshot begin error since:%s, index:%" PRId64 ", last apply index:%" PRId64,
+                  terrstr(terrno), pSyncNode->snapshottingIndex, lastApplyIndex);
+          atomic_store_64(&pSyncNode->snapshottingIndex, SYNC_INDEX_INVALID);
+        }
+
       } else {
-        sNError(pSyncNode, "wal snapshot begin error since:%s, index:%" PRId64 ", last apply index:%" PRId64,
-                terrstr(terrno), pSyncNode->snapshottingIndex, lastApplyIndex);
-        atomic_store_64(&pSyncNode->snapshottingIndex, SYNC_INDEX_INVALID);
+        sNTrace(pSyncNode, "snapshotting for %" PRId64 ", do not delete wal for new-snapshot-index:%" PRId64,
+                snapshottingIndex, lastApplyIndex);
       }
-
-    } else {
-      sNTrace(pSyncNode, "snapshotting for %" PRId64 ", do not delete wal for new-snapshot-index:%" PRId64,
-              snapshottingIndex, lastApplyIndex);
     }
   } while (0);
 
