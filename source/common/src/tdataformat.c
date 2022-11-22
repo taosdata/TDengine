@@ -377,15 +377,29 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
 
   if (pRow->flag & 0xf0) {  // KV Row
     SKVIdx  *pIdx = (SKVIdx *)pRow->data;
-    uint8_t *pv = pRow->data + sizeof(*pIdx) + sizeof(int32_t) * pIdx->nCol;
+    uint8_t *pv = NULL;
+    if (pRow->flag & KV_FLG_LIT) {
+      pv = pIdx->idx + pIdx->nCol;
+    } else if (pRow->flag & KV_FLG_MID) {
+      pv = pIdx->idx + (pIdx->nCol << 1);
+    } else {
+      pv = pIdx->idx + (pIdx->nCol << 2);
+    }
 
     int16_t lidx = 0;
     int16_t ridx = pIdx->nCol - 1;
     while (lidx <= ridx) {
       int16_t  mid = (lidx + ridx) >> 1;
-      uint8_t *pData = pv + pIdx->idx[mid];  // todo
-      int16_t  cid = 0;
+      uint8_t *pData = NULL;
+      if (pRow->flag & KV_FLG_LIT) {
+        pData = pv + ((uint8_t *)pIdx->idx)[mid];
+      } else if (pRow->flag & KV_FLG_MID) {
+        pData = pv + ((uint16_t *)pIdx->idx)[mid];
+      } else {
+        pData = pv + ((uint32_t *)pIdx->idx)[mid];
+      }
 
+      int16_t cid;
       pData += tGetI16v(pData, &cid);
 
       if (TABS(cid) == pTColumn->colId) {
