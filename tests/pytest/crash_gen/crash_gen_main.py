@@ -1978,15 +1978,8 @@ class TdSuperTable:
     def drop(self, dbc, skipCheck = False):
         dbName = self._dbName
         if self.exists(dbc) : # if myself exists
-            fullTableName = dbName + '.' + self._stName 
-    
-            try:               
-                dbc.execute("DROP TABLE {}".format(fullTableName))
-            except taos.error.ProgrammingError as err:
-                    errno = Helper.convertErrno(err.errno)
-                    if errno in [1011,0x3F3,0x03f3,0x2662]: # table doesn't exist # Stream must be dropped first, SQL: DROP TABLE db_0.fs_table
-                        pass
-
+            fullTableName = dbName + '.' + self._stName        
+            dbc.execute("DROP TABLE {}".format(fullTableName))
         else:
             if not skipCheck:
                 raise CrashGenError("Cannot drop non-existant super table: {}".format(self._stName))
@@ -2004,16 +1997,9 @@ class TdSuperTable:
         fullTableName = dbName + '.' + self._stName     
 
         if dbc.existsSuperTable(self._stName):
-            if dropIfExists: 
-                try:            
-                    dbc.execute("DROP TABLE {}".format(fullTableName))
-                except taos.error.ProgrammingError as err:
-                    errno = Helper.convertErrno(err.errno)
-                    if errno in [1011,0x3F3,0x03f3,0x2662]: # table doesn't exist # Stream must be dropped first, SQL: DROP TABLE db_0.fs_table
-                        pass
-            
-                pass                     
-                        # dbc.execute("DROP TABLE {}".format(fullTableName))
+            if dropIfExists:            
+                dbc.execute("DROP TABLE {}".format(fullTableName))        
+                
             else: # error
                 raise CrashGenError("Cannot create super table, already exists: {}".format(self._stName))
 
@@ -2049,13 +2035,12 @@ class TdSuperTable:
             except TmqError as e :
                 pass
 
-            # consumer work  only 30 sec 
+            # consumer with random work life 
             time_start = time.time()
             while 1:
                 res = consumer.poll(1000)
-                if time.time() - time_start >5 :
+                if time.time() - time_start >random.randint(5,50) :
                     break
-            # time.sleep(10)
             try:
                 consumer.unsubscribe()
             except TmqError as e :
@@ -2435,11 +2420,15 @@ class TaskDropSuperTable(StateTransitionTask):
             for i in tblSeq:
                 regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)
                 try:
-
                     self.execWtSql(wt, "drop table {}.{}".
                         format(self._db.getName(), regTableName))  # nRows always 0, like MySQL
                 except taos.error.ProgrammingError as err:
-                    pass
+                    # correcting for strange error number scheme                    
+                    errno2 = Helper.convertErrno(err.errno)
+                    if (errno2 in [0x362]):  # mnode invalid table name
+                        isSuccess = False
+                        Logging.debug("[DB] Acceptable error when dropping a table")
+                    continue  # try to delete next regular table
                    
 
                 if (not tickOutput):
@@ -2957,6 +2946,8 @@ class ThreadStacks: # stack info for all threads
                 print("    {}".format(frame.line))
                 stackFrame += 1
             print("-----> End of Thread Info ----->\n")
+            if self.current_time-last_sql_commit_time >100:  # dead lock occured
+                print("maybe dead locked of thread {} ".format(shortTid))
 
 class ClientManager:
     def __init__(self):
