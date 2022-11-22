@@ -207,7 +207,7 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
   SSubmitReq     *pSubmitReq =
       tqBlockToSubmit(pSma->pVnode, (const SArray *)msg, pTsmaStat->pTSchema, &pTsmaStat->pTSma->schemaTag, true,
                       pTsmaStat->pTSma->dstTbUid, pTsmaStat->pTSma->dstTbName, &deleteReq);
-  
+  // TODO deleteReq
   taosArrayDestroy(deleteReq.deleteReqs);
   
 
