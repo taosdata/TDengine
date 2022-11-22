@@ -329,20 +329,6 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
     }
 
     taosHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
-
-#if 0
-//    STableBlockScanInfo info = {.lastKey = 0, .uid = idList[j].uid};
-    if (ASCENDING_TRAVERSE(pTsdbReader->order)) {
-      int64_t skey = pTsdbReader->window.skey;
-      info.lastKey = (skey > INT64_MIN) ? (skey - 1) : skey;
-    } else {
-      int64_t ekey = pTsdbReader->window.ekey;
-      info.lastKey = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
-    }
-
-    taosHashPut(pTableMap, &info.uid, sizeof(uint64_t), &info, sizeof(info));
-#endif
-
     tsdbTrace("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pTsdbReader, pScanInfo->uid,
               pScanInfo->lastKey, pTsdbReader->idStr);
   }
@@ -3798,7 +3784,8 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     updateBlockSMAInfo(pReader->pSchema, &pReader->suppInfo);
   }
 
-  pReader->status.pTableMap = createDataBlockScanInfo(pReader, pTableList, numOfTables);
+  STsdbReader* p = (pReader->innerReader[0] != NULL)? pReader->innerReader[0]:pReader;
+  pReader->status.pTableMap = createDataBlockScanInfo(p, pTableList, numOfTables);
   if (pReader->status.pTableMap == NULL) {
     tsdbReaderClose(pReader);
     *ppReader = NULL;
