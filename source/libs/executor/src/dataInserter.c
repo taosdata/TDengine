@@ -243,6 +243,7 @@ int32_t dataBlockToSubmit(SDataInserterHandle* pInserter, SSubmitReq** pReq) {
 
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
+  taosArrayClear(pInserter->pDataBlocks);
   taosArrayPush(pInserter->pDataBlocks, &pInput->pData);
   SSubmitReq* pMsg = NULL;
   int32_t     code = dataBlockToSubmit(pInserter, &pMsg);
