@@ -23,7 +23,8 @@ class TDTestCase:
         [TD-11510] taosBenchmark test cases
         """
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
@@ -32,6 +33,10 @@ class TDTestCase:
 
         if "community" in selfPath:
             projPath = selfPath[: selfPath.find("community")]
+        elif "src" in selfPath:
+            projPath = selfPath[: selfPath.find("src")]
+        elif "/tools/" in selfPath:
+            projPath = selfPath[: selfPath.find("/tools/")]
         else:
             projPath = selfPath[: selfPath.find("tests")]
 
@@ -55,11 +60,10 @@ class TDTestCase:
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
-        tdSql.query("select count(*) from (select distinct(tbname) from db.stb)")
-        tdSql.checkData(0, 0, 10)
+        tdSql.query("show db.tables")
+        tdSql.checkRows(10)
         tdSql.query("select count(*) from db.stb")
-        if len(tdSql.queryResult):
-            tdLog.exit("query result is %d" % len(tdSql.queryResult))
+        tdSql.checkData(0, 0, 100)
 
     def stop(self):
         tdSql.close()

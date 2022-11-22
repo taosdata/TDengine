@@ -1,5 +1,9 @@
 #!/bin/sh
 
+set +e
+#set -x
+
+unset LD_PRELOAD
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
 
@@ -22,16 +26,3 @@ while [ -n "$PID" ]; do
   fi
   PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
 done
-
-PID=`ps -ef|grep -w tarbitrator | grep -v grep | awk '{print $2}'`
-while [ -n "$PID" ]; do
-  echo kill -9 $PID
-  pkill -9 tarbitrator
-  if [ "$OS_TYPE" != "Darwin" ]; then
-    fuser -k -n tcp 6040
-  else
-    lsof -nti:6040 | xargs kill -9
-  fi
-  PID=`ps -ef|grep -w tarbitrator | grep -v grep | awk '{print $2}'`
-done
-

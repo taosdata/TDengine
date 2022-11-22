@@ -73,8 +73,8 @@ JNIEXPORT void JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqConfDestroyImp
   if (conf == NULL) {
     jniDebug("jobj:%p, tmq config is already destroyed", jobj);
   } else {
-    tmq_conf_destroy(conf);
     jniDebug("jobj:%p, config:%p, tmq successfully destroy config", jobj, conf);
+    tmq_conf_destroy(conf);
   }
 }
 
@@ -206,13 +206,15 @@ JNIEXPORT void JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqCommitAsync(JN
   tmq_t *tmq = (tmq_t *)jtmq;
   if (tmq == NULL) {
     jniError("jobj:%p, tmq is closed", jobj);
+    return;
   }
   TAOS_RES *res = (TAOS_RES *)jres;
   consumer = (*env)->NewGlobalRef(env, consumer);
   tmq_commit_async(tmq, res, commit_cb, consumer);
 }
 
-JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqUnsubscribeImp(JNIEnv *env, jobject jobj, jlong jtmq) {
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqUnsubscribeImp(JNIEnv *env, jobject jobj,
+                                                                                 jlong jtmq) {
   tmq_t *tmq = (tmq_t *)jtmq;
   if (tmq == NULL) {
     jniError("jobj:%p, tmq is closed", jobj);
@@ -223,7 +225,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqUnsubscribeImp
 }
 
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqConsumerCloseImp(JNIEnv *env, jobject jobj,
-                                                                                  jlong jtmq) {
+                                                                                   jlong jtmq) {
   tmq_t *tmq = (tmq_t *)jtmq;
   if (tmq == NULL) {
     jniDebug("jobj:%p, tmq is closed", jobj);
@@ -251,6 +253,7 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetTopicNam
   TAOS_RES *res = (TAOS_RES *)jres;
   if (res == NULL) {
     jniDebug("jobj:%p, invalid res handle", jobj);
+    return NULL;
   }
   return (*env)->NewStringUTF(env, tmq_get_topic_name(res));
 }
@@ -258,6 +261,7 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetDbName(J
   TAOS_RES *res = (TAOS_RES *)jres;
   if (res == NULL) {
     jniDebug("jobj:%p, invalid res handle", jobj);
+    return NULL;
   }
   return (*env)->NewStringUTF(env, tmq_get_db_name(res));
 }
@@ -265,6 +269,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetVgroupId(JN
   TAOS_RES *res = (TAOS_RES *)jres;
   if (res == NULL) {
     jniDebug("jobj:%p, invalid res handle", jobj);
+    return -1;
   }
   return tmq_get_vgroup_id(res);
 }
@@ -274,6 +279,7 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetTableNam
   TAOS_RES *res = (TAOS_RES *)jres;
   if (res == NULL) {
     jniDebug("jobj:%p, invalid res handle", jobj);
+    return NULL;
   }
   return (*env)->NewStringUTF(env, tmq_get_table_name(res));
 }

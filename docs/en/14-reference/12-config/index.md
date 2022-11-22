@@ -675,7 +675,7 @@ To prevent system resource from being exhausted by multiple concurrent streams, 
 | Meaning       | Whether to generate core file when server crashes                                                                                                                       |
 | Value Range   | 0: false, 1: true                                                                                                                                                       |
 | Default Value | 1                                                                                                                                                                       |
-| Note          | The core file is generated under root directory `systemctl/launchctl start taosd` is used to start, or under the working directory if `taosd` is started directly on Linux/macOS Shell. |
+| Note          | The core file is generated under root directory `systemctl start taosd`/`launchctl start com.tdengine.taosd` is used to start, or under the working directory if `taosd` is started directly on Linux/macOS Shell. |
 
 ### udf
 
@@ -735,19 +735,17 @@ To prevent system resource from being exhausted by multiple concurrent streams, 
 | 44  | numOfVnodeQueryThreads | No | Yes |
 | 45  | numOfVnodeStreamThreads | No | Yes |
 | 46  | numOfVnodeFetchThreads | No | Yes |
-| 47  | numOfVnodeWriteThreads | No | Yes |
-| 48  | numOfVnodeSyncThreads | No | Yes |
-| 49  | numOfVnodeRsmaThreads | No | Yes | 
-| 50  | numOfQnodeQueryThreads | No | Yes |
-| 51  | numOfQnodeFetchThreads | No | Yes |
-| 52  | numOfSnodeSharedThreads | No | Yes |
-| 53  | numOfSnodeUniqueThreads | No | Yes |
-| 54  | rpcQueueMemoryAllowed | No | Yes |
-| 55  | logDir | Yes | Yes |
-| 56  | minimalLogDirGB | Yes | Yes |
-| 57  | numOfLogLines | Yes | Yes |
-| 58  | asyncLog | Yes | Yes |
-| 59  | logKeepDays | Yes | Yes |
+| 47  | numOfVnodeRsmaThreads | No | Yes | 
+| 48  | numOfQnodeQueryThreads | No | Yes |
+| 49  | numOfQnodeFetchThreads | No | Yes |
+| 50  | numOfSnodeSharedThreads | No | Yes |
+| 51  | numOfSnodeUniqueThreads | No | Yes |
+| 52  | rpcQueueMemoryAllowed | No | Yes |
+| 53  | logDir | Yes | Yes |
+| 54  | minimalLogDirGB | Yes | Yes |
+| 55  | numOfLogLines | Yes | Yes |
+| 56  | asyncLog | Yes | Yes |
+| 57  | logKeepDays | Yes | Yes |
 | 60  | debugFlag | Yes | Yes |
 | 61  | tmrDebugFlag | Yes | Yes |
 | 62  | uDebugFlag | Yes | Yes |

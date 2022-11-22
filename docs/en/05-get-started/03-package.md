@@ -116,7 +116,7 @@ Note: TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the W
 
 1. Download the macOS installation package.
    <PkgListV3 type={7}/>
-2. Run the downloaded package to install TDengine.
+2. Run the downloaded package to install TDengine. If the installation is blocked, you can right-click or ctrl-click on the installation package and select `Open`.
 
 </TabItem>
 </Tabs>
@@ -179,23 +179,31 @@ The following `systemctl` commands can help you manage TDengine service:
 
 :::
 
+## Command Line Interface (CLI)
+
+You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in terminal.
+
 </TabItem>
 
 <TabItem label="Windows" value="windows">
 
 After the installation is complete, run `C:\TDengine\taosd.exe` to start TDengine Server.
 
+## Command Line Interface (CLI)
+
+You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can run `taos.exe` in the `C:\TDengine` directory of the Windows terminal to start the TDengine command line.
+
 </TabItem>
 
 <TabItem label="macOS" value="macos">
 
-After the installation is complete, double-click the /applications/TDengine to start the program, or run `launchctl start taosd` to start TDengine Server.
+After the installation is complete, double-click the /applications/TDengine to start the program, or run `launchctl start com.tdengine.taosd` to start TDengine Server.
 
 The following `launchctl` commands can help you manage TDengine service:
 
-- Start TDengine Server: `launchctl start taosd`
+- Start TDengine Server: `launchctl start com.tdengine.taosd`
 
-- Stop TDengine Server: `launchctl stop taosd`
+- Stop TDengine Server: `launchctl stop com.tdengine.taosd`
 
 - Check TDengine Server status: `launchctl list | grep taosd`
 
@@ -206,12 +214,12 @@ The following `launchctl` commands can help you manage TDengine service:
 
 :::
 
-</TabItem>
-</Tabs>
-
 ## Command Line Interface (CLI)
 
-You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in the Linux/macOS terminal where TDengine is installed, or you can run `taos.exe` in the `C:\TDengine` directory of the Windows terminal where TDengine is installed to start the TDengine command line.
+You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in terminal.
+
+</TabItem>
+</Tabs>
 
 ```bash
 taos

@@ -84,13 +84,12 @@ static void endTlvEncode(STlvEncoder* pEncoder, char** pMsg, int32_t* pLen) {
   *pMsg = pEncoder->pBuf;
   pEncoder->pBuf = NULL;
   *pLen = pEncoder->offset;
-  // nodesWarn("encode tlv count = %d, tl size = %d", pEncoder->tlvCount, sizeof(STlv) * pEncoder->tlvCount);
 }
 
 static int32_t tlvEncodeImpl(STlvEncoder* pEncoder, int16_t type, const void* pValue, int32_t len) {
   int32_t tlvLen = sizeof(STlv) + len;
   if (pEncoder->offset + tlvLen > pEncoder->allocSize) {
-    pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + pEncoder->offset + tlvLen);
+    pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + tlvLen);
     void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize);
     if (NULL == pNewBuf) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -241,6 +240,15 @@ static int32_t tlvEncodeObj(STlvEncoder* pEncoder, int16_t type, FToMsg func, co
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pEncoder->offset + sizeof(STlv) > pEncoder->allocSize) {
+    pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + sizeof(STlv));
+    void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize);
+    if (NULL == pNewBuf) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pEncoder->pBuf = pNewBuf;
+  }
+
   int32_t start = pEncoder->offset;
   pEncoder->offset += sizeof(STlv);
   int32_t code = func(pObj, pEncoder);
@@ -307,7 +315,7 @@ static int32_t tlvDecodeImpl(STlv* pTlv, void* pValue, int32_t len) {
 }
 
 static int32_t tlvDecodeValueImpl(STlvDecoder* pDecoder, void* pValue, int32_t len) {
-  if (pDecoder->offset + len > pDecoder->bufSize) {
+  if (len > pDecoder->bufSize - pDecoder->offset) {
     return TSDB_CODE_FAILED;
   }
   memcpy(pValue, pDecoder->pBuf + pDecoder->offset, len);
@@ -478,7 +486,10 @@ static int32_t tlvDecodeValueEnum(STlvDecoder* pDecoder, void* pValue, int16_t l
   return code;
 }
 
-static int32_t tlvDecodeCStr(STlv* pTlv, char* pValue) {
+static int32_t tlvDecodeCStr(STlv* pTlv, char* pValue, int32_t size) {
+  if (pTlv->len > size - 1) {
+    return TSDB_CODE_FAILED;
+  }
   memcpy(pValue, pTlv->value, pTlv->len);
   return TSDB_CODE_SUCCESS;
 }
@@ -908,6 +919,10 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY: {
+      if (pTlv->len > pNode->node.resType.bytes + VARSTR_HEADER_SIZE) {
+        code = TSDB_CODE_FAILED;
+        break;
+      }
       pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pNode->datum.p) {
         code = TSDB_CODE_OUT_OF_MEMORY;
@@ -919,9 +934,14 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
       }
       break;
     }
-    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_JSON: {
+      if (pTlv->len <= 0 || pTlv->len > TSDB_MAX_JSON_TAG_LEN) {
+        code = TSDB_CODE_FAILED;
+        break;
+      }
       code = tlvDecodeDynBinary(pTlv, (void**)&pNode->datum.p);
       break;
+    }
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
       // todo
@@ -1097,7 +1117,7 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeObjFromTlv(pTlv, msgToExprNode, &pNode->node);
         break;
       case FUNCTION_CODE_FUNCTION_NAME:
-        code = tlvDecodeCStr(pTlv, pNode->functionName);
+        code = tlvDecodeCStr(pTlv, pNode->functionName, sizeof(pNode->functionName));
         break;
       case FUNCTION_CODE_FUNCTION_ID:
         code = tlvDecodeI32(pTlv, &pNode->funcId);
@@ -1226,10 +1246,10 @@ static int32_t msgToName(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeI32(pTlv, &pNode->acctId);
         break;
       case NAME_CODE_DB_NAME:
-        code = tlvDecodeCStr(pTlv, pNode->dbname);
+        code = tlvDecodeCStr(pTlv, pNode->dbname, sizeof(pNode->dbname));
         break;
       case NAME_CODE_TABLE_NAME:
-        code = tlvDecodeCStr(pTlv, pNode->tname);
+        code = tlvDecodeCStr(pTlv, pNode->tname, sizeof(pNode->tname));
         break;
       default:
         break;
@@ -1538,7 +1558,7 @@ static int32_t msgToEp(STlvDecoder* pDecoder, void* pObj) {
   tlvForEach(pDecoder, pTlv, code) {
     switch (pTlv->type) {
       case EP_CODE_FQDN:
-        code = tlvDecodeCStr(pTlv, pNode->fqdn);
+        code = tlvDecodeCStr(pTlv, pNode->fqdn, sizeof(pNode->fqdn));
         break;
       case EP_CODE_port:
         code = tlvDecodeU16(pTlv, &pNode->port);
@@ -1949,7 +1969,12 @@ static int32_t msgToPhysiScanNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_LAST_ROW_SCAN_CODE_SCAN = 1, PHY_LAST_ROW_SCAN_CODE_GROUP_TAGS, PHY_LAST_ROW_SCAN_CODE_GROUP_SORT };
+enum {
+  PHY_LAST_ROW_SCAN_CODE_SCAN = 1,
+  PHY_LAST_ROW_SCAN_CODE_GROUP_TAGS,
+  PHY_LAST_ROW_SCAN_CODE_GROUP_SORT,
+  PHY_LAST_ROW_SCAN_CODE_IGNULL
+};
 
 static int32_t physiLastRowScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SLastRowScanPhysiNode* pNode = (const SLastRowScanPhysiNode*)pObj;
@@ -1960,6 +1985,9 @@ static int32_t physiLastRowScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_LAST_ROW_SCAN_CODE_GROUP_SORT, pNode->groupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_LAST_ROW_SCAN_CODE_IGNULL, pNode->ignoreNull);
   }
 
   return code;
@@ -1980,6 +2008,9 @@ static int32_t msgToPhysiLastRowScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_LAST_ROW_SCAN_CODE_GROUP_SORT:
         code = tlvDecodeBool(pTlv, &pNode->groupSort);
+        break;
+      case PHY_LAST_ROW_SCAN_CODE_IGNULL:
+        code = tlvDecodeBool(pTlv, &pNode->ignoreNull);
         break;
       default:
         break;
@@ -3207,7 +3238,7 @@ static int32_t msgToPhysiQueryInsertNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeI8(pTlv, &pNode->tableType);
         break;
       case PHY_QUERY_INSERT_CODE_TABLE_NAME:
-        code = tlvDecodeCStr(pTlv, pNode->tableName);
+        code = tlvDecodeCStr(pTlv, pNode->tableName, sizeof(pNode->tableName));
         break;
       case PHY_QUERY_INSERT_CODE_VG_ID:
         code = tlvDecodeI32(pTlv, &pNode->vgId);
@@ -3284,10 +3315,10 @@ static int32_t msgToPhysiDeleteNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeI8(pTlv, &pNode->tableType);
         break;
       case PHY_DELETER_CODE_TABLE_FNAME:
-        code = tlvDecodeCStr(pTlv, pNode->tableFName);
+        code = tlvDecodeCStr(pTlv, pNode->tableFName, sizeof(pNode->tableFName));
         break;
       case PHY_DELETER_CODE_TS_COL_NAME:
-        code = tlvDecodeCStr(pTlv, pNode->tsColName);
+        code = tlvDecodeCStr(pTlv, pNode->tsColName, sizeof(pNode->tsColName));
         break;
       case PHY_DELETER_CODE_DELETE_TIME_RANGE:
         code = tlvDecodeObjFromTlv(pTlv, msgToTimeWindow, &pNode->deleteTimeRange);
@@ -3407,6 +3438,9 @@ static int32_t subplanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = queryNodeAddrInlineToMsg(&pNode->execNode, pEncoder);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueBool(pEncoder, pNode->showRewrite);
+  }
 
   return code;
 }
@@ -3452,6 +3486,9 @@ static int32_t msgToSubplanInline(STlvDecoder* pDecoder, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = msgToQueryNodeAddrInline(pDecoder, &pNode->execNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueBool(pDecoder, &pNode->showRewrite);
   }
 
   return code;

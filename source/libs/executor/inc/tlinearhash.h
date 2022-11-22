@@ -24,7 +24,7 @@ extern "C" {
 
 enum {
   LINEAR_HASH_STATIS = 0x1,
-  LINEAR_HASH_DATA   = 0x2,
+  LINEAR_HASH_DATA = 0x2,
 };
 
 typedef struct SLHashObj SLHashObj;
@@ -32,11 +32,11 @@ typedef struct SLHashObj SLHashObj;
 SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_t numOfTuplePerPage);
 void*      tHashCleanup(SLHashObj* pHashObj);
 
-int32_t    tHashPut(SLHashObj* pHashObj, const void *key, size_t keyLen, void *data, size_t size);
-char*      tHashGet(SLHashObj* pHashObj, const void *key, size_t keyLen);
-int32_t    tHashRemove(SLHashObj* pHashObj, const void *key, size_t keyLen);
+int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data, size_t size);
+char*   tHashGet(SLHashObj* pHashObj, const void* key, size_t keyLen);
+int32_t tHashRemove(SLHashObj* pHashObj, const void* key, size_t keyLen);
 
-void       tHashPrint(const SLHashObj* pHashObj, int32_t type);
+void tHashPrint(const SLHashObj* pHashObj, int32_t type);
 
 #ifdef __cplusplus
 }

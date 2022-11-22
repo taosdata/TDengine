@@ -110,7 +110,6 @@ sql_error show dnodes
 sql_error show snodes
 sql_error show qnodes
 sql_error show mnodes
-sql_error show bnodes
 sql_error show db.vgroups
 sql_error show db.stables
 sql_error show db.tables
@@ -138,10 +137,9 @@ sql_error show create database d2
 sql       show create table d2.stb2;
 sql       show create table d2.ctb2;
 sql       show create table d2.ntb2;
-sql_error show variables;
 sql       show local variables;
 sql_error show dnode 1 variables;
-sql_error show variables;
+sql       show variables;
 
 
 print =============== check information_schema
@@ -168,7 +166,7 @@ sql select * from information_schema.ins_subscriptions
 sql select * from information_schema.ins_streams
 sql_error select * from information_schema.ins_grants
 sql_error select * from information_schema.ins_vgroups
-sql_error select * from information_schema.ins_configs
+sql select * from information_schema.ins_configs
 sql_error select * from information_schema.ins_dnode_variables
 
 print =============== check performance_schema

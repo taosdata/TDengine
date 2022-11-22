@@ -130,12 +130,12 @@ TEST(tdb_test, DISABLED_simple_insert1) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", 4096, 64, &pEnv);
+  ret = tdbOpen("tdb", 4096, 64, &pEnv, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
   compFunc = tKeyCmpr;
-  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
+  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   {
@@ -250,12 +250,12 @@ TEST(tdb_test, DISABLED_simple_insert2) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", 1024, 10, &pEnv);
+  ret = tdbOpen("tdb", 1024, 10, &pEnv, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
   compFunc = tDefaultKeyCmpr;
-  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
+  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   {
@@ -346,11 +346,11 @@ TEST(tdb_test, DISABLED_simple_delete1) {
   pPool = openPool();
 
   // open env
-  ret = tdbOpen("tdb", 1024, 256, &pEnv);
+  ret = tdbOpen("tdb", 1024, 256, &pEnv, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // open database
-  ret = tdbTbOpen("db.db", -1, -1, tKeyCmpr, pEnv, &pDb);
+  ret = tdbTbOpen("db.db", -1, -1, tKeyCmpr, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   tdbTxnOpen(&txn, 0, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
@@ -435,11 +435,11 @@ TEST(tdb_test, DISABLED_simple_upsert1) {
   taosRemoveDir("tdb");
 
   // open env
-  ret = tdbOpen("tdb", 4096, 64, &pEnv);
+  ret = tdbOpen("tdb", 4096, 64, &pEnv, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // open database
-  ret = tdbTbOpen("db.db", -1, -1, NULL, pEnv, &pDb);
+  ret = tdbTbOpen("db.db", -1, -1, NULL, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   pPool = openPool();
@@ -497,12 +497,12 @@ TEST(tdb_test, multi_thread_query) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", 4096, 10, &pEnv);
+  ret = tdbOpen("tdb", 4096, 10, &pEnv, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
   compFunc = tKeyCmpr;
-  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
+  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   char      key[64];
@@ -614,10 +614,10 @@ TEST(tdb_test, DISABLED_multi_thread1) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", 512, 1, &pDb);
+  ret = tdbOpen("tdb", 512, 1, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
-  ret = tdbTbOpen("db.db", -1, -1, NULL, pDb, &pTb);
+  ret = tdbTbOpen("db.db", -1, -1, NULL, pDb, &pTb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   auto insert = [](TDB *pDb, TTB *pTb, int nData, int *stop, std::shared_timed_mutex *mu) {

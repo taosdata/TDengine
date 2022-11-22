@@ -92,10 +92,12 @@ static SKeyword keywordTable[] = {
     {"EVERY",                TK_EVERY},
     {"FILE",                 TK_FILE},
     {"FILL",                 TK_FILL},
+    {"FILL_HISTORY",         TK_FILL_HISTORY},
     {"FIRST",                TK_FIRST},
     {"FLOAT",                TK_FLOAT},
     {"FLUSH",                TK_FLUSH},
     {"FROM",                 TK_FROM},
+    {"FORCE",                TK_FORCE},
     {"FUNCTION",             TK_FUNCTION},
     {"FUNCTIONS",            TK_FUNCTIONS},
     {"GRANT",                TK_GRANT},
@@ -597,6 +599,8 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         *tokenId = TK_NK_BOOL;
         return i;
       }
+      *tokenId = tKeywordCode(z, i);
+      return i;
     }
     default: {
       if (((*z & 0x80) != 0) || !isIdChar[(uint8_t)*z]) {
@@ -611,27 +615,6 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
 
   *tokenId = TK_NK_ILLEGAL;
   return 0;
-}
-
-SToken tscReplaceStrToken(char** str, SToken* token, const char* newToken) {
-  char*   src = *str;
-  size_t  nsize = strlen(newToken);
-  int32_t size = (int32_t)strlen(*str) - token->n + (int32_t)nsize + 1;
-  int32_t bsize = (int32_t)((uint64_t)token->z - (uint64_t)src);
-  SToken  ntoken;
-
-  *str = taosMemoryCalloc(1, size);
-
-  strncpy(*str, src, bsize);
-  strcat(*str, newToken);
-  strcat(*str, token->z + token->n);
-
-  ntoken.n = (uint32_t)nsize;
-  ntoken.z = *str + bsize;
-
-  taosMemoryFreeClear(src);
-
-  return ntoken;
 }
 
 SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {

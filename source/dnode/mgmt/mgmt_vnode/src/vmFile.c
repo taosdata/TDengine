@@ -145,7 +145,7 @@ _OVER:
 }
 
 int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
-  int32_t ret = 0;
+  int32_t code = 0;
   char    file[PATH_MAX] = {0};
   char    realfile[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%svnodes.json.bak", pMgmt->path, TD_DIRSEP);
@@ -159,10 +159,10 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   }
 
   int32_t     numOfVnodes = 0;
-  SVnodeObj **pVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
-  if (pVnodes == NULL) {
+  SVnodeObj **ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
+  if (ppVnodes == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    ret = -1;
+    code = -1;
     goto _OVER;
   }
 
@@ -171,14 +171,14 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   char   *content = taosMemoryCalloc(1, maxLen + 1);
   if (content == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    ret = -1;
+    code = -1;
     goto _OVER;
   }
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"vnodes\": [\n");
   for (int32_t i = 0; i < numOfVnodes; ++i) {
-    SVnodeObj *pVnode = pVnodes[i];
+    SVnodeObj *pVnode = ppVnodes[i];
     if (pVnode == NULL) continue;
 
     len += snprintf(content + len, maxLen - len, "    {\n");
@@ -201,16 +201,17 @@ _OVER:
   taosCloseFile(&pFile);
   taosMemoryFree(content);
 
-  for (int32_t i = 0; i < numOfVnodes; ++i) {
-    SVnodeObj *pVnode = pVnodes[i];
-    vmReleaseVnode(pMgmt, pVnode);
+  if (ppVnodes != NULL) {
+    for (int32_t i = 0; i < numOfVnodes; ++i) {
+      SVnodeObj *pVnode = ppVnodes[i];
+      if (pVnode != NULL) {
+        vmReleaseVnode(pMgmt, pVnode);
+      }
+    }
+    taosMemoryFree(ppVnodes);
   }
 
-  if (pVnodes != NULL) {
-    taosMemoryFree(pVnodes);
-  }
-
-  if (ret != 0) return -1;
+  if (code != 0) return -1;
 
   dDebug("successed to write %s, numOfVnodes:%d", realfile, numOfVnodes);
   return taosRenameFile(file, realfile);

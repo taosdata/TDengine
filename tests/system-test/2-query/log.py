@@ -11,7 +11,8 @@ from util.cases import *
 
 class TDTestCase:
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -90,7 +91,6 @@ class TDTestCase:
                             elem = math.log(elem , base)
                     elif elem <=0:
                         elem = None
-                    
                 row_check.append(elem)
             auto_result.append(row_check)
 
@@ -229,6 +229,36 @@ class TDTestCase:
         tdSql.query(f"select log(c6 ,2) from {dbname}.ct3")
         tdSql.checkRows(0)
 
+        # log used for different param types
+
+        tdSql.query(f"select log(c1,c2) from {dbname}.ct1;")
+        tdSql.query(f"select log(c1,c2) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(c1,2) from {dbname}.ct1;")
+        tdSql.query(f"select log(c1,2) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(2,c2) from {dbname}.ct1;")
+        tdSql.query(f"select log(2,c2) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(2,1) from {dbname}.ct1;")
+        tdSql.query(f"select log(2,2) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(2,floor(1)) from {dbname}.ct1;")
+        tdSql.query(f"select log(2,floor(2)) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(abs(2),floor(1)) from {dbname}.ct1;")
+        tdSql.query(f"select log(abs(2),floor(2)) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(abs(c2),c1) from {dbname}.ct1;")
+        tdSql.query(f"select log(abs(c2),c1) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(c2,abs(c1)) from {dbname}.ct1;")
+        tdSql.query(f"select log(c2,abs(c1)) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(abs(c2),2) from {dbname}.ct1;")
+        tdSql.query(f"select log(abs(c2),2) from {dbname}.stb1 partition by tbname order by tbname;")
+
+
 
         # # used for regular table
         tdSql.query(f"select log(c1 ,2) from {dbname}.t1")
@@ -291,6 +321,7 @@ class TDTestCase:
         tdSql.query(f"select log(c1, 2) from {dbname}.stb1")
         tdSql.checkRows(25)
 
+        
 
         # used for not exists table
         tdSql.error(f"select log(c1, 2) from {dbname}.stbbb1")
@@ -487,19 +518,19 @@ class TDTestCase:
         )
         tdSql.execute(f'create table {dbname}.sub1_bound using {dbname}.stb_bound tags ( 1 )')
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()-1s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-10s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()-1s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-5s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
                 f"insert into {dbname}.sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now(), -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()+5s, -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.error(
-                f"insert into {dbname}.sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()+10s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         self.check_result_auto_log(None ,  f"select c1, c2, c3 , c4, c5 ,c6 from {dbname}.sub1_bound ", f"select log(c1), log(c2) ,log(c3), log(c4), log(c5) ,log(c6) from {dbname}.sub1_bound")
         self.check_result_auto_log( 2 ,  f"select c1, c2, c3 , c4, c5 ,c6 from {dbname}.sub1_bound ", f"select log(c1,2), log(c2,2) ,log(c3,2), log(c4,2), log(c5,2) ,log(c6,2) from {dbname}.sub1_bound")

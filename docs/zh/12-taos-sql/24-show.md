@@ -201,7 +201,7 @@ SHOW TOPICS;
 SHOW TRANSACTIONS;
 ```
 
-显示当前系统中正在执行的事务的信息
+显示当前系统中正在执行的事务的信息(该事务仅针对除普通表以外的元数据级别)
 
 ## SHOW USERS
 
@@ -211,10 +211,10 @@ SHOW USERS;
 
 显示当前系统中所有用户的信息。包括用户自定义的用户和系统默认用户。
 
-## SHOW VARIABLES
+## SHOW CLUSTER VARIABLES(3.0.1.6 之前为 SHOW VARIABLES)
 
 ```sql
-SHOW VARIABLES;
+SHOW CLUSTER VARIABLES;
 SHOW DNODE dnode_id VARIABLES;
 ```
 

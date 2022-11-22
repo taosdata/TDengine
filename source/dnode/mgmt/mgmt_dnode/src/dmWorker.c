@@ -20,7 +20,7 @@ static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-status");
-
+  
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
@@ -28,6 +28,7 @@ static void *dmStatusThreadFp(void *param) {
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsStatusInterval) {
+      taosMemoryTrim(0); 
       dmSendStatusReq(pMgmt);
       lastTime = curTime;
     }
@@ -101,7 +102,7 @@ void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
-  STraceId *  trace = &pMsg->info.traceId;
+  STraceId   *trace = &pMsg->info.traceId;
   dGTrace("msg:%p, will be processed in dnode queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
   switch (pMsg->msgType) {
@@ -131,12 +132,6 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_DND_DROP_SNODE:
       code = (*pMgmt->processDropNodeFp)(SNODE, pMsg);
-      break;
-    case TDMT_DND_CREATE_BNODE:
-      code = (*pMgmt->processCreateNodeFp)(BNODE, pMsg);
-      break;
-    case TDMT_DND_DROP_BNODE:
-      code = (*pMgmt->processDropNodeFp)(BNODE, pMsg);
       break;
     case TDMT_DND_SERVER_STATUS:
       code = dmProcessServerRunStatus(pMgmt, pMsg);

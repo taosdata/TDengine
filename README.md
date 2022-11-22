@@ -15,7 +15,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 
-English | [简体中文](README-CN.md) | [Learn more about TSDB](https://tdengine.com/tsdb/)
+English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine.com) | [Learn more about TSDB](https://tdengine.com/tsdb/)
 
 # What is TDengine？
 
@@ -33,7 +33,7 @@ TDengine is an open source, high-performance, cloud native [time-series database
 
 - **[Open Source](https://tdengine.com/tdengine/open-source-time-series-database/)**: TDengine’s core modules, including cluster feature, are all available under open source licenses. It has gathered 18.8k stars on GitHub. There is an active developer community, and over 139k running instances worldwide.
 
-For a full list of TDengine competitive advantages, please [check here](https://tdengine.com/tdengine/)
+For a full list of TDengine competitive advantages, please [check here](https://tdengine.com/tdengine/). The easiest way to experience TDengine is through [TDengine Cloud](https://cloud.tdengine.com). 
 
 # Documentation
 
@@ -108,7 +108,7 @@ sudo yum config-manager --set-enabled powertools
 ### macOS
 
 ```
-sudo brew install argp-standalone pkgconfig
+brew install argp-standalone pkgconfig
 ```
 
 ### Setup golang environment
@@ -280,7 +280,7 @@ Installing from source code will also configure service management for TDengine.
 To start the service after installation, double-click the /applications/TDengine to start the program, or in a terminal, use:
 
 ```bash
-launchctl start taosd
+launchctl start com.tdengine.taosd
 ```
 
 Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:

@@ -13,7 +13,7 @@ class TAdapter:
             "debug"         : True,
             "taosConfigDir" : "",
             "port"          : 6041,
-            "logLevel"      : "debug",
+            "logLevel"      : "error",
             "cors"          : {
                 "allowAllOrigins" : True,
             },
@@ -49,25 +49,25 @@ class TAdapter:
                 "writeInterval"             : "30s"
             },
             "opentsdb"      : {
-                "enable"        : False
+                "enable"        : True
             },
             "influxdb"      : {
-                "enable"        : False
+                "enable"        : True
             },
             "statsd"      : {
-                "enable"        : False
+                "enable"        : True
             },
             "collectd"      : {
-                "enable"        : False
+                "enable"        : True
             },
             "opentsdb_telnet"      : {
-                "enable"        : False
+                "enable"        : True
             },
             "node_exporter"      : {
-                "enable"        : False
+                "enable"        : True
             },
             "prometheus"      : {
-                "enable"        : False
+                "enable"        : True
             },
         }
     # TODO: add taosadapter env:
@@ -164,7 +164,7 @@ class TAdapter:
         if platform.system().lower() == 'windows':
             cmd = f"mintty -h never {bin_path} -c {self.cfg_dir}"
         else:
-            cmd = f"nohup {bin_path} -c {self.cfg_path} > /dev/null 2>&1 & "
+            cmd = f"nohup {bin_path} -c {self.cfg_path} > /dev/null & "
 
         if  self.remoteIP:
             self.remote_exec(self.taosadapter_cfg_dict, f"tAdapter.deployed=1\ntAdapter.log_dir={self.log_dir}\ntAdapter.cfg_dir={self.cfg_dir}\ntAdapter.start()")
@@ -213,7 +213,7 @@ class TAdapter:
         if platform.system().lower() == 'windows':
             cmd = f"mintty -h never {bin_path} -c {self.cfg_dir}"
         else:
-            cmd = f"nohup {bin_path} -c {self.cfg_path} > /dev/null 2>&1 & "
+            cmd = f"nohup {bin_path} -c {self.cfg_path} > /dev/null & "
 
         if  self.remoteIP:
             self.remote_exec(self.taosadapter_cfg_dict, f"tAdapter.deployed=1\ntAdapter.log_dir={self.log_dir}\ntAdapter.cfg_dir={self.cfg_dir}\ntAdapter.start()")
@@ -243,7 +243,7 @@ class TAdapter:
                 psCmd, shell=True)
 
             while(processID):
-                killCmd = f"pkill {signal} {processID} > /dev/null 2>&1"
+                killCmd = f"pkill {signal} {processID} > /dev/null "
                 os.system(killCmd)
                 time.sleep(1)
                 processID = subprocess.check_output(
@@ -256,8 +256,8 @@ class TAdapter:
                     # fuserCmd = f"fuser -k -n tcp {port} > /dev/null"
                     # os.system(fuserCmd)
 
-        self.running = 0
-        tdLog.debug(f"taosadapter is stopped by kill {signal}")
+            self.running = 0
+            tdLog.debug(f"taosadapter is stopped by kill {signal}")
 
 
 

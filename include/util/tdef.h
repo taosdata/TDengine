@@ -26,7 +26,7 @@ extern "C" {
 
 #define TSKEY             int64_t
 #define TSKEY_MIN         INT64_MIN
-#define TSKEY_MAX         (INT64_MAX - 1)
+#define TSKEY_MAX         INT64_MAX
 #define TSKEY_INITIAL_VAL TSKEY_MIN
 
 #define TD_VER_MAX UINT64_MAX  // TODO: use the real max version from query handle
@@ -234,11 +234,11 @@ typedef enum ELogicConditionType {
  *  - Secondly, if all cols are VarDataT type except primary key, we need 4 bits to store the offset, thus
  *    the final value is 65531-(4096-1)*4 = 49151.
  */
-#define TSDB_MAX_BYTES_PER_ROW  49151
-#define TSDB_MAX_TAGS_LEN       16384
-#define TSDB_MAX_TAGS           128
-#define TSDB_MAX_TAG_CONDITIONS 1024
+#define TSDB_MAX_BYTES_PER_ROW 49151
+#define TSDB_MAX_TAGS_LEN      16384
+#define TSDB_MAX_TAGS          128
 
+#define TSDB_MAX_COL_TAG_NUM  (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS)
 #define TSDB_MAX_JSON_TAG_LEN 16384
 #define TSDB_MAX_JSON_KEY_LEN 256
 
@@ -273,8 +273,6 @@ typedef enum ELogicConditionType {
 
 #define TSDB_PAYLOAD_SIZE         TSDB_DEFAULT_PKT_SIZE
 #define TSDB_DEFAULT_PAYLOAD_SIZE 5120  // default payload size, greater than PATH_MAX value
-#define TSDB_EXTRA_PAYLOAD_SIZE   128   // extra bytes for auth
-#define TSDB_CQ_SQL_SIZE          1024
 #define TSDB_MIN_VNODES           16
 #define TSDB_MAX_VNODES           512
 
@@ -284,10 +282,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MAX_REPLICA 5
 
-#define TSDB_TBNAME_COLUMN_INDEX (-1)
-#define TSDB_UD_COLUMN_INDEX     (-1000)
-#define TSDB_RES_COL_ID          (-5000)
-
+#define TSDB_TBNAME_COLUMN_INDEX     (-1)
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
 
 #define TSDB_MIN_VNODES_PER_DB          1
@@ -295,9 +290,9 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_VN_PER_DB          2
 #define TSDB_MIN_BUFFER_PER_VNODE       3      // unit MB
 #define TSDB_MAX_BUFFER_PER_VNODE       16384  // unit MB
-#define TSDB_DEFAULT_BUFFER_PER_VNODE   96
+#define TSDB_DEFAULT_BUFFER_PER_VNODE   256
 #define TSDB_MIN_PAGES_PER_VNODE        64
-#define TSDB_MAX_PAGES_PER_VNODE        INT32_MAX
+#define TSDB_MAX_PAGES_PER_VNODE        (INT32_MAX - 1)
 #define TSDB_DEFAULT_PAGES_PER_VNODE    256
 #define TSDB_MIN_PAGESIZE_PER_VNODE     1  // unit KB
 #define TSDB_MAX_PAGESIZE_PER_VNODE     16384
@@ -365,7 +360,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
 #define TSDB_MIN_STT_TRIGGER            1
 #define TSDB_MAX_STT_TRIGGER            16
-#define TSDB_DEFAULT_SST_TRIGGER        8
+#define TSDB_DEFAULT_SST_TRIGGER        1
 #define TSDB_MIN_HASH_PREFIX            0
 #define TSDB_MAX_HASH_PREFIX            128
 #define TSDB_DEFAULT_HASH_PREFIX        0
@@ -375,13 +370,13 @@ typedef enum ELogicConditionType {
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
 #define TSDB_REP_DEF_DB_WAL_RET_PERIOD   0
-#define TSDB_REPS_DEF_DB_WAL_RET_PERIOD  (24 * 60 * 60 * 4)
+#define TSDB_REPS_DEF_DB_WAL_RET_PERIOD  0
 #define TSDB_DB_MIN_WAL_RETENTION_SIZE   -1
 #define TSDB_REP_DEF_DB_WAL_RET_SIZE     0
-#define TSDB_REPS_DEF_DB_WAL_RET_SIZE    -1
+#define TSDB_REPS_DEF_DB_WAL_RET_SIZE    0
 #define TSDB_DB_MIN_WAL_ROLL_PERIOD      0
 #define TSDB_REP_DEF_DB_WAL_ROLL_PERIOD  0
-#define TSDB_REPS_DEF_DB_WAL_ROLL_PERIOD (24 * 60 * 60 * 1)
+#define TSDB_REPS_DEF_DB_WAL_ROLL_PERIOD 0
 #define TSDB_DB_MIN_WAL_SEGMENT_SIZE     0
 #define TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE 0
 
@@ -396,9 +391,6 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_EXPLAIN_RATIO     0
 #define TSDB_MAX_EXPLAIN_RATIO     1
 #define TSDB_DEFAULT_EXPLAIN_RATIO 0.001
-
-#define TSDB_MAX_JOIN_TABLE_NUM 10
-#define TSDB_MAX_UNION_CLAUSE   5
 
 #define TSDB_DEFAULT_EXPLAIN_VERBOSE false
 
@@ -417,8 +409,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_RPC_THREADS 10
 #endif
 
-#define TSDB_QUERY_TYPE_NON_TYPE      0x00u  // none type
-#define TSDB_QUERY_TYPE_FREE_RESOURCE 0x01u  // free qhandle at vnode
+#define TSDB_QUERY_TYPE_NON_TYPE 0x00u  // none type
 
 #define TSDB_META_COMPACT_RATIO 0  // disable tsdb meta compact by default
 
@@ -482,7 +473,6 @@ enum {
 #define QNODE_HANDLE   -1
 #define SNODE_HANDLE   -2
 #define VNODE_HANDLE   -3
-#define BNODE_HANDLE   -4
 #define CLIENT_HANDLE  -5
 
 #define TSDB_CONFIG_OPTION_LEN 32
@@ -495,6 +485,12 @@ enum {
 #define QUERY_SAVE_SIZE    20
 
 #define MAX_NUM_STR_SIZE 40
+
+#define MAX_META_MSG_IN_BATCH   1048576
+#define MAX_META_BATCH_RSP_SIZE (1 * 1048576 * 1024)
+
+// sort page size by default
+#define DEFAULT_PAGESIZE 4096
 
 #ifdef __cplusplus
 }

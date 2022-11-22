@@ -91,7 +91,7 @@ class MockCatalogServiceImpl {
  public:
   static const int32_t numOfDataTypes = sizeof(tDataTypes) / sizeof(tDataTypes[0]);
 
-  MockCatalogServiceImpl() : id_(1) {}
+  MockCatalogServiceImpl() : id_(1), havaCache_(true) {}
 
   ~MockCatalogServiceImpl() {
     for (auto& cfg : dbCfg_) {
@@ -106,7 +106,11 @@ class MockCatalogServiceImpl {
 
   int32_t catalogGetHandle() const { return 0; }
 
-  int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const {
+  int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta, bool onlyCache = false) const {
+    if (onlyCache && !havaCache_) {
+      return TSDB_CODE_SUCCESS;
+    }
+
     std::unique_ptr<STableMeta> table;
 
     char db[TSDB_DB_NAME_LEN] = {0};
@@ -121,7 +125,12 @@ class MockCatalogServiceImpl {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const {
+  int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo, bool onlyCache = false) const {
+    if (onlyCache && !havaCache_) {
+      vgInfo->vgId = 0;
+      return TSDB_CODE_SUCCESS;
+    }
+
     vgInfo->vgId = 1;
     return TSDB_CODE_SUCCESS;
   }
@@ -132,7 +141,7 @@ class MockCatalogServiceImpl {
     return copyTableVgroup(db, tNameGetTableName(pTableName), vgList);
   }
 
-  int32_t catalogGetDBVgInfo(const char* pDbFName, SArray** pVgList) const {
+  int32_t catalogGetDBVgList(const char* pDbFName, SArray** pVgList) const {
     std::string                 dbFName(pDbFName);
     DbMetaCache::const_iterator it = meta_.find(dbFName.substr(std::string(pDbFName).find_last_of('.') + 1));
     if (meta_.end() == it) {
@@ -618,6 +627,7 @@ class MockCatalogServiceImpl {
   IndexMetaCache                index_;
   DnodeCache                    dnode_;
   DbCfgCache                    dbCfg_;
+  bool                          havaCache_;
 };
 
 MockCatalogService::MockCatalogService() : impl_(new MockCatalogServiceImpl()) {}
@@ -651,20 +661,22 @@ void MockCatalogService::createDatabase(const std::string& db, bool rollup, int8
   impl_->createDatabase(db, rollup, cacheLast);
 }
 
-int32_t MockCatalogService::catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const {
-  return impl_->catalogGetTableMeta(pTableName, pTableMeta);
+int32_t MockCatalogService::catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta,
+                                                bool onlyCache) const {
+  return impl_->catalogGetTableMeta(pTableName, pTableMeta, onlyCache);
 }
 
-int32_t MockCatalogService::catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const {
-  return impl_->catalogGetTableHashVgroup(pTableName, vgInfo);
+int32_t MockCatalogService::catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo,
+                                                      bool onlyCache) const {
+  return impl_->catalogGetTableHashVgroup(pTableName, vgInfo, onlyCache);
 }
 
 int32_t MockCatalogService::catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const {
   return impl_->catalogGetTableDistVgInfo(pTableName, pVgList);
 }
 
-int32_t MockCatalogService::catalogGetDBVgInfo(const char* pDbFName, SArray** pVgList) const {
-  return impl_->catalogGetDBVgInfo(pDbFName, pVgList);
+int32_t MockCatalogService::catalogGetDBVgList(const char* pDbFName, SArray** pVgList) const {
+  return impl_->catalogGetDBVgList(pDbFName, pVgList);
 }
 
 int32_t MockCatalogService::catalogGetDBCfg(const char* pDbFName, SDbCfgInfo* pDbCfg) const {

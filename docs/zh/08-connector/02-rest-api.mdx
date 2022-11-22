@@ -69,7 +69,7 @@ curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
 ## HTTP 请求格式
 
 ```text
-http://<fqdn>:<port>/rest/sql/[db_name]
+http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone]
 ```
 
 参数说明：
@@ -77,6 +77,7 @@ http://<fqdn>:<port>/rest/sql/[db_name]
 - fqdn: 集群中的任一台主机 FQDN 或 IP 地址。
 - port: 配置文件中 httpPort 配置项，缺省为 6041。
 - db_name: 可选参数，指定本次所执行的 SQL 语句的默认数据库库名。
+- tz: 可选参数，指定返回时间的时区，遵照 IANA Time Zone 规则，如 `America/New_York`。
 
 例如：`http://h1.taos.com:6041/rest/sql/test` 是指向地址为 `h1.taos.com:6041` 的 URL，并将默认使用的数据库库名设置为 `test`。
 
@@ -99,13 +100,13 @@ HTTP 请求的 BODY 里就是一个完整的 SQL 语句，SQL 语句中的数据
 使用 `curl` 通过自定义身份认证方式来发起一个 HTTP Request，语法如下：
 
 ```bash
-curl -L -H "Authorization: Basic <TOKEN>" -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name]
+curl -L -H "Authorization: Basic <TOKEN>" -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone]
 ```
 
 或者，
 
 ```bash
-curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name]
+curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone]
 ```
 
 其中，`TOKEN` 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`。

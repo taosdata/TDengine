@@ -213,12 +213,12 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 #endif
 
 int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
-  tqDebug("vgId:%d tq push msg ver %ld, type: %s", pTq->pVnode->config.vgId, ver, TMSG_INFO(msgType));
+  tqDebug("vgId:%d, tq push msg ver %" PRId64 ", type: %s", pTq->pVnode->config.vgId, ver, TMSG_INFO(msgType));
 
   if (msgType == TDMT_VND_SUBMIT) {
     // lock push mgr to avoid potential msg lost
     taosWLockLatch(&pTq->pushLock);
-    tqDebug("vgId:%d push handle num %d", pTq->pVnode->config.vgId, taosHashGetSize(pTq->pPushMgr));
+    tqDebug("vgId:%d, push handle num %d", pTq->pVnode->config.vgId, taosHashGetSize(pTq->pPushMgr));
     if (taosHashGetSize(pTq->pPushMgr) != 0) {
       SArray* cachedKeys = taosArrayInit(0, sizeof(void*));
       SArray* cachedKeyLens = taosArrayInit(0, sizeof(size_t));
@@ -226,6 +226,8 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
       if (data == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         tqError("failed to copy data for stream since out of memory");
+        taosArrayDestroyP(cachedKeys, (FDelete)taosMemoryFree);
+        taosArrayDestroy(cachedKeyLens);
         return -1;
       }
       memcpy(data, msg, msgLen);
@@ -240,12 +242,12 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
 
         STqHandle* pHandle = taosHashGet(pTq->pHandle, pPushEntry->subKey, strlen(pPushEntry->subKey));
         if (pHandle == NULL) {
-          tqDebug("vgId:%d cannot find handle %s", pTq->pVnode->config.vgId, pPushEntry->subKey);
+          tqDebug("vgId:%d, cannot find handle %s", pTq->pVnode->config.vgId, pPushEntry->subKey);
           continue;
         }
-        if (pPushEntry->dataRsp.reqOffset.version > ver) {
-          tqDebug("vgId:%d push entry req version %ld, while push version %ld, skip", pTq->pVnode->config.vgId,
-                  pPushEntry->dataRsp.reqOffset.version, ver);
+        if (pPushEntry->dataRsp.reqOffset.version >= ver) {
+          tqDebug("vgId:%d, push entry req version %" PRId64 ", while push version %" PRId64 ", skip",
+                  pTq->pVnode->config.vgId, pPushEntry->dataRsp.reqOffset.version, ver);
           continue;
         }
         STqExecHandle* pExec = &pHandle->execHandle;
@@ -268,11 +270,11 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
             break;
           }
 
-          tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols);
+          tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols, pTq->pVnode->config.tsdbCfg.precision);
           pRsp->blockNum++;
         }
 
-        tqDebug("vgId:%d tq handle push, subkey: %s, block num: %d", pTq->pVnode->config.vgId, pPushEntry->subKey,
+        tqDebug("vgId:%d, tq handle push, subkey: %s, block num: %d", pTq->pVnode->config.vgId, pPushEntry->subKey,
                 pRsp->blockNum);
         if (pRsp->blockNum > 0) {
           // set offset
@@ -299,6 +301,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
       }
       taosArrayDestroyP(cachedKeys, (FDelete)taosMemoryFree);
       taosArrayDestroy(cachedKeyLens);
+      taosMemoryFree(data);
     }
     // unlock
     taosWUnLockLatch(&pTq->pushLock);

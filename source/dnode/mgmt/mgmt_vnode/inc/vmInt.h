@@ -33,11 +33,7 @@ typedef struct SVnodeMgmt {
   SQWorkerPool   queryPool;
   SQWorkerPool   streamPool;
   SWWorkerPool   fetchPool;
-  SWWorkerPool   syncPool;
-  SWWorkerPool   writePool;
-  SWWorkerPool   applyPool;
   SSingleWorker  mgmtWorker;
-  SSingleWorker  monitorWorker;
   SHashObj      *hash;
   TdThreadRwlock lock;
   SVnodesStat    state;
@@ -52,18 +48,19 @@ typedef struct {
 } SWrapperCfg;
 
 typedef struct {
-  int32_t     vgId;
-  int32_t     vgVersion;
-  int32_t     refCount;
-  int8_t      dropped;
-  char       *path;
-  SVnode     *pImpl;
-  STaosQueue *pWriteQ;
-  STaosQueue *pSyncQ;
-  STaosQueue *pApplyQ;
-  STaosQueue *pQueryQ;
-  STaosQueue *pStreamQ;
-  STaosQueue *pFetchQ;
+  int32_t       vgId;
+  int32_t       vgVersion;
+  int32_t       refCount;
+  int8_t        dropped;
+  char         *path;
+  SVnode       *pImpl;
+  SMultiWorker  pWriteW;
+  SMultiWorker  pSyncW;
+  SMultiWorker  pSyncCtrlW;
+  SMultiWorker  pApplyW;
+  STaosQueue   *pQueryQ;
+  STaosQueue   *pStreamQ;
+  STaosQueue   *pFetchQ;
 } SVnodeObj;
 
 typedef struct {
@@ -87,8 +84,7 @@ void       vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
 SArray *vmGetMsgHandles();
 int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t vmProcessGetMonitorInfoReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t vmProcessGetLoadsReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // vmFile.c
 int32_t     vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);
@@ -106,12 +102,12 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc);
 
 int32_t vmPutMsgToWriteQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToSyncQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmPutMsgToSyncCtrlQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToStreamQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMergeQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t vmPutMsgToMonitorQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

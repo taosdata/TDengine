@@ -18,7 +18,6 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
-#include "mndOffset.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
@@ -54,11 +53,10 @@ int32_t mndInitTopic(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndTopicActionDelete,
   };
 
-  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_TOPIC, mndProcessCreateTopicReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_TOPIC, mndProcessDropTopicReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_DROP_TOPIC_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_ADD_CHECK_INFO_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_DELETE_CHECK_INFO_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_CREATE_TOPIC, mndProcessCreateTopicReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_DROP_TOPIC, mndProcessDropTopicReq);
+  mndSetMsgHandle(pMnode, TDMT_VND_TMQ_ADD_CHECKINFO_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_TMQ_DEL_CHECKINFO_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndRetrieveTopic);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndCancelGetNextTopic);
@@ -154,6 +152,8 @@ TOPIC_ENCODE_OVER:
 
 SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+
+  void  *buf = NULL;
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto TOPIC_DECODE_OVER;
 
@@ -215,7 +215,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
 
   SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
   if (len) {
-    void *buf = taosMemoryMalloc(len);
+    buf = taosMemoryMalloc(len);
     if (buf == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto TOPIC_DECODE_OVER;
@@ -224,7 +224,6 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     if (taosDecodeSSchemaWrapper(buf, &pTopic->schema) == NULL) {
       goto TOPIC_DECODE_OVER;
     }
-    taosMemoryFree(buf);
   } else {
     pTopic->schema.nCols = 0;
     pTopic->schema.version = 0;
@@ -250,6 +249,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_SUCCESS;
 
 TOPIC_DECODE_OVER:
+  taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("topic:%s, failed to decode from raw:%p since %s", pTopic->name, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
@@ -505,7 +505,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
       action.pCont = buf;
       action.contLen = sizeof(SMsgHead) + len;
-      action.msgType = TDMT_VND_ADD_CHECK_INFO;
+      action.msgType = TDMT_VND_TMQ_ADD_CHECKINFO;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(buf);
         sdbRelease(pSdb, pVgroup);
@@ -637,6 +637,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     if (pIter == NULL) break;
 
     if (pConsumer->status == MQ_CONSUMER_STATUS__LOST_REBD) continue;
+
     int32_t sz = taosArrayGetSize(pConsumer->assignedTopics);
     for (int32_t i = 0; i < sz; i++) {
       char *name = taosArrayGetP(pConsumer->assignedTopics, i);
@@ -649,6 +650,33 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
         return -1;
       }
     }
+
+    sz = taosArrayGetSize(pConsumer->rebNewTopics);
+    for (int32_t i = 0; i < sz; i++) {
+      char *name = taosArrayGetP(pConsumer->rebNewTopics, i);
+      if (strcmp(name, pTopic->name) == 0) {
+        mndReleaseConsumer(pMnode, pConsumer);
+        mndReleaseTopic(pMnode, pTopic);
+        terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
+        mError("topic:%s, failed to drop since subscribed by consumer:%" PRId64 ", in consumer group %s (reb new)",
+               dropReq.name, pConsumer->consumerId, pConsumer->cgroup);
+        return -1;
+      }
+    }
+
+    sz = taosArrayGetSize(pConsumer->rebRemovedTopics);
+    for (int32_t i = 0; i < sz; i++) {
+      char *name = taosArrayGetP(pConsumer->rebRemovedTopics, i);
+      if (strcmp(name, pTopic->name) == 0) {
+        mndReleaseConsumer(pMnode, pConsumer);
+        mndReleaseTopic(pMnode, pTopic);
+        terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
+        mError("topic:%s, failed to drop since subscribed by consumer:%" PRId64 ", in consumer group %s (reb remove)",
+               dropReq.name, pConsumer->consumerId, pConsumer->cgroup);
+        return -1;
+      }
+    }
+
     sdbRelease(pSdb, pConsumer);
   }
 
@@ -674,15 +702,6 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 
   mInfo("trans:%d, used to drop topic:%s", pTrans->id, pTopic->name);
-
-#if 0
-  if (mndDropOffsetByTopic(pMnode, pTrans, dropReq.name) < 0) {
-    ASSERT(0);
-    mndTransDrop(pTrans);
-    mndReleaseTopic(pMnode, pTopic);
-    return -1;
-  }
-#endif
 
   // TODO check if rebalancing
   if (mndDropSubByTopic(pMnode, pTrans, dropReq.name) < 0) {
@@ -714,7 +733,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
       action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
       action.pCont = buf;
       action.contLen = sizeof(SMsgHead) + TSDB_TOPIC_FNAME_LEN;
-      action.msgType = TDMT_VND_DELETE_CHECK_INFO;
+      action.msgType = TDMT_VND_TMQ_DEL_CHECKINFO;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(buf);
         sdbRelease(pSdb, pVgroup);

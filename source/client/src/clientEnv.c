@@ -71,24 +71,25 @@ static void deregisterRequest(SRequestObj *pRequest) {
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
 
   int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
-  tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64 " elapsed:%.2f ms, "
+  tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64
+           " elapsed:%.2f ms, "
            "current:%d, app current:%d",
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
   if (QUERY_NODE_VNODE_MODIF_STMT == pRequest->stmtType) {
-    tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
-            "us, exec:%" PRId64 "us",
-            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
-            pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
-            pRequest->metric.execEnd - pRequest->metric.semanticEnd);
+    //    tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
+    //            "us, exec:%" PRId64 "us",
+    //            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
+    //            pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd -
+    //            pRequest->metric.ctgEnd, pRequest->metric.execEnd - pRequest->metric.semanticEnd);
     atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
   } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-    tscPerf("select duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
-            "us, planner:%" PRId64 "us, exec:%" PRId64 "us, reqId:0x%"PRIx64,
-            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
-            pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
-            pRequest->metric.planEnd - pRequest->metric.semanticEnd,
-            pRequest->metric.resultReady - pRequest->metric.planEnd, pRequest->requestId);
+    //    tscPerf("select duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
+    //            "us, planner:%" PRId64 "us, exec:%" PRId64 "us, reqId:0x%" PRIx64,
+    //            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
+    //            pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd -
+    //            pRequest->metric.ctgEnd, pRequest->metric.planEnd - pRequest->metric.semanticEnd,
+    //            pRequest->metric.resultReady - pRequest->metric.planEnd, pRequest->requestId);
 
     atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
   }
@@ -139,11 +140,15 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
   rpcInit.rfp = clientRpcRfp;
-  // rpcInit.tfp = clientRpcTfp;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.compressSize = tsCompressMsgSize;
+  rpcInit.dfp = destroyAhandle;
+  rpcInit.retryLimit = tsRpcRetryLimit;
+  rpcInit.retryInterval = tsRpcRetryInterval;
+
   void *pDnodeConn = rpcOpen(&rpcInit);
   if (pDnodeConn == NULL) {
     tscError("failed to init connection to server");
@@ -269,7 +274,7 @@ STscObj *acquireTscObj(int64_t rid) { return (STscObj *)taosAcquireRef(clientCon
 
 int32_t releaseTscObj(int64_t rid) { return taosReleaseRef(clientConnRefPool, rid); }
 
-void *createRequest(uint64_t connId, int32_t type) {
+void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
   SRequestObj *pRequest = (SRequestObj *)taosMemoryCalloc(1, sizeof(SRequestObj));
   if (NULL == pRequest) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -284,7 +289,7 @@ void *createRequest(uint64_t connId, int32_t type) {
   }
 
   pRequest->resType = RES_TYPE__QUERY;
-  pRequest->requestId = generateRequestId();
+  pRequest->requestId = reqid == 0 ? generateRequestId() : reqid;
   pRequest->metric.start = taosGetTimestampUs();
 
   pRequest->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
@@ -336,7 +341,7 @@ void doDestroyRequest(void *p) {
 
   SRequestObj *pRequest = (SRequestObj *)p;
 
-  int64_t reqId = pRequest->self;
+  uint64_t reqId = pRequest->requestId;
   tscTrace("begin to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 
   taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
@@ -436,21 +441,18 @@ int taos_init() {
 }
 
 int taos_options_imp(TSDB_OPTION option, const char *str) {
-  if (option != TSDB_OPTION_CONFIGDIR) {
-    taos_init();  // initialize global config
-  } else {
+  if (option == TSDB_OPTION_CONFIGDIR) {
     tstrncpy(configDir, str, PATH_MAX);
     tscInfo("set cfg:%s to %s", configDir, str);
     return 0;
+  } else {
+    taos_init();  // initialize global config
   }
 
   SConfig     *pCfg = taosGetCfg();
   SConfigItem *pItem = NULL;
 
   switch (option) {
-    case TSDB_OPTION_CONFIGDIR:
-      pItem = cfgGetItem(pCfg, "configDir");
-      break;
     case TSDB_OPTION_SHELL_ACTIVITY_TIMER:
       pItem = cfgGetItem(pCfg, "shellActivityTimer");
       break;

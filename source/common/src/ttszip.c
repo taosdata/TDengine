@@ -31,11 +31,11 @@ static int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader);
  */
 STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   if (!osTempSpaceAvailable()) {
-    terrno = TSDB_CODE_TSC_NO_DISKSPACE;
+    terrno = TSDB_CODE_NO_DISKSPACE;
     // tscError("tmp file created failed since %s", terrstr());
     return NULL;
   }
-  
+
   STSBuf* pTSBuf = taosMemoryCalloc(1, sizeof(STSBuf));
   if (pTSBuf == NULL) {
     return NULL;
@@ -52,10 +52,13 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   }
 
   if (!autoDelete) {
-    taosRemoveFile(pTSBuf->path);
+    if (taosRemoveFile(pTSBuf->path) != 0) {
+      taosMemoryFree(pTSBuf);
+      return NULL;
+    }
   }
 
-  if (NULL == allocResForTSBuf(pTSBuf)) {
+  if (allocResForTSBuf(pTSBuf) == NULL) {
     return NULL;
   }
 
@@ -184,7 +187,9 @@ void* tsBufDestroy(STSBuf* pTSBuf) {
 
   if (pTSBuf->autoDelete) {
     //    ("tsBuf %p destroyed, delete tmp file:%s", pTSBuf, pTSBuf->path);
-    taosRemoveFile(pTSBuf->path);
+    if (taosRemoveFile(pTSBuf->path) != 0) {
+      // tscError("tsBuf %p destroyed, failed to remove tmp file:%s", pTSBuf, pTSBuf->path);
+    }
   } else {
     //    tscDebug("tsBuf %p destroyed, tmp file:%s, remains", pTSBuf, pTSBuf->path);
   }
@@ -206,7 +211,8 @@ static STSGroupBlockInfoEx* addOneGroupInfo(STSBuf* pTSBuf, int32_t id) {
     uint32_t newSize = (uint32_t)(pTSBuf->numOfAlloc * 1.5);
     assert((int32_t)newSize > pTSBuf->numOfAlloc);
 
-    STSGroupBlockInfoEx* tmp = (STSGroupBlockInfoEx*)taosMemoryRealloc(pTSBuf->pData, sizeof(STSGroupBlockInfoEx) * newSize);
+    STSGroupBlockInfoEx* tmp =
+        (STSGroupBlockInfoEx*)taosMemoryRealloc(pTSBuf->pData, sizeof(STSGroupBlockInfoEx) * newSize);
     if (tmp == NULL) {
       return NULL;
     }

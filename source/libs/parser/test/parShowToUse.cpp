@@ -100,6 +100,8 @@ TEST_F(ParserShowToUseTest, showDnodeVariables) {
   useDb("root", "test");
 
   run("SHOW DNODE 1 VARIABLES");
+
+  run("SHOW DNODE 1 VARIABLES LIKE '%debug%'");
 }
 
 TEST_F(ParserShowToUseTest, showFunctions) {
@@ -128,12 +130,6 @@ TEST_F(ParserShowToUseTest, showMnodes) {
   useDb("root", "test");
 
   run("SHOW mnodes");
-}
-
-TEST_F(ParserShowToUseTest, showModules) {
-  useDb("root", "test");
-
-  run("SHOW modules");
 }
 
 TEST_F(ParserShowToUseTest, showQnodes) {
@@ -194,6 +190,16 @@ TEST_F(ParserShowToUseTest, showTableDistributed) {
   useDb("root", "test");
 
   run("SHOW TABLE DISTRIBUTED st1");
+}
+
+TEST_F(ParserShowToUseTest, showTableTags) {
+  useDb("root", "test");
+
+  run("SHOW TABLE TAGS FROM st1");
+
+  run("SHOW TABLE TAGS tag1, tag2 FROM st1");
+
+  run("SHOW TABLE TAGS TBNAME, _TAGS, tag3 FROM st1");
 }
 
 TEST_F(ParserShowToUseTest, showTags) {

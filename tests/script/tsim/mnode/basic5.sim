@@ -96,7 +96,7 @@ sql_error drop mnode on dnode 4
 sql_error drop mnode on dnode 5
 sql_error drop mnode on dnode 6
 
-system sh/exec.sh -n dnode2 -s stop -x SIGKILL
+system sh/exec.sh -n dnode2 -s stop 
 $x = 0
 step5: 
 	$x = $x + 1
@@ -151,7 +151,7 @@ if $data(4)[4] != ready then
 endi
 
 print =============== step6: stop mnode1 
-system sh/exec.sh -n dnode1 -s stop -x SIGKILL
+system sh/exec.sh -n dnode1 -s stop 
 # sql_error drop mnode on dnode 1
 
 $x = 0
@@ -183,7 +183,7 @@ $x = 0
 step71: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 10 then
+	if $x == 50 then
 		return -1
 	endi
 sql select * from information_schema.ins_dnodes
@@ -205,8 +205,7 @@ if $data(4)[4] != ready then
 endi
 
 print =============== step8: stop mnode1 and drop it
-system sh/exec.sh -n dnode1 -s stop -x SIGKILL
-sql_error drop mnode on dnode 1
+system sh/exec.sh -n dnode1 -s stop 
 
 $x = 0
 step81: 
@@ -232,45 +231,17 @@ endi
 if  $leaderNum != 1 then
   goto step81
 endi
-if $data(1)[3] != dropping then
-  goto step81
-endi
 
 print =============== step9: start mnode1 and wait it dropped
-system sh/exec.sh -n dnode1 -s start
-
+print check mnode has leader step9a
 $x = 0
-step91: 
+step9a: 
 	$x = $x + 1
 	sleep 1000
 	if $x == 10 then
 		return -1
 	endi
-sql select * from information_schema.ins_dnodes
-print ===> $data00 $data01 $data02 $data03 $data04 $data05
-print ===> $data10 $data11 $data12 $data13 $data14 $data15
-print ===> $data20 $data21 $data22 $data23 $data24 $data25
-print ===> $data30 $data31 $data32 $data33 $data34 $data35
-if $data(1)[4] != ready then
-  goto step91
-endi
-if $data(2)[4] != ready then
-  goto step91
-endi
-if $data(3)[4] != ready then
-  goto step91
-endi
-if $data(4)[4] != ready then
-  goto step91
-endi
-
-$x = 0
-step92: 
-	$x = $x + 1
-	sleep 1000
-	if $x == 20 then
-		return -1
-	endi
+print check mnode leader
 sql select * from information_schema.ins_mnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
@@ -286,10 +257,95 @@ if $data(3)[2] == leader then
   $leaderNum = 1
 endi
 if  $leaderNum != 1 then
-  goto step92
+  goto step9a
+endi
+
+print start dnode1 step9b
+system sh/exec.sh -n dnode1 -s start
+$x = 0
+step9b: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+print check dnode1 ready	
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+if $data(1)[4] != ready then
+  goto step9b
+endi
+if $data(2)[4] != ready then
+  goto step9b
+endi
+if $data(3)[4] != ready then
+  goto step9b
+endi
+if $data(4)[4] != ready then
+  goto step9b
+endi
+
+sleep 4000
+print check mnode has leader step9c
+$x = 0
+step9c: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+print check mnode leader
+sql select * from information_schema.ins_mnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+$leaderNum = 0
+if $data(1)[2] == leader then
+  $leaderNum = 1
+endi
+if $data(2)[2] == leader then
+  $leaderNum = 1
+endi
+if $data(3)[2] == leader then
+  $leaderNum = 1
+endi
+if  $leaderNum != 1 then
+  goto step9c
+endi
+
+print drop mnode step9d
+sql drop mnode on dnode 1 
+
+$x = 0
+step9d: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+print check mnode leader
+sql select * from information_schema.ins_mnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+$leaderNum = 0
+if $data(1)[2] == leader then
+  $leaderNum = 1
+endi
+if $data(2)[2] == leader then
+  $leaderNum = 1
+endi
+if $data(3)[2] == leader then
+  $leaderNum = 1
+endi
+if  $leaderNum != 1 then
+  goto step9d
 endi
 if $rows != 2 then
-  goto step92
+  goto step9d
 endi
 
 print =============== stepa: create mnode1 again

@@ -369,7 +369,7 @@ static void mndReleaseApp(SMnode *pMnode, SAppObj *pApp) {
   taosCacheRelease(pMgmt->appCache, (void **)&pApp, false);
 }
 
-void *mndGetNextApp(SMnode *pMnode, SCacheIter *pIter) {
+SAppObj *mndGetNextApp(SMnode *pMnode, SCacheIter *pIter) {
   SAppObj *pApp = NULL;
   bool     hasNext = taosCacheIterNext(pIter);
   if (hasNext) {

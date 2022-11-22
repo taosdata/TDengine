@@ -54,7 +54,7 @@ typedef struct SFuncExecFuncs {
   FExecCombine  combine;
 } SFuncExecFuncs;
 
-#define MAX_INTERVAL_TIME_WINDOW 1000000  // maximum allowed time windows in final results
+#define MAX_INTERVAL_TIME_WINDOW 10000000  // maximum allowed time windows in final results
 
 #define TOP_BOTTOM_QUERY_LIMIT    100
 #define FUNCTIONS_NAME_MAX_LENGTH 16
@@ -176,13 +176,13 @@ struct SScalarParam {
   SColumnInfoData *columnData;
   SHashObj        *pHashFilter;
   int32_t          hashValueType;
-  void            *param; // other parameter, such as meta handle from vnode, to extract table name/tag value
+  void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
-  int32_t          numOfQualified; // number of qualified elements in the final results
+  int32_t          numOfQualified;  // number of qualified elements in the final results
 };
 
 void    cleanupResultRowEntry(struct SResultRowEntryInfo *pCell);
-int32_t getNumOfResult(SqlFunctionCtx *pCtx, int32_t num, SSDataBlock *pResBlock);
+//int32_t getNumOfResult(SqlFunctionCtx *pCtx, int32_t num, SSDataBlock *pResBlock);
 bool    isRowEntryCompleted(struct SResultRowEntryInfo *pEntry);
 bool    isRowEntryInitialized(struct SResultRowEntryInfo *pEntry);
 

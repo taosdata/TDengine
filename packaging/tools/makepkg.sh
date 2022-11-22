@@ -39,6 +39,8 @@ release_dir="${top_dir}/release"
 #package_name='linux'
 if [ "$verMode" == "cluster" ]; then
   install_dir="${release_dir}/${productName}-enterprise-server-${version}"
+elif [ "$verMode" == "cloud" ]; then
+  install_dir="${release_dir}/${productName}-cloud-server-${version}"
 else
   install_dir="${release_dir}/${productName}-server-${version}"
 fi
@@ -47,7 +49,7 @@ if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
   cd ${top_dir}/tools/taos-tools/packaging/deb
   [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-  taostools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
+  taostools_ver=$(git tag |grep -v taos | sort | tail -1)
   taostools_install_dir="${release_dir}/${clientName}Tools-${taostools_ver}"
 
   cd ${curr_dir}
@@ -217,7 +219,10 @@ fi
 if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
   mv remove_temp.sh ${install_dir}/bin/remove.sh
-
+fi
+if [ "$verMode" == "cloud" ]; then
+  sed 's/verMode=edge/verMode=cloud/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
+  mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
 
 cd ${install_dir}
@@ -232,6 +237,10 @@ cd ${curr_dir}
 cp ${install_files} ${install_dir}
 if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/install.sh >>install_temp.sh
+  mv install_temp.sh ${install_dir}/install.sh
+fi
+if [ "$verMode" == "cloud" ]; then
+  sed 's/verMode=edge/verMode=cloud/g' ${install_dir}/install.sh >>install_temp.sh
   mv install_temp.sh ${install_dir}/install.sh
 fi
 if [ "$pagMode" == "lite" ]; then
@@ -276,10 +285,14 @@ if [[ $dbName == "taos" ]]; then
   fi
 
   # Add web files
-  if [ -d "${web_dir}/admin" ]; then
-    mkdir -p ${install_dir}/share/
-    cp ${web_dir}/admin ${install_dir}/share/ -r
-    cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
+  if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
+    if [ -d "${web_dir}/admin" ] ; then
+      mkdir -p ${install_dir}/share/
+      cp ${web_dir}/admin ${install_dir}/share/ -r
+      cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
+    else
+      echo "directory not found for enterprise release: ${web_dir}/admin"
+    fi
   fi
 fi
 
@@ -288,7 +301,7 @@ mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo 
 [ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver || :
 
 # Copy connector
-if [ "$verMode" == "cluster" ]; then
+if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
     connector_dir="${code_dir}/connector"
     mkdir -p ${install_dir}/connector
     if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then

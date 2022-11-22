@@ -72,15 +72,21 @@ typedef struct SRpcMsg {
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *epset);
 typedef bool (*RpcRfp)(int32_t code, tmsg_t msgType);
 typedef bool (*RpcTfp)(int32_t code, tmsg_t msgType);
+typedef void (*RpcDfp)(void *ahandle);
 
 typedef struct SRpcInit {
   char     localFqdn[TSDB_FQDN_LEN];
-  uint16_t localPort;     // local port
-  char    *label;         // for debug purpose
-  int32_t  numOfThreads;  // number of threads to handle connections
-  int32_t  sessions;      // number of sessions allowed
-  int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
-  int32_t  idleTime;      // milliseconds, 0 means idle timer is disabled
+  uint16_t localPort;      // local port
+  char    *label;          // for debug purpose
+  int32_t  numOfThreads;   // number of threads to handle connections
+  int32_t  sessions;       // number of sessions allowed
+  int8_t   connType;       // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
+  int32_t  idleTime;       // milliseconds, 0 means idle timer is disabled
+  int32_t  retryLimit;     // retry limit
+  int32_t  retryInterval;  // retry interval ms
+
+  int32_t compressSize;  // -1: no compress, 0 : all data compressed, size: compress data if larger than size
+  int8_t  encryption;    // encrypt or not
 
   // the following is for client app ecurity only
   char *user;  // user name
@@ -93,6 +99,9 @@ typedef struct SRpcInit {
 
   // set up timeout for particular msg
   RpcTfp tfp;
+
+  // destroy client ahandle;
+  RpcDfp dfp;
 
   void *parent;
 } SRpcInit;
@@ -115,15 +124,14 @@ typedef struct {
 } SRpcCtx;
 
 int32_t rpcInit();
+void    rpcCleanup();
 
-void  rpcCleanup();
 void *rpcOpen(const SRpcInit *pRpc);
-
 void  rpcClose(void *);
 void  rpcCloseImpl(void *);
-void *rpcMallocCont(int32_t contLen);
+void *rpcMallocCont(int64_t contLen);
 void  rpcFreeCont(void *pCont);
-void *rpcReallocCont(void *ptr, int32_t contLen);
+void *rpcReallocCont(void *ptr, int64_t contLen);
 
 // Because taosd supports multi-process mode
 // These functions should not be used on the server side

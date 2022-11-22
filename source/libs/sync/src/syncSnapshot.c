@@ -13,33 +13,26 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncSnapshot.h"
 #include "syncIndexMgr.h"
 #include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
+#include "syncReplication.h"
 #include "syncUtil.h"
-#include "wal.h"
 
-//----------------------------------
-static void    snapshotSenderUpdateProgress(SSyncSnapshotSender *pSender, SyncSnapshotRsp *pMsg);
-static void    snapshotReceiverDoStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg);
-static void    snapshotReceiverGotData(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg);
-static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg);
-
-//----------------------------------
 SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex) {
   bool condition = (pSyncNode->pFsm->FpSnapshotStartRead != NULL) && (pSyncNode->pFsm->FpSnapshotStopRead != NULL) &&
                    (pSyncNode->pFsm->FpSnapshotDoRead != NULL);
 
   SSyncSnapshotSender *pSender = NULL;
   if (condition) {
-    pSender = taosMemoryMalloc(sizeof(SSyncSnapshotSender));
+    pSender = taosMemoryCalloc(1, sizeof(SSyncSnapshotSender));
     if (pSender == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return NULL;
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
     }
-    memset(pSender, 0, sizeof(*pSender));
 
     pSender->start = false;
     pSender->seq = SYNC_SNAPSHOT_SEQ_INVALID;
@@ -51,7 +44,8 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
     pSender->pSyncNode = pSyncNode;
     pSender->replicaIndex = replicaIndex;
     pSender->term = pSyncNode->pRaftStore->currentTerm;
-    pSender->privateTerm = taosGetTimestampMs() + 100;
+    pSender->startTime = 0;
+    pSender->endTime = 0;
     pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &(pSender->snapshot));
     pSender->finish = false;
   } else {
@@ -73,7 +67,7 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
     if (pSender->pReader != NULL) {
       int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
       if (ret != 0) {
-        syncNodeErrorLog(pSender->pSyncNode, "stop reader error");
+        sNError(pSender->pSyncNode, "stop reader error");
       }
       pSender->pReader = NULL;
     }
@@ -85,91 +79,36 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
 
 bool snapshotSenderIsStart(SSyncSnapshotSender *pSender) { return pSender->start; }
 
-// begin send snapshot by param, snapshot, pReader
-//
-// action:
-// 1. assert reader not start
-// 2. update state
-// 3. send first snapshot block
-int32_t snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshotParam snapshotParam, SSnapshot snapshot,
-                            void *pReader) {
+int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   ASSERT(!snapshotSenderIsStart(pSender));
 
-  // init snapshot, parm, reader
-  ASSERT(pSender->pReader == NULL);
-  pSender->pReader = pReader;
-  pSender->snapshot = snapshot;
-  pSender->snapshotParam = snapshotParam;
-
-  // init current block
-  if (pSender->pCurrentBlock != NULL) {
-    taosMemoryFree(pSender->pCurrentBlock);
-  }
-  pSender->blockLen = 0;
-
-  // update term
-  pSender->term = pSender->pSyncNode->pRaftStore->currentTerm;
-  ++(pSender->privateTerm);  // increase private term
-
-  // update state
-  pSender->finish = false;
   pSender->start = true;
   pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
   pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;
+  pSender->pReader = NULL;
+  pSender->pCurrentBlock = NULL;
+  pSender->blockLen = 0;
 
-  // init last config
-  if (pSender->snapshot.lastConfigIndex != SYNC_INDEX_INVALID) {
-    int32_t         code = 0;
-    SSyncRaftEntry *pEntry = NULL;
-    bool            getLastConfig = false;
+  pSender->snapshotParam.start = SYNC_INDEX_INVALID;
+  pSender->snapshotParam.end = SYNC_INDEX_INVALID;
 
-    code = pSender->pSyncNode->pLogStore->syncLogGetEntry(pSender->pSyncNode->pLogStore,
-                                                          pSender->snapshot.lastConfigIndex, &pEntry);
-    if (code == 0 && pEntry != NULL) {
-      SRpcMsg rpcMsg;
-      syncEntry2OriginalRpc(pEntry, &rpcMsg);
+  pSender->snapshot.data = NULL;
+  pSender->snapshotParam.end = SYNC_INDEX_INVALID;
+  pSender->snapshot.lastApplyIndex = SYNC_INDEX_INVALID;
+  pSender->snapshot.lastApplyTerm = SYNC_TERM_INVALID;
+  pSender->snapshot.lastConfigIndex = SYNC_INDEX_INVALID;
 
-      SSyncCfg lastConfig;
-      int32_t  ret = syncCfgFromStr(rpcMsg.pCont, &lastConfig);
-      ASSERT(ret == 0);
-      pSender->lastConfig = lastConfig;
-      getLastConfig = true;
-
-      rpcFreeCont(rpcMsg.pCont);
-      syncEntryDestory(pEntry);
-    } else {
-      if (pSender->snapshot.lastConfigIndex == pSender->pSyncNode->pRaftCfg->lastConfigIndex) {
-        sTrace("vgId:%d, sync sender get cfg from local", pSender->pSyncNode->vgId);
-        pSender->lastConfig = pSender->pSyncNode->pRaftCfg->cfg;
-        getLastConfig = true;
-      }
-    }
-
-    // last config not found in wal, update to -1
-    if (!getLastConfig) {
-      SyncIndex oldLastConfigIndex = pSender->snapshot.lastConfigIndex;
-      SyncIndex newLastConfigIndex = SYNC_INDEX_INVALID;
-      pSender->snapshot.lastConfigIndex = SYNC_INDEX_INVALID;
-      memset(&(pSender->lastConfig), 0, sizeof(SSyncCfg));
-
-      // event log
-      do {
-        char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "snapshot sender update lcindex from %" PRId64 " to %" PRId64,
-                 oldLastConfigIndex, newLastConfigIndex);
-        char *eventLog = snapshotSender2SimpleStr(pSender, logBuf);
-        syncNodeEventLog(pSender->pSyncNode, eventLog);
-        taosMemoryFree(eventLog);
-      } while (0);
-    }
-
-  } else {
-    // no last config
-    memset(&(pSender->lastConfig), 0, sizeof(SSyncCfg));
-  }
+  memset(&(pSender->lastConfig), 0, sizeof(pSender->lastConfig));
+  pSender->sendingMS = 0;
+  pSender->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  pSender->startTime = taosGetTimestampMs();
+  pSender->finish = false;
 
   // build begin msg
-  SyncSnapshotSend *pMsg = syncSnapshotSendBuild(0, pSender->pSyncNode->vgId);
+  SRpcMsg rpcMsg = {0};
+  (void)syncBuildSnapshotSend(&rpcMsg, 0, pSender->pSyncNode->vgId);
+
+  SyncSnapshotSend *pMsg = rpcMsg.pCont;
   pMsg->srcId = pSender->pSyncNode->myRaftId;
   pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
   pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
@@ -178,26 +117,24 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshotParam snapsho
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
   pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
   pMsg->lastConfig = pSender->lastConfig;
-  pMsg->seq = pSender->seq;  // SYNC_SNAPSHOT_SEQ_BEGIN
-  pMsg->privateTerm = pSender->privateTerm;
+  pMsg->startTime = pSender->startTime;
+  pMsg->seq = SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT;
 
   // send msg
-  SRpcMsg rpcMsg;
-  syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
-  syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
-  syncSnapshotSendDestroy(pMsg);
+  syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg);
+  syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "");
 
   // event log
-  do {
-    char *eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender start");
-    syncNodeEventLog(pSender->pSyncNode, eventLog);
-    taosMemoryFree(eventLog);
-  } while (0);
-
+  sSTrace(pSender, "snapshot sender start");
   return 0;
 }
 
 int32_t snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
+  // update flag
+  pSender->start = false;
+  pSender->finish = finish;
+  pSender->endTime = taosGetTimestampMs();
+
   // close reader
   if (pSender->pReader != NULL) {
     int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
@@ -212,19 +149,8 @@ int32_t snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
     pSender->blockLen = 0;
   }
 
-  // update flag
-  pSender->start = false;
-  pSender->finish = finish;
-
-  // do not update term, maybe print
-
   // event log
-  do {
-    char *eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender stop");
-    syncNodeEventLog(pSender->pSyncNode, eventLog);
-    taosMemoryFree(eventLog);
-  } while (0);
-
+  sSTrace(pSender, "snapshot sender stop");
   return 0;
 }
 
@@ -250,7 +176,10 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   }
 
   // build msg
-  SyncSnapshotSend *pMsg = syncSnapshotSendBuild(pSender->blockLen, pSender->pSyncNode->vgId);
+  SRpcMsg rpcMsg = {0};
+  (void)syncBuildSnapshotSend(&rpcMsg, pSender->blockLen, pSender->pSyncNode->vgId);
+
+  SyncSnapshotSend *pMsg = rpcMsg.pCont;
   pMsg->srcId = pSender->pSyncNode->myRaftId;
   pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
   pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
@@ -260,27 +189,23 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
   pMsg->lastConfig = pSender->lastConfig;
   pMsg->seq = pSender->seq;
-  pMsg->privateTerm = pSender->privateTerm;
-  memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
+
+  // pMsg->privateTerm = pSender->privateTerm;
+
+  if (pSender->pCurrentBlock != NULL) {
+    memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
+  }
 
   // send msg
-  SRpcMsg rpcMsg;
-  syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
-  syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
-  syncSnapshotSendDestroy(pMsg);
+  syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg);
+  syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "");
 
   // event log
-  do {
-    char *eventLog = NULL;
-    if (pSender->seq == SYNC_SNAPSHOT_SEQ_END) {
-      eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender finish");
-    } else {
-      eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender sending");
-    }
-    syncNodeEventLog(pSender->pSyncNode, eventLog);
-    taosMemoryFree(eventLog);
-  } while (0);
-
+  if (pSender->seq == SYNC_SNAPSHOT_SEQ_END) {
+    sSTrace(pSender, "snapshot sender finish");
+  } else {
+    sSTrace(pSender, "snapshot sender sending");
+  }
   return 0;
 }
 
@@ -289,7 +214,10 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   // send current block data
   if (pSender->pCurrentBlock != NULL && pSender->blockLen > 0) {
     // build msg
-    SyncSnapshotSend *pMsg = syncSnapshotSendBuild(pSender->blockLen, pSender->pSyncNode->vgId);
+    SRpcMsg rpcMsg = {0};
+    (void)syncBuildSnapshotSend(&rpcMsg, pSender->blockLen, pSender->pSyncNode->vgId);
+
+    SyncSnapshotSend *pMsg = rpcMsg.pCont;
     pMsg->srcId = pSender->pSyncNode->myRaftId;
     pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
     pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
@@ -299,21 +227,16 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
     pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
     pMsg->lastConfig = pSender->lastConfig;
     pMsg->seq = pSender->seq;
-    pMsg->privateTerm = pSender->privateTerm;
+
+    //  pMsg->privateTerm = pSender->privateTerm;
     memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
 
     // send msg
-    SRpcMsg rpcMsg;
-    syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
-    syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
-    syncSnapshotSendDestroy(pMsg);
+    syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg);
+    syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "");
 
     // event log
-    do {
-      char *eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender resend");
-      syncNodeEventLog(pSender->pSyncNode, eventLog);
-      taosMemoryFree(eventLog);
-    } while (0);
+    sSTrace(pSender, "snapshot sender resend");
   }
 
   return 0;
@@ -325,93 +248,51 @@ static void snapshotSenderUpdateProgress(SSyncSnapshotSender *pSender, SyncSnaps
   ++(pSender->seq);
 }
 
-cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
-  char   u64buf[128];
-  cJSON *pRoot = cJSON_CreateObject();
+// return 0, start ok
+// return 1, last snapshot finish ok
+// return -1, error
+int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
+  sNTrace(pSyncNode, "starting snapshot ...");
 
-  if (pSender != NULL) {
-    cJSON_AddNumberToObject(pRoot, "start", pSender->start);
-    cJSON_AddNumberToObject(pRoot, "seq", pSender->seq);
-    cJSON_AddNumberToObject(pRoot, "ack", pSender->ack);
-
-    snprintf(u64buf, sizeof(u64buf), "%p", pSender->pReader);
-    cJSON_AddStringToObject(pRoot, "pReader", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%p", pSender->pCurrentBlock);
-    cJSON_AddStringToObject(pRoot, "pCurrentBlock", u64buf);
-    cJSON_AddNumberToObject(pRoot, "blockLen", pSender->blockLen);
-
-    if (pSender->pCurrentBlock != NULL) {
-      char *s;
-      s = syncUtilprintBin((char *)(pSender->pCurrentBlock), pSender->blockLen);
-      cJSON_AddStringToObject(pRoot, "pCurrentBlock", s);
-      taosMemoryFree(s);
-      s = syncUtilprintBin2((char *)(pSender->pCurrentBlock), pSender->blockLen);
-      cJSON_AddStringToObject(pRoot, "pCurrentBlock2", s);
-      taosMemoryFree(s);
-    }
-
-    cJSON *pSnapshot = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->snapshot.lastApplyIndex);
-    cJSON_AddStringToObject(pSnapshot, "lastApplyIndex", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->snapshot.lastApplyTerm);
-    cJSON_AddStringToObject(pSnapshot, "lastApplyTerm", u64buf);
-    cJSON_AddItemToObject(pRoot, "snapshot", pSnapshot);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->sendingMS);
-    cJSON_AddStringToObject(pRoot, "sendingMS", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSender->pSyncNode);
-    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
-    cJSON_AddNumberToObject(pRoot, "replicaIndex", pSender->replicaIndex);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->term);
-    cJSON_AddStringToObject(pRoot, "term", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->privateTerm);
-    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
-    cJSON_AddNumberToObject(pRoot, "finish", pSender->finish);
+  SSyncSnapshotSender *pSender = syncNodeGetSnapshotSender(pSyncNode, pDestId);
+  if (pSender == NULL) {
+    sNError(pSyncNode, "start snapshot error, sender is null");
+    return -1;
   }
 
-  cJSON *pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SSyncSnapshotSender", pRoot);
-  return pJson;
+  int32_t code = 0;
+
+  if (snapshotSenderIsStart(pSender)) {
+    sNTrace(pSyncNode, "snapshot sender already start, ignore");
+    return 0;
+  }
+
+  if (!snapshotSenderIsStart(pSender) && pSender->finish &&
+      taosGetTimestampMs() - pSender->endTime < SNAPSHOT_WAIT_MS) {
+    sNTrace(pSyncNode, "snapshot sender too frequently, ignore");
+    return 1;
+  }
+
+  code = snapshotSenderStart(pSender);
+  if (code != 0) {
+    sNError(pSyncNode, "snapshot sender start error");
+    return -1;
+  }
+
+  return 0;
 }
 
-char *snapshotSender2Str(SSyncSnapshotSender *pSender) {
-  cJSON *pJson = snapshotSender2Json(pSender);
-  char  *serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
-char *snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event) {
-  int32_t len = 256;
-  char   *s = taosMemoryMalloc(len);
-
-  SRaftId  destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  char     host[64];
-  uint16_t port;
-  syncUtilU642Addr(destId.addr, host, sizeof(host), &port);
-
-  snprintf(s, len,
-           "%s {%p s-param:%" PRId64 " e-param:%" PRId64 " laindex:%" PRId64 " laterm:%" PRIu64 " lcindex:%" PRId64
-           " seq:%d ack:%d finish:%d pterm:%" PRIu64
-           " "
-           "replica-index:%d %s:%d}",
-           event, pSender, pSender->snapshotParam.start, pSender->snapshotParam.end, pSender->snapshot.lastApplyIndex,
-           pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex, pSender->seq, pSender->ack,
-           pSender->finish, pSender->privateTerm, pSender->replicaIndex, host, port);
-
-  return s;
-}
-
-// -------------------------------------
 SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId) {
   bool condition = (pSyncNode->pFsm->FpSnapshotStartWrite != NULL) && (pSyncNode->pFsm->FpSnapshotStopWrite != NULL) &&
                    (pSyncNode->pFsm->FpSnapshotDoWrite != NULL);
 
   SSyncSnapshotReceiver *pReceiver = NULL;
   if (condition) {
-    pReceiver = taosMemoryMalloc(sizeof(SSyncSnapshotReceiver));
-    ASSERT(pReceiver != NULL);
-    memset(pReceiver, 0, sizeof(*pReceiver));
+    pReceiver = taosMemoryCalloc(1, sizeof(SSyncSnapshotReceiver));
+    if (pReceiver == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
 
     pReceiver->start = false;
     pReceiver->ack = SYNC_SNAPSHOT_SEQ_BEGIN;
@@ -419,7 +300,6 @@ SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId from
     pReceiver->pSyncNode = pSyncNode;
     pReceiver->fromId = fromId;
     pReceiver->term = pSyncNode->pRaftStore->currentTerm;
-    pReceiver->privateTerm = 0;
     pReceiver->snapshot.data = NULL;
     pReceiver->snapshot.lastApplyIndex = SYNC_INDEX_INVALID;
     pReceiver->snapshot.lastApplyTerm = 0;
@@ -449,38 +329,6 @@ void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {
 
 bool snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver) { return pReceiver->start; }
 
-// static do start by privateTerm, pBeginMsg
-// receive first snapshot data
-// write first block data
-static void snapshotReceiverDoStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg) {
-  // update state
-  pReceiver->term = pReceiver->pSyncNode->pRaftStore->currentTerm;
-  pReceiver->privateTerm = pBeginMsg->privateTerm;
-  pReceiver->ack = SYNC_SNAPSHOT_SEQ_BEGIN;
-  pReceiver->fromId = pBeginMsg->srcId;
-  pReceiver->start = true;
-
-  // update snapshot
-  pReceiver->snapshot.lastApplyIndex = pBeginMsg->lastIndex;
-  pReceiver->snapshot.lastApplyTerm = pBeginMsg->lastTerm;
-  pReceiver->snapshot.lastConfigIndex = pBeginMsg->lastConfigIndex;
-  pReceiver->snapshotParam.start = pBeginMsg->beginIndex;
-  pReceiver->snapshotParam.end = pBeginMsg->lastIndex;
-
-  // start writer
-  ASSERT(pReceiver->pWriter == NULL);
-  int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStartWrite(pReceiver->pSyncNode->pFsm,
-                                                                 &(pReceiver->snapshotParam), &(pReceiver->pWriter));
-  ASSERT(ret == 0);
-
-  // event log
-  do {
-    char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver start");
-    syncNodeEventLog(pReceiver->pSyncNode, eventLog);
-    taosMemoryFree(eventLog);
-  } while (0);
-}
-
 // force stop
 void snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver) {
   // force close, abandon incomplete data
@@ -494,30 +342,46 @@ void snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver) {
   pReceiver->start = false;
 
   // event log
-  do {
-    char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver force stop");
-    syncNodeEventLog(pReceiver->pSyncNode, eventLog);
-    taosMemoryFree(eventLog);
-  } while (0);
+  sRTrace(pReceiver, "snapshot receiver force stop");
 }
 
-// if receiver receive msg from seq = SYNC_SNAPSHOT_SEQ_BEGIN, start receiver
-// if already start, force close, start again
-int32_t snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg) {
-  if (!snapshotReceiverIsStart(pReceiver)) {
-    // first start
-    snapshotReceiverDoStart(pReceiver, pBeginMsg);
+int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg) {
+  ASSERT(snapshotReceiverIsStart(pReceiver));
 
-  } else {
-    // already start
-    sInfo("vgId:%d, snapshot recv, receiver already start", pReceiver->pSyncNode->vgId);
+  // update ack
+  pReceiver->ack = SYNC_SNAPSHOT_SEQ_BEGIN;
 
-    // force close, abandon incomplete data
-    snapshotReceiverForceStop(pReceiver);
+  // update snapshot
+  pReceiver->snapshot.lastApplyIndex = pBeginMsg->lastIndex;
+  pReceiver->snapshot.lastApplyTerm = pBeginMsg->lastTerm;
+  pReceiver->snapshot.lastConfigIndex = pBeginMsg->lastConfigIndex;
 
-    // start again
-    snapshotReceiverDoStart(pReceiver, pBeginMsg);
-  }
+  pReceiver->snapshotParam.start = pBeginMsg->beginIndex;
+  pReceiver->snapshotParam.end = pBeginMsg->lastIndex;
+
+  // start writer
+  ASSERT(pReceiver->pWriter == NULL);
+  int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStartWrite(pReceiver->pSyncNode->pFsm,
+                                                                 &(pReceiver->snapshotParam), &(pReceiver->pWriter));
+  ASSERT(ret == 0);
+
+  // event log
+  sRTrace(pReceiver, "snapshot receiver start writer");
+
+  return 0;
+}
+
+int32_t snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pPreMsg) {
+  ASSERT(!snapshotReceiverIsStart(pReceiver));
+
+  pReceiver->start = true;
+  pReceiver->ack = SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT;
+  pReceiver->term = pReceiver->pSyncNode->pRaftStore->currentTerm;
+  pReceiver->fromId = pPreMsg->srcId;
+  pReceiver->startTime = pPreMsg->startTime;
+
+  // event log
+  sRTrace(pReceiver, "snapshot receiver start");
 
   return 0;
 }
@@ -535,14 +399,7 @@ int32_t snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
   pReceiver->start = false;
 
   // event log
-  do {
-    SSnapshot snapshot;
-    pReceiver->pSyncNode->pFsm->FpGetSnapshotInfo(pReceiver->pSyncNode->pFsm, &snapshot);
-    char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver stop");
-    syncNodeEventLog(pReceiver->pSyncNode, eventLog);
-    taosMemoryFree(eventLog);
-  } while (0);
-
+  sRTrace(pReceiver, "snapshot receiver stop");
   return 0;
 }
 
@@ -557,7 +414,7 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
       code = pReceiver->pSyncNode->pFsm->FpSnapshotDoWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, pMsg->data,
                                                            pMsg->dataLen);
       if (code != 0) {
-        syncNodeErrorLog(pReceiver->pSyncNode, "snapshot write error");
+        sNError(pReceiver->pSyncNode, "snapshot write error");
         return -1;
       }
     }
@@ -566,7 +423,7 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
     code =
         pReceiver->pSyncNode->pLogStore->syncLogRestoreFromSnapshot(pReceiver->pSyncNode->pLogStore, pMsg->lastIndex);
     if (code != 0) {
-      syncNodeErrorLog(pReceiver->pSyncNode, "wal restore from snapshot error");
+      sNError(pReceiver->pSyncNode, "wal restore from snapshot error");
       return -1;
     }
 
@@ -585,8 +442,7 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
     code = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, true,
                                                            &(pReceiver->snapshot));
     if (code != 0) {
-      syncNodeErrorLog(pReceiver->pSyncNode, "snapshot stop writer true error");
-      // ASSERT(0);
+      sNError(pReceiver->pSyncNode, "snapshot stop writer true error");
       return -1;
     }
     pReceiver->pWriter = NULL;
@@ -595,19 +451,12 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
     pReceiver->ack = SYNC_SNAPSHOT_SEQ_END;
 
   } else {
-    syncNodeErrorLog(pReceiver->pSyncNode, "snapshot stop writer true error");
+    sNError(pReceiver->pSyncNode, "snapshot stop writer true error");
     return -1;
   }
 
   // event log
-  do {
-    SSnapshot snapshot;
-    pReceiver->pSyncNode->pFsm->FpGetSnapshotInfo(pReceiver->pSyncNode->pFsm, &snapshot);
-    char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver got last data, finish, apply snapshot");
-    syncNodeEventLog(pReceiver->pSyncNode, eventLog);
-    taosMemoryFree(eventLog);
-  } while (0);
-
+  sRTrace(pReceiver, "snapshot receiver got last data, finish, apply snapshot");
   return 0;
 }
 
@@ -628,202 +477,350 @@ static void snapshotReceiverGotData(SSyncSnapshotReceiver *pReceiver, SyncSnapsh
     pReceiver->ack = pMsg->seq;
 
     // event log
-    do {
-      char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver receiving");
-      syncNodeEventLog(pReceiver->pSyncNode, eventLog);
-      taosMemoryFree(eventLog);
-    } while (0);
+    sRTrace(pReceiver, "snapshot receiver receiving");
   }
 }
 
-cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
-  char   u64buf[128];
-  cJSON *pRoot = cJSON_CreateObject();
+SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths) {
+  SyncIndex snapStart = SYNC_INDEX_INVALID;
 
-  if (pReceiver != NULL) {
-    cJSON_AddNumberToObject(pRoot, "start", pReceiver->start);
-    cJSON_AddNumberToObject(pRoot, "ack", pReceiver->ack);
+  if (syncNodeIsMnode(ths)) {
+    snapStart = SYNC_INDEX_BEGIN;
 
-    snprintf(u64buf, sizeof(u64buf), "%p", pReceiver->pWriter);
-    cJSON_AddStringToObject(pRoot, "pWriter", u64buf);
+  } else {
+    SSyncLogStoreData *pData = ths->pLogStore->data;
+    SWal              *pWal = pData->pWal;
 
-    snprintf(u64buf, sizeof(u64buf), "%p", pReceiver->pSyncNode);
-    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
+    bool    isEmpty = ths->pLogStore->syncLogIsEmpty(ths->pLogStore);
+    int64_t walCommitVer = walGetCommittedVer(pWal);
 
-    cJSON *pFromId = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->fromId.addr);
-    cJSON_AddStringToObject(pFromId, "addr", u64buf);
-    {
-      uint64_t u64 = pReceiver->fromId.addr;
-      cJSON   *pTmp = pFromId;
-      char     host[128] = {0};
-      uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
-      cJSON_AddStringToObject(pTmp, "addr_host", host);
-      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    if (!isEmpty && ths->commitIndex != walCommitVer) {
+      sNError(ths, "commit not same, wal-commit:%" PRId64 ", commit:%" PRId64 ", ignore", walCommitVer,
+              ths->commitIndex);
+      snapStart = walCommitVer + 1;
+    } else {
+      snapStart = ths->commitIndex + 1;
     }
-    cJSON_AddNumberToObject(pFromId, "vgId", pReceiver->fromId.vgId);
-    cJSON_AddItemToObject(pRoot, "fromId", pFromId);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->snapshot.lastApplyIndex);
-    cJSON_AddStringToObject(pRoot, "snapshot.lastApplyIndex", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->snapshot.lastApplyTerm);
-    cJSON_AddStringToObject(pRoot, "snapshot.lastApplyTerm", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->snapshot.lastConfigIndex);
-    cJSON_AddStringToObject(pRoot, "snapshot.lastConfigIndex", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->term);
-    cJSON_AddStringToObject(pRoot, "term", u64buf);
-
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->privateTerm);
-    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
   }
 
-  cJSON *pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SSyncSnapshotReceiver", pRoot);
-  return pJson;
+  return snapStart;
 }
 
-char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) {
-  cJSON *pJson = snapshotReceiver2Json(pReceiver);
-  char  *serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
+static int32_t syncNodeOnSnapshotPre(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
+  SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
+
+  if (snapshotReceiverIsStart(pReceiver)) {
+    // already start
+
+    if (pMsg->startTime > pReceiver->startTime) {
+      goto _START_RECEIVER;
+
+    } else if (pMsg->startTime == pReceiver->startTime) {
+      goto _SEND_REPLY;
+
+    } else {
+      // ignore
+      return 0;
+    }
+
+  } else {
+    // start new
+    goto _START_RECEIVER;
+  }
+
+_START_RECEIVER:
+  if (taosGetTimestampMs() - pMsg->startTime > SNAPSHOT_MAX_CLOCK_SKEW_MS) {
+    sNError(pSyncNode, "snapshot receiver time skew too much");
+    return -1;
+  } else {
+    // waiting for clock match
+    int64_t timeNow = taosGetTimestampMs();
+    while (timeNow < pMsg->startTime) {
+      sNTrace(pSyncNode, "snapshot receiver pre waitting for true time, now:%" PRId64 ", stime:%" PRId64, timeNow,
+              pMsg->startTime);
+      taosMsleep(10);
+    }
+
+    snapshotReceiverStart(pReceiver, pMsg);  // set start-time same with sender
+  }
+
+_SEND_REPLY:
+    // build msg
+    ;  // make complier happy
+
+  SRpcMsg rpcMsg = {0};
+  (void)syncBuildSnapshotSendRsp(&rpcMsg, pSyncNode->vgId);
+
+  SyncSnapshotRsp *pRspMsg = rpcMsg.pCont;
+  pRspMsg->srcId = pSyncNode->myRaftId;
+  pRspMsg->destId = pMsg->srcId;
+  pRspMsg->term = pSyncNode->pRaftStore->currentTerm;
+  pRspMsg->lastIndex = pMsg->lastIndex;
+  pRspMsg->lastTerm = pMsg->lastTerm;
+  pRspMsg->startTime = pReceiver->startTime;
+  pRspMsg->ack = pMsg->seq;  // receiver maybe already closed
+  pRspMsg->code = 0;
+  pRspMsg->snapBeginIndex = syncNodeGetSnapBeginIndex(pSyncNode);
+
+  // send msg
+  syncNodeSendMsgById(&pRspMsg->destId, pSyncNode, &rpcMsg);
+  syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "");
+  return 0;
 }
 
-char *snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event) {
-  int32_t len = 256;
-  char   *s = taosMemoryMalloc(len);
+static int32_t syncNodeOnSnapshotBegin(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
+  // condition 1
+  SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
 
-  SRaftId  fromId = pReceiver->fromId;
-  char     host[128];
-  uint16_t port;
-  syncUtilU642Addr(fromId.addr, host, sizeof(host), &port);
+  if (!snapshotReceiverIsStart(pReceiver)) {
+    sNError(pSyncNode, "snapshot receiver not start");
+    return -1;
+  }
 
-  snprintf(s, len,
-           "%s {%p start:%d ack:%d term:%" PRIu64 " pterm:%" PRIu64 " from:%s:%d s-param:%" PRId64 " e-param:%" PRId64
-           " laindex:%" PRId64 " laterm:%" PRIu64
-           " "
-           "lcindex:%" PRId64 "}",
-           event, pReceiver, pReceiver->start, pReceiver->ack, pReceiver->term, pReceiver->privateTerm, host, port,
-           pReceiver->snapshotParam.start, pReceiver->snapshotParam.end, pReceiver->snapshot.lastApplyIndex,
-           pReceiver->snapshot.lastApplyTerm, pReceiver->snapshot.lastConfigIndex);
+  if (pReceiver->startTime != pMsg->startTime) {
+    sNError(pSyncNode, "snapshot receiver time not equal");
+    return -1;
+  }
 
-  return s;
+  // start writer
+  snapshotReceiverStartWriter(pReceiver, pMsg);
+
+  // build msg
+  SRpcMsg rpcMsg = {0};
+  (void)syncBuildSnapshotSendRsp(&rpcMsg, pSyncNode->vgId);
+
+  SyncSnapshotRsp *pRspMsg = rpcMsg.pCont;
+  pRspMsg->srcId = pSyncNode->myRaftId;
+  pRspMsg->destId = pMsg->srcId;
+  pRspMsg->term = pSyncNode->pRaftStore->currentTerm;
+  pRspMsg->lastIndex = pMsg->lastIndex;
+  pRspMsg->lastTerm = pMsg->lastTerm;
+  pRspMsg->startTime = pReceiver->startTime;
+  pRspMsg->ack = pReceiver->ack;  // receiver maybe already closed
+  pRspMsg->code = 0;
+  pRspMsg->snapBeginIndex = pReceiver->snapshotParam.start;
+
+  // send msg
+  syncNodeSendMsgById(&pRspMsg->destId, pSyncNode, &rpcMsg);
+  syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "");
+  return 0;
+}
+
+static int32_t syncNodeOnSnapshotTransfering(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
+  // condition 4
+  // transfering
+  SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
+
+  // waiting for clock match
+  int64_t timeNow = taosGetTimestampMs();
+  while (timeNow < pMsg->startTime) {
+    sNTrace(pSyncNode, "snapshot receiver transfering waitting for true time, now:%" PRId64 ", stime:%" PRId64, timeNow,
+            pMsg->startTime);
+    taosMsleep(10);
+  }
+
+  if (pMsg->seq == pReceiver->ack + 1) {
+    snapshotReceiverGotData(pReceiver, pMsg);
+  }
+
+  // build msg
+  SRpcMsg rpcMsg = {0};
+  (void)syncBuildSnapshotSendRsp(&rpcMsg, pSyncNode->vgId);
+
+  SyncSnapshotRsp *pRspMsg = rpcMsg.pCont;
+  pRspMsg->srcId = pSyncNode->myRaftId;
+  pRspMsg->destId = pMsg->srcId;
+  pRspMsg->term = pSyncNode->pRaftStore->currentTerm;
+  pRspMsg->lastIndex = pMsg->lastIndex;
+  pRspMsg->lastTerm = pMsg->lastTerm;
+  pRspMsg->startTime = pReceiver->startTime;
+  pRspMsg->ack = pReceiver->ack;  // receiver maybe already closed
+  pRspMsg->code = 0;
+  pRspMsg->snapBeginIndex = pReceiver->snapshotParam.start;
+
+  // send msg
+  syncNodeSendMsgById(&pRspMsg->destId, pSyncNode, &rpcMsg);
+  syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "");
+  return 0;
+}
+
+static int32_t syncNodeOnSnapshotEnd(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
+  // condition 2
+  // end, finish FSM
+  SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
+
+  // waiting for clock match
+  int64_t timeNow = taosGetTimestampMs();
+  while (timeNow < pMsg->startTime) {
+    sNTrace(pSyncNode, "snapshot receiver finish waitting for true time, now:%" PRId64 ", stime:%" PRId64, timeNow,
+            pMsg->startTime);
+    taosMsleep(10);
+  }
+
+  int32_t code = snapshotReceiverFinish(pReceiver, pMsg);
+  if (code == 0) {
+    snapshotReceiverStop(pReceiver);
+  }
+
+  // build msg
+  SRpcMsg rpcMsg = {0};
+  (void)syncBuildSnapshotSendRsp(&rpcMsg, pSyncNode->vgId);
+
+  SyncSnapshotRsp *pRspMsg = rpcMsg.pCont;
+  pRspMsg->srcId = pSyncNode->myRaftId;
+  pRspMsg->destId = pMsg->srcId;
+  pRspMsg->term = pSyncNode->pRaftStore->currentTerm;
+  pRspMsg->lastIndex = pMsg->lastIndex;
+  pRspMsg->lastTerm = pMsg->lastTerm;
+  pRspMsg->startTime = pReceiver->startTime;
+  pRspMsg->ack = pReceiver->ack;  // receiver maybe already closed
+  pRspMsg->code = 0;
+  pRspMsg->snapBeginIndex = pReceiver->snapshotParam.start;
+
+  // send msg
+  syncNodeSendMsgById(&pRspMsg->destId, pSyncNode, &rpcMsg);
+  syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "");
+  return 0;
 }
 
 // receiver on message
 //
-// condition 1, recv SYNC_SNAPSHOT_SEQ_BEGIN, start receiver, update privateTerm
-// condition 2, recv SYNC_SNAPSHOT_SEQ_END, finish receiver(apply snapshot data, update commit index, maybe reconfig)
-// condition 3, recv SYNC_SNAPSHOT_SEQ_FORCE_CLOSE, force close
-// condition 4, got data, update ack
+// condition 1, recv SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT
+//              if receiver already start
+//                    if sender.start-time > receiver.start-time, restart receiver(reply snapshot start)
+//                    if sender.start-time = receiver.start-time, maybe duplicate msg
+//                    if sender.start-time < receiver.start-time, ignore
+//              else
+//                    waiting for clock match
+//                    start receiver(reply snapshot start)
 //
-int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
-  // get receiver
-  SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
-  bool                   needRsp = false;
+// condition 2, recv SYNC_SNAPSHOT_SEQ_BEGIN
+//              a. create writer with <begin, end>
+//
+// condition 3, recv SYNC_SNAPSHOT_SEQ_END, finish receiver(apply snapshot data, update commit index, maybe reconfig)
+//
+// condition 4, recv SYNC_SNAPSHOT_SEQ_FORCE_CLOSE, force close
+//
+// condition 5, got data, update ack
+//
+int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
+  SyncSnapshotSend *pMsg = pRpcMsg->pCont;
+
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(pSyncNode, &(pMsg->srcId))) {
+    syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "not in my config");
+    return 0;
+  }
+
+  if (pMsg->term < pSyncNode->pRaftStore->currentTerm) {
+    syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "reject, small term");
+    return 0;
+  }
+
+  if (pMsg->term > pSyncNode->pRaftStore->currentTerm) {
+    syncNodeStepDown(pSyncNode, pMsg->term);
+  }
+  syncNodeResetElectTimer(pSyncNode);
+
   int32_t                code = 0;
+  SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
+
+  syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "");
 
   // state, term, seq/ack
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
     if (pMsg->term == pSyncNode->pRaftStore->currentTerm) {
-      if (pMsg->seq == SYNC_SNAPSHOT_SEQ_BEGIN) {
-        // condition 1
-        // begin, no data
-        snapshotReceiverStart(pReceiver, pMsg);
-        needRsp = true;
+      if (pMsg->seq == SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT) {
+        syncNodeOnSnapshotPre(pSyncNode, pMsg);
+
+      } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_BEGIN) {
+        syncNodeOnSnapshotBegin(pSyncNode, pMsg);
 
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_END) {
-        // condition 2
-        // end, finish FSM
-        code = snapshotReceiverFinish(pReceiver, pMsg);
-        if (code == 0) {
-          snapshotReceiverStop(pReceiver);
-        }
-        needRsp = true;
-
-        // maybe update lastconfig
-        if (pMsg->lastConfigIndex >= SYNC_INDEX_BEGIN) {
-          SSyncCfg oldSyncCfg = pSyncNode->pRaftCfg->cfg;
-
-          // update new config myIndex
-          SSyncCfg newSyncCfg = pMsg->lastConfig;
-          syncNodeUpdateNewConfigIndex(pSyncNode, &newSyncCfg);
-
-          // do config change
-          syncNodeDoConfigChange(pSyncNode, &newSyncCfg, pMsg->lastConfigIndex);
-        }
+        syncNodeOnSnapshotEnd(pSyncNode, pMsg);
 
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_FORCE_CLOSE) {
-        // condition 3
-        // force close
+        // force close, no response
         snapshotReceiverForceStop(pReceiver);
-        needRsp = false;
 
       } else if (pMsg->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->seq < SYNC_SNAPSHOT_SEQ_END) {
-        // condition 4
-        // transfering
-        if (pMsg->seq == pReceiver->ack + 1) {
-          snapshotReceiverGotData(pReceiver, pMsg);
-        }
-        needRsp = true;
+        syncNodeOnSnapshotTransfering(pSyncNode, pMsg);
 
       } else {
         // error log
-        do {
-          char logBuf[96];
-          snprintf(logBuf, sizeof(logBuf), "snapshot receiver recv error seq:%d, my ack:%d", pMsg->seq, pReceiver->ack);
-          char *eventLog = snapshotReceiver2SimpleStr(pReceiver, logBuf);
-          syncNodeErrorLog(pSyncNode, eventLog);
-          taosMemoryFree(eventLog);
-        } while (0);
-
+        sRTrace(pReceiver, "snapshot receiver recv error seq:%d, my ack:%d", pMsg->seq, pReceiver->ack);
         return -1;
-      }
-
-      // send ack
-      if (needRsp) {
-        // build msg
-        SyncSnapshotRsp *pRspMsg = syncSnapshotRspBuild(pSyncNode->vgId);
-        pRspMsg->srcId = pSyncNode->myRaftId;
-        pRspMsg->destId = pMsg->srcId;
-        pRspMsg->term = pSyncNode->pRaftStore->currentTerm;
-        pRspMsg->lastIndex = pMsg->lastIndex;
-        pRspMsg->lastTerm = pMsg->lastTerm;
-        pRspMsg->ack = pReceiver->ack;  // receiver maybe already closed
-        pRspMsg->code = 0;
-        pRspMsg->privateTerm = pReceiver->privateTerm;  // receiver maybe already closed
-
-        // send msg
-        SRpcMsg rpcMsg;
-        syncSnapshotRsp2RpcMsg(pRspMsg, &rpcMsg);
-        syncNodeSendMsgById(&(pRspMsg->destId), pSyncNode, &rpcMsg);
-        syncSnapshotRspDestroy(pRspMsg);
       }
 
     } else {
       // error log
-      do {
-        char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver term not equal");
-        syncNodeErrorLog(pSyncNode, eventLog);
-        taosMemoryFree(eventLog);
-      } while (0);
-
+      sRTrace(pReceiver, "snapshot receiver term not equal");
       return -1;
     }
   } else {
     // error log
-    do {
-      char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver not follower");
-      syncNodeErrorLog(pSyncNode, eventLog);
-      taosMemoryFree(eventLog);
-    } while (0);
-
+    sRTrace(pReceiver, "snapshot receiver not follower");
     return -1;
   }
+
+  return 0;
+}
+
+int32_t syncNodeOnSnapshotReplyPre(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
+  // get sender
+  SSyncSnapshotSender *pSender = syncNodeGetSnapshotSender(pSyncNode, &(pMsg->srcId));
+  ASSERT(pSender != NULL);
+
+  SSnapshot snapshot;
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+
+  // prepare <begin, end>
+  pSender->snapshotParam.start = pMsg->snapBeginIndex;
+  pSender->snapshotParam.end = snapshot.lastApplyIndex;
+
+  sNTrace(pSyncNode, "prepare snapshot, recv-begin:%" PRId64 ", snapshot.last:%" PRId64 ", snapshot.term:%" PRId64,
+          pMsg->snapBeginIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm);
+
+  if (pMsg->snapBeginIndex > snapshot.lastApplyIndex) {
+    sNError(pSyncNode, "snapshot last index too small");
+    return -1;
+  }
+
+  // update sender
+  pSender->snapshot = snapshot;
+
+  // start reader
+  int32_t code = pSyncNode->pFsm->FpSnapshotStartRead(pSyncNode->pFsm, &(pSender->snapshotParam), &(pSender->pReader));
+  if (code != 0) {
+    sNError(pSyncNode, "create snapshot reader error");
+    return -1;
+  }
+
+  // update next index
+  syncIndexMgrSetIndex(pSyncNode->pNextIndex, &pMsg->srcId, snapshot.lastApplyIndex + 1);
+
+  // update seq
+  pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
+
+  // build begin msg
+  SRpcMsg rpcMsg = {0};
+  (void)syncBuildSnapshotSend(&rpcMsg, 0, pSender->pSyncNode->vgId);
+
+  SyncSnapshotSend *pSendMsg = rpcMsg.pCont;
+  pSendMsg->srcId = pSender->pSyncNode->myRaftId;
+  pSendMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
+  pSendMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  pSendMsg->beginIndex = pSender->snapshotParam.start;
+  pSendMsg->lastIndex = pSender->snapshot.lastApplyIndex;
+  pSendMsg->lastTerm = pSender->snapshot.lastApplyTerm;
+  pSendMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
+  pSendMsg->lastConfig = pSender->lastConfig;
+  pSendMsg->startTime = pSender->startTime;
+  pSendMsg->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
+
+  // send msg
+  syncNodeSendMsgById(&pSendMsg->destId, pSender->pSyncNode, &rpcMsg);
+  syncLogSendSyncSnapshotSend(pSyncNode, pSendMsg, "");
 
   return 0;
 }
@@ -834,10 +831,12 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 // condition 2 sender receives ack, set seq = ack + 1, send msg from seq
 // condition 3 sender receives error msg, just print error log
 //
-int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
+int32_t syncNodeOnSnapshotReply(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
+  SyncSnapshotRsp *pMsg = pRpcMsg->pCont;
+
   // if already drop replica, do not process
-  if (!syncNodeInRaftGroup(pSyncNode, &(pMsg->srcId)) && pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-    sError("vgId:%d, recv sync-snapshot-rsp, maybe replica already dropped", pSyncNode->vgId);
+  if (!syncNodeInRaftGroup(pSyncNode, &(pMsg->srcId))) {
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "maybe replica already dropped");
     return -1;
   }
 
@@ -845,17 +844,39 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
   SSyncSnapshotSender *pSender = syncNodeGetSnapshotSender(pSyncNode, &(pMsg->srcId));
   ASSERT(pSender != NULL);
 
+  if (pMsg->startTime != pSender->startTime) {
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "sender/receiver start time not match");
+    return -1;
+  }
+
+  syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "");
+
   // state, term, seq/ack
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     if (pMsg->term == pSyncNode->pRaftStore->currentTerm) {
-      // condition 1
-      // receive ack is finish, close sender
-      if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
-        snapshotSenderStop(pSender, true);
+      // prepare <begin, end>, send begin msg
+      if (pMsg->ack == SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT) {
+        syncNodeOnSnapshotReplyPre(pSyncNode, pMsg);
         return 0;
       }
 
-      // condition 2
+      if (pMsg->ack == SYNC_SNAPSHOT_SEQ_BEGIN) {
+        snapshotSenderUpdateProgress(pSender, pMsg);
+        snapshotSend(pSender);
+        return 0;
+      }
+
+      // receive ack is finish, close sender
+      if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
+        snapshotSenderStop(pSender, true);
+
+        // update next-index
+        syncIndexMgrSetIndex(pSyncNode->pNextIndex, &(pMsg->srcId), pMsg->lastIndex + 1);
+        syncNodeReplicateOne(pSyncNode, &(pMsg->srcId), false);
+
+        return 0;
+      }
+
       // send next msg
       if (pMsg->ack == pSender->seq) {
         // update sender ack
@@ -868,34 +889,17 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
 
       } else {
         // error log
-        do {
-          char logBuf[96];
-          snprintf(logBuf, sizeof(logBuf), "snapshot sender recv error ack:%d, my seq:%d", pMsg->ack, pSender->seq);
-          char *eventLog = snapshotSender2SimpleStr(pSender, logBuf);
-          syncNodeErrorLog(pSyncNode, eventLog);
-          taosMemoryFree(eventLog);
-        } while (0);
-
+        sSError(pSender, "snapshot sender recv error ack:%d, my seq:%d", pMsg->ack, pSender->seq);
         return -1;
       }
     } else {
       // error log
-      do {
-        char *eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender term not equal");
-        syncNodeErrorLog(pSyncNode, eventLog);
-        taosMemoryFree(eventLog);
-      } while (0);
-
+      sSError(pSender, "snapshot sender term not equal");
       return -1;
     }
   } else {
     // error log
-    do {
-      char *eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender not leader");
-      syncNodeErrorLog(pSyncNode, eventLog);
-      taosMemoryFree(eventLog);
-    } while (0);
-
+    sSError(pSender, "snapshot sender not leader");
     return -1;
   }
 

@@ -19,6 +19,7 @@
 #include "tref.h"
 #include "walInt.h"
 
+#if 0
 static int64_t walSeekWritePos(SWal* pWal, int64_t ver) {
   int64_t code = 0;
 
@@ -47,6 +48,7 @@ static int64_t walSeekWritePos(SWal* pWal, int64_t ver) {
   }
   return 0;
 }
+#endif
 
 int walInitWriteFile(SWal* pWal) {
   TdFilePtr     pIdxTFile, pLogTFile;
@@ -79,6 +81,11 @@ int64_t walChangeWrite(SWal* pWal, int64_t ver) {
   TdFilePtr pIdxTFile, pLogTFile;
   char      fnameStr[WAL_FILE_LEN];
   if (pWal->pLogFile != NULL) {
+    code = taosFsyncFile(pWal->pLogFile);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
     code = taosCloseFile(&pWal->pLogFile);
     if (code != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -86,6 +93,11 @@ int64_t walChangeWrite(SWal* pWal, int64_t ver) {
     }
   }
   if (pWal->pIdxFile != NULL) {
+    code = taosFsyncFile(pWal->pIdxFile);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
     code = taosCloseFile(&pWal->pIdxFile);
     if (code != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -124,6 +136,7 @@ int64_t walChangeWrite(SWal* pWal, int64_t ver) {
   return fileFirstVer;
 }
 
+#if 0
 int walSeekWriteVer(SWal* pWal, int64_t ver) {
   int64_t code;
   if (ver == pWal->vers.lastVer) {
@@ -148,3 +161,4 @@ int walSeekWriteVer(SWal* pWal, int64_t ver) {
 
   return 0;
 }
+#endif
