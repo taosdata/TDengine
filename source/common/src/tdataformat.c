@@ -662,8 +662,6 @@ SColVal *tRowIterNext(SRowIter *pIter) {
         case (HAS_NULL | HAS_NONE):
           bv = GET_BIT1(pIter->pb, pIter->iTColumn - 1);
           break;
-        case HAS_VALUE:
-          break;
         case (HAS_VALUE | HAS_NONE):
           bv = GET_BIT1(pIter->pb, pIter->iTColumn - 1);
           if (bv) bv++;
