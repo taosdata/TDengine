@@ -1012,12 +1012,15 @@ pub(super) async fn get_tasks_count(
 pub(super) async fn create_task(
     task: Json<NewTask>,
     task_store: Data<TaskController>,
-) -> actix_web::Result<impl Responder> {
-    // let mut conn = task_store.pool.acquire().await.unwrap();
-    // conn.lock_handle().await.unwrap();
+) -> impl Responder {
     let task = task.into_inner();
-    let task = task_store.create(task).await.unwrap();
-    Ok(HttpResponse::Created().json(task))
+    match task_store.create(task).await {
+        Ok(task) => HttpResponse::Created().json(task),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::Failed,
+            message: err.to_string(),
+        }),
+    }
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
