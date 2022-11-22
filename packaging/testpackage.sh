@@ -206,6 +206,10 @@ else
 fi
 
 
+if [[ ${packgeName} =~ "server" ]] ;then
+    echoColor BD " pkill -9 taosd "
+    pkill -9 taosd
+fi
 
 
 echoColor G "===== new workroom path ====="
