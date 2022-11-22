@@ -466,7 +466,7 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
 
   contLen += sizeof(SMsgHead);
 
-  SMsgHead *pHead = taosMemoryMalloc(contLen);
+  SMsgHead *pHead = taosMemoryCalloc(1, contLen);
   if (pHead == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -2029,7 +2029,7 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     action.pCont = pReq;
     action.contLen = contLen;
     action.msgType = TDMT_VND_DROP_STB;
-    action.acceptableCode = TSDB_CODE_VND_TB_NOT_EXIST;
+    action.acceptableCode = TSDB_CODE_TDB_STB_NOT_EXIST;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);
@@ -2553,12 +2553,17 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     char    rollup[160 + VARSTR_HEADER_SIZE] = {0};
     int32_t rollupNum = (int32_t)taosArrayGetSize(pStb->pFuncs);
+    char   *sep = ", ";
+    int32_t sepLen = strlen(sep);
+    int32_t rollupLen = sizeof(rollup) - VARSTR_HEADER_SIZE - 2;
     for (int32_t i = 0; i < rollupNum; ++i) {
       char *funcName = taosArrayGet(pStb->pFuncs, i);
       if (i) {
-        strcat(varDataVal(rollup), ", ");
+        strncat(varDataVal(rollup), sep, rollupLen);
+        rollupLen -= sepLen;
       }
-      strcat(varDataVal(rollup), funcName);
+      strncat(varDataVal(rollup), funcName, rollupLen);
+      rollupLen -= strlen(funcName);
     }
     varDataSetLen(rollup, strlen(varDataVal(rollup)));
 

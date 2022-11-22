@@ -21,7 +21,8 @@ import threading
 sys.path.append(os.path.dirname(__file__))
 
 class TDTestCase:
-    def init(self,conn ,logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
@@ -35,9 +36,9 @@ class TDTestCase:
         self.tb_nums = 10
         self.row_nums = 100
         self.stop_dnode_id = None
-        self.loop_restart_times = 5
+        self.loop_restart_times = 2
         self.current_thread = None
-        self.max_restart_time = 10
+        self.max_restart_time = 30
         self.try_check_times = 10
 
     def getBuildPath(self):
@@ -124,12 +125,12 @@ class TDTestCase:
             vgroup_id = vgroup_info[0]
             tmp_list = []
             for role in vgroup_info[3:-4]:
-                if role in ['leader','follower']:
+                if role in ['leader','leader*','follower']:
                     tmp_list.append(role)
             vgroups_infos[vgroup_id]=tmp_list
 
         for k , v in vgroups_infos.items():
-            if len(v) ==1 and v[0]=="leader":
+            if len(v) ==1 and v[0] in ['leader', 'leader*']:
                 tdLog.notice(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
             else:
                 tdLog.exit(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
@@ -189,7 +190,7 @@ class TDTestCase:
         while not status_OK :
             if count > self.try_check_times:
                 os.system("taos -s ' show {}.vgroups; '".format(dbname))
-                tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
+                #tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
                 break
             time.sleep(0.1)
             tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
@@ -210,7 +211,7 @@ class TDTestCase:
         while not status_OK :
             if count > self.try_check_times:
                 os.system("taos -s ' show {}.vgroups;'".format(dbname))
-                tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
+                #tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
                 break
             time.sleep(0.1)
             tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))

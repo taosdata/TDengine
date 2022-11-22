@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -35,7 +31,7 @@ void test1() {
 void test2() {
   SyncHeartbeat *pMsg = createMsg();
   uint32_t       len = pMsg->bytes;
-  char          *serialized = (char *)taosMemoryMalloc(len);
+  char *         serialized = (char *)taosMemoryMalloc(len);
   syncHeartbeatSerialize(pMsg, serialized, len);
   SyncHeartbeat *pMsg2 = syncHeartbeatBuild(789);
   syncHeartbeatDeserialize(serialized, len, pMsg2);
@@ -49,7 +45,7 @@ void test2() {
 void test3() {
   SyncHeartbeat *pMsg = createMsg();
   uint32_t       len;
-  char          *serialized = syncHeartbeatSerialize2(pMsg, &len);
+  char *         serialized = syncHeartbeatSerialize2(pMsg, &len);
   SyncHeartbeat *pMsg2 = syncHeartbeatDeserialize2(serialized, len);
   syncHeartbeatLog2((char *)"test3: syncHeartbeatSerialize2 -> syncHeartbeatDeserialize2 ", pMsg2);
 

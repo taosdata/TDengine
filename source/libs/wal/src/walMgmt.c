@@ -138,12 +138,12 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   (void)walLoadMeta(pWal);
 
   if (walCheckAndRepairMeta(pWal) < 0) {
-    wError("vgId:%d cannot open wal since repair meta file failed", pWal->cfg.vgId);
+    wError("vgId:%d, cannot open wal since repair meta file failed", pWal->cfg.vgId);
     goto _err;
   }
 
   if (walCheckAndRepairIdx(pWal) < 0) {
-    wError("vgId:%d cannot open wal since repair idx file failed", pWal->cfg.vgId);
+    wError("vgId:%d, cannot open wal since repair idx file failed", pWal->cfg.vgId);
     goto _err;
   }
 
@@ -187,6 +187,13 @@ int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
   return 0;
 }
 
+int32_t walPersist(SWal *pWal) {
+  taosThreadMutexLock(&pWal->mutex);
+  int32_t ret = walSaveMeta(pWal);
+  taosThreadMutexUnlock(&pWal->mutex);
+  return ret;
+}
+
 void walClose(SWal *pWal) {
   taosThreadMutexLock(&pWal->mutex);
   (void)walSaveMeta(pWal);
@@ -196,6 +203,14 @@ void walClose(SWal *pWal) {
   pWal->pIdxFile = NULL;
   taosArrayDestroy(pWal->fileInfoSet);
   pWal->fileInfoSet = NULL;
+
+  void *pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pWal->pRefHash, pIter);
+    if (pIter == NULL) break;
+    SWalRef *pRef = *(SWalRef **)pIter;
+    taosMemoryFree(pRef);
+  }
   taosHashCleanup(pWal->pRefHash);
   taosThreadMutexUnlock(&pWal->mutex);
 
@@ -236,7 +251,7 @@ static void walFsyncAll() {
       int32_t code = taosFsyncFile(pWal->pLogFile);
       if (code != 0) {
         wError("vgId:%d, file:%" PRId64 ".log, failed to fsync since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
-               strerror(code));
+               strerror(errno));
       }
     }
     pWal = taosIterateRef(tsWal.refSetId, pWal->refId);

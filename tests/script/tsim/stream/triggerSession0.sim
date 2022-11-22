@@ -5,7 +5,7 @@ sleep 50
 sql connect
 
 print =============== create database
-sql create database test vgroups 1
+sql create database test vgroups 1;
 sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
@@ -13,7 +13,7 @@ endi
 
 print $data00 $data01 $data02
 
-sql use test
+sql use test;
 sql create table t2(ts timestamp, a int, b int , c int, d double);
 sql create stream streams2 trigger window_close into streamt2 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t2 session(ts, 10s);
 
@@ -58,13 +58,8 @@ endi
 sql insert into t2 values(1648791233002,1,2,3,1.0);
 sleep 300
 sql select * from streamt2;
-if $rows != 1 then
+if $rows != 0 then
   print ======$rows
-  return -1
-endi
-
-if $data01 != 6 then
-  print ======$data01
   return -1
 endi
 

@@ -96,16 +96,19 @@ double findOnlyResult(tMemBucket *pMemBucket) {
     }
 
     int32_t groupId = getGroupId(pMemBucket->numOfSlots, i, pMemBucket->times);
-    SArray *list = *(SArray **)taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
-    assert(list->size == 1);
+    SArray **pList = taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
+    if (pList != NULL)  {
+      SArray *list = *pList;
+      assert(list->size == 1);
 
-    int32_t   *pageId = taosArrayGet(list, 0);
-    SFilePage *pPage = getBufPage(pMemBucket->pBuffer, *pageId);
-    assert(pPage->num == 1);
+      int32_t   *pageId = taosArrayGet(list, 0);
+      SFilePage *pPage = getBufPage(pMemBucket->pBuffer, *pageId);
+      assert(pPage->num == 1);
 
-    double v = 0;
-    GET_TYPED_DATA(v, double, pMemBucket->type, pPage->data);
-    return v;
+      double v = 0;
+      GET_TYPED_DATA(v, double, pMemBucket->type, pPage->data);
+      return v;
+    }
   }
 
   return 0;
@@ -492,7 +495,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
 
         int32_t groupId = getGroupId(pMemBucket->numOfSlots, i, pMemBucket->times - 1);
         SIDList list = taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
-        assert(list->size > 0);
+        ASSERT(list != NULL && list->size > 0);
 
         for (int32_t f = 0; f < list->size; ++f) {
           SPageInfo *pgInfo = *(SPageInfo **)taosArrayGet(list, f);

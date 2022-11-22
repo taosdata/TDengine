@@ -271,8 +271,11 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
            cfgStypeStr(stype), value, terrstr());
     return -1;
   }
-
   pItem->stype = stype;
+
+  // apply new timezone
+  osSetTimezone(value);
+
   return 0;
 }
 
@@ -722,13 +725,13 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
   const char *filepath = ".env";
   if (envFile != NULL && strlen(envFile) > 0) {
     if (!taosCheckExistFile(envFile)) {
-      uError("failed to load env file: %s", envFile);
+      uError("failed to load env file:%s", envFile);
       return -1;
     }
     filepath = envFile;
   } else {
     if (!taosCheckExistFile(filepath)) {
-      uInfo("failed to load env file: %s", filepath);
+      uInfo("env file:%s not load", filepath);
       return 0;
     }
   }
@@ -915,7 +918,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   int32_t olen, vlen, vlen2, vlen3;
   int32_t code = 0;
   if (url == NULL || strlen(url) == 0) {
-    uInfo("fail to load apoll url");
+    uInfo("apoll url not load");
     return 0;
   }
 
@@ -929,7 +932,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   if (strncmp(url, "jsonFile", 8) == 0) {
     char *filepath = p;
     if (!taosCheckExistFile(filepath)) {
-      uError("failed to load json file: %s", filepath);
+      uError("failed to load json file:%s", filepath);
       return -1;
     }
 
@@ -944,6 +947,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     if (taosReadFile(pFile, buf, fileSize) <= 0) {
       taosCloseFile(&pFile);
       uError("load json file error: %s", filepath);
+      taosMemoryFreeClear(buf);
       return -1;
     }
     taosCloseFile(&pFile);
@@ -953,6 +957,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
       if (jsonParseError != NULL) {
         uError("load json file parse error: %s", jsonParseError);
       }
+      taosMemoryFreeClear(buf);
       return -1;
     }
     taosMemoryFreeClear(buf);
@@ -1054,13 +1059,13 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl
   const char *filepath = ".env";
   if (envFile != NULL && strlen(envFile) > 0) {
     if (!taosCheckExistFile(envFile)) {
-      uError("failed to load env file: %s", envFile);
+      uError("failed to load env file:%s", envFile);
       return -1;
     }
     filepath = envFile;
   } else {
     if (!taosCheckExistFile(filepath)) {
-      uInfo("failed to load env file: %s", filepath);
+      uInfo("env file:%s not load", filepath);
       return 0;
     }
   }

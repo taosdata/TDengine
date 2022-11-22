@@ -2,4 +2,5 @@ TDengine is a high-efficient, scalable, high-available distributed time-series d
 
 To configure TDengine : edit /etc/taos/taos.cfg
 To start service : launchctl start com.tdengine.taosd
+To start Taos Adapter : launchctl start com.tdengine.taosadapter
 To access TDengine : use taos in shell

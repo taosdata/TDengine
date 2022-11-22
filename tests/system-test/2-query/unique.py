@@ -12,7 +12,8 @@ from util.cases import *
 
 class TDTestCase:
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -437,6 +438,10 @@ class TDTestCase:
         tdSql.checkData(0,0,4)
         tdSql.checkData(1,0,1)
 
+        # TD-19911
+        tdSql.error("select  unique(mode(12)) from (select _rowts , t1 , tbname from  db.stb1 );")
+        tdSql.error("select  unique(mode(t1,1)) from (select _rowts , t1 , tbname from  db.stb1 );")
+
     def check_boundary_values(self, dbname="bound_test"):
 
         tdSql.execute(f"drop database if exists {dbname}")
@@ -446,26 +451,26 @@ class TDTestCase:
         )
         tdSql.execute(f'create table {dbname}.sub1_bound using {dbname}.stb_bound tags ( 1 )')
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()-1s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-10s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
-            )
-
-        tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()+1s, -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-5s, 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
 
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()+2s, 2147483643, 9223372036854775803, 32763, 123, 3.39E+38, 1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()+5s, -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
 
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()+3s, -2147483643, -9223372036854775803, -32763, -123, -3.39E+38, -1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()+10s, 2147483643, 9223372036854775803, 32763, 123, 3.39E+38, 1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+20s, -2147483643, -9223372036854775803, -32763, -123, -3.39E+38, -1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
 
         tdSql.error(
-                f"insert into {dbname}.sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()+30s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
 
         tdSql.query(f"select unique(c2) from  {dbname}.sub1_bound order by 1 desc")

@@ -72,7 +72,8 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
   if (offset >= ctx->file.size) return 0;
 
   do {
-    char key[128] = {0};
+    char key[1024] = {0};
+    assert(strlen(ctx->file.buf) + 1 + 64 < sizeof(key));
     idxGenLRUKey(key, ctx->file.buf, blkId);
     LRUHandle* h = taosLRUCacheLookup(ctx->lru, key, strlen(key));
 
@@ -99,6 +100,7 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
         assert(blk->nread <= kBlockSize);
 
         if (blk->nread < kBlockSize && blk->nread < len) {
+          taosMemoryFree(blk);
           break;
         }
 

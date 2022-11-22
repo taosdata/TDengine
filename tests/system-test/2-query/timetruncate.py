@@ -7,9 +7,13 @@ import time
 from datetime import datetime
 from util.gettime import *
 class TDTestCase:
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
+        print(conn)
+        self.rest_tag = str(conn).lower().split('.')[0].replace("<taos","")
+        print(self.rest_tag)
         self.get_time = GetTime()
         self.ts_str = [
             '2020-1-1',
@@ -85,28 +89,36 @@ class TDTestCase:
     def check_ns_timestamp(self,unit,date_time):
         if unit.lower() == '1b':
             for i in range(len(self.ts_str)):
-                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]))
+                if self.rest_tag != 'rest':
+                    tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]))
         elif unit.lower() == '1u':
             for i in range(len(self.ts_str)):
-                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000)*1000)
+                if self.rest_tag != 'rest':
+                    tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000)*1000)
         elif unit.lower() == '1a':
             for i in range(len(self.ts_str)):
-                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000)*1000*1000)
+                if self.rest_tag != 'rest':
+                    tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000)*1000*1000)
         elif unit.lower() == '1s':
             for i in range(len(self.ts_str)):
-                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000)*1000*1000*1000)
+                if self.rest_tag != 'rest':
+                    tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000)*1000*1000*1000)
         elif unit.lower() == '1m':
             for i in range(len(self.ts_str)):
-                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60)*60*1000*1000*1000)
+                if self.rest_tag != 'rest':
+                    tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60)*60*1000*1000*1000)
         elif unit.lower() == '1h':
             for i in range(len(self.ts_str)):
-                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60/60)*60*60*1000*1000*1000  )
+                if self.rest_tag != 'rest':
+                    tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60/60)*60*60*1000*1000*1000  )
         elif unit.lower() == '1d':
             for i in range(len(self.ts_str)):
-                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60/60/24)*24*60*60*1000*1000*1000 )
+                if self.rest_tag != 'rest':
+                    tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60/60/24)*24*60*60*1000*1000*1000 )
         elif unit.lower() == '1w':
             for i in range(len(self.ts_str)):
-                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60/60/24/7)*7*24*60*60*1000*1000*1000)
+                if self.rest_tag != 'rest':
+                    tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60/60/24/7)*7*24*60*60*1000*1000*1000)
 
     def check_tb_type(self,unit,tb_type):
         if tb_type.lower() == 'ntb':
@@ -169,7 +181,8 @@ class TDTestCase:
             date_time = self.get_time.time_transform(self.ts_str,precision)
             self.data_check(date_time,precision,'ctb')
             self.data_check(date_time,precision,'stb')
-
+    
+   
     def run(self):
         self.function_check_ntb()
         self.function_check_stb()

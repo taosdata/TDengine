@@ -30,7 +30,7 @@ int indexJsonPut(SIndexJson *index, SIndexJsonMultiTerm *terms, uint64_t uid) {
     } else {
       p->colType = TSDB_DATA_TYPE_DOUBLE;
     }
-    IDX_TYPE_ADD_EXTERN_TYPE(p->colType, TSDB_DATA_TYPE_JSON);
+    IDX_TYPE_ADD_EXTERN_TYPE((p->colType), TSDB_DATA_TYPE_JSON);
   }
   // handle put
   return indexPut(index, terms, uid);

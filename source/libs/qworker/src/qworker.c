@@ -258,7 +258,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     dsGetDataLength(ctx->sinkHandle, &len, &queryEnd);
 
     if (len < 0) {
-      QW_TASK_ELOG("invalid length from dsGetDataLength, length:%d", len);
+      QW_TASK_ELOG("invalid length from dsGetDataLength, length:%" PRId64 "", len);
       QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
     }
 
@@ -292,7 +292,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     }
 
     // Got data from sink
-    QW_TASK_DLOG("there are data in sink, dataLength:%d", len);
+    QW_TASK_DLOG("there are data in sink, dataLength:%" PRId64 "", len);
 
     *dataLen += len;
 
@@ -398,7 +398,6 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
       if (QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
         QW_TASK_ELOG("task already dropped at wrong phase %s", qwPhaseStr(phase));
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_STATUS_ERROR);
-        break;
       }
 
       if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
@@ -408,7 +407,6 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
         // QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, code, tstrerror(code));
 
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
-        break;
       }
 
       QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXEC));
@@ -646,11 +644,13 @@ _return:
   input.msgType = qwMsg->msgType;
   code = qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_QUERY, &input, NULL);
 
-  if (ctx != NULL && QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
+  if (QUERY_RSP_POLICY_QUICK == tsQueryRspPolicy && ctx != NULL && QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
     void         *rsp = NULL;
     int32_t       dataLen = 0;
     SOutputData sOutput = {0};
-    QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
+    if (qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput)) {
+      return TSDB_CODE_SUCCESS;
+    }
 
     if (rsp) {
       bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
@@ -683,6 +683,8 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   bool          queryStop = false;
 
   do {
+    ctx = NULL;
+    
     QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_CQUERY, &input, NULL));
 
     QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
@@ -1160,6 +1162,43 @@ _return:
   }
 
   QW_RET(code);
+}
+
+void qWorkerStopAllTasks(void *qWorkerMgmt) {
+  SQWorker *mgmt = (SQWorker *)qWorkerMgmt;
+
+  QW_DLOG("start to stop all tasks, taskNum:%d", taosHashGetSize(mgmt->ctxHash));
+
+  uint64_t qId, tId;
+  int32_t  eId;  
+  void    *pIter = taosHashIterate(mgmt->ctxHash, NULL);
+  while (pIter) {
+    SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
+    void       *key = taosHashGetKey(pIter, NULL);
+    QW_GET_QTID(key, qId, tId, eId);
+
+    QW_LOCK(QW_WRITE, &ctx->lock);
+
+    QW_TASK_DLOG_E("start to force stop task");
+    
+    if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP) || QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
+      QW_TASK_WLOG_E("task already dropping");
+      QW_UNLOCK(QW_WRITE, &ctx->lock);
+
+      pIter = taosHashIterate(mgmt->ctxHash, pIter);
+      continue;
+    }
+    
+    if (QW_QUERY_RUNNING(ctx)) {
+      qwKillTaskHandle(ctx);
+    } else if (!QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
+      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
+    }
+
+    QW_UNLOCK(QW_WRITE, &ctx->lock);
+
+    pIter = taosHashIterate(mgmt->ctxHash, pIter);
+  }
 }
 
 void qWorkerDestroy(void **qWorkerMgmt) {

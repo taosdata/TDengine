@@ -24,9 +24,10 @@ from util.cases import *
 from util.sql import *
 from util.dnodes import *
 
-
+msec_per_min=60*1000
 class TDTestCase:
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
 
@@ -311,19 +312,19 @@ class TDTestCase:
             for j in range(data_row):
                 tdSql.execute(
                     f"insert into db.t{i} values ("
-                    f"{basetime + (j+1)*10}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
+                    f"{basetime + (j+1)*10 + i* msec_per_min}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
                     f"'binary_{j}', {random.uniform(-200, -1)}, {random.choice([0,1])}, {random.randint(-200,-1)}, "
                     f"{random.randint(-200, -1)}, {random.randint(-127, -1)}, 'nchar_{j}' )"
                 )
 
                 tdSql.execute(
                     f"insert into db.t{i} values ("
-                    f"{basetime - (j+1) * 10}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
+                    f"{basetime - (j+1) * 10 + i* msec_per_min}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
                     f"'binary_{j}_1', {random.uniform(1, 200)}, {random.choice([0, 1])}, {random.randint(1,200)}, "
                     f"{random.randint(1,200)}, {random.randint(1,127)}, 'nchar_{j}_1' )"
                 )
                 tdSql.execute(
-                    f"insert into db.tt{i} values ( {basetime-(j+1) * 10}, {random.randint(1, 200)} )"
+                    f"insert into db.tt{i} values ( {basetime-(j+1) * 10 + i* msec_per_min}, {random.randint(1, 200)} )"
                 )
 
         pass
@@ -393,26 +394,26 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert only NULL test:")
         for i in range(tbnum):
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime - 5})")
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime + 5})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime - 5 + i* msec_per_min})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime + 5 + i* msec_per_min})")
         self.diff_current_query()
         self.diff_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the max(bigint/double):")
         self.diff_test_table(tbnum)
         tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 1) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
+                      f"({nowtime - (per_table_rows + 1) * 10 + i* msec_per_min}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
         tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 2) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
+                      f"({nowtime - (per_table_rows + 2) * 10 + i* msec_per_min}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
         self.diff_current_query()
         self.diff_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the min(bigint/double):")
         self.diff_test_table(tbnum)
         tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 1) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {1-2**63})")
+                      f"({nowtime - (per_table_rows + 1) * 10 + i* msec_per_min}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {1-2**63})")
         tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 2) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {512-2**63})")
+                      f"({nowtime - (per_table_rows + 2) * 10 + i* msec_per_min}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {512-2**63})")
         self.diff_current_query()
         self.diff_error_query()
 
@@ -425,9 +426,9 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert data mix with NULL test:")
         for i in range(tbnum):
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime})")
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime-(per_table_rows+3)*10})")
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime+(per_table_rows+3)*10})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime + i* msec_per_min})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime-(per_table_rows+3)*10 + i* msec_per_min})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime+(per_table_rows+3)*10 + i* msec_per_min})")
         self.diff_current_query()
         self.diff_error_query()
 

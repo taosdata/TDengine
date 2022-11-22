@@ -57,7 +57,7 @@ static void    taosIncRsetCount(SRefSet *pSet);
 static void    taosDecRsetCount(SRefSet *pSet);
 static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove);
 
-int32_t taosOpenRef(int32_t max, void (*fp)(void *)) {
+int32_t taosOpenRef(int32_t max, RefFp fp) {
   SRefNode **nodeList;
   SRefSet   *pSet;
   int64_t   *lockedBy;
@@ -361,7 +361,7 @@ int32_t taosListRef() {
 
     if (pSet->state == TSDB_REF_STATE_EMPTY) continue;
 
-    uInfo("rsetId:%d state:%d count::%d", i, pSet->state, pSet->count);
+    uInfo("rsetId:%d state:%d count:%d", i, pSet->state, pSet->count);
 
     for (int32_t j = 0; j < pSet->max; ++j) {
       pNode = pSet->nodeList[j];

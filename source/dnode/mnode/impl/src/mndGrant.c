@@ -21,10 +21,8 @@
 
 static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   int32_t numOfRows = 0;
-  char   *pWrite;
   int32_t cols = 0;
   char    tmp[32];
-  char    tmp1[32];
 
   if (pShow->numOfRows < 1) {
     cols = 0;

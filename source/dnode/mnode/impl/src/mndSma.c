@@ -454,7 +454,7 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   pVgroup->pTsma = pSmaReq;
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen, false);
+  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
   taosMemoryFreeClear(pSmaReq);
   if (pReq == NULL) return -1;
 
@@ -532,6 +532,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.sql = strdup(pCreate->sql);
   streamObj.smaId = smaObj.uid;
   streamObj.watermark = pCreate->watermark;
+  streamObj.fillHistory = STREAM_FILL_HISTORY_ON;
   streamObj.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
   streamObj.triggerParam = pCreate->maxDelay;
   streamObj.ast = strdup(smaObj.ast);

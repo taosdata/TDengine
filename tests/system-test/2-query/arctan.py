@@ -12,7 +12,8 @@ class TDTestCase:
     # updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     # "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     # "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
-    def init(self, conn, powSql):
+    def init(self, conn,  logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -83,22 +84,12 @@ class TDTestCase:
                 row_check.append(elem)
             auto_result.append(row_check)
 
-        check_status = True
-
+        tdSql.query(pow_query)
         for row_index , row in enumerate(pow_result):
             for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] == None  and elem:
-                    check_status = False
-                elif auto_result[row_index][col_index] != None  and (auto_result[row_index][col_index] - elem > 0.00000001):
-                    check_status = False
-                else:
-                    pass
-        if not check_status:
-            tdLog.notice("atan function value has not as expected , sql is \"%s\" "%pow_query )
-            sys.exit(1)
-        else:
-            tdLog.info("atan value check pass , it work as expected ,sql is \"%s\"   "%pow_query )
+                tdSql.checkData(row_index,col_index,auto_result[row_index][col_index])
 
+               
     def test_errors(self, dbname="db"):
         error_sql_lists = [
             f"select atan from {dbname}.t1",
@@ -411,19 +402,19 @@ class TDTestCase:
         )
         tdSql.execute(f'create table {dbname}.sub1_bound using {dbname}.stb_bound tags ( 1 )')
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()-1s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-10s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()-1s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-5s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
                 f"insert into {dbname}.sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now(), -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()+5s, -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.error(
-                f"insert into {dbname}.sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()+10s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         self.check_result_auto_atan( f"select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from {dbname}.sub1_bound ", f"select atan(abs(c1)), atan(abs(c2)) ,atan(abs(c3)), atan(abs(c4)), atan(abs(c5)) from {dbname}.sub1_bound")
 

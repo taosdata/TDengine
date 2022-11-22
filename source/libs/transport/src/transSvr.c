@@ -127,7 +127,7 @@ static void uvFreeCb(uv_handle_t* handle);
 
 static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg);
 
-static void uvPrepareSendData(SSvrMsg* msg, uv_buf_t* wb);
+static int  uvPrepareSendData(SSvrMsg* msg, uv_buf_t* wb);
 static void uvStartSendResp(SSvrMsg* msg);
 
 static void uvNotifyLinkBrokenToApp(SSvrConn* conn);
@@ -363,9 +363,11 @@ void uvOnSendCb(uv_write_t* req, int status) {
     }
     transUnrefSrvHandle(conn);
   } else {
-    tError("conn %p failed to write data, %s", conn, uv_err_name(status));
-    conn->broken = true;
-    transUnrefSrvHandle(conn);
+    if (!uv_is_closing((uv_handle_t*)(conn->pTcp))) {
+      tError("conn %p failed to write data, %s", conn, uv_err_name(status));
+      conn->broken = true;
+      transUnrefSrvHandle(conn);
+    }
   }
 }
 static void uvOnPipeWriteCb(uv_write_t* req, int status) {
@@ -374,11 +376,15 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
   } else {
     tError("fail to dispatch conn to work thread");
   }
-  uv_close((uv_handle_t*)req->data, uvFreeCb);
+  if (!uv_is_closing((uv_handle_t*)req->data)) {
+    uv_close((uv_handle_t*)req->data, uvFreeCb);
+  } else {
+    taosMemoryFree(req->data);
+  }
   taosMemoryFree(req);
 }
 
-static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
+static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   SSvrConn*  pConn = smsg->pConn;
   STransMsg* pMsg = &smsg->msg;
   if (pMsg->pCont == 0) {
@@ -390,6 +396,13 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
   pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+
+  // handle invalid drop_task resp, TD-20098
+  if (pMsg->msgType == TDMT_SCH_DROP_TASK && pMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+    transQueuePop(&pConn->srvMsgs);
+    destroySmsg(smsg);
+    return -1;
+  }
 
   if (pConn->status == ConnNormal) {
     pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
@@ -425,6 +438,7 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
 
   wb->base = (char*)pHead;
   wb->len = len;
+  return 0;
 }
 
 static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
@@ -434,7 +448,9 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
   }
 
   uv_buf_t wb;
-  uvPrepareSendData(smsg, &wb);
+  if (uvPrepareSendData(smsg, &wb) < 0) {
+    return;
+  }
 
   transRefSrvHandle(pConn);
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
@@ -445,8 +461,7 @@ static void uvStartSendResp(SSvrMsg* smsg) {
   SSvrConn* pConn = smsg->pConn;
   if (pConn->broken == true) {
     // persist by
-    transFreeMsg(smsg->msg.pCont);
-    taosMemoryFree(smsg);
+    destroySmsg(smsg);
     transUnrefSrvHandle(pConn);
     return;
   }
@@ -651,12 +666,14 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
   uv_tcp_init(pObj->loop, cli);
 
   if (uv_accept(stream, (uv_stream_t*)cli) == 0) {
+#if defined(WINDOWS) || defined(DARWIN)
     if (pObj->numOfWorkerReady < pObj->numOfThreads) {
       tError("worker-threads are not ready for all, need %d instead of %d.", pObj->numOfThreads,
              pObj->numOfWorkerReady);
       uv_close((uv_handle_t*)cli, NULL);
       return;
     }
+#endif
 
     uv_write_t* wr = (uv_write_t*)taosMemoryMalloc(sizeof(uv_write_t));
     wr->data = cli;
@@ -668,7 +685,11 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
 
     uv_write2(wr, (uv_stream_t*)&(pObj->pipe[pObj->workerIdx][0]), &buf, 1, (uv_stream_t*)cli, uvOnPipeWriteCb);
   } else {
-    uv_close((uv_handle_t*)cli, NULL);
+    if (!uv_is_closing((uv_handle_t*)cli)) {
+      uv_close((uv_handle_t*)cli, NULL);
+    } else {
+      taosMemoryFree(cli);
+    }
   }
 }
 void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
@@ -681,7 +702,6 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     tWarn("failed to create connect:%p", q);
     taosMemoryFree(buf->base);
     uv_close((uv_handle_t*)q, NULL);
-    // taosMemoryFree(q);
     return;
   }
   // free memory allocated by
@@ -737,10 +757,11 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
     transSockInfo2Str(&sockname, pConn->src);
-    struct sockaddr_in addr = *(struct sockaddr_in*)&sockname;
 
+    struct sockaddr_in addr = *(struct sockaddr_in*)&peername;
     pConn->clientIp = addr.sin_addr.s_addr;
     pConn->port = ntohs(addr.sin_port);
+
     uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
 
   } else {
@@ -770,7 +791,12 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
     return false;
   }
 
+#if defined(WINDOWS) || defined(DARWIN)
   uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
+#else
+  uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
+  uv_pipe_open(pThrd->pipe, pThrd->fd);
+#endif
 
   pThrd->pipe->data = pThrd;
 
@@ -784,9 +810,12 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   // conn set
   QUEUE_INIT(&pThrd->conn);
 
-  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 5, pThrd, uvWorkerAsyncCb);
+  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 8, pThrd, uvWorkerAsyncCb);
+#if defined(WINDOWS) || defined(DARWIN)
   uv_pipe_connect(&pThrd->connect_req, pThrd->pipe, pipeName, uvOnPipeConnectionCb);
-  // uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
+#else
+  uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
+#endif
   return true;
 }
 
@@ -811,7 +840,7 @@ static bool addHandleToAcceptloop(void* arg) {
     tError("failed to bind:%s", uv_err_name(err));
     return false;
   }
-  if ((err = uv_listen((uv_stream_t*)&srv->server, 512, uvOnAcceptCb)) != 0) {
+  if ((err = uv_listen((uv_stream_t*)&srv->server, 4096 * 2, uvOnAcceptCb)) != 0) {
     tError("failed to listen:%s", uv_err_name(err));
     terrno = TSDB_CODE_RPC_PORT_EADDRINUSE;
     return false;
@@ -958,20 +987,20 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   srv->port = port;
   uv_loop_init(srv->loop);
 
+  char pipeName[PATH_MAX];
+#if defined(WINDOWS) || defined(DARWIN)
   int ret = uv_pipe_init(srv->loop, &srv->pipeListen, 0);
   if (ret != 0) {
     tError("failed to init pipe, errmsg: %s", uv_err_name(ret));
     goto End;
   }
-
-#ifdef WINDOWS
-  char pipeName[64];
+#if defined(WINDOWS)
   snprintf(pipeName, sizeof(pipeName), "\\\\?\\pipe\\trans.rpc.%d-%" PRIu64, taosSafeRand(), GetCurrentProcessId());
-#else
-  char pipeName[PATH_MAX] = {0};
+#elif defined(DARWIN)
   snprintf(pipeName, sizeof(pipeName), "%s%spipe.trans.rpc.%08d-%" PRIu64, tsTempDir, TD_DIRSEP, taosSafeRand(),
            taosGetSelfPthreadId());
 #endif
+
   ret = uv_pipe_bind(&srv->pipeListen, pipeName);
   if (ret != 0) {
     tError("failed to bind pipe, errmsg: %s", uv_err_name(ret));
@@ -997,6 +1026,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     if (false == addHandleToWorkloop(thrd, pipeName)) {
       goto End;
     }
+
     int err = taosThreadCreate(&(thrd->thread), NULL, transWorkerThread, (void*)(thrd));
     if (err == 0) {
       tDebug("success to create worker-thread:%d", i);
@@ -1006,14 +1036,54 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
       goto End;
     }
   }
+#else
+
+  for (int i = 0; i < srv->numOfThreads; i++) {
+    SWorkThrd* thrd = (SWorkThrd*)taosMemoryCalloc(1, sizeof(SWorkThrd));
+
+    thrd->pTransInst = shandle;
+    thrd->quit = false;
+    thrd->pTransInst = shandle;
+
+    srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
+    srv->pThreadObj[i] = thrd;
+
+    uv_os_sock_t fds[2];
+    if (uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
+      goto End;
+    }
+
+    uv_pipe_init(srv->loop, &(srv->pipe[i][0]), 1);
+    uv_pipe_open(&(srv->pipe[i][0]), fds[1]);
+
+    thrd->pipe = &(srv->pipe[i][1]);  // init read
+    thrd->fd = fds[0];
+
+    if (false == addHandleToWorkloop(thrd, pipeName)) {
+      goto End;
+    }
+
+    int err = taosThreadCreate(&(thrd->thread), NULL, transWorkerThread, (void*)(thrd));
+    if (err == 0) {
+      tDebug("success to create worker-thread:%d", i);
+    } else {
+      // TODO: clear all other resource later
+      tError("failed to create worker-thread:%d", i);
+      goto End;
+    }
+  }
+#endif
+
   if (false == taosValidIpAndPort(srv->ip, srv->port)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     tError("invalid ip/port, %d:%d, reason:%s", srv->ip, srv->port, terrstr());
     goto End;
   }
+
   if (false == addHandleToAcceptloop(srv)) {
     goto End;
   }
+
   int err = taosThreadCreate(&srv->thread, NULL, transAcceptThread, (void*)srv);
   if (err == 0) {
     tDebug("success to create accept-thread");
@@ -1022,6 +1092,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     goto End;
     // clear all resource later
   }
+
   srv->inited = true;
   return srv;
 End:
@@ -1161,7 +1232,9 @@ int transReleaseSrvHandle(void* handle) {
   m->type = Release;
 
   tTrace("%s conn %p start to release", transLabel(pThrd->pTransInst), exh->handle);
-  transAsyncSend(pThrd->asyncPool, &m->q);
+  if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
+    destroySmsg(m);
+  }
 
   transReleaseExHandle(transGetRefMgt(), refId);
   return 0;
@@ -1196,7 +1269,9 @@ int transSendResponse(const STransMsg* msg) {
 
   STraceId* trace = (STraceId*)&msg->info.traceId;
   tGTrace("conn %p start to send resp (1/2)", exh->handle);
-  transAsyncSend(pThrd->asyncPool, &m->q);
+  if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
+    destroySmsg(m);
+  }
 
   transReleaseExHandle(transGetRefMgt(), refId);
   return 0;
@@ -1230,7 +1305,9 @@ int transRegisterMsg(const STransMsg* msg) {
 
   STrans* pTransInst = pThrd->pTransInst;
   tTrace("%s conn %p start to register brokenlink callback", transLabel(pTransInst), exh->handle);
-  transAsyncSend(pThrd->asyncPool, &m->q);
+  if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
+    destroySmsg(m);
+  }
 
   transReleaseExHandle(transGetRefMgt(), refId);
   return 0;

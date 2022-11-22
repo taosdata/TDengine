@@ -83,6 +83,12 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
   }
 }
 
+#define TSDB_CHECK_CODE(CODE, LINO, LABEL) \
+  if (CODE) {                              \
+    LINO = __LINE__;                       \
+    goto LABEL;                            \
+  }
+
 #ifdef __cplusplus
 }
 #endif

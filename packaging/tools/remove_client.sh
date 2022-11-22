@@ -28,7 +28,7 @@ if command -v sudo > /dev/null; then
 fi
 
 function kill_client() {
-  if [ -n "$(pidof ${clientName})" ]; then
+  if [ -n "$(ps aux | grep -v grep | grep ${clientName})" ]; then
     ${csudo}kill -9 $pid   || :
   fi
 }

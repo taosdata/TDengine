@@ -105,6 +105,7 @@ static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
     for (int32_t iPage = pCache->nPages; iPage < nPage; iPage++) {
       if (tdbPageCreate(pCache->szPage, &aPage[iPage], tdbDefaultMalloc, NULL) < 0) {
         // TODO: handle error
+        tdbOsFree(aPage);
         return -1;
       }
 
@@ -168,7 +169,7 @@ int tdbPCacheAlter(SPCache *pCache, int32_t nPage) {
 
 SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn) {
   SPage *pPage;
-  i32    nRef;
+  i32    nRef = 0;
 
   tdbPCacheLock(pCache);
 
@@ -177,14 +178,17 @@ SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn) {
     nRef = tdbRefPage(pPage);
   }
 
-  ASSERT(pPage);
-
   tdbPCacheUnlock(pCache);
 
   // printf("thread %" PRId64 " fetch page %d pgno %d pPage %p nRef %d\n", taosGetSelfPthreadId(), pPage->id,
   //        TDB_PAGE_PGNO(pPage), pPage, nRef);
 
-  tdbDebug("pcache/fetch page %p/%d/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id, nRef);
+  if (pPage) {
+    tdbDebug("pcache/fetch page %p/%d/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id, nRef);
+  } else {
+    tdbDebug("pcache/fetch page %p", pPage);
+  }
+
   return pPage;
 }
 
@@ -265,9 +269,9 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   }
 
   // 4. Try a create new page
-  if (!pPage) {
+  if (!pPage && pTxn->xMalloc != NULL) {
     ret = tdbPageCreate(pCache->szPage, &pPage, pTxn->xMalloc, pTxn->xArg);
-    if (ret < 0) {
+    if (ret < 0 || pPage == NULL) {
       // TODO
       ASSERT(0);
       return NULL;
@@ -300,8 +304,8 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
       pPage->pPager = pPageH->pPager;
 
       memcpy(pPage->pData, pPageH->pData, pPage->pageSize);
-      tdbDebug("pcache/pPageH: %p %d %p %p %d", pPageH, pPageH->pPageHdr - pPageH->pData, pPageH->xCellSize, pPage,
-               TDB_PAGE_PGNO(pPageH));
+      // tdbDebug("pcache/pPageH: %p %ld %p %p %u", pPageH, pPageH->pPageHdr - pPageH->pData, pPageH->xCellSize, pPage,
+      //         TDB_PAGE_PGNO(pPageH));
       tdbPageInit(pPage, pPageH->pPageHdr - pPageH->pData, pPageH->xCellSize);
       pPage->kLen = pPageH->kLen;
       pPage->vLen = pPageH->vLen;

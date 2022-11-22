@@ -248,9 +248,9 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     }
   }
 
-  if (optr == OP_TYPE_JSON_CONTAINS && type == TSDB_DATA_TYPE_JSON) {
-    return 28;
-  }
+  //  if (optr == OP_TYPE_JSON_CONTAINS && type == TSDB_DATA_TYPE_JSON) {
+  //    return 28;
+  //  }
 
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -336,6 +336,10 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
 __compar_fn_t filterGetCompFunc(int32_t type, int32_t optr) { return gDataCompare[filterGetCompFuncIdx(type, optr)]; }
 
 __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr) {
+  if (TSDB_DATA_TYPE_NULL == rType) {
+    return NULL;
+  }
+  
   switch (lType) {
     case TSDB_DATA_TYPE_TINYINT: {
       if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
@@ -512,15 +516,17 @@ int32_t filterReuseRangeCtx(SFilterRangeCtx *ctx, int32_t type, int32_t options)
 }
 
 int32_t filterConvertRange(SFilterRangeCtx *cur, SFilterRange *ra, bool *notNull) {
+  int64_t tmp = 0;
+  
   if (!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
-    int32_t sr = cur->pCompareFunc(&ra->s, getDataMin(cur->type));
+    int32_t sr = cur->pCompareFunc(&ra->s, getDataMin(cur->type, &tmp));
     if (sr == 0) {
       FILTER_SET_FLAG(ra->sflag, RANGE_FLG_NULL);
     }
   }
 
   if (!FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL)) {
-    int32_t er = cur->pCompareFunc(&ra->e, getDataMax(cur->type));
+    int32_t er = cur->pCompareFunc(&ra->e, getDataMax(cur->type, &tmp));
     if (er == 0) {
       FILTER_SET_FLAG(ra->eflag, RANGE_FLG_NULL);
     }
@@ -696,14 +702,15 @@ int32_t filterAddRangeImpl(void *h, SFilterRange *ra, int32_t optr) {
 
 int32_t filterAddRange(void *h, SFilterRange *ra, int32_t optr) {
   SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
-
+  int64_t tmp = 0;
+  
   if (FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
-    SIMPLE_COPY_VALUES(&ra->s, getDataMin(ctx->type));
+    SIMPLE_COPY_VALUES(&ra->s, getDataMin(ctx->type, &tmp));
     // FILTER_CLR_FLAG(ra->sflag, RA_NULL);
   }
 
   if (FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL)) {
-    SIMPLE_COPY_VALUES(&ra->e, getDataMax(ctx->type));
+    SIMPLE_COPY_VALUES(&ra->e, getDataMax(ctx->type, &tmp));
     // FILTER_CLR_FLAG(ra->eflag, RA_NULL);
   }
 
@@ -912,8 +919,8 @@ int32_t filterDetachCnfGroups(SArray *group, SArray *left, SArray *right) {
 
   if (taosArrayGetSize(left) <= 0) {
     if (taosArrayGetSize(right) <= 0) {
-      fltError("both groups are empty");
-      FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+      fltDebug("both groups are empty");
+      return TSDB_CODE_SUCCESS;
     }
 
     SFilterGroup *gp = NULL;
@@ -1082,7 +1089,12 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
   if (info->unitNum >= info->unitSize) {
     uint32_t psize = info->unitSize;
     info->unitSize += FILTER_DEFAULT_UNIT_SIZE;
-    info->units = taosMemoryRealloc(info->units, info->unitSize * sizeof(SFilterUnit));
+
+    void *tmp = taosMemoryRealloc(info->units, info->unitSize * sizeof(SFilterUnit));
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    info->units = (SFilterUnit *)tmp;
     memset(info->units + psize, 0, sizeof(*info->units) * FILTER_DEFAULT_UNIT_SIZE);
   }
 
@@ -1135,7 +1147,12 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
 int32_t filterAddUnitToGroup(SFilterGroup *group, uint32_t unitIdx) {
   if (group->unitNum >= group->unitSize) {
     group->unitSize += FILTER_DEFAULT_UNIT_SIZE;
-    group->unitIdxs = taosMemoryRealloc(group->unitIdxs, group->unitSize * sizeof(*group->unitIdxs));
+
+    void *tmp = taosMemoryRealloc(group->unitIdxs, group->unitSize * sizeof(*group->unitIdxs));
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    group->unitIdxs = tmp;
   }
 
   group->unitIdxs[group->unitNum++] = unitIdx;
@@ -1159,7 +1176,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
 
     SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
     out.columnData->info.type = type;
-    out.columnData->info.bytes = tDataTypes[type].bytes;
+    out.columnData->info.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;  // reserved space for simple_copy
 
     for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
       SValueNode *valueNode = (SValueNode *)cell->pNode;
@@ -1181,7 +1198,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
         filterAddField(info, NULL, (void **)&out.columnData->pData, FLD_TYPE_VALUE, &right, len, true);
         out.columnData->pData = NULL;
       } else {
-        void *data = taosMemoryCalloc(1, tDataTypes[type].bytes);
+        void *data = taosMemoryCalloc(1, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);  // reserved space for simple_copy
         if (NULL == data) {
           FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
         }
@@ -1214,7 +1231,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
 
 int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit *u, uint32_t *uidx) {
   SFilterFieldId left, right, *pright = &right;
-  int32_t        type = FILTER_UNIT_DATA_TYPE(u);
+  uint8_t        type = FILTER_UNIT_DATA_TYPE(u);
   uint16_t       flag = 0;
 
   filterAddField(dst, FILTER_UNIT_COL_DESC(src, u), NULL, FLD_TYPE_COLUMN, &left, 0, false);
@@ -1623,12 +1640,12 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
 
           SValueNode *var = (SValueNode *)field->desc;
           SDataType  *dType = &var->node.resType;
-          if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {
-            qDebug("VAL%d => [type:TS][val:[%" PRIi64 "] - [%" PRId64 "]]", i, *(int64_t *)field->data,
-                   *(((int64_t *)field->data) + 1));
-          } else {
-            qDebug("VAL%d => [type:%d][val:%" PRIx64 "]", i, dType->type, var->datum.i);  // TODO
-          }
+          // if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {
+          //   qDebug("VAL%d => [type:TS][val:[%" PRIi64 "] - [%" PRId64 "]]", i, *(int64_t *)field->data,
+          //          *(((int64_t *)field->data) + 1));
+          // } else {
+          qDebug("VAL%d => [type:%d][val:%" PRIx64 "]", i, dType->type, var->datum.i);  // TODO
+          //}
         } else if (field->data) {
           qDebug("VAL%d => [type:NIL][val:NIL]", i);  // TODO
         }
@@ -1644,7 +1661,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
 
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SColumnNode  *refNode = (SColumnNode *)left->desc;
-        if (unit->compare.optr >= 0 && unit->compare.optr <= OP_TYPE_JSON_CONTAINS) {
+        if (unit->compare.optr <= OP_TYPE_JSON_CONTAINS) {
           len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
                         operatorTypeStr(unit->compare.optr));
         }
@@ -1664,7 +1681,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
 
         if (unit->compare.optr2) {
           strcat(str, " && ");
-          if (unit->compare.optr2 >= 0 && unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
+          if (unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
             sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
                     operatorTypeStr(unit->compare.optr2));
           }
@@ -1687,7 +1704,8 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
       }
 
       qDebug("GROUP Num:%u", info->groupNum);
-      for (uint32_t i = 0; i < info->groupNum; ++i) {
+      uint32_t maxDbgGrpNum = TMIN(info->groupNum, 1000);
+      for (uint32_t i = 0; i < maxDbgGrpNum; ++i) {
         SFilterGroup *group = &info->groups[i];
         qDebug("Group%d : unit num[%u]", i, group->unitNum);
 
@@ -1709,9 +1727,9 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
                ctx->isrange);
         if (ctx->isrange) {
           SFilterRangeNode *r = ctx->rs;
+          int32_t           tlen = 0;
           while (r) {
-            char    str[256] = {0};
-            int32_t tlen = 0;
+            char str[256] = {0};
             if (FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) {
               strcat(str, "(NULL)");
             } else {
@@ -2614,7 +2632,7 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
         int32_t usize = (int32_t)taosArrayGetSize((SArray *)colInfo->info);
 
         for (int32_t n = 0; n < usize; ++n) {
-          SFilterUnit *u = taosArrayGetP((SArray *)colInfo->info, n);
+          SFilterUnit *u = (SFilterUnit *)taosArrayGetP((SArray *)colInfo->info, n);
 
           filterAddUnitFromUnit(info, &oinfo, u, &uidx);
           filterAddUnitToGroup(&ng, uidx);
@@ -3231,14 +3249,18 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes, SC
       for (uint32_t u = 0; u < group->unitNum; ++u) {
         uint32_t        uidx = group->unitIdxs[u];
         SFilterComUnit *cunit = &info->cunits[uidx];
-        void           *colData = colDataGetData((SColumnInfoData *)(cunit->colData), i);
-
+        void           *colData = NULL;
+        bool            isNull = colDataIsNull((SColumnInfoData *)(cunit->colData), 0, i, NULL);
         // if (FILTER_UNIT_GET_F(info, uidx)) {
         //   p[i] = FILTER_UNIT_GET_R(info, uidx);
         // } else {
         uint8_t optr = cunit->optr;
 
-        if (colData == NULL || colDataIsNull((SColumnInfoData *)(cunit->colData), 0, i, NULL)) {
+        if (!isNull) {
+          colData = colDataGetData((SColumnInfoData *)(cunit->colData), i);
+        }
+        
+        if (colData == NULL || isNull) {
           p[i] = optr == OP_TYPE_IS_NULL ? true : false;
         } else {
           if (optr == OP_TYPE_IS_NOT_NULL) {
@@ -3712,7 +3734,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
     SListCell           *cell = node->pParameterList->pHead;
     for (int32_t i = 0; i < node->pParameterList->length; ++i) {
       if (NULL == cell || NULL == cell->pNode) {
-        fltError("invalid cell, cell:%p, pNode:%p", cell, cell->pNode);
+        fltError("invalid cell");
         stat->code = TSDB_CODE_QRY_INVALID_INPUT;
         return DEAL_RES_ERROR;
       }
@@ -3899,6 +3921,10 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       } else {
         SColumnNode   *refNode = (SColumnNode *)node->pLeft;
         SNodeListNode *listNode = (SNodeListNode *)node->pRight;
+        if (LIST_LENGTH(listNode->pNodeList) > 10) {
+          stat->scalarMode = true;
+          return DEAL_RES_CONTINUE;
+        }
         int32_t        type = vectorGetConvertType(refNode->node.resType.type, listNode->dataType.type);
         if (0 != type && type != refNode->node.resType.type) {
           stat->scalarMode = true;
@@ -3984,9 +4010,12 @@ int32_t filterSetDataFromColId(SFilterInfo *info, void *param) {
 }
 
 int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) {
-  int32_t      code = 0;
   SFilterInfo *info = NULL;
+  if (pNode == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
 
+  int32_t code = 0;
   if (pNode == NULL || pInfo == NULL) {
     fltError("invalid param");
     FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
@@ -4024,9 +4053,7 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) 
 _return:
 
   filterFreeInfo(*pInfo);
-
   *pInfo = NULL;
-
   FLT_RET(code);
 }
 
@@ -4049,10 +4076,12 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SC
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     taosArrayPush(pList, &pSrc);
 
-    FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
-    *p = output.columnData;
-
+    int32_t code = scalarCalculate(info->sclCtx.node, pList, &output);
     taosArrayDestroy(pList);
+
+    FLT_ERR_RET(code);
+
+    *p = output.columnData;
 
     if (output.numOfQualified == output.numOfRows) {
       *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;
@@ -4065,6 +4094,10 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SC
   } else {
     *p = output.columnData;
     output.numOfRows = pSrc->info.rows;
+
+    if (*p == NULL) {
+      return false;
+    }
 
     bool keep = (*info->func)(info, pSrc->info.rows, *p, statis, numOfCols, &output.numOfQualified);
 

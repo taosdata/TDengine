@@ -59,7 +59,7 @@ step12:
 	  print ====> db not ready!
 		return -1
 	endi
-sql show d1.vgroups
+sql show db1.vgroups
 print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 $leaderExist = 0
 if $rows != 1 then
@@ -87,19 +87,19 @@ step13:
 	  print ====> db not ready!
 		return -1
 	endi
-sql show d1.vgroups
+sql show db1.vgroups
 print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 $leaderExist = 0
 if $rows != 1 then
   return -1
 endi
-if $data(3)[4] == leader then
+if $data(2)[4] == leader then
   $leaderExist = 1
 endi
-if $data(3)[6] == leader then
+if $data(2)[6] == leader then
   $leaderExist = 1
 endi
-if $data(3)[8] == leader then
+if $data(2)[8] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -115,16 +115,16 @@ step14:
 	  print ====> db not ready!
 		return -1
 	endi
-sql show d1.vgroups
+sql show db1.vgroups
 print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 $leaderExist = 0
-if $data(4)[4] == leader then
+if $data(2)[4] == leader then
   $leaderExist = 1
 endi
-if $data(4)[6] == leader then
+if $data(2)[6] == leader then
   $leaderExist = 1
 endi
-if $data(4)[8] == leader then
+if $data(2)[8] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -140,16 +140,16 @@ step15:
 	  print ====> db not ready!
 		return -1
 	endi
-sql show d1.vgroups
+sql show db1.vgroups
 print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 $leaderExist = 0
-if $data(4)[4] == leader then
+if $data(2)[4] == leader then
   $leaderExist = 1
 endi
-if $data(4)[6] == leader then
+if $data(2)[6] == leader then
   $leaderExist = 1
 endi
-if $data(4)[8] == leader then
+if $data(2)[8] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -201,31 +201,39 @@ system sh/exec.sh -n dnode2 -s start
 sleep 3000
 
 print ======== step6
-sql select count(*) from db1.tb1
+$y = 0
+step6: 
+	$y = $y + 1
+	sleep 1000
+	if $y == 50 then
+		return -1
+	endi
+
+sql select count(*) from db1.tb1 -x step6
 print select count(*) from db1.tb1 ==> $data00 $lastRows1 
 if $data00 <= $lastRows1 then
-  return -1
+  goto step6
 endi
 $lastRows1 = $data00
 
-sql select count(*) from db2.tb2
+sql select count(*) from db2.tb2 -x step6
 print select count(*) from db2.tb2 ==> $data00 $lastRows2 
 if $data00 <= $lastRows2 then
-  return -1
+  goto step6
 endi
 $lastRows2 = $data00
 
-sql select count(*) from db3.tb3
+sql select count(*) from db3.tb3 -x step6
 print select count(*) from  db3.tb3 ==> $data00 $lastRows3 
 if $data00 <= $lastRows3 then
-  return -1
+  goto step6
 endi
 $lastRows3 = $data00
 
-sql select count(*) from db4.tb4
+sql select count(*) from db4.tb4 -x step6
 print select count(*) from  db4.tb4 ==> $data00 $lastRows4 
 if $data00 <= $lastRows4 then
-  return -1
+  goto step6
 endi
 $lastRows4 = $data00
 

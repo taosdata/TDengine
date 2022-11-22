@@ -112,6 +112,9 @@ taosBenchmark -f <json file>
 - **-u/--user <user\>** :
   User name to connect to the TDengine server. Default is root.
 
+- **-U/--supplement-insert ** :
+  Supplementally insert data without create database and table, optional, default is off.
+
 - **-p/--password <passwd\>** :
   The default password to connect to the TDengine server is `taosdata`.
 
@@ -147,6 +150,9 @@ taosBenchmark -f <json file>
 
 - **-l/--columns <colNum\>** :
   specify the number of columns in the super table. If both this parameter and `-b/--data-type` is set, the final result number of columns is the greater of the two. If the number specified by this parameter is greater than the number of columns specified by `-b/--data-type`, the unspecified column type defaults to INT, for example: `-l 5 -b float,double`, then the final column is `FLOAT,DOUBLE,INT,INT,INT`. If the number of columns specified is less than or equal to the number of columns specified by `-b/--data-type`, then the result is the column and type specified by `-b/--data-type`, e.g.: `-l 3 -b float,double,float,bigint`. The last column is `FLOAT,DOUBLE, FLOAT,BIGINT`.
+
+- **-L/--partial-col-num <colNum\> ** :
+  Specify first numbers of columns has data. Rest of columns' data are NULL. Default is all columns have data.
 
 - **-A/--tag-type <tagType\>** :
   The tag column type of the super table. nchar and binary types can both set the length, for example:
@@ -211,7 +217,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 The parameters listed in this section apply to all function modes.
 
 - **filetype** : The function to be tested, with optional values `insert`, `query` and `subscribe`. These correspond to the insert, query, and subscribe functions, respectively. Users can specify only one of these in each configuration file.
-**cfgdir**: specify the TDengine cluster configuration file's directory. The default path is /etc/taos.
+**cfgdir**: specify the TDengine client configuration file's directory. The default path is /etc/taos.
 
 - **host**: Specify the FQDN of the TDengine server to connect. The default value is `localhost`.
 
@@ -368,7 +374,11 @@ The configuration parameters for specifying super table tag columns and data col
 
 ### Query scenario configuration parameters
 
-`filetype` must be set to `query` in the query scenario. See [General Configuration Parameters](#General Configuration Parameters) for details of this parameter and other general parameters
+`filetype` must be set to `query` in the query scenario.
+
+To control the query scenario by setting `kill_slow_query_threshold` and `kill_slow_query_interval` parameters to kill the execution of slow query statements. Threshold controls exec_usec of query command will be killed by taosBenchmark after the specified time, in seconds; interval controls sleep time to avoid continuous querying of slow queries consuming CPU in seconds.
+
+See [General Configuration Parameters](#General Configuration Parameters) for details of other general parameters.
 
 #### Configuration parameters for executing the specified query statement
 

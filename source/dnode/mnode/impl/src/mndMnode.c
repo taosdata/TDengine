@@ -56,8 +56,6 @@ int32_t mndInitMnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_MNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_MNODE, mndProcessDropMnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_MNODE_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_SYNC_SET_MNODE_STANDBY_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_SYNC_SET_VNODE_STANDBY_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndRetrieveMnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndCancelGetNextMnode);
@@ -187,7 +185,7 @@ static int32_t mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pObj) {
     return -1;
   }
 
-  pObj->state = TAOS_SYNC_STATE_ERROR;
+  pObj->syncState = TAOS_SYNC_STATE_ERROR;
   mndReloadSyncConfig(pSdb->pMnode);
   return 0;
 }
@@ -324,9 +322,9 @@ static int32_t mndBuildAlterMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *pA
 }
 
 static int32_t mndBuildDropMnodeRedoAction(STrans *pTrans, SDDropMnodeReq *pDropReq, SEpSet *pDroprEpSet) {
-  int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, pDropReq);
+  int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, pDropReq);
   void   *pReq = taosMemoryMalloc(contLen);
-  tSerializeSCreateDropMQSBNodeReq(pReq, contLen, pDropReq);
+  tSerializeSCreateDropMQSNodeReq(pReq, contLen, pDropReq);
 
   STransAction action = {
       .epSet = *pDroprEpSet,
@@ -394,7 +392,6 @@ static int32_t mndCreateMnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   if (mndSetCreateMnodeRedoActions(pMnode, pTrans, pDnode, &mnodeObj) != 0) goto _OVER;
   if (mndSetCreateMnodeRedoLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
   if (mndSetCreateMnodeCommitLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
-  if (mndTransAppendNullLog(pTrans) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
@@ -411,7 +408,7 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   SDnodeObj       *pDnode = NULL;
   SMCreateMnodeReq createReq = {0};
 
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+  if (tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -475,10 +472,10 @@ static int32_t mndSetDropMnodeCommitLogs(SMnode *pMnode, STrans *pTrans, SMnodeO
   return 0;
 }
 
-static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnodeObj *pDnode, SMnodeObj *pObj) {
+static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnodeObj *pDnode, SMnodeObj *pObj,
+                                          bool force) {
   SSdb          *pSdb = pMnode->pSdb;
   void          *pIter = NULL;
-  int32_t        numOfReplicas = 0;
   SDDropMnodeReq dropReq = {0};
   SEpSet         dropEpSet = {0};
 
@@ -489,12 +486,21 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
 
   int32_t totalMnodes = sdbGetSize(pSdb, SDB_MNODE);
   if (totalMnodes == 2) {
+    if (force) {
+      mError("cant't force drop dnode, since a mnode on it and replica is 2");
+      terrno = TSDB_CODE_NODE_OFFLINE;
+      return -1;
+    }
     mInfo("vgId:1, has %d mnodes, exec redo log first", totalMnodes);
     if (mndSetDropMnodeRedoLogs(pMnode, pTrans, pObj) != 0) return -1;
-    if (mndBuildDropMnodeRedoAction(pTrans, &dropReq, &dropEpSet) != 0) return -1;
+    if (!force) {
+      if (mndBuildDropMnodeRedoAction(pTrans, &dropReq, &dropEpSet) != 0) return -1;
+    }
   } else if (totalMnodes == 3) {
     mInfo("vgId:1, has %d mnodes, exec redo action first", totalMnodes);
-    if (mndBuildDropMnodeRedoAction(pTrans, &dropReq, &dropEpSet) != 0) return -1;
+    if (!force) {
+      if (mndBuildDropMnodeRedoAction(pTrans, &dropReq, &dropEpSet) != 0) return -1;
+    }
     if (mndSetDropMnodeRedoLogs(pMnode, pTrans, pObj) != 0) return -1;
   } else {
     return -1;
@@ -503,11 +509,10 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   return 0;
 }
 
-int32_t mndSetDropMnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj) {
+int32_t mndSetDropMnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj, bool force) {
   if (pObj == NULL) return 0;
+  if (mndSetDropMnodeRedoActions(pMnode, pTrans, pObj->pDnode, pObj, force) != 0) return -1;
   if (mndSetDropMnodeCommitLogs(pMnode, pTrans, pObj) != 0) return -1;
-  if (mndSetDropMnodeRedoActions(pMnode, pTrans, pObj->pDnode, pObj) != 0) return -1;
-  if (mndTransAppendNullLog(pTrans) != 0) return -1;
   return 0;
 }
 
@@ -520,7 +525,7 @@ static int32_t mndDropMnode(SMnode *pMnode, SRpcMsg *pReq, SMnodeObj *pObj) {
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);
 
-  if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pObj) != 0) goto _OVER;
+  if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pObj, false) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
@@ -536,7 +541,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   SMnodeObj     *pObj = NULL;
   SMDropMnodeReq dropReq = {0};
 
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+  if (tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -607,19 +612,19 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, b1, false);
 
-    const char *roles = "offline";
+    char role[20] = "offline";
     if (pObj->id == pMnode->selfDnodeId) {
-      roles = syncStr(TAOS_SYNC_STATE_LEADER);
+      snprintf(role, sizeof(role), "%s%s", syncStr(TAOS_SYNC_STATE_LEADER), pMnode->restored ? "" : "*");
     }
     if (mndIsDnodeOnline(pObj->pDnode, curMs)) {
-      roles = syncStr(pObj->state);
-      if (pObj->state == TAOS_SYNC_STATE_LEADER && pObj->id != pMnode->selfDnodeId) {
-        roles = syncStr(TAOS_SYNC_STATE_ERROR);
+      tstrncpy(role, syncStr(pObj->syncState), sizeof(role));
+      if (pObj->syncState == TAOS_SYNC_STATE_LEADER && pObj->id != pMnode->selfDnodeId) {
+        tstrncpy(role, syncStr(TAOS_SYNC_STATE_ERROR), sizeof(role));
         mError("mnode:%d, is leader too", pObj->id);
       }
     }
     char b2[12 + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(b2, role, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)b2, false);
 
@@ -715,7 +720,8 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
   SMnodeObj *pObj = NULL;
   ESdbStatus objStatus = 0;
   void      *pIter = NULL;
-  bool       hasUpdatingMnode = false;
+  int32_t    updatingMnodes = 0;
+  int32_t    readyMnodes = 0;
   SSyncCfg   cfg = {.myIndex = -1};
 
   while (1) {
@@ -723,7 +729,11 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
     if (pIter == NULL) break;
     if (objStatus == SDB_STATUS_CREATING || objStatus == SDB_STATUS_DROPPING) {
       mInfo("vgId:1, has updating mnode:%d, status:%s", pObj->id, sdbStatusName(objStatus));
-      hasUpdatingMnode = true;
+      updatingMnodes++;
+    }
+    if (objStatus == SDB_STATUS_READY) {
+      mInfo("vgId:1, has ready mnode:%d, status:%s", pObj->id, sdbStatusName(objStatus));
+      readyMnodes++;
     }
 
     if (objStatus == SDB_STATUS_READY || objStatus == SDB_STATUS_CREATING) {
@@ -739,18 +749,25 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
     sdbReleaseLock(pSdb, pObj, false);
   }
 
+  if (readyMnodes <= 0 || updatingMnodes <= 0) {
+    mInfo("vgId:1, mnode sync not reconfig since readyMnodes:%d updatingMnodes:%d", readyMnodes, updatingMnodes);
+    return;
+  }
+  // ASSERT(0);
+
   if (cfg.myIndex == -1) {
-    mInfo("vgId:1, mnode not reload since selfIndex is -1");
+#if 1
+    mInfo("vgId:1, mnode sync not reconfig since selfIndex is -1");
+#else
+    // cannot reconfig because the leader may fail to elect after reboot
+    mInfo("vgId:1, mnode sync not reconfig since selfIndex is -1, do sync stop oper");
+    syncStop(pMnode->syncMgmt.sync);
+#endif
     return;
   }
 
-  if (!mndGetRestored(pMnode)) {
-    mInfo("vgId:1, mnode not reload since restore not finished");
-    return;
-  }
-
-  if (hasUpdatingMnode) {
-    mInfo("vgId:1, start to reload mnode sync, replica:%d myIndex:%d", cfg.replicaNum, cfg.myIndex);
+  if (updatingMnodes > 0) {
+    mInfo("vgId:1, mnode sync reconfig, replica:%d myIndex:%d", cfg.replicaNum, cfg.myIndex);
     for (int32_t i = 0; i < cfg.replicaNum; ++i) {
       SNodeInfo *pNode = &cfg.nodeInfo[i];
       mInfo("vgId:1, index:%d, fqdn:%s port:%d", i, pNode->nodeFqdn, pNode->nodePort);

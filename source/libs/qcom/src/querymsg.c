@@ -41,8 +41,9 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   pOut->dbVgroup->hashMethod = usedbRsp->hashMethod;
   pOut->dbVgroup->hashPrefix = usedbRsp->hashPrefix;
   pOut->dbVgroup->hashSuffix = usedbRsp->hashSuffix;
+  pOut->dbVgroup->stateTs = usedbRsp->stateTs;
 
-  qDebug("Got %d vgroup for db %s", usedbRsp->vgNum, usedbRsp->db);
+  qDebug("Got %d vgroup for db %s, vgVersion:%d, stateTs:%" PRId64, usedbRsp->vgNum, usedbRsp->db, usedbRsp->vgVersion, usedbRsp->stateTs);
 
   if (usedbRsp->vgNum <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -103,6 +104,7 @@ int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *ms
   usedbReq.vgVersion = pInput->vgVersion;
   usedbReq.dbId = pInput->dbId;
   usedbReq.numOfTable = pInput->numOfTable;
+  usedbReq.stateTs = pInput->stateTs;
 
   int32_t bufLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -173,7 +175,7 @@ int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   }
 
   SDbCfgReq dbCfgReq = {0};
-  strcpy(dbCfgReq.db, input);
+  strncpy(dbCfgReq.db, input, sizeof(dbCfgReq.db) - 1);
 
   int32_t bufLen = tSerializeSDbCfgReq(NULL, 0, &dbCfgReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -191,7 +193,7 @@ int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t 
   }
 
   SUserIndexReq indexReq = {0};
-  strcpy(indexReq.indexFName, input);
+  strncpy(indexReq.indexFName, input, sizeof(indexReq.indexFName) - 1);
 
   int32_t bufLen = tSerializeSUserIndexReq(NULL, 0, &indexReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -233,7 +235,7 @@ int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32
   }
 
   SGetUserAuthReq req = {0};
-  strncpy(req.user, input, sizeof(req.user));
+  strncpy(req.user, input, sizeof(req.user) - 1);
 
   int32_t bufLen = tSerializeSGetUserAuthReq(NULL, 0, &req);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -251,7 +253,7 @@ int32_t queryBuildGetTbIndexMsg(void *input, char **msg, int32_t msgSize, int32_
   }
 
   STableIndexReq indexReq = {0};
-  strcpy(indexReq.tbFName, input);
+  strncpy(indexReq.tbFName, input, sizeof(indexReq.tbFName) - 1);
 
   int32_t bufLen = tSerializeSTableIndexReq(NULL, 0, &indexReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -271,8 +273,8 @@ int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   SBuildTableInput *pInput = input;
   STableCfgReq      cfgReq = {0};
   cfgReq.header.vgId = pInput->vgId;
-  strcpy(cfgReq.dbFName, pInput->dbFName);
-  strcpy(cfgReq.tbName, pInput->tbName);
+  strncpy(cfgReq.dbFName, pInput->dbFName, sizeof(cfgReq.dbFName) - 1);
+  strncpy(cfgReq.tbName, pInput->tbName, sizeof(cfgReq.tbName) - 1);
 
   int32_t bufLen = tSerializeSTableCfgReq(NULL, 0, &cfgReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -304,6 +306,15 @@ int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
     qError("invalid db[%s] vgroup number[%d]", usedbRsp.db, usedbRsp.vgNum);
     code = TSDB_CODE_TSC_INVALID_VALUE;
     goto PROCESS_USEDB_OVER;
+  }
+
+  qTrace("db:%s, usedbRsp received, numOfVgroups:%d", usedbRsp.db, usedbRsp.vgNum);
+  for (int32_t i = 0; i < usedbRsp.vgNum; ++i) {
+    SVgroupInfo *pInfo = taosArrayGet(usedbRsp.pVgroupInfos, i);
+    qTrace("vgId:%d, numOfEps:%d inUse:%d ", pInfo->vgId, pInfo->epSet.numOfEps, pInfo->epSet.inUse);
+    for (int32_t j = 0; j < pInfo->epSet.numOfEps; ++j) {
+      qTrace("vgId:%d, index:%d epset:%s:%u", pInfo->vgId, j, pInfo->epSet.eps[j].fqdn, pInfo->epSet.eps[j].port);
+    }
   }
 
   code = queryBuildUseDbOutput(pOut, &usedbRsp);
@@ -529,7 +540,7 @@ int32_t queryProcessGetDbCfgRsp(void *output, char *msg, int32_t msgSize) {
   }
 
   if (tDeserializeSDbCfgRsp(msg, msgSize, &out) != 0) {
-    qError("tDeserializeSDbCfgRsp failed, msgSize:%d", msgSize);
+    qError("tDeserializeSDbCfgRsp failed, msgSize:%d,dbCfgRsp:%lu", msgSize, sizeof(out));
     return TSDB_CODE_INVALID_MSG;
   }
 
@@ -615,6 +626,8 @@ int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
   STableCfgRsp *out = taosMemoryCalloc(1, sizeof(STableCfgRsp));
   if (tDeserializeSTableCfgRsp(msg, msgSize, out) != 0) {
     qError("tDeserializeSTableCfgRsp failed, msgSize:%d", msgSize);
+    tFreeSTableCfgRsp(out);
+    taosMemoryFree(out);
     return TSDB_CODE_INVALID_MSG;
   }
 

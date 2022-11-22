@@ -189,13 +189,17 @@ static int32_t createSelectRootLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
 }
 
 static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols, SNodeList* pScanCols,
-                             int8_t tableType) {
+                             int8_t tableType, bool tagScan) {
   if (pCxt->pPlanCxt->topicQuery || pCxt->pPlanCxt->streamQuery) {
     return SCAN_TYPE_STREAM;
   }
 
   if (TSDB_SYSTEM_TABLE == tableType) {
     return SCAN_TYPE_SYSTEM_TABLE;
+  }
+
+  if (tagScan) {
+    return SCAN_TYPE_TAG;
   }
 
   if (NULL == pScanCols) {
@@ -310,7 +314,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = rewriteExprsForSelect(pScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM);
   }
 
-  pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType);
+  pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
 
   if (NULL != pScan->pScanCols) {
     pScan->hasNormalCols = true;
@@ -336,29 +340,6 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   pCxt->hasScan = true;
 
-  return code;
-}
-
-static int32_t createColumnByLastRow(SNodeList* pFuncs, SNodeList** pOutput) {
-  int32_t    code = TSDB_CODE_SUCCESS;
-  SNodeList* pCols = NULL;
-  SNode*     pFunc = NULL;
-  FOREACH(pFunc, pFuncs) {
-    SFunctionNode* pLastRow = (SFunctionNode*)pFunc;
-    SColumnNode*   pCol = (SColumnNode*)nodesListGetNode(pLastRow->pParameterList, 0);
-    snprintf(pCol->colName, sizeof(pCol->colName), "%s", pLastRow->node.aliasName);
-    snprintf(pCol->node.aliasName, sizeof(pCol->colName), "%s", pLastRow->node.aliasName);
-    NODES_CLEAR_LIST(pLastRow->pParameterList);
-    code = nodesListMakeStrictAppend(&pCols, (SNode*)pCol);
-    if (TSDB_CODE_SUCCESS != code) {
-      break;
-    }
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    *pOutput = pCols;
-  } else {
-    nodesDestroyList(pCols);
-  }
   return code;
 }
 
@@ -491,20 +472,6 @@ static SNode* createGroupingSetNode(SNode* pExpr) {
   return (SNode*)pGroupingSet;
 }
 
-static int32_t createGroupKeysFromPartKeys(SNodeList* pPartKeys, SNodeList** pOutput) {
-  SNodeList* pGroupKeys = NULL;
-  SNode*     pPartKey = NULL;
-  FOREACH(pPartKey, pPartKeys) {
-    int32_t code = nodesListMakeStrictAppend(&pGroupKeys, createGroupingSetNode(pPartKey));
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyList(pGroupKeys);
-      return code;
-    }
-  }
-  *pOutput = pGroupKeys;
-  return TSDB_CODE_SUCCESS;
-}
-
 static EGroupAction getGroupAction(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
   return (pCxt->pPlanCxt->streamQuery || NULL != pSelect->pLimit || NULL != pSelect->pSlimit) ? GROUP_ACTION_KEEP
                                                                                               : GROUP_ACTION_NONE;
@@ -624,7 +591,9 @@ static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
   return code;
 }
 
-static bool isInterpFunc(int32_t funcId) { return fmIsInterpFunc(funcId) || fmIsInterpPseudoColumnFunc(funcId); }
+static bool isInterpFunc(int32_t funcId) {
+  return fmIsInterpFunc(funcId) || fmIsInterpPseudoColumnFunc(funcId) || fmIsGroupKeyFunc(funcId);
+}
 
 static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (!pSelect->hasInterpFunc) {
@@ -640,6 +609,7 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   pInterpFunc->node.requireDataOrder = getRequireDataOrder(true, pSelect);
   pInterpFunc->node.resultDataOrder = pInterpFunc->node.requireDataOrder;
 
+  // interp functions and _group_key functions
   int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, isInterpFunc, &pInterpFunc->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pInterpFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT);
@@ -728,7 +698,7 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
   if (TSDB_CODE_SUCCESS == code) {
     code = createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
   }
-  
+
   return code;
 }
 

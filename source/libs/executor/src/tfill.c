@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "filter.h"
 #include "os.h"
 #include "query.h"
 #include "taosdef.h"
@@ -263,19 +264,14 @@ static void saveColData(SArray* rowBuf, int32_t columnIndex, const char* src, bo
 static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SArray* pRow) {
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     int32_t type = pFillInfo->pFillCol[i].pExpr->pExpr->nodeType;
-    if (type == QUERY_NODE_COLUMN) {
+    if (type == QUERY_NODE_COLUMN || type == QUERY_NODE_OPERATOR || type == QUERY_NODE_FUNCTION) {
       int32_t srcSlotId = GET_DEST_SLOT_ID(&pFillInfo->pFillCol[i]);
 
       SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
 
       bool  isNull = colDataIsNull_s(pSrcCol, rowIndex);
       char* p = colDataGetData(pSrcCol, rowIndex);
-      saveColData(pRow, i, p, isNull);
-    } else if (type == QUERY_NODE_OPERATOR) {
-      SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, i);
 
-      bool  isNull = colDataIsNull_s(pSrcCol, rowIndex);
-      char* p = colDataGetData(pSrcCol, rowIndex);
       saveColData(pRow, i, p, isNull);
     } else {
       ASSERT(0);
@@ -467,9 +463,11 @@ struct SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t 
     case FILL_MODE_VALUE:
       pFillInfo->type = TSDB_FILL_SET_VALUE;
       break;
-    default:
+    default: {
+      taosMemoryFree(pFillInfo);
       terrno = TSDB_CODE_INVALID_PARA;
       return NULL;
+    }
   }
 
   pFillInfo->type = fillType;
@@ -514,6 +512,22 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
   //  for (int32_t i = 0; i < pFillInfo->numOfTags; ++i) {
   //    taosMemoryFreeClear(pFillInfo->pTags[i].tagVal);
   //  }
+
+  // free pFillCol
+  if (pFillInfo->pFillCol) {
+    for (int32_t i = 0; i < pFillInfo->numOfCols; i++) {
+      SFillColInfo* pCol = &pFillInfo->pFillCol[i];
+      if (!pCol->notFillCol) {
+        if (pCol->fillVal.nType == TSDB_DATA_TYPE_VARBINARY || pCol->fillVal.nType == TSDB_DATA_TYPE_VARCHAR ||
+            pCol->fillVal.nType == TSDB_DATA_TYPE_NCHAR || pCol->fillVal.nType == TSDB_DATA_TYPE_JSON) {
+          if (pCol->fillVal.pz) {
+            taosMemoryFree(pCol->fillVal.pz);
+            pCol->fillVal.pz = NULL;
+          }
+        }
+      }
+    }
+  }
 
   taosMemoryFreeClear(pFillInfo->pTags);
   taosMemoryFreeClear(pFillInfo->pFillCol);
@@ -619,8 +633,8 @@ int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, SSDataBlock* p, int32_t ca
 int64_t getFillInfoStart(struct SFillInfo* pFillInfo) { return pFillInfo->start; }
 
 SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprInfo* pNotFillExpr,
-                                int32_t numOfNotFillExpr, const struct SNodeListNode* pValNode) {
-  SFillColInfo* pFillCol = taosMemoryCalloc(numOfFillExpr + numOfNotFillExpr, sizeof(SFillColInfo));
+                                int32_t numOfNoFillExpr, const struct SNodeListNode* pValNode) {
+  SFillColInfo* pFillCol = taosMemoryCalloc(numOfFillExpr + numOfNoFillExpr, sizeof(SFillColInfo));
   if (pFillCol == NULL) {
     return NULL;
   }
@@ -641,7 +655,7 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
     }
   }
 
-  for (int32_t i = 0; i < numOfNotFillExpr; ++i) {
+  for (int32_t i = 0; i < numOfNoFillExpr; ++i) {
     SExprInfo* pExprInfo = &pNotFillExpr[i];
     pFillCol[i + numOfFillExpr].pExpr = pExprInfo;
     pFillCol[i + numOfFillExpr].notFillCol = true;
@@ -682,9 +696,9 @@ SResultCellData* getResultCell(SResultRowData* pRaw, int32_t index) {
 void* destroyFillColumnInfo(SFillColInfo* pFillCol, int32_t start, int32_t end) {
   for (int32_t i = start; i < end; i++) {
     destroyExprInfo(pFillCol[i].pExpr, 1);
-    taosMemoryFreeClear(pFillCol[i].pExpr);
     taosVariantDestroy(&pFillCol[i].fillVal);
   }
+  taosMemoryFreeClear(pFillCol[start].pExpr);
   taosMemoryFree(pFillCol);
   return NULL;
 }
@@ -693,7 +707,7 @@ void* destroyStreamFillSupporter(SStreamFillSupporter* pFillSup) {
   pFillSup->pAllColInfo = destroyFillColumnInfo(pFillSup->pAllColInfo, pFillSup->numOfFillCols, pFillSup->numOfAllCols);
   tSimpleHashCleanup(pFillSup->pResMap);
   pFillSup->pResMap = NULL;
-  streamStateReleaseBuf(NULL, NULL, pFillSup->cur.pRowVal);
+  releaseOutputBuf(NULL, NULL, (SResultRow*)pFillSup->cur.pRowVal);
   pFillSup->cur.pRowVal = NULL;
 
   taosMemoryFree(pFillSup);
@@ -725,7 +739,7 @@ void destroyStreamFillOperatorInfo(void* param) {
   pInfo->pSrcBlock = blockDataDestroy(pInfo->pSrcBlock);
   pInfo->pPrevSrcBlock = blockDataDestroy(pInfo->pPrevSrcBlock);
   pInfo->pDelRes = blockDataDestroy(pInfo->pDelRes);
-  pInfo->pColMatchColInfo = taosArrayDestroy(pInfo->pColMatchColInfo);
+  pInfo->matchInfo.pList = taosArrayDestroy(pInfo->matchInfo.pList);
   taosMemoryFree(pInfo);
 }
 
@@ -736,7 +750,7 @@ static void resetFillWindow(SResultRowData* pRowData) {
 
 void resetPrevAndNextWindow(SStreamFillSupporter* pFillSup, SStreamState* pState) {
   resetFillWindow(&pFillSup->prev);
-  streamStateReleaseBuf(NULL, NULL, pFillSup->cur.pRowVal);
+  releaseOutputBuf(NULL, NULL, (SResultRow*)pFillSup->cur.pRowVal);
   resetFillWindow(&pFillSup->cur);
   resetFillWindow(&pFillSup->next);
   resetFillWindow(&pFillSup->nextNext);
@@ -1401,7 +1415,7 @@ static void doApplyStreamScalarCalculation(SOperatorInfo* pOperator, SSDataBlock
 
   blockDataCleanup(pDstBlock);
   blockDataEnsureCapacity(pDstBlock, pSrcBlock->info.rows);
-  setInputDataBlock(pOperator, pSup->pCtx, pSrcBlock, TSDB_ORDER_ASC, MAIN_SCAN, false);
+  setInputDataBlock(pSup, pSrcBlock, TSDB_ORDER_ASC, MAIN_SCAN, false);
   projectApplyFunctions(pSup->pExprInfo, pDstBlock, pSrcBlock, pSup->pCtx, pSup->numOfExprs, NULL);
   pDstBlock->info.groupId = pSrcBlock->info.groupId;
 
@@ -1445,7 +1459,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
       printDataBlock(pInfo->pRes, "stream fill");
       return pInfo->pRes;
     }
-    doSetOperatorCompleted(pOperator);
+    setOperatorCompleted(pOperator);
     resetStreamFillInfo(pInfo);
     return NULL;
   }
@@ -1492,6 +1506,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
         case STREAM_NORMAL:
         case STREAM_INVALID: {
           doApplyStreamScalarCalculation(pOperator, pBlock, pInfo->pSrcBlock);
+          memcpy(pInfo->pSrcBlock->info.parTbName, pBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
           pInfo->srcRowIndex = 0;
         } break;
         default:
@@ -1501,7 +1516,8 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
     }
 
     doStreamFillImpl(pOperator);
-    doFilter(pInfo->pCondition, pInfo->pRes, pInfo->pColMatchColInfo, NULL);
+    doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo);
+    memcpy(pInfo->pRes->info.parTbName, pInfo->pSrcBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
     pOperator->resultInfo.totalRows += pInfo->pRes->info.rows;
     if (pInfo->pRes->info.rows > 0) {
       break;
@@ -1512,7 +1528,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
   }
 
   if (pInfo->pRes->info.rows == 0) {
-    doSetOperatorCompleted(pOperator);
+    setOperatorCompleted(pOperator);
     resetStreamFillInfo(pInfo);
     return NULL;
   }
@@ -1549,8 +1565,8 @@ static SStreamFillSupporter* initStreamFillSup(SStreamFillPhysiNode* pPhyFillNod
   }
   pFillSup->numOfFillCols = numOfFillCols;
   int32_t    numOfNotFillCols = 0;
-  SExprInfo* pNotFillExprInfo = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &numOfNotFillCols);
-  pFillSup->pAllColInfo = createFillColInfo(pFillExprInfo, pFillSup->numOfFillCols, pNotFillExprInfo, numOfNotFillCols,
+  SExprInfo* noFillExprInfo = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &numOfNotFillCols);
+  pFillSup->pAllColInfo = createFillColInfo(pFillExprInfo, pFillSup->numOfFillCols, noFillExprInfo, numOfNotFillCols,
                                             (const SNodeListNode*)(pPhyFillNode->pValues));
   pFillSup->type = convertFillType(pPhyFillNode->mode);
   pFillSup->numOfAllCols = pFillSup->numOfFillCols + numOfNotFillCols;
@@ -1625,7 +1641,6 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
     goto _error;
   }
 
-  SResultInfo* pResultInfo = &pOperator->resultInfo;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pRes = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
   pInfo->pSrcBlock = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
@@ -1677,25 +1692,23 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   pInfo->primarySrcSlotId = ((SColumnNode*)((STargetNode*)pPhyFillNode->pWStartTs)->pExpr)->slotId;
 
   int32_t numOfOutputCols = 0;
-  SArray* pColMatchColInfo = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc,
-                                                 &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
-  pInfo->pCondition = pPhyFillNode->node.pConditions;
-  pInfo->pColMatchColInfo = pColMatchColInfo;
-  int32_t code = initExprSupp(&pOperator->exprSupp, pFillExprInfo, numOfFillCols);
+  int32_t code = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc,
+                                     &numOfOutputCols, COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
+
+  code = filterInitFromNode((SNode*)pPhyFillNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  code = initExprSupp(&pOperator->exprSupp, pFillExprInfo, numOfFillCols);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
   pInfo->srcRowIndex = 0;
-
-  pOperator->name = "FillOperator";
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamFill, NULL, NULL, destroyStreamFillOperatorInfo,
-                                         NULL, NULL, NULL);
+  setOperatorInfo(pOperator, "StreamFillOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL, false, OP_NOT_OPENED, pInfo, pTaskInfo);
+  pOperator->fpSet =
+      createOperatorFpSet(operatorDummyOpenFn, doStreamFill, NULL, destroyStreamFillOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {

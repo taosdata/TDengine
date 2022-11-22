@@ -32,6 +32,7 @@ SWalRef *walOpenRef(SWal *pWal) {
   return pRef;
 }
 
+#if 1
 void walCloseRef(SWal *pWal, int64_t refId) {
   SWalRef **ppRef = taosHashGet(pWal->pRefHash, &refId, sizeof(int64_t));
   if (ppRef == NULL) return;
@@ -39,9 +40,11 @@ void walCloseRef(SWal *pWal, int64_t refId) {
   taosHashRemove(pWal->pRefHash, &refId, sizeof(int64_t));
   taosMemoryFree(pRef);
 }
+#endif
 
 int32_t walRefVer(SWalRef *pRef, int64_t ver) {
   SWal *pWal = pRef->pWal;
+  wDebug("vgId:%d, wal ref version %" PRId64 ", refId %" PRId64, pWal->cfg.vgId, ver, pRef->refId);
   if (pRef->refVer != ver) {
     taosThreadMutexLock(&pWal->mutex);
     if (ver < pWal->vers.firstVer || ver > pWal->vers.lastVer) {
@@ -64,15 +67,12 @@ int32_t walRefVer(SWalRef *pRef, int64_t ver) {
   return 0;
 }
 
-int32_t walPreRefVer(SWalRef *pRef, int64_t ver) {
-  pRef->refVer = ver;
-  return 0;
-}
-
+#if 1
 void walUnrefVer(SWalRef *pRef) {
   pRef->refId = -1;
   pRef->refFile = -1;
 }
+#endif
 
 SWalRef *walRefCommittedVer(SWal *pWal) {
   SWalRef *pRef = walOpenRef(pWal);

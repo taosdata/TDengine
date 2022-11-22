@@ -26,14 +26,13 @@ Using REST connection can support a broader range of operating systems as it doe
 
 TDengine version updates often add new features, and the connector versions in the list are the best-fit versions of the connector.
 
-| **TDengine Versions** | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** |
-| --------------------- | -------- | ---------- | ------------ | ------------- | --------------- | -------- |
-| **3.0.0.0 and later**    | 3.0.0    | current version   | 3.0 branch     | 3.0.0         | 3.0.0           | current version |
-| **2.4.0.14 and up** | 2.0.38 | current version | develop branch | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | current version |
-| **2.4.0.6 and up** | 2.0.37 | current version | develop branch | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | current version |
-| **2.4.0.4 - 2.4.0.5** | 2.0.37 | current version | develop branch | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | current version |
-| **2.2.x.x ** | 2.0.36 | current version | master branch | n/a | 2.0.7 - 2.0.9 | current version |
-| **2.0.x.x ** | 2.0.34 | current version | master branch | n/a | 2.0.1 - 2.0.6 | current version |
+| **TDengine Versions**       | **Java**       | **Python**     | **Go**         | **C#**        | **Node.js**     | **Rust**        |
+| --------------------------- | -------------- | -------------- | -------------- | ------------- | --------------- | --------------- |
+| **3.0.0.0 and later**       | 3.0.2 +        | latest version | 3.0 branch     | 3.0.0         | 3.0.0           | current version |
+| **2.4.0.14 and up **        | 2.0.38         | latest version | develop branch | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | current version |
+| **2.4.0.4 - 2.4.0.13 **     | 2.0.37         | latest version | develop branch | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | current version |
+| **2.2.x.x **                | 2.0.36         | latest version | master branch  | n/a           | 2.0.7 - 2.0.9   | current version |
+| **2.0.x.x **                | 2.0.34         | latest version | master branch  | n/a           | 2.0.1 - 2.0.6   | current version |
 
 ## Functional Features
 
@@ -74,10 +73,12 @@ The different database framework specifications for various programming language
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import InstallOnWindows from "./_linux_install.mdx";
-import InstallOnLinux from "./_windows_install.mdx";
+import InstallOnLinux from "./_linux_install.mdx";
+import InstallOnWindows from "./_windows_install.mdx";
+import InstallOnMacOS from "./_macos_install.mdx";
 import VerifyWindows from "./_verify_windows.mdx";
 import VerifyLinux from "./_verify_linux.mdx";
+import VerifyMacOS from "./_verify_macos.mdx";
 
 ## Install Client Driver
 
@@ -90,10 +91,13 @@ The client driver needs to be installed if you use the native interface connecto
 
 <Tabs defaultValue="linux" groupId="os">
   <TabItem value="linux" label="Linux">
-    <InstallOnWindows />
+    <InstallOnLinux />
   </TabItem>
   <TabItem value="windows" label="Windows">
-    <InstallOnLinux />
+    <InstallOnWindows />
+  </TabItem>
+  <TabItem value="macos" label="MacOS">
+    <InstallOnMacOS />
   </TabItem>
 </Tabs>
 
@@ -107,6 +111,9 @@ After completing the above installation and configuration and you have confirmed
   </TabItem>
   <TabItem value="windows" label="Windows">
     <VerifyWindows />
+  </TabItem>
+  <TabItem value="macos" label="MacOS">
+    <VerifyMacOS />
   </TabItem>
 </Tabs>
 

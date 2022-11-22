@@ -17,7 +17,6 @@
 #include "mndDb.h"
 #include "mndCluster.h"
 #include "mndDnode.h"
-#include "mndOffset.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSma.h"
@@ -113,7 +112,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.hashMethod, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfRetensions, _OVER)
   for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
-    TASSERT(taosArrayGetSize(pDb->cfg.pRetensions) == pDb->cfg.numOfRetensions);
+    ASSERT(taosArrayGetSize(pDb->cfg.pRetensions) == pDb->cfg.numOfRetensions);
     SRetention *pRetension = taosArrayGet(pDb->cfg.pRetensions, i);
     SDB_SET_INT64(pRaw, dataPos, pRetension->freq, _OVER)
     SDB_SET_INT64(pRaw, dataPos, pRetension->keep, _OVER)
@@ -286,8 +285,17 @@ static inline int32_t mndGetGlobalVgroupVersion(SMnode *pMnode) {
 SDbObj *mndAcquireDb(SMnode *pMnode, const char *db) {
   SSdb   *pSdb = pMnode->pSdb;
   SDbObj *pDb = sdbAcquire(pSdb, SDB_DB, db);
-  if (pDb == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
-    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+  if (pDb == NULL) {
+    if (terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
+      terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+    } else if (terrno == TSDB_CODE_SDB_OBJ_CREATING) {
+      terrno = TSDB_CODE_MND_DB_IN_CREATING;
+    } else if (terrno == TSDB_CODE_SDB_OBJ_DROPPING) {
+      terrno = TSDB_CODE_MND_DB_IN_DROPPING;
+    } else {
+      terrno = TSDB_CODE_APP_ERROR;
+      mFatal("db:%s, failed to acquire db since %s", db, terrstr());
+    }
   }
   return pDb;
 }
@@ -447,7 +455,7 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 
     for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
       SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
-      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid, false) != 0) {
+      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid) != 0) {
         return -1;
       }
     }
@@ -595,16 +603,22 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
       terrno = TSDB_CODE_MND_DB_ALREADY_EXIST;
       goto _OVER;
     }
-  } else if (terrno == TSDB_CODE_SDB_OBJ_CREATING) {
-    if (mndSetRpcInfoForDbTrans(pMnode, pReq, MND_OPER_CREATE_DB, createReq.db) == 0) {
-      mInfo("db:%s, is creating and response after trans finished", createReq.db);
-      code = TSDB_CODE_ACTION_IN_PROGRESS;
+  } else {
+    if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
+      if (mndSetRpcInfoForDbTrans(pMnode, pReq, MND_OPER_CREATE_DB, createReq.db) == 0) {
+        mInfo("db:%s, is creating and createdb response after trans finished", createReq.db);
+        code = TSDB_CODE_ACTION_IN_PROGRESS;
+        goto _OVER;
+      } else {
+        goto _OVER;
+      }
+    } else if (terrno == TSDB_CODE_MND_DB_IN_DROPPING) {
       goto _OVER;
-    } else {
+    } else if (terrno == TSDB_CODE_MND_DB_NOT_EXIST) {
+      // continue
+    } else {  // TSDB_CODE_APP_ERROR
       goto _OVER;
     }
-  } else if (terrno != TSDB_CODE_MND_DB_NOT_EXIST) {
-    goto _OVER;
   }
 
   pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
@@ -631,33 +645,18 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   terrno = TSDB_CODE_MND_DB_OPTION_UNCHANGED;
 
   if (pAlter->buffer > 0 && pAlter->buffer != pDb->cfg.buffer) {
-#if 0
-    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-    return terrno;
-#else
     pDb->cfg.buffer = pAlter->buffer;
     terrno = 0;
-#endif
   }
 
   if (pAlter->pages > 0 && pAlter->pages != pDb->cfg.pages) {
-#if 0
-    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-    return terrno;
-#else
     pDb->cfg.pages = pAlter->pages;
     terrno = 0;
-#endif
   }
 
   if (pAlter->pageSize > 0 && pAlter->pageSize != pDb->cfg.pageSize) {
-#if 1
-    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-    return terrno;
-#else
     pDb->cfg.pageSize = pAlter->pageSize;
     terrno = 0;
-#endif
   }
 
   if (pAlter->daysPerFile > 0 && pAlter->daysPerFile != pDb->cfg.daysPerFile) {
@@ -710,13 +709,9 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   }
 
   if (pAlter->replications > 0 && pAlter->replications != pDb->cfg.replications) {
-#if 1
-    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-#else
     pDb->cfg.replications = pAlter->replications;
     pDb->vgVersion++;
     terrno = 0;
-#endif
   }
 
   return terrno;
@@ -806,7 +801,6 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 
   pDb = mndAcquireDb(pMnode, alterReq.db);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
   }
 
@@ -856,13 +850,13 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
 
   pDb = mndAcquireDb(pMnode, cfgReq.db);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
   }
 
   cfgRsp.numOfVgroups = pDb->cfg.numOfVgroups;
   cfgRsp.numOfStables = pDb->cfg.numOfStables;
   cfgRsp.buffer = pDb->cfg.buffer;
+  cfgRsp.cacheSize = pDb->cfg.cacheLastSize;
   cfgRsp.pageSize = pDb->cfg.pageSize;
   cfgRsp.pages = pDb->cfg.pages;
   cfgRsp.daysPerFile = pDb->cfg.daysPerFile;
@@ -1085,11 +1079,8 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   if (pDb == NULL) {
     if (dropReq.ignoreNotExists) {
       code = mndBuildDropDbRsp(pDb, &pReq->info.rspLen, &pReq->info.rsp, true);
-      goto _OVER;
-    } else {
-      terrno = TSDB_CODE_MND_DB_NOT_EXIST;
-      goto _OVER;
     }
+    goto _OVER;
   }
 
   if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb) != 0) {
@@ -1157,7 +1148,7 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
           pEp->port = pDnode->port;
         }
         mndReleaseDnode(pMnode, pDnode);
-        if (pVgid->role == TAOS_SYNC_STATE_LEADER) {
+        if (pVgid->syncState == TAOS_SYNC_STATE_LEADER) {
           vgInfo.epSet.inUse = gid;
         }
       }
@@ -1184,13 +1175,14 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
 
   int32_t numOfTable = mndGetDBTableNum(pDb, pMnode);
 
-  if (pReq == NULL || pReq->vgVersion < pDb->vgVersion || pReq->dbId != pDb->uid || numOfTable != pReq->numOfTable) {
+  if (pReq == NULL || pReq->vgVersion < pDb->vgVersion || pReq->dbId != pDb->uid || numOfTable != pReq->numOfTable || pReq->stateTs < pDb->stateTs) {
     mndBuildDBVgroupInfo(pDb, pMnode, pRsp->pVgroupInfos);
   }
 
   memcpy(pRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
   pRsp->uid = pDb->uid;
   pRsp->vgVersion = pDb->vgVersion;
+  pRsp->stateTs = pDb->stateTs;
   pRsp->vgNum = taosArrayGetSize(pRsp->pVgroupInfos);
   pRsp->hashMethod = pDb->cfg.hashMethod;
   pRsp->hashPrefix = pDb->cfg.hashPrefix;
@@ -1216,10 +1208,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
     int32_t vgVersion = mndGetGlobalVgroupVersion(pMnode);
     if (usedbReq.vgVersion < vgVersion) {
       usedbRsp.pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
-      if (usedbRsp.pVgroupInfos == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        goto _OVER;
-      }
+      if (usedbRsp.pVgroupInfos == NULL) goto _OVER;
 
       mndBuildDBVgroupInfo(NULL, pMnode, usedbRsp.pVgroupInfos);
       usedbRsp.vgVersion = vgVersion++;
@@ -1228,16 +1217,21 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
     }
     usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);
     code = 0;
-
-    // no jump, need to construct rsp
   } else {
     pDb = mndAcquireDb(pMnode, usedbReq.db);
     if (pDb == NULL) {
-      terrno = TSDB_CODE_MND_DB_NOT_EXIST;
-
       memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
       usedbRsp.uid = usedbReq.dbId;
       usedbRsp.vgVersion = usedbReq.vgVersion;
+      usedbRsp.errCode = terrno;
+
+      if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
+        if (mndSetRpcInfoForDbTrans(pMnode, pReq, MND_OPER_CREATE_DB, usedbReq.db) == 0) {
+          mInfo("db:%s, is creating and usedb response after trans finished", usedbReq.db);
+          code = TSDB_CODE_ACTION_IN_PROGRESS;
+          goto _OVER;
+        }
+      }
 
       mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
     } else {
@@ -1249,6 +1243,8 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
         goto _OVER;
       }
 
+      mDebug("db:%s, process usedb req vgVersion:%d stateTs:%" PRId64 ", rsp vgVersion:%d stateTs:%" PRId64,
+             usedbReq.db, usedbReq.vgVersion, usedbReq.stateTs, usedbRsp.vgVersion, usedbRsp.stateTs);
       code = 0;
     }
   }
@@ -1267,7 +1263,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
   pReq->info.rspLen = contLen;
 
 _OVER:
-  if (code != 0) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
   }
 
@@ -1287,11 +1283,30 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
 
   for (int32_t i = 0; i < numOfDbs; ++i) {
     SDbVgVersion *pDbVgVersion = &pDbs[i];
-    pDbVgVersion->dbId = htobe64(pDbVgVersion->dbId);
+    pDbVgVersion->dbId = be64toh(pDbVgVersion->dbId);
     pDbVgVersion->vgVersion = htonl(pDbVgVersion->vgVersion);
     pDbVgVersion->numOfTable = htonl(pDbVgVersion->numOfTable);
+    pDbVgVersion->stateTs = be64toh(pDbVgVersion->stateTs);
 
     SUseDbRsp usedbRsp = {0};
+
+    if ((0 == strcasecmp(pDbVgVersion->dbFName, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcasecmp(pDbVgVersion->dbFName, TSDB_PERFORMANCE_SCHEMA_DB)))) {
+      memcpy(usedbRsp.db, pDbVgVersion->dbFName, TSDB_DB_FNAME_LEN);
+      int32_t vgVersion = mndGetGlobalVgroupVersion(pMnode);
+      if (pDbVgVersion->vgVersion < vgVersion) {
+        usedbRsp.pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
+    
+        mndBuildDBVgroupInfo(NULL, pMnode, usedbRsp.pVgroupInfos);
+        usedbRsp.vgVersion = vgVersion++;
+      } else {
+        usedbRsp.vgVersion = pDbVgVersion->vgVersion;
+      }
+      usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);
+      
+      taosArrayPush(batchUseRsp.pArray, &usedbRsp);
+      
+      continue;
+    }
 
     SDbObj *pDb = mndAcquireDb(pMnode, pDbVgVersion->dbFName);
     if (pDb == NULL) {
@@ -1305,13 +1320,19 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
 
     int32_t numOfTable = mndGetDBTableNum(pDb, pMnode);
 
-    if (pDbVgVersion->vgVersion >= pDb->vgVersion && numOfTable == pDbVgVersion->numOfTable) {
-      mInfo("db:%s, version and numOfTable not changed", pDbVgVersion->dbFName);
+    if (pDbVgVersion->vgVersion >= pDb->vgVersion && numOfTable == pDbVgVersion->numOfTable  &&
+        pDbVgVersion->stateTs == pDb->stateTs) {
+      mTrace("db:%s, valid dbinfo, vgVersion:%d stateTs:%" PRId64
+             " numOfTables:%d, not changed vgVersion:%d stateTs:%" PRId64 " numOfTables:%d",
+             pDbVgVersion->dbFName, pDbVgVersion->vgVersion, pDbVgVersion->stateTs, pDbVgVersion->numOfTable,
+             pDb->vgVersion, pDb->stateTs, numOfTable);
       mndReleaseDb(pMnode, pDb);
       continue;
     } else {
-      mInfo("db:%s, vgroup version changed from %d to %d", pDbVgVersion->dbFName, pDbVgVersion->vgVersion,
-            pDb->vgVersion);
+      mInfo("db:%s, valid dbinfo, vgVersion:%d stateTs:%" PRId64
+            " numOfTables:%d, changed to vgVersion:%d stateTs:%" PRId64 " numOfTables:%d",
+            pDbVgVersion->dbFName, pDbVgVersion->vgVersion, pDbVgVersion->stateTs, pDbVgVersion->numOfTable,
+            pDb->vgVersion, pDb->stateTs, numOfTable);
     }
 
     usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
@@ -1325,6 +1346,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
     memcpy(usedbRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
     usedbRsp.uid = pDb->uid;
     usedbRsp.vgVersion = pDb->vgVersion;
+    usedbRsp.stateTs = pDb->stateTs;
     usedbRsp.vgNum = (int32_t)taosArrayGetSize(usedbRsp.pVgroupInfos);
     usedbRsp.hashMethod = pDb->cfg.hashMethod;
     usedbRsp.hashPrefix = pDb->cfg.hashPrefix;
@@ -1553,7 +1575,7 @@ bool mndIsDbReady(SMnode *pMnode, SDbObj *pDb) {
     if (pVgroup->dbUid == pDb->uid && pVgroup->replica > 1) {
       bool hasLeader = false;
       for (int32_t i = 0; i < pVgroup->replica; ++i) {
-        if (pVgroup->vnodeGid[i].role == TAOS_SYNC_STATE_LEADER) {
+        if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER) {
           hasLeader = true;
         }
       }

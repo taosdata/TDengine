@@ -248,6 +248,9 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
 }
 
 TAOS_RES *taos_query(TAOS *taos, const char *sql) { return taosQueryImpl(taos, sql, false); }
+TAOS_RES *taos_query_with_reqid(TAOS *taos, const char *sql, int64_t reqid) {
+  return taosQueryImplWithReqid(taos, sql, false, reqid);
+}
 
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   if (res == NULL) {
@@ -261,12 +264,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       return NULL;
     }
 
-#if SYNC_ON_TOP_OF_ASYNC
     return doAsyncFetchRows(pRequest, true, true);
-#else
-    return doFetchRows(pRequest, true, true);
-#endif
-
   } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     SMqRspObj      *msg = ((SMqRspObj *)res);
     SReqResultInfo *pResultInfo;
@@ -291,7 +289,8 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     return NULL;
   } else {
     // assert to avoid un-initialization error
-    ASSERT(0);
+    tscError("invalid result passed to taos_fetch_row");
+    return NULL;
   }
   return NULL;
 }
@@ -549,11 +548,7 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
       return 0;
     }
 
-#if SYNC_ON_TOP_OF_ASYNC
     doAsyncFetchRows(pRequest, false, true);
-#else
-    doFetchRows(pRequest, true, true);
-#endif
 
     // TODO refactor
     SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
@@ -601,11 +596,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
     return 0;
   }
 
-#if SYNC_ON_TOP_OF_ASYNC
   doAsyncFetchRows(pRequest, false, false);
-#else
-  doFetchRows(pRequest, false, false);
-#endif
 
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
 
@@ -686,6 +677,7 @@ static void destoryCatalogReq(SCatalogReq *pCatalogReq) {
   taosArrayDestroy(pCatalogReq->pIndex);
   taosArrayDestroy(pCatalogReq->pUser);
   taosArrayDestroy(pCatalogReq->pTableIndex);
+  taosArrayDestroy(pCatalogReq->pTableCfg);
   taosMemoryFree(pCatalogReq);
 }
 
@@ -695,11 +687,10 @@ void destorySqlCallbackWrapper(SSqlCallbackWrapper *pWrapper) {
   }
   destoryCatalogReq(pWrapper->pCatalogReq);
   qDestroyParseContext(pWrapper->pParseCtx);
-  catalogFreeMetaData(pWrapper->pResultMeta);
   taosMemoryFree(pWrapper);
 }
 
-void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
+static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t code) {
   SSqlCallbackWrapper *pWrapper = (SSqlCallbackWrapper *)param;
   SRequestObj         *pRequest = pWrapper->pRequest;
   SQuery              *pQuery = pRequest->pQuery;
@@ -716,13 +707,6 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
   }
 
   pRequest->metric.semanticEnd = taosGetTimestampUs();
-
-  if (code == TSDB_CODE_SUCCESS && pWrapper->pParseCtx->needMultiParse) {
-    pWrapper->pResultMeta = catalogCloneMetaData(pResultMeta);
-    if (NULL == pWrapper->pResultMeta) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    }
-  }
 
   if (code == TSDB_CODE_SUCCESS) {
     if (pQuery->haveResultSet) {
@@ -760,19 +744,93 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
   }
 }
 
-int32_t continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest) {
-  qDestroyQuery(pRequest->pQuery);
-  pRequest->pQuery = (SQuery *)nodesMakeNode(QUERY_NODE_QUERY);
-  if (NULL == pRequest->pQuery) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+static int32_t getAllMetaAsync(SSqlCallbackWrapper *pWrapper, catalogCallback fp) {
+  SRequestConnInfo conn = {.pTrans = pWrapper->pParseCtx->pTransporter,
+                           .requestId = pWrapper->pParseCtx->requestId,
+                           .requestObjRefId = pWrapper->pParseCtx->requestRid,
+                           .mgmtEps = pWrapper->pParseCtx->mgmtEpSet};
+
+  pWrapper->pRequest->metric.ctgStart = taosGetTimestampUs();
+
+  return catalogAsyncGetAllMeta(pWrapper->pParseCtx->pCatalog, &conn, pWrapper->pCatalogReq, fp, pWrapper,
+                                &pWrapper->pRequest->body.queryJob);
+}
+
+static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t code);
+
+static int32_t phaseAsyncQuery(SSqlCallbackWrapper *pWrapper) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  switch (pWrapper->pRequest->pQuery->execStage) {
+    case QUERY_EXEC_STAGE_PARSE: {
+      // continue parse after get metadata
+      code = getAllMetaAsync(pWrapper, doAsyncQueryFromParse);
+      break;
+    }
+    case QUERY_EXEC_STAGE_ANALYSE: {
+      // analysis after get metadata
+      code = getAllMetaAsync(pWrapper, doAsyncQueryFromAnalyse);
+      break;
+    }
+    case QUERY_EXEC_STAGE_SCHEDULE: {
+      launchAsyncQuery(pWrapper->pRequest, pWrapper->pRequest->pQuery, NULL, pWrapper);
+      break;
+    }
+    default:
+      break;
   }
-  retrieveMetaCallback(pWrapper->pResultMeta, pWrapper, TSDB_CODE_SUCCESS);
-  return TSDB_CODE_SUCCESS;
+  return code;
+}
+
+static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t code) {
+  SSqlCallbackWrapper *pWrapper = (SSqlCallbackWrapper *)param;
+  SRequestObj         *pRequest = pWrapper->pRequest;
+  SQuery              *pQuery = pRequest->pQuery;
+
+  pRequest->metric.ctgEnd = taosGetTimestampUs();
+  qDebug("0x%" PRIx64 " start to continue parse, reqId:0x%" PRIx64, pRequest->self, pRequest->requestId);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    code = qContinueParseSql(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = phaseAsyncQuery(pWrapper);
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pWrapper->pRequest->self, code,
+             tstrerror(code), pWrapper->pRequest->requestId);
+    destorySqlCallbackWrapper(pWrapper);
+    terrno = code;
+    pRequest->code = code;
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+  }
+}
+
+void continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest) {
+  int32_t code = qParseSqlSyntax(pWrapper->pParseCtx, &pRequest->pQuery, pWrapper->pCatalogReq);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = phaseAsyncQuery(pWrapper);
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pWrapper->pRequest->self, code,
+             tstrerror(code), pWrapper->pRequest->requestId);
+    destorySqlCallbackWrapper(pWrapper);
+    terrno = code;
+    pWrapper->pRequest->code = code;
+    pWrapper->pRequest->body.queryFp(pWrapper->pRequest->body.param, pWrapper->pRequest, code);
+  }
 }
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
   int64_t connId = *(int64_t *)taos;
   taosAsyncQueryImpl(connId, sql, fp, param, false);
+}
+
+void taos_query_a_with_reqid(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, int64_t reqid) {
+  int64_t connId = *(int64_t *)taos;
+  taosAsyncQueryImplWithReqid(connId, sql, fp, param, false, reqid);
 }
 
 int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
@@ -849,26 +907,16 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
   if (TSDB_CODE_SUCCESS == code && !updateMetaForce) {
     SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
-    if (NULL == pRequest->pQuery->pRoot) {
+    if (QUERY_NODE_INSERT_STMT == nodeType(pRequest->pQuery->pRoot)) {
       atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
-    } else if (QUERY_NODE_SELECT_STMT == pRequest->pQuery->pRoot->type) {
+    } else if (QUERY_NODE_SELECT_STMT == nodeType(pRequest->pQuery->pRoot)) {
       atomic_add_fetch_64((int64_t *)&pActivity->numOfQueryReq, 1);
     }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    SRequestConnInfo conn = {.pTrans = pWrapper->pParseCtx->pTransporter,
-                             .requestId = pWrapper->pParseCtx->requestId,
-                             .requestObjRefId = pWrapper->pParseCtx->requestRid,
-                             .mgmtEps = pWrapper->pParseCtx->mgmtEpSet};
-
-    pRequest->metric.ctgStart = taosGetTimestampUs();
-
-    code = catalogAsyncGetAllMeta(pWrapper->pParseCtx->pCatalog, &conn, pWrapper->pCatalogReq, retrieveMetaCallback,
-                                  pWrapper, &pRequest->body.queryJob);
-  }
-
-  if (TSDB_CODE_SUCCESS != code) {
+    phaseAsyncQuery(pWrapper);
+  } else {
     tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code, tstrerror(code),
              pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
@@ -943,8 +991,7 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   // all data has returned to App already, no need to try again
   if (pResultInfo->completed) {
     // it is a local executed query, no need to do async fetch
-    if (QUERY_EXEC_MODE_LOCAL == pRequest->body.execMode) {
-      ASSERT(pResultInfo->numOfRows >= 0);
+    if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
       if (pResultInfo->localResultFetched) {
         pResultInfo->numOfRows = 0;
         pResultInfo->current = 0;
@@ -990,6 +1037,106 @@ const void *taos_get_raw_block(TAOS_RES *res) {
   return pRequest->body.resInfo.pData;
 }
 
+int taos_get_db_route_info(TAOS *taos, const char *db, TAOS_DB_ROUTE_INFO *dbInfo) {
+  if (NULL == taos) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return terrno;
+  }
+
+  if (NULL == db || NULL == dbInfo) {
+    tscError("invalid input param, db:%p, dbInfo:%p", db, dbInfo);
+    terrno = TSDB_CODE_TSC_INVALID_INPUT;
+    return terrno;
+  }
+
+  int64_t      connId = *(int64_t *)taos;
+  SRequestObj *pRequest = NULL;
+  char        *sql = "taos_get_db_route_info";
+  int32_t      code = buildRequest(connId, sql, strlen(sql), NULL, false, &pRequest, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return terrno;
+  }
+
+  STscObj  *pTscObj = pRequest->pTscObj;
+  SCatalog *pCtg = NULL;
+  code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCtg);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _return;
+  }
+
+  SRequestConnInfo conn = {
+      .pTrans = pTscObj->pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
+
+  conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  snprintf(dbFName, sizeof(dbFName), "%d.%s", pTscObj->acctId, db);
+
+  code = catalogGetDBVgInfo(pCtg, &conn, dbFName, dbInfo);
+  if (code) {
+    goto _return;
+  }
+
+_return:
+
+  terrno = code;
+
+  destroyRequest(pRequest);
+  return code;
+}
+
+int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId) {
+  if (NULL == taos) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return terrno;
+  }
+
+  if (NULL == db || NULL == table || NULL == vgId) {
+    tscError("invalid input param, db:%p, table:%p, vgId:%p", db, table, vgId);
+    terrno = TSDB_CODE_TSC_INVALID_INPUT;
+    return terrno;
+  }
+
+  int64_t      connId = *(int64_t *)taos;
+  SRequestObj *pRequest = NULL;
+  char        *sql = "taos_get_table_vgId";
+  int32_t      code = buildRequest(connId, sql, strlen(sql), NULL, false, &pRequest, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    return terrno;
+  }
+
+  STscObj  *pTscObj = pRequest->pTscObj;
+  SCatalog *pCtg = NULL;
+  code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCtg);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _return;
+  }
+
+  SRequestConnInfo conn = {
+      .pTrans = pTscObj->pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
+
+  conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+  SName tableName;
+  toName(pTscObj->acctId, db, table, &tableName);
+
+  SVgroupInfo vgInfo;
+  code = catalogGetTableHashVgroup(pCtg, &conn, &tableName, &vgInfo);
+  if (code) {
+    goto _return;
+  }
+
+  *vgId = vgInfo.vgId;
+
+_return:
+
+  terrno = code;
+
+  destroyRequest(pRequest);
+  return code;
+}
+
 int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   if (NULL == taos) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
@@ -1015,7 +1162,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   }
 
   char *sql = "taos_load_table_info";
-  code = buildRequest(connId, sql, strlen(sql), NULL, false, &pRequest);
+  code = buildRequest(connId, sql, strlen(sql), NULL, false, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     goto _return;
@@ -1060,7 +1207,22 @@ TAOS_STMT *taos_stmt_init(TAOS *taos) {
     return NULL;
   }
 
-  TAOS_STMT *pStmt = stmtInit(pObj);
+  TAOS_STMT *pStmt = stmtInit(pObj, 0);
+
+  releaseTscObj(*(int64_t *)taos);
+
+  return pStmt;
+}
+
+TAOS_STMT *taos_stmt_init_with_reqid(TAOS *taos, int64_t reqid) {
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    tscError("invalid parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+
+  TAOS_STMT *pStmt = stmtInit(pObj, reqid);
 
   releaseTscObj(*(int64_t *)taos);
 

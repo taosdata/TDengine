@@ -158,7 +158,7 @@ int32_t taosMulMkDir(const char *dirname) {
 #ifdef WINDOWS
       code = _mkdir(temp, 0755);
 #elif defined(DARWIN)
-      code = mkdir(dirname, 0777);
+      code = mkdir(temp, 0777);
 #else
       code = mkdir(temp, 0755);
 #endif
@@ -336,12 +336,14 @@ int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
 #else
   if (realpath(dirname, tmp) != NULL) {
 #endif
-    if (realPath == NULL) {
-      strncpy(dirname, tmp, maxlen);
-    } else {
-      strncpy(realPath, tmp, maxlen);
+    if (strlen(tmp) < maxlen) {
+      if (realPath == NULL) {
+        strncpy(dirname, tmp, maxlen);
+      } else {
+        strncpy(realPath, tmp, maxlen);
+      }
+      return 0;
     }
-    return 0;
   }
 
   return -1;
@@ -388,8 +390,15 @@ char *taosDirEntryBaseName(char *name) {
   _splitpath(name, NULL, NULL, Filename1, Ext1);
   return name + (strlen(name) - strlen(Filename1) - strlen(Ext1));
 #else
-  char *pPoint = strchr(name, '.');
-  if (pPoint != NULL) pPoint = 0;
+  if (name == NULL || (name[0] == '/' && name[1] == '\0')) return name;
+  char *pPoint = strrchr(name, '/');
+  if (pPoint != NULL) {
+    if (*(pPoint + 1) == '\0') {
+        *pPoint = '\0';
+        return taosDirEntryBaseName(name);
+    }
+    return pPoint + 1;
+  }
   return name;
 #endif
 }

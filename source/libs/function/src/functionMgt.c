@@ -16,6 +16,7 @@
 #include "functionMgt.h"
 
 #include "builtins.h"
+#include "builtinsimpl.h"
 #include "functionMgtInt.h"
 #include "taos.h"
 #include "taoserror.h"
@@ -215,8 +216,6 @@ bool fmIsKeepOrderFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, F
 
 bool fmIsCumulativeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CUMULATIVE_FUNC); }
 
-bool fmIsForbidSuperTableFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_STABLE_FUNC); }
-
 bool fmIsInterpFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
@@ -242,7 +241,11 @@ bool fmIsNotNullOutputFunc(int32_t funcId) {
          FUNCTION_TYPE_LAST_MERGE == funcMgtBuiltins[funcId].type ||
          FUNCTION_TYPE_FIRST == funcMgtBuiltins[funcId].type ||
          FUNCTION_TYPE_FIRST_PARTIAL == funcMgtBuiltins[funcId].type ||
-         FUNCTION_TYPE_FIRST_MERGE == funcMgtBuiltins[funcId].type;
+         FUNCTION_TYPE_FIRST_MERGE == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_COUNT == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_HYPERLOGLOG == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_HYPERLOGLOG_PARTIAL == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_HYPERLOGLOG_MERGE == funcMgtBuiltins[funcId].type;
 }
 
 bool fmIsSelectValueFunc(int32_t funcId) {
@@ -250,6 +253,13 @@ bool fmIsSelectValueFunc(int32_t funcId) {
     return false;
   }
   return FUNCTION_TYPE_SELECT_VALUE == funcMgtBuiltins[funcId].type;
+}
+
+bool fmIsGroupKeyFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_GROUP_KEY == funcMgtBuiltins[funcId].type;
 }
 
 void fmFuncMgtDestroy() {
@@ -314,6 +324,11 @@ bool fmIsSameInOutType(int32_t funcId) {
   return res;
 }
 
+void getLastCacheDataType(SDataType* pType) {
+  pType->bytes = getFirstLastInfoSize(pType->bytes) + VARSTR_HEADER_SIZE;
+  pType->type = TSDB_DATA_TYPE_BINARY;
+}
+
 static int32_t getFuncInfo(SFunctionNode* pFunc) {
   char msg[128] = {0};
   return fmGetFuncInfo(pFunc, msg, sizeof(msg));
@@ -324,7 +339,7 @@ static SFunctionNode* createFunction(const char* pName, SNodeList* pParameterLis
   if (NULL == pFunc) {
     return NULL;
   }
-  strcpy(pFunc->functionName, pName);
+  snprintf(pFunc->functionName, sizeof(pFunc->functionName), "%s", pName);
   pFunc->pParameterList = pParameterList;
   if (TSDB_CODE_SUCCESS != getFuncInfo(pFunc)) {
     pFunc->pParameterList = NULL;
@@ -402,10 +417,6 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
   if (TSDB_CODE_SUCCESS == code) {
     *pMergeFunc = pFunc;
   } else {
-    if (NULL != pFunc) {
-      pFunc->pParameterList = NULL;
-      nodesDestroyNode((SNode*)pFunc);
-    }
     nodesDestroyList(pParameterList);
   }
 
