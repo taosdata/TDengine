@@ -22,7 +22,7 @@ if [ ! -d $communityDir ]; then
   cd $topDir
   mkdir -p debug
   cd debug
-  cmake ..
+  cmake .. -DBUILD_TAOSX=true
 fi
 
 cd $communityDir
