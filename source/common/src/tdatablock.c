@@ -19,6 +19,8 @@
 #include "tlog.h"
 #include "tname.h"
 
+#define MALLOC_ALIGN_BYTES  32
+
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   ASSERT(pColumnInfoData != NULL);
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
@@ -1163,6 +1165,7 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
     pColumn->varmeta.offset = (int32_t*)tmp;
     memset(&pColumn->varmeta.offset[existedRows], 0, sizeof(int32_t) * (numOfRows - existedRows));
   } else {
+    // prepare for the null bitmap
     char* tmp = taosMemoryRealloc(pColumn->nullbitmap, BitmapLen(numOfRows));
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -1173,9 +1176,17 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
     memset(&pColumn->nullbitmap[oldLen], 0, BitmapLen(numOfRows) - oldLen);
 
     ASSERT(pColumn->info.bytes);
-    tmp = taosMemoryRealloc(pColumn->pData, numOfRows * pColumn->info.bytes);
+
+    // make sure the allocated memory is MALLOC_ALIGN_BYTES aligned
+    tmp = taosMemoryMallocAlign(MALLOC_ALIGN_BYTES, numOfRows * pColumn->info.bytes);
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    // copy back the existed data
+    if (pColumn->pData != NULL) {
+      memcpy(tmp, pColumn->pData, existedRows * pColumn->info.bytes);
+      taosMemoryFreeClear(pColumn->pData);
     }
 
     pColumn->pData = tmp;

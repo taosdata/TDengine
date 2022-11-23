@@ -271,67 +271,6 @@ static int16_t i16VectorCmpAVX2(const int16_t* pData, int32_t numOfRows, bool is
   return v;
 }
 
-//static int64_t i64VectorCmpAVX2(const int64_t* pData, int32_t numOfRows, bool isMinFunc) {
-//  int64_t        v = 0;
-//  const int32_t  bitWidth = 256;
-//  const int64_t* p = pData;
-//
-//  int32_t width = (bitWidth>>3u) / sizeof(int64_t);
-//  int32_t remain = numOfRows % width;
-//  int32_t rounds = numOfRows / width;
-//
-//#if __AVX2__
-//  __m256i next;
-//  __m256i initialVal = _mm256_loadu_si256((__m256i*)p);
-//  p += width;
-//
-//  if (!isMinFunc) {  // max function
-//    for (int32_t i = 0; i < rounds; ++i) {
-//      next = _mm256_lddqu_si256((__m256i*)p);
-//      initialVal = _mm256_max_epi64(initialVal, next);
-//      p += width;
-//    }
-//
-//    // let sum up the final results
-//    const int64_t* q = (const int64_t*)&initialVal;
-//    v = TMAX(q[0], q[1]);
-//    for(int32_t k = 1; k < width; ++k) {
-//      v = TMAX(v, q[k]);
-//    }
-//
-//    // calculate the front and the reminder items in array list
-//    int32_t start = rounds * width;
-//    for (int32_t j = 0; j < remain; ++j) {
-//      if (v < p[j + start]) {
-//        v = p[j + start];
-//      }
-//    }
-//  } else {  // min function
-//    for (int32_t i = 0; i < rounds; ++i) {
-//      next = _mm256_lddqu_si256((__m256i*)p);
-//      initialVal = _mm256_min_epi64(initialVal, next);
-//      p += width;
-//    }
-//
-//    // let sum up the final results
-//    const int64_t* q = (const int64_t*)&initialVal;
-//    v = TMIN(q[0], q[1]);
-//    for(int32_t k = 1; k < width; ++k) {
-//      v = TMIN(v, q[k]);
-//    }
-//
-//    // calculate the front and the remainder items in array list
-//    int32_t start = rounds * width;
-//    for (int32_t j = 0; j < remain; ++j) {
-//      if (v > p[j + start]) {
-//        v = p[j + start];
-//      }
-//    }
-//  }
-//#endif
-//
-//  return v;
-//}
 
 static int32_t handleInt32Col(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SqlFunctionCtx* pCtx,
                               SMinmaxResInfo* pBuf, bool isMinFunc) {
