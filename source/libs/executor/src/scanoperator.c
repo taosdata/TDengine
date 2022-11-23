@@ -4794,10 +4794,11 @@ _error:
 static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator);
 static void destoryTableCountScanOperator(void* param);
 
-SOperatorInfo* createTableCountScanOperatorInfo(SReadHandle* readHandle, STableCountScanPhysiNode* pScanNode,
+SOperatorInfo* createTableCountScanOperatorInfo(SReadHandle* readHandle, STableCountScanPhysiNode* pTblCountScanNode,
                                                 SExecTaskInfo* pTaskInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
 
+  SScanPhysiNode* pScanNode = &pTblCountScanNode->scan;
   STableCountScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableCountScanInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
