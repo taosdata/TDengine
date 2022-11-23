@@ -560,13 +560,9 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   }
 
   if (NULL != pSelect->pGroupByList) {
-    if (NULL != pAgg->pGroupKeys) {
-      code = nodesListStrictAppendList(pAgg->pGroupKeys, nodesCloneList(pSelect->pGroupByList));
-    } else {
-      pAgg->pGroupKeys = nodesCloneList(pSelect->pGroupByList);
-      if (NULL == pAgg->pGroupKeys) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-      }
+    pAgg->pGroupKeys = nodesCloneList(pSelect->pGroupByList);
+    if (NULL == pAgg->pGroupKeys) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
@@ -587,6 +583,8 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   if (TSDB_CODE_SUCCESS == code && NULL != pOutputGroupKeys) {
     code = createColumnByRewriteExprs(pOutputGroupKeys, &pAgg->node.pTargets);
   }
+  nodesDestroyList(pOutputGroupKeys);
+
   if (TSDB_CODE_SUCCESS == code && NULL != pAgg->pAggFuncs) {
     code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pAgg->node.pTargets);
   }
