@@ -499,27 +499,22 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
-  SResFetchReq *msg = pMsg->pCont;
+  SResFetchReq req = {0};
   SQWorker     *mgmt = (SQWorker *)qWorkerMgmt;
 
   qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE);
   QW_STAT_INC(mgmt->stat.msgStat.fetchProcessed, 1);
 
-  if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
-    QW_ELOG("invalid fetch msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
+  if (tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
+    QW_ELOG("tDeserializeSResFetchReq %d failed", pMsg->contLen);
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  msg->sId = be64toh(msg->sId);
-  msg->queryId = be64toh(msg->queryId);
-  msg->taskId = be64toh(msg->taskId);
-  msg->execId = ntohl(msg->execId);
-
-  uint64_t sId = msg->sId;
-  uint64_t qId = msg->queryId;
-  uint64_t tId = msg->taskId;
+  uint64_t sId = req.sId;
+  uint64_t qId = req.queryId;
+  uint64_t tId = req.taskId;
   int64_t  rId = 0;
-  int32_t  eId = msg->execId;
+  int32_t  eId = req.execId;
 
   SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connInfo = pMsg->info, .msgType = pMsg->msgType};
 
