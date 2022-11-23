@@ -725,6 +725,8 @@
 ,,,system-test,python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 ,,,system-test,python3 ./test.py -f 99-TDcase/TD-19201.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5
+,,,system-test,python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 
+,,,system-test,python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py  -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q 2
