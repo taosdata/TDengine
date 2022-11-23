@@ -403,7 +403,7 @@
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellError.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellNetChk.py
+,,,system-test,python3 ./test.py -f 0-others/taosShellNetChk.py
 ,,,system-test,python3 ./test.py -f 0-others/telemetry.py
 ,,,system-test,python3 ./test.py -f 0-others/taosdMonitor.py
 ,,,system-test,python3 ./test.py -f 0-others/udfTest.py
