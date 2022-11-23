@@ -139,6 +139,7 @@ void insSetBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, col_i
     if (i > 0) {
       pColList->cols[i].offset = pColList->cols[i - 1].offset + pSchema[i - 1].bytes;
       pColList->cols[i].toffset = pColList->flen;
+      pColList->flen += TYPE_BYTES[type];
     }
     switch (type) {
       case TSDB_DATA_TYPE_BINARY:
