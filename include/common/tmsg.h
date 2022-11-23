@@ -3226,6 +3226,28 @@ int32_t tDeserializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
 int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 
+typedef struct {
+  int64_t suid;
+  int64_t uid;
+  int32_t sver;
+  union {
+    SArray* aRowP;
+    SArray* aCol;
+  };
+} SSubmitTbData;
+
+#define SUBMIT_REQ_AUTO_CREATE_TABLE  0x1
+#define SUBMIT_REQ_COLUMN_DATA_FORMAT 0x2
+typedef struct {
+  int32_t flag;
+  SArray* aCreateTbReq;
+  SArray* aSubmitTbData;
+} SSubmitReq2;
+
+int32_t tEncodeSSubmitReq2(SEncoder* pCoder, const SSubmitReq2* pReq);
+int32_t tDecodeSSubmitReq2(SDecoder* pCoder, SSubmitReq2** ppReq);
+void    tDestroySSubmitReq2(SSubmitReq2* pReq);
+
 #pragma pack(pop)
 
 #ifdef __cplusplus
