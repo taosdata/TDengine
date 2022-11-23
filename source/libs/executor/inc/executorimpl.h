@@ -647,6 +647,23 @@ typedef struct SStreamPartitionOperatorInfo {
   SSDataBlock*          pDelRes;
 } SStreamPartitionOperatorInfo;
 
+typedef struct SStreamFillSupporter {
+  int32_t        type;  // fill type
+  SInterval      interval;
+  SResultRowData prev;
+  SResultRowData cur;
+  SResultRowData next;
+  SResultRowData nextNext;
+  SFillColInfo*  pAllColInfo;  // fill exprs and not fill exprs
+  SExprSupp      notFillExprSup;
+  int32_t        numOfAllCols;  // number of all exprs, including the tags columns
+  int32_t        numOfFillCols;
+  int32_t        numOfNotFillCols;
+  int32_t        rowSize;
+  SSHashObj*     pResMap;
+  bool           hasDelete;
+} SStreamFillSupporter;
+
 typedef struct SStreamFillOperatorInfo {
   SStreamFillSupporter* pFillSup;
   SSDataBlock*          pRes;

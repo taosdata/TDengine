@@ -2666,6 +2666,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
     SSortSource*                    ps = taosMemoryCalloc(1, sizeof(SSortSource));
     STableMergeScanSortSourceParam* param = taosArrayGet(pInfo->sortSourceParams, i);
     ps->param = param;
+    ps->onlyRef = true;
     tsortAddSource(pInfo->pSortHandle, ps);
   }
 

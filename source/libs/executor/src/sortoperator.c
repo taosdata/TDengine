@@ -188,10 +188,10 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
 
   SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
   ps->param = pOperator->pDownstream[0];
+  ps->onlyRef = true;
   tsortAddSource(pInfo->pSortHandle, ps);
 
   int32_t code = tsortOpen(pInfo->pSortHandle);
-  taosMemoryFreeClear(ps);
 
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, terrno);
@@ -389,10 +389,10 @@ int32_t beginSortGroup(SOperatorInfo* pOperator) {
   param->childOpInfo = pOperator->pDownstream[0];
   param->grpSortOpInfo = pInfo;
   ps->param = param;
+  ps->onlyRef = false;
   tsortAddSource(pInfo->pCurrSortHandle, ps);
 
   int32_t code = tsortOpen(pInfo->pCurrSortHandle);
-  taosMemoryFreeClear(ps);
 
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, terrno);
@@ -482,6 +482,9 @@ void destroyGroupSortOperatorInfo(void* param) {
 
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->matchInfo.pList);
+
+  tsortDestroySortHandle(pInfo->pCurrSortHandle);
+  pInfo->pCurrSortHandle = NULL;
 
   taosMemoryFreeClear(param);
 }
@@ -575,6 +578,7 @@ int32_t doOpenMultiwayMergeOperator(SOperatorInfo* pOperator) {
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
     SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
     ps->param = pOperator->pDownstream[i];
+    ps->onlyRef = true;
     tsortAddSource(pInfo->pSortHandle, ps);
   }
 

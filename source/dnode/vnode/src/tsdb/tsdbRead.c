@@ -4115,9 +4115,13 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg*** pBlockS
     } else if (pAgg->colId < pSup->colIds[j]) {
       i += 1;
     } else if (pSup->colIds[j] < pAgg->colId) {
+      if (pSup->colIds[j] == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        taosArrayPush(pNewAggList, &pSup->tsColAgg);
+      } else {
       // all date in this block are null
-      SColumnDataAgg nullColAgg = {.colId = pSup->colIds[j], .numOfNull = pBlock->nRow};
-      taosArrayPush(pNewAggList, &nullColAgg);
+        SColumnDataAgg nullColAgg = {.colId = pSup->colIds[j], .numOfNull = pBlock->nRow};
+        taosArrayPush(pNewAggList, &nullColAgg);
+      }
       j += 1;
     }
   }
