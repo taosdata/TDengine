@@ -26,4 +26,4 @@ COPY ./bin/* /usr/bin/
 
 ENTRYPOINT ["/tini", "--", "/usr/bin/entrypoint.sh"]
 CMD ["bash", "-c", "/usr/bin/run.sh"]
-VOLUME [ "/var/lib/taos", "/var/log/taos", "/corefile" ]
+VOLUME [ "/var/lib/taos", "/var/log/taos" ]

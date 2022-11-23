@@ -6,6 +6,9 @@ TAOSD_STARTUP_TIMEOUT_SECOND=${TAOSD_STARTUP_TIMEOUT_SECOND:-160}
 TAOS_TIMEOUT_SECOND=${TAOS_TIMEOUT_SECOND:-5}
 BACKUP_CORE_FOLDER=/var/log/corefile
 ALERT_URL=app/system/alert/add
+ALERT_DISABLE_FILE=/var/log/disable_alert
+START_TAOSD_MAX_NUMBER=3
+start_taosd_count=0
 
 echo "ADMIN_URL: ${ADMIN_URL}"
 echo "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
@@ -37,12 +40,16 @@ function post_error_msg() {
         echo "service_state: ${service_state}"
         echo "`date` service_msg: ${service_msg}"
         echo "${taos_version}"
-        curl --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/json" \
-            -d"{\"appName\":\"${app_name}\",\
-            \"alertLevel\":\"${service_state}\",\
-            \"taosVersion\":\"${taos_version}\",\
-            \"alertMsg\":\"${service_msg}\"}" \
-            ${ADMIN_URL}/${ALERT_URL}
+        if [ -f ${ALERT_DISABLE_FILE} ]; then
+            echo "alert disabled"
+        else
+            curl --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/json" \
+                -d"{\"appName\":\"${app_name}\",\
+                \"alertLevel\":\"${service_state}\",\
+                \"taosVersion\":\"${taos_version}\",\
+                \"alertMsg\":\"${service_msg}\"}" \
+                ${ADMIN_URL}/${ALERT_URL}
+        fi
     fi
 }
 function check_taosd_exit_type() {
@@ -78,12 +85,16 @@ function post_disk_error_msg() {
         echo "disk_state: ${disk_state}"
         echo "`date` disk_msg: ${disk_msg}"
         echo "${taos_version}"
-        curl --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/json" \
-            -d"{\"appName\":\"${app_name}\",\
-            \"alertLevel\":\"${disk_state}\",\
-            \"taosVersion\":\"${taos_version}\",\
-            \"alertMsg\":\"${disk_msg}\"}" \
-            ${ADMIN_URL}/${ALERT_URL}
+        if [ -f ${ALERT_DISABLE_FILE} ]; then
+            echo "alert disabled"
+        else
+            curl --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/json" \
+                -d"{\"appName\":\"${app_name}\",\
+                \"alertLevel\":\"${disk_state}\",\
+                \"taosVersion\":\"${taos_version}\",\
+                \"alertMsg\":\"${disk_msg}\"}" \
+                ${ADMIN_URL}/${ALERT_URL}
+        fi
     fi
 }
 function check_disk() {
@@ -154,6 +165,12 @@ do
     # echo $status
     if [ "$status"x = "0"x ]
     then
+        echo "start taosd count: ${start_taosd_count}"
+        if [ ${start_taosd_count} -gt ${START_TAOSD_MAX_NUMBER} ]; then
+            echo "exceed restart max count: ${START_TAOSD_MAX_NUMBER}"
+            break
+        fi
+        start_taosd_count=$(( start_taosd_count + 1 ))
         # taosd_start_time=`date +%s`
         run_taosd &
     fi
