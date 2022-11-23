@@ -70,7 +70,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   pWal->lastRollSeq = -1;
 
   taosArrayClear(pWal->fileInfoSet);
-  pWal->vers.firstVer = -1;
+  pWal->vers.firstVer = ver + 1;
   pWal->vers.lastVer = ver;
   pWal->vers.commitVer = ver;
   pWal->vers.snapshotVer = ver;

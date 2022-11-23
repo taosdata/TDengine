@@ -704,6 +704,28 @@ static int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   return ret;
 }
 
+int32_t syncNodeLogStoreRestoreOnNeed(SSyncNode* pNode) {
+  ASSERT(pNode->pLogStore != NULL && "log store not created");
+  ASSERT(pNode->pFsm != NULL && "pFsm not registered");
+  ASSERT(pNode->pFsm->FpGetSnapshotInfo != NULL && "FpGetSnapshotInfo not registered");
+  SSnapshot snapshot;
+  if (pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot) < 0) {
+    sError("vgId:%d, failed to get snapshot info since %s", pNode->vgId, terrstr());
+    return -1;
+  }
+  SyncIndex commitIndex = snapshot.lastApplyIndex;
+  SyncIndex firstVer = pNode->pLogStore->syncLogBeginIndex(pNode->pLogStore);
+  SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
+  if (lastVer < commitIndex || firstVer > commitIndex + 1) {
+    if (pNode->pLogStore->syncLogRestoreFromSnapshot(pNode->pLogStore, commitIndex)) {
+      sError("vgId:%d, failed to restore log store from snapshot since %s. lastVer: %" PRId64 ", snapshotVer: %" PRId64,
+             pNode->vgId, terrstr(), lastVer, commitIndex);
+      return -1;
+    }
+  }
+  return 0;
+}
+
 // open/close --------------
 SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = taosMemoryCalloc(1, sizeof(SSyncNode));
@@ -912,6 +934,9 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   }
   pSyncNode->commitIndex = commitIndex;
 
+  if (syncNodeLogStoreRestoreOnNeed(pSyncNode) < 0) {
+    goto _error;
+  }
   // timer ms init
   pSyncNode->pingBaseLine = PING_TIMER_MS;
   pSyncNode->electBaseLine = ELECT_TIMER_MS_MIN;

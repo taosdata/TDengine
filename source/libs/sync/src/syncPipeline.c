@@ -139,8 +139,7 @@ int32_t syncLogValidateAlignmentOfCommit(SSyncNode* pNode, SyncIndex commitIndex
   return 0;
 }
 
-int32_t syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
-  taosThreadMutexLock(&pBuf->mutex);
+int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   ASSERT(pNode->pLogStore != NULL && "log store not created");
   ASSERT(pNode->pFsm != NULL && "pFsm not registered");
   ASSERT(pNode->pFsm->FpGetSnapshotInfo != NULL && "FpGetSnapshotInfo not registered");
@@ -226,12 +225,35 @@ int32_t syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
 
   // validate
   syncLogBufferValidate(pBuf);
-  taosThreadMutexUnlock(&pBuf->mutex);
   return 0;
 
 _err:
-  taosThreadMutexUnlock(&pBuf->mutex);
   return -1;
+}
+
+int32_t syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
+  taosThreadMutexLock(&pBuf->mutex);
+  int32_t ret = syncLogBufferInitWithoutLock(pBuf, pNode);
+  taosThreadMutexUnlock(&pBuf->mutex);
+  return ret;
+}
+
+int32_t syncLogBufferReInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
+  taosThreadMutexLock(&pBuf->mutex);
+  for (SyncIndex index = pBuf->startIndex; index < pBuf->endIndex; index++) {
+    SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
+    if (pEntry == NULL) continue;
+    syncEntryDestroy(pEntry);
+    pEntry = NULL;
+    memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
+  }
+  pBuf->startIndex = pBuf->commitIndex = pBuf->matchIndex = pBuf->endIndex = 0;
+  int32_t ret = syncLogBufferInitWithoutLock(pBuf, pNode);
+  if (ret < 0) {
+    sError("vgId:%d, failed to re-initialize sync log buffer since %s.", pNode->vgId, terrstr());
+  }
+  taosThreadMutexUnlock(&pBuf->mutex);
+  return ret;
 }
 
 FORCE_INLINE SyncTerm syncLogBufferGetLastMatchTerm(SSyncLogBuffer* pBuf) {
@@ -628,7 +650,7 @@ int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNod
 
   // check existence of WAl log
   SyncIndex firstVer = pNode->pLogStore->syncLogBeginIndex(pNode->pLogStore);
-  if (pMsg->matchIndex < firstVer) {
+  if (pMsg->matchIndex + 1 < firstVer) {
     if (syncNodeStartSnapshot(pNode, &destId) < 0) {
       sError("vgId:%d, failed to start snapshot for dest: 0x%016" PRIx64, pNode->vgId, destId.addr);
     }
@@ -929,7 +951,8 @@ int32_t syncLogBufferReplicateOneTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, Syn
     if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
       SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pNode, pDestId);
       if (pMgr) {
-        sInfo("vgId:%d, reset log repl mgr for dest: 0x%016" PRIx64, pNode->vgId, pDestId->addr);
+        sInfo("vgId:%d, reset sync log repl mgr for peer: 0x%016" PRIx64 " since %s. index: %" PRId64, pNode->vgId,
+              pDestId->addr, terrstr(), index);
         (void)syncLogReplMgrReset(pMgr);
       }
     }
