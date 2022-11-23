@@ -20,6 +20,7 @@
 #include "query.h"
 #include "tdef.h"
 #include "tname.h"
+#include "tdatablock.h"
 
 static void setErrno(SRequestObj* pRequest, int32_t code) {
   pRequest->code = code;

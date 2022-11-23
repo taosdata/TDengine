@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmUtil.h"
+#include "tmisce.h"
 
 static void dmPrintEps(SDnodeData *pData);
 static bool dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep);
