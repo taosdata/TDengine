@@ -138,7 +138,9 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
   
   toDataCacheEntry(pDispatcher, pInput, pBuf);
   taosWriteQitem(pDispatcher->pDataBlocks, pBuf);
-  *pContinue = (DS_BUF_LOW == updateStatus(pDispatcher) ? true : false);
+
+  int32_t status = updateStatus(pDispatcher);
+  *pContinue = (status == DS_BUF_LOW || status == DS_BUF_EMPTY);
   return TSDB_CODE_SUCCESS;
 }
 
