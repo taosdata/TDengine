@@ -91,7 +91,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
   if (code == 0) {
     ASSERT(pEntry != NULL);
 
-    code = syncBuildAppendEntries(&rpcMsg, pEntry->bytes, pSyncNode->vgId);
+    code = syncBuildAppendEntries(&rpcMsg, (int32_t)(pEntry->bytes), pSyncNode->vgId);
     ASSERT(code == 0);
 
     pMsg = rpcMsg.pCont;
