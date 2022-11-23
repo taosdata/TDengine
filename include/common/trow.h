@@ -55,6 +55,14 @@ typedef struct STSRow {
 #define TD_ROW_TP 0x0U  // default
 #define TD_ROW_KV 0x01U
 
+#define TD_VTYPE_PARTS       4  // PARTITIONS: 1 byte / 2 bits
+#define TD_VTYPE_OPTR        3  // OPERATOR: 4 - 1, utilize to get remainder
+#define TD_BITMAP_BYTES(cnt) (((cnt) + TD_VTYPE_OPTR) >> 2)
+
+#define TD_VTYPE_PARTS_I       8  // PARTITIONS: 1 byte / 1 bit
+#define TD_VTYPE_OPTR_I        7  // OPERATOR: 8 - 1, utilize to get remainder
+#define TD_BITMAP_BYTES_I(cnt) (((cnt) + TD_VTYPE_OPTR_I) >> 3)
+
 /**
  * @brief value type
  *  - for data from client input and STSRow in memory, 3 types of value none/null/norm available
@@ -244,7 +252,7 @@ int32_t tdGetBitmapValTypeI(const void *pBitmap, int16_t colIdx, TDRowValT *pVal
  */
 static FORCE_INLINE void *tdGetBitmapAddrTp(STSRow *pRow, uint32_t flen) {
   // The primary TS key is stored separatedly.
-  return POINTER_SHIFT(TD_ROW_DATA(pRow), flen - sizeof(TSKEY));
+  return POINTER_SHIFT(TD_ROW_DATA(pRow), flen);
   // return POINTER_SHIFT(pRow->ts, flen);
 }
 
