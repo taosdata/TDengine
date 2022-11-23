@@ -425,13 +425,13 @@
 ,,,system-test,python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_stable.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_table.py
-,,,system-test,python3 ./test.py -f 1-insert/boundary.py
+,,n,system-test,python3 ./test.py -f 1-insert/boundary.py
 ,,,system-test,python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 ,,,system-test,python3 ./test.py -f 1-insert/table_comment.py
 ,,,system-test,python3 ./test.py -f 1-insert/time_range_wise.py
 ,,,system-test,python3 ./test.py -f 1-insert/block_wise.py
 ,,,system-test,python3 ./test.py -f 1-insert/create_retentions.py
-,,,system-test,python3 ./test.py -f 1-insert/mutil_stage.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/mutil_stage.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/update_data_muti_rows.py
@@ -563,8 +563,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -R
 ,,,system-test,python3 ./test.py -f 2-query/smaTest.py
 ,,,system-test,python3 ./test.py -f 2-query/smaTest.py -R
-,,,system-test,python3 ./test.py -f 2-query/sml.py
-,,,system-test,python3 ./test.py -f 2-query/sml.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py
