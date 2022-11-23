@@ -652,7 +652,10 @@ int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity)
       ASSERT(pCol->varmeta.length <= pCol->varmeta.allocLen);
     }
 
-    memcpy(pCol->pData, pStart, colLength);
+    if (!colDataIsNNull_s(pCol, 0, pBlock->info.rows)) {
+      memcpy(pCol->pData, pStart, colLength);
+    }
+
     pStart += pCol->info.bytes * capacity;
   }
 
