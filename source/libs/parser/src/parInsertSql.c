@@ -1227,7 +1227,7 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataB
     *pGotRow = true;
 
 #ifdef TD_DEBUG_PRINT_ROW
-    STSchema* pSTSchema = tdGetSTSChemaFromSSChema(schema, spd->numOfCols, 1);
+    STSchema* pSTSchema = tBuildTSchema(schema, spd->numOfCols, 1);
     tdSRowPrint(row, pSTSchema, __func__);
     taosMemoryFree(pSTSchema);
 #endif

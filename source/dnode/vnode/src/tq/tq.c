@@ -951,7 +951,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     ASSERT(pTask->tbSink.pSchemaWrapper->pSchema);
 
     pTask->tbSink.pTSchema =
-        tdGetSTSChemaFromSSChema(pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols, 1);
+        tBuildTSchema(pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols, 1);
     ASSERT(pTask->tbSink.pTSchema);
   }
 

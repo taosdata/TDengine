@@ -70,9 +70,6 @@ int32_t tBufferInit(SBuffer *pBuffer, int64_t size);
 int32_t tBufferPut(SBuffer *pBuffer, const void *pData, int64_t nData);
 int32_t tBufferReserve(SBuffer *pBuffer, int64_t nData, void **ppData);
 
-// STSchema ================================
-void tDestroyTSchema(STSchema *pTSchema);
-
 // SColVal ================================
 #define CV_FLAG_VALUE ((int8_t)0x0)
 #define CV_FLAG_NONE  ((int8_t)0x1)
@@ -225,23 +222,9 @@ struct STag {
     memcpy(varDataVal(x), (str), (_size));      \
   } while (0);
 
-// ----------------- SCHEMA BUILDER DEFINITION
-typedef struct {
-  int32_t      tCols;
-  int32_t      nCols;
-  schema_ver_t version;
-  uint16_t     flen;
-  int32_t      tlen;
-  STColumn    *columns;
-} STSchemaBuilder;
-
-int32_t   tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
-void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
-void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
-int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, col_id_t colId, col_bytes_t bytes);
-STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
-
+// STSchema ================================
 STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version);
+void      tDestroyTSchema(STSchema *pTSchema);
 
 #endif
 

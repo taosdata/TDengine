@@ -4498,7 +4498,7 @@ int32_t tDeserializeSBatchReq(void *buf, int32_t bufLen, SBatchReq *pReq) {
   if (num <= 0) {
     pReq->pMsgs = NULL;
     tEndDecode(&decoder);
-    
+
     tDecoderClear(&decoder);
     return 0;
   }
@@ -4513,7 +4513,7 @@ int32_t tDeserializeSBatchReq(void *buf, int32_t bufLen, SBatchReq *pReq) {
     if (tDecodeBinaryAlloc(&decoder, &msg.msg, NULL) < 0) return -1;
     if (NULL == taosArrayPush(pReq->pMsgs, &msg)) return -1;
   }
-  
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4555,7 +4555,7 @@ int32_t tDeserializeSBatchRsp(void *buf, int32_t bufLen, SBatchRsp *pRsp) {
   if (num <= 0) {
     pRsp->pRsps = NULL;
     tEndDecode(&decoder);
-    
+
     tDecoderClear(&decoder);
     return 0;
   }
@@ -4571,13 +4571,12 @@ int32_t tDeserializeSBatchRsp(void *buf, int32_t bufLen, SBatchRsp *pRsp) {
     if (tDecodeBinaryAlloc(&decoder, &msg.msg, NULL) < 0) return -1;
     if (NULL == taosArrayPush(pRsp->pRsps, &msg)) return -1;
   }
-  
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
   return 0;
 }
-
 
 int32_t tSerializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq) {
   SEncoder encoder = {0};
@@ -4605,7 +4604,7 @@ int32_t tDeserializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq) {
   if (tDecodeI64(&decoder, &pReq->consumerId) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->epoch) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->cgroup) < 0) return -1;
-  
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4636,7 +4635,7 @@ int32_t tDeserializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {
 
   if (tDecodeI64(&decoder, &pReq->consumerId) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->epoch) < 0) return -1;
-  
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4666,7 +4665,7 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
   if (tEncodeU32(&encoder, pReq->sqlLen) < 0) return -1;
   if (tEncodeCStrWithLen(&encoder, pReq->sql, pReq->sqlLen) < 0) return -1;
   if (tEncodeU32(&encoder, pReq->msgLen) < 0) return -1;
-  if (tEncodeBinary(&encoder, (uint8_t*)pReq->msg, pReq->msgLen) < 0) return -1;
+  if (tEncodeBinary(&encoder, (uint8_t *)pReq->msg, pReq->msgLen) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -4706,8 +4705,8 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   if (tDecodeU32(&decoder, &pReq->sqlLen) < 0) return -1;
   if (tDecodeCStrAlloc(&decoder, &pReq->sql) < 0) return -1;
   if (tDecodeU32(&decoder, &pReq->msgLen) < 0) return -1;
-  if (tDecodeBinaryAlloc(&decoder, (void**)&pReq->msg, NULL) < 0) return -1;
-  
+  if (tDecodeBinaryAlloc(&decoder, (void **)&pReq->msg, NULL) < 0) return -1;
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4722,7 +4721,6 @@ void tFreeSSubQueryMsg(SSubQueryMsg *pReq) {
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->msg);
 }
-
 
 int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);
@@ -4770,13 +4768,12 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
   if (tDecodeU64(&decoder, &pReq->queryId) < 0) return -1;
   if (tDecodeU64(&decoder, &pReq->taskId) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->execId) < 0) return -1;
-  
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
   return 0;
 }
-
 
 int32_t tSerializeSTqOffsetVal(SEncoder *pEncoder, STqOffsetVal *pOffset) {
   if (tEncodeI8(pEncoder, pOffset->type) < 0) return -1;
@@ -4848,13 +4845,12 @@ int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   if (tDecodeI64(&decoder, &pReq->consumerId) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->timeout) < 0) return -1;
   if (tDerializeSTqOffsetVal(&decoder, &pReq->reqOffset) < 0) return -1;
-  
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
   return 0;
 }
-
 
 int32_t tSerializeSTaskDropReq(void *buf, int32_t bufLen, STaskDropReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);
@@ -4904,7 +4900,7 @@ int32_t tDeserializeSTaskDropReq(void *buf, int32_t bufLen, STaskDropReq *pReq) 
   if (tDecodeU64(&decoder, &pReq->taskId) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->refId) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->execId) < 0) return -1;
-  
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4941,13 +4937,12 @@ int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pR
   if (tDecodeI32(&decoder, &pRsp->sversion) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->tversion) < 0) return -1;
   if (tDecodeI64(&decoder, &pRsp->affectedRows) < 0) return -1;
-  
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
   return 0;
 }
-
 
 int32_t tSerializeSSchedulerHbReq(void *buf, int32_t bufLen, SSchedulerHbReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);
@@ -5589,30 +5584,6 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
 
   tEndDecode(pCoder);
   return 0;
-}
-
-STSchema *tdGetSTSChemaFromSSChema(SSchema *pSchema, int32_t nCols, int32_t sver) {
-  STSchemaBuilder schemaBuilder = {0};
-  if (tdInitTSchemaBuilder(&schemaBuilder, sver) < 0) {
-    return NULL;
-  }
-
-  for (int i = 0; i < nCols; i++) {
-    SSchema *schema = pSchema + i;
-    if (tdAddColToSchema(&schemaBuilder, schema->type, schema->flags, schema->colId, schema->bytes) < 0) {
-      tdDestroyTSchemaBuilder(&schemaBuilder);
-      return NULL;
-    }
-  }
-
-  STSchema *pNSchema = tdGetSchemaFromBuilder(&schemaBuilder);
-  if (pNSchema == NULL) {
-    tdDestroyTSchemaBuilder(&schemaBuilder);
-    return NULL;
-  }
-
-  tdDestroyTSchemaBuilder(&schemaBuilder);
-  return pNSchema;
 }
 
 int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {

@@ -458,7 +458,7 @@ static int32_t tdBlockRowMerge(STableMeta* pTableMeta, SBlockKeyTuple* pEndKeyTp
 
   if (!(*pBlkRowMerger)->pSchema) {
     (*pBlkRowMerger)->pSchema =
-        tdGetSTSChemaFromSSChema(pTableMeta->schema, pTableMeta->tableInfo.numOfColumns, pTableMeta->sversion);
+        tBuildTSchema(pTableMeta->schema, pTableMeta->tableInfo.numOfColumns, pTableMeta->sversion);
 
     if (!(*pBlkRowMerger)->pSchema) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
