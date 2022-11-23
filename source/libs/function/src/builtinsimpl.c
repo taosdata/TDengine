@@ -5672,12 +5672,12 @@ int32_t modeFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElems = 0;
   int32_t startOffset = pCtx->offset;
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-    char* data = colDataGetData(pInputCol, i);
     if (colDataIsNull_s(pInputCol, i)) {
       continue;
     }
-
     numOfElems++;
+
+    char* data = colDataGetData(pInputCol, i);
     doModeAdd(pInfo, i, pCtx, data);
 
     if (sizeof(SModeInfo) + pInfo->numOfPoints * (sizeof(SModeItem) + pInfo->colBytes) >= MODE_MAX_RESULT_SIZE) {
