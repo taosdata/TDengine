@@ -398,7 +398,7 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->magicNum = htonl(TRANS_MAGIC_NUM);
 
   // handle invalid drop_task resp, TD-20098
-  if (pMsg->msgType == TDMT_SCH_DROP_TASK && pMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+  if (pConn->inType == TDMT_SCH_DROP_TASK && pMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
     transQueuePop(&pConn->srvMsgs);
     destroySmsg(smsg);
     return -1;

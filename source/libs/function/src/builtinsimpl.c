@@ -6568,7 +6568,9 @@ int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx) {
   for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
     numOfElems++;
 
-    char* data = colDataGetData(pInputCol, i);
+    bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
+    char* data = isNull ? NULL : colDataGetData(pInputCol, i);
+
     TSKEY cts = getRowPTs(pInput->pPTS, i);
     if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
       doSaveLastrow(pCtx, data, i, cts, pInfo);

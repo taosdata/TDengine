@@ -305,7 +305,7 @@ static void* getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index) {
 }
 
 // NOTE: speedup the whole processing by preparing the buffer for STableBlockScanInfo in batch model
-static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableKeyInfo* idList, int32_t numOfTables) {
+static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList, int32_t numOfTables) {
   // allocate buffer in order to load data blocks from file
   // todo use simple hash instead, optimize the memory consumption
   SHashObj* pTableMap =
@@ -315,10 +315,10 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
   }
 
   int64_t st = taosGetTimestampUs();
-  initBlockScanInfoBuf(&pTsdbReader->blockInfoBuf, numOfTables);
+  initBlockScanInfoBuf(pBuf, numOfTables);
 
   for (int32_t j = 0; j < numOfTables; ++j) {
-    STableBlockScanInfo* pScanInfo = getPosInBlockInfoBuf(&pTsdbReader->blockInfoBuf, j);
+    STableBlockScanInfo* pScanInfo = getPosInBlockInfoBuf(pBuf, j);
     pScanInfo->uid = idList[j].uid;
     if (ASCENDING_TRAVERSE(pTsdbReader->order)) {
       int64_t skey = pTsdbReader->window.skey;
@@ -329,20 +329,6 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
     }
 
     taosHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
-
-#if 0
-//    STableBlockScanInfo info = {.lastKey = 0, .uid = idList[j].uid};
-    if (ASCENDING_TRAVERSE(pTsdbReader->order)) {
-      int64_t skey = pTsdbReader->window.skey;
-      info.lastKey = (skey > INT64_MIN) ? (skey - 1) : skey;
-    } else {
-      int64_t ekey = pTsdbReader->window.ekey;
-      info.lastKey = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
-    }
-
-    taosHashPut(pTableMap, &info.uid, sizeof(uint64_t), &info, sizeof(info));
-#endif
-
     tsdbTrace("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pTsdbReader, pScanInfo->uid,
               pScanInfo->lastKey, pTsdbReader->idStr);
   }
@@ -361,9 +347,15 @@ static void resetAllDataBlockScanInfo(SHashObj* pTableMap, int64_t ts) {
     STableBlockScanInfo* pInfo = *(STableBlockScanInfo**)p;
 
     pInfo->iterInit = false;
+    pInfo->iter.hasVal = false;
     pInfo->iiter.hasVal = false;
+
     if (pInfo->iter.iter != NULL) {
       pInfo->iter.iter = tsdbTbDataIterDestroy(pInfo->iter.iter);
+    }
+
+    if (pInfo->iiter.iter != NULL) {
+      pInfo->iiter.iter = tsdbTbDataIterDestroy(pInfo->iiter.iter);
     }
 
     pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
@@ -373,6 +365,8 @@ static void resetAllDataBlockScanInfo(SHashObj* pTableMap, int64_t ts) {
 
 static void clearBlockScanInfo(STableBlockScanInfo* p) {
   p->iterInit = false;
+
+  p->iter.hasVal = false;
   p->iiter.hasVal = false;
 
   if (p->iter.iter != NULL) {
@@ -388,9 +382,9 @@ static void clearBlockScanInfo(STableBlockScanInfo* p) {
   tMapDataClear(&p->mapData);
 }
 
-static void destroyAllBlockScanInfo(SHashObj* pTableMap, bool clearEntry) {
+static void destroyAllBlockScanInfo(SHashObj* pTableMap) {
   void* p = NULL;
-  while (clearEntry && ((p = taosHashIterate(pTableMap, p)) != NULL)) {
+  while ((p = taosHashIterate(pTableMap, p)) != NULL) {
     clearBlockScanInfo(*(STableBlockScanInfo**)p);
   }
 
@@ -2226,6 +2220,7 @@ static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbRea
   if (pReader->pReadSnap->pMem != NULL) {
     d = tsdbGetTbDataFromMemTable(pReader->pReadSnap->pMem, pReader->suid, pBlockScanInfo->uid);
     if (d != NULL) {
+      ASSERT(pBlockScanInfo->iter.iter == NULL);
       code = tsdbTbDataIterCreate(d, &startKey, backward, &pBlockScanInfo->iter.iter);
       if (code == TSDB_CODE_SUCCESS) {
         pBlockScanInfo->iter.hasVal = (tsdbTbDataIterGet(pBlockScanInfo->iter.iter) != NULL);
@@ -3789,11 +3784,10 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     updateBlockSMAInfo(pReader->pSchema, &pReader->suppInfo);
   }
 
-  STsdbReader* p = pReader->innerReader[0] != NULL ? pReader->innerReader[0] : pReader;
-
-  pReader->status.pTableMap = createDataBlockScanInfo(p, pTableList, numOfTables);
+  STsdbReader* p = (pReader->innerReader[0] != NULL)? pReader->innerReader[0]:pReader;
+  pReader->status.pTableMap = createDataBlockScanInfo(p, &pReader->blockInfoBuf, pTableList, numOfTables);
   if (pReader->status.pTableMap == NULL) {
-    tsdbReaderClose(pReader);
+    tsdbReaderClose(p);
     *ppReader = NULL;
 
     code = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -3849,7 +3843,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
   }
 
   {
-    if (pReader->innerReader[0] != NULL) {
+    if (pReader->innerReader[0] != NULL || pReader->innerReader[1] != NULL) {
       STsdbReader* p = pReader->innerReader[0];
 
       p->status.pTableMap = NULL;
@@ -3887,9 +3881,12 @@ void tsdbReaderClose(STsdbReader* pReader) {
   cleanupDataBlockIterator(&pReader->status.blockIter);
 
   size_t numOfTables = taosHashGetSize(pReader->status.pTableMap);
-  destroyAllBlockScanInfo(pReader->status.pTableMap, (pReader->innerReader[0] == NULL) ? true : false);
+  if (pReader->status.pTableMap != NULL) {
+    destroyAllBlockScanInfo(pReader->status.pTableMap);
+    clearBlockScanInfoBuf(&pReader->blockInfoBuf);
+  }
+
   blockDataDestroy(pReader->pResBlock);
-  clearBlockScanInfoBuf(&pReader->blockInfoBuf);
 
   if (pReader->pFileReader != NULL) {
     tsdbDataFReaderClose(&pReader->pFileReader);
@@ -4118,9 +4115,13 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg*** pBlockS
     } else if (pAgg->colId < pSup->colIds[j]) {
       i += 1;
     } else if (pSup->colIds[j] < pAgg->colId) {
+      if (pSup->colIds[j] == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        taosArrayPush(pNewAggList, &pSup->tsColAgg);
+      } else {
       // all date in this block are null
-      SColumnDataAgg nullColAgg = {.colId = pSup->colIds[j], .numOfNull = pBlock->nRow};
-      taosArrayPush(pNewAggList, &nullColAgg);
+        SColumnDataAgg nullColAgg = {.colId = pSup->colIds[j], .numOfNull = pBlock->nRow};
+        taosArrayPush(pNewAggList, &nullColAgg);
+      }
       j += 1;
     }
   }

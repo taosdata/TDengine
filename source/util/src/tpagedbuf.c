@@ -107,7 +107,7 @@ static uint64_t allocatePositionInFile(SDiskbasedBuf* pBuf, size_t size) {
 
 static void setPageNotInBuf(SPageInfo* pPageInfo) { pPageInfo->pData = NULL; }
 
-static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) { return pageSize + POINTER_BYTES + 2; }
+static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) { return pageSize + POINTER_BYTES + sizeof(SFilePage); }
 
 /**
  *   +--------------------------+-------------------+--------------+
