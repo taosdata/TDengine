@@ -1083,22 +1083,29 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     }
     case TDMT_SCH_FETCH:
     case TDMT_SCH_MERGE_FETCH: {
-      msgSize = sizeof(SResFetchReq);
+      SResFetchReq req = {0};
+      req.header.vgId = addr->nodeId;
+      req.sId = schMgmt.sId;
+      req.queryId = pJob->queryId;
+      req.taskId = pTask->taskId;
+      req.execId = pTask->execId;
+
+      msgSize = tSerializeSResFetchReq(NULL, 0, &req);
+      if (msgSize < 0) {
+        SCH_TASK_ELOG("tSerializeSResFetchReq get size, msgSize:%d", msgSize);
+        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
+      
       msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
 
-      SResFetchReq *pMsg = msg;
-
-      pMsg->header.vgId = htonl(addr->nodeId);
-
-      pMsg->sId = htobe64(schMgmt.sId);
-      pMsg->queryId = htobe64(pJob->queryId);
-      pMsg->taskId = htobe64(pTask->taskId);
-      pMsg->execId = htonl(pTask->execId);
-
+      if (tSerializeSResFetchReq(msg, msgSize, &req) < 0) {
+        SCH_TASK_ELOG("tSerializeSResFetchReq %d failed", msgSize);
+        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
       break;
     }
     case TDMT_SCH_DROP_TASK: {
