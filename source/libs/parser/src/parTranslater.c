@@ -7089,9 +7089,10 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
 
 static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                     SVAlterTbReq* pReq) {
-  SSchema* pSchema = getColSchema(pTableMeta, pStmt->colName);
+  SSchema* pSchema = getTagSchema(pTableMeta, pStmt->colName);
   if (NULL == pSchema) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s",
+                                   pStmt->colName);
   }
 
   pReq->tagName = strdup(pStmt->colName);
