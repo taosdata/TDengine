@@ -151,7 +151,7 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.retryMinInterval = 100;
   rpcInit.retryStepFactor = 5;
   rpcInit.retryMaxInterval = 10240;
-  rpcInit.retryMaxTimouet = -1;
+  rpcInit.retryMaxTimouet = 20480;
 
   void *pDnodeConn = rpcOpen(&rpcInit);
   if (pDnodeConn == NULL) {
