@@ -759,7 +759,6 @@ int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const vo
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-  offset -= sizeof(TSKEY);
   --colIdx;
 
 #ifdef TD_SUPPORT_BITMAP
@@ -871,6 +870,7 @@ int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
       terrno = TSDB_CODE_INVALID_PARA;
       return terrno;
   }
+  ASSERT(TD_ROW_TYPE(pBuilder->pBuf) == TD_ROW_TP || TD_ROW_TYPE(pBuilder->pBuf) == TD_ROW_KV);
 
   return TSDB_CODE_SUCCESS;
 }
