@@ -229,7 +229,10 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
   int32_t writeLen = vsnprintf(eventLog, sizeof(eventLog), format, argpointer);
   va_end(argpointer);
 
-  int32_t aqItems = pNode->pFsm->FpApplyQueueItems(pNode->pFsm);
+  int32_t aqItems = 0;
+  if (pNode != NULL && pNode->pFsm != NULL && pNode->pFsm->FpApplyQueueItems != NULL) {
+    aqItems = pNode->pFsm->FpApplyQueueItems(pNode->pFsm);
+  }
 
   // restore error code
   terrno = errCode;
