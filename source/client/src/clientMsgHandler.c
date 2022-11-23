@@ -20,6 +20,7 @@
 #include "query.h"
 #include "tdef.h"
 #include "tname.h"
+#include "systable.h"
 
 static void setErrno(SRequestObj* pRequest, int32_t code) {
   pRequest->code = code;
@@ -326,6 +327,8 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     int32_t          code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
     if (TSDB_CODE_SUCCESS == code) {
       catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
+      catalogRemoveDB(pCatalog, TSDB_INFORMATION_SCHEMA_DB, 0);
+      catalogRemoveDB(pCatalog, TSDB_PERFORMANCE_SCHEMA_DB, 0);
     }
   }
 
