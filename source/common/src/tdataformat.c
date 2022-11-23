@@ -709,9 +709,6 @@ _exit:
 }
 
 // STSchema ========================================
-void tTSchemaDestroy(STSchema *pTSchema) {
-  if (pTSchema) taosMemoryFree(pTSchema);
-}
 
 // STag ========================================
 static int tTagValCmprFn(const void *p1, const void *p2) {
@@ -1178,6 +1175,43 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
 }
 
 #endif
+
+STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
+  STSchema *pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn) * numOfCols);
+  if (pTSchema == NULL) return NULL;
+
+  pTSchema->numOfCols = numOfCols;
+  pTSchema->version = version;
+
+  // timestamp column
+  ASSERT(aSchema[0].type == TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT(aSchema[0].colId == PRIMARYKEY_TIMESTAMP_COL_ID);
+  pTSchema->columns[0].colId = aSchema[0].colId;
+  pTSchema->columns[0].type = aSchema[0].type;
+  pTSchema->columns[0].flags = aSchema[0].flags;
+  pTSchema->columns[0].bytes = aSchema[0].bytes;
+  pTSchema->columns[0].offset = -1;
+
+  // other columns
+  for (int32_t iCol = 1; iCol < numOfCols; iCol++) {
+    SSchema  *pSchema = &aSchema[iCol];
+    STColumn *pTColumn = &pTSchema->columns[iCol];
+
+    pTColumn->colId = pSchema->colId;
+    pTColumn->type = pSchema->type;
+    pTColumn->flags = pSchema->flags;
+    pTColumn->bytes = pSchema->bytes;
+    pTColumn->offset = pTSchema->flen;
+
+    pTSchema->flen += TYPE_BYTES[pTColumn->type];
+  }
+
+  return pTSchema;
+}
+
+void tDestroyTSchema(STSchema *pTSchema) {
+  if (pTSchema) taosMemoryFree(pTSchema);
+}
 
 // SColData ========================================
 void tColDataDestroy(void *ph) {

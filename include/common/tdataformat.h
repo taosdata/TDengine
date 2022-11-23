@@ -71,7 +71,7 @@ int32_t tBufferPut(SBuffer *pBuffer, const void *pData, int64_t nData);
 int32_t tBufferReserve(SBuffer *pBuffer, int64_t nData, void **ppData);
 
 // STSchema ================================
-void tTSchemaDestroy(STSchema *pTSchema);
+void tDestroyTSchema(STSchema *pTSchema);
 
 // SColVal ================================
 #define CV_FLAG_VALUE ((int8_t)0x0)
@@ -242,6 +242,8 @@ void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
 void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
 int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, col_id_t colId, col_bytes_t bytes);
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
+
+STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version);
 
 #endif
 
