@@ -2025,7 +2025,7 @@ class TdSuperTable:
             conf.set("enable.auto.commit", "true")
             def tmq_commit_cb_print(tmq, resp, offset, param=None):
                 print(f"commit: {resp}, tmq: {tmq}, offset: {offset}, param: {param}")
-            conf.set_auto_commit_cb(tmq_commit_cb_print, None)
+            #conf.set_auto_commit_cb(tmq_commit_cb_print, None)
             consumer = conf.new_consumer()   
             topic_list = TaosTmqList()
             for topic in current_topic_list:
