@@ -238,9 +238,10 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
     taosPrintLog(flags, level, dflag,
                  "vgId:%d, sync %s "
                  "%s"
-                 ", tm:%" PRIu64 ", cmt:%" PRId64 ", fst:%" PRId64 ", lst:%" PRId64 ", min:%" PRId64 ", snap:%" PRId64
-                 ", snap-tm:%" PRIu64 ", sby:%d, aq:%d, bch:%d, r-num:%d, lcfg:%" PRId64
-                 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s, %s",
+                 ", term:%" PRIu64 ", commitIdx:%" PRId64 ", firstVer:%" PRId64 ", lastVer:%" PRId64 ", min:%" PRId64
+                 ", snap.lastApply:%" PRId64 ", snap.term:%" PRIu64
+                 ", standby:%d, aqItems:%d, batchSz:%d, replicaNum:%d, lastCfgIdx:%" PRId64
+                 ", changing:%d, restore:%d, quorum:%d, electTimer:%" PRId64 ", hb:%" PRId64 ", %s, %s",
                  pNode->vgId, syncStr(pNode->state), eventLog, currentTerm, pNode->commitIndex, logBeginIndex,
                  logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                  pNode->pRaftCfg->isStandBy, aqItems, pNode->pRaftCfg->batchSize, pNode->replicaNum,

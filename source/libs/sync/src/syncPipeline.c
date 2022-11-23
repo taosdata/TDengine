@@ -119,6 +119,26 @@ SSyncRaftEntry* syncEntryBuildDummy(SyncTerm term, SyncIndex index, int32_t vgId
   return syncEntryBuildNoop(term, index, vgId);
 }
 
+int32_t syncLogValidateAlignmentOfCommit(SSyncNode* pNode, SyncIndex commitIndex) {
+  SyncIndex firstVer = pNode->pLogStore->syncLogBeginIndex(pNode->pLogStore);
+  if (firstVer > commitIndex + 1) {
+    sError("vgId:%d, firstVer of WAL log greater than tsdb commit version + 1. firstVer: %" PRId64
+           ", tsdb commit version: %" PRId64 "",
+           pNode->vgId, firstVer, commitIndex);
+    return -1;
+  }
+
+  SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
+  if (lastVer < commitIndex) {
+    sError("vgId:%d, lastVer of WAL log less than tsdb commit version. lastVer: %" PRId64
+           ", tsdb commit version: %" PRId64 "",
+           pNode->vgId, lastVer, commitIndex);
+    return -1;
+  }
+
+  return 0;
+}
+
 int32_t syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   taosThreadMutexLock(&pBuf->mutex);
   ASSERT(pNode->pLogStore != NULL && "log store not created");
@@ -132,16 +152,12 @@ int32_t syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   }
   SyncIndex commitIndex = snapshot.lastApplyIndex;
   SyncTerm  commitTerm = snapshot.lastApplyTerm;
-
-  SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
-  if (lastVer < commitIndex) {
-    sError("vgId:%d, lastVer of WAL log less than tsdb commit version. lastVer: %" PRId64
-           ", tsdb commit version: %" PRId64 "",
-           pNode->vgId, lastVer, commitIndex);
+  if (syncLogValidateAlignmentOfCommit(pNode, commitIndex)) {
     terrno = TSDB_CODE_WAL_LOG_INCOMPLETE;
     goto _err;
   }
 
+  SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
   ASSERT(lastVer >= commitIndex);
   SyncIndex toIndex = lastVer;
   // update match index
