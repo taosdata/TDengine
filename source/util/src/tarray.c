@@ -181,6 +181,17 @@ void* taosArrayAddAll(SArray* pArray, const SArray* pInput) {
   }
 }
 
+void* taosArrayReserve(SArray* pArray, int32_t num) {
+  if (taosArrayEnsureCap(pArray, pArray->size + num) != 0) {
+    return NULL;
+  }
+
+  void* dst = TARRAY_GET_ELEM(pArray, pArray->size);
+  pArray->size += num;
+
+  return dst;
+}
+
 void* taosArrayPop(SArray* pArray) {
   assert(pArray != NULL);
 
