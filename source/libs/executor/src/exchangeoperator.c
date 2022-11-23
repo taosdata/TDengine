@@ -77,7 +77,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
   while (1) {
     int32_t v = 0;
     sem_getvalue(&pExchangeInfo->ready, &v);
-    qDebug("prepare wait for ready, sem:(%d,%p), %p, %s", v, pExchangeInfo->ready.__align, pExchangeInfo, GET_TASKID(pTaskInfo));
+    qDebug("prepare wait for ready, sem:(%d,%p), %p, %s", v, (void*)pExchangeInfo->ready.__align, pExchangeInfo, GET_TASKID(pTaskInfo));
 
     tsem_wait(&pExchangeInfo->ready);
     if (isTaskKilled(pTaskInfo)) {
@@ -387,12 +387,12 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
     ASSERT(pRsp != NULL);
     qDebug("%s fetch rsp received, index:%d, blocks:%d, rows:%d, sem:(%d,%p), %p", pSourceDataInfo->taskId, index, pRsp->numOfBlocks,
-           pRsp->numOfRows, v, pExchangeInfo->ready.__align, pExchangeInfo);
+           pRsp->numOfRows, v, (void*)pExchangeInfo->ready.__align, pExchangeInfo);
   } else {
     taosMemoryFree(pMsg->pData);
     pSourceDataInfo->code = code;
     qDebug("%s fetch rsp received, index:%d, error:%s, sem:(%d,%p), %p", pSourceDataInfo->taskId, index, tstrerror(code), v,
-        pExchangeInfo->ready.__align, pExchangeInfo);
+           (void*) pExchangeInfo->ready.__align, pExchangeInfo);
   }
 
   pSourceDataInfo->status = EX_SOURCE_DATA_READY;
