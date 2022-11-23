@@ -870,7 +870,6 @@ int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
       terrno = TSDB_CODE_INVALID_PARA;
       return terrno;
   }
-  ASSERT(TD_ROW_TYPE(pBuilder->pBuf) == TD_ROW_TP || TD_ROW_TYPE(pBuilder->pBuf) == TD_ROW_KV);
 
   return TSDB_CODE_SUCCESS;
 }
