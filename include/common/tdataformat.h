@@ -237,18 +237,6 @@ typedef struct {
   STColumn    *columns;
 } STSchemaBuilder;
 
-// use 2 bits for bitmap(default: STSRow/sub block)
-#define TD_VTYPE_BITS        2
-#define TD_VTYPE_PARTS       4  // PARTITIONS: 1 byte / 2 bits
-#define TD_VTYPE_OPTR        3  // OPERATOR: 4 - 1, utilize to get remainder
-#define TD_BITMAP_BYTES(cnt) (((cnt) + TD_VTYPE_OPTR) >> 2)
-
-// use 1 bit for bitmap(super block)
-#define TD_VTYPE_BITS_I        1
-#define TD_VTYPE_PARTS_I       8  // PARTITIONS: 1 byte / 1 bit
-#define TD_VTYPE_OPTR_I        7  // OPERATOR: 8 - 1, utilize to get remainder
-#define TD_BITMAP_BYTES_I(cnt) (((cnt) + TD_VTYPE_OPTR_I) >> 3)
-
 int32_t   tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
 void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
 void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
