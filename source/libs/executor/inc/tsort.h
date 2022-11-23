@@ -36,12 +36,13 @@ typedef struct SMultiMergeSource {
 
 typedef struct SSortSource {
   SMultiMergeSource src;
-  union {
-    struct {
-      SArray* pageIdList;
-      int32_t pageIndex;
-    };
+  struct {
+    SArray* pageIdList;
+    int32_t pageIndex;
+  };
+  struct {
     void* param;
+    bool  onlyRef;
   };
 
 } SSortSource;
