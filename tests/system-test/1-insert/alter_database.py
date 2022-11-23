@@ -53,7 +53,7 @@ class TDTestCase:
         tdSql.execute('drop database db')
 
     def run(self):
-        tdSql.error('create database db1 vgroups 10 buffer 12289')
+        
         self.alter_buffer()
         self.alter_pages()
 
