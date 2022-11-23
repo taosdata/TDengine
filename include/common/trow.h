@@ -252,7 +252,7 @@ int32_t tdGetBitmapValTypeI(const void *pBitmap, int16_t colIdx, TDRowValT *pVal
  */
 static FORCE_INLINE void *tdGetBitmapAddrTp(STSRow *pRow, uint32_t flen) {
   // The primary TS key is stored separatedly.
-  return POINTER_SHIFT(TD_ROW_DATA(pRow), flen - sizeof(TSKEY));
+  return POINTER_SHIFT(TD_ROW_DATA(pRow), flen);
   // return POINTER_SHIFT(pRow->ts, flen);
 }
 
