@@ -172,8 +172,8 @@ static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModifO
 }
 
 // pStmt->pSql -> field1_name, ...)
-static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, SParsedDataColInfo* pColList,
-                                 SSchema* pSchema) {
+static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, bool isTags,
+                                 SParsedDataColInfo* pColList, SSchema* pSchema) {
   col_id_t nCols = pColList->numOfCols;
 
   pColList->numOfBound = 0;
@@ -227,7 +227,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, S
     }
   }
 
-  if (pColList->cols[0].valStat == VAL_STAT_NONE) {
+  if (!isTags && pColList->cols[0].valStat == VAL_STAT_NONE) {
     return buildInvalidOperationMsg(&pCxt->msg, "primary timestamp column can not be null");
   }
 
@@ -529,7 +529,7 @@ static int32_t parseBoundTagsClause(SInsertParseContext* pCxt, SVnodeModifOpStmt
   }
 
   pStmt->pSql += index;
-  return parseBoundColumns(pCxt, &pStmt->pSql, &pCxt->tags, pTagsSchema);
+  return parseBoundColumns(pCxt, &pStmt->pSql, true, &pCxt->tags, pTagsSchema);
 }
 
 static int32_t parseTagValue(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt, SSchema* pTagSchema, SToken* pToken,
@@ -941,11 +941,12 @@ static int32_t parseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModifOpS
       return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is expected", token.z);
     }
     // pStmt->pSql -> field1_name, ...)
-    return parseBoundColumns(pCxt, &pStmt->pSql, &pDataBuf->boundColumnInfo, getTableColumnSchema(pStmt->pTableMeta));
+    return parseBoundColumns(pCxt, &pStmt->pSql, false, &pDataBuf->boundColumnInfo,
+                             getTableColumnSchema(pStmt->pTableMeta));
   }
 
   if (NULL != pStmt->pBoundCols) {
-    return parseBoundColumns(pCxt, &pStmt->pBoundCols, &pDataBuf->boundColumnInfo,
+    return parseBoundColumns(pCxt, &pStmt->pBoundCols, false, &pDataBuf->boundColumnInfo,
                              getTableColumnSchema(pStmt->pTableMeta));
   }
 
