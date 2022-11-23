@@ -132,7 +132,6 @@ struct STSchema {
   int32_t  numOfCols;
   int32_t  version;
   int32_t  flen;
-  int32_t  vlen;
   int32_t  tlen;
   STColumn columns[];
 };
@@ -232,7 +231,6 @@ typedef struct {
   int32_t      nCols;
   schema_ver_t version;
   uint16_t     flen;
-  int32_t      vlen;
   int32_t      tlen;
   STColumn    *columns;
 } STSchemaBuilder;

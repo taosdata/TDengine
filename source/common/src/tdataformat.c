@@ -1108,7 +1108,6 @@ void tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version) {
   pBuilder->nCols = 0;
   pBuilder->tlen = 0;
   pBuilder->flen = 0;
-  pBuilder->vlen = 0;
   pBuilder->version = version;
 }
 
@@ -1127,26 +1126,21 @@ int32_t tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, c
   pCol->colId = colId;
   pCol->flags = flags;
   if (pBuilder->nCols == 0) {
-    pCol->offset = 0;
+    pCol->offset = -1;
   } else {
-    STColumn *pTCol = &(pBuilder->columns[pBuilder->nCols - 1]);
-    pCol->offset = pTCol->offset + TYPE_BYTES[pTCol->type];
+    pCol->offset = pBuilder->flen;
+    pBuilder->flen += TYPE_BYTES[type];
   }
 
   if (IS_VAR_DATA_TYPE(type)) {
     pCol->bytes = bytes;
     pBuilder->tlen += (TYPE_BYTES[type] + bytes);
-    pBuilder->vlen += bytes - sizeof(VarDataLenT);
   } else {
     pCol->bytes = TYPE_BYTES[type];
     pBuilder->tlen += TYPE_BYTES[type];
-    pBuilder->vlen += TYPE_BYTES[type];
   }
 
   pBuilder->nCols++;
-  pBuilder->flen += TYPE_BYTES[type];
-
-  ASSERT(pCol->offset < pBuilder->flen);
 
   return 0;
 }
@@ -1163,7 +1157,6 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
   pSchema->numOfCols = pBuilder->nCols;
   pSchema->tlen = pBuilder->tlen;
   pSchema->flen = pBuilder->flen;
-  pSchema->vlen = pBuilder->vlen;
 
 #ifdef TD_SUPPORT_BITMAP
   pSchema->tlen += (int)TD_BITMAP_BYTES(pSchema->numOfCols);
@@ -1200,10 +1193,23 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
     pTColumn->colId = pSchema->colId;
     pTColumn->type = pSchema->type;
     pTColumn->flags = pSchema->flags;
-    pTColumn->bytes = pSchema->bytes;
     pTColumn->offset = pTSchema->flen;
 
+    if (IS_VAR_DATA_TYPE(pSchema->type)) {
+      pTColumn->bytes = pSchema->bytes;
+    } else {
+      pTColumn->bytes = TYPE_BYTES[pSchema->type];
+    }
+
     pTSchema->flen += TYPE_BYTES[pTColumn->type];
+
+#if 1  // todo: remove this
+    if (IS_VAR_DATA_TYPE(pSchema->type)) {
+      pTSchema->tlen += (TYPE_BYTES[pTColumn->type] + pTColumn->bytes);
+    } else {
+      pTSchema->tlen += TYPE_BYTES[pTColumn->type];
+    }
+#endif
   }
 
   return pTSchema;
