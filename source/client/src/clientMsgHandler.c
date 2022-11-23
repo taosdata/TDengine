@@ -327,8 +327,14 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     int32_t          code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
     if (TSDB_CODE_SUCCESS == code) {
       catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
-      catalogRemoveDB(pCatalog, TSDB_INFORMATION_SCHEMA_DB, 0);
-      catalogRemoveDB(pCatalog, TSDB_PERFORMANCE_SCHEMA_DB, 0);
+      STscObj*             pTscObj = pRequest->pTscObj;
+
+      SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
+                               .requestId = pRequest->requestId,
+                               .requestObjRefId = pRequest->self,
+                               .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+      catalogRefreshDBVgInfo(pCatalog, &conn, TSDB_INFORMATION_SCHEMA_DB);
+      catalogRefreshDBVgInfo(pCatalog, &conn, TSDB_PERFORMANCE_SCHEMA_DB);
     }
   }
 
