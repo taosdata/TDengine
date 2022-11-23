@@ -445,9 +445,11 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
 
     if (pCtx == NULL || pCtx->pSem == NULL) {
       if (transMsg.info.ahandle == NULL) {
-        if (pMsg == NULL || REQUEST_NO_RESP(&pMsg->msg) || pMsg->type == Release) destroyCmsg(pMsg);
-        once = true;
-        continue;
+        if (pMsg == NULL || REQUEST_NO_RESP(&pMsg->msg) || pMsg->type == Release) {
+          destroyCmsg(pMsg);
+          once = true;
+          continue;
+        }
       }
     }
 
@@ -1214,9 +1216,12 @@ static FORCE_INLINE void destroyUserdata(STransMsg* userdata) {
 
 static FORCE_INLINE void destroyCmsg(void* arg) {
   SCliMsg* pMsg = arg;
+  tDebug("climsg free %p", pMsg);
   if (pMsg == NULL) {
+    tDebug("climsg  no %p", pMsg);
     return;
   }
+
   transDestroyConnCtx(pMsg->ctx);
   destroyUserdata(&pMsg->msg);
   taosMemoryFree(pMsg);
@@ -1605,8 +1610,8 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
   cliMsg->refId = (int64_t)shandle;
 
   STraceId* trace = &pReq->info.traceId;
-  tGDebug("%s send request at thread:%08" PRId64 ", dst:%s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
-          EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
+  tGDebug("%s send request at thread:%08" PRId64 ", dst:%s:%d, app:%p, climsg: %p", transLabel(pTransInst), pThrd->pid,
+          EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle, cliMsg);
   if (0 != transAsyncSend(pThrd->asyncPool, &(cliMsg->q))) {
     destroyCmsg(cliMsg);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
@@ -1651,8 +1656,8 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
   cliMsg->refId = (int64_t)shandle;
 
   STraceId* trace = &pReq->info.traceId;
-  tGDebug("%s send request at thread:%08" PRId64 ", dst:%s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
-          EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
+  tGDebug("%s send request at thread:%08" PRId64 ", dst:%s:%d, app:%p, climsg malloc: %p", transLabel(pTransInst),
+          pThrd->pid, EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle, cliMsg);
 
   int ret = transAsyncSend(pThrd->asyncPool, &cliMsg->q);
   if (ret != 0) {
