@@ -286,6 +286,10 @@ pub async fn tmq_to_td(
     let mut from_params = from.drain_params();
     if from_params.get("group.id").is_none() {
         let to_params = to.drain_params();
+        if let Some(v) = to_params.get("token") {
+            to.set("token", v);
+        }
+
         let group_id = group_id_hash(&from, &to);
         log::info!(
             "group.id not set, will use automatically generated group id: {}",
