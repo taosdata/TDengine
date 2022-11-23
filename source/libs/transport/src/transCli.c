@@ -1035,12 +1035,14 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ip);
     addr.sin_port = (uint16_t)htons((uint16_t)conn->port);
-    tTrace("%s conn %p try to connect to %s:%d", pTransInst->label, conn, conn->ip, conn->port);
+
+    STraceId* trace = &(pMsg->msg.info.traceId);
+    tGTrace("%s conn %p try to connect to %s:%d", pTransInst->label, conn, conn->ip, conn->port);
 
     int ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
     if (ret != 0) {
-      tTrace("%s conn %p failed to connect to %s:%d, reason:%s", pTransInst->label, conn, conn->ip, conn->port,
-             uv_err_name(ret));
+      tGTrace("%s conn %p failed to connect to %s:%d, reason:%s", pTransInst->label, conn, conn->ip, conn->port,
+              uv_err_name(ret));
 
       uv_timer_stop(conn->timer);
       conn->timer->data = NULL;
