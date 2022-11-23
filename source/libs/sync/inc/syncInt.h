@@ -232,6 +232,7 @@ int32_t   syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, S
 int32_t   syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode);
 int32_t   syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHandle** h);
+bool      syncNodeHeartbeatTimeout(SSyncNode* pSyncNode);
 
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
