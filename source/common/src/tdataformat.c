@@ -1126,7 +1126,8 @@ int32_t tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, c
   pCol->colId = colId;
   pCol->flags = flags;
   if (pBuilder->nCols == 0) {
-    pCol->offset = -1;
+    pCol->offset = 0;
+    pBuilder->flen += TYPE_BYTES[type];
   } else {
     pCol->offset = pBuilder->flen;
     pBuilder->flen += TYPE_BYTES[type];
