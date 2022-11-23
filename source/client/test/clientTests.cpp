@@ -782,8 +782,8 @@ TEST(testCase, projection_query_stables) {
 
   char str[512] = {0};
   while ((pRow = taos_fetch_row(pRes)) != NULL) {
-    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    printf("%s\n", str);
+//    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+//    printf("%s\n", str);
   }
 
   taos_free_result(pRes);
