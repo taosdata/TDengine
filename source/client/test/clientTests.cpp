@@ -769,7 +769,7 @@ TEST(testCase, projection_query_stables) {
   TAOS_RES* pRes = taos_query(pConn, "use test");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select * from meters limit 30000000");
+  pRes = taos_query(pConn, "select * from meters limit 50000000");
   if (taos_errno(pRes) != 0) {
     printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
