@@ -416,10 +416,31 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     loadRemoteDataCallback(pWrapper, &pBuf, code);
     taosMemoryFree(pWrapper);
   } else {
-    SResFetchReq* pMsg = taosMemoryCalloc(1, sizeof(SResFetchReq));
-    if (NULL == pMsg) {
+    SResFetchReq req = {0};
+    req.header.vgId = pSource->addr.nodeId;
+    req.sId = pSource->schedId;
+    req.taskId = pSource->taskId;
+    req.queryId = pTaskInfo->id.queryId;
+    req.execId = pSource->execId;
+
+    int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req);
+    if (msgSize < 0) {
       pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
       taosMemoryFree(pWrapper);
+      return pTaskInfo->code;
+    }
+    
+    void* msg = taosMemoryCalloc(1, msgSize);
+    if (NULL == msg) {
+      pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      taosMemoryFree(pWrapper);
+      return pTaskInfo->code;
+    }
+    
+    if (tSerializeSResFetchReq(msg, msgSize, &req) < 0) {
+      pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      taosMemoryFree(pWrapper);
+      taosMemoryFree(msg);
       return pTaskInfo->code;
     }
 
@@ -427,16 +448,10 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
            GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->addr.epSet.eps[0].fqdn, pSource->taskId,
            pSource->execId, sourceIndex, totalSources);
 
-    pMsg->header.vgId = htonl(pSource->addr.nodeId);
-    pMsg->sId = htobe64(pSource->schedId);
-    pMsg->taskId = htobe64(pSource->taskId);
-    pMsg->queryId = htobe64(pTaskInfo->id.queryId);
-    pMsg->execId = htonl(pSource->execId);
-
     // send the fetch remote task result reques
     SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
     if (NULL == pMsgSendInfo) {
-      taosMemoryFreeClear(pMsg);
+      taosMemoryFreeClear(msg);
       taosMemoryFree(pWrapper);
       qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
       pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
@@ -445,8 +460,8 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
     pMsgSendInfo->param = pWrapper;
     pMsgSendInfo->paramFreeFp = taosMemoryFree;
-    pMsgSendInfo->msgInfo.pData = pMsg;
-    pMsgSendInfo->msgInfo.len = sizeof(SResFetchReq);
+    pMsgSendInfo->msgInfo.pData = msg;
+    pMsgSendInfo->msgInfo.len = msgSize;
     pMsgSendInfo->msgType = pSource->fetchMsgType;
     pMsgSendInfo->fp = loadRemoteDataCallback;
 
