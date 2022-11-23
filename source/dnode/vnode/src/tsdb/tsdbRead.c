@@ -2800,20 +2800,26 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   if (pBlockInfo == NULL) {  // build data block from last data file
     ASSERT(pBlockIter->numOfBlocks == 0);
     code = buildComposedDataBlock(pReader);
-  } else if (bufferDataInFileBlockGap(pReader->order, keyInBuf, pBlock)) {
-    // data in memory that are earlier than current file block
-    // rows in buffer should be less than the file block in asc, greater than file block in desc
-    // process mem/imem data first even if fileBlockShouldLoad
-    int64_t endKey = (ASCENDING_TRAVERSE(pReader->order)) ? pBlock->minKey.ts : pBlock->maxKey.ts;
-    code = buildDataBlockFromBuf(pReader, pScanInfo, endKey);
   } else if (fileBlockShouldLoad(pReader, pBlockInfo, pBlock, pScanInfo, keyInBuf, pLastBlockReader)) {
-    code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData, pScanInfo->uid);
+    if (isCleanFileDataBlock(pReader, pBlockInfo, pBlock, pScanInfo, keyInBuf, pLastBlockReader) &&
+        bufferDataInFileBlockGap(pReader->order, keyInBuf, pBlock)) {
+      //load only caused by outputbuf is not enough to hold all rows and buf data is in file block gap 
+      int64_t endKey = (ASCENDING_TRAVERSE(pReader->order)) ? pBlock->minKey.ts : pBlock->maxKey.ts;
+      code = buildDataBlockFromBuf(pReader, pScanInfo, endKey);
+    } else {
+      code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData, pScanInfo->uid);
+    }
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
     // build composed data block
     code = buildComposedDataBlock(pReader);
+  } else if (bufferDataInFileBlockGap(pReader->order, keyInBuf, pBlock)) {
+    // data in memory that are earlier than current file block
+    // rows in buffer should be less than the file block in asc, greater than file block in desc
+    int64_t endKey = (ASCENDING_TRAVERSE(pReader->order)) ? pBlock->minKey.ts : pBlock->maxKey.ts;
+    code = buildDataBlockFromBuf(pReader, pScanInfo, endKey);
   } else {
     if (hasDataInLastBlock(pLastBlockReader) && !ASCENDING_TRAVERSE(pReader->order)) {
       // only return the rows in last block
