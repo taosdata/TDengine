@@ -24,6 +24,21 @@
 #include "tmsg.h"
 #include "ttypes.h"
 
+typedef struct SJoinOperatorInfo {
+  SSDataBlock* pRes;
+  int32_t      joinType;
+  int32_t      inputOrder;
+
+  SSDataBlock* pLeft;
+  int32_t      leftPos;
+  SColumnInfo  leftCol;
+
+  SSDataBlock* pRight;
+  int32_t      rightPos;
+  SColumnInfo  rightCol;
+  SNode*       pCondAfterMerge;
+} SJoinOperatorInfo;
+
 static void         setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
 static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator);
 static void         destroyMergeJoinOperator(void* param);

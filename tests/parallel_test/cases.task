@@ -704,6 +704,7 @@
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
+,,,system-test,python3 ./test.py -f 7-tmq/tmqDnodeRestart1.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqUpdateWithConsume.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot0.py
