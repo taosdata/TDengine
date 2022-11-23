@@ -471,6 +471,8 @@
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws.py -R
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws2.py
 ,,,system-test,python3 ./test.py -f 2-query/concat_ws2.py -R
+,,,system-test,python3 ./test.py -f 2-query/insert_select.py
+,,,system-test,python3 ./test.py -f 2-query/insert_select.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py
@@ -819,6 +821,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q  3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q  3
@@ -913,6 +916,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 3
 ,,,system-test,python3 ./test.py -f 2-query/interp.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q  4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q  4
@@ -1007,6 +1011,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 4
 ,,,system-test,python3 ./test.py -f 2-query/interp.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 4
 
 #develop test
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/auto_create_table_json.py
