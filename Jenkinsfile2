@@ -361,7 +361,7 @@ pipeline {
             }
             parallel {
                 stage('check docs') {
-                    agent{label " slave1_47 || worker03 || slave215 || slave217 || slave219 || Mac_catalina "}
+                    agent{label " slave1_47 "}
                     steps {
                         check_docs()
                     }
@@ -407,7 +407,7 @@ pipeline {
                     }
                 }
                 stage('linux test') {
-                    agent{label " slave1_47 || worker03 || slave215 || slave217 || slave219 "}
+                    agent{label " slave1_47 "}
                     options { skipDefaultCheckout() } 
                     when {
                         changeRequest()
