@@ -216,6 +216,14 @@ int32_t shellRunCommand(TAOS* con, char* command) {
     return 0;
   }
 
+  // add help or help;
+#ifndef WINDOWS  
+  if (strcmp(command, "help") == 0 || strcmp(command, "help;") == 0) {
+    showHelp();
+    return 0;
+  }
+#endif
+
   /* Update the history vector. */
   if (history.hstart == history.hend ||
       history.hist[(history.hend + MAX_HISTORY_SIZE - 1) % MAX_HISTORY_SIZE] == NULL ||
