@@ -739,7 +739,6 @@ void taosFprintfFile(TdFilePtr pFile, const char *format, ...) {
   va_start(ap, format);
   vfprintf(pFile->fp, format, ap);
   va_end(ap);
-  fflush(pFile->fp);
 }
 
 bool taosValidFile(TdFilePtr pFile) { return pFile != NULL && pFile->fd > 0; }

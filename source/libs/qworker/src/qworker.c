@@ -743,7 +743,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     }
 
     QW_LOCK(QW_WRITE, &ctx->lock);
-    if (queryStop || code || 0 == atomic_load_8((int8_t *)&ctx->queryContinue)) {
+    if ((queryStop && (0 == atomic_load_8((int8_t *)&ctx->queryContinue))) || code || 0 == atomic_load_8((int8_t *)&ctx->queryContinue)) {
       // Note: query is not running anymore
       QW_SET_PHASE(ctx, 0);
       QW_UNLOCK(QW_WRITE, &ctx->lock);
@@ -1191,6 +1191,8 @@ void qWorkerStopAllTasks(void *qWorkerMgmt) {
     
     if (QW_QUERY_RUNNING(ctx)) {
       qwKillTaskHandle(ctx);
+    } else if (!QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
+      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
     }
 
     QW_UNLOCK(QW_WRITE, &ctx->lock);
