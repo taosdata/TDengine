@@ -182,7 +182,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
   }
 
   // we have buffered retrieved datablock, return it directly
-  SSDataBlock** p = taosArrayPop(pExchangeInfo->pReadyBlocks);
+  SSDataBlock** p = taosArrayPop(pExchangeInfo->pResultBlockList);
   if (p != NULL) {
     taosArrayPush(pExchangeInfo->pRecycledBlocks, p);
     return *p;
@@ -193,10 +193,10 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
       concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
     }
 
-    if (taosArrayGetSize(pExchangeInfo->pReadyBlocks) == 0) {
+    if (taosArrayGetSize(pExchangeInfo->pResultBlockList) == 0) {
       return NULL;
     } else {
-      p = taosArrayPop(pExchangeInfo->pReadyBlocks);
+      p = taosArrayPop(pExchangeInfo->pResultBlockList);
       taosArrayPush(pExchangeInfo->pRecycledBlocks, p);
       return *p;
     }
@@ -298,7 +298,7 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
 
   tsem_init(&pInfo->ready, 0, 0);
   pInfo->pDummyBlock = createResDataBlock(pExNode->node.pOutputDataBlockDesc);
-  pInfo->pReadyBlocks = taosArrayInit(64, POINTER_BYTES);
+  pInfo->pResultBlockList = taosArrayInit(64, POINTER_BYTES);
   pInfo->pRecycledBlocks = taosArrayInit(64, POINTER_BYTES);
 
   SExchangeOpStopInfo stopInfo = {QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, pInfo->self};
@@ -346,7 +346,7 @@ void doDestroyExchangeOperatorInfo(void* param) {
   taosArrayDestroy(pExInfo->pSources);
   taosArrayDestroyEx(pExInfo->pSourceDataInfo, freeSourceDataInfo);
 
-  taosArrayDestroyEx(pExInfo->pReadyBlocks, freeBlock);
+  taosArrayDestroyEx(pExInfo->pResultBlockList, freeBlock);
   taosArrayDestroyEx(pExInfo->pRecycledBlocks, freeBlock);
 
   blockDataDestroy(pExInfo->pDummyBlock);

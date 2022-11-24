@@ -153,17 +153,17 @@ typedef struct {
   SSchemaWrapper* qsw;
 } SSchemaInfo;
 
-typedef struct {
+typedef struct SExchangeOpStopInfo {
   int32_t operatorType;
   int64_t refId;
 } SExchangeOpStopInfo;
 
-typedef struct {
+typedef struct STaskStopInfo {
   SRWLatch lock;
   SArray*  pStopInfo;
 } STaskStopInfo;
 
-typedef struct SExecTaskInfo {
+struct SExecTaskInfo {
   STaskIdInfo   id;
   uint32_t      status;
   STimeWindow   window;
@@ -260,7 +260,7 @@ typedef struct SExchangeInfo {
 
   // SArray<SSDataBlock*>, result block list, used to keep the multi-block that
   // passed by downstream operator
-  SArray*             pReadyBlocks;
+  SArray*             pResultBlockList;
   SArray*             pRecycledBlocks;// build a pool for small data block to avoid to repeatly create and then destroy.
   SSDataBlock*        pDummyBlock;    // dummy block, not keep data
   bool                seqLoadData;    // sequential load data or not, false by default

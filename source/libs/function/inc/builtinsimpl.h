@@ -30,6 +30,8 @@ typedef struct SSumRes {
     double   dsum;
   };
   int16_t type;
+  int64_t prevTs;
+  bool    isPrevTsSet;
 } SSumRes;
 
 typedef struct SMinmaxResInfo {
