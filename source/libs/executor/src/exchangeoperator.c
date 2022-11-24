@@ -75,7 +75,9 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
   }
 
   while (1) {
+    qDebug("prepare wait for ready, %p, %s", pExchangeInfo, GET_TASKID(pTaskInfo));
     tsem_wait(&pExchangeInfo->ready);
+
     if (isTaskKilled(pTaskInfo)) {
       longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
@@ -360,7 +362,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
   SExchangeInfo* pExchangeInfo = taosAcquireRef(exchangeObjRefPool, pWrapper->exchangeId);
   if (pExchangeInfo == NULL) {
-    qWarn("failed to acquire exchange operator, since it may have been released");
+    qWarn("failed to acquire exchange operator, since it may have been released, %p", pExchangeInfo);
     taosMemoryFree(pMsg->pData);
     return TSDB_CODE_SUCCESS;
   }
@@ -379,20 +381,23 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     pRsp->numOfBlocks = htonl(pRsp->numOfBlocks);
 
     ASSERT(pRsp != NULL);
-    qDebug("%s fetch rsp received, index:%d, blocks:%d, rows:%d", pSourceDataInfo->taskId, index, pRsp->numOfBlocks,
-           pRsp->numOfRows);
+    qDebug("%s fetch rsp received, index:%d, blocks:%d, rows:%d, %p", pSourceDataInfo->taskId, index, pRsp->numOfBlocks,
+           pRsp->numOfRows, pExchangeInfo);
   } else {
     taosMemoryFree(pMsg->pData);
     pSourceDataInfo->code = code;
-    qDebug("%s fetch rsp received, index:%d, error:%s", pSourceDataInfo->taskId, index, tstrerror(code));
+    qDebug("%s fetch rsp received, index:%d, error:%s, %p", pSourceDataInfo->taskId, index, tstrerror(code), pExchangeInfo);
   }
 
   pSourceDataInfo->status = EX_SOURCE_DATA_READY;
+  code = tsem_post(&pExchangeInfo->ready);
+  if (code != TSDB_CODE_SUCCESS) {
+    code = TAOS_SYSTEM_ERROR(code);
+    qError("failed to invoke post when fetch rsp is ready, code:%s, %p", tstrerror(code), pExchangeInfo);
+  }
 
-  tsem_post(&pExchangeInfo->ready);
   taosReleaseRef(exchangeObjRefPool, pWrapper->exchangeId);
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex) {
@@ -444,9 +449,9 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       return pTaskInfo->code;
     }
 
-    qDebug("%s build fetch msg and send to vgId:%d, ep:%s, taskId:0x%" PRIx64 ", execId:%d, %d/%" PRIzu,
+    qDebug("%s build fetch msg and send to vgId:%d, ep:%s, taskId:0x%" PRIx64 ", execId:%d, %p, %d/%" PRIzu,
            GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->addr.epSet.eps[0].fqdn, pSource->taskId,
-           pSource->execId, sourceIndex, totalSources);
+           pSource->execId, pExchangeInfo, sourceIndex, totalSources);
 
     // send the fetch remote task result reques
     SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
