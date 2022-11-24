@@ -1007,6 +1007,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 4
 
 #develop test
 ,,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/auto_create_table_json.py
