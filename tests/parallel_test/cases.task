@@ -595,8 +595,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -R
-,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py
-,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py
@@ -820,7 +820,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 2
-,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 3
@@ -913,7 +913,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 3
-,,,system-test,python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 3
