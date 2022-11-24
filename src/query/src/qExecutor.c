@@ -338,9 +338,9 @@ static void sortGroupResByOrderList(SGroupResInfo* pGroupResInfo, SQueryRuntimeE
   }
 
   // get dataOffset and index on pRuntimeEnv->pQueryAttr->pExpr1
-  int16_t dataOffset = 0;
-  int16_t type = 0;
-  int32_t bytes = 0;
+  uint16_t dataOffset = 0;
+  int16_t  type = 0;
+  int32_t  bytes = 0;
   for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
     SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pDataBlock->pDataBlock, j);
     if (pCtx[j].colId == pFirstGroupCol->colId) {
@@ -2074,7 +2074,7 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv* pRuntimeEnv, SOptrBasic
   SQLFunctionCtx* pCtx = binfo->pCtx;
 
   // not assign result buffer yet, add new result buffer, TODO remove it
-  char*   d = pData;
+  char*    d = pData;
   uint16_t len = bytes;
 
   int64_t     tid = 0;
@@ -2283,7 +2283,7 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     pCtx->numOfParams = pSqlExpr->numOfParams;
     for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
       int16_t type = pSqlExpr->param[j].nType;
-      int16_t bytes = pSqlExpr->param[j].nLen;
+      int32_t bytes = pSqlExpr->param[j].nLen;
       if (pSqlExpr->functionId == TSDB_FUNC_STDDEV_DST || pSqlExpr->functionId == TSDB_FUNC_TS_COMP) {
         continue;
       }
@@ -3297,7 +3297,7 @@ void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p) {
         for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
           SColumnInfoData* pColumnInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
-          int16_t bytes = pColumnInfoData->info.bytes;
+          int32_t bytes = pColumnInfoData->info.bytes;
           memmove(((char*)pColumnInfoData->pData) + start * bytes, pColumnInfoData->pData + cstart * bytes,
                   len * bytes);
         }
@@ -3313,7 +3313,7 @@ void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p) {
     for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
       SColumnInfoData* pColumnInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
-      int16_t bytes = pColumnInfoData->info.bytes;
+      int32_t bytes = pColumnInfoData->info.bytes;
       memmove(pColumnInfoData->pData + start * bytes, pColumnInfoData->pData + cstart * bytes, len * bytes);
     }
 
@@ -6687,7 +6687,7 @@ static SSDataBlock* doLimit(void* param, bool* newgroup) {
       for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
         SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
-        int16_t bytes = pColInfoData->info.bytes;
+        int32_t bytes = pColInfoData->info.bytes;
         memmove(pColInfoData->pData, pColInfoData->pData + skip * bytes, remain * bytes);
       }
 
@@ -7390,7 +7390,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   SOptrBasicInfo* pBInfo = &pInfo->binfo;
 
   bool    masterScan = IS_MASTER_SCAN(pRuntimeEnv);
-  int16_t bytes = pColInfoData->info.bytes;
+  int32_t bytes = pColInfoData->info.bytes;
   //  int16_t     type = pColInfoData->info.type;
 
   SColumnInfoData* pTsColInfoData = taosArrayGet(pSDataBlock->pDataBlock, 0);
@@ -8590,7 +8590,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
 
     count = 0;
 
-    uint16_t bytes = pExprInfo->base.resBytes;
+    int32_t bytes = pExprInfo->base.resBytes;
     int16_t type = pExprInfo->base.resType;
 
     for (int32_t i = 0; i < pQueryAttr->numOfTags; ++i) {
@@ -8665,7 +8665,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
 
       char *  data = NULL, *dst = NULL;
       int16_t type = 0;
-      uint16_t bytes = 0;
+      int32_t bytes = 0;
       for (int32_t j = 0; j < pOperator->numOfOutput; ++j) {
         // not assign value in case of user defined constant output column
         if (TSDB_COL_IS_UD_COL(pExprInfo[j].base.colInfo.flag)) {
@@ -9696,8 +9696,8 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
       tVariantAssign(&pExprs[i].base.param[j], &pExprMsg[i]->param[j]);
     }
 
-    int16_t type = 0;
-    int16_t bytes = 0;
+    int16_t  type = 0;
+    uint16_t bytes = 0;
 
     // parse the arithmetic expression
     if (pExprs[i].base.functionId == TSDB_FUNC_SCALAR_EXPR) {
@@ -9840,7 +9840,7 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t nu
     pExprs[i].base.resType = 0;
 
     int16_t type = 0;
-    int16_t bytes = 0;
+    int32_t bytes = 0;
 
     // parse the arithmetic expression
     if (pExprs[i].base.functionId == TSDB_FUNC_SCALAR_EXPR) {

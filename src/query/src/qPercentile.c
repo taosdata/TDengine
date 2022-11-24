@@ -267,8 +267,8 @@ tMemBucket *tMemBucketCreate(uint16_t nElemSize, int16_t dataType, double minval
     tMemBucketDestroy(pBucket);
     return NULL;
   }
-  
-  qDebug("MemBucket:%p, elem size:%d", pBucket, pBucket->bytes);
+
+  qDebug("MemBucket:%p, elem size:%" PRIu16, pBucket, pBucket->bytes);
   return pBucket;
 }
 

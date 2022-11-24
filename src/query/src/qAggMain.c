@@ -190,12 +190,12 @@ typedef struct {
 } SMovingAvgInfo;
 
 typedef struct  {
-  int32_t totalPoints;
-  int32_t numSampled;
-  int16_t colBytes;
-  char *values;
+  int32_t  totalPoints;
+  int32_t  numSampled;
+  uint16_t colBytes;
+  char    *values;
   int64_t *timeStamps;
-  char  *taglists;
+  char    *taglists;
 } SSampleFuncInfo;
 
 typedef struct SElapsedInfo {
@@ -5271,7 +5271,7 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
 //////////////////////////////////////////////////////////////////////////////////
 // Sample function with reservoir sampling algorithm
 
-static void assignResultSample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int32_t idx, int64_t ts, void *pData, uint16_t type, int16_t bytes, char *inputTags) {
+static void assignResultSample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int32_t idx, int64_t ts, void *pData, uint16_t type, uint16_t bytes, char *inputTags) {
   assignVal(pInfo->values + idx*bytes, pData, bytes, type);
   *(pInfo->timeStamps + idx) = ts;
 
@@ -5296,7 +5296,7 @@ static void assignResultSample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int
   }
 }
 
-static void do_reservoir_sample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int32_t samplesK, int64_t ts, void *pData,  uint16_t type, int16_t bytes) {
+static void do_reservoir_sample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int32_t samplesK, int64_t ts, void *pData,  uint16_t type, uint16_t bytes) {
   pInfo->totalPoints++;
   if (pInfo->numSampled < samplesK) {
     assignResultSample(pCtx, pInfo, pInfo->numSampled, ts, pData, type, bytes, NULL);

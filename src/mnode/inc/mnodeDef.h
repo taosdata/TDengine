@@ -288,10 +288,10 @@ typedef struct {
   int32_t  index;
   int32_t  rowSize;
   int32_t  numOfRows;
-  void *   pIter;
-  void *   pVgIter;
-  void **  ppShow;
-  int16_t  offset[TSDB_MAX_COLUMNS];
+  void    *pIter;
+  void    *pVgIter;
+  void   **ppShow;
+  uint16_t offset[TSDB_MAX_COLUMNS];
   int32_t  bytes[TSDB_MAX_COLUMNS];
   int32_t  numOfReads;
   int8_t   maxReplica;
