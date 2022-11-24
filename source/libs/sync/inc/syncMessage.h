@@ -137,6 +137,7 @@ typedef struct SyncHeartbeatReply {
   SyncTerm term;
   SyncTerm privateTerm;
   int64_t  startTime;
+  int64_t  timeStamp;
 } SyncHeartbeatReply;
 
 typedef struct SyncPreSnapshot {

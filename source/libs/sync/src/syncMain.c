@@ -639,6 +639,14 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
     return -1;
   }
 
+  // heartbeat timeout
+  if (syncNodeHeartbeatTimeout(pSyncNode)) {
+    terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
+    sNError(pSyncNode, "failed to sync propose since hearbeat timeout, type:%s, last:%" PRId64 ", cmt:%" PRId64,
+            TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
+    return -1;
+  }
+
   // optimized one replica
   if (syncNodeIsOptimizedOneReplica(pSyncNode, pMsg)) {
     SyncIndex retIndex;
@@ -2086,6 +2094,29 @@ int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHand
   return code;
 }
 
+bool syncNodeHeartbeatTimeout(SSyncNode* pSyncNode) {
+  if (pSyncNode->replicaNum == 1) {
+    return false;
+  }
+
+  int32_t toCount = 0;
+  int64_t tsNow = taosGetTimestampMs();
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
+    int64_t recvTime = syncIndexMgrGetRecvTime(pSyncNode->pMatchIndex, &(pSyncNode->peersId[i]));
+    if (recvTime == 0 || recvTime == -1) {
+      continue;
+    }
+
+    if (tsNow - recvTime > SYNC_HEART_TIMEOUT_MS) {
+      toCount++;
+    }
+  }
+
+  bool b = (toCount >= pSyncNode->quorum ? true : false);
+
+  return b;
+}
+
 static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   int32_t ret = 0;
 
@@ -2127,6 +2158,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pMsgReply->srcId = ths->myRaftId;
   pMsgReply->term = ths->pRaftStore->currentTerm;
   pMsgReply->privateTerm = 8864;  // magic number
+  pMsgReply->timeStamp = taosGetTimestampMs();
 
   if (pMsg->term == ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_LEADER) {
     syncNodeResetElectTimer(ths);
@@ -2190,8 +2222,10 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
   syncLogRecvHeartbeatReply(ths, pMsg, "");
 
+  int64_t tsMs = taosGetTimestampMs();
+
   // update last reply time, make decision whether the other node is alive or not
-  syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->destId, pMsg->startTime);
+  syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
   return 0;
 }
 

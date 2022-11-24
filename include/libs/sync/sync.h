@@ -41,6 +41,7 @@ extern "C" {
 #define SNAPSHOT_WAIT_MS             1000 * 30
 
 #define SYNC_APPEND_ENTRIES_TIMEOUT_MS 10000
+#define SYNC_HEART_TIMEOUT_MS          1000 * 8
 
 #define SYNC_MAX_BATCH_SIZE 1
 #define SYNC_INDEX_BEGIN    0
