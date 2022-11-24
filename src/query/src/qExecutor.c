@@ -5959,7 +5959,13 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
 
   __compar_fn_t  comp = getKeyComparFunc(pSchema[pInfo->colIndex].type, pInfo->order);
   if (pInfo->pDataBlock->info.rows) {
-    taoscQSort(pCols, pSchema, numOfCols, pInfo->pDataBlock->info.rows, pInfo->colIndex, comp);
+    int32_t code = taoscQSort(pCols, pSchema, numOfCols, pInfo->pDataBlock->info.rows, pInfo->colIndex, comp);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("QInfo:0x%"PRIx64 " can not sort since %s", GET_QID(pOperator->pRuntimeEnv), tstrerror(code));
+      tfree(pCols);
+      tfree(pSchema);
+      longjmp(pOperator->pRuntimeEnv->env, code);
+    }
   }
   
   tfree(pCols);
