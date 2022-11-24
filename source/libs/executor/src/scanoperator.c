@@ -1849,12 +1849,12 @@ FETCH_NEXT_BLOCK:
           prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
           copyDataBlock(pInfo->pDeleteDataRes, pInfo->pUpdateRes);
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_DATA;
-          pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
           printDataBlock(pDelBlock, "stream scan delete data");
           if (pInfo->tqReader) {
             blockDataDestroy(pDelBlock);
           }
           if (pInfo->pDeleteDataRes->info.rows > 0) {
+            pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
             return pInfo->pDeleteDataRes;
           } else {
             goto FETCH_NEXT_BLOCK;
