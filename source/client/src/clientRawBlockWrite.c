@@ -1275,7 +1275,6 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
       nVar++;
     }
   }
-  fLen -= sizeof(TSKEY);
 
   int32_t extendedRowSize = rowSize + TD_ROW_HEAD_LEN - sizeof(TSKEY) + nVar * sizeof(VarDataOffsetT) +
                             (int32_t)TD_BITMAP_BYTES(numOfCols - 1);
@@ -1334,9 +1333,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
         }
       }
 
-      if (pColumn->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
-        offset += TYPE_BYTES[pColumn->type];
-      }
+      offset += TYPE_BYTES[pColumn->type];
     }
     tdSRowEnd(&rb);
     int32_t rowLen = TD_ROW_LEN(rowData);
@@ -1506,7 +1503,6 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
         nVar++;
       }
     }
-    fLen -= sizeof(TSKEY);
 
     int32_t rows = rspObj.resInfo.numOfRows;
     int32_t extendedRowSize = rowSize + TD_ROW_HEAD_LEN - sizeof(TSKEY) + nVar * sizeof(VarDataOffsetT) +
@@ -1589,9 +1585,8 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
             tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, colData, true, offset, k);
           }
         }
-        if (pColumn->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
-          offset += TYPE_BYTES[pColumn->type];
-        }
+
+        offset += TYPE_BYTES[pColumn->type];
       }
       tdSRowEnd(&rb);
       int32_t rowLen = TD_ROW_LEN(rowData);
@@ -1808,7 +1803,6 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
         nVar++;
       }
     }
-    fLen -= sizeof(TSKEY);
 
     int32_t rows = rspObj.resInfo.numOfRows;
     int32_t extendedRowSize = rowSize + TD_ROW_HEAD_LEN - sizeof(TSKEY) + nVar * sizeof(VarDataOffsetT) +
@@ -1894,9 +1888,8 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
             tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, colData, true, offset, k);
           }
         }
-        if (pColumn->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
-          offset += TYPE_BYTES[pColumn->type];
-        }
+
+        offset += TYPE_BYTES[pColumn->type];
       }
       tdSRowEnd(&rb);
       int32_t rowLen = TD_ROW_LEN(rowData);
