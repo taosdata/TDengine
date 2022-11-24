@@ -432,7 +432,7 @@ static int32_t handleInt16Col(SColumnInfoData* pCol, int32_t start, int32_t numO
   int16_t* val = (int16_t*)&pBuf->v;
 
   int32_t numOfElems = 0;
-  if (pCol->hasNull || numOfRows <= 8 || pCtx->subsidiaries.num > 0) {
+  if (pCol->hasNull || numOfRows <= 16 || pCtx->subsidiaries.num > 0) {
     int32_t i = findFirstVal(pCol, start, numOfRows);
 
     if ((i < (start + numOfRows)) && (!pBuf->assign)) {
