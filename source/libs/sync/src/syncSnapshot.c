@@ -881,8 +881,8 @@ int32_t syncNodeOnSnapshotReply(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
         snapshotSenderStop(pSender, true);
 
         // update next-index
-        syncIndexMgrSetIndex(pSyncNode->pNextIndex, &(pMsg->srcId), pMsg->lastIndex + 1);
-        syncNodeReplicateOne(pSyncNode, &(pMsg->srcId), false);
+        // syncIndexMgrSetIndex(pSyncNode->pNextIndex, &(pMsg->srcId), pMsg->lastIndex + 1);
+        // syncNodeReplicateOne(pSyncNode, &(pMsg->srcId), false);
 
         return 0;
       }
