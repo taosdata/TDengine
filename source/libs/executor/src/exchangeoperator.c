@@ -51,9 +51,9 @@ typedef struct SSourceDataInfo {
   const char*        taskId;
 } SSourceDataInfo;
 
-static void destroyExchangeOperatorInfo(void* param);
-static void freeBlock(void* pParam);
-static void freeSourceDataInfo(void* param);
+static void  destroyExchangeOperatorInfo(void* param);
+static void  freeBlock(void* pParam);
+static void  freeSourceDataInfo(void* param);
 static void* setAllSourcesCompleted(SOperatorInfo* pOperator);
 
 static int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code);
@@ -62,7 +62,9 @@ static int32_t getCompletedSources(const SArray* pArray);
 static int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator);
 static int32_t seqLoadRemoteData(SOperatorInfo* pOperator);
 static int32_t prepareLoadRemoteData(SOperatorInfo* pOperator);
-static int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, bool holdDataInBuf);
+static int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock,
+                                 bool holdDataInBuf);
+static int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo);
 
 static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo,
                                            SExecTaskInfo* pTaskInfo) {
@@ -105,41 +107,33 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
       if (pRsp->numOfRows == 0) {
         pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
         qDebug("%s vgId:%d, taskId:0x%" PRIx64 " execId:%d index:%d completed, rowsOfSource:%" PRIu64
-                   ", totalRows:%" PRIu64 ", try next %d/%" PRIzu,
+               ", totalRows:%" PRIu64 ", try next %d/%" PRIzu,
                GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, i, pDataInfo->totalRows,
                pExchangeInfo->loadInfo.totalRows, i + 1, totalSources);
         taosMemoryFreeClear(pDataInfo->pRsp);
         break;
       }
 
-      SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
-      int32_t            index = 0;
-      char*              pStart = pRetrieveRsp->data;
-      while (index++ < pRetrieveRsp->numOfBlocks) {
-        SSDataBlock* pb = createOneDataBlock(pExchangeInfo->pDummyBlock, false);
-        code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart);
-        if (code != 0) {
-          taosMemoryFreeClear(pDataInfo->pRsp);
-          goto _error;
-        }
-
-        taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
+      code = doExtractResultBlocks(pExchangeInfo, pDataInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _error;
       }
 
+      SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
       updateLoadRemoteInfo(pLoadInfo, pRetrieveRsp->numOfRows, pRetrieveRsp->compLen, pDataInfo->startTime, pOperator);
       pDataInfo->totalRows += pRetrieveRsp->numOfRows;
 
       if (pRsp->completed == 1) {
         pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
         qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64
-                   " execId:%d index:%d completed, blocks:%d, numOfRows:%d, rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64
-                   ", total:%.2f Kb, try next %d/%" PRIzu,
+               " execId:%d index:%d completed, blocks:%d, numOfRows:%d, rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64
+               ", total:%.2f Kb, try next %d/%" PRIzu,
                GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, i, pRsp->numOfBlocks,
-               pRsp->numOfRows, pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0,
-               i + 1, totalSources);
+               pRsp->numOfRows, pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0, i + 1,
+               totalSources);
       } else {
         qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64
-                   " execId:%d blocks:%d, numOfRows:%d, totalRows:%" PRIu64 ", total:%.2f Kb",
+               " execId:%d blocks:%d, numOfRows:%d, totalRows:%" PRIu64 ", total:%.2f Kb",
                GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pRsp->numOfBlocks,
                pRsp->numOfRows, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0);
       }
@@ -164,7 +158,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
     }
   }
 
-  _error:
+_error:
   pTaskInfo->code = code;
 }
 
@@ -305,17 +299,19 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
 
   SExchangeOpStopInfo stopInfo = {QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, pInfo->self};
   qAppendTaskStopInfo(pTaskInfo, &stopInfo);
-  
-  pInfo->seqLoadData = false;
+
+  pInfo->seqLoadData = pExNode->seqRecvData;
   pInfo->pTransporter = pTransporter;
 
-  setOperatorInfo(pOperator, "ExchangeOperator", QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, false, OP_NOT_OPENED, pInfo, pTaskInfo);
+  setOperatorInfo(pOperator, "ExchangeOperator", QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, false, OP_NOT_OPENED, pInfo,
+                  pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pDummyBlock->pDataBlock);
 
-  pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, doLoadRemoteData, NULL, destroyExchangeOperatorInfo, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(prepareLoadRemoteData, doLoadRemoteData, NULL, destroyExchangeOperatorInfo, NULL);
   return pOperator;
 
-  _error:
+_error:
   if (pInfo != NULL) {
     doDestroyExchangeOperatorInfo(pInfo);
   }
@@ -386,7 +382,8 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   } else {
     taosMemoryFree(pMsg->pData);
     pSourceDataInfo->code = code;
-    qDebug("%s fetch rsp received, index:%d, error:%s, %p", pSourceDataInfo->taskId, index, tstrerror(code), pExchangeInfo);
+    qDebug("%s fetch rsp received, index:%d, error:%s, %p", pSourceDataInfo->taskId, index, tstrerror(code),
+           pExchangeInfo);
   }
 
   pSourceDataInfo->status = EX_SOURCE_DATA_READY;
@@ -434,14 +431,14 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       taosMemoryFree(pWrapper);
       return pTaskInfo->code;
     }
-    
+
     void* msg = taosMemoryCalloc(1, msgSize);
     if (NULL == msg) {
       pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
       taosMemoryFree(pWrapper);
       return pTaskInfo->code;
     }
-    
+
     if (tSerializeSResFetchReq(msg, msgSize, &req) < 0) {
       pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
       taosMemoryFree(pWrapper);
@@ -531,7 +528,7 @@ void* setAllSourcesCompleted(SOperatorInfo* pOperator) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
   SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
-  size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
+  size_t               totalSources = taosArrayGetSize(pExchangeInfo->pSources);
   qDebug("%s all %" PRIzu " sources are exhausted, total rows: %" PRIu64 ", %.2f Kb, elapsed:%.2f ms",
          GET_TASKID(pTaskInfo), totalSources, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0,
          pLoadInfo->totalElapsed / 1000.0);
@@ -581,15 +578,37 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
   if (isTaskKilled(pTaskInfo)) {
     longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
   }
-  
+
   tsem_post(&pExchangeInfo->ready);
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo) {
+  SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
+
+  char*   pStart = pRetrieveRsp->data;
+  int32_t index = 0;
+  int32_t code = 0;
+  while (index++ < pRetrieveRsp->numOfBlocks) {
+    SSDataBlock* pb = createOneDataBlock(pExchangeInfo->pDummyBlock, false);
+
+    code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart);
+    if (code != 0) {
+      taosMemoryFreeClear(pDataInfo->pRsp);
+      return code;
+    }
+
+    taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
+  }
+
+  return code;
 }
 
 int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
+  int32_t code = 0;
   size_t  totalSources = taosArrayGetSize(pExchangeInfo->pSources);
   int64_t startTs = taosGetTimestampUs();
 
@@ -599,13 +618,15 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
       return TSDB_CODE_SUCCESS;
     }
 
+    SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, pExchangeInfo->current);
+    pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
+
     doSendFetchDataRequest(pExchangeInfo, pTaskInfo, pExchangeInfo->current);
     tsem_wait(&pExchangeInfo->ready);
     if (isTaskKilled(pTaskInfo)) {
       longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
 
-    SSourceDataInfo*       pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, pExchangeInfo->current);
     SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
 
     if (pDataInfo->code != TSDB_CODE_SUCCESS) {
@@ -619,7 +640,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
     if (pRsp->numOfRows == 0) {
       qDebug("%s vgId:%d, taskID:0x%" PRIx64 " execId:%d %d of total completed, rowsOfSource:%" PRIu64
-                 ", totalRows:%" PRIu64 " try next",
+             ", totalRows:%" PRIu64 " try next",
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pExchangeInfo->current + 1,
              pDataInfo->totalRows, pLoadInfo->totalRows);
 
@@ -629,14 +650,15 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
       continue;
     }
 
+    code = doExtractResultBlocks(pExchangeInfo, pDataInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
+
     SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
-
-    char*   pStart = pRetrieveRsp->data;
-    int32_t code = extractDataBlockFromFetchRsp(NULL, pStart, NULL, &pStart);
-
     if (pRsp->completed == 1) {
       qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d numOfRows:%d, rowsOfSource:%" PRIu64
-                 ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64 " try next %d/%" PRIzu,
+             ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64 " try next %d/%" PRIzu,
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pRetrieveRsp->numOfRows,
              pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize, pExchangeInfo->current + 1,
              totalSources);
@@ -645,7 +667,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
       pExchangeInfo->current += 1;
     } else {
       qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d numOfRows:%d, totalRows:%" PRIu64
-                 ", totalBytes:%" PRIu64,
+             ", totalBytes:%" PRIu64,
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pRetrieveRsp->numOfRows,
              pLoadInfo->totalRows, pLoadInfo->totalSize);
     }
@@ -656,6 +678,10 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     taosMemoryFreeClear(pDataInfo->pRsp);
     return TSDB_CODE_SUCCESS;
   }
+
+_error:
+  pTaskInfo->code = code;
+  return code;
 }
 
 int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
