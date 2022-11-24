@@ -490,7 +490,7 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
   }
 }
 
-void tRowDestroy(SRow *pRow) { tFree(pRow); }
+void tRowDestroy(SRow *pRow) { tFree((uint8_t *)pRow); }
 
 // SRowIter ========================================
 struct SRowIter {
