@@ -1466,7 +1466,7 @@ bool isCreateFieldsArea(char* p) {
     // set string end by small for next strrchr search
     *left = 0;
   }
-  taosMemoryFree(p1);
+  free(p1);
 
   return ret;
 }
