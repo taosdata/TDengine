@@ -857,9 +857,15 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status) {
     SIF_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
   *status = res->status;
-
   sifFreeParam(res);
   taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+
+  void *iter = taosHashIterate(ctx.pRes, NULL);
+  while (iter != NULL) {
+    SIFParam *data = (SIFParam *)iter;
+    sifFreeParam(data);
+    iter = taosHashIterate(ctx.pRes, iter);
+  }
   taosHashCleanup(ctx.pRes);
   return code;
 }
