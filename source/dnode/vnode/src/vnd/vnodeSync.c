@@ -306,10 +306,10 @@ static void vnodeSyncApplyMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const S
   rpcMsg.info.conn.applyTerm = pMeta->term;
 
   const STraceId *trace = &pMsg->info.traceId;
-  vGTrace("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
-          ", weak:%d, code:%d, state:%d %s, type:%s",
-          pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, rpcMsg.info.conn.applyIndex, pMeta->isWeak, pMeta->code,
-          pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType));
+  vGInfo("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
+         ", weak:%d, code:%d, state:%d %s, type:%s",
+         pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, rpcMsg.info.conn.applyIndex, pMeta->isWeak, pMeta->code,
+         pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType));
 
   tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
 }
@@ -409,7 +409,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm) {
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
-  vDebug("vgId:%d, become follower", pVnode->config.vgId);
+  vInfo("vgId:%d, become follower", pVnode->config.vgId);
 
   taosThreadMutexLock(&pVnode->lock);
   if (pVnode->blocked) {
