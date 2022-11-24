@@ -53,7 +53,7 @@ build_binary() {
     elif [ "$REPO" = "taoskeeper" ]; then
       go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeper/version.Version=$latest'" -o taoskeeper main.go
     fi
-    upx taoskeeper > /dev/null 2>&1 || :
+#    upx taoskeeper > /dev/null 2>&1 || :
    
   fi
   readlink -f taoskeeper
