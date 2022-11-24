@@ -3655,6 +3655,11 @@ static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSData
     setSessionWinOutputInfo(pStUpdated, &winInfo);
     winRows = updateSessionWindowInfo(&winInfo, startTsCols, endTsCols, groupId, rows, i, pAggSup->gap,
                                       pAggSup->pResultRows, pStUpdated, pStDeleted);
+    // coverity scan error
+    if (!winInfo.pOutputBuf) {
+      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
+    }
+  
     code = doOneWindowAggImpl(&pInfo->twAggSup.timeWindowData, &winInfo, &pResult, i, winRows, rows, numOfOutput,
                               pOperator);
     if (code != TSDB_CODE_SUCCESS || pResult == NULL) {

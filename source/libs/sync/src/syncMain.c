@@ -2509,6 +2509,8 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
         SRpcMsg rpcMsg = {0};
         syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
+        sTrace("do commit index:%" PRId64 ", type:%s", i, TMSG_INFO(pEntry->msgType));
+
         // user commit
         if ((ths->pFsm->FpCommitCb != NULL) && syncUtilUserCommit(pEntry->originalRpcType)) {
           bool internalExecute = true;
@@ -2516,7 +2518,8 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
             internalExecute = false;
           }
 
-          sNTrace(ths, "commit index:%" PRId64 ", internal:%d", i, internalExecute);
+          sNTrace(ths, "user commit index:%" PRId64 ", internal:%d, type:%s", i, internalExecute,
+                  TMSG_INFO(pEntry->msgType));
 
           // execute fsm in apply thread, or execute outside syncPropose
           if (internalExecute) {
