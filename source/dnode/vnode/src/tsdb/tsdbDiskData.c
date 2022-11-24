@@ -595,21 +595,21 @@ int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTS
   if (pBuilder->bi.minKey > kRow.ts) pBuilder->bi.minKey = kRow.ts;
   if (pBuilder->bi.maxKey < kRow.ts) pBuilder->bi.maxKey = kRow.ts;
 
-  STSDBRowIter iter = {0};
-  tsdbRowIterInit(&iter, pRow, pTSchema);
+  SRowIter iter = {0};
+  tRowIterInit(&iter, pRow, pTSchema);
 
-  SColVal *pColVal = tsdbRowIterNext(&iter);
+  SColVal *pColVal = tRowIterNext(&iter);
   for (int32_t iBuilder = 0; iBuilder < pBuilder->nBuilder; iBuilder++) {
     SDiskColBuilder *pDCBuilder = (SDiskColBuilder *)taosArrayGet(pBuilder->aBuilder, iBuilder);
 
     while (pColVal && pColVal->cid < pDCBuilder->cid) {
-      pColVal = tsdbRowIterNext(&iter);
+      pColVal = tRowIterNext(&iter);
     }
 
     if (pColVal && pColVal->cid == pDCBuilder->cid) {
       code = tDiskColAddVal(pDCBuilder, pColVal);
       if (code) return code;
-      pColVal = tsdbRowIterNext(&iter);
+      pColVal = tRowIterNext(&iter);
     } else {
       code = tDiskColAddVal(pDCBuilder, &COL_VAL_NONE(pDCBuilder->cid, pDCBuilder->type));
       if (code) return code;

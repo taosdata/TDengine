@@ -579,8 +579,8 @@ int32_t tsdbRowCmprFn(const void *p1, const void *p2) {
   return tsdbKeyCmprFn(&TSDBROW_KEY((TSDBROW *)p1), &TSDBROW_KEY((TSDBROW *)p2));
 }
 
-// STSDBRowIter ======================================================
-void tsdbRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
+// SRowIter ======================================================
+void tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
   pIter->pRow = pRow;
   if (pRow->type == 0) {
     ASSERT(pTSchema);
@@ -594,7 +594,7 @@ void tsdbRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
   }
 }
 
-SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
+SColVal *tRowIterNext(SRowIter *pIter) {
   if (pIter->pRow->type == 0) {
     if (pIter->i < pIter->pTSchema->numOfCols) {
       tTSRowGetVal(pIter->pRow->pTSRow, pIter->pTSchema, pIter->i, &pIter->colVal);
@@ -1084,11 +1084,11 @@ static int32_t tBlockDataAppendTPRow(SBlockData *pBlockData, STSRow *pRow, STSch
           cv.flag = CV_FLAG_VALUE;
 
           if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-            void *pData = (char *)pRow + *(int32_t *)(pRow->data + pTColumn->offset);
+            void *pData = (char *)pRow + *(int32_t *)(pRow->data + pTColumn->offset - sizeof(TSKEY));
             cv.value.nData = varDataLen(pData);
             cv.value.pData = varDataVal(pData);
           } else {
-            memcpy(&cv.value.val, pRow->data + pTColumn->offset, pTColumn->bytes);
+            memcpy(&cv.value.val, pRow->data + pTColumn->offset - sizeof(TSKEY), pTColumn->bytes);
           }
 
           code = tColDataAppendValue(pColData, &cv);
@@ -1106,11 +1106,11 @@ static int32_t tBlockDataAppendTPRow(SBlockData *pBlockData, STSRow *pRow, STSch
         cv.flag = CV_FLAG_VALUE;
 
         if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-          void *pData = (char *)pRow + *(int32_t *)(pRow->data + pTColumn->offset);
+          void *pData = (char *)pRow + *(int32_t *)(pRow->data + pTColumn->offset - sizeof(TSKEY));
           cv.value.nData = varDataLen(pData);
           cv.value.pData = varDataVal(pData);
         } else {
-          memcpy(&cv.value.val, pRow->data + pTColumn->offset, pTColumn->bytes);
+          memcpy(&cv.value.val, pRow->data + pTColumn->offset - sizeof(TSKEY), pTColumn->bytes);
         }
 
         code = tColDataAppendValue(pColData, &cv);

@@ -2432,7 +2432,8 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
     TSDBKEY   keyInBuf = getCurrentKeyInBuf(pBlockScanInfo, pReader);
 
     // it is a clean block, load it directly
-    if (isCleanFileDataBlock(pReader, pBlockInfo, pBlock, pBlockScanInfo, keyInBuf, pLastBlockReader)) {
+    if (isCleanFileDataBlock(pReader, pBlockInfo, pBlock, pBlockScanInfo, keyInBuf, pLastBlockReader) && 
+        pBlock->nRow <= pReader->capacity) {
       if (asc || ((!asc) && (!hasDataInLastBlock(pLastBlockReader)))) {
         copyBlockDataToSDataBlock(pReader, pBlockScanInfo);
 
