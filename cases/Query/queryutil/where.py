@@ -179,7 +179,7 @@ class TDWhere():
         # t_like_match = random.sample(t_like,1) + random.sample(t_match,1) + random.sample(t_match_regular,2)
         # t_like_match = random.sample(t_like_match,1)
         t_like_match = random.sample(t_like,1) + random.sample(t_match,1)
-        t_like_match = random.sample(t_like_match,1)
+        t_like_match = random.sample(t_match,1)
 
         t_tinyint_list=[]
         for i in range(-1000,1000):
