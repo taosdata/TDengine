@@ -213,9 +213,11 @@ int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destId, SRpcM
 }
 
 int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
+  int64_t ts = taosGetTimestampMs();
   for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     SRpcMsg rpcMsg = {0};
     if (syncBuildHeartbeat(&rpcMsg, pSyncNode->vgId) != 0) {
+      sError("vgId:%d, build sync-heartbeat error", pSyncNode->vgId);
       continue;
     }
 
@@ -226,6 +228,7 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     pSyncMsg->commitIndex = pSyncNode->commitIndex;
     pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
     pSyncMsg->privateTerm = 0;
+    pSyncMsg->timeStamp = ts;
 
     // send msg
     syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
