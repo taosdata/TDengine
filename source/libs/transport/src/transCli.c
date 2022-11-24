@@ -445,9 +445,11 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
 
     if (pCtx == NULL || pCtx->pSem == NULL) {
       if (transMsg.info.ahandle == NULL) {
-        if (pMsg == NULL || REQUEST_NO_RESP(&pMsg->msg) || pMsg->type == Release) destroyCmsg(pMsg);
-        once = true;
-        continue;
+        if (pMsg == NULL || REQUEST_NO_RESP(&pMsg->msg) || pMsg->type == Release) {
+          destroyCmsg(pMsg);
+          once = true;
+          continue;
+        }
       }
     }
 
@@ -791,6 +793,7 @@ void cliSend(SCliConn* pConn) {
 
   int            msgLen = transMsgLenFromCont(pMsg->contLen);
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
+
   pHead->ahandle = pCtx != NULL ? (uint64_t)pCtx->ahandle : 0;
   pHead->noResp = REQUEST_NO_RESP(pMsg) ? 1 : 0;
   pHead->persist = REQUEST_PERSIS_HANDLE(pMsg) ? 1 : 0;
@@ -820,10 +823,15 @@ void cliSend(SCliConn* pConn) {
     uv_timer_start((uv_timer_t*)pConn->timer, cliReadTimeoutCb, TRANS_READ_TIMEOUT, 0);
   }
 
-  if (pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
-    msgLen = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
-    pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
+  if (pHead->comp == 0) {
+    if (pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
+      msgLen = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
+      pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
+    }
+  } else {
+    msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
   }
+
   tGDebug("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
           TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, msgLen);
 
@@ -1211,6 +1219,7 @@ static FORCE_INLINE void destroyCmsg(void* arg) {
   if (pMsg == NULL) {
     return;
   }
+
   transDestroyConnCtx(pMsg->ctx);
   destroyUserdata(&pMsg->msg);
   taosMemoryFree(pMsg);

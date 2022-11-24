@@ -5672,12 +5672,12 @@ int32_t modeFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElems = 0;
   int32_t startOffset = pCtx->offset;
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-    char* data = colDataGetData(pInputCol, i);
     if (colDataIsNull_s(pInputCol, i)) {
       continue;
     }
-
     numOfElems++;
+
+    char* data = colDataGetData(pInputCol, i);
     doModeAdd(pInfo, i, pCtx, data);
 
     if (sizeof(SModeInfo) + pInfo->numOfPoints * (sizeof(SModeItem) + pInfo->colBytes) >= MODE_MAX_RESULT_SIZE) {
@@ -6568,7 +6568,9 @@ int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx) {
   for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
     numOfElems++;
 
-    char* data = colDataGetData(pInputCol, i);
+    bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
+    char* data = isNull ? NULL : colDataGetData(pInputCol, i);
+
     TSKEY cts = getRowPTs(pInput->pPTS, i);
     if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
       doSaveLastrow(pCtx, data, i, cts, pInfo);

@@ -639,6 +639,14 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
     return -1;
   }
 
+  // heartbeat timeout
+  if (syncNodeHeartbeatReplyTimeout(pSyncNode)) {
+    terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
+    sNError(pSyncNode, "failed to sync propose since hearbeat timeout, type:%s, last:%" PRId64 ", cmt:%" PRId64,
+            TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
+    return -1;
+  }
+
   // optimized one replica
   if (syncNodeIsOptimizedOneReplica(pSyncNode, pMsg)) {
     SyncIndex retIndex;
@@ -2031,6 +2039,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
       pSyncMsg->commitIndex = pSyncNode->commitIndex;
       pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
       pSyncMsg->privateTerm = 0;
+      pSyncMsg->timeStamp = taosGetTimestampMs();
 
       // send msg
       syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
@@ -2086,6 +2095,29 @@ int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHand
   return code;
 }
 
+bool syncNodeHeartbeatReplyTimeout(SSyncNode* pSyncNode) {
+  if (pSyncNode->replicaNum == 1) {
+    return false;
+  }
+
+  int32_t toCount = 0;
+  int64_t tsNow = taosGetTimestampMs();
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
+    int64_t recvTime = syncIndexMgrGetRecvTime(pSyncNode->pMatchIndex, &(pSyncNode->peersId[i]));
+    if (recvTime == 0 || recvTime == -1) {
+      continue;
+    }
+
+    if (tsNow - recvTime > SYNC_HEART_TIMEOUT_MS) {
+      toCount++;
+    }
+  }
+
+  bool b = (toCount >= pSyncNode->quorum ? true : false);
+
+  return b;
+}
+
 static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   int32_t ret = 0;
 
@@ -2117,7 +2149,11 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
 
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
-  syncLogRecvHeartbeat(ths, pMsg, "");
+
+  int64_t tsMs = taosGetTimestampMs();
+  char    buf[128];
+  snprintf(buf, sizeof(buf), "recv local time:%" PRId64, tsMs);
+  syncLogRecvHeartbeat(ths, pMsg, buf);
 
   SRpcMsg rpcMsg = {0};
   (void)syncBuildHeartbeatReply(&rpcMsg, ths->vgId);
@@ -2127,8 +2163,11 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pMsgReply->srcId = ths->myRaftId;
   pMsgReply->term = ths->pRaftStore->currentTerm;
   pMsgReply->privateTerm = 8864;  // magic number
+  pMsgReply->timeStamp = taosGetTimestampMs();
 
   if (pMsg->term == ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_LEADER) {
+    syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), tsMs);
+
     syncNodeResetElectTimer(ths);
     ths->minMatchIndex = pMsg->minMatchIndex;
 
@@ -2188,10 +2227,14 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
-  syncLogRecvHeartbeatReply(ths, pMsg, "");
+
+  int64_t tsMs = taosGetTimestampMs();
+  char    buf[128];
+  snprintf(buf, sizeof(buf), "recv local time:%" PRId64, tsMs);
+  syncLogRecvHeartbeatReply(ths, pMsg, buf);
 
   // update last reply time, make decision whether the other node is alive or not
-  syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->destId, pMsg->startTime);
+  syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
   return 0;
 }
 

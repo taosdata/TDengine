@@ -84,6 +84,7 @@ do
   if [ $AsanFileLen -gt 10 ]; then
     break
   fi
+  sleep 1
 done 
 
 AsanFileSuccessLen=`grep -w successfully $AsanFile | wc -l`
