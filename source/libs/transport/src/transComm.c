@@ -497,7 +497,7 @@ void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg)) {
     SDelayTask* task = container_of(minNode, SDelayTask, node);
 
     STaskArg* arg = task->arg;
-    if (freeFunc) freeFunc(arg->param1);
+    if (freeFunc) freeFunc(arg);
     taosMemoryFree(arg);
 
     taosMemoryFree(task);

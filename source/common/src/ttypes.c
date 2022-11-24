@@ -61,26 +61,36 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
 static float  floatMin = -FLT_MAX, floatMax = FLT_MAX;
 static double doubleMin = -DBL_MAX, doubleMax = DBL_MAX;
 
-FORCE_INLINE void *getDataMin(int32_t type) {
+FORCE_INLINE void *getDataMin(int32_t type, void *value) {
   switch (type) {
     case TSDB_DATA_TYPE_FLOAT:
-      return &floatMin;
+      *(float *)value = floatMin;
+      break;
     case TSDB_DATA_TYPE_DOUBLE:
-      return &doubleMin;
+      *(double *)value = doubleMin;
+      break;
     default:
-      return &tDataTypes[type].minValue;
+      *(int64_t *)value = tDataTypes[type].minValue;
+      break;
   }
+
+  return value;
 }
 
-FORCE_INLINE void *getDataMax(int32_t type) {
+FORCE_INLINE void *getDataMax(int32_t type, void *value) {
   switch (type) {
     case TSDB_DATA_TYPE_FLOAT:
-      return &floatMax;
+      *(float *)value = floatMax;
+      break;
     case TSDB_DATA_TYPE_DOUBLE:
-      return &doubleMax;
+      *(double *)value = doubleMax;
+      break;
     default:
-      return &tDataTypes[type].maxValue;
+      *(int64_t *)value = tDataTypes[type].maxValue;
+      break;
   }
+
+  return value;
 }
 
 bool isValidDataType(int32_t type) { return type >= TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_MAX; }

@@ -513,6 +513,22 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
   //    taosMemoryFreeClear(pFillInfo->pTags[i].tagVal);
   //  }
 
+  // free pFillCol
+  if (pFillInfo->pFillCol) {
+    for (int32_t i = 0; i < pFillInfo->numOfCols; i++) {
+      SFillColInfo* pCol = &pFillInfo->pFillCol[i];
+      if (!pCol->notFillCol) {
+        if (pCol->fillVal.nType == TSDB_DATA_TYPE_VARBINARY || pCol->fillVal.nType == TSDB_DATA_TYPE_VARCHAR ||
+            pCol->fillVal.nType == TSDB_DATA_TYPE_NCHAR || pCol->fillVal.nType == TSDB_DATA_TYPE_JSON) {
+          if (pCol->fillVal.pz) {
+            taosMemoryFree(pCol->fillVal.pz);
+            pCol->fillVal.pz = NULL;
+          }
+        }
+      }
+    }
+  }
+
   taosMemoryFreeClear(pFillInfo->pTags);
   taosMemoryFreeClear(pFillInfo->pFillCol);
   taosMemoryFreeClear(pFillInfo);
@@ -680,9 +696,9 @@ SResultCellData* getResultCell(SResultRowData* pRaw, int32_t index) {
 void* destroyFillColumnInfo(SFillColInfo* pFillCol, int32_t start, int32_t end) {
   for (int32_t i = start; i < end; i++) {
     destroyExprInfo(pFillCol[i].pExpr, 1);
-    taosMemoryFreeClear(pFillCol[i].pExpr);
     taosVariantDestroy(&pFillCol[i].fillVal);
   }
+  taosMemoryFreeClear(pFillCol[start].pExpr);
   taosMemoryFree(pFillCol);
   return NULL;
 }
@@ -693,6 +709,7 @@ void* destroyStreamFillSupporter(SStreamFillSupporter* pFillSup) {
   pFillSup->pResMap = NULL;
   releaseOutputBuf(NULL, NULL, (SResultRow*)pFillSup->cur.pRowVal);
   pFillSup->cur.pRowVal = NULL;
+  cleanupExprSupp(&pFillSup->notFillExprSup);
 
   taosMemoryFree(pFillSup);
   return NULL;
@@ -1401,25 +1418,13 @@ static void doApplyStreamScalarCalculation(SOperatorInfo* pOperator, SSDataBlock
   blockDataEnsureCapacity(pDstBlock, pSrcBlock->info.rows);
   setInputDataBlock(pSup, pSrcBlock, TSDB_ORDER_ASC, MAIN_SCAN, false);
   projectApplyFunctions(pSup->pExprInfo, pDstBlock, pSrcBlock, pSup->pCtx, pSup->numOfExprs, NULL);
+
+  pDstBlock->info.rows = 0;
+  pSup = &pInfo->pFillSup->notFillExprSup;
+  setInputDataBlock(pSup, pSrcBlock, TSDB_ORDER_ASC, MAIN_SCAN, false);
+  projectApplyFunctions(pSup->pExprInfo, pDstBlock, pSrcBlock, pSup->pCtx, pSup->numOfExprs, NULL);
   pDstBlock->info.groupId = pSrcBlock->info.groupId;
 
-  SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, pInfo->primaryTsCol);
-  SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, pInfo->primarySrcSlotId);
-  colDataAssign(pDst, pSrc, pDstBlock->info.rows, &pDstBlock->info);
-
-  int32_t numOfNotFill = pInfo->pFillSup->numOfAllCols - pInfo->pFillSup->numOfFillCols;
-  for (int32_t i = 0; i < numOfNotFill; ++i) {
-    SFillColInfo* pCol = &pInfo->pFillSup->pAllColInfo[i + pInfo->pFillSup->numOfFillCols];
-    ASSERT(pCol->notFillCol);
-
-    SExprInfo* pExpr = pCol->pExpr;
-    int32_t    srcSlotId = pExpr->base.pParam[0].pCol->slotId;
-    int32_t    dstSlotId = pExpr->base.resSchema.slotId;
-
-    SColumnInfoData* pDst1 = taosArrayGet(pDstBlock->pDataBlock, dstSlotId);
-    SColumnInfoData* pSrc1 = taosArrayGet(pSrcBlock->pDataBlock, srcSlotId);
-    colDataAssign(pDst1, pSrc1, pDstBlock->info.rows, &pDstBlock->info);
-  }
   blockDataUpdateTsWindow(pDstBlock, pInfo->primaryTsCol);
 }
 
@@ -1561,6 +1566,14 @@ static SStreamFillSupporter* initStreamFillSup(SStreamFillPhysiNode* pPhyFillNod
     destroyStreamFillSupporter(pFillSup);
     return NULL;
   }
+  
+  SExprInfo* noFillExpr = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &numOfNotFillCols);
+  code = initExprSupp(&pFillSup->notFillExprSup, noFillExpr, numOfNotFillCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    destroyStreamFillSupporter(pFillSup);
+    return NULL;
+  }
+
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pFillSup->pResMap = tSimpleHashInit(16, hashFn);
   pFillSup->hasDelete = false;

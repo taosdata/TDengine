@@ -182,7 +182,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
     struct SCatalog* pCatalog = NULL;
 
-    if (usedbRsp.vgVersion >= 0) {
+    if (usedbRsp.vgVersion >= 0) { // cached in local
       uint64_t clusterId = pRequest->pTscObj->pAppInfo->clusterId;
       int32_t  code1 = catalogGetHandle(clusterId, &pCatalog);
       if (code1 != TSDB_CODE_SUCCESS) {

@@ -38,7 +38,7 @@ int32_t colDataGetFullLength(const SColumnInfoData* pColumnInfoData, int32_t num
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     return pColumnInfoData->varmeta.length + sizeof(int32_t) * numOfRows;
   } else {
-    return pColumnInfoData->info.bytes * numOfRows + BitmapLen(numOfRows);
+    return ((pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) ? 0 : pColumnInfoData->info.bytes * numOfRows) + BitmapLen(numOfRows);
   }
 }
 
@@ -279,7 +279,9 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
       pColumnInfoData->varmeta.allocLen = len + oldLen;
     }
 
-    memcpy(pColumnInfoData->pData + oldLen, pSource->pData, len);
+    if (pColumnInfoData->pData && pSource->pData) { // TD-20382
+      memcpy(pColumnInfoData->pData + oldLen, pSource->pData, len);
+    }
     pColumnInfoData->varmeta.length = len + oldLen;
   } else {
     if (finalNumOfRows > (*capacity)) {
@@ -336,10 +338,12 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
     }
 
     pColumnInfoData->varmeta.length = pSource->varmeta.length;
-    memcpy(pColumnInfoData->pData, pSource->pData, pSource->varmeta.length);
+    if (pColumnInfoData->pData != NULL && pSource->pData != NULL) {
+      memcpy(pColumnInfoData->pData, pSource->pData, pSource->varmeta.length);
+    }
   } else {
     memcpy(pColumnInfoData->nullbitmap, pSource->nullbitmap, BitmapLen(numOfRows));
-    if (pSource->pData) {
+    if (pSource->pData != NULL) {
       memcpy(pColumnInfoData->pData, pSource->pData, pSource->info.bytes * numOfRows);
     }
   }
@@ -650,7 +654,10 @@ int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity)
       ASSERT(pCol->varmeta.length <= pCol->varmeta.allocLen);
     }
 
-    memcpy(pCol->pData, pStart, colLength);
+    if (!colDataIsNNull_s(pCol, 0, pBlock->info.rows)) {
+      memcpy(pCol->pData, pStart, colLength);
+    }
+
     pStart += pCol->info.bytes * capacity;
   }
 
@@ -1082,8 +1089,6 @@ int32_t dataBlockCompar_rv(const void* p1, const void* p2, const void* param) {
   return 0;
 }
 
-int32_t varColSort(SColumnInfoData* pColumnInfoData, SBlockOrderInfo* pOrder) { return 0; }
-
 int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst) {
   // Allocate the additional buffer.
   int64_t p0 = taosGetTimestampUs();
@@ -1411,6 +1416,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
   pBlock->info = pDataBlock->info;
   pBlock->info.rows = 0;
   pBlock->info.capacity = 0;
+  pBlock->info.rowSize = 0;
 
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -1969,6 +1975,7 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
           memset(pBuf, 0, sizeof(pBuf));
           char*   pData = colDataGetVarData(pColInfoData, j);
           int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
+          dataSize = TMIN(dataSize, 50);
           memcpy(pBuf, varDataVal(pData), dataSize);
           len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) return dumpBuf;
@@ -2060,6 +2067,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
               isStartKey = true;
               tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID, TSDB_DATA_TYPE_TIMESTAMP, TD_VTYPE_NORM, var, true,
                                   offset, k);
+              continue; // offset should keep 0 for next column
 
             } else if (colDataIsNull_s(pColInfoData, j)) {
               tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_TIMESTAMP, TD_VTYPE_NULL, NULL,
@@ -2273,7 +2281,9 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
 
     colSizes[col] = colDataGetLength(pColRes, numOfRows);
     dataLen += colSizes[col];
-    memmove(data, pColRes->pData, colSizes[col]);
+    if (pColRes->pData != NULL) {
+      memmove(data, pColRes->pData, colSizes[col]);
+    }
     data += colSizes[col];
 
     colSizes[col] = htonl(colSizes[col]);

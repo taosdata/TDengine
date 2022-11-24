@@ -22,6 +22,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 
+bool     gRaftDetailLog = false;
 SSyncIO *gSyncIO = NULL;
 
 // local function ------------

@@ -147,7 +147,7 @@ static FORCE_INLINE SHashNode *doSearchInEntryList(SHashObj *pHashObj, SHashEntr
                                                    uint32_t hashVal) {
   SHashNode *pNode = pe->next;
   while (pNode) {
-//    atomic_add_fetch_64(&pHashObj->compTimes, 1);
+    //atomic_add_fetch_64(&pHashObj->compTimes, 1);
     if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) &&
         pNode->removed == 0) {
       assert(pNode->hashVal == hashVal);

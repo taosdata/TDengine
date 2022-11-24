@@ -246,7 +246,7 @@ typedef struct SQWorkerMgmt {
 
 #define QW_ERR_RET(c)                 \
   do {                                \
-    int32_t _code = c;                \
+    int32_t _code = (c);                \
     if (_code != TSDB_CODE_SUCCESS) { \
       terrno = _code;                 \
       return _code;                   \
@@ -254,7 +254,7 @@ typedef struct SQWorkerMgmt {
   } while (0)
 #define QW_RET(c)                     \
   do {                                \
-    int32_t _code = c;                \
+    int32_t _code = (c);                \
     if (_code != TSDB_CODE_SUCCESS) { \
       terrno = _code;                 \
     }                                 \
@@ -262,7 +262,7 @@ typedef struct SQWorkerMgmt {
   } while (0)
 #define QW_ERR_JRET(c)               \
   do {                               \
-    code = c;                        \
+    code = (c);                        \
     if (code != TSDB_CODE_SUCCESS) { \
       terrno = code;                 \
       goto _return;                  \

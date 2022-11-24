@@ -13,8 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncRequestVote.h"
-#include "syncInt.h"
+#include "syncMessage.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
@@ -87,8 +88,9 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* pSyncNode, SyncRequestVote* pM
   return false;
 }
 
-int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg) {
-  int32_t ret = 0;
+int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  int32_t          ret = 0;
+  SyncRequestVote* pMsg = pRpcMsg->pCont;
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
@@ -120,7 +122,11 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg) {
   }
 
   // send msg
-  SyncRequestVoteReply* pReply = syncRequestVoteReplyBuild(ths->vgId);
+  SRpcMsg rpcMsg = {0};
+  ret = syncBuildRequestVoteReply(&rpcMsg, ths->vgId);
+  ASSERT(ret == 0 );
+
+  SyncRequestVoteReply* pReply = rpcMsg.pCont;
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
   pReply->term = ths->pRaftStore->currentTerm;
@@ -134,10 +140,6 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg) {
     syncLogSendRequestVoteReply(ths, pReply, "");
   } while (0);
 
-  SRpcMsg rpcMsg;
-  syncRequestVoteReply2RpcMsg(pReply, &rpcMsg);
   syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
-  syncRequestVoteReplyDestroy(pReply);
-
   return 0;
 }

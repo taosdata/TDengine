@@ -13,10 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
-#include "syncInt.h"
-#include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
@@ -117,7 +116,12 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       LRUHandle*      h = taosLRUCacheLookup(pCache, &index, sizeof(index));
       if (h) {
         pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+
+        sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", index, pEntry->bytes, pEntry);
+
       } else {
+        sNTrace(pSyncNode, "miss cache index:%" PRId64, index);
+
         int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index, &pEntry);
         if (code != 0) {
           sNError(pSyncNode, "advance commit index error, read wal index:%" PRId64, index);
@@ -167,7 +171,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     pSyncNode->pLogStore->syncLogUpdateCommitIndex(pSyncNode->pLogStore, pSyncNode->commitIndex);
 
     // execute fsm
-    if (pSyncNode->pFsm != NULL) {
+    if (pSyncNode != NULL && pSyncNode->pFsm != NULL) {
       int32_t code = syncNodeDoCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
       if (code != 0) {
         sNError(pSyncNode, "advance commit index error, do commit begin:%" PRId64 ", end:%" PRId64, beginIndex,

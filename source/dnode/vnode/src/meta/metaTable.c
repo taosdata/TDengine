@@ -371,7 +371,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   // update uid index
   metaUpdateUidIdx(pMeta, &nStbEntry);
 
-  metaStatsCacheDrop(pMeta, nStbEntry.uid);
+  // metaStatsCacheDrop(pMeta, nStbEntry.uid);
 
   metaULock(pMeta);
 
@@ -403,6 +403,11 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMe
   // validate req
   metaReaderInit(&mr, pMeta, 0);
   if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
+    if (pReq->type == TSDB_CHILD_TABLE && pReq->ctb.suid != mr.me.ctbEntry.suid) {
+      terrno = TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
+      metaReaderClear(&mr);
+      return -1;
+    }
     pReq->uid = mr.me.uid;
     if (pReq->type == TSDB_CHILD_TABLE) {
       pReq->ctb.suid = mr.me.ctbEntry.suid;
@@ -450,6 +455,10 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMe
 #endif
 
     ++pMeta->pVnode->config.vndStats.numOfCTables;
+
+    metaWLock(pMeta);
+    metaUpdateStbStats(pMeta, me.ctbEntry.suid, 1);
+    metaULock(pMeta);
   } else {
     me.ntbEntry.ctime = pReq->ctime;
     me.ntbEntry.ttlDays = pReq->ttl;
@@ -670,6 +679,8 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
     tdbTbDelete(pMeta->pCtbIdx, &(SCtbIdxKey){.suid = e.ctbEntry.suid, .uid = uid}, sizeof(SCtbIdxKey), &pMeta->txn);
 
     --pMeta->pVnode->config.vndStats.numOfCTables;
+
+    metaUpdateStbStats(pMeta, e.ctbEntry.suid, -1);
   } else if (e.type == TSDB_NORMAL_TABLE) {
     // drop schema.db (todo)
 

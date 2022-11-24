@@ -865,6 +865,7 @@ void udfdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *bu
 void udfdCtrlReadCb(uv_stream_t *q, ssize_t nread, const uv_buf_t *buf) {
   if (nread < 0) {
     fnError("udfd ctrl pipe read error. %s", uv_err_name(nread));
+    taosMemoryFree(buf->base);
     uv_close((uv_handle_t *)q, NULL);
     uv_stop(global.loop);
     return;

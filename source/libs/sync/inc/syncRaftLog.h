@@ -20,12 +20,8 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
 #include "syncRaftEntry.h"
-#include "taosdef.h"
 #include "wal.h"
 
 typedef struct SSyncLogStoreData {
@@ -42,7 +38,6 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode);
 void           logStoreDestory(SSyncLogStore* pLogStore);
 
 SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore);
-
 SyncIndex logStoreWalCommitVer(SSyncLogStore* pLogStore);
 
 SyncIndex raftLogWriteIndex(struct SSyncLogStore* pLogStore);

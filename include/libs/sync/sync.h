@@ -36,10 +36,12 @@ extern "C" {
 #define SYNC_DEL_WAL_MS              (1000 * 60)
 #define SYNC_ADD_QUORUM_COUNT        3
 #define SYNC_MNODE_LOG_RETENTION     10000
-#define SYNC_VNODE_LOG_RETENTION     100
+#define SYNC_VNODE_LOG_RETENTION     20
 #define SNAPSHOT_MAX_CLOCK_SKEW_MS   1000 * 10
+#define SNAPSHOT_WAIT_MS             1000 * 30
 
 #define SYNC_APPEND_ENTRIES_TIMEOUT_MS 10000
+#define SYNC_HEART_TIMEOUT_MS          1000 * 8
 
 #define SYNC_MAX_BATCH_SIZE 1
 #define SYNC_INDEX_BEGIN    0
@@ -58,7 +60,6 @@ typedef int64_t  SyncIndex;
 typedef uint64_t SyncTerm;
 
 typedef struct SSyncNode      SSyncNode;
-typedef struct SSyncBuffer    SSyncBuffer;
 typedef struct SWal           SWal;
 typedef struct SSyncRaftEntry SSyncRaftEntry;
 

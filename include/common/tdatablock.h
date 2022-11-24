@@ -77,6 +77,33 @@ static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData,
   }
 }
 
+static FORCE_INLINE bool colDataIsNNull_s(const SColumnInfoData* pColumnInfoData, int32_t startIndex,
+                                          uint32_t nRows) {
+  if (!pColumnInfoData->hasNull) {
+    return false;
+  }
+
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    for (int32_t i = startIndex; i < nRows; ++i) {
+      if (!colDataIsNull_var(pColumnInfoData, i)) {
+        return false;
+      }
+    }
+  } else {
+    if (pColumnInfoData->nullbitmap == NULL) {
+      return false;
+    }
+
+    for (int32_t i = startIndex; i < nRows; ++i) {
+      if (!colDataIsNull_f(pColumnInfoData->nullbitmap, i)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, uint32_t totalRows, uint32_t row,
                                        SColumnDataAgg* pColAgg) {
   if (!pColumnInfoData->hasNull) {

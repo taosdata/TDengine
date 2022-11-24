@@ -6,7 +6,7 @@ set -e
 #set -x
 
 # release.sh  -v [cluster | edge]
-#             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...]
+#             -c [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64...]
 #             -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 #             -V [stable | beta]
 #             -l [full | lite]
@@ -19,7 +19,7 @@ set -e
 # set parameters by default value
 verMode=edge    # [cluster, edge, cloud]
 verType=stable  # [stable, beta]
-cpuType=x64     # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
+cpuType=x64     # [aarch32 | aarch64 | x64 | x86 | mips64 loongarch64...]
 osType=Linux    # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 pagMode=full    # [full | lite]
 soMode=dynamic  # [static | dynamic]
@@ -77,7 +77,7 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:" arg; do
     ;;
   h)
     echo "Usage: $(basename $0) -v [cluster | edge] "
-    echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] "
+    echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...] "
     echo "                  -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...] "
     echo "                  -V [stable | beta] "
     echo "                  -l [full | lite] "
@@ -216,17 +216,17 @@ else
 fi
 
 # check support cpu type
-if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "arm64" ]] || [[ "$cpuType" == "arm32" ]] || [[ "$cpuType" == "mips64" ]]; then
+if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "arm64" ]] || [[ "$cpuType" == "arm32" ]] || [[ "$cpuType" == "mips64" ]] || [[ "$cpuType" == "loongarch64" ]] ; then
   if [ "$verMode" == "edge" ]; then
     # community-version compile
     cmake ../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   elif [ "$verMode" == "cloud" ]; then
-    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_CLOUD=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
+    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DBUILD_CLOUD=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   elif [ "$verMode" == "cluster" ]; then
     if [[ "$dbName" != "taos" ]]; then
       replace_enterprise_$dbName
     fi
-    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
+    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   fi
 else
   echo "input cpuType=${cpuType} error!!!"

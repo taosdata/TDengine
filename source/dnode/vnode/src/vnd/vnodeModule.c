@@ -37,6 +37,12 @@ struct SVnodeGlobal vnodeGlobal;
 
 static void* loop(void* arg);
 
+static tsem_t canCommit = {0};
+
+static void vnodeInitCommit() { tsem_init(&canCommit, 0, 4); };
+void        vnode_wait_commit() { tsem_wait(&canCommit); }
+void        vnode_done_commit() { tsem_wait(&canCommit); }
+
 int vnodeInit(int nthreads) {
   int8_t init;
   int    ret;

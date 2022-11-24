@@ -938,11 +938,15 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   for (int32_t i = 0; i < size; ++i) {
     SRpcHandleInfo *pInfo = taosArrayGet(pTrans->pRpcArray, i);
     if (pInfo->handle != NULL) {
-      mInfo("trans:%d, send rsp, code:0x%x stage:%s app:%p", pTrans->id, code, mndTransStr(pTrans->stage),
-            pInfo->ahandle);
       if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
         code = TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL;
       }
+      if (i != 0 && code == 0) {
+        code = TSDB_CODE_RPC_REDIRECT;
+      }
+      mInfo("trans:%d, client:%d send rsp, code:0x%x stage:%s app:%p", pTrans->id, i, code, mndTransStr(pTrans->stage),
+            pInfo->ahandle);
+
       SRpcMsg rspMsg = {.code = code, .info = *pInfo};
 
       if (pTrans->originRpcType == TDMT_MND_CREATE_DB) {
@@ -1273,9 +1277,11 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
             pAction->id);
       code = mndTransSync(pMnode, pTrans);
       if (code != 0) {
+        pTrans->redoActionPos--;
         pTrans->code = terrno;
         mError("trans:%d, %s:%d is executed and failed to sync to other mnodes since %s", pTrans->id,
                mndTransStr(pAction->stage), pAction->id, terrstr());
+        break;
       }
     } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
       mInfo("trans:%d, %s:%d is in progress and wait it finish", pTrans->id, mndTransStr(pAction->stage), pAction->id);

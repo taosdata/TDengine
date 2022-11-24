@@ -1467,3 +1467,13 @@ int32_t metaGetStbStats(SMeta *pMeta, int64_t uid, SMetaStbStats *pInfo) {
 _exit:
   return code;
 }
+
+void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t delta) {
+  SMetaStbStats stats = {0};
+
+  if (metaStatsCacheGet(pMeta, uid, &stats) == TSDB_CODE_SUCCESS) {
+    stats.ctbNum += delta;
+
+    metaStatsCacheUpsert(pMeta, &stats);
+  }
+}

@@ -677,6 +677,7 @@ static void destoryCatalogReq(SCatalogReq *pCatalogReq) {
   taosArrayDestroy(pCatalogReq->pIndex);
   taosArrayDestroy(pCatalogReq->pUser);
   taosArrayDestroy(pCatalogReq->pTableIndex);
+  taosArrayDestroy(pCatalogReq->pTableCfg);
   taosMemoryFree(pCatalogReq);
 }
 
@@ -1104,6 +1105,8 @@ int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId
   if (code != TSDB_CODE_SUCCESS) {
     return terrno;
   }
+
+  pRequest->syncQuery = true;
 
   STscObj  *pTscObj = pRequest->pTscObj;
   SCatalog *pCtg = NULL;

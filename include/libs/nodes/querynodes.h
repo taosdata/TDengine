@@ -74,9 +74,8 @@ typedef struct SColumnNode {
   char        tableName[TSDB_TABLE_NAME_LEN];
   char        tableAlias[TSDB_TABLE_NAME_LEN];
   char        colName[TSDB_COL_NAME_LEN];
-  // SNode*      pProjectRef;
-  int16_t dataBlockId;
-  int16_t slotId;
+  int16_t     dataBlockId;
+  int16_t     slotId;
 } SColumnNode;
 
 typedef struct SColumnRefNode {
@@ -297,6 +296,7 @@ typedef struct SSelectStmt {
   bool        hasStateKey;
   bool        onlyHasKeepOrderFunc;
   bool        groupSort;
+  bool        tagScan;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -351,7 +351,7 @@ typedef struct SVgDataBlocks {
   SVgroupInfo vg;
   int32_t     numOfTables;  // number of tables in current submit block
   uint32_t    size;
-  void*       pData;  // SMsgDesc + SSubmitReq + SSubmitBlk + ...
+  void*       pData;  // SSubmitReq + SSubmitBlk + ...
 } SVgDataBlocks;
 
 typedef void (*FFreeDataBlockHash)(SHashObj*);

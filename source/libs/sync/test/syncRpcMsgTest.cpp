@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -49,7 +45,7 @@ SyncClientRequest *createSyncClientRequest() {
   strcpy((char *)rpcMsg.pCont, "hello rpc");
 
   SRpcMsg clientRequestMsg;
-  syncClientRequestBuildFromRpcMsg(&clientRequestMsg, &rpcMsg, 123, true, 1000);
+  syncBuildClientRequest(&clientRequestMsg, &rpcMsg, 123, true, 1000);
   SyncClientRequest *pMsg = (SyncClientRequest *)taosMemoryMalloc(clientRequestMsg.contLen);
   memcpy(pMsg->data, clientRequestMsg.pCont, clientRequestMsg.contLen);
   return pMsg;
