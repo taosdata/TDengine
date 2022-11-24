@@ -154,6 +154,11 @@ typedef struct {
 } SSchemaInfo;
 
 typedef struct {
+  int32_t operatorType;
+  int64_t refId;
+} SExchangeOpStopInfo;
+
+typedef struct {
   SRWLatch lock;
   SArray*  pStopInfo;
 } STaskStopInfo;
