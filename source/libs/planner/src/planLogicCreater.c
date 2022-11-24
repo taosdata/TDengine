@@ -167,18 +167,18 @@ static int32_t cloneRewriteExprs(SNodeList* pExprs, bool* pOutputs, SNodeList** 
 }
 
 static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ESqlClause clause,
-                                     SNodeList** pRewriteExpr) {
+                                     SNodeList** pRewriteExprs) {
   nodesWalkExprs(pExprs, doNameExpr, NULL);
   SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs, .pOutputs = NULL};
-  if (NULL != pRewriteExpr) {
+  if (NULL != pRewriteExprs) {
     cxt.pOutputs = taosMemoryCalloc(LIST_LENGTH(pExprs), sizeof(bool));
     if (NULL == cxt.pOutputs) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
   nodesRewriteSelectStmt(pSelect, clause, doRewriteExpr, &cxt);
-  if (TSDB_CODE_SUCCESS == cxt.errCode && NULL != pRewriteExpr) {
-    cxt.errCode = cloneRewriteExprs(pExprs, cxt.pOutputs, pRewriteExpr);
+  if (TSDB_CODE_SUCCESS == cxt.errCode && NULL != pRewriteExprs) {
+    cxt.errCode = cloneRewriteExprs(pExprs, cxt.pOutputs, pRewriteExprs);
   }
   taosMemoryFree(cxt.pOutputs);
   return cxt.errCode;
