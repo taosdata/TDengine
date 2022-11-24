@@ -2509,7 +2509,7 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
         SRpcMsg rpcMsg = {0};
         syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-        sInfo("do commit index:%" PRId64 ", type:%s", i, TMSG_INFO(pEntry->msgType));
+        sTrace("do commit index:%" PRId64 ", type:%s", i, TMSG_INFO(pEntry->msgType));
 
         // user commit
         if ((ths->pFsm->FpCommitCb != NULL) && syncUtilUserCommit(pEntry->originalRpcType)) {
