@@ -23,9 +23,14 @@ Build taoskeeper in latest tag.
 EOF
 }
 
-prepare_repo() {
+prepare_repo_taoskeeperinternal() {
   ([ -d build-taoskeeper ] && [ -d build-taoskeeper/.git ] && cd build-taoskeeper/ && git pull) || \
     (rm -rf build-taoskeeper && git clone https://github.com/taosdata/$REPO.git -b 3.0 build-taoskeeper && cd build-taoskeeper)
+}
+
+prepare_repo_taoskeeper() {
+  ([ -d build-taoskeeper ] && [ -d build-taoskeeper/.git ] && cd build-taoskeeper/ && git pull) || \
+    (rm -rf build-taoskeeper && git clone https://github.com/taosdata/$REPO.git build-taoskeeper && cd build-taoskeeper)
 }
 
 checkout_latest_tag() {
@@ -43,8 +48,13 @@ build_binary() {
   if [ "$FORCE" = "0" ] && [ -s taoskeeper ]; then
     true
   else
-    go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeperinternal/version.Version=$latest'" -o taoskeeper main.go
-    upx taoskeeper > /dev/null 2>&1 || :
+    if [ "$REPO" = "taoskeeperinternal" ]; then
+      go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeperinternal/version.Version=$latest'" -o taoskeeper main.go
+    elif [ "$REPO" = "taoskeeper" ]; then
+      go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeper/version.Version=$latest'" -o taoskeeper main.go
+    fi
+#    upx taoskeeper > /dev/null 2>&1 || :
+   
   fi
   readlink -f taoskeeper
 }
@@ -82,6 +92,10 @@ while true; do
 done
 
 set -e
-prepare_repo > /dev/null
+if [ "$REPO" = "taoskeeperinternal" ]; then
+  prepare_repo_taoskeeperinternal > /dev/null
+elif [ "$REPO" = "taoskeeper" ]; then
+  prepare_repo_taoskeeper > /dev/null
+fi
 checkout_latest_tag > /dev/null
 build_binary

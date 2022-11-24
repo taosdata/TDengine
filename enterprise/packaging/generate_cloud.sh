@@ -22,7 +22,7 @@ if [ ! -d $communityDir ]; then
   cd $topDir
   mkdir -p debug
   cd debug
-  cmake ..
+  cmake .. -DBUILD_TAOSX=true
 fi
 
 cd $communityDir
@@ -78,3 +78,4 @@ else
     echo "Cannont found $archiveDir on this machine"
 fi
 
+echo " packaging release done! "

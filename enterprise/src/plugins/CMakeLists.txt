@@ -63,15 +63,16 @@ IF(TD_BUILD_TAOSA_INTERNAL)
         PATCH_COMMAND
         COMMAND     git clean -f -d
         BUILD_COMMAND
-        COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -o taosadapter -ldflags "-s -w -X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
-        COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -o taosadapter-debug -ldflags "-X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
+        COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -o taosadapter -ldflags "-X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
+#        COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -o taosadapter -ldflags "-s -w -X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
+#        COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -o taosadapter-debug -ldflags "-X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
         INSTALL_COMMAND
-        COMMAND upx taosadapter || :
+#        COMMAND upx taosadapter || :
         COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin
         COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
         COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
         COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
-        COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
+#        COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
         )
 ENDIF ()
 
