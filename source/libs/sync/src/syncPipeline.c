@@ -182,7 +182,8 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
     }
 
     bool taken = false;
-    if (toIndex <= index + pBuf->size - 1) {
+    int  emptySize = 5;
+    if (toIndex - index + 1 <= pBuf->size - emptySize) {
       SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = -1, .prevLogTerm = -1};
       pBuf->entries[index % pBuf->size] = tmp;
       taken = true;
