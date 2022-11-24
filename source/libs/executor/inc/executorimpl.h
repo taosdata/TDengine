@@ -153,6 +153,11 @@ typedef struct {
   SSchemaWrapper* qsw;
 } SSchemaInfo;
 
+typedef struct {
+  SRWLatch lock;
+  SArray*  pStopInfo;
+} STaskStopInfo;
+
 typedef struct SExecTaskInfo {
   STaskIdInfo   id;
   uint32_t      status;
