@@ -2222,8 +2222,10 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
   syncLogRecvHeartbeatReply(ths, pMsg, "");
 
+  int64_t tsMs = taosGetTimestampMs();
+
   // update last reply time, make decision whether the other node is alive or not
-  syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, pMsg->timeStamp);
+  syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
   return 0;
 }
 
