@@ -492,6 +492,11 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
 
 void tRowDestroy(SRow *pRow) { tFree((uint8_t *)pRow); }
 
+int32_t tRowMergeSort(SArray *aRow, STSchema *pTSchema) {
+  // todo
+  return 0;
+}
+
 // SRowIter ========================================
 struct SRowIter {
   SRow     *pRow;
