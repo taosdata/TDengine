@@ -434,6 +434,7 @@ static int32_t logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicN
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(srcStartGroupId);
   COPY_SCALAR_FIELD(srcEndGroupId);
+  COPY_SCALAR_FIELD(seqRecvData);
   return TSDB_CODE_SUCCESS;
 }
 
