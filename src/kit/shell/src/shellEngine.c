@@ -217,10 +217,12 @@ int32_t shellRunCommand(TAOS* con, char* command) {
   }
 
   // add help or help;
+#ifndef WINDOWS  
   if (strcmp(command, "help") == 0 || strcmp(command, "help;") == 0) {
     showHelp();
     return 0;
   }
+#endif
 
   /* Update the history vector. */
   if (history.hstart == history.hend ||
