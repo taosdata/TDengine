@@ -412,7 +412,9 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
         valType = TD_VTYPE_NULL;
       } else if (IS_VAR_DATA_TYPE(pTColumn->type)) {
         varDataSetLen(varBuf, pColVal->value.nData);
-        memcpy(varDataVal(varBuf), pColVal->value.pData, pColVal->value.nData);
+        if (pColVal->value.nData != 0) {
+          memcpy(varDataVal(varBuf), pColVal->value.pData, pColVal->value.nData);
+        }
         val = varBuf;
       } else {
         val = (const void *)&pColVal->value.val;
