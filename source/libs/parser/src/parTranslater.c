@@ -3685,9 +3685,19 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
   return addOrderByPrimaryKeyToQuery(pCxt, pPrimaryKeyExpr, pInsert->pQuery);
 }
 
+static int32_t translateInsertTable(STranslateContext* pCxt, SNode* pTable) {
+  int32_t code = translateFrom(pCxt, pTable);
+  if (TSDB_CODE_SUCCESS == code && TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+      TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "insert data into super table is not supported");
+  }
+  return code;
+}
+
 static int32_t translateInsert(STranslateContext* pCxt, SInsertStmt* pInsert) {
   pCxt->pCurrStmt = (SNode*)pInsert;
-  int32_t code = translateFrom(pCxt, pInsert->pTable);
+  int32_t code = translateInsertTable(pCxt, pInsert->pTable);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInsertCols(pCxt, pInsert);
   }

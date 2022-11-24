@@ -299,7 +299,7 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
   SExchangeOpStopInfo stopInfo = {QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, pInfo->self};
   qAppendTaskStopInfo(pTaskInfo, &stopInfo);
   
-  pInfo->seqLoadData = false;
+  pInfo->seqLoadData = true;
   pInfo->pTransporter = pTransporter;
 
   setOperatorInfo(pOperator, "ExchangeOperator", QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, false, OP_NOT_OPENED, pInfo, pTaskInfo);

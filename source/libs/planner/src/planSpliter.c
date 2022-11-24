@@ -733,6 +733,17 @@ static int32_t stbSplSplitWindowForCrossTable(SSplitContext* pCxt, SStableSplitI
   return TSDB_CODE_PLAN_INTERNAL_ERROR;
 }
 
+static bool stbSplNeedSeqRecvData(SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  if (NULL != pNode->pLimit || NULL != pNode->pSlimit) {
+    return true;
+  }
+  return stbSplNeedSeqRecvData(pNode->pParent);
+}
+
 static int32_t stbSplSplitWindowForPartTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   if (pCxt->pPlanCxt->streamQuery) {
     SPLIT_FLAG_SET_MASK(pInfo->pSubplan->splitFlag, SPLIT_FLAG_STABLE_SPLIT);
@@ -748,6 +759,7 @@ static int32_t stbSplSplitWindowForPartTable(SSplitContext* pCxt, SStableSplitIn
     code = replaceLogicNode(pInfo->pSubplan, pInfo->pSplitNode, (SLogicNode*)pExchange);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    pExchange->seqRecvData = stbSplNeedSeqRecvData((SLogicNode*)pExchange);
     code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
                                      (SNode*)splCreateScanSubplan(pCxt, pInfo->pSplitNode, SPLIT_FLAG_STABLE_SPLIT));
   }
