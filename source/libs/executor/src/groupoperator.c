@@ -936,6 +936,9 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       } else {
         pDest->info.parTbName[0] = 0;
       }
+      if (pParInfo->groupId && pDest->info.parTbName[0]) {
+        streamStatePutParName(pOperator->pTaskInfo->streamInfo.pState, pParInfo->groupId, pDest->info.parTbName);
+      }
       /*printf("\n\n set name %s\n\n", pDest->info.parTbName);*/
       blockDataDestroy(pTmpBlock);
       blockDataDestroy(pResBlock);

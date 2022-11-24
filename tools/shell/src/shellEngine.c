@@ -134,6 +134,12 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
     return 0;
   }
 
+  // add help or help; 
+  if(strcmp(command, "help") == 0 || strcmp(command, "help;") == 0) {
+    showHelp();
+    return 0;
+  }
+
   if (recordHistory) shellRecordCommandToHistory(command);
 
   char quote = 0, *cmd = command;
