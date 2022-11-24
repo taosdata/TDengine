@@ -95,7 +95,7 @@ typedef struct {
     }                                             \
   } while (0)
 
-int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
+int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
   int32_t code = 0;
 
   ASSERT(taosArrayGetSize(aColVal) > 0);
@@ -196,9 +196,9 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
   }
 
   // alloc --------------
-  SRow *pRow = NULL;
-  code = tBufferReserve(pBuffer, nRow, (void **)&pRow);
+  code = tRealloc((uint8_t **)ppRow, nRow);
   if (code) return code;
+  SRow *pRow = *ppRow;
 
   // build --------------
   pColVal = (SColVal *)taosArrayGet(aColVal, 0);
@@ -489,6 +489,8 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
     }
   }
 }
+
+void tRowDestroy(SRow *pRow) { tFree(pRow); }
 
 // SRowIter ========================================
 struct SRowIter {

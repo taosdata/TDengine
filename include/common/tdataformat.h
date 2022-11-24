@@ -84,8 +84,9 @@ int32_t tBufferReserve(SBuffer *pBuffer, int64_t nData, void **ppData);
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
 // SRow ================================
-int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer);
+int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow);
 void    tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
+void    tRowDestroy(SRow *pRow);
 
 // SRowIter ================================
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
