@@ -333,8 +333,11 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
                                .requestId = pRequest->requestId,
                                .requestObjRefId = pRequest->self,
                                .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
-      catalogRefreshDBVgInfo(pCatalog, &conn, TSDB_INFORMATION_SCHEMA_DB);
-      catalogRefreshDBVgInfo(pCatalog, &conn, TSDB_PERFORMANCE_SCHEMA_DB);
+      char dbFName[TSDB_DB_FNAME_LEN];
+      snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_INFORMATION_SCHEMA_DB);
+      catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
+      snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_PERFORMANCE_SCHEMA_DB);
+      catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
     }
   }
 
