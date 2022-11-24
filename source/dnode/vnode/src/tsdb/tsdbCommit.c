@@ -341,7 +341,7 @@ int32_t tsdbUpdateTableSchema(SMeta *pMeta, int64_t suid, int64_t uid, SSkmInfo 
 
   pSkmInfo->suid = suid;
   pSkmInfo->uid = uid;
-  tTSchemaDestroy(pSkmInfo->pTSchema);
+  tDestroyTSchema(pSkmInfo->pTSchema);
   code = metaGetTbTSchemaEx(pMeta, suid, uid, -1, &pSkmInfo->pTSchema);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -365,7 +365,7 @@ static int32_t tsdbCommitterUpdateRowSchema(SCommitter *pCommitter, int64_t suid
 
   pCommitter->skmRow.suid = suid;
   pCommitter->skmRow.uid = uid;
-  tTSchemaDestroy(pCommitter->skmRow.pTSchema);
+  tDestroyTSchema(pCommitter->skmRow.pTSchema);
   code = metaGetTbTSchemaEx(pCommitter->pTsdb->pVnode->pMeta, suid, uid, sver, &pCommitter->skmRow.pTSchema);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -498,7 +498,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
 #if 0
   ASSERT(pCommitter->minKey <= pCommitter->nextKey && pCommitter->maxKey >= pCommitter->nextKey);
 #endif
-  
+
   pCommitter->nextKey = TSKEY_MAX;
 
   // Reader
@@ -623,7 +623,8 @@ int32_t tsdbWriteDataBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SMapDa
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -666,7 +667,8 @@ int32_t tsdbWriteSttBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SArray 
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -706,7 +708,8 @@ static int32_t tsdbCommitSttBlk(SDataFWriter *pWriter, SDiskDataBuilder *pBuilde
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -919,8 +922,8 @@ static void tsdbCommitDataEnd(SCommitter *pCommitter) {
 #else
   tBlockDataDestroy(&pCommitter->dWriter.bDatal, 1);
 #endif
-  tTSchemaDestroy(pCommitter->skmTable.pTSchema);
-  tTSchemaDestroy(pCommitter->skmRow.pTSchema);
+  tDestroyTSchema(pCommitter->skmTable.pTSchema);
+  tDestroyTSchema(pCommitter->skmRow.pTSchema);
 }
 
 static int32_t tsdbCommitData(SCommitter *pCommitter) {
