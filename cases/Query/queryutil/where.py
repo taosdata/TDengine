@@ -500,7 +500,7 @@ class TDWhere():
         q_where = random.sample(regular_q_where[0],5)        
 
         if self.NUM%3 ==0:
-            q_like_match = str(regular_q_where[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
+            q_like_match = str(regular_q_where[1]).replace("[","").replace("]","").replace("\"","")
         else :
             q_like_match = " "
 
@@ -521,7 +521,7 @@ class TDWhere():
         q_where_null = random.sample(regular_q_where_null[0],5) 
 
         if self.NUM%3 ==0:
-            q_like_match_null = str(regular_q_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
+            q_like_match_null = str(regular_q_where_null[1]).replace("[","").replace("]","").replace("\"","")
         else :
             q_like_match_null = " "
 
@@ -541,7 +541,7 @@ class TDWhere():
         q_where = random.sample(regular_q_where[0],5) 
 
         if self.NUM%3 ==0:
-            q_like_match = str(regular_q_where[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
+            q_like_match = str(regular_q_where[1]).replace("[","").replace("]","").replace("\"","")
         else :
             q_like_match = " "
 
@@ -554,7 +554,7 @@ class TDWhere():
         if self.NUM%3 ==0:
             q_like_match_null = " "
         else :
-            q_like_match_null = str(regular_q_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
+            q_like_match_null = str(regular_q_where_null[1]).replace("[","").replace("]","").replace("\"","")
             
         q_in_where_null = str(regular_q_where_null[2]).replace("[","").replace("]","").replace("'","")
 
@@ -574,9 +574,9 @@ class TDWhere():
         qt_where = random.sample(stable_q_where[0],3) + random.sample(stable_t_where[0],3)
         
         if self.NUM%3 ==0:
-            qt_like_match = str(stable_q_where[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
+            qt_like_match = str(stable_q_where[1]).replace("[","").replace("]","").replace("\"","")
         elif self.NUM%3 ==1:
-            qt_like_match = str(stable_t_where[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
+            qt_like_match = str(stable_t_where[1]).replace("[","").replace("]","").replace("\"","")
         else :
             qt_like_match = " "
 
@@ -599,9 +599,9 @@ class TDWhere():
         qt_where_null = random.sample(stable_q_where_null[0],3) + random.sample(stable_t_where_null[0],3) 
 
         if self.NUM%3 ==0:
-            qt_like_match_null = str(stable_q_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
+            qt_like_match_null = str(stable_q_where_null[1]).replace("[","").replace("]","").replace("\"","")
         elif self.NUM%3 ==1:
-            qt_like_match_null = str(stable_t_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
+            qt_like_match_null = str(stable_t_where_null[1]).replace("[","").replace("]","").replace("\"","")
         else :
             qt_like_match_null = " "
 
@@ -624,9 +624,9 @@ class TDWhere():
         qt_where = random.sample(stable_q_where[0],3) + random.sample(stable_t_where[0],3)
         
         if self.NUM%3 ==0:
-            qt_like_match = str(stable_q_where[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
+            qt_like_match = str(stable_q_where[1]).replace("[","").replace("]","").replace("\"","")
         elif self.NUM%3 ==1:
-            qt_like_match = str(stable_t_where[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
+            qt_like_match = str(stable_t_where[1]).replace("[","").replace("]","").replace("\"","")
         else :
             qt_like_match = " "
 
@@ -640,9 +640,9 @@ class TDWhere():
         qt_where_null = random.sample(stable_q_where_null[0],3) + random.sample(stable_t_where_null[0],3) 
 
         if self.NUM%3 ==0:
-            qt_like_match_null = str(stable_q_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
+            qt_like_match_null = str(stable_q_where_null[1]).replace("[","").replace("]","").replace("\"","")
         elif self.NUM%3 ==1:
-            qt_like_match_null = str(stable_t_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("(","[").replace(")","]")
+            qt_like_match_null = str(stable_t_where_null[1]).replace("[","").replace("]","").replace("\"","")
         else :
             qt_like_match_null = " "
 
