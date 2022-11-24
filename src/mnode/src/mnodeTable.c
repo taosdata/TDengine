@@ -236,6 +236,41 @@ static int32_t mnodeChildTableActionDelete(SSdbRow *pRow) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void mnodeTableActionUpdateTimeSeries(const char *tableId, int64_t diffCols) {
+  if (diffCols > 0) {
+    grantAdd(TSDB_GRANT_TIMESERIES, diffCols);
+  } else if (diffCols < 0) {
+    grantRestore(TSDB_GRANT_TIMESERIES, -diffCols);
+  } else {
+    return;
+  }
+
+  if (tableId) {
+    SName     sName = {0};
+    char      db[TSDB_DB_NAME_LEN] = {0};
+    SDbObj   *pDb = NULL;
+    SAcctObj *pAcct = NULL;
+
+    if (tNameFromString(&sName, tableId, T_NAME_ACCT | T_NAME_DB)) {
+      mWarn("table:%s, failed to get SName to update timeseries", tableId);
+      return;
+    }
+    if (tNameExtractFullName((const SName *)&sName, db)) {
+      mWarn("table:%s, failed to extract SName to update timeseries", tableId);
+      return;
+    }
+    if (!(pDb = mnodeGetDb(db))) {
+      mWarn("table:%s, db:%s not exist to update timeseries", tableId, db);
+      return;
+    };
+    if (!(pAcct = mnodeGetAcct(pDb->acct))) {
+      mWarn("table:%s, acct:%s not exist to update timeseries", tableId, pDb->acct);
+      return;
+    }
+    if (pAcct) pAcct->acctInfo.numOfTimeSeries += diffCols;
+  }
+}
+
 static int32_t mnodeChildTableActionUpdate(SSdbRow *pRow) {
   SCTableObj *pNew = pRow->pObj;
   SCTableObj *pTable = mnodeGetChildTable(pNew->info.tableId);
@@ -245,6 +280,10 @@ static int32_t mnodeChildTableActionUpdate(SSdbRow *pRow) {
     void *oldSchema = pTable->schema;
     void *oldSTable = pTable->superTable;
     int32_t oldRefCount = pTable->refCount;
+
+    if (pTable->info.type == TSDB_NORMAL_TABLE) {
+      mnodeTableActionUpdateTimeSeries(pTable->info.tableId, pNew->numOfColumns - pTable->numOfColumns);
+    }
 
     memcpy(pTable, pNew, sizeof(SCTableObj));
 
@@ -527,6 +566,9 @@ static int32_t mnodeSuperTableActionUpdate(SSdbRow *pRow) {
     void *oldVgHash = pTable->vgHash;
     int32_t oldRefCount = pTable->refCount;
     int32_t oldNumOfTables = pTable->numOfTables;
+
+    mnodeTableActionUpdateTimeSeries(pTable->info.tableId,
+                                     (int64_t)oldNumOfTables * (pNew->numOfColumns - pTable->numOfColumns));
 
     memcpy(pTable, pNew, sizeof(SSTableObj));
 
@@ -1464,6 +1506,7 @@ static int32_t mnodeAddSuperTableColumn(SMnodeMsg *pMsg, SSchema schema[], int32
     pAcct->acctInfo.numOfTimeSeries += (ncols * pStable->numOfTables);
     mnodeDecAcctRef(pAcct);
   }
+  grantAdd(TSDB_GRANT_TIMESERIES, (uint64_t)ncols * pStable->numOfTables);
 
   mInfo("msg:%p, app:%p stable %s, start to add column", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId);
 
@@ -1514,6 +1557,7 @@ static int32_t mnodeDropSuperTableColumn(SMnodeMsg *pMsg, char *colName) {
     pAcct->acctInfo.numOfTimeSeries -= pStable->numOfTables;
     mnodeDecAcctRef(pAcct);
   }
+  grantRestore(TSDB_GRANT_TIMESERIES, pStable->numOfTables);
 
   mInfo("msg:%p, app:%p stable %s, start to delete column", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId);
 
@@ -2471,6 +2515,7 @@ static int32_t mnodeAddNormalTableColumn(SMnodeMsg *pMsg, SSchema schema[], int3
     pAcct->acctInfo.numOfTimeSeries += ncols;
     mnodeDecAcctRef(pAcct);
   }
+  grantAdd(TSDB_GRANT_TIMESERIES, ncols);
 
   mInfo("msg:%p, app:%p ctable %s, start to add column", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
   monSaveAuditLog(MON_DDL_CMD_ADD_COLUMN, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, true);
@@ -2506,6 +2551,7 @@ static int32_t mnodeDropNormalTableColumn(SMnodeMsg *pMsg, char *colName) {
     pAcct->acctInfo.numOfTimeSeries--;
     mnodeDecAcctRef(pAcct);
   }
+  grantRestore(TSDB_GRANT_TIMESERIES, 1);
 
   mInfo("msg:%p, app:%p ctable %s, start to drop column %s", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId, colName);
   monSaveAuditLog(MON_DDL_CMD_DROP_COLUMN, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, true);

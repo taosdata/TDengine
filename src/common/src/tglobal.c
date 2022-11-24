@@ -124,6 +124,9 @@ int32_t tsMaxSqlGroups = 1000000;
 // order by first group by column when group by
 int8_t tsSortWhenGroupBy = 1;
 
+// memory rss thresold for creating new query in MB. 0 means no threshold limitation
+int32_t tsQueryRssThreshold = 0;
+
 int32_t tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 
@@ -1824,6 +1827,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 0;
   cfg.maxValue = 1;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "queryRssThreshold";
+  cfg.ptr = &tsQueryRssThreshold;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 2048*1024;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
