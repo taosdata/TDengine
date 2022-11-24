@@ -272,39 +272,6 @@ static void i64VectorSumAVX2(const int64_t* plist, int32_t numOfRows, SAvgRes* p
 #endif
 }
 
-static int32_t handleFloatCols(const SColumnInfoData* pCol, const SInputColumnInfoData* pInput, SAvgRes* pRes) {
-  int32_t numOfElems = 0;
-  float*  plist = (float*)pCol->pData;
-
-  const int32_t THRESHOLD_SIZE = 8;
-
-  if (pCol->hasNull || pInput->numOfRows <= THRESHOLD_SIZE) {
-    for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-      if (colDataIsNull_f(pCol->nullbitmap, i)) {
-        continue;
-      }
-
-      numOfElems += 1;
-      pRes->count += 1;
-      pRes->sum.dsum += plist[i];
-    }
-  } else { // no null values exist
-    numOfElems = pInput->numOfRows;
-    pRes->count += pInput->numOfRows;
-
-    // 3. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
-    if (tsAVXEnable && tsSIMDEnable) {
-      floatVectorSumAVX(plist, pInput->numOfRows, pRes);
-    } else {
-      for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-        pRes->sum.dsum += plist[i];
-      }
-    }
-  }
-
-  return numOfElems;
-}
-
 int32_t getAvgInfoSize() { return (int32_t)sizeof(SAvgRes); }
 
 bool getAvgFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {

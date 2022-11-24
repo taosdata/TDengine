@@ -30,7 +30,7 @@ static int32_t i32VectorCmpAVX2(const int32_t* pData, int32_t numOfRows, bool is
 
 #if __AVX2__
   __m256i next;
-  __m256i initialVal = _mm256_loadu_si256((__m256i*)p);
+  __m256i initialVal = _mm256_lddqu_si256((__m256i*)p);
   p += width;
 
   if (!isMinFunc) {  // max function
@@ -40,7 +40,7 @@ static int32_t i32VectorCmpAVX2(const int32_t* pData, int32_t numOfRows, bool is
       p += width;
     }
 
-    // let sum up the final results
+    // let compare  the final results
     const int32_t* q = (const int32_t*)&initialVal;
     v = TMAX(q[0], q[1]);
     for (int32_t k = 1; k < width; ++k) {
@@ -155,7 +155,7 @@ static int8_t i8VectorCmpAVX2(const int8_t* pData, int32_t numOfRows, bool isMin
 
 #if __AVX2__
   __m256i next;
-  __m256i initialVal = _mm256_loadu_si256((__m256i*)p);
+  __m256i initialVal = _mm256_lddqu_si256((__m256i*)p);
   p += width;
 
   if (!isMinFunc) {  // max function
@@ -218,7 +218,7 @@ static int16_t i16VectorCmpAVX2(const int16_t* pData, int32_t numOfRows, bool is
 
 #if __AVX2__
   __m256i next;
-  __m256i initialVal = _mm256_loadu_si256((__m256i*)p);
+  __m256i initialVal = _mm256_lddqu_si256((__m256i*)p);
   p += width;
 
   if (!isMinFunc) {  // max function
@@ -271,6 +271,179 @@ static int16_t i16VectorCmpAVX2(const int16_t* pData, int32_t numOfRows, bool is
   return v;
 }
 
+static int32_t handleInt8Col(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SqlFunctionCtx* pCtx,
+                             SMinmaxResInfo* pBuf, bool isMinFunc) {
+  int8_t* pData = (int8_t*)pCol->pData;
+  int8_t* val = (int8_t*)&pBuf->v;
+
+  int32_t numOfElems = 0;
+  if (pCol->hasNull || numOfRows <= 8 || pCtx->subsidiaries.num > 0) {
+    int32_t i = start;
+    while (i < (start + numOfRows)) {
+      if (!colDataIsNull_f(pCol->nullbitmap, i)) {
+        break;
+      }
+      i += 1;
+    }
+
+    if ((i < (start + numOfRows)) && (!pBuf->assign)) {
+      *val = pData[i];
+      if (pCtx->subsidiaries.num > 0) {
+        pBuf->tuplePos = saveTupleData(pCtx, i, pCtx->pSrcBlock, NULL);
+      }
+      pBuf->assign = true;
+      numOfElems += 1;
+    }
+
+    if (isMinFunc) {  // min
+      for (; i < start + numOfRows; ++i) {
+        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        if (*val > pData[i]) {
+          *val = pData[i];
+          if (pCtx->subsidiaries.num > 0) {
+            updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+          }
+        }
+        numOfElems += 1;
+      }
+
+    } else {  // max function
+      for (; i < start + numOfRows; ++i) {
+        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+        // ignore the equivalent data value
+        // NOTE: An faster version to avoid one additional comparison with FPU.
+        if (*val < pData[i]) {
+          *val = pData[i];
+          if (pCtx->subsidiaries.num > 0) {
+            updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+          }
+        }
+        numOfElems += 1;
+      }
+
+    }
+  } else {  // not has null value
+    // AVX2 version to speedup the loop
+    if (tsAVX2Enable && tsSIMDEnable) {
+      *val = i8VectorCmpAVX2(pData, numOfRows, isMinFunc);
+    } else {
+      if (!pBuf->assign) {
+        *val = pData[0];
+        pBuf->assign = true;
+      }
+
+      if (isMinFunc) {  // min
+        for (int32_t i = start; i < start + numOfRows; ++i) {
+          if (*val > pData[i]) {
+            *val = pData[i];
+          }
+        }
+      } else {  // max
+        for (int32_t i = start; i < start + numOfRows; ++i) {
+          if (*val < pData[i]) {
+            *val = pData[i];
+          }
+        }
+      }
+    }
+
+    numOfElems = numOfRows;
+  }
+
+  return numOfElems;
+}
+
+static int32_t handleInt16Col(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SqlFunctionCtx* pCtx,
+                             SMinmaxResInfo* pBuf, bool isMinFunc) {
+  int16_t* pData = (int16_t*)pCol->pData;
+  int16_t* val = (int16_t*)&pBuf->v;
+
+  int32_t numOfElems = 0;
+  if (pCol->hasNull || numOfRows <= 8 || pCtx->subsidiaries.num > 0) {
+    int32_t i = start;
+    while (i < (start + numOfRows)) {
+      if (!colDataIsNull_f(pCol->nullbitmap, i)) {
+        break;
+      }
+      i += 1;
+    }
+
+    if ((i < (start + numOfRows)) && (!pBuf->assign)) {
+      *val = pData[i];
+      if (pCtx->subsidiaries.num > 0) {
+        pBuf->tuplePos = saveTupleData(pCtx, i, pCtx->pSrcBlock, NULL);
+      }
+      pBuf->assign = true;
+      numOfElems += 1;
+    }
+
+    if (isMinFunc) {  // min
+      for (; i < start + numOfRows; ++i) {
+        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        if (*val > pData[i]) {
+          *val = pData[i];
+          if (pCtx->subsidiaries.num > 0) {
+            updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+          }
+        }
+        numOfElems += 1;
+      }
+
+    } else {  // max function
+      for (; i < start + numOfRows; ++i) {
+        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+        // ignore the equivalent data value
+        // NOTE: An faster version to avoid one additional comparison with FPU.
+        if (*val < pData[i]) {
+          *val = pData[i];
+          if (pCtx->subsidiaries.num > 0) {
+            updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+          }
+        }
+        numOfElems += 1;
+      }
+
+    }
+  } else {  // not has null value
+    // AVX2 version to speedup the loop
+    if (tsAVX2Enable && tsSIMDEnable) {
+      *val = i16VectorCmpAVX2(pData, numOfRows, isMinFunc);
+    } else {
+      if (!pBuf->assign) {
+        *val = pData[0];
+        pBuf->assign = true;
+      }
+
+      if (isMinFunc) {  // min
+        for (int32_t i = start; i < start + numOfRows; ++i) {
+          if (*val > pData[i]) {
+            *val = pData[i];
+          }
+        }
+      } else {  // max
+        for (int32_t i = start; i < start + numOfRows; ++i) {
+          if (*val < pData[i]) {
+            *val = pData[i];
+          }
+        }
+      }
+    }
+
+    numOfElems = numOfRows;
+  }
+
+  return numOfElems;
+}
 
 static int32_t handleInt32Col(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SqlFunctionCtx* pCtx,
                               SMinmaxResInfo* pBuf, bool isMinFunc) {
@@ -356,6 +529,87 @@ static int32_t handleInt32Col(SColumnInfoData* pCol, int32_t start, int32_t numO
     numOfElems = numOfRows;
   }
 
+  return numOfElems;
+}
+
+static int32_t handleInt64Col(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SqlFunctionCtx* pCtx,
+                              SMinmaxResInfo* pBuf, bool isMinFunc) {
+  int32_t* pData = (int32_t*)pCol->pData;
+  int32_t* val = (int32_t*)&pBuf->v;
+
+  int32_t numOfElems = 0;
+  if (pCol->hasNull || pCtx->subsidiaries.num > 0) {
+    int32_t i = start;
+    while (i < (start + numOfRows)) {
+      if (!colDataIsNull_f(pCol->nullbitmap, i)) {
+        break;
+      }
+      i += 1;
+    }
+
+    if ((i < (start + numOfRows)) && (!pBuf->assign)) {
+      *val = pData[i];
+      if (pCtx->subsidiaries.num > 0) {
+        pBuf->tuplePos = saveTupleData(pCtx, i, pCtx->pSrcBlock, NULL);
+      }
+      pBuf->assign = true;
+      numOfElems += 1;
+    }
+
+    if (isMinFunc) {  // min
+      for (; i < start + numOfRows; ++i) {
+        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        if (*val > pData[i]) {
+          *val = pData[i];
+          if (pCtx->subsidiaries.num > 0) {
+            updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+          }
+        }
+        numOfElems += 1;
+      }
+
+    } else {  // max function
+      for (; i < start + numOfRows; ++i) {
+        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+        // ignore the equivalent data value
+        // NOTE: An faster version to avoid one additional comparison with FPU.
+        if (*val < pData[i]) {
+          *val = pData[i];
+          if (pCtx->subsidiaries.num > 0) {
+            updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+          }
+        }
+        numOfElems += 1;
+      }
+    }
+  } else {  // not has null value
+            // AVX2 version to speedup the loop
+    if (!pBuf->assign) {
+      *val = pData[0];
+      pBuf->assign = true;
+    }
+
+    if (isMinFunc) {  // min
+      for (int32_t i = start; i < start + numOfRows; ++i) {
+        if (*val > pData[i]) {
+          *val = pData[i];
+        }
+      }
+    } else {  // max
+      for (int32_t i = start; i < start + numOfRows; ++i) {
+        if (*val < pData[i]) {
+          *val = pData[i];
+        }
+      }
+    }
+
+    numOfElems = numOfRows;
+  }
   return numOfElems;
 }
 
@@ -445,13 +699,13 @@ static int32_t handleFloatCol(SColumnInfoData* pCol, int32_t start, int32_t numO
   return numOfElems;
 }
 
-static int32_t handleInt8Col(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SqlFunctionCtx* pCtx,
-                             SMinmaxResInfo* pBuf, bool isMinFunc) {
-  int8_t* pData = (int8_t*)pCol->pData;
-  int8_t* val = (int8_t*)&pBuf->v;
+static int32_t handleDoubleCol(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SqlFunctionCtx* pCtx,
+                              SMinmaxResInfo* pBuf, bool isMinFunc) {
+  float* pData = (float*)pCol->pData;
+  double* val = (double*)&pBuf->v;
 
   int32_t numOfElems = 0;
-  if (pCol->hasNull || numOfRows <= 8 || pCtx->subsidiaries.num > 0) {
+  if (pCol->hasNull || numOfRows < 8 || pCtx->subsidiaries.num > 0) {
     int32_t i = start;
     while (i < (start + numOfRows)) {
       if (!colDataIsNull_f(pCol->nullbitmap, i)) {
@@ -483,12 +737,12 @@ static int32_t handleInt8Col(SColumnInfoData* pCol, int32_t start, int32_t numOf
         }
         numOfElems += 1;
       }
-
     } else {  // max function
       for (; i < start + numOfRows; ++i) {
         if (colDataIsNull_f(pCol->nullbitmap, i)) {
           continue;
         }
+
         // ignore the equivalent data value
         // NOTE: An faster version to avoid one additional comparison with FPU.
         if (*val < pData[i]) {
@@ -499,12 +753,11 @@ static int32_t handleInt8Col(SColumnInfoData* pCol, int32_t start, int32_t numOf
         }
         numOfElems += 1;
       }
-
     }
   } else {  // not has null value
-    // AVX2 version to speedup the loop
-    if (tsAVX2Enable && tsSIMDEnable) {
-      *val = i8VectorCmpAVX2(pData, numOfRows, isMinFunc);
+    // AVX version to speedup the loop
+    if (tsAVXEnable && tsSIMDEnable) {
+      *val = (double) floatVectorCmpAVX(pData, numOfRows, isMinFunc);
     } else {
       if (!pBuf->assign) {
         *val = pData[0];
@@ -660,6 +913,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
     if (type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_BOOL) {
       numOfElems = handleInt8Col(pCol, start, numOfRows, pCtx, pBuf, isMinFunc);
     } else if (type == TSDB_DATA_TYPE_SMALLINT) {
+      numOfElems = handleInt16Col(pCol, start, numOfRows, pCtx, pBuf, isMinFunc);
       int16_t* pData = (int16_t*)pCol->pData;
       int16_t* val = (int16_t*)&pBuf->v;
 
