@@ -124,6 +124,7 @@ typedef struct SyncHeartbeat {
   SyncIndex commitIndex;
   SyncTerm  privateTerm;
   SyncTerm  minMatchIndex;
+  int64_t   timeStamp;
 } SyncHeartbeat;
 
 typedef struct SyncHeartbeatReply {
