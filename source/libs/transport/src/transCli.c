@@ -1427,10 +1427,10 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
   } else {
     SEpSet epSet;
 
-    assert(pResp->contLen == sizeof(epSet));
+    // assert(pResp->contLen == sizeof(epSet));
     int32_t valid = tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
     if (valid < 0) {
-      assert(0);
+      // assert(0);
     }
     if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
       tDebug("epset not equal, retry new epset");
@@ -1453,6 +1453,11 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   bool retry = pTransInst->retry(code, pResp->msgType - 1);
   if (retry == false) {
     return false;
+  }
+  if (pCtx->retryInit) {
+    if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
+      return false;
+    }
   }
 
   bool noDelay = false;
