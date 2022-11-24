@@ -498,7 +498,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
 
     // execute it
     if (!syncUtilUserCommit(pEntry->originalRpcType)) {
-      sInfo("vgId:%d, raft mgmt msg in log entry. index: %" PRId64 ", term:%" PRId64 ", type: %s", vgId, pEntry->index,
+      sInfo("vgId:%d, commit sync barrier. index: %" PRId64 ", term:%" PRId64 ", type: %s", vgId, pEntry->index,
             pEntry->term, TMSG_INFO(pEntry->originalRpcType));
       pBuf->commitIndex = index;
       if (!inBuf) {
@@ -925,7 +925,7 @@ int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
 
   (void)syncLogBufferRollback(pBuf, pBuf->matchIndex + 1);
 
-  sInfo("vgId:%d, reset log buffer. log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pNode->vgId,
+  sInfo("vgId:%d, reset sync log buffer. log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pNode->vgId,
         pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
 
   pBuf->endIndex = pBuf->matchIndex + 1;
