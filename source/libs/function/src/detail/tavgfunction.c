@@ -551,6 +551,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
         }
         break;
       }
+
       case TSDB_DATA_TYPE_FLOAT: {
         const float* plist = (const float*) pCol->pData;
 
