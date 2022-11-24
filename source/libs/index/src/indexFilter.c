@@ -699,8 +699,8 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
   } else {
     for (int32_t m = 0; m < node->pParameterList->length; m++) {
       output->status = sifMergeCond(node->condType, output->status, params[m].status);
-      taosArrayDestroy(params[m].result);
-      params[m].result = NULL;
+      // taosArrayDestroy(params[m].result);
+      // params[m].result = NULL;
     }
   }
 _return:
