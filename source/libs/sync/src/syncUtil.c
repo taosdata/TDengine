@@ -373,7 +373,7 @@ void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntries
   sNTrace(pSyncNode,
           "send sync-append-entries-reply to %s:%d, {term:%" PRId64 ", pterm:%" PRId64
           ", success:%d, lsend-index:%" PRId64 ", match:%" PRId64 "}, %s",
-          host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->lastSendIndex, pMsg->matchIndex, s);
+          host, port, pMsg->term, pMsg->lastMatchTerm, pMsg->success, pMsg->lastSendIndex, pMsg->matchIndex, s);
 }
 
 void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
@@ -384,7 +384,7 @@ void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntries
   sNTrace(pSyncNode,
           "recv sync-append-entries-reply from %s:%d {term:%" PRId64 ", pterm:%" PRId64
           ", success:%d, lsend-index:%" PRId64 ", match:%" PRId64 "}, %s",
-          host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->lastSendIndex, pMsg->matchIndex, s);
+          host, port, pMsg->term, pMsg->lastMatchTerm, pMsg->success, pMsg->lastSendIndex, pMsg->matchIndex, s);
 }
 
 void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, const char* s) {

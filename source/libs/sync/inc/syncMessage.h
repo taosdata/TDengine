@@ -105,7 +105,7 @@ typedef struct SyncAppendEntriesReply {
   SRaftId  destId;
   // private data
   SyncTerm  term;
-  SyncTerm  privateTerm;
+  SyncTerm  lastMatchTerm;
   bool      success;
   SyncIndex matchIndex;
   SyncIndex lastSendIndex;

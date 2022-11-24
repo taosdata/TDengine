@@ -206,7 +206,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   accepted = true;
 
 _SEND_RESPONSE:
-  pReply->matchIndex = syncLogBufferProceed(ths->pLogBuf, ths);
+  pReply->matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, &pReply->lastMatchTerm);
   bool matched = (pReply->matchIndex >= pReply->lastSendIndex);
   if (accepted && matched) {
     pReply->success = true;
