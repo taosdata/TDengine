@@ -889,4 +889,4 @@ void *taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen) {
 
 void taosHashRelease(SHashObj *pHashObj, void *p) { taosHashCancelIterate(pHashObj, p); }
 
-//int64_t taosHashGetCompTimes(SHashObj *pHashObj) { return atomic_load_64(&pHashObj->compTimes); }
+int64_t taosHashGetCompTimes(SHashObj *pHashObj) { return 0 /*atomic_load_64(&pHashObj->compTimes)*/; }
