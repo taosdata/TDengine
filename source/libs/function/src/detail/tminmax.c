@@ -495,29 +495,6 @@ static void handleInt64Col(const void* data, int32_t start, int32_t numOfRows, S
   }
 }
 
-static void handleUint8Col(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf,
-                           bool isMinFunc) {
-  const uint8_t* pData = (uint8_t*)pCol->pData;
-  uint8_t* val = (uint8_t*)&pBuf->v;
-
-  // AVX2 version to speedup the loop
-  if (tsAVX2Enable && tsSIMDEnable) {
-    *val = i8VectorCmpAVX2(pData, numOfRows, isMinFunc, false);
-  } else {
-    if (!pBuf->assign) {
-      *val = pData[0];
-    }
-
-    if (isMinFunc) {  // min
-      __COMPARE_EXTRACT_MIN(start, start + numOfRows, *val, pData);
-    } else {
-      __COMPARE_EXTRACT_MAX(start, start + numOfRows, *val, pData);
-    }
-  }
-
-  pBuf->assign = true;
-}
-
 static void handleFloatCol(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc) {
   float* pData = (float*)pCol->pData;
   float* val = (float*)&pBuf->v;
@@ -746,7 +723,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
     ASSERT(pInput->numOfRows == pInput->totalRows && numOfElems >= 0);
 
     if (numOfElems == 0) {
-      return numOfElems;
+      goto _over;
     }
 
     void*   tval = NULL;
@@ -857,7 +834,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
   } else {
     numOfElems = numOfRows;
 
-    switch(pCol->info.type) {
+    switch (pCol->info.type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT: {
         handleInt8Col(pCol->pData, start, numOfRows, pBuf, isMinFunc, true);
@@ -884,11 +861,11 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         break;
       }
       case TSDB_DATA_TYPE_UINT: {
-        handleInt16Col(pCol->pData, start, numOfRows, pBuf, isMinFunc, false);
+        handleInt32Col(pCol->pData, start, numOfRows, pBuf, isMinFunc, false);
         break;
       }
       case TSDB_DATA_TYPE_UBIGINT: {
-        handleInt16Col(pCol->pData, start, numOfRows, pBuf, isMinFunc, false);
+        handleInt64Col(pCol->pData, start, numOfRows, pBuf, isMinFunc, false);
         break;
       }
       case TSDB_DATA_TYPE_FLOAT: {
@@ -900,12 +877,12 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         break;
       }
     }
+  }
 
-  _over:
-    if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pBuf->nullTupleSaved) {
-      pBuf->nullTuplePos = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, NULL);
-      pBuf->nullTupleSaved = true;
-    }
+_over:
+  if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pBuf->nullTupleSaved) {
+    pBuf->nullTuplePos = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, NULL);
+    pBuf->nullTupleSaved = true;
   }
 
   return numOfElems;
