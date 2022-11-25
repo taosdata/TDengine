@@ -744,9 +744,10 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
                            enum TdTimezone *tsTimezone) {
   if (inTimezoneStr == NULL || inTimezoneStr[0] == 0) return;
 
-  char *buf = taosMemoryMalloc(strlen(inTimezoneStr) + 1);
-  buf[strlen(inTimezoneStr)] = 0;
-  for (int32_t i = 0; i < strlen(inTimezoneStr); i++) {
+  size_t len = strlen(inTimezoneStr);
+  char *buf = taosMemoryMalloc(len + 1);
+  memset(buf, 0, len + 1)
+  for (int32_t i = 0; i < len; i++) {
     if (inTimezoneStr[i] == ' ' || inTimezoneStr[i] == '(') {
       buf[i] = 0;
       break;
