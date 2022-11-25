@@ -757,6 +757,14 @@ static void cliSendCb(uv_write_t* req, int status) {
   SCliConn* pConn = transReqQueueRemove(req);
   if (pConn == NULL) return;
 
+  SCliMsg* pMsg = !transQueueEmpty(&pConn->cliMsgs) ? transQueueGet(&pConn->cliMsgs, 0) : NULL;
+  if (pMsg != NULL) {
+    int64_t cost = taosGetTimestampUs() - pMsg->st;
+    if (cost > 1000) {
+      tWarn("%s conn %p send exception, cost:%dus", cost);
+    }
+  }
+
   if (status == 0) {
     tTrace("%s conn %p data already was written out", CONN_GET_INST_LABEL(pConn), pConn);
   } else {
@@ -805,6 +813,7 @@ void cliSend(SCliConn* pConn) {
     pHead->traceId = pMsg->info.traceId;
     pHead->magicNum = htonl(TRANS_MAGIC_NUM);
   }
+  pHead->timestamp = taosHton64(taosGetTimestampUs());
 
   if (pHead->persist == 1) {
     CONN_SET_PERSIST_BY_APP(pConn);
@@ -1567,6 +1576,7 @@ int transReleaseCliHandle(void* handle) {
 
   SCliMsg* cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cmsg->msg = tmsg;
+  cliMsg->st = taosGetTimestampUs();
   cmsg->type = Release;
   cmsg->ctx = pCtx;
 
