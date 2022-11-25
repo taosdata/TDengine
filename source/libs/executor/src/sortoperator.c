@@ -732,12 +732,13 @@ void destroyMultiwayMergeOperatorInfo(void* param) {
 
 int32_t getMultiwayMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
   ASSERT(pOptr != NULL);
-  SSortExecInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortExecInfo));
+  SSortExecInfo* pSortExecInfo = taosMemoryCalloc(1, sizeof(SSortExecInfo));
 
-  SMultiwayMergeOperatorInfo* pOperatorInfo = (SMultiwayMergeOperatorInfo*)pOptr->info;
+  SMultiwayMergeOperatorInfo* pInfo = (SMultiwayMergeOperatorInfo*)pOptr->info;
 
-  *pInfo = tsortGetSortExecInfo(pOperatorInfo->pSortHandle);
-  *pOptrExplain = pInfo;
+  *pSortExecInfo = tsortGetSortExecInfo(pInfo->pSortHandle);
+  *pOptrExplain = pSortExecInfo;
+
   *len = sizeof(SSortExecInfo);
   return TSDB_CODE_SUCCESS;
 }
