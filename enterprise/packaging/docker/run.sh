@@ -3,9 +3,15 @@
 TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=0
 #ADMIN_URL=${ADMIN_URL:-http://172.26.10.84:10001}
 TAOSD_STARTUP_TIMEOUT_SECOND=${TAOSD_STARTUP_TIMEOUT_SECOND:-160}
+TAOSADAPTER_STARTUP_TIMEOUT_SECOND=${TAOSADAPTER_STARTUP_TIMEOUT_SECOND:-180}
 TAOS_TIMEOUT_SECOND=${TAOS_TIMEOUT_SECOND:-5}
 BACKUP_CORE_FOLDER=/var/log/corefile
 ALERT_URL=app/system/alert/add
+ALERT_DISABLE_FILE=/var/log/disable_alert
+START_TAOSD_MAX_NUMBER=3
+start_taosd_count=0
+START_TAOSADAPTER_MAX_NUMBER=3
+start_taosadapter_count=0
 
 echo "ADMIN_URL: ${ADMIN_URL}"
 echo "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
@@ -37,15 +43,19 @@ function post_error_msg() {
         echo "service_state: ${service_state}"
         echo "`date` service_msg: ${service_msg}"
         echo "${taos_version}"
-        curl --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/json" \
-            -d"{\"appName\":\"${app_name}\",\
-            \"alertLevel\":\"${service_state}\",\
-            \"taosVersion\":\"${taos_version}\",\
-            \"alertMsg\":\"${service_msg}\"}" \
-            ${ADMIN_URL}/${ALERT_URL}
+        if [ -f ${ALERT_DISABLE_FILE} ]; then
+            echo "alert disabled"
+        else
+            curl --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/json" \
+                -d"{\"appName\":\"${app_name}\",\
+                \"alertLevel\":\"${service_state}\",\
+                \"taosVersion\":\"${taos_version}\",\
+                \"alertMsg\":\"${service_msg}\"}" \
+                ${ADMIN_URL}/${ALERT_URL}
+        fi
     fi
 }
-function check_taosd_exit_type() {
+function check_process_exit_type() {
     local core_pattern=`cat /proc/sys/kernel/core_pattern`
     echo "$core_pattern" | grep -q "^/"
     if [ $? -eq 0 ]; then
@@ -61,9 +71,59 @@ function check_taosd_exit_type() {
         mkdir -p ${BACKUP_CORE_FOLDER}
         cp ${core_folder}/${core_prefix}* ${BACKUP_CORE_FOLDER}/
         rm -f ${core_folder}/${core_prefix}*
-        set_service_state "error" "taosd exit with core file"
+        if [ "x$1" = "xadapter" ]; then
+            set_adapter_state "error" "taosadapter exit with core file"
+        else
+            set_service_state "error" "taosd exit with core file"
+        fi
     else
-        set_service_state "error" "taosd exit without core file"
+        if [ "x$1" = "xadapter" ]; then
+            set_adapter_state "error" "taosadapter exit without core file"
+        else
+            set_service_state "error" "taosd exit without core file"
+        fi
+    fi
+}
+function set_adapter_state() {
+    #echo "set adapter state: $1, $2"
+    adapter_state="$1"
+    adapter_msg="$2"
+}
+set_adapter_state "init" "ok"
+function check_taosadapter() {
+    timeout $TAOS_TIMEOUT_SECOND taos -R -E http://127.0.0.1:6041 -s "show databases;" >/dev/null
+    local ret=$?
+    if [ $ret -ne 0 ]; then
+        echo "`date` check taosadapter error $ret"
+        if [ "x$1" != "xignore" ]; then
+            set_adapter_state "error" "taosadapter check failed $ret"
+        fi
+    else
+        set_adapter_state "ready" "ok"
+    fi
+}
+function post_adapter_error_msg() {
+    if [ ! -z "${ADMIN_URL}" ]; then
+        adapter_version=`taosadapter --version`
+        echo "app_name: ${app_name}"
+        echo "adapter_state: ${adapter_state}"
+        echo "`date` adapter_msg: ${adapter_msg}"
+        echo "${adapter_version}"
+        if [ -f ${ALERT_DISABLE_FILE} ]; then
+            echo "alert disabled"
+        else
+            curl --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/json" \
+                -d"{\"appName\":\"${app_name}\",\
+                \"alertLevel\":\"${adapter_state}\",\
+                \"taosVersion\":\"${adapter_version}\",\
+                \"alertMsg\":\"${adapter_msg}\"}" \
+                ${ADMIN_URL}/${ALERT_URL}
+        fi
+    fi
+}
+function print_adapter_state_change() {
+    if [ "x$1" != "x${adapter_state}" ]; then
+        echo "`date`   adapter state: ${adapter_state}, ${adapter_msg}"
     fi
 }
 disk_usage_level=(60 80 99)
@@ -78,12 +138,16 @@ function post_disk_error_msg() {
         echo "disk_state: ${disk_state}"
         echo "`date` disk_msg: ${disk_msg}"
         echo "${taos_version}"
-        curl --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/json" \
-            -d"{\"appName\":\"${app_name}\",\
-            \"alertLevel\":\"${disk_state}\",\
-            \"taosVersion\":\"${taos_version}\",\
-            \"alertMsg\":\"${disk_msg}\"}" \
-            ${ADMIN_URL}/${ALERT_URL}
+        if [ -f ${ALERT_DISABLE_FILE} ]; then
+            echo "alert disabled"
+        else
+            curl --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/json" \
+                -d"{\"appName\":\"${app_name}\",\
+                \"alertLevel\":\"${disk_state}\",\
+                \"taosVersion\":\"${taos_version}\",\
+                \"alertMsg\":\"${disk_msg}\"}" \
+                ${ADMIN_URL}/${ALERT_URL}
+        fi
     fi
 }
 function check_disk() {
@@ -130,8 +194,16 @@ function run_taosd() {
     set_service_state "error" "taosd exit"
     # post error msg
     # check crash or OOM
-    check_taosd_exit_type
+    check_process_exit_type "taosd"
     post_error_msg
+}
+function run_taosadapter() {
+    taosadapter
+    set_adapter_state "error" "taosadapter exit"
+    # post error msg
+    # check crash or OOM
+    check_process_exit_type "adapter"
+    post_adapter_error_msg
 }
 function print_service_state_change() {
     if [ "x$1" != "x${service_state}" ]; then
@@ -139,6 +211,7 @@ function print_service_state_change() {
     fi
 }
 taosd_start_time=`date +%s`
+taosadapter_start_time=$taosd_start_time
 while ((1))
 do
     check_disk
@@ -154,6 +227,12 @@ do
     # echo $status
     if [ "$status"x = "0"x ]
     then
+        echo "start taosd count: ${start_taosd_count}"
+        if [ ${start_taosd_count} -gt ${START_TAOSD_MAX_NUMBER} ]; then
+            echo "exceed restart max count: ${START_TAOSD_MAX_NUMBER}"
+            break
+        fi
+        start_taosd_count=$(( start_taosd_count + 1 ))
         # taosd_start_time=`date +%s`
         run_taosd &
     fi
@@ -199,7 +278,35 @@ do
     # check taosadapter
     nc -z localhost 6041
     if [ $? -ne 0 ]; then
-        taosadapter &
+        echo "start taosadapter count: ${start_taosadapter_count}"
+        if [ ${start_taosadapter_count} -gt ${START_TAOSADAPTER_MAX_NUMBER} ]; then
+            echo "exceed restart adapter max count: ${START_TAOSADAPTER_MAX_NUMBER}"
+            break
+        fi
+        start_taosadapter_count=$(( start_taosadapter_count + 1 ))
+        run_taosadapter &
+    fi
+    if [ "$service_state" = "ready" ]; then
+        if [ "${adapter_state}" = "ready" ]; then
+            check_taosadapter
+            print_adapter_state_change "ready"
+            if [ "$adapter_state" = "error" ]; then
+                post_adapter_error_msg
+            fi
+        elif [ "${adapter_state}" = "init" ]; then
+            check_taosadapter "ignore"
+            # check timeout
+            current_time=`date +%s`
+            time_elapsed=$(( current_time - taosadapter_start_time ))
+            if [ ${time_elapsed} -gt ${TAOSADAPTER_STARTUP_TIMEOUT_SECOND} ]; then
+                set_adapter_state "error" "taosadapter startup timeout"
+                post_adapter_error_msg
+            fi
+            print_adapter_state_change "init"
+        elif [ "${adapter_state}" = "error" ]; then
+            check_taosadapter
+            print_adapter_state_change "error"
+        fi
     fi
     sleep 10
 done
