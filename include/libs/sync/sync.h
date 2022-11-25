@@ -41,7 +41,7 @@ extern "C" {
 #define SNAPSHOT_WAIT_MS             1000 * 30
 
 #define SYNC_MAX_RETRY_BACKOFF         5
-#define SYNC_LOG_REPL_RETRY_WAIT_MS    50
+#define SYNC_LOG_REPL_RETRY_WAIT_MS    100
 #define SYNC_APPEND_ENTRIES_TIMEOUT_MS 10000
 
 #define SYNC_MAX_BATCH_SIZE 1
