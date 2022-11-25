@@ -85,7 +85,6 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       sError("vgId:%d, failed to get log repl mgr for src addr: 0x%016" PRIx64, ths->vgId, pMsg->srcId.addr);
       return -1;
     }
-    ASSERT(pMgr != NULL);
     (void)syncLogReplMgrProcessReply(pMgr, ths, pMsg);
   }
   return 0;

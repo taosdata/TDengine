@@ -188,7 +188,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
-  if (pMsg->prevLogIndex + 1 != pEntry->index) {
+  if (pMsg->prevLogIndex + 1 != pEntry->index || pEntry->term < 0) {
     sError("vgId:%d, invalid previous log index in msg. index:%" PRId64 ",  term:%" PRId64 ", prevLogIndex:%" PRId64
            ", prevLogTerm:%" PRId64,
            ths->vgId, pEntry->index, pEntry->term, pMsg->prevLogIndex, pMsg->prevLogTerm);

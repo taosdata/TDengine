@@ -90,7 +90,7 @@ SyncTerm syncLogReplMgrGetPrevLogTerm(SSyncLogReplMgr* pMgr, SSyncNode* pNode, S
     return prevLogTerm;
   }
 
-  if (pMgr->startIndex <= prevIndex && prevIndex < pMgr->endIndex) {
+  if (pMgr && pMgr->startIndex <= prevIndex && prevIndex < pMgr->endIndex) {
     int64_t timeMs = pMgr->states[(prevIndex + pMgr->size) % pMgr->size].timeMs;
     ASSERT(timeMs != 0 && "no log entry found");
     prevLogTerm = pMgr->states[(prevIndex + pMgr->size) % pMgr->size].term;
@@ -277,7 +277,11 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
            " %" PRId64 " %" PRId64 ", %" PRId64 ")",
            pNode->vgId, pEntry->index, pEntry->term, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex,
            pBuf->endIndex);
-    ret = 0;
+    SyncTerm term = syncLogReplMgrGetPrevLogTerm(NULL, pNode, index + 1);
+    ASSERT(pEntry->term >= 0);
+    if (term == pEntry->term) {
+      ret = 0;
+    }
     goto _out;
   }
 
@@ -655,12 +659,23 @@ int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNod
 
     pMgr->states[pMsg->lastSendIndex % pMgr->size].acked = true;
 
-    if (pMsg->matchIndex == pMsg->lastSendIndex) {
+    if (pMsg->success && pMsg->matchIndex == pMsg->lastSendIndex) {
       pMgr->restored = true;
       sInfo("vgId:%d, sync log repl mgr restored. peer: %s:%d (%" PRIx64 "), repl mgr(rs:%d): [%" PRId64 " %" PRId64
             ", %" PRId64 "), log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
             pNode->vgId, host, port, destId.addr, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
             pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+      return 0;
+    }
+
+    if (pMsg->success == false && pMsg->matchIndex >= pMsg->lastSendIndex) {
+      sError("vgId:%d, failed to rollback match index. peer: %s:%d, match index: %" PRId64 ", last sent: %" PRId64, pNode->vgId,
+             host, port, pMsg->matchIndex, pMsg->lastSendIndex);
+      if (syncNodeStartSnapshot(pNode, &destId) < 0) {
+        sError("vgId:%d, failed to start snapshot for peer %s:%d", pNode->vgId, host, port);
+        return -1;
+      }
+      sInfo("vgId:%d, snapshot replication to rollback. peer: %s:%d", pNode->vgId, host, port);
       return 0;
     }
 
@@ -681,7 +696,7 @@ int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNod
         sError("vgId:%d, failed to start snapshot for peer %s:%d", pNode->vgId, host, port);
         return -1;
       }
-      sInfo("vgId:%d, snapshot replication to peer %s:%d started", pNode->vgId, host, port);
+      sInfo("vgId:%d, snapshot replication to peer %s:%d", pNode->vgId, host, port);
       return 0;
     }
 
