@@ -458,6 +458,7 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMe
 
     metaWLock(pMeta);
     metaUpdateStbStats(pMeta, me.ctbEntry.suid, 1);
+    metaUidCacheClear(pMeta, me.ctbEntry.suid);
     metaULock(pMeta);
   } else {
     me.ntbEntry.ctime = pReq->ctime;
@@ -681,6 +682,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
     --pMeta->pVnode->config.vndStats.numOfCTables;
 
     metaUpdateStbStats(pMeta, e.ctbEntry.suid, -1);
+    metaUidCacheClear(pMeta, e.ctbEntry.suid);
   } else if (e.type == TSDB_NORMAL_TABLE) {
     // drop schema.db (todo)
 
@@ -691,6 +693,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
     // drop schema.db (todo)
 
     metaStatsCacheDrop(pMeta, uid);
+    metaUidCacheClear(pMeta, uid);
     --pMeta->pVnode->config.vndStats.numOfSTables;
   }
 
@@ -1068,6 +1071,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   SCtbIdxKey ctbIdxKey = {.suid = ctbEntry.ctbEntry.suid, .uid = uid};
   tdbTbUpsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), ctbEntry.ctbEntry.pTags,
               ((STag *)(ctbEntry.ctbEntry.pTags))->len, &pMeta->txn);
+
+  metaUidCacheClear(pMeta, ctbEntry.ctbEntry.suid);
 
   metaULock(pMeta);
 
