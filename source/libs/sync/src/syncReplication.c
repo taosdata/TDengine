@@ -207,8 +207,8 @@ int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* dest
   return ret;
 }
 
-int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destId, SRpcMsg* pMsg) {
-  syncLogSendHeartbeat(pSyncNode, pMsg->pCont, "");
+int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destId, SRpcMsg* pMsg, const char* debugStr) {
+  syncLogSendHeartbeat(pSyncNode, pMsg->pCont, debugStr);
   return syncNodeSendMsgById(destId, pSyncNode, pMsg);
 }
 
@@ -231,7 +231,7 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     pSyncMsg->timeStamp = ts;
 
     // send msg
-    syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
+    syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg, "x");
   }
 
   return 0;
