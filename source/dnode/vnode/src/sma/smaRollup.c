@@ -1466,7 +1466,6 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
   }
   return TSDB_CODE_SUCCESS;
 _err:
-  ASSERT(0);
   while (1) {
     void *msg = NULL;
     taosGetQitem(qall, (void **)&msg);
