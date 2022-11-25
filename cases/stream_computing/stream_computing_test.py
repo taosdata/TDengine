@@ -88,6 +88,9 @@ class StreamComputingTest(TDCase):
         self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)", 
         "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
         "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
+        self.fill_function_list = ["min(c1)", "max(c2)", "sum(c3)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)", 
+        "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
+        "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
         self.udf_function_list = ["min(udf1(c1))", "max(udf1(c2))", "sum(udf1(c3))", "first(udf1(c4))", "last(udf1(c5))", "apercentile(udf1(c6), 50)", "avg(udf1(c7))", "count(udf1(c8))", "spread(udf1(c1))", 
         "stddev(udf1(c2))", "hyperloglog(udf1(c11))", "timediff(1, 0, 1h)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(udf1(t1))", "max(udf1(t2))", "sum(udf1(t3))",
         "first(udf1(t4))", "last(udf1(t5))", "apercentile(udf1(t6), 50)", "avg(udf1(t7))", "count(udf1(t8))", "spread(udf1(t1))", "stddev(udf1(t2))", "hyperloglog(udf1(t11))"]
@@ -99,6 +102,11 @@ class StreamComputingTest(TDCase):
         self.stb_source_select_str = ','.join(self.downsampling_function_list)
         self.tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list[0:15])))
         self.tb_source_select_str = ','.join(self.downsampling_function_list[0:15])
+
+        self.fill_stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.fill_function_list)))
+        self.fill_stb_source_select_str = ','.join(self.fill_function_list)
+        self.fill_tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.fill_function_list[0:13])))
+        self.fill_tb_source_select_str = ','.join(self.fill_function_list[0:13])
 
         self.partition_by_stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.partition_by_downsampling_function_list)))
         self.partition_by_stb_source_select_str = ','.join(self.partition_by_downsampling_function_list)
@@ -552,9 +560,14 @@ class StreamComputingTest(TDCase):
             tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast(cast(abs({partition_elm_alias}) as timestamp) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
         
         self.tdCom.write_latency(self.case_name)
+        if "value" in fill_value.lower():
+            fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
         self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.stb_name} partition by {partition} {partition_elm_alias} interval({self.dataDict["interval"]}s)', trigger_mode="at_once", subtable_value=stb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value)
         self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.ctb_name} partition by {partition} {partition_elm_alias} interval({self.dataDict["interval"]}s)', trigger_mode="at_once", subtable_value=ctb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value)
+        if "value" in fill_value.lower():
+            fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11'
         self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, {self.tb_source_select_str}  from {self.tb_name} partition by {partition} {partition_elm_alias} interval({self.dataDict["interval"]}s)', trigger_mode="at_once", subtable_value=tb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value)
+        start_time = self.date_time
         for i in range(self.range_count):
             ts_value = str(self.date_time+self.dataDict["interval"])+f'+{i*10}s'
             ts_cast_delete_value = self.tdCom.time_cast(ts_value)
@@ -619,6 +632,126 @@ class StreamComputingTest(TDCase):
             # self.tdSql.query(f'select * from {self.tb_name}')
             # self.tdSql.query(f'select count(*) from {self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix};')
             # self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+        if fill_value:
+            history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
+            print(history_ts)
+            start_ts = self.tdCom.time_cast(history_ts, "-")
+            future_ts = str(self.date_time)+f'+{self.dataDict["interval"]*(self.range_count+2)}s'
+            end_ts = self.tdCom.time_cast(future_ts)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=history_ts)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=history_ts)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=future_ts)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=future_ts)
+            self.date_time = start_time
+
+            # ! TD-20682
+            # ******
+            # if fill_value:
+            #     history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
+            # print(history_ts)
+            # start_ts = self.tdCom.time_cast(history_ts, "-")
+            # future_ts = str(self.date_time)+f'+{self.dataDict["interval"]*(self.range_count+2)}s'
+            # end_ts = self.tdCom.time_cast(future_ts)
+            # self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=history_ts)
+            # self.tdCom.insert_rows(tbname=self.tb_name, ts_value=history_ts)
+            # self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=future_ts)
+            # self.tdCom.insert_rows(tbname=self.tb_name, ts_value=future_ts)
+            # self.date_time = start_time
+            # ******
+
+            for i in range(self.range_count):
+                
+                ts_value = str(self.date_time+self.dataDict["interval"])+f'+{i*10}s'
+                ts_cast_delete_value = self.tdCom.time_cast(ts_value)
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+                # if self.delete and i%2 != 0:
+                #     self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
+                self.date_time += 1
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+                # if self.delete and i%2 != 0:
+                #     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
+                self.date_time += 1
+            print(ts_cast_delete_value)
+            print(start_ts)
+            print(self.tdCom.time_cast(self.date_time))
+            self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=self.tdCom.time_cast(start_time), end_ts=ts_cast_delete_value)
+            # self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=start_ts, end_ts=ts_cast_delete_value)
+            for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+                if tbname != self.tb_name:
+                    if "value" in fill_value.lower():
+                        fill_value='VALUE,1,2,3,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
+                    self.tdCom.check_query_data(f'select start, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_stb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', sorted=True, fill_value=fill_value)
+                else:
+                    if "value" in fill_value.lower():
+                        fill_value='VALUE,1,2,3,6,7,8,9,10,11'
+                    self.tdCom.check_query_data(f'select start, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', sorted=True, fill_value=fill_value)
+            # # ! TD-20755
+            # self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=start_ts, end_ts=ts_cast_delete_value)
+            # for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+            #     if tbname != self.tb_name:
+            #         if "value" in fill_value.lower():
+            #             fill_value='VALUE,1,2,3,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
+            #         self.tdCom.check_query_data(f'select start, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_stb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', sorted=True, fill_value=fill_value)
+            #     else:
+            #         if "value" in fill_value.lower():
+            #             fill_value='VALUE,1,2,3,6,7,8,9,10,11'
+                    # self.tdCom.check_query_data(f'select start, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', sorted=True, fill_value=fill_value)
+
+
+
+
+
+
+            # if fill_value:
+            #     history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
+            # print(history_ts)
+            # start_ts = self.tdCom.time_cast(history_ts, "-")
+            # future_ts = str(self.date_time)+f'+{self.dataDict["interval"]*(self.range_count+2)}s'
+            # end_ts = self.tdCom.time_cast(future_ts)
+            # self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=history_ts)
+            # self.tdCom.insert_rows(tbname=self.tb_name, ts_value=history_ts)
+            # self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=future_ts)
+            # self.tdCom.insert_rows(tbname=self.tb_name, ts_value=future_ts)
+            # self.date_time = start_time
+            # for i in range(self.range_count):
+                
+            #     ts_value = str(self.date_time+self.dataDict["interval"])+f'+{i*10}s'
+            #     ts_cast_delete_value = self.tdCom.time_cast(ts_value)
+            #     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+            #     # if self.delete and i%2 != 0:
+            #     #     self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
+            #     self.date_time += 1
+            #     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+            #     # if self.delete and i%2 != 0:
+            #     #     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
+            #     self.date_time += 1
+            # print(ts_cast_delete_value)
+            # print(start_ts)
+            # print(self.tdCom.time_cast(self.date_time))
+            # self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=self.tdCom.time_cast(start_time), end_ts=ts_cast_delete_value)
+
+            # for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+            #     if tbname != self.tb_name:
+            #         if "value" in fill_value.lower():
+            #             fill_value='VALUE,1,2,3,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
+            #         self.tdCom.check_query_data(f'select start, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_stb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', sorted=True, fill_value=fill_value)
+            #     else:
+            #         if "value" in fill_value.lower():
+            #             fill_value='VALUE,1,2,3,6,7,8,9,10,11'
+            #         self.tdCom.check_query_data(f'select start, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', sorted=True, fill_value=fill_value)
+
+            # self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=start_ts, end_ts=ts_cast_delete_value)
+
+            # for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+            #     if tbname != self.tb_name:
+            #         if "value" in fill_value.lower():
+            #             fill_value='VALUE,1,2,3,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
+            #         self.tdCom.check_query_data(f'select start, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_stb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', sorted=True, fill_value=fill_value)
+            #     else:
+            #         if "value" in fill_value.lower():
+            #             fill_value='VALUE,1,2,3,6,7,8,9,10,11'
+            #         self.tdCom.check_query_data(f'select start, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', sorted=True, fill_value=fill_value)
+
 
     def at_once_state_window(self, state_window, partition="tbname", delete=False, fill_history_value=None):
         self.delete = delete
@@ -1731,9 +1864,14 @@ class StreamComputingTest(TDCase):
 
     def run(self):
         # self.subtable = False
+
+        # self.insert_after_restart()
         # ! TD-20440
-        # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="next")
-        # ! TD-20487
+        self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="NULL")
+        # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="PREV")
+        # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="NEXT")
+        # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="LINEAR")
+        # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11")
         # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_history_value=1)
 
         # self.watermark_window_close_session(session=random.randint(10, 15), watermark=None, fill_history_value=1)
@@ -1741,36 +1879,11 @@ class StreamComputingTest(TDCase):
         # self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s", fill_history_value=1)
         # self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s", fill_history_value=1)
 
-        # self.insert_after_restart(delete=True, fill_history_value=1)
-        # self.vgroups = 1
-        # self.udf_test(8, "int")
-        # self.udf_test(8, "int", 1)
-        # self.udaf_test(10, 8, "double")
-        # for i in range(100):
-        #     self.udaf_test(10, 8, "double", 1)
-        
-        fill_history_value = 1
-        # self.at_once_state_window(state_window="c1", partition="tbname", fill_history_value=fill_history_value)
-        # self.at_once_state_window(state_window="c1", partition="c1", fill_history_value=fill_history_value)
-        # self.at_once_state_window(state_window="c1", partition="abs(c1)", fill_history_value=fill_history_value)
-        # self.at_once_state_window(state_window="c1", partition="tbname", delete=True, fill_history_value=fill_history_value)
-        # self.at_once_state_window(state_window="c1", partition="c1", delete=True, fill_history_value=fill_history_value)
-        # self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
-        # self.at_once_session(session=random.randint(10, 15), partition="tbname", fill_history_value=fill_history_value)
-        # self.at_once_session(session=random.randint(10, 15), partition="c1", fill_history_value=fill_history_value)
-        # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", fill_history_value=fill_history_value)
-        # self.at_once_session(session=random.randint(10, 15), partition="tbname", delete=True, fill_history_value=fill_history_value)
-        # self.at_once_session(session=random.randint(10, 15), partition="c1", delete=True, fill_history_value=fill_history_value)
-        # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
-        # self.at_once_session(session=random.randint(10, 15), ignore_expired=0, fill_history_value=fill_history_value)
-        # self.watermark_window_close_session(session=random.randint(10, 15), watermark=None, fill_history_value=fill_history_value)
-        # self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 30), fill_history_value=fill_history_value)
-        # self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s", fill_history_value=fill_history_value)
-        # self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s", fill_history_value=fill_history_value)
         # self.vgroups = 1
         # ! TD-20512
+        # fill_history_value = 1
         # self.at_once_state_window(state_window="c1", partition="c1", fill_history_value=fill_history_value)
-        # return
+        return
         for vgroups in self.vgroups_list:
             self.vgroups = vgroups
             self.create_none_db_stream()
@@ -1811,10 +1924,10 @@ class StreamComputingTest(TDCase):
                 self.at_once_state_window(state_window="c1", partition="tbname", fill_history_value=fill_history_value)
                 # ! TD-20512
                 # self.at_once_state_window(state_window="c1", partition="c1", fill_history_value=fill_history_value)
-                self.at_once_state_window(state_window="c1", partition="abs(c1)", fill_history_value=fill_history_value)
-                self.at_once_state_window(state_window="c1", partition="tbname", delete=True, fill_history_value=fill_history_value)
-                self.at_once_state_window(state_window="c1", partition="c1", delete=True, fill_history_value=fill_history_value)
-                self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
+                # self.at_once_state_window(state_window="c1", partition="abs(c1)", fill_history_value=fill_history_value)
+                # self.at_once_state_window(state_window="c1", partition="tbname", delete=True, fill_history_value=fill_history_value)
+                # self.at_once_state_window(state_window="c1", partition="c1", delete=True, fill_history_value=fill_history_value)
+                # self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="tbname", fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="c1", fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", fill_history_value=fill_history_value)
