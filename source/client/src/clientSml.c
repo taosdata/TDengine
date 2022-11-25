@@ -179,6 +179,8 @@ typedef struct {
   SSmlMsgBuf   msgBuf;
   SHashObj    *dumplicateKey;  // for dumplicate key
   SArray      *colsContainer;  // for cols parse, if dataFormat == false
+
+  cJSON       *root;  // for parse json
 } SSmlHandle;
 //=================================================================================================
 
@@ -1317,10 +1319,6 @@ static void smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag) {
       SArray *kvArray = (SArray *)taosArrayGetP(tag->cols, i);
       for (int j = 0; j < taosArrayGetSize(kvArray); ++j) {
         SSmlKv *p = (SSmlKv *)taosArrayGetP(kvArray, j);
-        if (info->protocol == TSDB_SML_JSON_PROTOCOL &&
-            (p->type == TSDB_DATA_TYPE_NCHAR || p->type == TSDB_DATA_TYPE_BINARY)) {
-          taosMemoryFree((void *)p->value);
-        }
         taosMemoryFree(p);
       }
       taosArrayDestroy(kvArray);
@@ -1338,16 +1336,7 @@ static void smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag) {
   }
   for (size_t i = 0; i < taosArrayGetSize(tag->tags); i++) {
     SSmlKv *p = (SSmlKv *)taosArrayGetP(tag->tags, i);
-    if (info->protocol == TSDB_SML_JSON_PROTOCOL) {
-      taosMemoryFree((void *)p->key);
-      if (p->type == TSDB_DATA_TYPE_NCHAR || p->type == TSDB_DATA_TYPE_BINARY) {
-        taosMemoryFree((void *)p->value);
-      }
-    }
     taosMemoryFree(p);
-  }
-  if (info->protocol == TSDB_SML_JSON_PROTOCOL && tag->sTableName) {
-    taosMemoryFree((void *)tag->sTableName);
   }
   taosArrayDestroy(tag->cols);
   taosArrayDestroy(tag->tags);
@@ -1472,14 +1461,10 @@ static void smlDestroySTableMeta(SSmlSTableMeta *meta) {
   taosMemoryFree(meta);
 }
 
-static void smlDestroyCols(SArray *cols, SMLProtocolType protocol) {
+static void smlDestroyCols(SArray *cols) {
   if (!cols) return;
   for (int i = 0; i < taosArrayGetSize(cols); ++i) {
-    SSmlKv *kv = taosArrayGetP(cols, i);
-    if(protocol == TSDB_SML_JSON_PROTOCOL && kv != NULL && IS_STR_DATA_TYPE(kv->type)){
-      taosMemoryFree((void*)kv->value);
-    }
-
+    void *kv = taosArrayGetP(cols, i);
     taosMemoryFree(kv);
   }
 }
@@ -1512,6 +1497,8 @@ static void smlDestroyInfo(SSmlHandle *info) {
     taosArrayDestroy(info->colsContainer);
   }
   destroyRequest(info->pRequest);
+
+  cJSON_Delete(info->root);
   taosMemoryFreeClear(info);
 }
 
@@ -1587,16 +1574,6 @@ cleanup:
 }
 
 /************* TSDB_SML_JSON_PROTOCOL function start **************/
-static int32_t smlJsonCreateSring(const char **output, char *input, int32_t inputLen) {
-  *output = (const char *)taosMemoryCalloc(1, inputLen);
-  if (*output == NULL) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-
-  memcpy((void *)(*output), input, inputLen);
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t smlParseMetricFromJSON(SSmlHandle *info, cJSON *root, SSmlTableInfo *tinfo) {
   cJSON *metric = cJSON_GetObjectItem(root, "metric");
   if (!cJSON_IsString(metric)) {
@@ -1609,7 +1586,8 @@ static int32_t smlParseMetricFromJSON(SSmlHandle *info, cJSON *root, SSmlTableIn
     return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
 
-  return smlJsonCreateSring(&tinfo->sTableName, metric->valuestring, tinfo->sTableNameLen);
+  tinfo->sTableName = metric->valuestring;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int64_t *tsVal) {
@@ -1861,7 +1839,8 @@ static int32_t smlConvertJSONString(SSmlKv *pVal, char *typeStr, cJSON *value) {
     return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
   }
 
-  return smlJsonCreateSring(&pVal->value, value->valuestring, pVal->length);
+  pVal->value = value->valuestring;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t smlParseValueFromJSONObj(cJSON *root, SSmlKv *kv) {
@@ -2019,10 +1998,8 @@ static int32_t smlParseTagsFromJSON(cJSON *root, SArray *pKVs, char *childTableN
 
     // key
     kv->keyLen = keyLen;
-    ret = smlJsonCreateSring(&kv->key, tag->string, kv->keyLen);
-    if (ret != TSDB_CODE_SUCCESS) {
-      return ret;
-    }
+    kv->key = tag->string;
+
     // value
     ret = smlParseValueFromJSON(tag, kv);
     if (ret != TSDB_CODE_SUCCESS) {
@@ -2114,7 +2091,7 @@ static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql, const int l
   ret = smlParseCols(elements.cols, elements.colsLen, cols, NULL, false, info->dumplicateKey, &info->msgBuf);
   if (ret != TSDB_CODE_SUCCESS) {
     uError("SML:0x%" PRIx64 " smlParseCols parse cloums fields failed", info->id);
-    smlDestroyCols(cols, info->protocol);
+    smlDestroyCols(cols);
     if (info->dataFormat) taosArrayDestroy(cols);
     return ret;
   }
@@ -2126,7 +2103,7 @@ static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql, const int l
   if (!oneTable) {
     tinfo = smlBuildTableInfo();
     if (!tinfo) {
-      smlDestroyCols(cols, info->protocol);
+      smlDestroyCols(cols);
       if (info->dataFormat) taosArrayDestroy(cols);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -2218,7 +2195,7 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data, const int len) {
   if (ret != TSDB_CODE_SUCCESS) {
     uError("SML:0x%" PRIx64 " smlParseTelnetLine failed", info->id);
     smlDestroyTableInfo(info, tinfo);
-    smlDestroyCols(cols, info->protocol);
+    smlDestroyCols(cols);
     taosArrayDestroy(cols);
     return ret;
   }
@@ -2226,7 +2203,7 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data, const int len) {
   if (taosArrayGetSize(tinfo->tags) <= 0 || taosArrayGetSize(tinfo->tags) > TSDB_MAX_TAGS) {
     smlBuildInvalidDataMsg(&info->msgBuf, "invalidate tags length:[1,128]", NULL);
     smlDestroyTableInfo(info, tinfo);
-    smlDestroyCols(cols, info->protocol);
+    smlDestroyCols(cols);
     taosArrayDestroy(cols);
     return TSDB_CODE_PAR_INVALID_TAGS_NUM;
   }
@@ -2282,16 +2259,16 @@ static int32_t smlParseJSON(SSmlHandle *info, char *payload) {
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
-  cJSON *root = cJSON_Parse(payload);
-  if (root == NULL) {
+  info->root = cJSON_Parse(payload);
+  if (info->root == NULL) {
     uError("SML:0x%" PRIx64 " parse json failed:%s", info->id, payload);
     return TSDB_CODE_TSC_INVALID_JSON;
   }
   // multiple data points must be sent in JSON array
-  if (cJSON_IsObject(root)) {
+  if (cJSON_IsObject(info->root)) {
     payloadNum = 1;
-  } else if (cJSON_IsArray(root)) {
-    payloadNum = cJSON_GetArraySize(root);
+  } else if (cJSON_IsArray(info->root)) {
+    payloadNum = cJSON_GetArraySize(info->root);
   } else {
     uError("SML:0x%" PRIx64 " Invalid JSON Payload", info->id);
     ret = TSDB_CODE_TSC_INVALID_JSON;
@@ -2299,7 +2276,7 @@ static int32_t smlParseJSON(SSmlHandle *info, char *payload) {
   }
 
   for (int32_t i = 0; i < payloadNum; ++i) {
-    cJSON *dataPoint = (payloadNum == 1 && cJSON_IsObject(root)) ? root : cJSON_GetArrayItem(root, i);
+    cJSON *dataPoint = (payloadNum == 1 && cJSON_IsObject(info->root)) ? info->root : cJSON_GetArrayItem(info->root, i);
     ret = smlParseTelnetLine(info, dataPoint, -1);
     if (ret != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " Invalid JSON Payload", info->id);
@@ -2308,7 +2285,6 @@ static int32_t smlParseJSON(SSmlHandle *info, char *payload) {
   }
 
 end:
-  cJSON_Delete(root);
   return ret;
 }
 
