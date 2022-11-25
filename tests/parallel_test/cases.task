@@ -620,9 +620,9 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py -N 3 -M 3 -i False -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py
-,,y,system-test,python3 ./test.py -f 2-query/union1.py
-,,y,system-test,python3 ./test.py -f 2-query/concat2.py
-,,y,system-test,python3 ./test.py -f 2-query/json_tag.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union1.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat2.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery.py
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_str.py
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_math.py
@@ -768,7 +768,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -Q 2
-,,y,system-test,python3 ./test.py -f 2-query/json_tag.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -Q 2
@@ -862,7 +862,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -Q 3
-,,y,system-test,python3 ./test.py -f 2-query/json_tag.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -Q 3
