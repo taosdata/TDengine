@@ -43,6 +43,7 @@ extern "C" {
 #include <sys/utsname.h>
 #include <sys/wait.h>
 #include <termios.h>
+#include <cpuid.h>
 
 #if defined(DARWIN)
 #else
@@ -81,7 +82,6 @@ extern "C" {
 #include <string.h>
 #include <wchar.h>
 #include <wctype.h>
-#include <cpuid.h>
 
 #if __AVX__
 #include <immintrin.h>
