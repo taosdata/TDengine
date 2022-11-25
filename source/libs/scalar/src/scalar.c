@@ -1359,6 +1359,7 @@ EDealRes sclWalkOperator(SNode *pNode, SScalarCtx *ctx) {
 
   ctx->code = sclExecOperator(node, ctx, &output);
   if (ctx->code) {
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
