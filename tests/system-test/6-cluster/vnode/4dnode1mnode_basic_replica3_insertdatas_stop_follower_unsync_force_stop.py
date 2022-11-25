@@ -404,8 +404,8 @@ class TDTestCase:
 
             # begin stop dnode
             start = time.time()
-            tdDnodes[self.stop_dnode_id-1].forcestop()
-        
+            tdDnodes[self.stop_dnode_id-1].stoptaosd()
+    
             self.wait_stop_dnode_OK(newTdSql)
 
             # append rows of stablename when dnode stop
@@ -451,11 +451,13 @@ class TDTestCase:
             # begin restart dnode
 
             # force stop taosd by kill -9
-            self.force_stop_dnode(self.stop_dnode_id)
-            self.wait_stop_dnode_OK(newTdSql)
+            # self.force_stop_dnode(self.stop_dnode_id)
+            tdDnodes[self.stop_dnode_id].stoptaosd()
+            # self.wait_stop_dnode_OK(newTdSql)
+            time.sleep(3)
             os.system(" taos -s 'select * from information_schema.ins_dnodes;' ")
             tdDnodes[self.stop_dnode_id-1].starttaosd()
-            self.wait_start_dnode_OK(newTdSql)
+            # self.wait_start_dnode_OK(newTdSql)
             end = time.time()
             time_cost = int(end-start)
 
