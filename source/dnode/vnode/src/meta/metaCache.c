@@ -497,17 +497,17 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
   SLRUCache* pCache = pMeta->pCache->sTagFilterResCache.pUidResCache;
   SHashObj* pTableEntry = pMeta->pCache->sTagFilterResCache.pTableEntry;
 
-  void* pEntry = taosHashGet(pMeta->pCache->sTagFilterResCache.pTableEntry, &suid, sizeof(uint64_t));
+  STagFilterResEntry** pEntry = taosHashGet(pMeta->pCache->sTagFilterResCache.pTableEntry, &suid, sizeof(uint64_t));
   if (pEntry == NULL) {
     STagFilterResEntry* p = taosMemoryMalloc(sizeof(STagFilterResEntry));
     p->qTimes = 0;
     tdListInit(&p->list, keyLen);
-
-    pEntry = &p;
-    taosHashPut(pTableEntry, &suid, sizeof(uint64_t), pEntry, POINTER_BYTES);
+    taosHashPut(pTableEntry, &suid, sizeof(uint64_t), &p, POINTER_BYTES);
+    tdListAppend(&p->list, pKey);
+  } else {
+    tdListAppend(&(*pEntry)->list, pKey);
   }
 
-  tdListAppend(&(*(STagFilterResEntry**)pEntry)->list, pKey);
 
   uint64_t* pBuf = pMeta->pCache->sTagFilterResCache.keyBuf;
   pBuf[0] = suid;
