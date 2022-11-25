@@ -761,7 +761,7 @@ static void cliSendCb(uv_write_t* req, int status) {
   if (pMsg != NULL) {
     int64_t cost = taosGetTimestampUs() - pMsg->st;
     if (cost > 1000) {
-      tWarn("%s conn %p send exception, cost:%dus", cost);
+      tWarn("%s conn %p send exception, cost:%dus", CONN_GET_INST_LABEL(pConn), pConn, (int)cost);
     }
   }
 
@@ -1576,7 +1576,7 @@ int transReleaseCliHandle(void* handle) {
 
   SCliMsg* cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cmsg->msg = tmsg;
-  cliMsg->st = taosGetTimestampUs();
+  cmsg->st = taosGetTimestampUs();
   cmsg->type = Release;
   cmsg->ctx = pCtx;
 
