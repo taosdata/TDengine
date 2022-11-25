@@ -2537,24 +2537,22 @@ int32_t tDeserializeSUseDbRspImp(SDecoder *pDecoder, SUseDbRsp *pRsp) {
   if (tDecodeI16(pDecoder, &pRsp->hashSuffix) < 0) return -1;
   if (tDecodeI8(pDecoder, &pRsp->hashMethod) < 0) return -1;
 
-  if (pRsp->vgNum <= 0) {
-    return 0;
-  }
+  if (pRsp->vgNum > 0) {
+    pRsp->pVgroupInfos = taosArrayInit(pRsp->vgNum, sizeof(SVgroupInfo));
+    if (pRsp->pVgroupInfos == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
 
-  pRsp->pVgroupInfos = taosArrayInit(pRsp->vgNum, sizeof(SVgroupInfo));
-  if (pRsp->pVgroupInfos == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  for (int32_t i = 0; i < pRsp->vgNum; ++i) {
-    SVgroupInfo vgInfo = {0};
-    if (tDecodeI32(pDecoder, &vgInfo.vgId) < 0) return -1;
-    if (tDecodeU32(pDecoder, &vgInfo.hashBegin) < 0) return -1;
-    if (tDecodeU32(pDecoder, &vgInfo.hashEnd) < 0) return -1;
-    if (tDecodeSEpSet(pDecoder, &vgInfo.epSet) < 0) return -1;
-    if (tDecodeI32(pDecoder, &vgInfo.numOfTable) < 0) return -1;
-    taosArrayPush(pRsp->pVgroupInfos, &vgInfo);
+    for (int32_t i = 0; i < pRsp->vgNum; ++i) {
+      SVgroupInfo vgInfo = {0};
+      if (tDecodeI32(pDecoder, &vgInfo.vgId) < 0) return -1;
+      if (tDecodeU32(pDecoder, &vgInfo.hashBegin) < 0) return -1;
+      if (tDecodeU32(pDecoder, &vgInfo.hashEnd) < 0) return -1;
+      if (tDecodeSEpSet(pDecoder, &vgInfo.epSet) < 0) return -1;
+      if (tDecodeI32(pDecoder, &vgInfo.numOfTable) < 0) return -1;
+      taosArrayPush(pRsp->pVgroupInfos, &vgInfo);
+    }
   }
 
   if (tDecodeI32(pDecoder, &pRsp->errCode) < 0) return -1;
