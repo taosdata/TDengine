@@ -879,11 +879,10 @@ int32_t syncNodeOnSnapshotReply(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
       // receive ack is finish, close sender
       if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
         snapshotSenderStop(pSender, true);
-
-        // update next-index
-        // syncIndexMgrSetIndex(pSyncNode->pNextIndex, &(pMsg->srcId), pMsg->lastIndex + 1);
-        // syncNodeReplicateOne(pSyncNode, &(pMsg->srcId), false);
-
+        SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
+        if (pMgr) {
+            syncLogReplMgrReset(pMgr);
+        }
         return 0;
       }
 
