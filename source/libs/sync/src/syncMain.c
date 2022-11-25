@@ -691,6 +691,7 @@ static int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRa
   pSyncTimer->timerMS = pSyncNode->hbBaseLine;
   pSyncTimer->timerCb = syncNodeEqPeerHeartbeatTimer;
   pSyncTimer->destId = destId;
+  pSyncTimer->timeStamp = taosGetTimestampMs();
   atomic_store_64(&pSyncTimer->logicClock, 0);
   return 0;
 }
@@ -704,6 +705,7 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
       pData->rid = syncHbTimerDataAdd(pData);
     }
     pSyncTimer->hbDataRid = pData->rid;
+    pSyncTimer->timeStamp = taosGetTimestampMs();
 
     pData->syncNodeRid = pSyncNode->rid;
     pData->pTimer = pSyncTimer;
@@ -1897,7 +1899,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
       return;
     }
 
-    sTrace("enqueue ping msg");
+    // sTrace("enqueue ping msg");
     code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
     if (code != 0) {
       sError("failed to sync enqueue ping msg since %s", terrstr());
@@ -2041,8 +2043,15 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
       pSyncMsg->privateTerm = 0;
       pSyncMsg->timeStamp = taosGetTimestampMs();
 
+      // update reset time
+      int64_t tsNow = taosGetTimestampMs();
+      int64_t timerElapsed = tsNow - pSyncTimer->timeStamp;
+      pSyncTimer->timeStamp = tsNow;
+      char logBuf[64];
+      snprintf(logBuf, sizeof(logBuf), "timer-elapsed:%" PRId64, timerElapsed);
+
       // send msg
-      syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
+      syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg, logBuf);
 
     } else {
       sTrace("vgId:%d, do not send hb, timerLogicClock:%" PRId64 ", msgLogicClock:%" PRId64 "", pSyncNode->vgId,
@@ -2151,8 +2160,9 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
 
   int64_t tsMs = taosGetTimestampMs();
+  int64_t timeDiff = tsMs - pMsg->timeStamp;
   char    buf[128];
-  snprintf(buf, sizeof(buf), "recv local time:%" PRId64, tsMs);
+  snprintf(buf, sizeof(buf), "net elapsed:%" PRId64, timeDiff);
   syncLogRecvHeartbeat(ths, pMsg, buf);
 
   SRpcMsg rpcMsg = {0};
@@ -2229,8 +2239,9 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
 
   int64_t tsMs = taosGetTimestampMs();
+  int64_t timeDiff = tsMs - pMsg->timeStamp;
   char    buf[128];
-  snprintf(buf, sizeof(buf), "recv local time:%" PRId64, tsMs);
+  snprintf(buf, sizeof(buf), "net elapsed:%" PRId64, timeDiff);
   syncLogRecvHeartbeatReply(ths, pMsg, buf);
 
   // update last reply time, make decision whether the other node is alive or not
