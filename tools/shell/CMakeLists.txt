@@ -17,7 +17,7 @@ else()
 endif ()
 target_link_libraries(
     shell
-    PRIVATE os common transport util
+    PRIVATE os common transport geometry util
 )
 target_include_directories(
     shell

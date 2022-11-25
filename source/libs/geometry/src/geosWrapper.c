@@ -17,6 +17,13 @@
 #include "tdef.h"
 #include "types.h"
 
+// Use globle SGeosContext if thread is not cared
+SGeosContext gGeosCtx = {0};
+
+SGeosContext *getGlobleGeosCtx() {
+  return &gGeosCtx;
+}
+
 void destroyGeosContext(SGeosContext *context) {
   if (context->WKTReader) {
     GEOSWKTReader_destroy_r(context->handle, context->WKTReader);

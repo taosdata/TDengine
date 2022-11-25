@@ -33,6 +33,8 @@ typedef struct SGeosContext {
   GEOSWKBWriter *WKBWriter;
 } SGeosContext;
 
+SGeosContext *getGlobleGeosCtx();
+
 void destroyGeosContext(SGeosContext *context);
 
 int32_t prepareGeomFromText(SGeosContext *context);
