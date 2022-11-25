@@ -508,7 +508,6 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
     tdListAppend(&(*pEntry)->list, pKey);
   }
 
-
   uint64_t* pBuf = pMeta->pCache->sTagFilterResCache.keyBuf;
   pBuf[0] = suid;
 
