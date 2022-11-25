@@ -504,9 +504,9 @@ int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma) {
   // Ref to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=77756
   __cpuid_fix(7u, eax, ebx, ecx, edx);
   *avx2 = (char) ((ebx & bit_AVX2) == bit_AVX2);
-  return 0;
-
 #endif
+
+  return 0;
 }
 
 int32_t taosGetTotalMemory(int64_t *totalKB) {
