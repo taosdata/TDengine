@@ -1210,6 +1210,7 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
   SScalarParam output = {0};
   ctx->code = sclExecOperator(node, ctx, &output);
   if (ctx->code) {
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
