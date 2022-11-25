@@ -28,12 +28,12 @@ typedef struct {
 TDB_STATIC_ASSERT(sizeof(SFileHdr) == 128, "Size of file header is not correct");
 
 struct hashset_st {
-  size_t nbits;
-  size_t mask;
-  size_t capacity;
+  size_t  nbits;
+  size_t  mask;
+  size_t  capacity;
   size_t *items;
-  size_t nitems;
-  double load_factor;
+  size_t  nitems;
+  double  load_factor;
 };
 
 static const unsigned int prime = 39;
@@ -68,11 +68,11 @@ void hashset_destroy(hashset_t set) {
 }
 
 int hashset_add_member(hashset_t set, void *item) {
-  size_t value = (size_t) item;
+  size_t value = (size_t)item;
   size_t h;
 
   if (value == 0) {
-	return -1;
+    return -1;
   }
 
   for (h = set->mask & (prime * value); set->items[h] != 0; h = set->mask & (h + prime2)) {
@@ -103,7 +103,7 @@ int hashset_add(hashset_t set, void *item) {
 
     set->nitems = 0;
     for (size_t i = 0; i < old_capacity; ++i) {
-      hashset_add_member(set, (void*)old_items[i]);
+      hashset_add_member(set, (void *)old_items[i]);
     }
     tdbOsFree(old_items);
   }
@@ -112,7 +112,7 @@ int hashset_add(hashset_t set, void *item) {
 }
 
 int hashset_remove(hashset_t set, void *item) {
-  size_t value = (size_t) item;
+  size_t value = (size_t)item;
 
   for (size_t h = set->mask & (prime * value); set->items[h] != 0; h = set->mask & (h + prime2)) {
     if (set->items[h] == value) {
@@ -126,7 +126,7 @@ int hashset_remove(hashset_t set, void *item) {
 }
 
 int hashset_contains(hashset_t set, void *item) {
-  size_t value = (size_t) item;
+  size_t value = (size_t)item;
 
   for (size_t h = set->mask & (prime * value); set->items[h] != 0; h = set->mask & (h + prime2)) {
     if (set->items[h] == value) {
@@ -319,7 +319,8 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   tRBTreePut(&pPager->rbt, (SRBTreeNode *)pPage);
 
   // Write page to journal if neccessary
-  if (TDB_PAGE_PGNO(pPage) <= pPager->dbOrigSize && (pPager->jPageSet == NULL || !hashset_contains(pPager->jPageSet, (void*)((long)TDB_PAGE_PGNO(pPage))))) {
+  if (TDB_PAGE_PGNO(pPage) <= pPager->dbOrigSize &&
+      (pPager->jPageSet == NULL || !hashset_contains(pPager->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage))))) {
     ret = tdbPagerWritePageToJournal(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page to journal since %s", tstrerror(terrno));
@@ -327,7 +328,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
     }
 
     if (pPager->jPageSet) {
-      hashset_add(pPager->jPageSet, (void*)((long)TDB_PAGE_PGNO(pPage)));
+      hashset_add(pPager->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
     }
   }
 
@@ -372,6 +373,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   SRBTreeNode *pNode = NULL;
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
+    ASSERT(pPage->nOverflow == 0);
     ret = tdbPagerWritePageToDB(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page to db since %s", tstrerror(terrno));
@@ -391,7 +393,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
 
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     if (pPager->jPageSet) {
-      hashset_remove(pPager->jPageSet, (void*)((long)TDB_PAGE_PGNO(pPage)));
+      hashset_remove(pPager->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
     }
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
@@ -503,7 +505,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     return -1;
   }
 
-  u8   *pageBuf = tdbOsCalloc(1, pPager->pageSize);
+  u8 *pageBuf = tdbOsCalloc(1, pPager->pageSize);
   if (pageBuf == NULL) {
     return -1;
   }
@@ -560,7 +562,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     pPage->isDirty = 0;
 
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
-    hashset_remove(pPager->jPageSet, (void*)((long)TDB_PAGE_PGNO(pPage)));
+    hashset_remove(pPager->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 

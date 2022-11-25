@@ -794,15 +794,18 @@ void cliSend(SCliConn* pConn) {
   int            msgLen = transMsgLenFromCont(pMsg->contLen);
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
 
-  pHead->ahandle = pCtx != NULL ? (uint64_t)pCtx->ahandle : 0;
-  pHead->noResp = REQUEST_NO_RESP(pMsg) ? 1 : 0;
-  pHead->persist = REQUEST_PERSIS_HANDLE(pMsg) ? 1 : 0;
-  pHead->msgType = pMsg->msgType;
-  pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
-  pHead->release = REQUEST_RELEASE_HANDLE(pCliMsg) ? 1 : 0;
-  memcpy(pHead->user, pTransInst->user, strlen(pTransInst->user));
-  pHead->traceId = pMsg->info.traceId;
-  pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+  if (pHead->comp == 0) {
+    pHead->ahandle = pCtx != NULL ? (uint64_t)pCtx->ahandle : 0;
+    pHead->noResp = REQUEST_NO_RESP(pMsg) ? 1 : 0;
+    pHead->persist = REQUEST_PERSIS_HANDLE(pMsg) ? 1 : 0;
+    pHead->msgType = pMsg->msgType;
+    pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
+    pHead->release = REQUEST_RELEASE_HANDLE(pCliMsg) ? 1 : 0;
+    memcpy(pHead->user, pTransInst->user, strlen(pTransInst->user));
+    pHead->traceId = pMsg->info.traceId;
+    pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+  }
+
   if (pHead->persist == 1) {
     CONN_SET_PERSIST_BY_APP(pConn);
   }
