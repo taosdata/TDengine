@@ -663,6 +663,7 @@ int32_t ctgDropDbCacheEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId)
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
   op->opId = CTG_OP_DROP_DB_CACHE;
+  op->syncOp = true;
 
   SCtgDropDBMsg *msg = taosMemoryMalloc(sizeof(SCtgDropDBMsg));
   if (NULL == msg) {
@@ -1612,11 +1613,11 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
 
   dbCache = NULL;
 
-  if (!IS_SYS_DBNAME(dbFName)) {
+  //if (!IS_SYS_DBNAME(dbFName)) {
     tstrncpy(vgVersion.dbFName, dbFName, sizeof(vgVersion.dbFName));
     CTG_ERR_JRET(ctgMetaRentUpdate(&msg->pCtg->dbRent, &vgVersion, vgVersion.dbId, sizeof(SDbVgVersion),
                                    ctgDbVgVersionSortCompare, ctgDbVgVersionSearchCompare));
-  }
+  //}
 
 _return:
 
@@ -1641,7 +1642,7 @@ int32_t ctgOpDropDbCache(SCtgCacheOperation *operation) {
     goto _return;
   }
 
-  if (dbCache->dbId != msg->dbId) {
+  if (msg->dbId && dbCache->dbId != msg->dbId) {
     ctgInfo("dbId already updated, dbFName:%s, dbId:0x%" PRIx64 ", targetId:0x%" PRIx64, msg->dbFName, dbCache->dbId,
             msg->dbId);
     goto _return;
