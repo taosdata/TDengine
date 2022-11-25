@@ -89,7 +89,7 @@ int32_t syncStart(int64_t rid) {
   }
 
   if (syncNodeRestore(pSyncNode) < 0) {
-    sError("vgId:%d, failed to restore raft log buffer since %s", pSyncNode->vgId, terrstr());
+    sError("vgId:%d, failed to restore sync log buffer since %s", pSyncNode->vgId, terrstr());
     goto _err;
   }
 
@@ -847,7 +847,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   // create raft log ring buffer
   pSyncNode->pLogBuf = syncLogBufferCreate();
   if (pSyncNode->pLogBuf == NULL) {
-    sError("failed to init log buffer since %s. vgId:%d", terrstr(), pSyncNode->vgId);
+    sError("failed to init sync log buffer since %s. vgId:%d", terrstr(), pSyncNode->vgId);
     goto _error;
   }
 
@@ -1060,7 +1060,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
 
   // init log buffer
   if (syncLogBufferInit(pSyncNode->pLogBuf, pSyncNode) < 0) {
-    sError("vgId:%d, failed to init raft log buffer since %s", pSyncNode->vgId, terrstr());
+    sError("vgId:%d, failed to init sync log buffer since %s", pSyncNode->vgId, terrstr());
     goto _error;
   }
 
@@ -2239,7 +2239,7 @@ int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHand
 int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   // append to log buffer
   if (syncLogBufferAppend(ths->pLogBuf, ths, pEntry) < 0) {
-    sError("vgId:%d, failed to enqueue log buffer. index:%" PRId64 "", ths->vgId, pEntry->index);
+    sError("vgId:%d, failed to enqueue sync log buffer. index:%" PRId64 "", ths->vgId, pEntry->index);
     return -1;
   }
 
