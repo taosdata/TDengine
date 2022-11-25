@@ -519,20 +519,20 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
 // remove the lru cache that are expired due to the tags value update, or creating, or dropping, of child tables
 int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid) {
   STagFilterResEntry* pEntry = taosHashGet(pMeta->pCache->sTagFilterResCache.pTableEntry, &suid, sizeof(uint64_t));
-  if (pEntry == NULL) {
+  if (pEntry == NULL || listNEles(&pEntry->list) == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t keyLen = sizeof(uint64_t) + 128;
-  char* p = taosMemoryMalloc(keyLen);
-  *(uint64_t*)p = pEntry->suid;
+  int32_t keyLen = sizeof(uint64_t) * 3;
+  uint64_t p[3] = {0};
+  p[0] = suid;
 
   SListIter iter = {0};
   tdListInitIter(&pEntry->list, &iter, TD_LIST_FORWARD);
 
   SListNode* pNode = NULL;
   while ((pNode = tdListNext(&iter)) != NULL) {
-    memcpy(p + sizeof(suid), pNode->data, 128);
+    memcpy(&p[1], pNode->data, 16);
     taosLRUCacheErase(pMeta->pCache->sTagFilterResCache.pUidResCache, p, keyLen);
   }
 
