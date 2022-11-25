@@ -792,7 +792,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_str.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_math.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_time.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py -Q 2
+,,,system-test,python3 ./test.py -f 2-query/stablity.py -Q 2
 ,,,system-test,python3 ./test.py -f 2-query/stablity_1.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/avg.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py -Q 2
@@ -886,7 +886,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_math.py -Q 3
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_time.py -Q 3
 ,,,system-test,python3 ./test.py -f 2-query/stablity.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py -Q 3
+,,,system-test,python3 ./test.py -f 2-query/stablity_1.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/avg.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py -Q 3
