@@ -782,6 +782,7 @@ SUB_DECODE_OVER:
     return NULL;
   }
 
+  mTrace("subscribe:%s, decode from raw:%p, row:%p", pSub->key, pRaw, pSub);
   return pRow;
 }
 
@@ -928,6 +929,7 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
       action.msgType = TDMT_VND_TMQ_DELETE_SUB;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(pReq);
+        sdbRelease(pSdb, pSub);
         return -1;
       }
     }
@@ -936,6 +938,8 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
       sdbRelease(pSdb, pSub);
       goto END;
     }
+
+    sdbRelease(pSdb, pSub);
   }
 
   code = 0;

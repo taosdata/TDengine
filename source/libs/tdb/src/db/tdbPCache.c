@@ -129,7 +129,7 @@ static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
       pCache->nFree++;
     }
 
-    for (int32_t iPage = 0; iPage < pCache->nPage; iPage++) {
+    for (int32_t iPage = 0; iPage < pCache->nPages; iPage++) {
       aPage[iPage] = pCache->aPage[iPage];
     }
 

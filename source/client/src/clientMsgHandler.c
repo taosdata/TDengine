@@ -21,6 +21,7 @@
 #include "tdef.h"
 #include "tname.h"
 #include "tdatablock.h"
+#include "systable.h"
 
 static void setErrno(SRequestObj* pRequest, int32_t code) {
   pRequest->code = code;
@@ -327,6 +328,17 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     int32_t          code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
     if (TSDB_CODE_SUCCESS == code) {
       catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
+      STscObj*             pTscObj = pRequest->pTscObj;
+
+      SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
+                               .requestId = pRequest->requestId,
+                               .requestObjRefId = pRequest->self,
+                               .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+      char dbFName[TSDB_DB_FNAME_LEN];
+      snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_INFORMATION_SCHEMA_DB);
+      catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
+      snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_PERFORMANCE_SCHEMA_DB);
+      catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
     }
   }
 

@@ -127,6 +127,7 @@ typedef struct SQWTaskCtx {
   bool    queryRsped;
   bool    queryEnd;
   bool    queryContinue;
+  bool    queryExecDone;
   bool    queryInQueue;
   int32_t rspCode;
   int64_t affectedRows;  // for insert ...select stmt
