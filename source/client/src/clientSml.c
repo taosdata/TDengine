@@ -1472,10 +1472,14 @@ static void smlDestroySTableMeta(SSmlSTableMeta *meta) {
   taosMemoryFree(meta);
 }
 
-static void smlDestroyCols(SArray *cols) {
+static void smlDestroyCols(SArray *cols, SMLProtocolType protocol) {
   if (!cols) return;
   for (int i = 0; i < taosArrayGetSize(cols); ++i) {
-    void *kv = taosArrayGetP(cols, i);
+    SSmlKv *kv = taosArrayGetP(cols, i);
+    if(protocol == TSDB_SML_JSON_PROTOCOL && kv != NULL && IS_STR_DATA_TYPE(kv->type)){
+      taosMemoryFree((void*)kv->value);
+    }
+
     taosMemoryFree(kv);
   }
 }
@@ -2110,7 +2114,7 @@ static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql, const int l
   ret = smlParseCols(elements.cols, elements.colsLen, cols, NULL, false, info->dumplicateKey, &info->msgBuf);
   if (ret != TSDB_CODE_SUCCESS) {
     uError("SML:0x%" PRIx64 " smlParseCols parse cloums fields failed", info->id);
-    smlDestroyCols(cols);
+    smlDestroyCols(cols, info->protocol);
     if (info->dataFormat) taosArrayDestroy(cols);
     return ret;
   }
@@ -2122,7 +2126,7 @@ static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql, const int l
   if (!oneTable) {
     tinfo = smlBuildTableInfo();
     if (!tinfo) {
-      smlDestroyCols(cols);
+      smlDestroyCols(cols, info->protocol);
       if (info->dataFormat) taosArrayDestroy(cols);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -2214,7 +2218,7 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data, const int len) {
   if (ret != TSDB_CODE_SUCCESS) {
     uError("SML:0x%" PRIx64 " smlParseTelnetLine failed", info->id);
     smlDestroyTableInfo(info, tinfo);
-    smlDestroyCols(cols);
+    smlDestroyCols(cols, info->protocol);
     taosArrayDestroy(cols);
     return ret;
   }
@@ -2222,7 +2226,7 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data, const int len) {
   if (taosArrayGetSize(tinfo->tags) <= 0 || taosArrayGetSize(tinfo->tags) > TSDB_MAX_TAGS) {
     smlBuildInvalidDataMsg(&info->msgBuf, "invalidate tags length:[1,128]", NULL);
     smlDestroyTableInfo(info, tinfo);
-    smlDestroyCols(cols);
+    smlDestroyCols(cols, info->protocol);
     taosArrayDestroy(cols);
     return TSDB_CODE_PAR_INVALID_TAGS_NUM;
   }
