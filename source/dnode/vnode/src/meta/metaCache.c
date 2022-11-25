@@ -90,6 +90,12 @@ static void statsCacheClose(SMeta* pMeta) {
   }
 }
 
+static void freeCacheEntryFp(void* param) {
+  STagFilterResEntry** p = param;
+  tdListEmpty(&(*p)->list);
+  taosMemoryFreeClear(*p);
+}
+
 int32_t metaCacheOpen(SMeta* pMeta) {
   int32_t     code = 0;
   SMetaCache* pCache = NULL;
@@ -132,6 +138,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
     goto _err2;
   }
 
+  taosHashSetFreeFp(pCache->sTagFilterResCache.pTableEntry, freeCacheEntryFp);
   pMeta->pCache = pCache;
   return code;
 

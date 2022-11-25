@@ -1017,6 +1017,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
       metaUidFilterCachePut(metaHandle, pScanNode->suid, context.digest, tListLen(context.digest), pPayload,
           size, 1);
+      taosMemoryFree(pPayload);
     } else {
       qDebug("retrieve table uid list from cache, numOfTables:%d", (int32_t) taosArrayGetSize(res));
     }
