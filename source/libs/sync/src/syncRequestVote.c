@@ -133,7 +133,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pReply->voteGranted = grant;
 
   // trace log
-  syncLogSendRequestVoteReply(ths, pReply, "");
+  syncLogRecvRequestVote(ths, pReply, pReply->voteGranted, "");
   syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
   return 0;
 }
