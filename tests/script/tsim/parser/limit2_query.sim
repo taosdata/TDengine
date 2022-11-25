@@ -321,54 +321,40 @@ endi
 
 ### [TBASE-350]
 ## stb + interval + fill + group by + limit offset
-sql select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu partition by t1 interval(5m) fill(value, -1, -2, -3, -4 ,-7 ,'-8', '-9') limit 2 offset 10
+sql select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 partition by t1 interval(5m) fill(value, -1, -2, -3, -4 ,-7 ,'-8', '-9') limit 2 offset 10
 if $rows != 2 then
   return -1
 endi
-#add one more test case
-sql select max(c1), last(c8) from lm2_db0.lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(linear) limit 10 offset 4089;"
-
 
 $limit = 5
 $offset = $rowNum * 2
 $offset = $offset - 2
-sql select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu partition by t1 interval(5m) fill(value, -1, -2, -3, -4 ,-7 ,'-8', '-9') order by t1 limit $limit offset $offset
-if $rows != $tbNum then
+sql select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000  partition by t1 interval(5m) fill(value, -1, -2, -3, -4 ,-7 ,'-8', '-9') order by t1 limit $limit offset $offset
+if $rows != 1 then
   return -1
 endi
-if $data00 != @18-11-25 19:30:00.000@ then
+if $data00 != 9 then
   return -1
 endi
 if $data01 != 9 then
   return -1
 endi
-if $data12 != 9 then
+if $data02 != 9.000000000 then
   return -1
 endi
-if $data23 != 9.000000000 then
+if $data03 != 9.000000000 then
   return -1
 endi
-if $data34 != 9.000000000 then
+if $data04 != 1 then
   return -1
 endi
-if $data45 != 1 then
+if $data05 != binary9 then
   return -1
 endi
-if $data56 != binary9 then
+if $data06 != nchar9 then
   return -1
 endi
-if $data68 != 6 then
-  return -1
-endi
-if $data72 != -2 then
-  return -1
-endi
-if $data84 != -2.000000000 then
-  return -1
-endi
-if $data98 != 9 then
-  return -1
-endi
+
 
 #add one more test case
 sql select max(c1), last(c8) from lm2_db0.lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(linear) limit 10 offset 4089;"

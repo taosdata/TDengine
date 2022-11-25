@@ -742,14 +742,12 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       tdbPageCreate(pOlds[0]->pageSize, &pOldsCopy[i], tdbDefaultMalloc, NULL);
       tdbBtreeInitPage(pOldsCopy[i], &iarg, 0);
       tdbPageCopy(pOlds[i], pOldsCopy[i], 0);
-    }
-
-    for (iNew = 0; iNew < nNews; ++iNew) {
-      tdbBtreeInitPage(pNews[iNew], &iarg, 0);
+      pOlds[i]->nOverflow = 0;
     }
 
     iNew = 0;
     nNewCells = 0;
+    tdbBtreeInitPage(pNews[iNew], &iarg, 0);
 
     for (int iOld = 0; iOld < nOlds; iOld++) {
       SPage *pPage;

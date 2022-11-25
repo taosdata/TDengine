@@ -24,6 +24,21 @@
 #include "tmsg.h"
 #include "ttypes.h"
 
+typedef struct SJoinOperatorInfo {
+  SSDataBlock* pRes;
+  int32_t      joinType;
+  int32_t      inputOrder;
+
+  SSDataBlock* pLeft;
+  int32_t      leftPos;
+  SColumnInfo  leftCol;
+
+  SSDataBlock* pRight;
+  int32_t      rightPos;
+  SColumnInfo  rightCol;
+  SNode*       pCondAfterMerge;
+} SJoinOperatorInfo;
+
 static void         setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
 static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator);
 static void         destroyMergeJoinOperator(void* param);
@@ -39,22 +54,26 @@ static void extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDown
     SColumnNode*   col2 = (SColumnNode*)pNode->pRight;
     SColumnNode*   leftTsCol = NULL;
     SColumnNode*   rightTsCol = NULL;
-    if (col1->dataBlockId == pDownstream[0]->resultDataBlockId) {
-      ASSERT(col2->dataBlockId == pDownstream[1]->resultDataBlockId);
+    if (col1->dataBlockId == col2->dataBlockId ) {
       leftTsCol = col1;
       rightTsCol = col2;
     } else {
-      ASSERT(col1->dataBlockId == pDownstream[1]->resultDataBlockId);
-      ASSERT(col2->dataBlockId == pDownstream[0]->resultDataBlockId);
-      leftTsCol = col2;
-      rightTsCol = col1;
+      if (col1->dataBlockId == pDownstream[0]->resultDataBlockId) {
+        ASSERT(col2->dataBlockId == pDownstream[1]->resultDataBlockId);
+        leftTsCol = col1;
+        rightTsCol = col2;
+      } else {
+        ASSERT(col1->dataBlockId == pDownstream[1]->resultDataBlockId);
+        ASSERT(col2->dataBlockId == pDownstream[0]->resultDataBlockId);
+        leftTsCol = col2;
+        rightTsCol = col1;
+      }
     }
     setJoinColumnInfo(&pInfo->leftCol, leftTsCol);
     setJoinColumnInfo(&pInfo->rightCol, rightTsCol);
   } else {
     ASSERT(false);
-  }
-}
+  }}
 
 SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {

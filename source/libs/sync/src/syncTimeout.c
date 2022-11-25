@@ -62,18 +62,20 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
     syncNodeCleanConfigIndex(ths);
   }
 
-  // end timeout wal snapshot
   int64_t timeNow = taosGetTimestampMs();
-  if (timeNow - ths->snapshottingIndex > SYNC_DEL_WAL_MS &&
-      atomic_load_64(&ths->snapshottingIndex) != SYNC_INDEX_INVALID) {
-    SSyncLogStoreData* pData = ths->pLogStore->data;
-    int32_t            code = walEndSnapshot(pData->pWal);
-    if (code != 0) {
-      sNError(ths, "timer wal snapshot end error since:%s", terrstr());
-      return -1;
-    } else {
-      sNTrace(ths, "wal snapshot end, index:%" PRId64, atomic_load_64(&ths->snapshottingIndex));
-      atomic_store_64(&ths->snapshottingIndex, SYNC_INDEX_INVALID);
+  if (atomic_load_64(&ths->snapshottingIndex) != SYNC_INDEX_INVALID) {
+    // end timeout wal snapshot
+    if (timeNow - ths->snapshottingTime > SYNC_DEL_WAL_MS &&
+        atomic_load_64(&ths->snapshottingIndex) != SYNC_INDEX_INVALID) {
+      SSyncLogStoreData* pData = ths->pLogStore->data;
+      int32_t            code = walEndSnapshot(pData->pWal);
+      if (code != 0) {
+        sNError(ths, "timer wal snapshot end error since:%s", terrstr());
+        return -1;
+      } else {
+        sNTrace(ths, "wal snapshot end, index:%" PRId64, atomic_load_64(&ths->snapshottingIndex));
+        atomic_store_64(&ths->snapshottingIndex, SYNC_INDEX_INVALID);
+      }
     }
   }
 

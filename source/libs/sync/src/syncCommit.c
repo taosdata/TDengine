@@ -171,7 +171,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     pSyncNode->pLogStore->syncLogUpdateCommitIndex(pSyncNode->pLogStore, pSyncNode->commitIndex);
 
     // execute fsm
-    if (pSyncNode->pFsm != NULL) {
+    if (pSyncNode != NULL && pSyncNode->pFsm != NULL) {
       int32_t code = syncNodeDoCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
       if (code != 0) {
         sNError(pSyncNode, "advance commit index error, do commit begin:%" PRId64 ", end:%" PRId64, beginIndex,

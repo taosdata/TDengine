@@ -616,6 +616,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
 _exit:
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
+    taosMemoryFree(pCreateReq->comment);
     taosArrayDestroy(pCreateReq->ctb.tagName);
   }
   taosArrayDestroyEx(rsp.pArray, tFreeSVCreateTbRsp);

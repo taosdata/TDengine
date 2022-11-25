@@ -36,12 +36,13 @@ typedef struct SMultiMergeSource {
 
 typedef struct SSortSource {
   SMultiMergeSource src;
-  union {
-    struct {
-      SArray* pageIdList;
-      int32_t pageIndex;
-    };
+  struct {
+    SArray* pageIdList;
+    int32_t pageIndex;
+  };
+  struct {
     void* param;
+    bool  onlyRef;
   };
 
 } SSortSource;
@@ -163,9 +164,10 @@ SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
 /**
  * get proper sort buffer pages according to the row size
  * @param rowSize
+ * @param numOfCols columns count that be put into page
  * @return
  */
-int32_t getProperSortPageSize(size_t rowSize);
+int32_t getProperSortPageSize(size_t rowSize, uint32_t numOfCols);
 
 #ifdef __cplusplus
 }

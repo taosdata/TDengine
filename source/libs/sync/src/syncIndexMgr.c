@@ -50,9 +50,10 @@ void syncIndexMgrClear(SSyncIndexMgr *pSyncIndexMgr) {
   memset(pSyncIndexMgr->privateTerm, 0, sizeof(pSyncIndexMgr->privateTerm));
 
   // int64_t timeNow = taosGetMonotonicMs();
+  int64_t timeNow = taosGetTimestampMs();
   for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
     pSyncIndexMgr->startTimeArr[i] = 0;
-    pSyncIndexMgr->recvTimeArr[i] = 0;
+    pSyncIndexMgr->recvTimeArr[i] = timeNow;
   }
 
   /*
@@ -156,7 +157,7 @@ int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRa
       return recvTime;
     }
   }
-  ASSERT(0);
+
   return -1;
 }
 
