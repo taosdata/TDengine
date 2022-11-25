@@ -118,6 +118,10 @@ uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
 extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
 
+// for stmt bind
+int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind);
+int32_t tColDataSortMerge(SColData *aColData);
+
 // STRUCT ================================
 struct STColumn {
   col_id_t colId;
