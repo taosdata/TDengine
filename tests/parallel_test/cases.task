@@ -418,11 +418,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,,system-test,python3 ./test.py -f 1-insert/alter_database.py
-,,,system-test,python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
-,,,system-test,python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
-,,,system-test,python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
-,,,system-test,python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_stable.py
 #,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_table.py
 ,,n,system-test,python3 ./test.py -f 1-insert/boundary.py
@@ -627,7 +627,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_str.py
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_math.py
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_time.py
-,,,system-test,python3 ./test.py -f 2-query/stablity.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py
 ,,,system-test,python3 ./test.py -f 2-query/stablity_1.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py
@@ -978,8 +978,8 @@
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_str.py -Q 4
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_math.py -Q 4
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4
-,,,system-test,python3 ./test.py -f 2-query/stablity.py -Q 4
-,,,system-test,python3 ./test.py -f 2-query/stablity_1.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/avg.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py -Q 4
