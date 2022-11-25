@@ -16,6 +16,8 @@ fn main() {
     shadow_rs::new().unwrap();
 
     if let Ok(dsn) = std::env::var("DATABASE_URL") {
+        let file = dsn.replacen("sqlite:", "", 1);
+        println!("cargo:rerun-if-changed={file}");
         sqlx::test_block_on(init_sqlx(&dsn)).unwrap();
     } else {
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -25,7 +27,10 @@ fn main() {
             std::fs::create_dir_all(&target).unwrap();
         }
         let db = target.join("taosx.dev.db");
-        let dsn = format!("sqlite:{}", db.display());
+        let file = db.display();
+        println!("cargo:rerun-if-changed={file}");
+
+        let dsn = format!("sqlite:{}", file);
         std::env::set_var("DATABASE_URL", &dsn);
 
         let dotenv = root.join(".env");
