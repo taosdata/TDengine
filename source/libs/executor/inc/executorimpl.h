@@ -530,16 +530,32 @@ typedef struct SSysTableScanInfo {
   SLoadRemoteDataInfo    loadInfo;
 } SSysTableScanInfo;
 
-typedef struct STableCountScanInfo {
-  SReadHandle readHandle;
-  SSDataBlock*  pRes;
-  SExprSupp     pseudoSup;
-  SNode*        pCondition;
-  SName         name;
-  uint64_t      suid;
-  uint64_t      uid;
-  int8_t        tableType;
-} STableCountScanInfo;
+typedef struct STableCountScanSupp {
+  int16_t dbNameSlotId;
+  int16_t stbNameSlotId;
+  int16_t tbCountSlotId;
+
+  bool groupByDbName;
+  bool groupByStbName;
+  char    dbName[TSDB_DB_NAME_LEN];
+  char    stbName[TSDB_TABLE_NAME_LEN];
+
+} STableCountScanSupp;
+
+typedef struct STableCountScanOperatorInfo {
+  SReadHandle  readHandle;
+  SSDataBlock* pRes;
+
+  SName tableName;
+
+  SNodeList* groupTags;
+  SNodeList* scanCols;
+  SNodeList* pseudoCols;
+
+  STableCountScanSupp supp;
+
+  int32_t   currGrpIdx;
+} STableCountScanOperatorInfo;
 
 typedef struct SBlockDistInfo {
   SSDataBlock* pResBlock;

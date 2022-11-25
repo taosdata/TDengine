@@ -108,6 +108,8 @@ int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
 int         metaGetTableUidByName(void *meta, char *tbName, int64_t *uid);
 int         metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType);
 bool        metaIsTableExist(SMeta *pMeta, tb_uid_t uid);
+tb_uid_t      metaGetTableEntryUidByName(SMeta* pMeta, const char* name);
+int64_t       metaGetTbNum(SMeta* pMeta);
 
 typedef struct {
   int64_t uid;
