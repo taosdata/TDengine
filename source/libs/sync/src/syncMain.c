@@ -698,6 +698,7 @@ static int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRa
 
 static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   int32_t ret = 0;
+  int64_t tsNow = taosGetTimestampMs();
   if (syncIsInit()) {
     SSyncHbTimerData* pData = syncHbTimerDataAcquire(pSyncTimer->hbDataRid);
     if (pData == NULL) {
@@ -705,13 +706,13 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
       pData->rid = syncHbTimerDataAdd(pData);
     }
     pSyncTimer->hbDataRid = pData->rid;
-    pSyncTimer->timeStamp = taosGetTimestampMs();
+    pSyncTimer->timeStamp = tsNow;
 
     pData->syncNodeRid = pSyncNode->rid;
     pData->pTimer = pSyncTimer;
     pData->destId = pSyncTimer->destId;
     pData->logicClock = pSyncTimer->logicClock;
-    pData->execTime = taosGetTimestampMs() + pSyncTimer->timerMS;
+    pData->execTime = tsNow + pSyncTimer->timerMS;
 
     taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS / HEARTBEAT_TICK_NUM, (void*)(pData->rid),
                  syncEnv()->pTimerManager, &pSyncTimer->pTimer);

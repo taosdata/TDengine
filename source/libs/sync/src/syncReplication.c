@@ -230,7 +230,7 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     pSyncMsg->timeStamp = ts;
 
     // send msg
-    syncLogSendHeartbeat(pSyncNode, pSyncMsg, true, 0);
+    syncLogSendHeartbeat(pSyncNode, pSyncMsg, true, 0, 0);
     syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
   }
 
