@@ -2034,6 +2034,11 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
       SRpcMsg rpcMsg = {0};
       (void)syncBuildHeartbeat(&rpcMsg, pSyncNode->vgId);
 
+      // update reset time
+      int64_t tsNow = taosGetTimestampMs();
+      int64_t timerElapsed = tsNow - pSyncTimer->timeStamp;
+      pSyncTimer->timeStamp = tsNow;
+
       SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
       pSyncMsg->srcId = pSyncNode->myRaftId;
       pSyncMsg->destId = pData->destId;
@@ -2041,17 +2046,11 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
       pSyncMsg->commitIndex = pSyncNode->commitIndex;
       pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
       pSyncMsg->privateTerm = 0;
-      pSyncMsg->timeStamp = taosGetTimestampMs();
-
-      // update reset time
-      int64_t tsNow = taosGetTimestampMs();
-      int64_t timerElapsed = tsNow - pSyncTimer->timeStamp;
-      pSyncTimer->timeStamp = tsNow;
-      char logBuf[64];
-      snprintf(logBuf, sizeof(logBuf), "timer-elapsed:%" PRId64, timerElapsed);
+      pSyncMsg->timeStamp = tsNow;
 
       // send msg
-      syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg, logBuf);
+      syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed);
+      syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
 
     } else {
       sTrace("vgId:%d, do not send hb, timerLogicClock:%" PRId64 ", msgLogicClock:%" PRId64 "", pSyncNode->vgId,
@@ -2161,9 +2160,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
-  char    buf[128];
-  snprintf(buf, sizeof(buf), "net elapsed:%" PRId64, timeDiff);
-  syncLogRecvHeartbeat(ths, pMsg, buf);
+  syncLogRecvHeartbeat(ths, pMsg, timeDiff);
 
   SRpcMsg rpcMsg = {0};
   (void)syncBuildHeartbeatReply(&rpcMsg, ths->vgId);
@@ -2173,7 +2170,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pMsgReply->srcId = ths->myRaftId;
   pMsgReply->term = ths->pRaftStore->currentTerm;
   pMsgReply->privateTerm = 8864;  // magic number
-  pMsgReply->timeStamp = taosGetTimestampMs();
+  pMsgReply->timeStamp = tsMs;
 
   if (pMsg->term == ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_LEADER) {
     syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), tsMs);
@@ -2240,9 +2237,7 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
-  char    buf[128];
-  snprintf(buf, sizeof(buf), "net elapsed:%" PRId64, timeDiff);
-  syncLogRecvHeartbeatReply(ths, pMsg, buf);
+  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff);
 
   // update last reply time, make decision whether the other node is alive or not
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
