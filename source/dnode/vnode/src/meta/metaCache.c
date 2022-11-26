@@ -534,8 +534,8 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
 
 // remove the lru cache that are expired due to the tags value update, or creating, or dropping, of child tables
 int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid) {
-  STagFilterResEntry* pEntry = taosHashGet(pMeta->pCache->sTagFilterResCache.pTableEntry, &suid, sizeof(uint64_t));
-  if (pEntry == NULL || listNEles(&pEntry->list) == 0) {
+  STagFilterResEntry** pEntry = taosHashGet(pMeta->pCache->sTagFilterResCache.pTableEntry, &suid, sizeof(uint64_t));
+  if (pEntry == NULL || listNEles(&(*pEntry)->list) == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -544,7 +544,7 @@ int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid) {
   p[0] = suid;
 
   SListIter iter = {0};
-  tdListInitIter(&pEntry->list, &iter, TD_LIST_FORWARD);
+  tdListInitIter(&(*pEntry)->list, &iter, TD_LIST_FORWARD);
 
   SListNode* pNode = NULL;
   while ((pNode = tdListNext(&iter)) != NULL) {
@@ -552,8 +552,8 @@ int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid) {
     taosLRUCacheErase(pMeta->pCache->sTagFilterResCache.pUidResCache, p, keyLen);
   }
 
-  pEntry->qTimes = 0;
-  tdListEmpty(&pEntry->list);
+  (*pEntry)->qTimes = 0;
+  tdListEmpty(&(*pEntry)->list);
 
   return TSDB_CODE_SUCCESS;
 }
