@@ -203,7 +203,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
     } else {
       p = taosArrayGetP(pExchangeInfo->pResultBlockList, 0);
       taosArrayRemove(pExchangeInfo->pResultBlockList, 0);
-      taosArrayPush(pExchangeInfo->pRecycledBlocks, p);
+      taosArrayPush(pExchangeInfo->pRecycledBlocks, &p);
       return p;
     }
   }
