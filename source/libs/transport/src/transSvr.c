@@ -231,14 +231,28 @@ static bool uvHandleReq(SSvrConn* pConn) {
     }
   }
   STraceId* trace = &pHead->traceId;
+
+  int64_t        cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
+  static int64_t EXCEPTION_LIMIT_US = 100 * 1000;
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     transRefSrvHandle(pConn);
-
-    tGDebug("%s conn %p %s received from %s, local info:%s, len:%d", transLabel(pTransInst), pConn,
-            TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen);
+    if (cost > EXCEPTION_LIMIT_US) {
+      tGWarn("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, recv exception", transLabel(pTransInst),
+             pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, (int)cost);
+    } else {
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus", transLabel(pTransInst), pConn,
+              TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, (int)cost);
+    }
   } else {
-    tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d", transLabel(pTransInst), pConn,
-            TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp, transMsg.code);
+    if (cost > EXCEPTION_LIMIT_US) {
+      tGWarn("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d, cost:%dus, recv exception",
+             transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp,
+             transMsg.code, (int)cost);
+    } else {
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d, cost:%dus",
+              transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp,
+              transMsg.code, (int)cost);
+    }
   }
 
   // pHead->noResp = 1,
