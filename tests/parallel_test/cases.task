@@ -627,7 +627,7 @@
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_str.py
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_math.py
 ,,,system-test,python3 ./test.py -f 2-query/nestedQuery_time.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py
+,,,system-test,python3 ./test.py -f 2-query/stablity.py
 ,,,system-test,python3 ./test.py -f 2-query/stablity_1.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py
