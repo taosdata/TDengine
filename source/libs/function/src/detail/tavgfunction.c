@@ -708,24 +708,22 @@ int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
 }
 
 int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  SInputColumnInfoData* pInput = &pCtx->input;
+  SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
 
-  SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  int32_t  type = pAvgRes->type;
+  SAvgRes* pRes = GET_ROWCELL_INTERBUF(pEntryInfo);
+  int32_t  type = pRes->type;
 
-  if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    pAvgRes->result = pAvgRes->sum.isum / ((double)pAvgRes->count);
-  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    pAvgRes->result = pAvgRes->sum.usum / ((double)pAvgRes->count);
-  } else {
-    pAvgRes->result = pAvgRes->sum.dsum / ((double)pAvgRes->count);
+  if (pRes->count > 0) {
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      pRes->result = pRes->sum.isum / ((double)pRes->count);
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      pRes->result = pRes->sum.usum / ((double)pRes->count);
+    } else {
+      pRes->result = pRes->sum.dsum / ((double)pRes->count);
+    }
   }
 
-  // check for overflow
-  if (isinf(pAvgRes->result) || isnan(pAvgRes->result)) {
-    GET_RES_INFO(pCtx)->numOfRes = 0;
-  }
-
+  pEntryInfo->numOfRes = (pRes->count > 0)? 1:0;
   return functionFinalize(pCtx, pBlock);
 }
 
