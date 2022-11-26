@@ -691,6 +691,7 @@ static int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRa
   pSyncTimer->timerMS = pSyncNode->hbBaseLine;
   pSyncTimer->timerCb = syncNodeEqPeerHeartbeatTimer;
   pSyncTimer->destId = destId;
+  pSyncTimer->timeStamp = taosGetTimestampMs();
   atomic_store_64(&pSyncTimer->logicClock, 0);
   return 0;
 }
@@ -704,6 +705,7 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
       pData->rid = syncHbTimerDataAdd(pData);
     }
     pSyncTimer->hbDataRid = pData->rid;
+    pSyncTimer->timeStamp = taosGetTimestampMs();
 
     pData->syncNodeRid = pSyncNode->rid;
     pData->pTimer = pSyncTimer;
@@ -1897,7 +1899,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
       return;
     }
 
-    sTrace("enqueue ping msg");
+    // sTrace("enqueue ping msg");
     code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
     if (code != 0) {
       sError("failed to sync enqueue ping msg since %s", terrstr());
@@ -2032,6 +2034,11 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
       SRpcMsg rpcMsg = {0};
       (void)syncBuildHeartbeat(&rpcMsg, pSyncNode->vgId);
 
+      // update reset time
+      int64_t tsNow = taosGetTimestampMs();
+      int64_t timerElapsed = tsNow - pSyncTimer->timeStamp;
+      pSyncTimer->timeStamp = tsNow;
+
       SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
       pSyncMsg->srcId = pSyncNode->myRaftId;
       pSyncMsg->destId = pData->destId;
@@ -2039,9 +2046,10 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
       pSyncMsg->commitIndex = pSyncNode->commitIndex;
       pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
       pSyncMsg->privateTerm = 0;
-      pSyncMsg->timeStamp = taosGetTimestampMs();
+      pSyncMsg->timeStamp = tsNow;
 
       // send msg
+      syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed);
       syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
 
     } else {
@@ -2151,9 +2159,8 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
 
   int64_t tsMs = taosGetTimestampMs();
-  char    buf[128];
-  snprintf(buf, sizeof(buf), "recv local time:%" PRId64, tsMs);
-  syncLogRecvHeartbeat(ths, pMsg, buf);
+  int64_t timeDiff = tsMs - pMsg->timeStamp;
+  syncLogRecvHeartbeat(ths, pMsg, timeDiff);
 
   SRpcMsg rpcMsg = {0};
   (void)syncBuildHeartbeatReply(&rpcMsg, ths->vgId);
@@ -2163,7 +2170,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pMsgReply->srcId = ths->myRaftId;
   pMsgReply->term = ths->pRaftStore->currentTerm;
   pMsgReply->privateTerm = 8864;  // magic number
-  pMsgReply->timeStamp = taosGetTimestampMs();
+  pMsgReply->timeStamp = tsMs;
 
   if (pMsg->term == ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_LEADER) {
     syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), tsMs);
@@ -2229,9 +2236,8 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
 
   int64_t tsMs = taosGetTimestampMs();
-  char    buf[128];
-  snprintf(buf, sizeof(buf), "recv local time:%" PRId64, tsMs);
-  syncLogRecvHeartbeatReply(ths, pMsg, buf);
+  int64_t timeDiff = tsMs - pMsg->timeStamp;
+  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff);
 
   // update last reply time, make decision whether the other node is alive or not
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);

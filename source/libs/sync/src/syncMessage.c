@@ -35,6 +35,7 @@ int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t l
   pTimeout->timeoutType = timeoutType;
   pTimeout->logicClock = logicClock;
   pTimeout->timerMS = timerMS;
+  pTimeout->timeStamp = taosGetTimestampMs();
   pTimeout->data = pNode;
   return 0;
 }

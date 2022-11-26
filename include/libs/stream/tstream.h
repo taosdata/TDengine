@@ -141,13 +141,38 @@ typedef struct {
 } SStreamCheckpoint;
 
 typedef struct {
-  int8_t type;
-} SStreamTaskDestroy;
-
-typedef struct {
   int8_t       type;
   SSDataBlock* pBlock;
 } SStreamTrigger;
+
+typedef struct SStreamQueueNode SStreamQueueNode;
+
+struct SStreamQueueNode {
+  SStreamQueueItem* item;
+  SStreamQueueNode* next;
+};
+
+typedef struct {
+  SStreamQueueNode* head;
+  int64_t           size;
+} SStreamQueueRes;
+
+void streamFreeQitem(SStreamQueueItem* data);
+
+bool              streamQueueResEmpty(const SStreamQueueRes* pRes);
+int64_t           streamQueueResSize(const SStreamQueueRes* pRes);
+SStreamQueueNode* streamQueueResFront(SStreamQueueRes* pRes);
+SStreamQueueNode* streamQueueResPop(SStreamQueueRes* pRes);
+void              streamQueueResClear(SStreamQueueRes* pRes);
+SStreamQueueRes   streamQueueBuildRes(SStreamQueueNode* pNode);
+
+typedef struct {
+  SStreamQueueNode* pHead;
+} SStreamQueue1;
+
+bool            streamQueueHasTask(const SStreamQueue1* pQueue);
+int32_t         streamQueuePush(SStreamQueue1* pQueue, SStreamQueueItem* pItem);
+SStreamQueueRes streamQueueGetRes(SStreamQueue1* pQueue);
 
 typedef struct {
   STaosQueue* queue;
