@@ -622,7 +622,7 @@ int32_t syncLogReplMgrRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
 _out:
   if (retried) {
     pMgr->retryBackoff = syncLogGetNextRetryBackoff(pMgr);
-    sInfo("vgId:%d, resend %d sync log entries. dest: %" PRIx64 ", indexes: %" PRId64 " ..., terms: ... %" PRId64
+    sInfo("vgId:%d, resent %d sync log entries. dest: %" PRIx64 ", indexes: %" PRId64 " ..., terms: ... %" PRId64
           ", retryWaitMs: %" PRId64 ", repl mgr: [%" PRId64 " %" PRId64 ", %" PRId64 ")",
           pNode->vgId, count, pDestId->addr, firstIndex, term, retryWaitMs, pMgr->startIndex, pMgr->matchIndex,
           pMgr->endIndex);
@@ -919,10 +919,24 @@ _err:
   return NULL;
 }
 
+void syncLogBufferClear(SSyncLogBuffer* pBuf) {
+  taosThreadMutexLock(&pBuf->mutex);
+  for (SyncIndex index = pBuf->startIndex; index < pBuf->endIndex; index++) {
+    SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
+    if (pEntry == NULL) continue;
+    syncEntryDestroy(pEntry);
+    pEntry = NULL;
+    memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
+  }
+  pBuf->startIndex = pBuf->commitIndex = pBuf->matchIndex = pBuf->endIndex = 0;
+  taosThreadMutexUnlock(&pBuf->mutex);
+}
+
 void syncLogBufferDestroy(SSyncLogBuffer* pBuf) {
   if (pBuf == NULL) {
     return;
   }
+  syncLogBufferClear(pBuf);
   (void)taosThreadMutexDestroy(&pBuf->mutex);
   (void)taosMemoryFree(pBuf);
   return;
