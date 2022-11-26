@@ -56,23 +56,23 @@ int32_t prepareGeomFromText(SGeosContext *context) {
 
   if (context->handle == NULL) {
     context->handle = GEOS_init_r();
-  }
-  if (context->handle == NULL) {
-    return code;
+    if (context->handle == NULL) {
+      return code;
+    }
   }
 
   if (context->WKTReader == NULL) {
     context->WKTReader = GEOSWKTReader_create_r(context->handle);
-  }
-  if (context->WKTReader == NULL) {
-    return code;
+    if (context->WKTReader == NULL) {
+      return code;
+    }
   }
 
   if (context->WKBWriter == NULL) {
     context->WKBWriter = GEOSWKBWriter_create_r(context->handle);
-  }
-  if (context->WKBWriter == NULL) {
-    return code;
+    if (context->WKBWriter == NULL) {
+      return code;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -114,23 +114,26 @@ int32_t prepareAsText(SGeosContext *context) {
 
   if (context->handle == NULL) {
     context->handle = GEOS_init_r();
-  }
-  if (context->handle == NULL) {
-    return code;
+    if (context->handle == NULL) {
+      return code;
+    }
   }
 
   if (context->WKBReader == NULL) {
     context->WKBReader = GEOSWKBReader_create_r(context->handle);
-  }
-  if (context->WKBReader == NULL) {
-    return code;
+    if (context->WKBReader == NULL) {
+      return code;
+    }
   }
 
   if (context->WKTWriter == NULL) {
     context->WKTWriter = GEOSWKTWriter_create_r(context->handle);
-  }
-  if (context->WKTWriter == NULL) {
-    return code;
+
+    if (context->WKTWriter != NULL) {
+      GEOSWKTWriter_setRoundingPrecision_r(context->handle, context->WKTWriter, 6);
+    } else {
+      return code;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -172,16 +175,16 @@ int32_t prepareMakePoint(SGeosContext *context) {
 
   if (context->handle == NULL) {
     context->handle = GEOS_init_r();
-  }
-  if (context->handle == NULL) {
-    return code;
+    if (context->handle == NULL) {
+      return code;
+    }
   }
 
   if (context->WKBWriter == NULL) {
     context->WKBWriter = GEOSWKBWriter_create_r(context->handle);
-  }
-  if (context->WKBWriter == NULL) {
-    return code;
+    if (context->WKBWriter == NULL) {
+      return code;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
