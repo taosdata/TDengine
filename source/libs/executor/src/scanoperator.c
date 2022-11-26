@@ -163,8 +163,8 @@ static SResultRow* getTableGroupOutputBuf(SOperatorInfo* pOperator, uint64_t gro
 
   STableScanInfo* pTableScanInfo = pOperator->info;
 
-  SResultRowPosition* p1 = (SResultRowPosition*)tSimpleHashGet(pTableScanInfo->base.pdInfo.pAggSup->pResultRowHashTable, buf,
-                                                               GET_RES_WINDOW_KEY_LEN(sizeof(groupId)));
+  SResultRowPosition* p1 = (SResultRowPosition*)tSimpleHashGet(pTableScanInfo->base.pdInfo.pAggSup->pResultRowHashTable,
+                                                               buf, GET_RES_WINDOW_KEY_LEN(sizeof(groupId)));
 
   if (p1 == NULL) {
     return NULL;
@@ -306,7 +306,7 @@ void applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo
 
 static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableScanInfo, SSDataBlock* pBlock,
                              uint32_t* status) {
-  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+  SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
   SFileBlockLoadRecorder* pCost = &pTableScanInfo->readRecorder;
 
   pCost->totalBlocks += 1;
@@ -1312,6 +1312,7 @@ static int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pS
 
       memcpy(varDataVal(tbname), parTbname, TSDB_TABLE_NAME_LEN);
       varDataSetLen(tbname, strlen(varDataVal(tbname)));
+      tdbFree(parTbname);
     }
     appendOneRowToStreamSpecialBlock(pDestBlock, srcStartTsCol + i, srcEndTsCol + i, srcUidData + i, &groupId,
                                      tbname[0] == 0 ? NULL : tbname);
@@ -1932,6 +1933,7 @@ FETCH_NEXT_BLOCK:
         if (pInfo->validBlockIndex >= totBlockNum) {
           updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
           doClearBufferedBlocks(pInfo);
+          qDebug("stream scan return empty, consume block %d", totBlockNum);
           return NULL;
         }
 
@@ -2566,7 +2568,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
 
     uint32_t status = 0;
     loadDataBlock(pOperator, &pTableScanInfo->base, pBlock, &status);
-//    code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, pBlock, &status);
+    //    code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
@@ -2896,7 +2898,6 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
-
 
   initResultSizeInfo(&pOperator->resultInfo, 1024);
   pInfo->pResBlock = createResDataBlock(pDescNode);
