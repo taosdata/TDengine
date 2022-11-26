@@ -985,6 +985,8 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       tMD5Init(&context);
       tMD5Update(&context, (uint8_t*)payload, (uint32_t)len);
       tMD5Final(&context);
+
+      taosMemoryFree(payload);
     }
 
     bool acquired = false;
