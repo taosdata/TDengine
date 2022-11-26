@@ -443,6 +443,7 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
     taosArrayAddBatch(pList1, p + sizeof(int32_t), size);
 
     (*pEntry)->qTimes += 1;
+    taosLRUCacheRelease(pCache, pHandle, false);
 
     // check if scanning all items are necessary or not
     if ((*pEntry)->qTimes >= 5000 && TD_DLIST_NELES(&(*pEntry)->list) > 10) {
@@ -478,12 +479,20 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
   return TSDB_CODE_SUCCESS;
 }
 
+static void freePayload(const void* key, size_t keyLen, void* value) {
+  if (value == NULL) {
+    return;
+  }
+  taosMemoryFree(value);
+}
+
 // check both the payload size and selectivity ratio
 int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload, int32_t payloadLen, double selectivityRatio) {
   if (selectivityRatio > tsSelectivityRatio) {
     metaDebug("vgId:%d, suid:%" PRIu64
               " failed to add to uid list cache, due to selectivity ratio %.2f less than threshold %.2f",
               TD_VID(pMeta->pVnode), suid, selectivityRatio, tsSelectivityRatio);
+    taosMemoryFree(pPayload);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -491,13 +500,14 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
     metaDebug("vgId:%d, suid:%" PRIu64
               " failed to add to uid list cache, due to payload length %d greater than threshold %d",
               TD_VID(pMeta->pVnode), suid, payloadLen, tsTagFilterResCacheSize);
+    taosMemoryFree(pPayload);
     return TSDB_CODE_SUCCESS;
   }
 
   SLRUCache* pCache = pMeta->pCache->sTagFilterResCache.pUidResCache;
-  SHashObj* pTableEntry = pMeta->pCache->sTagFilterResCache.pTableEntry;
+  SHashObj*  pTableEntry = pMeta->pCache->sTagFilterResCache.pTableEntry;
 
-  STagFilterResEntry** pEntry = taosHashGet(pMeta->pCache->sTagFilterResCache.pTableEntry, &suid, sizeof(uint64_t));
+  STagFilterResEntry** pEntry = taosHashGet(pTableEntry, &suid, sizeof(uint64_t));
   if (pEntry == NULL) {
     STagFilterResEntry* p = taosMemoryMalloc(sizeof(STagFilterResEntry));
     p->qTimes = 0;
@@ -515,7 +525,7 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
   ASSERT(sizeof(uint64_t) + keyLen == 24);
 
   // add to cache.
-  taosLRUCacheInsert(pCache, pBuf, sizeof(uint64_t) + keyLen, pPayload, payloadLen, NULL, NULL, TAOS_LRU_PRIORITY_LOW);
+  taosLRUCacheInsert(pCache, pBuf, sizeof(uint64_t) + keyLen, pPayload, payloadLen, freePayload, NULL, TAOS_LRU_PRIORITY_LOW);
   metaDebug("vgId:%d, suid:%"PRIu64" list cache added into cache, total:%d, tables:%d", TD_VID(pMeta->pVnode),
             suid, (int32_t) taosLRUCacheGetUsage(pCache), taosHashGetSize(pTableEntry));
 
