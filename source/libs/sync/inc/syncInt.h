@@ -61,6 +61,7 @@ typedef struct SSyncHbTimerData {
   SSyncTimer* pTimer;
   SRaftId     destId;
   uint64_t    logicClock;
+  int64_t     execTime;
   int64_t     rid;
 } SSyncHbTimerData;
 
