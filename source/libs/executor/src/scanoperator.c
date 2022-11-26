@@ -4921,68 +4921,118 @@ _error:
   return NULL;
 }
 
+void fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, char* stbName, int64_t count,
+                                 SSDataBlock* pRes) {
+  if (pSupp->dbNameSlotId != -1) {
+    ASSERT(strlen(dbName));
+    SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->dbNameSlotId);
+    char             varDbName[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    strncpy(varDataVal(varDbName), dbName, strlen(dbName));
+    varDataSetLen(varDbName, strlen(dbName));
+    colDataAppend(colInfoData, 0, varDbName, false);
+  }
+
+  if (pSupp->stbNameSlotId != -1) {
+    ASSERT(strlen(stbName));
+    SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->stbNameSlotId);
+    char             varStbName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    strncpy(varDataVal(varStbName), stbName, strlen(stbName));
+    varDataSetLen(varStbName, strlen(stbName));
+    colDataAppend(colInfoData, 0, varStbName, false);
+  }
+
+  if (pSupp->tbCountSlotId != -1) {
+    SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->stbNameSlotId);
+    colDataAppend(colInfoData, 0, (char*)&count, false);
+  }
+  pRes->info.rows = 1;
+}
+
+static SSDataBlock* buildSysDbTableCount(STableCountScanOperatorInfo* pInfo) {
+  STableCountScanSupp* pSupp = &pInfo->supp;
+  SSDataBlock*         pRes = pInfo->pRes;
+
+  int64_t infodbTableNum;
+  getInfosDbMeta(NULL, &infodbTableNum);
+  int64_t perfdbTableNum;
+  getPerfDbMeta(NULL, &perfdbTableNum);
+
+  if (pSupp->groupByDbName) {
+    if (pInfo->currGrpIdx == 0) {
+      uint64_t groupId = calcGroupId(TSDB_INFORMATION_SCHEMA_DB, strlen(TSDB_INFORMATION_SCHEMA_DB));
+      pRes->info.groupId = groupId;
+      fillTableCountScanDataBlock(pSupp, TSDB_INFORMATION_SCHEMA_DB, "", infodbTableNum, pRes);
+    } else if (pInfo->currGrpIdx == 1) {
+      uint64_t groupId = calcGroupId(TSDB_PERFORMANCE_SCHEMA_DB, strlen(TSDB_PERFORMANCE_SCHEMA_DB));
+      pRes->info.groupId = groupId;
+      fillTableCountScanDataBlock(pSupp, TSDB_PERFORMANCE_SCHEMA_DB, "", perfdbTableNum, pRes);
+    }
+    pInfo->currGrpIdx++;
+    return (pRes->info.rows > 0) ? pRes : NULL;
+  } else {
+    if (strcmp(pSupp->dbName, TSDB_INFORMATION_SCHEMA_DB) == 0) {
+      fillTableCountScanDataBlock(pSupp, TSDB_INFORMATION_SCHEMA_DB, "", infodbTableNum, pRes);
+    } else if (strcmp(pSupp->dbName, TSDB_PERFORMANCE_SCHEMA_DB) == 0) {
+      fillTableCountScanDataBlock(pSupp, TSDB_PERFORMANCE_SCHEMA_DB, "", perfdbTableNum, pRes);
+    } else if (strlen(pSupp->dbName) == 0) {
+      fillTableCountScanDataBlock(pSupp, "", "", infodbTableNum + perfdbTableNum, pRes);
+    }
+    return (pRes->info.rows > 0) ? pRes : NULL;
+  }
+}
+
 static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   STableCountScanOperatorInfo* pInfo = pOperator->info;
   STableCountScanSupp*         pSupp = &pInfo->supp;
   SSDataBlock*                 pRes = pInfo->pRes;
+  blockDataCleanup(pRes);
   // compute group id must, but output is according to scancols. output group by group
   // grouptags high priority(groupid<=>grouptag), then tablename(dbname,tableName).
   // scanCols, (grouptags cols)
-  {
-    // mnode, query table count of information_schema and performance_schema
-    if (pInfo->readHandle.mnd != NULL) {
-      if (pSupp->groupByDbName) {
-        if (pInfo->currGrpIdx == 0) {
-          uint64_t groupId = calcGroupId(TSDB_INFORMATION_SCHEMA_DB, strlen(TSDB_INFORMATION_SCHEMA_DB));
-          size_t   infodbTableNum;
-          getInfosDbMeta(NULL, &infodbTableNum);
-          pRes->info.groupId = groupId;
-          if (pSupp->dbNameSlotId != -1) {
-            SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->dbNameSlotId);
-            //colDataAppend(colInfoData, 0, )
-          }
-          return NULL;
-        } else if (pInfo->currGrpIdx == 1) {
-          uint64_t groupId = calcGroupId(TSDB_PERFORMANCE_SCHEMA_DB, strlen(TSDB_PERFORMANCE_SCHEMA_DB));
-          size_t perfdbTableNum;
-          getPerfDbMeta(NULL, &perfdbTableNum);
-        } else if (pInfo->currGrpIdx >= 2) {
-          return NULL;
-        }
-        uint64_t groupId = calcGroupId(TSDB_INFORMATION_SCHEMA_DB, strlen(TSDB_INFORMATION_SCHEMA_DB));
-        size_t   infodbTableNum;
-        getInfosDbMeta(NULL, &infodbTableNum);
-        size_t perfdbTableNum;
-        getPerfDbMeta(NULL, &perfdbTableNum);
-        // grouptags, db name
-      } else {
-      }
-    }
-    return NULL;
+  // mnode, query table count of information_schema and performance_schema
+  if (pInfo->readHandle.mnd != NULL) {
+    return buildSysDbTableCount(pInfo);
   }
+
   const char* db = NULL;
   int32_t     vgId = 0;
+  char dbName[TSDB_DB_FNAME_LEN] = {0};
+
   {
     // get dbname
     vnodeGetInfo(pInfo->readHandle.vnode, &db, &vgId);
     SColumnInfoData* pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, 0);
     SName            sn = {0};
-    char             varDbName[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
 
-    tNameGetDbName(&sn, varDataVal(varDbName));
-    varDataSetLen(varDbName, strlen(varDataVal(varDbName)));
+    tNameGetDbName(&sn, dbName);
   }
-  const char* tableName = tNameGetTableName(&pInfo->tableName);
+  if (pSupp->groupByDbName) {
+    if (pSupp->groupByStbName) {
 
+    } else {
+      uint64_t groupId = calcGroupId(dbName, strlen(dbName));
+      pRes->info.groupId = groupId;
+      int64_t dbTableCount = metaGetTbNum(pInfo->readHandle.meta);
+      fillTableCountScanDataBlock(pSupp, dbName, "", dbTableCount, pRes);
+    }
+  } else {
+    if (strlen(pSupp->dbName) != 0) {
+      if (strlen(pSupp->stbName) != 0) {
+
+      } else {
+
+      }
+    }
+  }
   {
     // grouptags only have column db_name or (no grouptags and tablename is null)
     // if (tableName == NULL | strlen(tableName) == 0)
     metaGetTbNum(pInfo->readHandle.meta);
   }
   {// no grouptags and TableName is not null, return child table count
-   {tb_uid_t uid = metaGetTableEntryUidByName(pInfo->readHandle.meta, tableName);
+   {tb_uid_t uid = metaGetTableEntryUidByName(pInfo->readHandle.meta, pSupp->stbName);
   SMetaStbStats stats = {0};
   metaGetStbStats(pInfo->readHandle.meta, uid, &stats);
   int64_t ctbNum = stats.ctbNum;
