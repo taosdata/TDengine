@@ -20,7 +20,7 @@
 
 SSyncRaftEntry* syncEntryBuild(int32_t dataLen) {
   int32_t         bytes = sizeof(SSyncRaftEntry) + dataLen;
-  SSyncRaftEntry* pEntry = taosMemoryMalloc(bytes);
+  SSyncRaftEntry* pEntry = taosMemoryCalloc(1, bytes);
   if (pEntry == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;

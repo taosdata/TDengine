@@ -455,6 +455,7 @@ int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, Syn
 
   (void)syncRespMgrGetAndDel(pNode->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info);
   pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
+  ASSERT(rpcMsg.pCont == NULL);
   return 0;
 }
 
