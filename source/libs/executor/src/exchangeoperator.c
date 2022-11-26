@@ -182,10 +182,15 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
   }
 
   // we have buffered retrieved datablock, return it directly
-  SSDataBlock** p = taosArrayPop(pExchangeInfo->pResultBlockList);
+  SSDataBlock* p = NULL;
+  if (taosArrayGetSize(pExchangeInfo->pResultBlockList) > 0) {
+    p = taosArrayGetP(pExchangeInfo->pResultBlockList, 0);
+    taosArrayRemove(pExchangeInfo->pResultBlockList, 0);
+  }
+
   if (p != NULL) {
-    taosArrayPush(pExchangeInfo->pRecycledBlocks, p);
-    return *p;
+    taosArrayPush(pExchangeInfo->pRecycledBlocks, &p);
+    return p;
   } else {
     if (pExchangeInfo->seqLoadData) {
       seqLoadRemoteData(pOperator);
@@ -196,9 +201,10 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
     if (taosArrayGetSize(pExchangeInfo->pResultBlockList) == 0) {
       return NULL;
     } else {
-      p = taosArrayPop(pExchangeInfo->pResultBlockList);
+      p = taosArrayGetP(pExchangeInfo->pResultBlockList, 0);
+      taosArrayRemove(pExchangeInfo->pResultBlockList, 0);
       taosArrayPush(pExchangeInfo->pRecycledBlocks, p);
-      return *p;
+      return p;
     }
   }
 }

@@ -649,7 +649,7 @@ static void doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFunct
       }
 
       case TSDB_DATA_TYPE_INT: {
-        const int16_t* pData = (const int16_t*)pCol->pData;
+        const int32_t* pData = (const int32_t*)pCol->pData;
         __COMPARE_ACQUIRED_MAX(i, end, pCol->nullbitmap, pData, pCtx, *(int32_t*)&(pBuf->v), &pBuf->tuplePos)
         break;
       }
