@@ -26,6 +26,10 @@
 int32_t doGeomFromTextFunc(SGeosContext *context, const char *input, unsigned char **output) {
   int32_t code = TSDB_CODE_FAILED;
 
+  if ((varDataLen(input)) == 0) { //empty value
+    return TSDB_CODE_SUCCESS;
+  }
+
   //make input as a zero ending string
   char *end = varDataVal(input) + varDataLen(input);
   char endValue = *end;
@@ -64,6 +68,10 @@ _exit:
 // need to call taosMemoryFree(*output) later
 int32_t doAsTextFunc(SGeosContext *context, unsigned char *input, char **output) {
   int32_t code = TSDB_CODE_FAILED;
+
+  if ((varDataLen(input)) == 0) { //empty value
+    return TSDB_CODE_SUCCESS;
+  }
 
   char *outputWKT = NULL;
   code = doAsText(context, varDataVal(input), varDataLen(input), &outputWKT);
@@ -123,7 +131,7 @@ _exit:
 }
 
 void appendOutputData(SColumnInfoData *pOutputData, int32_t i, unsigned char *output) {
-  colDataAppend(pOutputData, i, output, false);
+  colDataAppend(pOutputData, i, output, (output == NULL));
 
   if (output) {
     taosMemoryFree(output);

@@ -18,7 +18,7 @@
 #include "tcompression.h"
 #include "trow.h"
 
-const int32_t TYPE_BYTES[16] = {
+const int32_t TYPE_BYTES[17] = {
     -1,                      // TSDB_DATA_TYPE_NULL
     CHAR_BYTES,              // TSDB_DATA_TYPE_BOOL
     CHAR_BYTES,              // TSDB_DATA_TYPE_TINYINT
@@ -35,6 +35,7 @@ const int32_t TYPE_BYTES[16] = {
     INT_BYTES,               // TSDB_DATA_TYPE_UINT
     sizeof(uint64_t),        // TSDB_DATA_TYPE_UBIGINT
     TSDB_MAX_JSON_TAG_LEN,   // TSDB_DATA_TYPE_JSON
+    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_GEOMETRY
 };
 
 #define DO_STATICS(__sum, __min, __max, __minIndex, __maxIndex, _list, _index) \
@@ -405,7 +406,7 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
      getStatics_u64},
     {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString, tsDecompressString,
      getStatics_nchr},
-    {TSDB_DATA_TYPE_GEOMETRY, 8, TSDB_MAX_GEOMETRY_LEN, "GEOMETRY", 0, 0, tsCompressString, tsDecompressString, getStatics_bin},
+    {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString, tsDecompressString, getStatics_bin},
 };
 
 char tTokenTypeSwitcher[14] = {
