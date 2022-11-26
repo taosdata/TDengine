@@ -698,6 +698,7 @@ static int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRa
 
 static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   int32_t ret = 0;
+  int64_t tsNow = taosGetTimestampMs();
   if (syncIsInit()) {
     SSyncHbTimerData* pData = syncHbTimerDataAcquire(pSyncTimer->hbDataRid);
     if (pData == NULL) {
@@ -705,15 +706,16 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
       pData->rid = syncHbTimerDataAdd(pData);
     }
     pSyncTimer->hbDataRid = pData->rid;
-    pSyncTimer->timeStamp = taosGetTimestampMs();
+    pSyncTimer->timeStamp = tsNow;
 
     pData->syncNodeRid = pSyncNode->rid;
     pData->pTimer = pSyncTimer;
     pData->destId = pSyncTimer->destId;
     pData->logicClock = pSyncTimer->logicClock;
+    pData->execTime = tsNow + pSyncTimer->timerMS;
 
-    taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS, (void*)(pData->rid), syncEnv()->pTimerManager,
-                 &pSyncTimer->pTimer);
+    taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS / HEARTBEAT_TICK_NUM, (void*)(pData->rid),
+                 syncEnv()->pTimerManager, &pSyncTimer->pTimer);
   } else {
     sError("vgId:%d, start ctrl hb timer error, sync env is stop", pSyncNode->vgId);
   }
@@ -1979,6 +1981,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
 
 static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
   int64_t hbDataRid = (int64_t)param;
+  int64_t tsNow = taosGetTimestampMs();
 
   SSyncHbTimerData* pData = syncHbTimerDataAcquire(hbDataRid);
   if (pData == NULL) {
@@ -2023,34 +2026,50 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
     int64_t msgLogicClock = atomic_load_64(&pData->logicClock);
 
     if (timerLogicClock == msgLogicClock) {
+      if (tsNow > pData->execTime) {
+#if 0        
+        sTrace(
+            "vgId:%d, hbDataRid:%ld,  EXECUTE this step-------- heartbeat tsNow:%ld, exec:%ld, tsNow-exec:%ld, "
+            "---------",
+            pSyncNode->vgId, hbDataRid, tsNow, pData->execTime, tsNow - pData->execTime);
+#endif
+
+        pData->execTime += pSyncTimer->timerMS;
+
+        SRpcMsg rpcMsg = {0};
+        (void)syncBuildHeartbeat(&rpcMsg, pSyncNode->vgId);
+
+        SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
+        pSyncMsg->srcId = pSyncNode->myRaftId;
+        pSyncMsg->destId = pData->destId;
+        pSyncMsg->term = pSyncNode->pRaftStore->currentTerm;
+        pSyncMsg->commitIndex = pSyncNode->commitIndex;
+        pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
+        pSyncMsg->privateTerm = 0;
+        pSyncMsg->timeStamp = tsNow;
+
+        // update reset time
+        int64_t timerElapsed = tsNow - pSyncTimer->timeStamp;
+        pSyncTimer->timeStamp = tsNow;
+
+        // send msg
+        syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime);
+        syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
+      } else {
+#if 0        
+        sTrace(
+            "vgId:%d, hbDataRid:%ld,  pass this step-------- heartbeat tsNow:%ld, exec:%ld, tsNow-exec:%ld, ---------",
+            pSyncNode->vgId, hbDataRid, tsNow, pData->execTime, tsNow - pData->execTime);
+#endif
+      }
+
       if (syncIsInit()) {
         // sTrace("vgId:%d, reset peer hb timer", pSyncNode->vgId);
-        taosTmrReset(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS, (void*)hbDataRid, syncEnv()->pTimerManager,
-                     &pSyncTimer->pTimer);
+        taosTmrReset(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS / HEARTBEAT_TICK_NUM, (void*)hbDataRid,
+                     syncEnv()->pTimerManager, &pSyncTimer->pTimer);
       } else {
         sError("sync env is stop, reset peer hb timer error");
       }
-
-      SRpcMsg rpcMsg = {0};
-      (void)syncBuildHeartbeat(&rpcMsg, pSyncNode->vgId);
-
-      // update reset time
-      int64_t tsNow = taosGetTimestampMs();
-      int64_t timerElapsed = tsNow - pSyncTimer->timeStamp;
-      pSyncTimer->timeStamp = tsNow;
-
-      SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
-      pSyncMsg->srcId = pSyncNode->myRaftId;
-      pSyncMsg->destId = pData->destId;
-      pSyncMsg->term = pSyncNode->pRaftStore->currentTerm;
-      pSyncMsg->commitIndex = pSyncNode->commitIndex;
-      pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
-      pSyncMsg->privateTerm = 0;
-      pSyncMsg->timeStamp = tsNow;
-
-      // send msg
-      syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed);
-      syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
 
     } else {
       sTrace("vgId:%d, do not send hb, timerLogicClock:%" PRId64 ", msgLogicClock:%" PRId64 "", pSyncNode->vgId,
