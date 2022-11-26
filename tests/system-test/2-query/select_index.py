@@ -26,7 +26,7 @@ from util.dnodes import *
 class TDTestCase:
     updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 143 ,"querySmaOptimize":1}
     
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
@@ -109,7 +109,7 @@ class TDTestCase:
                         q_binary1 , q_nchar1 , q_binary2 , q_nchar2 , q_binary3 , q_nchar3 , q_binary4 , q_nchar4 , q_binary5 , q_nchar5 , q_binary6 , q_nchar6 , q_binary7 , q_nchar7, q_binary8 , q_nchar8) \
                         values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, 'binary1.%s', 'nchar1.%s', 'binary2.%s', 'nchar2.%s', 'binary3.%s', 'nchar3.%s', \
                         'binary4.%s', 'nchar4.%s', 'binary5.%s', 'nchar5.%s', 'binary6.%s', 'nchar6.%s', 'binary7.%s', 'nchar7.%s', 'binary8.%s', 'nchar8.%s') ;''' 
-                        % (database,ts + i*1000, fake.random_int(min=-2147483647, max=2147483647, step=1), 
+                        % (database,ts + i*1000+1, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                         fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , 
@@ -118,7 +118,7 @@ class TDTestCase:
                         q_binary1 , q_nchar1 , q_binary2 , q_nchar2 , q_binary3 , q_nchar3 , q_binary4 , q_nchar4 , q_binary5 , q_nchar5 , q_binary6 , q_nchar6 , q_binary7 , q_nchar7, q_binary8 , q_nchar8) \
                         values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, 'binary1.%s', 'nchar1.%s', 'binary2.%s', 'nchar2.%s', 'binary3.%s', 'nchar3.%s', \
                         'binary4.%s', 'nchar4.%s', 'binary5.%s', 'nchar5.%s', 'binary6.%s', 'nchar6.%s', 'binary7.%s', 'nchar7.%s', 'binary8.%s', 'nchar8.%s') ;''' 
-                        % (database,ts + i*1000, fake.random_int(min=-2147483647, max=2147483647, step=1) , 
+                        % (database,ts + i*1000+1, fake.random_int(min=-2147483647, max=2147483647, step=1) , 
                         fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1) , 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i, fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , 
@@ -128,7 +128,7 @@ class TDTestCase:
                         q_binary1 , q_nchar1 , q_binary2 , q_nchar2 , q_binary3 , q_nchar3 , q_binary4 , q_nchar4 , q_binary5 , q_nchar5 , q_binary6 , q_nchar6 , q_binary7 , q_nchar7, q_binary8 , q_nchar8)\
                         values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d, 'binary1.%s', 'nchar1.%s', 'binary2.%s', 'nchar2.%s', 'binary3.%s', 'nchar3.%s', \
                         'binary4.%s', 'nchar4.%s', 'binary5.%s', 'nchar5.%s', 'binary6.%s', 'nchar6.%s', 'binary7.%s', 'nchar7.%s', 'binary8.%s', 'nchar8.%s') ;''' 
-                        % (database,ts + i*1000, fake.random_int(min=0, max=2147483647, step=1), 
+                        % (database,ts + i*1000+2, fake.random_int(min=0, max=2147483647, step=1), 
                         fake.random_int(min=0, max=9223372036854775807, step=1), 
                         fake.random_int(min=0, max=32767, step=1) , fake.random_int(min=0, max=127, step=1) , 
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i, fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , 
@@ -137,7 +137,7 @@ class TDTestCase:
                         q_binary1 , q_nchar1 , q_binary2 , q_nchar2 , q_binary3 , q_nchar3 , q_binary4 , q_nchar4 , q_binary5 , q_nchar5 , q_binary6 , q_nchar6 , q_binary7 , q_nchar7, q_binary8 , q_nchar8) \
                         values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d, 'binary1.%s', 'nchar1.%s', 'binary2.%s', 'nchar2.%s', 'binary3.%s', 'nchar3.%s', \
                         'binary4.%s', 'nchar4.%s', 'binary5.%s', 'nchar5.%s', 'binary6.%s', 'nchar6.%s', 'binary7.%s', 'nchar7.%s', 'binary8.%s', 'nchar8.%s') ;''' 
-                        % (database,ts + i*1000, fake.random_int(min=0, max=2147483647, step=1), 
+                        % (database,ts + i*1000+2, fake.random_int(min=0, max=2147483647, step=1), 
                         fake.random_int(min=0, max=9223372036854775807, step=1), 
                         fake.random_int(min=0, max=32767, step=1) , fake.random_int(min=0, max=127, step=1) , 
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i, fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , 
@@ -147,7 +147,7 @@ class TDTestCase:
                         q_binary1 , q_nchar1 , q_binary2 , q_nchar2 , q_binary3 , q_nchar3 , q_binary4 , q_nchar4 , q_binary5 , q_nchar5 , q_binary6 , q_nchar6 , q_binary7 , q_nchar7, q_binary8 , q_nchar8) \
                         values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, 'binary1.%s', 'nchar1.%s', 'binary2.%s', 'nchar2.%s', 'binary3.%s', 'nchar3.%s', \
                         'binary4.%s', 'nchar4.%s', 'binary5.%s', 'nchar5.%s', 'binary6.%s', 'nchar6.%s', 'binary7.%s', 'nchar7.%s', 'binary8.%s', 'nchar8.%s') ;''' 
-                        % (database,ts + i*1000, fake.random_int(min=-0, max=2147483647, step=1), 
+                        % (database,ts + i*1000+3, fake.random_int(min=-0, max=2147483647, step=1), 
                         fake.random_int(min=-0, max=9223372036854775807, step=1), 
                         fake.random_int(min=-0, max=32767, step=1) , fake.random_int(min=-0, max=127, step=1) , 
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i, fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , 
@@ -157,7 +157,7 @@ class TDTestCase:
                         q_binary1 , q_nchar1 , q_binary2 , q_nchar2 , q_binary3 , q_nchar3 , q_binary4 , q_nchar4 , q_binary5 , q_nchar5 , q_binary6 , q_nchar6 , q_binary7 , q_nchar7, q_binary8 , q_nchar8) \
                         values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, 'binary1.%s', 'nchar1.%s', 'binary2.%s', 'nchar2.%s', 'binary3.%s', 'nchar3.%s', \
                         'binary4.%s', 'nchar4.%s', 'binary5.%s', 'nchar5.%s', 'binary6.%s', 'nchar6.%s', 'binary7.%s', 'nchar7.%s', 'binary8.%s', 'nchar8.%s') ;''' 
-                        % (database,ts + i*1000 +1, fake.random_int(min=-0, max=2147483647, step=1), 
+                        % (database,ts + i*1000 +4, fake.random_int(min=-0, max=2147483647, step=1), 
                         fake.random_int(min=-0, max=9223372036854775807, step=1), 
                         fake.random_int(min=-0, max=32767, step=1) , fake.random_int(min=-0, max=127, step=1) , 
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i, fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , 
@@ -167,7 +167,7 @@ class TDTestCase:
                         q_binary1 , q_nchar1 , q_binary2 , q_nchar2 , q_binary3 , q_nchar3 , q_binary4 , q_nchar4 , q_binary5 , q_nchar5 , q_binary6 , q_nchar6 , q_binary7 , q_nchar7, q_binary8 , q_nchar8) \
                         values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, 'binary1.%s', 'nchar1.%s', 'binary2.%s', 'nchar2.%s', 'binary3.%s', 'nchar3.%s', \
                         'binary4.%s', 'nchar4.%s', 'binary5.%s', 'nchar5.%s', 'binary6.%s', 'nchar6.%s', 'binary7.%s', 'nchar7.%s', 'binary8.%s', 'nchar8.%s') ;''' 
-                        % (database,ts + i*1000 +10, fake.random_int(min=-0, max=2147483647, step=1), 
+                        % (database,ts + i*1000 +5, fake.random_int(min=-0, max=2147483647, step=1), 
                         fake.random_int(min=-0, max=9223372036854775807, step=1), 
                         fake.random_int(min=-0, max=32767, step=1) , fake.random_int(min=-0, max=127, step=1) , 
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i, fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , 
@@ -182,7 +182,7 @@ class TDTestCase:
         fake = Faker('zh_CN')
         fake_data =  fake.random_int(min=1, max=20, step=1) 
         tdLog.info("\n=============constant(%s)_check ====================\n" %func)  
-        tdSql.execute(" create sma index sma_index_name1 on stable_1 function(%s(%s)) interval(%dm); " %(func,column,fake_data))  
+        tdSql.execute(" create sma index %s.sma_index_name1 on %s.stable_1 function(%s(%s)) interval(%dm); " %(database,database,func,column,fake_data))  
         sql = " select %s(%s) from %s.stable_1 interval(1m) "%(func,column,database)
         tdLog.info(sql)
         tdSql.query(sql) 
@@ -205,7 +205,7 @@ class TDTestCase:
         
         tdLog.info("\n=============drop index ====================\n")
         
-        tdSql.execute(" drop index sma_index_name1;")
+        tdSql.execute(" drop index %s.sma_index_name1;" %database)
         
         tdSql.query(sql)  
         queryRows = len(tdSql.queryResult)    
@@ -214,7 +214,30 @@ class TDTestCase:
             drop_index_value = tdSql.queryResult[i][0]
         
         self.value_check(flush_before_value,drop_index_value)
-       
+    
+    def constant_speical_check(self,database,func,column):    
+        tdLog.info("\n=============constant(%s)_check ====================\n" %column) 
+        sql_no_from = " select %s(%s) ; "%(func,column)
+
+        tdLog.info(sql_no_from)
+        tdSql.query(sql_no_from) 
+        queryRows = len(tdSql.queryResult)    
+        for i in range(queryRows):
+            print("row=%d,  result=%s " %(i,tdSql.queryResult[i][0]))
+            flush_before_value_no_from = tdSql.queryResult[i][0]
+        
+        tdLog.info("\n=============flush database ====================\n")
+        
+        tdSql.execute(" flush database %s;" %database)
+        
+        tdSql.query(sql_no_from)  
+        queryRows = len(tdSql.queryResult)    
+        for i in range(queryRows):
+            print("row=%d,  result=%s " %(i,tdSql.queryResult[i][0]))
+            flush_after_value_no_from = tdSql.queryResult[i][0]
+        
+        self.value_check(flush_before_value_no_from,flush_after_value_no_from)
+               
         
     def constant_check(self,database,func,column):    
         tdLog.info("\n=============constant(%s)_check ====================\n" %column) 
@@ -253,7 +276,7 @@ class TDTestCase:
             print("row=%d,  result=%s " %(i,tdSql.queryResult[i][0]))
             flush_after_value_no_from = tdSql.queryResult[i][0]
         
-        self.value_check(flush_before_value_no_from,flush_after_value_no_from)
+        #self.value_check(flush_before_value_no_from,flush_after_value_no_from)#越界后值不唯一
         
     def constant_table_check(self,database,func,column):    
         tdLog.info("\n=============constant(%s)_check ====================\n" %column) 
@@ -292,7 +315,7 @@ class TDTestCase:
             print("row=%d,  result=%s " %(i,tdSql.queryResult[i][0]))
             flush_after_value_no_from = tdSql.queryResult[i][0]
         
-        self.value_check(flush_before_value_no_from,flush_after_value_no_from)
+        #self.value_check(flush_before_value_no_from,flush_after_value_no_from)#越界后值不唯一
         
     def constant_str_check(self,database,func,column):    
         tdLog.info("\n=============constant(%s)_check ====================\n" %column) 
@@ -338,7 +361,7 @@ class TDTestCase:
         
     def derivative_sql(self,database):    
         fake = Faker('zh_CN')
-        fake_data =  fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1)
+        fake_data =  fake.random_int(min=1, max=10000000000000, step=1)
         tdLog.info("\n=============derivative sql ====================\n" )  
         sql = " select derivative(%s,%ds,0) from %s.stable_1 "%('q_smallint',fake_data,database) 
         self.derivative_data_check("%s" %self.db,"%s" %sql)
@@ -493,11 +516,11 @@ class TDTestCase:
         
                       
     def value_check(self,flush_before_value,flush_after_value):
-        # if flush_before_value==flush_after_value:
-        #     tdLog.info(f"checkEqual success, flush_before_value={flush_before_value},flush_after_value={flush_after_value}") 
-        # else :
-        #     tdLog.exit(f"checkEqual error, flush_before_value=={flush_before_value},flush_after_value={flush_after_value}") 
-        pass
+        if flush_before_value==flush_after_value:
+            tdLog.info(f"checkEqual success, flush_before_value={flush_before_value},flush_after_value={flush_after_value}") 
+        else :
+            tdLog.exit(f"checkEqual error, flush_before_value=={flush_before_value},flush_after_value={flush_after_value}") 
+        #pass
                             
     def run(self):      
         fake = Faker('zh_CN')
@@ -510,6 +533,11 @@ class TDTestCase:
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
         
         self.dropandcreateDB_random("%s" %self.db, 1,2)
+        
+        self.constant_speical_check("%s" %self.db,'','%d' %fake_data)
+        self.constant_speical_check("%s" %self.db,'','%f' %fake_float)
+        self.constant_speical_check("%s" %self.db,'','\'%s\'' %fake_str)
+        self.constant_speical_check("%s" %self.db,'','NULL')
         
         #TD-19818
         self.func_index_check("%s" %self.db,'max','q_int')

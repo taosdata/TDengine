@@ -2045,7 +2045,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
         pSyncMsg->commitIndex = pSyncNode->commitIndex;
         pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
         pSyncMsg->privateTerm = 0;
-        pSyncMsg->timeStamp = taosGetTimestampMs();
+        pSyncMsg->timeStamp = tsNow;
 
         // update reset time
         int64_t timerElapsed = tsNow - pSyncTimer->timeStamp;
@@ -2055,7 +2055,8 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
                  pData->execTime);
 
         // send msg
-        syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg, logBuf);
+        syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime);
+        syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
       } else {
 #if 0        
         sTrace(
@@ -2180,9 +2181,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
-  char    buf[128];
-  snprintf(buf, sizeof(buf), "net elapsed:%" PRId64, timeDiff);
-  syncLogRecvHeartbeat(ths, pMsg, buf);
+  syncLogRecvHeartbeat(ths, pMsg, timeDiff);
 
   SRpcMsg rpcMsg = {0};
   (void)syncBuildHeartbeatReply(&rpcMsg, ths->vgId);
@@ -2192,7 +2191,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pMsgReply->srcId = ths->myRaftId;
   pMsgReply->term = ths->pRaftStore->currentTerm;
   pMsgReply->privateTerm = 8864;  // magic number
-  pMsgReply->timeStamp = taosGetTimestampMs();
+  pMsgReply->timeStamp = tsMs;
 
   if (pMsg->term == ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_LEADER) {
     syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), tsMs);
@@ -2259,9 +2258,7 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
-  char    buf[128];
-  snprintf(buf, sizeof(buf), "net elapsed:%" PRId64, timeDiff);
-  syncLogRecvHeartbeatReply(ths, pMsg, buf);
+  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff);
 
   // update last reply time, make decision whether the other node is alive or not
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
@@ -2539,6 +2536,8 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
         SRpcMsg rpcMsg = {0};
         syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
+        sTrace("do commit index:%" PRId64 ", type:%s", i, TMSG_INFO(pEntry->msgType));
+
         // user commit
         if ((ths->pFsm->FpCommitCb != NULL) && syncUtilUserCommit(pEntry->originalRpcType)) {
           bool internalExecute = true;
@@ -2546,7 +2545,8 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
             internalExecute = false;
           }
 
-          sNTrace(ths, "commit index:%" PRId64 ", internal:%d", i, internalExecute);
+          sNTrace(ths, "user commit index:%" PRId64 ", internal:%d, type:%s", i, internalExecute,
+                  TMSG_INFO(pEntry->msgType));
 
           // execute fsm in apply thread, or execute outside syncPropose
           if (internalExecute) {

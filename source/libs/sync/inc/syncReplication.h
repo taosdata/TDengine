@@ -48,7 +48,7 @@ extern "C" {
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 
 int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode);
-int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* pDestId, SRpcMsg* pMsg, const char* debugStr);
+int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* pDestId, SRpcMsg* pMsg);
 
 int32_t syncNodeReplicate(SSyncNode* pSyncNode);
 int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapshot);

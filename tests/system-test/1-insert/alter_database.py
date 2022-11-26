@@ -18,7 +18,7 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
         self.buffer_boundary = [3, 4097, 8193, 12289, 16384]
         self.buffer_error = [self.buffer_boundary[0] -
-                             1, self.buffer_boundary[-1]+1, 12289, 256]
+                             1, self.buffer_boundary[-1]+1, 256]
         # pages_boundary >= 64
         self.pages_boundary = [64, 128, 512]
         self.pages_error = [self.pages_boundary[0]-1]
@@ -53,7 +53,7 @@ class TDTestCase:
         tdSql.execute('drop database db')
 
     def run(self):
-        tdSql.error('create database db1 vgroups 10 buffer 12289')
+        
         self.alter_buffer()
         self.alter_pages()
 

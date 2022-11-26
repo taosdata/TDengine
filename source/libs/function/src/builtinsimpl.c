@@ -3376,7 +3376,8 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
 
   int64_t* pts = (int64_t*)pInput->pPTS->pData;
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-    char* data = colDataGetData(pInputCol, i);
+    bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
+    char* data = isNull ? NULL : colDataGetData(pInputCol, i);
     TSKEY cts = pts[i];
 
     numOfElems++;
@@ -5672,12 +5673,12 @@ int32_t modeFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElems = 0;
   int32_t startOffset = pCtx->offset;
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-    char* data = colDataGetData(pInputCol, i);
     if (colDataIsNull_s(pInputCol, i)) {
       continue;
     }
-
     numOfElems++;
+
+    char* data = colDataGetData(pInputCol, i);
     doModeAdd(pInfo, i, pCtx, data);
 
     if (sizeof(SModeInfo) + pInfo->numOfPoints * (sizeof(SModeItem) + pInfo->colBytes) >= MODE_MAX_RESULT_SIZE) {

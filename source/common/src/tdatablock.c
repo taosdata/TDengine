@@ -509,8 +509,12 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
         isNull = colDataIsNull(pColData, pBlock->info.rows, j, pBlock->pBlockAgg[i]);
       }
 
-      char* p = colDataGetData(pColData, j);
-      colDataAppend(pDstCol, j - startIndex, p, isNull);
+      if (isNull) {
+        colDataAppendNULL(pDstCol, j - startIndex);
+      } else {
+        char* p = colDataGetData(pColData, j);
+        colDataAppend(pDstCol, j - startIndex, p, false);
+      }
     }
   }
 
@@ -652,7 +656,10 @@ int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity)
       ASSERT(pCol->varmeta.length <= pCol->varmeta.allocLen);
     }
 
-    memcpy(pCol->pData, pStart, colLength);
+    if (!colDataIsNNull_s(pCol, 0, pBlock->info.rows)) {
+      memcpy(pCol->pData, pStart, colLength);
+    }
+
     pStart += pCol->info.bytes * capacity;
   }
 
@@ -804,7 +811,9 @@ static int32_t blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataB
     SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
 
     if (IS_VAR_DATA_TYPE(pSrc->info.type)) {
-      memcpy(pDst->pData, pSrc->pData, pSrc->varmeta.length);
+      if (pSrc->varmeta.length != 0) {
+        memcpy(pDst->pData, pSrc->pData, pSrc->varmeta.length);
+      }
       pDst->varmeta.length = pSrc->varmeta.length;
 
       for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
@@ -2052,6 +2061,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
               isStartKey = true;
               tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID, TSDB_DATA_TYPE_TIMESTAMP, TD_VTYPE_NORM, var, true,
                                   offset, k);
+              continue; // offset should keep 0 for next column
 
             } else if (colDataIsNull_s(pColInfoData, j)) {
               tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_TIMESTAMP, TD_VTYPE_NULL, NULL,
