@@ -441,6 +441,9 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     int32_t code = metaGetTableEntryByName(&smrChildTable, condTableName);
     if (code != TSDB_CODE_SUCCESS) {
       // terrno has been set by metaGetTableEntryByName, therefore, return directly
+      metaReaderClear(&smrChildTable);
+      blockDataDestroy(dataBlock);
+      pInfo->loadInfo.totalRows = 0;
       return NULL;
     }
 
@@ -456,12 +459,16 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     code = metaGetTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
     if (code != TSDB_CODE_SUCCESS) {
       // terrno has been set by metaGetTableEntryByUid
+      metaReaderClear(&smrSuperTable);
+      metaReaderClear(&smrChildTable);
+      blockDataDestroy(dataBlock);
       return NULL;
     }
 
     sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows, dataBlock);
     metaReaderClear(&smrSuperTable);
     metaReaderClear(&smrChildTable);
+
     if (numOfRows > 0) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
       numOfRows = 0;

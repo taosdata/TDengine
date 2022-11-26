@@ -2317,7 +2317,7 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode);
 int32_t extractTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pHandle->meta, 0);
-  int32_t code = metaGetTableEntryByUid(&mr, pScanNode->uid);
+  int32_t code = metaGetTableEntryByUidCache(&mr, pScanNode->uid);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to get the table meta, uid:0x%" PRIx64 ", suid:0x%" PRIx64 ", %s", pScanNode->uid, pScanNode->suid,
            GET_TASKID(pTaskInfo));
@@ -2336,7 +2336,7 @@ int32_t extractTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, 
     tDecoderClear(&mr.coder);
 
     tb_uid_t suid = mr.me.ctbEntry.suid;
-    metaGetTableEntryByUid(&mr, suid);
+    metaGetTableEntryByUidCache(&mr, suid);
     pSchemaInfo->sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
     pSchemaInfo->tversion = mr.me.stbEntry.schemaTag.version;
   } else {

@@ -153,7 +153,6 @@ bool metaIsTableExist(SMeta *pMeta, tb_uid_t uid) {
 
 int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   SMeta *pMeta = pReader->pMeta;
-  /*
   int64_t version1;
 
   // query uid.idx
@@ -164,7 +163,10 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
 
   version1 = ((SUidIdxVal *)pReader->pBuf)[0].version;
   return metaGetTableEntryByVersion(pReader, version1, uid);
-  */
+}
+
+int metaGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
+  SMeta *pMeta = pReader->pMeta;
 
   SMetaInfo info;
   if (metaGetInfo(pMeta, uid, &info, pReader) == TSDB_CODE_NOT_FOUND) {

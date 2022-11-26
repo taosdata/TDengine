@@ -921,7 +921,7 @@ static int32_t tdRSmaInfoClone(SSma *pSma, SRSmaInfo *pInfo) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, SMA_META(pSma), 0);
   smaDebug("vgId:%d, rsma clone qTaskInfo for suid:%" PRIi64, SMA_VID(pSma), pInfo->suid);
-  if (metaGetTableEntryByUid(&mr, pInfo->suid) < 0) {
+  if (metaGetTableEntryByUidCache(&mr, pInfo->suid) < 0) {
     smaError("vgId:%d, rsma clone, failed to get table meta for %" PRIi64 " since %s", SMA_VID(pSma), pInfo->suid,
              terrstr());
     goto _err;
@@ -1125,7 +1125,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
   for (int64_t i = 0; i < arrSize; ++i) {
     tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
     smaDebug("vgId:%d, rsma restore, suid is %" PRIi64, TD_VID(pVnode), suid);
-    if (metaGetTableEntryByUid(&mr, suid) < 0) {
+    if (metaGetTableEntryByUidCache(&mr, suid) < 0) {
       smaError("vgId:%d, rsma restore, failed to get table meta for %" PRIi64 " since %s", TD_VID(pVnode), suid,
                terrstr());
       goto _err;

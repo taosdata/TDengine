@@ -4350,7 +4350,7 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
 
   SMetaReader mr = {0};
   metaReaderInit(&mr, pVnode->pMeta, 0);
-  int32_t code = metaGetTableEntryByUid(&mr, uid);
+  int32_t code = metaGetTableEntryByUidCache(&mr, uid);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
     metaReaderClear(&mr);
@@ -4362,7 +4362,7 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
   if (mr.me.type == TSDB_CHILD_TABLE) {
     tDecoderClear(&mr.coder);
     *suid = mr.me.ctbEntry.suid;
-    code = metaGetTableEntryByUid(&mr, *suid);
+    code = metaGetTableEntryByUidCache(&mr, *suid);
     if (code != TSDB_CODE_SUCCESS) {
       terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
       metaReaderClear(&mr);

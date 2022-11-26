@@ -290,7 +290,7 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
   SMetaReader mr = {0};
 
   metaReaderInit(&mr, metaHandle, 0);
-  code = metaGetTableEntryByUid(&mr, info->uid);
+  code = metaGetTableEntryByUidCache(&mr, info->uid);
   if (TSDB_CODE_SUCCESS != code) {
     metaReaderClear(&mr);
     *pQualified = false;
@@ -1092,7 +1092,7 @@ size_t getTableTagsBufLen(const SNodeList* pGroups) {
 int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pMeta, 0);
-  if (metaGetTableEntryByUid(&mr, uid) != 0) {  // table not exist
+  if (metaGetTableEntryByUidCache(&mr, uid) != 0) {  // table not exist
     metaReaderClear(&mr);
     return TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
