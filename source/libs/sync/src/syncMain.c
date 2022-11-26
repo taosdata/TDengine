@@ -2051,9 +2051,6 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
         // update reset time
         int64_t timerElapsed = tsNow - pSyncTimer->timeStamp;
         pSyncTimer->timeStamp = tsNow;
-        char logBuf[64];
-        snprintf(logBuf, sizeof(logBuf), "timer-elapsed:%" PRId64 ", next-exec:%" PRId64, timerElapsed,
-                 pData->execTime);
 
         // send msg
         syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime);
