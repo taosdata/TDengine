@@ -1122,7 +1122,7 @@ uint64_t taosHton64(uint64_t val) {
 
 uint64_t taosNtoh64(uint64_t val) {
 #if defined(WINDOWS) || defined(DARWIN)
-  taosHton64(val);
+  return taosHton64(val);
 #else
   if (__BYTE_ORDER == __LITTLE_ENDIAN) {
     return (((uint64_t)htonl((int)((val << 32) >> 32))) << 32) | (unsigned int)htonl((int)(val >> 32));
