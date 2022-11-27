@@ -107,6 +107,7 @@ static uint64_t grantGetClusterCurTimeSeries(SMnode *pMnode);
 static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextGrant(SMnode *pMnode, void *pIter);
 
+static bool  recheckClusterTime = true;
 static void *grantCheckTimer = NULL;
 static void *grantSendTimer = NULL;
 SGrantStatus grantStatus = {false,
@@ -435,6 +436,9 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
     return -1;
   }
 
+  if(recheckClusterTime) {
+    grantResetMaster(pMnode);
+  }
   grantRetrieveGrantInfo(pMnode);
 
   mndGetDnodeData(pMnode, pDnodeEps);
@@ -641,6 +645,9 @@ static void grantResetMaster(SMnode *pMnode) {
   grantRetrieveGrantInfo(pMnode);
 #ifndef GRANTS_CFG
   uint32_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
+  if(clusterCreateTime > 0) {
+    recheckClusterTime = false;
+  }
 
   grantStatus.expireTimeSec = clusterCreateTime + GRANT_DEFAULT;
   // grantStatus.expireTimeSec = grantStatus.expireTimeSec; // TODO: Why this logic changes from 2.0?
