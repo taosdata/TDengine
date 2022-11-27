@@ -386,7 +386,7 @@ static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeEp *pDnodeEp) {
   SRpcMsg rpcMsg = {.pCont = pCont, .contLen = contLen, .msgType = TDMT_MND_GRANT};
   SRpcMsg rpcRsp = {0};
 
-  uInfo("send grant status msg to dnode:%d %s:%" PRIu16, pDnodeEp->id, pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
+  uDebug("send grant status msg to dnode:%d %s:%" PRIu16, pDnodeEp->id, pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
 
   SEpSet epSet = {.numOfEps = 1};
   strncpy(epSet.eps[0].fqdn, pDnodeEp->ep.fqdn, TSDB_FQDN_LEN);
@@ -397,18 +397,20 @@ static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeEp *pDnodeEp) {
 
   // step 2: process response from dnode
   if (!rpcRsp.pCont || rpcRsp.contLen <= 0 || rpcRsp.code != 0) {
-    uError("failed to process the grant rsp from dnode since empty content: %" PRIi32, rpcRsp.code);
+    uError("failed to process the grant rsp from dnode:%d %s:%" PRIu16 " since empty content: %" PRIi32, pDnodeEp->id,
+           pDnodeEp->ep.fqdn, pDnodeEp->ep.port, rpcRsp.code);
     goto _err;
   }
 
   GrantMsg grantMsgRsp = {0};
   if (tDeserializeGrantMsg(rpcRsp.pCont, rpcRsp.contLen, &grantMsgRsp) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    uWarn("failed to process the grant rsp from dnode since %s", terrstr());
+    uWarn("failed to process the grant rsp from dnode:%d %s:%" PRIu16 " since %s", pDnodeEp->id, pDnodeEp->ep.fqdn,
+          pDnodeEp->ep.port, terrstr());
     goto _err;
   }
 
-  uInfo("succeed to receive grant msg from dnode");
+  uInfo("succeed to receive grant msg from dnode:%d %s:%" PRIu16, pDnodeEp->id, pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
   mndProcessDnodeSGrantMsg(pMnode, &grantMsgRsp, &status);
 
   rpcFreeCont(rpcRsp.pCont);
@@ -645,20 +647,19 @@ static void grantResetMaster(SMnode *pMnode) {
   grantRetrieveGrantInfo(pMnode);
 #ifndef GRANTS_CFG
   uint32_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
-  if(clusterCreateTime > 0) {
+  if (clusterCreateTime > 0) {
     recheckClusterTime = false;
+    grantStatus.expireTimeSec = clusterCreateTime + GRANT_DEFAULT;
+    // grantStatus.expireTimeSec = grantStatus.expireTimeSec; // TODO: Why this logic changes from 2.0?
+    grantStatus.expireTimeSec += GRANT_TOLERENCE;
+    grantStatus.lastReceived = grantStatus.expireTimeSec;
+    grantStatus.expired = false;
+
+    char *ts = grantSecondsToString(grantStatus.expireTimeSec);
+    uInfo("grant expire time reset to %s %u, current timeseries %" PRIu64, ts, grantStatus.expireTimeSec,
+          grantStatus.curTimeSeries);
+    taosMemoryFree(ts);
   }
-
-  grantStatus.expireTimeSec = clusterCreateTime + GRANT_DEFAULT;
-  // grantStatus.expireTimeSec = grantStatus.expireTimeSec; // TODO: Why this logic changes from 2.0?
-  grantStatus.expireTimeSec += GRANT_TOLERENCE;
-  grantStatus.lastReceived = grantStatus.expireTimeSec;
-  grantStatus.expired = false;
-
-  char *ts = grantSecondsToString(grantStatus.expireTimeSec);
-  uInfo("grant expire time reset to %s %u, current timeseries %" PRIu64, ts, grantStatus.expireTimeSec,
-        grantStatus.curTimeSeries);
-  taosMemoryFree(ts);
 #endif
 }
 
