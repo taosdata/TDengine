@@ -493,12 +493,9 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
 void tRowDestroy(SRow *pRow) { tFree((uint8_t *)pRow); }
 
 static int32_t tRowPCmprFn(const void *p1, const void *p2) {
-  SRow *pRow1 = *(SRow **)p1;
-  SRow *pRow2 = *(SRow **)p2;
-
-  if (pRow1->ts < pRow2->ts) {
+  if ((*(SRow **)p1)->ts < (*(SRow **)p2)->ts) {
     return -1;
-  } else if (pRow1->ts > pRow2->ts) {
+  } else if ((*(SRow **)p1)->ts > (*(SRow **)p2)->ts) {
     return 1;
   }
 
@@ -566,9 +563,9 @@ _exit:
   return code;
 }
 int32_t tRowMergeSort(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
-  int32_t code = 0;
-
   if (aRowP->size <= 1) return 0;
+
+  int32_t code = 0;
 
   taosArraySort(aRowP, tRowPCmprFn);
 
