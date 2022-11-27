@@ -1604,7 +1604,9 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
   bool hasCountFunc = false;
   for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
     if ((strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "count") == 0) ||
-        (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "hyperloglog") == 0)) {
+        (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "hyperloglog") == 0) ||
+        (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_hyperloglog_partial") == 0) ||
+        (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_hyperloglog_merge") == 0)) {
       hasCountFunc = true;
       break;
     }

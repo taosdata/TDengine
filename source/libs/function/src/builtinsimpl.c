@@ -4787,6 +4787,10 @@ int32_t hllFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfRows = pInput->numOfRows;
 
   int32_t numOfElems = 0;
+  if (IS_NULL_TYPE(type)) {
+    goto _hll_over;
+  }
+
   for (int32_t i = start; i < numOfRows + start; ++i) {
     if (pCol->hasNull && colDataIsNull_s(pCol, i)) {
       continue;
@@ -4808,6 +4812,7 @@ int32_t hllFunction(SqlFunctionCtx* pCtx) {
     }
   }
 
+_hll_over:
   pInfo->totalCount += numOfElems;
 
   if (pInfo->totalCount == 0 && !tsCountAlwaysReturnValue) {
