@@ -74,14 +74,14 @@ class TDTestCase:
         if count==1 and is_leader:
             tdLog.notice("===== depoly cluster success with 1 mnode as leader =====")
         else:
-            tdLog.exit("===== depoly cluster fail with 1 mnode as leader =====")
+            tdLog.notice("===== depoly cluster fail with 1 mnode as leader =====")
 
         for k ,v in self.dnode_list.items():
             if k == mnode_name:
                 if v[3]==0:
                     tdLog.notice("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
                 else:
-                    tdLog.exit("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
+                    tdLog.notice("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
             else:
                 continue
 
@@ -124,7 +124,7 @@ class TDTestCase:
             if len(v) ==1 and v[0] in ['leader', 'leader*']:
                 tdLog.notice(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
             else:
-                tdLog.exit(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
+                tdLog.notice(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
 
     def create_db_replica_1_insertdatas(self, dbname, replica_num ,vgroup_nums ,tb_nums , row_nums ):
         drop_db_sql = "drop database if exists {}".format(dbname)

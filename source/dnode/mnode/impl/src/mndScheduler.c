@@ -317,9 +317,9 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
   bool    externalTargetDB = strcmp(pStream->sourceDb, pStream->targetDb) != 0;
   SDbObj* pDbObj = mndAcquireDb(pMnode, pStream->targetDb);
   ASSERT(pDbObj != NULL);
-  sdbRelease(pSdb, pDbObj);
 
   bool multiTarget = pDbObj->cfg.numOfVgroups > 1;
+  sdbRelease(pSdb, pDbObj);
 
   if (planTotLevel == 2 || externalTargetDB || multiTarget || pStream->fixedSinkVgId) {
     /*if (true) {*/
@@ -451,7 +451,6 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
 
       SStreamChildEpInfo* pEpInfo = taosMemoryMalloc(sizeof(SStreamChildEpInfo));
       if (pEpInfo == NULL) {
-        ASSERT(0);
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         sdbRelease(pSdb, pVgroup);
         qDestroyQueryPlan(pPlan);
@@ -586,6 +585,8 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     } else {
       pVgEp->qmsg = strdup("");
     }
+
+    sdbRelease(pSdb, pVgroup);
   }
 
   ASSERT(pSub->unassignedVgs->size > 0);
