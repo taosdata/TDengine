@@ -512,6 +512,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
         mndTransDrop(pTrans);
         return -1;
       }
+
+      sdbRelease(pSdb, pVgroup);
     }
   }
 

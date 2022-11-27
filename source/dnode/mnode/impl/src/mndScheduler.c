@@ -585,6 +585,8 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     } else {
       pVgEp->qmsg = strdup("");
     }
+
+    sdbRelease(pSdb, pVgroup);
   }
 
   ASSERT(pSub->unassignedVgs->size > 0);
