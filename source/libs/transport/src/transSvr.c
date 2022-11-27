@@ -277,10 +277,8 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
     pBuf->len += nread;
-    tTrace("%s conn %p total read:%d, current read:%d", transLabel(pTransInst), conn, pBuf->len, (int)nread);
     if (pBuf->len <= TRANS_PACKET_LIMIT) {
       while (transReadComplete(pBuf)) {
-        tTrace("%s conn %p alread read complete packet", transLabel(pTransInst), conn);
         if (true == pBuf->invalid || false == uvHandleReq(conn)) {
           tError("%s conn %p read invalid packet, received from %s, local info:%s", transLabel(pTransInst), conn,
                  conn->dst, conn->src);
@@ -848,7 +846,7 @@ static bool addHandleToAcceptloop(void* arg) {
   return true;
 }
 void* transWorkerThread(void* arg) {
-  setThreadName("trans-worker");
+  setThreadName("trans-srv-work");
   SWorkThrd* pThrd = (SWorkThrd*)arg;
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
 
