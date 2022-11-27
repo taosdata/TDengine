@@ -1615,27 +1615,35 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
   }
 
   SSDataBlock* pBlock = createDataBlock();
-  pBlock->info.rows = 0;
+  pBlock->info.rows = 1;
   pBlock->info.capacity = 0;
-  pBlock->info.rowSize = 0;
   pBlock->info.groupId = 0;
 
   for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
-    SColumnInfoData pCol = {0};
-    pCol.hasNull = true;
-    pCol.info.type = TSDB_DATA_TYPE_NULL;
+    SColumnInfoData colInfo = {0};
+    colInfo.hasNull = true;
+    colInfo.info.type = TSDB_DATA_TYPE_NULL;
+    colInfo.info.bytes = 1;
 
     SExprInfo* pOneExpr = &pOperator->exprSupp.pExprInfo[i];
     for (int32_t j = 0; j < pOneExpr->base.numOfParams; ++j) {
       SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
       if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
         int32_t slotId = pFuncParam->pCol->slotId;
-        taosArrayPush(pBlock->pDataBlock, &pCol);
+        int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+        if (slotId >= numOfCols) {
+          taosArrayEnsureCap(pBlock->pDataBlock, slotId + 1);
+          for (int32_t k = numOfCols; k < slotId + 1; ++k) {
+            taosArrayPush(pBlock->pDataBlock, &colInfo);
+          }
+        }
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
+        // do nothing
       }
     }
   }
 
+  blockDataEnsureCapacity(pBlock, pBlock->info.rows);
   *ppBlock = pBlock;
 
   return TSDB_CODE_SUCCESS;
