@@ -687,9 +687,9 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqError.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/schema.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbFilter.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqCheckData.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqCheckData1.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqCheckData.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqCheckData1.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqShow.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqAlterSchema.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py
