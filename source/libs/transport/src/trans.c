@@ -58,7 +58,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->destroyFp = pInit->dfp;
 
   pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
-  if (pRpc->numOfThreads == 0) {
+  if (pRpc->numOfThreads <= 0) {
     pRpc->numOfThreads = 1;
   }
 
