@@ -287,7 +287,7 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
   for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
     uint64_t* id = (uint64_t*)taosArrayGet(tableIdList, i);
 
-    int32_t code = metaGetTableEntryByUidCache(&mr, *id);
+    int32_t code = metaGetTableEntryByUid(&mr, *id);
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to get table meta, uid:%" PRIu64 " code:%s, %s", *id, tstrerror(terrno), idstr);
       continue;

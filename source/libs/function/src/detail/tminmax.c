@@ -877,6 +877,8 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         break;
       }
     }
+
+    pBuf->assign = true;
   }
 
 _over:
