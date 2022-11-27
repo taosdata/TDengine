@@ -138,6 +138,9 @@ class TDTestCase:
         os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
+        tdsql.query("select count(*) from db4096.stb0")
+        tdsql.checkData(0,0,50000)
+
 
         tdsql=tdCom.newTdSql()
         tdLog.printNoPrefix(f"==========step4:verify backticks in taos Sql-TD18542")
