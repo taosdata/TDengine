@@ -700,12 +700,12 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb-funcNFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb-funcNFilter.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqDnodeRestart1.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqUpdateWithConsume.py
