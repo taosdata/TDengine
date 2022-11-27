@@ -1146,7 +1146,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
   void* p = taosHashIterate(pTableHash, NULL);
   while (TSDB_CODE_SUCCESS == code && NULL != p) {
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
-    code = tRowMergeSort(pTableCxt->data.aRowP, pTableCxt->pSchema);
+    code = tRowMergeSort(pTableCxt->data.aRowP, pTableCxt->pSchema, 0);
     if (TSDB_CODE_SUCCESS == code) {
       int32_t         vgId = pTableCxt->pMeta->vgId;
       SVgroupDataCxt* pVgCxt = taosHashGet(pVgroupHash, &vgId, sizeof(vgId));

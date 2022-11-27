@@ -35,6 +35,7 @@ typedef struct SyncTimeout {
   ESyncTimeoutType timeoutType;
   uint64_t         logicClock;
   int32_t          timerMS;
+  int64_t          timeStamp;
   void*            data;  // need optimized
 } SyncTimeout;
 
@@ -124,6 +125,7 @@ typedef struct SyncHeartbeat {
   SyncIndex commitIndex;
   SyncTerm  privateTerm;
   SyncTerm  minMatchIndex;
+  int64_t   timeStamp;
 } SyncHeartbeat;
 
 typedef struct SyncHeartbeatReply {

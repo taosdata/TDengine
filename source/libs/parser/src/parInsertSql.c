@@ -881,8 +881,12 @@ static int32_t preParseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModif
 
 static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt, STableDataCxt** pTableCxt) {
   if (pCxt->pComCxt->async) {
-    return insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid),
-                              pStmt->pTableMeta, &pStmt->pCreateTblReq, pTableCxt);
+    uint64_t uid = pStmt->pTableMeta->uid;
+    if (pStmt->usingTableProcessing) {
+      pStmt->pTableMeta->uid = 0;
+    }
+    return insGetTableDataCxt(pStmt->pTableBlockHashObj, &uid, sizeof(pStmt->pTableMeta->uid), pStmt->pTableMeta,
+                              &pStmt->pCreateTblReq, pTableCxt);
   }
   char tbFName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(&pStmt->targetTableName, tbFName);

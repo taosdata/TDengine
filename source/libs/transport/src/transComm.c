@@ -60,21 +60,20 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
   STransMsgHead* pHead = (STransMsgHead*)(*msg);
   if (pHead->comp == 0) return 0;
 
-  char*          pCont = transContFromHead(pHead);
+  char* pCont = transContFromHead(pHead);
+
   STransCompMsg* pComp = (STransCompMsg*)pCont;
   int32_t        oriLen = htonl(pComp->contLen);
 
   char*          buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
-
-  int32_t decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), pNewHead->content,
-                                          len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+  int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), pNewHead->content,
+                                                 len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
   memcpy((char*)pNewHead, (char*)pHead, sizeof(STransMsgHead));
 
   pNewHead->msgLen = htonl(oriLen + sizeof(STransMsgHead));
 
   taosMemoryFree(pHead);
-
   *msg = buf;
   if (decompLen != oriLen) {
     return -1;

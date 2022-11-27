@@ -831,14 +831,19 @@ uint64_t tsortGetGroupId(STupleHandle* pVHandle) { return pVHandle->pBlock->info
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   SSortExecInfo info = {0};
 
-  info.sortBuffer = pHandle->pageSize * pHandle->numOfPages;
-  info.sortMethod = pHandle->inMemSort ? SORT_QSORT_T : SORT_SPILLED_MERGE_SORT_T;
-  info.loops = pHandle->loops;
+  if (pHandle == NULL) {
+    info.sortMethod = SORT_QSORT_T; // by default
+    info.sortBuffer = 2 * 1048576;  // 2mb by default
+  } else {
+    info.sortBuffer = pHandle->pageSize * pHandle->numOfPages;
+    info.sortMethod = pHandle->inMemSort ? SORT_QSORT_T : SORT_SPILLED_MERGE_SORT_T;
+    info.loops = pHandle->loops;
 
-  if (pHandle->pBuf != NULL) {
-    SDiskbasedBufStatis st = getDBufStatis(pHandle->pBuf);
-    info.writeBytes = st.flushBytes;
-    info.readBytes = st.loadBytes;
+    if (pHandle->pBuf != NULL) {
+      SDiskbasedBufStatis st = getDBufStatis(pHandle->pBuf);
+      info.writeBytes = st.flushBytes;
+      info.readBytes = st.loadBytes;
+    }
   }
 
   return info;

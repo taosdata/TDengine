@@ -492,9 +492,105 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
 
 void tRowDestroy(SRow *pRow) { tFree((uint8_t *)pRow); }
 
-int32_t tRowMergeSort(SArray *aRow, STSchema *pTSchema) {
-  // todo
+static int32_t tRowPCmprFn(const void *p1, const void *p2) {
+  if ((*(SRow **)p1)->ts < (*(SRow **)p2)->ts) {
+    return -1;
+  } else if ((*(SRow **)p1)->ts > (*(SRow **)p2)->ts) {
+    return 1;
+  }
+
   return 0;
+}
+static void    tRowPDestroy(SRow **ppRow) { tFree((uint8_t *)*ppRow); }
+static int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int32_t iEnd, int8_t flag) {
+  int32_t code = 0;
+
+  int32_t    nRow = iEnd - iStart;
+  SRowIter **aIter = NULL;
+  SArray    *aColVal = NULL;
+  SRow      *pRow = NULL;
+
+  aIter = taosMemoryCalloc(nRow, sizeof(SRowIter *));
+  if (aIter == NULL) {
+    code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < nRow; i++) {
+    SRow *pRowT = taosArrayGetP(aRowP, iStart + i);
+
+    code = tRowIterOpen(pRowT, pTSchema, &aIter[i]);
+    if (code) goto _exit;
+  }
+
+  // merge
+  aColVal = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
+  if (aColVal == NULL) {
+    code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  for (int32_t iCol = 0; iCol < pTSchema->numOfCols; iCol++) {
+    SColVal *pColVal = NULL;
+    for (int32_t iRow = 0; iRow < nRow; iRow++) {
+      SColVal *pColValT = tRowIterNext(aIter[iRow]);
+
+      // todo: take value according to flag
+      if (pColVal == NULL || COL_VAL_IS_VALUE(pColValT)) {
+        pColVal = pColValT;
+      }
+    }
+
+    taosArrayPush(aColVal, pColVal);
+  }
+
+  // build
+  code = tRowBuild(aColVal, pTSchema, &pRow);
+  if (code) goto _exit;
+
+  taosArrayRemoveBatch(aRowP, iStart, nRow, (FDelete)tRowPDestroy);
+  taosArrayInsert(aRowP, iStart, &pRow);
+
+_exit:
+  if (aIter) {
+    for (int32_t i = 0; i < nRow; i++) {
+      tRowIterClose(&aIter[i]);
+    }
+    taosMemoryFree(aIter);
+  }
+  if (aColVal) taosArrayDestroy(aColVal);
+  if (code) tRowDestroy(pRow);
+  return code;
+}
+int32_t tRowMergeSort(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
+  if (aRowP->size <= 1) return 0;
+
+  int32_t code = 0;
+
+  taosArraySort(aRowP, tRowPCmprFn);
+
+  int32_t iStart = 0;
+  while (iStart < aRowP->size) {
+    SRow *pRow = (SRow *)taosArrayGetP(aRowP, iStart);
+
+    int32_t iEnd = iStart + 1;
+    while (iEnd < aRowP->size) {
+      SRow *pRowT = (SRow *)taosArrayGetP(aRowP, iEnd);
+
+      if (pRow->ts != pRowT->ts) break;
+
+      iEnd++;
+    }
+
+    if (iEnd - iStart > 1) {
+      code = tRowMerge(aRowP, pTSchema, iStart, iEnd, flag);
+    }
+
+    // the array is also changing, so the iStart just ++ instead of iEnd
+    iStart++;
+  }
+
+  return code;
 }
 
 // SRowIter ========================================
@@ -1505,7 +1601,8 @@ static FORCE_INLINE void tColDataGetValue1(SColData *pColData, int32_t iVal, SCo
 static FORCE_INLINE void tColDataGetValue2(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_NULL
   *pColVal = COL_VAL_NULL(pColData->cid, pColData->type);
 }
-static FORCE_INLINE void tColDataGetValue3(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_NULL|HAS_NONE
+static FORCE_INLINE void tColDataGetValue3(SColData *pColData, int32_t iVal,
+                                           SColVal *pColVal) {  // HAS_NULL|HAS_NONE
   switch (GET_BIT1(pColData->pBitMap, iVal)) {
     case 0:
       *pColVal = COL_VAL_NONE(pColData->cid, pColData->type);
@@ -1658,6 +1755,74 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
 
 _exit:
   return code;
+}
+
+int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind) {
+  int32_t code = 0;
+
+  bool allValue;
+  bool allNull;
+  if (pBind->is_null) {
+    bool same = (memcmp(pBind->is_null, pBind->is_null + 1, pBind->num - 1) == 0);
+    allNull = (same && pBind->is_null[0] != 0);
+    allValue = (same && pBind->is_null[0] == 0);
+  } else {
+    allNull = false;
+    allValue = true;
+  }
+
+  pColData->nVal += pBind->num;
+  if (IS_VAR_DATA_TYPE(pBind->buffer_type)) {
+    // var
+    for (int32_t i = 0; i < pBind->num; ++i) {
+      if (pBind->is_null[i]) {
+        // tColDataAppendNull(pColData);
+      } else {
+        uint8_t *pData = (uint8_t *)pBind->buffer + pBind->buffer_length * i;
+
+        SValue value = {.nData = pBind->length[i], .pData = pData};
+      }
+    }
+  } else {
+    // fix
+    pColData->nVal += pBind->num;
+
+    if (allValue) {
+      pColData->flag |= HAS_VALUE;
+      if (pColData->flag != HAS_VALUE) {
+        // todo
+      }
+
+      int32_t nData = pColData->nData + TYPE_BYTES[pBind->buffer_type] * pBind->num;
+      code = tRealloc(&pColData->pData, nData);
+      if (code) goto _exit;
+
+      memcpy(pColData->pData + pColData->nData, pBind->buffer, nData - pColData->nData);
+      pColData->nData = nData;
+    } else if (allNull) {
+      pColData->flag |= HAS_NULL;
+
+      // todo
+
+    } else {
+      for (int32_t i = 0; i < pBind->num; ++i) {
+        if (pBind->is_null[i]) {
+          code = tColDataAppendValue(pColData, &COL_VAL_NULL(pColData->cid, pColData->type));
+          // tColDataAppendNull(pColData);
+        } else {
+          uint8_t *pData = (uint8_t *)pBind->buffer + TYPE_BYTES[pBind->buffer_type] * i;
+        }
+      }
+    }
+  }
+
+_exit:
+  return code;
+}
+
+int32_t tColDataSortMerge(SColData *aColData) {
+  // todo
+  return 0;
 }
 
 #define CALC_SUM_MAX_MIN(SUM, MAX, MIN, VAL) \
