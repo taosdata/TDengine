@@ -555,6 +555,7 @@ typedef struct STableCountScanOperatorInfo {
   STableCountScanSupp supp;
 
   int32_t   currGrpIdx;
+  SArray*   stbUidList; // when group by db_name and stable_name
 } STableCountScanOperatorInfo;
 
 typedef struct SBlockDistInfo {

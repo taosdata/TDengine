@@ -105,6 +105,7 @@ int32_t     metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList, 
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(void *tag, int16_t type, STagVal *tagVal);
 int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
+int         metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName);
 int         metaGetTableUidByName(void *meta, char *tbName, int64_t *uid);
 int         metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType);
 bool        metaIsTableExist(SMeta *pMeta, tb_uid_t uid);

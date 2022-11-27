@@ -211,6 +211,22 @@ int metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName) {
 
   return 0;
 }
+
+int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
+  int         code = 0;
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, (SMeta *)meta, 0);
+  code = metaGetTableEntryByUid(&mr, uid);
+  if (code < 0) {
+    metaReaderClear(&mr);
+    return -1;
+  }
+  strncpy(tbName, mr.me.name, TSDB_TABLE_NAME_LEN);
+  metaReaderClear(&mr);
+
+  return 0;
+}
+
 int metaGetTableUidByName(void *meta, char *tbName, int64_t *uid) {
   int         code = 0;
   SMetaReader mr = {0};

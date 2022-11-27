@@ -4926,7 +4926,7 @@ void fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, char*
   if (pSupp->dbNameSlotId != -1) {
     ASSERT(strlen(dbName));
     SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->dbNameSlotId);
-    char             varDbName[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char             varDbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     strncpy(varDataVal(varDbName), dbName, strlen(dbName));
     varDataSetLen(varDbName, strlen(dbName));
     colDataAppend(colInfoData, 0, varDbName, false);
@@ -4935,7 +4935,7 @@ void fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, char*
   if (pSupp->stbNameSlotId != -1) {
     ASSERT(strlen(stbName));
     SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->stbNameSlotId);
-    char             varStbName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char             varStbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     strncpy(varDataVal(varStbName), stbName, strlen(stbName));
     varDataSetLen(varStbName, strlen(stbName));
     colDataAppend(colInfoData, 0, varStbName, false);
@@ -4997,7 +4997,7 @@ static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
-  char dbName[TSDB_DB_FNAME_LEN] = {0};
+  char        dbName[TSDB_DB_NAME_LEN] = {0};
 
   {
     // get dbname
@@ -5005,13 +5005,40 @@ static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
     SColumnInfoData* pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, 0);
     SName            sn = {0};
     tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
-
     tNameGetDbName(&sn, dbName);
   }
   if (pSupp->groupByDbName) {
     if (pSupp->groupByStbName) {
+      // group by db_name and stable_name
+      if (pInfo->stbUidList == NULL) {
+        pInfo->stbUidList = taosArrayInit(16, sizeof(tb_uid_t));
+        if (vnodeGetStbIdList(pInfo->readHandle.vnode, 0, pInfo->stbUidList) < 0) {
+          qError("vgId:%d, failed to get stb id list error: %s", vgId, terrstr());
+        }
+      }
+      if (pInfo->currGrpIdx < taosArrayGetSize(pInfo->stbUidList)) {
+        tb_uid_t stbUid = *(tb_uid_t*)taosArrayGet(pInfo->stbUidList, pInfo->currGrpIdx);
 
+        SMetaStbStats stats = {0};
+        metaGetStbStats(pInfo->readHandle.meta, stbUid, &stats);
+        int64_t ctbNum = stats.ctbNum;
+
+        char stbName[TSDB_TABLE_NAME_LEN] = {0};
+        metaGetTableSzNameByUid(pInfo->readHandle.meta, stbUid, stbName);
+
+        char fullStbName[TSDB_TABLE_FNAME_LEN] = {0};
+        strcpy(fullStbName, dbName);
+        strcat(fullStbName, ".");
+        strcat(fullStbName, stbName);
+        uint64_t groupId = calcGroupId(fullStbName, strlen(fullStbName));
+        pRes->info.groupId = groupId;
+
+        pInfo->currGrpIdx++;
+
+        fillTableCountScanDataBlock(pSupp, dbName, stbName, ctbNum, pRes);
+      }
     } else {
+      // group by only db_name
       uint64_t groupId = calcGroupId(dbName, strlen(dbName));
       pRes->info.groupId = groupId;
       int64_t dbTableCount = metaGetTbNum(pInfo->readHandle.meta);
@@ -5020,45 +5047,18 @@ static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
   } else {
     if (strlen(pSupp->dbName) != 0) {
       if (strlen(pSupp->stbName) != 0) {
-
+        tb_uid_t      uid = metaGetTableEntryUidByName(pInfo->readHandle.meta, pSupp->stbName);
+        SMetaStbStats stats = {0};
+        metaGetStbStats(pInfo->readHandle.meta, uid, &stats);
+        int64_t ctbNum = stats.ctbNum;
+        fillTableCountScanDataBlock(pSupp, dbName, pSupp->stbName, ctbNum, pRes);
       } else {
-
+        int64_t tbNumVnode = metaGetTbNum(pInfo->readHandle.meta);
+        fillTableCountScanDataBlock(pSupp, pSupp->dbName, "", tbNumVnode, pRes);
       }
     }
   }
-  {
-    // grouptags only have column db_name or (no grouptags and tablename is null)
-    // if (tableName == NULL | strlen(tableName) == 0)
-    metaGetTbNum(pInfo->readHandle.meta);
-  }
-  {// no grouptags and TableName is not null, return child table count
-   {tb_uid_t uid = metaGetTableEntryUidByName(pInfo->readHandle.meta, pSupp->stbName);
-  SMetaStbStats stats = {0};
-  metaGetStbStats(pInfo->readHandle.meta, uid, &stats);
-  int64_t ctbNum = stats.ctbNum;
-}
-}
-{
-  // grouptags have column stable_name. return (stable name, child table count)
-  SArray* stbUidList = taosArrayInit(16, sizeof(tb_uid_t));
-  vnodeGetStbIdList(pInfo->readHandle.vnode, 0, stbUidList);
-  if (vnodeGetStbIdList(pInfo->readHandle.vnode, 0, stbUidList) < 0) {
-    qError("vgId:%d, failed to get stb id list error: %s", vgId, terrstr());
-    taosArrayDestroy(stbUidList);
-    // return failure
-  }
-  for (int i = 0; i < taosArrayGetSize(stbUidList); ++i) {
-    tb_uid_t      stbUid = *(tb_uid_t*)taosArrayGet(stbUidList, i);
-    SMetaStbStats stats = {0};
-    metaGetStbStats(pInfo->readHandle.meta, stbUid, &stats);
-    int64_t ctbNum = stats.ctbNum;
-
-    char varStbName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    metaGetTableNameByUid(pInfo->readHandle.meta, stbUid, varStbName);
-  }
-  taosArrayDestroy(stbUidList);
-}
-return NULL;
+  return pRes->info.rows > 0 ? pRes : pRes;
 }
 
 static void destoryTableCountScanOperator(void* param) {
@@ -5066,5 +5066,6 @@ static void destoryTableCountScanOperator(void* param) {
   blockDataDestroy(pTableCountScanInfo->pRes);
 
   nodesDestroyList(pTableCountScanInfo->groupTags);
+  taosArrayDestroy(pTableCountScanInfo->stbUidList);
   taosMemoryFreeClear(param);
 }
