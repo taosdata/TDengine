@@ -86,18 +86,18 @@ class TDTestCase:
         tableNumbers=100
         recordNumbers1=100
         recordNumbers2=1000
-        tdsqlF=tdCom.newTdSql()
-        print(tdsqlF)
-        tdsqlF.query(f"SELECT SERVER_VERSION();")
-        print(tdsqlF.query(f"SELECT SERVER_VERSION();"))
-        oldServerVersion=tdsqlF.queryResult[0][0]
-        tdLog.info(f"Base server version is {oldServerVersion}")
-        tdsqlF.query(f"SELECT CLIENT_VERSION();")
+        # tdsqlF=tdCom.newTdSql()
+        # print(tdsqlF)
+        # tdsqlF.query(f"SELECT SERVER_VERSION();")
+        # print(tdsqlF.query(f"SELECT SERVER_VERSION();"))
+        # oldServerVersion=tdsqlF.queryResult[0][0]
+        # tdLog.info(f"Base server version is {oldServerVersion}")
+        # tdsqlF.query(f"SELECT CLIENT_VERSION();")
         
-        # the oldClientVersion can't be updated in the same python process,so the version is new compiled verison
-        oldClientVersion=tdsqlF.queryResult[0][0]
-        tdLog.info(f"Base client version is {oldClientVersion}")
-
+        # # the oldClientVersion can't be updated in the same python process,so the version is new compiled verison
+        # oldClientVersion=tdsqlF.queryResult[0][0]
+        # tdLog.info(f"Base client version is {oldClientVersion}")
+        oldServerVersion="3.0.1.0"
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{oldServerVersion}")
         tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
         os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
