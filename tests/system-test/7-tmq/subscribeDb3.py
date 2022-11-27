@@ -238,7 +238,7 @@ class TDTestCase:
         if (platform.system().lower() == 'windows'):
             os.system("TASKKILL /F /IM tmq_sim.exe")
         else:
-            os.system('pkill tmq_sim')
+            os.system('unset LD_PRELOAD; pkill tmq_sim')
         expectRows = 0
         resultList = self.selectConsumeResult(expectRows)
 
@@ -316,7 +316,7 @@ class TDTestCase:
         if (platform.system().lower() == 'windows'):
             os.system("TASKKILL /F /IM tmq_sim.exe")
         else:
-            os.system('pkill tmq_sim')
+            os.system('unset LD_PRELOAD; pkill tmq_sim')
         # expectRows = 0
         # resultList = self.selectConsumeResult(expectRows)
 
