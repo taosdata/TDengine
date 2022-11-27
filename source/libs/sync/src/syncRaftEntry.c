@@ -64,7 +64,7 @@ SSyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, Syn
 }
 
 SSyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg) {
-  SSyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);
+  SSyncRaftEntry* pEntry = syncEntryBuild((int32_t)(pMsg->dataLen));
   if (pEntry == NULL) return NULL;
 
   memcpy(pEntry, pMsg->data, pMsg->dataLen);
@@ -91,13 +91,14 @@ SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId)
 
 void syncEntryDestory(SSyncRaftEntry* pEntry) {
   if (pEntry != NULL) {
+    sTrace("free entry: %p", pEntry);
     taosMemoryFree(pEntry);
   }
 }
 
 void syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg) {
   pRpcMsg->msgType = pEntry->originalRpcType;
-  pRpcMsg->contLen = pEntry->dataLen;
+  pRpcMsg->contLen = (int32_t)(pEntry->dataLen);
   pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
   memcpy(pRpcMsg->pCont, pEntry->data, pRpcMsg->contLen);
 }
@@ -337,7 +338,8 @@ int32_t raftEntryCacheGetEntry(struct SRaftEntryCache* pCache, SyncIndex index, 
   SSyncRaftEntry* pEntry = NULL;
   int32_t         code = raftEntryCacheGetEntryP(pCache, index, &pEntry);
   if (code == 1) {
-    *ppEntry = taosMemoryMalloc((int64_t)(pEntry->bytes));
+    int32_t bytes = (int32_t)pEntry->bytes;
+    *ppEntry = taosMemoryMalloc((int64_t)bytes);
     memcpy(*ppEntry, pEntry, pEntry->bytes);
     (*ppEntry)->rid = -1;
   } else {

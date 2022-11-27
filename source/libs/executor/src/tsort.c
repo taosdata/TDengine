@@ -110,6 +110,22 @@ static int32_t sortComparCleanup(SMsortComparParam* cmpParam) {
   return TSDB_CODE_SUCCESS;
 }
 
+void tsortClearOrderdSource(SArray *pOrderedSource) {
+  for (size_t i = 0; i < taosArrayGetSize(pOrderedSource); i++) {
+    SSortSource** pSource = taosArrayGet(pOrderedSource, i);
+    if (NULL == *pSource) {
+      continue;
+    }
+    
+    if ((*pSource)->param && !(*pSource)->onlyRef) {
+      taosMemoryFree((*pSource)->param);  
+    }
+    taosMemoryFreeClear(*pSource);
+  }
+
+  taosArrayClear(pOrderedSource);
+}
+
 void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   if (pSortHandle == NULL) {
     return;
@@ -123,10 +139,8 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   destroyDiskbasedBuf(pSortHandle->pBuf);
   taosMemoryFreeClear(pSortHandle->idStr);
   blockDataDestroy(pSortHandle->pDataBlock);
-  for (size_t i = 0; i < taosArrayGetSize(pSortHandle->pOrderedSource); i++) {
-    SSortSource** pSource = taosArrayGet(pSortHandle->pOrderedSource, i);
-    taosMemoryFreeClear(*pSource);
-  }
+
+  tsortClearOrderdSource(pSortHandle->pOrderedSource);
   taosArrayDestroy(pSortHandle->pOrderedSource);
   taosMemoryFreeClear(pSortHandle);
 }
@@ -561,7 +575,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
       }
     }
 
-    taosArrayClear(pHandle->pOrderedSource);
+    tsortClearOrderdSource(pHandle->pOrderedSource);
     taosArrayAddAll(pHandle->pOrderedSource, pResList);
     taosArrayDestroy(pResList);
 
@@ -584,15 +598,11 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
   return 0;
 }
 
-// TODO consider the page meta size
-int32_t getProperSortPageSize(size_t rowSize) {
-  uint32_t defaultPageSize = 4096;
-
-  uint32_t pgSize = 0;
-  if (rowSize * 4 > defaultPageSize) {
-    pgSize = rowSize * 4;
-  } else {
-    pgSize = defaultPageSize;
+// get sort page size
+int32_t getProperSortPageSize(size_t rowSize, uint32_t numOfCols) {
+  uint32_t pgSize = rowSize * 4 + blockDataGetSerialMetaSize(numOfCols);
+  if (pgSize < DEFAULT_PAGESIZE) {
+    return DEFAULT_PAGESIZE;
   }
 
   return pgSize;
@@ -602,8 +612,11 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
   size_t sortBufSize = pHandle->numOfPages * pHandle->pageSize;
 
   if (pHandle->type == SORT_SINGLESOURCE_SORT) {
-    SSortSource* source = taosArrayGetP(pHandle->pOrderedSource, 0);
-    taosArrayClear(pHandle->pOrderedSource);
+    SSortSource** pSource = taosArrayGet(pHandle->pOrderedSource, 0);
+    SSortSource* source = *pSource;
+    *pSource = NULL;
+    
+    tsortClearOrderdSource(pHandle->pOrderedSource);
 
     while (1) {
       SSDataBlock* pBlock = pHandle->fetchfp(source->param);
@@ -612,7 +625,8 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
       }
 
       if (pHandle->pDataBlock == NULL) {
-        pHandle->pageSize = getProperSortPageSize(blockDataGetRowSize(pBlock));
+        uint32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+        pHandle->pageSize = getProperSortPageSize(blockDataGetRowSize(pBlock), numOfCols);
 
         // todo, number of pages are set according to the total available sort buffer
         pHandle->numOfPages = 1024;
@@ -626,6 +640,10 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
 
       int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock);
       if (code != 0) {
+        if (source->param && !source->onlyRef) {
+          taosMemoryFree(source->param);
+        }
+        taosMemoryFree(source);
         return code;
       }
 
@@ -635,6 +653,10 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
         int64_t p = taosGetTimestampUs();
         code = blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
         if (code != 0) {
+          if (source->param && !source->onlyRef) {
+            taosMemoryFree(source->param);
+          }
+          taosMemoryFree(source);
           return code;
         }
 
@@ -644,6 +666,11 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
         doAddToBuf(pHandle->pDataBlock, pHandle);
       }
     }
+
+    if (source->param && !source->onlyRef) {
+      taosMemoryFree(source->param);
+    }
+    taosMemoryFree(source);
 
     if (pHandle->pDataBlock != NULL && pHandle->pDataBlock->info.rows > 0) {
       size_t size = blockDataGetSize(pHandle->pDataBlock);
@@ -804,14 +831,19 @@ uint64_t tsortGetGroupId(STupleHandle* pVHandle) { return pVHandle->pBlock->info
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   SSortExecInfo info = {0};
 
-  info.sortBuffer = pHandle->pageSize * pHandle->numOfPages;
-  info.sortMethod = pHandle->inMemSort ? SORT_QSORT_T : SORT_SPILLED_MERGE_SORT_T;
-  info.loops = pHandle->loops;
+  if (pHandle == NULL) {
+    info.sortMethod = SORT_QSORT_T; // by default
+    info.sortBuffer = 2 * 1048576;  // 2mb by default
+  } else {
+    info.sortBuffer = pHandle->pageSize * pHandle->numOfPages;
+    info.sortMethod = pHandle->inMemSort ? SORT_QSORT_T : SORT_SPILLED_MERGE_SORT_T;
+    info.loops = pHandle->loops;
 
-  if (pHandle->pBuf != NULL) {
-    SDiskbasedBufStatis st = getDBufStatis(pHandle->pBuf);
-    info.writeBytes = st.flushBytes;
-    info.readBytes = st.loadBytes;
+    if (pHandle->pBuf != NULL) {
+      SDiskbasedBufStatis st = getDBufStatis(pHandle->pBuf);
+      info.writeBytes = st.flushBytes;
+      info.readBytes = st.loadBytes;
+    }
   }
 
   return info;

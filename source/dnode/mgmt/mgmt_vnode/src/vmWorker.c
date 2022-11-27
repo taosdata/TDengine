@@ -148,8 +148,8 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) {
-    dGError("vgId:%d, msg:%p failed to put into vnode queue since %s, type:%s qtype:%d", pHead->vgId, pMsg, terrstr(),
-            TMSG_INFO(pMsg->msgType), qtype);
+    dGError("vgId:%d, msg:%p failed to put into vnode queue since %s, type:%s qtype:%d contLen:%d", pHead->vgId, pMsg, terrstr(),
+            TMSG_INFO(pMsg->msgType), qtype, pHead->contLen);
     return terrno != 0 ? terrno : -1;
   }
 
@@ -287,7 +287,7 @@ int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
     vmReleaseVnode(pMgmt, pVnode);
   }
   if (size < 0) {
-    dError("vgId:%d, can't get size from queue since %s, qtype:%d", vgId, terrstr(), qtype);
+    dTrace("vgId:%d, can't get size from queue since %s, qtype:%d", vgId, terrstr(), qtype);
     size = 0;
   }
   return size;

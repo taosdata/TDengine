@@ -179,6 +179,7 @@ int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
     if (tDecodeSTqCheckInfo(&decoder, &info) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       tdbFree(pKey);
+      tdbFree(pVal);
       tdbTbcClose(pCur);
       return -1;
     }
@@ -186,11 +187,13 @@ int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
     if (taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo)) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       tdbFree(pKey);
+      tdbFree(pVal);
       tdbTbcClose(pCur);
       return -1;
     }
   }
   tdbFree(pKey);
+  tdbFree(pVal);
   tdbTbcClose(pCur);
   return 0;
 }
@@ -288,6 +291,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     STqHandle handle;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     tDecodeSTqHandle(&decoder, &handle);
+    tDecoderClear(&decoder);
 
     handle.pRef = walOpenRef(pTq->pVnode->pWal);
     if (handle.pRef == NULL) {
@@ -342,6 +346,8 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     taosHashPut(pTq->pHandle, pKey, kLen, &handle, sizeof(STqHandle));
   }
 
+  tdbFree(pKey);
+  tdbFree(pVal);
   tdbTbcClose(pCur);
   return 0;
 }

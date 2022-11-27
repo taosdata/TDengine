@@ -348,7 +348,9 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   int32_t  code = scanPathOptMatch(pCxt, pLogicSubplan->pNode, &info);
   if (TSDB_CODE_SUCCESS == code && info.pScan) {
     scanPathOptSetScanWin(info.pScan);
-    scanPathOptSetScanOrder(info.scanOrder, info.pScan);
+    if (!pCxt->pPlanCxt->streamQuery) {
+      scanPathOptSetScanOrder(info.scanOrder, info.pScan);
+    }
   }
   if (TSDB_CODE_SUCCESS == code && (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs)) {
     info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
@@ -833,6 +835,7 @@ static int32_t partitionAggCondConj(SAggLogicNode* pAgg, SNode** ppAggFuncCond, 
     nodesDestroyNode(pTempAggFuncCond);
     nodesDestroyNode(pTempGroupKeyCond);
   }
+  nodesDestroyNode(pAgg->node.pConditions);
   pAgg->node.pConditions = NULL;
   return code;
 }
@@ -853,8 +856,7 @@ static int32_t partitionAggCond(SAggLogicNode* pAgg, SNode** ppAggFunCond, SNode
 }
 
 static int32_t pushCondToAggCond(SOptimizeContext* pCxt, SAggLogicNode* pAgg, SNode** pAggFuncCond) {
-  pushDownCondOptAppendCond(&pAgg->node.pConditions, pAggFuncCond);
-  return TSDB_CODE_SUCCESS;
+  return pushDownCondOptAppendCond(&pAgg->node.pConditions, pAggFuncCond);
 }
 
 typedef struct SRewriteAggGroupKeyCondContext {
@@ -1474,19 +1476,33 @@ static bool partTagsHasIndefRowsSelectFunc(SNodeList* pFuncs) {
   return false;
 }
 
-static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t start, SNodeList* pAggFuncs) {
-  bool    hasIndefRowsSelectFunc = partTagsHasIndefRowsSelectFunc(pAggFuncs);
+static bool partTagsNeedOutput(SNode* pExpr, SNodeList* pTargets) {
+  SNode* pOutput = NULL;
+  FOREACH(pOutput, pTargets) {
+    if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+      if (nodesEqualNode(pExpr, pOutput)) {
+        return true;
+      }
+    } else if (0 == strcmp(((SExprNode*)pExpr)->aliasName, ((SColumnNode*)pOutput)->colName)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t start, SAggLogicNode* pAgg) {
+  bool    hasIndefRowsSelectFunc = partTagsHasIndefRowsSelectFunc(pAgg->pAggFuncs);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t index = 0;
   SNode*  pNode = NULL;
   FOREACH(pNode, pGroupTags) {
-    if (index++ < start) {
+    if (index++ < start || !partTagsNeedOutput(pNode, pAgg->node.pTargets)) {
       continue;
     }
     if (hasIndefRowsSelectFunc) {
-      code = nodesListStrictAppend(pAggFuncs, partTagsCreateWrapperFunc("_select_value", pNode));
+      code = nodesListStrictAppend(pAgg->pAggFuncs, partTagsCreateWrapperFunc("_select_value", pNode));
     } else {
-      code = nodesListStrictAppend(pAggFuncs, partTagsCreateWrapperFunc("_group_key", pNode));
+      code = nodesListStrictAppend(pAgg->pAggFuncs, partTagsCreateWrapperFunc("_group_key", pNode));
     }
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -1539,7 +1555,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     }
     NODES_DESTORY_LIST(pAgg->pGroupKeys);
     if (TSDB_CODE_SUCCESS == code && start >= 0) {
-      code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, start, pAgg->pAggFuncs);
+      code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, start, pAgg);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {

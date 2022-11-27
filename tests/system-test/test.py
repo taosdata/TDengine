@@ -73,8 +73,9 @@ if __name__ == "__main__":
     createDnodeNums = 1
     restful = False
     replicaVar = 1
+    asan = False
     independentMnode = True
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RD:n:i:', [
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RD:n:i:a', [
         'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','adaptercfgupdate','replicaVar','independentMnode'])
     for key, value in opts:
         if key in ['-h', '--help']:
@@ -99,6 +100,7 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-D taosadapter update cfg dict ')
             tdLog.printNoPrefix('-n the number of replicas')
             tdLog.printNoPrefix('-i independentMnode Mnode')
+            tdLog.printNoPrefix('-a address sanitizer mode')
 
             sys.exit(0)
 
@@ -166,6 +168,9 @@ if __name__ == "__main__":
 
         if key in ['-R', '--restful']:
             restful = True
+
+        if key in ['-a', '--asan']:
+            asan = True
 
         if key in ['-D', '--adaptercfgupdate']:
             try:
@@ -387,6 +392,7 @@ if __name__ == "__main__":
         tdDnodes.init(deployPath, masterIp)
         tdDnodes.setTestCluster(testCluster)
         tdDnodes.setValgrind(valgrind)
+        tdDnodes.setAsan(asan)
         tdDnodes.stopAll()
         is_test_framework = 0
         key_word = 'tdCases.addLinux'
@@ -458,6 +464,7 @@ if __name__ == "__main__":
             tdDnodes.init(deployPath, masterIp)
             tdDnodes.setTestCluster(testCluster)
             tdDnodes.setValgrind(valgrind)
+            tdDnodes.setAsan(asan)
             tdDnodes.stopAll()
             for dnode in tdDnodes.dnodes:
                 tdDnodes.deploy(dnode.index,{})
@@ -547,4 +554,7 @@ if __name__ == "__main__":
 
     if conn is not None:
         conn.close()
+    if asan:
+        tdDnodes.StopAllSigint()
+        tdLog.info("Address sanitizer mode finished")
     sys.exit(0)

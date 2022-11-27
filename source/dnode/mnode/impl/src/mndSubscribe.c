@@ -471,8 +471,12 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     pConsumerNew->updateType = CONSUMER_UPDATE__TOUCH;
     mndReleaseConsumer(pMnode, pConsumerOld);
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
+      tDeleteSMqConsumerObj(pConsumerNew);
+      taosMemoryFree(pConsumerNew);
       goto REB_FAIL;
     }
+    tDeleteSMqConsumerObj(pConsumerNew);
+    taosMemoryFree(pConsumerNew);
   }
   // 3.2 set new consumer
   consumerNum = taosArrayGetSize(pOutput->newConsumers);
@@ -778,6 +782,7 @@ SUB_DECODE_OVER:
     return NULL;
   }
 
+  mTrace("subscribe:%s, decode from raw:%p, row:%p", pSub->key, pRaw, pSub);
   return pRow;
 }
 
@@ -924,6 +929,7 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
       action.msgType = TDMT_VND_TMQ_DELETE_SUB;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(pReq);
+        sdbRelease(pSdb, pSub);
         return -1;
       }
     }
@@ -932,6 +938,8 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
       sdbRelease(pSdb, pSub);
       goto END;
     }
+
+    sdbRelease(pSdb, pSub);
   }
 
   code = 0;
@@ -992,7 +1000,7 @@ static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataAppend(pColInfo, numOfRows, (const char *)&pConsumerEp->consumerId, false);
 
-        mDebug("mnd show subscrptions: topic %s, consumer %" PRId64 "cgroup %s vgid %d", varDataVal(topic),
+        mDebug("mnd show subscriptions: topic %s, consumer %" PRId64 " cgroup %s vgid %d", varDataVal(topic),
                pConsumerEp->consumerId, varDataVal(cgroup), pVgEp->vgId);
 
         // offset
@@ -1040,7 +1048,7 @@ static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, NULL, true);
 
-      mDebug("mnd show subscrptions(unassigned): topic %s, cgroup %s vgid %d", varDataVal(topic), varDataVal(cgroup),
+      mDebug("mnd show subscriptions(unassigned): topic %s, cgroup %s vgid %d", varDataVal(topic), varDataVal(cgroup),
              pVgEp->vgId);
 
       // offset

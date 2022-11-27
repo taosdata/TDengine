@@ -403,6 +403,11 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMe
   // validate req
   metaReaderInit(&mr, pMeta, 0);
   if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
+    if (pReq->type == TSDB_CHILD_TABLE && pReq->ctb.suid != mr.me.ctbEntry.suid) {
+      terrno = TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
+      metaReaderClear(&mr);
+      return -1;
+    }
     pReq->uid = mr.me.uid;
     if (pReq->type == TSDB_CHILD_TABLE) {
       pReq->ctb.suid = mr.me.ctbEntry.suid;
@@ -976,6 +981,11 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
 
   /* get stbEntry*/
   tdbTbGet(pMeta->pUidIdx, &ctbEntry.ctbEntry.suid, sizeof(tb_uid_t), &pVal, &nVal);
+  if (!pVal) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _err;
+  }
+
   tdbTbGet(pMeta->pTbDb, &((STbDbKey){.uid = ctbEntry.ctbEntry.suid, .version = ((SUidIdxVal *)pVal)[0].version}),
            sizeof(STbDbKey), (void **)&stbEntry.pBuf, &nVal);
   tdbFree(pVal);

@@ -29,6 +29,7 @@ extern "C" {
 #define ELECT_TIMER_MS_MAX   (ELECT_TIMER_MS_MIN * 2)
 #define ELECT_TIMER_MS_RANGE (ELECT_TIMER_MS_MAX - ELECT_TIMER_MS_MIN)
 #define HEARTBEAT_TIMER_MS   1000
+#define HEARTBEAT_TICK_NUM   20
 
 typedef struct SSyncEnv {
   uint8_t isStart;
@@ -56,6 +57,11 @@ int64_t    syncNodeAdd(SSyncNode* pNode);
 void       syncNodeRemove(int64_t rid);
 SSyncNode* syncNodeAcquire(int64_t rid);
 void       syncNodeRelease(SSyncNode* pNode);
+
+int64_t           syncHbTimerDataAdd(SSyncHbTimerData* pData);
+void              syncHbTimerDataRemove(int64_t rid);
+SSyncHbTimerData* syncHbTimerDataAcquire(int64_t rid);
+void              syncHbTimerDataRelease(SSyncHbTimerData* pData);
 
 #ifdef __cplusplus
 }

@@ -192,7 +192,9 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
 
   // pMsg->privateTerm = pSender->privateTerm;
 
-  memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
+  if (pSender->pCurrentBlock != NULL) {
+    memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
+  }
 
   // send msg
   syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg);

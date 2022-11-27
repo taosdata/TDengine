@@ -480,51 +480,6 @@ _error:
   return code;
 }
 
-#ifdef TEST_IMPL
-// wait moment
-int waitMoment(SQInfo* pQInfo) {
-  if (pQInfo->sql) {
-    int   ms = 0;
-    char* pcnt = strstr(pQInfo->sql, " count(*)");
-    if (pcnt) return 0;
-
-    char* pos = strstr(pQInfo->sql, " t_");
-    if (pos) {
-      pos += 3;
-      ms = atoi(pos);
-      while (*pos >= '0' && *pos <= '9') {
-        pos++;
-      }
-      char unit_char = *pos;
-      if (unit_char == 'h') {
-        ms *= 3600 * 1000;
-      } else if (unit_char == 'm') {
-        ms *= 60 * 1000;
-      } else if (unit_char == 's') {
-        ms *= 1000;
-      }
-    }
-    if (ms == 0) return 0;
-    printf("test wait sleep %dms. sql=%s ...\n", ms, pQInfo->sql);
-
-    if (ms < 1000) {
-      taosMsleep(ms);
-    } else {
-      int used_ms = 0;
-      while (used_ms < ms) {
-        taosMsleep(1000);
-        used_ms += 1000;
-        if (isTaskKilled(pQInfo)) {
-          printf("test check query is canceled, sleep break.%s\n", pQInfo->sql);
-          break;
-        }
-      }
-    }
-  }
-  return 1;
-}
-#endif
-
 static void freeBlock(void* param) {
   SSDataBlock* pBlock = *(SSDataBlock**)param;
   blockDataDestroy(pBlock);
@@ -1026,8 +981,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     SStreamScanInfo* pInfo = pOperator->info;
     if (pOffset->type == TMQ_OFFSET__LOG) {
       STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
-      tsdbReaderClose(pTSInfo->dataReader);
-      pTSInfo->dataReader = NULL;
+      tsdbReaderClose(pTSInfo->base.dataReader);
+      pTSInfo->base.dataReader = NULL;
 #if 0
       if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus) &&
           pInfo->tqReader->pWalReader->curVersion != pOffset->version) {
@@ -1079,23 +1034,23 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       // TODO after dropping table, table may not found
       ASSERT(found);
 
-      if (pTableScanInfo->dataReader == NULL) {
+      if (pTableScanInfo->base.dataReader == NULL) {
         STableKeyInfo* pList = tableListGetInfo(pTaskInfo->pTableInfoList, 0);
         int32_t        num = tableListGetSize(pTaskInfo->pTableInfoList);
 
-        if (tsdbReaderOpen(pTableScanInfo->readHandle.vnode, &pTableScanInfo->cond, pList, num,
-                           &pTableScanInfo->dataReader, NULL) < 0 ||
-            pTableScanInfo->dataReader == NULL) {
+        if (tsdbReaderOpen(pTableScanInfo->base.readHandle.vnode, &pTableScanInfo->base.cond, pList, num,
+                           &pTableScanInfo->base.dataReader, NULL) < 0 ||
+            pTableScanInfo->base.dataReader == NULL) {
           ASSERT(0);
         }
       }
 
       STableKeyInfo tki = {.uid = uid};
-      tsdbSetTableList(pTableScanInfo->dataReader, &tki, 1);
-      int64_t oldSkey = pTableScanInfo->cond.twindows.skey;
-      pTableScanInfo->cond.twindows.skey = ts + 1;
-      tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond);
-      pTableScanInfo->cond.twindows.skey = oldSkey;
+      tsdbSetTableList(pTableScanInfo->base.dataReader, &tki, 1);
+      int64_t oldSkey = pTableScanInfo->base.cond.twindows.skey;
+      pTableScanInfo->base.cond.twindows.skey = ts + 1;
+      tsdbReaderReset(pTableScanInfo->base.dataReader, &pTableScanInfo->base.cond);
+      pTableScanInfo->base.cond.twindows.skey = oldSkey;
       pTableScanInfo->scanTimes = 0;
 
       qDebug("tsdb reader offset seek to uid %" PRId64 " ts %" PRId64 ", table cur set to %d , all table num %d", uid,
