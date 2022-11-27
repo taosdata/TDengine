@@ -20,8 +20,6 @@
 
 struct SToken;
 
-#define IS_DATA_COL_ORDERED(spd) ((spd->orderStatus) == (int8_t)ORDER_STATUS_ORDERED)
-
 #define NEXT_TOKEN(pSql, sToken)                \
   do {                                          \
     int32_t index = 0;                          \
@@ -36,6 +34,8 @@ struct SToken;
       return code;                   \
     }                                \
   } while (0)
+
+#define IS_DATA_COL_ORDERED(spd) ((spd->orderStatus) == (int8_t)ORDER_STATUS_ORDERED)
 
 typedef enum EOrderStatus {
   ORDER_STATUS_UNKNOWN = 0,
@@ -140,5 +140,35 @@ int32_t insMemRowAppend(SMsgBuf *pMsgBuf, const void *value, int32_t len, void *
 int32_t insCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start);
 int32_t insBuildOutput(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks);
 void    insDestroyDataBlock(STableDataBlocks *pDataBlock);
+
+typedef struct SBoundColInfo {
+  int32_t *pColIndex;  // bound index => schema index
+  int32_t  numOfCols;
+  int32_t  numOfBound;
+} SBoundColInfo;
+
+typedef struct STableDataCxt {
+  STableMeta    *pMeta;
+  STSchema      *pSchema;
+  SBoundColInfo  boundColsInfo;
+  SArray        *pValues;
+  SVCreateTbReq *pCreateTblReq;
+  SSubmitTbData  data;
+} STableDataCxt;
+
+typedef struct SVgroupDataCxt {
+  int32_t     vgId;
+  SSubmitReq2 data;
+} SVgroupDataCxt;
+
+int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo *pInfo);
+int32_t insGetTableDataCxt(SHashObj *pHash, void *id, int32_t idLen, STableMeta *pTableMeta,
+                           SVCreateTbReq **pCreateTbReq, STableDataCxt **pTableCxt);
+int32_t insMergeTableDataCxt(SHashObj *pTableHash, SArray **pVgDataBlocks);
+int32_t insBuildVgDataBlocks(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks);
+void    insDestroyTableDataCxtHashMap(SHashObj *pTableCxtHash);
+void    insDestroyVgroupDataCxt(SVgroupDataCxt *pVgCxt);
+void    insDestroyVgroupDataCxtList(SArray *pVgCxtList);
+void    insDestroyVgroupDataCxtHashMap(SHashObj *pVgCxtHash);
 
 #endif  // TDENGINE_PAR_INSERT_UTIL_H
