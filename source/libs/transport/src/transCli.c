@@ -651,10 +651,10 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
 static SCliConn* cliCreateConn(SCliThrd* pThrd) {
   SCliConn* conn = taosMemoryCalloc(1, sizeof(SCliConn));
   // read/write stream handle
-  conn->stream = (uv_stream_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
+  conn->stream = (uv_stream_t*)taosMemoryMalloc(sizeof(uv_stream_t));
   uv_tcp_init(pThrd->loop, (uv_tcp_t*)(conn->stream));
   conn->stream->data = conn;
-  transSetConnOption(conn->stream);
+  transSetConnOption((uv_tcp_t*)conn->stream);
 
   uv_timer_t* timer = taosArrayGetSize(pThrd->timerList) > 0 ? *(uv_timer_t**)taosArrayPop(pThrd->timerList) : NULL;
   if (timer == NULL) {
