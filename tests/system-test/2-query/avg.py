@@ -15,7 +15,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
         self.setsql = TDSetSql()
         self.column_dict = {
             'ts':'timestamp',
@@ -413,7 +413,7 @@ class TDTestCase:
         tdSql.checkData(0,2,14042.142857143)
         tdSql.checkData(0,3,53.571428571)
         tdSql.checkData(0,4,5.828571332045761e+37)
-        tdSql.checkData(0,5,math.inf)
+        tdSql.checkData(0,5,None)
 
 
         # check  + - * / in functions
@@ -423,7 +423,7 @@ class TDTestCase:
         tdSql.checkData(0,2,14042.142857143)
         tdSql.checkData(0,3,26.785714286)
         tdSql.checkData(0,4,2.9142856660228804e+37)
-        tdSql.checkData(0,5,math.inf)
+        tdSql.checkData(0,5,None)
 
 
 

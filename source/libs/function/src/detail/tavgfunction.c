@@ -723,7 +723,12 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     }
   }
 
-  pEntryInfo->numOfRes = (pRes->count > 0)? 1:0;
+  if (pRes->count == 0 || isinf(pRes->result) || isnan(pRes->result)) {
+    pEntryInfo->numOfRes = 0;
+  } else {
+    pEntryInfo->numOfRes = 1;
+  }
+
   return functionFinalize(pCtx, pBlock);
 }
 
