@@ -484,7 +484,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   // 1. check if it is existed in meta cache
   if (pCache == NULL) {
     metaReaderInit(&mr, pHandle->meta, 0);
-    code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
+    code = metaGetTableEntryByUidCache(&mr, pBlock->info.uid);
     if (code != TSDB_CODE_SUCCESS) {
       if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
         qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid,
@@ -508,7 +508,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     h = taosLRUCacheLookup(pCache->pTableMetaEntryCache, &pBlock->info.uid, sizeof(pBlock->info.uid));
     if (h == NULL) {
       metaReaderInit(&mr, pHandle->meta, 0);
-      code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
+      code = metaGetTableEntryByUidCache(&mr, pBlock->info.uid);
       if (code != TSDB_CODE_SUCCESS) {
         if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
           qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s",

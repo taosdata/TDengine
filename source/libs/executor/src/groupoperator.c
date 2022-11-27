@@ -274,10 +274,9 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   //    return;
   //  }
 
-  int32_t     len = 0;
-  STimeWindow w = TSWINDOW_INITIALIZER;
-
+  int32_t len = 0;
   terrno = TSDB_CODE_SUCCESS;
+
   int32_t num = 0;
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.

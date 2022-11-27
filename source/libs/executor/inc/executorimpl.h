@@ -153,12 +153,12 @@ typedef struct {
   SSchemaWrapper* qsw;
 } SSchemaInfo;
 
-typedef struct {
+typedef struct SExchangeOpStopInfo {
   int32_t operatorType;
   int64_t refId;
 } SExchangeOpStopInfo;
 
-typedef struct {
+typedef struct STaskStopInfo {
   SRWLatch lock;
   SArray*  pStopInfo;
 } STaskStopInfo;
@@ -181,6 +181,7 @@ struct SExecTaskInfo {
   SSubplan*             pSubplan;
   struct SOperatorInfo* pRoot;
   SLocalFetch           localFetch;
+  SArray*               pResultBlockList;// result block list
   STaskStopInfo         stopInfo;
 };
 
@@ -252,21 +253,22 @@ typedef struct SLimitInfo {
 } SLimitInfo;
 
 typedef struct SExchangeInfo {
-  SArray* pSources;
-  SArray* pSourceDataInfo;
-  tsem_t  ready;
-  void*   pTransporter;
+  SArray*             pSources;
+  SArray*             pSourceDataInfo;
+  tsem_t              ready;
+  void*               pTransporter;
+
   // SArray<SSDataBlock*>, result block list, used to keep the multi-block that
   // passed by downstream operator
   SArray*             pResultBlockList;
-  int32_t             rspBlockIndex;  // indicate the return block index in pResultBlockList
+  SArray*             pRecycledBlocks;// build a pool for small data block to avoid to repeatly create and then destroy.
   SSDataBlock*        pDummyBlock;    // dummy block, not keep data
   bool                seqLoadData;    // sequential load data or not, false by default
   int32_t             current;
   SLoadRemoteDataInfo loadInfo;
   uint64_t            self;
   SLimitInfo          limitInfo;
-  int64_t             openedTs;  // start exec time stamp
+  int64_t             openedTs;       // start exec time stamp, todo: move to SLoadRemoteDataInfo
 } SExchangeInfo;
 
 typedef struct SScanInfo {
@@ -301,9 +303,9 @@ typedef struct {
 } SAggOptrPushDownInfo;
 
 typedef struct STableMetaCacheInfo {
-  SLRUCache* pTableMetaEntryCache;  // 100 by default
-  uint64_t   metaFetch;
-  uint64_t   cacheHit;
+  SLRUCache*             pTableMetaEntryCache; // 100 by default
+  uint64_t               metaFetch;
+  uint64_t               cacheHit;
 } STableMetaCacheInfo;
 
 typedef struct STableScanBase {
