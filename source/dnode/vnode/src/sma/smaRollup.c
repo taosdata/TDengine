@@ -739,11 +739,13 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
     }
   }
 
-  tdBlockDataDestroy(pResList);
+  taosArrayDestroy(pResList);
+  qCleanExecTaskBlockBuf(taskInfo);
   return TSDB_CODE_SUCCESS;
 
 _err:
-  tdBlockDataDestroy(pResList);
+  taosArrayDestroy(pResList);
+  qCleanExecTaskBlockBuf(taskInfo);
   return TSDB_CODE_FAILED;
 }
 

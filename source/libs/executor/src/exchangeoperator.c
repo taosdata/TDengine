@@ -646,6 +646,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
 
     SRetrieveTableRsp*   pRsp = pDataInfo->pRsp;
     SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
+
     if (pRsp->numOfRows == 0) {
       qDebug("%s vgId:%d, taskID:0x%" PRIx64 " execId:%d %d of total completed, rowsOfSource:%" PRIu64
              ", totalRows:%" PRIu64 " try next",

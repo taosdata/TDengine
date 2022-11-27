@@ -827,7 +827,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
     if (i >= end) {
       ASSERT(numOfElems == 0);
-      return numOfElems;
+      goto _over;
     }
 
     doExtractVal(pCol, i, end, pCtx, pBuf, isMinFunc);

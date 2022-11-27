@@ -572,6 +572,18 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   return pTaskInfo->code;
 }
 
+void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  SArray* pList = pTaskInfo->pResultBlockList;
+  size_t num = taosArrayGetSize(pList);
+  for(int32_t i = 0; i < num; ++i) {
+    SSDataBlock** p = taosArrayGet(pTaskInfo->pResultBlockList, i);
+    blockDataDestroy(*p);
+  }
+
+  taosArrayClear(pTaskInfo->pResultBlockList);
+}
+
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   int64_t        threadId = taosGetSelfPthreadId();

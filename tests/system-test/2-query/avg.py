@@ -1,5 +1,7 @@
 import taos
 import sys
+
+import math
 import numpy as np
 from util.log import *
 from util.sql import *
@@ -411,7 +413,7 @@ class TDTestCase:
         tdSql.checkData(0,2,14042.142857143)
         tdSql.checkData(0,3,53.571428571)
         tdSql.checkData(0,4,5.828571332045761e+37)
-        tdSql.checkData(0,5,None)
+        tdSql.checkData(0,5,math.inf)
 
 
         # check  + - * / in functions
@@ -421,7 +423,7 @@ class TDTestCase:
         tdSql.checkData(0,2,14042.142857143)
         tdSql.checkData(0,3,26.785714286)
         tdSql.checkData(0,4,2.9142856660228804e+37)
-        tdSql.checkData(0,5,None)
+        tdSql.checkData(0,5,math.inf)
 
 
 

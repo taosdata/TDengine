@@ -1322,10 +1322,6 @@ int32_t copyDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pDst = taosArrayGet(dst->pDataBlock, i);
     SColumnInfoData* pSrc = taosArrayGet(src->pDataBlock, i);
-    if (pSrc->pData == NULL) {
-      continue;
-    }
-
     colDataAssign(pDst, pSrc, src->info.rows, &src->info);
   }
 

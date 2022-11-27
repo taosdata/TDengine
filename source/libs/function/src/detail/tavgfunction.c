@@ -494,7 +494,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
     switch(type) {
       case TSDB_DATA_TYPE_UTINYINT:
       case TSDB_DATA_TYPE_TINYINT: {
-        const int8_t* plist = (const int8_t*) &pCol->pData[start];
+        const int8_t* plist = (const int8_t*) pCol->pData;
 
         // 1. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
         if (simdAvailable) {
