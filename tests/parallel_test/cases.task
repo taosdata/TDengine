@@ -692,14 +692,14 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqAlterSchema.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb-funcNFilter.py
-,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb-funcNFilter.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb-funcNFilter.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb-funcNFilter.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
 ,,,system-test,python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
