@@ -1100,6 +1100,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       return TSDB_CODE_FAILED;
   }
 
+  pVal->flag = CV_FLAG_VALUE;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1167,7 +1168,7 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    SRow** pRow = taosArrayReserve(pTableCxt->data.aRowP, 1);
+    SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
     code = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
   }
 

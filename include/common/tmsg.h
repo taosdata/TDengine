@@ -3250,6 +3250,7 @@ typedef struct {
 
 int32_t tEncodeSSubmitReq2(SEncoder* pCoder, const SSubmitReq2* pReq);
 int32_t tDecodeSSubmitReq2(SDecoder* pCoder, SSubmitReq2** ppReq);
+void    tDestroySSubmitTbData(SSubmitTbData* pTbData);
 void    tDestroySSubmitReq2(SSubmitReq2* pReq);
 
 #pragma pack(pop)

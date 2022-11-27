@@ -1014,9 +1014,17 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    pTableCxt->data.aRowP = taosArrayInit(128, POINTER_BYTES);
-    if (NULL == pTableCxt->data.aRowP) {
+    pTableCxt->pData = taosMemoryCalloc(1, sizeof(SSubmitTbData));
+    if (NULL == pTableCxt->pData) {
       code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      pTableCxt->pData->suid = pTableMeta->suid;
+      pTableCxt->pData->uid = pTableMeta->uid;
+      pTableCxt->pData->sver = pTableMeta->sversion;
+      pTableCxt->pData->aRowP = taosArrayInit(128, POINTER_BYTES);
+      if (NULL == pTableCxt->pData->aRowP) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
   }
 
@@ -1055,7 +1063,7 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
   taosArrayDestroyEx(pTableCxt->pValues, NULL /*todo*/);
   tdDestroySVCreateTbReq(pTableCxt->pCreateTblReq);
   taosMemoryFreeClear(pTableCxt->pCreateTblReq);
-  // todo free SSubmitTbData
+  tDestroySSubmitTbData(pTableCxt->pData);
 }
 
 void insDestroyVgroupDataCxt(SVgroupDataCxt* pVgCxt) {
@@ -1063,7 +1071,7 @@ void insDestroyVgroupDataCxt(SVgroupDataCxt* pVgCxt) {
     return;
   }
 
-  tDestroySSubmitReq2(&pVgCxt->data);
+  tDestroySSubmitReq2(pVgCxt->pData);
 }
 
 void insDestroyVgroupDataCxtList(SArray* pVgCxtList) {
@@ -1112,24 +1120,48 @@ void insDestroyTableDataCxtHashMap(SHashObj* pTableCxtHash) {
 
 static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCxt) {
   if (NULL != pTableCxt->pCreateTblReq) {
-    if (NULL == pVgCxt->data.aCreateTbReq) {
-      pVgCxt->data.aCreateTbReq = taosArrayInit(128, sizeof(SVCreateTbReq));
-      if (NULL == pVgCxt->data.aCreateTbReq) {
+    if (NULL == pVgCxt->pData->aCreateTbReq) {
+      pVgCxt->pData->aCreateTbReq = taosArrayInit(128, sizeof(SVCreateTbReq));
+      if (NULL == pVgCxt->pData->aCreateTbReq) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
     }
-    taosArrayPush(pVgCxt->data.aCreateTbReq, pTableCxt->pCreateTblReq);
+    taosArrayPush(pVgCxt->pData->aCreateTbReq, pTableCxt->pCreateTblReq);
   }
 
-  if (NULL == pVgCxt->data.aSubmitTbData) {
-    pVgCxt->data.aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
-    if (NULL == pVgCxt->data.aSubmitTbData) {
+  if (NULL == pVgCxt->pData->aSubmitTbData) {
+    pVgCxt->pData->aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
+    if (NULL == pVgCxt->pData->aSubmitTbData) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-  taosArrayPush(pVgCxt->data.aSubmitTbData, &pTableCxt->data);
+  taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData);
+  pTableCxt->pData = NULL;
 
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createVgroupDataCxt(STableDataCxt* pTableCxt, SHashObj* pVgroupHash, SArray* pVgroupList,
+                                   SVgroupDataCxt** pOutput) {
+  SVgroupDataCxt* pVgCxt = taosMemoryCalloc(1, sizeof(SVgroupDataCxt));
+  if (NULL == pVgCxt) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pVgCxt->pData = taosMemoryCalloc(1, sizeof(SSubmitReq2));
+  if (NULL == pVgCxt->pData) {
+    insDestroyVgroupDataCxt(pVgCxt);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pVgCxt->vgId = pTableCxt->pMeta->vgId;
+  int32_t code = taosHashPut(pVgroupHash, &pVgCxt->vgId, sizeof(pVgCxt->vgId), &pVgCxt, POINTER_BYTES);
+  if (TSDB_CODE_SUCCESS == code) {
+    taosArrayPush(pVgroupList, &pVgCxt);
+    *pOutput = pVgCxt;
+  } else {
+    insDestroyVgroupDataCxt(pVgCxt);
+  }
+  return code;
 }
 
 int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
@@ -1146,17 +1178,14 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
   void* p = taosHashIterate(pTableHash, NULL);
   while (TSDB_CODE_SUCCESS == code && NULL != p) {
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
-    code = tRowMergeSort(pTableCxt->data.aRowP, pTableCxt->pSchema, 0);
+    code = tRowMergeSort(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
     if (TSDB_CODE_SUCCESS == code) {
       int32_t         vgId = pTableCxt->pMeta->vgId;
       SVgroupDataCxt* pVgCxt = taosHashGet(pVgroupHash, &vgId, sizeof(vgId));
       if (NULL == pVgCxt) {
-        SVgroupDataCxt vgCxt = {.vgId = vgId};
-        code = fillVgroupDataCxt(pTableCxt, &vgCxt);
-        if (TSDB_CODE_SUCCESS == code) {
-          code = taosHashPut(pVgroupHash, &vgId, sizeof(vgId), &vgCxt, sizeof(vgCxt));
-        }
-      } else {
+        code = createVgroupDataCxt(pTableCxt, pVgroupHash, pVgroupList, &pVgCxt);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
         code = fillVgroupDataCxt(pTableCxt, pVgCxt);
       }
     }
@@ -1175,22 +1204,30 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
   return code;
 }
 
-static int32_t buildSubmitReq(SSubmitReq2* pReq, void** pData, uint32_t* pLen) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  tEncodeSize(tEncodeSSubmitReq2, pReq, *pLen, code);
+static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uint32_t* pLen) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  uint32_t len = 0;
+  void*    pBuf = NULL;
+  tEncodeSize(tEncodeSSubmitReq2, pReq, len, code);
   if (TSDB_CODE_SUCCESS == code) {
     SEncoder encoder;
-    *pData = taosMemoryMalloc(*pLen);
-    if (NULL == *pData) {
+    len += sizeof(SMsgHead);
+    pBuf = taosMemoryMalloc(len);
+    if (NULL == pBuf) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
-    tEncoderInit(&encoder, *pData, *pLen);
+    ((SMsgHead*)pBuf)->vgId = htonl(vgId);
+    ((SMsgHead*)pBuf)->contLen = htonl(len);
+    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len - sizeof(SMsgHead));
     code = tEncodeSSubmitReq2(&encoder, pReq);
     tEncoderClear(&encoder);
   }
-  if (TSDB_CODE_SUCCESS != code) {
-    taosMemoryFreeClear(*pData);
-    *pLen = 0;
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pData = pBuf;
+    *pLen = len;
+  } else {
+    taosMemoryFree(pBuf);
   }
   return code;
 }
@@ -1210,11 +1247,11 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
       code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     if (TSDB_CODE_SUCCESS == code) {
-      dst->numOfTables = taosArrayGetSize(src->data.aSubmitTbData);
+      dst->numOfTables = taosArrayGetSize(src->pData->aSubmitTbData);
       code = taosHashGetDup(pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = buildSubmitReq(&src->data, &dst->pData, &dst->size);
+      code = buildSubmitReq(src->vgId, src->pData, &dst->pData, &dst->size);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = (NULL == taosArrayPush(pDataBlocks, &dst) ? TSDB_CODE_TSC_OUT_OF_MEMORY : TSDB_CODE_SUCCESS);

@@ -153,12 +153,12 @@ typedef struct STableDataCxt {
   SBoundColInfo  boundColsInfo;
   SArray        *pValues;
   SVCreateTbReq *pCreateTblReq;
-  SSubmitTbData  data;
+  SSubmitTbData *pData;
 } STableDataCxt;
 
 typedef struct SVgroupDataCxt {
-  int32_t     vgId;
-  SSubmitReq2 data;
+  int32_t      vgId;
+  SSubmitReq2 *pData;
 } SVgroupDataCxt;
 
 int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo *pInfo);
