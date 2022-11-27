@@ -1762,21 +1762,11 @@ _exit:
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind) {
   int32_t code = 0;
 
-  bool allValue;
-  bool allNull;
-  if (pBind->is_null) {
-    bool same = (memcmp(pBind->is_null, pBind->is_null + 1, pBind->num - 1) == 0);
-    allNull = (same && pBind->is_null[0] != 0);
-    allValue = (same && pBind->is_null[0] == 0);
-  } else {
-    allNull = false;
-    allValue = true;
-  }
+  ASSERT(pColData->type == pBind->buffer_type);
 
-  pColData->nVal += pBind->num;
   if (IS_VAR_DATA_TYPE(pBind->buffer_type)) {  // var-length data type
     for (int32_t i = 0; i < pBind->num; ++i) {
-      if (pBind->is_null[i]) {
+      if (pBind->is_null && pBind->is_null[i]) {
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
         if (code) goto _exit;
       } else {
@@ -1785,32 +1775,29 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind) {
       }
     }
   } else {  // fixed-length data type
-    pColData->nVal += pBind->num;
+    bool allValue;
+    bool allNull;
+    if (pBind->is_null) {
+      bool same = (memcmp(pBind->is_null, pBind->is_null + 1, pBind->num - 1) == 0);
+      allNull = (same && pBind->is_null[0] != 0);
+      allValue = (same && pBind->is_null[0] == 0);
+    } else {
+      allNull = false;
+      allValue = true;
+    }
 
     if (allValue) {
-      pColData->flag |= HAS_VALUE;
-      if (pColData->flag != HAS_VALUE) {
-        // todo
-      }
-
-      int32_t nData = pColData->nData + TYPE_BYTES[pBind->buffer_type] * pBind->num;
-      code = tRealloc(&pColData->pData, nData);
-      if (code) goto _exit;
-
-      memcpy(pColData->pData + pColData->nData, pBind->buffer, nData - pColData->nData);
-      pColData->nData = nData;
-    } else if (allNull) {
-      pColData->flag |= HAS_NULL;
-
       // todo
-
+    } else if (allNull) {
+      // todo
     } else {
       for (int32_t i = 0; i < pBind->num; ++i) {
         if (pBind->is_null[i]) {
-          code = tColDataAppendValue(pColData, &COL_VAL_NULL(pColData->cid, pColData->type));
-          // tColDataAppendNull(pColData);
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+          if (code) goto _exit;
         } else {
-          uint8_t *pData = (uint8_t *)pBind->buffer + TYPE_BYTES[pBind->buffer_type] * i;
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
+              pColData, (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i, pBind->buffer_length);
         }
       }
     }
