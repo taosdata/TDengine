@@ -1584,7 +1584,7 @@ static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pDa
     {tColDataAppendValue00, tColDataAppendValue01, tColDataAppendValue02},  // 0
     {tColDataAppendValue10, tColDataAppendValue11, tColDataAppendValue12},  // HAS_NONE
     {tColDataAppendValue20, tColDataAppendValue21, tColDataAppendValue22},  // HAS_NULL
-    {tColDataAppendValue30, tColDataAppendValue31, tColDataAppendValue32},  // HAS_NULL|HAS_NONE
+    {tColDataAppendValue30, tColDataApendValue31, tColDataAppendValue32},   // HAS_NULL|HAS_NONE
     {tColDataAppendValue40, tColDataAppendValue41, tColDataAppendValue42},  // HAS_VALUE
     {tColDataAppendValue50, tColDataAppendValue51, tColDataAppendValue52},  // HAS_VALUE|HAS_NONE
     {tColDataAppendValue60, tColDataAppendValue61, tColDataAppendValue62},  // HAS_VALUE|HAS_NULL
@@ -1787,9 +1787,17 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind) {
     }
 
     if (allValue) {
-      // todo
+      // optimize (todo)
+      for (int32_t i = 0; i < pBind->num; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
+            pColData, (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i, pBind->buffer_length);
+      }
     } else if (allNull) {
-      // todo
+      // optimize (todo)
+      for (int32_t i = 0; i < pBind->num; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+        if (code) goto _exit;
+      }
     } else {
       for (int32_t i = 0; i < pBind->num; ++i) {
         if (pBind->is_null[i]) {
