@@ -885,7 +885,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->base.dataBlockLoadFlag = pTableScanNode->dataRequired;
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
-  pInfo->pResBlock = createResDataBlock(pDescNode);
+  pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
   blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
 
   code = filterInitFromNode((SNode*)pTableScanNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
@@ -2352,7 +2352,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     goto _error;
   }
 
-  pInfo->pRes = createResDataBlock(pDescNode);
+  pInfo->pRes = createDataBlockFromDescNode(pDescNode);
   pInfo->pUpdateRes = createSpecialDataBlock(STREAM_CLEAR);
   pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
   pInfo->windowSup = (SWindowSupporter){.pStreamAggSup = NULL, .gap = -1, .parentType = QUERY_NODE_PHYSICAL_PLAN};
@@ -2476,8 +2476,7 @@ static void destroyTagScanOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pPhyNode,
-                                         STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo) {
   STagScanInfo*  pInfo = taosMemoryCalloc(1, sizeof(STagScanInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -2499,7 +2498,7 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
     goto _error;
   }
 
-  pInfo->pRes = createResDataBlock(pDescNode);
+  pInfo->pRes = createDataBlockFromDescNode(pDescNode);
   pInfo->readHandle = *pReadHandle;
   pInfo->curPos = 0;
 
@@ -2613,7 +2612,7 @@ SArray* generateSortByTsInfo(SArray* colMatchInfo, int32_t order) {
   return pList;
 }
 
-int32_t dumpSQueryTableCond(const SQueryTableDataCond* src, SQueryTableDataCond* dst) {
+int32_t dumpQueryTableCond(const SQueryTableDataCond* src, SQueryTableDataCond* dst) {
   memcpy((void*)dst, (void*)src, sizeof(SQueryTableDataCond));
   dst->colList = taosMemoryCalloc(src->numOfCols, sizeof(SColumnInfo));
   for (int i = 0; i < src->numOfCols; i++) {
@@ -2664,7 +2663,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
     taosArrayPush(pInfo->sortSourceParams, &param);
 
     SQueryTableDataCond cond;
-    dumpSQueryTableCond(&pInfo->base.cond, &cond);
+    dumpQueryTableCond(&pInfo->base.cond, &cond);
     taosArrayPush(pInfo->queryConds, &cond);
   }
 
@@ -2900,7 +2899,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   }
 
   initResultSizeInfo(&pOperator->resultInfo, 1024);
-  pInfo->pResBlock = createResDataBlock(pDescNode);
+  pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
   blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
 
   pInfo->sortSourceParams = taosArrayInit(64, sizeof(STableMergeScanSortSourceParam));

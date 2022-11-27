@@ -314,7 +314,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     }
 
     int32_t rowIndex = j - num;
-    doApplyFunctions(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows, pOperator->exprSupp.numOfExprs);
+    applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows, pOperator->exprSupp.numOfExprs);
 
     // assign the group keys or user input constant values if required
     doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
@@ -331,7 +331,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     }
 
     int32_t rowIndex = pBlock->info.rows - num;
-    doApplyFunctions(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows, pOperator->exprSupp.numOfExprs);
+    applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows, pOperator->exprSupp.numOfExprs);
     doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
   }
 }
@@ -431,7 +431,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode*
     goto _error;
   }
 
-  SSDataBlock* pResBlock = createResDataBlock(pAggNode->node.pOutputDataBlockDesc);
+  SSDataBlock* pResBlock = createDataBlockFromDescNode(pAggNode->node.pOutputDataBlockDesc);
   initBasicInfo(&pInfo->binfo, pResBlock);
 
   int32_t    numOfScalarExpr = 0;
@@ -823,7 +823,7 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
   uint32_t defaultPgsz = 0;
   uint32_t defaultBufsz = 0;
 
-  pInfo->binfo.pRes = createResDataBlock(pPartNode->node.pOutputDataBlockDesc);
+  pInfo->binfo.pRes = createDataBlockFromDescNode(pPartNode->node.pOutputDataBlockDesc);
   getBufferPgSize(pInfo->binfo.pRes->info.rowSize, &defaultPgsz, &defaultBufsz);
 
   if (!osTempSpaceAvailable()) {
@@ -1119,7 +1119,7 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
   }
   pInfo->partitionSup.needCalc = true;
 
-  pInfo->binfo.pRes = createResDataBlock(pPartNode->part.node.pOutputDataBlockDesc);
+  pInfo->binfo.pRes = createDataBlockFromDescNode(pPartNode->part.node.pOutputDataBlockDesc);
   if (pInfo->binfo.pRes == NULL) {
     goto _error;
   }

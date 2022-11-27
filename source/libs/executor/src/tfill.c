@@ -1651,9 +1651,9 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   }
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
-  pInfo->pRes = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
-  pInfo->pSrcBlock = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
-  pInfo->pPrevSrcBlock = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
+  pInfo->pRes = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
+  pInfo->pSrcBlock = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
+  pInfo->pPrevSrcBlock = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   blockDataEnsureCapacity(pInfo->pSrcBlock, pOperator->resultInfo.capacity);
   blockDataEnsureCapacity(pInfo->pPrevSrcBlock, pOperator->resultInfo.capacity);

@@ -1411,7 +1411,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   pInfo->pUser = taosMemoryStrDup((void*)pUser);
   pInfo->sysInfo = pScanPhyNode->sysInfo;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
-  pInfo->pRes = createResDataBlock(pDescNode);
+  pInfo->pRes = createDataBlockFromDescNode(pDescNode);
 
   pInfo->pCondition = pScanNode->node.pConditions;
   code = filterInitFromNode(pScanNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
@@ -1928,7 +1928,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
     pInfo->readHandle = *readHandle;
     pInfo->uid = pBlockScanNode->suid;
 
-    pInfo->pResBlock = createResDataBlock(pBlockScanNode->node.pOutputDataBlockDesc);
+    pInfo->pResBlock = createDataBlockFromDescNode(pBlockScanNode->node.pOutputDataBlockDesc);
     blockDataEnsureCapacity(pInfo->pResBlock, 1);
 
     int32_t    numOfCols = 0;

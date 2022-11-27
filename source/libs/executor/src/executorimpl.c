@@ -76,6 +76,15 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 #define CLEAR_QUERY_STATUS(q, st)   ((q)->status &= (~(st)))
 #define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->interval.interval > 0)
 
+typedef struct SAggOperatorInfo {
+  SOptrBasicInfo   binfo;
+  SAggSupporter    aggSup;
+  STableQueryInfo* current;
+  uint64_t         groupId;
+  SGroupResInfo    groupResInfo;
+  SExprSupp        scalarExprSup;
+} SAggOperatorInfo;
+
 int32_t getMaximumIdleDurationSec() { return tsShellActivityTimer * 2; }
 
 static void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pBlock);
@@ -316,8 +325,8 @@ static void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus
   pCtx->input.startRowIndex = pStatus->startOffset;
 }
 
-void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData, int32_t offset,
-                      int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput) {
+void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData,
+                                     int32_t offset, int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput) {
   for (int32_t k = 0; k < numOfOutput; ++k) {
     // keep it temporarily
     SFunctionCtxStatus status = {0};
@@ -2039,7 +2048,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
     goto _error;
   }
 
-  SSDataBlock* pResBlock = createResDataBlock(pAggNode->node.pOutputDataBlockDesc);
+  SSDataBlock* pResBlock = createDataBlockFromDescNode(pAggNode->node.pOutputDataBlockDesc);
   initBasicInfo(&pInfo->binfo, pResBlock);
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
@@ -2213,7 +2222,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
     goto _error;
   }
 
-  pInfo->pRes = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
+  pInfo->pRes = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
   SExprInfo* pExprInfo = createExprInfo(pPhyFillNode->pFillExprs, NULL, &pInfo->numOfExpr);
   pOperator->exprSupp.pExprInfo = pExprInfo;
 
@@ -2512,7 +2521,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      pOperator = createTagScanOperatorInfo(pHandle, pScanPhyNode, pTableListInfo, pTaskInfo);
+      pOperator = createTagScanOperatorInfo(pHandle, pScanPhyNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN == type) {
       SBlockDistScanPhysiNode* pBlockNode = (SBlockDistScanPhysiNode*)pPhyNode;
 
