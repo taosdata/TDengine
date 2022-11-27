@@ -2537,24 +2537,22 @@ int32_t tDeserializeSUseDbRspImp(SDecoder *pDecoder, SUseDbRsp *pRsp) {
   if (tDecodeI16(pDecoder, &pRsp->hashSuffix) < 0) return -1;
   if (tDecodeI8(pDecoder, &pRsp->hashMethod) < 0) return -1;
 
-  if (pRsp->vgNum <= 0) {
-    return 0;
-  }
+  if (pRsp->vgNum > 0) {
+    pRsp->pVgroupInfos = taosArrayInit(pRsp->vgNum, sizeof(SVgroupInfo));
+    if (pRsp->pVgroupInfos == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
 
-  pRsp->pVgroupInfos = taosArrayInit(pRsp->vgNum, sizeof(SVgroupInfo));
-  if (pRsp->pVgroupInfos == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  for (int32_t i = 0; i < pRsp->vgNum; ++i) {
-    SVgroupInfo vgInfo = {0};
-    if (tDecodeI32(pDecoder, &vgInfo.vgId) < 0) return -1;
-    if (tDecodeU32(pDecoder, &vgInfo.hashBegin) < 0) return -1;
-    if (tDecodeU32(pDecoder, &vgInfo.hashEnd) < 0) return -1;
-    if (tDecodeSEpSet(pDecoder, &vgInfo.epSet) < 0) return -1;
-    if (tDecodeI32(pDecoder, &vgInfo.numOfTable) < 0) return -1;
-    taosArrayPush(pRsp->pVgroupInfos, &vgInfo);
+    for (int32_t i = 0; i < pRsp->vgNum; ++i) {
+      SVgroupInfo vgInfo = {0};
+      if (tDecodeI32(pDecoder, &vgInfo.vgId) < 0) return -1;
+      if (tDecodeU32(pDecoder, &vgInfo.hashBegin) < 0) return -1;
+      if (tDecodeU32(pDecoder, &vgInfo.hashEnd) < 0) return -1;
+      if (tDecodeSEpSet(pDecoder, &vgInfo.epSet) < 0) return -1;
+      if (tDecodeI32(pDecoder, &vgInfo.numOfTable) < 0) return -1;
+      taosArrayPush(pRsp->pVgroupInfos, &vgInfo);
+    }
   }
 
   if (tDecodeI32(pDecoder, &pRsp->errCode) < 0) return -1;
@@ -4722,6 +4720,139 @@ void tFreeSSubQueryMsg(SSubQueryMsg *pReq) {
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->msg);
 }
+
+
+int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) {
+  int32_t headLen = sizeof(SMsgHead);
+  if (buf != NULL) {
+    buf = (char *)buf + headLen;
+    bufLen -= headLen;
+  }
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeU64(&encoder, pReq->sId) < 0) return -1;
+  if (tEncodeU64(&encoder, pReq->queryId) < 0) return -1;
+  if (tEncodeU64(&encoder, pReq->taskId) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->execId) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+
+  if (buf != NULL) {
+    SMsgHead *pHead = (SMsgHead *)((char *)buf - headLen);
+    pHead->vgId = htonl(pReq->header.vgId);
+    pHead->contLen = htonl(tlen + headLen);
+  }
+
+  return tlen + headLen;
+}
+
+int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) {
+  int32_t headLen = sizeof(SMsgHead);
+
+  SMsgHead *pHead = buf;
+  pHead->vgId = pReq->header.vgId;
+  pHead->contLen = pReq->header.contLen;
+
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, (char *)buf + headLen, bufLen - headLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  if (tDecodeU64(&decoder, &pReq->sId) < 0) return -1;
+  if (tDecodeU64(&decoder, &pReq->queryId) < 0) return -1;
+  if (tDecodeU64(&decoder, &pReq->taskId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->execId) < 0) return -1;
+  
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+
+int32_t tSerializeSTqOffsetVal(SEncoder *pEncoder, STqOffsetVal *pOffset) {
+  if (tEncodeI8(pEncoder, pOffset->type) < 0) return -1;
+  if (tEncodeI64(pEncoder, pOffset->uid) < 0) return -1;
+  if (tEncodeI64(pEncoder, pOffset->ts) < 0) return -1;
+
+  return 0;
+}
+
+int32_t tDerializeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffset) {
+  if (tDecodeI8(pDecoder, &pOffset->type) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pOffset->uid) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pOffset->ts) < 0) return -1;
+
+  return 0;
+}
+
+int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
+  int32_t headLen = sizeof(SMsgHead);
+  if (buf != NULL) {
+    buf = (char *)buf + headLen;
+    bufLen -= headLen;
+  }
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeCStr(&encoder, pReq->subKey) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->withTbName) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->useSnapshot) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->epoch) < 0) return -1;
+  if (tEncodeU64(&encoder, pReq->reqId) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->consumerId) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->timeout) < 0) return -1;
+  if (tSerializeSTqOffsetVal(&encoder, &pReq->reqOffset) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+
+  if (buf != NULL) {
+    SMsgHead *pHead = (SMsgHead *)((char *)buf - headLen);
+    pHead->vgId = htonl(pReq->head.vgId);
+    pHead->contLen = htonl(tlen + headLen);
+  }
+
+  return tlen + headLen;
+}
+
+int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
+  int32_t headLen = sizeof(SMsgHead);
+
+  SMsgHead *pHead = buf;
+  pHead->vgId = pReq->head.vgId;
+  pHead->contLen = pReq->head.contLen;
+
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, (char *)buf + headLen, bufLen - headLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  if (tDecodeCStrTo(&decoder, pReq->subKey) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->withTbName) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->useSnapshot) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->epoch) < 0) return -1;
+  if (tDecodeU64(&decoder, &pReq->reqId) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->consumerId) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->timeout) < 0) return -1;
+  if (tDerializeSTqOffsetVal(&decoder, &pReq->reqOffset) < 0) return -1;
+  
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 
 int32_t tSerializeSTaskDropReq(void *buf, int32_t bufLen, STaskDropReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);

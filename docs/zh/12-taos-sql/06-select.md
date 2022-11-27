@@ -302,7 +302,7 @@ SELECT TIMEZONE();
 ### 语法
 
 ```txt
-WHERE (column|tbname) **match/MATCH/nmatch/NMATCH** _regex_
+WHERE (column|tbname) match/MATCH/nmatch/NMATCH _regex_
 ```
 
 ### 正则表达式规范

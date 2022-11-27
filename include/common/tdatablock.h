@@ -24,25 +24,12 @@
 extern "C" {
 #endif
 
-typedef struct SCorEpSet {
-  int32_t version;
-  SEpSet  epSet;
-} SCorEpSet;
-
 typedef struct SBlockOrderInfo {
   bool             nullFirst;
   int32_t          order;
   int32_t          slotId;
   SColumnInfoData* pColData;
 } SBlockOrderInfo;
-
-int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp);
-void    addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port);
-
-bool isEpsetEqual(const SEpSet* s1, const SEpSet* s2);
-
-void   updateEpSet_s(SCorEpSet* pEpSet, SEpSet* pNewEpSet);
-SEpSet getEpSet_s(SCorEpSet* pEpSet);
 
 #define NBIT                     (3u)
 #define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
@@ -88,6 +75,33 @@ static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData,
 
     return colDataIsNull_f(pColumnInfoData->nullbitmap, row);
   }
+}
+
+static FORCE_INLINE bool colDataIsNNull_s(const SColumnInfoData* pColumnInfoData, int32_t startIndex,
+                                          uint32_t nRows) {
+  if (!pColumnInfoData->hasNull) {
+    return false;
+  }
+
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    for (int32_t i = startIndex; i < nRows; ++i) {
+      if (!colDataIsNull_var(pColumnInfoData, i)) {
+        return false;
+      }
+    }
+  } else {
+    if (pColumnInfoData->nullbitmap == NULL) {
+      return false;
+    }
+
+    for (int32_t i = startIndex; i < nRows; ++i) {
+      if (!colDataIsNull_f(pColumnInfoData->nullbitmap, i)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, uint32_t totalRows, uint32_t row,

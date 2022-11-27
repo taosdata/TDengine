@@ -287,12 +287,17 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               hasRes = true;
               p->ts = pColVal->ts;
 
-              uint8_t* px = p->colVal.value.pData;
-              p->colVal = pColVal->colVal;
+              if (!IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
+                p->colVal = pColVal->colVal;
+              } else {
+                if (COL_VAL_IS_VALUE(&pColVal->colVal)) {
+                  memcpy(p->colVal.value.pData, pColVal->colVal.value.pData, pColVal->colVal.value.nData);
+                }
 
-              if (COL_VAL_IS_VALUE(&pColVal->colVal) && IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
-                p->colVal.value.pData = px;
-                memcpy(px, pColVal->colVal.value.pData, pColVal->colVal.value.nData);
+                p->colVal.value.nData = pColVal->colVal.value.nData;
+                p->colVal.type = pColVal->colVal.type;
+                p->colVal.flag = pColVal->colVal.flag;
+                p->colVal.cid = pColVal->colVal.cid;
               }
             }
           }

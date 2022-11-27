@@ -153,12 +153,12 @@ typedef struct {
   SSchemaWrapper* qsw;
 } SSchemaInfo;
 
-typedef struct {
+typedef struct SExchangeOpStopInfo {
   int32_t operatorType;
   int64_t refId;
 } SExchangeOpStopInfo;
 
-typedef struct {
+typedef struct STaskStopInfo {
   SRWLatch lock;
   SArray*  pStopInfo;
 } STaskStopInfo;
@@ -181,6 +181,7 @@ struct SExecTaskInfo {
   SSubplan*             pSubplan;
   struct SOperatorInfo* pRoot;
   SLocalFetch           localFetch;
+  SArray*               pResultBlockList;// result block list
   STaskStopInfo         stopInfo;
 };
 
@@ -235,16 +236,6 @@ typedef enum {
 #define COL_MATCH_FROM_COL_ID  0x1
 #define COL_MATCH_FROM_SLOT_ID 0x2
 
-typedef struct SSourceDataInfo {
-  int32_t            index;
-  SRetrieveTableRsp* pRsp;
-  uint64_t           totalRows;
-  int64_t            startTime;
-  int32_t            code;
-  EX_SOURCE_STATUS   status;
-  const char*        taskId;
-} SSourceDataInfo;
-
 typedef struct SLoadRemoteDataInfo {
   uint64_t totalSize;     // total load bytes from remote
   uint64_t totalRows;     // total number of rows
@@ -262,21 +253,22 @@ typedef struct SLimitInfo {
 } SLimitInfo;
 
 typedef struct SExchangeInfo {
-  SArray* pSources;
-  SArray* pSourceDataInfo;
-  tsem_t  ready;
-  void*   pTransporter;
+  SArray*             pSources;
+  SArray*             pSourceDataInfo;
+  tsem_t              ready;
+  void*               pTransporter;
+
   // SArray<SSDataBlock*>, result block list, used to keep the multi-block that
   // passed by downstream operator
   SArray*             pResultBlockList;
-  int32_t             rspBlockIndex;  // indicate the return block index in pResultBlockList
+  SArray*             pRecycledBlocks;// build a pool for small data block to avoid to repeatly create and then destroy.
   SSDataBlock*        pDummyBlock;    // dummy block, not keep data
   bool                seqLoadData;    // sequential load data or not, false by default
   int32_t             current;
   SLoadRemoteDataInfo loadInfo;
   uint64_t            self;
   SLimitInfo          limitInfo;
-  int64_t             openedTs;  // start exec time stamp
+  int64_t             openedTs;       // start exec time stamp, todo: move to SLoadRemoteDataInfo
 } SExchangeInfo;
 
 typedef struct SScanInfo {
@@ -311,9 +303,9 @@ typedef struct {
 } SAggOptrPushDownInfo;
 
 typedef struct STableMetaCacheInfo {
-  SLRUCache* pTableMetaEntryCache;  // 100 by default
-  uint64_t   metaFetch;
-  uint64_t   cacheHit;
+  SLRUCache*             pTableMetaEntryCache; // 100 by default
+  uint64_t               metaFetch;
+  uint64_t               cacheHit;
 } STableMetaCacheInfo;
 
 typedef struct STableScanBase {
@@ -371,22 +363,7 @@ typedef struct STagScanInfo {
   SColMatchInfo   matchInfo;
   int32_t         curPos;
   SReadHandle     readHandle;
-  STableListInfo* pTableList;
 } STagScanInfo;
-
-typedef struct SLastrowScanInfo {
-  SSDataBlock*    pRes;
-  SReadHandle     readHandle;
-  void*           pLastrowReader;
-  SColMatchInfo   matchInfo;
-  int32_t*        pSlotIds;
-  SExprSupp       pseudoExprSup;
-  int32_t         retrieveType;
-  int32_t         currentGroupIndex;
-  SSDataBlock*    pBufferredRes;
-  SArray*         pUidList;
-  int32_t         indexOfBufferedRes;
-} SLastrowScanInfo;
 
 typedef enum EStreamScanMode {
   STREAM_SCAN_FROM_READERHANDLE = 1,
@@ -504,40 +481,6 @@ typedef struct {
   SSnapContext* sContext;
 } SStreamRawScanInfo;
 
-typedef struct SSysTableIndex {
-  int8_t  init;
-  SArray* uids;
-  int32_t lastIdx;
-} SSysTableIndex;
-
-typedef struct SSysTableScanInfo {
-  SRetrieveMetaTableRsp* pRsp;
-  SRetrieveTableReq      req;
-  SEpSet                 epSet;
-  tsem_t                 ready;
-  SReadHandle            readHandle;
-  int32_t                accountId;
-  const char*            pUser;
-  bool                   sysInfo;
-  bool                   showRewrite;
-  SNode*                 pCondition;  // db_name filter condition, to discard data that are not in current database
-  SMTbCursor*            pCur;        // cursor for iterate the local table meta store.
-  SSysTableIndex*        pIdx;        // idx for local table meta
-  SColMatchInfo          matchInfo;
-  SName                  name;
-  SSDataBlock*           pRes;
-  int64_t                numOfBlocks;  // extract basic running information.
-  SLoadRemoteDataInfo    loadInfo;
-} SSysTableScanInfo;
-
-typedef struct SBlockDistInfo {
-  SSDataBlock* pResBlock;
-  STsdbReader* pHandle;
-  SReadHandle  readHandle;
-  uint64_t     uid;  // table uid
-} SBlockDistInfo;
-
-// todo remove this
 typedef struct SOptrBasicInfo {
   SResultRowInfo resultRowInfo;
   SSDataBlock*   pRes;
@@ -603,24 +546,6 @@ typedef struct SAggOperatorInfo {
   SExprSupp        scalarExprSup;
 } SAggOperatorInfo;
 
-typedef struct SProjectOperatorInfo {
-  SOptrBasicInfo binfo;
-  SAggSupporter  aggSup;
-  SArray*        pPseudoColInfo;
-  SLimitInfo     limitInfo;
-  bool           mergeDataBlocks;
-  SSDataBlock*   pFinalRes;
-} SProjectOperatorInfo;
-
-typedef struct SIndefOperatorInfo {
-  SOptrBasicInfo binfo;
-  SAggSupporter  aggSup;
-  SArray*        pPseudoColInfo;
-  SExprSupp      scalarSup;
-  uint64_t       groupId;
-  SSDataBlock*   pNextGroupRes;
-} SIndefOperatorInfo;
-
 typedef struct SFillOperatorInfo {
   struct SFillInfo* pFillInfo;
   SSDataBlock*      pRes;
@@ -638,41 +563,11 @@ typedef struct SFillOperatorInfo {
   SExprSupp         noFillExprSupp;
 } SFillOperatorInfo;
 
-typedef struct SGroupbyOperatorInfo {
-  SOptrBasicInfo binfo;
-  SAggSupporter  aggSup;
-  SArray*        pGroupCols;     // group by columns, SArray<SColumn>
-  SArray*        pGroupColVals;  // current group column values, SArray<SGroupKeys>
-  bool           isInit;         // denote if current val is initialized or not
-  char*          keyBuf;         // group by keys for hash
-  int32_t        groupKeyLen;    // total group by column width
-  SGroupResInfo  groupResInfo;
-  SExprSupp      scalarSup;
-} SGroupbyOperatorInfo;
-
 typedef struct SDataGroupInfo {
   uint64_t groupId;
   int64_t  numOfRows;
   SArray*  pPageList;
 } SDataGroupInfo;
-
-// The sort in partition may be needed later.
-typedef struct SPartitionOperatorInfo {
-  SOptrBasicInfo binfo;
-  SArray*        pGroupCols;
-  SArray*        pGroupColVals;  // current group column values, SArray<SGroupKeys>
-  char*          keyBuf;         // group by keys for hash
-  int32_t        groupKeyLen;    // total group by column width
-  SHashObj*      pGroupSet;      // quick locate the window object for each result
-
-  SDiskbasedBuf* pBuf;              // query result buffer based on blocked-wised disk file
-  int32_t        rowCapacity;       // maximum number of rows for each buffer page
-  int32_t*       columnOffset;      // start position for each column data
-  SArray*        sortedGroupArray;  // SDataGroupInfo sorted by group id
-  int32_t        groupIndex;        // group index
-  int32_t        pageIndex;         // page index of current group
-  SExprSupp      scalarSup;
-} SPartitionOperatorInfo;
 
 typedef struct SWindowRowsSup {
   STimeWindow win;
@@ -754,6 +649,23 @@ typedef struct SStreamPartitionOperatorInfo {
   SSDataBlock*          pDelRes;
 } SStreamPartitionOperatorInfo;
 
+typedef struct SStreamFillSupporter {
+  int32_t        type;  // fill type
+  SInterval      interval;
+  SResultRowData prev;
+  SResultRowData cur;
+  SResultRowData next;
+  SResultRowData nextNext;
+  SFillColInfo*  pAllColInfo;  // fill exprs and not fill exprs
+  SExprSupp      notFillExprSup;
+  int32_t        numOfAllCols;  // number of all exprs, including the tags columns
+  int32_t        numOfFillCols;
+  int32_t        numOfNotFillCols;
+  int32_t        rowSize;
+  SSHashObj*     pResMap;
+  bool           hasDelete;
+} SStreamFillSupporter;
+
 typedef struct SStreamFillOperatorInfo {
   SStreamFillSupporter* pFillSup;
   SSDataBlock*          pRes;
@@ -800,33 +712,6 @@ typedef struct SStateWindowOperatorInfo {
   STimeWindowAggSupp twAggSup;
 } SStateWindowOperatorInfo;
 
-typedef struct SSortOperatorInfo {
-  SOptrBasicInfo binfo;
-  uint32_t       sortBufSize;  // max buffer size for in-memory sort
-  SArray*        pSortInfo;
-  SSortHandle*   pSortHandle;
-  SColMatchInfo  matchInfo;
-  int32_t        bufPageSize;
-  int64_t        startTs;      // sort start time
-  uint64_t       sortElapsed;  // sort elapsed time, time to flush to disk not included.
-  SLimitInfo     limitInfo;
-} SSortOperatorInfo;
-
-typedef struct SJoinOperatorInfo {
-  SSDataBlock* pRes;
-  int32_t      joinType;
-  int32_t      inputOrder;
-
-  SSDataBlock* pLeft;
-  int32_t      leftPos;
-  SColumnInfo  leftCol;
-
-  SSDataBlock* pRight;
-  int32_t      rightPos;
-  SColumnInfo  rightCol;
-  SNode*       pCondAfterMerge;
-} SJoinOperatorInfo;
-
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
 #define OPTR_SET_OPENED(_optr) ((_optr)->status |= OP_OPENED)
 
@@ -850,7 +735,6 @@ void doBuildStreamResBlock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGr
 void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
                             SDiskbasedBuf* pBuf);
 
-int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, bool holdDataInBuf);
 bool    hasLimitOffsetInfo(SLimitInfo* pLimitInfo);
 void    initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo);
 void applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo, SOperatorInfo* pOperator);
@@ -879,9 +763,6 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 void cleanupAggSup(SAggSupporter* pAggSup);
 void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, const char* name);
-
-int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts);
-int32_t doGetScanStatus(SOperatorInfo* pOperator, uint64_t* uid, int64_t* ts);
 
 SSDataBlock* loadNextDataBlock(void* param);
 
@@ -965,9 +846,8 @@ void setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t order,
 bool    isTaskKilled(SExecTaskInfo* pTaskInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
 
-void setTaskKilled(SExecTaskInfo* pTaskInfo);
-void queryCostStatis(SExecTaskInfo* pTaskInfo);
-
+void    setTaskKilled(SExecTaskInfo* pTaskInfo);
+void    queryCostStatis(SExecTaskInfo* pTaskInfo);
 void    doDestroyTask(SExecTaskInfo* pTaskInfo);
 void    destroyOperatorInfo(SOperatorInfo* pOperator);
 int32_t getMaximumIdleDurationSec();
@@ -994,9 +874,6 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
                                char* sql, EOPTR_EXEC_MODEL model);
 int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pTaskInfo, SReadHandle* readHandle);
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList);
-
-int32_t aggDecodeResultRow(SOperatorInfo* pOperator, char* result);
-int32_t aggEncodeResultRow(SOperatorInfo* pOperator, char** result, int32_t* length);
 
 STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts, SInterval* pInterval,
                                 int32_t order);

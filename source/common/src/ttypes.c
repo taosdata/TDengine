@@ -61,7 +61,7 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
 static float  floatMin = -FLT_MAX, floatMax = FLT_MAX;
 static double doubleMin = -DBL_MAX, doubleMax = DBL_MAX;
 
-FORCE_INLINE void *getDataMin(int32_t type, void* value) {
+FORCE_INLINE void *getDataMin(int32_t type, void *value) {
   switch (type) {
     case TSDB_DATA_TYPE_FLOAT:
       *(float *)value = floatMin;
@@ -77,7 +77,7 @@ FORCE_INLINE void *getDataMin(int32_t type, void* value) {
   return value;
 }
 
-FORCE_INLINE void *getDataMax(int32_t type, void* value) {
+FORCE_INLINE void *getDataMax(int32_t type, void *value) {
   switch (type) {
     case TSDB_DATA_TYPE_FLOAT:
       *(float *)value = floatMax;

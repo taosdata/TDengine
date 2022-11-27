@@ -38,7 +38,7 @@ typedef struct {
 typedef struct SBlockIndex {
   int32_t     ordinalIndex;
   int64_t     inFileOffset;
-  STimeWindow window;
+  STimeWindow window;  // todo replace it with overlap flag.
 } SBlockIndex;
 
 typedef struct STableBlockScanInfo {
@@ -305,7 +305,7 @@ static void* getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index) {
 }
 
 // NOTE: speedup the whole processing by preparing the buffer for STableBlockScanInfo in batch model
-static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableKeyInfo* idList, int32_t numOfTables) {
+static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList, int32_t numOfTables) {
   // allocate buffer in order to load data blocks from file
   // todo use simple hash instead, optimize the memory consumption
   SHashObj* pTableMap =
@@ -315,10 +315,10 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
   }
 
   int64_t st = taosGetTimestampUs();
-  initBlockScanInfoBuf(&pTsdbReader->blockInfoBuf, numOfTables);
+  initBlockScanInfoBuf(pBuf, numOfTables);
 
   for (int32_t j = 0; j < numOfTables; ++j) {
-    STableBlockScanInfo* pScanInfo = getPosInBlockInfoBuf(&pTsdbReader->blockInfoBuf, j);
+    STableBlockScanInfo* pScanInfo = getPosInBlockInfoBuf(pBuf, j);
     pScanInfo->uid = idList[j].uid;
     if (ASCENDING_TRAVERSE(pTsdbReader->order)) {
       int64_t skey = pTsdbReader->window.skey;
@@ -551,7 +551,7 @@ static SSDataBlock* createResBlock(SQueryTableDataCond* pCond, int32_t capacity)
   }
 
   for (int32_t i = 0; i < pCond->numOfCols; ++i) {
-    SColumnInfoData colInfo = {0, {0}};
+    SColumnInfoData colInfo = {0};
     colInfo.info = pCond->colList[i];
     blockDataAppendColInfo(pResBlock, &colInfo);
   }
@@ -709,11 +709,13 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
 
     tMapDataReset(&pScanInfo->mapData);
     tsdbReadDataBlk(pReader->pFileReader, pBlockIdx, &pScanInfo->mapData);
+    taosArrayEnsureCap(pScanInfo->pBlockList, pScanInfo->mapData.nItem);
 
     sizeInDisk += pScanInfo->mapData.nData;
+
+    SDataBlk block = {0};
     for (int32_t j = 0; j < pScanInfo->mapData.nItem; ++j) {
-      SDataBlk block = {0};
-      tMapDataGetItemByIdx(&pScanInfo->mapData, j, &block, tGetDataBlk);
+      tGetDataBlk(pScanInfo->mapData.pData + pScanInfo->mapData.aOffset[j], &block);
 
       // 1. time range check
       if (block.minKey.ts > pReader->window.ekey || block.maxKey.ts < pReader->window.skey) {
@@ -728,8 +730,8 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       SBlockIndex bIndex = {.ordinalIndex = j, .inFileOffset = block.aSubBlock->offset};
       bIndex.window = (STimeWindow){.skey = block.minKey.ts, .ekey = block.maxKey.ts};
 
-      void* p = taosArrayPush(pScanInfo->pBlockList, &bIndex);
-      if (p == NULL) {
+      void* p1 = taosArrayPush(pScanInfo->pBlockList, &bIndex);
+      if (p1 == NULL) {
         tMapDataClear(&pScanInfo->mapData);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
@@ -751,6 +753,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       "time:%.2f ms %s",
       numOfTables, pBlockNum->numOfBlocks, numOfQTable, pBlockNum->numOfLastFiles, sizeInDisk / 1000.0, el,
       pReader->idStr);
+
 
   pReader->cost.numOfBlocks += total;
   pReader->cost.headFileLoadTime += el;
@@ -1455,6 +1458,7 @@ static int32_t setFileBlockActiveInBlockIter(SDataBlockIter* pBlockIter, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+// todo: this attribute could be acquired during extractin the global ordered block list.
 static bool overlapWithNeighborBlock(SDataBlk* pBlock, SBlockIndex* pNeighborBlockIndex, int32_t order) {
   // it is the last block in current file, no chance to overlap with neighbor blocks.
   if (ASCENDING_TRAVERSE(order)) {
@@ -2432,7 +2436,8 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
     TSDBKEY   keyInBuf = getCurrentKeyInBuf(pBlockScanInfo, pReader);
 
     // it is a clean block, load it directly
-    if (isCleanFileDataBlock(pReader, pBlockInfo, pBlock, pBlockScanInfo, keyInBuf, pLastBlockReader)) {
+    if (isCleanFileDataBlock(pReader, pBlockInfo, pBlock, pBlockScanInfo, keyInBuf, pLastBlockReader) && 
+        pBlock->nRow <= pReader->capacity) {
       if (asc || ((!asc) && (!hasDataInLastBlock(pLastBlockReader)))) {
         copyBlockDataToSDataBlock(pReader, pBlockScanInfo);
 
@@ -3785,9 +3790,9 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
   }
 
   STsdbReader* p = (pReader->innerReader[0] != NULL)? pReader->innerReader[0]:pReader;
-  pReader->status.pTableMap = createDataBlockScanInfo(p, pTableList, numOfTables);
+  pReader->status.pTableMap = createDataBlockScanInfo(p, &pReader->blockInfoBuf, pTableList, numOfTables);
   if (pReader->status.pTableMap == NULL) {
-    tsdbReaderClose(pReader);
+    tsdbReaderClose(p);
     *ppReader = NULL;
 
     code = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -4115,9 +4120,13 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg*** pBlockS
     } else if (pAgg->colId < pSup->colIds[j]) {
       i += 1;
     } else if (pSup->colIds[j] < pAgg->colId) {
+      if (pSup->colIds[j] == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        taosArrayPush(pNewAggList, &pSup->tsColAgg);
+      } else {
       // all date in this block are null
-      SColumnDataAgg nullColAgg = {.colId = pSup->colIds[j], .numOfNull = pBlock->nRow};
-      taosArrayPush(pNewAggList, &nullColAgg);
+        SColumnDataAgg nullColAgg = {.colId = pSup->colIds[j], .numOfNull = pBlock->nRow};
+        taosArrayPush(pNewAggList, &nullColAgg);
+      }
       j += 1;
     }
   }
@@ -4341,7 +4350,7 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
 
   SMetaReader mr = {0};
   metaReaderInit(&mr, pVnode->pMeta, 0);
-  int32_t code = metaGetTableEntryByUid(&mr, uid);
+  int32_t code = metaGetTableEntryByUidCache(&mr, uid);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
     metaReaderClear(&mr);
@@ -4353,7 +4362,7 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
   if (mr.me.type == TSDB_CHILD_TABLE) {
     tDecoderClear(&mr.coder);
     *suid = mr.me.ctbEntry.suid;
-    code = metaGetTableEntryByUid(&mr, *suid);
+    code = metaGetTableEntryByUidCache(&mr, *suid);
     if (code != TSDB_CODE_SUCCESS) {
       terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
       metaReaderClear(&mr);

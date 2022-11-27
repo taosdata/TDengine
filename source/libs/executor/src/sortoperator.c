@@ -17,6 +17,18 @@
 #include "executorimpl.h"
 #include "tdatablock.h"
 
+typedef struct SSortOperatorInfo {
+  SOptrBasicInfo binfo;
+  uint32_t       sortBufSize;  // max buffer size for in-memory sort
+  SArray*        pSortInfo;
+  SSortHandle*   pSortHandle;
+  SColMatchInfo  matchInfo;
+  int32_t        bufPageSize;
+  int64_t        startTs;      // sort start time
+  uint64_t       sortElapsed;  // sort elapsed time, time to flush to disk not included.
+  SLimitInfo     limitInfo;
+} SSortOperatorInfo;
+
 static SSDataBlock* doSort(SOperatorInfo* pOperator);
 static int32_t      doOpenSortOperator(SOperatorInfo* pOperator);
 static int32_t      getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len);
@@ -176,10 +188,10 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
 
   SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
   ps->param = pOperator->pDownstream[0];
+  ps->onlyRef = true;
   tsortAddSource(pInfo->pSortHandle, ps);
 
   int32_t code = tsortOpen(pInfo->pSortHandle);
-  taosMemoryFreeClear(ps);
 
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, terrno);
@@ -377,10 +389,10 @@ int32_t beginSortGroup(SOperatorInfo* pOperator) {
   param->childOpInfo = pOperator->pDownstream[0];
   param->grpSortOpInfo = pInfo;
   ps->param = param;
+  ps->onlyRef = false;
   tsortAddSource(pInfo->pCurrSortHandle, ps);
 
   int32_t code = tsortOpen(pInfo->pCurrSortHandle);
-  taosMemoryFreeClear(ps);
 
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, terrno);
@@ -471,6 +483,9 @@ void destroyGroupSortOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->matchInfo.pList);
 
+  tsortDestroySortHandle(pInfo->pCurrSortHandle);
+  pInfo->pCurrSortHandle = NULL;
+
   taosMemoryFreeClear(param);
 }
 
@@ -536,6 +551,7 @@ typedef struct SMultiwayMergeOperatorInfo {
   SSortHandle*   pSortHandle;
   SColMatchInfo  matchInfo;
   SSDataBlock*   pInputBlock;
+  SSDataBlock*   pIntermediateBlock;   // to hold the intermediate result
   int64_t        startTs;  // sort start time
   bool           groupSort;
   bool           hasGroupId;
@@ -563,6 +579,7 @@ int32_t doOpenMultiwayMergeOperator(SOperatorInfo* pOperator) {
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
     SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
     ps->param = pOperator->pDownstream[i];
+    ps->onlyRef = true;
     tsortAddSource(pInfo->pSortHandle, ps);
   }
 
@@ -635,12 +652,19 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   blockDataCleanup(pDataBlock);
 
-  SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
-  if (p == NULL) {
-    return NULL;
+  if (pInfo->pIntermediateBlock == NULL) {
+    pInfo->pIntermediateBlock = tsortGetSortedDataBlock(pHandle);
+    if (pInfo->pIntermediateBlock == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+    blockDataEnsureCapacity(pInfo->pIntermediateBlock, capacity);
+  } else {
+    blockDataCleanup(pInfo->pIntermediateBlock);
   }
 
-  blockDataEnsureCapacity(p, capacity);
+  SSDataBlock* p = pInfo->pIntermediateBlock;
+
   while (1) {
     doGetSortedBlockData(pInfo, pHandle, capacity, p);
     if (p->info.rows == 0) {
@@ -670,7 +694,6 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
     pDataBlock->info.groupId = pInfo->groupId;
   }
 
-  blockDataDestroy(p);
   qDebug("%s get sorted block, groupId:0x%" PRIx64 " rows:%d", GET_TASKID(pTaskInfo), pDataBlock->info.groupId,
          pDataBlock->info.rows);
 
@@ -706,6 +729,7 @@ void destroyMultiwayMergeOperatorInfo(void* param) {
   SMultiwayMergeOperatorInfo* pInfo = (SMultiwayMergeOperatorInfo*)param;
   pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
   pInfo->pInputBlock = blockDataDestroy(pInfo->pInputBlock);
+  pInfo->pIntermediateBlock = blockDataDestroy(pInfo->pIntermediateBlock);
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   taosArrayDestroy(pInfo->pSortInfo);
@@ -716,12 +740,13 @@ void destroyMultiwayMergeOperatorInfo(void* param) {
 
 int32_t getMultiwayMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
   ASSERT(pOptr != NULL);
-  SSortExecInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortExecInfo));
+  SSortExecInfo* pSortExecInfo = taosMemoryCalloc(1, sizeof(SSortExecInfo));
 
-  SMultiwayMergeOperatorInfo* pOperatorInfo = (SMultiwayMergeOperatorInfo*)pOptr->info;
+  SMultiwayMergeOperatorInfo* pInfo = (SMultiwayMergeOperatorInfo*)pOptr->info;
 
-  *pInfo = tsortGetSortExecInfo(pOperatorInfo->pSortHandle);
-  *pOptrExplain = pInfo;
+  *pSortExecInfo = tsortGetSortExecInfo(pInfo->pSortHandle);
+  *pOptrExplain = pSortExecInfo;
+
   *len = sizeof(SSortExecInfo);
   return TSDB_CODE_SUCCESS;
 }

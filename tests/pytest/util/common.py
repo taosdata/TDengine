@@ -737,7 +737,7 @@ class TDCom:
         if (platform.system().lower() == 'windows'):
             os.system("TASKKILL /F /IM %s.exe"%processorName)
         else:
-            os.system('pkill %s'%processorName)
+            os.system("unset LD_PRELOAD; pkill %s " % processorName)
 
 
 def is_json(msg):
