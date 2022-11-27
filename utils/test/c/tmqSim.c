@@ -865,6 +865,9 @@ void loop_consume(SThreadInfo* pInfo) {
 
   taosFprintfFile(g_fp, "==== consumerId: %d, consumeMsgCnt: %" PRId64 ", consumeRowCnt: %" PRId64 "\n",
                   pInfo->consumerId, pInfo->consumeMsgCnt, pInfo->consumeRowCnt);
+                  
+  taosFsyncFile(pInfo->pConsumeRowsFile);
+  taosCloseFile(&pInfo->pConsumeRowsFile);
 }
 
 void* consumeThreadFunc(void* param) {
