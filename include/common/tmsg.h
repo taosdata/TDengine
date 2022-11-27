@@ -2080,6 +2080,10 @@ int tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
 int tDecodeSVCreateTbReq(SDecoder* pCoder, SVCreateTbReq* pReq);
 
 static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
+  if (NULL == req) {
+    return;
+  }
+
   taosMemoryFreeClear(req->name);
   taosMemoryFreeClear(req->comment);
   if (req->type == TSDB_CHILD_TABLE) {
@@ -3246,6 +3250,7 @@ typedef struct {
 
 int32_t tEncodeSSubmitReq2(SEncoder* pCoder, const SSubmitReq2* pReq);
 int32_t tDecodeSSubmitReq2(SDecoder* pCoder, SSubmitReq2** ppReq);
+void    tDestroySSubmitTbData(SSubmitTbData* pTbData);
 void    tDestroySSubmitReq2(SSubmitReq2* pReq);
 
 #pragma pack(pop)

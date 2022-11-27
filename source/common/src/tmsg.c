@@ -6830,6 +6830,10 @@ _exit:
   return 0;
 }
 
+void tDestroySSubmitTbData(SSubmitTbData *pTbData) {
+  // todo
+}
+
 void tDestroySSubmitReq2(SSubmitReq2 *pReq) {
   if (NULL == pReq) return;
 
