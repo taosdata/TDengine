@@ -1259,25 +1259,25 @@ void tColDataClear(SColData *pColData) {
   pColData->nData = 0;
 }
 
-static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {
-    code = tRealloc((uint8_t **)(&pColData->aOffset), sizeof(int32_t) * (pColData->nVal + 1));
+    code = tRealloc((uint8_t **)(&pColData->aOffset), (pColData->nVal + 1) << 2);
     if (code) goto _exit;
     pColData->aOffset[pColData->nVal] = pColData->nData;
 
-    if (pColVal->value.nData) {
-      code = tRealloc(&pColData->pData, pColData->nData + pColVal->value.nData);
+    if (nData) {
+      code = tRealloc(&pColData->pData, pColData->nData + nData);
       if (code) goto _exit;
-      memcpy(pColData->pData + pColData->nData, pColVal->value.pData, pColVal->value.nData);
-      pColData->nData += pColVal->value.nData;
+      memcpy(pColData->pData + pColData->nData, pData, nData);
+      pColData->nData += nData;
     }
   } else {
     ASSERT(pColData->nData == tDataTypes[pColData->type].bytes * pColData->nVal);
     code = tRealloc(&pColData->pData, pColData->nData + tDataTypes[pColData->type].bytes);
     if (code) goto _exit;
-    memcpy(pColData->pData + pColData->nData, &pColVal->value.val, tDataTypes[pColData->type].bytes);
+    memcpy(pColData->pData + pColData->nData, pData, tDataTypes[pColData->type].bytes);
     pColData->nData += tDataTypes[pColData->type].bytes;
   }
   pColData->nVal++;
@@ -1285,21 +1285,21 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, SColVal *pColVa
 _exit:
   return code;
 }
-static FORCE_INLINE int32_t tColDataAppendValue00(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue00(SColData *pColData, uint8_t *pData, uint32_t nData) {
   pColData->flag = HAS_VALUE;
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue01(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue01(SColData *pColData, uint8_t *pData, uint32_t nData) {
   pColData->flag = HAS_NONE;
   pColData->nVal++;
   return 0;
 }
-static FORCE_INLINE int32_t tColDataAppendValue02(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue02(SColData *pColData, uint8_t *pData, uint32_t nData) {
   pColData->flag = HAS_NULL;
   pColData->nVal++;
   return 0;
 }
-static FORCE_INLINE int32_t tColDataAppendValue10(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue10(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   int32_t nBit = BIT1_SIZE(pColData->nVal + 1);
@@ -1325,13 +1325,13 @@ static FORCE_INLINE int32_t tColDataAppendValue10(SColData *pColData, SColVal *p
     }
   }
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue11(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue11(SColData *pColData, uint8_t *pData, uint32_t nData) {
   pColData->nVal++;
   return 0;
 }
-static FORCE_INLINE int32_t tColDataAppendValue12(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue12(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   int32_t nBit = BIT1_SIZE(pColData->nVal + 1);
@@ -1346,7 +1346,7 @@ static FORCE_INLINE int32_t tColDataAppendValue12(SColData *pColData, SColVal *p
 
   return code;
 }
-static FORCE_INLINE int32_t tColDataAppendValue20(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue20(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   int32_t nBit = BIT1_SIZE(pColData->nVal + 1);
@@ -1372,9 +1372,9 @@ static FORCE_INLINE int32_t tColDataAppendValue20(SColData *pColData, SColVal *p
     }
   }
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue21(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue21(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   int32_t nBit = BIT1_SIZE(pColData->nVal + 1);
@@ -1389,11 +1389,11 @@ static FORCE_INLINE int32_t tColDataAppendValue21(SColData *pColData, SColVal *p
 
   return code;
 }
-static FORCE_INLINE int32_t tColDataAppendValue22(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue22(SColData *pColData, uint8_t *pData, uint32_t nData) {
   pColData->nVal++;
   return 0;
 }
-static FORCE_INLINE int32_t tColDataAppendValue30(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue30(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   pColData->flag |= HAS_VALUE;
@@ -1424,9 +1424,9 @@ static FORCE_INLINE int32_t tColDataAppendValue30(SColData *pColData, SColVal *p
     }
   }
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue31(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue31(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
@@ -1437,7 +1437,7 @@ static FORCE_INLINE int32_t tColDataAppendValue31(SColData *pColData, SColVal *p
 
   return code;
 }
-static FORCE_INLINE int32_t tColDataAppendValue32(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue32(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
@@ -1449,7 +1449,7 @@ static FORCE_INLINE int32_t tColDataAppendValue32(SColData *pColData, SColVal *p
   return code;
 }
 #define tColDataAppendValue40 tColDataPutValue
-static FORCE_INLINE int32_t tColDataAppendValue41(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue41(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   pColData->flag |= HAS_NONE;
@@ -1461,9 +1461,9 @@ static FORCE_INLINE int32_t tColDataAppendValue41(SColData *pColData, SColVal *p
   memset(pColData->pBitMap, 255, nBit);
   SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue42(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue42(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   pColData->flag |= HAS_NULL;
@@ -1475,9 +1475,9 @@ static FORCE_INLINE int32_t tColDataAppendValue42(SColData *pColData, SColVal *p
   memset(pColData->pBitMap, 255, nBit);
   SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue50(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue50(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
@@ -1485,9 +1485,9 @@ static FORCE_INLINE int32_t tColDataAppendValue50(SColData *pColData, SColVal *p
 
   SET_BIT1(pColData->pBitMap, pColData->nVal, 1);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue51(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue51(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
@@ -1495,9 +1495,9 @@ static FORCE_INLINE int32_t tColDataAppendValue51(SColData *pColData, SColVal *p
 
   SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue52(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue52(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   pColData->flag |= HAS_NULL;
@@ -1514,18 +1514,18 @@ static FORCE_INLINE int32_t tColDataAppendValue52(SColData *pColData, SColVal *p
   tFree(pColData->pBitMap);
   pColData->pBitMap = pBitMap;
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue60(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue60(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
   if (code) return code;
   SET_BIT1(pColData->pBitMap, pColData->nVal, 1);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue61(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue61(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   pColData->flag |= HAS_NONE;
@@ -1542,45 +1542,45 @@ static FORCE_INLINE int32_t tColDataAppendValue61(SColData *pColData, SColVal *p
   tFree(pColData->pBitMap);
   pColData->pBitMap = pBitMap;
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue62(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue62(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
   if (code) return code;
   SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue70(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue70(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT2_SIZE(pColData->nVal + 1));
   if (code) return code;
   SET_BIT2(pColData->pBitMap, pColData->nVal, 2);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue71(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue71(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT2_SIZE(pColData->nVal + 1));
   if (code) return code;
   SET_BIT2(pColData->pBitMap, pColData->nVal, 0);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue72(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue72(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT2_SIZE(pColData->nVal + 1));
   if (code) return code;
   SET_BIT2(pColData->pBitMap, pColData->nVal, 1);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, SColVal *pColVal) = {
+static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData) = {
     {tColDataAppendValue00, tColDataAppendValue01, tColDataAppendValue02},  // 0
     {tColDataAppendValue10, tColDataAppendValue11, tColDataAppendValue12},  // HAS_NONE
     {tColDataAppendValue20, tColDataAppendValue21, tColDataAppendValue22},  // HAS_NULL
@@ -1592,7 +1592,9 @@ static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, SColVal *pCo
 };
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
   ASSERT(pColData->cid == pColVal->cid && pColData->type == pColVal->type);
-  return tColDataAppendValueImpl[pColData->flag][pColVal->flag](pColData, pColVal);
+  return tColDataAppendValueImpl[pColData->flag][pColVal->flag](
+      pColData, IS_VAR_DATA_TYPE(pColData->type) ? pColVal->value.pData : (uint8_t *)&pColVal->value.val,
+      pColVal->value.nData);
 }
 
 static FORCE_INLINE void tColDataGetValue1(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_NONE
@@ -1772,19 +1774,17 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind) {
   }
 
   pColData->nVal += pBind->num;
-  if (IS_VAR_DATA_TYPE(pBind->buffer_type)) {
-    // var
+  if (IS_VAR_DATA_TYPE(pBind->buffer_type)) {  // var-length data type
     for (int32_t i = 0; i < pBind->num; ++i) {
       if (pBind->is_null[i]) {
-        // tColDataAppendNull(pColData);
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+        if (code) goto _exit;
       } else {
-        uint8_t *pData = (uint8_t *)pBind->buffer + pBind->buffer_length * i;
-
-        SValue value = {.nData = pBind->length[i], .pData = pData};
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
+            pColData, (uint8_t *)pBind->buffer + pBind->buffer_length * i, pBind->length[i]);
       }
     }
-  } else {
-    // fix
+  } else {  // fixed-length data type
     pColData->nVal += pBind->num;
 
     if (allValue) {
