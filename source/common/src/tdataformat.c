@@ -492,9 +492,108 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
 
 void tRowDestroy(SRow *pRow) { tFree((uint8_t *)pRow); }
 
-int32_t tRowMergeSort(SArray *aRow, STSchema *pTSchema) {
-  // todo
+static int32_t tRowPCmprFn(const void *p1, const void *p2) {
+  SRow *pRow1 = *(SRow **)p1;
+  SRow *pRow2 = *(SRow **)p2;
+
+  if (pRow1->ts < pRow2->ts) {
+    return -1;
+  } else if (pRow1->ts > pRow2->ts) {
+    return 1;
+  }
+
   return 0;
+}
+static void    tRowPDestroy(SRow **ppRow) { tFree((uint8_t *)*ppRow); }
+static int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int32_t iEnd, int8_t flag) {
+  int32_t code = 0;
+
+  int32_t    nRow = iEnd - iStart;
+  SRowIter **aIter = NULL;
+  SArray    *aColVal = NULL;
+  SRow      *pRow = NULL;
+
+  aIter = taosMemoryCalloc(nRow, sizeof(SRowIter *));
+  if (aIter == NULL) {
+    code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < nRow; i++) {
+    SRow *pRowT = taosArrayGetP(aRowP, iStart + i);
+
+    code = tRowIterOpen(pRowT, pTSchema, &aIter[i]);
+    if (code) goto _exit;
+  }
+
+  // merge
+  aColVal = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
+  if (aColVal == NULL) {
+    code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  for (int32_t iCol = 0; iCol < pTSchema->numOfCols; iCol++) {
+    SColVal *pColVal = NULL;
+    for (int32_t iRow = 0; iRow < nRow; iRow++) {
+      SColVal *pColValT = tRowIterNext(aIter[iRow]);
+
+      // todo: take value according to flag
+      if (pColVal == NULL || COL_VAL_IS_VALUE(pColValT)) {
+        pColVal = pColValT;
+      }
+    }
+
+    taosArrayPush(aColVal, pColVal);
+  }
+
+  // build
+  code = tRowBuild(aColVal, pTSchema, &pRow);
+  if (code) goto _exit;
+
+  taosArrayRemoveBatch(aRowP, iStart, nRow, (FDelete)tRowPDestroy);
+  taosArrayInsert(aRowP, iStart, &pRow);
+
+_exit:
+  if (aIter) {
+    for (int32_t i = 0; i < nRow; i++) {
+      tRowIterClose(&aIter[i]);
+    }
+    taosMemoryFree(aIter);
+  }
+  if (aColVal) taosArrayDestroy(aColVal);
+  if (code) tRowDestroy(pRow);
+  return code;
+}
+int32_t tRowMergeSort(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
+  int32_t code = 0;
+
+  if (aRowP->size <= 1) return 0;
+
+  taosArraySort(aRowP, tRowPCmprFn);
+
+  int32_t iStart = 0;
+  while (iStart < aRowP->size) {
+    SRow *pRow = (SRow *)taosArrayGetP(aRowP, iStart);
+
+    int32_t iEnd = iStart + 1;
+    while (iEnd < aRowP->size) {
+      SRow *pRowT = (SRow *)taosArrayGetP(aRowP, iEnd);
+
+      if (pRow->ts != pRowT->ts) break;
+
+      iEnd++;
+    }
+
+    if (iEnd - iStart > 1) {
+      code = tRowMerge(aRowP, pTSchema, iStart, iEnd, flag);
+    }
+
+    // the array is also changing, so the iStart just ++ instead of iEnd
+    iStart++;
+  }
+
+  return code;
 }
 
 // SRowIter ========================================
@@ -1505,7 +1604,8 @@ static FORCE_INLINE void tColDataGetValue1(SColData *pColData, int32_t iVal, SCo
 static FORCE_INLINE void tColDataGetValue2(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_NULL
   *pColVal = COL_VAL_NULL(pColData->cid, pColData->type);
 }
-static FORCE_INLINE void tColDataGetValue3(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_NULL|HAS_NONE
+static FORCE_INLINE void tColDataGetValue3(SColData *pColData, int32_t iVal,
+                                           SColVal *pColVal) {  // HAS_NULL|HAS_NONE
   switch (GET_BIT1(pColData->pBitMap, iVal)) {
     case 0:
       *pColVal = COL_VAL_NONE(pColData->cid, pColData->type);
