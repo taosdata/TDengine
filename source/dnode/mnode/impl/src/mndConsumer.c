@@ -324,15 +324,15 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
 }
 
 static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
-  SMnode   *pMnode = pMsg->info.node;
-  SMqHbReq  req = {0};
+  SMnode  *pMnode = pMsg->info.node;
+  SMqHbReq req = {0};
 
   if (tDeserializeSMqHbReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  int64_t   consumerId = req.consumerId;
+  int64_t         consumerId = req.consumerId;
   SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, consumerId);
   if (pConsumer == NULL) {
     mError("consumer %" PRId64 " not exist", consumerId);
@@ -363,17 +363,17 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
 }
 
 static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
-  SMnode      *pMnode = pMsg->info.node;
-  SMqAskEpReq  req = {0};
-  SMqAskEpRsp  rsp = {0};
+  SMnode     *pMnode = pMsg->info.node;
+  SMqAskEpReq req = {0};
+  SMqAskEpRsp rsp = {0};
 
   if (tDeserializeSMqAskEpReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  int64_t      consumerId = req.consumerId;
-  int32_t      epoch = req.epoch;
+  int64_t consumerId = req.consumerId;
+  int32_t epoch = req.epoch;
 
   SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, consumerId);
   if (pConsumer == NULL) {
@@ -457,6 +457,8 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       if (topicEp.vgs == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         taosRUnLockLatch(&pConsumer->lock);
+        taosRUnLockLatch(&pSub->lock);
+        mndReleaseSubscribe(pMnode, pSub);
         goto FAIL;
       }
 

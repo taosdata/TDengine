@@ -640,7 +640,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
   }
 
   // heartbeat timeout
-  if (syncNodeHeartbeatTimeout(pSyncNode)) {
+  if (syncNodeHeartbeatReplyTimeout(pSyncNode)) {
     terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
     sNError(pSyncNode, "failed to sync propose since hearbeat timeout, type:%s, last:%" PRId64 ", cmt:%" PRId64,
             TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
@@ -691,12 +691,14 @@ static int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRa
   pSyncTimer->timerMS = pSyncNode->hbBaseLine;
   pSyncTimer->timerCb = syncNodeEqPeerHeartbeatTimer;
   pSyncTimer->destId = destId;
+  pSyncTimer->timeStamp = taosGetTimestampMs();
   atomic_store_64(&pSyncTimer->logicClock, 0);
   return 0;
 }
 
 static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   int32_t ret = 0;
+  int64_t tsNow = taosGetTimestampMs();
   if (syncIsInit()) {
     SSyncHbTimerData* pData = syncHbTimerDataAcquire(pSyncTimer->hbDataRid);
     if (pData == NULL) {
@@ -704,14 +706,16 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
       pData->rid = syncHbTimerDataAdd(pData);
     }
     pSyncTimer->hbDataRid = pData->rid;
+    pSyncTimer->timeStamp = tsNow;
 
     pData->syncNodeRid = pSyncNode->rid;
     pData->pTimer = pSyncTimer;
     pData->destId = pSyncTimer->destId;
     pData->logicClock = pSyncTimer->logicClock;
+    pData->execTime = tsNow + pSyncTimer->timerMS;
 
-    taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS, (void*)(pData->rid), syncEnv()->pTimerManager,
-                 &pSyncTimer->pTimer);
+    taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS / HEARTBEAT_TICK_NUM, (void*)(pData->rid),
+                 syncEnv()->pTimerManager, &pSyncTimer->pTimer);
   } else {
     sError("vgId:%d, start ctrl hb timer error, sync env is stop", pSyncNode->vgId);
   }
@@ -1897,7 +1901,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
       return;
     }
 
-    sTrace("enqueue ping msg");
+    // sTrace("enqueue ping msg");
     code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
     if (code != 0) {
       sError("failed to sync enqueue ping msg since %s", terrstr());
@@ -1977,6 +1981,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
 
 static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
   int64_t hbDataRid = (int64_t)param;
+  int64_t tsNow = taosGetTimestampMs();
 
   SSyncHbTimerData* pData = syncHbTimerDataAcquire(hbDataRid);
   if (pData == NULL) {
@@ -2021,27 +2026,50 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
     int64_t msgLogicClock = atomic_load_64(&pData->logicClock);
 
     if (timerLogicClock == msgLogicClock) {
+      if (tsNow > pData->execTime) {
+#if 0        
+        sTrace(
+            "vgId:%d, hbDataRid:%ld,  EXECUTE this step-------- heartbeat tsNow:%ld, exec:%ld, tsNow-exec:%ld, "
+            "---------",
+            pSyncNode->vgId, hbDataRid, tsNow, pData->execTime, tsNow - pData->execTime);
+#endif
+
+        pData->execTime += pSyncTimer->timerMS;
+
+        SRpcMsg rpcMsg = {0};
+        (void)syncBuildHeartbeat(&rpcMsg, pSyncNode->vgId);
+
+        SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
+        pSyncMsg->srcId = pSyncNode->myRaftId;
+        pSyncMsg->destId = pData->destId;
+        pSyncMsg->term = pSyncNode->pRaftStore->currentTerm;
+        pSyncMsg->commitIndex = pSyncNode->commitIndex;
+        pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
+        pSyncMsg->privateTerm = 0;
+        pSyncMsg->timeStamp = tsNow;
+
+        // update reset time
+        int64_t timerElapsed = tsNow - pSyncTimer->timeStamp;
+        pSyncTimer->timeStamp = tsNow;
+
+        // send msg
+        syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime);
+        syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
+      } else {
+#if 0        
+        sTrace(
+            "vgId:%d, hbDataRid:%ld,  pass this step-------- heartbeat tsNow:%ld, exec:%ld, tsNow-exec:%ld, ---------",
+            pSyncNode->vgId, hbDataRid, tsNow, pData->execTime, tsNow - pData->execTime);
+#endif
+      }
+
       if (syncIsInit()) {
         // sTrace("vgId:%d, reset peer hb timer", pSyncNode->vgId);
-        taosTmrReset(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS, (void*)hbDataRid, syncEnv()->pTimerManager,
-                     &pSyncTimer->pTimer);
+        taosTmrReset(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS / HEARTBEAT_TICK_NUM, (void*)hbDataRid,
+                     syncEnv()->pTimerManager, &pSyncTimer->pTimer);
       } else {
         sError("sync env is stop, reset peer hb timer error");
       }
-
-      SRpcMsg rpcMsg = {0};
-      (void)syncBuildHeartbeat(&rpcMsg, pSyncNode->vgId);
-
-      SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
-      pSyncMsg->srcId = pSyncNode->myRaftId;
-      pSyncMsg->destId = pData->destId;
-      pSyncMsg->term = pSyncNode->pRaftStore->currentTerm;
-      pSyncMsg->commitIndex = pSyncNode->commitIndex;
-      pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
-      pSyncMsg->privateTerm = 0;
-
-      // send msg
-      syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
 
     } else {
       sTrace("vgId:%d, do not send hb, timerLogicClock:%" PRId64 ", msgLogicClock:%" PRId64 "", pSyncNode->vgId,
@@ -2094,7 +2122,7 @@ int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHand
   return code;
 }
 
-bool syncNodeHeartbeatTimeout(SSyncNode* pSyncNode) {
+bool syncNodeHeartbeatReplyTimeout(SSyncNode* pSyncNode) {
   if (pSyncNode->replicaNum == 1) {
     return false;
   }
@@ -2148,7 +2176,10 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
 
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
-  syncLogRecvHeartbeat(ths, pMsg, "");
+
+  int64_t tsMs = taosGetTimestampMs();
+  int64_t timeDiff = tsMs - pMsg->timeStamp;
+  syncLogRecvHeartbeat(ths, pMsg, timeDiff);
 
   SRpcMsg rpcMsg = {0};
   (void)syncBuildHeartbeatReply(&rpcMsg, ths->vgId);
@@ -2158,9 +2189,11 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pMsgReply->srcId = ths->myRaftId;
   pMsgReply->term = ths->pRaftStore->currentTerm;
   pMsgReply->privateTerm = 8864;  // magic number
-  pMsgReply->timeStamp = taosGetTimestampMs();
+  pMsgReply->timeStamp = tsMs;
 
   if (pMsg->term == ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_LEADER) {
+    syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), tsMs);
+
     syncNodeResetElectTimer(ths);
     ths->minMatchIndex = pMsg->minMatchIndex;
 
@@ -2220,9 +2253,10 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
-  syncLogRecvHeartbeatReply(ths, pMsg, "");
 
   int64_t tsMs = taosGetTimestampMs();
+  int64_t timeDiff = tsMs - pMsg->timeStamp;
+  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff);
 
   // update last reply time, make decision whether the other node is alive or not
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
@@ -2500,6 +2534,8 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
         SRpcMsg rpcMsg = {0};
         syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
+        sTrace("do commit index:%" PRId64 ", type:%s", i, TMSG_INFO(pEntry->msgType));
+
         // user commit
         if ((ths->pFsm->FpCommitCb != NULL) && syncUtilUserCommit(pEntry->originalRpcType)) {
           bool internalExecute = true;
@@ -2507,7 +2543,8 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
             internalExecute = false;
           }
 
-          sNTrace(ths, "commit index:%" PRId64 ", internal:%d", i, internalExecute);
+          sNTrace(ths, "user commit index:%" PRId64 ", internal:%d, type:%s", i, internalExecute,
+                  TMSG_INFO(pEntry->msgType));
 
           // execute fsm in apply thread, or execute outside syncPropose
           if (internalExecute) {

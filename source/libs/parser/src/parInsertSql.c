@@ -918,7 +918,12 @@ static int32_t preParseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModif
 
 static int32_t getTableDataBlocks(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt, STableDataBlocks** pDataBuf) {
   if (pCxt->pComCxt->async) {
-    return insGetDataBlockFromList(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid),
+    uint64_t uid = pStmt->pTableMeta->uid;
+    if (pStmt->usingTableProcessing) {
+      pStmt->pTableMeta->uid = 0;
+    }
+    
+    return insGetDataBlockFromList(pStmt->pTableBlockHashObj, &uid, sizeof(pStmt->pTableMeta->uid),
                                    TSDB_DEFAULT_PAYLOAD_SIZE, sizeof(SSubmitBlk),
                                    getTableInfo(pStmt->pTableMeta).rowSize, pStmt->pTableMeta, pDataBuf, NULL,
                                    &pStmt->createTblReq);
