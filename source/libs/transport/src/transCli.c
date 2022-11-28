@@ -1183,7 +1183,7 @@ bool cliRecvReleaseReq(SCliConn* conn, STransMsgHead* pHead) {
 static void* cliWorkThread(void* arg) {
   SCliThrd* pThrd = (SCliThrd*)arg;
   pThrd->pid = taosGetSelfPthreadId();
-  setThreadName("trans-cli-worker");
+  setThreadName("trans-cli-work");
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
 
   tDebug("thread quit-thread:%08" PRId64, pThrd->pid);
