@@ -1425,21 +1425,26 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
       }
     }
   } else {
-    SEpSet epSet;
-
-    // assert(pResp->contLen == sizeof(epSet));
+    SEpSet  epSet;
     int32_t valid = tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
     if (valid < 0) {
-      // assert(0);
-    }
-    if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
-      tDebug("epset not equal, retry new epset");
-      pCtx->epSet = epSet;
+      tDebug("get invalid epset, epset equal, continue");
+      if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
+        noDelay = false;
+      } else {
+        EPSET_FORWARD_INUSE(&pCtx->epSet);
+        noDelay = true;
+      }
     } else {
-      tDebug("epset equal, continue");
-      EPSET_FORWARD_INUSE(&pCtx->epSet);
+      if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
+        tDebug("epset not equal, retry new epset");
+        pCtx->epSet = epSet;
+      } else {
+        tDebug("epset equal, continue");
+        EPSET_FORWARD_INUSE(&pCtx->epSet);
+      }
+      noDelay = false;
     }
-    noDelay = false;
   }
   return noDelay;
 }
