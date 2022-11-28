@@ -6665,7 +6665,8 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     if (tEncodeI64v(pCoder, taosArrayGetSize(pSubmitTbData->aRowP)) < 0) return -1;
     for (int32_t i = 0; i < taosArrayGetSize(pSubmitTbData->aRowP); i++) {
       SRow *pRow = taosArrayGetP(pSubmitTbData->aRowP, i);
-      if (tEncodeBinary(pCoder, (uint8_t *)pRow, pRow->len) < 0) return -1;  // todo
+      memcpy(pCoder->data + pCoder->pos, pRow, pRow->len);
+      pCoder->pos += pRow->len;
     }
   }
 
