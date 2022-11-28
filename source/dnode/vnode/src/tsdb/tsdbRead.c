@@ -1624,7 +1624,7 @@ static int32_t buildDataBlockFromBuf(STsdbReader* pReader, STableBlockScanInfo* 
   int32_t code = buildDataBlockFromBufImpl(pBlockScanInfo, endKey, pReader->capacity, pReader);
 
   blockDataUpdateTsWindow(pBlock, 0);
-  pBlock->info.uid = pBlockScanInfo->uid;
+  pBlock->info.id.uid = pBlockScanInfo->uid;
 
   setComposedBlockFlag(pReader, true);
 
@@ -2494,7 +2494,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
   }
 
 _end:
-  pResBlock->info.uid = (pBlockScanInfo != NULL) ? pBlockScanInfo->uid : 0;
+  pResBlock->info.id.uid = (pBlockScanInfo != NULL) ? pBlockScanInfo->uid : 0;
   blockDataUpdateTsWindow(pResBlock, 0);
 
   setComposedBlockFlag(pReader, true);
@@ -2506,7 +2506,7 @@ _end:
   if (pResBlock->info.rows > 0) {
     tsdbDebug("%p uid:%" PRIu64 ", composed data block created, brange:%" PRIu64 "-%" PRIu64
               " rows:%d, elapsed time:%.2f ms %s",
-              pReader, pResBlock->info.uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
+              pReader, pResBlock->info.id.uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
               pResBlock->info.rows, el, pReader->idStr);
   }
 
@@ -2830,7 +2830,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
     } else {  // whole block is required, return it directly
       SDataBlockInfo* pInfo = &pReader->pResBlock->info;
       pInfo->rows = pBlock->nRow;
-      pInfo->uid = pScanInfo->uid;
+      pInfo->id.uid = pScanInfo->uid;
       pInfo->window = (STimeWindow){.skey = pBlock->minKey.ts, .ekey = pBlock->maxKey.ts};
       setComposedBlockFlag(pReader, false);
       setBlockAllDumped(&pStatus->fBlockDumpInfo, pBlock->maxKey.ts, pReader->order);
@@ -4020,7 +4020,7 @@ bool tsdbTableNextDataBlock(STsdbReader* pReader, uint64_t uid) {
 static void setBlockInfo(const STsdbReader* pReader, int32_t* rows, uint64_t* uid, STimeWindow* pWindow) {
   ASSERT(pReader != NULL);
   *rows = pReader->pResBlock->info.rows;
-  *uid = pReader->pResBlock->info.uid;
+  *uid = pReader->pResBlock->info.id.uid;
   *pWindow = pReader->pResBlock->info.window;
 }
 
