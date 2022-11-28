@@ -103,7 +103,7 @@ int32_t tdbBegin(TDB *pDb, TXN **ppTxn, void *(*xMalloc)(void *, size_t), void (
                  int flags) {
   SPager *pPager;
   int     ret;
-  int64_t txnId = 1;
+  int64_t txnId = ++pDb->txnId;
 
   TXN *pTxn = tdbOsCalloc(1, sizeof(*pTxn));
   if (!pTxn) {

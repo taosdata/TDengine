@@ -382,6 +382,7 @@ struct STDB {
 #ifdef USE_MAINDB
   TTB *pMainDb;
 #endif
+  int64_t txnId;
 };
 
 typedef struct hashset_st *hashset_t;
