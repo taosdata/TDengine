@@ -192,9 +192,9 @@ void streamStateClose(SStreamState* pState) {
 }
 
 int32_t streamStateBegin(SStreamState* pState) {
-  if (tdbBegin(pState->db, &pState->pTdbState->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
-    tdbAbort(pState->db, pState->txn);
+    tdbAbort(pState->pTdbState->db, pState->pTdbState->txn);
     return -1;
   }
   return 0;
@@ -220,7 +220,7 @@ int32_t streamStateAbort(SStreamState* pState) {
     return -1;
   }
 
-  if (tdbBegin(pState->pTdbState->db, &pState->ptdbstate->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
@@ -823,7 +823,7 @@ _end:
 
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
   tdbTbUpsert(pState->pTdbState->pParNameDb, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN,
-              &pState->pTdbState->txn);
+              pState->pTdbState->txn);
   return 0;
 }
 
