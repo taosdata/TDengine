@@ -655,7 +655,7 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
 
     SGroupKeys* pTsKey = taosArrayGet(pInfo->pPrevValues, 0);
     int64_t     prevTs = *(int64_t*)pTsKey->pData;
-    if (groupId == pBlock->info.groupId) {
+    if (groupId == pBlock->info.id.groupId) {
       doTimeWindowInterpolation(pInfo->pPrevValues, pBlock->pDataBlock, prevTs, -1, tsCols[startPos], startPos, w.ekey,
                                 RESULT_ROW_END_INTERP, pSup);
     }
@@ -927,7 +927,7 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   int32_t     startPos = 0;
   int32_t     numOfOutput = pSup->numOfExprs;
   int64_t*    tsCols = extractTsCol(pBlock, pInfo);
-  uint64_t    tableGroupId = pBlock->info.groupId;
+  uint64_t    tableGroupId = pBlock->info.id.groupId;
   bool        ascScan = (pInfo->inputOrder == TSDB_ORDER_ASC);
   TSKEY       ts = getStartTsKey(&pBlock->info.window, tsCols);
   SResultRow* pResult = NULL;
@@ -1112,7 +1112,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   SExprSupp*     pSup = &pOperator->exprSupp;
 
   SColumnInfoData* pStateColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->stateCol.slotId);
-  int64_t          gid = pBlock->info.groupId;
+  int64_t          gid = pBlock->info.id.groupId;
 
   bool    masterScan = true;
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
@@ -1829,7 +1829,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
 
   bool    masterScan = true;
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
-  int64_t gid = pBlock->info.groupId;
+  int64_t gid = pBlock->info.id.groupId;
 
   int64_t gap = pInfo->gap;
 
@@ -2333,7 +2333,7 @@ void doBuildResult(SOperatorInfo* pOperator, SStreamState* pState, SSDataBlock* 
   }
 
   // clear the existed group id
-  pBlock->info.groupId = 0;
+  pBlock->info.id.groupId = 0;
   buildDataBlockFromGroupRes(pOperator, pState, pBlock, &pOperator->exprSupp, pGroupResInfo);
 }
 
@@ -2573,7 +2573,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
     }
     setInputDataBlock(pSup, pBlock, TSDB_ORDER_ASC, MAIN_SCAN, true);
-    doStreamIntervalAggImpl(pOperator, pBlock, pBlock->info.groupId, pUpdatedMap);
+    doStreamIntervalAggImpl(pOperator, pBlock, pBlock->info.id.groupId, pUpdatedMap);
     if (IS_FINAL_OP(pInfo)) {
       int32_t chIndex = getChildIndex(pBlock);
       int32_t size = taosArrayGetSize(pInfo->pChildren);
@@ -2591,7 +2591,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       SOperatorInfo*               pChildOp = taosArrayGetP(pInfo->pChildren, chIndex);
       SStreamIntervalOperatorInfo* pChInfo = pChildOp->info;
       setInputDataBlock(&pChildOp->exprSupp, pBlock, TSDB_ORDER_ASC, MAIN_SCAN, true);
-      doStreamIntervalAggImpl(pChildOp, pBlock, pBlock->info.groupId, NULL);
+      doStreamIntervalAggImpl(pChildOp, pBlock, pBlock->info.id.groupId, NULL);
     }
     maxTs = TMAX(maxTs, pBlock->info.window.ekey);
     maxTs = TMAX(maxTs, pBlock->info.watermark);
@@ -3086,7 +3086,7 @@ static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSData
   SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   int32_t                        numOfOutput = pOperator->exprSupp.numOfExprs;
-  uint64_t                       groupId = pSDataBlock->info.groupId;
+  uint64_t                       groupId = pSDataBlock->info.id.groupId;
   int64_t                        code = TSDB_CODE_SUCCESS;
   SResultRow*                    pResult = NULL;
   int32_t                        rows = pSDataBlock->info.rows;
@@ -3377,7 +3377,7 @@ void doBuildSessionResult(SOperatorInfo* pOperator, SStreamState* pState, SGroup
   }
 
   // clear the existed group id
-  pBlock->info.groupId = 0;
+  pBlock->info.id.groupId = 0;
   buildSessionResultDataBlock(pOperator, pState, pBlock, &pOperator->exprSupp, pGroupResInfo);
 }
 
@@ -3854,7 +3854,7 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   SStreamStateAggOperatorInfo* pInfo = pOperator->info;
   int32_t                      numOfOutput = pOperator->exprSupp.numOfExprs;
-  int64_t                      groupId = pSDataBlock->info.groupId;
+  int64_t                      groupId = pSDataBlock->info.id.groupId;
   int64_t                      code = TSDB_CODE_SUCCESS;
   TSKEY*                       tsCols = NULL;
   SResultRow*                  pResult = NULL;
@@ -4178,7 +4178,7 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
 }
 
 static void cleanupAfterGroupResultGen(SMergeAlignedIntervalAggOperatorInfo* pMiaInfo, SSDataBlock* pRes) {
-  pRes->info.groupId = pMiaInfo->groupId;
+  pRes->info.id.groupId = pMiaInfo->groupId;
   pMiaInfo->curTs = INT64_MIN;
   pMiaInfo->groupId = 0;
 }
@@ -4203,7 +4203,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
       pBlock = pMiaInfo->prefetchedBlock;
       pMiaInfo->prefetchedBlock = NULL;
 
-      pMiaInfo->groupId = pBlock->info.groupId;
+      pMiaInfo->groupId = pBlock->info.id.groupId;
     }
 
     // no data exists, all query processing is done
@@ -4220,12 +4220,12 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
     }
 
     if (pMiaInfo->groupId == 0) {
-      if (pMiaInfo->groupId != pBlock->info.groupId) {
-        pMiaInfo->groupId = pBlock->info.groupId;
-        pRes->info.groupId = pMiaInfo->groupId;
+      if (pMiaInfo->groupId != pBlock->info.id.groupId) {
+        pMiaInfo->groupId = pBlock->info.id.groupId;
+        pRes->info.id.groupId = pMiaInfo->groupId;
       }
     } else {
-      if (pMiaInfo->groupId != pBlock->info.groupId) {
+      if (pMiaInfo->groupId != pBlock->info.id.groupId) {
         // if there are unclosed time window, close it firstly.
         ASSERT(pMiaInfo->curTs != INT64_MIN);
         finalizeResultRows(pIaInfo->aggSup.pResultBuf, &pResultRowInfo->cur, pSup, pRes, pTaskInfo);
@@ -4236,7 +4236,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
         break;
       } else {
         // continue
-        pRes->info.groupId = pMiaInfo->groupId;
+        pRes->info.id.groupId = pMiaInfo->groupId;
       }
     }
 
@@ -4443,7 +4443,7 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
   int32_t     startPos = 0;
   int32_t     numOfOutput = pExprSup->numOfExprs;
   int64_t*    tsCols = extractTsCol(pBlock, iaInfo);
-  uint64_t    tableGroupId = pBlock->info.groupId;
+  uint64_t    tableGroupId = pBlock->info.id.groupId;
   bool        ascScan = (iaInfo->inputOrder == TSDB_ORDER_ASC);
   TSKEY       blockStartTs = getStartTsKey(&pBlock->info.window, tsCols);
   SResultRow* pResult = NULL;
@@ -4549,7 +4549,7 @@ static SSDataBlock* doMergeIntervalAgg(SOperatorInfo* pOperator) {
         pBlock = downstream->fpSet.getNextFn(downstream);
       } else {
         pBlock = miaInfo->prefetchedBlock;
-        miaInfo->groupId = pBlock->info.groupId;
+        miaInfo->groupId = pBlock->info.id.groupId;
         miaInfo->prefetchedBlock = NULL;
       }
 
@@ -4561,8 +4561,8 @@ static SSDataBlock* doMergeIntervalAgg(SOperatorInfo* pOperator) {
 
       if (!miaInfo->hasGroupId) {
         miaInfo->hasGroupId = true;
-        miaInfo->groupId = pBlock->info.groupId;
-      } else if (miaInfo->groupId != pBlock->info.groupId) {
+        miaInfo->groupId = pBlock->info.id.groupId;
+      } else if (miaInfo->groupId != pBlock->info.id.groupId) {
         miaInfo->prefetchedBlock = pBlock;
         break;
       }
@@ -4576,7 +4576,7 @@ static SSDataBlock* doMergeIntervalAgg(SOperatorInfo* pOperator) {
       }
     }
 
-    pRes->info.groupId = miaInfo->groupId;
+    pRes->info.id.groupId = miaInfo->groupId;
   }
 
   if (miaInfo->inputBlocksFinished) {
@@ -4585,7 +4585,7 @@ static SSDataBlock* doMergeIntervalAgg(SOperatorInfo* pOperator) {
     if (listNode != NULL) {
       SGroupTimeWindow* grpWin = (SGroupTimeWindow*)(listNode->data);
       //      finalizeWindowResult(pOperator, grpWin->groupId, &grpWin->window, pRes);
-      pRes->info.groupId = grpWin->groupId;
+      pRes->info.id.groupId = grpWin->groupId;
     }
   }
 
@@ -4744,7 +4744,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     maxTs = TMAX(maxTs, pBlock->info.window.ekey);
     minTs = TMIN(minTs, pBlock->info.window.skey);
 
-    doStreamIntervalAggImpl(pOperator, pBlock, pBlock->info.groupId, pUpdatedMap);
+    doStreamIntervalAggImpl(pOperator, pBlock, pBlock->info.id.groupId, pUpdatedMap);
   }
   pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
   pInfo->twAggSup.minTs = TMIN(pInfo->twAggSup.minTs, minTs);
