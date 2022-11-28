@@ -1443,7 +1443,6 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
   SSDataBlock* pBlock = createDataBlock();
   pBlock->info.rows = 1;
   pBlock->info.capacity = 0;
-  pBlock->info.groupId = 0;
 
   for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
     SColumnInfoData colInfo = {0};
