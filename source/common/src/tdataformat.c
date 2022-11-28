@@ -886,6 +886,193 @@ static int32_t tRowAppendNullToColData(SArray *aColData, int32_t nColData, STSch
 _exit:
   return code;
 }
+static int32_t tRowAppendTupleToColData(SRow *pRow, STSchema *pTSchema, SArray *aColData, int32_t nColData) {
+  int32_t code = 0;
+
+  int32_t   iColData = 0;
+  SColData *pColData = taosArrayGet(aColData, iColData);
+  int32_t   iTColumn = 1;
+  STColumn *pTColumn = &pTSchema->columns[iTColumn];
+
+  uint8_t *pb = NULL;
+  uint8_t *pf;
+  uint8_t *pv;
+
+  switch (pRow->flag) {
+    case HAS_VALUE:
+      pf = pRow->data;
+      pv = pf + pTSchema->flen;
+      break;
+    case (HAS_NULL | HAS_NONE):
+      pb = pRow->data;
+      break;
+    case (HAS_VALUE | HAS_NONE):
+    case (HAS_VALUE | HAS_NULL):
+      pb = pRow->data;
+      pf = pb + BIT1_SIZE(pTSchema->numOfCols - 1);
+      pv = pf + pTSchema->flen;
+      break;
+    case (HAS_VALUE | HAS_NULL | HAS_NONE):
+      pb = pRow->data;
+      pf = pb + BIT2_SIZE(pTSchema->numOfCols - 1);
+      pv = pf + pTSchema->flen;
+      break;
+    default:
+      ASSERT(0);
+      break;
+  }
+
+  while (pColData) {
+    if (pTColumn) {
+      if (pTColumn->colId == pColData->cid) {
+        ASSERT(pTColumn->type == pColData->type);
+        if (pb) {
+          uint8_t bv;
+          switch (pRow->flag) {
+            case (HAS_NULL | HAS_NONE):
+              bv = GET_BIT1(pb, iTColumn - 1);
+              break;
+            case (HAS_VALUE | HAS_NONE):
+              bv = GET_BIT1(pb, iTColumn - 1);
+              if (bv) bv++;
+              break;
+            case (HAS_VALUE | HAS_NULL):
+              bv = GET_BIT1(pb, iTColumn - 1) + 1;
+              break;
+            case (HAS_VALUE | HAS_NULL | HAS_NONE):
+              bv = GET_BIT2(pb, iTColumn - 1);
+              break;
+            default:
+              ASSERT(0);
+              break;
+          }
+
+          if (bv == ROW_BIT_NONE) {
+            code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+            if (code) goto _exit;
+            goto _continue;
+          } else if (bv == ROW_BIT_NULL) {
+            code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+            if (code) goto _exit;
+            goto _continue;
+          }
+        }
+
+        if (IS_VAR_DATA_TYPE(pColData->type)) {
+          uint8_t *pData = pv + *(int32_t *)(pf + pTColumn->offset);
+          uint32_t nData;
+          pData += tGetU32v(pData, &nData);
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, nData);
+          if (code) goto _exit;
+        } else {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pf + pTColumn->offset,
+                                                                        TYPE_BYTES[pColData->type]);
+          if (code) goto _exit;
+        }
+
+      _continue:
+        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+        pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
+      } else if (pTColumn->colId > pColData->cid) {  // NONE
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+        if (code) goto _exit;
+
+        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+      } else {
+        pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
+      }
+    } else {
+      code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+      if (code) goto _exit;
+
+      pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+    }
+  }
+
+_exit:
+  return code;
+}
+static int32_t tRowAppendKVToColData(SRow *pRow, STSchema *pTSchema, SArray *aColData, int32_t nColData) {
+  int32_t code = 0;
+
+  SKVIdx   *pKVIdx = (SKVIdx *)pRow->data;
+  uint8_t  *pv = NULL;
+  int32_t   iColData = 0;
+  SColData *pColData = taosArrayGet(aColData, iColData);
+  int32_t   iTColumn = 1;
+  STColumn *pTColumn = &pTSchema->columns[iTColumn];
+  int32_t   iCol = 0;
+
+  if (pRow->flag & KV_FLG_LIT) {
+    pv = pKVIdx->idx + pKVIdx->nCol;
+  } else if (pRow->flag & KV_FLG_MID) {
+    pv = pKVIdx->idx + (pKVIdx->nCol << 1);
+  } else if (pRow->flag & KV_FLG_BIG) {
+    pv = pKVIdx->idx + (pKVIdx->nCol << 2);
+  } else {
+    ASSERT(0);
+  }
+
+  while (pColData) {
+    if (pTColumn) {
+      if (pTColumn->colId == pColData->cid) {
+        while (iCol < pKVIdx->nCol) {
+          uint8_t *pData;
+          if (pRow->flag & KV_FLG_LIT) {
+            pData = pv + ((uint8_t *)pKVIdx->idx)[iCol];
+          } else if (pRow->flag & KV_FLG_MID) {
+            pData = pv + ((uint16_t *)pKVIdx->idx)[iCol];
+          } else if (pRow->flag & KV_FLG_BIG) {
+            pData = pv + ((uint32_t *)pKVIdx->idx)[iCol];
+          } else {
+            ASSERT(0);
+          }
+
+          int16_t cid;
+          pData += tGetI16(pData, &cid);
+
+          if (TABS(cid) == pTColumn->colId) {
+            if (cid < 0) {
+              code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+              if (code) goto _exit;
+            } else {
+              uint32_t nData;
+              pData += tGetU32v(pData, &nData);
+              code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, nData);
+              if (code) goto _exit;
+            }
+            iCol++;
+            goto _continue;
+          } else if (TABS(cid) > pTColumn->colId) {  // NONE
+            break;
+          } else {
+            iCol++;
+          }
+        }
+
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+        if (code) goto _exit;
+
+      _continue:
+        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+        pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
+      } else if (pTColumn->colId > pColData->cid) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+        if (code) goto _exit;
+        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+      } else {
+        pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
+      }
+    } else {
+      code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+      if (code) goto _exit;
+      pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+    }
+  }
+
+_exit:
+  return code;
+}
 int32_t tRowAppendToColData(SRow *pRow, STSchema *pTSchema, SArray *aColData, int32_t nColData) {
   ASSERT(pRow->sver == pTSchema->version);
   ASSERT(nColData > 0);
@@ -901,31 +1088,11 @@ int32_t tRowAppendToColData(SRow *pRow, STSchema *pTSchema, SArray *aColData, in
   }
 
   if (pRow->flag >> 4) {  // KV row
-    // todo
-  } else {  // Tuple row
-    int32_t   iColData = 0;
-    SColData *pColData = taosArrayGet(aColData, iColData);
-    int32_t   iTColumn = 1;
-    STColumn *pTColumn = &pTSchema->columns[iTColumn];
-
-    while (pColData) {
-      if (pTColumn) {
-        if (pTColumn->colId == pColData->cid) {
-        } else if (pTColumn->colId > pColData->cid) {  // NONE
-          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
-          if (code) goto _exit;
-
-          pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
-        } else {
-          pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
-        }
-      } else {
-        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
-        if (code) goto _exit;
-
-        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
-      }
-    }
+    code = tRowAppendKVToColData(pRow, pTSchema, aColData, nColData);
+    if (code) goto _exit;
+  } else {
+    code = tRowAppendTupleToColData(pRow, pTSchema, aColData, nColData);
+    if (code) goto _exit;
   }
 
 _exit:
