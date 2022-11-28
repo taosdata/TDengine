@@ -712,7 +712,7 @@ void qDestroyTask(qTaskInfo_t qTaskHandle) {
 
   qDebug("%s execTask completed, numOfRows:%" PRId64, GET_TASKID(pTaskInfo), pTaskInfo->pRoot->resultInfo.totalRows);
 
-  queryCostStatis(pTaskInfo);  // print the query cost summary
+  printTaskExecCostInLog(pTaskInfo);  // print the query cost summary
   doDestroyTask(pTaskInfo);
 }
 
@@ -728,12 +728,12 @@ int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len) {
   }
 
   int32_t nOptrWithVal = 0;
-  int32_t code = encodeOperator(pTaskInfo->pRoot, pOutput, len, &nOptrWithVal);
-  if ((code == TSDB_CODE_SUCCESS) && (nOptrWithVal == 0)) {
-    taosMemoryFreeClear(*pOutput);
-    *len = 0;
-  }
-  return code;
+//  int32_t code = encodeOperator(pTaskInfo->pRoot, pOutput, len, &nOptrWithVal);
+//  if ((code == TSDB_CODE_SUCCESS) && (nOptrWithVal == 0)) {
+//    taosMemoryFreeClear(*pOutput);
+//    *len = 0;
+//  }
+  return 0;
 }
 
 int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len) {
@@ -743,7 +743,8 @@ int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t le
     return TSDB_CODE_INVALID_PARA;
   }
 
-  return decodeOperator(pTaskInfo->pRoot, pInput, len);
+  return 0;
+//  return decodeOperator(pTaskInfo->pRoot, pInput, len);
 }
 
 int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {

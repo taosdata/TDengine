@@ -417,8 +417,8 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
   SSDataBlock* pRightBlock = pRightSource->src.pBlock;
 
   if (pParam->cmpGroupId) {
-    if (pLeftBlock->info.groupId != pRightBlock->info.groupId) {
-      return pLeftBlock->info.groupId < pRightBlock->info.groupId ? -1 : 1;
+    if (pLeftBlock->info.id.groupId != pRightBlock->info.id.groupId) {
+      return pLeftBlock->info.id.groupId < pRightBlock->info.id.groupId ? -1 : 1;
     }
   }
 
@@ -826,7 +826,7 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex) {
   }
 }
 
-uint64_t tsortGetGroupId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.groupId; }
+uint64_t tsortGetGroupId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.id.groupId; }
 
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   SSortExecInfo info = {0};

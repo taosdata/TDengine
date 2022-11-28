@@ -208,12 +208,12 @@ SArray* createSortInfo(SNodeList* pNodeList) {
   return pList;
 }
 
-SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
+SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode) {
   int32_t numOfCols = LIST_LENGTH(pNode->pSlots);
 
   SSDataBlock* pBlock = createDataBlock();
 
-  pBlock->info.blockId = pNode->dataBlockId;
+  pBlock->info.id.blockId = pNode->dataBlockId;
   pBlock->info.type = STREAM_INVALID;
   pBlock->info.calWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
   pBlock->info.watermark = INT64_MIN;
