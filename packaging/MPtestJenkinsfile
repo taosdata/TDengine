@@ -120,20 +120,20 @@ pipeline {
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
-                                bash testpackage.sh -f server -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                bash testpackage.sh  -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                                 python3 checkPackageRuning.py
                             done 
                             '''  
 
                             sh '''                              
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -f server -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                            bash testpackage.sh  -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                             python3 checkPackageRuning.py
                             '''   
 
                             sh ''' 
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -f server -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t deb 
+                            bash testpackage.sh  -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t deb 
                             python3 checkPackageRuning.py
                             '''
                         }
@@ -152,20 +152,20 @@ pipeline {
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
-                                bash testpackage.sh -f server -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                bash testpackage.sh -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                                 python3 checkPackageRuning.py
                             done 
                             '''
 
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -f server -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                            bash testpackage.sh -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                             python3 checkPackageRuning.py
                             '''
 
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -f server -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t deb 
+                            bash testpackage.sh -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t deb 
                             python3 checkPackageRuning.py
                             dpkg -r tdengine
                             '''                                
@@ -185,20 +185,20 @@ pipeline {
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
-                                bash testpackage.sh -f server -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                bash testpackage.sh -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                                 python3 checkPackageRuning.py
                             done 
                             '''
 
                             sh '''                            
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -f server -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                            bash testpackage.sh -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                             python3 checkPackageRuning.py
                             '''
 
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -f server -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t rpm 
+                            bash testpackage.sh -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t rpm 
                             python3 checkPackageRuning.py
                             '''
                         }
@@ -217,20 +217,20 @@ pipeline {
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
-                                bash testpackage.sh -f server -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                bash testpackage.sh -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                                 python3 checkPackageRuning.py
                             done
                             '''
 
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -f server -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                            bash testpackage.sh -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                             python3 checkPackageRuning.py
                             '''
 
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -f server -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t rpm 
+                            bash testpackage.sh -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t rpm 
                             python3 checkPackageRuning.py
                             sudo rpm -e tdengine 
                             '''
@@ -250,7 +250,7 @@ pipeline {
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
-                                bash testpackage.sh -f server -m ${verModeSin} -f server  -l false -c arm64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                bash testpackage.sh -m ${verModeSin} -f server  -l false -c arm64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                                 python3 checkPackageRuning.py
                             done 
                             '''
@@ -273,10 +273,9 @@ pipeline {
                             for verModeSin in ${verModeList}
                             do
                                 cd ${TDENGINE_ROOT_DIR}/packaging
-                                bash testpackage.sh -f server -m ${verModeSin} -f client  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
-                                python3 checkPackageRuning.py
+                                bash testpackage.sh  -m ${verModeSin} -f client  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                python3 checkPackageRuning.py 192.168.0.21
                             done 
-                            python3 checkPackageRuning.py  192.168.0.21
                             '''
                         }
                     }
@@ -286,10 +285,8 @@ pipeline {
                     steps {
                         timeout(time: 30, unit: 'MINUTES'){
                             sh '''
-                            verModeList=community
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -f server -m ${verModeSin} -f client  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
-                            python3 checkPackageRuning.py
+                            bash testpackage.sh -m community -f client  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
                             python3 checkPackageRuning.py  192.168.0.24
                             '''         
                         }
@@ -309,10 +306,9 @@ pipeline {
                     for verModeSin in ${verModeList}
                     do
                         cd ${TDENGINE_ROOT_DIR}/packaging
-                        bash testpackage.sh -f server -m ${verModeSin} -f client  -l false -c arm64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
-                        python3 checkPackageRuning.py
+                        bash testpackage.sh  -m ${verModeSin} -f client  -l false -c arm64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
+                        python3 checkPackageRuning.py 192.168.0.21
                     done 
-                    python3 checkPackageRuning.py  192.168.0.21
                     '''  
                 }
             }

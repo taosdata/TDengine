@@ -766,7 +766,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
         for (int32_t i = 0; i < taosArrayGetSize(tbUidList); ++i) {
           uint64_t* id = (uint64_t*)taosArrayGet(tbUidList, i);
 
-          int32_t code = metaGetTableEntryByUid(&mr, *id);
+          int32_t code = metaGetTableEntryByUidCache(&mr, *id);
           if (code != TSDB_CODE_SUCCESS) {
             qError("failed to get table meta, uid:%" PRIu64 " code:%s", *id, tstrerror(terrno));
             continue;

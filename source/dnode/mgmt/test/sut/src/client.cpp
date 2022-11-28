@@ -15,6 +15,7 @@
 
 #include "sut.h"
 #include "tdatablock.h"
+#include "tmisce.h"
 
 static void processClientRsp(void* parent, SRpcMsg* pRsp, SEpSet* pEpSet) {
   TestClient* client = (TestClient*)parent;

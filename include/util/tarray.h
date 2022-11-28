@@ -105,6 +105,15 @@ static FORCE_INLINE void* taosArrayPush(SArray* pArray, const void* pData) {
 }
 
 /**
+ * @brief reserve the capacity of the array
+ *
+ * @param pArray
+ * @param num
+ * @return void* the start position of the reserved memory
+ */
+void* taosArrayReserve(SArray* pArray, int32_t num);
+
+/**
  *
  * @param pArray
  */

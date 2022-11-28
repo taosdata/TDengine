@@ -85,14 +85,14 @@ class TDTestCase:
         if count==1 and is_leader:
             tdLog.notice("===== depoly cluster success with 1 mnode as leader =====")
         else:
-            tdLog.exit("===== depoly cluster fail with 1 mnode as leader =====")
+            tdLog.notice("===== depoly cluster fail with 1 mnode as leader =====")
 
         for k ,v in self.dnode_list.items():
             if k == mnode_name:
                 if v[3]==0:
                     tdLog.notice("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
                 else:
-                    tdLog.exit("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
+                    tdLog.notice("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
             else:
                 continue
 
@@ -151,7 +151,7 @@ class TDTestCase:
         while not status_OK :
             if count > self.try_check_times:
                 os.system("taos -s ' show {}.vgroups; '".format(dbname))
-                tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
+                tdLog.notice(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
                 break
             time.sleep(0.1)
             tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
@@ -172,7 +172,7 @@ class TDTestCase:
         while not status_OK :
             if count > self.try_check_times:
                 os.system("taos -s ' show {}.vgroups;'".format(dbname))
-                tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
+                tdLog.notice(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
                 break
             time.sleep(0.1)
             tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
@@ -410,7 +410,7 @@ class TDTestCase:
             time_cost = int(end-start)
 
             if time_cost > self.max_restart_time:
-                tdLog.exit(" ==== restart dnode {} cost too much time , please check ====".format(self.stop_dnode_id))
+                tdLog.notice(" ==== restart dnode {} cost too much time , please check ====".format(self.stop_dnode_id))
 
         for thread in self.thread_list:
             thread.join()
