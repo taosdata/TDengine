@@ -535,13 +535,17 @@ static int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int3
     for (int32_t iRow = 0; iRow < nRow; iRow++) {
       SColVal *pColValT = tRowIterNext(aIter[iRow]);
 
-      // todo: take value according to flag
-      if (pColVal == NULL || COL_VAL_IS_VALUE(pColValT)) {
+      // todo: take strategy according to the flag
+      if (COL_VAL_IS_VALUE(pColValT)) {
         pColVal = pColValT;
+      } else if (COL_VAL_IS_NULL(pColValT)) {
+        if (pColVal == NULL) {
+          pColVal = pColValT;
+        }
       }
     }
 
-    taosArrayPush(aColVal, pColVal);
+    if (pColVal) taosArrayPush(aColVal, pColVal);
   }
 
   // build
