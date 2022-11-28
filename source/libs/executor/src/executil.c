@@ -213,7 +213,7 @@ SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode) {
 
   SSDataBlock* pBlock = createDataBlock();
 
-  pBlock->info.blockId = pNode->dataBlockId;
+  pBlock->info.id.blockId = pNode->dataBlockId;
   pBlock->info.type = STREAM_INVALID;
   pBlock->info.calWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
   pBlock->info.watermark = INT64_MIN;
