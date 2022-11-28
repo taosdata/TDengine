@@ -811,7 +811,7 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   int32_t lino = 0;
 
   memset(pCommitter, 0, sizeof(*pCommitter));
-  ASSERT(pTsdb->mem && pTsdb->imem == NULL);
+  ASSERT(pTsdb->mem && pTsdb->imem == NULL && "last tsdb commit incomplete");
 
   taosThreadRwlockWrlock(&pTsdb->rwLock);
   pTsdb->imem = pTsdb->mem;
