@@ -2937,7 +2937,7 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
   pInfo->bytes = pInputCol->info.bytes;
 
   if (IS_NULL_TYPE(pInputCol->info.type)) {
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   // All null data column, return directly.
@@ -2945,7 +2945,7 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
     ASSERT(pInputCol->hasNull == true);
     // save selectivity value for column consisted of all null values
     firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   SColumnDataAgg* pColAgg = (pInput->colDataSMAIsSet) ? pInput->pColumnDataAgg[0] : NULL;
@@ -3045,7 +3045,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   pInfo->bytes = bytes;
 
   if (IS_NULL_TYPE(type)) {
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   // All null data column, return directly.
@@ -3053,7 +3053,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     ASSERT(pInputCol->hasNull == true);
     // save selectivity value for column consisted of all null values
     firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   SColumnDataAgg* pColAgg = (pInput->colDataSMAIsSet) ? pInput->pColumnDataAgg[0] : NULL;
@@ -3318,8 +3318,13 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
+  int32_t type  = pInputCol->info.type;
   int32_t bytes = pInputCol->info.bytes;
   pInfo->bytes = bytes;
+
+  if (IS_NULL_TYPE(type)) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
   TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
