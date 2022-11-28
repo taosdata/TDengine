@@ -67,7 +67,7 @@ struct SHashObj {
   bool              enableUpdate;  // enable update
   SArray           *pMemBlock;     // memory block allocated for SHashEntry
   _hash_before_fn_t callbackFp;    // function invoked before return the value to caller
-  int64_t           compTimes;
+//  int64_t           compTimes;
 };
 
 /*
@@ -889,4 +889,4 @@ void *taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen) {
 
 void taosHashRelease(SHashObj *pHashObj, void *p) { taosHashCancelIterate(pHashObj, p); }
 
-int64_t taosHashGetCompTimes(SHashObj *pHashObj) { return atomic_load_64(&pHashObj->compTimes); }
+int64_t taosHashGetCompTimes(SHashObj *pHashObj) { return 0 /*atomic_load_64(&pHashObj->compTimes)*/; }

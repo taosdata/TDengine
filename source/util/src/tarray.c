@@ -17,6 +17,8 @@
 #include "tarray.h"
 #include "tcoding.h"
 
+// todo refactor API
+
 SArray* taosArrayInit(size_t size, size_t elemSize) {
   assert(elemSize > 0);
 

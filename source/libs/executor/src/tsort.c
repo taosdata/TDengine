@@ -801,7 +801,7 @@ STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
   index = tMergeTreeGetChosenIndex(pHandle->pMergeTree);
   pSource = pHandle->cmpParam.pSources[index];
 
-  assert(pSource->src.pBlock != NULL);
+  ASSERT(pSource->src.pBlock != NULL);
 
   pHandle->tupleHandle.rowIndex = pSource->src.rowIndex;
   pHandle->tupleHandle.pBlock = pSource->src.pBlock;

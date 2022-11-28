@@ -15,9 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "tglobal.h"
-#include "tcompare.h"
 #include "tconfig.h"
-#include "tdatablock.h"
+#include "tmisce.h"
 #include "tgrant.h"
 #include "tlog.h"
 
@@ -119,6 +118,9 @@ int32_t tsMinIntervalTime = 1;
 
 // maximum memory allowed to be allocated for a single csv load (in MB)
 int32_t tsMaxMemUsedByInsert = 1024;
+
+float   tsSelectivityRatio = 1.0;
+int32_t tsTagFilterResCacheSize = 1024*10;
 
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
@@ -318,7 +320,14 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddLocale(pCfg, "locale", tsLocale) != 0) return -1;
   if (cfgAddCharset(pCfg, "charset", tsCharset) != 0) return -1;
   if (cfgAddBool(pCfg, "enableCoreFile", 1, 1) != 0) return -1;
-  if (cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 0, 100000, 1) != 0) return -1;
+  if (cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 1, 100000, 1) != 0) return -1;
+
+  if (cfgAddBool(pCfg, "SSE42", tsSSE42Enable, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "AVX", tsAVXEnable, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "AVX2", tsAVX2Enable, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "FMA", tsFMAEnable, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "SIMD-Supported", tsSIMDEnable, 0) != 0) return -1;
+
   if (cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, 1) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamMax", tsStreamMax, 0, INT64_MAX, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "pageSizeKB", tsPageSizeKB, 0, INT64_MAX, 1) != 0) return -1;

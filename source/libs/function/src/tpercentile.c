@@ -494,7 +494,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
         resetSlotInfo(pMemBucket);
 
         int32_t groupId = getGroupId(pMemBucket->numOfSlots, i, pMemBucket->times - 1);
-        SIDList list = taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
+        SArray* list = taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
         ASSERT(list != NULL && list->size > 0);
 
         for (int32_t f = 0; f < list->size; ++f) {
