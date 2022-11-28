@@ -2215,16 +2215,11 @@ void syncQueryFn(void* param, void* res, int32_t code) {
   SSyncQueryParam* pParam = param;
   pParam->pRequest = res;
 
-  if (pParam->pRequest != NULL) {
-    pParam->pRequest->syncQuery = true;
+  if (pParam->pRequest) {
     pParam->pRequest->code = code;
   }
 
   tsem_post(&pParam->sem);
-
-  if (NULL == res) {
-    taosMemoryFree(param);
-  }  
 }
 
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly) {
@@ -2299,7 +2294,15 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly);
   tsem_wait(&param->sem);
 
-  return param->pRequest;
+  SRequestObj *pRequest = NULL;
+  if (param->pRequest != NULL) {
+    param->pRequest->syncQuery = true;
+    pRequest = param->pRequest;
+  } else {
+    taosMemoryFree(param);
+  }
+  
+  return pRequest;
 }
 
 TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly, int64_t reqid) {
@@ -2314,5 +2317,13 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
   taosAsyncQueryImplWithReqid(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid);
   tsem_wait(&param->sem);
 
-  return param->pRequest;
+  SRequestObj *pRequest = NULL;
+  if (param->pRequest != NULL) {
+    param->pRequest->syncQuery = true;
+    pRequest = param->pRequest;
+  } else {
+    taosMemoryFree(param);
+  }
+  
+  return pRequest;
 }
