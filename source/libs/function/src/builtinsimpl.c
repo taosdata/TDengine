@@ -3613,6 +3613,7 @@ bool histogramFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
   char*   binDesc = strndup(varDataVal(pCtx->param[2].param.pz), varDataLen(pCtx->param[2].param.pz));
   int64_t normalized = pCtx->param[3].param.i;
   if (normalized != 0 && normalized != 1) {
+    taosMemoryFree(binDesc);
     return false;
   }
   if (!getHistogramBinDesc(pInfo, binDesc, binType, (bool)normalized)) {
