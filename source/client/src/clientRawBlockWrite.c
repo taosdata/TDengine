@@ -1294,6 +1294,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
 
   SRowBuilder rb = {0};
   tdSRowInit(&rb, pTableMeta->sversion);
+  rb.rowType = TD_ROW_KV;
   tdSRowSetTpInfo(&rb, numOfCols, fLen);
   int32_t dataLen = 0;
 
