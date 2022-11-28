@@ -45,8 +45,8 @@ class StaticFullSync(TDCase):
         
         self.stbname = [self.tdCom.get_long_name(3),self.tdCom.get_long_name(3)]
         self.tbname_m = [self.tdCom.get_long_name(1),self.tdCom.get_long_name(1)]
-        self.tb_num = 10
-        self.row_num = 100
+        self.tb_num = 100
+        self.row_num = 1000
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'
@@ -70,16 +70,17 @@ class StaticFullSync(TDCase):
         for thread in thread_list:
             thread.join()
     def full_sync_db_stb(self, source_type):
-        for source_task in ['']:
-            for target_task in ['']:
-        # for source_task in ['','+ws']:
-        #     for target_task in ['', '+ws']:
+        # for source_task in ['']:
+        #     for target_task in ['']:
+        for source_task in ['','+ws']:
+            for target_task in ['+ws']:
+            # for target_task in ['', '+ws']:
                 thread_list = []
                 master_count_rows = []
                 master_sum = []
-                taosd_backup = taos.connect(
-                    host=self.target_taosd[0], port=int(self.target_taosd[1]))
-                taosd_backup.execute(f'drop database if  exists {self.target_dbname}')
+                # taosd_backup = taos.connect(
+                #     host=self.target_taosd[0], port=int(self.target_taosd[1]))
+                # taosd_backup.execute(f'drop database if  exists {self.target_dbname}')
                 for source in range(len(self.source_taosd_list)):
                     group_id = self.tdCom.get_long_name(5)
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(
@@ -109,6 +110,9 @@ class StaticFullSync(TDCase):
                     thread_list[source].start()
                 for thread in thread_list:
                     thread.join()
+                print('taosx task is OK!!!!!')
+                taosd_backup = taos.connect(
+                    host=self.target_taosd[0], port=int(self.target_taosd[1]))
                 backup_count_rows = []
                 backup_sum = []
                 for source in range(len(self.source_taosd_list)):
@@ -123,17 +127,17 @@ class StaticFullSync(TDCase):
                         master_sum[source][0]['sum(voltage)'], backup_sum[source][0]['sum(voltage)'])
                 taosd_backup.execute(f'drop database {self.target_dbname}')
     def full_sync_ctb(self):
-        for source_task in ['']:
-            for target_task in ['']:
-        # for source_task in ['', '+ws']:
-        #     for target_task in ['', '+ws']:
+    #     for source_task in ['']:
+    #         for target_task in ['']:
+        for source_task in ['', '+ws']:
+            for target_task in ['+ws']:
+            # for target_task in ['', '+ws']:
                 thread_list = []
                 master_count_rows = []
                 master_sum = []
                 taosd_backup = taos.connect(
                         host=self.target_taosd[0], port=int(self.target_taosd[1]))
                 taosd_backup.execute(f'drop database if  exists {self.target_dbname}')
-                taosd_backup.execute(f'create database if not exists {self.target_dbname}')
                 for source in range(len(self.source_taosd_list)):
                     group_id = self.tdCom.get_long_name(5)
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(
@@ -168,18 +172,19 @@ class StaticFullSync(TDCase):
                         master_sum[source][0]['sum(voltage)'], backup_sum[source][0]['sum(voltage)'])
                 taosd_backup.execute(f'drop database {self.target_dbname}')
     def full_sync_ntb(self):
-        for source_task in ['']:
-            # for source_task in ['+ws']:
-            for target_task in ['']:
-        # for source_task in ['','+ws']:
-        #     for target_task in ['', '+ws']:
+        # for source_task in ['']:
+        #     # for source_task in ['+ws']:
+        #     for target_task in ['']:
+        for source_task in ['','+ws']:
+            for target_task in ['+ws']:
+            # for target_task in ['', '+ws']:
+                
                 thread_list = []
                 master_count_rows = []
                 master_sum = []
                 taosd_backup = taos.connect(
                         host=self.target_taosd[0], port=int(self.target_taosd[1]))
                 taosd_backup.execute(f'drop database if exists {self.target_dbname}')
-                taosd_backup.execute(f'create database if not exists {self.target_dbname}')
                 for source in range(len(self.source_taosd_list)):
                     group_id = self.tdCom.get_long_name(5)
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(
@@ -220,10 +225,10 @@ class StaticFullSync(TDCase):
             self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica=replica)
             self.full_sync_db_stb('db')
             self.full_sync_db_stb('stable')
-            self.full_sync_ctb()
-            self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
-            self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
-            self.full_sync_ntb()
+            # self.full_sync_ctb()
+            # self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+            # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
+            # self.full_sync_ntb()
 
     def cleanup(self):
         pass
