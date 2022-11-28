@@ -21,7 +21,7 @@
 
 #define LOG_MAX_LINE_SIZE             (1024)
 #define LOG_MAX_LINE_BUFFER_SIZE      (LOG_MAX_LINE_SIZE + 3)
-#define LOG_MAX_LINE_DUMP_SIZE        (65 * 1024)
+#define LOG_MAX_LINE_DUMP_SIZE        (1024 * 1024)
 #define LOG_MAX_LINE_DUMP_BUFFER_SIZE (LOG_MAX_LINE_DUMP_SIZE + 3)
 
 #define LOG_FILE_NAME_LEN    300
@@ -496,7 +496,7 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
   if (!osLogSpaceAvailable()) return;
   if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
 
-  char    buffer[LOG_MAX_LINE_DUMP_BUFFER_SIZE];
+  char *buffer = taosMemoryMalloc(LOG_MAX_LINE_DUMP_BUFFER_SIZE);
   int32_t len = taosBuildLogHead(buffer, flags);
 
   va_list argpointer;
@@ -509,6 +509,7 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
   buffer[len] = 0;
 
   taosPrintLogImp(level, dflag, buffer, len);
+  taosMemoryFree(buffer);
 }
 
 void taosDumpData(unsigned char *msg, int32_t len) {
