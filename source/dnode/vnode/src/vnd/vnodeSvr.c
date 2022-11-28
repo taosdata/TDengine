@@ -841,25 +841,53 @@ static int32_t vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const 
 
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
 #if 1
+  int32_t code = 0;
+
   SDecoder     dc = {0};
+  SSubmitRsp   submitRsp = {0};
   SSubmitReq2 *pSubmitReq = NULL;
+  SArray      *newTbUids = NULL;
 
   tDecoderInit(&dc, (char *)pReq + sizeof(SMsgHead), len - sizeof(SMsgHead));
-  tDecodeSSubmitReq2(&dc, &pSubmitReq);
-
-  if (pSubmitReq->flag & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-    // todo
-    ASSERT(0);
+  if (tDecodeSSubmitReq2(&dc, &pSubmitReq) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
   }
 
+  submitRsp.pArray = taosArrayInit(1, sizeof(SSubmitBlkRsp));
+  if (submitRsp.pArray == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  // auto create table
+  if (pSubmitReq->flag & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+    for (int32_t iCreateTbReq = 0; iCreateTbReq < taosArrayGetSize(pSubmitReq->aCreateTbReq); iCreateTbReq++) {
+      SVCreateTbReq *pCreateTbReq = taosArrayGet(pSubmitReq->aCreateTbReq, iCreateTbReq);
+
+      if (metaCreateTable(pVnode->pMeta, version, pCreateTbReq, NULL /* todo */) < 0) {
+        if (terrno != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+          // todo
+        }
+      } else {
+      }
+    }
+  }
+
+  // insert table data
   for (int32_t iSubmitTbData = 0; iSubmitTbData < taosArrayGetSize(pSubmitReq->aSubmitTbData); iSubmitTbData++) {
     SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, iSubmitTbData);
 
-    int32_t code = tsdbInsertTableData(pVnode->pTsdb, version, pSubmitTbData, NULL /*todo*/);
-    if (code) {
-      // todo
-    }
+    SSubmitBlkRsp submitBlkRsp = {0};
+
+    tsdbInsertTableData(pVnode->pTsdb, version, pSubmitTbData, &submitBlkRsp);
   }
+
+_exit:
+  if (code) {
+  } else {
+  }
+  return code;
 
 #else
   SSubmitReq    *pSubmitReq = (SSubmitReq *)pReq;
