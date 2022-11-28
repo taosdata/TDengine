@@ -52,6 +52,7 @@ typedef TdFilePtr tdb_fd_t;
 #define tdbOsRead                taosReadFile
 #define tdbOsPRead               taosPReadFile
 #define tdbOsWrite               taosWriteFile
+#define tdbOsPWrite              taosPWriteFile
 #define tdbOsFSync               taosFsyncFile
 #define tdbOsLSeek               taosLSeekFile
 #define tdbOsRemove              remove
