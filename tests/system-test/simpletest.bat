@@ -7,7 +7,7 @@ python3 .\test.py -f 0-others\taosdMonitor.py
 @REM python3 .\test.py -f 0-others\udfTest.py
 @REM python3 .\test.py -f 0-others\udf_create.py
 @REM python3 .\test.py -f 0-others\udf_restart_taosd.py
-python3 .\test.py -f 0-others\cachelast.py
+python3 .\test.py -f 0-others\cachemodel.py
 
 @REM python3 .\test.py -f 0-others\user_control.py
 @REM python3 .\test.py -f 0-others\fsync.py
