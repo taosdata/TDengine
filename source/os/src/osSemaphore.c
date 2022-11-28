@@ -75,17 +75,18 @@ int32_t tsem_wait(tsem_t* sem) {
   return ret;
 }
 
-int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
-  struct timespec ts, rel;
-  FILETIME        ft_before, ft_after;
-  int             rc;
+int32_t tsem_timewait(tsem_t* sem, int64_t milis) {
+  return tsem_wait(sem);
+#if 0
+  struct timespec ts;
+  timespec_get(&ts);
+  ts.tv_nsec += ms * 1000000;
+  ts.tv_sec += ts.tv_nsec / 1000000000;
+  ts.tv_nsec %= 1000000000;
 
-  rel.tv_sec = 0;
-  rel.tv_nsec = nanosecs;
-
-  GetSystemTimeAsFileTime(&ft_before);
+  /*GetSystemTimeAsFileTime(&ft_before);*/
   // errno = 0;
-  rc = sem_timedwait(sem, pthread_win32_getabstime_np(&ts, &rel));
+  rc = sem_timedwait(sem, ts);
 
   /* This should have timed out */
   // assert(errno == ETIMEDOUT);
@@ -102,6 +103,7 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
   //     return 1;
   //   }
   return rc;
+#endif
 }
 
 #elif defined(_TD_DARWIN_64)
@@ -133,9 +135,9 @@ int tsem_wait(tsem_t *psem) {
   return 0;
 }
 
-int tsem_timewait(tsem_t *psem, int64_t nanosecs) {
+int tsem_timewait(tsem_t *psem, int64_t milis) {
   if (psem == NULL || *psem == NULL) return -1;
-  dispatch_semaphore_wait(*psem, nanosecs);
+  dispatch_semaphore_wait(*psem, milis * 1000 * 1000);
   return 0;
 }
 
@@ -227,15 +229,20 @@ int32_t tsem_wait(tsem_t* sem) {
   return ret;
 }
 
-int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
+int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
   int ret = 0;
 
-  struct timespec tv = {
-      .tv_sec = 0,
-      .tv_nsec = nanosecs,
-  };
+  struct timespec ts = {0};
 
-  while ((ret = sem_timedwait(sem, &tv)) == -1 && errno == EINTR) continue;
+  if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
+    return -1;
+  }
+
+  ts.tv_nsec += ms * 1000000;
+  ts.tv_sec += ts.tv_nsec / 1000000000;
+  ts.tv_nsec %= 1000000000;
+
+  while ((ret = sem_timedwait(sem, &ts)) == -1 && errno == EINTR) continue;
 
   return ret;
 }

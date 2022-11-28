@@ -564,13 +564,13 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
     if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;
     if (dump && strcmp(pItem->name, "simDebugFlag") == 0) continue;
     tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);
-    for (int32_t i = 0; i < CFG_SRC_PRINT_LEN; ++i) {
-      if (src[i] == 0) src[i] = ' ';
+    for (int32_t j = 0; j < CFG_SRC_PRINT_LEN; ++j) {
+      if (src[j] == 0) src[j] = ' ';
     }
 
     tstrncpy(name, pItem->name, CFG_NAME_PRINT_LEN);
-    for (int32_t i = 0; i < CFG_NAME_PRINT_LEN; ++i) {
-      if (name[i] == 0) name[i] = ' ';
+    for (int32_t j = 0; j < CFG_NAME_PRINT_LEN; ++j) {
+      if (name[j] == 0) name[j] = ' ';
     }
 
     switch (pItem->dtype) {

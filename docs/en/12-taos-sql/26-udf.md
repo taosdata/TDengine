@@ -62,7 +62,7 @@ SHOW FUNCTIONS;
 
 The function name specified when creating UDF can be used directly in SQL statements, just like builtin functions. For example:
 ```sql
-SELECT X(c1,c2) FROM table/stable;
+SELECT bit_and(c1,c2) FROM table;
 ```
 
-The above SQL statement invokes function X for column c1 and c2. You can use query keywords like WHERE with user-defined functions.
+The above SQL statement invokes function X for column c1 and c2 on table. You can use query keywords like WHERE with user-defined functions.

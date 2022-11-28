@@ -155,8 +155,8 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   }
 
   char    line[1024];
-  ssize_t _bytes = taosGetsFile(pFile, sizeof(line), line);
-  if ((_bytes < 0) || (line == NULL)) {
+  ssize_t bytes = taosGetsFile(pFile, sizeof(line), line);
+  if (bytes < 0) {
     taosCloseFile(&pFile);
     return -1;
   }
@@ -193,9 +193,9 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
     return -1;
   }
 
-  char    line[1024];
-  ssize_t _bytes = taosGetsFile(pFile, sizeof(line), line);
-  if ((_bytes < 0) || (line == NULL)) {
+  char    line[1024] = {0};
+  ssize_t bytes = taosGetsFile(pFile, sizeof(line), line);
+  if (bytes < 0) {
     taosCloseFile(&pFile);
     return -1;
   }
@@ -239,6 +239,7 @@ void taosGetSystemInfo() {
   taosGetCpuCores(&tsNumOfCores);
   taosGetTotalMemory(&tsTotalMemoryKB);
   taosGetCpuUsage(NULL, NULL);
+  taosGetCpuInstructions(&tsSSE42Enable, &tsAVXEnable, &tsAVX2Enable, &tsFMAEnable);
 #endif
 }
 
@@ -366,7 +367,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 
   return code;
 #else
-  char    line[1024];
+  char    line[1024] = {0};
   size_t  size = 0;
   int32_t done = 0;
   int32_t code = -1;
@@ -468,6 +469,46 @@ void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
   }
 }
 
+#define __cpuid_fix(level, a, b, c, d) \
+              __asm__("xor %%ecx, %%ecx\n" \
+                      "cpuid\n" \
+                      : "=a"(a), "=b"(b), "=c"(c), "=d"(d) \
+                      : "0"(level))
+
+// todo add for windows and mac
+int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma) {
+#ifdef WINDOWS
+#elif defined(_TD_DARWIN_64)
+#else
+
+  // Since the compiler is not support avx/avx2 instructions, the global variables always need to be
+  // set to be false
+#if __AVX__ || __AVX2__
+  tsSIMDEnable = true;
+#else
+  tsSIMDEnable = false;
+#endif
+
+  uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
+
+  int32_t ret = __get_cpuid(1, &eax, &ebx, &ecx, &edx);
+  if (ret == 0) {
+    return -1;  // failed to get the cpuid info
+  }
+
+  *sse42 = (char) ((ecx & bit_SSE4_2) == bit_SSE4_2);
+  *avx   = (char) ((ecx & bit_AVX) == bit_AVX);
+  *fma   = (char) ((ecx & bit_FMA) == bit_FMA);
+
+  // work around a bug in GCC.
+  // Ref to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=77756
+  __cpuid_fix(7u, eax, ebx, ecx, edx);
+  *avx2 = (char) ((ebx & bit_AVX2) == bit_AVX2);
+#endif
+
+  return 0;
+}
+
 int32_t taosGetTotalMemory(int64_t *totalKB) {
 #ifdef WINDOWS
   MEMORYSTATUSEX memsStat;
@@ -511,11 +552,11 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
     return -1;
   }
 
-  ssize_t _bytes = 0;
-  char    line[1024];
+  ssize_t bytes = 0;
+  char    line[1024] = {0};
   while (!taosEOFFile(pFile)) {
-    _bytes = taosGetsFile(pFile, sizeof(line), line);
-    if ((_bytes < 0) || (line == NULL)) {
+    bytes = taosGetsFile(pFile, sizeof(line), line);
+    if (bytes < 0) {
       break;
     }
     if (strstr(line, "VmRSS:") != NULL) {
@@ -523,7 +564,7 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
     }
   }
 
-  if (line == NULL) {
+  if (strlen(line) < 0) {
     // printf("read file:%s failed", tsProcMemFile);
     taosCloseFile(&pFile);
     return -1;
@@ -624,14 +665,14 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
   TdFilePtr pFile = taosOpenFile(tsProcIOFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return -1;
 
-  ssize_t _bytes = 0;
-  char    line[1024];
+  ssize_t bytes = 0;
+  char    line[1024] = {0};
   char    tmp[24];
   int     readIndex = 0;
 
   while (!taosEOFFile(pFile)) {
-    _bytes = taosGetsFile(pFile, sizeof(line), line);
-    if (_bytes < 10 || line == NULL) {
+    bytes = taosGetsFile(pFile, sizeof(line), line);
+    if (bytes < 10) {
       break;
     }
     if (strstr(line, "rchar:") != NULL) {

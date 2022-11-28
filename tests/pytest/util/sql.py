@@ -73,8 +73,15 @@ class TDSql:
         expectErrNotOccured = True
         try:
             self.cursor.execute(sql)
-        except BaseException:
+        except BaseException as e:
             expectErrNotOccured = False
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            self.error_info = repr(e)
+            # print(error_info)
+            # self.error_info = error_info[error_info.index('(')+1:-1].split(",")[0].replace("'","")
+            # self.error_info = (','.join(error_info.split(",")[:-1]).split("(",1)[1:][0]).replace("'","")
+            # print("!!!!!!!!!!!!!!",self.error_info)
+            
         if expectErrNotOccured:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             tdLog.exit("%s(%d) failed: sql:%s, expect error not occured" % (caller.filename, caller.lineno, sql))
@@ -83,6 +90,8 @@ class TDSql:
             self.queryCols = 0
             self.queryResult = None
             tdLog.info("sql:%s, expect error occured" % (sql))
+            return self.error_info
+            
 
     def query(self, sql, row_tag=None,queryTimes=10):
         self.sql = sql

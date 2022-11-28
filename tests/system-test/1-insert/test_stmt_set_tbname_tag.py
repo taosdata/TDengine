@@ -239,6 +239,7 @@ class TDTestCase:
 
             # conn.execute("drop database if exists %s" % dbname)
             conn.close()
+            tdLog.success("%s successfully executed" % __file__)
 
         except Exception as err:
             # conn.execute("drop database if exists %s" % dbname)

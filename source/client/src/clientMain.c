@@ -20,13 +20,13 @@
 #include "functionMgt.h"
 #include "os.h"
 #include "query.h"
-#include "qworker.h"
 #include "scheduler.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
 #include "version.h"
+#include "tdatablock.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -1105,6 +1105,8 @@ int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId
   if (code != TSDB_CODE_SUCCESS) {
     return terrno;
   }
+
+  pRequest->syncQuery = true;
 
   STscObj  *pTscObj = pRequest->pTscObj;
   SCatalog *pCtg = NULL;

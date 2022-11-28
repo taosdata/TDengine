@@ -104,61 +104,6 @@ static void tRBTreeTransplant(SRBTree *pTree, SRBTreeNode *u, SRBTreeNode *v) {
   v->parent = u->parent;
 }
 
-static void tRBTreeDropFix(SRBTree *pTree, SRBTreeNode *x) {
-  while (x != pTree->root && x->color == BLACK) {
-    if (x == x->parent->left) {
-      SRBTreeNode *w = x->parent->right;
-      if (w->color == RED) {
-        w->color = BLACK;
-        x->parent->color = RED;
-        tRBTreeRotateLeft(pTree, x->parent);
-        w = x->parent->right;
-      }
-      if (w->left->color == BLACK && w->right->color == BLACK) {
-        w->color = RED;
-        x = x->parent;
-      } else {
-        if (w->right->color == BLACK) {
-          w->left->color = BLACK;
-          w->color = RED;
-          tRBTreeRotateRight(pTree, w);
-          w = x->parent->right;
-        }
-        w->color = x->parent->color;
-        x->parent->color = BLACK;
-        w->right->color = BLACK;
-        tRBTreeRotateLeft(pTree, x->parent);
-        x = pTree->root;
-      }
-    } else {
-      SRBTreeNode *w = x->parent->left;
-      if (w->color == RED) {
-        w->color = BLACK;
-        x->parent->color = RED;
-        tRBTreeRotateRight(pTree, x->parent);
-        w = x->parent->left;
-      }
-      if (w->right->color == BLACK && w->left->color == BLACK) {
-        w->color = RED;
-        x = x->parent;
-      } else {
-        if (w->left->color == BLACK) {
-          w->right->color = BLACK;
-          w->color = RED;
-          tRBTreeRotateLeft(pTree, w);
-          w = x->parent->left;
-        }
-        w->color = x->parent->color;
-        x->parent->color = BLACK;
-        w->left->color = BLACK;
-        tRBTreeRotateRight(pTree, x->parent);
-        x = pTree->root;
-      }
-    }
-  }
-  x->color = BLACK;
-}
-
 static SRBTreeNode *tRBTreeSuccessor(SRBTree *pTree, SRBTreeNode *pNode) {
   if (pNode->right != pTree->NIL) {
     pNode = pNode->right;
@@ -255,11 +200,205 @@ SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *z) {
   return z;
 }
 
-void tRBTreeDrop(SRBTree *pTree, SRBTreeNode *z) {
-  SRBTreeNode *y = z;
-  SRBTreeNode *x;
-  ECOLOR       y_orignal_color = y->color;
+#define RBTREE_NULL         rbtree->NIL
+#define rbtree_t            SRBTree
+#define rbnode_t            SRBTreeNode
+#define rbtree_rotate_left  tRBTreeRotateLeft
+#define rbtree_rotate_right tRBTreeRotateRight
 
+static void rbtree_delete_fixup(rbtree_t *rbtree, rbnode_t *child, rbnode_t *child_parent) {
+  rbnode_t *sibling;
+  int       go_up = 1;
+
+  /* determine sibling to the node that is one-black short */
+  if (child_parent->right == child)
+    sibling = child_parent->left;
+  else
+    sibling = child_parent->right;
+
+  while (go_up) {
+    if (child_parent == RBTREE_NULL) {
+      /* removed parent==black from root, every path, so ok */
+      return;
+    }
+
+    if (sibling->color == RED) { /* rotate to get a black sibling */
+      child_parent->color = RED;
+      sibling->color = BLACK;
+      if (child_parent->right == child)
+        rbtree_rotate_right(rbtree, child_parent);
+      else
+        rbtree_rotate_left(rbtree, child_parent);
+      /* new sibling after rotation */
+      if (child_parent->right == child)
+        sibling = child_parent->left;
+      else
+        sibling = child_parent->right;
+    }
+
+    if (child_parent->color == BLACK && sibling->color == BLACK && sibling->left->color == BLACK &&
+        sibling->right->color == BLACK) { /* fixup local with recolor of sibling */
+      if (sibling != RBTREE_NULL) sibling->color = RED;
+
+      child = child_parent;
+      child_parent = child_parent->parent;
+      /* prepare to go up, new sibling */
+      if (child_parent->right == child)
+        sibling = child_parent->left;
+      else
+        sibling = child_parent->right;
+    } else
+      go_up = 0;
+  }
+
+  if (child_parent->color == RED && sibling->color == BLACK && sibling->left->color == BLACK &&
+      sibling->right->color == BLACK) {
+    /* move red to sibling to rebalance */
+    if (sibling != RBTREE_NULL) sibling->color = RED;
+    child_parent->color = BLACK;
+    return;
+  }
+  assert(sibling != RBTREE_NULL);
+
+  /* get a new sibling, by rotating at sibling. See which child
+     of sibling is red */
+  if (child_parent->right == child && sibling->color == BLACK && sibling->right->color == RED &&
+      sibling->left->color == BLACK) {
+    sibling->color = RED;
+    sibling->right->color = BLACK;
+    rbtree_rotate_left(rbtree, sibling);
+    /* new sibling after rotation */
+    if (child_parent->right == child)
+      sibling = child_parent->left;
+    else
+      sibling = child_parent->right;
+  } else if (child_parent->left == child && sibling->color == BLACK && sibling->left->color == RED &&
+             sibling->right->color == BLACK) {
+    sibling->color = RED;
+    sibling->left->color = BLACK;
+    rbtree_rotate_right(rbtree, sibling);
+    /* new sibling after rotation */
+    if (child_parent->right == child)
+      sibling = child_parent->left;
+    else
+      sibling = child_parent->right;
+  }
+
+  /* now we have a black sibling with a red child. rotate and exchange colors. */
+  sibling->color = child_parent->color;
+  child_parent->color = BLACK;
+  if (child_parent->right == child) {
+    assert(sibling->left->color == RED);
+    sibling->left->color = BLACK;
+    rbtree_rotate_right(rbtree, child_parent);
+  } else {
+    assert(sibling->right->color == RED);
+    sibling->right->color = BLACK;
+    rbtree_rotate_left(rbtree, child_parent);
+  }
+}
+
+/** helpers for delete: swap node colours */
+static void swap_int8(ECOLOR *x, ECOLOR *y) {
+  ECOLOR t = *x;
+  *x = *y;
+  *y = t;
+}
+
+/** helpers for delete: swap node pointers */
+static void swap_np(rbnode_t **x, rbnode_t **y) {
+  rbnode_t *t = *x;
+  *x = *y;
+  *y = t;
+}
+
+/** Update parent pointers of child trees of 'parent' */
+static void change_parent_ptr(rbtree_t *rbtree, rbnode_t *parent, rbnode_t *old, rbnode_t *new) {
+  if (parent == RBTREE_NULL) {
+    assert(rbtree->root == old);
+    if (rbtree->root == old) rbtree->root = new;
+    return;
+  }
+  assert(parent->left == old || parent->right == old || parent->left == new || parent->right == new);
+  if (parent->left == old) parent->left = new;
+  if (parent->right == old) parent->right = new;
+}
+/** Update parent pointer of a node 'child' */
+static void change_child_ptr(rbtree_t *rbtree, rbnode_t *child, rbnode_t *old, rbnode_t *new) {
+  if (child == RBTREE_NULL) return;
+  assert(child->parent == old || child->parent == new);
+  if (child->parent == old) child->parent = new;
+}
+
+rbnode_t *rbtree_delete(rbtree_t *rbtree, void *key) {
+  rbnode_t *to_delete = key;
+  rbnode_t *child;
+
+  /* make sure we have at most one non-leaf child */
+  if (to_delete->left != RBTREE_NULL && to_delete->right != RBTREE_NULL) {
+    /* swap with smallest from right subtree (or largest from left) */
+    rbnode_t *smright = to_delete->right;
+    while (smright->left != RBTREE_NULL) smright = smright->left;
+    /* swap the smright and to_delete elements in the tree,
+     * but the rbnode_t is first part of user data struct
+     * so cannot just swap the keys and data pointers. Instead
+     * readjust the pointers left,right,parent */
+
+    /* swap colors - colors are tied to the position in the tree */
+    swap_int8(&to_delete->color, &smright->color);
+
+    /* swap child pointers in parents of smright/to_delete */
+    change_parent_ptr(rbtree, to_delete->parent, to_delete, smright);
+    if (to_delete->right != smright) change_parent_ptr(rbtree, smright->parent, smright, to_delete);
+
+    /* swap parent pointers in children of smright/to_delete */
+    change_child_ptr(rbtree, smright->left, smright, to_delete);
+    change_child_ptr(rbtree, smright->left, smright, to_delete);
+    change_child_ptr(rbtree, smright->right, smright, to_delete);
+    change_child_ptr(rbtree, smright->right, smright, to_delete);
+    change_child_ptr(rbtree, to_delete->left, to_delete, smright);
+    if (to_delete->right != smright) change_child_ptr(rbtree, to_delete->right, to_delete, smright);
+    if (to_delete->right == smright) {
+      /* set up so after swap they work */
+      to_delete->right = to_delete;
+      smright->parent = smright;
+    }
+
+    /* swap pointers in to_delete/smright nodes */
+    swap_np(&to_delete->parent, &smright->parent);
+    swap_np(&to_delete->left, &smright->left);
+    swap_np(&to_delete->right, &smright->right);
+
+    /* now delete to_delete (which is at the location where the smright previously was) */
+  }
+  assert(to_delete->left == RBTREE_NULL || to_delete->right == RBTREE_NULL);
+
+  if (to_delete->left != RBTREE_NULL)
+    child = to_delete->left;
+  else
+    child = to_delete->right;
+
+  /* unlink to_delete from the tree, replace to_delete with child */
+  change_parent_ptr(rbtree, to_delete->parent, to_delete, child);
+  change_child_ptr(rbtree, child, to_delete, to_delete->parent);
+
+  if (to_delete->color == RED) {
+    /* if node is red then the child (black) can be swapped in */
+  } else if (child->color == RED) {
+    /* change child to BLACK, removing a RED node is no problem */
+    if (child != RBTREE_NULL) child->color = BLACK;
+  } else
+    rbtree_delete_fixup(rbtree, child, to_delete->parent);
+
+  /* unlink completely */
+  to_delete->parent = RBTREE_NULL;
+  to_delete->left = RBTREE_NULL;
+  to_delete->right = RBTREE_NULL;
+  to_delete->color = BLACK;
+  return to_delete;
+}
+
+void tRBTreeDrop(SRBTree *pTree, SRBTreeNode *z) {
   // update min/max node
   if (pTree->min == z) {
     pTree->min = tRBTreeSuccessor(pTree, pTree->min);
@@ -268,34 +407,8 @@ void tRBTreeDrop(SRBTree *pTree, SRBTreeNode *z) {
     pTree->max = tRBTreePredecessor(pTree, pTree->max);
   }
 
-  // drop impl
-  if (z->left == pTree->NIL) {
-    x = z->right;
-    tRBTreeTransplant(pTree, z, z->right);
-  } else if (z->right == pTree->NIL) {
-    x = z->left;
-    tRBTreeTransplant(pTree, z, z->left);
-  } else {
-    y = tRBTreeSuccessor(pTree, z);
-    y_orignal_color = y->color;
-    x = y->right;
-    if (y->parent == z) {
-      x->parent = z;
-    } else {
-      tRBTreeTransplant(pTree, y, y->right);
-      y->right = z->right;
-      y->right->parent = y;
-    }
-    tRBTreeTransplant(pTree, z, y);
-    y->left = z->left;
-    y->left->parent = y;
-    y->color = z->color;
-  }
+  rbtree_delete(pTree, z);
 
-  // fix
-  if (y_orignal_color == BLACK) {
-    tRBTreeDropFix(pTree, x);
-  }
   pTree->n--;
 }
 

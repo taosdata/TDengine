@@ -24,6 +24,8 @@ static double tlog2(double v, double base) {
     return a;
   } else if (isnan(b) || isinf(b)) {
     return b;
+  } else if (b == 0) {
+    return INFINITY;
   } else {
     return a / b;
   }
@@ -1756,18 +1758,45 @@ int32_t sumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       break;
     }
 
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      int64_t *in = (int64_t *)pInputData->pData;
+    if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
       int64_t *out = (int64_t *)pOutputData->pData;
-      *out += in[i];
+      if (type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_BOOL) {
+        int8_t *in = (int8_t *)pInputData->pData;
+        *out += in[i];
+      } else if (type == TSDB_DATA_TYPE_SMALLINT) {
+        int16_t *in = (int16_t *)pInputData->pData;
+        *out += in[i];
+      } else if (type == TSDB_DATA_TYPE_INT) {
+        int32_t *in = (int32_t *)pInputData->pData;
+        *out += in[i];
+      } else if (type == TSDB_DATA_TYPE_BIGINT) {
+        int64_t *in = (int64_t *)pInputData->pData;
+        *out += in[i];
+      }
     } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      uint64_t *in = (uint64_t *)pInputData->pData;
       uint64_t *out = (uint64_t *)pOutputData->pData;
-      *out += in[i];
+      if (type == TSDB_DATA_TYPE_UTINYINT) {
+        uint8_t *in = (uint8_t *)pInputData->pData;
+        *out += in[i];
+      } else if (type == TSDB_DATA_TYPE_USMALLINT) {
+        uint16_t *in = (uint16_t *)pInputData->pData;
+        *out += in[i];
+      } else if (type == TSDB_DATA_TYPE_UINT) {
+        uint32_t *in = (uint32_t *)pInputData->pData;
+        *out += in[i];
+      } else if (type == TSDB_DATA_TYPE_UBIGINT) {
+        uint64_t *in = (uint64_t *)pInputData->pData;
+        *out += in[i];
+      }
     } else if (IS_FLOAT_TYPE(type)) {
-      double *in = (double *)pInputData->pData;
       double *out = (double *)pOutputData->pData;
-      *out += in[i];
+      if (type == TSDB_DATA_TYPE_FLOAT) {
+        float *in = (float *)pInputData->pData;
+        *out += in[i];
+      } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+        double *in = (double *)pInputData->pData;
+        *out += in[i];
+      }
     }
   }
 

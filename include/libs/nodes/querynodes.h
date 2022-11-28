@@ -351,7 +351,7 @@ typedef struct SVgDataBlocks {
   SVgroupInfo vg;
   int32_t     numOfTables;  // number of tables in current submit block
   uint32_t    size;
-  void*       pData;  // SMsgDesc + SSubmitReq + SSubmitBlk + ...
+  void*       pData;  // SSubmitReq + SSubmitBlk + ...
 } SVgDataBlocks;
 
 typedef void (*FFreeDataBlockHash)(SHashObj*);
