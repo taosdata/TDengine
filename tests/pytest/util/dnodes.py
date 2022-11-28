@@ -823,5 +823,8 @@ class TDDnodes:
     def addSimExtraCfg(self, option, value):
         self.sim.addExtraCfg(option, value)
 
+    def getAsan(self):
+        return self.asan
+
 
 tdDnodes = TDDnodes()
