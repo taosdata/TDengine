@@ -1052,6 +1052,13 @@ int32_t insGetTableDataCxt(SHashObj* pHash, void* id, int32_t idLen, STableMeta*
   return code;
 }
 
+static void destroyColVal(void* p) {
+  SColVal* pVal = p;
+  if (TSDB_DATA_TYPE_NCHAR == pVal->type) {
+    taosMemoryFree(pVal->value.pData);
+  }
+}
+
 void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
   if (NULL == pTableCxt) {
     return;
@@ -1060,7 +1067,7 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
   taosMemoryFreeClear(pTableCxt->pMeta);
   tDestroyTSchema(pTableCxt->pSchema);
   destroyBoundColInfo(&pTableCxt->boundColsInfo);
-  taosArrayDestroyEx(pTableCxt->pValues, NULL /*todo*/);
+  taosArrayDestroyEx(pTableCxt->pValues, destroyColVal);
   tdDestroySVCreateTbReq(pTableCxt->pCreateTblReq);
   taosMemoryFreeClear(pTableCxt->pCreateTblReq);
   tDestroySSubmitTbData(pTableCxt->pData);
@@ -1180,10 +1187,13 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
     code = tRowMergeSort(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
     if (TSDB_CODE_SUCCESS == code) {
+      SVgroupDataCxt* pVgCxt = NULL;
       int32_t         vgId = pTableCxt->pMeta->vgId;
-      SVgroupDataCxt* pVgCxt = taosHashGet(pVgroupHash, &vgId, sizeof(vgId));
-      if (NULL == pVgCxt) {
+      void**          p = taosHashGet(pVgroupHash, &vgId, sizeof(vgId));
+      if (NULL == p) {
         code = createVgroupDataCxt(pTableCxt, pVgroupHash, pVgroupList, &pVgCxt);
+      } else {
+        pVgCxt = *(SVgroupDataCxt**)p;
       }
       if (TSDB_CODE_SUCCESS == code) {
         code = fillVgroupDataCxt(pTableCxt, pVgCxt);
@@ -1232,6 +1242,12 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
   return code;
 }
 
+static void destroyVgDataBlocks(void* p) {
+  SVgDataBlocks* pVg = p;
+  taosMemoryFree(pVg->pData);
+  taosMemoryFree(pVg);
+}
+
 int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, SArray** pVgDataBlocks) {
   size_t  numOfVg = taosArrayGetSize(pVgDataCxtList);
   SArray* pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
@@ -1261,7 +1277,7 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
   if (TSDB_CODE_SUCCESS == code) {
     *pVgDataBlocks = pDataBlocks;
   } else {
-    // todo
+    taosArrayDestroyP(pDataBlocks, destroyVgDataBlocks);
   }
 
   return code;
