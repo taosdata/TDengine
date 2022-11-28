@@ -379,7 +379,6 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t m
     STqHandle* pHandle = taosHashGet(pTq->pHandle, offset.subKey, strlen(offset.subKey));
     if (pHandle) {
       if (walRefVer(pHandle->pRef, offset.val.version) < 0) {
-        ASSERT(0);
         return -1;
       }
     }

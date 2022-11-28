@@ -762,12 +762,10 @@ void getCurWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupI
   resetPrevAndNextWindow(pFillSup, pState);
 
   SWinKey key = {.ts = ts, .groupId = groupId};
-  // void*   curVal = NULL;
   int32_t curVLen = 0;
   int32_t code = streamStateFillGet(pState, &key, (void**)&pFillSup->cur.pRowVal, &curVLen);
   ASSERT(code == TSDB_CODE_SUCCESS);
   pFillSup->cur.key = key.ts;
-  // pFillSup->cur.pRowVal = curVal;
 }
 
 void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, SStreamFillSupporter* pFillSup) {
@@ -952,6 +950,19 @@ void setDeleteFillValueInfo(TSKEY start, TSKEY end, SStreamFillSupporter* pFillS
   }
 }
 
+void copyNotFillExpData(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo) {
+  for (int32_t i = pFillSup->numOfFillCols; i < pFillSup->numOfAllCols; ++i) {
+    SFillColInfo*    pFillCol = pFillSup->pAllColInfo + i;
+    int32_t          slotId = GET_DEST_SLOT_ID(pFillCol);
+    SResultCellData* pCell = getResultCell(pFillInfo->pResRow, slotId);
+    SResultCellData* pCurCell = getResultCell(&pFillSup->cur, slotId);
+    pCell->isNull = pCurCell->isNull;
+    if (!pCurCell->isNull) {
+      memcpy(pCell->pData, pCurCell->pData, pCell->bytes);
+    }
+  }
+}
+
 void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillSupporter* pFillSup,
                       SStreamFillInfo* pFillInfo) {
   pFillInfo->preRowKey = pFillSup->cur.key;
@@ -993,6 +1004,7 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
         setFillKeyInfo(ts, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
       }
+      copyNotFillExpData(pFillSup, pFillInfo);
     } break;
     case TSDB_FILL_PREV: {
       if (hasNextWindow(pFillSup) && ((pFillSup->next.key != pFillInfo->nextRowKey) ||
@@ -1639,9 +1651,9 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   }
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
-  pInfo->pRes = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
-  pInfo->pSrcBlock = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
-  pInfo->pPrevSrcBlock = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
+  pInfo->pRes = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
+  pInfo->pSrcBlock = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
+  pInfo->pPrevSrcBlock = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   blockDataEnsureCapacity(pInfo->pSrcBlock, pOperator->resultInfo.capacity);
   blockDataEnsureCapacity(pInfo->pPrevSrcBlock, pOperator->resultInfo.capacity);

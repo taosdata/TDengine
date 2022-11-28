@@ -24,7 +24,6 @@
 #endif
 
 #include "tcrc32c.h"
-#include "tdef.h"
 
 #define POLY        0x82f63b78
 #define LONG_SHIFT  8192

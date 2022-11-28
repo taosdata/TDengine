@@ -44,6 +44,8 @@ static void         destroyCacheScanOperator(void* param);
 static int32_t      extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds);
 static int32_t      removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pColMatchInfo);
 
+#define SCAN_ROW_TYPE(_t)  ((_t)? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW)
+
 SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandle* readHandle,
                                            SExecTaskInfo* pTaskInfo) {
   int32_t           code = TSDB_CODE_SUCCESS;
@@ -57,7 +59,7 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   pInfo->readHandle = *readHandle;
 
   SDataBlockDescNode* pDescNode = pScanNode->scan.node.pOutputDataBlockDesc;
-  pInfo->pRes = createResDataBlock(pDescNode);
+  pInfo->pRes = createDataBlockFromDescNode(pDescNode);
 
   int32_t numOfCols = 0;
   code =
@@ -75,31 +77,35 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
 
   STableListInfo* pTableList = pTaskInfo->pTableInfoList;
 
-  initResultSizeInfo(&pOperator->resultInfo, 4096);
-  blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
+  int32_t totalTables = tableListGetSize(pTableList);
+  int32_t capacity = 0;
+
   pInfo->pUidList = taosArrayInit(4, sizeof(int64_t));
 
-  // partition by tbname, todo opt perf
-  if (oneTableForEachGroup(pTableList) || (tableListGetSize(pTableList) == 1)) {
-    pInfo->retrieveType =
-        CACHESCAN_RETRIEVE_TYPE_ALL | (pScanNode->ignoreNull ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW);
+  // partition by tbname
+  if (oneTableForEachGroup(pTableList) || (totalTables == 1)) {
+    pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_ALL | SCAN_ROW_TYPE(pScanNode->ignoreNull);
 
     STableKeyInfo* pList = tableListGetInfo(pTableList, 0);
 
-    size_t   num = tableListGetSize(pTableList);
     uint64_t suid = tableListGetSuid(pTableList);
-    code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
+    code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, totalTables,
                                    taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
 
+    capacity = TMIN(totalTables, 4096);
+
     pInfo->pBufferredRes = createOneDataBlock(pInfo->pRes, false);
-    blockDataEnsureCapacity(pInfo->pBufferredRes, pOperator->resultInfo.capacity);
+    blockDataEnsureCapacity(pInfo->pBufferredRes, capacity);
   } else {  // by tags
-    pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_SINGLE |
-                          (pScanNode->ignoreNull ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW);
+    pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_SINGLE | SCAN_ROW_TYPE(pScanNode->ignoreNull);
+    capacity = 1;  // only one row output
   }
+
+  initResultSizeInfo(&pOperator->resultInfo, capacity);
+  blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 
   if (pScanNode->scan.pScanPseudoCols != NULL) {
     SExprSupp* p = &pInfo->pseudoExprSup;

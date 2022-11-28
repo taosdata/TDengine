@@ -1249,4 +1249,4 @@ SELECT SERVER_VERSION();
 SELECT SERVER_STATUS();
 ```
 
-**说明**：返回服务端当前的状态。
+**说明**：检测服务端是否所有 dnode 都在线，如果是则返回成功，否则返回无法建立连接的错误。

@@ -47,7 +47,6 @@ int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecov
                                           SEpSet* pEpSet);
 
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* elem);
-void              streamFreeQitem(SStreamQueueItem* data);
 
 #ifdef __cplusplus
 }
