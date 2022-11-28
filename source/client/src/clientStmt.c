@@ -842,11 +842,13 @@ int stmtUpdateTableUid(STscStmt* pStmt, SSubmitRsp* pRsp) {
       if (code || NULL == pTableMeta) {
         pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
         finalCode = code;
+        taosMemoryFree(pTableMeta);
         continue;
       }
 
       pMeta->uid = pTableMeta->uid;
       pStmt->bInfo.tbUid = pTableMeta->uid;
+      taosMemoryFree(pTableMeta);      
     }
 
     pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
