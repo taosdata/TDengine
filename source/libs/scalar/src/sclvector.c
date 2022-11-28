@@ -1543,7 +1543,7 @@ void vectorBitOr(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, 
 int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
                             int32_t numOfRows, int32_t step, __compar_fn_t fp, int32_t optr) {
   int32_t num = 0;
-  bool *  pRes = (bool *)pOut->columnData;
+  bool *  pRes = (bool *)pOut->columnData->pData;
 
   if (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_JSON || GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_JSON) {
     for (int32_t i = startIndex; i < numOfRows && i >= startIndex; i += step) {
