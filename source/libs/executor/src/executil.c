@@ -208,7 +208,7 @@ SArray* createSortInfo(SNodeList* pNodeList) {
   return pList;
 }
 
-SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
+SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode) {
   int32_t numOfCols = LIST_LENGTH(pNode->pSlots);
 
   SSDataBlock* pBlock = createDataBlock();

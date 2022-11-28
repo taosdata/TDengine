@@ -76,6 +76,15 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 #define CLEAR_QUERY_STATUS(q, st)   ((q)->status &= (~(st)))
 #define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->interval.interval > 0)
 
+typedef struct SAggOperatorInfo {
+  SOptrBasicInfo   binfo;
+  SAggSupporter    aggSup;
+  STableQueryInfo* current;
+  uint64_t         groupId;
+  SGroupResInfo    groupResInfo;
+  SExprSupp        scalarExprSup;
+} SAggOperatorInfo;
+
 int32_t getMaximumIdleDurationSec() { return tsShellActivityTimer * 2; }
 
 static void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pBlock);
@@ -316,8 +325,8 @@ static void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus
   pCtx->input.startRowIndex = pStatus->startOffset;
 }
 
-void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData, int32_t offset,
-                      int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput) {
+void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData,
+                                     int32_t offset, int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput) {
   for (int32_t k = 0; k < numOfOutput; ++k) {
     // keep it temporarily
     SFunctionCtxStatus status = {0};
@@ -1326,7 +1335,7 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
   }
 }
 
-void queryCostStatis(SExecTaskInfo* pTaskInfo) {
+void printTaskExecCostInLog(SExecTaskInfo* pTaskInfo) {
   STaskCostInfo* pSummary = &pTaskInfo->cost;
 
   SFileBlockLoadRecorder* pRecorder = pSummary->pRecoder;
@@ -1949,7 +1958,7 @@ void cleanupAggSup(SAggSupporter* pAggSup) {
   destroyDiskbasedBuf(pAggSup->pResultBuf);
 }
 
-int32_t initAggInfo(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
+int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
                     const char* pkey) {
   int32_t code = initExprSupp(pSup, pExprInfo, numOfCols);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2039,7 +2048,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
     goto _error;
   }
 
-  SSDataBlock* pResBlock = createResDataBlock(pAggNode->node.pOutputDataBlockDesc);
+  SSDataBlock* pResBlock = createDataBlockFromDescNode(pAggNode->node.pOutputDataBlockDesc);
   initBasicInfo(&pInfo->binfo, pResBlock);
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
@@ -2047,7 +2056,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
 
   int32_t    num = 0;
   SExprInfo* pExprInfo = createExprInfo(pAggNode->pAggFuncs, pAggNode->pGroupKeys, &num);
-  int32_t    code = initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str);
+  int32_t    code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -2213,7 +2222,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
     goto _error;
   }
 
-  pInfo->pRes = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
+  pInfo->pRes = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
   SExprInfo* pExprInfo = createExprInfo(pPhyFillNode->pFillExprs, NULL, &pInfo->numOfExpr);
   pOperator->exprSupp.pExprInfo = pExprInfo;
 
@@ -2512,7 +2521,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      pOperator = createTagScanOperatorInfo(pHandle, pScanPhyNode, pTableListInfo, pTaskInfo);
+      pOperator = createTagScanOperatorInfo(pHandle, pScanPhyNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN == type) {
       SBlockDistScanPhysiNode* pBlockNode = (SBlockDistScanPhysiNode*)pPhyNode;
 
@@ -2724,103 +2733,6 @@ int32_t rebuildReader(SOperatorInfo* pOperator, SSubplan* plan, SReadHandle* pHa
   return 0;
 }
 #endif
-
-int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t* length, int32_t* nOptrWithVal) {
-  int32_t code = TDB_CODE_SUCCESS;
-  char*   pCurrent = NULL;
-  int32_t currLength = 0;
-  if (ops->fpSet.encodeResultRow) {
-    if (result == NULL || length == NULL || nOptrWithVal == NULL) {
-      return TSDB_CODE_TSC_INVALID_INPUT;
-    }
-    code = ops->fpSet.encodeResultRow(ops, &pCurrent, &currLength);
-
-    if (code != TDB_CODE_SUCCESS) {
-      if (*result != NULL) {
-        taosMemoryFree(*result);
-        *result = NULL;
-      }
-      return code;
-    } else if (currLength == 0) {
-      ASSERT(!pCurrent);
-      goto _downstream;
-    }
-
-    ++(*nOptrWithVal);
-
-    ASSERT(currLength >= 0);
-
-    if (*result == NULL) {
-      *result = (char*)taosMemoryCalloc(1, currLength + sizeof(int32_t));
-      if (*result == NULL) {
-        taosMemoryFree(pCurrent);
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-      memcpy(*result + sizeof(int32_t), pCurrent, currLength);
-      *(int32_t*)(*result) = currLength + sizeof(int32_t);
-    } else {
-      int32_t sizePre = *(int32_t*)(*result);
-      char*   tmp = (char*)taosMemoryRealloc(*result, sizePre + currLength);
-      if (tmp == NULL) {
-        taosMemoryFree(pCurrent);
-        taosMemoryFree(*result);
-        *result = NULL;
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-      *result = tmp;
-      memcpy(*result + sizePre, pCurrent, currLength);
-      *(int32_t*)(*result) += currLength;
-    }
-    taosMemoryFree(pCurrent);
-    *length = *(int32_t*)(*result);
-  }
-
-_downstream:
-  for (int32_t i = 0; i < ops->numOfDownstream; ++i) {
-    code = encodeOperator(ops->pDownstream[i], result, length, nOptrWithVal);
-    if (code != TDB_CODE_SUCCESS) {
-      return code;
-    }
-  }
-  return TDB_CODE_SUCCESS;
-}
-
-int32_t decodeOperator(SOperatorInfo* ops, const char* result, int32_t length) {
-  int32_t code = TDB_CODE_SUCCESS;
-  if (ops->fpSet.decodeResultRow) {
-    if (result == NULL) {
-      return TSDB_CODE_TSC_INVALID_INPUT;
-    }
-
-    ASSERT(length == *(int32_t*)result);
-
-    const char* data = result + sizeof(int32_t);
-    code = ops->fpSet.decodeResultRow(ops, (char*)data);
-    if (code != TDB_CODE_SUCCESS) {
-      return code;
-    }
-
-    int32_t totalLength = *(int32_t*)result;
-    int32_t dataLength = *(int32_t*)data;
-
-    if (totalLength == dataLength + sizeof(int32_t)) {  // the last data
-      result = NULL;
-      length = 0;
-    } else {
-      result += dataLength;
-      *(int32_t*)(result) = totalLength - dataLength;
-      length = totalLength - dataLength;
-    }
-  }
-
-  for (int32_t i = 0; i < ops->numOfDownstream; ++i) {
-    code = decodeOperator(ops->pDownstream[i], result, length);
-    if (code != TDB_CODE_SUCCESS) {
-      return code;
-    }
-  }
-  return TDB_CODE_SUCCESS;
-}
 
 int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pTaskInfo, SReadHandle* readHandle) {
   SExecTaskInfo* pTask = *(SExecTaskInfo**)pTaskInfo;

@@ -303,7 +303,7 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
   }
 
   tsem_init(&pInfo->ready, 0, 0);
-  pInfo->pDummyBlock = createResDataBlock(pExNode->node.pOutputDataBlockDesc);
+  pInfo->pDummyBlock = createDataBlockFromDescNode(pExNode->node.pOutputDataBlockDesc);
   pInfo->pResultBlockList = taosArrayInit(64, POINTER_BYTES);
   pInfo->pRecycledBlocks = taosArrayInit(64, POINTER_BYTES);
 
