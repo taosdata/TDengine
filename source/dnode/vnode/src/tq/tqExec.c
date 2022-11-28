@@ -48,7 +48,7 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp, i
   SMetaReader mr = {0};
   metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
   // TODO add reference to gurantee success
-  if (metaGetTableEntryByUid(&mr, uid) < 0) {
+  if (metaGetTableEntryByUidCache(&mr, uid) < 0) {
     metaReaderClear(&mr);
     return -1;
   }
@@ -299,7 +299,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
           taosArrayDestroyP(pSchemas, (FDelete)tDeleteSSchemaWrapper);
           pBlocks = taosArrayInit(0, sizeof(SSDataBlock));
           pSchemas = taosArrayInit(0, sizeof(void*));
-          return -1;
+          continue;
         }
       }
       if (pHandle->fetchMeta) {

@@ -181,10 +181,17 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
     return NULL;
   }
 
-  size_t size = taosArrayGetSize(pExchangeInfo->pResultBlockList);
-  if (size == 0 || pExchangeInfo->rspBlockIndex >= size) {
-    pExchangeInfo->rspBlockIndex = 0;
-    taosArrayClearEx(pExchangeInfo->pResultBlockList, freeBlock);
+  // we have buffered retrieved datablock, return it directly
+  SSDataBlock* p = NULL;
+  if (taosArrayGetSize(pExchangeInfo->pResultBlockList) > 0) {
+    p = taosArrayGetP(pExchangeInfo->pResultBlockList, 0);
+    taosArrayRemove(pExchangeInfo->pResultBlockList, 0);
+  }
+
+  if (p != NULL) {
+    taosArrayPush(pExchangeInfo->pRecycledBlocks, &p);
+    return p;
+  } else {
     if (pExchangeInfo->seqLoadData) {
       seqLoadRemoteData(pOperator);
     } else {
@@ -193,11 +200,13 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
 
     if (taosArrayGetSize(pExchangeInfo->pResultBlockList) == 0) {
       return NULL;
+    } else {
+      p = taosArrayGetP(pExchangeInfo->pResultBlockList, 0);
+      taosArrayRemove(pExchangeInfo->pResultBlockList, 0);
+      taosArrayPush(pExchangeInfo->pRecycledBlocks, &p);
+      return p;
     }
   }
-
-  // we have buffered retrieved datablock, return it directly
-  return taosArrayGetP(pExchangeInfo->pResultBlockList, pExchangeInfo->rspBlockIndex++);
 }
 
 static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator) {
@@ -294,8 +303,9 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
   }
 
   tsem_init(&pInfo->ready, 0, 0);
-  pInfo->pDummyBlock = createResDataBlock(pExNode->node.pOutputDataBlockDesc);
-  pInfo->pResultBlockList = taosArrayInit(1, POINTER_BYTES);
+  pInfo->pDummyBlock = createDataBlockFromDescNode(pExNode->node.pOutputDataBlockDesc);
+  pInfo->pResultBlockList = taosArrayInit(64, POINTER_BYTES);
+  pInfo->pRecycledBlocks = taosArrayInit(64, POINTER_BYTES);
 
   SExchangeOpStopInfo stopInfo = {QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, pInfo->self};
   qAppendTaskStopInfo(pTaskInfo, &stopInfo);
@@ -342,10 +352,8 @@ void doDestroyExchangeOperatorInfo(void* param) {
   taosArrayDestroy(pExInfo->pSources);
   taosArrayDestroyEx(pExInfo->pSourceDataInfo, freeSourceDataInfo);
 
-  if (pExInfo->pResultBlockList != NULL) {
-    taosArrayDestroyEx(pExInfo->pResultBlockList, freeBlock);
-    pExInfo->pResultBlockList = NULL;
-  }
+  taosArrayDestroyEx(pExInfo->pResultBlockList, freeBlock);
+  taosArrayDestroyEx(pExInfo->pRecycledBlocks, freeBlock);
 
   blockDataDestroy(pExInfo->pDummyBlock);
 
@@ -638,6 +646,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
 
     SRetrieveTableRsp*   pRsp = pDataInfo->pRsp;
     SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
+
     if (pRsp->numOfRows == 0) {
       qDebug("%s vgId:%d, taskID:0x%" PRIx64 " execId:%d %d of total completed, rowsOfSource:%" PRIu64
              ", totalRows:%" PRIu64 " try next",
