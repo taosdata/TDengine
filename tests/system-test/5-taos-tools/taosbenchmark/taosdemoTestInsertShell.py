@@ -203,7 +203,7 @@ class TDTestCase:
 
         # taosdemo error
         # too max length
-        sql = "%staosBenchmark -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b float,int,NCHAR\(4096\) \
+        sql = "%staosBenchmark -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b float,int,NCHAR\(16379\) \
                 -w 40 -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I taosc" % (binPath,cfgPath)
         tdLog.info("%s" % sql ) 
         assert os.system("%s" % sql ) != 0   
