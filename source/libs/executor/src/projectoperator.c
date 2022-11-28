@@ -713,7 +713,9 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         colDataAppendNNULL(pColInfoData, offset, pSrcBlock->info.rows);
       } else {
         char* p = taosVariantGet(&pExpr[k].base.pParam[0].param, type);
-        colDataAppendNItems(pColInfoData, offset, p, pSrcBlock->info.rows);
+        for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
+          colDataAppend(pColInfoData, i + offset, p, false);
+        }
       }
 
       numOfRows = pSrcBlock->info.rows;
