@@ -1584,7 +1584,7 @@ static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pDa
     {tColDataAppendValue00, tColDataAppendValue01, tColDataAppendValue02},  // 0
     {tColDataAppendValue10, tColDataAppendValue11, tColDataAppendValue12},  // HAS_NONE
     {tColDataAppendValue20, tColDataAppendValue21, tColDataAppendValue22},  // HAS_NULL
-    {tColDataAppendValue30, tColDataApendValue31, tColDataAppendValue32},   // HAS_NULL|HAS_NONE
+    {tColDataAppendValue30, tColDataAppendValue31, tColDataAppendValue32},  // HAS_NULL|HAS_NONE
     {tColDataAppendValue40, tColDataAppendValue41, tColDataAppendValue42},  // HAS_VALUE
     {tColDataAppendValue50, tColDataAppendValue51, tColDataAppendValue52},  // HAS_VALUE|HAS_NONE
     {tColDataAppendValue60, tColDataAppendValue61, tColDataAppendValue62},  // HAS_VALUE|HAS_NULL
