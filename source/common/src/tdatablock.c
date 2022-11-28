@@ -621,7 +621,7 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
 // todo remove this
 int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity) {
   pBlock->info.rows = *(int32_t*)buf;
-  pBlock->info.groupId = *(uint64_t*)(buf + sizeof(int32_t));
+  pBlock->info.id.groupId = *(uint64_t*)(buf + sizeof(int32_t));
 
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
@@ -1140,7 +1140,8 @@ void blockDataCleanup(SSDataBlock* pDataBlock) {
   SDataBlockInfo* pInfo = &pDataBlock->info;
 
   pInfo->rows = 0;
-  pInfo->groupId = 0;
+  pInfo->id.uid = 0;
+  pInfo->id.groupId = 0;
   pInfo->window.ekey = 0;
   pInfo->window.skey = 0;
 
@@ -1334,7 +1335,7 @@ int32_t copyDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
 SSDataBlock* createSpecialDataBlock(EStreamType type) {
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   pBlock->info.hasVarCol = false;
-  pBlock->info.groupId = 0;
+  pBlock->info.id.groupId = 0;
   pBlock->info.rows = 0;
   pBlock->info.type = type;
   pBlock->info.rowSize = sizeof(TSKEY) + sizeof(TSKEY) + sizeof(uint64_t) + sizeof(uint64_t) + sizeof(TSKEY) +
@@ -1675,7 +1676,7 @@ int32_t blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n) {
 }
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
-  int64_t tbUid = pBlock->info.uid;
+  int64_t tbUid = pBlock->info.id.uid;
   int16_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   int16_t hasVarCol = pBlock->info.hasVarCol;
   int32_t rows = pBlock->info.rows;
@@ -1713,7 +1714,7 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
 
   int16_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
-  buf = taosDecodeFixedU64(buf, &pBlock->info.uid);
+  buf = taosDecodeFixedU64(buf, &pBlock->info.id.uid);
   buf = taosDecodeFixedI16(buf, &numOfCols);
   buf = taosDecodeFixedI16(buf, &pBlock->info.hasVarCol);
   buf = taosDecodeFixedI32(buf, &pBlock->info.rows);
@@ -1834,7 +1835,7 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
     int32_t rows = pDataBlock->info.rows;
     printf("%s |block ver %" PRIi64 " |block type %d |child id %d|group id %" PRIu64 "\n", flag,
            pDataBlock->info.version, (int32_t)pDataBlock->info.type, pDataBlock->info.childId,
-           pDataBlock->info.groupId);
+           pDataBlock->info.id.groupId);
     for (int32_t j = 0; j < rows; j++) {
       printf("%s |", flag);
       for (int32_t k = 0; k < numOfCols; k++) {
@@ -1905,8 +1906,8 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
   len += snprintf(dumpBuf + len, size - len,
                   "===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%" PRId64
                   "|rows:%d|version:%" PRIu64 "\n",
-                  flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.groupId,
-                  pDataBlock->info.uid, pDataBlock->info.rows, pDataBlock->info.version);
+                  flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.id.groupId,
+                  pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version);
   if (len >= size - 1) return dumpBuf;
 
   for (int32_t j = 0; j < rows; j++) {
@@ -2035,8 +2036,6 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
   for (int32_t i = 0; i < sz; ++i) {
     int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
     int32_t rows = pDataBlock->info.rows;
-    //    int32_t      rowSize = pDataBlock->info.rowSize;
-    //    int64_t      groupId = pDataBlock->info.groupId;
 
     if (colNum <= 1) {
       // invalid if only with TS col
@@ -2049,7 +2048,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
 
     SSubmitBlk* pSubmitBlk = POINTER_SHIFT(pDataBuf, msgLen);
     pSubmitBlk->suid = suid;
-    pSubmitBlk->uid = pDataBlock->info.groupId;
+    pSubmitBlk->uid = pDataBlock->info.id.groupId;
     pSubmitBlk->numOfRows = rows;
     pSubmitBlk->sversion = pTSchema->version;
 
@@ -2292,7 +2291,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   }
 
   *actualLen = dataLen;
-  *groupId = pBlock->info.groupId;
+  *groupId = pBlock->info.id.groupId;
   ASSERT(dataLen > 0);
 
   uDebug("build data block, actualLen:%d, rows:%d, cols:%d", dataLen, *rows, *cols);
@@ -2325,7 +2324,7 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
   pStart += sizeof(int32_t);
 
   // group id sizeof(uint64_t)
-  pBlock->info.groupId = *(uint64_t*)pStart;
+  pBlock->info.id.groupId = *(uint64_t*)pStart;
   pStart += sizeof(uint64_t);
 
   if (pBlock->pDataBlock == NULL) {

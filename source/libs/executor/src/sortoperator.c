@@ -359,7 +359,7 @@ SSDataBlock* fetchNextGroupSortDataBlock(void* param) {
     SOperatorInfo* childOp = source->childOpInfo;
     SSDataBlock*   block = childOp->fpSet.getNextFn(childOp);
     if (block != NULL) {
-      if (block->info.groupId == grpSortOpInfo->currGroupId) {
+      if (block->info.id.groupId == grpSortOpInfo->currGroupId) {
         grpSortOpInfo->childOpStatus = CHILD_OP_SAME_GROUP;
         return block;
       } else {
@@ -439,7 +439,7 @@ SSDataBlock* doGroupSort(SOperatorInfo* pOperator) {
       setOperatorCompleted(pOperator);
       return NULL;
     }
-    pInfo->currGroupId = pInfo->prefetchedSortInput->info.groupId;
+    pInfo->currGroupId = pInfo->prefetchedSortInput->info.id.groupId;
     pInfo->childOpStatus = CHILD_OP_NEW_GROUP;
     beginSortGroup(pOperator);
   }
@@ -451,13 +451,13 @@ SSDataBlock* doGroupSort(SOperatorInfo* pOperator) {
     pBlock = getGroupSortedBlockData(pInfo->pCurrSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
                                      pInfo->matchInfo.pList, pInfo);
     if (pBlock != NULL) {
-      pBlock->info.groupId = pInfo->currGroupId;
+      pBlock->info.id.groupId = pInfo->currGroupId;
       pOperator->resultInfo.totalRows += pBlock->info.rows;
       return pBlock;
     } else {
       if (pInfo->childOpStatus == CHILD_OP_NEW_GROUP) {
         finishSortGroup(pOperator);
-        pInfo->currGroupId = pInfo->prefetchedSortInput->info.groupId;
+        pInfo->currGroupId = pInfo->prefetchedSortInput->info.id.groupId;
         beginSortGroup(pOperator);
       } else if (pInfo->childOpStatus == CHILD_OP_FINISHED) {
         finishSortGroup(pOperator);
@@ -691,10 +691,10 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
 
     pInfo->limitInfo.numOfOutputRows += p->info.rows;
     pDataBlock->info.rows = p->info.rows;
-    pDataBlock->info.groupId = pInfo->groupId;
+    pDataBlock->info.id.groupId = pInfo->groupId;
   }
 
-  qDebug("%s get sorted block, groupId:0x%" PRIx64 " rows:%d", GET_TASKID(pTaskInfo), pDataBlock->info.groupId,
+  qDebug("%s get sorted block, groupId:0x%" PRIx64 " rows:%d", GET_TASKID(pTaskInfo), pDataBlock->info.id.groupId,
          pDataBlock->info.rows);
 
   return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;

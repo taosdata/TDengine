@@ -378,7 +378,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       int32_t index = -1;
       for (int32_t i = 0; i < taosArrayGetSize(ctx->pBlockList); ++i) {
         SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, i);
-        if (pb->info.blockId == ref->dataBlockId) {
+        if (pb->info.id.blockId == ref->dataBlockId) {
           index = i;
           break;
         }
@@ -1384,7 +1384,7 @@ EDealRes sclWalkTarget(SNode *pNode, SScalarCtx *ctx) {
   int32_t index = -1;
   for (int32_t i = 0; i < taosArrayGetSize(ctx->pBlockList); ++i) {
     SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, i);
-    if (pb->info.blockId == target->dataBlockId) {
+    if (pb->info.id.blockId == target->dataBlockId) {
       index = i;
       break;
     }

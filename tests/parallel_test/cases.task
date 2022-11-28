@@ -409,7 +409,7 @@
 ,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
 ,,n,system-test,python3 ./test.py -f 0-others/udfTest.py
 ,,n,system-test,python3 ./test.py -f 0-others/udf_create.py
-,,n,system-test,python3 ./test.py -f 0-others/udf_restart_taosd.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_restart_taosd.py
 ,,n,system-test,python3 ./test.py -f 0-others/udf_cfg1.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_cfg2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/cachemodel.py
@@ -425,7 +425,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_stable.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_table.py
-,,n,system-test,python3 ./test.py -f 1-insert/boundary.py
+,,,system-test,python3 ./test.py -f 1-insert/boundary.py
 ,,n,system-test,python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_comment.py
 ,,n,system-test,python3 ./test.py -f 1-insert/time_range_wise.py
