@@ -5002,7 +5002,6 @@ static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
   {
     // get dbname
     vnodeGetInfo(pInfo->readHandle.vnode, &db, &vgId);
-    SColumnInfoData* pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, 0);
     SName            sn = {0};
     tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
     tNameGetDbName(&sn, dbName);
@@ -5019,23 +5018,21 @@ static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
       if (pInfo->currGrpIdx < taosArrayGetSize(pInfo->stbUidList)) {
         tb_uid_t stbUid = *(tb_uid_t*)taosArrayGet(pInfo->stbUidList, pInfo->currGrpIdx);
 
-        SMetaStbStats stats = {0};
-        metaGetStbStats(pInfo->readHandle.meta, stbUid, &stats);
-        int64_t ctbNum = stats.ctbNum;
-
         char stbName[TSDB_TABLE_NAME_LEN] = {0};
         metaGetTableSzNameByUid(pInfo->readHandle.meta, stbUid, stbName);
 
         char fullStbName[TSDB_TABLE_FNAME_LEN] = {0};
-        strcpy(fullStbName, dbName);
-        strcat(fullStbName, ".");
-        strcat(fullStbName, stbName);
+        snprintf(fullStbName, TSDB_TABLE_FNAME_LEN, "%s.%s", dbName, stbName);
         uint64_t groupId = calcGroupId(fullStbName, strlen(fullStbName));
         pRes->info.groupId = groupId;
 
-        pInfo->currGrpIdx++;
+        SMetaStbStats stats = {0};
+        metaGetStbStats(pInfo->readHandle.meta, stbUid, &stats);
+        int64_t ctbNum = stats.ctbNum;
 
         fillTableCountScanDataBlock(pSupp, dbName, stbName, ctbNum, pRes);
+        
+        pInfo->currGrpIdx++;
       }
     } else {
       // group by only db_name
