@@ -523,9 +523,14 @@ static int32_t parseTagValue(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt
   return code;
 }
 
-static void buildCreateTbReq(SVnodeModifOpStmt* pStmt, STag* pTag, SArray* pTagName) {
+static int32_t buildCreateTbReq(SVnodeModifOpStmt* pStmt, STag* pTag, SArray* pTagName) {
+  pStmt->pCreateTblReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+  if (NULL == pStmt->pCreateTblReq) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   insBuildCreateTbReq(pStmt->pCreateTblReq, pStmt->targetTableName.tname, pTag, pStmt->pTableMeta->suid,
                       pStmt->usingTableName.tname, pTagName, pStmt->pTableMeta->tableInfo.numOfTags);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf) {
@@ -592,7 +597,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifOpStmt*
   }
 
   if (TSDB_CODE_SUCCESS == code && !isParseBindParam) {
-    buildCreateTbReq(pStmt, pTag, pTagName);
+    code = buildCreateTbReq(pStmt, pTag, pTagName);
     pTag = NULL;
   }
 
@@ -1342,8 +1347,10 @@ static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeMod
   return code;
 }
 
+static void destroyBoundColInfo(SBoundColInfo* pInfo) { taosMemoryFreeClear(pInfo->pColIndex); }
+
 static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) {
-  // destroyBoundColumnInfo(&pCxt->tags);
+  destroyBoundColInfo(&pCxt->tags);
   taosMemoryFreeClear(pStmt->pTableMeta);
   tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
   taosMemoryFreeClear(pStmt->pCreateTblReq);
@@ -1808,6 +1815,6 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
       QUERY_EXEC_STAGE_SCHEDULE == (*pQuery)->execStage) {
     code = setRefreshMate(*pQuery);
   }
-  // destroyBoundColumnInfo(&context.tags);
+  destroyBoundColInfo(&context.tags);
   return code;
 }
