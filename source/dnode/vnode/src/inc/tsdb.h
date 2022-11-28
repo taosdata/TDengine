@@ -121,7 +121,7 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
 int32_t tRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
 void    tRowMergerClear(SRowMerger *pMerger);
 int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow);
-int32_t tRowMergerGetRow(SRowMerger *pMerger, STSRow **ppRow);
+int32_t tRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow);
 // TABLEID
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 // TSDBKEY
@@ -336,7 +336,7 @@ typedef struct SMemSkipListNode SMemSkipListNode;
 struct SMemSkipListNode {
   int8_t            level;
   int64_t           version;
-  STSRow           *pTSRow;
+  SRow             *pTSRow;
   SMemSkipListNode *forwards[0];
 };
 typedef struct SMemSkipList {
@@ -380,7 +380,7 @@ struct TSDBROW {
   union {
     struct {
       int64_t version;
-      STSRow *pTSRow;
+      SRow   *pTSRow;
     };
     struct {
       SBlockData *pBlockData;
@@ -739,8 +739,8 @@ typedef struct {
 
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
-int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb *pTsdb);
-int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, STSRow *row, bool dup);
+int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, SRow *row, STsdb *pTsdb);
+int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, SRow *row, bool dup);
 int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **h);
 int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **h);
 int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
@@ -752,7 +752,7 @@ int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
 size_t tsdbCacheGetCapacity(SVnode *pVnode);
 
-int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
+// int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {

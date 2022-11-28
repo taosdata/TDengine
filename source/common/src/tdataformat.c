@@ -103,6 +103,7 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
   ASSERT(((SColVal *)aColVal->pData)[0].type == TSDB_DATA_TYPE_TIMESTAMP);
 
   // scan ---------------
+  SRow         *pRow = NULL;
   uint8_t       flag = 0;
   int32_t       iColVal = 1;
   const int32_t nColVal = taosArrayGetSize(aColVal);
@@ -196,9 +197,11 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
   }
 
   // alloc --------------
-  code = tRealloc((uint8_t **)ppRow, nRow);
-  if (code) return code;
-  SRow *pRow = *ppRow;
+  pRow = taosMemoryMalloc(nRow);
+  if (NULL == pRow) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
 
   // build --------------
   pColVal = (SColVal *)taosArrayGet(aColVal, 0);
@@ -349,6 +352,12 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
   }
 
 _exit:
+  if (code) {
+    *ppRow = NULL;
+    tRowDestroy(pRow);
+  } else {
+    *ppRow = pRow;
+  }
   return code;
 }
 
@@ -490,7 +499,9 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
   }
 }
 
-void tRowDestroy(SRow *pRow) { tFree((uint8_t *)pRow); }
+void tRowDestroy(SRow *pRow) {
+  if (pRow) taosMemoryFree(pRow);
+}
 
 static int32_t tRowPCmprFn(const void *p1, const void *p2) {
   if ((*(SRow **)p1)->ts < (*(SRow **)p2)->ts) {

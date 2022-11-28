@@ -29,7 +29,7 @@
 static void    tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *pKey, int32_t flags);
 static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData);
 static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, int64_t version,
-                                       SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock, SSubmitBlkRsp *pRsp);
+                                       SSubmitTbData *pSubmitTbData, SSubmitBlkRsp *pRsp);
 
 int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   int32_t    code = 0;
@@ -95,13 +95,12 @@ STbData *tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t
   return pTbData;
 }
 
-int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock,
-                            SSubmitBlkRsp *pRsp) {
+int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitTbData *pSubmitTbData, SSubmitBlkRsp *pRsp) {
   int32_t    code = 0;
   SMemTable *pMemTable = pTsdb->mem;
   STbData   *pTbData = NULL;
-  tb_uid_t   suid = pMsgIter->suid;
-  tb_uid_t   uid = pMsgIter->uid;
+  tb_uid_t   suid = pSubmitTbData->suid;
+  tb_uid_t   uid = pSubmitTbData->uid;
 
   SMetaInfo info;
   code = metaGetInfo(pTsdb->pVnode->pMeta, uid, &info, NULL);
@@ -116,14 +115,14 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgI
   if (info.suid) {
     metaGetInfo(pTsdb->pVnode->pMeta, info.suid, &info, NULL);
   }
-  if (pMsgIter->sversion != info.skmVer) {
+  if (pSubmitTbData->sver != info.skmVer) {
     tsdbError("vgId:%d, req sver:%d, skmVer:%d suid:%" PRId64 " uid:%" PRId64, TD_VID(pTsdb->pVnode),
-              pMsgIter->sversion, info.skmVer, suid, uid);
+              pSubmitTbData->sver, info.skmVer, suid, uid);
     code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
     goto _err;
   }
 
-  pRsp->sver = info.skmVer;
+  if (pRsp) pRsp->sver = info.skmVer;
 
   // create/get STbData to op
   code = tsdbGetOrCreateTbData(pMemTable, suid, uid, &pTbData);
@@ -132,7 +131,7 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgI
   }
 
   // do insert impl
-  code = tsdbInsertTableDataImpl(pMemTable, pTbData, version, pMsgIter, pBlock, pRsp);
+  code = tsdbInsertTableDataImpl(pMemTable, pTbData, version, pSubmitTbData, pRsp);
   if (code) {
     goto _err;
   }
@@ -468,8 +467,8 @@ static FORCE_INLINE int8_t tsdbMemSkipListRandLevel(SMemSkipList *pSl) {
 
   return level;
 }
-static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListNode **pos, int64_t version,
-                           STSRow *pRow, int8_t forward) {
+static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListNode **pos, int64_t version, SRow *pRow,
+                           int8_t forward) {
   int32_t           code = 0;
   int8_t            level;
   SMemSkipListNode *pNode;
@@ -538,23 +537,21 @@ _exit:
 }
 
 static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, int64_t version,
-                                       SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock, SSubmitBlkRsp *pRsp) {
-  int32_t           code = 0;
-  SSubmitBlkIter    blkIter = {0};
+                                       SSubmitTbData *pSubmitTbData, SSubmitBlkRsp *pRsp) {
+  int32_t code = 0;
+  // SSubmitBlkIter    blkIter = {0};
   TSDBKEY           key = {.version = version};
   SMemSkipListNode *pos[SL_MAX_LEVEL];
   TSDBROW           row = tsdbRowFromTSRow(version, NULL);
-  int32_t           nRow = 0;
-  STSRow           *pLastRow = NULL;
-
-  tInitSubmitBlkIter(pMsgIter, pBlock, &blkIter);
+  int32_t           nRow = taosArrayGetSize(pSubmitTbData->aRowP);
+  int32_t           iRow = 0;
+  SRow             *pLastRow = NULL;
 
   // backward put first data
-  row.pTSRow = tGetSubmitBlkNext(&blkIter);
-  if (row.pTSRow == NULL) return code;
+  row.pTSRow = taosArrayGetP(pSubmitTbData->aRowP, iRow);
 
   key.ts = row.pTSRow->ts;
-  nRow++;
+  iRow++;
   tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_BACKWARD);
   code = tbDataDoPut(pMemTable, pTbData, pos, version, row.pTSRow, 0);
   if (code) {
@@ -566,17 +563,19 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
   pLastRow = row.pTSRow;
 
   // forward put rest data
-  row.pTSRow = tGetSubmitBlkNext(&blkIter);
-  if (row.pTSRow) {
+  if (iRow < nRow) {
     for (int8_t iLevel = pos[0]->level; iLevel < pTbData->sl.maxLevel; iLevel++) {
       pos[iLevel] = SL_NODE_BACKWARD(pos[iLevel], iLevel);
     }
-    do {
+
+    while (iRow < nRow) {
+      row.pTSRow = taosArrayGetP(pSubmitTbData->aRowP, iRow);
       key.ts = row.pTSRow->ts;
-      nRow++;
+
       if (SL_NODE_FORWARD(pos[0], 0) != pTbData->sl.pTail) {
         tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_FROM_POS);
       }
+
       code = tbDataDoPut(pMemTable, pTbData, pos, version, row.pTSRow, 1);
       if (code) {
         goto _err;
@@ -584,8 +583,8 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
 
       pLastRow = row.pTSRow;
 
-      row.pTSRow = tGetSubmitBlkNext(&blkIter);
-    } while (row.pTSRow);
+      iRow++;
+    }
   }
 
   if (key.ts >= pTbData->maxKey) {
@@ -607,8 +606,8 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
   pMemTable->maxKey = TMAX(pMemTable->maxKey, pTbData->maxKey);
   pMemTable->nRow += nRow;
 
-  pRsp->numOfRows = nRow;
-  pRsp->affectedRows = nRow;
+  if (pRsp) pRsp->numOfRows = nRow;
+  if (pRsp) pRsp->affectedRows = nRow;
 
   return code;
 

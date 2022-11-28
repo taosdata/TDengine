@@ -573,7 +573,7 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   ASSERT(iCol > 0);
 
   if (pRow->type == 0) {
-    tTSRowGetVal(pRow->pTSRow, pTSchema, iCol, pColVal);
+    tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal);
   } else if (pRow->type == 1) {
     SColData *pColData;
 
@@ -621,7 +621,7 @@ void tsdbRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
 SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
   if (pIter->pRow->type == 0) {
     if (pIter->i < pIter->pTSchema->numOfCols) {
-      tTSRowGetVal(pIter->pRow->pTSRow, pIter->pTSchema, pIter->i, &pIter->colVal);
+      tRowGet(pIter->pRow->pTSRow, pIter->pTSchema, pIter->i, &pIter->colVal);
       pIter->i++;
 
       return &pIter->colVal;
@@ -807,12 +807,8 @@ _exit:
   return code;
 }
 
-int32_t tRowMergerGetRow(SRowMerger *pMerger, STSRow **ppRow) {
-  int32_t code = 0;
-
-  code = tdSTSRowNew(pMerger->pArray, pMerger->pTSchema, ppRow);
-
-  return code;
+int32_t tRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow) {
+  return tRowBuild(pMerger->pArray, pMerger->pTSchema, ppRow);
 }
 
 // delete skyline ======================================================
@@ -1247,15 +1243,16 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
 
   SColVal cv = {0};
   if (pRow->type == 0) {
-    if (TD_IS_TP_ROW(pRow->pTSRow)) {
-      code = tBlockDataAppendTPRow(pBlockData, pRow->pTSRow, pTSchema);
-      if (code) goto _err;
-    } else if (TD_IS_KV_ROW(pRow->pTSRow)) {
-      code = tBlockDataAppendKVRow(pBlockData, pRow->pTSRow, pTSchema);
-      if (code) goto _err;
-    } else {
-      ASSERT(0);
-    }
+    ASSERT(0);
+    // if (TD_IS_TP_ROW(pRow->pTSRow)) {
+    //   code = tBlockDataAppendTPRow(pBlockData, pRow->pTSRow, pTSchema);
+    //   if (code) goto _err;
+    // } else if (TD_IS_KV_ROW(pRow->pTSRow)) {
+    //   code = tBlockDataAppendKVRow(pBlockData, pRow->pTSRow, pTSchema);
+    //   if (code) goto _err;
+    // } else {
+    //   ASSERT(0);
+    // }
   } else {
     code = tBlockDataAppendBlockRow(pBlockData, pRow->pBlockData, pRow->iRow);
     if (code) goto _err;

@@ -77,52 +77,37 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       tDecoderClear(&dc);
     } break;
     case TDMT_VND_SUBMIT: {
-      SSubmitMsgIter msgIter = {0};
-      SSubmitReq    *pSubmitReq = (SSubmitReq *)pMsg->pCont;
-      SSubmitBlk    *pBlock = NULL;
-      int64_t        ctime = taosGetTimestampMs();
-      tb_uid_t       uid;
+      tDecoderInit(&dc, (uint8_t *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead));
+      tStartDecode(&dc);
 
-      if (tInitSubmitMsgIter(pSubmitReq, &msgIter) < 0) {
-        code = terrno;
-        goto _err;
-      }
+      int32_t flag;
+      tDecodeI32v(&dc, &flag);
 
-      for (;;) {
-        tGetSubmitMsgNext(&msgIter, &pBlock);
-        if (pBlock == NULL) break;
+      if (flag & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+        int64_t ctime = taosGetTimestampMs();
+        int64_t nReq;
+        int64_t uid;
 
-        if (msgIter.schemaLen > 0) {
+        tDecodeI64v(&dc, &nReq);
+        for (int64_t iReq; iReq < nReq; iReq++) {
           char *name = NULL;
 
-          tDecoderInit(&dc, pBlock->data, msgIter.schemaLen);
-          if (tStartDecode(&dc) < 0) {
-            code = TSDB_CODE_INVALID_MSG;
-            return code;
-          }
-
-          if (tDecodeI32v(&dc, NULL) < 0) {
-            code = TSDB_CODE_INVALID_MSG;
-            return code;
-          }
-          if (tDecodeCStr(&dc, &name) < 0) {
-            code = TSDB_CODE_INVALID_MSG;
-            return code;
-          }
+          tStartDecode(&dc);
+          tDecodeI32v(&dc, NULL);
+          tDecodeCStr(&dc, &name);
 
           uid = metaGetTableEntryUidByName(pVnode->pMeta, name);
           if (uid == 0) {
             uid = tGenIdPI64();
           }
+
           *(int64_t *)(dc.data + dc.pos) = uid;
           *(int64_t *)(dc.data + dc.pos + 8) = ctime;
-          pBlock->uid = htobe64(uid);
-
           tEndDecode(&dc);
-          tDecoderClear(&dc);
         }
       }
 
+      tEndDecode(&dc);
     } break;
     case TDMT_VND_DELETE: {
       int32_t     size;
@@ -855,6 +840,28 @@ static int32_t vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const 
 }
 
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+#if 1
+  SDecoder     dc = {0};
+  SSubmitReq2 *pSubmitReq = NULL;
+
+  tDecoderInit(&dc, (char *)pReq + sizeof(SMsgHead), len - sizeof(SMsgHead));
+  tDecodeSSubmitReq2(&dc, &pSubmitReq);
+
+  if (pSubmitReq->flag & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+    // todo
+    ASSERT(0);
+  }
+
+  for (int32_t iSubmitTbData = 0; iSubmitTbData < taosArrayGetSize(pSubmitReq->aSubmitTbData); iSubmitTbData++) {
+    SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, iSubmitTbData);
+
+    int32_t code = tsdbInsertTableData(pVnode->pTsdb, version, pSubmitTbData, NULL /*todo*/);
+    if (code) {
+      // todo
+    }
+  }
+
+#else
   SSubmitReq    *pSubmitReq = (SSubmitReq *)pReq;
   SSubmitRsp     submitRsp = {0};
   SSubmitMsgIter msgIter = {0};
@@ -1006,6 +1013,8 @@ _exit:
   atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, statis.nBatchInsertSuccess);
 
   vDebug("vgId:%d, submit success, index:%" PRId64, pVnode->config.vgId, version);
+  return 0;
+#endif
   return 0;
 }
 

@@ -6665,7 +6665,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     if (tEncodeI64v(pCoder, taosArrayGetSize(pSubmitTbData->aRowP)) < 0) return -1;
     for (int32_t i = 0; i < taosArrayGetSize(pSubmitTbData->aRowP); i++) {
       SRow *pRow = taosArrayGetP(pSubmitTbData->aRowP, i);
-      memcpy(pCoder->data + pCoder->pos, pRow, pRow->len);
+      if (pCoder->data) memcpy(pCoder->data + pCoder->pos, pRow, pRow->len);
       pCoder->pos += pRow->len;
     }
   }
@@ -6713,10 +6713,8 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
 
     for (int32_t i = 0; i < nRows; i++) {
       SRow **ppRow = taosArrayReserve(pSubmitTbData->aRowP, 1);
-      if (tDecodeBinary(pCoder, (uint8_t **)ppRow, NULL) < 0) {
-        code = TSDB_CODE_INVALID_MSG;
-        goto _exit;
-      }
+      *ppRow = (SRow *)(pCoder->data + pCoder->pos);
+      pCoder->pos += (*ppRow)->len;
     }
   }
 
@@ -6822,13 +6820,18 @@ _exit:
   if (code) {
     *ppReq = NULL;
     if (pReq) {
-      // todo: do other clear
+      if (pReq->aCreateTbReq) {
+        taosArrayDestroy(pReq->aCreateTbReq);
+      }
+      if (pReq->aSubmitTbData) {
+        taosArrayDestroy(pReq->aSubmitTbData);
+      }
       taosMemoryFree(pReq);
     }
   } else {
     *ppReq = pReq;
   }
-  return 0;
+  return code;
 }
 
 void tDestroySSubmitTbData(SSubmitTbData *pTbData) {
