@@ -142,7 +142,7 @@ int hashset_contains(hashset_t set, void *item) {
 static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage *, void *, int), void *arg,
                             u8 loadPage);
 static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage);
-static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage);
+static int tdbPagerPWritePageToDB(SPager *pPager, SPage *pPage);
 
 static FORCE_INLINE int32_t pageCmpFn(const SRBTreeNode *lhs, const SRBTreeNode *rhs) {
   SPage *pPageL = (SPage *)(((uint8_t *)lhs) - offsetof(SPage, node));
@@ -326,7 +326,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
     pPage = (SPage *)pNode;
 
     ASSERT(pPage->nOverflow == 0);
-    ret = tdbPagerWritePageToDB(pPager, pPage);
+    ret = tdbPagerPWritePageToDB(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page to db since %s", tstrerror(terrno));
       return -1;
@@ -403,7 +403,7 @@ int tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn) {
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
     if (pPage->isLocal) continue;
-    ret = tdbPagerWritePageToDB(pPager, pPage);
+    ret = tdbPagerPWritePageToDB(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page to db since %s", tstrerror(terrno));
       return -1;
@@ -553,7 +553,7 @@ int tdbPagerFlushPage(SPager *pPager, TXN *pTxn) {
     if (pgno > maxPgno) {
       maxPgno = pgno;
     }
-    ret = tdbPagerWritePageToDB(pPager, pPage);
+    ret = tdbPagerPWritePageToDB(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page to db since %s", tstrerror(terrno));
       return -1;
@@ -769,13 +769,6 @@ static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage) {
   return 0;
 }
 /*
-struct TdFile {
-  TdThreadRwlock rwlock;
-  int            refId;
-  int            fd;
-  FILE          *fp;
-} TdFile;
-*/
 static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage) {
   i64 offset;
   int ret;
@@ -795,7 +788,23 @@ static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage) {
     return -1;
   }
 
-  // pwrite(pPager->fd->fd, pPage->pData, pPage->pageSize, offset);
+  return 0;
+}
+*/
+static int tdbPagerPWritePageToDB(SPager *pPager, SPage *pPage) {
+  i64 offset;
+  int ret;
+
+  offset = (i64)pPage->pageSize * (TDB_PAGE_PGNO(pPage) - 1);
+
+  ret = tdbOsPWrite(pPager->fd, pPage->pData, pPage->pageSize, offset);
+  if (ret < 0) {
+    tdbError("failed to pwrite page data due to %s. file:%s, pageSize:%d", strerror(errno), pPager->dbFileName,
+             pPage->pageSize);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
   return 0;
 }
 
