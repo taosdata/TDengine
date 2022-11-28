@@ -1416,8 +1416,14 @@ FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
 bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
   bool noDelay = true;
   if (hasEpSet == false) {
-    assert(pResp->contLen == 0);
+    // assert(pResp->contLen == 0);
     if (pResp->contLen == 0) {
+      if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
+        noDelay = false;
+      } else {
+        EPSET_FORWARD_INUSE(&pCtx->epSet);
+      }
+    } else {
       if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
         noDelay = false;
       } else {
@@ -1433,17 +1439,19 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
         noDelay = false;
       } else {
         EPSET_FORWARD_INUSE(&pCtx->epSet);
-        noDelay = true;
       }
     } else {
       if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
         tDebug("epset not equal, retry new epset");
         pCtx->epSet = epSet;
       } else {
-        tDebug("epset equal, continue");
-        EPSET_FORWARD_INUSE(&pCtx->epSet);
+        if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
+          noDelay = false;
+        } else {
+          tDebug("epset equal, continue");
+          EPSET_FORWARD_INUSE(&pCtx->epSet);
+        }
       }
-      noDelay = false;
     }
   }
   return noDelay;
@@ -1459,14 +1467,22 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   if (retry == false) {
     return false;
   }
-  if (pCtx->retryInit) {
-    if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
-      return false;
-    }
+
+  if (!pCtx->retryInit) {
+    pCtx->retryMinInterval = pTransInst->retryMinInterval;
+    pCtx->retryMaxInterval = pTransInst->retryMaxInterval;
+    pCtx->retryStepFactor = pTransInst->retryStepFactor;
+    pCtx->retryMaxTimeout = pTransInst->retryMaxTimouet;
+    pCtx->retryInitTimestamp = taosGetTimestampMs();
+    pCtx->retryNextInterval = pCtx->retryMinInterval;
+    pCtx->retryStep = 1;
+    pCtx->retryInit = true;
+  }
+  if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
+    return false;
   }
 
   bool noDelay = false;
-
   if (code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
     tDebug("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
     noDelay = cliResetEpset(pCtx, pResp, false);
@@ -1490,34 +1506,24 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     transFreeMsg(pResp->pCont);
   }
 
-  if (!pCtx->retryInit) {
-    pCtx->retryMinInterval = pTransInst->retryMinInterval;
-    pCtx->retryMaxInterval = pTransInst->retryMaxInterval;
-    pCtx->retryStepFactor = pTransInst->retryStepFactor;
-    pCtx->retryMaxTimeout = pTransInst->retryMaxTimouet;
-    pCtx->retryInitTimestamp = taosGetTimestampMs();
-    pCtx->retryNextInterval = pCtx->retryMinInterval;
-    pCtx->retryStep = 1;
-    pCtx->retryInit = true;
-  } else {
-    if (noDelay == false) {
-      pCtx->epsetRetryCnt = 0;
-      pCtx->retryStep++;
+  if (noDelay == false) {
+    pCtx->epsetRetryCnt = 1;
+    pCtx->retryStep++;
 
-      int64_t factor = pow(pCtx->retryStepFactor, pCtx->retryStep - 1);
-      pCtx->retryNextInterval = factor * pCtx->retryMinInterval;
-      if (pCtx->retryNextInterval >= pCtx->retryMaxInterval) {
-        pCtx->retryNextInterval = pCtx->retryMaxInterval;
-      }
-
-      if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
-        return false;
-      }
-    } else {
-      pCtx->retryNextInterval = 0;
-      pCtx->epsetRetryCnt++;
+    int64_t factor = pow(pCtx->retryStepFactor, pCtx->retryStep - 1);
+    pCtx->retryNextInterval = factor * pCtx->retryMinInterval;
+    if (pCtx->retryNextInterval >= pCtx->retryMaxInterval) {
+      pCtx->retryNextInterval = pCtx->retryMaxInterval;
     }
+
+    if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
+      return false;
+    }
+  } else {
+    pCtx->retryNextInterval = 0;
+    pCtx->epsetRetryCnt++;
   }
+
   pMsg->sent = 0;
   cliSchedMsgToNextNode(pMsg, pThrd);
   return true;
