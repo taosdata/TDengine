@@ -530,7 +530,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
 
   tInitSubmitBlkIter(&pReader->msgIter, pReader->pBlock, &pReader->blkIter);
 
-  pBlock->info.uid = pReader->msgIter.uid;
+  pBlock->info.id.uid = pReader->msgIter.uid;
   pBlock->info.rows = pReader->msgIter.numOfRows;
   pBlock->info.version = pReader->pMsg->version;
 
@@ -649,7 +649,7 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
     }
 
     SSDataBlock* pBlock = taosArrayGetLast(blocks);
-    pBlock->info.uid = pReader->msgIter.uid;
+    pBlock->info.id.uid = pReader->msgIter.uid;
     pBlock->info.rows = 0;
     pBlock->info.version = pReader->pMsg->version;
 

@@ -270,10 +270,10 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
       "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %dm "
       "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
       "STRICT '%s' WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d",
-      dbFName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, pCfg->daysPerFile, pCfg->walFsyncPeriod,
-      pCfg->maxRows, pCfg->minRows, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2, pCfg->pages,
-      pCfg->pageSize, prec, pCfg->replications, strictStr(pCfg->strict), pCfg->walLevel, pCfg->numOfVgroups,
-      1 == pCfg->numOfStables);
+      dbFName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, pCfg->daysPerFile,
+      pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2,
+      pCfg->pages, pCfg->pageSize, prec, pCfg->replications, strictStr(pCfg->strict), pCfg->walLevel,
+      pCfg->numOfVgroups, 1 == pCfg->numOfStables);
 
   if (retentions) {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, " RETENTIONS %s", retentions);
@@ -500,8 +500,8 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return terrno;
   }
-  
-  int32_t          len = 0;
+
+  int32_t len = 0;
 
   if (TSDB_SUPER_TABLE == pCfg->tableType) {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE STABLE `%s` (", tbName);
@@ -533,7 +533,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
   colDataAppend(pCol2, 0, buf2, false);
 
   taosMemoryFree(buf2);
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -691,9 +691,15 @@ static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** p
 
   SNode* pProj = NULL;
   FOREACH(pProj, pProjects) {
+    SExprNode*      pExpr = (SExprNode*)pProj;
     SColumnInfoData infoData = {0};
-    infoData.info.type = ((SExprNode*)pProj)->resType.type;
-    infoData.info.bytes = ((SExprNode*)pProj)->resType.bytes;
+    if (TSDB_DATA_TYPE_NULL == pExpr->resType.type) {
+      infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+      infoData.info.bytes = 0;
+    } else {
+      infoData.info.type = pExpr->resType.type;
+      infoData.info.bytes = pExpr->resType.bytes;
+    }
     blockDataAppendColInfo(pBlock, &infoData);
   }
   *pOutput = pBlock;

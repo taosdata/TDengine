@@ -717,10 +717,10 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
 int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, bool holdDataInBuf) {
   if (pLimitInfo->remainGroupOffset > 0) {
     if (pLimitInfo->currentGroupId == 0) {  // it is the first group
-      pLimitInfo->currentGroupId = pBlock->info.groupId;
+      pLimitInfo->currentGroupId = pBlock->info.id.groupId;
       blockDataCleanup(pBlock);
       return PROJECT_RETRIEVE_CONTINUE;
-    } else if (pLimitInfo->currentGroupId != pBlock->info.groupId) {
+    } else if (pLimitInfo->currentGroupId != pBlock->info.id.groupId) {
       // now it is the data from a new group
       pLimitInfo->remainGroupOffset -= 1;
 
@@ -732,11 +732,11 @@ int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDa
     }
 
     // set current group id of the project operator
-    pLimitInfo->currentGroupId = pBlock->info.groupId;
+    pLimitInfo->currentGroupId = pBlock->info.id.groupId;
   }
 
   // here check for a new group data, we need to handle the data of the previous group.
-  if (pLimitInfo->currentGroupId != 0 && pLimitInfo->currentGroupId != pBlock->info.groupId) {
+  if (pLimitInfo->currentGroupId != 0 && pLimitInfo->currentGroupId != pBlock->info.id.groupId) {
     pLimitInfo->numOfOutputGroups += 1;
     if ((pLimitInfo->slimit.limit > 0) && (pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
       pOperator->status = OP_EXEC_DONE;
@@ -758,7 +758,7 @@ int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDa
   // here we reach the start position, according to the limit/offset requirements.
 
   // set current group id
-  pLimitInfo->currentGroupId = pBlock->info.groupId;
+  pLimitInfo->currentGroupId = pBlock->info.id.groupId;
 
   if (pLimitInfo->remainOffset >= pBlock->info.rows) {
     pLimitInfo->remainOffset -= pBlock->info.rows;
