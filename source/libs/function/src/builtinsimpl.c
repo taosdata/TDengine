@@ -2936,6 +2936,10 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
 
   pInfo->bytes = pInputCol->info.bytes;
 
+  if (IS_NULL_TYPE(pInputCol->info.type)) {
+    return 0;
+  }
+
   // All null data column, return directly.
   if (pInput->colDataSMAIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
     ASSERT(pInputCol->hasNull == true);
@@ -3039,6 +3043,10 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   int32_t type = pInputCol->info.type;
   int32_t bytes = pInputCol->info.bytes;
   pInfo->bytes = bytes;
+
+  if (IS_NULL_TYPE(type)) {
+    return 0;
+  }
 
   // All null data column, return directly.
   if (pInput->colDataSMAIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
