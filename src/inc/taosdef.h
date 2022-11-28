@@ -206,13 +206,7 @@ do { \
 // this is the length of its string representation, including the terminator zero
 #define TSDB_ACCT_ID_LEN          11
 
-#define TSDB_MODE_RICH_COL_
-
-#ifdef TSDB_MODE_RICH_COL
-#define TSDB_MAX_COLUMNS          4096
-#else 
-#define TSDB_MAX_COLUMNS          128
-#endif
+#define TSDB_MAX_COLUMNS 4096
 
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
 
@@ -232,165 +226,180 @@ do { \
 
 #define TSDB_APPNAME_LEN          TSDB_UNI_LEN
 
+#if 1
   /**
    *  In some scenarios uint16_t (0~65535) is used to store the row len.
    *  - Firstly, we use 65531(65535 - 4), as the SDataRow/SKVRow contains 4 bits header.
    *  - Secondly, if all cols are VarDataT type except primary key, we need 4 bits to store the offset, thus
    *    the final value is 65531-(4096-1)*4 = 49151.
    */
-#ifdef TSDB_MODE_RICH_COL
-#define TSDB_MAX_BYTES_PER_ROW 49151
-#else
-#define TSDB_MAX_BYTES_PER_ROW 65023  // 65531-(128-1)*4=65023
+#define TSDB_MAX_BYTES_PER_ROW 65527
+// 49151
+// 65527
 #endif
 
-#define TSDB_MAX_TAGS_LEN         16384
-#define TSDB_MAX_JSON_TAGS_LEN    (4096*TSDB_NCHAR_SIZE + 2 + 1) // 2->var_header_len 1->type
-#define TSDB_MAX_TAGS             128
-#define TSDB_MAX_TAG_CONDITIONS   1024
-#define TSDB_MAX_JSON_KEY_LEN     256
+  /**
+   *  In some scenarios uint16_t (0~65535) is used to store the row len.
+   *  - Firstly, we use 65531(65535 - 4), as the SDataRow contains 4 bits header.
+   *  - Secondly, if all cols are VarDataT type except primary key, we need 4 bits to store the offset, thus
+   *    the final value is [65531 - (4096-1)*4 = 49151, 65531 - (2-1)*4 = 65527]
+   *  -
+   */
+  // [49151, min(65527, RPC_MAX_UDP_SIZE)]
+
+#if 0
+#define TSDB_MAX_BYTES_PER_ROW_BY_COL(c) (65535 - (c) << 2)  // 65531 - (col-1)*4
+#endif
+
+#define TSDB_MAX_TAGS_LEN 16384
+#define TSDB_MAX_JSON_TAGS_LEN (4096 * TSDB_NCHAR_SIZE + 2 + 1)  // 2->var_header_len 1->type
+#define TSDB_MAX_TAGS 128
+#define TSDB_MAX_TAG_CONDITIONS 1024
+#define TSDB_MAX_JSON_KEY_LEN 256
 #define TSDB_MAX_JSON_KEY_MD5_LEN 16
 
-#define TSDB_AUTH_LEN             16
-#define TSDB_KEY_LEN              16
-#define TSDB_VERSION_LEN          12
-#define TSDB_LOCALE_LEN           64
-#define TSDB_TIMEZONE_LEN         96
-#define TSDB_LABEL_LEN            8
+#define TSDB_AUTH_LEN 16
+#define TSDB_KEY_LEN 16
+#define TSDB_VERSION_LEN 12
+#define TSDB_LOCALE_LEN 64
+#define TSDB_TIMEZONE_LEN 96
+#define TSDB_LABEL_LEN 8
 
-#define TSDB_CLUSTER_ID_LEN       40
-#define TSDB_FQDN_LEN             128
-#define TSDB_EP_LEN               (TSDB_FQDN_LEN+6)
-#define TSDB_IPv4ADDR_LEN         16
-#define TSDB_FILENAME_LEN         128
-#define TSDB_SHOW_SQL_LEN         512
-#define TSDB_SHOW_SUBQUERY_LEN    1000
-#define TSDB_SLOW_QUERY_SQL_LEN   512
+#define TSDB_CLUSTER_ID_LEN 40
+#define TSDB_FQDN_LEN 128
+#define TSDB_EP_LEN (TSDB_FQDN_LEN + 6)
+#define TSDB_IPv4ADDR_LEN 16
+#define TSDB_FILENAME_LEN 128
+#define TSDB_SHOW_SQL_LEN 512
+#define TSDB_SHOW_SUBQUERY_LEN 1000
+#define TSDB_SLOW_QUERY_SQL_LEN 512
 
-#define TSDB_STEP_NAME_LEN        32
-#define TSDB_STEP_DESC_LEN        128
+#define TSDB_STEP_NAME_LEN 32
+#define TSDB_STEP_DESC_LEN 128
 
-#define TSDB_DB_TYPE_DEFAULT      0
-#define TSDB_DB_TYPE_TOPIC        1
+#define TSDB_DB_TYPE_DEFAULT 0
+#define TSDB_DB_TYPE_TOPIC 1
 
-#define TSDB_DEFAULT_PKT_SIZE     65480  //same as RPC_MAX_UDP_SIZE
+#define TSDB_DEFAULT_PKT_SIZE 65480  // same as RPC_MAX_UDP_SIZE
 
-#define TSDB_PAYLOAD_SIZE         TSDB_DEFAULT_PKT_SIZE
-#define TSDB_DEFAULT_PAYLOAD_SIZE 5120   // default payload size, greater than PATH_MAX value
-#define TSDB_EXTRA_PAYLOAD_SIZE   128    // extra bytes for auth
-#define TSDB_CQ_SQL_SIZE          1024
-#define TSDB_MIN_VNODES           64
-#define TSDB_MAX_VNODES           2048
-#define TSDB_MIN_VNODES_PER_DB    2
-#define TSDB_MAX_VNODES_PER_DB    64
+#define TSDB_PAYLOAD_SIZE TSDB_DEFAULT_PKT_SIZE
+#define TSDB_DEFAULT_PAYLOAD_SIZE 5120  // default payload size, greater than PATH_MAX value
+#define TSDB_EXTRA_PAYLOAD_SIZE 128     // extra bytes for auth
+#define TSDB_CQ_SQL_SIZE 1024
+#define TSDB_MIN_VNODES 64
+#define TSDB_MAX_VNODES 2048
+#define TSDB_MIN_VNODES_PER_DB 2
+#define TSDB_MAX_VNODES_PER_DB 64
 
-#define TSDB_DNODE_ROLE_ANY       0
-#define TSDB_DNODE_ROLE_MGMT      1
-#define TSDB_DNODE_ROLE_VNODE     2
+#define TSDB_DNODE_ROLE_ANY 0
+#define TSDB_DNODE_ROLE_MGMT 1
+#define TSDB_DNODE_ROLE_VNODE 2
 
-#define TSDB_MAX_REPLICA          5
+#define TSDB_MAX_REPLICA 5
 
-#define TSDB_TBNAME_COLUMN_INDEX          (-1)
-#define TSDB_TSWIN_START_COLUMN_INDEX     (-2)
-#define TSDB_TSWIN_STOP_COLUMN_INDEX      (-3)
-#define TSDB_TSWIN_DURATION_COLUMN_INDEX  (-4)
-#define TSDB_QUERY_START_COLUMN_INDEX     (-5)
-#define TSDB_QUERY_STOP_COLUMN_INDEX      (-6)
-#define TSDB_QUERY_DURATION_COLUMN_INDEX  (-7)
-#define TSDB_MIN_VALID_COLUMN_INDEX       (-7)
+#define TSDB_TBNAME_COLUMN_INDEX (-1)
+#define TSDB_TSWIN_START_COLUMN_INDEX (-2)
+#define TSDB_TSWIN_STOP_COLUMN_INDEX (-3)
+#define TSDB_TSWIN_DURATION_COLUMN_INDEX (-4)
+#define TSDB_QUERY_START_COLUMN_INDEX (-5)
+#define TSDB_QUERY_STOP_COLUMN_INDEX (-6)
+#define TSDB_QUERY_DURATION_COLUMN_INDEX (-7)
+#define TSDB_MIN_VALID_COLUMN_INDEX (-7)
 
-#define TSDB_COL_IS_TSWIN_COL(_i)       ((_i) <= TSDB_TSWIN_START_COLUMN_INDEX && (_i) >= TSDB_QUERY_DURATION_COLUMN_INDEX)
+#define TSDB_COL_IS_TSWIN_COL(_i) ((_i) <= TSDB_TSWIN_START_COLUMN_INDEX && (_i) >= TSDB_QUERY_DURATION_COLUMN_INDEX)
 
-#define TSDB_UD_COLUMN_INDEX            (-1000)
-#define TSDB_RES_COL_ID                 (-5000)
+#define TSDB_UD_COLUMN_INDEX (-1000)
+#define TSDB_RES_COL_ID (-5000)
 
-#define TSDB_MULTI_TABLEMETA_MAX_NUM    100000  // maximum batch size allowed to load table meta
+#define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
 
-#define TSDB_MIN_CACHE_BLOCK_SIZE       1
-#define TSDB_MAX_CACHE_BLOCK_SIZE       128     // 128MB for each vnode
-#define TSDB_DEFAULT_CACHE_BLOCK_SIZE   16
+#define TSDB_MIN_CACHE_BLOCK_SIZE 1
+#define TSDB_MAX_CACHE_BLOCK_SIZE 128  // 128MB for each vnode
+#define TSDB_DEFAULT_CACHE_BLOCK_SIZE 16
 
-#define TSDB_MIN_TOTAL_BLOCKS           3
-#define TSDB_MAX_TOTAL_BLOCKS           10000
-#define TSDB_DEFAULT_TOTAL_BLOCKS       6
+#define TSDB_MIN_TOTAL_BLOCKS 3
+#define TSDB_MAX_TOTAL_BLOCKS 10000
+#define TSDB_DEFAULT_TOTAL_BLOCKS 6
 
-#define TSDB_MIN_WAL_FLUSH_SIZE         128 // MB
-#define TSDB_MAX_WAL_FLUSH_SIZE         10000000 // MB
-#define TSDB_DEFAULT_WAL_FLUSH_SIZE     1024 // MB
+#define TSDB_MIN_WAL_FLUSH_SIZE 128       // MB
+#define TSDB_MAX_WAL_FLUSH_SIZE 10000000  // MB
+#define TSDB_DEFAULT_WAL_FLUSH_SIZE 1024  // MB
 
-#define TSDB_MIN_TABLES                 4
-#define TSDB_MAX_TABLES                 10000000
-#define TSDB_DEFAULT_TABLES             1000000
-#define TSDB_TABLES_STEP                1000
-#define TSDB_META_COMPACT_RATIO         0       // disable tsdb meta compact by default
+#define TSDB_MIN_TABLES 4
+#define TSDB_MAX_TABLES 10000000
+#define TSDB_DEFAULT_TABLES 1000000
+#define TSDB_TABLES_STEP 1000
+#define TSDB_META_COMPACT_RATIO 0  // disable tsdb meta compact by default
 
-#define TSDB_MIN_DAYS_PER_FILE          1
-#define TSDB_MAX_DAYS_PER_FILE          3650
-#define TSDB_DEFAULT_DAYS_PER_FILE      10
+#define TSDB_MIN_DAYS_PER_FILE 1
+#define TSDB_MAX_DAYS_PER_FILE 3650
+#define TSDB_DEFAULT_DAYS_PER_FILE 10
 
-#define TSDB_MIN_KEEP                   1        // data in db to be reserved.
-#define TSDB_MAX_KEEP                   36500   // data in db to be reserved.
-#define TSDB_DEFAULT_KEEP               3650     // ten years
+#define TSDB_MIN_KEEP 1         // data in db to be reserved.
+#define TSDB_MAX_KEEP 36500     // data in db to be reserved.
+#define TSDB_DEFAULT_KEEP 3650  // ten years
 
-#define TSDB_DEFAULT_MIN_ROW_FBLOCK     100
-#define TSDB_MIN_MIN_ROW_FBLOCK         10
-#define TSDB_MAX_MIN_ROW_FBLOCK         1000
+#define TSDB_DEFAULT_MIN_ROW_FBLOCK 100
+#define TSDB_MIN_MIN_ROW_FBLOCK 10
+#define TSDB_MAX_MIN_ROW_FBLOCK 1000
 
-#define TSDB_DEFAULT_MAX_ROW_FBLOCK     4096
-#define TSDB_MIN_MAX_ROW_FBLOCK         200
-#define TSDB_MAX_MAX_ROW_FBLOCK         10000
+#define TSDB_DEFAULT_MAX_ROW_FBLOCK 4096
+#define TSDB_MIN_MAX_ROW_FBLOCK 200
+#define TSDB_MAX_MAX_ROW_FBLOCK 10000
 
-#define TSDB_MIN_COMMIT_TIME            30
-#define TSDB_MAX_COMMIT_TIME            40960
-#define TSDB_DEFAULT_COMMIT_TIME        3600
+#define TSDB_MIN_COMMIT_TIME 30
+#define TSDB_MAX_COMMIT_TIME 40960
+#define TSDB_DEFAULT_COMMIT_TIME 3600
 
-#define TSDB_MIN_PRECISION              TSDB_TIME_PRECISION_MILLI
-#define TSDB_MAX_PRECISION              TSDB_TIME_PRECISION_NANO
-#define TSDB_DEFAULT_PRECISION          TSDB_TIME_PRECISION_MILLI
+#define TSDB_MIN_PRECISION TSDB_TIME_PRECISION_MILLI
+#define TSDB_MAX_PRECISION TSDB_TIME_PRECISION_NANO
+#define TSDB_DEFAULT_PRECISION TSDB_TIME_PRECISION_MILLI
 
-#define TSDB_MIN_COMP_LEVEL             0
-#define TSDB_MAX_COMP_LEVEL             2
-#define TSDB_DEFAULT_COMP_LEVEL         2
+#define TSDB_MIN_COMP_LEVEL 0
+#define TSDB_MAX_COMP_LEVEL 2
+#define TSDB_DEFAULT_COMP_LEVEL 2
 
-#define TSDB_MIN_WAL_LEVEL              0
-#define TSDB_MAX_WAL_LEVEL              2
-#define TSDB_DEFAULT_WAL_LEVEL          1
+#define TSDB_MIN_WAL_LEVEL 0
+#define TSDB_MAX_WAL_LEVEL 2
+#define TSDB_DEFAULT_WAL_LEVEL 1
 
-#define TSDB_MIN_DB_UPDATE              0
-#define TSDB_MAX_DB_UPDATE              2
-#define TSDB_DEFAULT_DB_UPDATE_OPTION   0
+#define TSDB_MIN_DB_UPDATE 0
+#define TSDB_MAX_DB_UPDATE 2
+#define TSDB_DEFAULT_DB_UPDATE_OPTION 0
 
-#define TSDB_MIN_DB_CACHE_LAST_ROW      0
-#define TSDB_MAX_DB_CACHE_LAST_ROW      3
-#define TSDB_DEFAULT_CACHE_LAST_ROW     0
+#define TSDB_MIN_DB_CACHE_LAST_ROW 0
+#define TSDB_MAX_DB_CACHE_LAST_ROW 3
+#define TSDB_DEFAULT_CACHE_LAST_ROW 0
 
-#define TSDB_MIN_FSYNC_PERIOD           0
-#define TSDB_MAX_FSYNC_PERIOD           180000   // millisecond
-#define TSDB_DEFAULT_FSYNC_PERIOD       3000     // three second
+#define TSDB_MIN_FSYNC_PERIOD 0
+#define TSDB_MAX_FSYNC_PERIOD 180000    // millisecond
+#define TSDB_DEFAULT_FSYNC_PERIOD 3000  // three second
 
-#define TSDB_MIN_DB_REPLICA_OPTION      1
-#define TSDB_MAX_DB_REPLICA_OPTION      3
-#define TSDB_DEFAULT_DB_REPLICA_OPTION  1
+#define TSDB_MIN_DB_REPLICA_OPTION 1
+#define TSDB_MAX_DB_REPLICA_OPTION 3
+#define TSDB_DEFAULT_DB_REPLICA_OPTION 1
 
-#define TSDB_MIN_DB_PARTITON_OPTION     0
-#define TSDB_MAX_DB_PARTITON_OPTION     1000
+#define TSDB_MIN_DB_PARTITON_OPTION 0
+#define TSDB_MAX_DB_PARTITON_OPTION 1000
 #define TSDB_DEFAULT_DB_PARTITON_OPTION 4
 
-#define TSDB_MIN_DB_QUORUM_OPTION       1
-#define TSDB_MAX_DB_QUORUM_OPTION       2
-#define TSDB_DEFAULT_DB_QUORUM_OPTION   1
+#define TSDB_MIN_DB_QUORUM_OPTION 1
+#define TSDB_MAX_DB_QUORUM_OPTION 2
+#define TSDB_DEFAULT_DB_QUORUM_OPTION 1
 
-#define TSDB_MAX_JOIN_TABLE_NUM         10
-#define TSDB_MAX_UNION_CLAUSE           5
+#define TSDB_MAX_JOIN_TABLE_NUM 10
+#define TSDB_MAX_UNION_CLAUSE 5
 
-#ifdef TSDB_MODE_RICH_COL
-#define TSDB_MAX_FIELD_LEN              16384
-#else
-#define TSDB_MAX_FIELD_LEN              64512
-#endif
+#define TSDB_MAX_FIELD_LEN 65519
+// 16384
+  // 65519
 
-#define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
-#define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
+  // #define TSDB_MAX_BINARY_LEN (TSDB_MAX_FIELD_LEN - TSDB_KEYSIZE)  // keep 16384 => 65511
+  // #define TSDB_MAX_NCHAR_LEN (TSDB_MAX_FIELD_LEN - TSDB_KEYSIZE)   // keep 16384 => 65511
+
+#define TSDB_MAX_BINARY_LEN TSDB_MAX_FIELD_LEN  // keep 16384 => 65511
+#define TSDB_MAX_NCHAR_LEN TSDB_MAX_FIELD_LEN   // keep 16384 => 65511
+
 #define PRIMARYKEY_TIMESTAMP_COL_INDEX  0
 
 #define TSDB_MAX_RPC_THREADS            5

@@ -1642,6 +1642,10 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
     }
 
     nLen += pField->bytes;
+
+    if (IS_VAR_DATA_TYPE(pField->type)) {
+      nLen += sizeof(VarDataOffsetT);
+    }
   }
 
   // max row length must be less than TSDB_MAX_BYTES_PER_ROW
@@ -1848,6 +1852,9 @@ int32_t validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     nLen += pSchema[i].bytes;
+    if (IS_VAR_DATA_TYPE(pSchema[i].type)) {
+      nLen += sizeof(VarDataOffsetT);
+    }
   }
 
   if (pColField->bytes <= 0) {
@@ -1855,7 +1862,8 @@ int32_t validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   }
 
   // length less than TSDB_MAX_BYTES_PER_ROW
-  if (nLen + pColField->bytes > TSDB_MAX_BYTES_PER_ROW) {
+  if (nLen + pColField->bytes + (IS_VAR_DATA_TYPE(pColField->type) ? sizeof(VarDataOffsetT) : 0) >
+      TSDB_MAX_BYTES_PER_ROW) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
 
@@ -7691,8 +7699,11 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     uint32_t nLen = 0;
     for (i = 0; i < numOfColumns; ++i) {
       nLen += (i != columnIndex.columnIndex) ? pSchema[i].bytes : pItem->bytes;
+      if(IS_VAR_DATA_TYPE(pSchema[i].type)) {
+        nLen += sizeof(VarDataOffsetT);
+      }
     }
-    if (nLen >= TSDB_MAX_BYTES_PER_ROW) {
+    if (nLen > TSDB_MAX_BYTES_PER_ROW) {
       return invalidOperationMsg(pMsg, msg24);
     }
 

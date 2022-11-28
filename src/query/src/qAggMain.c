@@ -189,7 +189,7 @@ typedef struct {
   bool    kPointsMeet;
 } SMovingAvgInfo;
 
-typedef struct  {
+typedef struct {
   int32_t  totalPoints;
   int32_t  numSampled;
   uint16_t colBytes;
@@ -448,7 +448,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
   if (functionId == TSDB_FUNC_BLKINFO) {
     *type = TSDB_DATA_TYPE_BINARY;
-    *bytes = 16384;
+    *bytes = TSDB_MAX_FIELD_LEN;
     *interBytes = 0;
     return TSDB_CODE_SUCCESS;
   }
