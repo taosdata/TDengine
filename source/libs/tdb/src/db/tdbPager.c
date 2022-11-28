@@ -210,6 +210,7 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   ret = tdbGetFileSize(pPager->fd, pPager->pageSize, &(pPager->dbOrigSize));
   pPager->dbFileSize = pPager->dbOrigSize;
 
+  tdbTrace("pager/open reset dirty tree: %p", &pPager->rbt);
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
 
   *ppPager = pPager;
@@ -296,7 +297,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
 
   // ref page one more time so the page will not be release
   tdbRefPage(pPage);
-  tdbDebug("pcache/mdirty page %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
+  tdbDebug("pager/mdirty page %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
 
   // Set page as dirty
   pPage->isDirty = 1;
@@ -316,6 +317,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   pPage->pDirtyNext = *ppPage;
   *ppPage = pPage;
   */
+  tdbTrace("put page: %p %d to dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
   tRBTreePut(&pPager->rbt, (SRBTreeNode *)pPage);
 
   // Write page to journal if neccessary
@@ -373,6 +375,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   SRBTreeNode *pNode = NULL;
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
+
     ASSERT(pPage->nOverflow == 0);
     ret = tdbPagerWritePageToDB(pPager, pPage);
     if (ret < 0) {
@@ -398,6 +401,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
+  tdbTrace("pager/commit reset dirty tree: %p", &pPager->rbt);
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
 
   // sync the db file
@@ -471,6 +475,7 @@ int tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn) {
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
   /*
+  tdbTrace("reset dirty tree: %p", &pPager->rbt);
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
 
   // sync the db file
@@ -566,6 +571,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
+  tdbTrace("reset dirty tree: %p", &pPager->rbt);
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
 
   // 4, remove the journal file
@@ -580,6 +586,8 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
 
 int tdbPagerFlushPage(SPager *pPager, TXN *pTxn) {
   SPage *pPage;
+  i32    nRef;
+  SPgno  maxPgno = pPager->dbOrigSize;
   int    ret;
 
   // loop to write the dirty pages to file
@@ -587,29 +595,52 @@ int tdbPagerFlushPage(SPager *pPager, TXN *pTxn) {
   SRBTreeNode *pNode = NULL;
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
+    nRef = tdbGetPageRef(pPage);
+    if (nRef > 1) {
+      continue;
+    }
+
+    SPgno pgno = TDB_PAGE_PGNO(pPage);
+    if (pgno > maxPgno) {
+      maxPgno = pgno;
+    }
     ret = tdbPagerWritePageToDB(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page to db since %s", tstrerror(terrno));
       return -1;
     }
-  }
 
-  tdbTrace("tdbttl commit:%p, %d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize);
-  pPager->dbOrigSize = pPager->dbFileSize;
+    tdbTrace("tdb/flush:%p, %d/%d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize, maxPgno);
+    pPager->dbOrigSize = maxPgno;
+
+    pPage->isDirty = 0;
+
+    tdbTrace("pager/flush drop page: %p %d from dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
+    tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
+    tdbPCacheRelease(pPager->pCache, pPage, pTxn);
+
+    break;
+  }
+  /*
+  tdbTrace("tdb/flush:%p, %d/%d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize, maxPgno);
+  pPager->dbOrigSize = maxPgno;
 
   // release the page
   iter = tRBTreeIterCreate(&pPager->rbt, 1);
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
+    nRef = tdbGetPageRef(pPage);
+    if (nRef > 1) {
+      continue;
+    }
 
     pPage->isDirty = 0;
 
+    tdbTrace("pager/flush drop page: %p %d from dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
-
-  tRBTreeCreate(&pPager->rbt, pageCmpFn);
-
+  */
   return 0;
 }
 
