@@ -1545,7 +1545,7 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
   int32_t num = 0;
   bool *  pRes = (bool *)pOut->columnData;
 
-  if (GET_PARAM_TYPE(pLeft) != TSDB_DATA_TYPE_JSON && GET_PARAM_TYPE(pRight) != TSDB_DATA_TYPE_JSON) {
+  if (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_JSON || GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_JSON) {
     for (int32_t i = startIndex; i < numOfRows && i >= startIndex; i += step) {
       int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
       int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
