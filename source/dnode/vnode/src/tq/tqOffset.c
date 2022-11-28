@@ -61,6 +61,7 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname) {
         ASSERT(0);
         // TODO
       }
+      taosMemoryFree(memBuf);
     }
 
     taosCloseFile(&pFile);
