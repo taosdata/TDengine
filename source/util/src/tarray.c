@@ -318,7 +318,7 @@ SArray* taosArrayDup(const SArray* pSrc, __array_item_dup_fn_t fn) {
 
     for(int32_t i = 0; i < pSrc->size; ++i) {
       void* p = fn(taosArrayGetP(pSrc, i));
-      memcpy(dst->pData + i * dst->elemSize, &p, dst->elemSize);
+      memcpy(((char*)dst->pData )+ i * dst->elemSize, &p, dst->elemSize);
     }
   }
 
