@@ -1499,7 +1499,7 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   param12 /= param[1][1];
 
-  char   buf[64] = {0};
+  char   buf[512] = {0};
   size_t len =
       snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6lf, intercept:%.6lf}", param02, param12);
   varDataSetLen(buf, len);
