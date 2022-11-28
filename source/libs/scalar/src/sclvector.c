@@ -1543,51 +1543,73 @@ void vectorBitOr(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, 
 int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
                             int32_t numOfRows, int32_t step, __compar_fn_t fp, int32_t optr) {
   int32_t num = 0;
+  bool *  pRes = (bool *)pOut->columnData->pData;
 
-  for (int32_t i = startIndex; i < numOfRows && i >= 0; i += step) {
-    int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
-    int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
+  if (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_JSON || GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_JSON) {
+    for (int32_t i = startIndex; i < numOfRows && i >= startIndex; i += step) {
+      int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
+      int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
 
-    if (IS_HELPER_NULL(pLeft->columnData, leftIndex) || IS_HELPER_NULL(pRight->columnData, rightIndex)) {
-      bool res = false;
-      colDataAppendInt8(pOut->columnData, i, (int8_t *)&res);
-      continue;
-    }
+      if (IS_HELPER_NULL(pLeft->columnData, leftIndex) || IS_HELPER_NULL(pRight->columnData, rightIndex)) {
+        bool res = false;
+        colDataAppendInt8(pOut->columnData, i, (int8_t *)&res);
+        continue;
+      }
 
-    char   *pLeftData = colDataGetData(pLeft->columnData, leftIndex);
-    char   *pRightData = colDataGetData(pRight->columnData, rightIndex);
-    int64_t leftOut = 0;
-    int64_t rightOut = 0;
-    bool    freeLeft = false;
-    bool    freeRight = false;
-    bool    isJsonnull = false;
+      char *  pLeftData = colDataGetData(pLeft->columnData, leftIndex);
+      char *  pRightData = colDataGetData(pRight->columnData, rightIndex);
+      int64_t leftOut = 0;
+      int64_t rightOut = 0;
+      bool    freeLeft = false;
+      bool    freeRight = false;
+      bool    isJsonnull = false;
 
-    bool result = convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData,
-                                   &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight);
-    if (isJsonnull) {
-      ASSERT(0);
-    }
+      bool result = convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData,
+                                     &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight);
+      if (isJsonnull) {
+        ASSERT(0);
+      }
 
-    if (!pLeftData || !pRightData) {
-      result = false;
-    }
+      if (!pLeftData || !pRightData) {
+        result = false;
+      }
 
-    if (!result) {
-      colDataAppendInt8(pOut->columnData, i, (int8_t *)&result);
-    } else {
-      bool res = filterDoCompare(fp, optr, pLeftData, pRightData);
-      colDataAppendInt8(pOut->columnData, i, (int8_t *)&res);
-      if (res) {
-        ++num;
+      if (!result) {
+        colDataAppendInt8(pOut->columnData, i, (int8_t *)&result);
+      } else {
+        bool res = filterDoCompare(fp, optr, pLeftData, pRightData);
+        colDataAppendInt8(pOut->columnData, i, (int8_t *)&res);
+        if (res) {
+          ++num;
+        }
+      }
+
+      if (freeLeft) {
+        taosMemoryFreeClear(pLeftData);
+      }
+
+      if (freeRight) {
+        taosMemoryFreeClear(pRightData);
       }
     }
+  } else {
+    for (int32_t i = startIndex; i < numOfRows && i >= 0; i += step) {
+      int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
+      int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
 
-    if (freeLeft) {
-      taosMemoryFreeClear(pLeftData);
-    }
+      if (colDataIsNull_s(pLeft->columnData, leftIndex) ||
+          colDataIsNull_s(pRight->columnData, rightIndex)) {
+        pRes[i] = false;
+        continue;
+      }
 
-    if (freeRight) {
-      taosMemoryFreeClear(pRightData);
+      char *pLeftData = colDataGetData(pLeft->columnData, leftIndex);
+      char *pRightData = colDataGetData(pRight->columnData, rightIndex);
+
+      pRes[i] = filterDoCompare(fp, optr, pLeftData, pRightData);
+      if (pRes[i]) {
+        ++num;
+      }
     }
   }
 

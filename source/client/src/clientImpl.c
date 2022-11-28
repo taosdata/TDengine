@@ -373,7 +373,7 @@ int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList) {
   }
 
   if (pNodeList) {
-    pInfo->pQnodeList = taosArrayDup(pNodeList);
+    pInfo->pQnodeList = taosArrayDup(pNodeList, NULL);
     taosArraySort(pInfo->pQnodeList, compareQueryNodeLoad);
     tscDebug("QnodeList updated in cluster 0x%" PRIx64 ", num:%ld", pInfo->clusterId,
              taosArrayGetSize(pInfo->pQnodeList));
@@ -404,7 +404,7 @@ int32_t getQnodeList(SRequestObj* pRequest, SArray** pNodeList) {
 
   taosThreadMutexLock(&pInfo->qnodeMutex);
   if (pInfo->pQnodeList) {
-    *pNodeList = taosArrayDup(pInfo->pQnodeList);
+    *pNodeList = taosArrayDup(pInfo->pQnodeList, NULL);
   }
   taosThreadMutexUnlock(&pInfo->qnodeMutex);
 
@@ -593,13 +593,13 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
         if (pRes->code) {
           pQnodeList = NULL;
         } else {
-          pQnodeList = taosArrayDup((SArray*)pRes->pRes);
+          pQnodeList = taosArrayDup((SArray*)pRes->pRes, NULL);
         }
       } else {
         SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
         taosThreadMutexLock(&pInst->qnodeMutex);
         if (pInst->pQnodeList) {
-          pQnodeList = taosArrayDup(pInst->pQnodeList);
+          pQnodeList = taosArrayDup(pInst->pQnodeList, NULL);
         }
         taosThreadMutexUnlock(&pInst->qnodeMutex);
       }
