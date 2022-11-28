@@ -1438,25 +1438,37 @@ bool matchSelectQuery(TAOS * con, Command * cmd) {
 }
 
 // if is input create fields or tags area, return true
-bool isCreateFieldsArea(char * p) {
-  char * left  = strrchr(p, '(');
-  if (left == NULL) {
-    // like 'create table st'
-    return false;
-  }
+bool isCreateFieldsArea(char* p) {
+  // put to while, support like create table st(ts timestamp, bin1 binary(16), bin2 + blank + TAB
+  char* p1 = strdup(p);
+  bool  ret = false;
+  while (1) {
+    char* left = strrchr(p1, '(');
+    if (left == NULL) {
+      // like 'create table st'
+      ret = false;
+      break;
+    }
 
-  char * right = strrchr(p, ')');
-  if(right == NULL) {
-    // like 'create table st( '
-    return true;
-  }
+    char* right = strrchr(p1, ')');
+    if (right == NULL) {
+      // like 'create table st( '
+      ret = true;
+      break;
+    }
 
-  if (left > right) {
-    // like 'create table st( ts timestamp, age int) tags(area '
-    return true;
-  }
+    if (left > right) {
+      // like 'create table st( ts timestamp, age int) tags(area '
+      ret = true;
+      break;
+    }
 
-  return false;
+    // set string end by small for next strrchr search
+    *left = 0;
+  }
+  free(p1);
+
+  return ret;
 }
 
 bool matchCreateTable(TAOS * con, Command * cmd) {

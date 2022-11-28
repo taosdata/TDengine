@@ -216,6 +216,14 @@ int32_t shellRunCommand(TAOS* con, char* command) {
     return 0;
   }
 
+  // add help or help;
+#ifndef WINDOWS  
+  if (strcmp(command, "help") == 0 || strcmp(command, "help;") == 0) {
+    showHelp();
+    return 0;
+  }
+#endif
+
   /* Update the history vector. */
   if (history.hstart == history.hend ||
       history.hist[(history.hend + MAX_HISTORY_SIZE - 1) % MAX_HISTORY_SIZE] == NULL ||
@@ -377,7 +385,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   } else {
     int num_rows_affacted = taos_affected_rows(pSql);
     et = taosGetTimestampUs();
-    printf("Query OK, %d row(s) affected(%.6fs)\n", num_rows_affacted, (et - st) / 1E6);
+    printf("Query OK, %d row(s) affected (%.6fs)\n", num_rows_affacted, (et - st) / 1E6);
 
 #ifndef WINDOWS
     // call auto tab
