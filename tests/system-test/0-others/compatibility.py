@@ -72,9 +72,8 @@ class TDTestCase:
 
         
     def buildTaosd(self,bPath):
-        # os.system(f"mv {bPath}/build_bak  {bPath}/build ")
-        os.system(f" cd {bPath}  &&  make install ")
-
+        print(f" build path {bPath} ")
+        os.system(f" cd {bPath}  && cmake -DBUILD_TOOLS=on .. && make -j4 && make install")
 
     def run(self):
         bPath=self.getBuildPath()
