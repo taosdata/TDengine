@@ -50,9 +50,13 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *
     SSubmitBlkRsp r = {0};
     tGetSubmitMsgNext(&msgIter, &pBlock);
     if (pBlock == NULL) break;
+#if 0
     if ((terrno = tsdbInsertTableData(pTsdb, version, &msgIter, pBlock, &r)) < 0) {
       return -1;
     }
+#else
+    ASSERT(0);
+#endif
 
     numOfRows += msgIter.numOfRows;
   }
