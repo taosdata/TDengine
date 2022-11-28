@@ -1489,7 +1489,7 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     transFreeMsg(pResp->pCont);
     transUnrefCliHandle(pConn);
   } else if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_INTERNAL_ERROR ||
-             code == TSDB_CODE_SYN_PROPOSE_NOT_READY) {
+             code == TSDB_CODE_SYN_PROPOSE_NOT_READY || code == TSDB_CODE_RPC_REDIRECT) {
     tDebug("code str %s, contlen:%d 1", tstrerror(code), pResp->contLen);
     noDelay = cliResetEpset(pCtx, pResp, true);
     transFreeMsg(pResp->pCont);
