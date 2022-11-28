@@ -163,6 +163,7 @@ typedef struct {
   SMLProtocolType protocol;
   int8_t          precision;
   bool dataFormat;  // true means that the name and order of keys in each line are the same(only for influx protocol)
+  bool isRawLine;
 
   SHashObj *childTables;
   SHashObj *superTables;
@@ -863,6 +864,7 @@ static int32_t smlParseTS(SSmlHandle *info, const char *data, int32_t len, SArra
   } else {
     ASSERT(0);
   }
+  uDebug("SML:0x%" PRIx64 " smlParseTS:%" PRId64, info->id, ts);
 
   if (ts == -1) return TSDB_CODE_INVALID_TIMESTAMP;
 
@@ -2063,7 +2065,7 @@ static int32_t smlParseJSONString(SSmlHandle *info, cJSON *root, SSmlTableInfo *
 
 static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql, const int len) {
   SSmlLineInfo elements = {0};
-  uDebug("SML:0x%" PRIx64 " smlParseInfluxLine sql", info->id);
+  uDebug("SML:0x%" PRIx64 " smlParseInfluxLine sql:%s", info->id, (info->isRawLine ? "rawdata" : sql));
 
   int ret = smlParseInfluxString(sql, sql + len, &elements, &info->msgBuf);
   if (ret != TSDB_CODE_SUCCESS) {
@@ -2574,6 +2576,8 @@ TAOS_RES *taos_schemaless_insert_inner(SRequestObj *request, char *lines[], char
       uError("SML:taos_schemaless_insert error SSmlHandle is null");
       goto end;
     }
+
+    info->isRawLine = (rawLine == NULL);
 
     int32_t perBatch = LINE_BATCH;
 
