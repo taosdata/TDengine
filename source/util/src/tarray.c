@@ -302,7 +302,7 @@ SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize) {
   return pDst;
 }
 
-SArray* taosArrayDup(const SArray* pSrc) {
+SArray* taosArrayDup(const SArray* pSrc, __array_item_dup_fn_t fn) {
   assert(pSrc != NULL);
 
   if (pSrc->size == 0) {  // empty array list
@@ -311,8 +311,19 @@ SArray* taosArrayDup(const SArray* pSrc) {
 
   SArray* dst = taosArrayInit(pSrc->size, pSrc->elemSize);
 
-  memcpy(dst->pData, pSrc->pData, pSrc->elemSize * pSrc->size);
+  if (fn == NULL) {
+    memcpy(dst->pData, pSrc->pData, pSrc->elemSize * pSrc->size);
+  } else {
+    ASSERT(pSrc->elemSize == sizeof(void*));
+
+    for(int32_t i = 0; i < pSrc->size; ++i) {
+      void* p = fn(taosArrayGetP(pSrc, i));
+      memcpy(dst->pData + i * dst->elemSize, &p, dst->elemSize);
+    }
+  }
+
   dst->size = pSrc->size;
+
   return dst;
 }
 
@@ -462,19 +473,6 @@ static void taosArrayInsertSort(SArray* pArray, __ext_compar_fn_t fn, const void
     }
   }
   return;
-}
-
-SArray* taosArrayDeepCopy(const SArray* pSrc, FCopy deepCopy) {
-  if (NULL == pSrc) {
-    return NULL;
-  }
-  ASSERT(pSrc->elemSize == sizeof(void*));
-  SArray* pArray = taosArrayInit(pSrc->size, sizeof(void*));
-  for (int32_t i = 0; i < pSrc->size; i++) {
-    void* clone = deepCopy(taosArrayGetP(pSrc, i));
-    taosArrayPush(pArray, &clone);
-  }
-  return pArray;
 }
 
 int32_t taosEncodeArray(void** buf, const SArray* pArray, FEncode encode) {

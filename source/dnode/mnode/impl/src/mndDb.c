@@ -810,7 +810,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 
   memcpy(&dbObj, pDb, sizeof(SDbObj));
   if (dbObj.cfg.pRetensions != NULL) {
-    dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions);
+    dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
     if (dbObj.cfg.pRetensions == NULL) goto _OVER;
   }
 
