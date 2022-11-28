@@ -277,7 +277,9 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
 static int32_t taosAddClientCfg(SConfig *pCfg) {
   char    defaultFqdn[TSDB_FQDN_LEN] = {0};
   int32_t defaultServerPort = 6030;
-  if (taosGetFqdn(defaultFqdn) != 0) return -1;
+  if (taosGetFqdn(defaultFqdn) != 0) {
+    strcpy(defaultFqdn, "localhost");
+  }
 
   if (cfgAddString(pCfg, "firstEp", "", 1) != 0) return -1;
   if (cfgAddString(pCfg, "secondEp", "", 1) != 0) return -1;

@@ -250,6 +250,8 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
     return code;
   }
 
+  taosArrayClear(pInserter->pDataBlocks);
+  
   code = sendSubmitRequest(pInserter, pMsg, pInserter->pParam->readHandle->pMsgCb->clientRpc, &pInserter->pNode->epSet);
   if (code) {
     return code;

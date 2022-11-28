@@ -27,6 +27,36 @@
 #include "thash.h"
 #include "ttypes.h"
 
+typedef struct SGroupbyOperatorInfo {
+  SOptrBasicInfo binfo;
+  SAggSupporter  aggSup;
+  SArray*        pGroupCols;     // group by columns, SArray<SColumn>
+  SArray*        pGroupColVals;  // current group column values, SArray<SGroupKeys>
+  bool           isInit;         // denote if current val is initialized or not
+  char*          keyBuf;         // group by keys for hash
+  int32_t        groupKeyLen;    // total group by column width
+  SGroupResInfo  groupResInfo;
+  SExprSupp      scalarSup;
+} SGroupbyOperatorInfo;
+
+// The sort in partition may be needed later.
+typedef struct SPartitionOperatorInfo {
+  SOptrBasicInfo binfo;
+  SArray*        pGroupCols;
+  SArray*        pGroupColVals;  // current group column values, SArray<SGroupKeys>
+  char*          keyBuf;         // group by keys for hash
+  int32_t        groupKeyLen;    // total group by column width
+  SHashObj*      pGroupSet;      // quick locate the window object for each result
+
+  SDiskbasedBuf* pBuf;              // query result buffer based on blocked-wised disk file
+  int32_t        rowCapacity;       // maximum number of rows for each buffer page
+  int32_t*       columnOffset;      // start position for each column data
+  SArray*        sortedGroupArray;  // SDataGroupInfo sorted by group id
+  int32_t        groupIndex;        // group index
+  int32_t        pageIndex;         // page index of current group
+  SExprSupp      scalarSup;
+} SPartitionOperatorInfo;
+
 static void*    getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInfo** pGroupInfo, int32_t len);
 static int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity);
 static int32_t  setGroupResultOutputBuf(SOperatorInfo* pOperator, SOptrBasicInfo* binfo, int32_t numOfCols, char* pData,
@@ -905,6 +935,9 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
         /*pDest->info.parTbName[len + 1] = 0;*/
       } else {
         pDest->info.parTbName[0] = 0;
+      }
+      if (pParInfo->groupId && pDest->info.parTbName[0]) {
+        streamStatePutParName(pOperator->pTaskInfo->streamInfo.pState, pParInfo->groupId, pDest->info.parTbName);
       }
       /*printf("\n\n set name %s\n\n", pDest->info.parTbName);*/
       blockDataDestroy(pTmpBlock);

@@ -1615,14 +1615,19 @@ typedef struct SSubQueryMsg {
   uint64_t taskId;
   int64_t  refId;
   int32_t  execId;
+  int32_t  msgMask;
   int8_t   taskType;
   int8_t   explain;
   int8_t   needFetch;
-  uint32_t sqlLen;  // the query sql,
-  uint32_t phyLen;
-  int32_t  msgMask;
-  char     msg[];
+  uint32_t sqlLen;
+  char    *sql;
+  uint32_t msgLen;
+  char    *msg;
 } SSubQueryMsg;
+
+int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq);
+int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq);
+void tFreeSSubQueryMsg(SSubQueryMsg *pReq);
 
 typedef struct {
   SMsgHead header;
@@ -1660,6 +1665,10 @@ typedef struct {
   uint64_t taskId;
   int32_t  execId;
 } SResFetchReq;
+
+int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq);
+int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq);
+
 
 typedef struct {
   SMsgHead header;
@@ -1731,6 +1740,13 @@ typedef struct {
   int64_t  refId;
   int32_t  execId;
 } STaskDropReq;
+
+int32_t tSerializeSTaskDropReq(void *buf, int32_t bufLen, STaskDropReq *pReq);
+int32_t tDeserializeSTaskDropReq(void *buf, int32_t bufLen, STaskDropReq *pReq);
+
+int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
+int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
+
 
 typedef struct {
   int32_t code;
@@ -2934,6 +2950,10 @@ typedef struct {
   // int64_t      currentOffset;
   STqOffsetVal reqOffset;
 } SMqPollReq;
+
+int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq);
+int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq);
+
 
 typedef struct {
   int32_t vgId;

@@ -556,7 +556,7 @@ FAIL:
   return -1;
 }
 
-int32_t tqSplitRetrieveDataBlock(STqReader* pReader, SArray* blocks, SArray* schemas) {
+int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas) {
   int32_t sversion = htonl(pReader->pBlock->sversion);
 
   if (pReader->cachedSchemaSuid == 0 || pReader->cachedSchemaVer != sversion ||
@@ -592,9 +592,10 @@ int32_t tqSplitRetrieveDataBlock(STqReader* pReader, SArray* blocks, SArray* sch
   int32_t colAtMost = pSchemaWrapper->nCols;
 
   int32_t curRow = 0;
+  int32_t lastRow = 0;
 
   char* assigned = taosMemoryCalloc(1, pSchemaWrapper->nCols);
-  if (assigned) return -1;
+  if (assigned == NULL) return -1;
 
   tInitSubmitBlkIter(&pReader->msgIter, pReader->pBlock, &pReader->blkIter);
   STSRowIter iter = {0};
@@ -605,11 +606,13 @@ int32_t tqSplitRetrieveDataBlock(STqReader* pReader, SArray* blocks, SArray* sch
     bool buildNew = false;
     tdSTSRowIterReset(&iter, row);
 
+    tqDebug("vgId:%d, row of block %d", pReader->pWalReader->pWal->cfg.vgId, curRow);
     for (int32_t i = 0; i < colAtMost; i++) {
       SCellVal sVal = {0};
       if (!tdSTSRowIterFetch(&iter, pSchemaWrapper->pSchema[i].colId, pSchemaWrapper->pSchema[i].type, &sVal)) {
         break;
       }
+      tqDebug("vgId:%d, %d col, type %d", pReader->pWalReader->pWal->cfg.vgId, i, sVal.valType);
       if (curRow == 0) {
         assigned[i] = sVal.valType != TD_VTYPE_NONE;
         buildNew = true;
@@ -623,27 +626,42 @@ int32_t tqSplitRetrieveDataBlock(STqReader* pReader, SArray* blocks, SArray* sch
     }
 
     if (buildNew) {
-      SSDataBlock    block;
-      SSchemaWrapper sw;
-      if (tqMaskBlock(&sw, &block, pSchemaWrapper, assigned) < 0) {
+      if (taosArrayGetSize(blocks) > 0) {
+        SSDataBlock* pLastBlock = taosArrayGetLast(blocks);
+        pLastBlock->info.rows = curRow - lastRow;
+        lastRow = curRow;
+      }
+      SSDataBlock*    pBlock = createDataBlock();
+      SSchemaWrapper* pSW = taosMemoryCalloc(1, sizeof(SSchemaWrapper));
+      if (tqMaskBlock(pSW, pBlock, pSchemaWrapper, assigned) < 0) {
+        blockDataDestroy(pBlock);
         goto FAIL;
       }
+      SSDataBlock block = {0};
+      assignOneDataBlock(&block, pBlock);
+      blockDataDestroy(pBlock);
+
+      tqDebug("vgId:%d, build new block, col %d", pReader->pWalReader->pWal->cfg.vgId,
+              (int32_t)taosArrayGetSize(block.pDataBlock));
 
       taosArrayPush(blocks, &block);
-      taosArrayPush(schemas, &sw);
+      taosArrayPush(schemas, &pSW);
     }
 
     SSDataBlock* pBlock = taosArrayGetLast(blocks);
     pBlock->info.uid = pReader->msgIter.uid;
-    pBlock->info.rows = pReader->msgIter.numOfRows;
+    pBlock->info.rows = 0;
     pBlock->info.version = pReader->pMsg->version;
+
+    tqDebug("vgId:%d, taosx scan, block num: %d", pReader->pWalReader->pWal->cfg.vgId,
+            (int32_t)taosArrayGetSize(blocks));
 
     if (blockDataEnsureCapacity(pBlock, pReader->msgIter.numOfRows - curRow) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto FAIL;
     }
 
-    tdSTSRowIterInit(&iter, pTschema);
+    tdSTSRowIterReset(&iter, row);
     for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
       SCellVal         sVal = {0};
@@ -654,12 +672,16 @@ int32_t tqSplitRetrieveDataBlock(STqReader* pReader, SArray* blocks, SArray* sch
 
       ASSERT(sVal.valType != TD_VTYPE_NONE);
 
-      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType != TD_VTYPE_NORM) < 0) {
+      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType == TD_VTYPE_NULL) < 0) {
         goto FAIL;
       }
+      tqDebug("vgId:%d, row %d col %d append %d", pReader->pWalReader->pWal->cfg.vgId, curRow, i,
+              sVal.valType == TD_VTYPE_NULL);
     }
     curRow++;
   }
+  SSDataBlock* pLastBlock = taosArrayGetLast(blocks);
+  pLastBlock->info.rows = curRow - lastRow;
 
   taosMemoryFree(assigned);
   return 0;

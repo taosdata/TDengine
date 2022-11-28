@@ -59,6 +59,8 @@ static void freeItem(void *param) {
 int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   qTaskInfo_t taskHandle = ctx->taskHandle;
 
+  ctx->queryExecDone = true;
+
   if (TASK_TYPE_TEMP == ctx->taskType && taskHandle) {
     if (ctx->explain) {
       SArray *execInfoList = taosArrayInit(4, sizeof(SExplainExecInfo));
@@ -115,6 +117,14 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
   qTaskInfo_t    taskHandle = ctx->taskHandle;
   DataSinkHandle sinkHandle = ctx->sinkHandle;
   SLocalFetch    localFetch = {(void *)mgmt, ctx->localExec, qWorkerProcessLocalFetch, ctx->explainRes};
+
+  if (ctx->queryExecDone) {
+    if (queryStop) {
+      *queryStop = true;
+    }
+    
+    return TSDB_CODE_SUCCESS;
+  }
 
   SArray *pResList = taosArrayInit(4, POINTER_BYTES);
   while (true) {
@@ -743,7 +753,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     }
 
     QW_LOCK(QW_WRITE, &ctx->lock);
-    if (queryStop || code || 0 == atomic_load_8((int8_t *)&ctx->queryContinue)) {
+    if ((queryStop && (0 == atomic_load_8((int8_t *)&ctx->queryContinue))) || code || 0 == atomic_load_8((int8_t *)&ctx->queryContinue)) {
       // Note: query is not running anymore
       QW_SET_PHASE(ctx, 0);
       QW_UNLOCK(QW_WRITE, &ctx->lock);
