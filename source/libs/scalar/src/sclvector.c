@@ -1597,8 +1597,8 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
       int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
       int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
 
-      if (colDataIsNull_f(pLeft->columnData->nullbitmap, leftIndex) ||
-          colDataIsNull_f(pRight->columnData->nullbitmap, rightIndex)) {
+      if (colDataIsNull_s(pLeft->columnData, leftIndex) ||
+          colDataIsNull_s(pRight->columnData, rightIndex)) {
         pRes[i] = false;
         continue;
       }
