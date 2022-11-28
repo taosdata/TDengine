@@ -205,6 +205,7 @@ function set_hostname() {
       break
     else
       read -p "Please enter one hostname(must not be 'localhost'):" newHostname
+      break
     fi
   done
 
@@ -324,7 +325,9 @@ function local_fqdn_check() {
                 ;;
 
             *)
+                set_ipAsFqdn
                 echo "Invalid input..."
+                break
                 ;;
             esac
         fi
