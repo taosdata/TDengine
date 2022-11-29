@@ -6682,7 +6682,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   return 0;
 }
 
-static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbData, int8_t colFmt) {
+static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbData) {
   int32_t code = 0;
 
   if (tStartDecode(pCoder) < 0) {
@@ -6774,36 +6774,8 @@ int32_t tDecodeSSubmitReq2(SDecoder *pCoder, SSubmitReq2 *pReq) {
     goto _exit;
   }
 
-  if (tDecodeI32v(pCoder, &pReq->flag) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto _exit;
-  }
-
-  if (pReq->flag & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-    int64_t nCreateTbReq = 0;
-
-    if (tDecodeI64v(pCoder, &nCreateTbReq) < 0) {
-      code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
-    }
-
-    pReq->aCreateTbReq = taosArrayInit(nCreateTbReq, sizeof(SVCreateTbReq));
-    if (pReq->aCreateTbReq == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
-
-    for (int64_t i = 0; i < nCreateTbReq; ++i) {
-      SVCreateTbReq *pCreateTbReq = taosArrayReserve(pReq->aCreateTbReq, 1);
-      if (tDecodeSVCreateTbReq(pCoder, pCreateTbReq) < 0) {
-        code = TSDB_CODE_INVALID_MSG;
-        goto _exit;
-      }
-    }
-  }
-
-  int64_t nSubmitTbData = 0;
-  if (tDecodeI64v(pCoder, &nSubmitTbData) < 0) {
+  uint64_t nSubmitTbData;
+  if (tDecodeU64v(pCoder, &nSubmitTbData) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
@@ -6814,9 +6786,8 @@ int32_t tDecodeSSubmitReq2(SDecoder *pCoder, SSubmitReq2 *pReq) {
     goto _exit;
   }
 
-  for (int64_t i = 0; i < nSubmitTbData; ++i) {
-    SSubmitTbData *pSubmitTbData = taosArrayReserve(pReq->aSubmitTbData, 1);
-    if (tDecodeSSubmitTbData(pCoder, pSubmitTbData, pReq->flag & SUBMIT_REQ_COLUMN_DATA_FORMAT) < 0) {
+  for (uint64_t i = 0; i < nSubmitTbData; i++) {
+    if (tDecodeSSubmitTbData(pCoder, taosArrayReserve(pReq->aSubmitTbData, 1)) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }
@@ -6826,28 +6797,21 @@ int32_t tDecodeSSubmitReq2(SDecoder *pCoder, SSubmitReq2 *pReq) {
 
 _exit:
   if (code) {
-    *ppReq = NULL;
-    if (pReq) {
-      if (pReq->aCreateTbReq) {
-        taosArrayDestroy(pReq->aCreateTbReq);
-      }
-      if (pReq->aSubmitTbData) {
-        taosArrayDestroy(pReq->aSubmitTbData);
-      }
-      taosMemoryFree(pReq);
+    if (pReq->aSubmitTbData) {
+      // todo
+      taosArrayDestroy(pReq->aSubmitTbData);
+      pReq->aSubmitTbData = NULL;
     }
-  } else {
-    *ppReq = pReq;
   }
   return code;
 }
 
 void destroySSubmitTbData(SSubmitTbData *pTbData) {
-  if (pTbData->isColFmt) {
-    // todo
-  } else {
-    taosArrayDestroyP(pTbData->aRowP, (FDelete)tRowDestroy);
-  }
+  // if (pTbData->isColFmt) {
+  //   // todo
+  // } else {
+  //   taosArrayDestroyP(pTbData->aRowP, (FDelete)tRowDestroy);
+  // }
 }
 
 void tDestroySSubmitTbData(SSubmitTbData *pTbData) {
@@ -6861,7 +6825,6 @@ void tDestroySSubmitTbData(SSubmitTbData *pTbData) {
 void tDestroySSubmitReq2(SSubmitReq2 *pReq) {
   if (NULL == pReq) return;
 
-  taosArrayDestroyEx(pReq->aCreateTbReq, (FDelete)tdDestroySVCreateTbReq);
   taosArrayDestroyEx(pReq->aSubmitTbData, (FDelete)destroySSubmitTbData);
   taosMemoryFree(pReq);
 }
