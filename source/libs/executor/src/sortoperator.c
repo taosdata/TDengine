@@ -559,7 +559,7 @@ typedef struct SMultiwayMergeOperatorInfo {
   STupleHandle*  prefetchedTuple;
 } SMultiwayMergeOperatorInfo;
 
-int32_t doOpenMultiwayMergeOperator(SOperatorInfo* pOperator) {
+int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
 
@@ -580,6 +580,7 @@ int32_t doOpenMultiwayMergeOperator(SOperatorInfo* pOperator) {
     SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
     ps->param = pOperator->pDownstream[i];
     ps->onlyRef = true;
+
     tsortAddSource(pInfo->pSortHandle, ps);
   }
 
@@ -792,7 +793,7 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   pInfo->sortBufSize = pInfo->bufPageSize * (numStreams + 1);  // one additional is reserved for merged result.
 
   setOperatorInfo(pOperator, "MultiwayMergeOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE, false, OP_NOT_OPENED, pInfo, pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(doOpenMultiwayMergeOperator, doMultiwayMerge, NULL,
+  pOperator->fpSet = createOperatorFpSet(openMultiwayMergeOperator, doMultiwayMerge, NULL,
                                          destroyMultiwayMergeOperatorInfo, getMultiwayMergeExplainExecInfo);
 
   code = appendDownstream(pOperator, downStreams, numStreams);
