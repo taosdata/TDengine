@@ -6651,20 +6651,28 @@ int32_t tDecodeSBatchDeleteReq(SDecoder *pDecoder, SBatchDeleteReq *pReq) {
   return 0;
 }
 
-static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubmitTbData, int8_t colFmt) {
+static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubmitTbData) {
   if (tStartEncode(pCoder) < 0) return -1;
 
+  if (tEncodeI32v(pCoder, pSubmitTbData->flags) < 0) return -1;
+
+  // auto create table
+  if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+    ASSERT(pSubmitTbData->pCreateTbReq);
+    if (tEncodeSVCreateTbReq(pCoder, pSubmitTbData->pCreateTbReq) < 0) return -1;
+  }
+
+  // submit data
   if (tEncodeI64(pCoder, pSubmitTbData->suid) < 0) return -1;
   if (tEncodeI64(pCoder, pSubmitTbData->uid) < 0) return -1;
   if (tEncodeI32v(pCoder, pSubmitTbData->sver) < 0) return -1;
 
-  if (colFmt) {
-    // todo
-    ASSERT(0);
+  if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    ASSERT(0);  // TODO
   } else {
-    if (tEncodeI64v(pCoder, taosArrayGetSize(pSubmitTbData->aRowP)) < 0) return -1;
-    for (int32_t i = 0; i < taosArrayGetSize(pSubmitTbData->aRowP); i++) {
-      SRow *pRow = taosArrayGetP(pSubmitTbData->aRowP, i);
+    if (tEncodeU64v(pCoder, taosArrayGetSize(pSubmitTbData->aRowP)) < 0) return -1;
+    for (int32_t iRow = 0; iRow < taosArrayGetSize(pSubmitTbData->aRowP); ++iRow) {
+      SRow *pRow = taosArrayGetP(pSubmitTbData->aRowP, iRow);
       if (pCoder->data) memcpy(pCoder->data + pCoder->pos, pRow, pRow->len);
       pCoder->pos += pRow->len;
     }
@@ -6682,6 +6690,22 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
     goto _exit;
   }
 
+  if (tDecodeI32v(pCoder, &pSubmitTbData->flags) < 0) return -1;
+
+  if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+    pSubmitTbData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+    if (pSubmitTbData->pCreateTbReq == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    if (tDecodeSVCreateTbReq(pCoder, pSubmitTbData->pCreateTbReq) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+  }
+
+  // submit data
   if (tDecodeI64(pCoder, &pSubmitTbData->suid) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
@@ -6695,24 +6719,24 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
     goto _exit;
   }
 
-  if (colFmt) {
-    // todo
-    ASSERT(0);
+  if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    ASSERT(0);  // TODO
   } else {
-    int64_t nRows = 0;
-    if (tDecodeI64v(pCoder, &nRows) < 0) {
+    uint64_t nRow;
+    if (tDecodeU64v(pCoder, &nRow) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }
 
-    pSubmitTbData->aRowP = taosArrayInit(nRows, sizeof(SRow *));
+    pSubmitTbData->aRowP = taosArrayInit(nRow, sizeof(SRow *));
     if (pSubmitTbData->aRowP == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
 
-    for (int32_t i = 0; i < nRows; i++) {
+    for (int32_t iRow = 0; iRow < nRow; ++iRow) {
       SRow **ppRow = taosArrayReserve(pSubmitTbData->aRowP, 1);
+
       *ppRow = (SRow *)(pCoder->data + pCoder->pos);
       pCoder->pos += (*ppRow)->len;
     }
@@ -6722,7 +6746,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
 
 _exit:
   if (code) {
-    // todo: do clear
+    // TODO: clear
   }
   return 0;
 }
@@ -6730,35 +6754,19 @@ _exit:
 int32_t tEncodeSSubmitReq2(SEncoder *pCoder, const SSubmitReq2 *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
-  if (tEncodeI32v(pCoder, pReq->flag) < 0) return -1;
-
-  if (pReq->flag & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-    if (tEncodeI64v(pCoder, taosArrayGetSize(pReq->aCreateTbReq)) < 0) return -1;
-    for (int32_t i = 0; i < taosArrayGetSize(pReq->aCreateTbReq); ++i) {
-      SVCreateTbReq *pCreateTbReq = (SVCreateTbReq *)taosArrayGet(pReq->aCreateTbReq, i);
-      if (tEncodeSVCreateTbReq(pCoder, pCreateTbReq) < 0) return -1;
-    }
-  }
-
-  if (tEncodeI64v(pCoder, taosArrayGetSize(pReq->aSubmitTbData)) < 0) return -1;
-  for (int32_t i = 0; i < taosArrayGetSize(pReq->aSubmitTbData); ++i) {
-    SSubmitTbData *pSubmitTbData = (SSubmitTbData *)taosArrayGet(pReq->aSubmitTbData, i);
-    if (tEncodeSSubmitTbData(pCoder, pSubmitTbData, pReq->flag & SUBMIT_REQ_COLUMN_DATA_FORMAT) < 0) return -1;
+  if (tEncodeU64v(pCoder, taosArrayGetSize(pReq->aSubmitTbData)) < 0) return -1;
+  for (uint64_t i = 0; i < taosArrayGetSize(pReq->aSubmitTbData); i++) {
+    if (tEncodeSSubmitTbData(pCoder, taosArrayGet(pReq->aSubmitTbData, i)) < 0) return -1;
   }
 
   tEndEncode(pCoder);
   return 0;
 }
 
-int32_t tDecodeSSubmitReq2(SDecoder *pCoder, SSubmitReq2 **ppReq) {
+int32_t tDecodeSSubmitReq2(SDecoder *pCoder, SSubmitReq2 *pReq) {
   int32_t code = 0;
 
-  // alloc
-  SSubmitReq2 *pReq = (SSubmitReq2 *)taosMemoryCalloc(1, sizeof(SSubmitReq2));
-  if (pReq == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
+  memset(pReq, 0, sizeof(*pReq));
 
   // decode
   if (tStartDecode(pCoder) < 0) {

@@ -191,6 +191,8 @@ void* taosArrayReserve(SArray* pArray, int32_t num) {
   void* dst = TARRAY_GET_ELEM(pArray, pArray->size);
   pArray->size += num;
 
+  memset(dst, 0, num * pArray->elemSize);
+
   return dst;
 }
 
@@ -333,9 +335,9 @@ SArray* taosArrayDup(const SArray* pSrc, __array_item_dup_fn_t fn) {
   } else {
     ASSERT(pSrc->elemSize == sizeof(void*));
 
-    for(int32_t i = 0; i < pSrc->size; ++i) {
+    for (int32_t i = 0; i < pSrc->size; ++i) {
       void* p = fn(taosArrayGetP(pSrc, i));
-      memcpy(((char*)dst->pData )+ i * dst->elemSize, &p, dst->elemSize);
+      memcpy(((char*)dst->pData) + i * dst->elemSize, &p, dst->elemSize);
     }
   }
 
