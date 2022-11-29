@@ -1794,12 +1794,12 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
         }
         char* colData = rspObj.resInfo.row[i];
         if (!colData) {
-          tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, offset, k);
+          tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, offset, i);
         } else {
           if (IS_VAR_DATA_TYPE(pColumn->type)) {
             colData -= VARSTR_HEADER_SIZE;
           }
-          tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, colData, true, offset, k);
+          tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, colData, true, offset, i);
         }
 
         if (pColumn->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
