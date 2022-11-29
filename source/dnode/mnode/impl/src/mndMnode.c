@@ -20,7 +20,7 @@
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndTrans.h"
-#include "mndUser.h"
+#include "tmisce.h"
 
 #define MNODE_VER_NUMBER   1
 #define MNODE_RESERVE_SIZE 64

@@ -28,12 +28,12 @@ typedef struct {
 TDB_STATIC_ASSERT(sizeof(SFileHdr) == 128, "Size of file header is not correct");
 
 struct hashset_st {
-  size_t nbits;
-  size_t mask;
-  size_t capacity;
+  size_t  nbits;
+  size_t  mask;
+  size_t  capacity;
   size_t *items;
-  size_t nitems;
-  double load_factor;
+  size_t  nitems;
+  double  load_factor;
 };
 
 static const unsigned int prime = 39;
@@ -68,11 +68,11 @@ void hashset_destroy(hashset_t set) {
 }
 
 int hashset_add_member(hashset_t set, void *item) {
-  size_t value = (size_t) item;
+  size_t value = (size_t)item;
   size_t h;
 
   if (value == 0) {
-	return -1;
+    return -1;
   }
 
   for (h = set->mask & (prime * value); set->items[h] != 0; h = set->mask & (h + prime2)) {
@@ -103,7 +103,7 @@ int hashset_add(hashset_t set, void *item) {
 
     set->nitems = 0;
     for (size_t i = 0; i < old_capacity; ++i) {
-      hashset_add_member(set, (void*)old_items[i]);
+      hashset_add_member(set, (void *)old_items[i]);
     }
     tdbOsFree(old_items);
   }
@@ -112,7 +112,7 @@ int hashset_add(hashset_t set, void *item) {
 }
 
 int hashset_remove(hashset_t set, void *item) {
-  size_t value = (size_t) item;
+  size_t value = (size_t)item;
 
   for (size_t h = set->mask & (prime * value); set->items[h] != 0; h = set->mask & (h + prime2)) {
     if (set->items[h] == value) {
@@ -126,7 +126,7 @@ int hashset_remove(hashset_t set, void *item) {
 }
 
 int hashset_contains(hashset_t set, void *item) {
-  size_t value = (size_t) item;
+  size_t value = (size_t)item;
 
   for (size_t h = set->mask & (prime * value); set->items[h] != 0; h = set->mask & (h + prime2)) {
     if (set->items[h] == value) {
@@ -210,6 +210,7 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   ret = tdbGetFileSize(pPager->fd, pPager->pageSize, &(pPager->dbOrigSize));
   pPager->dbFileSize = pPager->dbOrigSize;
 
+  tdbTrace("pager/open reset dirty tree: %p", &pPager->rbt);
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
 
   *ppPager = pPager;
@@ -296,7 +297,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
 
   // ref page one more time so the page will not be release
   tdbRefPage(pPage);
-  tdbDebug("pcache/mdirty page %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
+  tdbDebug("pager/mdirty page %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
 
   // Set page as dirty
   pPage->isDirty = 1;
@@ -316,10 +317,12 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   pPage->pDirtyNext = *ppPage;
   *ppPage = pPage;
   */
+  tdbTrace("put page: %p %d to dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
   tRBTreePut(&pPager->rbt, (SRBTreeNode *)pPage);
 
   // Write page to journal if neccessary
-  if (TDB_PAGE_PGNO(pPage) <= pPager->dbOrigSize && (pPager->jPageSet == NULL || !hashset_contains(pPager->jPageSet, (void*)((long)TDB_PAGE_PGNO(pPage))))) {
+  if (TDB_PAGE_PGNO(pPage) <= pPager->dbOrigSize &&
+      (pPager->jPageSet == NULL || !hashset_contains(pPager->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage))))) {
     ret = tdbPagerWritePageToJournal(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page to journal since %s", tstrerror(terrno));
@@ -327,7 +330,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
     }
 
     if (pPager->jPageSet) {
-      hashset_add(pPager->jPageSet, (void*)((long)TDB_PAGE_PGNO(pPage)));
+      hashset_add(pPager->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
     }
   }
 
@@ -372,6 +375,8 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   SRBTreeNode *pNode = NULL;
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
+
+    ASSERT(pPage->nOverflow == 0);
     ret = tdbPagerWritePageToDB(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page to db since %s", tstrerror(terrno));
@@ -391,11 +396,12 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
 
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     if (pPager->jPageSet) {
-      hashset_remove(pPager->jPageSet, (void*)((long)TDB_PAGE_PGNO(pPage)));
+      hashset_remove(pPager->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
     }
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
+  tdbTrace("pager/commit reset dirty tree: %p", &pPager->rbt);
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
 
   // sync the db file
@@ -469,6 +475,7 @@ int tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn) {
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
   /*
+  tdbTrace("reset dirty tree: %p", &pPager->rbt);
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
 
   // sync the db file
@@ -503,7 +510,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     return -1;
   }
 
-  u8   *pageBuf = tdbOsCalloc(1, pPager->pageSize);
+  u8 *pageBuf = tdbOsCalloc(1, pPager->pageSize);
   if (pageBuf == NULL) {
     return -1;
   }
@@ -560,10 +567,11 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     pPage->isDirty = 0;
 
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
-    hashset_remove(pPager->jPageSet, (void*)((long)TDB_PAGE_PGNO(pPage)));
+    hashset_remove(pPager->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
+  tdbTrace("reset dirty tree: %p", &pPager->rbt);
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
 
   // 4, remove the journal file
@@ -578,6 +586,8 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
 
 int tdbPagerFlushPage(SPager *pPager, TXN *pTxn) {
   SPage *pPage;
+  i32    nRef;
+  SPgno  maxPgno = pPager->dbOrigSize;
   int    ret;
 
   // loop to write the dirty pages to file
@@ -585,29 +595,52 @@ int tdbPagerFlushPage(SPager *pPager, TXN *pTxn) {
   SRBTreeNode *pNode = NULL;
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
+    nRef = tdbGetPageRef(pPage);
+    if (nRef > 1) {
+      continue;
+    }
+
+    SPgno pgno = TDB_PAGE_PGNO(pPage);
+    if (pgno > maxPgno) {
+      maxPgno = pgno;
+    }
     ret = tdbPagerWritePageToDB(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page to db since %s", tstrerror(terrno));
       return -1;
     }
-  }
 
-  tdbTrace("tdbttl commit:%p, %d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize);
-  pPager->dbOrigSize = pPager->dbFileSize;
+    tdbTrace("tdb/flush:%p, %d/%d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize, maxPgno);
+    pPager->dbOrigSize = maxPgno;
+
+    pPage->isDirty = 0;
+
+    tdbTrace("pager/flush drop page: %p %d from dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
+    tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
+    tdbPCacheRelease(pPager->pCache, pPage, pTxn);
+
+    break;
+  }
+  /*
+  tdbTrace("tdb/flush:%p, %d/%d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize, maxPgno);
+  pPager->dbOrigSize = maxPgno;
 
   // release the page
   iter = tRBTreeIterCreate(&pPager->rbt, 1);
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
+    nRef = tdbGetPageRef(pPage);
+    if (nRef > 1) {
+      continue;
+    }
 
     pPage->isDirty = 0;
 
+    tdbTrace("pager/flush drop page: %p %d from dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
-
-  tRBTreeCreate(&pPager->rbt, pageCmpFn);
-
+  */
   return 0;
 }
 

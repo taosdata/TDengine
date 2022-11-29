@@ -166,7 +166,7 @@ bool updateInfoIsTableInserted(SUpdateInfo *pInfo, int64_t tbUid) {
 TSKEY updateInfoFillBlockData(SUpdateInfo *pInfo, SSDataBlock *pBlock, int32_t primaryTsCol) {
   if (pBlock == NULL || pBlock->info.rows == 0) return INT64_MIN;
   TSKEY   maxTs = INT64_MIN;
-  int64_t tbUid = pBlock->info.uid;
+  int64_t tbUid = pBlock->info.id.uid;
 
   SColumnInfoData *pColDataInfo = taosArrayGet(pBlock->pDataBlock, primaryTsCol);
 

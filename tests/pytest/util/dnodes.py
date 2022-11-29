@@ -312,8 +312,14 @@ class TDDnode:
                 cmd = "mintty -h never %s -c %s" % (
                     binPath, self.cfgDir)
             else:
-                cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
-                    binPath, self.cfgDir)
+                if self.asan:
+                    asanDir = "%s/sim/asan/dnode%d.asan" % (
+                        self.path, self.index)
+                    cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
+                        binPath, self.cfgDir, asanDir)
+                else:
+                    cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
+                        binPath, self.cfgDir)
         else:
             valgrindCmdline = "valgrind --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
 
@@ -748,7 +754,7 @@ class TDDnodes:
             tdLog.exit("index:%d should on a scale of [1, 10]" % (index))
 
     def StopAllSigint(self):
-        tdLog.info("stop all dnodes sigint")
+        tdLog.info("stop all dnodes sigint, asan:%d" % self.asan)
         if self.asan:
             tdLog.info("execute script: %s" % self.stopDnodesSigintPath)
             os.system(self.stopDnodesSigintPath)
@@ -756,7 +762,7 @@ class TDDnodes:
             return
 
     def stopAll(self):
-        tdLog.info("stop all dnodes")
+        tdLog.info("stop all dnodes, asan:%d" % self.asan)
         if self.asan:
             tdLog.info("execute script: %s" % self.stopDnodesPath)
             os.system(self.stopDnodesPath)
@@ -816,6 +822,9 @@ class TDDnodes:
 
     def addSimExtraCfg(self, option, value):
         self.sim.addExtraCfg(option, value)
+
+    def getAsan(self):
+        return self.asan
 
 
 tdDnodes = TDDnodes()

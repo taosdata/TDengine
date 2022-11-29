@@ -29,6 +29,7 @@ extern "C" {
 #define ELECT_TIMER_MS_MAX   (ELECT_TIMER_MS_MIN * 2)
 #define ELECT_TIMER_MS_RANGE (ELECT_TIMER_MS_MAX - ELECT_TIMER_MS_MIN)
 #define HEARTBEAT_TIMER_MS   1000
+#define HEARTBEAT_TICK_NUM   20
 
 typedef struct SSyncEnv {
   uint8_t isStart;

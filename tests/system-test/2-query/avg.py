@@ -1,5 +1,7 @@
 import taos
 import sys
+
+import math
 import numpy as np
 from util.log import *
 from util.sql import *
@@ -13,7 +15,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
         self.setsql = TDSetSql()
         self.column_dict = {
             'ts':'timestamp',

@@ -11,6 +11,9 @@ set -e
 VALGRIND=0
 LOG_BK_DIR=/data/valgrind_log_backup     # 192.168.0.203
 SIM_FILES=./jenkins/basic.txt
+cases_task_file=../parallel_test/cases.task
+
+cat $cases_task_file | grep "./test.sh " | awk -F, '{print $5}' > $SIM_FILES
 
 while getopts "v:r:f:" arg
 do
@@ -21,9 +24,9 @@ do
     r)
       LOG_BK_DIR=$(echo $OPTARG)
       ;;
-    f)
-      SIM_FILES=$(echo $OPTARG)
-      ;;
+    #f)
+    #  SIM_FILES=$(echo $OPTARG)
+    #  ;;
     ?) #unknow option
       echo "unkonw argument"
       exit 1

@@ -39,4 +39,7 @@ void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb);
 // introduction
 void printfIntroduction();
 
+// show all commands help 
+void showHelp();
+
 #endif

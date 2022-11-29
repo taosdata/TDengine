@@ -1076,6 +1076,9 @@ int32_t catalogRefreshTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const S
   SCtgTbMetaCtx ctx = {0};
   ctx.pName = (SName*)pTableName;
   ctx.flag = CTG_FLAG_FORCE_UPDATE | CTG_FLAG_MAKE_STB(isSTable);
+  if (IS_SYS_DBNAME(ctx.pName->dbname)) {
+    CTG_FLAG_SET_SYS_DB(ctx.flag);
+  }
 
   CTG_API_LEAVE(ctgRefreshTbMeta(pCtg, pConn, &ctx, NULL, true));
 }

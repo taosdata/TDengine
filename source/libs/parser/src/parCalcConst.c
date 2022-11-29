@@ -169,7 +169,7 @@ static int32_t calcConstStmtCondition(SCalcConstContext* pCxt, SNode** pCond, bo
 static int32_t calcConstProject(SNode* pProject, bool dual, SNode** pNew) {
   SArray* pAssociation = NULL;
   if (NULL != ((SExprNode*)pProject)->pAssociation) {
-    pAssociation = taosArrayDup(((SExprNode*)pProject)->pAssociation);
+    pAssociation = taosArrayDup(((SExprNode*)pProject)->pAssociation, NULL);
     if (NULL == pAssociation) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -372,14 +372,42 @@ static bool isEmptyResultQuery(SNode* pStmt) {
   return isEmptyResult;
 }
 
+static void resetProjectNullTypeImpl(SNodeList* pProjects) {
+  SNode* pProj = NULL;
+  FOREACH(pProj, pProjects) {
+    SExprNode* pExpr = (SExprNode*)pProj;
+    if (TSDB_DATA_TYPE_NULL == pExpr->resType.type) {
+      pExpr->resType.type = TSDB_DATA_TYPE_VARCHAR;
+      pExpr->resType.bytes = 0;
+    }
+  }
+}
+
+static void resetProjectNullType(SNode* pStmt) {
+  switch (nodeType(pStmt)) {
+    case QUERY_NODE_SELECT_STMT:
+      resetProjectNullTypeImpl(((SSelectStmt*)pStmt)->pProjectionList);
+      break;
+    case QUERY_NODE_SET_OPERATOR: {
+      resetProjectNullTypeImpl(((SSetOperator*)pStmt)->pProjectionList);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
   SCalcConstContext cxt = {.pParseCxt = pParseCxt,
                            .msgBuf.buf = pParseCxt->pMsg,
                            .msgBuf.len = pParseCxt->msgLen,
                            .code = TSDB_CODE_SUCCESS};
   int32_t           code = calcConstQuery(&cxt, pQuery->pRoot, false);
-  if (TSDB_CODE_SUCCESS == code && isEmptyResultQuery(pQuery->pRoot)) {
-    pQuery->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
+  if (TSDB_CODE_SUCCESS == code) {
+    resetProjectNullType(pQuery->pRoot);
+    if (isEmptyResultQuery(pQuery->pRoot)) {
+      pQuery->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
+    }
   }
   return code;
 }
