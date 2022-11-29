@@ -89,7 +89,6 @@ struct STxn {
   void     *xArg;
   tdb_fd_t  jfd;
   hashset_t jPageSet;
-  int       preped;
 };
 
 // error code

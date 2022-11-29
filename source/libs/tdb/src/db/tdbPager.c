@@ -297,7 +297,7 @@ int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
   }
 
   pTxn->jPageSet = hashset_create();
-  ASSERT(pPager->pActiveTxn->preped == 1);
+
   pPager->pActiveTxn = pTxn;
   // TODO: write the size of the file
   /*
@@ -433,7 +433,6 @@ int tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn) {
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
-  pTxn->preped = 1;
   /*
   tdbTrace("reset dirty tree: %p", &pPager->rbt);
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
