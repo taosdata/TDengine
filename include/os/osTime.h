@@ -35,6 +35,7 @@ extern "C" {
 #ifdef WINDOWS
 
 #define CLOCK_REALTIME 0
+#define CLOCK_MONOTONIC 0
 
 #define MILLISECOND_PER_SECOND (1000i64)
 #else
