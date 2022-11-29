@@ -283,13 +283,15 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
         "vgId:%d, sync %s "
         "%s"
         ", tm:%" PRIu64 ", cmt:%" PRId64 ", fst:%" PRId64 ", lst:%" PRId64 ", min:%" PRId64 ", snap:%" PRId64
-        ", snap-tm:%" PRIu64 ", elt-num:%d, bl-num:%d, cc-num:%d, hit:%d, mis:%d, aq:%d, snaping:%" PRId64
+        ", snap-tm:%" PRIu64
+        ", elt-num:%d, bl-num:%d, cc-num:%d, hit:%d, mis:%d, hb-slow:%d, hbr-slow:%d, aq:%d, snaping:%" PRId64
         ", r-num:%d, lcfg:%" PRId64 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s, %s, %s, %s",
         pNode->vgId, syncStr(pNode->state), eventLog, currentTerm, pNode->commitIndex, logBeginIndex, logLastIndex,
         pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm, pNode->electNum, pNode->becomeLeaderNum,
-        pNode->configChangeNum, cacheHit, cacheMiss, aqItems, pNode->snapshottingIndex, pNode->replicaNum,
-        pNode->pRaftCfg->lastConfigIndex, pNode->changing, pNode->restoreFinish, quorum, pNode->electTimerLogicClock,
-        pNode->heartbeatTimerLogicClockUser, peerStr, cfgStr, hbTimeStr, hbrTimeStr);
+        pNode->configChangeNum, cacheHit, cacheMiss, pNode->hbSlowNum, pNode->hbrSlowNum, aqItems,
+        pNode->snapshottingIndex, pNode->replicaNum, pNode->pRaftCfg->lastConfigIndex, pNode->changing,
+        pNode->restoreFinish, quorum, pNode->electTimerLogicClock, pNode->heartbeatTimerLogicClockUser, peerStr, cfgStr,
+        hbTimeStr, hbrTimeStr);
   }
 }
 
@@ -463,12 +465,23 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
 }
 
 void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64_t timeDiff) {
+  if (timeDiff > SYNC_HEARTBEAT_SLOW_MS) {
+    pSyncNode->hbSlowNum++;
+
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    sNInfo(pSyncNode,
+           "recv sync-heartbeat from %s:%d slow {term:%" PRId64 ", cmt:%" PRId64 ", min-match:%" PRId64 ", ts:%" PRId64
+           "}, net elapsed:%" PRId64,
+           host, port, pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->timeStamp, timeDiff);
+  }
+
   if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-
   sNTrace(pSyncNode,
           "recv sync-heartbeat from %s:%d {term:%" PRId64 ", cmt:%" PRId64 ", min-match:%" PRId64 ", ts:%" PRId64
           "}, net elapsed:%" PRId64,
@@ -487,6 +500,17 @@ void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
 }
 
 void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, int64_t timeDiff) {
+  if (timeDiff > SYNC_HEARTBEAT_REPLY_SLOW_MS) {
+    pSyncNode->hbrSlowNum++;
+
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    sNTrace(pSyncNode,
+            "recv sync-heartbeat-reply from %s:%d slow {term:%" PRId64 ", ts:%" PRId64 "}, net elapsed:%" PRId64, host,
+            port, pMsg->term, pMsg->timeStamp, timeDiff);
+  }
+
   if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   char     host[64];
