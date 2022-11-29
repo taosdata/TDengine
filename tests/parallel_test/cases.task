@@ -1016,6 +1016,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
 
 #develop test
 ,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/auto_create_table_json.py
