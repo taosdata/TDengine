@@ -3589,7 +3589,7 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
 
   SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, i);
   if (pColData->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-    colDataAppendInt64(pColData, outputRowIndex, &pBlockData->aTSKEY[rowIndex]);
+    ((int64_t*)pColData->pData)[outputRowIndex] = pBlockData->aTSKEY[rowIndex];
     i += 1;
   }
 
