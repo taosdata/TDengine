@@ -2109,6 +2109,91 @@ int32_t tColDataSortMerge(SColData *aColData) {
   return 0;
 }
 
+int32_t tPutColData(uint8_t *pBuf, SColData *pColData) {
+  int32_t n = 0;
+
+  n += tPutI16v(pBuf + n, pColData->cid);
+  n += tPutI8(pBuf + n, pColData->type);
+  n += tPutI32v(pBuf + n, pColData->nVal);
+  n += tPutI8(pBuf + n, pColData->flag);
+
+  // bitmap
+  switch (pColData->flag) {
+    case (HAS_NULL | HAS_NONE):
+    case (HAS_VALUE | HAS_NONE):
+    case (HAS_VALUE | HAS_NULL):
+      if (pBuf) memcpy(pBuf + n, pColData->pBitMap, BIT1_SIZE(pColData->nVal));
+      n += BIT1_SIZE(pColData->nVal);
+      break;
+    case (HAS_VALUE | HAS_NULL | HAS_NONE):
+      if (pBuf) memcpy(pBuf + n, pColData->pBitMap, BIT2_SIZE(pColData->nVal));
+      n += BIT2_SIZE(pColData->nVal);
+      break;
+    default:
+      break;
+  }
+
+  // value
+  if (pColData->flag & HAS_VALUE) {
+    if (IS_VAR_DATA_TYPE(pColData->type)) {
+      if (pBuf) memcpy(pBuf + n, pColData->aOffset, pColData->nVal << 2);
+      n += (pColData->nVal << 2);
+
+      n += tPutI32v(pBuf + n, pColData->nData);
+      if (pBuf) memcpy(pBuf + n, pColData->pData, pColData->nData);
+      n += pColData->nData;
+    } else {
+      if (pBuf) memcpy(pBuf + n, pColData->pData, pColData->nData);
+      n += pColData->nData;
+    }
+  }
+
+  return n;
+}
+
+int32_t tGetColData(uint8_t *pBuf, SColData *pColData) {
+  int32_t n = 0;
+
+  n += tGetI16v(pBuf + n, &pColData->cid);
+  n += tGetI8(pBuf + n, &pColData->type);
+  n += tGetI32v(pBuf + n, &pColData->nVal);
+  n += tGetI8(pBuf + n, &pColData->flag);
+
+  // bitmap
+  switch (pColData->flag) {
+    case (HAS_NULL | HAS_NONE):
+    case (HAS_VALUE | HAS_NONE):
+    case (HAS_VALUE | HAS_NULL):
+      pColData->pBitMap = pBuf + n;
+      n += BIT1_SIZE(pColData->nVal);
+      break;
+    case (HAS_VALUE | HAS_NULL | HAS_NONE):
+      pColData->pBitMap = pBuf + n;
+      n += BIT2_SIZE(pColData->nVal);
+      break;
+    default:
+      break;
+  }
+
+  // value
+  if (pColData->flag & HAS_VALUE) {
+    if (IS_VAR_DATA_TYPE(pColData->type)) {
+      pColData->aOffset = (int32_t *)(pBuf + n);
+      n += (pColData->nVal << 2);
+
+      n += tGetI32v(pBuf + n, &pColData->nData);
+      pColData->pData = pBuf + n;
+      n += pColData->nData;
+    } else {
+      pColData->nData = TYPE_BYTES[pColData->type] * pColData->nVal;
+      pColData->nData = pBuf + n;
+      n += pColData->nData;
+    }
+  }
+
+  return n;
+}
+
 #define CALC_SUM_MAX_MIN(SUM, MAX, MIN, VAL) \
   do {                                       \
     (SUM) += (VAL);                          \

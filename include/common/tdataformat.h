@@ -123,6 +123,10 @@ extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max,
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind);
 int32_t tColDataSortMerge(SColData *aColData);
 
+// for encode/decode
+int32_t tPutColData(uint8_t *pBuf, SColData *pColData);
+int32_t tGetColData(uint8_t *pBuf, SColData *pColData);
+
 // STRUCT ================================
 struct STColumn {
   col_id_t colId;
