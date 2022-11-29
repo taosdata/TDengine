@@ -863,51 +863,49 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   }
   tDecoderClear(&dc);
 
-  // // init
-  // code = tCreateSSubmitRsp2(&pSubmitRsp);
-  // if (code) goto _exit;
+  // check
+  for (int32_t i = 0; i < taosArrayGetSize(pSubmitReq->aSubmitTbData); ++i) {
+    SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
 
-  // // auto create table
-  // for (int32_t iCreateTbReq = 0; iCreateTbReq < taosArrayGetSize(pSubmitReq->aCreateTbReq); iCreateTbReq++) {
-  //   SVCreateTbReq *pCreateTbReq = taosArrayGet(pSubmitReq->aCreateTbReq, iCreateTbReq);
+    if (pSubmitTbData->pCreateTbReq) {
+      pSubmitTbData->uid = pSubmitTbData->pCreateTbReq->uid;
+    } else {
+      SMetaInfo info = {0};
 
-  //   SVCreateTbRsp *pCreateTbRsp = taosArrayReserve(pSubmitRsp->aCreateTbRsp, 1);
-  //   if (pCreateTbRsp == NULL) {
-  //     code = TSDB_CODE_TDB_OUT_OF_MEMORY;
-  //     goto _exit;
-  //   }
+      code = metaGetInfo(pVnode->pMeta, pSubmitTbData->uid, &info, NULL);
+      if (code) {
+        code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+        goto _exit;
+      }
 
-  //   if (metaCreateTable(pVnode->pMeta, version, pCreateTbReq, &pCreateTbRsp->pMeta) < 0) {
-  //     if (terrno != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
-  //       // todo
-  //     }
-  //   } else {
-  //     // todo
-  //   }
-  // }
+      if (info.suid != pSubmitTbData->suid) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
 
-  // // check
-  // for (int32_t i = 0; i < taosArrayGetSize(pSubmitReq->aSubmitTbData); ++i) {
-  //   SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
+      if (info.suid) {
+        metaGetInfo(pVnode->pMeta, info.suid, &info, NULL);
+      }
 
-  //   SMetaInfo info = {0};
-  //   code = metaGetInfo(pVnode->pMeta, pSubmitTbData->uid, &info, NULL);
-  //   if (code) {
-  //     // TODO
-  //   }
-  // }
+      if (pSubmitTbData->sver != info.skmVer) {
+        code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+        goto _exit;
+      }
+    }
+  }
 
-  // // insert table data
-  // for (int32_t iSubmitTbData = 0; iSubmitTbData < taosArrayGetSize(pSubmitReq->aSubmitTbData); iSubmitTbData++) {
-  //   SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, iSubmitTbData);
+  // loop to handle
+  for (int32_t i = 0; i < taosArrayGetSize(pSubmitReq->aSubmitTbData); ++i) {
+    SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
 
-  //   SSubmitBlkRsp submitBlkRsp = {0};
+    // create table
+    if (pSubmitTbData->pCreateTbReq) {
+    }
 
-  //   code = tsdbInsertTableData(pVnode->pTsdb, version, pSubmitTbData, &submitBlkRsp);
-  //   if (code) goto _exit;
-
-  //   pSubmitRsp->affectedRows += taosArrayGetSize(pSubmitTbData->aRowP);
-  // }
+    // insert data
+    tsdbInsertTableData(pVnode->pTsdb, version, pSubmitTbData, NULL /* todo */);
+    // TODO: handle result
+  }
 
 _exit:
   if (code) {

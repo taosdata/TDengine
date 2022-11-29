@@ -102,6 +102,7 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitTbData *pSubmi
   tb_uid_t   suid = pSubmitTbData->suid;
   tb_uid_t   uid = pSubmitTbData->uid;
 
+#if 0
   SMetaInfo info;
   code = metaGetInfo(pTsdb->pVnode->pMeta, uid, &info, NULL);
   if (code) {
@@ -123,6 +124,7 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitTbData *pSubmi
   }
 
   if (pRsp) pRsp->sver = info.skmVer;
+#endif
 
   // create/get STbData to op
   code = tsdbGetOrCreateTbData(pMemTable, suid, uid, &pTbData);
