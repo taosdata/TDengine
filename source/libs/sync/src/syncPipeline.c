@@ -150,7 +150,7 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
     goto _err;
   }
   SyncIndex commitIndex = snapshot.lastApplyIndex;
-  SyncTerm  commitTerm = snapshot.lastApplyTerm;
+  SyncTerm  commitTerm = TMAX(snapshot.lastApplyTerm, 0);
   if (syncLogValidateAlignmentOfCommit(pNode, commitIndex)) {
     terrno = TSDB_CODE_WAL_LOG_INCOMPLETE;
     goto _err;
