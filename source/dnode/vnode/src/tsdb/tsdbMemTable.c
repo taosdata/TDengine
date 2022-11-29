@@ -541,17 +541,17 @@ _exit:
 static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, int64_t version,
                                        SSubmitTbData *pSubmitTbData, SSubmitBlkRsp *pRsp) {
   int32_t code = 0;
-  // SSubmitBlkIter    blkIter = {0};
+
+  SRow            **rows = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
   TSDBKEY           key = {.version = version};
   SMemSkipListNode *pos[SL_MAX_LEVEL];
   TSDBROW           row = tsdbRowFromTSRow(version, NULL);
-  int32_t           nRow = taosArrayGetSize(pSubmitTbData->aRowP);
+  int32_t           nRow = TARRAY_SIZE(pSubmitTbData->aRowP);
   int32_t           iRow = 0;
   SRow             *pLastRow = NULL;
 
   // backward put first data
-  row.pTSRow = taosArrayGetP(pSubmitTbData->aRowP, iRow);
-
+  row.pTSRow = rows[iRow];
   key.ts = row.pTSRow->ts;
   iRow++;
   tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_BACKWARD);
@@ -571,7 +571,7 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
     }
 
     while (iRow < nRow) {
-      row.pTSRow = taosArrayGetP(pSubmitTbData->aRowP, iRow);
+      row.pTSRow = rows[iRow];
       key.ts = row.pTSRow->ts;
 
       if (SL_NODE_FORWARD(pos[0], 0) != pTbData->sl.pTail) {
