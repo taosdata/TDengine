@@ -132,8 +132,8 @@ class TDTestCase:
         tdLog.info(f"New client version is {nowClientVersion}")
 
         tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
-        tdsql.query(f"select count(*) from {stb}")
-        tdsql.checkData(0,0,tableNumbers*recordNumbers1)        
+        #tdsql.query(f"select count(*) from {stb}")
+        #tdsql.checkData(0,0,tableNumbers*recordNumbers1)        
         os.system(f"/usr/local/bin/taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
