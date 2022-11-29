@@ -1286,7 +1286,6 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
     return NULL;
   }
 
-  blockDataEnsureCapacity(pBlock, pOperator->resultInfo.capacity);
   while (1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
     doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
@@ -1737,7 +1736,8 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPh
   pInfo->primaryTsIndex = ((SColumnNode*)pPhyNode->window.pTspk)->slotId;
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
-  initResultSizeInfo(&pOperator->resultInfo, 4096);
+  initResultSizeInfo(&pOperator->resultInfo, 1024);
+  blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
 
   int32_t    num = 0;
   SExprInfo* pExprInfo = createExprInfo(pPhyNode->window.pFuncs, NULL, &num);
