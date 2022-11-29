@@ -51,7 +51,7 @@ class TDTestCase:
         sleep(self.delaytime)
         if platform.system().lower() == 'windows':
             sleep(10)
-        tdSql.error('select server_status()')
+        #tdSql.error('select server_status()')
 
     def run(self):
         self.get_database_info()
