@@ -832,12 +832,12 @@ static int tdbPagerPWritePageToDB(SPager *pPager, SPage *pPage) {
   return 0;
 }
 
-int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
+static int tdbPagerRestore(SPager *pPager, SBTree *pBt, const char *jFileName) {
   int   ret = 0;
   SPgno journalSize = 0;
   u8   *pageBuf = NULL;
 
-  tdb_fd_t jfd = tdbOsOpen(pPager->jFileName, TDB_O_RDWR, 0755);
+  tdb_fd_t jfd = tdbOsOpen(jFileName, TDB_O_RDWR, 0755);
   if (jfd == NULL) {
     return 0;
   }
@@ -910,12 +910,50 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
   return 0;
 }
 
-int tdbPagerRollback(SPager *pPager) {
-  if (tdbOsRemove(pPager->jFileName) < 0 && errno != ENOENT) {
-    tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
-    terrno = TAOS_SYSTEM_ERROR(errno);
+int tdbPagerRestoreJournals(SPager *pPager, SBTree *pBt) {
+  tdbDirEntryPtr pDirEntry;
+  tdbDirPtr      pDir = taosOpenDir(pPager->pEnv->dbName);
+  if (pDir == NULL) {
+    tdbError("failed to open %s since %s", pPager->pEnv->dbName, strerror(errno));
     return -1;
   }
+
+  while ((pDirEntry = tdbReadDir(pDir)) != NULL) {
+    char *name = tdbDirEntryBaseName(tdbGetDirEntryName(pDirEntry));
+    if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
+      if (tdbPagerRestore(pPager, pBt, name) < 0) {
+        tdbError("failed to restore file due to %s. jFileName:%s", strerror(errno), name);
+        return -1;
+      }
+    }
+  }
+
+  tdbCloseDir(&pDir);
+
+  return 0;
+}
+
+int tdbPagerRollback(SPager *pPager) {
+  tdbDirEntryPtr pDirEntry;
+  tdbDirPtr      pDir = taosOpenDir(pPager->pEnv->dbName);
+  if (pDir == NULL) {
+    tdbError("failed to open %s since %s", pPager->pEnv->dbName, strerror(errno));
+    return -1;
+  }
+
+  while ((pDirEntry = tdbReadDir(pDir)) != NULL) {
+    char *name = tdbDirEntryBaseName(tdbGetDirEntryName(pDirEntry));
+
+    if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
+      if (tdbOsRemove(name) < 0 && errno != ENOENT) {
+        tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), name);
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        return -1;
+      }
+    }
+  }
+
+  tdbCloseDir(&pDir);
 
   return 0;
 }
