@@ -98,8 +98,8 @@ class TDTestCase:
         # tdLog.info(f"Base client version is {oldClientVersion}")
         oldServerVersion="3.0.1.0"
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{oldServerVersion}")
-        tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
-        os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
+        tdLog.info(f"taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
+        os.system(f"/usr/local/bin/taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
         sleep(3)
 
         # tdsqlF.query(f"select count(*) from {stb}")
@@ -108,10 +108,10 @@ class TDTestCase:
         sleep(2)
 
         print(f"start taosd: nohup taosd -c {cPath} & ")
-        os.system(f" nohup taosd -c {cPath} & " )
+        os.system(f" nohup /usr/bin/taosd -c {cPath} & " )
         sleep(10)
         tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
+        os.system("/usr/local/bin/taosBenchmark -f 0-others/compa4096.json -y")
         os.system("pkill -9 taosd")
 
 
@@ -134,7 +134,7 @@ class TDTestCase:
         tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers1)        
-        os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
+        os.system(f"/usr/local/bin/taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
         tdsql.query("select count(*) from db4096.stb0")
