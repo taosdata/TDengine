@@ -1152,7 +1152,12 @@ void schHandleTimerEvent(void *param, void *tmrId) {
   SSchJob        *pJob = NULL;
   int32_t         code = 0;
 
-  if (schProcessOnCbBegin(&pJob, &pTask, pTimerParam->queryId, pTimerParam->rId, pTimerParam->taskId)) {
+  int64_t  rId = pTimerParam->rId;
+  uint64_t queryId = pTimerParam->queryId;
+  uint64_t taskId = pTimerParam->taskId;
+  taosMemoryFree(pTimerParam);
+
+  if (schProcessOnCbBegin(&pJob, &pTask, queryId, rId, taskId)) {
     return;
   }
 

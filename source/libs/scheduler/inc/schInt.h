@@ -146,7 +146,7 @@ typedef struct SSchedulerMgmt {
   bool          exit;
   int32_t       jobRef;
   int32_t       jobNum;
-  SSchStat      stat;  
+  SSchStat      stat;
   void         *timer;
   SRWLatch      hbLock;
   SHashObj     *hbConnections;
@@ -214,9 +214,9 @@ typedef struct SSchRedirectCtx {
 } SSchRedirectCtx;
 
 typedef struct SSchTimerParam {
-  int64_t          rId;
-  uint64_t         queryId;
-  uint64_t         taskId;
+  int64_t  rId;
+  uint64_t queryId;
+  uint64_t taskId;
 } SSchTimerParam;
 
 typedef struct SSchTask {
