@@ -1476,7 +1476,7 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   STransConnCtx* pCtx = pMsg->ctx;
   int32_t        code = pResp->code;
 
-  bool retry = pTransInst->retry(code, pResp->msgType - 1);
+  bool retry = pTransInst->retry != NULL ? pTransInst->retry(code, pResp->msgType - 1) : false;
   if (retry == false) {
     return false;
   }
