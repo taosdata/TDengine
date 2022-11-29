@@ -131,7 +131,7 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     p = taosMemoryCalloc(1, sizeof(struct SAppInstInfo));
     p->mgmtEp = epSet;
     taosThreadMutexInit(&p->qnodeMutex, NULL);
-    p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
+    p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores / 2);
     p->pAppHbMgr = appHbMgrInit(p, key);
     if (NULL == p->pAppHbMgr) {
       destroyAppInst(p);
@@ -2293,10 +2293,16 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
 
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly);
   tsem_wait(&param->sem);
+
+  SRequestObj *pRequest = NULL;
   if (param->pRequest != NULL) {
     param->pRequest->syncQuery = true;
+    pRequest = param->pRequest;
+  } else {
+    taosMemoryFree(param);
   }
-  return param->pRequest;
+  
+  return pRequest;
 }
 
 TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly, int64_t reqid) {
@@ -2310,8 +2316,14 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
 
   taosAsyncQueryImplWithReqid(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid);
   tsem_wait(&param->sem);
+
+  SRequestObj *pRequest = NULL;
   if (param->pRequest != NULL) {
     param->pRequest->syncQuery = true;
+    pRequest = param->pRequest;
+  } else {
+    taosMemoryFree(param);
   }
-  return param->pRequest;
+  
+  return pRequest;
 }
