@@ -205,9 +205,11 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       pLocalEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, hLocal);
       code = 0;
 
+      ths->pLogStore->cacheHit++;
       sNTrace(ths, "hit cache index:%" PRId64 ", bytes:%u, %p", appendIndex, pLocalEntry->bytes, pLocalEntry);
 
     } else {
+      ths->pLogStore->cacheMiss++;
       sNTrace(ths, "miss cache index:%" PRId64, appendIndex);
 
       code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, appendIndex, &pLocalEntry);

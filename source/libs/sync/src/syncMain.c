@@ -410,9 +410,11 @@ bool syncIsReadyForRead(int64_t rid) {
           pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
           code = 0;
 
+          pSyncNode->pLogStore->cacheHit++;
           sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", lastIndex, pEntry->bytes, pEntry);
 
         } else {
+          pSyncNode->pLogStore->cacheMiss++;
           sNTrace(pSyncNode, "miss cache index:%" PRId64, lastIndex);
 
           code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, lastIndex, &pEntry);
@@ -1850,9 +1852,11 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
     pPreEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
     code = 0;
 
+    pSyncNode->pLogStore->cacheHit++;
     sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", preIndex, pPreEntry->bytes, pPreEntry);
 
   } else {
+    pSyncNode->pLogStore->cacheMiss++;
     sNTrace(pSyncNode, "miss cache index:%" PRId64, preIndex);
 
     code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, preIndex, &pPreEntry);
@@ -2534,9 +2538,11 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
         if (h) {
           pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
 
+          ths->pLogStore->cacheHit++;
           sNTrace(ths, "hit cache index:%" PRId64 ", bytes:%u, %p", i, pEntry->bytes, pEntry);
 
         } else {
+          ths->pLogStore->cacheMiss++;
           sNTrace(ths, "miss cache index:%" PRId64, i);
 
           code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
