@@ -27,6 +27,7 @@
 #include "tglobal.h"
 #include "tmsg.h"
 #include "trpc.h"
+#include "tmisce.h"
 // clang-foramt on
 
 typedef struct SUdfdContext {

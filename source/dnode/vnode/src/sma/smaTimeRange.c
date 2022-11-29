@@ -203,10 +203,13 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
     goto _err;
   }
 
-  SBatchDeleteReq deleteReq;
+  SBatchDeleteReq deleteReq = {0};
   SSubmitReq     *pSubmitReq =
       tqBlockToSubmit(pSma->pVnode, (const SArray *)msg, pTsmaStat->pTSchema, &pTsmaStat->pTSma->schemaTag, true,
                       pTsmaStat->pTSma->dstTbUid, pTsmaStat->pTSma->dstTbName, &deleteReq);
+  // TODO deleteReq
+  taosArrayDestroy(deleteReq.deleteReqs);
+  
 
   if (!pSubmitReq) {
     smaError("vgId:%d, failed to gen submit blk while tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),

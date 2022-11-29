@@ -99,18 +99,25 @@ void        metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
 void        metaReaderReleaseLock(SMetaReader *pReader);
 void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
+int32_t     metaGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
 int         metaGetTableEntryByName(SMetaReader *pReader, const char *name);
 int32_t     metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags);
 int32_t     metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList, SHashObj *tags);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(void *tag, int16_t type, STagVal *tagVal);
 int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
+
 int         metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName);
-int         metaGetTableUidByName(void *meta, char *tbName, int64_t *uid);
+int         metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid);
 int         metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType);
 bool        metaIsTableExist(SMeta *pMeta, tb_uid_t uid);
-tb_uid_t      metaGetTableEntryUidByName(SMeta* pMeta, const char* name);
-int64_t       metaGetTbNum(SMeta* pMeta);
+int32_t     metaGetCachedTableUidList(SMeta *pMeta, tb_uid_t suid, const uint8_t *key, int32_t keyLen, SArray *pList,
+                                      bool *acquired);
+int32_t     metaUidFilterCachePut(SMeta *pMeta, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
+                                  int32_t payloadLen, double selectivityRatio);
+int32_t     metaUidCacheClear(SMeta *pMeta, uint64_t suid);
+tb_uid_t    metaGetTableEntryUidByName(SMeta* pMeta, const char* name);
+int64_t     metaGetTbNum(SMeta* pMeta);
 
 typedef struct {
   int64_t uid;

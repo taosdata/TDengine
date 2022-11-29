@@ -1096,7 +1096,7 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
 
   SSDataBlock *pTempBlock = createDataBlock();
   pTempBlock->info.rows = pInput->totalRows;
-  pTempBlock->info.uid = pInput->uid;
+  pTempBlock->info.id.uid = pInput->uid;
   for (int32_t i = 0; i < numOfCols; ++i) {
     blockDataAppendColInfo(pTempBlock, pInput->pData[i]);
   }

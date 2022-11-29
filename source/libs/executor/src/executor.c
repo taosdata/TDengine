@@ -480,51 +480,6 @@ _error:
   return code;
 }
 
-#ifdef TEST_IMPL
-// wait moment
-int waitMoment(SQInfo* pQInfo) {
-  if (pQInfo->sql) {
-    int   ms = 0;
-    char* pcnt = strstr(pQInfo->sql, " count(*)");
-    if (pcnt) return 0;
-
-    char* pos = strstr(pQInfo->sql, " t_");
-    if (pos) {
-      pos += 3;
-      ms = atoi(pos);
-      while (*pos >= '0' && *pos <= '9') {
-        pos++;
-      }
-      char unit_char = *pos;
-      if (unit_char == 'h') {
-        ms *= 3600 * 1000;
-      } else if (unit_char == 'm') {
-        ms *= 60 * 1000;
-      } else if (unit_char == 's') {
-        ms *= 1000;
-      }
-    }
-    if (ms == 0) return 0;
-    printf("test wait sleep %dms. sql=%s ...\n", ms, pQInfo->sql);
-
-    if (ms < 1000) {
-      taosMsleep(ms);
-    } else {
-      int used_ms = 0;
-      while (used_ms < ms) {
-        taosMsleep(1000);
-        used_ms += 1000;
-        if (isTaskKilled(pQInfo)) {
-          printf("test check query is canceled, sleep break.%s\n", pQInfo->sql);
-          break;
-        }
-      }
-    }
-  }
-  return 1;
-}
-#endif
-
 static void freeBlock(void* param) {
   SSDataBlock* pBlock = *(SSDataBlock**)param;
   blockDataDestroy(pBlock);
@@ -538,7 +493,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     memcpy(&pTaskInfo->localFetch, pLocal, sizeof(*pLocal));
   }
 
-  taosArrayClearEx(pResList, freeBlock);
+  taosArrayClear(pResList);
 
   int64_t curOwner = 0;
   if ((curOwner = atomic_val_compare_exchange_64(&pTaskInfo->owner, 0, threadId)) != 0) {
@@ -576,8 +531,20 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
 
   int64_t st = taosGetTimestampUs();
 
+  int32_t blockIndex = 0;
   while ((pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot)) != NULL) {
-    SSDataBlock* p = createOneDataBlock(pRes, true);
+    SSDataBlock* p = NULL;
+    if (blockIndex >= taosArrayGetSize(pTaskInfo->pResultBlockList)) {
+      SSDataBlock* p1 = createOneDataBlock(pRes, true);
+      taosArrayPush(pTaskInfo->pResultBlockList, &p1);
+      p = p1;
+    } else {
+      p = *(SSDataBlock**) taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);
+      copyDataBlock(p, pRes);
+    }
+
+    blockIndex += 1;
+
     current += p->info.rows;
     ASSERT(p->info.rows > 0);
     taosArrayPush(pResList, &p);
@@ -603,6 +570,18 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
 
   atomic_store_64(&pTaskInfo->owner, 0);
   return pTaskInfo->code;
+}
+
+void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  SArray* pList = pTaskInfo->pResultBlockList;
+  size_t num = taosArrayGetSize(pList);
+  for(int32_t i = 0; i < num; ++i) {
+    SSDataBlock** p = taosArrayGet(pTaskInfo->pResultBlockList, i);
+    blockDataDestroy(*p);
+  }
+
+  taosArrayClear(pTaskInfo->pResultBlockList);
 }
 
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
@@ -733,7 +712,7 @@ void qDestroyTask(qTaskInfo_t qTaskHandle) {
 
   qDebug("%s execTask completed, numOfRows:%" PRId64, GET_TASKID(pTaskInfo), pTaskInfo->pRoot->resultInfo.totalRows);
 
-  queryCostStatis(pTaskInfo);  // print the query cost summary
+  printTaskExecCostInLog(pTaskInfo);  // print the query cost summary
   doDestroyTask(pTaskInfo);
 }
 
@@ -749,12 +728,12 @@ int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len) {
   }
 
   int32_t nOptrWithVal = 0;
-  int32_t code = encodeOperator(pTaskInfo->pRoot, pOutput, len, &nOptrWithVal);
-  if ((code == TSDB_CODE_SUCCESS) && (nOptrWithVal == 0)) {
-    taosMemoryFreeClear(*pOutput);
-    *len = 0;
-  }
-  return code;
+//  int32_t code = encodeOperator(pTaskInfo->pRoot, pOutput, len, &nOptrWithVal);
+//  if ((code == TSDB_CODE_SUCCESS) && (nOptrWithVal == 0)) {
+//    taosMemoryFreeClear(*pOutput);
+//    *len = 0;
+//  }
+  return 0;
 }
 
 int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len) {
@@ -764,7 +743,8 @@ int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t le
     return TSDB_CODE_INVALID_PARA;
   }
 
-  return decodeOperator(pTaskInfo->pRoot, pInput, len);
+  return 0;
+//  return decodeOperator(pTaskInfo->pRoot, pInput, len);
 }
 
 int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {

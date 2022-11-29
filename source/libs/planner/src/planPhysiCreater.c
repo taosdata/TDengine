@@ -1085,6 +1085,7 @@ static int32_t doCreateExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogic
 
   pExchange->srcStartGroupId = pExchangeLogicNode->srcStartGroupId;
   pExchange->srcEndGroupId = pExchangeLogicNode->srcEndGroupId;
+  pExchange->seqRecvData = pExchangeLogicNode->seqRecvData;
   *pPhyNode = (SPhysiNode*)pExchange;
 
   return TSDB_CODE_SUCCESS;

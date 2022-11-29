@@ -172,6 +172,7 @@ typedef struct SExchangeLogicNode {
   SLogicNode node;
   int32_t    srcStartGroupId;
   int32_t    srcEndGroupId;
+  bool       seqRecvData;
 } SExchangeLogicNode;
 
 typedef struct SMergeLogicNode {
@@ -419,6 +420,7 @@ typedef struct SExchangePhysiNode {
   int32_t    srcEndGroupId;
   bool       singleChannel;
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
+  bool       seqRecvData;
 } SExchangePhysiNode;
 
 typedef struct SMergePhysiNode {

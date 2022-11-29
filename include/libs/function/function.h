@@ -115,7 +115,7 @@ typedef struct SInputColumnInfoData {
   int32_t           startRowIndex;    // handle started row index
   int32_t           numOfRows;        // the number of rows needs to be handled
   int32_t           numOfInputCols;   // PTS is not included
-  bool              colDataAggIsSet;  // if agg is set or not
+  bool              colDataSMAIsSet;  // if agg is set or not
   SColumnInfoData  *pPTS;             // primary timestamp column
   SColumnInfoData **pData;
   SColumnDataAgg  **pColumnDataAgg;

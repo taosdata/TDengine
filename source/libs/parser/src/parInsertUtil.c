@@ -139,8 +139,8 @@ void insSetBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, col_i
     if (i > 0) {
       pColList->cols[i].offset = pColList->cols[i - 1].offset + pSchema[i - 1].bytes;
       pColList->cols[i].toffset = pColList->flen;
+      pColList->flen += TYPE_BYTES[type];
     }
-    pColList->flen += TYPE_BYTES[type];
     switch (type) {
       case TSDB_DATA_TYPE_BINARY:
         pColList->allNullLen += (VARSTR_HEADER_SIZE + CHAR_BYTES);
@@ -857,7 +857,7 @@ void insBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, i
   pTbReq->ctb.tagNum = tagNum;
   if (sname) pTbReq->ctb.stbName = strdup(sname);
   pTbReq->ctb.pTag = (uint8_t*)pTag;
-  pTbReq->ctb.tagName = taosArrayDup(tagName);
+  pTbReq->ctb.tagName = taosArrayDup(tagName, NULL);
   pTbReq->ttl = TSDB_DEFAULT_TABLE_TTL;
   pTbReq->commentLen = -1;
 

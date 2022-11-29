@@ -140,7 +140,7 @@ typedef struct SMetaInfo {
   int64_t version;
   int32_t skmVer;
 } SMetaInfo;
-int32_t metaGetInfo(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo);
+int32_t metaGetInfo(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo, SMetaReader* pReader);
 
 // tsdb
 int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback);

@@ -1491,19 +1491,33 @@ static bool partTagsHasIndefRowsSelectFunc(SNodeList* pFuncs) {
   return false;
 }
 
-static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t start, SNodeList* pAggFuncs) {
-  bool    hasIndefRowsSelectFunc = partTagsHasIndefRowsSelectFunc(pAggFuncs);
+static bool partTagsNeedOutput(SNode* pExpr, SNodeList* pTargets) {
+  SNode* pOutput = NULL;
+  FOREACH(pOutput, pTargets) {
+    if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+      if (nodesEqualNode(pExpr, pOutput)) {
+        return true;
+      }
+    } else if (0 == strcmp(((SExprNode*)pExpr)->aliasName, ((SColumnNode*)pOutput)->colName)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t start, SAggLogicNode* pAgg) {
+  bool    hasIndefRowsSelectFunc = partTagsHasIndefRowsSelectFunc(pAgg->pAggFuncs);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t index = 0;
   SNode*  pNode = NULL;
   FOREACH(pNode, pGroupTags) {
-    if (index++ < start) {
+    if (index++ < start || !partTagsNeedOutput(pNode, pAgg->node.pTargets)) {
       continue;
     }
     if (hasIndefRowsSelectFunc) {
-      code = nodesListStrictAppend(pAggFuncs, partTagsCreateWrapperFunc("_select_value", pNode));
+      code = nodesListStrictAppend(pAgg->pAggFuncs, partTagsCreateWrapperFunc("_select_value", pNode));
     } else {
-      code = nodesListStrictAppend(pAggFuncs, partTagsCreateWrapperFunc("_group_key", pNode));
+      code = nodesListStrictAppend(pAgg->pAggFuncs, partTagsCreateWrapperFunc("_group_key", pNode));
     }
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -1556,7 +1570,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     }
     NODES_DESTORY_LIST(pAgg->pGroupKeys);
     if (TSDB_CODE_SUCCESS == code && start >= 0) {
-      code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, start, pAgg->pAggFuncs);
+      code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, start, pAgg);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -2616,9 +2630,11 @@ static int32_t tbCntScanOptRewriteScan(STbCntScanOptInfo* pInfo) {
   pInfo->pScan->scanType = SCAN_TYPE_TABLE_COUNT;
   strcpy(pInfo->pScan->tableName.dbname, pInfo->table.dbname);
   strcpy(pInfo->pScan->tableName.tname, pInfo->table.tname);
-  NODES_DESTORY_LIST(pInfo->pScan->node.pTargets);
+  if (NULL == pInfo->pAgg->pGroupKeys) {
+    NODES_DESTORY_LIST(pInfo->pScan->node.pTargets);
+    NODES_DESTORY_LIST(pInfo->pScan->pScanCols);
+  }
   NODES_DESTORY_NODE(pInfo->pScan->node.pConditions);
-  NODES_DESTORY_LIST(pInfo->pScan->pScanCols);
   NODES_DESTORY_LIST(pInfo->pScan->pScanPseudoCols);
   int32_t code = nodesListMakeStrictAppend(&pInfo->pScan->pScanPseudoCols, tbCntScanOptCreateTableCountFunc());
   if (TSDB_CODE_SUCCESS == code) {
@@ -2658,7 +2674,7 @@ static int32_t tbCntScanOptRewriteAgg(SAggLogicNode* pAgg) {
   SNode*  pSum = NULL;
   int32_t code = tbCntScanOptCreateSumFunc(
       (SFunctionNode*)nodesListGetNode(pAgg->pAggFuncs, 0),
-      nodesListGetNode(((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0))->pTargets, 0), &pSum);
+      nodesListGetNode(((SScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0))->pScanPseudoCols, 0), &pSum);
   if (TSDB_CODE_SUCCESS == code) {
     NODES_DESTORY_LIST(pAgg->pAggFuncs);
     code = nodesListMakeStrictAppend(&pAgg->pAggFuncs, pSum);
