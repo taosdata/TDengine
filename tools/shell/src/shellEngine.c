@@ -134,6 +134,12 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
     return 0;
   }
 
+  // add help or help; 
+  if(strcmp(command, "help") == 0 || strcmp(command, "help;") == 0) {
+    showHelp();
+    return 0;
+  }
+
   if (recordHistory) shellRecordCommandToHistory(command);
 
   char quote = 0, *cmd = command;
@@ -226,7 +232,7 @@ void shellRunSingleCommandImp(char *command) {
     int32_t num_rows_affacted = taos_affected_rows(pSql);
     taos_free_result(pSql);
     et = taosGetTimestampUs();
-    printf("Query OK, %d row(s) affected(%.6fs)\r\n", num_rows_affacted, (et - st) / 1E6);
+    printf("Query OK, %d row(s) affected (%.6fs)\r\n", num_rows_affacted, (et - st) / 1E6);
 
     // call auto tab
     callbackAutoTab(command, NULL, false);

@@ -291,6 +291,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     STqHandle handle;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     tDecodeSTqHandle(&decoder, &handle);
+    tDecoderClear(&decoder);
 
     handle.pRef = walOpenRef(pTq->pVnode->pWal);
     if (handle.pRef == NULL) {
@@ -345,6 +346,8 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     taosHashPut(pTq->pHandle, pKey, kLen, &handle, sizeof(STqHandle));
   }
 
+  tdbFree(pKey);
+  tdbFree(pVal);
   tdbTbcClose(pCur);
   return 0;
 }

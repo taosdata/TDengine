@@ -336,12 +336,14 @@ int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
 #else
   if (realpath(dirname, tmp) != NULL) {
 #endif
-    if (realPath == NULL) {
-      strncpy(dirname, tmp, maxlen);
-    } else {
-      strncpy(realPath, tmp, maxlen);
+    if (strlen(tmp) < maxlen) {
+      if (realPath == NULL) {
+        strncpy(dirname, tmp, maxlen);
+      } else {
+        strncpy(realPath, tmp, maxlen);
+      }
+      return 0;
     }
-    return 0;
   }
 
   return -1;
