@@ -6827,7 +6827,6 @@ void tDestroySSubmitReq2(SSubmitReq2 *pReq) {
   if (NULL == pReq) return;
 
   taosArrayDestroyEx(pReq->aSubmitTbData, (FDelete)destroySSubmitTbData);
-  taosMemoryFree(pReq);
 }
 
 int32_t tEncodeSSubmitRsp2(SEncoder *pCoder, const SSubmitRsp2 *pRsp) {
