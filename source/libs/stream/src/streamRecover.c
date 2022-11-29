@@ -36,7 +36,7 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
     SRpcMsg rpcMsg = {
         .contLen = len,
         .pCont = serializedReq,
-        .msgType = TDMT_VND_STREAM_RECOVER_STEP1,
+        .msgType = TDMT_VND_STREAM_RECOVER_NONBLOCKING_STAGE,
     };
 
     if (tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &rpcMsg) < 0) {

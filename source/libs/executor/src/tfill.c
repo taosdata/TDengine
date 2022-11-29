@@ -1313,8 +1313,8 @@ static void buildDeleteRange(SOperatorInfo* pOp, TSKEY start, TSKEY end, uint64_
     char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
     STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
     colDataAppend(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
+    tdbFree(tbname);
   }
-  tdbFree(tbname);
 
   pBlock->info.rows++;
 }
