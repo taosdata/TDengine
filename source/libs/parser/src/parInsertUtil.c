@@ -1071,6 +1071,7 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
   tdDestroySVCreateTbReq(pTableCxt->pCreateTblReq);
   taosMemoryFreeClear(pTableCxt->pCreateTblReq);
   tDestroySSubmitTbData(pTableCxt->pData);
+  taosMemoryFree(pTableCxt);
 }
 
 void insDestroyVgroupDataCxt(SVgroupDataCxt* pVgCxt) {
@@ -1079,6 +1080,7 @@ void insDestroyVgroupDataCxt(SVgroupDataCxt* pVgCxt) {
   }
 
   tDestroySSubmitReq2(pVgCxt->pData);
+  taosMemoryFree(pVgCxt);
 }
 
 void insDestroyVgroupDataCxtList(SArray* pVgCxtList) {
@@ -1134,6 +1136,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
       }
     }
     taosArrayPush(pVgCxt->pData->aCreateTbReq, pTableCxt->pCreateTblReq);
+    taosMemoryFreeClear(pTableCxt->pCreateTblReq);
   }
 
   if (NULL == pVgCxt->pData->aSubmitTbData) {
@@ -1143,7 +1146,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
     }
   }
   taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData);
-  pTableCxt->pData = NULL;
+  taosMemoryFreeClear(pTableCxt->pData);
 
   return TSDB_CODE_SUCCESS;
 }

@@ -3203,6 +3203,7 @@ int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 
 typedef struct {
+  bool    isColFmt;
   int64_t suid;
   int64_t uid;
   int32_t sver;
