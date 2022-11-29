@@ -1330,15 +1330,15 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
         tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NONE, NULL, false, offset, k);
       }else{
         if (IS_VAR_DATA_TYPE(pColumn->type)) {
-          if (pCol[k].offset[j] != -1) {
-            char* data = pCol[k].pData + pCol[k].offset[j];
+          if (pCol[*index].offset[j] != -1) {
+            char* data = pCol[*index].pData + pCol[*index].offset[j];
             tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, offset, k);
           } else {
             tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, offset, k);
           }
         } else {
-          if (!colDataIsNull_f(pCol[k].nullbitmap, j)) {
-            char* data = pCol[k].pData + pColumn->bytes * j;
+          if (!colDataIsNull_f(pCol[*index].nullbitmap, j)) {
+            char* data = pCol[*index].pData + pColumn->bytes * j;
             tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, offset, k);
           } else {
             tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, offset, k);
