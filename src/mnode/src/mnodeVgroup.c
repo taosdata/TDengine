@@ -235,6 +235,15 @@ int32_t mnodeInitVgroups() {
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_VGROUP, mnodeGetVgroupMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VGROUP, mnodeRetrieveVgroups);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_VGROUP, mnodeCancelGetNextVgroup);
+  // cluster status
+  mnodeAddShowMetaHandle(TSDB_MGMT_STATUS_CLUSTER, mnodeGetStatusMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_STATUS_CLUSTER, mnodeRetrieveStatus);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_STATUS_CLUSTER, mnodeCancelGetNextVgroup);
+  // db status
+  mnodeAddShowMetaHandle(TSDB_MGMT_STATUS_DB, mnodeGetStatusMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_STATUS_DB, mnodeRetrieveStatus);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_STATUS_DB, mnodeCancelGetNextVgroup);
+ 
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mnodeProcessCreateVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP, mnodeProcessAlterVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_COMPACT_VNODE_RSP, mnodeProcessCompactVnodeRsp);
@@ -777,6 +786,170 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
 
   mnodeDecDbRef(pDb);
   return 0;
+}
+
+static int32_t mnodeGetStatusMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+  SDbObj *pDb = mnodeGetDb(pShow->db);
+  if (pDb == NULL) {
+    return TSDB_CODE_MND_DB_NOT_SELECTED;
+  }
+  
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    mnodeDecDbRef(pDb);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
+  }
+
+  int32_t cols = 0;
+  SSchema *pSchema = pMeta->schema;
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "vgId");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "tables");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 8 + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "status");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "onlines");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->maxReplica = 1;
+  for (int32_t v = 0; v < pDb->numOfVgroups; ++v) {
+    SVgObj *pVgroup = pDb->vgList[v];
+    if (pVgroup != NULL) {
+      pShow->maxReplica = pVgroup->numOfVnodes > pShow->maxReplica ? pVgroup->numOfVnodes : pShow->maxReplica;
+    }
+  }
+
+  for (int32_t i = 0; i < pShow->maxReplica; ++i) {
+    pShow->bytes[cols] = 2;
+    pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%d_dnode", i + 1);
+    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    cols++;
+
+    pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
+    pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%d_status", i + 1);
+    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    cols++;
+  }
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "compacting");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+  
+  
+  pMeta->numOfColumns = htons(cols);
+  pShow->numOfColumns = cols;
+
+  pShow->offset[0] = 0;
+  for (int32_t i = 1; i < cols; ++i) {
+    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  }
+
+  pShow->numOfRows = pDb->numOfVgroups;
+  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+
+  mnodeDecDbRef(pDb);
+  return 0;
+}
+
+static int32_t mnodeRetrieveStatus(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  int32_t numOfRows = 0;
+  SVgObj *pVgroup = NULL;
+  int32_t cols = 0;
+  char *  pWrite;
+
+  SDbObj *pDb = mnodeGetDb(pShow->db);
+  if (pDb == NULL) return 0;
+
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    mnodeDecDbRef(pDb);
+    return 0;
+  }
+
+  while (numOfRows < rows) {
+    pShow->pIter = mnodeGetNextVgroup(pShow->pIter, &pVgroup);
+    if (pVgroup == NULL) break;
+
+    if (pVgroup->pDb != pDb) {
+      mnodeDecVgroupRef(pVgroup);
+      continue;
+    }
+
+    cols = 0;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int32_t *) pWrite = pVgroup->vgId;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int32_t *) pWrite = pVgroup->numOfTables;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;  
+    char* status = vgroupStatus[pVgroup->status];
+    STR_TO_VARSTR(pWrite, status);
+    cols++;
+
+    int32_t onlineVnodes = 0;
+    for (int32_t i = 0; i < pShow->maxReplica; ++i) {
+      if (pVgroup->vnodeGid[i].role == TAOS_SYNC_ROLE_SLAVE || pVgroup->vnodeGid[i].role == TAOS_SYNC_ROLE_MASTER) {
+        onlineVnodes++;
+      }
+    }
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int32_t *)pWrite = onlineVnodes;
+    cols++;
+
+    for (int32_t i = 0; i < pShow->maxReplica; ++i) {
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int16_t *) pWrite = pVgroup->vnodeGid[i].dnodeId;
+      cols++;
+
+      SDnodeObj * pDnode = pVgroup->vnodeGid[i].pDnode;
+      const char *role = "NULL";
+      if (pDnode != NULL) {
+        role = syncRole[pVgroup->vnodeGid[i].role];
+      }
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
+      cols++;
+    }
+      
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int8_t *)pWrite = pVgroup->compact; 
+    cols++;
+    mnodeDecVgroupRef(pVgroup);
+    numOfRows++;
+  }
+
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+
+  pShow->numOfReads += numOfRows;
+  mnodeDecDbRef(pDb);
+
+  return numOfRows;
 }
 
 static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
