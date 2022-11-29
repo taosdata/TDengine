@@ -2630,9 +2630,11 @@ static int32_t tbCntScanOptRewriteScan(STbCntScanOptInfo* pInfo) {
   pInfo->pScan->scanType = SCAN_TYPE_TABLE_COUNT;
   strcpy(pInfo->pScan->tableName.dbname, pInfo->table.dbname);
   strcpy(pInfo->pScan->tableName.tname, pInfo->table.tname);
-  NODES_DESTORY_LIST(pInfo->pScan->node.pTargets);
+  if (NULL == pInfo->pAgg->pGroupKeys) {
+    NODES_DESTORY_LIST(pInfo->pScan->node.pTargets);
+    NODES_DESTORY_LIST(pInfo->pScan->pScanCols);
+  }
   NODES_DESTORY_NODE(pInfo->pScan->node.pConditions);
-  NODES_DESTORY_LIST(pInfo->pScan->pScanCols);
   NODES_DESTORY_LIST(pInfo->pScan->pScanPseudoCols);
   int32_t code = nodesListMakeStrictAppend(&pInfo->pScan->pScanPseudoCols, tbCntScanOptCreateTableCountFunc());
   if (TSDB_CODE_SUCCESS == code) {
@@ -2672,7 +2674,7 @@ static int32_t tbCntScanOptRewriteAgg(SAggLogicNode* pAgg) {
   SNode*  pSum = NULL;
   int32_t code = tbCntScanOptCreateSumFunc(
       (SFunctionNode*)nodesListGetNode(pAgg->pAggFuncs, 0),
-      nodesListGetNode(((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0))->pTargets, 0), &pSum);
+      nodesListGetNode(((SScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0))->pScanPseudoCols, 0), &pSum);
   if (TSDB_CODE_SUCCESS == code) {
     NODES_DESTORY_LIST(pAgg->pAggFuncs);
     code = nodesListMakeStrictAppend(&pAgg->pAggFuncs, pSum);
