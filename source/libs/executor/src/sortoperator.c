@@ -577,8 +577,13 @@ int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
   tsortSetCompareGroupId(pInfo->pSortHandle, pInfo->groupSort);
 
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+    SOperatorInfo* pDownstream = pOperator->pDownstream[i];
+    if (pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+      pDownstream->fpSet._openFn(pDownstream);
+    }
+
     SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
-    ps->param = pOperator->pDownstream[i];
+    ps->param = pDownstream;
     ps->onlyRef = true;
 
     tsortAddSource(pInfo->pSortHandle, ps);
