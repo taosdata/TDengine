@@ -29,7 +29,7 @@
 static void    tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *pKey, int32_t flags);
 static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData);
 static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, int64_t version,
-                                       SSubmitTbData *pSubmitTbData, SSubmitBlkRsp *pRsp);
+                                       SSubmitTbData *pSubmitTbData, int32_t *affectedRows);
 
 int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   int32_t    code = 0;
@@ -95,7 +95,7 @@ STbData *tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t
   return pTbData;
 }
 
-int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitTbData *pSubmitTbData, SSubmitBlkRsp *pRsp) {
+int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitTbData *pSubmitTbData, int32_t *affectedRows) {
   int32_t    code = 0;
   SMemTable *pMemTable = pTsdb->mem;
   STbData   *pTbData = NULL;
@@ -133,7 +133,7 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitTbData *pSubmi
   }
 
   // do insert impl
-  code = tsdbInsertTableDataImpl(pMemTable, pTbData, version, pSubmitTbData, pRsp);
+  code = tsdbInsertTableDataImpl(pMemTable, pTbData, version, pSubmitTbData, affectedRows);
   if (code) {
     goto _err;
   }
@@ -539,7 +539,7 @@ _exit:
 }
 
 static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, int64_t version,
-                                       SSubmitTbData *pSubmitTbData, SSubmitBlkRsp *pRsp) {
+                                       SSubmitTbData *pSubmitTbData, int32_t *affectedRows) {
   int32_t code = 0;
 
   SRow            **rows = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
@@ -608,8 +608,7 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
   pMemTable->maxKey = TMAX(pMemTable->maxKey, pTbData->maxKey);
   pMemTable->nRow += nRow;
 
-  if (pRsp) pRsp->numOfRows = nRow;
-  if (pRsp) pRsp->affectedRows = nRow;
+  if (affectedRows) *affectedRows = nRow;
 
   return code;
 
