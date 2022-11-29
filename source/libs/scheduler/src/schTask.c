@@ -785,6 +785,9 @@ int32_t schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSe
 
   SCH_TASK_DLOG("update task target node %d epset from %s to %s", pAddr->nodeId, origEpset, newEpset);
 
+  taosMemoryFree(origEpset);
+  taosMemoryFree(newEpset);
+
   memcpy(&pAddr->epSet, pEpSet, sizeof(pAddr->epSet));
 
   return TSDB_CODE_SUCCESS;
