@@ -219,9 +219,11 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
 
 int tdbPagerClose(SPager *pPager) {
   if (pPager) {
+    /*
     if (pPager->inTran) {
       tdbOsClose(pPager->jfd);
     }
+    */
     tdbOsClose(pPager->fd);
     tdbOsFree(pPager);
   }
@@ -232,16 +234,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   int     ret;
   SPage **ppPage;
 
-  ASSERT(pPager->inTran);
-#if 0
-  if (pPager->inTran == 0) {
-    ret = tdbPagerBegin(pPager);
-    if (ret < 0) {
-      return -1;
-    }
-  }
-#endif
-
+  // ASSERT(pPager->inTran);
   if (pPage->isDirty) return 0;
 
   // ref page one more time so the page will not be release
@@ -271,15 +264,16 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
 
   // Write page to journal if neccessary
   if (TDB_PAGE_PGNO(pPage) <= pPager->dbOrigSize &&
-      (pPager->jPageSet == NULL || !hashset_contains(pPager->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage))))) {
+      (pPager->pActiveTxn->jPageSet == NULL ||
+       !hashset_contains(pPager->pActiveTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage))))) {
     ret = tdbPagerWritePageToJournal(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page to journal since %s", tstrerror(terrno));
       return -1;
     }
 
-    if (pPager->jPageSet) {
-      hashset_add(pPager->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
+    if (pPager->pActiveTxn->jPageSet) {
+      hashset_add(pPager->pActiveTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
     }
   }
 
@@ -287,23 +281,28 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
 }
 
 int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
+  /*
   if (pPager->inTran) {
     return 0;
   }
-
+  */
   // Open the journal
-  pPager->jfd = tdbOsOpen(pPager->jFileName, TDB_O_CREAT | TDB_O_RDWR, 0755);
-  if (TDB_FD_INVALID(pPager->jfd)) {
+  char jTxnFileName[TDB_FILENAME_LEN];
+  sprintf(jTxnFileName, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
+  pTxn->jfd = tdbOsOpen(jTxnFileName, TDB_O_CREAT | TDB_O_RDWR, 0755);
+  if (TDB_FD_INVALID(pTxn->jfd)) {
     tdbError("failed to open file due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  pPager->jPageSet = hashset_create();
+  pTxn->jPageSet = hashset_create();
+  ASSERT(pPager->pActiveTxn->preped == 1);
+  pPager->pActiveTxn = pTxn;
   // TODO: write the size of the file
-
+  /*
   pPager->inTran = 1;
-
+  */
   return 0;
 }
 
@@ -312,9 +311,9 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   int    ret;
 
   // sync the journal file
-  ret = tdbOsFSync(pPager->jfd);
+  ret = tdbOsFSync(pTxn->jfd);
   if (ret < 0) {
-    tdbError("failed to fsync jfd due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
+    tdbError("failed to fsync: %s. jFileName:%s, %" PRId64, strerror(errno), pPager->jFileName, pTxn->txnId);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -344,8 +343,8 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
     pPage->isDirty = 0;
 
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
-    if (pPager->jPageSet) {
-      hashset_remove(pPager->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
+    if (pTxn->jPageSet) {
+      hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
     }
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
@@ -364,35 +363,39 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
 }
 
 int tdbPagerPostCommit(SPager *pPager, TXN *pTxn) {
+  char jTxnFileName[TDB_FILENAME_LEN];
+  sprintf(jTxnFileName, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
+
   // remove the journal file
-  if (tdbOsClose(pPager->jfd) < 0) {
-    tdbError("failed to close jfd due to %s. file:%s", strerror(errno), pPager->jFileName);
+  if (tdbOsClose(pTxn->jfd) < 0) {
+    tdbError("failed to close jfd: %s. file:%s, %" PRId64, strerror(errno), pPager->jFileName, pTxn->txnId);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  if (tdbOsRemove(pPager->jFileName) < 0 && errno != ENOENT) {
-    tdbError("failed to remove file due to %s. file:%s", strerror(errno), pPager->jFileName);
+  if (tdbOsRemove(jTxnFileName) < 0 && errno != ENOENT) {
+    tdbError("failed to remove file due to %s. file:%s", strerror(errno), jTxnFileName);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  if (pPager->jPageSet) {
-    hashset_destroy(pPager->jPageSet);
+  if (pTxn->jPageSet) {
+    hashset_destroy(pTxn->jPageSet);
   }
-  pPager->inTran = 0;
+  // pPager->inTran = 0;
 
   return 0;
 }
 
 int tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn) {
   SPage *pPage;
+  SPgno  maxPgno = pPager->dbOrigSize;
   int    ret;
 
   // sync the journal file
-  ret = tdbOsFSync(pPager->jfd);
+  ret = tdbOsFSync(pTxn->jfd);
   if (ret < 0) {
-    tdbError("failed to fsync jfd due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
+    tdbError("failed to fsync jfd: %s. jfile:%s, %" PRId64, strerror(errno), pPager->jFileName, pTxn->txnId);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -403,6 +406,11 @@ int tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn) {
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
     if (pPage->isLocal) continue;
+
+    SPgno pgno = TDB_PAGE_PGNO(pPage);
+    if (pgno > maxPgno) {
+      maxPgno = pgno;
+    }
     ret = tdbPagerPWritePageToDB(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page to db since %s", tstrerror(terrno));
@@ -411,7 +419,8 @@ int tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn) {
   }
 
   tdbTrace("tdbttl commit:%p, %d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize);
-  pPager->dbOrigSize = pPager->dbFileSize;
+  pPager->dbOrigSize = maxPgno;
+  //  pPager->dbOrigSize = pPager->dbFileSize;
 
   // release the page
   iter = tRBTreeIterCreate(&pPager->rbt, 1);
@@ -423,6 +432,8 @@ int tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn) {
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
+
+  pTxn->preped = 1;
   /*
   tdbTrace("reset dirty tree: %p", &pPager->rbt);
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
@@ -444,15 +455,15 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
   SPgno  journalSize = 0;
   int    ret;
 
-  // 0, sync the journal file
-  ret = tdbOsFSync(pPager->jfd);
+  // sync the journal file
+  ret = tdbOsFSync(pTxn->jfd);
   if (ret < 0) {
-    tdbError("failed to fsync jfd due to %s. file:%s", strerror(errno), pPager->jFileName);
+    tdbError("failed to fsync jfd: %s. jfile:%s, %" PRId64, strerror(errno), pPager->jFileName, pTxn->txnId);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  tdb_fd_t jfd = pPager->jfd;
+  tdb_fd_t jfd = pTxn->jfd;
 
   ret = tdbGetFileSize(jfd, pPager->pageSize, &journalSize);
   if (ret < 0) {
@@ -516,7 +527,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     pPage->isDirty = 0;
 
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
-    hashset_remove(pPager->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
+    hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
@@ -524,11 +535,24 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
 
   // 4, remove the journal file
-  tdbOsClose(pPager->jfd);
-  (void)tdbOsRemove(pPager->jFileName);
-  hashset_destroy(pPager->jPageSet);
+  if (tdbOsClose(pTxn->jfd) < 0) {
+    tdbError("failed to close jfd: %s. file:%s, %" PRId64, strerror(errno), pPager->jFileName, pTxn->txnId);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
 
-  pPager->inTran = 0;
+  char jTxnFileName[TDB_FILENAME_LEN];
+  sprintf(jTxnFileName, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
+
+  if (tdbOsRemove(jTxnFileName) < 0 && errno != ENOENT) {
+    tdbError("failed to remove file due to %s. file:%s", strerror(errno), jTxnFileName);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  hashset_destroy(pTxn->jPageSet);
+
+  // pPager->inTran = 0;
 
   return 0;
 }
@@ -751,17 +775,18 @@ static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage) {
 
   pgno = TDB_PAGE_PGNO(pPage);
 
-  ret = tdbOsWrite(pPager->jfd, &pgno, sizeof(pgno));
+  ret = tdbOsWrite(pPager->pActiveTxn->jfd, &pgno, sizeof(pgno));
   if (ret < 0) {
-    tdbError("failed to write pgno due to %s. file:%s, pgno:%u", strerror(errno), pPager->jFileName, pgno);
+    tdbError("failed to write pgno due to %s. file:%s, pgno:%u, txnId:%" PRId64, strerror(errno), pPager->jFileName,
+             pgno, pPager->pActiveTxn->txnId);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  ret = tdbOsWrite(pPager->jfd, pPage->pData, pPage->pageSize);
+  ret = tdbOsWrite(pPager->pActiveTxn->jfd, pPage->pData, pPage->pageSize);
   if (ret < 0) {
-    tdbError("failed to write page data due to %s. file:%s, pageSize:%ld", strerror(errno), pPager->jFileName,
-             (long)pPage->pageSize);
+    tdbError("failed to write page data due to %s. file:%s, pageSize:%d, txnId:%" PRId64, strerror(errno),
+             pPager->jFileName, pPage->pageSize, pPager->pActiveTxn->txnId);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }

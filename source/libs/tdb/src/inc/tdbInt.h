@@ -385,24 +385,21 @@ struct STDB {
   int64_t txnId;
 };
 
-typedef struct hashset_st *hashset_t;
-
 struct SPager {
   char    *dbFileName;
   char    *jFileName;
   int      pageSize;
   uint8_t  fid[TDB_FILE_ID_LEN];
   tdb_fd_t fd;
-  tdb_fd_t jfd;
   SPCache *pCache;
   SPgno    dbFileSize;
   SPgno    dbOrigSize;
   // SPage   *pDirty;
-  hashset_t jPageSet;
-  SRBTree   rbt;
-  u8        inTran;
-  SPager   *pNext;      // used by TDB
-  SPager   *pHashNext;  // used by TDB
+  SRBTree rbt;
+  // u8        inTran;
+  TXN    *pActiveTxn;
+  SPager *pNext;      // used by TDB
+  SPager *pHashNext;  // used by TDB
 #ifdef USE_MAINDB
   TDB *pEnv;
 #endif

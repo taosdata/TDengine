@@ -17,6 +17,7 @@
 #define _TD_TDB_H_
 
 #include "os.h"
+#include "tdbOs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,12 +79,17 @@ int32_t tdbTxnClose(TXN *pTxn);
 // other
 void tdbFree(void *);
 
+typedef struct hashset_st *hashset_t;
+
 struct STxn {
   int     flags;
   int64_t txnId;
   void *(*xMalloc)(void *, size_t);
   void (*xFree)(void *, void *);
-  void *xArg;
+  void     *xArg;
+  tdb_fd_t  jfd;
+  hashset_t jPageSet;
+  int       preped;
 };
 
 // error code
