@@ -100,16 +100,17 @@ typedef struct {
 int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
   int32_t code = 0;
 
-  ASSERT(taosArrayGetSize(aColVal) > 0);
+  ASSERT(TARRAY_SIZE(aColVal) > 0);
   ASSERT(((SColVal *)aColVal->pData)[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
   ASSERT(((SColVal *)aColVal->pData)[0].type == TSDB_DATA_TYPE_TIMESTAMP);
 
   // scan ---------------
   SRow         *pRow = NULL;
+  SColVal      *colVals = (SColVal *)TARRAY_DATA(aColVal);
   uint8_t       flag = 0;
   int32_t       iColVal = 1;
-  const int32_t nColVal = taosArrayGetSize(aColVal);
-  SColVal      *pColVal = (iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+  const int32_t nColVal = TARRAY_SIZE(aColVal);
+  SColVal      *pColVal = (iColVal < nColVal) ? &colVals[iColVal] : NULL;
   int32_t       iTColumn = 1;
   STColumn     *pTColumn = pTSchema->columns + iTColumn;
   int32_t       ntp = 0;
@@ -142,13 +143,13 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
         }
 
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
-        pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+        pColVal = (++iColVal < nColVal) ? &colVals[iColVal] : NULL;
       } else if (pColVal->cid > pTColumn->colId) {  // NONE
         flag |= HAS_NONE;
         ntp += TYPE_BYTES[pTColumn->type];
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
       } else {
-        pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+        pColVal = (++iColVal < nColVal) ? &colVals[iColVal] : NULL;
       }
     } else {  // NONE
       flag |= HAS_NONE;
@@ -206,7 +207,7 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
   }
 
   // build --------------
-  pColVal = (SColVal *)taosArrayGet(aColVal, 0);
+  pColVal = &colVals[0];
 
   pRow->flag = flag;
   pRow->rsv = 0;
@@ -219,7 +220,7 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
   }
 
   iColVal = 1;
-  pColVal = (iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+  pColVal = (iColVal < nColVal) ? &colVals[iColVal] : NULL;
   iTColumn = 1;
   pTColumn = pTSchema->columns + iTColumn;
   if (flag >> 4) {  // KV
@@ -271,11 +272,11 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
           }
 
           pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
-          pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+          pColVal = (++iColVal < nColVal) ? &colVals[iColVal] : NULL;
         } else if (pColVal->cid > pTColumn->colId) {  // NONE
           pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
         } else {
-          pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+          pColVal = (++iColVal < nColVal) ? &colVals[iColVal] : NULL;
         }
       } else {  // NONE
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
@@ -337,13 +338,13 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
           }
 
           pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
-          pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+          pColVal = (++iColVal < nColVal) ? &colVals[iColVal] : NULL;
         } else if (pColVal->cid > pTColumn->colId) {  // NONE
           ROW_SET_BITMAP(pb, flag, iTColumn - 1, ROW_BIT_NONE);
           if (pf) memset(pf + pTColumn->offset, 0, TYPE_BYTES[pTColumn->type]);
           pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
         } else {
-          pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+          pColVal = (++iColVal < nColVal) ? &colVals[iColVal] : NULL;
         }
       } else {  // NONE
         ROW_SET_BITMAP(pb, flag, iTColumn - 1, ROW_BIT_NONE);

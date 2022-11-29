@@ -228,7 +228,7 @@ size_t taosArrayGetSize(const SArray* pArray) {
   if (pArray == NULL) {
     return 0;
   }
-  return pArray->size;
+  return TARRAY_SIZE(pArray);
 }
 
 void taosArraySetSize(SArray* pArray, size_t size) {
