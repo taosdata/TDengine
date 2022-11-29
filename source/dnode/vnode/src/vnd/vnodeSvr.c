@@ -77,34 +77,58 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       tDecoderClear(&dc);
     } break;
     case TDMT_VND_SUBMIT: {
+      int64_t ctime = taosGetTimestampMs();
+
       tDecoderInit(&dc, (uint8_t *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead));
       tStartDecode(&dc);
 
-      int32_t flag;
-      tDecodeI32v(&dc, &flag);
+      uint64_t nSubmitTbData;
+      if (tDecodeU64v(&dc, &nSubmitTbData) < 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _err;
+      }
 
-      if (flag & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-        int64_t ctime = taosGetTimestampMs();
-        int64_t nReq;
-        int64_t uid;
+      for (int32_t i = 0; i < nSubmitTbData; i++) {
+        if (tStartDecode(&dc) < 0) {
+          code = TSDB_CODE_INVALID_MSG;
+          goto _err;
+        }
 
-        tDecodeI64v(&dc, &nReq);
-        for (int64_t iReq; iReq < nReq; iReq++) {
+        int32_t flags;
+        if (tDecodeI32v(&dc, &flags) < 0) {
+          code = TSDB_CODE_INVALID_MSG;
+          goto _err;
+        }
+
+        if (flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+          if (tStartDecode(&dc) < 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            goto _err;
+          }
+
+          if (tDecodeI32v(&dc, NULL) < 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            goto _err;
+          }
+
           char *name = NULL;
+          if (tDecodeCStr(&dc, &name) < 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            goto _err;
+          }
 
-          tStartDecode(&dc);
-          tDecodeI32v(&dc, NULL);
-          tDecodeCStr(&dc, &name);
-
-          uid = metaGetTableEntryUidByName(pVnode->pMeta, name);
+          int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, name);
           if (uid == 0) {
             uid = tGenIdPI64();
           }
 
           *(int64_t *)(dc.data + dc.pos) = uid;
           *(int64_t *)(dc.data + dc.pos + 8) = ctime;
+
           tEndDecode(&dc);
         }
+
+        tEndDecode(&dc);
       }
 
       tEndDecode(&dc);
