@@ -706,7 +706,7 @@ class TDTestCase:
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
         
         tdCom.cleanTb()
-        input_sql = f'{stb_name} 1626006833640 "{tdCom.getLongName(16375, "letters")}" t0=t'
+        input_sql = f'{stb_name} 1626006833640 "{tdCom.getLongName(65514, "letters")}" t0=t'
         try:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
@@ -721,7 +721,7 @@ class TDTestCase:
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
 
         tdCom.cleanTb()
-        input_sql = f'{stb_name} 1626006833640 L"{tdCom.getLongName(4094, "letters")}" t0=t'
+        input_sql = f'{stb_name} 1626006833640 L"{tdCom.getLongName(16379, "letters")}" t0=t'
         try:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
