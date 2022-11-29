@@ -24,41 +24,40 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-    def getPath(self, tool="taosBenchmark"):
+    def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
         global cfgPath
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
             cfgPath = projPath + "/community/sim/dnode1/cfg"
+            
         else:
             projPath = selfPath[:selfPath.find("tests")]
             cfgPath = projPath + "/sim/dnode1/cfg"
 
-        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ((tool) in files):
+            if ("taosd" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    paths.append(os.path.join(root, tool))
+                    buildPath = root[:len(root)-len("/build/bin")]
                     break
-        return paths[0]
+        return buildPath
 
     # def checkGerData():
 
     def run(self):
-        binPath = self.getPath("taosBenchmark")
-        print("%s" % cfgPath)
-        if (binPath == ""):
-            tdLog.exit("taosBenchmark not found!")
+        buildPath = self.getBuildPath()
+        print("%s" % cfgPath )
+        if (buildPath == ""):
+            tdLog.exit("taosd not found!")
         else:
-            tdLog.info("taosBenchmark found in %s" % binPath)
+            tdLog.info("taosd found in %s" % buildPath)
+        binPath = buildPath+ "/build/bin/"
 
         tdLog.info("create super table")
-        # create super table
-        os.system(
-            "%s -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,NCHAR\(15\) -w 4096 \
-        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test.  " %
-            (binPath, cfgPath))
+        # create super table 
+        os.system("%staosBenchmark -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,NCHAR\(15\) -w 4096 \
+        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test.  " % (binPath,cfgPath))
         tdSql.execute("use db1")
         tdSql.query("describe meters;")
         tdSql.checkRows(13)
@@ -69,13 +68,12 @@ class TDTestCase:
         tdSql.query("select count(*) from `test.0`")
         tdSql.checkData(0, 0, 100)
 
+  
         tdLog.info("create general table -N ")
         tdSql.execute("drop database db1;")
-        # create general table -N
-        os.system(
-            "%s -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,NCHAR\(15\) -w 4096 \
-        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -N " %
-            (binPath, cfgPath))
+        # create general table -N 
+        os.system("%staosBenchmark -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,NCHAR\(15\) -w 4096 \
+        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -N " % (binPath,cfgPath))
         tdSql.execute("use db1")
         tdSql.query("describe `test.0`;")
         tdSql.checkRows(11)
@@ -87,10 +85,8 @@ class TDTestCase:
         tdLog.info("use diffrent interface stmt")
         tdSql.execute("drop database db1;")
         # use diffrent interface-stmt
-        os.system(
-            "%s -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,BINARY\(4000\) -w 40 \
-        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -I stmt " %
-            (binPath, cfgPath))
+        os.system("%staosBenchmark -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,BINARY\(4000\) -w 40 \
+        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -I stmt " % (binPath,cfgPath))
         tdSql.execute("use db1")
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, 1000)
@@ -102,10 +98,8 @@ class TDTestCase:
         tdLog.info("use diffrent interface rest")
         tdSql.execute("drop database db1;")
         # use diffrent interface -rest
-        os.system(
-            "%s -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,NCHAR\(15\) -w 4097 \
-        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -I rest " %
-            (binPath, cfgPath))
+        os.system("%staosBenchmark -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,NCHAR\(15\) -w 4097 \
+        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -I rest " % (binPath,cfgPath))
         tdSql.execute("use db1")
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, 1000)
@@ -117,10 +111,8 @@ class TDTestCase:
         tdLog.info("use diffrent interface sml")
         tdSql.execute("drop database db1;")
         # use diffrent interface-sml
-        os.system(
-            "%s -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,NCHAR\(15\) -w 1024 \
-        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -I sml " %
-            (binPath, cfgPath))
+        os.system("%staosBenchmark -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,NCHAR\(15\) -w 1024 \
+        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -I sml " % (binPath,cfgPath))
         tdSql.execute("use db1")
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, 1000)
@@ -130,9 +122,9 @@ class TDTestCase:
         tdLog.info("all data type")
         tdSql.execute("drop database db1;")
         # all data type-taosc
-        os.system("%s -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 \
+        os.system("%staosBenchmark -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 \
         -b INT,TIMESTAMP,BIGINT,FLOAT,DOUBLE,SMALLINT,TINYINT,BOOL,UINT,UBIGINT,UTINYINT,USMALLINT,BINARY\(15\),NCHAR\(15\) -w 4096 \
-        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. " % (binPath, cfgPath))
+        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. " % (binPath,cfgPath))
         tdSql.execute("use db1")
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, 1000)
@@ -143,9 +135,9 @@ class TDTestCase:
         tdLog.info("all data type")
         tdSql.execute("drop database db1;")
         # all data type-stmt
-        os.system("%s -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 \
+        os.system("%staosBenchmark -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 \
         -b INT,TIMESTAMP,BIGINT,FLOAT,DOUBLE,SMALLINT,TINYINT,BOOL,UINT,UBIGINT,UTINYINT,USMALLINT,BINARY\(15\),NCHAR\(15\) -w 4096 \
-        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -I stmt " % (binPath, cfgPath))
+        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -I stmt " % (binPath,cfgPath))
         tdSql.execute("use db1")
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, 1000)
@@ -155,9 +147,9 @@ class TDTestCase:
         tdSql.checkData(0, 0, 100)
 
         # all data type-rest
-        os.system("%s -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 \
+        os.system("%staosBenchmark -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 \
         -b INT,TIMESTAMP,BIGINT,FLOAT,DOUBLE,SMALLINT,TINYINT,BOOL,UINT,UBIGINT,UTINYINT,USMALLINT,BINARY\(15\),NCHAR\(15\) -w 4096 \
-        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -I rest " % (binPath, cfgPath))
+        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -I rest " % (binPath,cfgPath))
         tdSql.execute("use db1")
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, 1000)
@@ -167,7 +159,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 100)
 
         # # all data type-rest
-        # os.system("%s -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 \
+        # os.system("%staosBenchmark -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 \
         # -b INT,BIGINT,FLOAT,DOUBLE,SMALLINT,TINYINT,BOOL,UINT,UBIGINT,UTINYINT,USMALLINT,BINARY\(15\),NCHAR\(15\) -w 4096 \
         # -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -I sml " % (binPath,cfgPath))
         # tdSql.execute("use db1")
@@ -180,10 +172,10 @@ class TDTestCase:
 
         tdLog.info("all data type and interlace rows")
         tdSql.execute("drop database db1;")
-        # all data type
-        os.system("%s -u root  -c %s -h localhost -P 6030 -d db3  -a 1 -l 10\
+        # all data type 
+        os.system("%staosBenchmark -u root  -c %s -h localhost -P 6030 -d db3  -a 1 -l 10\
         -b INT,TIMESTAMP,BIGINT,FLOAT,DOUBLE,SMALLINT,TINYINT,BOOL,UINT,UBIGINT,UTINYINT,USMALLINT,BINARY\(15\),NCHAR\(15\) -w 4096\
-        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -B 1000  -M  -x -y -O 10 -R 100  -E  -m test.  " % (binPath, cfgPath))
+        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -B 1000  -M  -x -y -O 10 -R 100  -E  -m test.  " % (binPath,cfgPath))
         tdSql.execute("use db3")
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, 1000)
@@ -193,18 +185,14 @@ class TDTestCase:
         tdSql.checkData(0, 0, 100)
 
         tdLog.info("all data type and too much para")
-        tdLog.info(
-            "%s -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,NCHAR\(15\) -w 4096 \
+        tdLog.info("%staosBenchmark -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,NCHAR\(15\) -w 4096 \
         -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test.taosdemo -u root  -c %s -h \
-        localhost -P 6030 -d db1  -a 1 -l 100 -b float,int,NCHAR\(15\) -w 4096   -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. " %
-            (binPath, cfgPath, cfgPath))
+        localhost -P 6030 -d db1  -a 1 -l 100 -b float,int,NCHAR\(15\) -w 4096   -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. " % (binPath,cfgPath,cfgPath))
         tdSql.execute("drop database db3;")
-        # repeate parameters
-        os.system(
-            "%s -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,NCHAR\(15\) -w 4096 \
+        # repeate parameters 
+        os.system("%staosBenchmark -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,NCHAR\(15\) -w 4096 \
         -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test.taosdemo -u root  -c %s -h \
-        localhost -P 6030 -d db1  -a 1 -l 100 -b float,int,NCHAR\(15\) -w 4096   -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. " %
-            (binPath, cfgPath, cfgPath))
+        localhost -P 6030 -d db1  -a 1 -l 100 -b float,int,NCHAR\(15\) -w 4096   -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. " % (binPath,cfgPath,cfgPath))
         tdSql.execute("use db1")
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, 1000)
@@ -214,34 +202,34 @@ class TDTestCase:
         tdSql.checkData(0, 0, 100)
 
         # max valid length - row
-        sql = "%s -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b float,int,NCHAR\(16370\) \
-                -w 40 -T 8 -i 10 -S 1000 -r 48 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I taosc" % (binPath, cfgPath)
-        tdLog.info("%s" % sql)
-        assert os.system("%s" % sql) == 0        
+        sql = "%staosBenchmark -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b float,int,NCHAR\(16370\) \
+                -w 40 -T 8 -i 10 -S 1000 -r 48 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I taosc" % (binPath,cfgPath)
+        tdLog.info("%s" % sql ) 
+        assert os.system("%s" % sql ) == 0
 
         # taosdemo error
-        # # too max length - column 
-        sql = "%s -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b NCHAR\(16380\) \
-                -w 40 -T 8 -i 10 -S 1000 -r 48 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I taosc" % (binPath, cfgPath)
-        tdLog.info("%s" % sql)
-        assert os.system("%s" % sql) != 0
-
+        # too max length - column
+        sql = "%staosBenchmark -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b NCHAR\(16380\) \
+                -w 40 -T 8 -i 10 -S 1000 -r 48 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I taosc" % (binPath,cfgPath)
+        tdLog.info("%s" % sql ) 
+        assert os.system("%s" % sql ) != 0
+                 
         # too max length - row
-        sql = "%s -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b float,int,NCHAR\(16371\) \
-                -w 40 -T 8 -i 10 -S 1000 -r 48 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I taosc" % (binPath, cfgPath)
-        tdLog.info("%s" % sql)
-        assert os.system("%s" % sql) != 0
+        sql = "%staosBenchmark -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b float,int,NCHAR\(16371\) \
+                -w 40 -T 8 -i 10 -S 1000 -r 48 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I taosc" % (binPath,cfgPath)
+        tdLog.info("%s" % sql ) 
+        assert os.system("%s" % sql ) != 0
 
-
-        # error password
-        sql = "%s -u root -c %s -h localhost -P 6030 -p123 -d db1 -a 1 -l 10 -b float,int,NCHAR\(40\) \
-        -w 40 -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I stmt" % (binPath, cfgPath)
-        tdLog.info("%s" % sql)
-        assert os.system("%s" % sql) != 0
+        # error password  
+        sql = "%staosBenchmark -u root -c %s -h localhost -P 6030 -p123 -d db1 -a 1 -l 10 -b float,int,NCHAR\(40\) \
+        -w 40 -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I stmt" % (binPath,cfgPath)
+        tdLog.info("%s" % sql ) 
+        assert os.system("%s" % sql ) != 0       
 
         testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf ./insert_res*.txt*")
-        os.system("rm -rf tools/taosdemoAllTest/%s.sql" % testcaseFilename)
+        os.system("rm -rf tools/taosdemoAllTest/%s.sql" % testcaseFilename )         
+        
 
     def stop(self):
         tdSql.close()
