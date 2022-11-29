@@ -438,6 +438,11 @@ do { \
 
 #define TSDB_ARB_DUMMY_TIME                    4765104000000 // 2121-01-01 00:00:00.000, :P
 
+//define show cluster status and show db.status
+#define SHOW_STATUS_NOT_AVAILABLE  0
+#define SHOW_STATUS_AVAILABLE      1
+#define SHOW_STATUS_HALF_AVAILABLE 2
+
 typedef enum {
   TAOS_QTYPE_RPC   = 0,
   TAOS_QTYPE_FWD   = 1,
