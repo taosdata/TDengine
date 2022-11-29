@@ -1158,7 +1158,7 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
     pSyncNode->electTimerParam.pSyncNode = pSyncNode;
     pSyncNode->electTimerParam.pData = NULL;
 
-    taosTmrReset(pSyncNode->FpElectTimerCB, pSyncNode->electTimerMS, pSyncNode, syncEnv()->pTimerManager,
+    taosTmrReset(pSyncNode->FpElectTimerCB, pSyncNode->electTimerMS, (void*)(pSyncNode->rid), syncEnv()->pTimerManager,
                  &pSyncNode->pElectTimer);
 
   } else {
@@ -1916,13 +1916,21 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
 static void syncNodeEqElectTimer(void* param, void* tmrId) {
   if (!syncIsInit()) return;
 
-  SSyncNode* pNode = (SSyncNode*)param;
+  int64_t    rid = (int64_t)param;
+  SSyncNode* pNode = syncNodeAcquire(rid);
 
   if (pNode == NULL) return;
-  if (pNode->syncEqMsg == NULL) return;
+
+  if (pNode->syncEqMsg == NULL) {
+    syncNodeRelease(pNode);
+    return;
+  }
 
   int64_t tsNow = taosGetTimestampMs();
-  if (tsNow < pNode->electTimerParam.executeTime) return;
+  if (tsNow < pNode->electTimerParam.executeTime) {
+    syncNodeRelease(pNode);
+    return;
+  }
 
   SRpcMsg rpcMsg = {0};
   int32_t code =
@@ -1930,7 +1938,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
 
   if (code != 0) {
     sError("failed to build elect msg");
-
+    syncNodeRelease(pNode);
     return;
   }
 
@@ -1941,9 +1949,11 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   if (code != 0) {
     sError("failed to sync enqueue elect msg since %s", terrstr());
     rpcFreeCont(rpcMsg.pCont);
-
+    syncNodeRelease(pNode);
     return;
   }
+
+  syncNodeRelease(pNode);
 }
 
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
