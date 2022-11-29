@@ -242,6 +242,9 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
     logBeginIndex = pNode->pLogStore->syncLogBeginIndex(pNode->pLogStore);
   }
 
+  int32_t cacheHit = pNode->pLogStore->cacheHit;
+  int32_t cacheMiss = pNode->pLogStore->cacheMiss;
+
   char cfgStr[1024];
   if (pNode->pRaftCfg != NULL) {
     syncCfg2SimpleStr(&(pNode->pRaftCfg->cfg), cfgStr, sizeof(cfgStr));
@@ -275,18 +278,18 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
   terrno = errCode;
 
   if (pNode != NULL && pNode->pRaftCfg != NULL) {
-    taosPrintLog(flags, level, dflag,
-                 "vgId:%d, sync %s "
-                 "%s"
-                 ", tm:%" PRIu64 ", cmt:%" PRId64 ", fst:%" PRId64 ", lst:%" PRId64 ", min:%" PRId64 ", snap:%" PRId64
-                 ", snap-tm:%" PRIu64 ", sby:%d, aq:%d, snaping:%" PRId64 ", r-num:%d, lcfg:%" PRId64
-                 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s, %s, %s, %s",
-                 pNode->vgId, syncStr(pNode->state), eventLog, currentTerm, pNode->commitIndex, logBeginIndex,
-                 logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
-                 pNode->pRaftCfg->isStandBy, aqItems, pNode->snapshottingIndex, pNode->replicaNum,
-                 pNode->pRaftCfg->lastConfigIndex, pNode->changing, pNode->restoreFinish, quorum,
-                 pNode->electTimerLogicClock, pNode->heartbeatTimerLogicClockUser, peerStr, cfgStr, hbTimeStr,
-                 hbrTimeStr);
+    taosPrintLog(
+        flags, level, dflag,
+        "vgId:%d, sync %s "
+        "%s"
+        ", tm:%" PRIu64 ", cmt:%" PRId64 ", fst:%" PRId64 ", lst:%" PRId64 ", min:%" PRId64 ", snap:%" PRId64
+        ", snap-tm:%" PRIu64 ", elt-num:%d, bl-num:%d, cc-num:%d, hit:%d, mis:%d, aq:%d, snaping:%" PRId64
+        ", r-num:%d, lcfg:%" PRId64 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s, %s, %s, %s",
+        pNode->vgId, syncStr(pNode->state), eventLog, currentTerm, pNode->commitIndex, logBeginIndex, logLastIndex,
+        pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm, pNode->electNum, pNode->becomeLeaderNum,
+        pNode->configChangeNum, cacheHit, cacheMiss, aqItems, pNode->snapshottingIndex, pNode->replicaNum,
+        pNode->pRaftCfg->lastConfigIndex, pNode->changing, pNode->restoreFinish, quorum, pNode->electTimerLogicClock,
+        pNode->heartbeatTimerLogicClockUser, peerStr, cfgStr, hbTimeStr, hbrTimeStr);
   }
 }
 
@@ -438,7 +441,8 @@ void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntries
           host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->lastSendIndex, pMsg->matchIndex, s);
 }
 
-void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool printX, int64_t timerElapsed, int64_t execTime) {
+void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool printX, int64_t timerElapsed,
+                          int64_t execTime) {
   if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   char     host[64];

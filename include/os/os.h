@@ -49,7 +49,6 @@ extern "C" {
 #include <argp.h>
 #include <sys/prctl.h>
 #include <cpuid.h>
-
 #endif
 #else
 

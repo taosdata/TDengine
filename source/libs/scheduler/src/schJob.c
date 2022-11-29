@@ -721,7 +721,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   if (pReq->pNodeList == NULL || taosArrayGetSize(pReq->pNodeList) <= 0) {
     qDebug("QID:0x%" PRIx64 " input exec nodeList is empty", pReq->pDag->queryId);
   } else {
-    pJob->nodeList = taosArrayDup(pReq->pNodeList);
+    pJob->nodeList = taosArrayDup(pReq->pNodeList, NULL);
   }
 
   pJob->taskList = taosHashInit(pReq->pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false,

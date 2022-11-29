@@ -80,9 +80,11 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
     pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
     code = 0;
 
+    pSyncNode->pLogStore->cacheHit++;
     sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", nextIndex, pEntry->bytes, pEntry);
 
   } else {
+    pSyncNode->pLogStore->cacheMiss++;
     sNTrace(pSyncNode, "miss cache index:%" PRId64, nextIndex);
 
     code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, nextIndex, &pEntry);
