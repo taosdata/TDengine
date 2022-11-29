@@ -1444,6 +1444,7 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
       if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
         tDebug("epset not equal, retry new epset");
         pCtx->epSet = epSet;
+        noDelay = false;
       } else {
         if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
           noDelay = false;
@@ -1475,7 +1476,7 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pCtx->retryMaxTimeout = pTransInst->retryMaxTimouet;
     pCtx->retryInitTimestamp = taosGetTimestampMs();
     pCtx->retryNextInterval = pCtx->retryMinInterval;
-    pCtx->retryStep = 1;
+    pCtx->retryStep = 0;
     pCtx->retryInit = true;
   }
   if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {

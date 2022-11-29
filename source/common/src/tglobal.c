@@ -88,7 +88,7 @@ int32_t tsQueryNodeChunkSize = 32 * 1024;
 bool    tsQueryUseNodeAllocator = true;
 bool    tsKeepColumnName = false;
 int32_t tsRedirectPeriod = 100;
-int32_t tsRedirectFactor = 5;
+int32_t tsRedirectFactor = 1;
 int32_t tsRedirectMaxPeriod = 10000;
 int32_t tsMaxRetryWaitTime = 60000;
 
