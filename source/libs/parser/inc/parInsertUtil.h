@@ -152,7 +152,6 @@ typedef struct STableDataCxt {
   STSchema      *pSchema;
   SBoundColInfo  boundColsInfo;
   SArray        *pValues;
-  SVCreateTbReq *pCreateTblReq;
   SSubmitTbData *pData;
 } STableDataCxt;
 
