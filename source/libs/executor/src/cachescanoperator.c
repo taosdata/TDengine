@@ -185,7 +185,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         }
       }
 
-      pRes->info.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, pInfo->indexOfBufferedRes);
+      pRes->info.id.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, pInfo->indexOfBufferedRes);
       pRes->info.rows = 1;
 
       SExprSupp* pSup = &pInfo->pseudoExprSup;
@@ -196,7 +196,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         return NULL;
       }
 
-      pRes->info.groupId = getTableGroupId(pTableList, pRes->info.uid);
+      pRes->info.id.groupId = getTableGroupId(pTableList, pRes->info.id.uid);
       pInfo->indexOfBufferedRes += 1;
       return pRes;
     } else {
@@ -232,12 +232,12 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
           SExprSupp* pSup = &pInfo->pseudoExprSup;
 
           STableKeyInfo* pKeyInfo = &((STableKeyInfo*)pList)[0];
-          pInfo->pRes->info.groupId = pKeyInfo->groupId;
+          pInfo->pRes->info.id.groupId = pKeyInfo->groupId;
 
           if (taosArrayGetSize(pInfo->pUidList) > 0) {
             ASSERT((pInfo->retrieveType & CACHESCAN_RETRIEVE_LAST_ROW) == CACHESCAN_RETRIEVE_LAST_ROW);
 
-            pInfo->pRes->info.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, 0);
+            pInfo->pRes->info.id.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, 0);
             code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes, pInfo->pRes->info.rows,
                                           GET_TASKID(pTaskInfo), NULL);
             if (code != TSDB_CODE_SUCCESS) {

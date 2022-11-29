@@ -708,7 +708,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
 #endif
     for (int32_t i = 0; i < taosArrayGetSize(pResList); ++i) {
       SSDataBlock *output = taosArrayGetP(pResList, i);
-      smaDebug("result block, uid:%" PRIu64 ", groupid:%" PRIu64 ", rows:%d", output->info.uid, output->info.groupId,
+      smaDebug("result block, uid:%" PRIu64 ", groupid:%" PRIu64 ", rows:%d", output->info.id.uid, output->info.id.groupId,
                output->info.rows);
 
       STsdb      *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb[0] : pSma->pRSmaTsdb[1]);
@@ -718,7 +718,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
       if (buildSubmitReqFromDataBlock(&pReq, output, pTSchema, SMA_VID(pSma), suid) < 0) {
         smaError("vgId:%d, build submit req for rsma table suid:%" PRIu64 ", uid:%" PRIu64 ", level %" PRIi8
                  " failed since %s",
-                 SMA_VID(pSma), suid, output->info.groupId, pItem->level, terrstr());
+                 SMA_VID(pSma), suid, output->info.id.groupId, pItem->level, terrstr());
         goto _err;
       }
 
@@ -726,13 +726,13 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
         taosMemoryFreeClear(pReq);
         smaError("vgId:%d, process submit req for rsma suid:%" PRIu64 ", uid:%" PRIu64 " level %" PRIi8
                  " failed since %s",
-                 SMA_VID(pSma), suid, output->info.groupId, pItem->level, terrstr());
+                 SMA_VID(pSma), suid, output->info.id.groupId, pItem->level, terrstr());
         goto _err;
       }
 
       smaDebug("vgId:%d, process submit req for rsma suid:%" PRIu64 ",uid:%" PRIu64 ", level %" PRIi8 " ver %" PRIi64
                " len %" PRIu32,
-               SMA_VID(pSma), suid, output->info.groupId, pItem->level, output->info.version,
+               SMA_VID(pSma), suid, output->info.id.groupId, pItem->level, output->info.version,
                htonl(pReq->header.contLen));
 
       taosMemoryFreeClear(pReq);

@@ -436,7 +436,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
     pDataBlock->pBlockAgg = NULL;
     taosArrayGetSize(pDataBlock->pDataBlock) = tSmaNumOfCols;
     pDataBlock->info.rows = tSmaNumOfRows;
-    pDataBlock->info.groupId = tSmaGroupId + g;
+    pDataBlock->info.id.groupId = tSmaGroupId + g;
 
     pDataBlock->pDataBlock = taosArrayInit(tSmaNumOfCols, sizeof(SColumnInfoData *));
     EXPECT_NE(pDataBlock->pDataBlock, nullptr);

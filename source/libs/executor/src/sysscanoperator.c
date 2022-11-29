@@ -1831,39 +1831,39 @@ static int32_t doGetTableRowSize(void* pMeta, uint64_t uid, int32_t* rowLen, con
 }
 
 static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
-    if (pOperator->status == OP_EXEC_DONE) {
-        return NULL;
-    }
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
 
-    SBlockDistInfo* pBlockScanInfo = pOperator->info;
-    SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+  SBlockDistInfo* pBlockScanInfo = pOperator->info;
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
 
-    STableBlockDistInfo blockDistInfo = {.minRows = INT_MAX, .maxRows = INT_MIN};
-    int32_t             code = doGetTableRowSize(pBlockScanInfo->readHandle.meta, pBlockScanInfo->uid,
-                                                 (int32_t*)&blockDistInfo.rowSize, GET_TASKID(pTaskInfo));
-    if (code != TSDB_CODE_SUCCESS) {
-        T_LONG_JMP(pTaskInfo->env, code);
-    }
+  STableBlockDistInfo blockDistInfo = {.minRows = INT_MAX, .maxRows = INT_MIN};
+  int32_t             code = doGetTableRowSize(pBlockScanInfo->readHandle.meta, pBlockScanInfo->uid,
+                                               (int32_t*)&blockDistInfo.rowSize, GET_TASKID(pTaskInfo));
+  if (code != TSDB_CODE_SUCCESS) {
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
 
-    tsdbGetFileBlocksDistInfo(pBlockScanInfo->pHandle, &blockDistInfo);
-    blockDistInfo.numOfInmemRows = (int32_t)tsdbGetNumOfRowsInMemTable(pBlockScanInfo->pHandle);
+  tsdbGetFileBlocksDistInfo(pBlockScanInfo->pHandle, &blockDistInfo);
+  blockDistInfo.numOfInmemRows = (int32_t)tsdbGetNumOfRowsInMemTable(pBlockScanInfo->pHandle);
 
-    SSDataBlock* pBlock = pBlockScanInfo->pResBlock;
+  SSDataBlock* pBlock = pBlockScanInfo->pResBlock;
 
-    int32_t          slotId = pOperator->exprSupp.pExprInfo->base.resSchema.slotId;
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, slotId);
+  int32_t          slotId = pOperator->exprSupp.pExprInfo->base.resSchema.slotId;
+  SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, slotId);
 
-    int32_t len = tSerializeBlockDistInfo(NULL, 0, &blockDistInfo);
-    char*   p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
-    tSerializeBlockDistInfo(varDataVal(p), len, &blockDistInfo);
-    varDataSetLen(p, len);
+  int32_t len = tSerializeBlockDistInfo(NULL, 0, &blockDistInfo);
+  char*   p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
+  tSerializeBlockDistInfo(varDataVal(p), len, &blockDistInfo);
+  varDataSetLen(p, len);
 
-    colDataAppend(pColInfo, 0, p, false);
-    taosMemoryFree(p);
+  colDataAppend(pColInfo, 0, p, false);
+  taosMemoryFree(p);
 
-    pBlock->info.rows = 1;
-    pOperator->status = OP_EXEC_DONE;
-    return pBlock;
+  pBlock->info.rows = 1;
+  pOperator->status = OP_EXEC_DONE;
+  return pBlock;
 }
 
 static void destroyBlockDistScanOperatorInfo(void* param) {

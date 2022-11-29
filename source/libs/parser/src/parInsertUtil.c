@@ -857,7 +857,7 @@ void insBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, i
   pTbReq->ctb.tagNum = tagNum;
   if (sname) pTbReq->ctb.stbName = strdup(sname);
   pTbReq->ctb.pTag = (uint8_t*)pTag;
-  pTbReq->ctb.tagName = taosArrayDup(tagName);
+  pTbReq->ctb.tagName = taosArrayDup(tagName, NULL);
   pTbReq->ttl = ttl;
   pTbReq->commentLen = -1;
 

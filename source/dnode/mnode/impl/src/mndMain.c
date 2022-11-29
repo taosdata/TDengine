@@ -803,12 +803,12 @@ void mndSetRestored(SMnode *pMnode, bool restored) {
     taosThreadRwlockWrlock(&pMnode->lock);
     pMnode->restored = true;
     taosThreadRwlockUnlock(&pMnode->lock);
-    mTrace("mnode set restored:%d", restored);
+    mInfo("mnode set restored:%d", restored);
   } else {
     taosThreadRwlockWrlock(&pMnode->lock);
     pMnode->restored = false;
     taosThreadRwlockUnlock(&pMnode->lock);
-    mTrace("mnode set restored:%d", restored);
+    mInfo("mnode set restored:%d", restored);
     while (1) {
       if (pMnode->rpcRef <= 0) break;
       taosMsleep(3);
@@ -822,7 +822,7 @@ void mndSetStop(SMnode *pMnode) {
   taosThreadRwlockWrlock(&pMnode->lock);
   pMnode->stopped = true;
   taosThreadRwlockUnlock(&pMnode->lock);
-  mTrace("mnode set stopped");
+  mInfo("mnode set stopped");
 }
 
 bool mndGetStop(SMnode *pMnode) { return pMnode->stopped; }

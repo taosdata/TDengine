@@ -27,7 +27,8 @@ extern "C" {
 typedef int32_t (*__compar_fn_t)(const void *, const void *);
 #endif
 
-typedef void *(*FCopy)(void *);
+typedef void *(*__array_item_dup_fn_t)(void *);
+
 typedef void (*FDelete)(void *);
 typedef int32_t (*FEncode)(void **buf, const void *dst);
 typedef void *(*FDecode)(const void *buf, void *dst);
@@ -41,7 +42,6 @@ typedef void *(*FDecode)(const void *buf, void *dst);
 #define elePtrAt(base, size, idx) (void *)((char *)(base) + (size) * (idx))
 
 typedef int32_t (*__ext_compar_fn_t)(const void *p1, const void *p2, const void *param);
-typedef void (*__ext_swap_fn_t)(void *p1, void *p2, const void *param);
 
 /**
  * quick sort, with the compare function requiring additional parameters support
