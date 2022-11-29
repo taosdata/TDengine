@@ -162,7 +162,10 @@ typedef struct SSyncFSM {
 // SWal implements it
 typedef struct SSyncLogStore {
   SLRUCache* pCache;
-  void*      data;
+  int32_t    cacheHit;
+  int32_t    cacheMiss;
+
+  void* data;
 
   int32_t (*syncLogUpdateCommitIndex)(struct SSyncLogStore* pLogStore, SyncIndex index);
   SyncIndex (*syncLogCommitIndex)(struct SSyncLogStore* pLogStore);
