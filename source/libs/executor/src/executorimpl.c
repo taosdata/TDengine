@@ -1507,7 +1507,8 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   while (1) {
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
-      if (!hasValidBlock) {
+      if (!hasValidBlock &&
+          downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_PARTITION) {
         createDataBlockForEmptyInput(pOperator, &pBlock);
         if (pBlock == NULL) {
           break;
