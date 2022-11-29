@@ -55,6 +55,7 @@ typedef struct SSyncLogBuffer {
   int64_t          endIndex;
   int64_t          size;
   TdThreadMutex    mutex;
+  TdThreadMutexAttr attr;
 } SSyncLogBuffer;
 
 // SSyncLogRepMgr

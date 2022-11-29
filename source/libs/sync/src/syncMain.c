@@ -1602,7 +1602,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 
       // Raft 3.6.2 Committing entries from previous terms
       syncNodeAppendNoop(pSyncNode);
-      syncMaybeAdvanceCommitIndex(pSyncNode);
+      // syncMaybeAdvanceCommitIndex(pSyncNode);
 
     } else {
       syncNodeBecomeFollower(pSyncNode, tmpbuf);

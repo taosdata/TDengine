@@ -916,11 +916,24 @@ SSyncLogBuffer* syncLogBufferCreate() {
 
   ASSERT(pBuf->size == TSDB_SYNC_LOG_BUFFER_SIZE);
 
-  if (taosThreadMutexInit(&pBuf->mutex, NULL) < 0) {
+  if (taosThreadMutexAttrInit(&pBuf->attr) < 0) {
+    sError("failed to init log buffer mutexattr due to %s", strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  if (taosThreadMutexAttrSetType(&pBuf->attr, PTHREAD_MUTEX_RECURSIVE) < 0) {
+    sError("failed to set log buffer mutexattr type due to %s", strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  if (taosThreadMutexInit(&pBuf->mutex, &pBuf->attr) < 0) {
     sError("failed to init log buffer mutex due to %s", strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
+
   return pBuf;
 
 _err:
@@ -947,6 +960,7 @@ void syncLogBufferDestroy(SSyncLogBuffer* pBuf) {
   }
   syncLogBufferClear(pBuf);
   (void)taosThreadMutexDestroy(&pBuf->mutex);
+  (void)taosThreadMutexAttrDestroy(&pBuf->attr);
   (void)taosMemoryFree(pBuf);
   return;
 }
