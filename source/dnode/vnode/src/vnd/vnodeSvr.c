@@ -968,10 +968,18 @@ _exit:
   tEncodeSSubmitRsp2(&ec, pSubmitRsp);
   tEncoderClear(&ec);
 
+  // update statistics
+  atomic_add_fetch_64(&pVnode->statis.nInsert, pSubmitRsp->affectedRows);
+  atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, pSubmitRsp->affectedRows);
+  atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
+  if (code == 0) {
+    atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
+  }
+
   // clear
   taosArrayDestroy(newTbUids);
   tDestroySSubmitReq2(pSubmitReq);
-  tDestroySSubmitRsp2(pSubmitRsp);
+  tDestroySSubmitRsp2(pSubmitRsp, TSDB_MSG_FLG_ENCODE);
 
   return code;
 

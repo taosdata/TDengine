@@ -3232,10 +3232,9 @@ typedef struct {
   SArray* aCreateTbRsp;  // SArray<SVCreateTbRsp>
 } SSubmitRsp2;
 
-int32_t tCreateSSubmitRsp2(SSubmitRsp2** ppRsp);
-void    tDestroySSubmitRsp2(SSubmitRsp2* pRsp, int32_t flag);
 int32_t tEncodeSSubmitRsp2(SEncoder* pCoder, const SSubmitRsp2* pRsp);
 int32_t tDecodeSSubmitRsp2(SDecoder* pCoder, SSubmitRsp2* pRsp);
+void    tDestroySSubmitRsp2(SSubmitRsp2* pRsp, int32_t flag);
 
 #define TSDB_MSG_FLG_ENCODE 0x1
 #define TSDB_MSG_FLG_DECODE 0x2
