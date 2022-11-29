@@ -526,7 +526,7 @@ static int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
  * count function does not use the pCtx->interResBuf to keep the intermediate buffer
  */
 int32_t countFunction(SqlFunctionCtx* pCtx) {
-  int32_t numOfElem = getNumOfElems(pCtx);
+  int32_t numOfElem = 0;
 
   SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
   SInputColumnInfoData* pInput = &pCtx->input;
@@ -539,6 +539,7 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
     numOfElem = 1;
     *((int64_t*)buf) = 0;
   } else {
+    numOfElem = getNumOfElems(pCtx);
     *((int64_t*)buf) += numOfElem;
   }
 

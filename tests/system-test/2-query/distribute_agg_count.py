@@ -183,7 +183,7 @@ class TDTestCase:
         tdSql.checkRows(20)
 
         tdSql.query(f"select count(c1) from {dbname}.stb1 where t1> 4  partition by tbname")
-        tdSql.checkRows(16)
+        tdSql.checkRows(15)
 
         # union all
         tdSql.query(f"select count(c1) from {dbname}.stb1 union all select count(c1) from {dbname}.stb1 ")
