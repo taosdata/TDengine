@@ -900,6 +900,11 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 
     // create table
     if (pSubmitTbData->pCreateTbReq) {
+      if (metaCreateTable(pVnode->pMeta, version, pSubmitTbData->pCreateTbReq, NULL /* todo */) < 0) {
+        // TODO
+      } else {
+        // TODO
+      }
     }
 
     // insert data
