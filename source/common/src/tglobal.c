@@ -308,6 +308,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
+  if (tsNumOfTaskQueueThreads >= 10) {
+    tsNumOfTaskQueueThreads = 10;
+  }
   if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 4, 1024, 0) != 0) return -1;
 
   return 0;

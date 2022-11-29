@@ -205,6 +205,9 @@ void* taosArrayPop(SArray* pArray) {
 }
 
 void* taosArrayGet(const SArray* pArray, size_t index) {
+  if (NULL == pArray) {
+    return NULL;
+  }
   assert(index < pArray->size);
   return TARRAY_GET_ELEM(pArray, index);
 }

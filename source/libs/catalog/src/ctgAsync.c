@@ -1205,7 +1205,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
           stbCtx.pName = &stbName;
 
           STableMeta* stbMeta = NULL;
-          ctgReadTbMetaFromCache(pCtg, &stbCtx, &stbMeta);
+          (void)ctgReadTbMetaFromCache(pCtg, &stbCtx, &stbMeta);
           if (stbMeta && stbMeta->sversion >= pOut->tbMeta->sversion) {
             ctgDebug("use cached stb meta, tbName:%s", tNameGetTableName(pName));
             exist = 1;
