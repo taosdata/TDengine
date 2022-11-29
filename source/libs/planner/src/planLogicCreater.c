@@ -580,14 +580,18 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   }
 
   // set the output
-  if (TSDB_CODE_SUCCESS == code && NULL != pOutputGroupKeys) {
-    code = createColumnByRewriteExprs(pOutputGroupKeys, &pAgg->node.pTargets);
-  }
-  nodesDestroyList(pOutputGroupKeys);
-
   if (TSDB_CODE_SUCCESS == code && NULL != pAgg->pAggFuncs) {
     code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pAgg->node.pTargets);
   }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pOutputGroupKeys) {
+      code = createColumnByRewriteExprs(pOutputGroupKeys, &pAgg->node.pTargets);
+    } else if (NULL == pAgg->node.pTargets && NULL != pAgg->pGroupKeys) {
+      code = createColumnByRewriteExprs(pAgg->pGroupKeys, &pAgg->node.pTargets);
+    }
+  }
+  nodesDestroyList(pOutputGroupKeys);
 
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pAgg;
