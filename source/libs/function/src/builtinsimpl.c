@@ -3930,11 +3930,15 @@ static void hllTransferInfo(SHLLInfo* pInput, SHLLInfo* pOutput) {
 int32_t hllFunctionMerge(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pCol = pInput->pData[0];
-  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
+
+  if (pCol->info.type != TSDB_DATA_TYPE_BINARY) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   SHLLInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   int32_t start = pInput->startRowIndex;
+
 
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
     char*     data = colDataGetData(pCol, i);

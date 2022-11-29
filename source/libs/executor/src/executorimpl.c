@@ -1425,7 +1425,7 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
   }
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
-  if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_PARTITION ||
+  if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_PARTITION ||
       (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
        ((STableScanInfo *)downstream->info)->hasGroupByTag == true)) {
     return TSDB_CODE_SUCCESS;
@@ -1514,8 +1514,7 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   while (1) {
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
-      if (!hasValidBlock &&
-          downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_PARTITION) {
+      if (!hasValidBlock) {
         createDataBlockForEmptyInput(pOperator, &pBlock);
         if (pBlock == NULL) {
           break;
