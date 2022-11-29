@@ -48,10 +48,10 @@ class TDTestCase:
         tdSql.checkData(0,0,1)
         #!for bug
         tdDnodes.stoptaosd(1)
-        sleep(self.delaytime)
+        sleep(self.delaytime * 5)
         if platform.system().lower() == 'windows':
             sleep(10)
-        #tdSql.error('select server_status()')
+        tdSql.error('select server_status()')
 
     def run(self):
         self.get_database_info()
