@@ -1018,9 +1018,12 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
     if (NULL == pTableCxt->pData) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     } else {
+      pTableCxt->pData->flags = NULL != *pCreateTbReq ? SUBMIT_REQ_AUTO_CREATE_TABLE : 0;
       pTableCxt->pData->suid = pTableMeta->suid;
       pTableCxt->pData->uid = pTableMeta->uid;
       pTableCxt->pData->sver = pTableMeta->sversion;
+      pTableCxt->pData->pCreateTbReq = *pCreateTbReq;
+      *pCreateTbReq = NULL;
       pTableCxt->pData->aRowP = taosArrayInit(128, POINTER_BYTES);
       if (NULL == pTableCxt->pData->aRowP) {
         code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1029,8 +1032,6 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    pTableCxt->pCreateTblReq = *pCreateTbReq;
-    *pCreateTbReq = NULL;
     *pOutput = pTableCxt;
   } else {
     taosMemoryFree(pTableCxt);
@@ -1068,8 +1069,6 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
   tDestroyTSchema(pTableCxt->pSchema);
   destroyBoundColInfo(&pTableCxt->boundColsInfo);
   taosArrayDestroyEx(pTableCxt->pValues, destroyColVal);
-  tdDestroySVCreateTbReq(pTableCxt->pCreateTblReq);
-  taosMemoryFreeClear(pTableCxt->pCreateTblReq);
   tDestroySSubmitTbData(pTableCxt->pData);
   taosMemoryFree(pTableCxt);
 }
@@ -1128,17 +1127,6 @@ void insDestroyTableDataCxtHashMap(SHashObj* pTableCxtHash) {
 }
 
 static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCxt) {
-  if (NULL != pTableCxt->pCreateTblReq) {
-    if (NULL == pVgCxt->pData->aCreateTbReq) {
-      pVgCxt->pData->aCreateTbReq = taosArrayInit(128, sizeof(SVCreateTbReq));
-      if (NULL == pVgCxt->pData->aCreateTbReq) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-    }
-    taosArrayPush(pVgCxt->pData->aCreateTbReq, pTableCxt->pCreateTblReq);
-    taosMemoryFreeClear(pTableCxt->pCreateTblReq);
-  }
-
   if (NULL == pVgCxt->pData->aSubmitTbData) {
     pVgCxt->pData->aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
     if (NULL == pVgCxt->pData->aSubmitTbData) {
