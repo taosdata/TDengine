@@ -24,7 +24,7 @@ class TDTestCase:
     updatecfgDict={'maxSQLLength':1048576}
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
+        tdSql.init(conn.cursor(), logSql)
 
         os.system("rm -rf tools/taosdemoAllTest/TD-5213/insert4096columns_not_use_taosdemo.py.sql") 
 
@@ -288,7 +288,7 @@ class TDTestCase:
         tdSql.checkRows(4*self.num)
         tdSql.checkCols(4096)
 
-        #define TSDB_MAX_BYTES_PER_ROW 65527[old:1024 && 16384 && 65519]
+        #define TSDB_MAX_BYTES_PER_ROW 65527[old:1024 && 16384 && 49151]
         #ts:8\int:4\smallint:2\bigint:8\bool:1\float:4\tinyint:1\nchar:4*（）+2[offset]\binary:1*（）+2[offset]
         tdLog.info('test regular_table max bytes per row 65527') 
         sql = "create table regular_table_5(ts timestamp, "
@@ -575,7 +575,7 @@ class TDTestCase:
         tdSql.checkRows(3*self.num)
         tdSql.checkCols(4092)
 
-        #define TSDB_MAX_BYTES_PER_ROW 65527   TSDB_MAX_TAGS_LEN 65519
+        #define TSDB_MAX_BYTES_PER_ROW 65527   TSDB_MAX_TAGS_LEN 16384
         #ts:8\int:4\smallint:2\bigint:8\bool:1\float:4\tinyint:1\nchar:4*（）+2[offset]\binary:1*（）+2[offset]
         tdLog.info('test super table max bytes per row 65527') 
         sql = "create table stable_4(ts timestamp, "

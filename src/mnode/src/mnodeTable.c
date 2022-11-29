@@ -1601,7 +1601,7 @@ static int32_t mnodeChangeSuperTableColumn(SMnodeMsg *pMsg) {
   for (i = 0; i < pStable->numOfColumns; ++i) {
     SSchema *pSchema = pStable->schema + i;
     nLen += (pSchema->colId == col) ? pAlter->schema[0].bytes : pSchema->bytes;
-    if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
+    if (IS_VAR_DATA_TYPE(pSchema->type)) {
       nLen += sizeof(VarDataOffsetT);
     }
   }
