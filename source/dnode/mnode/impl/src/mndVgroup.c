@@ -665,18 +665,23 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
       if (i < pVgroup->replica) {
         colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->vnodeGid[i].dnodeId, false);
 
+        bool       exist = false;
         bool       online = false;
         SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgroup->vnodeGid[i].dnodeId);
         if (pDnode != NULL) {
+          exist = true;
           online = mndIsDnodeOnline(pDnode, curMs);
           mndReleaseDnode(pMnode, pDnode);
         }
 
         char buf1[20] = {0};
         char role[20] = "offline";
-        if (online) {
+        if (!exist) {
+          strcpy(role, "dropping");
+        } else if (online) {
           bool show = (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER && !pVgroup->vnodeGid[i].syncRestore);
           snprintf(role, sizeof(role), "%s%s", syncStr(pVgroup->vnodeGid[i].syncState), show ? "*" : "");
+        } else {
         }
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->pMeta->pSchemas[cols].bytes);
 
