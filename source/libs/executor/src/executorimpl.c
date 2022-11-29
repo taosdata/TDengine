@@ -2355,10 +2355,12 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
           return NULL;
         }
 
-        for (int32_t i = 0; i < tableListGetSize(pTableListInfo); ++i) {
+        size_t num = taosArrayGetSize(pList);
+        for (int32_t i = 0; i < num; ++i) {
           STableKeyInfo* p = taosArrayGet(pList, i);
           tableListAddTableInfo(pTableListInfo, p->uid, 0);
         }
+
         taosArrayDestroy(pList);
       } else {  // Create group with only one table
         tableListAddTableInfo(pTableListInfo, pBlockNode->uid, 0);
