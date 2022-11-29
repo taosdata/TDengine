@@ -72,9 +72,8 @@ class TDTestCase:
 
         
     def buildTaosd(self,bPath):
-        # os.system(f"mv {bPath}/build_bak  {bPath}/build ")
-        os.system(f" cd {bPath}  &&  make install ")
-
+        print(f" build path {bPath} ")
+        os.system(f" cd {bPath}  && cmake -DBUILD_TOOLS=on .. && make -j4 && make install")
 
     def run(self):
         bPath=self.getBuildPath()
@@ -86,18 +85,18 @@ class TDTestCase:
         tableNumbers=100
         recordNumbers1=100
         recordNumbers2=1000
-        tdsqlF=tdCom.newTdSql()
-        print(tdsqlF)
-        tdsqlF.query(f"SELECT SERVER_VERSION();")
-        print(tdsqlF.query(f"SELECT SERVER_VERSION();"))
-        oldServerVersion=tdsqlF.queryResult[0][0]
-        tdLog.info(f"Base server version is {oldServerVersion}")
-        tdsqlF.query(f"SELECT CLIENT_VERSION();")
+        # tdsqlF=tdCom.newTdSql()
+        # print(tdsqlF)
+        # tdsqlF.query(f"SELECT SERVER_VERSION();")
+        # print(tdsqlF.query(f"SELECT SERVER_VERSION();"))
+        # oldServerVersion=tdsqlF.queryResult[0][0]
+        # tdLog.info(f"Base server version is {oldServerVersion}")
+        # tdsqlF.query(f"SELECT CLIENT_VERSION();")
         
-        # the oldClientVersion can't be updated in the same python process,so the version is new compiled verison
-        oldClientVersion=tdsqlF.queryResult[0][0]
-        tdLog.info(f"Base client version is {oldClientVersion}")
-
+        # # the oldClientVersion can't be updated in the same python process,so the version is new compiled verison
+        # oldClientVersion=tdsqlF.queryResult[0][0]
+        # tdLog.info(f"Base client version is {oldClientVersion}")
+        oldServerVersion="3.0.1.0"
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{oldServerVersion}")
         tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
         os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
@@ -138,6 +137,9 @@ class TDTestCase:
         os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
+        tdsql.query("select count(*) from db4096.stb0")
+        tdsql.checkData(0,0,50000)
+
 
         tdsql=tdCom.newTdSql()
         tdLog.printNoPrefix(f"==========step4:verify backticks in taos Sql-TD18542")
