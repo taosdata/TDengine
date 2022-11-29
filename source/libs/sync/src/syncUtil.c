@@ -639,7 +639,7 @@ void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMs
 }
 
 void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, int32_t voteGranted, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
+  // if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   char     logBuf[256];
   char     host[64];
@@ -647,42 +647,42 @@ void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, i
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
 
   if (voteGranted == -1) {
-    sNTrace(pSyncNode,
-            "recv sync-request-vote from %s:%d, {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, %s", host,
-            port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
+    sNInfo(pSyncNode,
+           "recv sync-request-vote from %s:%d, {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, %s", host,
+           port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
   } else {
-    sNTrace(pSyncNode,
-            "recv sync-request-vote from %s:%d, {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, granted:%d",
-            host, port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, voteGranted);
+    sNInfo(pSyncNode,
+           "recv sync-request-vote from %s:%d, {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, granted:%d",
+           host, port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, voteGranted);
   }
 }
 
 void syncLogSendRequestVote(SSyncNode* pNode, const SyncRequestVote* pMsg, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
+  // if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
-  sNTrace(pNode, "send sync-request-vote to %s:%d {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, %s", host,
-          port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
+  sNInfo(pNode, "send sync-request-vote to %s:%d {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, %s", host,
+         port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
 }
 
 void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
+  // if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "recv sync-request-vote-reply from %s:%d {term:%" PRId64 ", grant:%d}, %s", host, port, pMsg->term,
-          pMsg->voteGranted, s);
+  sNInfo(pSyncNode, "recv sync-request-vote-reply from %s:%d {term:%" PRId64 ", grant:%d}, %s", host, port, pMsg->term,
+         pMsg->voteGranted, s);
 }
 
 void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
+  // if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "send sync-request-vote-reply to %s:%d {term:%" PRId64 ", grant:%d}, %s", host, port, pMsg->term,
-          pMsg->voteGranted, s);
+  sNInfo(pSyncNode, "send sync-request-vote-reply to %s:%d {term:%" PRId64 ", grant:%d}, %s", host, port, pMsg->term,
+         pMsg->voteGranted, s);
 }
