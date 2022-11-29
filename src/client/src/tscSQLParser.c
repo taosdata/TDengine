@@ -1688,8 +1688,8 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
       return false;
     }
 
-    if ((p->type == TSDB_DATA_TYPE_BINARY && p->bytes <= 0) ||
-        (p->type == TSDB_DATA_TYPE_NCHAR && p->bytes <= 0)) {
+    if ((p->type == TSDB_DATA_TYPE_BINARY && (p->bytes <= 0 || p->bytes > TSDB_MAX_BINARY_LEN)) ||
+        (p->type == TSDB_DATA_TYPE_NCHAR && (p->bytes <= 0 || p->bytes > TSDB_MAX_NCHAR_LEN))) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
       return false;
     }
@@ -1803,7 +1803,8 @@ int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   }
 
   // binary(val), val can not be equalled to or less than 0
-  if ((pTagField->type == TSDB_DATA_TYPE_BINARY || pTagField->type == TSDB_DATA_TYPE_NCHAR) && pTagField->bytes <= 0) {
+  if ((pTagField->type == TSDB_DATA_TYPE_BINARY || pTagField->type == TSDB_DATA_TYPE_NCHAR) &&
+      (pTagField->bytes <= 0 || pTagField->bytes > TSDB_MAX_TAGS_LEN)) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
   }
 
@@ -5318,7 +5319,7 @@ static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
     pList->ids[pList->num++] = idx;
     *type = SQLEXPR_TYPE_SCALAR;
   } else if (pExpr->type == SQL_NODE_DATA_TYPE) {
-    if (pExpr->dataType.type < 0 || pExpr->dataType.bytes <= 0) {
+    if (pExpr->dataType.type < 0 || pExpr->dataType.bytes <= 0 || pExpr->dataType.bytes > TSDB_MAX_FIELD_LEN) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
     *type = SQLEXPR_TYPE_VALUE;
