@@ -6834,18 +6834,26 @@ _exit:
   return code;
 }
 
+void destroySSubmitTbData(SSubmitTbData *pTbData) {
+  if (pTbData->isColFmt) {
+    // todo
+  } else {
+    taosArrayDestroyP(pTbData->aRowP, (FDelete)tRowDestroy);
+  }
+}
+
 void tDestroySSubmitTbData(SSubmitTbData *pTbData) {
-  // todo
+  if (NULL == pTbData) {
+    return;
+  }
+  destroySSubmitTbData(pTbData);
+  taosMemoryFree(pTbData);
 }
 
 void tDestroySSubmitReq2(SSubmitReq2 *pReq) {
   if (NULL == pReq) return;
 
-  if (pReq->flag & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-    taosArrayDestroyEx(pReq->aCreateTbReq, NULL /* todo */);
-  }
-
-  taosArrayDestroyEx(pReq->aSubmitTbData, NULL /* todo */);
-
+  taosArrayDestroyEx(pReq->aCreateTbReq, (FDelete)tdDestroySVCreateTbReq);
+  taosArrayDestroyEx(pReq->aSubmitTbData, (FDelete)destroySSubmitTbData);
   taosMemoryFree(pReq);
 }
