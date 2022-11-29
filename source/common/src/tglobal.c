@@ -16,9 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "tglobal.h"
 #include "tconfig.h"
-#include "tmisce.h"
 #include "tgrant.h"
 #include "tlog.h"
+#include "tmisce.h"
 
 GRANT_CFG_DECLARE;
 
@@ -86,10 +86,10 @@ bool    tsQueryPlannerTrace = false;
 int32_t tsQueryNodeChunkSize = 32 * 1024;
 bool    tsQueryUseNodeAllocator = true;
 bool    tsKeepColumnName = false;
-int32_t tsRedirectPeriod = 100;
-int32_t tsRedirectFactor = 1;
-int32_t tsRedirectMaxPeriod = 10000;
-int32_t tsMaxRetryWaitTime = 60000 * 2;
+int32_t tsRedirectPeriod = 10;
+int32_t tsRedirectFactor = 2;
+int32_t tsRedirectMaxPeriod = 1000;
+int32_t tsMaxRetryWaitTime = 10000;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -124,7 +124,7 @@ int32_t tsMinIntervalTime = 1;
 int32_t tsMaxMemUsedByInsert = 1024;
 
 float   tsSelectivityRatio = 1.0;
-int32_t tsTagFilterResCacheSize = 1024*10;
+int32_t tsTagFilterResCacheSize = 1024 * 10;
 
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
