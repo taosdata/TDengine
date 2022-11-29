@@ -90,7 +90,7 @@ bool    tsKeepColumnName = false;
 int32_t tsRedirectPeriod = 100;
 int32_t tsRedirectFactor = 1;
 int32_t tsRedirectMaxPeriod = 10000;
-int32_t tsMaxRetryWaitTime = 60000;
+int32_t tsMaxRetryWaitTime = 60000 * 2;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
