@@ -1069,7 +1069,10 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
   tDestroyTSchema(pTableCxt->pSchema);
   destroyBoundColInfo(&pTableCxt->boundColsInfo);
   taosArrayDestroyEx(pTableCxt->pValues, destroyColVal);
-  tDestroySSubmitTbData(pTableCxt->pData);
+  if (pTableCxt->pData) {
+    tDestroySSubmitTbData(pTableCxt->pData);
+    taosMemoryFree(pTableCxt->pData);
+  }
   taosMemoryFree(pTableCxt);
 }
 

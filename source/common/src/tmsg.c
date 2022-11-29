@@ -6807,26 +6807,30 @@ _exit:
   return code;
 }
 
-void destroySSubmitTbData(SSubmitTbData *pTbData) {
-  // if (pTbData->isColFmt) {
-  //   // todo
-  // } else {
-  //   taosArrayDestroyP(pTbData->aRowP, (FDelete)tRowDestroy);
-  // }
-}
-
 void tDestroySSubmitTbData(SSubmitTbData *pTbData) {
-  if (NULL == pTbData) {
-    return;
+  if (pTbData->pCreateTbReq) {
+    // todo
+    taosMemoryFree(pTbData->pCreateTbReq);
   }
-  destroySSubmitTbData(pTbData);
-  taosMemoryFree(pTbData);
+
+  if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    ASSERT(0);  // TODO
+  } else {
+    if (pTbData->aRowP) {
+      int32_t nRow = TARRAY_SIZE(pTbData->aRowP);
+      SRow  **rows = (SRow **)TARRAY_DATA(pTbData->aRowP);
+      for (int32_t i = 0; i < nRow; ++i) {
+        tRowDestroy(rows[i]);
+      }
+      taosArrayDestroy(pTbData->aRowP);
+    }
+  }
 }
 
 void tDestroySSubmitReq2(SSubmitReq2 *pReq) {
   if (NULL == pReq) return;
 
-  taosArrayDestroyEx(pReq->aSubmitTbData, (FDelete)destroySSubmitTbData);
+  taosArrayDestroyEx(pReq->aSubmitTbData, (FDelete)tDestroySSubmitTbData);
 }
 
 int32_t tEncodeSSubmitRsp2(SEncoder *pCoder, const SSubmitRsp2 *pRsp) {

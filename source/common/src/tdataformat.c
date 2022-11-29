@@ -120,7 +120,6 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
   while (pTColumn) {
     if (pColVal) {
       if (pColVal->cid == pTColumn->colId) {
-        ntp += TYPE_BYTES[pTColumn->type];
         if (COL_VAL_IS_VALUE(pColVal)) {  // VALUE
           flag |= HAS_VALUE;
           maxIdx = nkv;
@@ -146,14 +145,12 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
         pColVal = (++iColVal < nColVal) ? &colVals[iColVal] : NULL;
       } else if (pColVal->cid > pTColumn->colId) {  // NONE
         flag |= HAS_NONE;
-        ntp += TYPE_BYTES[pTColumn->type];
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
       } else {
         pColVal = (++iColVal < nColVal) ? &colVals[iColVal] : NULL;
       }
     } else {  // NONE
       flag |= HAS_NONE;
-      ntp += TYPE_BYTES[pTColumn->type];
       pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
     }
   }
@@ -165,17 +162,17 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
       ntp = sizeof(SRow);
       break;
     case HAS_VALUE:
-      ntp = sizeof(SRow) + ntp;
+      ntp = sizeof(SRow) + pTSchema->flen;
       break;
     case (HAS_NULL | HAS_NONE):
       ntp = sizeof(SRow) + BIT1_SIZE(pTSchema->numOfCols - 1);
       break;
     case (HAS_VALUE | HAS_NONE):
     case (HAS_VALUE | HAS_NULL):
-      ntp = sizeof(SRow) + BIT1_SIZE(pTSchema->numOfCols - 1) + ntp;
+      ntp = sizeof(SRow) + BIT1_SIZE(pTSchema->numOfCols - 1) + pTSchema->flen + ntp;
       break;
     case (HAS_VALUE | HAS_NULL | HAS_NONE):
-      ntp = sizeof(SRow) + BIT2_SIZE(pTSchema->numOfCols - 1) + ntp;
+      ntp = sizeof(SRow) + BIT2_SIZE(pTSchema->numOfCols - 1) + pTSchema->flen + ntp;
       break;
     default:
       ASSERT(0);
