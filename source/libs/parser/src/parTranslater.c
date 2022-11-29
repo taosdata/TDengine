@@ -6625,7 +6625,7 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, S
   req.ctb.tagNum = tagNum;
   req.ctb.stbName = strdup(sTableNmae);
   req.ctb.pTag = (uint8_t*)pTag;
-  req.ctb.tagName = taosArrayDup(tagName);
+  req.ctb.tagName = taosArrayDup(tagName, NULL);
   if (pStmt->ignoreExists) {
     req.flags |= TD_CREATE_IF_NOT_EXISTS;
   }

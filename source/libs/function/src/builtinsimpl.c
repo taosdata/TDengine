@@ -1499,7 +1499,7 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   param12 /= param[1][1];
 
-  char   buf[64] = {0};
+  char   buf[512] = {0};
   size_t len =
       snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6lf, intercept:%.6lf}", param02, param12);
   varDataSetLen(buf, len);
@@ -3613,6 +3613,7 @@ bool histogramFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
   char*   binDesc = strndup(varDataVal(pCtx->param[2].param.pz), varDataLen(pCtx->param[2].param.pz));
   int64_t normalized = pCtx->param[3].param.i;
   if (normalized != 0 && normalized != 1) {
+    taosMemoryFree(binDesc);
     return false;
   }
   if (!getHistogramBinDesc(pInfo, binDesc, binType, (bool)normalized)) {

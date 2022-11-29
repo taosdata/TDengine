@@ -1407,7 +1407,7 @@ SNode* createShowTableTagsStmt(SAstCreateContext* pCxt, SNode* pTbName, SNode* p
 
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo) {
   CHECK_PARSER_STATUS(pCxt);
-  char password[TSDB_USET_PASSWORD_LEN] = {0};
+  char password[TSDB_USET_PASSWORD_LEN + 3] = {0};
   if (!checkUserName(pCxt, pUserName) || !checkPassword(pCxt, pPassword, password)) {
     return NULL;
   }

@@ -45,6 +45,9 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
     return NULL;
   }
 
+  pLogStore->cacheHit = 0;
+  pLogStore->cacheMiss = 0;
+
   taosLRUCacheSetStrictCapacity(pLogStore->pCache, false);
 
   pLogStore->data = taosMemoryMalloc(sizeof(SSyncLogStoreData));

@@ -198,6 +198,10 @@ typedef struct SSyncNode {
   int64_t leaderTime;
   int64_t lastReplicateTime;
 
+  int32_t electNum;
+  int32_t becomeLeaderNum;
+  int32_t configChangeNum;
+
   bool isStart;
 
 } SSyncNode;

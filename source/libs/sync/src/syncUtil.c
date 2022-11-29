@@ -242,6 +242,9 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
     logBeginIndex = pNode->pLogStore->syncLogBeginIndex(pNode->pLogStore);
   }
 
+  int32_t cacheHit = pNode->pLogStore->cacheHit;
+  int32_t cacheMiss = pNode->pLogStore->cacheMiss;
+
   char cfgStr[1024];
   if (pNode->pRaftCfg != NULL) {
     syncCfg2SimpleStr(&(pNode->pRaftCfg->cfg), cfgStr, sizeof(cfgStr));

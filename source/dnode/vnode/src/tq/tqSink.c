@@ -103,7 +103,7 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
       //        STagVal tagVal = {
       //            .cid = pTagSchemaWrapper->pSchema[j].colId,
       //            .type = pTagSchemaWrapper->pSchema[j].type,
-      //            .i64 = (int64_t)pDataBlock->info.groupId,
+      //            .i64 = (int64_t)pDataBlock->info.id.groupId,
       //        };
       //        taosArrayPush(tagArray, &tagVal);
       //        taosArrayPush(tagName, pTagSchemaWrapper->pSchema[j].name);
@@ -134,7 +134,7 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
       STagVal tagVal = {
           .cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1,
           .type = TSDB_DATA_TYPE_UBIGINT,
-          .i64 = (int64_t)pDataBlock->info.groupId,
+          .i64 = (int64_t)pDataBlock->info.id.groupId,
       };
       taosArrayPush(tagArray, &tagVal);
       createTbReq.ctb.tagNum = taosArrayGetSize(tagArray);
@@ -161,7 +161,7 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
       if (pDataBlock->info.parTbName[0]) {
         createTbReq.name = strdup(pDataBlock->info.parTbName);
       } else {
-        createTbReq.name = buildCtbNameByGroupId(stbFullName, pDataBlock->info.groupId);
+        createTbReq.name = buildCtbNameByGroupId(stbFullName, pDataBlock->info.id.groupId);
       }
 
       // save schema len
@@ -358,7 +358,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       if (pDataBlock->info.parTbName[0]) {
         ctbName = strdup(pDataBlock->info.parTbName);
       } else {
-        ctbName = buildCtbNameByGroupId(stbFullName, pDataBlock->info.groupId);
+        ctbName = buildCtbNameByGroupId(stbFullName, pDataBlock->info.id.groupId);
       }
 
       int32_t schemaLen = 0;
@@ -390,7 +390,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
         STagVal tagVal = {
             .cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1,
             .type = TSDB_DATA_TYPE_UBIGINT,
-            .i64 = (int64_t)pDataBlock->info.groupId,
+            .i64 = (int64_t)pDataBlock->info.id.groupId,
         };
         taosArrayPush(tagArray, &tagVal);
         createTbReq.ctb.tagNum = taosArrayGetSize(tagArray);

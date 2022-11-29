@@ -428,9 +428,11 @@ bool syncIsReadyForRead(int64_t rid) {
           pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
           code = 0;
 
+          pSyncNode->pLogStore->cacheHit++;
           sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", lastIndex, pEntry->bytes, pEntry);
 
         } else {
+          pSyncNode->pLogStore->cacheMiss++;
           sNTrace(pSyncNode, "miss cache index:%" PRId64, lastIndex);
 
           code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, lastIndex, &pEntry);
@@ -1069,6 +1071,10 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   }
 
   pSyncNode->isStart = true;
+  pSyncNode->electNum = 0;
+  pSyncNode->becomeLeaderNum = 0;
+  pSyncNode->configChangeNum = 0;
+
   sNTrace(pSyncNode, "sync open, node:%p", pSyncNode);
 
   return pSyncNode;
@@ -1265,7 +1271,7 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
     pSyncNode->electTimerParam.pSyncNode = pSyncNode;
     pSyncNode->electTimerParam.pData = NULL;
 
-    taosTmrReset(pSyncNode->FpElectTimerCB, pSyncNode->electTimerMS, pSyncNode, syncEnv()->pTimerManager,
+    taosTmrReset(pSyncNode->FpElectTimerCB, pSyncNode->electTimerMS, (void*)(pSyncNode->rid), syncEnv()->pTimerManager,
                  &pSyncNode->pElectTimer);
 
   } else {
@@ -1447,6 +1453,8 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
   pSyncNode->pRaftCfg->cfg = *pNewConfig;
   pSyncNode->pRaftCfg->lastConfigIndex = lastConfigChangeIndex;
 
+  pSyncNode->configChangeNum++;
+
   bool IamInOld = syncNodeInConfig(pSyncNode, &oldConfig);
   bool IamInNew = syncNodeInConfig(pSyncNode, pNewConfig);
 
@@ -1470,7 +1478,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
   char newCfgStr[1024] = {0};
   syncCfg2SimpleStr(&oldConfig, oldCfgStr, sizeof(oldCfgStr));
   syncCfg2SimpleStr(pNewConfig, oldCfgStr, sizeof(oldCfgStr));
-  sNTrace(pSyncNode, "begin do config change, from %s to %s", oldCfgStr, oldCfgStr);
+  sNInfo(pSyncNode, "begin do config change, from %s to %s", oldCfgStr, oldCfgStr);
 
   if (IamInNew) {
     pSyncNode->pRaftCfg->isStandBy = 0;  // change isStandBy to normal
@@ -1602,13 +1610,13 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
   } else {
     // persist cfg
     raftCfgPersist(pSyncNode->pRaftCfg);
-    sNTrace(pSyncNode, "do not config change from %d to %d, index:%" PRId64 ", %s  -->  %s", oldConfig.replicaNum,
-            pNewConfig->replicaNum, lastConfigChangeIndex, oldCfgStr, newCfgStr);
+    sNInfo(pSyncNode, "do not config change from %d to %d, index:%" PRId64 ", %s  -->  %s", oldConfig.replicaNum,
+           pNewConfig->replicaNum, lastConfigChangeIndex, oldCfgStr, newCfgStr);
   }
 
 _END:
   // log end config change
-  sNTrace(pSyncNode, "end do config change, from %s to %s", oldCfgStr, newCfgStr);
+  sNInfo(pSyncNode, "end do config change, from %s to %s", oldCfgStr, newCfgStr);
 }
 
 // raft state change --------------
@@ -1708,6 +1716,8 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
 void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   pSyncNode->leaderTime = taosGetTimestampMs();
 
+  pSyncNode->becomeLeaderNum++;
+
   // reset restoreFinish
   pSyncNode->restoreFinish = false;
 
@@ -1779,7 +1789,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   syncLogBufferReset(pSyncNode->pLogBuf, pSyncNode);
 
   // trace log
-  sNTrace(pSyncNode, "become leader %s", debugStr);
+  sNInfo(pSyncNode, "become leader %s", debugStr);
 }
 
 void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
@@ -1983,9 +1993,11 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
     pPreEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
     code = 0;
 
+    pSyncNode->pLogStore->cacheHit++;
     sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", preIndex, pPreEntry->bytes, pPreEntry);
 
   } else {
+    pSyncNode->pLogStore->cacheMiss++;
     sNTrace(pSyncNode, "miss cache index:%" PRId64, preIndex);
 
     code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, preIndex, &pPreEntry);
@@ -2057,13 +2069,21 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
 static void syncNodeEqElectTimer(void* param, void* tmrId) {
   if (!syncIsInit()) return;
 
-  SSyncNode* pNode = (SSyncNode*)param;
+  int64_t    rid = (int64_t)param;
+  SSyncNode* pNode = syncNodeAcquire(rid);
 
   if (pNode == NULL) return;
-  if (pNode->syncEqMsg == NULL) return;
+
+  if (pNode->syncEqMsg == NULL) {
+    syncNodeRelease(pNode);
+    return;
+  }
 
   int64_t tsNow = taosGetTimestampMs();
-  if (tsNow < pNode->electTimerParam.executeTime) return;
+  if (tsNow < pNode->electTimerParam.executeTime) {
+    syncNodeRelease(pNode);
+    return;
+  }
 
   SRpcMsg rpcMsg = {0};
   int32_t code =
@@ -2071,7 +2091,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
 
   if (code != 0) {
     sError("failed to build elect msg");
-
+    syncNodeRelease(pNode);
     return;
   }
 
@@ -2082,9 +2102,11 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   if (code != 0) {
     sError("failed to sync enqueue elect msg since %s", terrstr());
     rpcFreeCont(rpcMsg.pCont);
-
+    syncNodeRelease(pNode);
     return;
   }
+
+  syncNodeRelease(pNode);
 }
 
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
@@ -2102,7 +2124,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
         return;
       }
 
-      sTrace("enqueue heartbeat timer");
+      sTrace("vgId:%d, enqueue heartbeat timer", pNode->vgId);
       code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
       if (code != 0) {
         sError("failed to enqueue heartbeat msg since %s", terrstr());
@@ -2765,9 +2787,11 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
         if (h) {
           pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
 
+          ths->pLogStore->cacheHit++;
           sNTrace(ths, "hit cache index:%" PRId64 ", bytes:%u, %p", i, pEntry->bytes, pEntry);
 
         } else {
+          ths->pLogStore->cacheMiss++;
           sNTrace(ths, "miss cache index:%" PRId64, i);
 
           code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
