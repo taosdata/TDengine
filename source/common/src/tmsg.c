@@ -6670,11 +6670,12 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
     ASSERT(0);  // TODO
   } else {
-    if (tEncodeU64v(pCoder, taosArrayGetSize(pSubmitTbData->aRowP)) < 0) return -1;
-    for (int32_t iRow = 0; iRow < taosArrayGetSize(pSubmitTbData->aRowP); ++iRow) {
-      SRow *pRow = taosArrayGetP(pSubmitTbData->aRowP, iRow);
-      if (pCoder->data) memcpy(pCoder->data + pCoder->pos, pRow, pRow->len);
-      pCoder->pos += pRow->len;
+    if (tEncodeU64v(pCoder, TARRAY_SIZE(pSubmitTbData->aRowP)) < 0) return -1;
+
+    SRow **rows = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
+    for (int32_t iRow = 0; iRow < TARRAY_SIZE(pSubmitTbData->aRowP); ++iRow) {
+      if (pCoder->data) memcpy(pCoder->data + pCoder->pos, rows[iRow], rows[iRow]->len);
+      pCoder->pos += rows[iRow]->len;
     }
   }
 
