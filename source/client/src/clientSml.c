@@ -162,8 +162,9 @@ typedef struct {
 
   SMLProtocolType protocol;
   int8_t          precision;
-  bool dataFormat;  // true means that the name and order of keys in each line are the same(only for influx protocol)
-  bool isRawLine;
+  bool            dataFormat;  // true means that the name and order of keys in each line are the same(only for influx protocol)
+  bool            isRawLine;
+  int32_t         ttl;
 
   SHashObj *childTables;
   SHashObj *superTables;
@@ -2325,7 +2326,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
 
     code = smlBindData(info->exec, tableData->tags, (*pMeta)->cols, tableData->cols, info->dataFormat,
                        (*pMeta)->tableMeta, tableData->childTableName, tableData->sTableName, tableData->sTableNameLen,
-                       info->msgBuf.buf, info->msgBuf.len);
+                       info->ttl, info->msgBuf.buf, info->msgBuf.len);
     if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " smlBindData failed", info->id);
       return code;
@@ -2516,7 +2517,7 @@ static void smlInsertCallback(void *param, void *res, int32_t code) {
 }
 
 TAOS_RES *taos_schemaless_insert_inner(SRequestObj *request, char *lines[], char *rawLine, char *rawLineEnd,
-                                       int numLines, int protocol, int precision) {
+                                       int numLines, int protocol, int precision, int32_t ttl) {
   int      batchs = 0;
   STscObj *pTscObj = request->pTscObj;
 
@@ -2578,6 +2579,7 @@ TAOS_RES *taos_schemaless_insert_inner(SRequestObj *request, char *lines[], char
     }
 
     info->isRawLine = (rawLine == NULL);
+    info->ttl       = ttl;
 
     int32_t perBatch = LINE_BATCH;
 
@@ -2641,88 +2643,43 @@ end:
  * @return TAOS_RES
  */
 
+TAOS_RES *taos_schemaless_insert_ttl_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
+                                                int32_t ttl, int64_t reqid) {
+  if (NULL == taos) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+
+  SRequestObj *request = (SRequestObj *)createRequest(*(int64_t *)taos, TSDB_SQL_INSERT, reqid);
+  if (!request) {
+    uError("SML:taos_schemaless_insert error request is null");
+    return NULL;
+  }
+
+  if (!lines) {
+    SSmlMsgBuf msg = {ERROR_MSG_BUF_DEFAULT_SIZE, request->msgBuf};
+    request->code = TSDB_CODE_SML_INVALID_DATA;
+    smlBuildInvalidDataMsg(&msg, "lines is null", NULL);
+    return (TAOS_RES *)request;
+  }
+
+  return taos_schemaless_insert_inner(request, lines, NULL, NULL, numLines, protocol, precision, ttl);
+}
+
 TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision) {
-  if (NULL == taos) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return NULL;
-  }
-
-  SRequestObj *request = (SRequestObj *)createRequest(*(int64_t *)taos, TSDB_SQL_INSERT, 0);
-  if (!request) {
-    uError("SML:taos_schemaless_insert error request is null");
-    return NULL;
-  }
-
-  if (!lines) {
-    SSmlMsgBuf msg = {ERROR_MSG_BUF_DEFAULT_SIZE, request->msgBuf};
-    request->code = TSDB_CODE_SML_INVALID_DATA;
-    smlBuildInvalidDataMsg(&msg, "lines is null", NULL);
-    return (TAOS_RES *)request;
-  }
-
-  return taos_schemaless_insert_inner(request, lines, NULL, NULL, numLines, protocol, precision);
+  return taos_schemaless_insert_ttl_with_reqid(taos, lines, numLines, protocol, precision, TSDB_DEFAULT_TABLE_TTL, 0);
 }
 
-TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
-                                            int64_t reqid) {
-  if (NULL == taos) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return NULL;
-  }
-
-  SRequestObj *request = (SRequestObj *)createRequest(*(int64_t *)taos, TSDB_SQL_INSERT, reqid);
-  if (!request) {
-    uError("SML:taos_schemaless_insert error request is null");
-    return NULL;
-  }
-
-  if (!lines) {
-    SSmlMsgBuf msg = {ERROR_MSG_BUF_DEFAULT_SIZE, request->msgBuf};
-    request->code = TSDB_CODE_SML_INVALID_DATA;
-    smlBuildInvalidDataMsg(&msg, "lines is null", NULL);
-    return (TAOS_RES *)request;
-  }
-
-  return taos_schemaless_insert_inner(request, lines, NULL, NULL, numLines, protocol, precision);
+TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl) {
+  return taos_schemaless_insert_ttl_with_reqid(taos, lines, numLines, protocol, precision, ttl, 0);
 }
 
-TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
-                                     int precision) {
-  if (NULL == taos) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return NULL;
-  }
-
-  SRequestObj *request = (SRequestObj *)createRequest(*(int64_t *)taos, TSDB_SQL_INSERT, 0);
-  if (!request) {
-    uError("SML:taos_schemaless_insert error request is null");
-    return NULL;
-  }
-
-  if (!lines || len <= 0) {
-    SSmlMsgBuf msg = {ERROR_MSG_BUF_DEFAULT_SIZE, request->msgBuf};
-    request->code = TSDB_CODE_SML_INVALID_DATA;
-    smlBuildInvalidDataMsg(&msg, "lines is null", NULL);
-    return (TAOS_RES *)request;
-  }
-
-  int numLines = 0;
-  *totalRows = 0;
-  char *tmp = lines;
-  for (int i = 0; i < len; i++) {
-    if (lines[i] == '\n' || i == len - 1) {
-      numLines++;
-      if (tmp[0] != '#' || protocol != TSDB_SML_LINE_PROTOCOL) {  // ignore comment
-        (*totalRows)++;
-      }
-      tmp = lines + i + 1;
-    }
-  }
-  return taos_schemaless_insert_inner(request, NULL, lines, lines + len, numLines, protocol, precision);
+TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int64_t reqid) {
+  return taos_schemaless_insert_ttl_with_reqid(taos, lines, numLines, protocol, precision, TSDB_DEFAULT_TABLE_TTL, reqid);
 }
 
-TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
-                                                int precision, int64_t reqid) {
+TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
+                                                int precision, int32_t ttl, int64_t reqid) {
   if (NULL == taos) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
@@ -2753,5 +2710,16 @@ TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len
       tmp = lines + i + 1;
     }
   }
-  return taos_schemaless_insert_inner(request, NULL, lines, lines + len, numLines, protocol, precision);
+  return taos_schemaless_insert_inner(request, NULL, lines, lines + len, numLines, protocol, precision, ttl);
+}
+
+TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int64_t reqid) {
+  return taos_schemaless_insert_raw_ttl_with_reqid(taos, lines, len, totalRows, protocol, precision, TSDB_DEFAULT_TABLE_TTL, reqid);
+}
+TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl) {
+  return taos_schemaless_insert_raw_ttl_with_reqid(taos, lines, len, totalRows, protocol, precision, ttl, 0);
+}
+
+TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision) {
+  return taos_schemaless_insert_raw_ttl_with_reqid(taos, lines, len, totalRows, protocol, precision, TSDB_DEFAULT_TABLE_TTL, 0);
 }

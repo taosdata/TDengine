@@ -208,7 +208,7 @@ end:
 }
 
 int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols, bool format, STableMeta* pTableMeta,
-                    char* tableName, const char* sTableName, int32_t sTableNameLen, char* msgBuf, int16_t msgBufLen) {
+                    char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl, char* msgBuf, int16_t msgBufLen) {
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
 
   SSmlExecHandle* smlHandle = (SSmlExecHandle*)handle;
@@ -229,7 +229,7 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
   }
 
   insBuildCreateTbReq(&smlHandle->tableExecHandle.createTblReq, tableName, pTag, pTableMeta->suid, NULL, tagName,
-                      pTableMeta->tableInfo.numOfTags);
+                      pTableMeta->tableInfo.numOfTags, ttl);
   taosArrayDestroy(tagName);
 
   smlHandle->tableExecHandle.createTblReq.ctb.stbName = taosMemoryMalloc(sTableNameLen + 1);
