@@ -822,43 +822,39 @@ static int32_t vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const char *tags) {
-  ASSERT(pMsg != NULL);
-  SSubmitMsgIter msgIter = {0};
-  SMeta         *pMeta = pVnode->pMeta;
-  SSubmitBlk    *pBlock = NULL;
+// static int32_t vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const char *tags) {
+//   ASSERT(pMsg != NULL);
+//   SSubmitMsgIter msgIter = {0};
+//   SMeta         *pMeta = pVnode->pMeta;
+//   SSubmitBlk    *pBlock = NULL;
 
-  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
-  while (true) {
-    if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
-    if (pBlock == NULL) break;
+//   if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
+//   while (true) {
+//     if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
+//     if (pBlock == NULL) break;
 
-    vnodeDebugPrintSingleSubmitMsg(pMeta, pBlock, &msgIter, tags);
-  }
+//     vnodeDebugPrintSingleSubmitMsg(pMeta, pBlock, &msgIter, tags);
+//   }
 
-  return 0;
-}
+//   return 0;
+// }
 
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
 #if 1
   int32_t code = 0;
 
-  SDecoder     dc = {0};
-  SSubmitRsp   submitRsp = {0};
+  SSubmitRsp2  submitRsp = {0};
   SSubmitReq2 *pSubmitReq = NULL;
   SArray      *newTbUids = NULL;
 
+  // decode
+  SDecoder dc = {0};
   tDecoderInit(&dc, (char *)pReq + sizeof(SMsgHead), len - sizeof(SMsgHead));
   if (tDecodeSSubmitReq2(&dc, &pSubmitReq) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
-
-  submitRsp.pArray = taosArrayInit(1, sizeof(SSubmitBlkRsp));
-  if (submitRsp.pArray == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _exit;
-  }
+  tDecoderClear(&dc);
 
   // auto create table
   if (pSubmitReq->flag & SUBMIT_REQ_AUTO_CREATE_TABLE) {
@@ -872,6 +868,12 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
       } else {
       }
     }
+  }
+
+  // check
+  for (int32_t i = 0; i < taosArrayGetSize(pSubmitReq->aSubmitTbData); ++i) {
+    SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
+    // TODO
   }
 
   // insert table data

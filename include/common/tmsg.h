@@ -3226,6 +3226,20 @@ int32_t tDecodeSSubmitReq2(SDecoder* pCoder, SSubmitReq2** ppReq);
 void    tDestroySSubmitTbData(SSubmitTbData* pTbData);
 void    tDestroySSubmitReq2(SSubmitReq2* pReq);
 
+typedef struct {
+  int32_t code;
+  int32_t affectedRows;
+  SArray* aCreateTbRsp;  // SArray<SVCreateTbRsp>
+} SSubmitRsp2;
+
+int32_t tCreateSSubmitRsp2(SSubmitRsp2** ppRsp);
+void    tDestroySSubmitRsp2(SSubmitRsp2* pRsp, int32_t flag);
+int32_t tEncodeSSubmitRsp2(SEncoder* pCoder, const SSubmitRsp2* pRsp);
+int32_t tDecodeSSubmitRsp2(SDecoder* pCoder, SSubmitRsp2* pRsp);
+
+#define TSDB_MSG_FLG_ENCODE 0x1
+#define TSDB_MSG_FLG_DECODE 0x2
+
 #pragma pack(pop)
 
 #ifdef __cplusplus
