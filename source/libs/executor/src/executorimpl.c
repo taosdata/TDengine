@@ -1424,6 +1424,13 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
     return TSDB_CODE_SUCCESS;
   }
 
+  SOperatorInfo* downstream = pOperator->pDownstream[0];
+  if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_PARTITION ||
+      (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
+       ((STableScanInfo *)downstream->info)->hasGroupByTag == true)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
   bool hasCountFunc = false;
   for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
