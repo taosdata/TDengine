@@ -1,3 +1,12 @@
+use std::{
+    fmt::Display,
+    sync::{
+        atomic::{AtomicU16, AtomicU64},
+        Arc,
+    },
+    time::Instant,
+};
+
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use taos::*;
@@ -20,6 +29,73 @@ pub(crate) struct Topic {
     pub(crate) table: Option<TopicTable>,
 }
 
+#[derive(Debug)]
+pub(crate) struct TmqMetrics {
+    pub topics: usize,
+    pub workers: AtomicU16,
+    pub messages: AtomicU64,
+    pub messages_of_meta: AtomicU64,
+    pub messages_of_data: AtomicU64,
+    pub blocks: AtomicU64,
+    pub records: AtomicU64,
+    pub points: AtomicU64,
+    pub time_cost: Instant,
+}
+
+impl Default for TmqMetrics {
+    fn default() -> Self {
+        Self {
+            topics: Default::default(),
+            workers: Default::default(),
+            messages: Default::default(),
+            messages_of_meta: Default::default(),
+            messages_of_data: Default::default(),
+            blocks: Default::default(),
+            records: Default::default(),
+            points: Default::default(),
+            time_cost: Instant::now(),
+        }
+    }
+}
+
+// impl TmqMetrics {
+//     pub fn new() -> Self {
+//         Self {
+//             time_cost: Instant::now(),
+//             ..Default::default()
+//         }
+//     }
+// }
+
+impl Display for TmqMetrics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "# Metrics\n\
+            topics: {}\n\
+            workers: {}\n\
+            messages(total): {}\n\
+            messages(meta only): {}\n\
+            messages(data only): {}\n\
+            blocks: {}\n\
+            records: {}\n\
+            points: {}\n\
+            time cost: {:?}",
+            self.topics,
+            self.workers.load(std::sync::atomic::Ordering::SeqCst),
+            self.messages.load(std::sync::atomic::Ordering::SeqCst),
+            self.messages_of_meta
+                .load(std::sync::atomic::Ordering::SeqCst),
+            self.messages_of_data
+                .load(std::sync::atomic::Ordering::SeqCst),
+            self.blocks.load(std::sync::atomic::Ordering::SeqCst),
+            self.records.load(std::sync::atomic::Ordering::SeqCst),
+            self.points.load(std::sync::atomic::Ordering::SeqCst),
+            self.time_cost.elapsed()
+        )?;
+        Ok(())
+    }
+}
 /// Parse input dsn, returns subscription dsn and a list of topics.
 ///
 /// Steps:

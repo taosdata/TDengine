@@ -1,11 +1,11 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::{bail, Result};
 use taos::{Consumer, *};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    tmq::{check_tmq_dsn, group_id_hash},
+    tmq::{check_tmq_dsn, group_id_hash, TmqMetrics},
     Action,
 };
 
@@ -16,6 +16,7 @@ async fn sync(
     table: Option<String>,
     actions: Vec<Action>,
     cancel: CancellationToken,
+    metrics: Arc<TmqMetrics>,
 ) -> Result<()> {
     let mut stream = consumer.stream();
     let mut rows = 0;
@@ -28,8 +29,10 @@ async fn sync(
             }
             next = stream.try_next() => {
                 if let Some((offset, message)) = next? {
+                    metrics.messages.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     match message {
                         MessageSet::Meta(meta) => {
+                            metrics.messages_of_meta.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                             // log::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
                             if actions.is_empty() {
                                 if let Err(err) = taos.write_raw_meta(meta.as_raw_meta().await?).await {
@@ -68,6 +71,7 @@ async fn sync(
                             }
                         }
                         MessageSet::Data(data) => {
+                            metrics.messages_of_data.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                             while let Some(mut raw) = data.fetch_raw_block().await? {
                                 if let Some(name) = table.as_ref() {
                                     if actions.is_empty() {
@@ -145,10 +149,15 @@ async fn sync(
                                         bail!("write table failed: {err}",);
                                     }
                                 };
+                                metrics.blocks.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                                metrics.records.fetch_add(raw.nrows() as _, std::sync::atomic::Ordering::SeqCst);
+                                metrics.points.fetch_add(raw.nrows() as u64 * raw.ncols() as u64, std::sync::atomic::Ordering::SeqCst);
                             }
                         }
                         MessageSet::MetaData(meta, data) => {
                             // log::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
+                            metrics.messages_of_meta.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                            metrics.messages_of_data.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                             if actions.is_empty() {
                                 if let Err(err) = taos.write_raw_meta(meta.as_raw_meta().await?).await {
                                     let errstr = err.to_string();
@@ -258,6 +267,10 @@ async fn sync(
                                         bail!("write to table failed: {err}",);
                                     }
                                 };
+
+                                metrics.blocks.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                                metrics.records.fetch_add(raw.nrows() as _, std::sync::atomic::Ordering::SeqCst);
+                                metrics.points.fetch_add(raw.nrows() as u64 * raw.ncols() as u64, std::sync::atomic::Ordering::SeqCst);
                             }
                         }
                     }
@@ -299,6 +312,11 @@ pub async fn tmq_to_td(
         to.params = to_params;
     }
     from.params = from_params;
+
+    let metrics = Arc::new(TmqMetrics {
+        topics: topics.len(),
+        ..Default::default()
+    });
 
     let mut handles = Vec::new();
     let mut task_id = 0;
@@ -343,6 +361,9 @@ pub async fn tmq_to_td(
         } else {
             jobs
         };
+        metrics
+            .workers
+            .fetch_add(jobs as _, std::sync::atomic::Ordering::SeqCst);
         if let Some(table) = topic.table.as_ref() {
             // schema rebuild
             let taos = target.build()?;
@@ -425,8 +446,18 @@ pub async fn tmq_to_td(
             let table = topic.table.as_ref().map(|t| t.table.clone());
             let actions = actions.to_vec();
             let cancellation = cancel.clone();
+            let metrics = metrics.clone();
             let handle = tokio::spawn(async move {
-                sync(task_id, consumer, taos, table, actions, cancellation).await
+                sync(
+                    task_id,
+                    consumer,
+                    taos,
+                    table,
+                    actions,
+                    cancellation,
+                    metrics,
+                )
+                .await
             });
             handles.push(handle);
             task_id += 1;
@@ -435,58 +466,13 @@ pub async fn tmq_to_td(
     for handle in handles {
         let _ = handle.await?;
     }
-    // let mut should_abort = false;
-    // for mut handle in handles {
-    //     if handle.is_finished() {
-    //         log::debug!("replication task done with internal handler {handle:?}");
-    //         continue;
-    //     }
-    //     if should_abort {
-    //         log::debug!("cancel replication task with internal handler {handle:?}");
-    //         handle.abort();
-    //         continue;
-    //     }
-    //     tokio::select! {
-    //         _ = cancel.cancelled() => {
-    //             should_abort = true;
-    //             // panic!("cancelled");
-    //             log::debug!("cancel replication task with internal handler {handle:?}");
-    //             handle.abort();
-    //         }
-    //         res = &mut handle => {
-    //             res??;
-    //             log::debug!("replication task done with internal handler {handle:?}");
-    //         }
-    //     }
-    // }
+
     drop(global_taos);
     drop(target);
     drop(builder);
     tokio::time::sleep(Duration::from_millis(1000)).await;
-    log::info!("done");
+    log::info!("replication done.");
+    println!("{}", metrics.as_ref());
 
-    // let tmq = TmqBuilder::from_dsn(&from)?;
-    // let target = TaosBuilder::from_dsn(to)?;
-
-    // let mut consumers = Vec::with_capacity(jobs);
-    // for _id in 0..jobs {
-    //     let mut consumer = tmq.build()?;
-    //     consumer.subscribe(&topics).await?;
-    //     consumers.push(consumer);
-    // }
-
-    // log::info!("created {jobs} consumers");
-
-    // let mut handles = Vec::new();
-    // for id in 0..jobs {
-    //     let consumer = consumers.pop().unwrap();
-
-    //     let taos = target.build()?;
-    //     let handle = tokio::spawn(async move { sync(id, consumer, taos).await });
-    //     handles.push(handle);
-    // }
-    // for handle in handles {
-    //     handle.await??;
-    // }
     Ok(())
 }

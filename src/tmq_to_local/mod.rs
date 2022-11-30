@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     taoz::ZFile,
-    tmq::{check_tmq_dsn, Topic},
+    tmq::{check_tmq_dsn, TmqMetrics, Topic},
 };
 
 struct ZFileMan {
@@ -58,7 +58,12 @@ impl ZFileMan {
         }
         Ok(())
     }
-    async fn write_vgroup_with_meta(&self, vgroup: i32, meta: taos::Meta) -> Result<()> {
+    async fn write_vgroup_with_meta(
+        &self,
+        vgroup: i32,
+        meta: taos::Meta,
+        metrics: &Arc<TmqMetrics>,
+    ) -> Result<()> {
         let raw = meta.as_raw_meta().await?;
         self.assert_vgroup(vgroup).await?;
         self.writers
@@ -74,9 +79,17 @@ impl ZFileMan {
                 }
             })
             .await;
+        metrics
+            .messages_of_meta
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Ok(())
     }
-    async fn write_vgroup_with_data(&self, vgroup: i32, data: taos::Data) -> Result<usize> {
+    async fn write_vgroup_with_data(
+        &self,
+        vgroup: i32,
+        data: taos::Data,
+        metrics: &Arc<TmqMetrics>,
+    ) -> Result<usize> {
         // let raw = meta.as_raw_meta().await?;
         self.assert_vgroup(vgroup).await?;
         let nrows = self
@@ -101,6 +114,18 @@ impl ZFileMan {
                                         block.table_name().unwrap_or_default(),
                                         block.nrows()
                                     );
+
+                                    metrics
+                                        .blocks
+                                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                                    metrics.records.fetch_add(
+                                        block.nrows() as _,
+                                        std::sync::atomic::Ordering::SeqCst,
+                                    );
+                                    metrics.points.fetch_add(
+                                        block.nrows() as u64 * block.ncols() as u64,
+                                        std::sync::atomic::Ordering::SeqCst,
+                                    );
                                 }
                                 writer.finish_raw_block().await?;
                                 Ok::<usize, std::io::Error>(nrows)
@@ -112,6 +137,10 @@ impl ZFileMan {
             })
             .await
             .unwrap()?;
+
+        metrics
+            .messages_of_data
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Ok(nrows)
     }
 
@@ -141,6 +170,7 @@ async fn backup(
     id: usize,
     barrier: Arc<Barrier>,
     cancel: CancellationToken,
+    metrics: Arc<TmqMetrics>,
 ) -> Result<()> {
     let mut stream = consumer.stream();
     let mut rows = 0;
@@ -155,6 +185,10 @@ async fn backup(
             }
             next = stream.try_next() => {
                 if let Some((offset, message)) = next? {
+
+                    metrics
+                        .messages
+                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     let vgroup = offset.vgroup_id();
 
                     // let prefix = path.join(format!("{}-{}", topic.name, id));
@@ -164,10 +198,10 @@ async fn backup(
                         MessageSet::Meta(meta) => {
                             //dbg!(meta.as_json_meta().await?);
                             // writer.write_meta(&meta.as_raw_meta().await?).await?;
-                            man.write_vgroup_with_meta(vgroup, meta).await?;
+                            man.write_vgroup_with_meta(vgroup, meta, &metrics).await?;
                         }
                         MessageSet::Data(data) => {
-                            rows += man.write_vgroup_with_data(vgroup, data).await?;
+                            rows += man.write_vgroup_with_data(vgroup, data, &metrics).await?;
                             // writer.start_raw_block().await?;
                             // while let Some(block) = data.fetch_raw_block().await.unwrap() {
                             //     // dbg!(&block);
@@ -183,8 +217,8 @@ async fn backup(
                         }
                         MessageSet::MetaData(meta, data) => {
                             // writer.write_meta(&meta.as_raw_meta().await?).await?;
-                            man.write_vgroup_with_meta(vgroup, meta).await?;
-                            rows += man.write_vgroup_with_data(vgroup, data).await?;
+                            man.write_vgroup_with_meta(vgroup, meta, &metrics).await?;
+                            rows += man.write_vgroup_with_data(vgroup, data, &metrics).await?;
 
                             // writer.start_raw_block().await?;
                             // while let Some(block) = data.fetch_raw_block().await.unwrap() {
@@ -337,6 +371,11 @@ pub async fn tmq_to_local(
     from.params = from_params;
     to.params = to_params;
 
+    let metrics = Arc::new(TmqMetrics {
+        topics: config.topics.len(),
+        ..Default::default()
+    });
+
     let tmq = TmqBuilder::from_dsn(&from)?;
     log::info!("TMQ builder created");
 
@@ -364,6 +403,9 @@ pub async fn tmq_to_local(
 
         let mut consumers = Vec::with_capacity(jobs);
         log::info!("create {jobs} consumers for topic {}", topic.name);
+        metrics
+            .workers
+            .fetch_add(jobs as _, std::sync::atomic::Ordering::SeqCst);
         for _ in 0..jobs {
             let mut consumer = tmq.build()?;
             consumer.subscribe([&topic.name]).await?;
@@ -385,7 +427,8 @@ pub async fn tmq_to_local(
             let barrier = barrier.clone();
             let man = man.clone();
             let cancel = cancel.clone();
-            let handle = tokio::spawn(backup(consumer, man, task_id, barrier, cancel));
+            let metrics = metrics.clone();
+            let handle = tokio::spawn(backup(consumer, man, task_id, barrier, cancel, metrics));
             handles.push(handle);
             task_id += 1;
         }
@@ -395,6 +438,8 @@ pub async fn tmq_to_local(
         log::info!("worker done");
     }
     log::info!("all workers done for backup");
+
+    println!("{}", metrics.as_ref());
     Ok(())
 }
 
