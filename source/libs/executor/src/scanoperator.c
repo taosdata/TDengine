@@ -3099,6 +3099,10 @@ static SSDataBlock* buildSysDbTableCount(SOperatorInfo* pOperator, STableCountSc
   getPerfDbMeta(NULL, &perfdbTableNum);
 
   if (pSupp->groupByDbName) {
+    if (pSupp->groupByStbName) {
+      setOperatorCompleted(pOperator);
+      return NULL;
+    }
     if (pInfo->currGrpIdx == 0) {
       uint64_t groupId = calcGroupId(TSDB_INFORMATION_SCHEMA_DB, strlen(TSDB_INFORMATION_SCHEMA_DB));
       pRes->info.id.groupId = groupId;
