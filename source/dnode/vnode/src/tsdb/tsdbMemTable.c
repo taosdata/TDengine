@@ -546,12 +546,44 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
                                         SSubmitTbData *pSubmitTbData, int32_t *affectedRows) {
   int32_t code = 0;
 
-  int32_t   nColData = TARRAY_SIZE(pSubmitTbData->aCol);
-  SColData *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
+  SVBufPool *pPool = pMemTable->pTsdb->pVnode->inUse;
+  int32_t    nColData = TARRAY_SIZE(pSubmitTbData->aCol);
+  SColData  *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
 
   ASSERT(aColData[0].cid = PRIMARYKEY_TIMESTAMP_COL_ID);
   ASSERT(aColData[0].type = TSDB_DATA_TYPE_TIMESTAMP);
   ASSERT(aColData[0].flag = HAS_VALUE);
+
+  // copy and construct block data
+  SBlockData *pBlockData = vnodeBufPoolMalloc(pPool, sizeof(*pBlockData));
+  if (pBlockData == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  pBlockData->suid = pTbData->suid;
+  pBlockData->uid = pTbData->uid;
+  pBlockData->nRow = aColData[0].nVal;
+  pBlockData->aUid = NULL;
+  pBlockData->aVersion = vnodeBufPoolMalloc(pPool, aColData[0].nData);
+  if (pBlockData->aVersion == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  for (int32_t i = 0; i < pBlockData->nRow; i++) {  // todo: here can be optimized
+    pBlockData->aVersion[i] = version;
+  }
+
+  pBlockData->aTSKEY = vnodeBufPoolMalloc(pPool, aColData[0].nData);
+  if (pBlockData->aTSKEY == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  memcpy(pBlockData->aTSKEY, aColData[0].pData, aColData[0].nData);
+
+  pBlockData->nColData = nColData - 1;
+  for (int32_t iColData = 1; iColData < nColData; ++iColData) {
+  }
 
   // TODO
   ASSERT(0);
