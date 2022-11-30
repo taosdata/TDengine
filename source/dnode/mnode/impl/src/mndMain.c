@@ -492,11 +492,11 @@ void mndPreClose(SMnode *pMnode) {
     syncLeaderTransfer(pMnode->syncMgmt.sync);
     syncPreStop(pMnode->syncMgmt.sync);
 
-    while (!syncSnapshotRecving(pMnode->syncMgmt.sync)) {
+    while (syncSnapshotRecving(pMnode->syncMgmt.sync)) {
       mInfo("vgId:1, snapshot is recving");
       taosMsleep(300);
     }
-    while (!syncSnapshotSending(pMnode->syncMgmt.sync)) {
+    while (syncSnapshotSending(pMnode->syncMgmt.sync)) {
       mInfo("vgId:1, snapshot is sending");
       taosMsleep(300);
     }
