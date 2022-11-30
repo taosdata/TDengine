@@ -92,6 +92,10 @@ extern int32_t tsQueryNodeChunkSize;
 extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
+extern int32_t tsRedirectPeriod;
+extern int32_t tsRedirectFactor;
+extern int32_t tsRedirectMaxPeriod;
+extern int32_t tsMaxRetryWaitTime;
 
 // client
 extern int32_t tsMinSlidingTime;

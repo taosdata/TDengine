@@ -148,6 +148,10 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.dfp = destroyAhandle;
   rpcInit.retryLimit = tsRpcRetryLimit;
   rpcInit.retryInterval = tsRpcRetryInterval;
+  rpcInit.retryMinInterval = tsRedirectPeriod;
+  rpcInit.retryStepFactor = tsRedirectFactor;
+  rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
+  rpcInit.retryMaxTimouet = tsMaxRetryWaitTime;
 
   void *pDnodeConn = rpcOpen(&rpcInit);
   if (pDnodeConn == NULL) {

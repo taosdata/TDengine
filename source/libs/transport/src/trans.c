@@ -51,6 +51,11 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->retryLimit = pInit->retryLimit;
   pRpc->retryInterval = pInit->retryInterval;
 
+  pRpc->retryMinInterval = pInit->retryMinInterval;  // retry init interval
+  pRpc->retryStepFactor = pInit->retryStepFactor;
+  pRpc->retryMaxInterval = pInit->retryMaxInterval;
+  pRpc->retryMaxTimouet = pInit->retryMaxTimouet;
+
   // register callback handle
   pRpc->cfp = pInit->cfp;
   pRpc->retry = pInit->rfp;
