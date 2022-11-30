@@ -1188,7 +1188,7 @@ SName* ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch) {
   return (SName*)taosArrayGet(pReq->pTables, pFetch->tbIdx);
 }
 
-static void* ctgCloneDbVgroup(void* pSrc) { return taosArrayDup((const SArray*)pSrc); }
+static void* ctgCloneDbVgroup(void* pSrc) { return taosArrayDup((const SArray*)pSrc, NULL); }
 
 static void ctgFreeDbVgroup(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
 
@@ -1238,7 +1238,7 @@ static void* ctgCloneVgroupInfo(void* pSrc) {
 
 static void ctgFreeVgroupInfo(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 
-static void* ctgCloneTableIndices(void* pSrc) { return taosArrayDup((const SArray*)pSrc); }
+static void* ctgCloneTableIndices(void* pSrc) { return taosArrayDup((const SArray*)pSrc, NULL); }
 
 static void ctgFreeTableIndices(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
 
@@ -1275,7 +1275,7 @@ static void* ctgCloneUserAuth(void* pSrc) {
 
 static void ctgFreeUserAuth(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 
-static void* ctgCloneQnodeList(void* pSrc) { return taosArrayDup((const SArray*)pSrc); }
+static void* ctgCloneQnodeList(void* pSrc) { return taosArrayDup((const SArray*)pSrc, NULL); }
 
 static void ctgFreeQnodeList(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
 
@@ -1290,11 +1290,11 @@ static void* ctgCloneTableCfg(void* pSrc) {
 
 static void ctgFreeTableCfg(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 
-static void* ctgCloneDnodeList(void* pSrc) { return taosArrayDup((const SArray*)pSrc); }
+static void* ctgCloneDnodeList(void* pSrc) { return taosArrayDup((const SArray*)pSrc, NULL); }
 
 static void ctgFreeDnodeList(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
 
-static int32_t ctgCloneMetaDataArray(SArray* pSrc, FCopy copyFunc, SArray** pDst) {
+static int32_t ctgCloneMetaDataArray(SArray* pSrc, __array_item_dup_fn_t copyFunc, SArray** pDst) {
   if (NULL == pSrc) {
     return TSDB_CODE_SUCCESS;
   }

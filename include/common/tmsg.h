@@ -649,34 +649,6 @@ int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pR
 int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
 
-typedef struct {
-  int16_t lowerRelOptr;
-  int16_t upperRelOptr;
-  int16_t filterstr;  // denote if current column is char(binary/nchar)
-
-  union {
-    struct {
-      int64_t lowerBndi;
-      int64_t upperBndi;
-    };
-    struct {
-      double lowerBndd;
-      double upperBndd;
-    };
-    struct {
-      int64_t pz;
-      int64_t len;
-    };
-  };
-} SColumnFilterInfo;
-
-typedef struct {
-  int16_t numOfFilters;
-  union {
-    int64_t            placeholder;
-    SColumnFilterInfo* filterInfo;
-  };
-} SColumnFilterList;
 /*
  * for client side struct, only column id, type, bytes are necessary
  * But for data in vnode side, we need all the following information.
@@ -687,10 +659,10 @@ typedef struct {
     int16_t  slotId;
   };
 
-  int8_t  type;
-  int32_t bytes;
   uint8_t precision;
   uint8_t scale;
+  int32_t bytes;
+  int8_t  type;
 } SColumnInfo;
 
 typedef struct STimeWindow {
@@ -1620,14 +1592,14 @@ typedef struct SSubQueryMsg {
   int8_t   explain;
   int8_t   needFetch;
   uint32_t sqlLen;
-  char    *sql;
+  char*    sql;
   uint32_t msgLen;
-  char    *msg;
+  char*    msg;
 } SSubQueryMsg;
 
-int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq);
-int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq);
-void tFreeSSubQueryMsg(SSubQueryMsg *pReq);
+int32_t tSerializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
+int32_t tDeserializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
+void    tFreeSSubQueryMsg(SSubQueryMsg* pReq);
 
 typedef struct {
   SMsgHead header;
@@ -1666,9 +1638,8 @@ typedef struct {
   int32_t  execId;
 } SResFetchReq;
 
-int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq);
-int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq);
-
+int32_t tSerializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);
+int32_t tDeserializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);
 
 typedef struct {
   SMsgHead header;
@@ -1741,12 +1712,11 @@ typedef struct {
   int32_t  execId;
 } STaskDropReq;
 
-int32_t tSerializeSTaskDropReq(void *buf, int32_t bufLen, STaskDropReq *pReq);
-int32_t tDeserializeSTaskDropReq(void *buf, int32_t bufLen, STaskDropReq *pReq);
+int32_t tSerializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
+int32_t tDeserializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
 
-int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
-int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
-
+int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
+int32_t tDeserializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
 
 typedef struct {
   int32_t code;
@@ -2951,9 +2921,8 @@ typedef struct {
   STqOffsetVal reqOffset;
 } SMqPollReq;
 
-int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq);
-int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq);
-
+int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
+int32_t tDeserializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
 
 typedef struct {
   int32_t vgId;
@@ -3166,7 +3135,8 @@ int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
 typedef struct {
   // int64_t uid;
   char    tbname[TSDB_TABLE_NAME_LEN];
-  int64_t ts;
+  int64_t startTs;
+  int64_t endTs;
 } SSingleDeleteReq;
 
 int32_t tEncodeSSingleDeleteReq(SEncoder* pCoder, const SSingleDeleteReq* pReq);
@@ -3188,8 +3158,8 @@ typedef struct {
 } SBatchMsg;
 
 typedef struct {
-  SMsgHead  header;
-  SArray*   pMsgs; //SArray<SBatchMsg>
+  SMsgHead header;
+  SArray*  pMsgs;  // SArray<SBatchMsg>
 } SBatchReq;
 
 typedef struct {
@@ -3201,11 +3171,11 @@ typedef struct {
 } SBatchRspMsg;
 
 typedef struct {
-  SArray* pRsps; //SArray<SBatchRspMsg>
+  SArray* pRsps;  // SArray<SBatchRspMsg>
 } SBatchRsp;
 
-int32_t tSerializeSBatchReq(void *buf, int32_t bufLen, SBatchReq *pReq);
-int32_t tDeserializeSBatchReq(void *buf, int32_t bufLen, SBatchReq *pReq);
+int32_t                  tSerializeSBatchReq(void* buf, int32_t bufLen, SBatchReq* pReq);
+int32_t                  tDeserializeSBatchReq(void* buf, int32_t bufLen, SBatchReq* pReq);
 static FORCE_INLINE void tFreeSBatchReqMsg(void* msg) {
   if (NULL == msg) {
     return;
@@ -3214,8 +3184,8 @@ static FORCE_INLINE void tFreeSBatchReqMsg(void* msg) {
   taosMemoryFree(pMsg->msg);
 }
 
-int32_t tSerializeSBatchRsp(void *buf, int32_t bufLen, SBatchRsp *pRsp);
-int32_t tDeserializeSBatchRsp(void *buf, int32_t bufLen, SBatchRsp *pRsp);
+int32_t tSerializeSBatchRsp(void* buf, int32_t bufLen, SBatchRsp* pRsp);
+int32_t tDeserializeSBatchRsp(void* buf, int32_t bufLen, SBatchRsp* pRsp);
 
 static FORCE_INLINE void tFreeSBatchRspMsg(void* p) {
   if (NULL == p) {
@@ -3226,11 +3196,10 @@ static FORCE_INLINE void tFreeSBatchRspMsg(void* p) {
   taosMemoryFree(pRsp->msg);
 }
 
-int32_t tSerializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq);
-int32_t tDeserializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq);
-int32_t tSerializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq);
-int32_t tDeserializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq);
-
+int32_t tSerializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
+int32_t tDeserializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
+int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
+int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 
 #pragma pack(pop)
 

@@ -47,7 +47,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   SDataBlockDescNode* pDescNode = pSortNode->node.pOutputDataBlockDesc;
 
   int32_t      numOfCols = 0;
-  SSDataBlock* pResBlock = createResDataBlock(pDescNode);
+  SSDataBlock* pResBlock = createDataBlockFromDescNode(pDescNode);
   SExprInfo*   pExprInfo = createExprInfo(pSortNode->pExprs, NULL, &numOfCols);
 
   int32_t numOfOutputCols = 0;
@@ -359,7 +359,7 @@ SSDataBlock* fetchNextGroupSortDataBlock(void* param) {
     SOperatorInfo* childOp = source->childOpInfo;
     SSDataBlock*   block = childOp->fpSet.getNextFn(childOp);
     if (block != NULL) {
-      if (block->info.groupId == grpSortOpInfo->currGroupId) {
+      if (block->info.id.groupId == grpSortOpInfo->currGroupId) {
         grpSortOpInfo->childOpStatus = CHILD_OP_SAME_GROUP;
         return block;
       } else {
@@ -439,7 +439,7 @@ SSDataBlock* doGroupSort(SOperatorInfo* pOperator) {
       setOperatorCompleted(pOperator);
       return NULL;
     }
-    pInfo->currGroupId = pInfo->prefetchedSortInput->info.groupId;
+    pInfo->currGroupId = pInfo->prefetchedSortInput->info.id.groupId;
     pInfo->childOpStatus = CHILD_OP_NEW_GROUP;
     beginSortGroup(pOperator);
   }
@@ -451,13 +451,13 @@ SSDataBlock* doGroupSort(SOperatorInfo* pOperator) {
     pBlock = getGroupSortedBlockData(pInfo->pCurrSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
                                      pInfo->matchInfo.pList, pInfo);
     if (pBlock != NULL) {
-      pBlock->info.groupId = pInfo->currGroupId;
+      pBlock->info.id.groupId = pInfo->currGroupId;
       pOperator->resultInfo.totalRows += pBlock->info.rows;
       return pBlock;
     } else {
       if (pInfo->childOpStatus == CHILD_OP_NEW_GROUP) {
         finishSortGroup(pOperator);
-        pInfo->currGroupId = pInfo->prefetchedSortInput->info.groupId;
+        pInfo->currGroupId = pInfo->prefetchedSortInput->info.id.groupId;
         beginSortGroup(pOperator);
       } else if (pInfo->childOpStatus == CHILD_OP_FINISHED) {
         finishSortGroup(pOperator);
@@ -509,7 +509,7 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSort
   initResultSizeInfo(&pOperator->resultInfo, 1024);
   pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
 
-  pInfo->binfo.pRes = createResDataBlock(pDescNode);
+  pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
 
   int32_t numOfOutputCols = 0;
@@ -551,6 +551,7 @@ typedef struct SMultiwayMergeOperatorInfo {
   SSortHandle*   pSortHandle;
   SColMatchInfo  matchInfo;
   SSDataBlock*   pInputBlock;
+  SSDataBlock*   pIntermediateBlock;   // to hold the intermediate result
   int64_t        startTs;  // sort start time
   bool           groupSort;
   bool           hasGroupId;
@@ -651,12 +652,19 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   blockDataCleanup(pDataBlock);
 
-  SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
-  if (p == NULL) {
-    return NULL;
+  if (pInfo->pIntermediateBlock == NULL) {
+    pInfo->pIntermediateBlock = tsortGetSortedDataBlock(pHandle);
+    if (pInfo->pIntermediateBlock == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+    blockDataEnsureCapacity(pInfo->pIntermediateBlock, capacity);
+  } else {
+    blockDataCleanup(pInfo->pIntermediateBlock);
   }
 
-  blockDataEnsureCapacity(p, capacity);
+  SSDataBlock* p = pInfo->pIntermediateBlock;
+
   while (1) {
     doGetSortedBlockData(pInfo, pHandle, capacity, p);
     if (p->info.rows == 0) {
@@ -683,11 +691,10 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
 
     pInfo->limitInfo.numOfOutputRows += p->info.rows;
     pDataBlock->info.rows = p->info.rows;
-    pDataBlock->info.groupId = pInfo->groupId;
+    pDataBlock->info.id.groupId = pInfo->groupId;
   }
 
-  blockDataDestroy(p);
-  qDebug("%s get sorted block, groupId:0x%" PRIx64 " rows:%d", GET_TASKID(pTaskInfo), pDataBlock->info.groupId,
+  qDebug("%s get sorted block, groupId:0x%" PRIx64 " rows:%d", GET_TASKID(pTaskInfo), pDataBlock->info.id.groupId,
          pDataBlock->info.rows);
 
   return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
@@ -722,6 +729,7 @@ void destroyMultiwayMergeOperatorInfo(void* param) {
   SMultiwayMergeOperatorInfo* pInfo = (SMultiwayMergeOperatorInfo*)param;
   pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
   pInfo->pInputBlock = blockDataDestroy(pInfo->pInputBlock);
+  pInfo->pIntermediateBlock = blockDataDestroy(pInfo->pIntermediateBlock);
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   taosArrayDestroy(pInfo->pSortInfo);
@@ -758,7 +766,7 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   }
 
   initLimitInfo(pMergePhyNode->node.pLimit, pMergePhyNode->node.pSlimit, &pInfo->limitInfo);
-  pInfo->binfo.pRes = createResDataBlock(pDescNode);
+  pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
 
   int32_t rowSize = pInfo->binfo.pRes->info.rowSize;
   ASSERT(rowSize < 100 * 1024 * 1024);
@@ -771,7 +779,7 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   }
 
   SPhysiNode*  pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, 0);
-  SSDataBlock* pInputBlock = createResDataBlock(pChildNode->pOutputDataBlockDesc);
+  SSDataBlock* pInputBlock = createDataBlockFromDescNode(pChildNode->pOutputDataBlockDesc);
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);

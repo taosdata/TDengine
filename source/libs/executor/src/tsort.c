@@ -116,9 +116,12 @@ void tsortClearOrderdSource(SArray *pOrderedSource) {
     if (NULL == *pSource) {
       continue;
     }
-    
+    // release pageIdList
+    if ((*pSource)->pageIdList) {
+      taosArrayDestroy((*pSource)->pageIdList);
+    }
     if ((*pSource)->param && !(*pSource)->onlyRef) {
-      taosMemoryFree((*pSource)->param);  
+      taosMemoryFree((*pSource)->param);
     }
     taosMemoryFreeClear(*pSource);
   }
@@ -417,8 +420,8 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
   SSDataBlock* pRightBlock = pRightSource->src.pBlock;
 
   if (pParam->cmpGroupId) {
-    if (pLeftBlock->info.groupId != pRightBlock->info.groupId) {
-      return pLeftBlock->info.groupId < pRightBlock->info.groupId ? -1 : 1;
+    if (pLeftBlock->info.id.groupId != pRightBlock->info.id.groupId) {
+      return pLeftBlock->info.id.groupId < pRightBlock->info.id.groupId ? -1 : 1;
     }
   }
 
@@ -801,7 +804,7 @@ STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
   index = tMergeTreeGetChosenIndex(pHandle->pMergeTree);
   pSource = pHandle->cmpParam.pSources[index];
 
-  assert(pSource->src.pBlock != NULL);
+  ASSERT(pSource->src.pBlock != NULL);
 
   pHandle->tupleHandle.rowIndex = pSource->src.rowIndex;
   pHandle->tupleHandle.pBlock = pSource->src.pBlock;
@@ -826,7 +829,7 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex) {
   }
 }
 
-uint64_t tsortGetGroupId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.groupId; }
+uint64_t tsortGetGroupId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.id.groupId; }
 
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   SSortExecInfo info = {0};

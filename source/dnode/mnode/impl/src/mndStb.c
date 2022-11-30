@@ -1684,7 +1684,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   }
 
   if (pStb->numOfFuncs > 0) {
-    pRsp->pFuncs = taosArrayDup(pStb->pFuncs);
+    pRsp->pFuncs = taosArrayDup(pStb->pFuncs, NULL);
   }
 
   taosRUnLockLatch(&pStb->lock);
