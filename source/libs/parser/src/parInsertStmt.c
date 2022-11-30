@@ -137,7 +137,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
   }
 
   SVCreateTbReq tbReq = {0};
-  insBuildCreateTbReq(&tbReq, tName, pTag, suid, sTableName, tagName, pDataBlock->pTableMeta->tableInfo.numOfTags);
+  insBuildCreateTbReq(&tbReq, tName, pTag, suid, sTableName, tagName, pDataBlock->pTableMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
   code = insBuildCreateTbMsg(pDataBlock, &tbReq);
   tdDestroySVCreateTbReq(&tbReq);
 
