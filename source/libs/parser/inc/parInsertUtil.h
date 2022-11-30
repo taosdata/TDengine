@@ -155,6 +155,7 @@ typedef struct STableDataCxt {
   SSubmitTbData *pData;
   TSKEY          lastTs;
   bool           ordered;
+  bool           duplicateTs;
 } STableDataCxt;
 
 typedef struct SVgroupDataCxt {
