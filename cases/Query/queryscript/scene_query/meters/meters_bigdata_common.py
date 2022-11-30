@@ -1240,7 +1240,7 @@ class TDTestQuery(TDCase):
         self.dnodes_database_replica_check(dbname,replica)
         self.count_select_column(dbname)
         
-        self.taosd.kill_and_start(self.env_setting['settings'][0],3)
+        #self.taosd.kill_and_start(self.env_setting['settings'][0],3)
         time.sleep(10)
         self.dnodes_database_replica_check(dbname,replica)
         
@@ -1250,7 +1250,7 @@ class TDTestQuery(TDCase):
         self.sql_base_check(dbname,sql1='',sql2='') 
         self.count_select_column(dbname)
         
-        self.taosd.kill_and_start(self.env_setting['settings'][0],3)
+        #self.taosd.kill_and_start(self.env_setting['settings'][0],3)
         time.sleep(10)
         self.dnodes_database_replica_check(dbname,replica)
         
