@@ -197,6 +197,7 @@ typedef struct SSyncNode {
   int32_t configChangeNum;
   int32_t hbSlowNum;
   int32_t hbrSlowNum;
+  int32_t tmrRoutineNum;
 
   bool isStart;
 

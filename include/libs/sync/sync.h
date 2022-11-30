@@ -67,6 +67,7 @@ typedef struct SWal           SWal;
 typedef struct SSyncRaftEntry SSyncRaftEntry;
 
 typedef enum {
+  TAOS_SYNC_STATE_OFFLINE = 0,
   TAOS_SYNC_STATE_FOLLOWER = 100,
   TAOS_SYNC_STATE_CANDIDATE = 101,
   TAOS_SYNC_STATE_LEADER = 102,

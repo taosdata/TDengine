@@ -332,6 +332,7 @@ typedef struct STableScanInfo {
   int32_t                currentTable;
   int8_t                 scanMode;
   int8_t                 assignBlockUid;
+  bool                   hasGroupByTag;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {

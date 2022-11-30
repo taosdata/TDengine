@@ -895,6 +895,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
 
   pInfo->currentGroupId = -1;
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
+  pInfo->hasGroupByTag = pTableScanNode->pGroupTags ? true : false;
 
   setOperatorInfo(pOperator, "TableScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
@@ -1051,6 +1052,9 @@ static uint64_t getGroupIdByData(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts,
 }
 
 static bool prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t* pRowIndex) {
+  if (pBlock->info.rows == 0) {
+    return false;
+  }
   if ((*pRowIndex) == pBlock->info.rows) {
     return false;
   }
@@ -1183,10 +1187,10 @@ static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32
 }
 
 static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
+  blockDataCleanup(pDestBlock);
   if (pSrcBlock->info.rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
-  blockDataCleanup(pDestBlock);
   int32_t code = blockDataEnsureCapacity(pDestBlock, pSrcBlock->info.rows);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -1836,6 +1840,12 @@ FETCH_NEXT_BLOCK:
         }
         setBlockGroupIdByUid(pInfo, pDelBlock);
         printDataBlock(pDelBlock, "stream scan delete recv filtered");
+        if (pDelBlock->info.rows == 0) {
+          if (pInfo->tqReader) {
+            blockDataDestroy(pDelBlock);
+          }
+          goto FETCH_NEXT_BLOCK;
+        }
         if (!isIntervalWindow(pInfo) && !isSessionWindow(pInfo) && !isStateWindow(pInfo)) {
           generateDeleteResultBlock(pInfo, pDelBlock, pInfo->pDeleteDataRes);
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_RESULT;
