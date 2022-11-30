@@ -76,6 +76,32 @@ static void msg_process(TAOS_RES* msg) {
 }
 
 int buildDatabase(TAOS* pConn, TAOS_RES* pRes){
+
+  /* test for TD-20612  start*/
+//  pRes = taos_query(pConn,"create table tb1 (ts timestamp, c1 int, c2 int)");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
+//    return -1;
+//  }
+//  taos_free_result(pRes);
+//
+//  pRes = taos_query(pConn,"insert into tb1 (ts, c1) values(1669092069069, 0)");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
+//    return -1;
+//  }
+//  taos_free_result(pRes);
+//
+//  pRes = taos_query(pConn,"insert into tb1 (ts, c2) values(1669092069069, 1)");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
+//    return -1;
+//  }
+//  taos_free_result(pRes);
+//
+//  return 0;
+  /* test for TD-20612  end*/
+
   pRes = taos_query(pConn,
                     "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 "
                     "nchar(8), t4 bool)");

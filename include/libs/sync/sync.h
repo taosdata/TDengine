@@ -43,6 +43,9 @@ extern "C" {
 #define SYNC_APPEND_ENTRIES_TIMEOUT_MS 10000
 #define SYNC_HEART_TIMEOUT_MS          1000 * 8
 
+#define SYNC_HEARTBEAT_SLOW_MS       1500
+#define SYNC_HEARTBEAT_REPLY_SLOW_MS 1500
+
 #define SYNC_MAX_BATCH_SIZE 1
 #define SYNC_INDEX_BEGIN    0
 #define SYNC_INDEX_INVALID  -1
@@ -162,7 +165,10 @@ typedef struct SSyncFSM {
 // SWal implements it
 typedef struct SSyncLogStore {
   SLRUCache* pCache;
-  void*      data;
+  int32_t    cacheHit;
+  int32_t    cacheMiss;
+
+  void* data;
 
   int32_t (*syncLogUpdateCommitIndex)(struct SSyncLogStore* pLogStore, SyncIndex index);
   SyncIndex (*syncLogCommitIndex)(struct SSyncLogStore* pLogStore);
@@ -223,6 +229,8 @@ int32_t syncEndSnapshot(int64_t rid);
 int32_t syncLeaderTransfer(int64_t rid);
 int32_t syncStepDown(int64_t rid, SyncTerm newTerm);
 bool    syncIsReadyForRead(int64_t rid);
+bool    syncSnapshotSending(int64_t rid);
+bool    syncSnapshotRecving(int64_t rid);
 
 SSyncState  syncGetState(int64_t rid);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);

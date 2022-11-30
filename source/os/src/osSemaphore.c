@@ -76,7 +76,8 @@ int32_t tsem_wait(tsem_t* sem) {
 }
 
 int32_t tsem_timewait(tsem_t* sem, int64_t milis) {
-  return tsem_wait(sem);
+  return 0;
+  /*return tsem_wait(sem);*/
 #if 0
   struct timespec ts;
   timespec_get(&ts);

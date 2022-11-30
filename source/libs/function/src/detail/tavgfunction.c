@@ -471,7 +471,6 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
   int32_t               type = pInput->pData[0]->info.type;
 
   SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  pAvgRes->type = type;
 
   // computing based on the true data block
   SColumnInfoData* pCol = pInput->pData[0];
@@ -482,6 +481,8 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
   if (IS_NULL_TYPE(type)) {
     goto _over;
   }
+
+  pAvgRes->type = type;
 
   if (pInput->colDataSMAIsSet) {  // try to use SMA if available
     numOfElem = calculateAvgBySMAInfo(pAvgRes, numOfRows, type, pAgg);
@@ -592,6 +593,10 @@ _over:
 }
 
 static void avgTransferInfo(SAvgRes* pInput, SAvgRes* pOutput) {
+  if (IS_NULL_TYPE(pInput->type)) {
+    return;
+  }
+
   pOutput->type = pInput->type;
   if (IS_SIGNED_NUMERIC_TYPE(pOutput->type)) {
     pOutput->sum.isum += pInput->sum.isum;
