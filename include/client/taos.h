@@ -218,6 +218,9 @@ DLL_EXPORT int taos_get_db_route_info(TAOS *taos, const char *db, TAOS_DB_ROUTE_
 DLL_EXPORT int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId);
 
 DLL_EXPORT int       taos_load_table_info(TAOS *taos, const char *tableNameList);
+
+/*  --------------------------schemaless INTERFACE------------------------------- */
+
 DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision);
 DLL_EXPORT TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol,
                                                        int precision, int64_t reqid);
@@ -225,6 +228,13 @@ DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len
                                                 int precision);
 DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows,
                                                            int protocol, int precision, int64_t reqid);
+DLL_EXPORT TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl);
+DLL_EXPORT TAOS_RES *taos_schemaless_insert_ttl_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol,
+                                                       int precision, int32_t ttl, int64_t reqid);
+DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
+                                                int precision, int32_t ttl);
+DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows,
+                                                           int protocol, int precision, int32_t ttl, int64_t reqid);
 
 /* --------------------------TMQ INTERFACE------------------------------- */
 

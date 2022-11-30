@@ -529,7 +529,8 @@ static int32_t buildCreateTbReq(SVnodeModifOpStmt* pStmt, STag* pTag, SArray* pT
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   insBuildCreateTbReq(pStmt->pCreateTblReq, pStmt->targetTableName.tname, pTag, pStmt->pTableMeta->suid,
-                      pStmt->usingTableName.tname, pTagName, pStmt->pTableMeta->tableInfo.numOfTags);
+                      pStmt->usingTableName.tname, pTagName, pStmt->pTableMeta->tableInfo.numOfTags,
+                      TSDB_DEFAULT_TABLE_TTL);
   return TSDB_CODE_SUCCESS;
 }
 
