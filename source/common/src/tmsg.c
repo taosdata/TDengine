@@ -6816,14 +6816,6 @@ void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
 
   if (flag == TSDB_MSG_FLG_ENCODE) {
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-      int32_t nRow = TARRAY_SIZE(pTbData->aRowP);
-      SRow  **rows = (SRow **)TARRAY_DATA(pTbData->aRowP);
-
-      for (int32_t i = 0; i < nRow; ++i) {
-        tRowDestroy(rows[i]);
-      }
-      taosArrayDestroy(pTbData->aRowP);
-    } else {
       int32_t   nColData = TARRAY_SIZE(pTbData->aCol);
       SColData *aColData = (SColData *)TARRAY_DATA(pTbData->aCol);
 
@@ -6831,6 +6823,14 @@ void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
         tColDataDestroy(&aColData[i]);
       }
       taosArrayDestroy(pTbData->aCol);
+    } else {
+      int32_t nRow = TARRAY_SIZE(pTbData->aRowP);
+      SRow  **rows = (SRow **)TARRAY_DATA(pTbData->aRowP);
+
+      for (int32_t i = 0; i < nRow; ++i) {
+        tRowDestroy(rows[i]);
+      }
+      taosArrayDestroy(pTbData->aRowP);
     }
   } else if (flag == TSDB_MSG_FLG_DECODE) {
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
