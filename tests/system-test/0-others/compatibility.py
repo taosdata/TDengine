@@ -13,12 +13,12 @@ from util.dnodes import TDDnodes
 from util.dnodes import TDDnode
 from util.cluster import *
 
-
+BASEVERSION = "3.0.1.8"
 class TDTestCase:
     def caseDescription(self):
         '''
         3.0 data compatibility test 
-        case1: basedata version is 3.0.1.0
+        case1: basedata version is 3.0.1.8
         '''
         return
 
@@ -62,8 +62,8 @@ class TDTestCase:
         # os.system(f"mv {self.getBuildPath()}/build/lib/libtaos.so.1  {self.getBuildPath()}/build/lib/libtaos.so.1_bak ")
         
         packagePath = "/usr/local/src/"
-        baseVersion = "3.0.1.8"
-        packageName = "TDengine-server-{baseVersion}-Linux-x64.tar.gz"
+        
+        packageName = "TDengine-server-"+  BASEVERSION + "-Linux-x64.tar.gz"
         packageTPath = packageName.split("-Linux-")[0]
         my_file = Path(f"{packagePath}/{packageName}")
         if not  my_file.exists():
@@ -101,12 +101,11 @@ class TDTestCase:
         # oldServerVersion=tdsqlF.queryResult[0][0]
         # tdLog.info(f"Base server version is {oldServerVersion}")
         # tdsqlF.query(f"SELECT CLIENT_VERSION();")
-        
         # # the oldClientVersion can't be updated in the same python process,so the version is new compiled verison
         # oldClientVersion=tdsqlF.queryResult[0][0]
         # tdLog.info(f"Base client version is {oldClientVersion}")
-        oldServerVersion = "3.0.1.0"
-        tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{oldServerVersion}")
+        # baseVersion = "3.0.1.8"
+        tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{BASEVERSION}")
         tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
         os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
         sleep(3)
