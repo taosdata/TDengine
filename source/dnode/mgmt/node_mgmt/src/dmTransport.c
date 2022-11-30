@@ -258,8 +258,13 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.parent = pDnode;
   rpcInit.rfp = rpcRfp;
   rpcInit.compressSize = tsCompressMsgSize;
+
   rpcInit.retryLimit = tsRpcRetryLimit;
   rpcInit.retryInterval = tsRpcRetryInterval;
+  rpcInit.retryMinInterval = tsRedirectPeriod;
+  rpcInit.retryStepFactor = tsRedirectFactor;
+  rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
+  rpcInit.retryMaxTimouet = tsMaxRetryWaitTime;
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {

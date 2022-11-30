@@ -1127,7 +1127,7 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   SRpcMsg rpcMsg = {
       .code = 0,
       .contLen = len,
-      .msgType = TDMT_VND_STREAM_RECOVER_STEP2,
+      .msgType = TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE,
       .pCont = serializedReq,
   };
 

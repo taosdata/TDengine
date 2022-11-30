@@ -1313,8 +1313,8 @@ static void buildDeleteRange(SOperatorInfo* pOp, TSKEY start, TSKEY end, uint64_
     char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
     STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
     colDataAppend(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
+    tdbFree(tbname);
   }
-  tdbFree(tbname);
 
   pBlock->info.rows++;
 }
@@ -1427,7 +1427,7 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
           streamStateFreeCur(pCur);
           pCur = streamStateGetAndCheckCur(pOperator->pTaskInfo->streamInfo.pState, &nextKey);
         }
-        endTs = nextKey.ts - 1;
+        endTs = TMAX(ts, nextKey.ts - 1);
         if (code != TSDB_CODE_SUCCESS) {
           break;
         }

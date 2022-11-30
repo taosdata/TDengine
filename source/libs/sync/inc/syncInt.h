@@ -195,6 +195,8 @@ typedef struct SSyncNode {
   int32_t electNum;
   int32_t becomeLeaderNum;
   int32_t configChangeNum;
+  int32_t hbSlowNum;
+  int32_t hbrSlowNum;
 
   bool isStart;
 
@@ -239,6 +241,8 @@ int32_t   syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode,
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode);
 int32_t   syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHandle** h);
 bool      syncNodeHeartbeatReplyTimeout(SSyncNode* pSyncNode);
+bool      syncNodeSnapshotSending(SSyncNode* pSyncNode);
+bool      syncNodeSnapshotRecving(SSyncNode* pSyncNode);
 
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);

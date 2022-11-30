@@ -1712,6 +1712,8 @@ typedef struct {
 
 int32_t tSerializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
 int32_t tDeserializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
+int32_t tSerializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
+int32_t tDeserializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
 
 int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
 int32_t tDeserializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
@@ -3137,7 +3139,8 @@ int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
 typedef struct {
   // int64_t uid;
   char    tbname[TSDB_TABLE_NAME_LEN];
-  int64_t ts;
+  int64_t startTs;
+  int64_t endTs;
 } SSingleDeleteReq;
 
 int32_t tEncodeSSingleDeleteReq(SEncoder* pCoder, const SSingleDeleteReq* pReq);
@@ -3197,6 +3200,10 @@ static FORCE_INLINE void tFreeSBatchRspMsg(void* p) {
   taosMemoryFree(pRsp->msg);
 }
 
+int32_t tSerializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
+int32_t tDeserializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
+int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
+int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tSerializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
 int32_t tDeserializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
 int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);

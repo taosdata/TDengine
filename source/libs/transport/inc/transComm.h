@@ -137,14 +137,22 @@ typedef struct {
   tmsg_t msgType;   // message type
   int8_t connType;  // connection type cli/srv
 
-  int8_t retryCnt;
-  int8_t retryLimit;
-
   STransCtx  appCtx;  //
   STransMsg* pRsp;    // for synchronous API
   tsem_t*    pSem;    // for synchronous API
   SCvtAddr   cvtAddr;
   bool       setMaxRetry;
+
+  int32_t retryMinInterval;
+  int32_t retryMaxInterval;
+  int32_t retryStepFactor;
+  int64_t retryMaxTimeout;
+  int64_t retryInitTimestamp;
+  int64_t retryNextInterval;
+  bool    retryInit;
+  int32_t retryStep;
+
+  int8_t epsetRetryCnt;
 
   int hThrdIdx;
 } STransConnCtx;
