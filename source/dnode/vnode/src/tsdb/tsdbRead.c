@@ -775,7 +775,10 @@ static void doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int32_
     } else {
       varDataSetLen(pSup->buildBuf[colIndex], pColVal->value.nData);
       ASSERT(pColVal->value.nData <= pColInfoData->info.bytes);
-      memcpy(varDataVal(pSup->buildBuf[colIndex]), pColVal->value.pData, pColVal->value.nData);
+      if (pColVal->value.nData > 0) {  // pData may be null, if nData is 0
+        memcpy(varDataVal(pSup->buildBuf[colIndex]), pColVal->value.pData, pColVal->value.nData);
+      }
+
       colDataAppend(pColInfoData, rowIndex, pSup->buildBuf[colIndex], false);
     }
   } else {

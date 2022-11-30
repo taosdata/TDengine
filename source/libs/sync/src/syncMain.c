@@ -1037,6 +1037,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   pSyncNode->configChangeNum = 0;
   pSyncNode->hbSlowNum = 0;
   pSyncNode->hbrSlowNum = 0;
+  pSyncNode->tmrRoutineNum = 0;
 
   sNTrace(pSyncNode, "sync open, node:%p", pSyncNode);
 
@@ -1141,12 +1142,21 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     if ((pSyncNode->senders)[i] != NULL) {
       sSTrace((pSyncNode->senders)[i], "snapshot sender destroy while close, data:%p", (pSyncNode->senders)[i]);
+
+      if (snapshotSenderIsStart((pSyncNode->senders)[i])) {
+        snapshotSenderStop((pSyncNode->senders)[i], false);
+      }
+
       snapshotSenderDestroy((pSyncNode->senders)[i]);
       (pSyncNode->senders)[i] = NULL;
     }
   }
 
   if (pSyncNode->pNewNodeReceiver != NULL) {
+    if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+      snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+    }
+
     snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
     pSyncNode->pNewNodeReceiver = NULL;
   }
@@ -2457,8 +2467,12 @@ const char* syncStr(ESyncState state) {
       return "candidate";
     case TAOS_SYNC_STATE_LEADER:
       return "leader";
-    default:
+    case TAOS_SYNC_STATE_ERROR:
       return "error";
+    case TAOS_SYNC_STATE_OFFLINE:
+      return "offline";
+    default:
+      return "unknown";
   }
 }
 
