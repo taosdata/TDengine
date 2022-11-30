@@ -2658,7 +2658,7 @@ static int32_t tbCntScanOptCreateSumFunc(SFunctionNode* pCntFunc, SNode* pParam,
   }
   strcpy(pFunc->functionName, "sum");
   strcpy(pFunc->node.aliasName, pCntFunc->node.aliasName);
-  int32_t code = nodesListMakeStrictAppend(&pFunc->pParameterList, nodesCloneNode(pParam));
+  int32_t code = createColumnByRewriteExpr(pParam, &pFunc->pParameterList);
   if (TSDB_CODE_SUCCESS == code) {
     code = fmGetFuncInfo(pFunc, NULL, 0);
   }
