@@ -516,11 +516,11 @@ void vnodeSyncPreClose(SVnode *pVnode) {
   syncLeaderTransfer(pVnode->sync);
   syncPreStop(pVnode->sync);
 
-  while (!syncSnapshotRecving(pVnode->sync)) {
+  while (syncSnapshotRecving(pVnode->sync)) {
     vInfo("vgId:%d, snapshot is recving", pVnode->config.vgId);
     taosMsleep(300);
   }
-  while (!syncSnapshotSending(pVnode->sync)) {
+  while (syncSnapshotSending(pVnode->sync)) {
     vInfo("vgId:%d, snapshot is sending", pVnode->config.vgId);
     taosMsleep(300);
   }
