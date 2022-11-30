@@ -789,7 +789,7 @@ public static void main(String[] args) throws Exception {
 
 **注意事项：**
 
-- TDengine `v1.6.4.1` 版本开始提供了一个专门用于心跳检测的函数 `select server_status()`，所以在使用连接池时推荐使用 `select server_status()` 进行 Validation Query。
+- `select server_status()` 用于检测服务端的所有 dnode 是否都在线；如果是则返回如下所示，如果有任意 dnode 下线则返回 “Unable to Establish Connection”
 
 如下所示，`select server_status()` 执行成功会返回 `1`。
 
