@@ -1427,7 +1427,7 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
           streamStateFreeCur(pCur);
           pCur = streamStateGetAndCheckCur(pOperator->pTaskInfo->streamInfo.pState, &nextKey);
         }
-        endTs = nextKey.ts - 1;
+        endTs = TMAX(ts, nextKey.ts - 1);
         if (code != TSDB_CODE_SUCCESS) {
           break;
         }
