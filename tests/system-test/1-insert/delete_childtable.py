@@ -121,7 +121,7 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query(f'select count(*) from {stbname}')
         if tb_num <= 1:
-            if len(tdSql.queryResult) != 0:
+            if len(tdSql.queryResult) != 1 and tdSql.queryResult[0][0] != 0:
                 tdLog.exit('delete case failure!')
         else:
             tdSql.checkEqual(tdSql.queryResult[0][0],(tb_num-1)*row_num)
