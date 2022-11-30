@@ -60,10 +60,10 @@ class TDTestCase:
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, None)
         #!bug TD-16561
-        # for i in ['stb','db.stb']:
-        #     tdSql.query(f"select first(*) from {i}")
-        #     tdSql.checkRows(1)
-        #     tdSql.checkData(0, 1, None)
+        for i in ['stb','db.stb']:
+            tdSql.query(f"select first(*) from {i}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, None)
         for i in column_list:
             for j in ['stb_1','db.stb_1','stb_1','db.stb_1']:
                 tdSql.query(f"select first({i}) from {j}")
