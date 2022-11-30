@@ -1335,30 +1335,6 @@ static int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock,
   return code;
 }
 
-static void calBlockTag(SExprSupp* pTagCalSup, SSDataBlock* pBlock, SSDataBlock* pResBlock) {
-  if (pTagCalSup == NULL || pTagCalSup->numOfExprs == 0) return;
-  if (pBlock == NULL || pBlock->info.rows == 0) return;
-
-  SSDataBlock* pSrcBlock = blockCopyOneRow(pBlock, 0);
-  ASSERT(pSrcBlock->info.rows == 1);
-
-  blockDataEnsureCapacity(pResBlock, 1);
-
-  projectApplyFunctions(pTagCalSup->pExprInfo, pResBlock, pSrcBlock, pTagCalSup->pCtx, 1, NULL);
-  ASSERT(pResBlock->info.rows == 1);
-
-  // build tagArray
-  /*SArray* tagArray = taosArrayInit(0, sizeof(void*));*/
-  /*STagVal tagVal = {*/
-  /*.cid = 0,*/
-  /*.type = 0,*/
-  /*};*/
-  // build STag
-  // set STag
-
-  blockDataDestroy(pSrcBlock);
-}
-
 void calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
   SExprSupp*    pTbNameCalSup = &pInfo->tbnameCalSup;
   SStreamState* pState = pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState;
