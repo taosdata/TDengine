@@ -55,7 +55,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
         }
         let database = topics.pop().unwrap();
 
-        source.exec(format!("use {database}")).await?;
+        source.exec(format!("use `{database}`")).await?;
 
         // if !source.database_exists(&database).await? {
         //     anyhow::bail!("database(`{database}`) doest not exist, please check DSN: \"{origin}\"");

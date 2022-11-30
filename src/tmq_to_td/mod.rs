@@ -346,7 +346,7 @@ pub async fn tmq_to_td(
         if let Some(table) = topic.table.as_ref() {
             // schema rebuild
             let taos = target.build()?;
-            taos.exec(format!("use {target_database}")).await?;
+            taos.exec(format!("use `{target_database}`")).await?;
 
             if let Some(sql) = table.stable_sql.as_deref() {
                 let mut sql = sql.replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS");
@@ -407,7 +407,6 @@ pub async fn tmq_to_td(
             }
             taos.exec(sql).await?;
         }
-        // dbg!(&topic);
 
         // let mut from = from.clone();
         let tmq = TmqBuilder::from_dsn(&from)?;
@@ -422,7 +421,7 @@ pub async fn tmq_to_td(
         for _ in 0..jobs {
             let consumer = consumers.pop().unwrap();
             let taos = target.build()?;
-            taos.exec(format!("use {target_database}")).await?;
+            taos.exec(format!("use `{target_database}`")).await?;
             let table = topic.table.as_ref().map(|t| t.table.clone());
             let actions = actions.to_vec();
             let cancellation = cancel.clone();
