@@ -3028,7 +3028,7 @@ SOperatorInfo* createTableCountScanOperatorInfo(SReadHandle* readHandle, STableC
   int32_t code = TSDB_CODE_SUCCESS;
 
   SScanPhysiNode*              pScanNode = &pTblCountScanNode->scan;
-  STableCountScanOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(STableCountScanSupp));
+  STableCountScanOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(STableCountScanOperatorInfo));
   SOperatorInfo*               pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
   if (!pInfo || !pOperator) {
@@ -3082,19 +3082,19 @@ void fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, char*
   }
 
   if (pSupp->tbCountSlotId != -1) {
-    SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->stbNameSlotId);
+    SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->tbCountSlotId);
     colDataAppend(colInfoData, 0, (char*)&count, false);
   }
   pRes->info.rows = 1;
 }
 
-static SSDataBlock* buildSysDbTableCount(STableCountScanOperatorInfo* pInfo) {
+static SSDataBlock* buildSysDbTableCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo) {
   STableCountScanSupp* pSupp = &pInfo->supp;
   SSDataBlock*         pRes = pInfo->pRes;
 
-  int64_t infodbTableNum;
+  size_t infodbTableNum;
   getInfosDbMeta(NULL, &infodbTableNum);
-  int64_t perfdbTableNum;
+  size_t perfdbTableNum;
   getPerfDbMeta(NULL, &perfdbTableNum);
 
   if (pSupp->groupByDbName) {
@@ -3106,6 +3106,9 @@ static SSDataBlock* buildSysDbTableCount(STableCountScanOperatorInfo* pInfo) {
       uint64_t groupId = calcGroupId(TSDB_PERFORMANCE_SCHEMA_DB, strlen(TSDB_PERFORMANCE_SCHEMA_DB));
       pRes->info.id.groupId = groupId;
       fillTableCountScanDataBlock(pSupp, TSDB_PERFORMANCE_SCHEMA_DB, "", perfdbTableNum, pRes);
+    } else {
+      setOperatorCompleted(pOperator);
+      return NULL;
     }
     pInfo->currGrpIdx++;
     return (pRes->info.rows > 0) ? pRes : NULL;
@@ -3117,6 +3120,7 @@ static SSDataBlock* buildSysDbTableCount(STableCountScanOperatorInfo* pInfo) {
     } else if (strlen(pSupp->dbName) == 0) {
       fillTableCountScanDataBlock(pSupp, "", "", infodbTableNum + perfdbTableNum, pRes);
     }
+    setOperatorCompleted(pOperator);
     return (pRes->info.rows > 0) ? pRes : NULL;
   }
 }
@@ -3131,8 +3135,11 @@ static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
   // grouptags high priority(groupid<=>grouptag), then tablename(dbname,tableName).
   // scanCols, (grouptags cols)
   // mnode, query table count of information_schema and performance_schema
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
   if (pInfo->readHandle.mnd != NULL) {
-    return buildSysDbTableCount(pInfo);
+    return buildSysDbTableCount(pOperator, pInfo);
   }
 
   const char* db = NULL;
@@ -3173,6 +3180,9 @@ static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
         fillTableCountScanDataBlock(pSupp, dbName, stbName, ctbNum, pRes);
         
         pInfo->currGrpIdx++;
+      } else {
+        setOperatorCompleted(pOperator);
+        return NULL;
       }
     } else {
       // group by only db_name
@@ -3180,6 +3190,7 @@ static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
       pRes->info.id.groupId = groupId;
       int64_t dbTableCount = metaGetTbNum(pInfo->readHandle.meta);
       fillTableCountScanDataBlock(pSupp, dbName, "", dbTableCount, pRes);
+      setOperatorCompleted(pOperator);
     }
   } else {
     if (strlen(pSupp->dbName) != 0) {
@@ -3191,11 +3202,15 @@ static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
         fillTableCountScanDataBlock(pSupp, dbName, pSupp->stbName, ctbNum, pRes);
       } else {
         int64_t tbNumVnode = metaGetTbNum(pInfo->readHandle.meta);
-        fillTableCountScanDataBlock(pSupp, pSupp->dbName, "", tbNumVnode, pRes);
+        fillTableCountScanDataBlock(pSupp, dbName, "", tbNumVnode, pRes);
       }
+    } else {
+      int64_t tbNumVnode = metaGetTbNum(pInfo->readHandle.meta);
+      fillTableCountScanDataBlock(pSupp, dbName, "", tbNumVnode, pRes);
     }
+    setOperatorCompleted(pOperator);
   }
-  return pRes->info.rows > 0 ? pRes : pRes;
+  return pRes->info.rows > 0 ? pRes : NULL;
 }
 
 static void destoryTableCountScanOperator(void* param) {
