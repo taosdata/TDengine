@@ -1037,6 +1037,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   pSyncNode->configChangeNum = 0;
   pSyncNode->hbSlowNum = 0;
   pSyncNode->hbrSlowNum = 0;
+  pSyncNode->tmrRoutineNum = 0;
 
   sNTrace(pSyncNode, "sync open, node:%p", pSyncNode);
 
