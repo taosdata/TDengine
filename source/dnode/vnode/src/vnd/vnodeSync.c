@@ -515,6 +515,16 @@ void vnodeSyncPreClose(SVnode *pVnode) {
   vInfo("vgId:%d, pre close sync", pVnode->config.vgId);
   syncLeaderTransfer(pVnode->sync);
   syncPreStop(pVnode->sync);
+
+  while (!syncSnapshotRecving(pVnode->sync)) {
+    vInfo("vgId:%s, snapshot is recving");
+    taosMsleep(300);
+  }
+  while (!syncSnapshotSending(pVnode->sync)) {
+    vInfo("vgId:%s, snapshot is sending");
+    taosMsleep(300);
+  }
+
   taosThreadMutexLock(&pVnode->lock);
   if (pVnode->blocked) {
     vInfo("vgId:%d, post block after close sync", pVnode->config.vgId);
