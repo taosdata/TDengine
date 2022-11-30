@@ -981,6 +981,24 @@ int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo* pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+void insCheckTableDataOrder(STableDataCxt* pTableCxt, TSKEY tsKey) {
+  // once the data block is disordered, we do NOT keep last timestamp any more
+  if (!pTableCxt->ordered) {
+    return;
+  }
+
+  if (tsKey < pTableCxt->lastTs) {
+    pTableCxt->ordered = false;
+  }
+
+  if (tsKey == pTableCxt->lastTs) {
+    pTableCxt->duplicateTs = true;
+  }
+
+  pTableCxt->lastTs = tsKey;
+  return;
+}
+
 static void destroyBoundColInfo(SBoundColInfo* pInfo) { taosMemoryFreeClear(pInfo->pColIndex); }
 
 static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreateTbReq, STableDataCxt** pOutput) {
@@ -990,6 +1008,10 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
+
+  pTableCxt->lastTs = 0;
+  pTableCxt->ordered = true;
+  pTableCxt->duplicateTs = false;
 
   pTableCxt->pMeta = tableMetaDup(pTableMeta);
   if (NULL == pTableCxt->pMeta) {
@@ -1179,7 +1201,12 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
   void* p = taosHashIterate(pTableHash, NULL);
   while (TSDB_CODE_SUCCESS == code && NULL != p) {
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
-    code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
+    if (!pTableCxt->ordered) {
+      tRowSort(pTableCxt->pData->aRowP);
+    }
+    if (!pTableCxt->ordered || pTableCxt->duplicateTs) {
+      code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
+    }
     if (TSDB_CODE_SUCCESS == code) {
       SVgroupDataCxt* pVgCxt = NULL;
       int32_t         vgId = pTableCxt->pMeta->vgId;
