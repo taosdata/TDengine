@@ -79,7 +79,6 @@
 #define NCHAR_ADD_LEN  3  // L"nchar"   3 means L" "
 
 #define MAX_RETRY_TIMES 5
-#define LINE_BATCH      2000
 //=================================================================================================
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
@@ -2563,7 +2562,7 @@ TAOS_RES *taos_schemaless_insert_inner(SRequestObj *request, char *lines[], char
     goto end;
   }
 
-  batchs = ceil(((double)numLines) / LINE_BATCH);
+  batchs = ceil(((double)numLines) / tsSmlBatchSize);
   params.total = batchs;
   for (int i = 0; i < batchs; ++i) {
     SRequestObj *req = (SRequestObj *)createRequest(pTscObj->id, TSDB_SQL_INSERT, 0);
@@ -2582,7 +2581,7 @@ TAOS_RES *taos_schemaless_insert_inner(SRequestObj *request, char *lines[], char
     info->isRawLine = (rawLine == NULL);
     info->ttl       = ttl;
 
-    int32_t perBatch = LINE_BATCH;
+    int32_t perBatch = tsSmlBatchSize;
 
     if (numLines > perBatch) {
       numLines -= perBatch;
