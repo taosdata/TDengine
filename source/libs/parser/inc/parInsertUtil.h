@@ -153,6 +153,8 @@ typedef struct STableDataCxt {
   SBoundColInfo  boundColsInfo;
   SArray        *pValues;
   SSubmitTbData *pData;
+  TSKEY          lastTs;
+  bool           ordered;
 } STableDataCxt;
 
 typedef struct SVgroupDataCxt {
@@ -161,6 +163,7 @@ typedef struct SVgroupDataCxt {
 } SVgroupDataCxt;
 
 int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo *pInfo);
+void    insCheckTableDataOrder(STableDataCxt *pTableCxt, TSKEY tsKey);
 int32_t insGetTableDataCxt(SHashObj *pHash, void *id, int32_t idLen, STableMeta *pTableMeta,
                            SVCreateTbReq **pCreateTbReq, STableDataCxt **pTableCxt);
 int32_t insMergeTableDataCxt(SHashObj *pTableHash, SArray **pVgDataBlocks);

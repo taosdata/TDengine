@@ -1175,6 +1175,9 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
   if (TSDB_CODE_SUCCESS == code) {
     SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
     code = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
+    if (TSDB_CODE_SUCCESS == code) {
+      insCheckTableDataOrder(pTableCxt, TD_ROW_KEY(*pRow));
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code && !isParseBindParam) {
