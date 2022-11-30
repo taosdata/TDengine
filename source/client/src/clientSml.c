@@ -820,9 +820,9 @@ static int8_t smlGetTsTypeByPrecision(int8_t precision) {
 }
 
 static int64_t smlParseInfluxTime(SSmlHandle *info, const char *data, int32_t len) {
-  char *tmp = (char*)taosMemoryCalloc(1, len + 1);
+  void *tmp = taosMemoryCalloc(1, len + 1);
   memcpy(tmp, data, len);
-  uDebug("SML:0x%" PRIx64 " smlParseInfluxTime ts:%s", info->id, tmp);
+  uDebug("SML:0x%" PRIx64 " smlParseInfluxTime tslen:%d, ts:%s", info->id, len, (char*)tmp);
   taosMemoryFree(tmp);
 
   if (len == 0 || (len == 1 && data[0] == '0')) {
@@ -2076,9 +2076,9 @@ static int32_t smlParseJSONString(SSmlHandle *info, cJSON *root, SSmlTableInfo *
 
 static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql, const int len) {
   SSmlLineInfo elements = {0};
-  char *tmp = (char*)taosMemoryCalloc(1, len + 1);
+  void *tmp = taosMemoryCalloc(1, len + 1);
   memcpy(tmp, sql, len);
-  uDebug("SML:0x%" PRIx64 " smlParseInfluxLine raw:%d, sql:%s", info->id, info->isRawLine, (info->isRawLine ? tmp : sql));
+  uDebug("SML:0x%" PRIx64 " smlParseInfluxLine raw:%d, len:%d, sql:%s", info->id, info->isRawLine, len, (info->isRawLine ? (char*)tmp : sql));
   taosMemoryFree(tmp);
 
   int ret = smlParseInfluxString(sql, sql + len, &elements, &info->msgBuf);
