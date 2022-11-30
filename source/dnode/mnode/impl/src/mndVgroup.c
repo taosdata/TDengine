@@ -887,7 +887,7 @@ int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray) {
     }
 
     pVgid->dnodeId = pDnode->id;
-    pVgid->syncState = TAOS_SYNC_STATE_ERROR;
+    pVgid->syncState = TAOS_SYNC_STATE_OFFLINE;
     mInfo("db:%s, vgId:%d, vn:%d is added, memory:%" PRId64 ", dnode:%d avail:%" PRId64 " used:%" PRId64,
           pVgroup->dbName, pVgroup->vgId, pVgroup->replica, vgMem, pVgid->dnodeId, pDnode->memAvail, pDnode->memUsed);
 
@@ -1193,7 +1193,7 @@ static int32_t mndAddIncVgroupReplicaToTrans(SMnode *pMnode, STrans *pTrans, SDb
   SVnodeGid *pGid = &pVgroup->vnodeGid[pVgroup->replica];
   pVgroup->replica++;
   pGid->dnodeId = newDnodeId;
-  pGid->syncState = TAOS_SYNC_STATE_ERROR;
+  pGid->syncState = TAOS_SYNC_STATE_OFFLINE;
 
   for (int32_t i = 0; i < pVgroup->replica - 1; ++i) {
     if (mndAddAlterVnodeReplicaAction(pMnode, pTrans, pDb, pVgroup, pVgroup->vnodeGid[i].dnodeId) != 0) return -1;

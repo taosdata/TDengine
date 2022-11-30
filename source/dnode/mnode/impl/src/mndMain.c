@@ -151,10 +151,10 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
     bool roleChanged = false;
     for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
       if (pVgroup->vnodeGid[vg].dnodeId == dnodeId) {
-        if (pVgroup->vnodeGid[vg].syncState != TAOS_SYNC_STATE_ERROR) {
+        if (pVgroup->vnodeGid[vg].syncState != TAOS_SYNC_STATE_OFFLINE) {
           mInfo("vgId:%d, state changed by offline check, old state:%s restored:%d new state:error restored:0",
                 pVgroup->vgId, syncStr(pVgroup->vnodeGid[vg].syncState), pVgroup->vnodeGid[vg].syncRestore);
-          pVgroup->vnodeGid[vg].syncState = TAOS_SYNC_STATE_ERROR;
+          pVgroup->vnodeGid[vg].syncState = TAOS_SYNC_STATE_OFFLINE;
           pVgroup->vnodeGid[vg].syncRestore = 0;
           roleChanged = true;
         }
@@ -756,7 +756,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
         tstrncpy(desc.status, "ready", sizeof(desc.status));
         pClusterInfo->vgroups_alive++;
       }
-      if (pVgid->syncState != TAOS_SYNC_STATE_ERROR) {
+      if (pVgid->syncState != TAOS_SYNC_STATE_ERROR && pVgid->syncState != TAOS_SYNC_STATE_OFFLINE) {
         pClusterInfo->vnodes_alive++;
       }
       pClusterInfo->vnodes_total++;
