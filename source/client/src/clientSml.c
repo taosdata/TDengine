@@ -815,7 +815,7 @@ static int8_t smlGetTsTypeByPrecision(int8_t precision) {
 }
 
 static int64_t smlParseInfluxTime(SSmlHandle *info, const char *data, int32_t len) {
-  char *tmp = taosMemoryCalloc(1, len + 1);
+  char *tmp = (char*)taosMemoryCalloc(1, len + 1);
   memcpy(tmp, data, len);
   uDebug("SML:0x%" PRIx64 " smlParseInfluxTime ts:%s", info->id, tmp);
   taosMemoryFree(tmp);
@@ -2071,7 +2071,7 @@ static int32_t smlParseJSONString(SSmlHandle *info, cJSON *root, SSmlTableInfo *
 
 static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql, const int len) {
   SSmlLineInfo elements = {0};
-  char *tmp = taosMemoryCalloc(1, len + 1);
+  char *tmp = (char*)taosMemoryCalloc(1, len + 1);
   memcpy(tmp, sql, len);
   uDebug("SML:0x%" PRIx64 " smlParseInfluxLine raw:%d, sql:%s", info->id, info->isRawLine, (info->isRawLine ? tmp : sql));
   taosMemoryFree(tmp);
