@@ -1197,8 +1197,9 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
   while (TSDB_CODE_SUCCESS == code && NULL != p) {
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
     if (pTableCxt->ordered) {
-      code = tRowMergeSort(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
+      tRowSort(pTableCxt->pData->aRowP);
     }
+    code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
     if (TSDB_CODE_SUCCESS == code) {
       SVgroupDataCxt* pVgCxt = NULL;
       int32_t         vgId = pTableCxt->pMeta->vgId;

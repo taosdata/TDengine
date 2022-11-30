@@ -527,7 +527,7 @@ static int32_t tRowPCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 static void    tRowPDestroy(SRow **ppRow) { tRowDestroy(*ppRow); }
-static int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int32_t iEnd, int8_t flag) {
+static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int32_t iEnd, int8_t flag) {
   int32_t code = 0;
 
   int32_t    nRow = iEnd - iStart;
@@ -591,12 +591,14 @@ _exit:
   if (code) tRowDestroy(pRow);
   return code;
 }
-int32_t tRowMergeSort(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
-  if (aRowP->size <= 1) return 0;
 
-  int32_t code = 0;
-
+void tRowSort(SArray *aRowP) {
+  if (TARRAY_SIZE(aRowP) <= 1) return;
   taosArraySort(aRowP, tRowPCmprFn);
+}
+
+int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
+  int32_t code = 0;
 
   int32_t iStart = 0;
   while (iStart < aRowP->size) {
@@ -612,7 +614,7 @@ int32_t tRowMergeSort(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
     }
 
     if (iEnd - iStart > 1) {
-      code = tRowMerge(aRowP, pTSchema, iStart, iEnd, flag);
+      code = tRowMergeImpl(aRowP, pTSchema, iStart, iEnd, flag);
     }
 
     // the array is also changing, so the iStart just ++ instead of iEnd
@@ -2186,7 +2188,6 @@ int32_t tGetColData(uint8_t *pBuf, SColData *pColData) {
       n += pColData->nData;
     } else {
       pColData->nData = TYPE_BYTES[pColData->type] * pColData->nVal;
-      pColData->nData = pBuf + n;
       n += pColData->nData;
     }
   }
