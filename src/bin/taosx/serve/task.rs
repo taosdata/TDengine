@@ -575,7 +575,7 @@ impl TaskController {
                     log::error!("can not drop topic {topic}");
                     break;
                 }
-                if let Err(err) = taos.exec(format!("drop topic if exists {topic}")).await {
+                if let Err(_err) = taos.exec(format!("drop topic if exists {topic}")).await {
                     retries += 1;
                     tokio::time::sleep(Duration::from_millis(500)).await;
                 } else {
@@ -640,7 +640,7 @@ impl TaskController {
         }
         Ok(())
     }
-    pub async fn clear(&self) -> anyhow::Result<()> {
+    pub async fn _clear(&self) -> anyhow::Result<()> {
         for (id, (handle, token)) in self.tasks.write().await.drain() {
             token.cancel();
             if !handle.is_finished() {
