@@ -214,16 +214,16 @@ int32_t stmtCacheBlock(STscStmt* pStmt) {
     return TSDB_CODE_SUCCESS;
   }
 
-  STableDataBlocks** pSrc = taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
+  STableDataCxt** pSrc = taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   if (!pSrc) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  STableDataBlocks* pDst = NULL;
+  STableDataCxt* pDst = NULL;
 
-  STMT_ERR_RET(qCloneStmtDataBlock(&pDst, *pSrc));
+  STMT_ERR_RET(qCloneStmtDataBlock(&pDst, *pSrc, true));
 
   SStmtTableCache cache = {
-      .pDataBlock = pDst,
+      .pDataCtx = pDst,
       .boundTags = pStmt->bInfo.boundTags,
   };
 
@@ -289,7 +289,7 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
   size_t keyLen = 0;
   void*  pIter = taosHashIterate(pStmt->exec.pBlockHash, NULL);
   while (pIter) {
-    STableDataCxt* pBlocks = *(STableDataCxt*)pIter;
+    STableDataCxt* pBlocks = *(STableDataCxt**)pIter;
     char*          key = taosHashGetKey(pIter, &keyLen);
     STableMeta*    pMeta = qGetTableMetaInDataBlock(pBlocks);
 
@@ -333,7 +333,7 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
   while (pIter) {
     SStmtTableCache* pCache = (SStmtTableCache*)pIter;
 
-    qDestroyStmtDataBlock(pCache->pDataBlock);
+    qDestroyStmtDataBlock(pCache->pDataCtx);
     destroyBoundColumnInfo(pCache->boundTags);
     taosMemoryFreeClear(pCache->boundTags);
 
@@ -775,9 +775,9 @@ int stmtUpdateTableUid(STscStmt* pStmt, SSubmitRsp* pRsp) {
   int32_t code = 0;
   int32_t finalCode = 0;
   size_t  keyLen = 0;
-  STableDataCxt** pIter = taosHashIterate(pStmt->exec.pBlockHash, NULL);
+  void* pIter = taosHashIterate(pStmt->exec.pBlockHash, NULL);
   while (pIter) {
-    STableDataBlocks* pBlock = *pIter;
+    STableDataCxt* pBlock = *(STableDataCxt**)pIter;
     char*             key = taosHashGetKey(pIter, &keyLen);
 
     STableMeta* pMeta = qGetTableMetaInDataBlock(pBlock);

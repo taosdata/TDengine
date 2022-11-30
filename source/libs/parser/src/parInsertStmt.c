@@ -141,7 +141,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
     goto end;
   }
 
-  insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName, pDataBlock->pMeta->tableInfo.numOfTags);
+  insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName, pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
 
 end:
   for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
@@ -203,7 +203,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildBoundFields(int32_t numOfBound, int16_t boundColumns, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_E** fields,
+int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_E** fields,
                          uint8_t timePrec) {
   if (fields) {
     *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD));
@@ -265,7 +265,7 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fiel
     return TSDB_CODE_SUCCESS;
   }
 
-  CHECK_CODE(buildBoundFields(&pDataBlock->boundColsInfo.numOfBound, pDataBlock->boundColsInfo.pColIndex, pSchema, fieldNum, fields,
+  CHECK_CODE(buildBoundFields(pDataBlock->boundColsInfo.numOfBound, pDataBlock->boundColsInfo.pColIndex, pSchema, fieldNum, fields,
                               pDataBlock->pMeta->tableInfo.precision));
 
   return TSDB_CODE_SUCCESS;
@@ -338,12 +338,12 @@ int32_t qCloneStmtDataBlock(void** pDst, void* pSrc, bool reset) {
       insDestroyTableDataCxt(*pDst);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+
+    pNewCxt->pData = pNewTb;
     
     if (reset) {
       code = qResetStmtDataBlock(*pDst, true);
     }
-    
-    pNewCxt->pData = pNewTb;
   }
 
   

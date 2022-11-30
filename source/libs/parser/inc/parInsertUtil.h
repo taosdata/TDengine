@@ -133,7 +133,7 @@ int32_t insMergeTableDataBlocks(SHashObj *pHashObj, SArray **pVgDataBlocks);
 int32_t insBuildCreateTbMsg(STableDataBlocks *pBlocks, SVCreateTbReq *pCreateTbReq);
 int32_t insAllocateMemForSize(STableDataBlocks *pDataBlock, int32_t allSize);
 int32_t insCreateSName(SName *pName, struct SToken *pTableName, int32_t acctId, const char *dbName, SMsgBuf *pMsgBuf);
-int32_t insFindCol(struct SToken *pColname, int32_t start, int32_t end, SSchema *pSchema);
+int16_t insFindCol(struct SToken *pColname, int16_t start, int16_t end, SSchema *pSchema);
 void    insBuildCreateTbReq(SVCreateTbReq *pTbReq, const char *tname, STag *pTag, int64_t suid, const char *sname,
                             SArray *tagName, uint8_t tagNum, int32_t ttl);
 int32_t insMemRowAppend(SMsgBuf *pMsgBuf, const void *value, int32_t len, void *param);
@@ -173,5 +173,6 @@ void    insDestroyTableDataCxtHashMap(SHashObj *pTableCxtHash);
 void    insDestroyVgroupDataCxt(SVgroupDataCxt *pVgCxt);
 void    insDestroyVgroupDataCxtList(SArray *pVgCxtList);
 void    insDestroyVgroupDataCxtHashMap(SHashObj *pVgCxtHash);
+void    insDestroyTableDataCxt(STableDataCxt* pTableCxt);
 
 #endif  // TDENGINE_PAR_INSERT_UTIL_H

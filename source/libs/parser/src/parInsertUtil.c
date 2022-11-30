@@ -1230,14 +1230,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
     if (colFormat) {
       taosArraySort(pTableCxt->pData->aCol, insColDataComp);
       
-      int32_t colNum = taosArrayGetSize(pTableCxt->pData->aCol);
-      for (int32_t i = 0; i < colNum; ++i) {
-        SColData *pCol = taosArrayGet(pTableCxt->pData->aCol, i);
-        code = tColDataSortMerge(pCol);
-        if (code) {
-          break;
-        }
-      }
+      tColDataSortMerge(pTableCxt->pData->aCol);
     } else {
       if (!pTableCxt->ordered) {
         tRowSort(pTableCxt->pData->aRowP);
