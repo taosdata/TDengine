@@ -399,9 +399,7 @@ void taosArrayDestroyEx(SArray* pArray, FDelete fp) {
 }
 
 void taosArraySort(SArray* pArray, __compar_fn_t compar) {
-  assert(pArray != NULL);
-  assert(compar != NULL);
-
+  ASSERT(pArray != NULL && compar != NULL);
   taosSort(pArray->pData, pArray->size, pArray->elemSize, compar);
 }
 
@@ -415,11 +413,6 @@ void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t compa
 int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t comparFn, int32_t flags) {
   void* item = taosArraySearch(pArray, key, comparFn, flags);
   return item == NULL ? -1 : (int32_t)((char*)item - (char*)pArray->pData) / pArray->elemSize;
-}
-
-void taosArraySortString(SArray* pArray, __compar_fn_t comparFn) {
-  assert(pArray != NULL);
-  taosSort(pArray->pData, pArray->size, pArray->elemSize, comparFn);
 }
 
 static int32_t taosArrayPartition(SArray* pArray, int32_t i, int32_t j, __ext_compar_fn_t fn, const void* userData) {
