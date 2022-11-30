@@ -539,8 +539,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   if (needRemoveFile) {
     int32_t ret = taosRemoveFile(pBuf->path);
     if (ret != 0) {  // print the error and discard this error info
-      int32_t code = TAOS_SYSTEM_ERROR(errno);
-      uDebug("WARNING tPage remove file failed. path=%s, code:%s", pBuf->path, strerror(code));
+      uDebug("WARNING tPage remove file failed. path=%s, code:%s", pBuf->path, strerror(errno));
     }
   }
 
