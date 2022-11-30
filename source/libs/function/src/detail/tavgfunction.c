@@ -502,7 +502,11 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
           i8VectorSumAVX2(plist, numOfRows, type, pAvgRes);
         } else {
           for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-            pAvgRes->sum.usum += plist[i];
+            if (type == TSDB_DATA_TYPE_TINYINT) {
+              pAvgRes->sum.isum += plist[i];
+            } else {
+              pAvgRes->sum.usum += (uint8_t)plist[i];
+            }
           }
         }
         break;
@@ -517,7 +521,11 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
           i16VectorSumAVX2(plist, numOfRows, type, pAvgRes);
         } else {
           for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-            pAvgRes->sum.isum += plist[i];
+            if (type == TSDB_DATA_TYPE_SMALLINT) {
+              pAvgRes->sum.isum += plist[i];
+            } else {
+              pAvgRes->sum.usum += (uint16_t)plist[i];
+            }
           }
         }
         break;
@@ -532,7 +540,11 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
           i32VectorSumAVX2(plist, numOfRows, type, pAvgRes);
         } else {
           for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-            pAvgRes->sum.isum += plist[i];
+            if (type == TSDB_DATA_TYPE_INT) {
+              pAvgRes->sum.isum += plist[i];
+            } else {
+              pAvgRes->sum.usum += (uint32_t)plist[i];
+            }
           }
         }
         break;
@@ -547,7 +559,11 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
           i64VectorSumAVX2(plist, numOfRows, pAvgRes);
         } else {
           for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-            pAvgRes->sum.isum += plist[i];
+            if (type == TSDB_DATA_TYPE_BIGINT) {
+              pAvgRes->sum.isum += plist[i];
+            } else {
+              pAvgRes->sum.isum += (uint64_t)plist[i];
+            }
           }
         }
         break;
