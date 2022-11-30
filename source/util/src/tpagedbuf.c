@@ -507,7 +507,9 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
 
   dBufPrintStatis(pBuf);
 
+  bool needRemoveFile = false;
   if (pBuf->pFile != NULL) {
+    needRemoveFile = true;
     uDebug(
         "Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page "
         "size:%.2f Kb, %s\n",
@@ -534,9 +536,14 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
     }
   }
 
-  if (taosRemoveFile(pBuf->path) < 0) {
-    uDebug("WARNING tPage remove file failed. path=%s", pBuf->path);
+  if (needRemoveFile) {
+    int32_t ret = taosRemoveFile(pBuf->path);
+    if (ret != 0) {  // print the error and discard this error info
+      int32_t code = TAOS_SYSTEM_ERROR(errno);
+      uDebug("WARNING tPage remove file failed. path=%s, code:%s", pBuf->path, strerror(code));
+    }
   }
+
   taosMemoryFreeClear(pBuf->path);
 
   size_t n = taosArrayGetSize(pBuf->pIdList);
