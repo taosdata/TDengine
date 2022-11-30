@@ -189,9 +189,9 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
             // schema rebuild
             let taos = target.build()?;
             if let Some(target) = target_database.as_ref() {
-                taos.exec(format!("use {}", target)).await?;
+                taos.exec(format!("use `{}`", target)).await?;
             } else {
-                taos.exec(format!("use {}", topic.database)).await?;
+                taos.exec(format!("use `{}`", topic.database)).await?;
             }
 
             if let Some(sql) = table.stable_sql.as_deref() {
@@ -248,9 +248,9 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
             let sem = task_sem.clone().acquire_owned().await?;
             let taos = target.build()?;
             if let Some(target) = target_database.as_ref() {
-                taos.exec(format!("use {}", target)).await?;
+                taos.exec(format!("use `{}`", target)).await?;
             } else {
-                taos.exec(format!("use {}", topic.database)).await?;
+                taos.exec(format!("use `{}`", topic.database)).await?;
             }
 
             let table = topic.table.as_ref().map(|t| t.table.clone());

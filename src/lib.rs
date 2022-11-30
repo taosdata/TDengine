@@ -6,10 +6,11 @@ mod taoz;
 mod tmq;
 mod tmq_to_local;
 mod tmq_to_td;
+
 mod transform;
 pub mod utils;
 
-use taos::{Dsn, IntoDsn};
+use taos::Dsn;
 
 pub use csv::*;
 pub use legacy::legacy_to_taos;
@@ -53,35 +54,6 @@ impl Drop for TaskOpts {
 }
 
 impl TaskOpts {
-    // pub fn synchronize_database_from(database: &str, from: impl IntoDsn) -> anyhow::Result<Self> {
-    //     let to = format!("taos:///{database}").parse()?;
-    //     let from = from.into_dsn()?;
-    //     Ok(Self {
-    //         from,
-    //         to,
-    //         ..Default::default()
-    //     })
-    // }
-    // pub fn synchronize_database_to(database: &str, to: impl IntoDsn) -> anyhow::Result<Self> {
-    //     let from = format!("tmq:///{database}").parse()?;
-    //     let to = to.into_dsn()?;
-    //     Ok(Self {
-    //         from,
-    //         to,
-    //         ..Default::default()
-    //     })
-    // }
-
-    // pub fn subscribe_from(database: &str, from: impl IntoDsn) -> anyhow::Result<Self> {
-    //     let to = format!("taos:///{database}").parse()?;
-    //     let from = from.into_dsn()?;
-    //     Ok(Self {
-    //         from,
-    //         to,
-    //         ..Default::default()
-    //     })
-    // }
-
     pub fn cancel(&self) {
         self.cancel.cancel();
     }
