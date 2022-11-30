@@ -187,6 +187,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
 
   vDebug("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          version);
+  ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
 
   pVnode->state.applied = version;
   pVnode->state.applyTerm = pMsg->info.conn.applyTerm;

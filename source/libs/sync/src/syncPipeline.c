@@ -224,6 +224,9 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   // update startIndex
   pBuf->startIndex = takeDummy ? index : index + 1;
 
+  sInfo("vgId:%d, init sync log buffer. buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pNode->vgId,
+        pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+
   // validate
   syncLogBufferValidate(pBuf);
   return 0;
@@ -826,6 +829,10 @@ int32_t syncLogReplMgrReplicateAttemptedOnce(SSyncLogReplMgr* pMgr, SSyncNode* p
 
     pMgr->endIndex = index + 1;
     if (barrier) {
+      sInfo("vgId:%d, replicated sync barrier to dest: %" PRIx64 ". index: %" PRId64 ", term: %" PRId64
+            ", repl mgr: rs(%d) [%" PRId64 " %" PRId64 ", %" PRId64 ")",
+            pNode->vgId, pDestId->addr, index, term, pMgr->restored, pMgr->startIndex, pMgr->matchIndex,
+            pMgr->endIndex);
       break;
     }
   }
