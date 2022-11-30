@@ -122,7 +122,7 @@ extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max,
 
 // for stmt bind
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind);
-int32_t tColDataSortMerge(SColData *aColData);
+void    tColDataSortMerge(SArray *colDataArr);
 
 // for encode/decode
 int32_t tPutColData(uint8_t *pBuf, SColData *pColData);

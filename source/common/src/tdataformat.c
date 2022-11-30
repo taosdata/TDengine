@@ -2106,9 +2106,45 @@ _exit:
   return code;
 }
 
-int32_t tColDataSortMerge(SColData *aColData) {
-  // todo
-  return 0;
+void tColDataSortMerge(SArray *colDataArr) {
+  int32_t   nColData = TARRAY_SIZE(colDataArr);
+  SColData *aColData = (SColData *)TARRAY_DATA(colDataArr);
+
+  if (aColData[0].nVal <= 1) goto _exit;
+
+  ASSERT(aColData[0].type == TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT(aColData[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
+  ASSERT(aColData[0].flag == HAS_VALUE);
+
+  int8_t doSort = 0;
+  int8_t doMerge = 0;
+  // scan -------
+  TSKEY *aKey = (TSKEY *)aColData[0].pData;
+  for (int32_t iVal = 1; iVal < aColData[0].nVal; ++iVal) {
+    if (aKey[iVal] > aKey[iVal - 1]) {
+      continue;
+    } else if (aKey[iVal] < aKey[iVal - 1]) {
+      doSort = 1;
+      break;
+    } else {
+      doMerge = 1;
+    }
+  }
+
+  // sort -------
+  if (doSort) {
+    ASSERT(0);
+    // todo
+  }
+
+  // merge -------
+  if (doMerge) {
+    ASSERT(0);
+    // todo
+  }
+
+_exit:
+  return;
 }
 
 int32_t tPutColData(uint8_t *pBuf, SColData *pColData) {
