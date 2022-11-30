@@ -2186,7 +2186,6 @@ int32_t tGetColData(uint8_t *pBuf, SColData *pColData) {
       n += pColData->nData;
     } else {
       pColData->nData = TYPE_BYTES[pColData->type] * pColData->nVal;
-      pColData->nData = pBuf + n;
       n += pColData->nData;
     }
   }
