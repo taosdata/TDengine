@@ -800,6 +800,11 @@ static int32_t mnodeGetStatusMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   strcpy(pSchema[0].name, "status");
   pSchema[0].bytes = htons(pShow->bytes[0]);
 
+  pMeta->numOfColumns = htons(1);
+  pShow->numOfColumns = 1;
+  pShow->rowSize = sizeof(int32_t);
+  pShow->offset[0] = 0;
+
   return 0;
 }
 
@@ -807,6 +812,7 @@ static int32_t mnodeRetrieveStatus(SShowObj *pShow, char *data, int32_t rows, vo
   SVgObj *pVgroup = NULL;
   int32_t nAvailble = 0;
   int32_t nUnAvailble = 0;
+  int32_t numOfRows = 0;
 
   // get status 
   while (numOfRows < rows) {
@@ -828,7 +834,7 @@ static int32_t mnodeRetrieveStatus(SShowObj *pShow, char *data, int32_t rows, vo
 
     // check master
     bool master = false;
-    for (int32_t i = 0; i < pShow->maxReplica; ++i) {
+    for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
       if (pVgroup->vnodeGid[i].role == TAOS_SYNC_ROLE_MASTER) {
         master = true;
         break;
