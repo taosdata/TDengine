@@ -2467,8 +2467,12 @@ const char* syncStr(ESyncState state) {
       return "candidate";
     case TAOS_SYNC_STATE_LEADER:
       return "leader";
-    default:
+    case TAOS_SYNC_STATE_ERROR:
       return "error";
+    case TAOS_SYNC_STATE_OFFLINE:
+      return "offline";
+    default:
+      return "unknown";
   }
 }
 
