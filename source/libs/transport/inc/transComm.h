@@ -169,6 +169,7 @@ typedef struct {
   char spi : 2;
   char hasEpSet : 2;  // contain epset or not, 0(default): no epset, 1: contain epset
 
+  uint64_t timestamp;
   char     user[TSDB_UNI_LEN];
   uint32_t magicNum;
   STraceId traceId;

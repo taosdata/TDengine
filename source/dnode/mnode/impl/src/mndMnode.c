@@ -185,7 +185,7 @@ static int32_t mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pObj) {
     return -1;
   }
 
-  pObj->syncState = TAOS_SYNC_STATE_ERROR;
+  pObj->syncState = TAOS_SYNC_STATE_OFFLINE;
   mndReloadSyncConfig(pSdb->pMnode);
   return 0;
 }
