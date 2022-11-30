@@ -381,15 +381,13 @@ int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
   return 0;
 }
 
-bool syncIsReadyForRead(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+bool syncNodeIsReadyForRead(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) {
     sError("sync ready for read error");
     return false;
   }
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER && pSyncNode->restoreFinish) {
-    syncNodeRelease(pSyncNode);
     return true;
   }
 
@@ -442,6 +440,18 @@ bool syncIsReadyForRead(int64_t rid) {
       terrno = TSDB_CODE_APP_NOT_READY;
     }
   }
+
+  return ready;
+}
+
+bool syncIsReadyForRead(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    sError("sync ready for read error");
+    return false;
+  }
+
+  bool ready = syncNodeIsReadyForRead(pSyncNode);
 
   syncNodeRelease(pSyncNode);
   return ready;
@@ -521,6 +531,7 @@ SSyncState syncGetState(int64_t rid) {
   if (pSyncNode != NULL) {
     state.state = pSyncNode->state;
     state.restored = pSyncNode->restoreFinish;
+    state.canRead = syncNodeIsReadyForRead(pSyncNode);
     syncNodeRelease(pSyncNode);
   }
 

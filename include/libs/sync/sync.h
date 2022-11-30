@@ -210,9 +210,14 @@ typedef struct SSyncInfo {
   int32_t (*syncEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 } SSyncInfo;
 
+// if state == leader
+//     if restored, display "leader"
+//     if !restored && canRead, display "leader*"
+//     if !restored && !canRead, display "leader**"
 typedef struct SSyncState {
   ESyncState state;
   bool       restored;
+  bool       canRead;
 } SSyncState;
 
 int32_t syncInit();
