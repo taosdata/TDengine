@@ -1229,7 +1229,7 @@ int transReleaseSrvHandle(void* handle) {
   m->msg = tmsg;
   m->type = Release;
 
-  tTrace("%s conn %p start to release", transLabel(pThrd->pTransInst), exh->handle);
+  tDebug("%s conn %p start to release", transLabel(pThrd->pTransInst), exh->handle);
   if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
     destroySmsg(m);
   }
@@ -1237,11 +1237,11 @@ int transReleaseSrvHandle(void* handle) {
   transReleaseExHandle(transGetRefMgt(), refId);
   return 0;
 _return1:
-  tTrace("handle %p failed to send to release handle", exh);
+  tDebug("handle %p failed to send to release handle", exh);
   transReleaseExHandle(transGetRefMgt(), refId);
   return -1;
 _return2:
-  tTrace("handle %p failed to send to release handle", exh);
+  tDebug("handle %p failed to send to release handle", exh);
   return -1;
 }
 int transSendResponse(const STransMsg* msg) {
@@ -1266,7 +1266,7 @@ int transSendResponse(const STransMsg* msg) {
   m->type = Normal;
 
   STraceId* trace = (STraceId*)&msg->info.traceId;
-  tGTrace("conn %p start to send resp (1/2)", exh->handle);
+  tGDebug("conn %p start to send resp (1/2)", exh->handle);
   if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
     destroySmsg(m);
   }
@@ -1275,12 +1275,12 @@ int transSendResponse(const STransMsg* msg) {
   return 0;
 
 _return1:
-  tTrace("handle %p failed to send resp", exh);
+  tDebug("handle %p failed to send resp", exh);
   rpcFreeCont(msg->pCont);
   transReleaseExHandle(transGetRefMgt(), refId);
   return -1;
 _return2:
-  tTrace("handle %p failed to send resp", exh);
+  tDebug("handle %p failed to send resp", exh);
   rpcFreeCont(msg->pCont);
   return -1;
 }
@@ -1302,7 +1302,7 @@ int transRegisterMsg(const STransMsg* msg) {
   m->type = Register;
 
   STrans* pTransInst = pThrd->pTransInst;
-  tTrace("%s conn %p start to register brokenlink callback", transLabel(pTransInst), exh->handle);
+  tDebug("%s conn %p start to register brokenlink callback", transLabel(pTransInst), exh->handle);
   if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
     destroySmsg(m);
   }
@@ -1311,12 +1311,12 @@ int transRegisterMsg(const STransMsg* msg) {
   return 0;
 
 _return1:
-  tTrace("handle %p failed to register brokenlink", exh);
+  tDebug("handle %p failed to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
   transReleaseExHandle(transGetRefMgt(), refId);
   return -1;
 _return2:
-  tTrace("handle %p failed to register brokenlink", exh);
+  tDebug("handle %p failed to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
   return -1;
 }

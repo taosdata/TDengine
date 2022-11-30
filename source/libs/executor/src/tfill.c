@@ -918,8 +918,11 @@ void setDeleteFillValueInfo(TSKEY start, TSKEY end, SStreamFillSupporter* pFillS
     return;
   }
 
+  TSKEY realStart = taosTimeAdd(pFillSup->prev.key, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
+                                pFillSup->interval.precision);
+
   pFillInfo->needFill = true;
-  pFillInfo->start = start;
+  pFillInfo->start = realStart;
   pFillInfo->current = pFillInfo->start;
   pFillInfo->end = end;
   pFillInfo->pos = FILL_POS_INVALID;
@@ -1310,8 +1313,8 @@ static void buildDeleteRange(SOperatorInfo* pOp, TSKEY start, TSKEY end, uint64_
     char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
     STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
     colDataAppend(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
+    tdbFree(tbname);
   }
-  tdbFree(tbname);
 
   pBlock->info.rows++;
 }
@@ -1418,9 +1421,13 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
         if (code == TSDB_CODE_SUCCESS) {
           code = streamStateGetGroupKVByCur(pCur, &nextKey, (const void**)&nextVal, &nextLen);
         }
+        // ts will be deleted later
         if (delTs != ts) {
           streamStateFillDel(pOperator->pTaskInfo->streamInfo.pState, &delKey);
+          streamStateFreeCur(pCur);
+          pCur = streamStateGetAndCheckCur(pOperator->pTaskInfo->streamInfo.pState, &nextKey);
         }
+        endTs = TMAX(ts, nextKey.ts - 1);
         if (code != TSDB_CODE_SUCCESS) {
           break;
         }

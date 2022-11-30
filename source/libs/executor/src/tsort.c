@@ -116,9 +116,12 @@ void tsortClearOrderdSource(SArray *pOrderedSource) {
     if (NULL == *pSource) {
       continue;
     }
-    
+    // release pageIdList
+    if ((*pSource)->pageIdList) {
+      taosArrayDestroy((*pSource)->pageIdList);
+    }
     if ((*pSource)->param && !(*pSource)->onlyRef) {
-      taosMemoryFree((*pSource)->param);  
+      taosMemoryFree((*pSource)->param);
     }
     taosMemoryFreeClear(*pSource);
   }

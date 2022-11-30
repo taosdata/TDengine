@@ -526,7 +526,7 @@ static int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
  * count function does not use the pCtx->interResBuf to keep the intermediate buffer
  */
 int32_t countFunction(SqlFunctionCtx* pCtx) {
-  int32_t numOfElem = getNumOfElems(pCtx);
+  int32_t numOfElem = 0;
 
   SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
   SInputColumnInfoData* pInput = &pCtx->input;
@@ -539,6 +539,7 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
     numOfElem = 1;
     *((int64_t*)buf) = 0;
   } else {
+    numOfElem = getNumOfElems(pCtx);
     *((int64_t*)buf) += numOfElem;
   }
 
@@ -2043,12 +2044,16 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
 
   pInfo->bytes = pInputCol->info.bytes;
 
+  if (IS_NULL_TYPE(pInputCol->info.type)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   // All null data column, return directly.
   if (pInput->colDataSMAIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
     ASSERT(pInputCol->hasNull == true);
     // save selectivity value for column consisted of all null values
     firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   SColumnDataAgg* pColAgg = (pInput->colDataSMAIsSet) ? pInput->pColumnDataAgg[0] : NULL;
@@ -2147,12 +2152,16 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   int32_t bytes = pInputCol->info.bytes;
   pInfo->bytes = bytes;
 
+  if (IS_NULL_TYPE(type)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   // All null data column, return directly.
   if (pInput->colDataSMAIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
     ASSERT(pInputCol->hasNull == true);
     // save selectivity value for column consisted of all null values
     firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   SColumnDataAgg* pColAgg = (pInput->colDataSMAIsSet) ? pInput->pColumnDataAgg[0] : NULL;
@@ -2417,8 +2426,13 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
+  int32_t type  = pInputCol->info.type;
   int32_t bytes = pInputCol->info.bytes;
   pInfo->bytes = bytes;
+
+  if (IS_NULL_TYPE(type)) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
   TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
@@ -3869,6 +3883,10 @@ int32_t hllFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfRows = pInput->numOfRows;
 
   int32_t numOfElems = 0;
+  if (IS_NULL_TYPE(type)) {
+    goto _hll_over;
+  }
+
   for (int32_t i = start; i < numOfRows + start; ++i) {
     if (pCol->hasNull && colDataIsNull_s(pCol, i)) {
       continue;
@@ -3890,6 +3908,7 @@ int32_t hllFunction(SqlFunctionCtx* pCtx) {
     }
   }
 
+_hll_over:
   pInfo->totalCount += numOfElems;
 
   if (pInfo->totalCount == 0 && !tsCountAlwaysReturnValue) {
@@ -3913,11 +3932,15 @@ static void hllTransferInfo(SHLLInfo* pInput, SHLLInfo* pOutput) {
 int32_t hllFunctionMerge(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pCol = pInput->pData[0];
-  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
+
+  if (pCol->info.type != TSDB_DATA_TYPE_BINARY) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   SHLLInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   int32_t start = pInput->startRowIndex;
+
 
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
     char*     data = colDataGetData(pCol, i);

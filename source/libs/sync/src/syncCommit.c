@@ -117,9 +117,11 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       if (h) {
         pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
 
+        pSyncNode->pLogStore->cacheHit++;
         sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", index, pEntry->bytes, pEntry);
 
       } else {
+        pSyncNode->pLogStore->cacheMiss++;
         sNTrace(pSyncNode, "miss cache index:%" PRId64, index);
 
         int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index, &pEntry);
