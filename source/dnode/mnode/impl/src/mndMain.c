@@ -150,12 +150,16 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
 
     bool roleChanged = false;
     for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
-      if (pVgroup->vnodeGid[vg].dnodeId == dnodeId) {
-        if (pVgroup->vnodeGid[vg].syncState != TAOS_SYNC_STATE_OFFLINE) {
-          mInfo("vgId:%d, state changed by offline check, old state:%s restored:%d new state:error restored:0",
-                pVgroup->vgId, syncStr(pVgroup->vnodeGid[vg].syncState), pVgroup->vnodeGid[vg].syncRestore);
-          pVgroup->vnodeGid[vg].syncState = TAOS_SYNC_STATE_OFFLINE;
-          pVgroup->vnodeGid[vg].syncRestore = 0;
+      SVnodeGid *pGid = &pVgroup->vnodeGid[vg];
+      if (pGid->dnodeId == dnodeId) {
+        if (pGid->syncState != TAOS_SYNC_STATE_OFFLINE) {
+          mInfo(
+              "vgId:%d, state changed by offline check, old state:%s restored:%d canRead:%d new state:error restored:0 "
+              "canRead:0",
+              pVgroup->vgId, syncStr(pGid->syncState), pGid->syncRestore, pGid->syncCanRead);
+          pGid->syncState = TAOS_SYNC_STATE_OFFLINE;
+          pGid->syncRestore = 0;
+          pGid->syncCanRead = 0;
           roleChanged = true;
         }
         break;
