@@ -402,7 +402,8 @@ class TDTestCase:
         tdSql.checkRows(0)
 
         tdSql.query(f"select count(c1) from {dbname}.ct4 where t1 = 1 ")
-        tdSql.checkRows(0)
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,0)
 
         tdSql.query(f"select last_row(c1) ,last(c1)  from {dbname}.stb1 where  c1 is null")
         tdSql.checkRows(1)
