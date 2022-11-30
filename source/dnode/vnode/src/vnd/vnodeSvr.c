@@ -978,7 +978,7 @@ _exit:
 
   // clear
   taosArrayDestroy(newTbUids);
-  tDestroySSubmitReq2(pSubmitReq);
+  tDestroySSubmitReq2(pSubmitReq, TSDB_MSG_FLG_DECODE);
   tDestroySSubmitRsp2(pSubmitRsp, TSDB_MSG_FLG_ENCODE);
 
   return code;

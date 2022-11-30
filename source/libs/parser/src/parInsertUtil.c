@@ -1092,7 +1092,7 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
   destroyBoundColInfo(&pTableCxt->boundColsInfo);
   taosArrayDestroyEx(pTableCxt->pValues, destroyColVal);
   if (pTableCxt->pData) {
-    tDestroySSubmitTbData(pTableCxt->pData);
+    tDestroySSubmitTbData(pTableCxt->pData, TSDB_MSG_FLG_ENCODE);
     taosMemoryFree(pTableCxt->pData);
   }
   taosMemoryFree(pTableCxt);
@@ -1103,7 +1103,7 @@ void insDestroyVgroupDataCxt(SVgroupDataCxt* pVgCxt) {
     return;
   }
 
-  tDestroySSubmitReq2(pVgCxt->pData);
+  tDestroySSubmitReq2(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
   taosMemoryFree(pVgCxt);
 }
 
