@@ -40,7 +40,7 @@ static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsd
   }
   pFD->szPage = szPage;
   pFD->pgno = 0;
-  pFD->pBuf = taosMemoryMalloc(szPage);
+  pFD->pBuf = taosMemoryCalloc(1, szPage);
   if (pFD->pBuf == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     taosCloseFile(&pFD->pFD);

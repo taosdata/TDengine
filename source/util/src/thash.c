@@ -244,7 +244,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
     capacity = 4;
   }
 
-  SHashObj *pHashObj = (SHashObj *)taosMemoryCalloc(1, sizeof(SHashObj));
+  SHashObj *pHashObj = (SHashObj *)taosMemoryMalloc(sizeof(SHashObj));
   if (pHashObj == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -264,7 +264,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 
   ASSERT((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
 
-  pHashObj->hashList = (SHashEntry **)taosMemoryCalloc(pHashObj->capacity, sizeof(void *));
+  pHashObj->hashList = (SHashEntry **)taosMemoryMalloc(pHashObj->capacity * sizeof(void *));
   if (pHashObj->hashList == NULL) {
     taosMemoryFree(pHashObj);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
