@@ -26,10 +26,10 @@ extern "C" {
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
 typedef struct {
-  char* key;
-  uint8_t type;
-  int16_t length;
-  char* value;
+  char*    key;
+  uint8_t  type;
+  uint16_t length;
+  char*    value;
   uint32_t fieldSchemaIdx;
 } TAOS_SML_KV;
 

@@ -226,12 +226,10 @@ do { \
 #define TSDB_APPNAME_LEN          TSDB_UNI_LEN
 
   /**
-   *  In some scenarios uint16_t (0~65535) is used to store the row len.
-   *  - Firstly, we use 65531(65535 - 4), as the SDataRow/SKVRow contains 4 bits header.
-   *  - Secondly, if all cols are VarDataT type except primary key, we need 4 bits to store the offset, thus
-   *    the final value is 65531-(4096-1)*4 = 49151.
+   *  uint16_t (0~65535) is used to store the row length, and SDataRow contains 4 bits header.
+   *  history value: 49151:65531
    */
-#define TSDB_MAX_BYTES_PER_ROW    49151
+#define TSDB_MAX_BYTES_PER_ROW    65531
 #define TSDB_MAX_TAGS_LEN         16384
 #define TSDB_MAX_JSON_TAGS_LEN    (4096*TSDB_NCHAR_SIZE + 2 + 1) // 2->var_header_len 1->type
 #define TSDB_MAX_TAGS             128
@@ -371,9 +369,9 @@ do { \
 #define TSDB_MAX_JOIN_TABLE_NUM         10
 #define TSDB_MAX_UNION_CLAUSE           5
 
-#define TSDB_MAX_FIELD_LEN              16384
-#define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
-#define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
+#define TSDB_MAX_FIELD_LEN              65519
+#define TSDB_MAX_BINARY_LEN             TSDB_MAX_FIELD_LEN  // 16384:65519
+#define TSDB_MAX_NCHAR_LEN              TSDB_MAX_FIELD_LEN  // 16384:65519
 #define PRIMARYKEY_TIMESTAMP_COL_INDEX  0
 
 #define TSDB_MAX_RPC_THREADS            5

@@ -195,7 +195,7 @@ void insertImp(void *param) {
       for (int j = 0; j < arguments.table; j++) {
         sqlLen += sprintf(sql + sqlLen, " s%d_%d values (%ld, %d, %d, %d)", i, j, time, rand(), rand(), rand());
         count++;
-        if ( (1048576 - sqlLen) < 49151 || i == (pThread->threadId * arguments.stable / arguments.client - 1)) {
+        if ( (1048576 - sqlLen) < 65531 || i == (pThread->threadId * arguments.stable / arguments.client - 1)) {
           result = taos_query(pThread->taos, sql);
           printf("Thread %d already insert %d rows\n", pThread->threadId, count);
           if (result == NULL || taos_errno(result) != 0) {

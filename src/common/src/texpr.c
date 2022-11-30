@@ -384,7 +384,7 @@ static uint8_t UNUSED_FUNC isQueryOnPrimaryKey(const char *primaryColumnName, co
   }
 }
 
-static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOfRows, int16_t colSize) {
+static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOfRows, uint16_t colSize) {
   switch(type) {
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_UTINYINT:{
@@ -891,7 +891,7 @@ static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
   } else if (expr->nodeType == TSQL_NODE_COL) {
     SSchema* pSchema = expr->pSchema;
     tbufWriteInt16(bw, pSchema->colId);
-    tbufWriteInt16(bw, pSchema->bytes);
+    tbufWriteUint16(bw, pSchema->bytes);
     tbufWriteUint8(bw, pSchema->type);
     tbufWriteString(bw, pSchema->name);
     
@@ -908,7 +908,7 @@ static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
     }
   }
   tbufWriteInt16(bw, expr->resultType);
-  tbufWriteInt16(bw, expr->resultBytes);
+  tbufWriteUint16(bw, expr->resultBytes);
 }
 
 void exprTreeToBinary(SBufferWriter* bw, tExprNode* expr) {
@@ -963,7 +963,7 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
     pExpr->pSchema = pSchema;
 
     pSchema->colId = tbufReadInt16(br);
-    pSchema->bytes = tbufReadInt16(br);
+    pSchema->bytes = tbufReadUint16(br);
     pSchema->type = tbufReadUint8(br);
     tbufReadToString(br, pSchema->name, TSDB_COL_NAME_LEN);
     
@@ -982,7 +982,7 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
     }
   }
   pExpr->resultType = tbufReadInt16(br);
-  pExpr->resultBytes = tbufReadInt16(br);
+  pExpr->resultBytes = tbufReadUint16(br);
   CLEANUP_EXECUTE_TO(anchor, false);
   return pExpr;
 }
@@ -1288,10 +1288,10 @@ int32_t exprValidateStringConcatNode(tExprNode *pExpr) {
         }
         char* payload = malloc((child->pVal->nLen+1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
         tVariantDump(child->pVal, payload, resultType, true);
-        int16_t resultBytes = varDataTLen(payload);
+        uint16_t resultBytes = varDataTLen(payload);
         free(payload);
         child->resultType = resultType;
-        child->resultBytes = (int16_t)(resultBytes);
+        child->resultBytes = resultBytes;
       }
     }
   } else {
@@ -1308,7 +1308,7 @@ int32_t exprValidateStringConcatNode(tExprNode *pExpr) {
   }
 
   pExpr->resultType = resultType;
-  int16_t resultBytes = 0;
+  uint16_t resultBytes = 0;
   for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
     tExprNode *child = pExpr->_func.pChildren[i];
     if (resultBytes <= resultBytes + child->resultBytes - VARSTR_HEADER_SIZE) {
@@ -1360,10 +1360,10 @@ int32_t exprValidateStringConcatWsNode(tExprNode *pExpr) {
         }
         char* payload = malloc((child->pVal->nLen+1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
         tVariantDump(child->pVal, payload, resultType, true);
-        int16_t resultBytes = varDataTLen(payload);
+        uint16_t resultBytes = varDataTLen(payload);
         free(payload);
         child->resultType = resultType;
-        child->resultBytes = (int16_t)(resultBytes);
+        child->resultBytes = resultBytes;
       }
     }
   } else {
@@ -1380,7 +1380,7 @@ int32_t exprValidateStringConcatWsNode(tExprNode *pExpr) {
   }
 
   pExpr->resultType = resultType;
-  int16_t resultBytes = 0;
+  uint16_t resultBytes = 0;
   for (int32_t i = 1; i < pExpr->_func.numChildren; ++i) {
     tExprNode *child = pExpr->_func.pChildren[i];
     if (resultBytes <= resultBytes + child->resultBytes - VARSTR_HEADER_SIZE) {
@@ -1390,7 +1390,7 @@ int32_t exprValidateStringConcatWsNode(tExprNode *pExpr) {
     }
   }
   tExprNode* wsNode = pExpr->_func.pChildren[0];
-  int16_t wsResultBytes = wsNode->resultBytes - VARSTR_HEADER_SIZE;
+  uint16_t wsResultBytes = wsNode->resultBytes - VARSTR_HEADER_SIZE;
   resultBytes += wsResultBytes * (pExpr->_func.numChildren - 2);
   pExpr->resultBytes = resultBytes + VARSTR_HEADER_SIZE;
   return TSDB_CODE_SUCCESS;
@@ -1406,7 +1406,7 @@ int32_t exprValidateStringLengthNode(tExprNode *pExpr) {
 
   if (child1->nodeType == TSQL_NODE_VALUE) {
     child1->resultType = (int16_t)child1->pVal->nType;
-    child1->resultBytes = (int16_t)(child1->pVal->nLen + VARSTR_HEADER_SIZE);
+    child1->resultBytes = (uint16_t)(child1->pVal->nLen + VARSTR_HEADER_SIZE);
   }
 
   if (!IS_VAR_DATA_TYPE(child1->resultType)) {
@@ -1428,7 +1428,7 @@ int32_t exprValidateStringLowerUpperTrimNode(char* msgBuf, tExprNode *pExpr) {
 
   if (child1->nodeType == TSQL_NODE_VALUE) {
     child1->resultType = (int16_t)child1->pVal->nType;
-    child1->resultBytes = (int16_t)(child1->pVal->nLen + VARSTR_HEADER_SIZE);
+    child1->resultBytes = (uint16_t)(child1->pVal->nLen + VARSTR_HEADER_SIZE);
   }
 
   if (!IS_VAR_DATA_TYPE(child1->resultType)) {
@@ -1450,7 +1450,7 @@ int32_t exprValidateStringSubstrNode(char* msgBuf, tExprNode *pExpr) {
 
   if (child1->nodeType == TSQL_NODE_VALUE) {
     child1->resultType = (int16_t)child1->pVal->nType;
-    child1->resultBytes = (int16_t)(child1->pVal->nLen + VARSTR_HEADER_SIZE);
+    child1->resultBytes = (uint16_t)(child1->pVal->nLen + VARSTR_HEADER_SIZE);
   }
 
   if (!IS_VAR_DATA_TYPE(child1->resultType)) {
@@ -1629,7 +1629,7 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
       }
       child->nodeType    = TSQL_NODE_VALUE;
       child->resultType  = TSDB_DATA_TYPE_TIMESTAMP;
-      child->resultBytes = (int16_t)tDataTypes[child->resultType].bytes;
+      child->resultBytes = (uint16_t)tDataTypes[child->resultType].bytes;
 
       child->pVal = (tVariant *)tcalloc(1, sizeof(tVariant));
       if (!child->pVal) {
@@ -1662,7 +1662,7 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
         child->pVal->i64 = convertTimePrecision(timeVal, TSDB_TIME_PRECISION_MILLI, pExpr->precision);
       }
       pExpr->resultType  = TSDB_DATA_TYPE_TIMESTAMP;
-      pExpr->resultBytes = (int16_t)tDataTypes[pExpr->resultType].bytes;
+      pExpr->resultBytes = (uint16_t)tDataTypes[pExpr->resultType].bytes;
       break;
     }
     case TSDB_FUNC_SCALAR_TIMEZONE: {
@@ -1769,7 +1769,7 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
       child1->pVal->i64   = (int64_t)pExpr->precision;
 
       pExpr->resultType = TSDB_DATA_TYPE_BIGINT;
-      pExpr->resultBytes = (int16_t)tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      pExpr->resultBytes = (uint16_t)tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
       break;
     }
     case TSDB_FUNC_SCALAR_TIMETRUNCATE: {
@@ -1835,7 +1835,7 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
       }
       child2->nodeType    = TSQL_NODE_VALUE;
       child2->resultType  = TSDB_DATA_TYPE_BIGINT;
-      child2->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      child2->resultBytes = (uint16_t)tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
 
       child2->pVal = (tVariant *)tcalloc(1, sizeof(tVariant));
       if (!child2->pVal) {
@@ -1846,7 +1846,7 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
       child2->pVal->i64   = (int64_t)pExpr->precision;
 
       pExpr->resultType = TSDB_DATA_TYPE_TIMESTAMP;
-      pExpr->resultBytes = (int16_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+      pExpr->resultBytes = (uint16_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
       break;
     }
     case TSDB_FUNC_SCALAR_TIMEDIFF: {
@@ -1924,7 +1924,7 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
       }
       childPrec->nodeType    = TSQL_NODE_VALUE;
       childPrec->resultType  = TSDB_DATA_TYPE_BIGINT;
-      childPrec->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      childPrec->resultBytes = (uint16_t)tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
 
       childPrec->pVal = (tVariant *)tcalloc(1, sizeof(tVariant));
       if (!childPrec->pVal) {
@@ -1937,7 +1937,7 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
       free(child);
 
       pExpr->resultType = TSDB_DATA_TYPE_BIGINT;
-      pExpr->resultBytes = (int16_t)tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      pExpr->resultBytes = (uint16_t)tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
       break;
     }
     default: {
@@ -2054,7 +2054,7 @@ void vectorLength(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInpu
   }
 }
 
-void castConvert(int16_t inputType, int16_t inputBytes, char *input, int16_t OutputType, int16_t outputBytes, char *output) {
+void castConvert(int16_t inputType, uint16_t inputBytes, char *input, int16_t OutputType, uint16_t outputBytes, char *output) {
   switch (OutputType) {
     case TSDB_DATA_TYPE_BIGINT:
       if (inputType == TSDB_DATA_TYPE_BINARY) {

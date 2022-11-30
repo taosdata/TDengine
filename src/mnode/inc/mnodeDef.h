@@ -239,7 +239,7 @@ typedef struct SFuncObj {
   int32_t           bufSize;
   int64_t           createdTime;
   uint8_t           resType;
-  int16_t           resBytes;
+  uint16_t          resBytes;
   int64_t           sig;         // partial md5 sign
   int16_t           type;        // [lua script|so|js]
   int8_t            reserved[64];
@@ -288,10 +288,10 @@ typedef struct {
   int32_t  index;
   int32_t  rowSize;
   int32_t  numOfRows;
-  void *   pIter;
-  void *   pVgIter;
-  void **  ppShow;
-  int16_t  offset[TSDB_MAX_COLUMNS];
+  void    *pIter;
+  void    *pVgIter;
+  void   **ppShow;
+  uint16_t offset[TSDB_MAX_COLUMNS];
   int32_t  bytes[TSDB_MAX_COLUMNS];
   int32_t  numOfReads;
   int8_t   maxReplica;

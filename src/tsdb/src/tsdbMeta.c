@@ -1373,7 +1373,7 @@ static int tsdbEncodeTableName(void **buf, tstr *name) {
 }
 
 static void *tsdbDecodeTableName(void *buf, tstr **name) {
-  VarDataLenT len = 0;
+  int16_t len = 0;
 
   buf = taosDecodeFixedI16(buf, &len);
   *name = calloc(1, sizeof(tstr) + len + 1);

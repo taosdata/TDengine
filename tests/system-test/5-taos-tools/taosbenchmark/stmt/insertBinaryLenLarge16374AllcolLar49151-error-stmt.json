@@ -54,7 +54,7 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "BINARY", "len": 16375, "count":1},{"type": "INT"}],
+            "columns": [{"type": "BINARY", "len": 65518, "count":1}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
         },
         {
@@ -80,8 +80,8 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "BINARY", "len": 16371, "count":3},{"type": "INT","count":6},{"type": "TINYINT"}],
-            "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
+            "columns": [{"type": "BINARY", "len": 21831, "count":3},{"type": "INT","count":2},{"type": "TINYINT"}],
+            "tags": [{"type": "TINYINT", "count":3}, {"type": "BINARY", "len": 16, "count":5}]
         }]
     }]
 }
