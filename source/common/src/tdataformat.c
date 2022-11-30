@@ -2150,10 +2150,10 @@ _exit:
 int32_t tPutColData(uint8_t *pBuf, SColData *pColData) {
   int32_t n = 0;
 
-  n += tPutI16v(pBuf + n, pColData->cid);
-  n += tPutI8(pBuf + n, pColData->type);
-  n += tPutI32v(pBuf + n, pColData->nVal);
-  n += tPutI8(pBuf + n, pColData->flag);
+  n += tPutI16v(pBuf ? pBuf + n : NULL, pColData->cid);
+  n += tPutI8(pBuf ? pBuf + n : NULL, pColData->type);
+  n += tPutI32v(pBuf ? pBuf + n : NULL, pColData->nVal);
+  n += tPutI8(pBuf ? pBuf + n : NULL, pColData->flag);
 
   // bitmap
   switch (pColData->flag) {
@@ -2177,7 +2177,7 @@ int32_t tPutColData(uint8_t *pBuf, SColData *pColData) {
       if (pBuf) memcpy(pBuf + n, pColData->aOffset, pColData->nVal << 2);
       n += (pColData->nVal << 2);
 
-      n += tPutI32v(pBuf + n, pColData->nData);
+      n += tPutI32v(pBuf ? pBuf + n : NULL, pColData->nData);
       if (pBuf) memcpy(pBuf + n, pColData->pData, pColData->nData);
       n += pColData->nData;
     } else {
