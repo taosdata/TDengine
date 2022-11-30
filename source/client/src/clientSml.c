@@ -467,6 +467,13 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         goto end;
       }
       info->cost.numOfCreateSTables++;
+      taosMemoryFreeClear(pTableMeta);
+
+      code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
+      if (code != TSDB_CODE_SUCCESS) {
+        uError("SML:0x%" PRIx64 " catalogGetSTableMeta failed. super table name %s", info->id, pName.tname);
+        goto end;
+      }
     } else if (code == TSDB_CODE_SUCCESS) {
       hashTmp = taosHashInit(pTableMeta->tableInfo.numOfTags, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
                              HASH_NO_LOCK);
@@ -505,16 +512,16 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
           uError("SML:0x%" PRIx64 " smlSendMetaMsg failed. can not create %s", info->id, pName.tname);
           goto end;
         }
-      }
 
-      taosMemoryFreeClear(pTableMeta);
-      code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, -1);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto end;
-      }
-      code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto end;
+        taosMemoryFreeClear(pTableMeta);
+        code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, -1);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto end;
+        }
+        code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto end;
+        }
       }
 
       taosHashClear(hashTmp);
@@ -552,24 +559,18 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
           uError("SML:0x%" PRIx64 " smlSendMetaMsg failed. can not create %s", info->id, pName.tname);
           goto end;
         }
+
+        code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, -1);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto end;
+        }
       }
 
-      code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, -1);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto end;
-      }
       needCheckMeta = true;
       taosHashCleanup(hashTmp);
       hashTmp = NULL;
     } else {
       uError("SML:0x%" PRIx64 " load table meta error: %s", info->id, tstrerror(code));
-      goto end;
-    }
-    taosMemoryFreeClear(pTableMeta);
-
-    code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
-    if (code != TSDB_CODE_SUCCESS) {
-      uError("SML:0x%" PRIx64 " catalogGetSTableMeta failed. super table name %s", info->id, pName.tname);
       goto end;
     }
 
@@ -596,7 +597,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
 end:
   taosHashCleanup(hashTmp);
   taosMemoryFreeClear(pTableMeta);
-  catalogRefreshTableMeta(info->pCatalog, &conn, &pName, 1);
+//  catalogRefreshTableMeta(info->pCatalog, &conn, &pName, 1);
   return code;
 }
 
