@@ -563,6 +563,11 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         if (code != TSDB_CODE_SUCCESS) {
           goto end;
         }
+        code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
+        if (code != TSDB_CODE_SUCCESS) {
+          uError("SML:0x%" PRIx64 " catalogGetSTableMeta failed. super table name %s", info->id, pName.tname);
+          goto end;
+        }
       }
 
       needCheckMeta = true;
