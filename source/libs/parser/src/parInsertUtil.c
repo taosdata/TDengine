@@ -850,7 +850,7 @@ int32_t insFindCol(SToken* pColname, int32_t start, int32_t end, SSchema* pSchem
 }
 
 void insBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, int64_t suid, const char* sname,
-                         SArray* tagName, uint8_t tagNum) {
+                         SArray* tagName, uint8_t tagNum, int32_t ttl) {
   pTbReq->type = TD_CHILD_TABLE;
   pTbReq->name = strdup(tname);
   pTbReq->ctb.suid = suid;
@@ -858,7 +858,7 @@ void insBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, i
   if (sname) pTbReq->ctb.stbName = strdup(sname);
   pTbReq->ctb.pTag = (uint8_t*)pTag;
   pTbReq->ctb.tagName = taosArrayDup(tagName, NULL);
-  pTbReq->ttl = TSDB_DEFAULT_TABLE_TTL;
+  pTbReq->ttl = ttl;
   pTbReq->commentLen = -1;
 
   return;

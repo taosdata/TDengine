@@ -52,7 +52,13 @@ static void syncNodeCleanConfigIndex(SSyncNode* ths) {
 }
 
 static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
-  sNTrace(ths, "timer routines");
+  ths->tmrRoutineNum++;
+
+  if (ths->tmrRoutineNum % 60 == 0 && ths->replicaNum > 1) {
+    sNInfo(ths, "timer routines");
+  } else {
+    sNTrace(ths, "timer routines");
+  }
 
   // timer replicate
   syncNodeReplicate(ths);
