@@ -152,13 +152,13 @@ int32_t stmtRestoreQueryFields(STscStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, char* tbFName, const char* sTableName) {
+int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, char* tbFName, const char* sTableName, bool autoCreateTbl) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   strncpy(pStmt->bInfo.tbFName, tbFName, sizeof(pStmt->bInfo.tbFName) - 1);
   pStmt->bInfo.tbFName[sizeof(pStmt->bInfo.tbFName) - 1] = 0;
 
-  pStmt->bInfo.tbUid = pTableMeta->uid;
+  pStmt->bInfo.tbUid = autoCreateTbl ? 0 : pTableMeta->uid;
   pStmt->bInfo.tbSuid = pTableMeta->suid;
   pStmt->bInfo.tbType = pTableMeta->tableType;
   pStmt->bInfo.boundTags = tags;
@@ -182,7 +182,7 @@ int32_t stmtUpdateInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, char
                        SHashObj* pVgHash, SHashObj* pBlockHash, const char* sTableName) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  STMT_ERR_RET(stmtUpdateBindInfo(stmt, pTableMeta, tags, tbFName, sTableName));
+  STMT_ERR_RET(stmtUpdateBindInfo(stmt, pTableMeta, tags, tbFName, sTableName, autoCreateTbl));
   STMT_ERR_RET(stmtUpdateExecInfo(stmt, pVgHash, pBlockHash, autoCreateTbl));
 
   pStmt->sql.autoCreateTbl = autoCreateTbl;
@@ -623,6 +623,8 @@ int stmtSetTbTags(TAOS_STMT* stmt, TAOS_MULTI_BIND* tags) {
                                   pStmt->bInfo.sname.tname, tags, pStmt->exec.pRequest->msgBuf,
                                   pStmt->exec.pRequest->msgBufLen));
 
+  pStmt->exec.autoCreateTbl = true;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -771,10 +773,6 @@ int stmtAddBatch(TAOS_STMT* stmt) {
 int stmtUpdateTableUid(STscStmt* pStmt, SSubmitRsp* pRsp) {
   tscDebug("stmt start to update tbUid, blockNum: %d", pRsp->nBlocks);
 
-  if (pRsp->nBlocks <= 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
   size_t             keyLen = 0;
   STableDataBlocks** pIter = taosHashIterate(pStmt->exec.pBlockHash, NULL);
   while (pIter) {
@@ -809,8 +807,30 @@ int stmtUpdateTableUid(STscStmt* pStmt, SSubmitRsp* pRsp) {
       pMeta->uid = blkRsp->uid;
       pStmt->bInfo.tbUid = blkRsp->uid;
     } else {
-      tscError("table %s not found in submit rsp", pStmt->bInfo.tbFName);
-      STMT_ERR_RET(TSDB_CODE_TSC_APP_ERROR);
+      tscDebug("table %s not found in submit rsp, will update from catalog", pStmt->bInfo.tbFName);
+      if (NULL == pStmt->pCatalog) {
+        STMT_ERR_RET(catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &pStmt->pCatalog));
+      }
+
+      STMT_ERR_RET(stmtCreateRequest(pStmt));
+
+      STableMeta*      pTableMeta = NULL;
+      SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter,
+                               .requestId = pStmt->exec.pRequest->requestId,
+                               .requestObjRefId = pStmt->exec.pRequest->self,
+                               .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
+      int32_t          code = catalogGetTableMeta(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, &pTableMeta);
+
+      taos_free_result(pStmt->exec.pRequest);
+      pStmt->exec.pRequest = NULL;
+      
+      if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
+        tscDebug("tb %s not exist", pStmt->bInfo.tbFName);
+        return TSDB_CODE_SUCCESS;
+      }
+
+      pMeta->uid = pTableMeta->uid;
+      pStmt->bInfo.tbUid = pTableMeta->uid;
     }
 
     pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);

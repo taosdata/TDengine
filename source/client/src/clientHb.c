@@ -69,7 +69,8 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
     } else {
       SDBVgInfo *vgInfo = taosMemoryCalloc(1, sizeof(SDBVgInfo));
       if (NULL == vgInfo) {
-        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+        code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        goto _return;
       }
 
       vgInfo->vgVersion = rsp->vgVersion;
@@ -81,7 +82,8 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
       if (NULL == vgInfo->vgHash) {
         taosMemoryFree(vgInfo);
         tscError("hash init[%d] failed", rsp->vgNum);
-        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+        code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        goto _return;
       }
 
       for (int32_t j = 0; j < rsp->vgNum; ++j) {
@@ -90,7 +92,8 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
           tscError("hash push failed, errno:%d", errno);
           taosHashCleanup(vgInfo->vgHash);
           taosMemoryFree(vgInfo);
-          return TSDB_CODE_TSC_OUT_OF_MEMORY;
+          code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+          goto _return;
         }
       }
 
@@ -98,12 +101,14 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
     }
 
     if (code) {
-      return code;
+      goto _return;
     }
   }
 
+_return:
+
   tFreeSUseDbBatchRsp(&batchUseRsp);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {

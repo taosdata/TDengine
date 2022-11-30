@@ -577,9 +577,9 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
 
     int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
     pMsg->info.rsp = rpcMallocCont(contLen);
-    pMsg->info.hasEpSet = 1;
     if (pMsg->info.rsp != NULL) {
       tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
+      pMsg->info.hasEpSet = 1;
       pMsg->info.rspLen = contLen;
       terrno = TSDB_CODE_RPC_REDIRECT;
     } else {
@@ -803,12 +803,12 @@ void mndSetRestored(SMnode *pMnode, bool restored) {
     taosThreadRwlockWrlock(&pMnode->lock);
     pMnode->restored = true;
     taosThreadRwlockUnlock(&pMnode->lock);
-    mTrace("mnode set restored:%d", restored);
+    mInfo("mnode set restored:%d", restored);
   } else {
     taosThreadRwlockWrlock(&pMnode->lock);
     pMnode->restored = false;
     taosThreadRwlockUnlock(&pMnode->lock);
-    mTrace("mnode set restored:%d", restored);
+    mInfo("mnode set restored:%d", restored);
     while (1) {
       if (pMnode->rpcRef <= 0) break;
       taosMsleep(3);
@@ -822,7 +822,7 @@ void mndSetStop(SMnode *pMnode) {
   taosThreadRwlockWrlock(&pMnode->lock);
   pMnode->stopped = true;
   taosThreadRwlockUnlock(&pMnode->lock);
-  mTrace("mnode set stopped");
+  mInfo("mnode set stopped");
 }
 
 bool mndGetStop(SMnode *pMnode) { return pMnode->stopped; }

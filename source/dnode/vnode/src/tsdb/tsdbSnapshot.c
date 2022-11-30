@@ -555,7 +555,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
   }
 
   tBlockDataDestroy(&pReader->bData, 1);
-  tTSchemaDestroy(pReader->skmTable.pTSchema);
+  tDestroyTSchema(pReader->skmTable.pTSchema);
 
   // del
   if (pReader->pDelFReader) tsdbDelFReaderClose(&pReader->pDelFReader);
@@ -1416,7 +1416,7 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
   taosArrayDestroy(pWriter->dReader.aBlockIdx);
 
   tBlockDataDestroy(&pWriter->bData, 1);
-  tTSchemaDestroy(pWriter->skmTable.pTSchema);
+  tDestroyTSchema(pWriter->skmTable.pTSchema);
 
   for (int32_t iBuf = 0; iBuf < sizeof(pWriter->aBuf) / sizeof(uint8_t*); iBuf++) {
     tFree(pWriter->aBuf[iBuf]);

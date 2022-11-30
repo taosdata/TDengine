@@ -525,6 +525,7 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
 
   tFreeSMCreateStbReq(&createReq);
   mndFreeStb(&stbObj);
+  mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
 
   return 0;

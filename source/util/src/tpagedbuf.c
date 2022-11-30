@@ -107,7 +107,7 @@ static uint64_t allocatePositionInFile(SDiskbasedBuf* pBuf, size_t size) {
 
 static void setPageNotInBuf(SPageInfo* pPageInfo) { pPageInfo->pData = NULL; }
 
-static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) { return pageSize + POINTER_BYTES + 2; }
+static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) { return pageSize + POINTER_BYTES + sizeof(SFilePage); }
 
 /**
  *   +--------------------------+-------------------+--------------+
@@ -495,7 +495,7 @@ void releaseBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* pi) {
 
 size_t getTotalBufSize(const SDiskbasedBuf* pBuf) { return (size_t)pBuf->totalBufSize; }
 
-SIDList getDataBufPagesIdList(SDiskbasedBuf* pBuf) {
+SArray* getDataBufPagesIdList(SDiskbasedBuf* pBuf) {
   ASSERT(pBuf != NULL);
   return pBuf->pIdList;
 }
@@ -561,7 +561,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   taosMemoryFreeClear(pBuf);
 }
 
-SPageInfo* getLastPageInfo(SIDList pList) {
+SPageInfo* getLastPageInfo(SArray* pList) {
   size_t     size = taosArrayGetSize(pList);
   SPageInfo* pPgInfo = taosArrayGetP(pList, size - 1);
   return pPgInfo;

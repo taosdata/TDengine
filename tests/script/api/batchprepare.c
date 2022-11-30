@@ -115,6 +115,7 @@ int insertMBMETest3(TAOS_STMT *stmt, TAOS *taos);
 int insertMBMETest4(TAOS_STMT *stmt, TAOS *taos);
 int insertMPMETest1(TAOS_STMT *stmt, TAOS *taos);
 int insertAUTOTest1(TAOS_STMT *stmt, TAOS *taos);
+int insertAUTOTest2(TAOS_STMT *stmt, TAOS *taos);
 int queryColumnTest(TAOS_STMT *stmt, TAOS *taos);
 int queryMiscTest(TAOS_STMT *stmt, TAOS *taos);
 
@@ -128,7 +129,7 @@ typedef struct {
   int32_t  colNum;
   int32_t *colList;         // full table column list
   int32_t  testType;     
-  bool     autoCreateTbl;
+  int32_t  autoCreateTbl;
   bool     fullCol;
   int32_t  (*runFn)(TAOS_STMT*, TAOS*);
   int32_t  tblNum;
@@ -142,45 +143,46 @@ typedef struct {
 } CaseCfg;
 
 CaseCfg gCase[] = {
-  {"insert:MBSE0-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, false, true, insertMBSETest1,  1, 10, 10, 0, 0, 0, 1, -1},
-  {"insert:MBSE0-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, false, true, insertMBSETest1, 10, 100, 10, 0, 0, 0, 1, -1},
+  {"insert:MBSE0-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, 0, true, insertMBSETest1,  1, 10, 10, 0, 0, 0, 1, -1},
+  {"insert:MBSE0-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, 0, true, insertMBSETest1, 10, 100, 10, 0, 0, 0, 1, -1},
 
-  {"insert:MBSE1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBSETest1, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBSE1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBSETest1, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBSE1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBSETest1, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBSE1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, insertMBSETest1, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBSE1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBSETest1, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBSE1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBSETest1, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MBSE2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBSETest2, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBSE2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBSETest2, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBSE2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBSETest2, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBSE2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, insertMBSETest2, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBSE2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBSETest2, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBSE2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBSETest2, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MBME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBMETest1, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest1, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBME1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest1, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, insertMBMETest1, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest1, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBME1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest1, 10, 10, 2, 2, 0, 0, 1, -1},
 
   // 11
-  {"insert:MBME2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBMETest2, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBME2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest2, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBME2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest2, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBME2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, insertMBMETest2, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBME2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest2, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBME2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest2, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MBME3-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBMETest3, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBME3-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest3, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBME3-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest3, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBME3-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, insertMBMETest3, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBME3-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest3, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBME3-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest3, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MBME4-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBMETest4, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBME4-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest4, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBME4-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest4, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBME4-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, insertMBMETest4, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBME4-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest4, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBME4-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest4, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MPME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMPMETest1, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MPME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMPMETest1, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MPME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, insertMPMETest1, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MPME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMPMETest1, 10, 10, 2, 12, 0, 0, 1, -1},
 
   // 22
-  {"insert:AUTO1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, true, true, insertAUTOTest1, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:AUTO1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 1, true, insertAUTOTest1, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:AUTO1-TBEXISTS", tListLen(fullColList), fullColList, TTYPE_INSERT, 3, true, insertAUTOTest2, 10, 10, 2, 0, 0, 0, 1, -1},
 
-  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryColumnTest, 10, 10, 1, 3, 0, 0, 1, 2},
-  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryMiscTest, 10, 10, 1, 3, 0, 0, 1, 2},
+  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, queryColumnTest, 10, 10, 1, 3, 0, 0, 1, 2},
+  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, queryMiscTest, 10, 10, 1, 3, 0, 0, 1, 2},
 
-//  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryColumnTest, 1, 10, 1, 1, 0, 0, 1, 2},
-//  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryMiscTest, 2, 10, 1, 1, 0, 0, 1, 2},
+//  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, queryColumnTest, 1, 10, 1, 1, 0, 0, 1, 2},
+//  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, queryMiscTest, 2, 10, 1, 1, 0, 0, 1, 2},
 
 };
 
@@ -221,7 +223,7 @@ typedef struct {
 CaseCtrl gCaseCtrl = {
   .precision = TIME_PRECISION_MICRO,
   .bindNullNum = 0,
-  .printCreateTblSql = false,
+  .printCreateTblSql = true,
   .printQuerySql = true,
   .printStmtSql = true,
   .printVerbose = false,
@@ -230,7 +232,7 @@ CaseCtrl gCaseCtrl = {
   .numericParam = false,
   .rowNum = 0,
   .bindColNum = 0,
-  .bindTagNum = 0,
+  .bindTagNum = 14,
   .bindRowNum = 0,
   .bindColTypeNum = 0,
   .bindColTypeList = NULL,
@@ -242,8 +244,8 @@ CaseCtrl gCaseCtrl = {
   .funcIdxList = NULL,
   .checkParamNum = false,
   .runTimes = 0,
-  .caseIdx = -1,
-  .caseNum = -1,
+  .caseIdx = 23,
+  .caseNum = 1,
   .caseRunIdx = -1,
   .caseRunNum = -1,
 };
@@ -1946,6 +1948,73 @@ int insertAUTOTest1(TAOS_STMT *stmt, TAOS *taos) {
 }
 
 
+
+/* [prepare [settbnametag [bind add exec]]]   */
+int insertAUTOTest2(TAOS_STMT *stmt, TAOS *taos) {
+  int32_t loop = 0;
+  
+  while (gCurCase->bindTagNum > 0 && gCurCase->bindColNum > 0) {
+    BindData data = {0};
+    prepareInsertData(&data);
+
+    int code = taos_stmt_prepare(stmt, data.sql, 0);
+    if (code != 0){
+      printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+      exit(1);
+    }
+
+    bpCheckIsInsert(stmt, 1);
+
+    int32_t bindTimes = gCurCase->rowNum/gCurCase->bindRowNum;
+    for (int32_t b = 0; b <bindTimes; ++b) {
+      for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
+        if (gCurCase->tblNum > 1) {
+          char buf[32];
+          sprintf(buf, "t%d", t);
+          code = bpSetTableNameTags(&data, t, buf, stmt);
+          if (code != 0){
+            printf("!!!taos_stmt_set_tbname_tags error:%s\n", taos_stmt_errstr(stmt));
+            exit(1);
+          }  
+        }
+      
+        if (gCaseCtrl.checkParamNum) {
+          bpCheckParamNum(stmt);
+        }
+        if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+          exit(1);
+        }
+        
+        if (taos_stmt_add_batch(stmt)) {
+          printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+          exit(1);
+        }
+        
+        if (taos_stmt_execute(stmt) != 0) {
+          printf("!!!taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+          exit(1);
+        }
+      }
+    }
+
+    bpCheckIsInsert(stmt, 1);
+
+    destroyData(&data);
+
+    gCurCase->bindColNum -= 2;
+    gCurCase->bindTagNum -= 2;
+    gCurCase->fullCol = false;
+    loop++;
+  }
+
+  bpCheckAffectedRows(stmt, loop);
+
+  gExecLoopTimes = loop;
+  
+  return 0;
+}
+
+
 /* select * from table */
 int queryColumnTest(TAOS_STMT *stmt, TAOS *taos) {
   BindData data = {0};
@@ -2243,70 +2312,76 @@ int sql_s_perf1(TAOS     *taos) {
   return 0;
 }
 
-void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *colList, bool stable) {
+void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *colList, int32_t tableType) {
   int32_t blen = 0;
-  blen = sprintf(buf, "create table %s%d ", (stable ? bpStbPrefix : bpTbPrefix), tblIdx);
+  blen = sprintf(buf, "create table %s%d ", (1 == tableType ? bpStbPrefix : bpTbPrefix), tblIdx);
 
-  blen += sprintf(buf + blen, " (");
-  
-  for (int c = 0; c < colNum; ++c) {
-    if (c > 0) {
-      blen += sprintf(buf + blen, ",");
-    }
-  
-    switch (colList[c]) {  
-      case TSDB_DATA_TYPE_BOOL:
-        blen += sprintf(buf + blen, "booldata bool");
-        break;
-      case TSDB_DATA_TYPE_TINYINT:
-        blen += sprintf(buf + blen, "tinydata tinyint");
-        break;
-      case TSDB_DATA_TYPE_SMALLINT:
-        blen += sprintf(buf + blen, "smalldata smallint");
-        break;
-      case TSDB_DATA_TYPE_INT:
-        blen += sprintf(buf + blen, "intdata int");
-        break;
-      case TSDB_DATA_TYPE_BIGINT:
-        blen += sprintf(buf + blen, "bigdata bigint");
-        break;
-      case TSDB_DATA_TYPE_FLOAT:
-        blen += sprintf(buf + blen, "floatdata float");
-        break;
-      case TSDB_DATA_TYPE_DOUBLE:
-        blen += sprintf(buf + blen, "doubledata double");
-        break;
-      case TSDB_DATA_TYPE_VARCHAR:
-        blen += sprintf(buf + blen, "binarydata binary(%d)", gVarCharSize);
-        break;
-      case TSDB_DATA_TYPE_TIMESTAMP:
-        blen += sprintf(buf + blen, "ts timestamp");
-        break;
-      case TSDB_DATA_TYPE_NCHAR:
-        blen += sprintf(buf + blen, "nchardata nchar(%d)", gVarCharSize);
-        break;
-      case TSDB_DATA_TYPE_UTINYINT:
-        blen += sprintf(buf + blen, "utinydata tinyint unsigned");
-        break;
-      case TSDB_DATA_TYPE_USMALLINT:
-        blen += sprintf(buf + blen, "usmalldata smallint unsigned");
-        break;
-      case TSDB_DATA_TYPE_UINT:
-        blen += sprintf(buf + blen, "uintdata int unsigned");
-        break;
-      case TSDB_DATA_TYPE_UBIGINT:
-        blen += sprintf(buf + blen, "ubigdata bigint unsigned");
-        break;
-      default:
-        printf("invalid col type:%d", colList[c]);
-        exit(1);
-    }      
+  if (tableType == 3) {
+    blen += sprintf(buf + blen, "using %s%d", bpStbPrefix, bpDefaultStbId);
   }
 
-  blen += sprintf(buf + blen, ")");
+  if (tableType == 0 || tableType == 1) {
+    blen += sprintf(buf + blen, " (");
+    
+    for (int c = 0; c < colNum; ++c) {
+      if (c > 0) {
+        blen += sprintf(buf + blen, ",");
+      }
+    
+      switch (colList[c]) {  
+        case TSDB_DATA_TYPE_BOOL:
+          blen += sprintf(buf + blen, "booldata bool");
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          blen += sprintf(buf + blen, "tinydata tinyint");
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          blen += sprintf(buf + blen, "smalldata smallint");
+          break;
+        case TSDB_DATA_TYPE_INT:
+          blen += sprintf(buf + blen, "intdata int");
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          blen += sprintf(buf + blen, "bigdata bigint");
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+          blen += sprintf(buf + blen, "floatdata float");
+          break;
+        case TSDB_DATA_TYPE_DOUBLE:
+          blen += sprintf(buf + blen, "doubledata double");
+          break;
+        case TSDB_DATA_TYPE_VARCHAR:
+          blen += sprintf(buf + blen, "binarydata binary(%d)", gVarCharSize);
+          break;
+        case TSDB_DATA_TYPE_TIMESTAMP:
+          blen += sprintf(buf + blen, "ts timestamp");
+          break;
+        case TSDB_DATA_TYPE_NCHAR:
+          blen += sprintf(buf + blen, "nchardata nchar(%d)", gVarCharSize);
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          blen += sprintf(buf + blen, "utinydata tinyint unsigned");
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          blen += sprintf(buf + blen, "usmalldata smallint unsigned");
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          blen += sprintf(buf + blen, "uintdata int unsigned");
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          blen += sprintf(buf + blen, "ubigdata bigint unsigned");
+          break;
+        default:
+          printf("invalid col type:%d", colList[c]);
+          exit(1);
+      }      
+    }
 
-  if (stable) {
-    blen += sprintf(buf + blen, "tags (");
+    blen += sprintf(buf + blen, ")");
+  }
+  
+  if (1 == tableType) {
+    blen += sprintf(buf + blen, " tags (");
     for (int c = 0; c < colNum; ++c) {
       if (c > 0) {
         blen += sprintf(buf + blen, ",");
@@ -2361,6 +2436,64 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
     }
 
     blen += sprintf(buf + blen, ")");    
+  }
+
+  if (3 == tableType) {
+    blen += sprintf(buf + blen, " tags (");
+    for (int c = 0; c < colNum; ++c) {
+      if (c > 0) {
+        blen += sprintf(buf + blen, ",");
+      }
+      switch (colList[c]) {  
+        case TSDB_DATA_TYPE_BOOL:
+          blen += sprintf(buf + blen, "%s", rand() % 2 ? "true": "false");
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          blen += sprintf(buf + blen, "%d", rand() % 128);
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          blen += sprintf(buf + blen, "%d", rand() % 128);
+          break;
+        case TSDB_DATA_TYPE_INT:
+          blen += sprintf(buf + blen, "%d", rand() % 128);
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          blen += sprintf(buf + blen, "%d", rand() % 128);
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+          blen += sprintf(buf + blen, "%f", rand() % 128);
+          break;
+        case TSDB_DATA_TYPE_DOUBLE:
+          blen += sprintf(buf + blen, "%f", rand() % 128);
+          break;
+        case TSDB_DATA_TYPE_VARCHAR:
+          blen += sprintf(buf + blen, "'var%d'", rand() % 128);
+          break;
+        case TSDB_DATA_TYPE_TIMESTAMP:
+          blen += sprintf(buf + blen, "%lld", bpTs);
+          break;
+        case TSDB_DATA_TYPE_NCHAR:
+          blen += sprintf(buf + blen, "'nch%d'", rand() % 128);
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          blen += sprintf(buf + blen, "%d", rand() % 128);
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          blen += sprintf(buf + blen, "%d", rand() % 128);
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          blen += sprintf(buf + blen, "%d", rand() % 128);
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          blen += sprintf(buf + blen, "%d", rand() % 128);
+          break;
+        default:
+          printf("invalid col type:%d", colList[c]);
+          exit(1);
+      }      
+    }
+
+    blen += sprintf(buf + blen, ")");       
   }
 
   if (gCaseCtrl.printCreateTblSql) {
@@ -2421,11 +2554,11 @@ void prepare(TAOS     *taos, int32_t colNum, int32_t *colList, int prepareStb) {
   result = taos_query(taos, "use demo");
   taos_free_result(result);
 
-  if (!prepareStb) {
+  if (0 == prepareStb) {
     // create table
     for (int i = 0 ; i < 10; i++) {
       char buf[1024];
-      generateCreateTableSQL(buf, i, colNum, colList, false);
+      generateCreateTableSQL(buf, i, colNum, colList, 0);
       result = taos_query(taos, buf);
       code = taos_errno(result);
       if (code != 0) {
@@ -2436,17 +2569,35 @@ void prepare(TAOS     *taos, int32_t colNum, int32_t *colList, int prepareStb) {
       taos_free_result(result);
     }
   } else {
-    char buf[1024];
-    generateCreateTableSQL(buf, bpDefaultStbId, colNum, colList, true);
-    
-    result = taos_query(taos, buf);
-    code = taos_errno(result);
-    if (code != 0) {
-      printf("!!!failed to create table, reason:%s\n", taos_errstr(result));
+    if (1 == prepareStb || 3 == prepareStb) {
+      char buf[1024];
+      generateCreateTableSQL(buf, bpDefaultStbId, colNum, colList, 1);
+      
+      result = taos_query(taos, buf);
+      code = taos_errno(result);
+      if (code != 0) {
+        printf("!!!failed to create table, reason:%s\n", taos_errstr(result));
+        taos_free_result(result);
+        exit(1);
+      }
       taos_free_result(result);
-      exit(1);
     }
-    taos_free_result(result);
+
+    
+    if (3 == prepareStb) {
+      for (int i = 0 ; i < 10; i++) {
+        char buf[1024];
+        generateCreateTableSQL(buf, i, colNum, colList, 3);
+        result = taos_query(taos, buf);
+        code = taos_errno(result);
+        if (code != 0) {
+          printf("!!!failed to create table, reason:%s\n", taos_errstr(result));
+          taos_free_result(result);
+          exit(1);
+        }
+        taos_free_result(result);
+      }
+    }
   }
 
 }
@@ -2486,7 +2637,7 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
 
   if (gCaseCtrl.autoCreateTbl) {
     if (gCurCase->testType == TTYPE_INSERT && gCurCase->tblNum > 1) {
-      gCurCase->autoCreateTbl = true;
+      gCurCase->autoCreateTbl = 1;
       if (gCurCase->bindTagNum <= 0) {
         gCurCase->bindTagNum = gCurCase->colNum;
       }

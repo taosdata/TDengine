@@ -339,7 +339,7 @@ char *taosStrpTime(const char *buf, const char *fmt, struct tm *tm) {
 #endif
 }
 
-FORCE_INLINE int32_t taosGetTimeOfDay(struct timeval *tv) {
+int32_t taosGetTimeOfDay(struct timeval *tv) {
 #ifdef WINDOWS
   time_t t;
   t = taosGetTimestampSec();
@@ -455,6 +455,7 @@ static int isLeapYear(time_t year) {
   else
     return 1;
 }
+
 struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst) {
   if (result == NULL) {
     return localtime(timep);
@@ -542,7 +543,9 @@ struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst) 
 #endif
   return result;
 }
+
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
+
 int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
 #ifdef WINDOWS
   LARGE_INTEGER        t;

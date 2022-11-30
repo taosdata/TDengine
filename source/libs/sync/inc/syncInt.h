@@ -57,10 +57,12 @@ typedef struct SRaftId {
 } SRaftId;
 
 typedef struct SSyncHbTimerData {
-  SSyncNode*  pSyncNode;
+  int64_t     syncNodeRid;
   SSyncTimer* pTimer;
   SRaftId     destId;
   uint64_t    logicClock;
+  int64_t     execTime;
+  int64_t     rid;
 } SSyncHbTimerData;
 
 typedef struct SSyncTimer {
@@ -69,8 +71,9 @@ typedef struct SSyncTimer {
   uint64_t          logicClock;
   uint64_t          counter;
   int32_t           timerMS;
+  int64_t           timeStamp;
   SRaftId           destId;
-  SSyncHbTimerData  hbData;
+  int64_t           hbDataRid;
 } SSyncTimer;
 
 typedef struct SElectTimerParam {
@@ -189,6 +192,8 @@ typedef struct SSyncNode {
   int64_t leaderTime;
   int64_t lastReplicateTime;
 
+  bool isStart;
+
 } SSyncNode;
 
 // open/close --------------
@@ -198,6 +203,7 @@ void       syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
 void       syncNodePreClose(SSyncNode* pSyncNode);
 int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak);
+void       syncHbTimerDataFree(SSyncHbTimerData* pData);
 
 // on message ---------------------
 int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pMsg);
@@ -228,6 +234,7 @@ int32_t   syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, S
 int32_t   syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode);
 int32_t   syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHandle** h);
+bool      syncNodeHeartbeatReplyTimeout(SSyncNode* pSyncNode);
 
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
