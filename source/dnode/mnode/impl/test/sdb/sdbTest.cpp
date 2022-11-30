@@ -910,7 +910,7 @@ TEST_F(MndTestSdb, 01_Read_Str) {
     int32_t   len = 0;
     int32_t   code = 0;
 
-    code = sdbStartRead(pSdb, &pReader);
+    code = sdbStartRead(pSdb, &pReader, NULL, NULL, NULL);
     ASSERT_EQ(code, 0);
     code = sdbStartWrite(pSdb, &pWritter);
     ASSERT_EQ(code, 0);

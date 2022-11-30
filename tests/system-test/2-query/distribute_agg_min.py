@@ -245,6 +245,24 @@ class TDTestCase:
         tdSql.query(" select min(c1),c2  from stb1 group by c2 ")
         tdSql.checkRows(31)
 
+        # selective common cols of datas
+        tdSql.query("select min(c1),c2,c3,c5 from stb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,0)
+        tdSql.checkData(0,1,0)
+        tdSql.checkData(0,2,0)
+        tdSql.checkData(0,3,0)
+
+        tdSql.query("select min(c1),t1,c2,t3 from stb1 where c1 >5")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,6)
+        tdSql.checkData(0,2,66666)
+
+        tdSql.query("select min(c1),ceil(t1),pow(c2,1)+2,abs(t3) from stb1 where c1>12")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,13)
+        tdSql.checkData(0,2,144445.000000000)   
+   
         # partition by tbname or partition by tag
         tdSql.query("select min(c1),tbname from stb1 partition by tbname")
         query_data = tdSql.queryResult

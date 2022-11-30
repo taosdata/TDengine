@@ -162,7 +162,7 @@ typedef struct SSyncLogStore {
   SyncIndex (*syncLogEndIndex)(struct SSyncLogStore* pLogStore);
   bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
   int32_t (*syncLogEntryCount)(struct SSyncLogStore* pLogStore);
-  bool (*syncLogInRange)(struct SSyncLogStore* pLogStore, SyncIndex index);
+  // bool (*syncLogInRange)(struct SSyncLogStore* pLogStore, SyncIndex index);
 
   SyncIndex (*syncLogWriteIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogLastIndex)(struct SSyncLogStore* pLogStore);

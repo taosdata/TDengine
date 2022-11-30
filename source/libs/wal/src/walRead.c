@@ -259,6 +259,12 @@ int32_t walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **p
 
 int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   int64_t code;
+
+  if (pRead->pWal->vers.firstVer == -1) {
+    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+    return -1;
+  }
+
   // TODO: check wal life
   if (pRead->curVersion != ver) {
     if (walReadSeekVer(pRead, ver) < 0) {
