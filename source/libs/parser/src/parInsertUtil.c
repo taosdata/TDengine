@@ -850,7 +850,7 @@ int16_t insFindCol(SToken* pColname, int16_t start, int16_t end, SSchema* pSchem
 }
 
 void insBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, int64_t suid, const char* sname,
-                         SArray* tagName, uint8_t tagNum) {
+                         SArray* tagName, uint8_t tagNum, int32_t ttl) {
   pTbReq->type = TD_CHILD_TABLE;
   pTbReq->name = strdup(tname);
   pTbReq->ctb.suid = suid;
@@ -858,7 +858,7 @@ void insBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, i
   if (sname) pTbReq->ctb.stbName = strdup(sname);
   pTbReq->ctb.pTag = (uint8_t*)pTag;
   pTbReq->ctb.tagName = taosArrayDup(tagName, NULL);
-  pTbReq->ttl = TSDB_DEFAULT_TABLE_TTL;
+  pTbReq->ttl = ttl;
   pTbReq->commentLen = -1;
 
   return;
@@ -981,6 +981,24 @@ int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo* pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+void insCheckTableDataOrder(STableDataCxt* pTableCxt, TSKEY tsKey) {
+  // once the data block is disordered, we do NOT keep last timestamp any more
+  if (!pTableCxt->ordered) {
+    return;
+  }
+
+  if (tsKey < pTableCxt->lastTs) {
+    pTableCxt->ordered = false;
+  }
+
+  if (tsKey == pTableCxt->lastTs) {
+    pTableCxt->duplicateTs = true;
+  }
+
+  pTableCxt->lastTs = tsKey;
+  return;
+}
+
 static void destroyBoundColInfo(SBoundColInfo* pInfo) { taosMemoryFreeClear(pInfo->pColIndex); }
 
 static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreateTbReq, STableDataCxt** pOutput, bool colMode) {
@@ -990,6 +1008,10 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
+
+  pTableCxt->lastTs = 0;
+  pTableCxt->ordered = true;
+  pTableCxt->duplicateTs = false;
 
   pTableCxt->pMeta = tableMetaDup(pTableMeta);
   if (NULL == pTableCxt->pMeta) {
@@ -1077,7 +1099,10 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
   tDestroyTSchema(pTableCxt->pSchema);
   destroyBoundColInfo(&pTableCxt->boundColsInfo);
   taosArrayDestroyEx(pTableCxt->pValues, destroyColVal);
-  tDestroySSubmitTbData(pTableCxt->pData);
+  if (pTableCxt->pData) {
+    tDestroySSubmitTbData(pTableCxt->pData, TSDB_MSG_FLG_ENCODE);
+    taosMemoryFree(pTableCxt->pData);
+  }
   taosMemoryFree(pTableCxt);
 }
 
@@ -1086,7 +1111,7 @@ void insDestroyVgroupDataCxt(SVgroupDataCxt* pVgCxt) {
     return;
   }
 
-  tDestroySSubmitReq2(pVgCxt->pData);
+  tDestroySSubmitReq2(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
   taosMemoryFree(pVgCxt);
 }
 
@@ -1214,7 +1239,12 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
         }
       }
     } else {
-      code = tRowMergeSort(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
+      if (!pTableCxt->ordered) {
+        tRowSort(pTableCxt->pData->aRowP);
+      }
+      if (!pTableCxt->ordered || pTableCxt->duplicateTs) {
+        code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
+      }
     }
     
     if (TSDB_CODE_SUCCESS == code) {

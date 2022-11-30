@@ -43,12 +43,14 @@ extern "C" {
 #include <sys/utsname.h>
 #include <sys/wait.h>
 #include <termios.h>
-#include <cpuid.h>
 
 #if defined(DARWIN)
 #else
 #include <argp.h>
 #include <sys/prctl.h>
+#if defined(_TD_X86_)
+#include <cpuid.h>
+#endif
 #endif
 #else
 

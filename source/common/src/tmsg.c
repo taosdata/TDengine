@@ -6616,13 +6616,15 @@ void tDeleteSTaosxRsp(STaosxRsp *pRsp) {
 
 int32_t tEncodeSSingleDeleteReq(SEncoder *pEncoder, const SSingleDeleteReq *pReq) {
   if (tEncodeCStr(pEncoder, pReq->tbname) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->ts) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->startTs) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->endTs) < 0) return -1;
   return 0;
 }
 
 int32_t tDecodeSSingleDeleteReq(SDecoder *pDecoder, SSingleDeleteReq *pReq) {
   if (tDecodeCStrTo(pDecoder, pReq->tbname) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pReq->ts) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->startTs) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->endTs) < 0) return -1;
   return 0;
 }
 
@@ -6668,7 +6670,14 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   if (tEncodeI32v(pCoder, pSubmitTbData->sver) < 0) return -1;
 
   if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-    ASSERT(0);  // TODO
+    uint64_t  nColData = TARRAY_SIZE(pSubmitTbData->aCol);
+    SColData *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
+
+    if (tEncodeU64v(pCoder, nColData) < 0) return -1;
+
+    for (uint64_t i = 0; i < nColData; i++) {
+      pCoder->pos += tPutColData(pCoder->data ? pCoder->data + pCoder->pos : NULL, &aColData[i]);
+    }
   } else {
     if (tEncodeU64v(pCoder, TARRAY_SIZE(pSubmitTbData->aRowP)) < 0) return -1;
 
@@ -6721,7 +6730,22 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
   }
 
   if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-    ASSERT(0);  // TODO
+    uint64_t nColData;
+
+    if (tDecodeU64v(pCoder, &nColData) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+
+    pSubmitTbData->aCol = taosArrayInit(nColData, nColData);
+    if (pSubmitTbData->aCol == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    for (int32_t i = 0; i < nColData; ++i) {
+      pCoder->pos += tGetColData(pCoder->data + pCoder->pos, taosArrayReserve(pSubmitTbData->aCol, 1));
+    }
   } else {
     uint64_t nRow;
     if (tDecodeU64v(pCoder, &nRow) < 0) {
@@ -6807,26 +6831,46 @@ _exit:
   return code;
 }
 
-void destroySSubmitTbData(SSubmitTbData *pTbData) {
-  // if (pTbData->isColFmt) {
-  //   // todo
-  // } else {
-  //   taosArrayDestroyP(pTbData->aRowP, (FDelete)tRowDestroy);
-  // }
-}
-
-void tDestroySSubmitTbData(SSubmitTbData *pTbData) {
-  if (NULL == pTbData) {
-    return;
+void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
+  if (pTbData->pCreateTbReq) {
+    taosMemoryFree(pTbData->pCreateTbReq);
   }
-  destroySSubmitTbData(pTbData);
-  taosMemoryFree(pTbData);
+
+  if (flag == TSDB_MSG_FLG_ENCODE) {
+    if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      int32_t   nColData = TARRAY_SIZE(pTbData->aCol);
+      SColData *aColData = (SColData *)TARRAY_DATA(pTbData->aCol);
+
+      for (int32_t i = 0; i < nColData; ++i) {
+        tColDataDestroy(&aColData[i]);
+      }
+      taosArrayDestroy(pTbData->aCol);
+    } else {
+      int32_t nRow = TARRAY_SIZE(pTbData->aRowP);
+      SRow  **rows = (SRow **)TARRAY_DATA(pTbData->aRowP);
+
+      for (int32_t i = 0; i < nRow; ++i) {
+        tRowDestroy(rows[i]);
+      }
+      taosArrayDestroy(pTbData->aRowP);
+    }
+  } else if (flag == TSDB_MSG_FLG_DECODE) {
+    if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      taosArrayDestroy(pTbData->aCol);
+    } else {
+      taosArrayDestroy(pTbData->aRowP);
+    }
+  }
 }
 
-void tDestroySSubmitReq2(SSubmitReq2 *pReq) {
-  if (NULL == pReq) return;
+void tDestroySSubmitReq2(SSubmitReq2 *pReq, int32_t flag) {
+  int32_t        nSubmitTbData = TARRAY_SIZE(pReq->aSubmitTbData);
+  SSubmitTbData *aSubmitTbData = (SSubmitTbData *)TARRAY_DATA(pReq->aSubmitTbData);
 
-  taosArrayDestroyEx(pReq->aSubmitTbData, (FDelete)destroySSubmitTbData);
+  for (int32_t i = 0; i < nSubmitTbData; i++) {
+    tDestroySSubmitTbData(&aSubmitTbData[i], flag);
+  }
+  taosArrayDestroy(pReq->aSubmitTbData);
 }
 
 int32_t tEncodeSSubmitRsp2(SEncoder *pCoder, const SSubmitRsp2 *pRsp) {

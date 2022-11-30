@@ -261,12 +261,12 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, SR
         SRowMerger merger = {0};
         STSchema  *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1, 1);
 
-        tRowMergerInit(&merger, &tsdbRowFromTSRow(0, cacheRow), pTSchema);
+        tsdbRowMergerInit(&merger, &tsdbRowFromTSRow(0, cacheRow), pTSchema);
 
-        tRowMerge(&merger, &tsdbRowFromTSRow(1, row));
+        tsdbRowMerge(&merger, &tsdbRowFromTSRow(1, row));
 
-        tRowMergerGetRow(&merger, &mergedRow);
-        tRowMergerClear(&merger);
+        tsdbRowMergerGetRow(&merger, &mergedRow);
+        tsdbRowMergerClear(&merger);
 
         taosMemoryFreeClear(pTSchema);
 

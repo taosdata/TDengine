@@ -85,6 +85,11 @@ typedef struct SRpcInit {
   int32_t  retryLimit;     // retry limit
   int32_t  retryInterval;  // retry interval ms
 
+  int32_t retryMinInterval;  // retry init interval
+  int32_t retryStepFactor;   // retry interval factor
+  int32_t retryMaxInterval;  // retry max interval
+  int64_t retryMaxTimouet;
+
   int32_t compressSize;  // -1: no compress, 0 : all data compressed, size: compress data if larger than size
   int8_t  encryption;    // encrypt or not
 

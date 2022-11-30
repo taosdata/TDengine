@@ -529,7 +529,8 @@ static int32_t buildCreateTbReq(SVnodeModifOpStmt* pStmt, STag* pTag, SArray* pT
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   insBuildCreateTbReq(pStmt->pCreateTblReq, pStmt->targetTableName.tname, pTag, pStmt->pTableMeta->suid,
-                      pStmt->usingTableName.tname, pTagName, pStmt->pTableMeta->tableInfo.numOfTags);
+                      pStmt->usingTableName.tname, pTagName, pStmt->pTableMeta->tableInfo.numOfTags,
+                      TSDB_DEFAULT_TABLE_TTL);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1195,6 +1196,9 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
   if (TSDB_CODE_SUCCESS == code) {
     SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
     code = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
+    if (TSDB_CODE_SUCCESS == code) {
+      insCheckTableDataOrder(pTableCxt, TD_ROW_KEY(*pRow));
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code && !isParseBindParam) {

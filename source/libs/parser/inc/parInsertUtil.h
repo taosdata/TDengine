@@ -135,7 +135,7 @@ int32_t insAllocateMemForSize(STableDataBlocks *pDataBlock, int32_t allSize);
 int32_t insCreateSName(SName *pName, struct SToken *pTableName, int32_t acctId, const char *dbName, SMsgBuf *pMsgBuf);
 int32_t insFindCol(struct SToken *pColname, int32_t start, int32_t end, SSchema *pSchema);
 void    insBuildCreateTbReq(SVCreateTbReq *pTbReq, const char *tname, STag *pTag, int64_t suid, const char *sname,
-                            SArray *tagName, uint8_t tagNum);
+                            SArray *tagName, uint8_t tagNum, int32_t ttl);
 int32_t insMemRowAppend(SMsgBuf *pMsgBuf, const void *value, int32_t len, void *param);
 int32_t insCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start);
 int32_t insBuildOutput(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks);
@@ -153,6 +153,9 @@ typedef struct STableDataCxt {
   SBoundColInfo  boundColsInfo;
   SArray        *pValues;
   SSubmitTbData *pData;
+  TSKEY          lastTs;
+  bool           ordered;
+  bool           duplicateTs;
 } STableDataCxt;
 
 typedef struct SVgroupDataCxt {
@@ -161,6 +164,7 @@ typedef struct SVgroupDataCxt {
 } SVgroupDataCxt;
 
 int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo *pInfo);
+void    insCheckTableDataOrder(STableDataCxt *pTableCxt, TSKEY tsKey);
 int32_t insGetTableDataCxt(SHashObj *pHash, void *id, int32_t idLen, STableMeta *pTableMeta,
                            SVCreateTbReq **pCreateTbReq, STableDataCxt **pTableCxt, bool colMode);
 int32_t insMergeTableDataCxt(SHashObj *pTableHash, SArray **pVgDataBlocks);

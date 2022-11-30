@@ -2334,7 +2334,7 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
-    pColInfoData->info.type = *(int16_t*)pStart;
+    pColInfoData->info.type = *(int8_t*)pStart;
     pStart += sizeof(int8_t);
 
     pColInfoData->info.bytes = *(int32_t*)pStart;

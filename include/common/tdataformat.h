@@ -87,7 +87,8 @@ int32_t tBufferReserve(SBuffer *pBuffer, int64_t nData, void **ppData);
 int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow);
 void    tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 void    tRowDestroy(SRow *pRow);
-int32_t tRowMergeSort(SArray *aRowP, STSchema *pTSchema, int8_t flag);
+void    tRowSort(SArray *aRowP);
+int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
 
 // SRowIter ================================
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
@@ -122,7 +123,11 @@ extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max,
 
 // for stmt bind
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind);
-int32_t tColDataSortMerge(SColData *aColData);
+void    tColDataSortMerge(SArray *colDataArr);
+
+// for encode/decode
+int32_t tPutColData(uint8_t *pBuf, SColData *pColData);
+int32_t tGetColData(uint8_t *pBuf, SColData *pColData);
 
 // STRUCT ================================
 struct STColumn {

@@ -1712,6 +1712,8 @@ typedef struct {
 
 int32_t tSerializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
 int32_t tDeserializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
+int32_t tSerializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
+int32_t tDeserializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
 
 int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
 int32_t tDeserializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
@@ -3137,7 +3139,8 @@ int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
 typedef struct {
   // int64_t uid;
   char    tbname[TSDB_TABLE_NAME_LEN];
-  int64_t ts;
+  int64_t startTs;
+  int64_t endTs;
 } SSingleDeleteReq;
 
 int32_t tEncodeSSingleDeleteReq(SEncoder* pCoder, const SSingleDeleteReq* pReq);
@@ -3201,6 +3204,10 @@ int32_t tSerializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
 int32_t tDeserializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
 int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
+int32_t tSerializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
+int32_t tDeserializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
+int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
+int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 
 #define SUBMIT_REQ_AUTO_CREATE_TABLE  0x1
 #define SUBMIT_REQ_COLUMN_DATA_FORMAT 0x2
@@ -3223,8 +3230,8 @@ typedef struct {
 
 int32_t tEncodeSSubmitReq2(SEncoder* pCoder, const SSubmitReq2* pReq);
 int32_t tDecodeSSubmitReq2(SDecoder* pCoder, SSubmitReq2* pReq);
-void    tDestroySSubmitTbData(SSubmitTbData* pTbData);
-void    tDestroySSubmitReq2(SSubmitReq2* pReq);
+void    tDestroySSubmitTbData(SSubmitTbData* pTbData, int32_t flag);
+void    tDestroySSubmitReq2(SSubmitReq2* pReq, int32_t flag);
 
 typedef struct {
   int32_t code;
