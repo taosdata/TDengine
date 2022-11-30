@@ -189,6 +189,12 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
       }
     }
   }
+  pNew->numOfTables = pOld->numOfTables;
+  pNew->numOfTimeSeries = pOld->numOfTimeSeries;
+  pNew->totalStorage = pOld->totalStorage;
+  pNew->compStorage = pOld->compStorage;
+  pNew->pointsWritten = pOld->pointsWritten;
+  pNew->compact = pOld->compact;
   memcpy(pOld->vnodeGid, pNew->vnodeGid, TSDB_MAX_REPLICA * sizeof(SVnodeGid));
   return 0;
 }
@@ -673,7 +679,8 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     for (int32_t i = 0; i < 4; ++i) {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       if (i < pVgroup->replica) {
-        colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->vnodeGid[i].dnodeId, false);
+        int16_t dnodeId = (int16_t)pVgroup->vnodeGid[i].dnodeId;
+        colDataAppend(pColInfo, numOfRows, (const char *)&dnodeId, false);
 
         bool       exist = false;
         bool       online = false;
@@ -705,16 +712,8 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppendNULL(pColInfo, numOfRows);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->cacheUsage, false);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppendNULL(pColInfo, numOfRows);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppendNULL(pColInfo, numOfRows);
+    int32_t cacheUsage = (int32_t)pVgroup->cacheUsage;
+    colDataAppend(pColInfo, numOfRows, (const char *)&cacheUsage, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->isTsma, false);
