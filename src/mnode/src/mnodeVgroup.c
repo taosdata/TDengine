@@ -844,6 +844,9 @@ static int32_t mnodeRetrieveStatus(SShowObj *pShow, char *data, int32_t rows, vo
       nAvailble++;
     else
       nUnAvailble++;
+    
+    // releae pVgroup ref
+    mnodeDecVgroupRef(pVgroup);  
   }
 
   // set col data
