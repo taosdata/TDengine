@@ -1717,7 +1717,7 @@ void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SAggSuppor
 
 void initStreamFunciton(SqlFunctionCtx* pCtx, int32_t numOfExpr) {
   for (int32_t i = 0; i < numOfExpr; i++) {
-    pCtx[i].isStream = true;
+//    pCtx[i].isStream = true;
   }
 }
 
@@ -1781,11 +1781,6 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPh
   code = filterInitFromNode((SNode*)pPhyNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
-  }
-
-  if (isStream) {
-    ASSERT(num > 0);
-    initStreamFunciton(pSup->pCtx, pSup->numOfExprs);
   }
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pInfo->win);
