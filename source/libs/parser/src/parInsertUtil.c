@@ -839,7 +839,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
   return code;
 }
 
-int32_t insFindCol(SToken* pColname, int32_t start, int32_t end, SSchema* pSchema) {
+int16_t insFindCol(SToken* pColname, int16_t start, int16_t end, SSchema* pSchema) {
   while (start < end) {
     if (strlen(pSchema[start].name) == pColname->n && strncmp(pColname->z, pSchema[start].name, pColname->n) == 0) {
       return start;
@@ -956,7 +956,7 @@ int32_t insBuildOutput(SHashObj* pVgroupsHashObj, SArray* pVgDataBlocks, SArray*
   return TSDB_CODE_SUCCESS;
 }
 
-static void initBoundCols(int32_t ncols, int32_t* pBoundCols) {
+static void initBoundCols(int32_t ncols, int16_t* pBoundCols) {
   for (int32_t i = 0; i < ncols; ++i) {
     pBoundCols[i] = i;
   }
@@ -973,7 +973,7 @@ static void initColValues(STableMeta* pTableMeta, SArray* pValues) {
 int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo* pInfo) {
   pInfo->numOfCols = numOfBound;
   pInfo->numOfBound = numOfBound;
-  pInfo->pColIndex = taosMemoryCalloc(numOfBound, sizeof(int32_t));
+  pInfo->pColIndex = taosMemoryCalloc(numOfBound, sizeof(int16_t));
   if (NULL == pInfo->pColIndex) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -983,7 +983,7 @@ int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo* pInfo) {
 
 static void destroyBoundColInfo(SBoundColInfo* pInfo) { taosMemoryFreeClear(pInfo->pColIndex); }
 
-static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreateTbReq, STableDataCxt** pOutput) {
+static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreateTbReq, STableDataCxt** pOutput, bool colMode) {
   STableDataCxt* pTableCxt = taosMemoryCalloc(1, sizeof(STableDataCxt));
   if (NULL == pTableCxt) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -1019,14 +1019,22 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
       code = TSDB_CODE_OUT_OF_MEMORY;
     } else {
       pTableCxt->pData->flags = NULL != *pCreateTbReq ? SUBMIT_REQ_AUTO_CREATE_TABLE : 0;
+      pTableCxt->pData->flags |= colMode ? SUBMIT_REQ_COLUMN_DATA_FORMAT : 0;
       pTableCxt->pData->suid = pTableMeta->suid;
       pTableCxt->pData->uid = pTableMeta->uid;
       pTableCxt->pData->sver = pTableMeta->sversion;
       pTableCxt->pData->pCreateTbReq = *pCreateTbReq;
       *pCreateTbReq = NULL;
-      pTableCxt->pData->aRowP = taosArrayInit(128, POINTER_BYTES);
-      if (NULL == pTableCxt->pData->aRowP) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+      if (pTableCxt->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+        pTableCxt->pData->aCol = taosArrayInit(128, sizeof(SColData));
+        if (NULL == pTableCxt->pData->aCol) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+        }
+      } else {
+        pTableCxt->pData->aRowP = taosArrayInit(128, POINTER_BYTES);
+        if (NULL == pTableCxt->pData->aRowP) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+        }
       }
     }
   }
@@ -1041,12 +1049,12 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
 }
 
 int32_t insGetTableDataCxt(SHashObj* pHash, void* id, int32_t idLen, STableMeta* pTableMeta,
-                           SVCreateTbReq** pCreateTbReq, STableDataCxt** pTableCxt) {
+                           SVCreateTbReq** pCreateTbReq, STableDataCxt** pTableCxt, bool colMode) {
   *pTableCxt = taosHashGet(pHash, id, idLen);
   if (NULL != *pTableCxt) {
     return TSDB_CODE_SUCCESS;
   }
-  int32_t code = createTableDataCxt(pTableMeta, pCreateTbReq, pTableCxt);
+  int32_t code = createTableDataCxt(pTableMeta, pCreateTbReq, pTableCxt, colMode);
   if (TSDB_CODE_SUCCESS == code) {
     code = taosHashPut(pHash, id, idLen, pTableCxt, POINTER_BYTES);
   }
@@ -1162,6 +1170,18 @@ static int32_t createVgroupDataCxt(STableDataCxt* pTableCxt, SHashObj* pVgroupHa
   return code;
 }
 
+int insColDataComp(const void* lp, const void* rp) {
+  SColData* pLeft = (SColData*)lp;
+  SColData* pRight = (SColData*)rp;
+  if (pLeft->cid < pRight->cid) {
+    return -1;
+  } else if (pLeft->cid > pRight->cid) {
+    return 1;
+  }
+
+  return 0;
+}
+
 int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
   SHashObj* pVgroupHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
   SArray*   pVgroupList = taosArrayInit(8, POINTER_BYTES);
@@ -1172,11 +1192,31 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
-
+  bool colFormat = false;
+  
   void* p = taosHashIterate(pTableHash, NULL);
+  if (p) {
+    STableDataCxt* pTableCxt = *(STableDataCxt**)p;
+    colFormat = (0 != (pTableCxt->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT));
+  }
+  
   while (TSDB_CODE_SUCCESS == code && NULL != p) {
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
-    code = tRowMergeSort(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
+    if (colFormat) {
+      taosArraySort(pTableCxt->pData->aCol, insColDataComp);
+      
+      int32_t colNum = taosArrayGetSize(pTableCxt->pData->aCol);
+      for (int32_t i = 0; i < colNum; ++i) {
+        SColData *pCol = taosArrayGet(pTableCxt->pData->aCol, i);
+        code = tColDataSortMerge(pCol);
+        if (code) {
+          break;
+        }
+      }
+    } else {
+      code = tRowMergeSort(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
+    }
+    
     if (TSDB_CODE_SUCCESS == code) {
       SVgroupDataCxt* pVgCxt = NULL;
       int32_t         vgId = pTableCxt->pMeta->vgId;

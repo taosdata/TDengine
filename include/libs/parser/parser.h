@@ -87,7 +87,6 @@ void    qCleanupKeywordsTable();
 int32_t     qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash);
 int32_t     qResetStmtDataBlock(void* block, bool keepBuf);
 int32_t     qCloneStmtDataBlock(void** pDst, void* pSrc);
-void        qFreeStmtDataBlock(void* pDataBlock);
 int32_t     qRebuildStmtDataBlock(void** pDst, void* pSrc, uint64_t uid, int32_t vgId);
 void        qDestroyStmtDataBlock(void* pBlock);
 STableMeta* qGetTableMetaInDataBlock(void* pDataBlock);

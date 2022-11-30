@@ -1547,6 +1547,14 @@ void tColDataClear(SColData *pColData) {
   pColData->nData = 0;
 }
 
+void tColDataDeepClear(SColData *pColData) {
+  pColData->pBitMap = NULL;
+  pColData->aOffset = NULL;
+  pColData->pData = NULL;
+
+  tColDataClear(pColData);
+}
+
 static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 

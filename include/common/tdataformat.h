@@ -113,6 +113,7 @@ int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, voi
 void    tColDataDestroy(void *ph);
 void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn);
 void    tColDataClear(SColData *pColData);
+void    tColDataDeepClear(SColData *pColData);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);

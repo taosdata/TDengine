@@ -142,7 +142,7 @@ int32_t insBuildOutput(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray 
 void    insDestroyDataBlock(STableDataBlocks *pDataBlock);
 
 typedef struct SBoundColInfo {
-  int32_t *pColIndex;  // bound index => schema index
+  int16_t *pColIndex;  // bound index => schema index
   int32_t  numOfCols;
   int32_t  numOfBound;
 } SBoundColInfo;
@@ -162,7 +162,7 @@ typedef struct SVgroupDataCxt {
 
 int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo *pInfo);
 int32_t insGetTableDataCxt(SHashObj *pHash, void *id, int32_t idLen, STableMeta *pTableMeta,
-                           SVCreateTbReq **pCreateTbReq, STableDataCxt **pTableCxt);
+                           SVCreateTbReq **pCreateTbReq, STableDataCxt **pTableCxt, bool colMode);
 int32_t insMergeTableDataCxt(SHashObj *pTableHash, SArray **pVgDataBlocks);
 int32_t insBuildVgDataBlocks(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks);
 void    insDestroyTableDataCxtHashMap(SHashObj *pTableCxtHash);

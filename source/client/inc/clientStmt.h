@@ -21,7 +21,7 @@ extern "C" {
 #endif
 #include "catalog.h"
 
-typedef void STableDataBlocks;
+typedef void STableDataCxt;
 
 typedef enum {
   STMT_TYPE_INSERT = 1,
@@ -43,8 +43,8 @@ typedef enum {
 } STMT_STATUS;
 
 typedef struct SStmtTableCache {
-  STableDataBlocks *pDataBlock;
-  void             *boundTags;
+  STableDataCxt *pDataCtx;
+  void          *boundTags;
 } SStmtTableCache;
 
 typedef struct SStmtQueryResInfo {
