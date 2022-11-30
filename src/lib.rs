@@ -13,7 +13,7 @@ pub mod utils;
 use taos::Dsn;
 
 pub use csv::*;
-pub use legacy::legacy_to_taos;
+pub use legacy::*;
 pub use local_to_taos::local_to_taos;
 pub use parquets::*;
 pub use tmq_to_local::tmq_to_local;
@@ -88,7 +88,13 @@ impl TaskOpts {
                     local_to_taos(from.clone(), to.clone(), *jobs, *force).await?;
                 }
                 ("taos", "taos") => {
-                    legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs).await?;
+                    legacy_to_taos(
+                        from.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        *jobs,
+                    )
+                    .await?;
                 }
                 ("taos", "csv") => {
                     query_to_csv(from.clone(), to.clone()).await?;

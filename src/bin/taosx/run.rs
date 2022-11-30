@@ -5,6 +5,7 @@ use taos::*;
 
 use taosx::{
     legacy_to_taos, local_to_taos, query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td, Action,
+    QueryOpts,
 };
 
 use clap::Parser;
@@ -138,7 +139,13 @@ impl Cli {
                 local_to_taos(args.from, args.to, args.jobs, opts.yes_i_really_mean_it).await?;
             }
             ("taos", "taos") => {
-                legacy_to_taos(args.from, args.transform, args.to, args.jobs).await?;
+                legacy_to_taos(
+                    args.from,
+                    args.transform,
+                    args.to,
+                    args.jobs,
+                )
+                .await?;
             }
             ("taos", "csv") => {
                 query_to_csv(args.from, args.to).await?;
