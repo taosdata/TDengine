@@ -1425,7 +1425,7 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
 
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
-  streamMetaRemoveTask1(pTq->pStreamMeta, pReq->taskId);
+  streamMetaRemoveTask(pTq->pStreamMeta, pReq->taskId);
   return 0;
 }
 

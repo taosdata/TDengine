@@ -3738,6 +3738,31 @@ int32_t tDeserializeSMTimerMsg(void *buf, int32_t bufLen, SMTimerReq *pReq) {
   return 0;
 }
 
+int32_t tSerializeSMStreamTickMsg(void *buf, int32_t bufLen, SMStreamTickReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->tick) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMStreamTickMsg(void *buf, int32_t bufLen, SMStreamTickReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->tick) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 int32_t tEncodeSReplica(SEncoder *pEncoder, SReplica *pReplica) {
   if (tEncodeI32(pEncoder, pReplica->id) < 0) return -1;
   if (tEncodeU16(pEncoder, pReplica->port) < 0) return -1;

@@ -440,9 +440,9 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
 }
 
 static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOutputObj *pOutput) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg, "persist-reb");
-  mndTransSetDbName(pTrans, pOutput->pSub->dbName, NULL);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg, "tmq-reb");
   if (pTrans == NULL) return -1;
+  mndTransSetDbName(pTrans, pOutput->pSub->dbName, NULL);
 
   // make txn:
   // 1. redo action: action to all vg
@@ -523,28 +523,6 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     tDeleteSMqConsumerObj(pConsumerNew);
     taosMemoryFree(pConsumerNew);
   }
-#if 0
-  if (consumerNum) {
-    char topic[TSDB_TOPIC_FNAME_LEN];
-    char cgroup[TSDB_CGROUP_LEN];
-    mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup, true);
-    SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
-    if (pTopic) {
-      // TODO make topic complete
-      SMqTopicObj topicObj = {0};
-      memcpy(&topicObj, pTopic, sizeof(SMqTopicObj));
-      topicObj.refConsumerCnt = pTopic->refConsumerCnt - consumerNum;
-      // TODO is that correct?
-      pTopic->refConsumerCnt = topicObj.refConsumerCnt;
-      mInfo("subscribe topic %s unref %d consumer cgroup %s, refcnt %d", pTopic->name, consumerNum, cgroup,
-            topicObj.refConsumerCnt);
-      if (mndSetTopicCommitLogs(pMnode, pTrans, &topicObj) != 0) {
-        ASSERT(0);
-        goto REB_FAIL;
-      }
-    }
-  }
-#endif
 
   // 4. TODO commit log: modification log
 
