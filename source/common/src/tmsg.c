@@ -6737,7 +6737,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
       goto _exit;
     }
 
-    pSubmitTbData->aCol = taosArrayInit(nColData, nColData);
+    pSubmitTbData->aCol = taosArrayInit(nColData, sizeof(SColData));
     if (pSubmitTbData->aCol == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;

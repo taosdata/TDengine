@@ -28,8 +28,10 @@
 
 static void    tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *pKey, int32_t flags);
 static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData);
-static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, int64_t version,
-                                       SSubmitTbData *pSubmitTbData, int32_t *affectedRows);
+static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, int64_t version,
+                                        SSubmitTbData *pSubmitTbData, int32_t *affectedRows);
+static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, int64_t version,
+                                        SSubmitTbData *pSubmitTbData, int32_t *affectedRows);
 
 int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   int32_t    code = 0;
@@ -133,10 +135,12 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitTbData *pSubmi
   }
 
   // do insert impl
-  code = tsdbInsertTableDataImpl(pMemTable, pTbData, version, pSubmitTbData, affectedRows);
-  if (code) {
-    goto _err;
+  if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    code = tsdbInsertColDataToTable(pMemTable, pTbData, version, pSubmitTbData, affectedRows);
+  } else {
+    code = tsdbInsertRowDataToTable(pMemTable, pTbData, version, pSubmitTbData, affectedRows);
   }
+  if (code) goto _err;
 
   return code;
 
@@ -538,8 +542,26 @@ _exit:
   return code;
 }
 
-static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, int64_t version,
-                                       SSubmitTbData *pSubmitTbData, int32_t *affectedRows) {
+static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, int64_t version,
+                                        SSubmitTbData *pSubmitTbData, int32_t *affectedRows) {
+  int32_t code = 0;
+
+  int32_t   nColData = TARRAY_SIZE(pSubmitTbData->aCol);
+  SColData *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
+
+  ASSERT(aColData[0].cid = PRIMARYKEY_TIMESTAMP_COL_ID);
+  ASSERT(aColData[0].type = TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT(aColData[0].flag = HAS_VALUE);
+
+  // TODO
+  ASSERT(0);
+
+_exit:
+  return code;
+}
+
+static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, int64_t version,
+                                        SSubmitTbData *pSubmitTbData, int32_t *affectedRows) {
   int32_t code = 0;
 
   SRow            **rows = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
