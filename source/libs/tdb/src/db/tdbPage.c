@@ -69,14 +69,15 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
 
   *ppPage = pPage;
 
-  tdbDebug("page/create: %p %p", pPage, xMalloc);
+  tdbTrace("page/create: %p/%d %p", pPage, pPage->id, xMalloc);
   return 0;
 }
 
 int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg) {
   u8 *ptr;
 
-  tdbDebug("page/destroy: %p %p", pPage, xFree);
+  tdbTrace("page/destroy: %p/%d %p", pPage, pPage->id, xFree);
+  ASSERT(!pPage->isDirty);
   ASSERT(xFree);
 
   for (int iOvfl = 0; iOvfl < pPage->nOverflow; iOvfl++) {

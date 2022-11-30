@@ -587,7 +587,7 @@ typedef struct SStreamMeta {
   SHashObj*    pTasks;
   SHashObj*    pRecoverStatus;
   void*        ahandle;
-  TXN          txn;
+  TXN*         txn;
   FTaskExpand* expandFunc;
   int32_t      vgId;
   SRWLatch     lock;
