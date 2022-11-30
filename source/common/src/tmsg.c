@@ -6670,7 +6670,14 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   if (tEncodeI32v(pCoder, pSubmitTbData->sver) < 0) return -1;
 
   if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-    ASSERT(0);  // TODO
+    uint64_t  nColData = TARRAY_SIZE(pSubmitTbData->aCol);
+    SColData *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
+
+    if (tEncodeU64v(pCoder, nColData) < 0) return -1;
+
+    for (uint64_t i = 0; i < nColData; i++) {
+      pCoder->pos += tPutColData(pCoder->data ? pCoder->data + pCoder->pos : NULL, &aColData[i]);
+    }
   } else {
     if (tEncodeU64v(pCoder, TARRAY_SIZE(pSubmitTbData->aRowP)) < 0) return -1;
 
@@ -6723,7 +6730,22 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
   }
 
   if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-    ASSERT(0);  // TODO
+    uint64_t nColData;
+
+    if (tDecodeU64v(pCoder, &nColData) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+
+    pSubmitTbData->aCol = taosArrayInit(nColData, nColData);
+    if (pSubmitTbData->aCol == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    for (int32_t i = 0; i < nColData; ++i) {
+      pCoder->pos += tGetColData(pCoder->data + pCoder->pos, taosArrayReserve(pSubmitTbData->aCol, 1));
+    }
   } else {
     uint64_t nRow;
     if (tDecodeU64v(pCoder, &nRow) < 0) {
