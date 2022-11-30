@@ -128,9 +128,9 @@ class LongTimeInsert(TDCase):
                 self.record_endpoint = random_endpoint
                 for dbname in db_list:
                     select_leader_time = self.tdSql.wait_select_leader(dbname)
-                    self.write_log(f'--------- dbname: {dbname} select leader time --- {select_leader_time}s \t--------\n')
+                    self.write_log(f'--------- dbname: {dbname} <stop> select leader time --- {select_leader_time}s \t--------\n')
                     sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, True))
-                    self.write_log(f'--------- dbname: {dbname} sync time --- {sync_time}s \t--------\n')
+                    self.write_log(f'--------- dbname: {dbname} <stop> sync time --- {sync_time}s \t--------\n')
 
                 # get a random dnode
                 for taosd_setting in self.taosd_setting["spec"]["dnodes"]:
@@ -185,7 +185,7 @@ class LongTimeInsert(TDCase):
 
                 for dbname in db_list:
                     sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, False))
-                    self.write_log(f'--------- dbname: {dbname} sync time --- {sync_time}s \t--------\n')
+                    self.write_log(f'--------- dbname: {dbname} <start> sync time --- {sync_time}s \t--------\n\n')
             else:
                 self.write_log(f'--------- dbname: {db_info_dict["db_name"]} {ntables_count} != {stb_info_dict["childtable_count"]} stop restart-action: \t--------\n')
             
