@@ -1059,6 +1059,7 @@ typedef struct {
   int32_t vgId;
   int8_t  syncState;
   int8_t  syncRestore;
+  int8_t  syncCanRead;
   int64_t cacheUsage;
   int64_t numOfTables;
   int64_t numOfTimeSeries;

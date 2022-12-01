@@ -375,14 +375,18 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       }
       bool roleChanged = false;
       for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
-        if (pVgroup->vnodeGid[vg].dnodeId == statusReq.dnodeId) {
-          if (pVgroup->vnodeGid[vg].syncState != pVload->syncState ||
-              pVgroup->vnodeGid[vg].syncRestore != pVload->syncRestore) {
-            mInfo("vgId:%d, state changed by status msg, old state:%s restored:%d new state:%s restored:%d",
-                  pVgroup->vgId, syncStr(pVgroup->vnodeGid[vg].syncState), pVgroup->vnodeGid[vg].syncRestore,
-                  syncStr(pVload->syncState), pVload->syncRestore);
-            pVgroup->vnodeGid[vg].syncState = pVload->syncState;
-            pVgroup->vnodeGid[vg].syncRestore = pVload->syncRestore;
+        SVnodeGid *pGid = &pVgroup->vnodeGid[vg];
+        if (pGid->dnodeId == statusReq.dnodeId) {
+          if (pGid->syncState != pVload->syncState || pGid->syncRestore != pVload->syncRestore ||
+              pGid->syncCanRead != pVload->syncCanRead) {
+            mInfo(
+                "vgId:%d, state changed by status msg, old state:%s restored:%d canRead:%d new state:%s restored:%d "
+                "canRead:%d",
+                pVgroup->vgId, syncStr(pGid->syncState), pGid->syncRestore, pGid->syncCanRead,
+                syncStr(pVload->syncState), pVload->syncRestore, pVload->syncCanRead);
+            pGid->syncState = pVload->syncState;
+            pGid->syncRestore = pVload->syncRestore;
+            pGid->syncCanRead = pVload->syncCanRead;
             roleChanged = true;
           }
           break;
