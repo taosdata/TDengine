@@ -76,6 +76,9 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 
   if (tEncodeSSchemaWrapper(pEncoder, &pObj->outputSchema) < 0) return -1;
 
+  // 3.0.20
+  if (tEncodeI64(pEncoder, pObj->checkpointFreq) < 0) return -1;
+
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -138,6 +141,9 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
   }
 
   if (tDecodeSSchemaWrapper(pDecoder, &pObj->outputSchema) < 0) return -1;
+
+  // 3.0.20
+  if (tDecodeI64(pDecoder, &pObj->checkpointFreq) < 0) return -1;
 
   tEndDecode(pDecoder);
   return 0;
