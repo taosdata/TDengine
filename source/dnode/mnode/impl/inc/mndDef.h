@@ -71,6 +71,9 @@ typedef enum {
   MND_OPER_READ_DB,
   MND_OPER_READ_OR_WRITE_DB,
   MND_OPER_SHOW_VARIBALES,
+  MND_OPER_SUBSCRIBE,
+  MND_OPER_CREATE_TOPIC,
+  MND_OPER_DROP_TOPIC,
 } EOperType;
 
 typedef enum {
@@ -273,6 +276,7 @@ typedef struct {
   int32_t   authVersion;
   SHashObj* readDbs;
   SHashObj* writeDbs;
+  SHashObj* topics;
   SRWLatch  lock;
 } SUserObj;
 
@@ -328,6 +332,7 @@ typedef struct {
   int32_t    dnodeId;
   ESyncState syncState;
   bool       syncRestore;
+  bool       syncCanRead;
 } SVnodeGid;
 
 typedef struct {

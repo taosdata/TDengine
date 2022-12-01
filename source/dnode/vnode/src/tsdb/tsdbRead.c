@@ -2543,6 +2543,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
       goto _err;
     }
 
+    // TODO: opt the perf of read del index
     code = tsdbReadDelIdx(pDelFReader, aDelIdx);
     if (code != TSDB_CODE_SUCCESS) {
       taosArrayDestroy(aDelIdx);

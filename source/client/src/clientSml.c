@@ -79,7 +79,6 @@
 #define NCHAR_ADD_LEN  3  // L"nchar"   3 means L" "
 
 #define MAX_RETRY_TIMES 5
-#define LINE_BATCH      2000
 //=================================================================================================
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
@@ -140,6 +139,8 @@ typedef struct {
   int32_t numOfSTables;
   int32_t numOfCTables;
   int32_t numOfCreateSTables;
+  int32_t numOfAlterColSTables;
+  int32_t numOfAlterTagSTables;
 
   int64_t parseTime;
   int64_t schemaTime;
@@ -467,6 +468,13 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         goto end;
       }
       info->cost.numOfCreateSTables++;
+      taosMemoryFreeClear(pTableMeta);
+
+      code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
+      if (code != TSDB_CODE_SUCCESS) {
+        uError("SML:0x%" PRIx64 " catalogGetSTableMeta failed. super table name %s", info->id, pName.tname);
+        goto end;
+      }
     } else if (code == TSDB_CODE_SUCCESS) {
       hashTmp = taosHashInit(pTableMeta->tableInfo.numOfTags, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
                              HASH_NO_LOCK);
@@ -505,16 +513,17 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
           uError("SML:0x%" PRIx64 " smlSendMetaMsg failed. can not create %s", info->id, pName.tname);
           goto end;
         }
-      }
 
-      taosMemoryFreeClear(pTableMeta);
-      code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, -1);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto end;
-      }
-      code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto end;
+        info->cost.numOfAlterTagSTables++;
+        taosMemoryFreeClear(pTableMeta);
+        code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, -1);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto end;
+        }
+        code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto end;
+        }
       }
 
       taosHashClear(hashTmp);
@@ -552,24 +561,25 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
           uError("SML:0x%" PRIx64 " smlSendMetaMsg failed. can not create %s", info->id, pName.tname);
           goto end;
         }
+
+        info->cost.numOfAlterColSTables++;
+        taosMemoryFreeClear(pTableMeta);
+        code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, -1);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto end;
+        }
+        code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
+        if (code != TSDB_CODE_SUCCESS) {
+          uError("SML:0x%" PRIx64 " catalogGetSTableMeta failed. super table name %s", info->id, pName.tname);
+          goto end;
+        }
       }
 
-      code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, -1);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto end;
-      }
       needCheckMeta = true;
       taosHashCleanup(hashTmp);
       hashTmp = NULL;
     } else {
       uError("SML:0x%" PRIx64 " load table meta error: %s", info->id, tstrerror(code));
-      goto end;
-    }
-    taosMemoryFreeClear(pTableMeta);
-
-    code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
-    if (code != TSDB_CODE_SUCCESS) {
-      uError("SML:0x%" PRIx64 " catalogGetSTableMeta failed. super table name %s", info->id, pName.tname);
       goto end;
     }
 
@@ -596,7 +606,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
 end:
   taosHashCleanup(hashTmp);
   taosMemoryFreeClear(pTableMeta);
-  catalogRefreshTableMeta(info->pCatalog, &conn, &pName, 1);
+//  catalogRefreshTableMeta(info->pCatalog, &conn, &pName, 1);
   return code;
 }
 
@@ -867,7 +877,10 @@ static int32_t smlParseTS(SSmlHandle *info, const char *data, int32_t len, SArra
   }
   uDebug("SML:0x%" PRIx64 " smlParseTS:%" PRId64, info->id, ts);
 
-  if (ts == -1) return TSDB_CODE_INVALID_TIMESTAMP;
+  if (ts <= 0) {
+    uError("SML:0x%" PRIx64 " smlParseTS error:%" PRId64, info->id, ts);
+    return TSDB_CODE_INVALID_TIMESTAMP;
+  }
 
   // add ts to
   SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
@@ -2066,7 +2079,7 @@ static int32_t smlParseJSONString(SSmlHandle *info, cJSON *root, SSmlTableInfo *
 
 static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql, const int len) {
   SSmlLineInfo elements = {0};
-  uDebug("SML:0x%" PRIx64 " smlParseInfluxLine sql:%s", info->id, (info->isRawLine ? "rawdata" : sql));
+  uDebug("SML:0x%" PRIx64 " smlParseInfluxLine raw:%d, len:%d, sql:%s", info->id, info->isRawLine, len, (info->isRawLine ? "rawdata" : sql));
 
   int ret = smlParseInfluxString(sql, sql + len, &elements, &info->msgBuf);
   if (ret != TSDB_CODE_SUCCESS) {
@@ -2359,11 +2372,12 @@ static int32_t smlInsertData(SSmlHandle *info) {
 
 static void smlPrintStatisticInfo(SSmlHandle *info) {
   uError("SML:0x%" PRIx64
-         " smlInsertLines result, code:%d,lineNum:%d,stable num:%d,ctable num:%d,create stable num:%d \
+         " smlInsertLines result, code:%d,lineNum:%d,stable num:%d,ctable num:%d,create stable num:%d,alter stable tag num:%d,alter stable col num:%d \
         parse cost:%" PRId64 ",schema cost:%" PRId64 ",bind cost:%" PRId64 ",rpc cost:%" PRId64 ",total cost:%" PRId64
          "",
          info->id, info->cost.code, info->cost.lineNum, info->cost.numOfSTables, info->cost.numOfCTables,
-         info->cost.numOfCreateSTables, info->cost.schemaTime - info->cost.parseTime,
+         info->cost.numOfCreateSTables, info->cost.numOfAlterTagSTables, info->cost.numOfAlterColSTables,
+         info->cost.schemaTime - info->cost.parseTime,
          info->cost.insertBindTime - info->cost.schemaTime, info->cost.insertRpcTime - info->cost.insertBindTime,
          info->cost.endTime - info->cost.insertRpcTime, info->cost.endTime - info->cost.parseTime);
 }
@@ -2562,7 +2576,7 @@ TAOS_RES *taos_schemaless_insert_inner(SRequestObj *request, char *lines[], char
     goto end;
   }
 
-  batchs = ceil(((double)numLines) / LINE_BATCH);
+  batchs = ceil(((double)numLines) / tsSmlBatchSize);
   params.total = batchs;
   for (int i = 0; i < batchs; ++i) {
     SRequestObj *req = (SRequestObj *)createRequest(pTscObj->id, TSDB_SQL_INSERT, 0);
@@ -2581,7 +2595,7 @@ TAOS_RES *taos_schemaless_insert_inner(SRequestObj *request, char *lines[], char
     info->isRawLine = (rawLine == NULL);
     info->ttl       = ttl;
 
-    int32_t perBatch = LINE_BATCH;
+    int32_t perBatch = tsSmlBatchSize;
 
     if (numLines > perBatch) {
       numLines -= perBatch;

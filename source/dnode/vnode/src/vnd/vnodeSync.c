@@ -295,36 +295,31 @@ static int32_t vnodeSyncGetSnapshot(const SSyncFSM *pFsm, SSnapshot *pSnapshot) 
   return 0;
 }
 
-static void vnodeSyncApplyMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static void vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   SVnode *pVnode = pFsm->data;
-
-  SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
-  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-  memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
-  rpcMsg.info = pMsg->info;
-  rpcMsg.info.conn.applyIndex = pMeta->index;
-  rpcMsg.info.conn.applyTerm = pMeta->term;
+  pMsg->info.conn.applyIndex = pMeta->index;
+  pMsg->info.conn.applyTerm = pMeta->term;
 
   const STraceId *trace = &pMsg->info.traceId;
   vGTrace("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
           ", weak:%d, code:%d, state:%d %s, type:%s",
-          pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, rpcMsg.info.conn.applyIndex, pMeta->isWeak, pMeta->code,
+          pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, pMsg->info.conn.applyIndex, pMeta->isWeak, pMeta->code,
           pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType));
 
-  tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
+  tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
 }
 
-static void vnodeSyncCommitMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static void vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
 }
 
-static void vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static void vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   if (pMeta->isWeak == 1) {
     vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
   }
 }
 
-static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   SVnode *pVnode = pFsm->data;
   vTrace("vgId:%d, rollback-cb is excuted, fsm:%p, index:%" PRId64 ", weak:%d, code:%d, state:%d %s, type:%s",
          pVnode->config.vgId, pFsm, pMeta->index, pMeta->isWeak, pMeta->code, pMeta->state, syncStr(pMeta->state),
@@ -404,7 +399,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm) {
   walApplyVer(pVnode->pWal, pVnode->state.applied);
 
   pVnode->restored = true;
-  vDebug("vgId:%d, sync restore finished", pVnode->config.vgId);
+  vInfo("vgId:%d, sync restore finished", pVnode->config.vgId);
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
@@ -506,15 +501,29 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   return 0;
 }
 
-void vnodeSyncStart(SVnode *pVnode) {
+int32_t vnodeSyncStart(SVnode *pVnode) {
   vInfo("vgId:%d, start sync", pVnode->config.vgId);
-  syncStart(pVnode->sync);
+  if (syncStart(pVnode->sync) < 0) {
+    vError("vgId:%d, failed to start sync subsystem since %s", pVnode->config.vgId, terrstr());
+    return -1;
+  }
+  return 0;
 }
 
 void vnodeSyncPreClose(SVnode *pVnode) {
   vInfo("vgId:%d, pre close sync", pVnode->config.vgId);
   syncLeaderTransfer(pVnode->sync);
   syncPreStop(pVnode->sync);
+#if 0
+  while (syncSnapshotRecving(pVnode->sync)) {
+    vInfo("vgId:%d, snapshot is recving", pVnode->config.vgId);
+    taosMsleep(300);
+  }
+  while (syncSnapshotSending(pVnode->sync)) {
+    vInfo("vgId:%d, snapshot is sending", pVnode->config.vgId);
+    taosMsleep(300);
+  }
+#endif
   taosThreadMutexLock(&pVnode->lock);
   if (pVnode->blocked) {
     vInfo("vgId:%d, post block after close sync", pVnode->config.vgId);
@@ -543,12 +552,12 @@ bool vnodeIsLeader(SVnode *pVnode) {
     } else {
       terrno = TSDB_CODE_APP_NOT_READY;
     }
-    vDebug("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncStr(state.state), state.restored);
+    vInfo("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncStr(state.state), state.restored);
     return false;
   }
 
   if (!pVnode->restored) {
-    vDebug("vgId:%d, vnode not restored", pVnode->config.vgId);
+    vInfo("vgId:%d, vnode not restored", pVnode->config.vgId);
     terrno = TSDB_CODE_APP_NOT_READY;
     return false;
   }

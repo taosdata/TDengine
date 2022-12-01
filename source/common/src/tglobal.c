@@ -75,6 +75,7 @@ char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table
                                                      // If set to empty system will generate table name using MD5 hash.
 // true means that the name and order of cols in each line are the same(only for influx protocol)
 bool tsSmlDataFormat = false;
+int32_t  tsSmlBatchSize  = 10000;
 
 // query
 int32_t tsQueryPolicy = 1;
@@ -307,6 +308,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "smlBatchSize", tsSmlBatchSize, 1, INT32_MAX, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxMemUsedByInsert", tsMaxMemUsedByInsert, 1, INT32_MAX, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "rpcRetryLimit", tsRpcRetryLimit, 1, 100000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "rpcRetryInterval", tsRpcRetryInterval, 1, 100000, 0) != 0) return -1;
@@ -649,6 +651,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
   tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
 
+  tsSmlBatchSize = cfgGetItem(pCfg, "smlBatchSize")->i32;
   tsMaxMemUsedByInsert = cfgGetItem(pCfg, "maxMemUsedByInsert")->i32;
 
   tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
@@ -1022,6 +1025,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
       } else if (strcasecmp("smlDataFormat", name) == 0) {
         tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
+      } else if (strcasecmp("smlBatchSize", name) == 0) {
+        tsSmlBatchSize = cfgGetItem(pCfg, "smlBatchSize")->i32;
       } else if (strcasecmp("shellActivityTimer", name) == 0) {
         tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
       } else if (strcasecmp("supportVnodes", name) == 0) {

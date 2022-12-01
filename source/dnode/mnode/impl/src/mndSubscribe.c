@@ -721,7 +721,9 @@ SUB_ENCODE_OVER:
 
 static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  void *buf = NULL;
+  SSdbRow         *pRow = NULL;
+  SMqSubscribeObj *pSub = NULL;
+  void            *buf = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto SUB_DECODE_OVER;
@@ -731,11 +733,10 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
     goto SUB_DECODE_OVER;
   }
 
-  int32_t  size = sizeof(SMqSubscribeObj);
-  SSdbRow *pRow = sdbAllocRow(size);
+  pRow = sdbAllocRow(sizeof(SMqSubscribeObj));
   if (pRow == NULL) goto SUB_DECODE_OVER;
 
-  SMqSubscribeObj *pSub = sdbGetRowObj(pRow);
+  pSub = sdbGetRowObj(pRow);
   if (pSub == NULL) goto SUB_DECODE_OVER;
 
   int32_t dataPos = 0;
@@ -755,7 +756,7 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
 SUB_DECODE_OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("subscribe:%s, failed to decode from raw:%p since %s", pSub->key, pRaw, terrstr());
+    mError("subscribe:%s, failed to decode from raw:%p since %s", pSub == NULL ? "null" : pSub->key, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
