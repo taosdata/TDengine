@@ -161,4 +161,6 @@ int32_t convertFillType(int32_t mode);
 int32_t resultrowComparAsc(const void* p1, const void* p2);
 int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified);
 
+void printDataBlock(SSDataBlock* pBlock, const char* flag);
+
 #endif  // TDENGINE_QUERYUTIL_H

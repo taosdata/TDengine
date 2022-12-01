@@ -381,15 +381,13 @@ int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
   return 0;
 }
 
-bool syncIsReadyForRead(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+bool syncNodeIsReadyForRead(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) {
     sError("sync ready for read error");
     return false;
   }
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER && pSyncNode->restoreFinish) {
-    syncNodeRelease(pSyncNode);
     return true;
   }
 
@@ -443,8 +441,42 @@ bool syncIsReadyForRead(int64_t rid) {
     }
   }
 
+  return ready;
+}
+
+bool syncIsReadyForRead(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    sError("sync ready for read error");
+    return false;
+  }
+
+  bool ready = syncNodeIsReadyForRead(pSyncNode);
+
   syncNodeRelease(pSyncNode);
   return ready;
+}
+
+bool syncSnapshotSending(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    return false;
+  }
+
+  bool b = syncNodeSnapshotSending(pSyncNode);
+  syncNodeRelease(pSyncNode);
+  return b;
+}
+
+bool syncSnapshotRecving(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    return false;
+  }
+
+  bool b = syncNodeSnapshotRecving(pSyncNode);
+  syncNodeRelease(pSyncNode);
+  return b;
 }
 
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
@@ -499,6 +531,7 @@ SSyncState syncGetState(int64_t rid) {
   if (pSyncNode != NULL) {
     state.state = pSyncNode->state;
     state.restored = pSyncNode->restoreFinish;
+    state.canRead = syncNodeIsReadyForRead(pSyncNode);
     syncNodeRelease(pSyncNode);
   }
 
@@ -1013,6 +1046,9 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   pSyncNode->electNum = 0;
   pSyncNode->becomeLeaderNum = 0;
   pSyncNode->configChangeNum = 0;
+  pSyncNode->hbSlowNum = 0;
+  pSyncNode->hbrSlowNum = 0;
+  pSyncNode->tmrRoutineNum = 0;
 
   sNTrace(pSyncNode, "sync open, node:%p", pSyncNode);
 
@@ -1117,12 +1153,21 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     if ((pSyncNode->senders)[i] != NULL) {
       sSTrace((pSyncNode->senders)[i], "snapshot sender destroy while close, data:%p", (pSyncNode->senders)[i]);
+
+      if (snapshotSenderIsStart((pSyncNode->senders)[i])) {
+        snapshotSenderStop((pSyncNode->senders)[i], false);
+      }
+
       snapshotSenderDestroy((pSyncNode->senders)[i]);
       (pSyncNode->senders)[i] = NULL;
     }
   }
 
   if (pSyncNode->pNewNodeReceiver != NULL) {
+    if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+      snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+    }
+
     snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
     pSyncNode->pNewNodeReceiver = NULL;
   }
@@ -1563,6 +1608,8 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
     pSyncNode->leaderCache = EMPTY_RAFT_ID;
   }
 
+  pSyncNode->hbSlowNum = 0;
+
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   syncNodeStopHeartbeatTimer(pSyncNode);
@@ -1607,6 +1654,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   pSyncNode->leaderTime = taosGetTimestampMs();
 
   pSyncNode->becomeLeaderNum++;
+  pSyncNode->hbrSlowNum = 0;
 
   // reset restoreFinish
   pSyncNode->restoreFinish = false;
@@ -2167,6 +2215,25 @@ bool syncNodeHeartbeatReplyTimeout(SSyncNode* pSyncNode) {
   return b;
 }
 
+bool syncNodeSnapshotSending(SSyncNode* pSyncNode) {
+  if (pSyncNode == NULL) return false;
+  bool b = false;
+  for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
+    if (pSyncNode->senders[i] != NULL && pSyncNode->senders[i]->start) {
+      b = true;
+      break;
+    }
+  }
+  return b;
+}
+
+bool syncNodeSnapshotRecving(SSyncNode* pSyncNode) {
+  if (pSyncNode == NULL) return false;
+  if (pSyncNode->pNewNodeReceiver == NULL) return false;
+  if (pSyncNode->pNewNodeReceiver->start) return true;
+  return false;
+}
+
 static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   int32_t ret = 0;
 
@@ -2199,9 +2266,13 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
 
+  const STraceId* trace = &pRpcMsg->info.traceId;
+  char            tbuf[40] = {0};
+  TRACE_TO_STR(trace, tbuf);
+
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
-  syncLogRecvHeartbeat(ths, pMsg, timeDiff);
+  syncLogRecvHeartbeat(ths, pMsg, timeDiff, tbuf);
 
   SRpcMsg rpcMsg = {0};
   (void)syncBuildHeartbeatReply(&rpcMsg, ths->vgId);
@@ -2276,9 +2347,13 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
 
+  const STraceId* trace = &pRpcMsg->info.traceId;
+  char            tbuf[40] = {0};
+  TRACE_TO_STR(trace, tbuf);
+
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
-  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff);
+  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff, tbuf);
 
   // update last reply time, make decision whether the other node is alive or not
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
@@ -2411,8 +2486,12 @@ const char* syncStr(ESyncState state) {
       return "candidate";
     case TAOS_SYNC_STATE_LEADER:
       return "leader";
-    default:
+    case TAOS_SYNC_STATE_ERROR:
       return "error";
+    case TAOS_SYNC_STATE_OFFLINE:
+      return "offline";
+    default:
+      return "unknown";
   }
 }
 

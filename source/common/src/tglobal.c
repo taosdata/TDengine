@@ -16,9 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "tglobal.h"
 #include "tconfig.h"
-#include "tmisce.h"
 #include "tgrant.h"
 #include "tlog.h"
+#include "tmisce.h"
 
 GRANT_CFG_DECLARE;
 
@@ -87,6 +87,10 @@ bool    tsQueryPlannerTrace = false;
 int32_t tsQueryNodeChunkSize = 32 * 1024;
 bool    tsQueryUseNodeAllocator = true;
 bool    tsKeepColumnName = false;
+int32_t tsRedirectPeriod = 10;
+int32_t tsRedirectFactor = 2;
+int32_t tsRedirectMaxPeriod = 1000;
+int32_t tsMaxRetryWaitTime = 10000;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -121,7 +125,7 @@ int32_t tsMinIntervalTime = 1;
 int32_t tsMaxMemUsedByInsert = 1024;
 
 float   tsSelectivityRatio = 1.0;
-int32_t tsTagFilterResCacheSize = 1024*10;
+int32_t tsTagFilterResCacheSize = 1024 * 10;
 
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
@@ -307,6 +311,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "maxMemUsedByInsert", tsMaxMemUsedByInsert, 1, INT32_MAX, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "rpcRetryLimit", tsRpcRetryLimit, 1, 100000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "rpcRetryInterval", tsRpcRetryInterval, 1, 100000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 0, 86400000, 0) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
@@ -662,6 +667,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   tsRpcRetryLimit = cfgGetItem(pCfg, "rpcRetryLimit")->i32;
   tsRpcRetryInterval = cfgGetItem(pCfg, "rpcRetryInterval")->i32;
+  tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
   return 0;
 }
 
@@ -877,6 +883,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
             tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
           } else if (strcasecmp("maxMemUsedByInsert", name) == 0) {
             tsMaxMemUsedByInsert = cfgGetItem(pCfg, "maxMemUsedByInsert")->i32;
+          } else if (strcasecmp("maxRetryWaitTime", name) == 0) {
+            tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
           }
           break;
         }

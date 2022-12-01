@@ -231,8 +231,10 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
       SIF_ERR_RET(sifGetValueFromNode(node, &param->condValue));
       param->colId = -1;
       param->colValType = (uint8_t)(vn->node.resType.type);
-      if (strlen(vn->literal) <= sizeof(param->colName)) {
+      if (vn->literal != NULL && strlen(vn->literal) <= sizeof(param->colName)) {
         memcpy(param->colName, vn->literal, strlen(vn->literal));
+      } else {
+        param->status = SFLT_NOT_INDEX;
       }
       break;
     }

@@ -48,6 +48,12 @@ int32_t schedulerInit() {
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
+  schMgmt.timer = taosTmrInit(0, 0, 0, "scheduler");
+  if (NULL == schMgmt.timer) {
+    qError("init timer failed, error:%s", tstrerror(terrno));
+    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
   if (taosGetSystemUUID((char *)&schMgmt.sId, sizeof(schMgmt.sId))) {
     qError("generate schdulerId failed, errno:%d", errno);
     SCH_ERR_RET(TSDB_CODE_QRY_SYS_ERROR);

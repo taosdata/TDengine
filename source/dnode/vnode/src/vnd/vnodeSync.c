@@ -66,7 +66,7 @@ void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   pMsg->info.hasEpSet = 1;
 
-  SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info, .msgType = pMsg->msgType + 1};
+  SRpcMsg rsp = {.code = TSDB_CODE_SYN_NOT_LEADER, .info = pMsg->info, .msgType = pMsg->msgType + 1};
   tmsgSendRedirectRsp(&rsp, &newEpSet);
 }
 
@@ -515,6 +515,16 @@ void vnodeSyncPreClose(SVnode *pVnode) {
   vInfo("vgId:%d, pre close sync", pVnode->config.vgId);
   syncLeaderTransfer(pVnode->sync);
   syncPreStop(pVnode->sync);
+#if 0
+  while (syncSnapshotRecving(pVnode->sync)) {
+    vInfo("vgId:%d, snapshot is recving", pVnode->config.vgId);
+    taosMsleep(300);
+  }
+  while (syncSnapshotSending(pVnode->sync)) {
+    vInfo("vgId:%d, snapshot is sending", pVnode->config.vgId);
+    taosMsleep(300);
+  }
+#endif
   taosThreadMutexLock(&pVnode->lock);
   if (pVnode->blocked) {
     vInfo("vgId:%d, post block after close sync", pVnode->config.vgId);
