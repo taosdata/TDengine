@@ -78,7 +78,6 @@ class TDTestCase:
         sleep(5)
 
 
-        
     def buildTaosd(self,bPath):
         # os.system(f"mv {bPath}/build_bak  {bPath}/build ")
         os.system(f" cd {bPath}  &&  make install ")
