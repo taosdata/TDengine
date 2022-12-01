@@ -75,7 +75,7 @@ class TDTestCase:
         tdDnodes.stop(1)
         print(f"start taosd: nohup taosd -c {cPath} & ")
         os.system(f" nohup taosd -c {cPath} & " )
-        sleep(1)
+        sleep(5)
 
 
         
