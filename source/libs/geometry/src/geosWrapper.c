@@ -220,3 +220,61 @@ _exit:
 
   return code;
 }
+
+int32_t prepareIntersects(SGeosContext *context) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  if (context->handle == NULL) {
+    context->handle = GEOS_init_r();
+    if (context->handle == NULL) {
+      return code;
+    }
+  }
+
+  if (context->WKBReader == NULL) {
+    context->WKBReader = GEOSWKBReader_create_r(context->handle);
+    if (context->WKBReader == NULL) {
+      return code;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t doIntersects(SGeosContext *context,
+                     const unsigned char *inputGeom1, size_t size1,
+                     const unsigned char *inputGeom2, size_t size2,
+                     char *res) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  GEOSGeometry *geom1 = NULL;
+  GEOSGeometry *geom2 = NULL;
+
+  geom1 = GEOSWKBReader_read_r(context->handle, context->WKBReader, inputGeom1, size1);
+  if (geom1 == NULL) {
+    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    goto _exit;
+  }
+
+  geom2 = GEOSWKBReader_read_r(context->handle, context->WKBReader, inputGeom2, size2);
+  if (geom2 == NULL) {
+    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    goto _exit;
+  }
+
+  *res = GEOSIntersects_r(context->handle, geom1, geom2);
+  code = TSDB_CODE_SUCCESS;
+
+_exit:
+  if (geom1) {
+    GEOSGeom_destroy_r(context->handle, geom1);
+    geom1 = NULL;
+  }
+
+  if (geom2) {
+    GEOSGeom_destroy_r(context->handle, geom2);
+    geom2 = NULL;
+  }
+
+  return code;
+}

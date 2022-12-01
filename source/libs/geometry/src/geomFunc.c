@@ -27,6 +27,7 @@ int32_t doGeomFromTextFunc(SGeosContext *context, const char *input, unsigned ch
   int32_t code = TSDB_CODE_FAILED;
 
   if ((varDataLen(input)) == 0) { //empty value
+    *output = NULL;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -70,6 +71,7 @@ int32_t doAsTextFunc(SGeosContext *context, unsigned char *input, char **output)
   int32_t code = TSDB_CODE_FAILED;
 
   if ((varDataLen(input)) == 0) { //empty value
+    *output = NULL;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -130,7 +132,24 @@ _exit:
   return code;
 }
 
-void appendOutputData(SColumnInfoData *pOutputData, int32_t i, unsigned char *output) {
+// both input and output are with VARSTR format
+int32_t doIntersectsFunc(SGeosContext *context, unsigned char *input1, unsigned char *input2, char *res) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  if (varDataLen(input1) == 0 || varDataLen(input2) == 0) { //empty value
+    *res = -1;  // it means a NULL result
+    return TSDB_CODE_SUCCESS;
+  }
+
+  code = doIntersects(context,
+                      varDataVal(input1), varDataLen(input1),
+                      varDataVal(input2), varDataLen(input2),
+                      res);
+
+  return code;
+}
+
+void appendOutputStrAndFree(SColumnInfoData *pOutputData, int32_t i, unsigned char *output) {
   colDataAppend(pOutputData, i, output, (output == NULL));
 
   if (output) {
@@ -163,7 +182,7 @@ int32_t geomFromTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }
-    appendOutputData(pOutputData, i, output);
+    appendOutputStrAndFree(pOutputData, i, output);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -199,7 +218,7 @@ int32_t asTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }
-    appendOutputData(pOutputData, i, output);
+    appendOutputStrAndFree(pOutputData, i, output);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -247,7 +266,7 @@ int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       if (code != TSDB_CODE_SUCCESS) {
         goto _exit;
       }
-      appendOutputData(pOutputData, i, output);
+      appendOutputStrAndFree(pOutputData, i, output);
     }
   } else if (pInput[0].numOfRows == 1) { //left operand is constant
     if (colDataIsNull_s(pInputData[0], 0) || hasNullType) {
@@ -266,7 +285,7 @@ int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
         if (code != TSDB_CODE_SUCCESS) {
           goto _exit;
         }
-        appendOutputData(pOutputData, i, output);
+        appendOutputStrAndFree(pOutputData, i, output);
       }
     }
   } else if (pInput[1].numOfRows == 1) {
@@ -286,7 +305,94 @@ int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
         if (code != TSDB_CODE_SUCCESS) {
           goto _exit;
         }
-        appendOutputData(pOutputData, i, output);
+        appendOutputStrAndFree(pOutputData, i, output);
+      }
+    }
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_exit:
+  destroyGeosContext(&context);
+
+  return code;
+}
+
+int32_t intersectsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  SColumnInfoData *pInputData[inputNum];
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  for (int32_t i = 0; i < inputNum; ++i) {
+    pInputData[i] = pInput[i].columnData;
+  }
+
+  SGeosContext context = {0};
+  code = prepareIntersects(&context);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
+  bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+                      IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
+
+  int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+  if (pInput[0].numOfRows == pInput[1].numOfRows) {
+    for (int32_t i = 0; i < numOfRows; ++i) {
+      if (colDataIsNull_s(pInputData[0], i) ||
+          colDataIsNull_s(pInputData[1], i) ||
+          hasNullType) {
+        colDataAppendNULL(pOutputData, i);
+        code = TSDB_CODE_SUCCESS;
+        continue;
+      }
+
+      char res = 0;
+      code = doIntersectsFunc(&context, colDataGetData(pInputData[0], i), colDataGetData(pInputData[1], i), &res);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _exit;
+      }
+      colDataAppend(pOutputData, i, &res, (res==-1));
+    }
+  } else if (pInput[0].numOfRows == 1) { //left operand is constant
+    if (colDataIsNull_s(pInputData[0], 0) || hasNullType) {
+      colDataAppendNNULL(pOutputData, 0, pInput[1].numOfRows);
+      code = TSDB_CODE_SUCCESS;
+    } else {
+      for (int32_t i = 0; i < numOfRows; ++i) {
+        if (colDataIsNull_s(pInputData[1], i)) {
+          colDataAppendNULL(pOutputData, i);
+          code = TSDB_CODE_SUCCESS;
+          continue;
+        }
+
+        char res = 0;
+        code = doIntersectsFunc(&context, colDataGetData(pInputData[0], 0), colDataGetData(pInputData[1], i), &res);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _exit;
+        }
+        colDataAppend(pOutputData, i, &res, (res==-1));
+      }
+    }
+  } else if (pInput[1].numOfRows == 1) {
+    if (colDataIsNull_s(pInputData[1], 0) || hasNullType) {
+      colDataAppendNNULL(pOutputData, 0, pInput[0].numOfRows);
+      code = TSDB_CODE_SUCCESS;
+    } else {
+      for (int32_t i = 0; i < numOfRows; ++i) {
+        if (colDataIsNull_s(pInputData[0], i)) {
+          colDataAppendNULL(pOutputData, i);
+          code = TSDB_CODE_SUCCESS;
+          continue;
+        }
+
+        char res = 0;
+        code = doIntersectsFunc(&context, colDataGetData(pInputData[0], i), colDataGetData(pInputData[1], 0), &res);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _exit;
+        }
+        colDataAppend(pOutputData, i, &res, (res==-1));
       }
     }
   }

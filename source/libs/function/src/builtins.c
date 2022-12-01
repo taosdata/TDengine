@@ -2003,6 +2003,23 @@ static int32_t translateIn2NumOutGeom(SFunctionNode* pFunc, char* pErrBuf, int32
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateIn2GeomOutBool(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if ((para1Type != TSDB_DATA_TYPE_GEOMETRY && !IS_NULL_TYPE(para1Type)) ||
+      (para2Type != TSDB_DATA_TYPE_GEOMETRY && !IS_NULL_TYPE(para2Type))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes, .type = TSDB_DATA_TYPE_BOOL};
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSelectValue(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
@@ -3216,7 +3233,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "astext",
-    .type = FUNCTION_TYPE_GEOM_FROM_TEXT,
+    .type = FUNCTION_TYPE_AS_TEXT,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
     .translateFunc = translateInGeomOutStr,
     .getEnvFunc   = NULL,
@@ -3232,6 +3249,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = makePointFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "intersects",
+    .type = FUNCTION_TYPE_INTERSECTS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = intersectsFunction,
     .finalizeFunc = NULL
   },
 };

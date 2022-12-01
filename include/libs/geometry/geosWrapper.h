@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+
 #include <geos_c.h>
 
 typedef struct SGeosContext {
@@ -45,6 +46,12 @@ int32_t doAsText(SGeosContext *context, const unsigned char *inputGeom, size_t s
 
 int32_t prepareMakePoint(SGeosContext *context);
 int32_t doMakePoint(SGeosContext *context, double x, double y, unsigned char **outputGeom, size_t *size);
+
+int32_t prepareIntersects(SGeosContext *context);
+int32_t doIntersects(SGeosContext *context,
+                     const unsigned char *inputGeom1, size_t size1,
+                     const unsigned char *inputGeom2, size_t size2,
+                     char *res);
 
 #ifdef __cplusplus
 }
