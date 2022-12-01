@@ -38,7 +38,7 @@ class LongTimeInsert(TDCase):
         self.restart_timeout = 10
         # self.query_interval = 7200
         # self.query_interval = 3600
-        self.query_interval = 120
+        self.query_interval = 300
         self._remote: Remote = Remote(self.logger)
         self.taosd = TaosD(self._remote)
         self.taosd_setting = self.tdCom.get_components_setting(
@@ -104,16 +104,22 @@ class LongTimeInsert(TDCase):
 
     def restart_sync(self, db_list, db_info_dict=None, stb_info_dict=None, dnode_count=3, stop_dnode=True, alter_replica=False, drop_count=10):
         dnodes_out_mnodes = self.tdSql.get_dnodes_out_mnodes()
-        if self.record_endpoint is not None:
-            if self.record_endpoint not in dnodes_out_mnodes:
-                self.write_log(f'--------- trying to start dnode again: --- {self.record_endpoint} \t--------\n')
-                self.taosd.start(self.record_dnode)
-
         random_endpoint = random.choice(dnodes_out_mnodes[1])
         self.tdSql.query(f'select name,ntables from information_schema.ins_databases;')
         db_field_kv = self.tdSql.get_db_field_kv(0, db_info_dict["db_name"])
         ntables_count = db_field_kv["ntables"]
         if stop_dnode:
+            if self.record_endpoint is not None:
+                if self.record_endpoint not in dnodes_out_mnodes:
+                    self.write_log(f'--------- trying to start dnode again: --- {self.record_endpoint} \t--------\n')
+                    self.write_log(f'--------- self.record_endpoint ----------- {self.record_endpoint} \t--------\n')
+                    self.write_log(f'--------- dnodes_out_mnodes ----------- {dnodes_out_mnodes} \t--------\n')
+
+                    self.taosd.start(self.record_dnode)
+                    for dbname in db_list:
+                        sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, False))
+                        self.write_log(f'--------- dbname: {dbname} <start again > sync time --- {sync_time}s \t--------\n\n')
+
             if int(ntables_count) == stb_info_dict["childtable_count"]:
                 self.write_log(f'--------- (dbname, ntables) --- {self.tdSql.query_data} \t--------\n')
                 for dbname in db_list:
@@ -164,8 +170,6 @@ class LongTimeInsert(TDCase):
                 self.write_log(f'--------- starting dnode: --- {random_endpoint} \t--------\n')
                 self.taosd.start(random_dnode)
                 
-                print(stb_info_dict)
-                print(self.tdSql.query_data)
                 if "syncing_drop" in stb_info_dict and not self.drop_tag:
                     if stb_info_dict["syncing_drop"] == 1:
                         self.write_log(f'--------- syncing_drop will start when row_count > {drop_kill_rows} \t--------\n')
