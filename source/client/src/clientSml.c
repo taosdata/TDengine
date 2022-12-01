@@ -139,6 +139,8 @@ typedef struct {
   int32_t numOfSTables;
   int32_t numOfCTables;
   int32_t numOfCreateSTables;
+  int32_t numOfAlterColSTables;
+  int32_t numOfAlterTagSTables;
 
   int64_t parseTime;
   int64_t schemaTime;
@@ -512,6 +514,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
           goto end;
         }
 
+        info->cost.numOfAlterTagSTables++;
         taosMemoryFreeClear(pTableMeta);
         code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, -1);
         if (code != TSDB_CODE_SUCCESS) {
@@ -559,6 +562,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
           goto end;
         }
 
+        info->cost.numOfAlterColSTables++;
         taosMemoryFreeClear(pTableMeta);
         code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, -1);
         if (code != TSDB_CODE_SUCCESS) {
@@ -821,11 +825,6 @@ static int8_t smlGetTsTypeByPrecision(int8_t precision) {
 }
 
 static int64_t smlParseInfluxTime(SSmlHandle *info, const char *data, int32_t len) {
-  void *tmp = taosMemoryCalloc(1, len + 1);
-  memcpy(tmp, data, len);
-  uDebug("SML:0x%" PRIx64 " smlParseInfluxTime tslen:%d, ts:%s", info->id, len, (char*)tmp);
-  taosMemoryFree(tmp);
-
   if (len == 0 || (len == 1 && data[0] == '0')) {
     return taosGetTimestampNs();
   }
@@ -878,7 +877,10 @@ static int32_t smlParseTS(SSmlHandle *info, const char *data, int32_t len, SArra
   }
   uDebug("SML:0x%" PRIx64 " smlParseTS:%" PRId64, info->id, ts);
 
-  if (ts == -1) return TSDB_CODE_INVALID_TIMESTAMP;
+  if (ts <= 0) {
+    uError("SML:0x%" PRIx64 " smlParseTS error:%" PRId64, info->id, ts);
+    return TSDB_CODE_INVALID_TIMESTAMP;
+  }
 
   // add ts to
   SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
@@ -2077,10 +2079,7 @@ static int32_t smlParseJSONString(SSmlHandle *info, cJSON *root, SSmlTableInfo *
 
 static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql, const int len) {
   SSmlLineInfo elements = {0};
-  void *tmp = taosMemoryCalloc(1, len + 1);
-  memcpy(tmp, sql, len);
-  uDebug("SML:0x%" PRIx64 " smlParseInfluxLine raw:%d, len:%d, sql:%s", info->id, info->isRawLine, len, (info->isRawLine ? (char*)tmp : sql));
-  taosMemoryFree(tmp);
+  uDebug("SML:0x%" PRIx64 " smlParseInfluxLine raw:%d, len:%d, sql:%s", info->id, info->isRawLine, len, (info->isRawLine ? "rawdata" : sql));
 
   int ret = smlParseInfluxString(sql, sql + len, &elements, &info->msgBuf);
   if (ret != TSDB_CODE_SUCCESS) {
@@ -2373,11 +2372,12 @@ static int32_t smlInsertData(SSmlHandle *info) {
 
 static void smlPrintStatisticInfo(SSmlHandle *info) {
   uError("SML:0x%" PRIx64
-         " smlInsertLines result, code:%d,lineNum:%d,stable num:%d,ctable num:%d,create stable num:%d \
+         " smlInsertLines result, code:%d,lineNum:%d,stable num:%d,ctable num:%d,create stable num:%d,alter stable tag num:%d,alter stable col num:%d \
         parse cost:%" PRId64 ",schema cost:%" PRId64 ",bind cost:%" PRId64 ",rpc cost:%" PRId64 ",total cost:%" PRId64
          "",
          info->id, info->cost.code, info->cost.lineNum, info->cost.numOfSTables, info->cost.numOfCTables,
-         info->cost.numOfCreateSTables, info->cost.schemaTime - info->cost.parseTime,
+         info->cost.numOfCreateSTables, info->cost.numOfAlterTagSTables, info->cost.numOfAlterColSTables,
+         info->cost.schemaTime - info->cost.parseTime,
          info->cost.insertBindTime - info->cost.schemaTime, info->cost.insertRpcTime - info->cost.insertBindTime,
          info->cost.endTime - info->cost.insertRpcTime, info->cost.endTime - info->cost.parseTime);
 }
