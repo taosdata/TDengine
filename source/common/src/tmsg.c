@@ -6943,7 +6943,7 @@ _exit:
 }
 
 void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
-  if (TSDB_MSG_FLG_ENCODE) {
+  if (flag & TSDB_MSG_FLG_ENCODE) {
     if (pRsp->aCreateTbRsp) {
       int32_t        nCreateTbRsp = TARRAY_SIZE(pRsp->aCreateTbRsp);
       SVCreateTbRsp *aCreateTbRsp = TARRAY_DATA(pRsp->aCreateTbRsp);
@@ -6954,7 +6954,7 @@ void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
       }
       taosArrayDestroy(pRsp->aCreateTbRsp);
     }
-  } else if (TSDB_MSG_FLG_DECODE) {
+  } else if (flag & TSDB_MSG_FLG_DECODE) {
     // TODO
     taosArrayDestroy(pRsp->aCreateTbRsp);
   }
