@@ -430,15 +430,15 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
   if (SCH_IS_DATA_BIND_TASK(pTask)) {
     if (pData && pData->pEpSet) {
       SCH_ERR_JRET(schUpdateTaskCandidateAddr(pJob, pTask, pData->pEpSet));
-    } else if (SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(rspCode)) {
-      SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
-      SCH_SWITCH_EPSET(addr);
-      SCH_TASK_DLOG("switch task target node %d epset to %d/%d", addr->nodeId, addr->epSet.inUse, addr->epSet.numOfEps);
-    } else {
+    } else if (SYNC_SELF_LEADER_REDIRECT_ERROR(rspCode)) {
       SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
       SEp            *pEp = &addr->epSet.eps[addr->epSet.inUse];
       SCH_TASK_DLOG("task retry node %d current ep, idx:%d/%d,%s:%d", addr->nodeId, addr->epSet.inUse,
                     addr->epSet.numOfEps, pEp->fqdn, pEp->port);
+    } else {
+      SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
+      SCH_SWITCH_EPSET(addr);
+      SCH_TASK_DLOG("switch task target node %d epset to %d/%d", addr->nodeId, addr->epSet.inUse, addr->epSet.numOfEps);
     }
 
     if (SCH_TASK_NEED_FLOW_CTRL(pJob, pTask)) {
