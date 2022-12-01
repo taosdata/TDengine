@@ -288,7 +288,7 @@ static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pOldTopic, SMqTopic
   return 0;
 }
 
-SMqTopicObj *mndAcquireTopic(SMnode *pMnode, char *topicName) {
+SMqTopicObj *mndAcquireTopic(SMnode *pMnode, const char *topicName) {
   SSdb        *pSdb = pMnode->pSdb;
   SMqTopicObj *pTopic = sdbAcquire(pSdb, SDB_TOPIC, topicName);
   if (pTopic == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
@@ -573,7 +573,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC) != 0) {
     goto _OVER;
   }
 
@@ -631,6 +631,11 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
       mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
       return -1;
     }
+  }
+
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC) != 0) {
+    mndReleaseTopic(pMnode, pTopic);
+    return -1;
   }
 
   void           *pIter = NULL;
