@@ -161,13 +161,6 @@ int32_t qAsyncKillTask(qTaskInfo_t tinfo, int32_t rspCode);
 void qDestroyTask(qTaskInfo_t tinfo);
 
 /**
- * Get the queried table uid
- * @param qHandle
- * @return
- */
-int64_t qGetQueriedTableUid(qTaskInfo_t tinfo);
-
-/**
  * Extract the qualified table id list, and than pass them to the TSDB driver to load the required table data blocks.
  *
  * @param iter  the table iterator to traverse all tables belongs to a super table, or an invert index

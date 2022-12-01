@@ -7,12 +7,12 @@ python3 .\test.py -f 0-others\taosdMonitor.py
 @REM python3 .\test.py -f 0-others\udfTest.py
 @REM python3 .\test.py -f 0-others\udf_create.py
 @REM python3 .\test.py -f 0-others\udf_restart_taosd.py
-@REM python3 .\test.py -f 0-others\cachelast.py
+python3 .\test.py -f 0-others\cachemodel.py
 
 @REM python3 .\test.py -f 0-others\user_control.py
 @REM python3 .\test.py -f 0-others\fsync.py
 
-@REM python3 .\test.py -f 1-insert\influxdb_line_taosc_insert.py
+python3 .\test.py -f 1-insert\influxdb_line_taosc_insert.py
 @REM python3 .\test.py -f 1-insert\opentsdb_telnet_line_taosc_insert.py
 @REM python3 .\test.py -f 1-insert\opentsdb_json_taosc_insert.py
 @REM #python3 .\test.py -f 1-insert\test_stmt_muti_insert_query.py
@@ -72,7 +72,7 @@ python3 .\test.py -f 0-others\taosdMonitor.py
 @REM python3 .\test.py -f 2-query\arcsin.py
 @REM python3 .\test.py -f 2-query\arccos.py
 @REM python3 .\test.py -f 2-query\arctan.py
-@REM python3 .\test.py -f 2-query\query_cols_tags_and_or.py
+python3 .\test.py -f 2-query\query_cols_tags_and_or.py
 @REM # python3 .\test.py -f 2-query\nestedQuery.py
 @REM # TD-15983 subquery output duplicate name column. 
 @REM # Please Xiangyang Guo modify the following script
@@ -94,7 +94,7 @@ python3 .\test.py -f 0-others\taosdMonitor.py
 @REM python3 .\test.py -f 7-tmq\subscribeDb.py
 @REM python3 .\test.py -f 7-tmq\subscribeDb0.py
 @REM python3 .\test.py -f 7-tmq\subscribeDb1.py
-@REM python3 .\test.py -f 7-tmq\subscribeStb.py
+python3 .\test.py -f 7-tmq\subscribeStb.py
 @REM python3 .\test.py -f 7-tmq\subscribeStb0.py
 @REM python3 .\test.py -f 7-tmq\subscribeStb1.py
 @REM python3 .\test.py -f 7-tmq\subscribeStb2.py

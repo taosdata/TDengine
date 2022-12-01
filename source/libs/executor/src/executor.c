@@ -704,6 +704,20 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo, int32_t rspCode) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void printTaskExecCostInLog(SExecTaskInfo* pTaskInfo) {
+  STaskCostInfo* pSummary = &pTaskInfo->cost;
+
+  SFileBlockLoadRecorder* pRecorder = pSummary->pRecoder;
+  if (pSummary->pRecoder != NULL) {
+    qDebug(
+        "%s :cost summary: elapsed time:%.2f ms, extract tableList:%.2f ms, createGroupIdMap:%.2f ms, total blocks:%d, "
+        "load block SMA:%d, load data block:%d, total rows:%" PRId64 ", check rows:%" PRId64,
+        GET_TASKID(pTaskInfo), pSummary->elapsedTime / 1000.0, pSummary->extractListTime, pSummary->groupIdMapTime,
+        pRecorder->totalBlocks, pRecorder->loadBlockStatis, pRecorder->loadBlocks, pRecorder->totalRows,
+        pRecorder->totalCheckedRows);
+  }
+}
+
 void qDestroyTask(qTaskInfo_t qTaskHandle) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qTaskHandle;
   if (pTaskInfo == NULL) {

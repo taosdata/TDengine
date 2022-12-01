@@ -133,6 +133,14 @@ static void i8VectorSumAVX2(const int8_t* plist, int32_t numOfRows, int32_t type
       sum = _mm256_add_epi64(sum, extVal);
       p += width;
     }
+
+    // let sum up the final results
+    const int64_t* q = (const int64_t*)&sum;
+    pRes->sum.isum += q[0] + q[1] + q[2] + q[3];
+
+    for (int32_t j = 0; j < remainder; ++j) {
+      pRes->sum.isum += plist[j + rounds * width];
+    }
   } else {
     const uint8_t* p = (const uint8_t*)plist;
 
@@ -142,16 +150,16 @@ static void i8VectorSumAVX2(const int8_t* plist, int32_t numOfRows, int32_t type
       sum = _mm256_add_epi64(sum, extVal);
       p += width;
     }
+
+    // let sum up the final results
+    const uint64_t* q = (const uint64_t*)&sum;
+    pRes->sum.usum += q[0] + q[1] + q[2] + q[3];
+
+    for (int32_t j = 0; j < remainder; ++j) {
+      pRes->sum.usum += (uint8_t)plist[j + rounds * width];
+    }
   }
 
-  // let sum up the final results
-  const int64_t* q = (const int64_t*)&sum;
-  pRes->sum.isum += q[0] + q[1] + q[2] + q[3];
-
-  int32_t startIndex = rounds * width;
-  for (int32_t j = 0; j < remainder; ++j) {
-    pRes->sum.isum += plist[j + startIndex];
-  }
 #endif
 }
 
@@ -176,8 +184,16 @@ static void i16VectorSumAVX2(const int16_t* plist, int32_t numOfRows, int32_t ty
       sum = _mm256_add_epi64(sum, extVal);
       p += width;
     }
+
+    // let sum up the final results
+    const int64_t* q = (const int64_t*)&sum;
+    pRes->sum.isum += q[0] + q[1] + q[2] + q[3];
+
+    for (int32_t j = 0; j < remainder; ++j) {
+      pRes->sum.isum += plist[j + rounds * width];
+    }
   } else {
-    const uint8_t* p = (const uint8_t*)plist;
+    const uint16_t* p = (const uint16_t*)plist;
 
     for(int32_t i = 0; i < rounds; ++i) {
       __m128i val = _mm_lddqu_si128((__m128i*)p);
@@ -185,16 +201,16 @@ static void i16VectorSumAVX2(const int16_t* plist, int32_t numOfRows, int32_t ty
       sum = _mm256_add_epi64(sum, extVal);
       p += width;
     }
+
+    // let sum up the final results
+    const uint64_t* q = (const uint64_t*)&sum;
+    pRes->sum.usum += q[0] + q[1] + q[2] + q[3];
+
+    for (int32_t j = 0; j < remainder; ++j) {
+      pRes->sum.usum += (uint16_t)plist[j + rounds * width];
+    }
   }
 
-  // let sum up the final results
-  const int64_t* q = (const int64_t*)&sum;
-  pRes->sum.isum += q[0] + q[1] + q[2] + q[3];
-
-  int32_t startIndex = rounds * width;
-  for (int32_t j = 0; j < remainder; ++j) {
-    pRes->sum.isum += plist[j + startIndex];
-  }
 #endif
 }
 
@@ -219,6 +235,14 @@ static void i32VectorSumAVX2(const int32_t* plist, int32_t numOfRows, int32_t ty
       sum = _mm256_add_epi64(sum, extVal);
       p += width;
     }
+
+    // let sum up the final results
+    const int64_t* q = (const int64_t*)&sum;
+    pRes->sum.isum += q[0] + q[1] + q[2] + q[3];
+
+    for (int32_t j = 0; j < remainder; ++j) {
+      pRes->sum.isum += plist[j + rounds * width];
+    }
   } else {
     const uint32_t* p = (const uint32_t*)plist;
 
@@ -228,16 +252,16 @@ static void i32VectorSumAVX2(const int32_t* plist, int32_t numOfRows, int32_t ty
       sum = _mm256_add_epi64(sum, extVal);
       p += width;
     }
+
+    // let sum up the final results
+    const uint64_t* q = (const uint64_t*)&sum;
+    pRes->sum.usum += q[0] + q[1] + q[2] + q[3];
+
+    for (int32_t j = 0; j < remainder; ++j) {
+      pRes->sum.usum += (uint32_t)plist[j + rounds * width];
+    }
   }
 
-  // let sum up the final results
-  const int64_t* q = (const int64_t*)&sum;
-  pRes->sum.isum += q[0] + q[1] + q[2] + q[3];
-
-  int32_t startIndex = rounds * width;
-  for (int32_t j = 0; j < remainder; ++j) {
-    pRes->sum.isum += plist[j + startIndex];
-  }
 #endif
 }
 
@@ -262,13 +286,22 @@ static void i64VectorSumAVX2(const int64_t* plist, int32_t numOfRows, SAvgRes* p
   }
 
   // let sum up the final results
-  const int64_t* q = (const int64_t*)&sum;
-  pRes->sum.isum += q[0] + q[1] + q[2] + q[3];
+  if (type == TSDB_DATA_TYPE_BIGINT) {
+    const int64_t* q = (const int64_t*)&sum;
+    pRes->sum.isum += q[0] + q[1] + q[2] + q[3];
 
-  int32_t startIndex = rounds * width;
-  for (int32_t j = 0; j < remainder; ++j) {
-    pRes->sum.isum += plist[j + startIndex];
+    for (int32_t j = 0; j < remainder; ++j) {
+      pRes->sum.isum += plist[j + rounds * width];
+    }
+  } else {
+    const uint64_t* q = (const uint64_t*)&sum;
+    pRes->sum.usum += q[0] + q[1] + q[2] + q[3];
+
+    for (int32_t j = 0; j < remainder; ++j) {
+      pRes->sum.usum += (uint64_t)plist[j + rounds * width];
+    }
   }
+
 #endif
 }
 
@@ -471,7 +504,6 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
   int32_t               type = pInput->pData[0]->info.type;
 
   SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  pAvgRes->type = type;
 
   // computing based on the true data block
   SColumnInfoData* pCol = pInput->pData[0];
@@ -482,6 +514,8 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
   if (IS_NULL_TYPE(type)) {
     goto _over;
   }
+
+  pAvgRes->type = type;
 
   if (pInput->colDataSMAIsSet) {  // try to use SMA if available
     numOfElem = calculateAvgBySMAInfo(pAvgRes, numOfRows, type, pAgg);
@@ -501,7 +535,11 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
           i8VectorSumAVX2(plist, numOfRows, type, pAvgRes);
         } else {
           for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-            pAvgRes->sum.usum += plist[i];
+            if (type == TSDB_DATA_TYPE_TINYINT) {
+              pAvgRes->sum.isum += plist[i];
+            } else {
+              pAvgRes->sum.usum += (uint8_t)plist[i];
+            }
           }
         }
         break;
@@ -516,7 +554,11 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
           i16VectorSumAVX2(plist, numOfRows, type, pAvgRes);
         } else {
           for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-            pAvgRes->sum.isum += plist[i];
+            if (type == TSDB_DATA_TYPE_SMALLINT) {
+              pAvgRes->sum.isum += plist[i];
+            } else {
+              pAvgRes->sum.usum += (uint16_t)plist[i];
+            }
           }
         }
         break;
@@ -531,7 +573,11 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
           i32VectorSumAVX2(plist, numOfRows, type, pAvgRes);
         } else {
           for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-            pAvgRes->sum.isum += plist[i];
+            if (type == TSDB_DATA_TYPE_INT) {
+              pAvgRes->sum.isum += plist[i];
+            } else {
+              pAvgRes->sum.usum += (uint32_t)plist[i];
+            }
           }
         }
         break;
@@ -546,7 +592,11 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
           i64VectorSumAVX2(plist, numOfRows, pAvgRes);
         } else {
           for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-            pAvgRes->sum.isum += plist[i];
+            if (type == TSDB_DATA_TYPE_BIGINT) {
+              pAvgRes->sum.isum += plist[i];
+            } else {
+              pAvgRes->sum.isum += (uint64_t)plist[i];
+            }
           }
         }
         break;
@@ -592,6 +642,10 @@ _over:
 }
 
 static void avgTransferInfo(SAvgRes* pInput, SAvgRes* pOutput) {
+  if (IS_NULL_TYPE(pInput->type)) {
+    return;
+  }
+
   pOutput->type = pInput->type;
   if (IS_SIGNED_NUMERIC_TYPE(pOutput->type)) {
     pOutput->sum.isum += pInput->sum.isum;

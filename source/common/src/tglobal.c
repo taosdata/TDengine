@@ -16,9 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "tglobal.h"
 #include "tconfig.h"
-#include "tmisce.h"
 #include "tgrant.h"
 #include "tlog.h"
+#include "tmisce.h"
 
 GRANT_CFG_DECLARE;
 
@@ -75,6 +75,7 @@ char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table
                                                      // If set to empty system will generate table name using MD5 hash.
 // true means that the name and order of cols in each line are the same(only for influx protocol)
 bool tsSmlDataFormat = false;
+int32_t  tsSmlBatchSize  = 10000;
 
 // query
 int32_t tsQueryPolicy = 1;
@@ -86,6 +87,10 @@ bool    tsQueryPlannerTrace = false;
 int32_t tsQueryNodeChunkSize = 32 * 1024;
 bool    tsQueryUseNodeAllocator = true;
 bool    tsKeepColumnName = false;
+int32_t tsRedirectPeriod = 10;
+int32_t tsRedirectFactor = 2;
+int32_t tsRedirectMaxPeriod = 1000;
+int32_t tsMaxRetryWaitTime = 10000;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -120,7 +125,7 @@ int32_t tsMinIntervalTime = 1;
 int32_t tsMaxMemUsedByInsert = 1024;
 
 float   tsSelectivityRatio = 1.0;
-int32_t tsTagFilterResCacheSize = 1024*10;
+int32_t tsTagFilterResCacheSize = 1024 * 10;
 
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
@@ -302,12 +307,17 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "smlBatchSize", tsSmlBatchSize, 1, INT32_MAX, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxMemUsedByInsert", tsMaxMemUsedByInsert, 1, INT32_MAX, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "rpcRetryLimit", tsRpcRetryLimit, 1, 100000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "rpcRetryInterval", tsRpcRetryInterval, 1, 100000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 0, 86400000, 0) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
+  if (tsNumOfTaskQueueThreads >= 10) {
+    tsNumOfTaskQueueThreads = 10;
+  }
   if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 4, 1024, 0) != 0) return -1;
 
   return 0;
@@ -640,6 +650,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
   tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
 
+  tsSmlBatchSize = cfgGetItem(pCfg, "smlBatchSize")->i32;
   tsMaxMemUsedByInsert = cfgGetItem(pCfg, "maxMemUsedByInsert")->i32;
 
   tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
@@ -656,6 +667,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   tsRpcRetryLimit = cfgGetItem(pCfg, "rpcRetryLimit")->i32;
   tsRpcRetryInterval = cfgGetItem(pCfg, "rpcRetryInterval")->i32;
+  tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
   return 0;
 }
 
@@ -871,6 +883,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
             tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
           } else if (strcasecmp("maxMemUsedByInsert", name) == 0) {
             tsMaxMemUsedByInsert = cfgGetItem(pCfg, "maxMemUsedByInsert")->i32;
+          } else if (strcasecmp("maxRetryWaitTime", name) == 0) {
+            tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
           }
           break;
         }
@@ -1010,6 +1024,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
       } else if (strcasecmp("smlDataFormat", name) == 0) {
         tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
+      } else if (strcasecmp("smlBatchSize", name) == 0) {
+        tsSmlBatchSize = cfgGetItem(pCfg, "smlBatchSize")->i32;
       } else if (strcasecmp("shellActivityTimer", name) == 0) {
         tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
       } else if (strcasecmp("supportVnodes", name) == 0) {

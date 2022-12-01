@@ -410,9 +410,11 @@ bool syncIsReadyForRead(int64_t rid) {
           pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
           code = 0;
 
+          pSyncNode->pLogStore->cacheHit++;
           sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", lastIndex, pEntry->bytes, pEntry);
 
         } else {
+          pSyncNode->pLogStore->cacheMiss++;
           sNTrace(pSyncNode, "miss cache index:%" PRId64, lastIndex);
 
           code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, lastIndex, &pEntry);
@@ -443,6 +445,28 @@ bool syncIsReadyForRead(int64_t rid) {
 
   syncNodeRelease(pSyncNode);
   return ready;
+}
+
+bool syncSnapshotSending(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    return false;
+  }
+
+  bool b = syncNodeSnapshotSending(pSyncNode);
+  syncNodeRelease(pSyncNode);
+  return b;
+}
+
+bool syncSnapshotRecving(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    return false;
+  }
+
+  bool b = syncNodeSnapshotRecving(pSyncNode);
+  syncNodeRelease(pSyncNode);
+  return b;
 }
 
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
@@ -1008,6 +1032,13 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   atomic_store_64(&pSyncNode->snapshottingIndex, SYNC_INDEX_INVALID);
 
   pSyncNode->isStart = true;
+  pSyncNode->electNum = 0;
+  pSyncNode->becomeLeaderNum = 0;
+  pSyncNode->configChangeNum = 0;
+  pSyncNode->hbSlowNum = 0;
+  pSyncNode->hbrSlowNum = 0;
+  pSyncNode->tmrRoutineNum = 0;
+
   sNTrace(pSyncNode, "sync open, node:%p", pSyncNode);
 
   return pSyncNode;
@@ -1111,12 +1142,21 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     if ((pSyncNode->senders)[i] != NULL) {
       sSTrace((pSyncNode->senders)[i], "snapshot sender destroy while close, data:%p", (pSyncNode->senders)[i]);
+
+      if (snapshotSenderIsStart((pSyncNode->senders)[i])) {
+        snapshotSenderStop((pSyncNode->senders)[i], false);
+      }
+
       snapshotSenderDestroy((pSyncNode->senders)[i]);
       (pSyncNode->senders)[i] = NULL;
     }
   }
 
   if (pSyncNode->pNewNodeReceiver != NULL) {
+    if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+      snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+    }
+
     snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
     pSyncNode->pNewNodeReceiver = NULL;
   }
@@ -1340,6 +1380,8 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
   pSyncNode->pRaftCfg->cfg = *pNewConfig;
   pSyncNode->pRaftCfg->lastConfigIndex = lastConfigChangeIndex;
 
+  pSyncNode->configChangeNum++;
+
   bool IamInOld = syncNodeInConfig(pSyncNode, &oldConfig);
   bool IamInNew = syncNodeInConfig(pSyncNode, pNewConfig);
 
@@ -1363,7 +1405,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
   char newCfgStr[1024] = {0};
   syncCfg2SimpleStr(&oldConfig, oldCfgStr, sizeof(oldCfgStr));
   syncCfg2SimpleStr(pNewConfig, oldCfgStr, sizeof(oldCfgStr));
-  sNTrace(pSyncNode, "begin do config change, from %s to %s", oldCfgStr, oldCfgStr);
+  sNInfo(pSyncNode, "begin do config change, from %s to %s", oldCfgStr, oldCfgStr);
 
   if (IamInNew) {
     pSyncNode->pRaftCfg->isStandBy = 0;  // change isStandBy to normal
@@ -1495,13 +1537,13 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
   } else {
     // persist cfg
     raftCfgPersist(pSyncNode->pRaftCfg);
-    sNTrace(pSyncNode, "do not config change from %d to %d, index:%" PRId64 ", %s  -->  %s", oldConfig.replicaNum,
-            pNewConfig->replicaNum, lastConfigChangeIndex, oldCfgStr, newCfgStr);
+    sNInfo(pSyncNode, "do not config change from %d to %d, index:%" PRId64 ", %s  -->  %s", oldConfig.replicaNum,
+           pNewConfig->replicaNum, lastConfigChangeIndex, oldCfgStr, newCfgStr);
   }
 
 _END:
   // log end config change
-  sNTrace(pSyncNode, "end do config change, from %s to %s", oldCfgStr, newCfgStr);
+  sNInfo(pSyncNode, "end do config change, from %s to %s", oldCfgStr, newCfgStr);
 }
 
 // raft state change --------------
@@ -1555,6 +1597,8 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
     pSyncNode->leaderCache = EMPTY_RAFT_ID;
   }
 
+  pSyncNode->hbSlowNum = 0;
+
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   syncNodeStopHeartbeatTimer(pSyncNode);
@@ -1597,6 +1641,9 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
 //
 void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   pSyncNode->leaderTime = taosGetTimestampMs();
+
+  pSyncNode->becomeLeaderNum++;
+  pSyncNode->hbrSlowNum = 0;
 
   // reset restoreFinish
   pSyncNode->restoreFinish = false;
@@ -1666,7 +1713,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   pSyncNode->minMatchIndex = SYNC_INDEX_INVALID;
 
   // trace log
-  sNTrace(pSyncNode, "become leader %s", debugStr);
+  sNInfo(pSyncNode, "become leader %s", debugStr);
 }
 
 void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
@@ -1842,9 +1889,11 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
     pPreEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
     code = 0;
 
+    pSyncNode->pLogStore->cacheHit++;
     sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", preIndex, pPreEntry->bytes, pPreEntry);
 
   } else {
+    pSyncNode->pLogStore->cacheMiss++;
     sNTrace(pSyncNode, "miss cache index:%" PRId64, preIndex);
 
     code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, preIndex, &pPreEntry);
@@ -1971,7 +2020,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
         return;
       }
 
-      sTrace("enqueue heartbeat timer");
+      sTrace("vgId:%d, enqueue heartbeat timer", pNode->vgId);
       code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
       if (code != 0) {
         sError("failed to enqueue heartbeat msg since %s", terrstr());
@@ -2153,6 +2202,25 @@ bool syncNodeHeartbeatReplyTimeout(SSyncNode* pSyncNode) {
   bool b = (toCount >= pSyncNode->quorum ? true : false);
 
   return b;
+}
+
+bool syncNodeSnapshotSending(SSyncNode* pSyncNode) {
+  if (pSyncNode == NULL) return false;
+  bool b = false;
+  for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
+    if (pSyncNode->senders[i] != NULL && pSyncNode->senders[i]->start) {
+      b = true;
+      break;
+    }
+  }
+  return b;
+}
+
+bool syncNodeSnapshotRecving(SSyncNode* pSyncNode) {
+  if (pSyncNode == NULL) return false;
+  if (pSyncNode->pNewNodeReceiver == NULL) return false;
+  if (pSyncNode->pNewNodeReceiver->start) return true;
+  return false;
 }
 
 static int32_t syncNodeAppendNoop(SSyncNode* ths) {
@@ -2399,8 +2467,12 @@ const char* syncStr(ESyncState state) {
       return "candidate";
     case TAOS_SYNC_STATE_LEADER:
       return "leader";
-    default:
+    case TAOS_SYNC_STATE_ERROR:
       return "error";
+    case TAOS_SYNC_STATE_OFFLINE:
+      return "offline";
+    default:
+      return "unknown";
   }
 }
 
@@ -2526,9 +2598,11 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
         if (h) {
           pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
 
+          ths->pLogStore->cacheHit++;
           sNTrace(ths, "hit cache index:%" PRId64 ", bytes:%u, %p", i, pEntry->bytes, pEntry);
 
         } else {
+          ths->pLogStore->cacheMiss++;
           sNTrace(ths, "miss cache index:%" PRId64, i);
 
           code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
