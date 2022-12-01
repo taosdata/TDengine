@@ -2558,10 +2558,6 @@ int32_t syncNodeOnHeartbeatReplyOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   char            tbuf[40] = {0};
   TRACE_TO_STR(trace, tbuf);
 
-  const STraceId* trace = &pRpcMsg->info.traceId;
-  char            tbuf[40] = {0};
-  TRACE_TO_STR(trace, tbuf);
-
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
   syncLogRecvHeartbeatReply(ths, pMsg, timeDiff, tbuf);
