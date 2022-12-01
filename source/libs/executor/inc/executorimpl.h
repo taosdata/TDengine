@@ -489,8 +489,8 @@ typedef struct STableCountScanSupp {
 
   bool groupByDbName;
   bool groupByStbName;
-  char    dbName[TSDB_DB_NAME_LEN];
-  char    stbName[TSDB_TABLE_NAME_LEN];
+  char    dbNameFilter[TSDB_DB_NAME_LEN];
+  char    stbNameFilter[TSDB_TABLE_NAME_LEN];
 
 } STableCountScanSupp;
 
@@ -498,16 +498,10 @@ typedef struct STableCountScanOperatorInfo {
   SReadHandle  readHandle;
   SSDataBlock* pRes;
 
-  SName tableName;
-
-  SNodeList* groupTags;
-  SNodeList* scanCols;
-  SNodeList* pseudoCols;
-
   STableCountScanSupp supp;
 
   int32_t   currGrpIdx;
-  SArray*   stbUidList; // when group by db_name and stable_name
+  SArray*   stbUidList; // when group by db_name and/or stable_name
 } STableCountScanOperatorInfo;
 
 typedef struct SOptrBasicInfo {
