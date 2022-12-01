@@ -230,6 +230,8 @@ static SKeyword keywordTable[] = {
     {"CONTAINS",     TK_CONTAINS},
     {"TO",           TK_TO},
     {"SPLIT",        TK_SPLIT},
+    {"ALIVE",        TK_ALIVE},
+    {"CLUSTER",      TK_CLUSTER},
     {"DELETE",       TK_DELETE}
 };
 

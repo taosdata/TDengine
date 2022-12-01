@@ -105,11 +105,13 @@ SWords shellCommands[] = {
   {"select current_user();", 0, 0, NULL},
   {"select database;", 0, 0, NULL},
   {"select server_version();", 0, 0, NULL},
+  {"select server_status();", 0, 0, NULL},
   {"set max_binary_display_width ", 0, 0, NULL},
   {"show create database <db_name> \\G;", 0, 0, NULL},
   {"show create stable <stb_name> \\G;", 0, 0, NULL},
   {"show create table <tb_name> \\G;", 0, 0, NULL},
   {"show connections;", 0, 0, NULL},
+  {"show cluster alive;", 0, 0, NULL},
   {"show databases;", 0, 0, NULL},
   {"show dnodes;", 0, 0, NULL},
   {"show functions;", 0, 0, NULL},
@@ -125,6 +127,7 @@ SWords shellCommands[] = {
   {"show users;", 0, 0, NULL},
   {"show variables;", 0, 0, NULL},
   {"show vgroups;", 0, 0, NULL},
+  {"show <db_name> .alive;", 0, 0, NULL},
   {"insert into <tb_name> values(", 0, 0, NULL},
   {"insert into <tb_name> using <stb_name> tags( <anyword> ) values(", 0, 0, NULL},
   {"insert into <tb_name> using <stb_name> <anyword> values(", 0, 0, NULL},
@@ -401,7 +404,9 @@ void showHelp() {
     select current_user();\n\
     select database;\n\
     select server_version();\n\
+    select server_status();\n\
     set max_binary_display_width <width>;  \n\
+    show cluster alive;\n\
     show create database <db_name>;\n\
     show create stable <stb_name>;\n\
     show create table <tb_name>;\n\
@@ -421,6 +426,7 @@ void showHelp() {
     show users;\n\
     show variables;\n\
     show vgroups;\n\
+    show <db_name>.alive;\n\
   ----- I ----- \n\
     insert into <tb_name> values(...) ;\n\
   ----- U ----- \n\

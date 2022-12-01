@@ -58,6 +58,11 @@ static int32_t tsVgUpdateSize = 0;
 static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup);
 static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+// status
+static int32_t mnodeGetAliveMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mnodeRetrieveAliveDb(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mnodeRetrieveAliveCluster(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+
 static void    mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg);
 static void    mnodeProcessAlterVnodeRsp(SRpcMsg *rpcMsg);
 static void    mnodeProcessCompactVnodeRsp(SRpcMsg *rpcMsg);
@@ -235,6 +240,15 @@ int32_t mnodeInitVgroups() {
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_VGROUP, mnodeGetVgroupMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VGROUP, mnodeRetrieveVgroups);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_VGROUP, mnodeCancelGetNextVgroup);
+  // cluster status
+  mnodeAddShowMetaHandle(TSDB_MGMT_ALIVE_CLUSTER, mnodeGetAliveMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_ALIVE_CLUSTER, mnodeRetrieveAliveCluster);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_ALIVE_CLUSTER, mnodeCancelGetNextVgroup);
+  // db status
+  mnodeAddShowMetaHandle(TSDB_MGMT_ALIVE_DB, mnodeGetAliveMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_ALIVE_DB, mnodeRetrieveAliveDb);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_ALIVE_DB, mnodeCancelGetNextVgroup);
+ 
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mnodeProcessCreateVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP, mnodeProcessAlterVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_COMPACT_VNODE_RSP, mnodeProcessCompactVnodeRsp);
@@ -777,6 +791,99 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
 
   mnodeDecDbRef(pDb);
   return 0;
+}
+
+static int32_t mnodeGetAliveMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+  SSchema *pSchema = pMeta->schema;  
+  pShow->bytes[0] = sizeof(int32_t);
+  pSchema[0].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[0].name, "status");
+  pSchema[0].bytes = htons(pShow->bytes[0]);
+
+  pMeta->numOfColumns = htons(1);
+  pShow->numOfColumns = 1;
+  pShow->rowSize = sizeof(int32_t);
+  pShow->offset[0] = 0;
+
+  return 0;
+}
+
+static int32_t mnodeRetrieveAlive(SShowObj *pShow, char *data, int32_t rows, void *pConn, SDbObj* pDb) {
+  SVgObj *pVgroup = NULL;
+  int32_t nAvailble = 0;
+  int32_t nUnAvailble = 0;
+  int32_t numOfRows = 0;
+
+  // get status 
+  while (numOfRows < rows) {
+    pShow->pIter = mnodeGetNextVgroup(pShow->pIter, &pVgroup);
+    if (pVgroup == NULL) break;
+
+    // if pDb is not null
+    if ( pDb && pVgroup->pDb != pDb) {
+      mnodeDecVgroupRef(pVgroup);
+      continue;
+    }
+
+    // status
+    if(pVgroup->status != TAOS_VG_STATUS_READY ) {
+      // vgroup is not ready
+      nUnAvailble ++;
+      continue;
+    }
+
+    // check master
+    bool master = false;
+    for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+      if (pVgroup->vnodeGid[i].role == TAOS_SYNC_ROLE_MASTER) {
+        master = true;
+        break;
+      }
+    }
+    if (master)
+      nAvailble++;
+    else
+      nUnAvailble++;
+    
+    // releae pVgroup ref
+    mnodeDecVgroupRef(pVgroup);  
+  }
+
+  // set col data
+  int32_t status = 0;
+  if (nAvailble + nUnAvailble == 0 || nUnAvailble == 0) {
+    status = SHOW_STATUS_AVAILABLE;
+  } else if (nAvailble > 0 && nUnAvailble > 0) {
+    status = SHOW_STATUS_HALF_AVAILABLE;
+  } else {
+    status = SHOW_STATUS_NOT_AVAILABLE;
+  }
+
+  *(int32_t* )data = status;
+  pShow->numOfReads = 1;
+
+  return 1;
+}
+
+static int32_t mnodeRetrieveAliveCluster(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  return mnodeRetrieveAlive(pShow, data, rows, pConn, NULL);
+}
+
+static int32_t mnodeRetrieveAliveDb(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+
+  SDbObj *pDb = mnodeGetDb(pShow->db);
+  if (pDb == NULL) return 0;
+
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    mnodeDecDbRef(pDb);
+    return 0;
+  }
+
+  int32_t numOfRows = mnodeRetrieveAlive(pShow, data, rows, pConn, pDb);
+  mnodeDecDbRef(pDb);
+
+  return numOfRows;
 }
 
 static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn) {

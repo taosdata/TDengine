@@ -72,7 +72,7 @@ SSchema* tscGetColumnSchemaById(STableMeta* pTableMeta, int16_t colId) {
 }
 
 STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg) {
-  assert(pTableMetaMsg != NULL && pTableMetaMsg->numOfColumns >= 2);
+  assert(pTableMetaMsg != NULL && pTableMetaMsg->numOfColumns >= 1);
 
   int32_t schemaSize = (pTableMetaMsg->numOfColumns + pTableMetaMsg->numOfTags) * sizeof(SSchema);
   STableMeta* pTableMeta = calloc(1, sizeof(STableMeta) + schemaSize);

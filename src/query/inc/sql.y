@@ -127,6 +127,19 @@ cmd ::= SHOW dbPrefix(X) VGROUPS.    {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, 0);
 }
 
+// show db.alive
+cmd ::= SHOW dbPrefix(X) ALIVE.    {
+    SStrToken token;
+    tSetDbName(&token, &X);
+    setShowOptions(pInfo, TSDB_MGMT_ALIVE_DB, &token, 0);
+}
+
+// show cluster alive
+cmd ::= SHOW CLUSTER ALIVE.    {
+    SStrToken token;
+    setShowOptions(pInfo, TSDB_MGMT_ALIVE_CLUSTER, &token, 0);
+}
+
 //drop configure for tables
 cmd ::= DROP TABLE ifexists(Y) ids(X) cpxName(Z).   {
     X.n += Z.n;
