@@ -512,6 +512,8 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
   } else if (pRow->type == TSDBROW_COL_FMT) {
     pNode->iRow = pRow->iRow;
     pNode->pData = pRow->pBlockData;
+  } else {
+    ASSERT(0);
   }
 
   for (int8_t iLevel = level - 1; iLevel >= 0; iLevel--) {
@@ -605,27 +607,29 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   // loop to add each row to the skiplist
   TSDBKEY           key = {.version = version};
   SMemSkipListNode *pos[SL_MAX_LEVEL];
-  int32_t           iRow = 0;
   TSDBROW           tRow = {.type = TSDBROW_COL_FMT, .pBlockData = pBlockData};
 
-  tRow.iRow = iRow++;
   tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_BACKWARD);
   code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0);
   if (code) goto _exit;
 
-  if (iRow < pBlockData->nRow) {
+  tRow.iRow++;
+  if (tRow.iRow < pBlockData->nRow) {
     for (int8_t iLevel = pos[0]->level; iLevel < pTbData->sl.maxLevel; iLevel++) {
       pos[iLevel] = SL_NODE_BACKWARD(pos[iLevel], iLevel);
     }
 
-    while (iRow < pBlockData->nRow) {
+    while (tRow.iRow < pBlockData->nRow) {
+      key.ts = pBlockData->aTSKEY[tRow.iRow];
+
       if (SL_NODE_FORWARD(pos[0], 0) != pTbData->sl.pTail) {
         tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_FROM_POS);
       }
 
-      tRow.iRow = ++iRow;
       code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0);
       if (code) goto _exit;
+
+      tRow.iRow++;
     }
   }
 
