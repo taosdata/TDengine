@@ -97,7 +97,7 @@ bool    vnodeShouldRollback(SVnode* pVnode);
 
 // vnodeSync.c
 int32_t vnodeSyncOpen(SVnode* pVnode, char* path);
-void    vnodeSyncStart(SVnode* pVnode);
+int32_t vnodeSyncStart(SVnode* pVnode);
 void    vnodeSyncPreClose(SVnode* pVnode);
 void    vnodeSyncClose(SVnode* pVnode);
 void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg);
