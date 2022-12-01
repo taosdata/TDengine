@@ -1259,6 +1259,7 @@ _return2:
   tDebug("handle %p failed to send to release handle", exh);
   return -1;
 }
+
 int transSendResponse(const STransMsg* msg) {
   if (msg->info.noResp) {
     rpcFreeCont(msg->pCont);

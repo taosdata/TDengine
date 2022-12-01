@@ -70,7 +70,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   pWal->lastRollSeq = -1;
 
   taosArrayClear(pWal->fileInfoSet);
-  pWal->vers.firstVer = -1;
+  pWal->vers.firstVer = ver + 1;
   pWal->vers.lastVer = ver;
   pWal->vers.commitVer = ver;
   pWal->vers.snapshotVer = ver;
@@ -554,10 +554,15 @@ END:
   return -1;
 }
 
-int64_t walAppendLog(SWal *pWal, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen) {
+int64_t walAppendLog(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body,
+                     int32_t bodyLen) {
   taosThreadMutexLock(&pWal->mutex);
 
-  int64_t index = pWal->vers.lastVer + 1;
+  if (index != pWal->vers.lastVer + 1) {
+    terrno = TSDB_CODE_WAL_INVALID_VER;
+    taosThreadMutexUnlock(&pWal->mutex);
+    return -1;
+  }
 
   if (walCheckAndRoll(pWal) < 0) {
     taosThreadMutexUnlock(&pWal->mutex);
