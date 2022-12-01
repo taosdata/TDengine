@@ -113,6 +113,8 @@ _OVER:
 
 SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SSdbRow *pRow = NULL;
+  SVgObj  *pVgroup = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -122,10 +124,10 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SVgObj));
+  pRow = sdbAllocRow(sizeof(SVgObj));
   if (pRow == NULL) goto _OVER;
 
-  SVgObj *pVgroup = sdbGetRowObj(pRow);
+  pVgroup = sdbGetRowObj(pRow);
   if (pVgroup == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -152,7 +154,7 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("vgId:%d, failed to decode from raw:%p since %s", pVgroup->vgId, pRaw, terrstr());
+    mError("vgId:%d, failed to decode from raw:%p since %s", pVgroup == NULL ? 0 : pVgroup->vgId, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
