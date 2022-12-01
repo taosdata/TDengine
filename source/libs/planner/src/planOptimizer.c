@@ -2598,6 +2598,9 @@ static bool tbCntScanOptIsEligibleScan(STbCntScanOptInfo* pInfo) {
       0 != strcmp(pInfo->pScan->tableName.tname, TSDB_INS_TABLE_TABLES) || NULL != pInfo->pScan->pGroupTags) {
     return false;
   }
+  if (1 == pInfo->pScan->pVgroupList->numOfVgroups && MNODE_HANDLE == pInfo->pScan->pVgroupList->vgroups[0].vgId) {
+    return false;
+  }
   return tbCntScanOptIsEligibleConds(pInfo, pInfo->pScan->node.pConditions);
 }
 
