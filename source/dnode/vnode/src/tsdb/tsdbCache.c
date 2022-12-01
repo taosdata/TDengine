@@ -229,6 +229,7 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
 
             break;
           }
+          taosArraySet(pLast, iCol, &(SLastCol){.ts = keyTs, .colVal = colVal});
         } else {
           SLastCol lastCol = {.ts = keyTs, .colVal = colVal};
           if (IS_VAR_DATA_TYPE(colVal.type) && colVal.value.nData > 0) {
