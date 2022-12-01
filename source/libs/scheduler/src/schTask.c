@@ -391,6 +391,8 @@ int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet) 
     int64_t leftTime = tsMaxRetryWaitTime - lastTime;
     pTask->delayExecMs = leftTime < pCtx->periodMs ? leftTime : pCtx->periodMs;
 
+    pCtx->roundTimes = 0;
+
     goto _return;
   }
 
@@ -407,7 +409,7 @@ _return:
 int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32_t rspCode) {
   int32_t code = 0;
 
-  SCH_TASK_DLOG("task will be redirected now, status:%s", SCH_GET_TASK_STATUS_STR(pTask));
+  SCH_TASK_DLOG("task will be redirected now, status:%s, code:%s", SCH_GET_TASK_STATUS_STR(pTask), tstrerror(rspCode));
 
   if (NULL == pData) {
     pTask->retryTimes = 0;
@@ -433,8 +435,8 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
     } else if (SYNC_SELF_LEADER_REDIRECT_ERROR(rspCode)) {
       SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
       SEp            *pEp = &addr->epSet.eps[addr->epSet.inUse];
-      SCH_TASK_DLOG("task retry node %d current ep, idx:%d/%d,%s:%d", addr->nodeId, addr->epSet.inUse,
-                    addr->epSet.numOfEps, pEp->fqdn, pEp->port);
+      SCH_TASK_DLOG("task retry node %d current ep, idx:%d/%d,%s:%d, code:%s", addr->nodeId, addr->epSet.inUse,
+                    addr->epSet.numOfEps, pEp->fqdn, pEp->port, tstrerror(rspCode));
     } else {
       SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
       SCH_SWITCH_EPSET(addr);
