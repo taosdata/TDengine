@@ -69,6 +69,10 @@ impl Default for TmqMetrics {
 
 impl Display for TmqMetrics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use std::sync::atomic::Ordering::SeqCst;
+        let records = self.records.load(SeqCst);
+        let points = self.points.load(SeqCst);
+        let cost = self.time_cost.elapsed();
         write!(
             f,
             "# Metrics\n\
@@ -78,8 +82,8 @@ impl Display for TmqMetrics {
             messages(meta only): {}\n\
             messages(data only): {}\n\
             blocks: {}\n\
-            records: {}\n\
-            points: {}\n\
+            records: {} ({} r/s)\n\
+            points: {} ({} p/s)\n\
             time cost: {:?}",
             self.topics,
             self.workers.load(std::sync::atomic::Ordering::SeqCst),
@@ -89,8 +93,10 @@ impl Display for TmqMetrics {
             self.messages_of_data
                 .load(std::sync::atomic::Ordering::SeqCst),
             self.blocks.load(std::sync::atomic::Ordering::SeqCst),
-            self.records.load(std::sync::atomic::Ordering::SeqCst),
-            self.points.load(std::sync::atomic::Ordering::SeqCst),
+            records,
+            records / cost.as_secs(),
+            points,
+            points / cost.as_secs(),
             self.time_cost.elapsed()
         )?;
         Ok(())
