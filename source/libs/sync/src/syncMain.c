@@ -381,15 +381,13 @@ int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
   return 0;
 }
 
-bool syncIsReadyForRead(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+bool syncNodeIsReadyForRead(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) {
     sError("sync ready for read error");
     return false;
   }
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER && pSyncNode->restoreFinish) {
-    syncNodeRelease(pSyncNode);
     return true;
   }
 
@@ -442,6 +440,18 @@ bool syncIsReadyForRead(int64_t rid) {
       terrno = TSDB_CODE_APP_NOT_READY;
     }
   }
+
+  return ready;
+}
+
+bool syncIsReadyForRead(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    sError("sync ready for read error");
+    return false;
+  }
+
+  bool ready = syncNodeIsReadyForRead(pSyncNode);
 
   syncNodeRelease(pSyncNode);
   return ready;
@@ -521,6 +531,7 @@ SSyncState syncGetState(int64_t rid) {
   if (pSyncNode != NULL) {
     state.state = pSyncNode->state;
     state.restored = pSyncNode->restoreFinish;
+    state.canRead = syncNodeIsReadyForRead(pSyncNode);
     syncNodeRelease(pSyncNode);
   }
 
@@ -2255,9 +2266,13 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
 
+  const STraceId* trace = &pRpcMsg->info.traceId;
+  char            tbuf[40] = {0};
+  TRACE_TO_STR(trace, tbuf);
+
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
-  syncLogRecvHeartbeat(ths, pMsg, timeDiff);
+  syncLogRecvHeartbeat(ths, pMsg, timeDiff, tbuf);
 
   SRpcMsg rpcMsg = {0};
   (void)syncBuildHeartbeatReply(&rpcMsg, ths->vgId);
@@ -2332,9 +2347,13 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
 
+  const STraceId* trace = &pRpcMsg->info.traceId;
+  char            tbuf[40] = {0};
+  TRACE_TO_STR(trace, tbuf);
+
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
-  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff);
+  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff, tbuf);
 
   // update last reply time, make decision whether the other node is alive or not
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);

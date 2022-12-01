@@ -992,15 +992,20 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tEncodeI32(&encoder, vlen) < 0) return -1;
   for (int32_t i = 0; i < vlen; ++i) {
     SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
+    int64_t reserved = 0;
     if (tEncodeI32(&encoder, pload->vgId) < 0) return -1;
     if (tEncodeI8(&encoder, pload->syncState) < 0) return -1;
     if (tEncodeI8(&encoder, pload->syncRestore) < 0) return -1;
+    if (tEncodeI8(&encoder, pload->syncCanRead) < 0) return -1;
     if (tEncodeI64(&encoder, pload->cacheUsage) < 0) return -1;
     if (tEncodeI64(&encoder, pload->numOfTables) < 0) return -1;
     if (tEncodeI64(&encoder, pload->numOfTimeSeries) < 0) return -1;
     if (tEncodeI64(&encoder, pload->totalStorage) < 0) return -1;
     if (tEncodeI64(&encoder, pload->compStorage) < 0) return -1;
     if (tEncodeI64(&encoder, pload->pointsWritten) < 0) return -1;
+    if (tEncodeI64(&encoder, reserved) < 0) return -1;
+    if (tEncodeI64(&encoder, reserved) < 0) return -1;
+    if (tEncodeI64(&encoder, reserved) < 0) return -1;
   }
 
   // mnode loads
@@ -1065,15 +1070,20 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
 
   for (int32_t i = 0; i < vlen; ++i) {
     SVnodeLoad vload = {0};
+    int64_t    reserved = 0;
     if (tDecodeI32(&decoder, &vload.vgId) < 0) return -1;
     if (tDecodeI8(&decoder, &vload.syncState) < 0) return -1;
     if (tDecodeI8(&decoder, &vload.syncRestore) < 0) return -1;
+    if (tDecodeI8(&decoder, &vload.syncCanRead) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.cacheUsage) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.numOfTables) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.numOfTimeSeries) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.totalStorage) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.compStorage) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.pointsWritten) < 0) return -1;
+    if (tDecodeI64(&decoder, &reserved) < 0) return -1;
+    if (tDecodeI64(&decoder, &reserved) < 0) return -1;
+    if (tDecodeI64(&decoder, &reserved) < 0) return -1;
     if (taosArrayPush(pReq->pVloads, &vload) == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -1288,7 +1298,7 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
   if (tEncodeI8(&encoder, pReq->enable) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->pass) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->dbname) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->objname) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1307,7 +1317,7 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
   if (tDecodeI8(&decoder, &pReq->enable) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->pass) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pReq->dbname) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->objname) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);

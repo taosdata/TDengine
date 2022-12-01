@@ -186,6 +186,7 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
       if (pNewGid->dnodeId == pOldGid->dnodeId) {
         pNewGid->syncState = pOldGid->syncState;
         pNewGid->syncRestore = pOldGid->syncRestore;
+        pNewGid->syncCanRead = pOldGid->syncCanRead;
       }
     }
   }
@@ -696,8 +697,16 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
         if (!exist) {
           strcpy(role, "dropping");
         } else if (online) {
-          bool show = (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER && !pVgroup->vnodeGid[i].syncRestore);
-          snprintf(role, sizeof(role), "%s%s", syncStr(pVgroup->vnodeGid[i].syncState), show ? "*" : "");
+          char *star = "";
+          if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER) {
+            if (!pVgroup->vnodeGid[i].syncRestore && !pVgroup->vnodeGid[i].syncCanRead) {
+              star = "**";
+            } else if (!pVgroup->vnodeGid[i].syncRestore && pVgroup->vnodeGid[i].syncCanRead) {
+              star = "*";
+            } else {
+            }
+          }
+          snprintf(role, sizeof(role), "%s%s", syncStr(pVgroup->vnodeGid[i].syncState), star);
         } else {
         }
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->pMeta->pSchemas[cols].bytes);
