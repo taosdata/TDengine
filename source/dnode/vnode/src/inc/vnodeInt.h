@@ -87,7 +87,7 @@ typedef struct SSnapDataHdr       SSnapDataHdr;
 #define VNODE_RSMA2_DIR "rsma2"
 
 // vnd.h
-void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
+void* vnodeBufPoolMalloc(SVBufPool* pPool, int32_t size);
 void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
 void  vnodeBufPoolRef(SVBufPool* pPool);
 void  vnodeBufPoolUnRef(SVBufPool* pPool);

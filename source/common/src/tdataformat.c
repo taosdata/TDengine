@@ -2018,41 +2018,60 @@ uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal) {
   return v;
 }
 
-int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
+int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg) {
   int32_t code = 0;
-  int32_t size;
 
-  ASSERT(pColDataSrc->nVal > 0);
-  ASSERT(pColDataDest->cid == pColDataSrc->cid);
-  ASSERT(pColDataDest->type == pColDataSrc->type);
-
-  pColDataDest->smaOn = pColDataSrc->smaOn;
-  pColDataDest->nVal = pColDataSrc->nVal;
-  pColDataDest->flag = pColDataSrc->flag;
+  *pColData = *pColDataFrom;
 
   // bitmap
-  if (pColDataSrc->flag != HAS_NONE && pColDataSrc->flag != HAS_NULL && pColDataSrc->flag != HAS_VALUE) {
-    size = BIT2_SIZE(pColDataSrc->nVal);
-    code = tRealloc(&pColDataDest->pBitMap, size);
-    if (code) goto _exit;
-    memcpy(pColDataDest->pBitMap, pColDataSrc->pBitMap, size);
+  switch (pColData->flag) {
+    case (HAS_NULL | HAS_NONE):
+    case (HAS_VALUE | HAS_NONE):
+    case (HAS_VALUE | HAS_NULL):
+      pColData->pBitMap = xMalloc(arg, BIT1_SIZE(pColData->nVal));
+      if (pColData->pBitMap == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
+      }
+      memcpy(pColData->pBitMap, pColDataFrom->pBitMap, BIT1_SIZE(pColData->nVal));
+      break;
+    case (HAS_VALUE | HAS_NULL | HAS_NONE):
+      pColData->pBitMap = xMalloc(arg, BIT2_SIZE(pColData->nVal));
+      if (pColData->pBitMap == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
+      }
+      memcpy(pColData->pBitMap, pColDataFrom->pBitMap, BIT2_SIZE(pColData->nVal));
+      break;
+    default:
+      pColData->pBitMap = NULL;
+      break;
   }
 
   // offset
-  if (IS_VAR_DATA_TYPE(pColDataDest->type)) {
-    size = sizeof(int32_t) * pColDataSrc->nVal;
-
-    code = tRealloc((uint8_t **)&pColDataDest->aOffset, size);
-    if (code) goto _exit;
-
-    memcpy(pColDataDest->aOffset, pColDataSrc->aOffset, size);
+  if (IS_VAR_DATA_TYPE(pColData->type) && (pColData->flag & HAS_VALUE)) {
+    pColData->aOffset = xMalloc(arg, pColData->nVal << 2);
+    if (pColData->aOffset == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    memcpy(pColData->aOffset, pColDataFrom->aOffset, pColData->nVal << 2);
+  } else {
+    pColData->aOffset = NULL;
   }
 
   // value
-  pColDataDest->nData = pColDataSrc->nData;
-  code = tRealloc(&pColDataDest->pData, pColDataSrc->nData);
-  if (code) goto _exit;
-  memcpy(pColDataDest->pData, pColDataSrc->pData, pColDataDest->nData);
+  if (pColData->nVal) {
+    pColData->pData = xMalloc(arg, pColData->nVal);
+    if (pColData->pData == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    memcpy(pColData->pData, pColDataFrom->pData, pColData->nData);
+  } else {
+    pColData->pData = NULL;
+  }
 
 _exit:
   return code;

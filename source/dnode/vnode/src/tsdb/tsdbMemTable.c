@@ -601,8 +601,13 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   memcpy(pBlockData->aTSKEY, aColData[0].pData, aColData[0].nData);
 
   pBlockData->nColData = nColData - 1;
-  for (int32_t iColData = 1; iColData < nColData; ++iColData) {
-    // todo
+  pBlockData->aColData = vnodeBufPoolMalloc(pPool, sizeof(SColData) * pBlockData->nColData);
+  if (pBlockData->aColData == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  for (int32_t iColData = 0; iColData < pBlockData->nColData; ++iColData) {
+    code = tColDataCopy(&aColData[iColData + 1], &pBlockData->aColData[iColData], (xMallocFn)vnodeBufPoolMalloc, pPool);
+    if (code) goto _exit;
   }
 
   // loop to add each row to the skiplist
