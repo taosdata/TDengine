@@ -1,0 +1,330 @@
+use std::{collections::HashMap, time::Duration};
+
+use chrono::{DateTime, Utc};
+use taos::*;
+use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
+
+use anyhow::{bail, Result};
+
+use crate::TimeRange;
+
+use super::{sync_single_table, TableRecord};
+
+pub struct TablesHandle {
+    source: TaosPool,
+    target: TaosPool,
+    target_is_v3: bool,
+    opts: TableOpts,
+    handles: HashMap<String, JoinHandle<Result<()>>>,
+    cancellation: Option<CancellationToken>,
+}
+
+impl Drop for TablesHandle {
+    fn drop(&mut self) {
+        self.cancellation.take().map(CancellationToken::drop_guard);
+    }
+}
+
+impl TablesHandle {
+    pub async fn new(source: TaosBuilder, target: TaosBuilder, opts: TableOpts) -> Result<Self> {
+        let source = source.pool()?;
+        let target = target.pool()?;
+        let version: String = target
+            .get()?
+            .query_one("SELECT server_version()")
+            .await?
+            .unwrap();
+        let target_is_v3 = version.starts_with("3");
+        Ok(Self {
+            source,
+            target,
+            target_is_v3,
+            opts,
+            handles: Default::default(),
+            cancellation: Some(CancellationToken::new()),
+        })
+    }
+    fn push_table(&mut self, table: String) -> Result<()> {
+        let mut handle = TableHandler {
+            source: self.source.clone(),
+            target: self.target.clone(),
+            target_is_v3: self.target_is_v3,
+            opts: self.opts.clone(),
+            table: table.clone(),
+            handles: Default::default(),
+            cancellation: CancellationToken::new(),
+        };
+        let handle = tokio::spawn(async move { handle.run().await });
+        self.handles.insert(table, handle);
+        Ok(())
+    }
+
+    pub async fn spawn(&mut self) -> Result<()> {
+        let from = self.source.get()?;
+        let v1: String = from.query_one("SELECT server_version()").await?.unwrap();
+        if v1.starts_with('2') {
+            let mut res = from.query("SHOW TABLES").await?;
+            let mut de = res.deserialize::<TableRecord>();
+            while let Some(row) = de.try_next().await? {
+                self.push_table(row.table_name)?;
+            }
+        } else {
+            //  get normal tables.
+            let mut res = from.query("SHOW TABLES").await?;
+            let mut de = res.deserialize::<String>();
+            while let Some(row) = de.try_next().await? {
+                self.push_table(row)?;
+            }
+        }
+        Ok(())
+    }
+    pub async fn join(&mut self) -> Result<()> {
+        for h in self.handles.values_mut() {
+            h.await??;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TableOpts {
+    /// A retrospective duration to sync.
+    pub(super) restro: Duration,
+    /// An internal to add a task.
+    pub(super) interval: Duration,
+    /// Time duration for possible server/client clock excursion.
+    pub(super) excursion: Duration,
+}
+
+impl Default for TableOpts {
+    fn default() -> Self {
+        Self {
+            restro: Duration::ZERO,
+            interval: Duration::from_secs(1),
+            excursion: Duration::from_millis(500),
+        }
+    }
+}
+
+impl TableOpts {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn restro(&mut self, value: Duration) -> &mut Self {
+        self.restro = value;
+        self
+    }
+    pub fn interval(&mut self, value: Duration) -> &mut Self {
+        self.interval = value;
+        self
+    }
+    pub fn excursion(&mut self, value: Duration) -> &mut Self {
+        self.excursion = value;
+        self
+    }
+
+    pub fn from_params(dsn: &mut Dsn) -> Result<Self> {
+        let mut opts = Self::new();
+        if let Some(value) = dsn.remove("restro") {
+            opts.restro = parse_duration::parse(&value)?;
+        }
+        if let Some(value) = dsn.remove("interval") {
+            opts.interval = parse_duration::parse(&value)?;
+        }
+        if let Some(value) = dsn.remove("excursion") {
+            opts.excursion = parse_duration::parse(&value)?;
+        }
+        Ok(opts)
+    }
+}
+
+pub struct TableHandler {
+    source: TaosPool,
+    target: TaosPool,
+    target_is_v3: bool,
+    table: String,
+    opts: TableOpts,
+    handles: Vec<JoinHandle<Result<()>>>,
+    cancellation: CancellationToken,
+}
+
+impl TableHandler {
+    pub async fn run(&mut self) -> Result<()> {
+        let mut now = Utc::now();
+        let excursion = chrono::Duration::from_std(self.opts.excursion)?;
+        if !self.opts.excursion.is_zero() {
+            now -= excursion;
+        }
+        // now is the separator of history and future data.
+
+        // check if need retro back.
+        if self.opts.restro.is_zero() {
+            // trace back to some duration.
+            let start = now - chrono::Duration::from_std(self.opts.restro)?;
+            let from = self.source.get()?;
+            let to = self.target.get()?;
+
+            let opts = crate::QueryOpts {
+                time_range: TimeRange::new().start(start).end(now),
+                ..Default::default()
+            };
+            let target_is_v3 = self.target_is_v3;
+            let table = self.table.clone();
+            log::debug!("spawn sync task for range: {:?}", opts.time_range);
+            let h = tokio::spawn(async move {
+                sync_single_table(&from, &table, &to, &opts, target_is_v3).await
+            });
+            self.handles.push(h);
+        }
+
+        let tick_duration = chrono::Duration::from_std(self.opts.interval)?;
+        let mut interval = tokio::time::interval(self.opts.interval);
+        interval.tick().await;
+        let mut start = now;
+        loop {
+            let _ = interval.tick().await;
+            let end = Utc::now() - tick_duration;
+            let target_is_v3 = self.target_is_v3;
+            let table = self.table.clone();
+            let from = self.source.get()?;
+            let to = self.target.get()?;
+            let opts = crate::QueryOpts {
+                time_range: TimeRange::new().start(start).end(end),
+                ..Default::default()
+            };
+            log::debug!("spawn sync task for range: {:?}", opts.time_range);
+            let h = tokio::spawn(async move {
+                sync_single_table(&from, &table, &to, &opts, target_is_v3).await
+            });
+            self.handles.push(h);
+            start = end;
+        }
+    }
+
+    pub async fn join(&mut self) -> Result<()> {
+        for h in &mut self.handles {
+            h.await??;
+        }
+        Ok(())
+    }
+
+    pub async fn abort(&mut self) -> Result<()> {
+        for h in &mut self.handles {
+            h.abort();
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use taos::{AsyncQueryable, TBuilder};
+
+    use super::*;
+    #[tokio::test(flavor = "multi_thread")]
+    async fn all_tables() -> Result<()> {
+        pretty_env_logger::formatted_timed_builder()
+            .filter_level(log::LevelFilter::Debug)
+            .init();
+        let taos = TaosBuilder::from_dsn("taos:///")?.build()?;
+        taos.exec_many([
+            "drop database if exists ts2031f",
+            "create database ts2031f",
+            "create table ts2031f.ntb1 (ts timestamp, v1 int)",
+            "drop database if exists ts2031t",
+            "create database ts2031t",
+            "create table ts2031t.ntb1 (ts timestamp, v1 int)",
+        ])
+        .await?;
+        let source = TaosBuilder::from_dsn("taos:///ts2031f")?;
+        let target = TaosBuilder::from_dsn("taos:///ts2031t")?;
+        let mut opts = TableOpts::new();
+        opts.restro(Duration::from_secs(60))
+            .excursion(Duration::from_secs(2));
+
+        let mut tables_handle = TablesHandle::new(source, target, opts).await?;
+        tables_handle.spawn().await?;
+
+        let sleep = tokio::time::sleep(Duration::from_secs(10));
+
+        tokio::select! {
+            _ = sleep => {
+                log::warn!("timer elapsed");
+            }
+            _ = tables_handle.join() => {
+            },
+            _ = async {
+                loop {
+                    taos.exec("insert into ts2031f.ntb1 values(now, 1)").await.unwrap();
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            } => {}
+        }
+        // table_task.join().await?;
+
+        let wrote: u32 = taos
+            .query_one("select count(*) from ts2031t.ntb1")
+            .await?
+            .unwrap();
+        log::info!("we've synced {wrote} records");
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn child_table() -> Result<()> {
+        pretty_env_logger::formatted_timed_builder()
+            .filter_level(log::LevelFilter::Debug)
+            .init();
+        let taos = TaosBuilder::from_dsn("taos:///")?.build()?;
+        taos.exec_many([
+            "drop database if exists ts2031f",
+            "create database ts2031f",
+            "create table ts2031f.ntb1 (ts timestamp, v1 int)",
+            "drop database if exists ts2031t",
+            "create database ts2031t",
+            "create table ts2031t.ntb1 (ts timestamp, v1 int)",
+        ])
+        .await?;
+        let source = TaosBuilder::from_dsn("taos:///ts2031f")?.pool()?;
+        let target = TaosBuilder::from_dsn("taos:///ts2031t")?.pool()?;
+        let mut opts = TableOpts::new();
+        opts.restro(Duration::from_secs(60))
+            .excursion(Duration::from_secs(2));
+
+        let mut table_task = TableHandler {
+            source,
+            target,
+            target_is_v3: true,
+            table: "ntb1".to_string(),
+            opts,
+            handles: Default::default(),
+            cancellation: CancellationToken::new(),
+        };
+
+        let sleep = tokio::time::sleep(Duration::from_secs(10));
+
+        tokio::select! {
+            _ = sleep => {
+                log::warn!("timer elapsed");
+            }
+            _ = table_task.run() => {
+            },
+            _ = async {
+                loop {
+                    taos.exec("insert into ts2031f.ntb1 values(now, 1)").await.unwrap();
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            } => {}
+        }
+        table_task.join().await?;
+
+        let wrote: u32 = taos
+            .query_one("select count(*) from ts2031t.ntb1")
+            .await?
+            .unwrap();
+        log::info!("we've synced {wrote} records");
+        Ok(())
+    }
+}
