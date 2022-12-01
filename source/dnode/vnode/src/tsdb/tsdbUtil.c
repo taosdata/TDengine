@@ -938,11 +938,11 @@ _exit:
   return code;
 }
 
-void tBlockDataDestroy(SBlockData *pBlockData, int8_t deepClear) {
+void tBlockDataDestroy(SBlockData *pBlockData) {
   tFree((uint8_t *)pBlockData->aUid);
   tFree((uint8_t *)pBlockData->aVersion);
   tFree((uint8_t *)pBlockData->aTSKEY);
-  taosArrayDestroyEx(pBlockData->aColData, deepClear ? tColDataDestroy : NULL);
+  taosArrayDestroyEx(pBlockData->aColData, tColDataDestroy);
   pBlockData->aUid = NULL;
   pBlockData->aVersion = NULL;
   pBlockData->aTSKEY = NULL;

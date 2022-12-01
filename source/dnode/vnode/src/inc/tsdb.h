@@ -156,7 +156,7 @@ int32_t tCmprBlockL(void const *lhs, void const *rhs);
 #define tBlockDataLastKey(PBLOCKDATA)  TSDBROW_KEY(&tBlockDataLastRow(PBLOCKDATA))
 
 int32_t   tBlockDataCreate(SBlockData *pBlockData);
-void      tBlockDataDestroy(SBlockData *pBlockData, int8_t deepClear);
+void      tBlockDataDestroy(SBlockData *pBlockData);
 int32_t   tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid);
 void      tBlockDataReset(SBlockData *pBlockData);
 int32_t   tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);

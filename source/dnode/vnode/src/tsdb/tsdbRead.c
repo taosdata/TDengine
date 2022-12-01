@@ -3883,7 +3883,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
   }
 
   taosMemoryFree(pSupInfo->buildBuf);
-  tBlockDataDestroy(&pReader->status.fileBlockData, true);
+  tBlockDataDestroy(&pReader->status.fileBlockData);
 
   cleanupDataBlockIterator(&pReader->status.blockIter);
 
@@ -4171,7 +4171,7 @@ static SArray* doRetrieveDataBlock(STsdbReader* pReader) {
 
   int32_t code = doLoadFileBlockData(pReader, &pStatus->blockIter, &pStatus->fileBlockData, pBlockScanInfo->uid);
   if (code != TSDB_CODE_SUCCESS) {
-    tBlockDataDestroy(&pStatus->fileBlockData, 1);
+    tBlockDataDestroy(&pStatus->fileBlockData);
     terrno = code;
     return NULL;
   }

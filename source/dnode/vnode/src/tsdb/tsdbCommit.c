@@ -903,24 +903,24 @@ static void tsdbCommitDataEnd(SCommitter *pCommitter) {
   // reader
   taosArrayDestroy(pCommitter->dReader.aBlockIdx);
   tMapDataClear(&pCommitter->dReader.mBlock);
-  tBlockDataDestroy(&pCommitter->dReader.bData, 1);
+  tBlockDataDestroy(&pCommitter->dReader.bData);
 
   // merger
   for (int32_t iStt = 0; iStt < TSDB_MAX_STT_TRIGGER; iStt++) {
     SDataIter *pIter = &pCommitter->aDataIter[iStt];
     taosArrayDestroy(pIter->aSttBlk);
-    tBlockDataDestroy(&pIter->bData, 1);
+    tBlockDataDestroy(&pIter->bData);
   }
 
   // writer
   taosArrayDestroy(pCommitter->dWriter.aBlockIdx);
   taosArrayDestroy(pCommitter->dWriter.aSttBlk);
   tMapDataClear(&pCommitter->dWriter.mBlock);
-  tBlockDataDestroy(&pCommitter->dWriter.bData, 1);
+  tBlockDataDestroy(&pCommitter->dWriter.bData);
 #if USE_STREAM_COMPRESSION
   tDiskDataBuilderDestroy(pCommitter->dWriter.pBuilder);
 #else
-  tBlockDataDestroy(&pCommitter->dWriter.bDatal, 1);
+  tBlockDataDestroy(&pCommitter->dWriter.bDatal);
 #endif
   tDestroyTSchema(pCommitter->skmTable.pTSchema);
   tDestroyTSchema(pCommitter->skmRow.pTSchema);
