@@ -45,7 +45,7 @@ actix-web = "4"
 serde_json = "1.0"
 sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "sqlite", "chrono"] }
 utoipa = { version = "2.0.0", features = ["actix_extras", "chrono"] }
-utoipa-swagger-ui = { version = "2.0.0", features = ["actix-web"] }
+utoipa-swagger-ui = { version = "3.0.1", features = ["actix-web"] }
 
 # lru = "0.7.5"
 metrics = "0.20.1"

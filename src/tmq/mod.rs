@@ -115,7 +115,7 @@ impl Display for TmqMetrics {
 ///     4.4            if the `table` is child table or normal, create a topic named `database_table` as select * from table.
 ///     4.5            else, bail unexpected input topics error to upstream.
 pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic>)> {
-    let origin = from.clone();
+    // let origin = from.clone();
     let database = from.subject.take().ok_or(RawError::new(
         Code::Failed,
         format!("requires topic or database in source dsn: {from}"),
