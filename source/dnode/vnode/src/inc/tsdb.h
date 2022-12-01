@@ -70,6 +70,9 @@ typedef struct SDiskData        SDiskData;
 typedef struct SDiskDataBuilder SDiskDataBuilder;
 typedef struct SBlkInfo         SBlkInfo;
 
+#define TSDBROW_ROW_FMT ((int8_t)0x0)
+#define TSDBROW_COL_FMT ((int8_t)0x1)
+
 #define TSDB_FILE_DLMT     ((uint32_t)0xF00AFA0F)
 #define TSDB_MAX_SUBBLOCKS 8
 #define TSDB_FHDR_SIZE     512
@@ -102,12 +105,13 @@ static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
 
 // tsdbUtil.c ==============================================================================================
 // TSDBROW
-#define TSDBROW_TS(ROW)                       (((ROW)->type == 0) ? (ROW)->pTSRow->ts : (ROW)->pBlockData->aTSKEY[(ROW)->iRow])
-#define TSDBROW_VERSION(ROW)                  (((ROW)->type == 0) ? (ROW)->version : (ROW)->pBlockData->aVersion[(ROW)->iRow])
-#define TSDBROW_SVERSION(ROW)                 TD_ROW_SVER((ROW)->pTSRow)
-#define TSDBROW_KEY(ROW)                      ((TSDBKEY){.version = TSDBROW_VERSION(ROW), .ts = TSDBROW_TS(ROW)})
-#define tsdbRowFromTSRow(VERSION, TSROW)      ((TSDBROW){.type = 0, .version = (VERSION), .pTSRow = (TSROW)})
-#define tsdbRowFromBlockData(BLOCKDATA, IROW) ((TSDBROW){.type = 1, .pBlockData = (BLOCKDATA), .iRow = (IROW)})
+#define TSDBROW_TS(ROW)                  (((ROW)->type == 0) ? (ROW)->pTSRow->ts : (ROW)->pBlockData->aTSKEY[(ROW)->iRow])
+#define TSDBROW_VERSION(ROW)             (((ROW)->type == 0) ? (ROW)->version : (ROW)->pBlockData->aVersion[(ROW)->iRow])
+#define TSDBROW_SVERSION(ROW)            TD_ROW_SVER((ROW)->pTSRow)
+#define TSDBROW_KEY(ROW)                 ((TSDBKEY){.version = TSDBROW_VERSION(ROW), .ts = TSDBROW_TS(ROW)})
+#define tsdbRowFromTSRow(VERSION, TSROW) ((TSDBROW){.type = TSDBROW_ROW_FMT, .version = (VERSION), .pTSRow = (TSROW)})
+#define tsdbRowFromBlockData(BLOCKDATA, IROW) \
+  ((TSDBROW){.type = TSDBROW_COL_FMT, .pBlockData = (BLOCKDATA), .iRow = (IROW)})
 void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 // int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow);
 int32_t tsdbRowCmprFn(const void *p1, const void *p2);
@@ -335,10 +339,13 @@ struct SVersionRange {
 typedef struct SMemSkipListNode SMemSkipListNode;
 struct SMemSkipListNode {
   int8_t            level;
+  int8_t            flag;  // TSDBROW_ROW_FMT for row format, TSDBROW_COL_FMT for col format
+  int32_t           iRow;
   int64_t           version;
-  SRow             *pTSRow;
+  void             *pData;
   SMemSkipListNode *forwards[0];
 };
+
 typedef struct SMemSkipList {
   int64_t           size;
   uint32_t          seed;
@@ -376,7 +383,7 @@ struct SMemTable {
 };
 
 struct TSDBROW {
-  int8_t type;  // 0 for row from tsRow, 1 for row from block data
+  int8_t type;  // TSDBROW_ROW_FMT for row from tsRow, TSDBROW_COL_FMT for row from block data
   union {
     struct {
       int64_t version;
@@ -795,8 +802,13 @@ static FORCE_INLINE TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
   }
 
   pIter->pRow = &pIter->row;
-  pIter->pRow->version = pIter->pNode->version;
-  pIter->pRow->pTSRow = pIter->pNode->pTSRow;
+  if (pIter->pNode->flag == TSDBROW_ROW_FMT) {
+    pIter->row = tsdbRowFromTSRow(pIter->pNode->version, pIter->pNode->pData);
+  } else if (pIter->pNode->flag == TSDBROW_COL_FMT) {
+    pIter->row = tsdbRowFromBlockData(pIter->pNode->pData, pIter->pNode->iRow);
+  } else {
+    ASSERT(0);
+  }
 
   return pIter->pRow;
 }
