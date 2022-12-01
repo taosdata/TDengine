@@ -41,7 +41,7 @@ typedef struct SBlockOrderInfo {
     BMCharPos(bm_, r_) |= (1u << (7u - BitPos(r_))); \
   } while (0)
 
-#define colDataSetNotNull_f(bm_, r_)                  \
+#define colDataClearNull_f(bm_, r_)                  \
   do {                                                \
     BMCharPos(bm_, r_) &= ~(1u << (7u - BitPos(r_))); \
   } while (0)
@@ -151,9 +151,6 @@ static FORCE_INLINE void colDataAppendNNULL(SColumnInfoData* pColumnInfoData, ui
     for (int32_t i = start; i < start + nRows; ++i) {
       colDataSetNull_f(pColumnInfoData->nullbitmap, i);
     }
-
-    int32_t bytes = pColumnInfoData->info.bytes;
-    memset(pColumnInfoData->pData + start * bytes, 0, nRows * bytes);
   }
 
   pColumnInfoData->hasNull = true;
@@ -238,6 +235,7 @@ int32_t blockDataEnsureCapacityNoClear(SSDataBlock* pDataBlock, uint32_t numOfRo
 
 void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
 void blockDataCleanup(SSDataBlock* pDataBlock);
+void blockDataEmpty(SSDataBlock* pDataBlock);
 
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 

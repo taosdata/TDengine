@@ -1782,7 +1782,7 @@ void vectorIsTrue(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut,
     if (colDataIsNull_s(pOut->columnData, i)) {
       int8_t v = 0;
       colDataAppendInt8(pOut->columnData, i, &v);
-      colDataSetNotNull_f(pOut->columnData->nullbitmap, i);
+      colDataClearNull_f(pOut->columnData->nullbitmap, i);
     }
   }
   pOut->columnData->hasNull = false;

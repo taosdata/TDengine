@@ -1137,17 +1137,15 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
 }
 
 void blockDataCleanup(SSDataBlock* pDataBlock) {
+  blockDataEmpty(pDataBlock);
   SDataBlockInfo* pInfo = &pDataBlock->info;
-
-  int32_t existedRows = pInfo->rows;
-  ASSERT(existedRows <= pDataBlock->info.capacity);
-
-  pInfo->rows = 0;
   pInfo->id.uid = 0;
   pInfo->id.groupId = 0;
-  pInfo->window.ekey = 0;
-  pInfo->window.skey = 0;
+}
 
+void blockDataEmpty(SSDataBlock* pDataBlock) {
+  SDataBlockInfo* pInfo = &pDataBlock->info;
+  ASSERT(pInfo->rows <= pDataBlock->info.capacity);
   if (pInfo->capacity == 0) {
     return;
   }
@@ -1155,8 +1153,12 @@ void blockDataCleanup(SSDataBlock* pDataBlock) {
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
-    colInfoDataCleanup(p, existedRows);
+    colInfoDataCleanup(p, pInfo->capacity);
   }
+
+  pInfo->rows = 0;
+  pInfo->window.ekey = 0;
+  pInfo->window.skey = 0;
 }
 
 // todo temporarily disable it
@@ -1643,6 +1645,8 @@ static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, s
 static void colDataTrimFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
     pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, n, total);
+
+    // clear the offset value of the unused entries.
     memset(&pColInfoData->varmeta.offset[total - n], 0, n);
   } else {
     int32_t bytes = pColInfoData->info.bytes;
@@ -1657,7 +1661,7 @@ int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n) {
   }
 
   if (pBlock->info.rows <= n) {
-    blockDataCleanup(pBlock);
+    blockDataEmpty(pBlock);
   } else {
     size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
     for (int32_t i = 0; i < numOfCols; ++i) {
@@ -1674,12 +1678,22 @@ static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
     pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, 0, n);
     memset(&pColInfoData->varmeta.offset[n], 0, total - n);
+  } else {  // reset the bitmap value
+    int32_t stopIndex = BitmapLen(n) * 8;
+    for(int32_t i = n + 1; i < stopIndex; ++i) {
+      colDataClearNull_f(pColInfoData->nullbitmap, i);
+    }
+
+    int32_t remain = BitmapLen(total) - BitmapLen(n);
+    if (remain > 0) {
+      memset(pColInfoData->nullbitmap, 0, remain);
+    }
   }
 }
 
 int32_t blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n) {
   if (n == 0) {
-    blockDataCleanup(pBlock);
+    blockDataEmpty(pBlock);
     return TSDB_CODE_SUCCESS;
   }
 

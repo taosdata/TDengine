@@ -1899,53 +1899,52 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
 
 SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanPhysiNode* pBlockScanNode,
                                                SExecTaskInfo* pTaskInfo) {
-    SBlockDistInfo* pInfo = taosMemoryCalloc(1, sizeof(SBlockDistInfo));
-    SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-    if (pInfo == NULL || pOperator == NULL) {
-        pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _error;
-    }
+  SBlockDistInfo* pInfo = taosMemoryCalloc(1, sizeof(SBlockDistInfo));
+  SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  if (pInfo == NULL || pOperator == NULL) {
+    pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _error;
+  }
 
-    {
-        SQueryTableDataCond cond = {0};
+  pInfo->pResBlock = createDataBlockFromDescNode(pBlockScanNode->node.pOutputDataBlockDesc);
+  blockDataEnsureCapacity(pInfo->pResBlock, 1);
 
-        int32_t code = initTableblockDistQueryCond(pBlockScanNode->suid, &cond);
-        if (code != TSDB_CODE_SUCCESS) {
-            goto _error;
-        }
-
-        STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
-        size_t          num = tableListGetSize(pTableListInfo);
-        void*           pList = tableListGetInfo(pTableListInfo, 0);
-
-        code = tsdbReaderOpen(readHandle->vnode, &cond, pList, num, &pInfo->pHandle, pTaskInfo->id.str);
-        cleanupQueryTableDataCond(&cond);
-        if (code != 0) {
-            goto _error;
-        }
-    }
-
-    pInfo->readHandle = *readHandle;
-    pInfo->uid = pBlockScanNode->suid;
-
-    pInfo->pResBlock = createDataBlockFromDescNode(pBlockScanNode->node.pOutputDataBlockDesc);
-    blockDataEnsureCapacity(pInfo->pResBlock, 1);
-
-    int32_t    numOfCols = 0;
-    SExprInfo* pExprInfo = createExprInfo(pBlockScanNode->pScanPseudoCols, NULL, &numOfCols);
-    int32_t    code = initExprSupp(&pOperator->exprSupp, pExprInfo, numOfCols);
+  {
+    SQueryTableDataCond cond = {0};
+    int32_t             code = initTableblockDistQueryCond(pBlockScanNode->suid, &cond);
     if (code != TSDB_CODE_SUCCESS) {
-        goto _error;
+      goto _error;
     }
 
-    setOperatorInfo(pOperator, "DataBlockDistScanOperator", QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN, false,
-                    OP_NOT_OPENED, pInfo, pTaskInfo);
-    pOperator->fpSet =
-            createOperatorFpSet(operatorDummyOpenFn, doBlockInfoScan, NULL, destroyBlockDistScanOperatorInfo, NULL);
-    return pOperator;
+    STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
+    size_t          num = tableListGetSize(pTableListInfo);
+    void*           pList = tableListGetInfo(pTableListInfo, 0);
 
-    _error:
-    taosMemoryFreeClear(pInfo);
-    taosMemoryFreeClear(pOperator);
-    return NULL;
+    code = tsdbReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock, &pInfo->pHandle, pTaskInfo->id.str);
+    cleanupQueryTableDataCond(&cond);
+    if (code != 0) {
+      goto _error;
+    }
+  }
+
+  pInfo->readHandle = *readHandle;
+  pInfo->uid = pBlockScanNode->suid;
+
+  int32_t    numOfCols = 0;
+  SExprInfo* pExprInfo = createExprInfo(pBlockScanNode->pScanPseudoCols, NULL, &numOfCols);
+  int32_t    code = initExprSupp(&pOperator->exprSupp, pExprInfo, numOfCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  setOperatorInfo(pOperator, "DataBlockDistScanOperator", QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN, false,
+                  OP_NOT_OPENED, pInfo, pTaskInfo);
+  pOperator->fpSet =
+      createOperatorFpSet(operatorDummyOpenFn, doBlockInfoScan, NULL, destroyBlockDistScanOperatorInfo, NULL);
+  return pOperator;
+
+_error:
+  taosMemoryFreeClear(pInfo);
+  taosMemoryFreeClear(pOperator);
+  return NULL;
 }

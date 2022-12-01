@@ -1190,8 +1190,6 @@ void printTaskExecCostInLog(SExecTaskInfo* pTaskInfo) {
 //       T_LONG_JMP(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
 //     }
 //
-//     tsdbRetrieveDataBlockInfo(pTsdbReadHandle, &blockInfo);
-//
 //     if (pQueryAttr->limit.offset > blockInfo.rows) {
 //       pQueryAttr->limit.offset -= blockInfo.rows;
 //       pTableQueryInfo->lastKey = (QUERY_IS_ASC_QUERY(pQueryAttr)) ? blockInfo.window.ekey : blockInfo.window.skey;

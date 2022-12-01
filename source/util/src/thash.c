@@ -279,7 +279,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
     return NULL;
   }
 
-  void *p = taosMemoryCalloc(pHashObj->capacity, sizeof(SHashEntry));
+  void *p = taosMemoryMalloc(pHashObj->capacity * sizeof(SHashEntry));
   if (p == NULL) {
     taosArrayDestroy(pHashObj->pMemBlock);
     taosMemoryFree(pHashObj->hashList);
@@ -290,6 +290,9 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 
   for (int32_t i = 0; i < pHashObj->capacity; ++i) {
     pHashObj->hashList[i] = (void *)((char *)p + i * sizeof(SHashEntry));
+    pHashObj->hashList[i]->num = 0;
+    pHashObj->hashList[i]->latch = 0;
+    pHashObj->hashList[i]->next = NULL;
   }
 
   taosArrayPush(pHashObj->pMemBlock, &p);
