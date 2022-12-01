@@ -844,8 +844,8 @@ static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, 
     return TSDB_CODE_FAILED;
   }
 
-  smaDebug("vgId:%d, execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64, SMA_VID(pSma), level,
-           RSMA_INFO_QTASK(pInfo, idx), pInfo->suid);
+  smaDebug("vgId:%d, execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64 " nMsg:%d", SMA_VID(pSma), level,
+           RSMA_INFO_QTASK(pInfo, idx), pInfo->suid, msgSize);
 
 #if 0
   for (int32_t i = 0; i < msgSize; ++i) {

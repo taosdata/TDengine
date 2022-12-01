@@ -297,7 +297,7 @@ void *tdAcquireSmaRef(int32_t rsetId, int64_t refId) {
   if (!pResult) {
     smaWarn("rsma acquire ref for rsetId:%d refId:%" PRIi64 " failed since %s", rsetId, refId, terrstr());
   } else {
-    smaDebug("rsma acquire ref for rsetId:%d refId:%" PRIi64 " success", rsetId, refId);
+    smaTrace("rsma acquire ref for rsetId:%d refId:%" PRIi64 " success", rsetId, refId);
   }
   return pResult;
 }
@@ -307,7 +307,7 @@ int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId) {
     smaWarn("rsma release ref for rsetId:%d refId:%" PRIi64 " failed since %s", rsetId, refId, terrstr());
     return TSDB_CODE_FAILED;
   }
-  smaDebug("rsma release ref for rsetId:%d refId:%" PRIi64 " success", rsetId, refId);
+  smaTrace("rsma release ref for rsetId:%d refId:%" PRIi64 " success", rsetId, refId);
 
   return TSDB_CODE_SUCCESS;
 }
