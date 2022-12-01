@@ -3050,7 +3050,7 @@ _error:
 void fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, char* stbName, int64_t count,
                                  SSDataBlock* pRes) {
   if (pSupp->dbNameSlotId != -1) {
-    ASSERT(strlen(pSupp->dbName));
+    ASSERT(strlen(dbName));
     SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->dbNameSlotId);
     char             varDbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     strncpy(varDataVal(varDbName), dbName, strlen(dbName));
