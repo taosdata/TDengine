@@ -17,6 +17,7 @@
 #include "mndDb.h"
 #include "mndPrivilege.h"
 #include "mndUser.h"
+#include "mndTopic.h"
 
 int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
 
@@ -190,6 +191,54 @@ int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType op
 
   int32_t code = mndCheckDbPrivilege(pMnode, user, operType, pDb);
   mndReleaseDb(pMnode, pDb);
+  return code;
+}
+
+int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operType, SMqTopicObj *pTopic) {
+#if 1
+  return 0;
+#else
+  int32_t   code = 0;
+  SUserObj *pUser = mndAcquireUser(pMnode, user);
+
+  if (pUser == NULL) {
+    code = -1;
+    goto _OVER;
+  }
+
+  if (pUser->superUser) goto _OVER;
+
+  if (!pUser->enable) {
+    terrno = TSDB_CODE_MND_USER_DISABLED;
+    code = -1;
+    goto _OVER;
+  }
+
+#if 0
+  if (operType != MND_OPER_SUBSCRIBE) {
+    terrno = TSDB_CODE_MND_APP_ERROR;
+    code = -1;
+    goto _OVER;
+  }
+#endif
+
+  if (taosHashGet(pUser->topics, pTopic->name, strlen(pTopic->name) + 1) != NULL) goto _OVER;
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  code = -1;
+
+_OVER:
+  mndReleaseUser(pMnode, pUser);
+  return code;
+#endif
+}
+
+int32_t mndCheckTopicPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *topicName) {
+  SMqTopicObj *pTopic = mndAcquireTopic(pMnode, (char *)topicName);
+  if (pTopic == NULL) return -1;
+
+  int32_t code = mndCheckTopicPrivilege(pMnode, user, operType, pTopic);
+  mndReleaseTopic(pMnode, pTopic);
   return code;
 }
 
