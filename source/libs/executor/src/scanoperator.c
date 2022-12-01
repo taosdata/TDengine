@@ -1113,7 +1113,7 @@ static STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t
     if (hasGroup) {
       (*pRowIndex) += 1;
     } else {
-      while ((groupId == gpIdCol[(*pRowIndex)] && startTsCol[*pRowIndex] < endWin.ekey)) {
+      while ((groupId == gpIdCol[(*pRowIndex)] && startTsCol[*pRowIndex] <= endWin.ekey)) {
         (*pRowIndex) += 1;
         if ((*pRowIndex) == pDataBlockInfo->rows) {
           break;
