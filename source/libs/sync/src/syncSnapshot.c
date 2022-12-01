@@ -541,6 +541,10 @@ _START_RECEIVER:
       taosMsleep(10);
     }
 
+    if (snapshotReceiverIsStart(pReceiver)) {
+      snapshotReceiverForceStop(pReceiver);
+    }
+
     snapshotReceiverStart(pReceiver, pMsg);  // set start-time same with sender
   }
 
