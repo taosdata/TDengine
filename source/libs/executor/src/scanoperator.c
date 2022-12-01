@@ -3050,7 +3050,7 @@ _error:
 void fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, char* stbName, int64_t count,
                                  SSDataBlock* pRes) {
   if (pSupp->dbNameSlotId != -1) {
-    ASSERT(strlen(dbName));
+    ASSERT(strlen(pSupp->dbName));
     SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->dbNameSlotId);
     char             varDbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     strncpy(varDataVal(varDbName), dbName, strlen(dbName));
@@ -3059,12 +3059,15 @@ void fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, char*
   }
 
   if (pSupp->stbNameSlotId != -1) {
-    ASSERT(strlen(stbName));
     SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->stbNameSlotId);
-    char             varStbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    strncpy(varDataVal(varStbName), stbName, strlen(stbName));
-    varDataSetLen(varStbName, strlen(stbName));
-    colDataAppend(colInfoData, 0, varStbName, false);
+    if (strlen(stbName) != 0) {
+      char             varStbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      strncpy(varDataVal(varStbName), stbName, strlen(stbName));
+      varDataSetLen(varStbName, strlen(stbName));
+      colDataAppend(colInfoData, 0, varStbName, false);
+    } else {
+      colDataAppendNULL(colInfoData, 0);
+    }
   }
 
   if (pSupp->tbCountSlotId != -1) {
@@ -3084,10 +3087,6 @@ static SSDataBlock* buildSysDbTableCount(SOperatorInfo* pOperator, STableCountSc
   getPerfDbMeta(NULL, &perfdbTableNum);
 
   if (pSupp->groupByDbName) {
-    if (pSupp->groupByStbName) {
-      setOperatorCompleted(pOperator);
-      return NULL;
-    }
     if (pInfo->currGrpIdx == 0) {
       uint64_t groupId = calcGroupId(TSDB_INFORMATION_SCHEMA_DB, strlen(TSDB_INFORMATION_SCHEMA_DB));
       pRes->info.id.groupId = groupId;
@@ -3121,10 +3120,7 @@ static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
   STableCountScanSupp*         pSupp = &pInfo->supp;
   SSDataBlock*                 pRes = pInfo->pRes;
   blockDataCleanup(pRes);
-  // compute group id must, but output is according to scancols. output group by group
-  // grouptags high priority(groupid<=>grouptag), then tablename(dbname,tableName).
-  // scanCols, (grouptags cols)
-  // mnode, query table count of information_schema and performance_schema
+
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
@@ -3145,7 +3141,6 @@ static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
   }
   if (pSupp->groupByDbName) {
     if (pSupp->groupByStbName) {
-      // group by db_name and stable_name
       if (pInfo->stbUidList == NULL) {
         pInfo->stbUidList = taosArrayInit(16, sizeof(tb_uid_t));
         if (vnodeGetStbIdList(pInfo->readHandle.vnode, 0, pInfo->stbUidList) < 0) {
@@ -3170,12 +3165,20 @@ static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
         fillTableCountScanDataBlock(pSupp, dbName, stbName, ctbNum, pRes);
         
         pInfo->currGrpIdx++;
+      } else if (pInfo->currGrpIdx == taosArrayGetSize(pInfo->stbUidList)) {
+        char fullStbName[TSDB_TABLE_FNAME_LEN] = {0};
+        snprintf(fullStbName, TSDB_TABLE_FNAME_LEN, "%s.%s", dbName, "");
+        uint64_t groupId = calcGroupId(fullStbName, strlen(fullStbName));
+        pRes->info.id.groupId = groupId;
+        int64_t ntbNum = metaGetNtbNum(pInfo->readHandle.meta);
+        fillTableCountScanDataBlock(pSupp, dbName, "", ntbNum, pRes);
+
+        pInfo->currGrpIdx++;
       } else {
         setOperatorCompleted(pOperator);
         return NULL;
       }
     } else {
-      // group by only db_name
       uint64_t groupId = calcGroupId(dbName, strlen(dbName));
       pRes->info.id.groupId = groupId;
       int64_t dbTableCount = metaGetTbNum(pInfo->readHandle.meta);

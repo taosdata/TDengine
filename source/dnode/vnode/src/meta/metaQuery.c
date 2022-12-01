@@ -756,6 +756,10 @@ int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
   return pMeta->pVnode->config.vndStats.numOfTimeSeries + pMeta->pVnode->config.vndStats.numOfNTimeSeries;
 }
 
+int64_t metaGetNtbNum(SMeta *pMeta) {
+  return pMeta->pVnode->config.vndStats.numOfNTables;
+}
+
 typedef struct {
   SMeta   *pMeta;
   TBC     *pCur;
