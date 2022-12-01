@@ -120,7 +120,9 @@ STREAM_ENCODE_OVER:
 
 SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  void *buf = NULL;
+  SSdbRow    *pRow = NULL;
+  SStreamObj *pStream = NULL;
+  void       *buf = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto STREAM_DECODE_OVER;
@@ -130,11 +132,10 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
     goto STREAM_DECODE_OVER;
   }
 
-  int32_t  size = sizeof(SStreamObj);
-  SSdbRow *pRow = sdbAllocRow(size);
+  pRow = sdbAllocRow(sizeof(SStreamObj));
   if (pRow == NULL) goto STREAM_DECODE_OVER;
 
-  SStreamObj *pStream = sdbGetRowObj(pRow);
+  pStream = sdbGetRowObj(pRow);
   if (pStream == NULL) goto STREAM_DECODE_OVER;
 
   int32_t tlen;
@@ -157,7 +158,7 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
 STREAM_DECODE_OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("stream:%s, failed to decode from raw:%p since %s", pStream->name, pRaw, terrstr());
+    mError("stream:%s, failed to decode from raw:%p since %s", pStream == NULL ? "null" : pStream->name, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
