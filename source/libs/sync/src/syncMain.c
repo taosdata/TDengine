@@ -2266,9 +2266,13 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
 
+  const STraceId* trace = &pRpcMsg->info.traceId;
+  char            tbuf[40] = {0};
+  TRACE_TO_STR(trace, tbuf);
+
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
-  syncLogRecvHeartbeat(ths, pMsg, timeDiff);
+  syncLogRecvHeartbeat(ths, pMsg, timeDiff, tbuf);
 
   SRpcMsg rpcMsg = {0};
   (void)syncBuildHeartbeatReply(&rpcMsg, ths->vgId);
@@ -2343,9 +2347,13 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
 
+  const STraceId* trace = &pRpcMsg->info.traceId;
+  char            tbuf[40] = {0};
+  TRACE_TO_STR(trace, tbuf);
+
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
-  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff);
+  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff, tbuf);
 
   // update last reply time, make decision whether the other node is alive or not
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
