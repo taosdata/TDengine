@@ -75,7 +75,7 @@ int32_t tsem_wait(tsem_t* sem) {
   return ret;
 }
 
-int32_t tsem_timewait(tsem_t* sem, int64_t milis) {
+int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
   struct timespec ts;
   taosClockGetTime(0, &ts);
 
