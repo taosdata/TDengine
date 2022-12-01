@@ -942,7 +942,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
         taosArrayPush(newTbUids, &pSubmitTbData->uid);
 
         if (pCreateTbRsp->pMeta) {
-          // TODO
+          vnodeUpdateMetaRsp(pVnode, pCreateTbRsp->pMeta);
         }
       } else {  // create table failed
         if (terrno != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
