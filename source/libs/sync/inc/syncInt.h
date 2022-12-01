@@ -244,6 +244,7 @@ int32_t   syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHa
 bool      syncNodeHeartbeatReplyTimeout(SSyncNode* pSyncNode);
 bool      syncNodeSnapshotSending(SSyncNode* pSyncNode);
 bool      syncNodeSnapshotRecving(SSyncNode* pSyncNode);
+bool      syncNodeIsReadyForRead(SSyncNode* pSyncNode);
 
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
