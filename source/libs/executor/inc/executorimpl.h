@@ -566,23 +566,6 @@ typedef struct SStreamIntervalOperatorInfo {
   SWinKey            delKey;
 } SStreamIntervalOperatorInfo;
 
-typedef struct SFillOperatorInfo {
-  struct SFillInfo* pFillInfo;
-  SSDataBlock*      pRes;
-  SSDataBlock*      pFinalRes;
-  int64_t           totalInputRows;
-  void**            p;
-  SSDataBlock*      existNewGroupBlock;
-  STimeWindow       win;
-  SColMatchInfo     matchInfo;
-  int32_t           primaryTsCol;
-  int32_t           primarySrcSlotId;
-  uint64_t          curGroupId;  // current handled group id
-  SExprInfo*        pExprInfo;
-  int32_t           numOfExpr;
-  SExprSupp         noFillExprSupp;
-} SFillOperatorInfo;
-
 typedef struct SDataGroupInfo {
   uint64_t groupId;
   int64_t  numOfRows;
@@ -834,8 +817,6 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
 int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pTaskInfo, SReadHandle* readHandle);
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList);
 
-void    printTaskExecCostInLog(SExecTaskInfo* pTaskInfo);
-
 int32_t getMaximumIdleDurationSec();
 
 STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts, SInterval* pInterval,
@@ -853,9 +834,8 @@ bool isDeletedWindow(STimeWindow* pWin, uint64_t groupId, SAggSupporter* pSup);
 bool isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, SStreamState* pState, STimeWindowAggSupp* pTwSup);
 void appendOneRowToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid,
                                       uint64_t* pGp, void* pTbName);
-void printDataBlock(SSDataBlock* pBlock, const char* flag);
-uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
-void     calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock);
+uint64_t    calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
+void        calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock);
 
 int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);

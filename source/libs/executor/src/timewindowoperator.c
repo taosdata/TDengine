@@ -677,16 +677,6 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
   }
 }
 
-void printDataBlock(SSDataBlock* pBlock, const char* flag) {
-  if (!pBlock || pBlock->info.rows == 0) {
-    qDebug("===stream===printDataBlock: Block is Null or Empty");
-    return;
-  }
-  char* pBuf = NULL;
-  qDebug("%s", dumpBlockData(pBlock, flag, &pBuf));
-  taosMemoryFree(pBuf);
-}
-
 typedef int32_t (*__compare_fn_t)(void* pKey, void* data, int32_t index);
 
 int32_t binarySearchCom(void* keyList, int num, void* pKey, int order, __compare_fn_t comparefn) {
@@ -3854,7 +3844,7 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   SStreamStateAggOperatorInfo* pInfo = pOperator->info;
   int32_t                      numOfOutput = pOperator->exprSupp.numOfExprs;
-  int64_t                      groupId = pSDataBlock->info.id.groupId;
+  uint64_t                     groupId = pSDataBlock->info.id.groupId;
   int64_t                      code = TSDB_CODE_SUCCESS;
   TSKEY*                       tsCols = NULL;
   SResultRow*                  pResult = NULL;

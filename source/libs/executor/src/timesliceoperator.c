@@ -467,11 +467,11 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         // add current row if timestamp match
         if (ts == pSliceInfo->current && pSliceInfo->current <= pSliceInfo->win.ekey) {
           addCurrentRowToResult(pSliceInfo, &pOperator->exprSupp, pResBlock, pBlock, i);
-          doKeepPrevRows(pSliceInfo, pBlock, i);
 
           pSliceInfo->current =
               taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
         }
+        doKeepPrevRows(pSliceInfo, pBlock, i);
 
         if (pSliceInfo->current > pSliceInfo->win.ekey) {
           setOperatorCompleted(pOperator);
