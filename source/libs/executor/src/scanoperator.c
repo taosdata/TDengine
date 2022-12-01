@@ -2513,10 +2513,8 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   SExecTaskInfo*                  pTaskInfo = pOperator->pTaskInfo;
   int32_t                         readIdx = source->readerIdx;
   SSDataBlock*                    pBlock = source->inputBlock;
-  STableMergeScanInfo*            pTableScanInfo = pOperator->info;
 
-  SQueryTableDataCond* pQueryCond = taosArrayGet(pTableScanInfo->queryConds, readIdx);
-  blockDataCleanup(pBlock);
+  SQueryTableDataCond* pQueryCond = taosArrayGet(pInfo->queryConds, readIdx);
 
   int64_t st = taosGetTimestampUs();
   void*   p = tableListGetInfo(pTaskInfo->pTableInfoList, readIdx + pInfo->tableStartIndex);
@@ -2534,12 +2532,11 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     }
 
     // process this data block based on the probabilities
-    bool processThisBlock = processBlockWithProbability(&pTableScanInfo->sample);
+    bool processThisBlock = processBlockWithProbability(&pInfo->sample);
     if (!processThisBlock) {
       continue;
     }
 
-    blockDataCleanup(pBlock);
     if (pQueryCond->order == TSDB_ORDER_ASC) {
       pQueryCond->twindows.skey = pBlock->info.window.ekey + 1;
     } else {
@@ -2547,7 +2544,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     }
 
     uint32_t status = 0;
-    loadDataBlock(pOperator, &pTableScanInfo->base, pBlock, &status);
+    loadDataBlock(pOperator, &pInfo->base, pBlock, &status);
     //    code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
@@ -2561,7 +2558,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     pBlock->info.id.groupId = getTableGroupId(pTaskInfo->pTableInfoList, pBlock->info.id.uid);
 
     pOperator->resultInfo.totalRows += pBlock->info.rows;
-    pTableScanInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
+    pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
     tsdbReaderClose(pInfo->base.dataReader);
     pInfo->base.dataReader = NULL;
@@ -2641,6 +2638,8 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
     param.readerIdx = i;
     param.pOperator = pOperator;
     param.inputBlock = createOneDataBlock(pInfo->pResBlock, false);
+    blockDataEnsureCapacity(param.inputBlock, pOperator->resultInfo.capacity);
+
     taosArrayPush(pInfo->sortSourceParams, &param);
 
     SQueryTableDataCond cond;

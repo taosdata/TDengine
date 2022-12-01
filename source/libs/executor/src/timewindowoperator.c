@@ -1659,22 +1659,11 @@ static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SInt
   // the primary timestamp column
   bool needed = false;
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
+  for(int32_t i = 0; i < numOfCols; ++i) {
     SExprInfo* pExpr = pCtx[i].pExpr;
-
     if (fmIsIntervalInterpoFunc(pCtx[i].functionId)) {
-      SFunctParam* pParam = &pExpr->base.pParam[0];
-
-      SColumn c = *pParam->pCol;
-      taosArrayPush(pInfo->pInterpCols, &c);
       needed = true;
-
-      SGroupKeys key = {0};
-      key.bytes = c.bytes;
-      key.type = c.type;
-      key.isNull = false;
-      key.pData = taosMemoryCalloc(1, c.bytes);
-      taosArrayPush(pInfo->pPrevValues, &key);
+      break;
     }
   }
 
@@ -1694,6 +1683,24 @@ static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SInt
       key.bytes = c.bytes;
       key.type = c.type;
       key.isNull = true;  // to denote no value is assigned yet
+      key.pData = taosMemoryCalloc(1, c.bytes);
+      taosArrayPush(pInfo->pPrevValues, &key);
+    }
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SExprInfo* pExpr = pCtx[i].pExpr;
+
+    if (fmIsIntervalInterpoFunc(pCtx[i].functionId)) {
+      SFunctParam* pParam = &pExpr->base.pParam[0];
+
+      SColumn c = *pParam->pCol;
+      taosArrayPush(pInfo->pInterpCols, &c);
+
+      SGroupKeys key = {0};
+      key.bytes = c.bytes;
+      key.type = c.type;
+      key.isNull = false;
       key.pData = taosMemoryCalloc(1, c.bytes);
       taosArrayPush(pInfo->pPrevValues, &key);
     }

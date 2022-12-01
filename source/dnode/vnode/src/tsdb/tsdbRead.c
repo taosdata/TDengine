@@ -1621,7 +1621,7 @@ static int32_t buildDataBlockFromBuf(STsdbReader* pReader, STableBlockScanInfo* 
   int64_t st = taosGetTimestampUs();
   int32_t code = buildDataBlockFromBufImpl(pBlockScanInfo, endKey, pReader->capacity, pReader);
 
-  blockDataUpdateTsWindow(pBlock, 0);
+  blockDataUpdateTsWindow(pBlock, pReader->suppInfo.slotIds[0]);
   pBlock->info.id.uid = pBlockScanInfo->uid;
 
   setComposedBlockFlag(pReader, true);
@@ -2493,7 +2493,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
 _end:
   pResBlock->info.id.uid = (pBlockScanInfo != NULL) ? pBlockScanInfo->uid : 0;
-  blockDataUpdateTsWindow(pResBlock, 0);
+  blockDataUpdateTsWindow(pResBlock, pReader->suppInfo.slotIds[0]);
 
   setComposedBlockFlag(pReader, true);
   double el = (taosGetTimestampUs() - st) / 1000.0;
@@ -3534,7 +3534,6 @@ int32_t tsdbGetNextRowInMem(STableBlockScanInfo* pBlockScanInfo, STsdbReader* pR
 int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, STSRow* pTSRow,
                              STableBlockScanInfo* pScanInfo) {
   int32_t outputRowIndex = pBlock->info.rows;
-  int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
   int64_t uid = pScanInfo->uid;
 
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
@@ -3549,7 +3548,7 @@ int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, STSRow* 
     i += 1;
   }
 
-  while (i < numOfCols && j < pSchema->numOfCols) {
+  while (i < pSupInfo->numOfCols && j < pSchema->numOfCols) {
     col_id_t colId = pSupInfo->colIds[i];
 
     if (colId == pSchema->columns[j].colId) {
@@ -3570,7 +3569,7 @@ int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, STSRow* 
   }
 
   // set null value since current column does not exist in the "pSchema"
-  while (i < numOfCols) {
+  while (i < pSupInfo->numOfCols) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pSupInfo->slotIds[i]);
     colDataAppendNULL(pColInfoData, outputRowIndex);
     i += 1;
