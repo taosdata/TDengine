@@ -59,6 +59,8 @@ int32_t mndInitUser(SMnode *pMnode) {
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_USER, mndRetrieveUsers);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_USER, mndCancelGetNextUser);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_PRIVILEGES, mndRetrievePrivileges);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_PRIVILEGES, mndCancelGetNextPrivileges);
   return sdbSetTable(pMnode->pSdb, table);
 }
 
@@ -809,9 +811,107 @@ static void mndCancelGetNextUser(SMnode *pMnode, void *pIter) {
   sdbCancelFetch(pSdb, pIter);
 }
 
-static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) { return 0; }
+static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   numOfRows = 0;
+  SUserObj *pUser = NULL;
+  int32_t   cols = 0;
+  char     *pWrite;
 
-static void mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter) {}
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetch(pSdb, SDB_USER, pShow->pIter, (void **)&pUser);
+    if (pShow->pIter == NULL) break;
+
+    int32_t numOfReadDbs = taosHashGetSize(pUser->readDbs);
+    int32_t numOfWriteDbs = taosHashGetSize(pUser->writeDbs);
+    int32_t numOfTopics = taosHashGetSize(pUser->topics);
+    if (numOfRows + numOfReadDbs + numOfWriteDbs + numOfTopics >= rows) break;
+
+    char *db = taosHashIterate(pUser->readDbs, NULL);
+    while (db != NULL) {
+      cols = 0;
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      char             userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
+      colDataAppend(pColInfo, numOfRows, (const char *)userName, false);
+
+      char privilege[20] = {0};
+      STR_WITH_MAXSIZE_TO_VARSTR(privilege, "read", pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)privilege, false);
+
+      SName name = {0};
+      char  objName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      tNameFromString(&name, db, T_NAME_ACCT | T_NAME_DB);
+      tNameGetDbName(&name, varDataVal(objName));
+      varDataSetLen(objName, strlen(varDataVal(objName)));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)objName, false);
+
+      numOfRows++;
+      db = taosHashIterate(pUser->readDbs, db);
+    }
+
+    db = taosHashIterate(pUser->writeDbs, NULL);
+    while (db != NULL) {
+      cols = 0;
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      char             userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
+      colDataAppend(pColInfo, numOfRows, (const char *)userName, false);
+
+      char privilege[20] = {0};
+      STR_WITH_MAXSIZE_TO_VARSTR(privilege, "write", pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)privilege, false);
+
+      SName name = {0};
+      char  objName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      tNameFromString(&name, db, T_NAME_ACCT | T_NAME_DB);
+      tNameGetDbName(&name, varDataVal(objName));
+      varDataSetLen(objName, strlen(varDataVal(objName)));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)objName, false);
+
+      numOfRows++;
+      db = taosHashIterate(pUser->writeDbs, db);
+    }
+
+    char *topic = taosHashIterate(pUser->topics, NULL);
+    while (topic != NULL) {
+      cols = 0;
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      char             userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
+      colDataAppend(pColInfo, numOfRows, (const char *)userName, false);
+
+      char privilege[20] = {0};
+      STR_WITH_MAXSIZE_TO_VARSTR(privilege, "subscribe", pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)privilege, false);
+
+      char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE + 5] = {0};
+      tstrncpy(varDataVal(topicName), mndGetDbStr(topic), TSDB_TOPIC_NAME_LEN - 2);
+      varDataSetLen(topicName, strlen(varDataVal(topicName)));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)topicName, false);
+
+      numOfRows++;
+      db = taosHashIterate(pUser->topics, topic);
+    }
+
+    sdbRelease(pSdb, pUser);
+  }
+
+  pShow->numOfRows += numOfRows;
+  return numOfRows;
+}
+
+static void mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetch(pSdb, pIter);
+}
 
 int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_t numOfUses, void **ppRsp,
                                 int32_t *pRspLen) {
