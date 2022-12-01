@@ -213,7 +213,13 @@ TEST_F(ParserShowToUseTest, showTags) {
 TEST_F(ParserShowToUseTest, showUsers) {
   useDb("root", "test");
 
-  run("SHOW users");
+  run("SHOW USERS");
+}
+
+TEST_F(ParserShowToUseTest, showUserPrivileges) {
+  useDb("root", "test");
+
+  run("SHOW USER PRIVILEGES");
 }
 
 TEST_F(ParserShowToUseTest, showVariables) {

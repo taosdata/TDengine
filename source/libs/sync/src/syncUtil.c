@@ -465,7 +465,7 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
   }
 }
 
-void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64_t timeDiff) {
+void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64_t timeDiff, const char* s) {
   if (timeDiff > SYNC_HEARTBEAT_SLOW_MS) {
     pSyncNode->hbSlowNum++;
 
@@ -474,8 +474,8 @@ void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64
     syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
     sNInfo(pSyncNode,
            "recv sync-heartbeat from %s:%d slow {term:%" PRId64 ", cmt:%" PRId64 ", min-match:%" PRId64 ", ts:%" PRId64
-           "}, net elapsed:%" PRId64,
-           host, port, pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->timeStamp, timeDiff);
+           "}, %s, net elapsed:%" PRId64,
+           host, port, pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->timeStamp, s, timeDiff);
   }
 
   if (!(sDebugFlag & DEBUG_TRACE)) return;
@@ -485,8 +485,8 @@ void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
   sNTrace(pSyncNode,
           "recv sync-heartbeat from %s:%d {term:%" PRId64 ", cmt:%" PRId64 ", min-match:%" PRId64 ", ts:%" PRId64
-          "}, net elapsed:%" PRId64,
-          host, port, pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->timeStamp, timeDiff);
+          "}, %s, net elapsed:%" PRId64,
+          host, port, pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->timeStamp, s, timeDiff);
 }
 
 void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s) {
@@ -500,7 +500,7 @@ void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
           pMsg->term, pMsg->timeStamp, s);
 }
 
-void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, int64_t timeDiff) {
+void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, int64_t timeDiff, const char* s) {
   if (timeDiff > SYNC_HEARTBEAT_REPLY_SLOW_MS) {
     pSyncNode->hbrSlowNum++;
 
@@ -508,8 +508,8 @@ void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
     uint16_t port;
     syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
     sNTrace(pSyncNode,
-            "recv sync-heartbeat-reply from %s:%d slow {term:%" PRId64 ", ts:%" PRId64 "}, net elapsed:%" PRId64, host,
-            port, pMsg->term, pMsg->timeStamp, timeDiff);
+            "recv sync-heartbeat-reply from %s:%d slow {term:%" PRId64 ", ts:%" PRId64 "}, %s, net elapsed:%" PRId64,
+            host, port, pMsg->term, pMsg->timeStamp, s, timeDiff);
   }
 
   if (!(sDebugFlag & DEBUG_TRACE)) return;
@@ -517,8 +517,9 @@ void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "recv sync-heartbeat-reply from %s:%d {term:%" PRId64 ", ts:%" PRId64 "}, net elapsed:%" PRId64,
-          host, port, pMsg->term, pMsg->timeStamp, timeDiff);
+  sNTrace(pSyncNode,
+          "recv sync-heartbeat-reply from %s:%d {term:%" PRId64 ", ts:%" PRId64 "}, %s, net elapsed:%" PRId64, host,
+          port, pMsg->term, pMsg->timeStamp, s, timeDiff);
 }
 
 void syncLogSendSyncPreSnapshot(SSyncNode* pSyncNode, const SyncPreSnapshot* pMsg, const char* s) {
