@@ -1874,27 +1874,30 @@ static void destroyBlockDistScanOperatorInfo(void* param) {
 }
 
 static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pCond) {
-    memset(pCond, 0, sizeof(SQueryTableDataCond));
+  memset(pCond, 0, sizeof(SQueryTableDataCond));
 
-    pCond->order = TSDB_ORDER_ASC;
-    pCond->numOfCols = 1;
-    pCond->colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
-    if (pCond->colList == NULL) {
-        terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-        return terrno;
-    }
+  pCond->order = TSDB_ORDER_ASC;
+  pCond->numOfCols = 1;
+  pCond->colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
+  pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t));
+  if (pCond->colList == NULL || pCond->pSlotList == NULL) {
+    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return terrno;
+  }
 
-    pCond->colList->colId = 1;
-    pCond->colList->type = TSDB_DATA_TYPE_TIMESTAMP;
-    pCond->colList->bytes = sizeof(TSKEY);
+  pCond->colList->colId = 1;
+  pCond->colList->type = TSDB_DATA_TYPE_TIMESTAMP;
+  pCond->colList->bytes = sizeof(TSKEY);
 
-    pCond->twindows = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
-    pCond->suid = uid;
-    pCond->type = TIMEWINDOW_RANGE_CONTAINED;
-    pCond->startVersion = -1;
-    pCond->endVersion = -1;
+  pCond->pSlotList[0] = 0;
 
-    return TSDB_CODE_SUCCESS;
+  pCond->twindows = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
+  pCond->suid = uid;
+  pCond->type = TIMEWINDOW_RANGE_CONTAINED;
+  pCond->startVersion = -1;
+  pCond->endVersion = -1;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanPhysiNode* pBlockScanNode,
