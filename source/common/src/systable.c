@@ -273,6 +273,12 @@ static const SSysDbTableSchema vnodesSchema[] = {
     {.name = "dnode_ep", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
+static const SSysDbTableSchema userUserPrivilegesSchema[] = {
+    {.name = "user_name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "privilege", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "object_name", .bytes = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+};
+
 static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_DNODES, dnodesSchema, tListLen(dnodesSchema), true},
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema), true},
@@ -297,6 +303,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_STREAMS, streamSchema, tListLen(streamSchema), false},
     {TSDB_INS_TABLE_STREAM_TASKS, streamTaskSchema, tListLen(streamTaskSchema), false},
     {TSDB_INS_TABLE_VNODES, vnodesSchema, tListLen(vnodesSchema), true},
+    {TSDB_INS_TABLE_USER_PRIVILEGES, userUserPrivilegesSchema, tListLen(userUserPrivilegesSchema), false},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {
