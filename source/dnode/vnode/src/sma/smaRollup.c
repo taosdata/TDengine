@@ -708,8 +708,8 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
 #endif
     for (int32_t i = 0; i < taosArrayGetSize(pResList); ++i) {
       SSDataBlock *output = taosArrayGetP(pResList, i);
-      smaDebug("result block, uid:%" PRIu64 ", groupid:%" PRIu64 ", rows:%d", output->info.id.uid, output->info.id.groupId,
-               output->info.rows);
+      smaDebug("result block, uid:%" PRIu64 ", groupid:%" PRIu64 ", rows:%d", output->info.id.uid,
+               output->info.id.groupId, output->info.rows);
 
       STsdb      *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb[0] : pSma->pRSmaTsdb[1]);
       SSubmitReq *pReq = NULL;
@@ -1352,12 +1352,8 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
         tsem_post(&(pStat->notEmpty));
       }
     } break;
-    case TASK_TRIGGER_STAT_PAUSED: {
-      smaDebug("vgId:%d, rsma fetch task not start for level:%" PRIi8 " suid:%" PRIi64 " since stat is paused",
-               SMA_VID(pSma), pItem->level, pRSmaInfo->suid);
-    } break;
     case TASK_TRIGGER_STAT_INACTIVE: {
-      smaDebug("vgId:%d, rsma fetch task not start for level:%" PRIi8 " suid:%" PRIi64 " since stat is inactive",
+      smaDebug("vgId:%d, rsma fetch task not start for level:%" PRIi8 " suid:%" PRIi64 " since stat is inactive ",
                SMA_VID(pSma), pItem->level, pRSmaInfo->suid);
     } break;
     case TASK_TRIGGER_STAT_INIT: {
@@ -1365,8 +1361,9 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
                SMA_VID(pSma), pItem->level, pRSmaInfo->suid);
     } break;
     default: {
-      smaDebug("vgId:%d, rsma fetch task not start for level:%" PRIi8 " suid:%" PRIi64 " since stat is unknown",
-               SMA_VID(pSma), pItem->level, pRSmaInfo->suid);
+      smaDebug("vgId:%d, rsma fetch task not start for level:%" PRIi8 " suid:%" PRIi64 " since stat:%" PRIi8
+               " is unknown",
+               SMA_VID(pSma), pItem->level, pRSmaInfo->suid, fetchTriggerStat);
     } break;
   }
 
