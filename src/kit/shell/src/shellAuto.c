@@ -111,7 +111,7 @@ SWords shellCommands[] = {
   {"show create stable <stb_name> \\G;", 0, 0, NULL},
   {"show create table <tb_name> \\G;", 0, 0, NULL},
   {"show connections;", 0, 0, NULL},
-  {"show cluster status;", 0, 0, NULL},
+  {"show cluster alive;", 0, 0, NULL},
   {"show databases;", 0, 0, NULL},
   {"show dnodes;", 0, 0, NULL},
   {"show functions;", 0, 0, NULL},
@@ -127,7 +127,7 @@ SWords shellCommands[] = {
   {"show users;", 0, 0, NULL},
   {"show variables;", 0, 0, NULL},
   {"show vgroups;", 0, 0, NULL},
-  {"show <db_name> .status;", 0, 0, NULL},
+  {"show <db_name> .alive;", 0, 0, NULL},
   {"insert into <tb_name> values(", 0, 0, NULL},
   {"insert into <tb_name> using <stb_name> tags( <anyword> ) values(", 0, 0, NULL},
   {"insert into <tb_name> using <stb_name> <anyword> values(", 0, 0, NULL},
@@ -406,7 +406,7 @@ void showHelp() {
     select server_version();\n\
     select server_status();\n\
     set max_binary_display_width <width>;  \n\
-    show cluster status;\n\
+    show cluster alive;\n\
     show create database <db_name>;\n\
     show create stable <stb_name>;\n\
     show create table <tb_name>;\n\
@@ -426,7 +426,7 @@ void showHelp() {
     show users;\n\
     show variables;\n\
     show vgroups;\n\
-    show <db_name>.status;\n\
+    show <db_name>.alive;\n\
   ----- I ----- \n\
     insert into <tb_name> values(...) ;\n\
   ----- U ----- \n\
