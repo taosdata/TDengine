@@ -1052,6 +1052,9 @@ static uint64_t getGroupIdByData(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts,
 }
 
 static bool prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t* pRowIndex) {
+  if (pBlock->info.rows == 0) {
+    return false;
+  }
   if ((*pRowIndex) == pBlock->info.rows) {
     return false;
   }
@@ -1110,7 +1113,7 @@ static STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t
     if (hasGroup) {
       (*pRowIndex) += 1;
     } else {
-      while ((groupId == gpIdCol[(*pRowIndex)] && startTsCol[*pRowIndex] < endWin.ekey)) {
+      while ((groupId == gpIdCol[(*pRowIndex)] && startTsCol[*pRowIndex] <= endWin.ekey)) {
         (*pRowIndex) += 1;
         if ((*pRowIndex) == pDataBlockInfo->rows) {
           break;
@@ -1184,10 +1187,10 @@ static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32
 }
 
 static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
+  blockDataCleanup(pDestBlock);
   if (pSrcBlock->info.rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
-  blockDataCleanup(pDestBlock);
   int32_t code = blockDataEnsureCapacity(pDestBlock, pSrcBlock->info.rows);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -1334,30 +1337,6 @@ static int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock,
   pDestBlock->info.version = pSrcBlock->info.version;
   blockDataUpdateTsWindow(pDestBlock, 0);
   return code;
-}
-
-static void calBlockTag(SExprSupp* pTagCalSup, SSDataBlock* pBlock, SSDataBlock* pResBlock) {
-  if (pTagCalSup == NULL || pTagCalSup->numOfExprs == 0) return;
-  if (pBlock == NULL || pBlock->info.rows == 0) return;
-
-  SSDataBlock* pSrcBlock = blockCopyOneRow(pBlock, 0);
-  ASSERT(pSrcBlock->info.rows == 1);
-
-  blockDataEnsureCapacity(pResBlock, 1);
-
-  projectApplyFunctions(pTagCalSup->pExprInfo, pResBlock, pSrcBlock, pTagCalSup->pCtx, 1, NULL);
-  ASSERT(pResBlock->info.rows == 1);
-
-  // build tagArray
-  /*SArray* tagArray = taosArrayInit(0, sizeof(void*));*/
-  /*STagVal tagVal = {*/
-  /*.cid = 0,*/
-  /*.type = 0,*/
-  /*};*/
-  // build STag
-  // set STag
-
-  blockDataDestroy(pSrcBlock);
 }
 
 void calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
@@ -1837,6 +1816,12 @@ FETCH_NEXT_BLOCK:
         }
         setBlockGroupIdByUid(pInfo, pDelBlock);
         printDataBlock(pDelBlock, "stream scan delete recv filtered");
+        if (pDelBlock->info.rows == 0) {
+          if (pInfo->tqReader) {
+            blockDataDestroy(pDelBlock);
+          }
+          goto FETCH_NEXT_BLOCK;
+        }
         if (!isIntervalWindow(pInfo) && !isSessionWindow(pInfo) && !isStateWindow(pInfo)) {
           generateDeleteResultBlock(pInfo, pDelBlock, pInfo->pDeleteDataRes);
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_RESULT;

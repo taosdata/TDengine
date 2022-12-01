@@ -841,11 +841,11 @@ _exit:
   return &pIter->cv;
 }
 
-static int32_t tRowAppendNoneToColData(SArray *aColData, int32_t nColData) {
+static int32_t tRowAppendNoneToColData(SColData *aColData, int32_t nColData) {
   int32_t code = 0;
 
   for (int32_t iColData = 0; iColData < nColData; iColData++) {
-    SColData *pColData = taosArrayGet(aColData, iColData);
+    SColData *pColData = &aColData[iColData];
     code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
     if (code) goto _exit;
   }
@@ -853,11 +853,11 @@ static int32_t tRowAppendNoneToColData(SArray *aColData, int32_t nColData) {
 _exit:
   return code;
 }
-static int32_t tRowAppendNullToColData(SArray *aColData, int32_t nColData, STSchema *pSchema) {
+static int32_t tRowAppendNullToColData(SColData *aColData, int32_t nColData, STSchema *pSchema) {
   int32_t code = 0;
 
   int32_t   iColData = 0;
-  SColData *pColData = taosArrayGet(aColData, iColData);
+  SColData *pColData = &aColData[iColData];
   int32_t   iTColumn = 1;
   STColumn *pTColumn = &pSchema->columns[iTColumn];
 
@@ -866,12 +866,12 @@ static int32_t tRowAppendNullToColData(SArray *aColData, int32_t nColData, STSch
       if (pTColumn->colId == pColData->cid) {  // NULL
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
         if (code) goto _exit;
-        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
         pTColumn = (++iTColumn < pSchema->numOfCols) ? &pSchema->columns[iTColumn] : NULL;
       } else if (pTColumn->colId > pColData->cid) {  // NONE
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
         if (code) goto _exit;
-        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
       } else {
         pTColumn = (++iTColumn < pSchema->numOfCols) ? &pSchema->columns[iTColumn] : NULL;
       }
@@ -879,18 +879,18 @@ static int32_t tRowAppendNullToColData(SArray *aColData, int32_t nColData, STSch
       code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
       if (code) goto _exit;
 
-      pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+      pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
     }
   }
 
 _exit:
   return code;
 }
-static int32_t tRowAppendTupleToColData(SRow *pRow, STSchema *pTSchema, SArray *aColData, int32_t nColData) {
+static int32_t tRowAppendTupleToColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData) {
   int32_t code = 0;
 
   int32_t   iColData = 0;
-  SColData *pColData = taosArrayGet(aColData, iColData);
+  SColData *pColData = &aColData[iColData];
   int32_t   iTColumn = 1;
   STColumn *pTColumn = &pTSchema->columns[iTColumn];
 
@@ -971,13 +971,13 @@ static int32_t tRowAppendTupleToColData(SRow *pRow, STSchema *pTSchema, SArray *
         }
 
       _continue:
-        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
       } else if (pTColumn->colId > pColData->cid) {  // NONE
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
         if (code) goto _exit;
 
-        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
       } else {
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
       }
@@ -985,20 +985,20 @@ static int32_t tRowAppendTupleToColData(SRow *pRow, STSchema *pTSchema, SArray *
       code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
       if (code) goto _exit;
 
-      pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+      pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
     }
   }
 
 _exit:
   return code;
 }
-static int32_t tRowAppendKVToColData(SRow *pRow, STSchema *pTSchema, SArray *aColData, int32_t nColData) {
+static int32_t tRowAppendKVToColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData) {
   int32_t code = 0;
 
   SKVIdx   *pKVIdx = (SKVIdx *)pRow->data;
   uint8_t  *pv = NULL;
   int32_t   iColData = 0;
-  SColData *pColData = taosArrayGet(aColData, iColData);
+  SColData *pColData = &aColData[iColData];
   int32_t   iTColumn = 1;
   STColumn *pTColumn = &pTSchema->columns[iTColumn];
   int32_t   iCol = 0;
@@ -1054,26 +1054,26 @@ static int32_t tRowAppendKVToColData(SRow *pRow, STSchema *pTSchema, SArray *aCo
         if (code) goto _exit;
 
       _continue:
-        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
       } else if (pTColumn->colId > pColData->cid) {
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
         if (code) goto _exit;
-        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
       } else {
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
       }
     } else {
       code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
       if (code) goto _exit;
-      pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+      pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
     }
   }
 
 _exit:
   return code;
 }
-int32_t tRowAppendToColData(SRow *pRow, STSchema *pTSchema, SArray *aColData, int32_t nColData) {
+int32_t tRowAppendToColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData) {
   ASSERT(pRow->sver == pTSchema->version);
   ASSERT(nColData > 0);
 
@@ -1529,7 +1529,7 @@ void tColDataDestroy(void *ph) {
   SColData *pColData = (SColData *)ph;
 
   tFree(pColData->pBitMap);
-  tFree((uint8_t *)pColData->aOffset);
+  tFree(pColData->aOffset);
   tFree(pColData->pData);
 }
 
@@ -2018,41 +2018,60 @@ uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal) {
   return v;
 }
 
-int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
+int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg) {
   int32_t code = 0;
-  int32_t size;
 
-  ASSERT(pColDataSrc->nVal > 0);
-  ASSERT(pColDataDest->cid == pColDataSrc->cid);
-  ASSERT(pColDataDest->type == pColDataSrc->type);
-
-  pColDataDest->smaOn = pColDataSrc->smaOn;
-  pColDataDest->nVal = pColDataSrc->nVal;
-  pColDataDest->flag = pColDataSrc->flag;
+  *pColData = *pColDataFrom;
 
   // bitmap
-  if (pColDataSrc->flag != HAS_NONE && pColDataSrc->flag != HAS_NULL && pColDataSrc->flag != HAS_VALUE) {
-    size = BIT2_SIZE(pColDataSrc->nVal);
-    code = tRealloc(&pColDataDest->pBitMap, size);
-    if (code) goto _exit;
-    memcpy(pColDataDest->pBitMap, pColDataSrc->pBitMap, size);
+  switch (pColData->flag) {
+    case (HAS_NULL | HAS_NONE):
+    case (HAS_VALUE | HAS_NONE):
+    case (HAS_VALUE | HAS_NULL):
+      pColData->pBitMap = xMalloc(arg, BIT1_SIZE(pColData->nVal));
+      if (pColData->pBitMap == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
+      }
+      memcpy(pColData->pBitMap, pColDataFrom->pBitMap, BIT1_SIZE(pColData->nVal));
+      break;
+    case (HAS_VALUE | HAS_NULL | HAS_NONE):
+      pColData->pBitMap = xMalloc(arg, BIT2_SIZE(pColData->nVal));
+      if (pColData->pBitMap == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
+      }
+      memcpy(pColData->pBitMap, pColDataFrom->pBitMap, BIT2_SIZE(pColData->nVal));
+      break;
+    default:
+      pColData->pBitMap = NULL;
+      break;
   }
 
   // offset
-  if (IS_VAR_DATA_TYPE(pColDataDest->type)) {
-    size = sizeof(int32_t) * pColDataSrc->nVal;
-
-    code = tRealloc((uint8_t **)&pColDataDest->aOffset, size);
-    if (code) goto _exit;
-
-    memcpy(pColDataDest->aOffset, pColDataSrc->aOffset, size);
+  if (IS_VAR_DATA_TYPE(pColData->type) && (pColData->flag & HAS_VALUE)) {
+    pColData->aOffset = xMalloc(arg, pColData->nVal << 2);
+    if (pColData->aOffset == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    memcpy(pColData->aOffset, pColDataFrom->aOffset, pColData->nVal << 2);
+  } else {
+    pColData->aOffset = NULL;
   }
 
   // value
-  pColDataDest->nData = pColDataSrc->nData;
-  code = tRealloc(&pColDataDest->pData, pColDataSrc->nData);
-  if (code) goto _exit;
-  memcpy(pColDataDest->pData, pColDataSrc->pData, pColDataDest->nData);
+  if (pColData->nVal) {
+    pColData->pData = xMalloc(arg, pColData->nVal);
+    if (pColData->pData == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    memcpy(pColData->pData, pColDataFrom->pData, pColData->nData);
+  } else {
+    pColData->pData = NULL;
+  }
 
 _exit:
   return code;

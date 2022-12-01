@@ -94,7 +94,7 @@ int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
 void     tRowIterClose(SRowIter **ppIter);
 SColVal *tRowIterNext(SRowIter *pIter);
-int32_t  tRowAppendToColData(SRow *pRow, STSchema *pTSchema, SArray *aColData, int32_t nColData);
+int32_t  tRowAppendToColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData);
 
 // STag ================================
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
@@ -111,6 +111,7 @@ void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remov
 int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf);
 
 // SColData ================================
+typedef void *(*xMallocFn)(void *, int32_t);
 void    tColDataDestroy(void *ph);
 void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn);
 void    tColDataClear(SColData *pColData);
@@ -118,7 +119,7 @@ void    tColDataDeepClear(SColData *pColData);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
-int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
+int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
 extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
 
 // for stmt bind

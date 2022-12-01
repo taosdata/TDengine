@@ -775,7 +775,10 @@ static void doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int32_
     } else {
       varDataSetLen(pSup->buildBuf[colIndex], pColVal->value.nData);
       ASSERT(pColVal->value.nData <= pColInfoData->info.bytes);
-      memcpy(varDataVal(pSup->buildBuf[colIndex]), pColVal->value.pData, pColVal->value.nData);
+      if (pColVal->value.nData > 0) {  // pData may be null, if nData is 0
+        memcpy(varDataVal(pSup->buildBuf[colIndex]), pColVal->value.pData, pColVal->value.nData);
+      }
+
       colDataAppend(pColInfoData, rowIndex, pSup->buildBuf[colIndex], false);
     }
   } else {
@@ -2539,6 +2542,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
       goto _err;
     }
 
+    // TODO: opt the perf of read del index
     code = tsdbReadDelIdx(pDelFReader, aDelIdx);
     if (code != TSDB_CODE_SUCCESS) {
       taosArrayDestroy(aDelIdx);
@@ -3879,7 +3883,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
   }
 
   taosMemoryFree(pSupInfo->buildBuf);
-  tBlockDataDestroy(&pReader->status.fileBlockData, true);
+  tBlockDataDestroy(&pReader->status.fileBlockData);
 
   cleanupDataBlockIterator(&pReader->status.blockIter);
 
@@ -4167,7 +4171,7 @@ static SArray* doRetrieveDataBlock(STsdbReader* pReader) {
 
   int32_t code = doLoadFileBlockData(pReader, &pStatus->blockIter, &pStatus->fileBlockData, pBlockScanInfo->uid);
   if (code != TSDB_CODE_SUCCESS) {
-    tBlockDataDestroy(&pStatus->fileBlockData, 1);
+    tBlockDataDestroy(&pStatus->fileBlockData);
     terrno = code;
     return NULL;
   }

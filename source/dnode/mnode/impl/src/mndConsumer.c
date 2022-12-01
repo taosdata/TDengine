@@ -538,7 +538,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   int32_t code = -1;
   SArray *newSub = subscribe.topicNames;
-  taosArraySortString(newSub, taosArrayCompareString);
+  taosArraySort(newSub, taosArrayCompareString);
   taosArrayRemoveDuplicateP(newSub, taosArrayCompareString, taosMemoryFree);
 
   int32_t newTopicNum = taosArrayGetSize(newSub);
@@ -850,7 +850,8 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 
     // add to current topic
     taosArrayPush(pOldConsumer->currentTopics, &addedTopic);
-    taosArraySortString(pOldConsumer->currentTopics, taosArrayCompareString);
+    taosArraySort(pOldConsumer->currentTopics, taosArrayCompareString);
+
     // set status
     if (taosArrayGetSize(pOldConsumer->rebNewTopics) == 0 && taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0) {
       if (pOldConsumer->status == MQ_CONSUMER_STATUS__MODIFY ||

@@ -35,7 +35,7 @@ static int vnodeBufPoolCreate(SVnode *pVnode, int64_t size, SVBufPool **ppPool) 
       return -1;
     }
     if (taosThreadSpinInit(pPool->lock, 0) != 0) {
-      taosMemoryFree((void*)pPool->lock);
+      taosMemoryFree((void *)pPool->lock);
       taosMemoryFree(pPool);
       terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
@@ -62,7 +62,7 @@ static int vnodeBufPoolDestroy(SVBufPool *pPool) {
   vnodeBufPoolReset(pPool);
   if (pPool->lock) {
     taosThreadSpinDestroy(pPool->lock);
-    taosMemoryFree((void*)pPool->lock);
+    taosMemoryFree((void *)pPool->lock);
   }
   taosMemoryFree(pPool);
   return 0;
@@ -123,7 +123,7 @@ void vnodeBufPoolReset(SVBufPool *pPool) {
   pPool->ptr = pPool->node.data;
 }
 
-void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
+void *vnodeBufPoolMalloc(SVBufPool *pPool, int32_t size) {
   SVBufPoolNode *pNode;
   void          *p = NULL;
   ASSERT(pPool != NULL);
@@ -176,6 +176,9 @@ void vnodeBufPoolRef(SVBufPool *pPool) {
 }
 
 void vnodeBufPoolUnRef(SVBufPool *pPool) {
+  if (pPool == NULL) {
+    return;
+  }
   int32_t nRef = atomic_sub_fetch_32(&pPool->nRef, 1);
   if (nRef == 0) {
     SVnode *pVnode = pPool->pVnode;

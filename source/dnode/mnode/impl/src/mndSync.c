@@ -72,14 +72,10 @@ static int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   return code;
 }
 
-void mndSyncCommitMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+void mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   SMnode    *pMnode = pFsm->data;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   SSdbRaw   *pRaw = pMsg->pCont;
-
-  // delete msg handle
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.info = pMsg->info;
 
   int32_t transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
   pMgmt->errCode = pMeta->code;
@@ -118,6 +114,12 @@ void mndSyncCommitMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const SFsmCbMet
       mError("trans:%d, not found while execute in mnode since %s", transId, terrstr());
     }
   }
+}
+
+void mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+  mndProcessWriteMsg(pFsm, pMsg, pMeta);
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
 }
 
 int32_t mndSyncGetSnapshot(const SSyncFSM *pFsm, SSnapshot *pSnapshot, void *pReaderParam, void **ppReader) {
@@ -361,7 +363,10 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
 
 void mndSyncStart(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  syncStart(pMgmt->sync);
+  if (syncStart(pMgmt->sync) < 0) {
+    mError("vgId:1, failed to start sync, id:%" PRId64, pMgmt->sync);
+    return;
+  }
   mInfo("vgId:1, sync started, id:%" PRId64, pMgmt->sync);
 }
 

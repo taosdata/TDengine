@@ -141,16 +141,18 @@ typedef enum _mgmt_table {
 #define TSDB_FILL_PREV      4
 #define TSDB_FILL_NEXT      5
 
-#define TSDB_ALTER_USER_PASSWD          0x1
-#define TSDB_ALTER_USER_SUPERUSER       0x2
-#define TSDB_ALTER_USER_ADD_READ_DB     0x3
-#define TSDB_ALTER_USER_REMOVE_READ_DB  0x4
-#define TSDB_ALTER_USER_ADD_WRITE_DB    0x5
-#define TSDB_ALTER_USER_REMOVE_WRITE_DB 0x6
-#define TSDB_ALTER_USER_ADD_ALL_DB      0x7
-#define TSDB_ALTER_USER_REMOVE_ALL_DB   0x8
-#define TSDB_ALTER_USER_ENABLE          0x9
-#define TSDB_ALTER_USER_SYSINFO         0xA
+#define TSDB_ALTER_USER_PASSWD                 0x1
+#define TSDB_ALTER_USER_SUPERUSER              0x2
+#define TSDB_ALTER_USER_ADD_READ_DB            0x3
+#define TSDB_ALTER_USER_REMOVE_READ_DB         0x4
+#define TSDB_ALTER_USER_ADD_WRITE_DB           0x5
+#define TSDB_ALTER_USER_REMOVE_WRITE_DB        0x6
+#define TSDB_ALTER_USER_ADD_ALL_DB             0x7
+#define TSDB_ALTER_USER_REMOVE_ALL_DB          0x8
+#define TSDB_ALTER_USER_ENABLE                 0x9
+#define TSDB_ALTER_USER_SYSINFO                0xA
+#define TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC    0xB
+#define TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC 0xC
 
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
 
@@ -618,7 +620,7 @@ typedef struct {
   int8_t enable;
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_USET_PASSWORD_LEN];
-  char   dbname[TSDB_DB_FNAME_LEN];
+  char   objname[TSDB_DB_FNAME_LEN];  // db or topic
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
@@ -1057,6 +1059,7 @@ typedef struct {
   int32_t vgId;
   int8_t  syncState;
   int8_t  syncRestore;
+  int8_t  syncCanRead;
   int64_t cacheUsage;
   int64_t numOfTables;
   int64_t numOfTimeSeries;

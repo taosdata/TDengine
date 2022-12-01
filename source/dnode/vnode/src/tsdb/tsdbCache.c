@@ -190,7 +190,7 @@ int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
   return code;
 }
 
-int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, SRow *row, bool dup) {
+int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, TSDBROW *row, bool dup) {
   int32_t code = 0;
   STSRow *cacheRow = NULL;
   char    key[32] = {0};
@@ -201,7 +201,7 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, SR
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
     STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1, 1);
-    TSKEY     keyTs = row->ts;
+    TSKEY     keyTs = TSDBROW_TS(row);
     bool      invalidate = false;
 
     SArray *pLast = (SArray *)taosLRUCacheValue(pCache, h);
@@ -222,7 +222,7 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, SR
         SColVal *tColVal = &tTsVal1->colVal;
 
         SColVal colVal = {0};
-        tRowGet(row, pTSchema, iCol, &colVal);
+        tsdbRowGetColVal(row, pTSchema, iCol, &colVal);
         if (!COL_VAL_IS_NONE(&colVal)) {
           if (keyTs == tTsVal1->ts && !COL_VAL_IS_NONE(tColVal)) {
             invalidate = true;
@@ -316,7 +316,7 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, SR
   return code;
 }
 
-int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, SRow *row, STsdb *pTsdb) {
+int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, TSDBROW *row, STsdb *pTsdb) {
   int32_t code = 0;
   STSRow *cacheRow = NULL;
   char    key[32] = {0};
@@ -327,7 +327,7 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, SRow *row, STsdb *p
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
     STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1, 1);
-    TSKEY     keyTs = row->ts;
+    TSKEY     keyTs = TSDBROW_TS(row);
     bool      invalidate = false;
 
     SArray *pLast = (SArray *)taosLRUCacheValue(pCache, h);
@@ -348,7 +348,7 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, SRow *row, STsdb *p
         SColVal *tColVal = &tTsVal1->colVal;
 
         SColVal colVal = {0};
-        tRowGet(row, pTSchema, iCol, &colVal);
+        tsdbRowGetColVal(row, pTSchema, iCol, &colVal);
         if (!COL_VAL_IS_VALUE(&colVal)) {
           if (keyTs == tTsVal1->ts && COL_VAL_IS_VALUE(tColVal)) {
             invalidate = true;
@@ -672,7 +672,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       } else {
         // tBlockDataDestroy(&state->blockData, 1);
         if (state->pBlockData) {
-          tBlockDataDestroy(state->pBlockData, 1);
+          tBlockDataDestroy(state->pBlockData);
           state->pBlockData = NULL;
         }
 
@@ -794,7 +794,7 @@ _err:
     state->aBlockIdx = NULL;
   }
   if (state->pBlockData) {
-    tBlockDataDestroy(state->pBlockData, 1);
+    tBlockDataDestroy(state->pBlockData);
     state->pBlockData = NULL;
   }
 
@@ -821,7 +821,7 @@ int32_t clearNextRowFromFS(void *iter) {
   }
   if (state->pBlockData) {
     // tBlockDataDestroy(&state->blockData, 1);
-    tBlockDataDestroy(state->pBlockData, 1);
+    tBlockDataDestroy(state->pBlockData);
     state->pBlockData = NULL;
   }
 

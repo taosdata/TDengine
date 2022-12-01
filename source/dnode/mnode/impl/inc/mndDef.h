@@ -328,6 +328,7 @@ typedef struct {
   int32_t    dnodeId;
   ESyncState syncState;
   bool       syncRestore;
+  bool       syncCanRead;
 } SVnodeGid;
 
 typedef struct {

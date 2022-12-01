@@ -418,7 +418,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
@@ -529,6 +529,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/limit.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py
