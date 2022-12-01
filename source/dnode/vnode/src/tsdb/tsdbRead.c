@@ -84,7 +84,7 @@ typedef struct SIOCostSummary {
 typedef struct SBlockLoadSuppInfo {
   SArray*          pColAgg;
   SColumnDataAgg   tsColAgg;
-  SColumnDataAgg** plist;
+  SColumnDataAgg** plist;     // todo remove this
   int16_t*         colIds;    // column ids for loading file block data
   int16_t*         slotIds;   // the ordinal index in the destination SSDataBlock
   int32_t          numOfCols;
@@ -4041,12 +4041,11 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg*** pBlockS
   }
 
   SFileDataBlockInfo* pFBlock = getCurrentBlockInfo(&pReader->status.blockIter);
-
-  SDataBlk* pBlock = getCurrentBlock(&pReader->status.blockIter);
-  //  int64_t   stime = taosGetTimestampUs();
-
   SBlockLoadSuppInfo* pSup = &pReader->suppInfo;
 
+  ASSERT(pReader->pResBlock->info.id.uid == pFBlock->uid);
+
+  SDataBlk* pBlock = getCurrentBlock(&pReader->status.blockIter);
   if (tDataBlkHasSma(pBlock)) {
     code = tsdbReadBlockSma(pReader->pFileReader, pBlock, pSup->pColAgg);
     if (code != TSDB_CODE_SUCCESS) {
@@ -4071,7 +4070,7 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg*** pBlockS
   pSup->plist[0] = pTsAgg;
 
   // update the number of NULL data rows
-  size_t numOfCols = blockDataGetNumOfCols(pReader->pResBlock);
+  size_t numOfCols = pSup->numOfCols;
 
   int32_t i = 0, j = 0;
   size_t  size = taosArrayGetSize(pSup->pColAgg);
@@ -4095,43 +4094,48 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg*** pBlockS
   }
 #else
 
+  SSDataBlock* pResBlock = pReader->pResBlock;
+  if (pResBlock->pBlockAgg == NULL) {
+    size_t num = taosArrayGetSize(pResBlock->pDataBlock);
+    pResBlock->pBlockAgg = taosMemoryCalloc(num, sizeof(SColumnDataAgg));
+  }
+
   // fill the all null data column
-  SArray* pNewAggList = taosArrayInit(numOfCols, sizeof(SColumnDataAgg));
+//  SArray* pNewAggList = taosArrayInit(numOfCols, sizeof(SColumnDataAgg));
 
   while (j < numOfCols && i < size) {
     SColumnDataAgg* pAgg = taosArrayGet(pSup->pColAgg, i);
     if (pAgg->colId == pSup->colIds[j]) {
-      taosArrayPush(pNewAggList, pAgg);
+      pResBlock->pBlockAgg[pSup->slotIds[j]] = pAgg;
       i += 1;
       j += 1;
     } else if (pAgg->colId < pSup->colIds[j]) {
       i += 1;
     } else if (pSup->colIds[j] < pAgg->colId) {
       if (pSup->colIds[j] == PRIMARYKEY_TIMESTAMP_COL_ID) {
-        taosArrayPush(pNewAggList, &pSup->tsColAgg);
+        pResBlock->pBlockAgg[pSup->slotIds[j]] = &pSup->tsColAgg;
       } else {
       // all date in this block are null
         SColumnDataAgg nullColAgg = {.colId = pSup->colIds[j], .numOfNull = pBlock->nRow};
-        taosArrayPush(pNewAggList, &nullColAgg);
+        taosArrayPush(pSup->pColAgg, &nullColAgg);
+
+        pResBlock->pBlockAgg[pSup->slotIds[j]] = taosArrayGetLast(pSup->pColAgg);
       }
       j += 1;
     }
   }
 
-  taosArrayClear(pSup->pColAgg);
-  taosArrayAddAll(pSup->pColAgg, pNewAggList);
+//  taosArrayClear(pSup->pColAgg);
 
-  size_t num = taosArrayGetSize(pSup->pColAgg);
-  for(int32_t k = 0; k < num; ++k) {
-    pSup->plist[k] = taosArrayGet(pSup->pColAgg, k);
-  }
-
-  taosArrayDestroy(pNewAggList);
+//  size_t num = taosArrayGetSize(pSup->pColAgg);
+//  for(int32_t k = 0; k < num; ++k) {
+//    pSup->plist[k] = taosArrayGet(pSup->pColAgg, k);
+//  }
 
 #endif
 
   pReader->cost.smaDataLoad += 1;
-  *pBlockStatis = pSup->plist;
+//  *pBlockStatis = pSup->plist;
 
   tsdbDebug("vgId:%d, succeed to load block SMA for uid %" PRIu64 ", %s", 0, pFBlock->uid, pReader->idStr);
   return code;

@@ -236,6 +236,7 @@ static bool doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBlock, 
     return false;
   }
 
+#if 0
   //  if (allColumnsHaveAgg == true) {
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
@@ -256,6 +257,7 @@ static bool doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBlock, 
 
     pBlock->pBlockAgg[pColMatchInfo->dstSlotId] = pColAgg[i];
   }
+#endif
 
   return true;
 }
