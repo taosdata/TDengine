@@ -996,15 +996,13 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
   if (hasBlock) {
     SDataBlockInfo* pBInfo = &pBlock->info;
 
-    int32_t rows = 0;
-    tsdbRetrieveDataBlockInfo(pReader, &rows, &pBInfo->id.uid, &pBInfo->window);
+//    int32_t rows = 0;
+//    tsdbRetrieveDataBlockInfo(pReader, &rows, &pBInfo->id.uid, &pBInfo->window);
 
     SArray* pCols = tsdbRetrieveDataBlock(pReader, NULL);
-    blockDataEnsureCapacity(pBlock, rows);
-    pBlock->info.rows = rows;
 
-    relocateColumnData(pBlock, pTableScanInfo->base.matchInfo.pList, pCols, true);
-    doSetTagColumnData(&pTableScanInfo->base, pBlock, pTaskInfo, rows);
+//    relocateColumnData(pBlock, pTableScanInfo->base.matchInfo.pList, pCols, true);
+    doSetTagColumnData(&pTableScanInfo->base, pBlock, pTaskInfo, pBlock->info.rows);
 
     pBlock->info.id.groupId = getTableGroupId(pTaskInfo->pTableInfoList, pBInfo->id.uid);
   }
