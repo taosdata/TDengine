@@ -2532,6 +2532,10 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 }
 
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  const STraceId* trace = &pRpcMsg->info.traceId;
+  char            tbuf[40] = {0};
+  TRACE_TO_STR(trace, tbuf);
+
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
   SSyncLogReplMgr*    pMgr = syncNodeGetLogReplMgr(ths, &pMsg->srcId);
   if (pMgr == NULL) {
@@ -2540,7 +2544,7 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   int64_t tsMs = taosGetTimestampMs();
-  syncLogRecvHeartbeatReply(ths, pMsg, tsMs - pMsg->timeStamp);
+  syncLogRecvHeartbeatReply(ths, pMsg, tsMs - pMsg->timeStamp, tbuf);
 
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
 
