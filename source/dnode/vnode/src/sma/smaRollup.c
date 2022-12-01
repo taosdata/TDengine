@@ -29,9 +29,9 @@ SSmaMgmt smaMgmt = {
 #define TD_QTASKINFO_FNAME_PREFIX "qinf.v"
 
 typedef struct SRSmaQTaskInfoItem SRSmaQTaskInfoItem;
-typedef struct SRSmaQTaskInfoIter SRSmaQTaskInfoIter;
 
 static int32_t    tdUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid);
+static void       tdUidStoreDestory(STbUidStore *pStore);
 static int32_t    tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids, bool isAdd);
 static int32_t    tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat *pStat, SRSmaInfo *pRSmaInfo,
                                           int8_t idx);
@@ -55,18 +55,6 @@ struct SRSmaQTaskInfoItem {
   int8_t  type;
   int64_t suid;
   void   *qTaskInfo;
-};
-
-struct SRSmaQTaskInfoIter {
-  STFile *pTFile;
-  int64_t offset;
-  int64_t fsize;
-  int32_t nBytes;
-  int32_t nAlloc;
-  char   *pBuf;
-  // ------------
-  char   *qBuf;  // for iterator
-  int32_t nBufPos;
 };
 
 void tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t version, char *outputName) {
@@ -449,8 +437,8 @@ int32_t tdProcessRSmaCreate(SSma *pSma, SVCreateStbReq *pReq) {
   }
 
   if (!VND_IS_RSMA(pVnode)) {
-    smaTrace("vgId:%d, not create rsma for stable %s %" PRIi64 " since vnd is not rsma", TD_VID(pVnode), pReq->name,
-             pReq->suid);
+    smaWarn("vgId:%d, not create rsma for stable %s %" PRIi64 " since vnd is not rsma", TD_VID(pVnode), pReq->name,
+            pReq->suid);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -494,9 +482,8 @@ int32_t tdProcessRSmaDrop(SSma *pSma, SVDropStbReq *pReq) {
 
   tdReleaseRSmaInfo(pSma, pRSmaInfo);
 
-  // save to file
-  // TODO
-  smaDebug("vgId:%d, drop rsma for table %" PRIi64 " succeed", TD_VID(pVnode), pReq->suid);
+  // no need to save to file as triggered by dropping stable
+  smaDebug("vgId:%d, drop rsma for stable %" PRIi64 " succeed", TD_VID(pVnode), pReq->suid);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -561,7 +548,7 @@ static int32_t tdUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid) 
   return TSDB_CODE_SUCCESS;
 }
 
-void tdUidStoreDestory(STbUidStore *pStore) {
+static void tdUidStoreDestory(STbUidStore *pStore) {
   if (pStore) {
     if (pStore->uidHash) {
       if (pStore->tbUids) {
@@ -602,7 +589,7 @@ static int32_t tdProcessSubmitReq(STsdb *pTsdb, int64_t version, void *pReq) {
   }
 
   SSubmitReq *pSubmitReq = (SSubmitReq *)pReq;
-  // TODO: spin lock for race conditiond
+  // TODO: spin lock for race condition
   if (tsdbInsertData(pTsdb, version, pSubmitReq, NULL) < 0) {
     return TSDB_CODE_FAILED;
   }
@@ -871,6 +858,12 @@ static int32_t tdCloneQTaskInfo(SSma *pSma, qTaskInfo_t dstTaskInfo, qTaskInfo_t
   char   *pOutput = NULL;
   int32_t len = 0;
 
+  if (!srcTaskInfo) {
+    terrno = TSDB_CODE_INVALID_PTR;
+    smaWarn("vgId:%d, rsma clone, table %" PRIi64 ", no need since srcTaskInfo is NULL", TD_VID(pVnode), suid);
+    return TSDB_CODE_FAILED;
+  }
+
   if ((terrno = qSerializeTaskStatus(srcTaskInfo, &pOutput, &len)) < 0) {
     smaError("vgId:%d, rsma clone, table %" PRIi64 " serialize qTaskInfo failed since %s", TD_VID(pVnode), suid,
              terrstr());
@@ -1051,12 +1044,8 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
     // only applicable when rsma env exists
     return TSDB_CODE_SUCCESS;
   }
+
   STbUidStore uidStore = {0};
-  SRetention *pRetention = SMA_RETENTION(pSma);
-  if (!RETENTION_VALID(pRetention + 1)) {
-    // return directly if retention level 1 is invalid
-    return TSDB_CODE_SUCCESS;
-  }
 
   if (inputType == STREAM_INPUT__DATA_SUBMIT) {
     if (tdFetchSubmitReqSuids(pMsg, &uidStore) < 0) {
@@ -1191,10 +1180,12 @@ _err:
  * @param pSma
  * @return int32_t
  */
+#if 0
 static int32_t tdRSmaRestoreTSDataReload(SSma *pSma) {
   // NOTHING TODO: the data would be restored from the unified WAL replay procedure
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer) {
   // step 1: iterate all stables to restore the rsma env
@@ -1208,9 +1199,11 @@ int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer) 
   }
 
   // step 2: reload ts data from checkpoint
+#if 0
   if (tdRSmaRestoreTSDataReload(pSma) < 0) {
     goto _err;
   }
+#endif
 
   // step 3: open SRSmaFS for qTaskFiles
   if (tdRSmaFSOpen(pSma, qtaskFileVer) < 0) {
