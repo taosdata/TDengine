@@ -273,7 +273,7 @@ int32_t stmtCleanBindInfo(STscStmt* pStmt) {
   pStmt->bInfo.tbName[0] = 0;
   pStmt->bInfo.tbFName[0] = 0;
   if (!pStmt->bInfo.tagsCached) {
-    destroyBoundColumnInfo(pStmt->bInfo.boundTags);
+    qDestroyBoundColInfo(pStmt->bInfo.boundTags);
     taosMemoryFreeClear(pStmt->bInfo.boundTags);
   }
   memset(pStmt->bInfo.stbFName, 0, TSDB_TABLE_FNAME_LEN);
@@ -293,12 +293,14 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
     char*          key = taosHashGetKey(pIter, &keyLen);
     STableMeta*    pMeta = qGetTableMetaInDataBlock(pBlocks);
 
+/*
     if (keepTable && (strlen(pStmt->bInfo.tbFName) == keyLen) && strncmp(pStmt->bInfo.tbFName, key, keyLen) == 0) {
       STMT_ERR_RET(qResetStmtDataBlock(pBlocks, false));
 
       pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
       continue;
     }
+*/
 
     qDestroyStmtDataBlock(pBlocks);
     taosHashRemove(pStmt->exec.pBlockHash, key, keyLen);
@@ -308,12 +310,10 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
 
   pStmt->exec.autoCreateTbl = false;
 
-  if (keepTable) {
-    return TSDB_CODE_SUCCESS;
+  if (!keepTable) {
+    taosHashCleanup(pStmt->exec.pBlockHash);
+    pStmt->exec.pBlockHash = NULL;
   }
-
-  taosHashCleanup(pStmt->exec.pBlockHash);
-  pStmt->exec.pBlockHash = NULL;
 
   STMT_ERR_RET(stmtCleanBindInfo(pStmt));
 
@@ -334,7 +334,7 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
     SStmtTableCache* pCache = (SStmtTableCache*)pIter;
 
     qDestroyStmtDataBlock(pCache->pDataCtx);
-    destroyBoundColumnInfo(pCache->boundTags);
+    qDestroyBoundColInfo(pCache->boundTags);
     taosMemoryFreeClear(pCache->boundTags);
 
     pIter = taosHashIterate(pStmt->sql.pTableCache, pIter);

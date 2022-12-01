@@ -6876,7 +6876,6 @@ void tDestroySSubmitReq2(SSubmitReq2 *pReq, int32_t flag) {
 int32_t tEncodeSSubmitRsp2(SEncoder *pCoder, const SSubmitRsp2 *pRsp) {
   if (tStartEncode(pCoder) < 0) return -1;
 
-  if (tEncodeI32v(pCoder, pRsp->code) < 0) return -1;
   if (tEncodeI32v(pCoder, pRsp->affectedRows) < 0) return -1;
 
   if (tEncodeU64v(pCoder, taosArrayGetSize(pRsp->aCreateTbRsp)) < 0) return -1;
@@ -6895,11 +6894,6 @@ int32_t tDecodeSSubmitRsp2(SDecoder *pCoder, SSubmitRsp2 *pRsp) {
 
   // decode
   if (tStartDecode(pCoder) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto _exit;
-  }
-
-  if (tDecodeI32v(pCoder, &pRsp->code) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
@@ -6943,7 +6937,11 @@ _exit:
 }
 
 void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
-  if (TSDB_MSG_FLG_ENCODE) {
+  if (NULL == pRsp) {
+    return;
+  }
+  
+  if (flag & TSDB_MSG_FLG_ENCODE) {
     if (pRsp->aCreateTbRsp) {
       int32_t        nCreateTbRsp = TARRAY_SIZE(pRsp->aCreateTbRsp);
       SVCreateTbRsp *aCreateTbRsp = TARRAY_DATA(pRsp->aCreateTbRsp);
@@ -6954,8 +6952,16 @@ void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
       }
       taosArrayDestroy(pRsp->aCreateTbRsp);
     }
-  } else if (TSDB_MSG_FLG_DECODE) {
-    // TODO
-    taosArrayDestroy(pRsp->aCreateTbRsp);
+  } else if (flag & TSDB_MSG_FLG_DECODE) {
+    if (pRsp->aCreateTbRsp) {
+      int32_t        nCreateTbRsp = TARRAY_SIZE(pRsp->aCreateTbRsp);
+      SVCreateTbRsp *aCreateTbRsp = TARRAY_DATA(pRsp->aCreateTbRsp);
+      for (int32_t i = 0; i < nCreateTbRsp; ++i) {
+        if (aCreateTbRsp[i].pMeta) {
+          taosMemoryFree(aCreateTbRsp[i].pMeta);
+        }
+      }
+      taosArrayDestroy(pRsp->aCreateTbRsp);
+    }
   }
 }

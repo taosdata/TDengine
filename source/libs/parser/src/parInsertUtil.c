@@ -194,6 +194,17 @@ void destroyBoundColumnInfo(void* pBoundInfo) {
   taosMemoryFreeClear(pColList->colIdxInfo);
 }
 
+void qDestroyBoundColInfo(void* pInfo) {
+  if (NULL == pInfo) {
+    return;
+  }
+
+  SBoundColInfo* pBoundInfo = (SBoundColInfo*)pInfo;
+
+  taosMemoryFreeClear(pBoundInfo->pColIndex);
+}
+
+
 static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset, STableMeta* pTableMeta,
                                STableDataBlocks** dataBlocks) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)taosMemoryCalloc(1, sizeof(STableDataBlocks));
@@ -999,7 +1010,7 @@ void insCheckTableDataOrder(STableDataCxt* pTableCxt, TSKEY tsKey) {
   return;
 }
 
-static void destroyBoundColInfo(SBoundColInfo* pInfo) { taosMemoryFreeClear(pInfo->pColIndex); }
+void destroyBoundColInfo(SBoundColInfo* pInfo) { taosMemoryFreeClear(pInfo->pColIndex); }
 
 static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreateTbReq, STableDataCxt** pOutput, bool colMode) {
   STableDataCxt* pTableCxt = taosMemoryCalloc(1, sizeof(STableDataCxt));

@@ -243,7 +243,7 @@ void destroyQueryExecRes(SExecResult* pRes) {
       break;
     }
     case TDMT_VND_SUBMIT: {
-      tFreeSSubmitRsp((SSubmitRsp*)pRes->res);
+      tDestroySSubmitRsp2((SSubmitRsp2*)pRes->res, TSDB_MSG_FLG_DECODE);
       break;
     }
     case TDMT_SCH_QUERY: 

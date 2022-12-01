@@ -3234,7 +3234,6 @@ void    tDestroySSubmitTbData(SSubmitTbData* pTbData, int32_t flag);
 void    tDestroySSubmitReq2(SSubmitReq2* pReq, int32_t flag);
 
 typedef struct {
-  int32_t code;
   int32_t affectedRows;
   SArray* aCreateTbRsp;  // SArray<SVCreateTbRsp>
 } SSubmitRsp2;
