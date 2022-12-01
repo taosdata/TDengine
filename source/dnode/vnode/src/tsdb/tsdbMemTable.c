@@ -636,7 +636,7 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
         tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_FROM_POS);
       }
 
-      if ((code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0))) goto _exit;
+      if ((code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 1))) goto _exit;
       lRow = tRow;
 
       ++tRow.iRow;
