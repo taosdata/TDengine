@@ -559,6 +559,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
           goto end;
         }
 
+        taosMemoryFreeClear(pTableMeta);
         code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, -1);
         if (code != TSDB_CODE_SUCCESS) {
           goto end;
