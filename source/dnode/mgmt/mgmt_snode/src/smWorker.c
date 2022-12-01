@@ -151,6 +151,7 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   pHead->contLen = htonl(pHead->contLen);
   pHead->vgId = SNODE_HANDLE;
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
+  pRpc->pCont = NULL;
 
   switch (qtype) {
     case STREAM_QUEUE:

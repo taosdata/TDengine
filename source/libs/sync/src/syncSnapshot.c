@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "syncSnapshot.h"
 #include "syncIndexMgr.h"
+#include "syncPipeline.h"
 #include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
@@ -273,6 +274,11 @@ int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
     return 1;
   }
 
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
+  sInfo("vgId:%d, start snapshot for peer: %s:%d", pSyncNode->vgId, host, port);
+
   code = snapshotSenderStart(pSender);
   if (code != 0) {
     sNError(pSyncNode, "snapshot sender start error");
@@ -372,7 +378,10 @@ int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, SyncSnapsh
 }
 
 int32_t snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pPreMsg) {
-  ASSERT(!snapshotReceiverIsStart(pReceiver));
+  if (snapshotReceiverIsStart(pReceiver)) {
+    sWarn("vgId:%d, snapshot receiver has started.", pReceiver->pSyncNode->vgId);
+    return 0;
+  }
 
   pReceiver->start = true;
   pReceiver->ack = SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT;
@@ -539,6 +548,10 @@ _START_RECEIVER:
       sNTrace(pSyncNode, "snapshot receiver pre waitting for true time, now:%" PRId64 ", stime:%" PRId64, timeNow,
               pMsg->startTime);
       taosMsleep(10);
+    }
+
+    if (snapshotReceiverIsStart(pReceiver)) {
+      snapshotReceiverForceStop(pReceiver);
     }
 
     snapshotReceiverStart(pReceiver, pMsg);  // set start-time same with sender
@@ -738,6 +751,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
 
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_END) {
         syncNodeOnSnapshotEnd(pSyncNode, pMsg);
+        (void)syncLogBufferReInit(pSyncNode->pLogBuf, pSyncNode);
 
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_FORCE_CLOSE) {
         // force close, no response
@@ -869,11 +883,10 @@ int32_t syncNodeOnSnapshotReply(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
       // receive ack is finish, close sender
       if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
         snapshotSenderStop(pSender, true);
-
-        // update next-index
-        syncIndexMgrSetIndex(pSyncNode->pNextIndex, &(pMsg->srcId), pMsg->lastIndex + 1);
-        syncNodeReplicateOne(pSyncNode, &(pMsg->srcId), false);
-
+        SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
+        if (pMgr) {
+            syncLogReplMgrReset(pMgr);
+        }
         return 0;
       }
 

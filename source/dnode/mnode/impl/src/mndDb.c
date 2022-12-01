@@ -147,6 +147,8 @@ _OVER:
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SSdbRow *pRow = NULL;
+  SDbObj  *pDb = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -156,10 +158,10 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SDbObj));
+  pRow = sdbAllocRow(sizeof(SDbObj));
   if (pRow == NULL) goto _OVER;
 
-  SDbObj *pDb = sdbGetRowObj(pRow);
+  pDb = sdbGetRowObj(pRow);
   if (pDb == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -232,7 +234,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("db:%s, failed to decode from raw:%p since %s", pDb->name, pRaw, terrstr());
+    mError("db:%s, failed to decode from raw:%p since %s", pDb == NULL ? "null" : pDb->name, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }

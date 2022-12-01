@@ -1103,3 +1103,30 @@ void taosWinSocketInit() {
 #else
 #endif
 }
+
+uint64_t taosHton64(uint64_t val) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return ((val & 0x00000000000000ff) << 7 * 8) | ((val & 0x000000000000ff00) << 5 * 8) |
+         ((val & 0x0000000000ff0000) << 3 * 8) | ((val & 0x00000000ff000000) << 1 * 8) |
+         ((val & 0x000000ff00000000) >> 1 * 8) | ((val & 0x0000ff0000000000) >> 3 * 8) |
+         ((val & 0x00ff000000000000) >> 5 * 8) | ((val & 0xff00000000000000) >> 7 * 8);
+#else
+  if (__BYTE_ORDER == __LITTLE_ENDIAN) {
+    return (((uint64_t)htonl((int)((val << 32) >> 32))) << 32) | (unsigned int)htonl((int)(val >> 32));
+  } else if (__BYTE_ORDER == __BIG_ENDIAN) {
+    return val;
+  }
+#endif
+}
+
+uint64_t taosNtoh64(uint64_t val) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return taosHton64(val);
+#else
+  if (__BYTE_ORDER == __LITTLE_ENDIAN) {
+    return (((uint64_t)htonl((int)((val << 32) >> 32))) << 32) | (unsigned int)htonl((int)(val >> 32));
+  } else if (__BYTE_ORDER == __BIG_ENDIAN) {
+    return val;
+  }
+#endif
+}
