@@ -124,7 +124,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   // send msg
   SRpcMsg rpcMsg = {0};
   ret = syncBuildRequestVoteReply(&rpcMsg, ths->vgId);
-  ASSERT(ret == 0 );
+  ASSERT(ret == 0);
 
   SyncRequestVoteReply* pReply = rpcMsg.pCont;
   pReply->srcId = ths->myRaftId;
