@@ -151,10 +151,10 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
     bool roleChanged = false;
     for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
       if (pVgroup->vnodeGid[vg].dnodeId == dnodeId) {
-        if (pVgroup->vnodeGid[vg].syncState != TAOS_SYNC_STATE_ERROR) {
+        if (pVgroup->vnodeGid[vg].syncState != TAOS_SYNC_STATE_OFFLINE) {
           mInfo("vgId:%d, state changed by offline check, old state:%s restored:%d new state:error restored:0",
                 pVgroup->vgId, syncStr(pVgroup->vnodeGid[vg].syncState), pVgroup->vnodeGid[vg].syncRestore);
-          pVgroup->vnodeGid[vg].syncState = TAOS_SYNC_STATE_ERROR;
+          pVgroup->vnodeGid[vg].syncState = TAOS_SYNC_STATE_OFFLINE;
           pVgroup->vnodeGid[vg].syncRestore = 0;
           roleChanged = true;
         }
@@ -491,6 +491,15 @@ void mndPreClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     syncLeaderTransfer(pMnode->syncMgmt.sync);
     syncPreStop(pMnode->syncMgmt.sync);
+
+    while (syncSnapshotRecving(pMnode->syncMgmt.sync)) {
+      mInfo("vgId:1, snapshot is recving");
+      taosMsleep(300);
+    }
+    while (syncSnapshotSending(pMnode->syncMgmt.sync)) {
+      mInfo("vgId:1, snapshot is sending");
+      taosMsleep(300);
+    }
   }
 }
 
@@ -747,7 +756,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
         tstrncpy(desc.status, "ready", sizeof(desc.status));
         pClusterInfo->vgroups_alive++;
       }
-      if (pVgid->syncState != TAOS_SYNC_STATE_ERROR) {
+      if (pVgid->syncState != TAOS_SYNC_STATE_ERROR && pVgid->syncState != TAOS_SYNC_STATE_OFFLINE) {
         pClusterInfo->vnodes_alive++;
       }
       pClusterInfo->vnodes_total++;
@@ -803,12 +812,12 @@ void mndSetRestored(SMnode *pMnode, bool restored) {
     taosThreadRwlockWrlock(&pMnode->lock);
     pMnode->restored = true;
     taosThreadRwlockUnlock(&pMnode->lock);
-    mTrace("mnode set restored:%d", restored);
+    mInfo("mnode set restored:%d", restored);
   } else {
     taosThreadRwlockWrlock(&pMnode->lock);
     pMnode->restored = false;
     taosThreadRwlockUnlock(&pMnode->lock);
-    mTrace("mnode set restored:%d", restored);
+    mInfo("mnode set restored:%d", restored);
     while (1) {
       if (pMnode->rpcRef <= 0) break;
       taosMsleep(3);
@@ -822,7 +831,7 @@ void mndSetStop(SMnode *pMnode) {
   taosThreadRwlockWrlock(&pMnode->lock);
   pMnode->stopped = true;
   taosThreadRwlockUnlock(&pMnode->lock);
-  mTrace("mnode set stopped");
+  mInfo("mnode set stopped");
 }
 
 bool mndGetStop(SMnode *pMnode) { return pMnode->stopped; }

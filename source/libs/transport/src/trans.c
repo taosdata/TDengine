@@ -51,6 +51,11 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->retryLimit = pInit->retryLimit;
   pRpc->retryInterval = pInit->retryInterval;
 
+  pRpc->retryMinInterval = pInit->retryMinInterval;  // retry init interval
+  pRpc->retryStepFactor = pInit->retryStepFactor;
+  pRpc->retryMaxInterval = pInit->retryMaxInterval;
+  pRpc->retryMaxTimouet = pInit->retryMaxTimouet;
+
   // register callback handle
   pRpc->cfp = pInit->cfp;
   pRpc->retry = pInit->rfp;
@@ -58,6 +63,9 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->destroyFp = pInit->dfp;
 
   pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
+  if (pRpc->numOfThreads <= 0) {
+    pRpc->numOfThreads = 1;
+  }
 
   uint32_t ip = 0;
   if (pInit->connType == TAOS_CONN_SERVER) {

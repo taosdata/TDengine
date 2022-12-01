@@ -248,7 +248,7 @@ void dmUpdateEps(SDnodeData *pData, SArray *eps) {
 static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
   if (pData->dnodeEps != dnodeEps) {
     SArray *tmp = pData->dnodeEps;
-    pData->dnodeEps = taosArrayDup(dnodeEps);
+    pData->dnodeEps = taosArrayDup(dnodeEps, NULL);
     taosArrayDestroy(tmp);
   }
 

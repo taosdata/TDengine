@@ -250,7 +250,7 @@ int32_t dmInitClient(SDnode *pDnode) {
 
   SRpcInit rpcInit = {0};
   rpcInit.label = "DND-C";
-  rpcInit.numOfThreads = 4;
+  rpcInit.numOfThreads = tsNumOfRpcThreads;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
@@ -258,8 +258,13 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.parent = pDnode;
   rpcInit.rfp = rpcRfp;
   rpcInit.compressSize = tsCompressMsgSize;
+
   rpcInit.retryLimit = tsRpcRetryLimit;
   rpcInit.retryInterval = tsRpcRetryInterval;
+  rpcInit.retryMinInterval = tsRedirectPeriod;
+  rpcInit.retryStepFactor = tsRedirectFactor;
+  rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
+  rpcInit.retryMaxTimouet = tsMaxRetryWaitTime;
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {

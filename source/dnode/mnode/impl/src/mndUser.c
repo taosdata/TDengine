@@ -507,14 +507,14 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_DB || alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_DB) {
-    if (strcmp(alterReq.dbname, "1.*") != 0) {
-      int32_t len = strlen(alterReq.dbname) + 1;
-      SDbObj *pDb = mndAcquireDb(pMnode, alterReq.dbname);
+    if (strcmp(alterReq.objname, "1.*") != 0) {
+      int32_t len = strlen(alterReq.objname) + 1;
+      SDbObj *pDb = mndAcquireDb(pMnode, alterReq.objname);
       if (pDb == NULL) {
         mndReleaseDb(pMnode, pDb);
         goto _OVER;
       }
-      if (taosHashPut(newUser.readDbs, alterReq.dbname, len, alterReq.dbname, TSDB_DB_FNAME_LEN) != 0) {
+      if (taosHashPut(newUser.readDbs, alterReq.objname, len, alterReq.objname, TSDB_DB_FNAME_LEN) != 0) {
         mndReleaseDb(pMnode, pDb);
         goto _OVER;
       }
@@ -531,14 +531,14 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_DB || alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_DB) {
-    if (strcmp(alterReq.dbname, "1.*") != 0) {
-      int32_t len = strlen(alterReq.dbname) + 1;
-      SDbObj *pDb = mndAcquireDb(pMnode, alterReq.dbname);
+    if (strcmp(alterReq.objname, "1.*") != 0) {
+      int32_t len = strlen(alterReq.objname) + 1;
+      SDbObj *pDb = mndAcquireDb(pMnode, alterReq.objname);
       if (pDb == NULL) {
         mndReleaseDb(pMnode, pDb);
         goto _OVER;
       }
-      if (taosHashPut(newUser.writeDbs, alterReq.dbname, len, alterReq.dbname, TSDB_DB_FNAME_LEN) != 0) {
+      if (taosHashPut(newUser.writeDbs, alterReq.objname, len, alterReq.objname, TSDB_DB_FNAME_LEN) != 0) {
         mndReleaseDb(pMnode, pDb);
         goto _OVER;
       }
@@ -555,28 +555,28 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_DB || alterReq.alterType == TSDB_ALTER_USER_REMOVE_ALL_DB) {
-    if (strcmp(alterReq.dbname, "1.*") != 0) {
-      int32_t len = strlen(alterReq.dbname) + 1;
-      SDbObj *pDb = mndAcquireDb(pMnode, alterReq.dbname);
+    if (strcmp(alterReq.objname, "1.*") != 0) {
+      int32_t len = strlen(alterReq.objname) + 1;
+      SDbObj *pDb = mndAcquireDb(pMnode, alterReq.objname);
       if (pDb == NULL) {
         mndReleaseDb(pMnode, pDb);
         goto _OVER;
       }
-      taosHashRemove(newUser.readDbs, alterReq.dbname, len);
+      taosHashRemove(newUser.readDbs, alterReq.objname, len);
     } else {
       taosHashClear(newUser.readDbs);
     }
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_DB || alterReq.alterType == TSDB_ALTER_USER_REMOVE_ALL_DB) {
-    if (strcmp(alterReq.dbname, "1.*") != 0) {
-      int32_t len = strlen(alterReq.dbname) + 1;
-      SDbObj *pDb = mndAcquireDb(pMnode, alterReq.dbname);
+    if (strcmp(alterReq.objname, "1.*") != 0) {
+      int32_t len = strlen(alterReq.objname) + 1;
+      SDbObj *pDb = mndAcquireDb(pMnode, alterReq.objname);
       if (pDb == NULL) {
         mndReleaseDb(pMnode, pDb);
         goto _OVER;
       }
-      taosHashRemove(newUser.writeDbs, alterReq.dbname, len);
+      taosHashRemove(newUser.writeDbs, alterReq.objname, len);
     } else {
       taosHashClear(newUser.writeDbs);
     }
