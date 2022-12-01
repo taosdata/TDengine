@@ -142,7 +142,19 @@ class ClusterComCreate:
             tsql.execute("create database if not exists %s_%d vgroups %d replica %d"%(dbNameIndex,1, vgroups, replica))
             tdLog.debug("complete to create database %s_%d"%(dbNameIndex,1))
     
+    def createUser(self,tsql,user,password):
+        tdLog.info(f"create new user f{user}")   
+        tsql.execute(f"CREATE USER {user} PASS '{password}';")
 
+    def alterUser(self,tsql,user,password):
+        tdLog.info(f"alter user {user} pass '{password}'")   
+        tsql.execute(f"alter USER {user}  pass '{password}' ;")
+
+    def deleteUser(self,tsql,user):
+        tdLog.info(f"drop user f{user}")   
+        tsql.execute(f"DROP USER {user} ;")
+
+        
     def create_stable(self,tsql, dbName,stbName):
         tsql.execute("create table if not exists %s.%s (ts timestamp, c1 int, c2 int, c3 binary(16)) tags(t1 int, t2 binary(32))"%(dbName, stbName))
         tdLog.debug("complete to create %s.%s" %(dbName, stbName))
