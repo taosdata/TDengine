@@ -277,6 +277,49 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
+
+int32_t ctgAcquireStbMetaFromCache2(SCtgDBCache *dbCache, SCatalog *pCtg, char *dbFName, uint64_t suid, SCtgTbCache **pTb) {
+  SCtgTbCache *pCache = NULL;
+  char *stName = taosHashAcquire(dbCache->stbCache, &suid, sizeof(suid));
+  if (NULL == stName) {
+    ctgDebug("stb 0x%" PRIx64 " not in cache, dbFName:%s", suid, dbFName);
+    goto _return;
+  }
+
+  pCache = taosHashAcquire(dbCache->tbCache, stName, strlen(stName));
+  if (NULL == pCache) {
+    ctgDebug("stb 0x%" PRIx64 " name %s not in cache, dbFName:%s", suid, stName, dbFName);
+    taosHashRelease(dbCache->stbCache, stName);
+    goto _return;
+  }
+
+  taosHashRelease(dbCache->stbCache, stName);
+
+  CTG_LOCK(CTG_READ, &pCache->metaLock);
+  if (NULL == pCache->pMeta) {
+    ctgDebug("stb 0x%" PRIx64 " meta not in cache, dbFName:%s", suid, dbFName);
+    goto _return;
+  }
+
+  *pTb = pCache;
+
+  ctgDebug("stb 0x%" PRIx64 " meta got in cache, dbFName:%s", suid, dbFName);
+
+  CTG_CACHE_STAT_INC(numOfMetaHit, 1);
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
+
+  CTG_CACHE_STAT_INC(numOfMetaMiss, 1);
+
+  *pTb = NULL;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgAcquireTbIndexFromCache(SCatalog *pCtg, char *dbFName, char *tbName, SCtgDBCache **pDb, SCtgTbCache **pTb) {
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *pCache = NULL;
@@ -384,17 +427,17 @@ int32_t ctgReadTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **
 
   memcpy(*pTableMeta, tbMeta, metaSize);
 
-  ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
+  //ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
+
+  if (tbCache) {
+    CTG_UNLOCK(CTG_READ, &tbCache->metaLock);
+    taosHashRelease(dbCache->tbCache, tbCache);
+  }
+  
   ctgDebug("Got ctb %s meta from cache, will continue to get its stb meta, type:%d, dbFName:%s", ctx->pName->tname,
            ctx->tbInfo.tbType, dbFName);
 
-  ctgAcquireStbMetaFromCache(pCtg, dbFName, ctx->tbInfo.suid, &dbCache, &tbCache);
-  if (NULL == tbCache) {
-    ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
-    taosMemoryFreeClear(*pTableMeta);
-    ctgDebug("stb 0x%" PRIx64 " meta not in cache", ctx->tbInfo.suid);
-    return TSDB_CODE_SUCCESS;
-  }
+  ctgAcquireStbMetaFromCache2(dbCache, pCtg, dbFName, ctx->tbInfo.suid, &tbCache);
 
   STableMeta *stbMeta = tbCache->pMeta;
   if (stbMeta->suid != ctx->tbInfo.suid) {
