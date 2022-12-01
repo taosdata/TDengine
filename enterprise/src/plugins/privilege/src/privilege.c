@@ -195,6 +195,9 @@ int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType op
 }
 
 int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operType, SMqTopicObj *pTopic) {
+#if 1
+  return 0;
+#else
   int32_t   code = 0;
   SUserObj *pUser = mndAcquireUser(pMnode, user);
 
@@ -227,6 +230,7 @@ int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operT
 _OVER:
   mndReleaseUser(pMnode, pUser);
   return code;
+#endif
 }
 
 int32_t mndCheckTopicPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *topicName) {
