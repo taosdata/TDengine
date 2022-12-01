@@ -572,9 +572,9 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
 
   ASSERT(iCol > 0);
 
-  if (pRow->type == 0) {
+  if (pRow->type == TSDBROW_ROW_FMT) {
     tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal);
-  } else if (pRow->type == 1) {
+  } else if (pRow->type == TSDBROW_COL_FMT) {
     SColData *pColData;
 
     tBlockDataGetColData(pRow->pBlockData, pTColumn->colId, &pColData);
@@ -606,11 +606,11 @@ int32_t tsdbRowCmprFn(const void *p1, const void *p2) {
 // STSDBRowIter ======================================================
 void tsdbRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
   pIter->pRow = pRow;
-  if (pRow->type == 0) {
+  if (pRow->type == TSDBROW_ROW_FMT) {
     ASSERT(pTSchema);
     pIter->pTSchema = pTSchema;
     pIter->i = 1;
-  } else if (pRow->type == 1) {
+  } else if (pRow->type == TSDBROW_COL_FMT) {
     pIter->pTSchema = NULL;
     pIter->i = 0;
   } else {
@@ -619,14 +619,14 @@ void tsdbRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
 }
 
 SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
-  if (pIter->pRow->type == 0) {
+  if (pIter->pRow->type == TSDBROW_ROW_FMT) {
     if (pIter->i < pIter->pTSchema->numOfCols) {
       tRowGet(pIter->pRow->pTSRow, pIter->pTSchema, pIter->i, &pIter->colVal);
       pIter->i++;
 
       return &pIter->colVal;
     }
-  } else {
+  } else if (pIter->pRow->type == TSDBROW_COL_FMT) {
     if (pIter->i < pIter->pRow->pBlockData->nColData) {
       SColData *pColData = tBlockDataGetColDataByIdx(pIter->pRow->pBlockData, pIter->i);
 
@@ -635,6 +635,8 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
 
       return &pIter->colVal;
     }
+  } else {
+    ASSERT(0);
   }
 
   return NULL;

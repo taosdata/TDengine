@@ -1173,7 +1173,6 @@ static int32_t tsdbCommitAheadBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) 
 
   tBlockDataClear(pBlockData);
   while (pRowInfo) {
-    ASSERT(pRowInfo->row.type == 0);
     code = tsdbCommitterUpdateRowSchema(pCommitter, id.suid, id.uid, TSDBROW_SVERSION(&pRowInfo->row));
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1241,7 +1240,6 @@ static int32_t tsdbCommitMergeBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) 
         pRow = NULL;
       }
     } else if (c > 0) {
-      ASSERT(pRowInfo->row.type == 0);
       code = tsdbCommitterUpdateRowSchema(pCommitter, id.suid, id.uid, TSDBROW_SVERSION(&pRowInfo->row));
       TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1483,7 +1481,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
 
     while (pRowInfo) {
       STSchema *pTSchema = NULL;
-      if (pRowInfo->row.type == 0) {
+      if (pRowInfo->row.type == TSDBROW_ROW_FMT) {
         code = tsdbCommitterUpdateRowSchema(pCommitter, id.suid, id.uid, TSDBROW_SVERSION(&pRowInfo->row));
         TSDB_CHECK_CODE(code, lino, _exit);
         pTSchema = pCommitter->skmRow.pTSchema;
@@ -1526,7 +1524,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
 
     while (pRowInfo) {
       STSchema *pTSchema = NULL;
-      if (pRowInfo->row.type == 0) {
+      if (pRowInfo->row.type == TSDBROW_ROW_FMT) {
         code = tsdbCommitterUpdateRowSchema(pCommitter, id.suid, id.uid, TSDBROW_SVERSION(&pRowInfo->row));
         TSDB_CHECK_CODE(code, lino, _exit);
         pTSchema = pCommitter->skmRow.pTSchema;
