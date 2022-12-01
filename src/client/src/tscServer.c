@@ -2594,9 +2594,9 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
       STableMetaVgroupInfo p = {.pTableMeta = pTableMeta,};
       size_t keyLen = strnlen(pMetaMsg->tableFname, TSDB_TABLE_FNAME_LEN);
       void* t = taosHashGet(pParentCmd->pTableMetaMap, pMetaMsg->tableFname, keyLen);
-      assert(t == NULL);
-
-      taosHashPut(pParentCmd->pTableMetaMap, pMetaMsg->tableFname, keyLen, &p, sizeof(STableMetaVgroupInfo));
+      if(t == NULL) {
+        taosHashPut(pParentCmd->pTableMetaMap, pMetaMsg->tableFname, keyLen, &p, sizeof(STableMetaVgroupInfo));
+      }
     } else {
       freeMeta = true;
     }
