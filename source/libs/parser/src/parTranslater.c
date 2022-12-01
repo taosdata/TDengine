@@ -2257,7 +2257,7 @@ static int32_t getVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   if (TSDB_CODE_SUCCESS == code) {
     code = getVnodeSysTableVgroupListImpl(pCxt, &targetName, pName, pVgs);
   }
-  *pHasUserDbCond = (0 != targetName.type);
+  *pHasUserDbCond = (0 != targetName.type && taosArrayGetSize(*pVgs) > 0);
   return code;
 }
 
