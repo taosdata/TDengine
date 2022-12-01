@@ -3870,6 +3870,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
 
   taosMemoryFreeClear(pSupInfo->plist);
   taosMemoryFree(pSupInfo->colIds);
+  taosMemoryFree(pSupInfo->slotIds);
 
   taosArrayDestroy(pSupInfo->pColAgg);
   for (int32_t i = 0; i < pSupInfo->numOfCols; ++i) {

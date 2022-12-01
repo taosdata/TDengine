@@ -1637,7 +1637,10 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   return TSDB_CODE_SUCCESS;
 }
 
-void cleanupQueryTableDataCond(SQueryTableDataCond* pCond) { taosMemoryFreeClear(pCond->colList); }
+void cleanupQueryTableDataCond(SQueryTableDataCond* pCond) {
+  taosMemoryFreeClear(pCond->colList);
+  taosMemoryFreeClear(pCond->pSlotList);
+}
 
 int32_t convertFillType(int32_t mode) {
   int32_t type = TSDB_FILL_NONE;
