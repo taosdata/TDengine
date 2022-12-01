@@ -491,7 +491,7 @@ void mndPreClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     syncLeaderTransfer(pMnode->syncMgmt.sync);
     syncPreStop(pMnode->syncMgmt.sync);
-
+#if 0
     while (syncSnapshotRecving(pMnode->syncMgmt.sync)) {
       mInfo("vgId:1, snapshot is recving");
       taosMsleep(300);
@@ -500,6 +500,7 @@ void mndPreClose(SMnode *pMnode) {
       mInfo("vgId:1, snapshot is sending");
       taosMsleep(300);
     }
+#endif
   }
 }
 
