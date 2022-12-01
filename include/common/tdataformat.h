@@ -94,7 +94,7 @@ int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
 void     tRowIterClose(SRowIter **ppIter);
 SColVal *tRowIterNext(SRowIter *pIter);
-int32_t  tRowAppendToColData(SRow *pRow, STSchema *pTSchema, SArray *aColData, int32_t nColData);
+int32_t  tRowAppendToColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData);
 
 // STag ================================
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);

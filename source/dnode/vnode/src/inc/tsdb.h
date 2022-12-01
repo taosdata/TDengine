@@ -150,24 +150,22 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph);
 int32_t tCmprBlockIdx(void const *lhs, void const *rhs);
 int32_t tCmprBlockL(void const *lhs, void const *rhs);
 // SBlockData
-#define tBlockDataFirstRow(PBLOCKDATA) tsdbRowFromBlockData(PBLOCKDATA, 0)
-#define tBlockDataLastRow(PBLOCKDATA)  tsdbRowFromBlockData(PBLOCKDATA, (PBLOCKDATA)->nRow - 1)
-#define tBlockDataFirstKey(PBLOCKDATA) TSDBROW_KEY(&tBlockDataFirstRow(PBLOCKDATA))
-#define tBlockDataLastKey(PBLOCKDATA)  TSDBROW_KEY(&tBlockDataLastRow(PBLOCKDATA))
+#define tBlockDataFirstRow(PBLOCKDATA)             tsdbRowFromBlockData(PBLOCKDATA, 0)
+#define tBlockDataLastRow(PBLOCKDATA)              tsdbRowFromBlockData(PBLOCKDATA, (PBLOCKDATA)->nRow - 1)
+#define tBlockDataFirstKey(PBLOCKDATA)             TSDBROW_KEY(&tBlockDataFirstRow(PBLOCKDATA))
+#define tBlockDataLastKey(PBLOCKDATA)              TSDBROW_KEY(&tBlockDataLastRow(PBLOCKDATA))
+#define tBlockDataGetColDataByIdx(PBLOCKDATA, IDX) (&(PBLOCKDATA)->aColData[IDX])
 
-int32_t   tBlockDataCreate(SBlockData *pBlockData);
-void      tBlockDataDestroy(SBlockData *pBlockData);
-int32_t   tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid);
-void      tBlockDataReset(SBlockData *pBlockData);
-int32_t   tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
-void      tBlockDataClear(SBlockData *pBlockData);
-SColData *tBlockDataGetColDataByIdx(SBlockData *pBlockData, int32_t idx);
-void      tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
-int32_t   tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
-int32_t   tBlockDataAddColData(SBlockData *pBlockData, SColData **ppColData);
-int32_t   tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut, uint8_t *aBuf[],
-                         int32_t aBufN[]);
-int32_t   tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uint8_t *aBuf[]);
+int32_t tBlockDataCreate(SBlockData *pBlockData);
+void    tBlockDataDestroy(SBlockData *pBlockData);
+int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid);
+void    tBlockDataReset(SBlockData *pBlockData);
+int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
+void    tBlockDataClear(SBlockData *pBlockData);
+void    tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
+int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut, uint8_t *aBuf[],
+                       int32_t aBufN[]);
+int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uint8_t *aBuf[]);
 // SDiskDataHdr
 int32_t tPutDiskDataHdr(uint8_t *p, const SDiskDataHdr *pHdr);
 int32_t tGetDiskDataHdr(uint8_t *p, void *ph);
@@ -473,14 +471,14 @@ struct SSttBlk {
 // (SBlockData){.suid = suid, .uid = 0}: block data for N child tables int .last file
 // (SBlockData){.suid = 0, .uid = uid}: block data for 1 normal table int .last/.data file
 struct SBlockData {
-  int64_t  suid;      // 0 means normal table block data, otherwise child table block data
-  int64_t  uid;       // 0 means block data in .last file, otherwise in .data file
-  int32_t  nRow;      // number of rows
-  int64_t *aUid;      // uids of each row, only exist in block data in .last file (uid == 0)
-  int64_t *aVersion;  // versions of each row
-  TSKEY   *aTSKEY;    // timestamp of each row
-  int32_t  nColData;
-  SArray  *aColData;  // SArray<SColData>
+  int64_t   suid;      // 0 means normal table block data, otherwise child table block data
+  int64_t   uid;       // 0 means block data in .last file, otherwise in .data file
+  int32_t   nRow;      // number of rows
+  int64_t  *aUid;      // uids of each row, only exist in block data in .last file (uid == 0)
+  int64_t  *aVersion;  // versions of each row
+  TSKEY    *aTSKEY;    // timestamp of each row
+  int32_t   nColData;
+  SColData *aColData;
 };
 
 struct TABLEID {

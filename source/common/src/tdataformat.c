@@ -841,11 +841,11 @@ _exit:
   return &pIter->cv;
 }
 
-static int32_t tRowAppendNoneToColData(SArray *aColData, int32_t nColData) {
+static int32_t tRowAppendNoneToColData(SColData *aColData, int32_t nColData) {
   int32_t code = 0;
 
   for (int32_t iColData = 0; iColData < nColData; iColData++) {
-    SColData *pColData = taosArrayGet(aColData, iColData);
+    SColData *pColData = &aColData[iColData];
     code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
     if (code) goto _exit;
   }
@@ -853,11 +853,11 @@ static int32_t tRowAppendNoneToColData(SArray *aColData, int32_t nColData) {
 _exit:
   return code;
 }
-static int32_t tRowAppendNullToColData(SArray *aColData, int32_t nColData, STSchema *pSchema) {
+static int32_t tRowAppendNullToColData(SColData *aColData, int32_t nColData, STSchema *pSchema) {
   int32_t code = 0;
 
   int32_t   iColData = 0;
-  SColData *pColData = taosArrayGet(aColData, iColData);
+  SColData *pColData = &aColData[iColData];
   int32_t   iTColumn = 1;
   STColumn *pTColumn = &pSchema->columns[iTColumn];
 
@@ -866,12 +866,12 @@ static int32_t tRowAppendNullToColData(SArray *aColData, int32_t nColData, STSch
       if (pTColumn->colId == pColData->cid) {  // NULL
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
         if (code) goto _exit;
-        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
         pTColumn = (++iTColumn < pSchema->numOfCols) ? &pSchema->columns[iTColumn] : NULL;
       } else if (pTColumn->colId > pColData->cid) {  // NONE
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
         if (code) goto _exit;
-        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
       } else {
         pTColumn = (++iTColumn < pSchema->numOfCols) ? &pSchema->columns[iTColumn] : NULL;
       }
@@ -879,18 +879,18 @@ static int32_t tRowAppendNullToColData(SArray *aColData, int32_t nColData, STSch
       code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
       if (code) goto _exit;
 
-      pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+      pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
     }
   }
 
 _exit:
   return code;
 }
-static int32_t tRowAppendTupleToColData(SRow *pRow, STSchema *pTSchema, SArray *aColData, int32_t nColData) {
+static int32_t tRowAppendTupleToColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData) {
   int32_t code = 0;
 
   int32_t   iColData = 0;
-  SColData *pColData = taosArrayGet(aColData, iColData);
+  SColData *pColData = &aColData[iColData];
   int32_t   iTColumn = 1;
   STColumn *pTColumn = &pTSchema->columns[iTColumn];
 
@@ -971,13 +971,13 @@ static int32_t tRowAppendTupleToColData(SRow *pRow, STSchema *pTSchema, SArray *
         }
 
       _continue:
-        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
       } else if (pTColumn->colId > pColData->cid) {  // NONE
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
         if (code) goto _exit;
 
-        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
       } else {
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
       }
@@ -985,20 +985,20 @@ static int32_t tRowAppendTupleToColData(SRow *pRow, STSchema *pTSchema, SArray *
       code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
       if (code) goto _exit;
 
-      pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+      pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
     }
   }
 
 _exit:
   return code;
 }
-static int32_t tRowAppendKVToColData(SRow *pRow, STSchema *pTSchema, SArray *aColData, int32_t nColData) {
+static int32_t tRowAppendKVToColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData) {
   int32_t code = 0;
 
   SKVIdx   *pKVIdx = (SKVIdx *)pRow->data;
   uint8_t  *pv = NULL;
   int32_t   iColData = 0;
-  SColData *pColData = taosArrayGet(aColData, iColData);
+  SColData *pColData = &aColData[iColData];
   int32_t   iTColumn = 1;
   STColumn *pTColumn = &pTSchema->columns[iTColumn];
   int32_t   iCol = 0;
@@ -1054,26 +1054,26 @@ static int32_t tRowAppendKVToColData(SRow *pRow, STSchema *pTSchema, SArray *aCo
         if (code) goto _exit;
 
       _continue:
-        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
       } else if (pTColumn->colId > pColData->cid) {
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
         if (code) goto _exit;
-        pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
       } else {
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
       }
     } else {
       code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
       if (code) goto _exit;
-      pColData = (++iColData < nColData) ? taosArrayGet(aColData, iColData) : NULL;
+      pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
     }
   }
 
 _exit:
   return code;
 }
-int32_t tRowAppendToColData(SRow *pRow, STSchema *pTSchema, SArray *aColData, int32_t nColData) {
+int32_t tRowAppendToColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData) {
   ASSERT(pRow->sver == pTSchema->version);
   ASSERT(nColData > 0);
 
@@ -1529,7 +1529,7 @@ void tColDataDestroy(void *ph) {
   SColData *pColData = (SColData *)ph;
 
   tFree(pColData->pBitMap);
-  tFree((uint8_t *)pColData->aOffset);
+  tFree(pColData->aOffset);
   tFree(pColData->pData);
 }
 
