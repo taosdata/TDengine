@@ -602,18 +602,23 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
 
   pBlockData->nColData = nColData - 1;
   for (int32_t iColData = 1; iColData < nColData; ++iColData) {
+    // todo
   }
 
   // loop to add each row to the skiplist
-  TSDBKEY           key = {.version = version};
   SMemSkipListNode *pos[SL_MAX_LEVEL];
-  TSDBROW           tRow = {.type = TSDBROW_COL_FMT, .pBlockData = pBlockData};
+  TSDBROW           tRow = tsdbRowFromBlockData(pBlockData, 0);
+  TSDBKEY           key = {.version = version, .ts = pBlockData->aTSKEY[0]};
+  TSDBROW           lRow;  // last row
 
+  // first row
   tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_BACKWARD);
-  code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0);
-  if (code) goto _exit;
+  if ((code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0))) goto _exit;
+  pTbData->minKey = TMIN(pTbData->minKey, key.ts);
+  lRow = tRow;
 
-  tRow.iRow++;
+  // remain row
+  ++tRow.iRow;
   if (tRow.iRow < pBlockData->nRow) {
     for (int8_t iLevel = pos[0]->level; iLevel < pTbData->sl.maxLevel; iLevel++) {
       pos[iLevel] = SL_NODE_BACKWARD(pos[iLevel], iLevel);
@@ -626,12 +631,31 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
         tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_FROM_POS);
       }
 
-      code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0);
-      if (code) goto _exit;
+      if ((code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0))) goto _exit;
+      lRow = tRow;
 
-      tRow.iRow++;
+      ++tRow.iRow;
     }
   }
+
+  if (key.ts >= pTbData->maxKey) {
+    pTbData->maxKey = key.ts;
+
+    // if (TSDB_CACHE_LAST_ROW(pMemTable->pTsdb->pVnode->config) && pLastRow != NULL) {
+    //   tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pMemTable->pTsdb, pTbData->uid, pLastRow, true);
+    // }
+  }
+
+  if (TSDB_CACHE_LAST(pMemTable->pTsdb->pVnode->config)) {
+    //   tsdbCacheInsertLast(pMemTable->pTsdb->lruCache, pTbData->uid, pLastRow, pMemTable->pTsdb);
+  }
+
+  // SMemTable
+  pMemTable->minKey = TMIN(pMemTable->minKey, pTbData->minKey);
+  pMemTable->maxKey = TMAX(pMemTable->maxKey, pTbData->maxKey);
+  pMemTable->nRow += pBlockData->nRow;
+
+  if (affectedRows) *affectedRows = pBlockData->nRow;
 
 _exit:
   return code;
@@ -650,9 +674,8 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   SRow             *pLastRow = NULL;
 
   // backward put first data
-  tRow.pTSRow = aRow[iRow];
-  key.ts = aRow[iRow]->ts;
-  iRow++;
+  tRow.pTSRow = aRow[iRow++];
+  key.ts = tRow.pTSRow->ts;
   tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_BACKWARD);
   code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0);
   if (code) goto _exit;
@@ -668,7 +691,7 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
     }
 
     while (iRow < nRow) {
-      tRow.pTSRow = aRow[iRow];
+      tRow.pTSRow = aRow[iRow++];
       key.ts = tRow.pTSRow->ts;
 
       if (SL_NODE_FORWARD(pos[0], 0) != pTbData->sl.pTail) {
@@ -685,9 +708,7 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   }
 
   if (key.ts >= pTbData->maxKey) {
-    if (key.ts > pTbData->maxKey) {
-      pTbData->maxKey = key.ts;
-    }
+    pTbData->maxKey = key.ts;
 
     if (TSDB_CACHE_LAST_ROW(pMemTable->pTsdb->pVnode->config) && pLastRow != NULL) {
       tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pMemTable->pTsdb, pTbData->uid, pLastRow, true);
