@@ -163,8 +163,8 @@ enum _mgmt_table {
   TSDB_MGMT_TABLE_CLUSTER,
   TSDB_MGMT_TABLE_TP,
   TSDB_MGMT_TABLE_FUNCTION,
-  TSDB_MGMT_STATUS_DB,      // show database status
-  TSDB_MGMT_STATUS_CLUSTER, // show cluster status  
+  TSDB_MGMT_ALIVE_DB,      // show database status
+  TSDB_MGMT_ALIVE_CLUSTER, // show cluster status  
   TSDB_MGMT_TABLE_MAX,
 };
 

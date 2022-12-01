@@ -59,9 +59,9 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup);
 static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 // status
-static int32_t mnodeGetStatusMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-static int32_t mnodeRetrieveStatusDb(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static int32_t mnodeRetrieveStatusCluster(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mnodeGetAliveMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mnodeRetrieveAliveDb(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mnodeRetrieveAliveCluster(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 static void    mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg);
 static void    mnodeProcessAlterVnodeRsp(SRpcMsg *rpcMsg);
@@ -241,13 +241,13 @@ int32_t mnodeInitVgroups() {
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VGROUP, mnodeRetrieveVgroups);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_VGROUP, mnodeCancelGetNextVgroup);
   // cluster status
-  mnodeAddShowMetaHandle(TSDB_MGMT_STATUS_CLUSTER, mnodeGetStatusMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_STATUS_CLUSTER, mnodeRetrieveStatusCluster);
-  mnodeAddShowFreeIterHandle(TSDB_MGMT_STATUS_CLUSTER, mnodeCancelGetNextVgroup);
+  mnodeAddShowMetaHandle(TSDB_MGMT_ALIVE_CLUSTER, mnodeGetAliveMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_ALIVE_CLUSTER, mnodeRetrieveAliveCluster);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_ALIVE_CLUSTER, mnodeCancelGetNextVgroup);
   // db status
-  mnodeAddShowMetaHandle(TSDB_MGMT_STATUS_DB, mnodeGetStatusMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_STATUS_DB, mnodeRetrieveStatusDb);
-  mnodeAddShowFreeIterHandle(TSDB_MGMT_STATUS_DB, mnodeCancelGetNextVgroup);
+  mnodeAddShowMetaHandle(TSDB_MGMT_ALIVE_DB, mnodeGetAliveMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_ALIVE_DB, mnodeRetrieveAliveDb);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_ALIVE_DB, mnodeCancelGetNextVgroup);
  
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mnodeProcessCreateVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP, mnodeProcessAlterVnodeRsp);
@@ -793,7 +793,7 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   return 0;
 }
 
-static int32_t mnodeGetStatusMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mnodeGetAliveMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SSchema *pSchema = pMeta->schema;  
   pShow->bytes[0] = sizeof(int32_t);
   pSchema[0].type = TSDB_DATA_TYPE_INT;
@@ -808,7 +808,7 @@ static int32_t mnodeGetStatusMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   return 0;
 }
 
-static int32_t mnodeRetrieveStatus(SShowObj *pShow, char *data, int32_t rows, void *pConn, SDbObj* pDb) {
+static int32_t mnodeRetrieveAlive(SShowObj *pShow, char *data, int32_t rows, void *pConn, SDbObj* pDb) {
   SVgObj *pVgroup = NULL;
   int32_t nAvailble = 0;
   int32_t nUnAvailble = 0;
@@ -865,11 +865,11 @@ static int32_t mnodeRetrieveStatus(SShowObj *pShow, char *data, int32_t rows, vo
   return 1;
 }
 
-static int32_t mnodeRetrieveStatusCluster(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
-  return mnodeRetrieveStatus(pShow, data, rows, pConn, NULL);
+static int32_t mnodeRetrieveAliveCluster(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  return mnodeRetrieveAlive(pShow, data, rows, pConn, NULL);
 }
 
-static int32_t mnodeRetrieveStatusDb(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+static int32_t mnodeRetrieveAliveDb(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
 
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return 0;
@@ -880,7 +880,7 @@ static int32_t mnodeRetrieveStatusDb(SShowObj *pShow, char *data, int32_t rows, 
     return 0;
   }
 
-  int32_t numOfRows = mnodeRetrieveStatus(pShow, data, rows, pConn, pDb);
+  int32_t numOfRows = mnodeRetrieveAlive(pShow, data, rows, pConn, pDb);
   mnodeDecDbRef(pDb);
 
   return numOfRows;

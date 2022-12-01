@@ -88,7 +88,7 @@
 #define TK_TABLES                          70
 #define TK_STABLES                         71
 #define TK_VGROUPS                         72
-#define TK_STATUS                          73
+#define TK_ALIVE                           73
 #define TK_CLUSTER                         74
 #define TK_DROP                            75
 #define TK_TOPIC                           76

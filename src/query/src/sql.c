@@ -632,7 +632,7 @@ static const YYCODETYPE yyFallback[] = {
     0,  /*     TABLES => nothing */
     0,  /*    STABLES => nothing */
     0,  /*    VGROUPS => nothing */
-    0,  /*     STATUS => nothing */
+    0,  /*      ALIVE => nothing */
     1,  /*    CLUSTER => ID */
     0,  /*       DROP => nothing */
     0,  /*      TOPIC => nothing */
@@ -925,7 +925,7 @@ static const char *const yyTokenName[] = {
   /*   70 */ "TABLES",
   /*   71 */ "STABLES",
   /*   72 */ "VGROUPS",
-  /*   73 */ "STATUS",
+  /*   73 */ "ALIVE",
   /*   74 */ "CLUSTER",
   /*   75 */ "DROP",
   /*   76 */ "TOPIC",
@@ -1182,8 +1182,8 @@ static const char *const yyRuleName[] = {
  /*  26 */ "cmd ::= SHOW dbPrefix STABLES",
  /*  27 */ "cmd ::= SHOW dbPrefix STABLES LIKE STRING",
  /*  28 */ "cmd ::= SHOW dbPrefix VGROUPS",
- /*  29 */ "cmd ::= SHOW dbPrefix STATUS",
- /*  30 */ "cmd ::= SHOW CLUSTER STATUS",
+ /*  29 */ "cmd ::= SHOW dbPrefix ALIVE",
+ /*  30 */ "cmd ::= SHOW CLUSTER ALIVE",
  /*  31 */ "cmd ::= DROP TABLE ifexists ids cpxName",
  /*  32 */ "cmd ::= DROP STABLE ifexists ids cpxName",
  /*  33 */ "cmd ::= DROP DATABASE ifexists ids",
@@ -1978,8 +1978,8 @@ static const struct {
   {  209,   -3 }, /* (26) cmd ::= SHOW dbPrefix STABLES */
   {  209,   -5 }, /* (27) cmd ::= SHOW dbPrefix STABLES LIKE STRING */
   {  209,   -3 }, /* (28) cmd ::= SHOW dbPrefix VGROUPS */
-  {  209,   -3 }, /* (29) cmd ::= SHOW dbPrefix STATUS */
-  {  209,   -3 }, /* (30) cmd ::= SHOW CLUSTER STATUS */
+  {  209,   -3 }, /* (29) cmd ::= SHOW dbPrefix ALIVE */
+  {  209,   -3 }, /* (30) cmd ::= SHOW CLUSTER ALIVE */
   {  209,   -5 }, /* (31) cmd ::= DROP TABLE ifexists ids cpxName */
   {  209,   -5 }, /* (32) cmd ::= DROP STABLE ifexists ids cpxName */
   {  209,   -4 }, /* (33) cmd ::= DROP DATABASE ifexists ids */
@@ -2473,17 +2473,17 @@ static void yy_reduce(
     setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, 0);
 }
         break;
-      case 29: /* cmd ::= SHOW dbPrefix STATUS */
+      case 29: /* cmd ::= SHOW dbPrefix ALIVE */
 {
     SStrToken token;
     tSetDbName(&token, &yymsp[-1].minor.yy0);
-    setShowOptions(pInfo, TSDB_MGMT_STATUS_DB, &token, 0);
+    setShowOptions(pInfo, TSDB_MGMT_ALIVE_DB, &token, 0);
 }
         break;
-      case 30: /* cmd ::= SHOW CLUSTER STATUS */
+      case 30: /* cmd ::= SHOW CLUSTER ALIVE */
 {
     SStrToken token;
-    setShowOptions(pInfo, TSDB_MGMT_STATUS_CLUSTER, &token, 0);
+    setShowOptions(pInfo, TSDB_MGMT_ALIVE_CLUSTER, &token, 0);
 }
         break;
       case 31: /* cmd ::= DROP TABLE ifexists ids cpxName */
