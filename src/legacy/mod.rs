@@ -536,11 +536,11 @@ pub async fn legacy_to_taos(
     let to_builder = TaosBuilder::from_dsn(&to)?;
     let to = to_builder.build()?;
 
-    let to_is_v3 = to
-        .query_one::<_, String>("SELECT server_version()")
-        .await?
-        .unwrap()
-        .starts_with('3');
+    // let to_is_v3 = to
+    //     .query_one::<_, String>("SELECT server_version()")
+    //     .await?
+    //     .unwrap()
+    //     .starts_with('3');
 
     match (source_opts.mode, source_opts.schema) {
         (_, SchemaMode::Only) => sync_schema(&from, &to).await?,
