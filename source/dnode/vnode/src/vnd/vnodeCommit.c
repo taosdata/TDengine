@@ -15,12 +15,11 @@
 
 #include "vnd.h"
 
-#define VND_INFO_FNAME "vnode.json"
+#define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
 static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
 static int  vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo);
-static int  vnodeCommitImpl(void *arg);
 static void vnodeWaitCommit(SVnode *pVnode);
 
 int vnodeBegin(SVnode *pVnode) {
@@ -107,7 +106,8 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d", pInfo->config.vgId, fname, pInfo->config.syncCfg.replicaNum);
+  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d", pInfo->config.vgId, fname,
+        pInfo->config.syncCfg.replicaNum);
 
   return 0;
 
@@ -185,21 +185,61 @@ _err:
   return -1;
 }
 
+typedef struct {
+  SVnodeInfo info;
+  SVnode    *pVnode;
+} SCommitInfo;
+static void vnodePrepareCommit(SVnode *pVnode) {
+  tsem_wait(&pVnode->canCommit);
+
+  vnodeBufPoolUnRef(pVnode->inUse);
+  pVnode->inUse = NULL;
+}
+static int32_t vnodeCommitTask(void *arg) {
+  int32_t code = 0;
+
+  SVnode *pVnode = (SVnode *)pVnode;
+
+  code = vnodeCommit(pVnode);
+  if (code) goto _exit;
+
+  tsem_post(&pVnode->canCommit);
+
+_exit:
+  return code;
+}
 int vnodeAsyncCommit(SVnode *pVnode) {
-  vnodeWaitCommit(pVnode);
+  int32_t code = 0;
 
-  // vnodeBufPoolSwitch(pVnode);
-  // tsdbPrepareCommit(pVnode->pTsdb);
+  // prepare to commit
+  vnodePrepareCommit(pVnode);
 
-  vnodeScheduleTask(vnodeCommitImpl, pVnode);
+  // schedule the task
+  SVnodeInfo *pInfo = (SVnodeInfo *)taosMemoryCalloc(1, sizeof(*pInfo));
+  if (NULL == pInfo) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  pInfo->config = pVnode->config;
+  pInfo->state.committed = pVnode->state.applied;
+  pInfo->state.commitTerm = pVnode->state.applyTerm;
+  pInfo->state.commitID = pVnode->state.commitID;
+  vnodeScheduleTask(vnodeCommitTask, pVnode);
 
-  return 0;
+_exit:
+  if (code) {
+    vError("vgId:%d %s failed since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code),
+           pVnode->state.commitID);
+  } else {
+    vDebug("vgId:%d %s done", TD_VID(pVnode), __func__);
+  }
+  return code;
 }
 
 int vnodeSyncCommit(SVnode *pVnode) {
   vnodeAsyncCommit(pVnode);
-  vnodeWaitCommit(pVnode);
-  tsem_post(&(pVnode->canCommit));
+  tsem_wait(&pVnode->canCommit);
+  tsem_post(&pVnode->canCommit);
   return 0;
 }
 
@@ -317,20 +357,6 @@ void vnodeRollback(SVnode *pVnode) {
 
   (void)taosRemoveFile(tFName);
 }
-
-static int vnodeCommitImpl(void *arg) {
-  SVnode *pVnode = (SVnode *)arg;
-
-  // metaCommit(pVnode->pMeta);
-  tqCommit(pVnode->pTq);
-  // tsdbCommit(pVnode->pTsdb, );
-
-  // vnodeBufPoolRecycle(pVnode);
-  tsem_post(&(pVnode->canCommit));
-  return 0;
-}
-
-static FORCE_INLINE void vnodeWaitCommit(SVnode *pVnode) { tsem_wait(&pVnode->canCommit); }
 
 static int vnodeEncodeState(const void *pObj, SJson *pJson) {
   const SVState *pState = (SVState *)pObj;
