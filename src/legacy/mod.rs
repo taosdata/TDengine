@@ -167,7 +167,7 @@ async fn sync_single_table(
     } else {
         let mut stmt = Stmt::init(to)?;
         let question_masks = std::iter::repeat('?').take(fields).join(",");
-        stmt.prepare(format!("INSERT INTO {table} VALUES({question_masks})"))?;
+        stmt.prepare(format!("INSERT INTO `{table}` VALUES({question_masks})"))?;
         while let Some(block) = blocks.try_next().await? {
             // let views = block.columns().collect_vec();
             stmt.bind(block.column_views())?;
@@ -189,15 +189,23 @@ async fn sync_super_table_schema(
     // if version.starts_with('2') {
     // create stable
     let (_, sql): ((), String) = from
-        .query_one(format!("show create table {name}"))
+        .query_one(format!("show create table `{name}`"))
         .await?
         .unwrap();
-    to.exec(
-        sql.replace("VARCHAR", "BINARY")
-            .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
-            .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS"),
-    )
-    .await?;
+    if let Err(err) = to
+        .exec(
+            sql.replace("VARCHAR", "BINARY")
+                .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
+                .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS"),
+        )
+        .await
+    {
+        if err.to_string().contains("0x000B") {
+            from.exec(format!("desc `{name}`")).await?;
+        } else {
+            Err(err)?;
+        }
+    }
 
     if tables == 0 {
         return Ok(());
@@ -207,7 +215,7 @@ async fn sync_super_table_schema(
     let tag_names = desc.tag_names().map(|s| format!("`{s}`")).join(",");
 
     let sql = if is_v3 {
-        format!("SELECT distinct tbname, {tag_names} FROM {name}")
+        format!("SELECT distinct tbname, {tag_names} FROM `{name}`")
     } else {
         format!("SELECT tbname, {tag_names} FROM {name}")
     };
@@ -231,7 +239,7 @@ async fn sync_super_table_schema(
 
 async fn sync_normal_table_schema(from: &Taos, name: &str, to: &Taos) -> anyhow::Result<()> {
     let (_, sql): ((), String) = from
-        .query_one(format!("show create table {name}"))
+        .query_one(format!("show create table `{name}`"))
         .await?
         .unwrap();
     // todo: here will produce error: [0x000B] Unable to establish connection
@@ -262,7 +270,10 @@ struct TableRecord {
 
 impl TableRecord {
     fn is_normal_table(&self) -> bool {
-        self.stable_name.as_deref().map(|s| s.is_empty()).unwrap_or(true)
+        self.stable_name
+            .as_deref()
+            .map(|s| s.is_empty())
+            .unwrap_or(true)
     }
 }
 

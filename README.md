@@ -175,6 +175,34 @@ taosx run \
 
 The parameter `query` only works in these two scenarios, and should be a fetchable SQL(like `SELECT`).
 
+### For old versions data migration
+
+If you want to migrate a **2.6** version instance to another version (2.6 or 3.0), you need to install with feature `optin` instead of default.
+
+```bash
+cargo install --path /taosx/source/ --no-default-features --features optin
+```
+
+`optin` feature will let user to choose which library should be used in a connection.
+
+Then you can use following commands to migrate from 2.6 to 3.0 database:
+
+```bash
+taosx run \
+  -f 'taos://td2:6030/db1?libraryPath=./libtaos.so.2.6.0.30' \
+  -t 'taos://td3:6030/db2?libraryPath=./libtaos.so.3.0.1.8'\
+  -vv
+```
+
+For the lack of support of TMQ in 2.x instances, you can use `realtime` or `all` mode for data replication like 3.0 TMQ. The difference between `realtime` and `all` mode is `all` mode it will synchronize historical data also, and then monitoring the latest changes.
+
+```bash
+taosx run \
+  -f 'taos://td2:6030/db1?libraryPath=./libtaos.so.2.6.0.30&mode=realtime' \
+  -t 'taos://td3:6030/db2?libraryPath=./libtaos.so.3.0.1.8'\
+  -vv
+```
+
 ## Advanced Usage
 
 taosX use DSN to express a data source or target. DSN is short for **D**ata **S**ource **N**ame representation string, a data structure used to describe a connection to a data source.
