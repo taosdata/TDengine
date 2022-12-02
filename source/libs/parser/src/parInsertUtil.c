@@ -329,8 +329,8 @@ void insDestroyBlockHashmap(SHashObj* pDataBlockHash) {
 
   void** p1 = taosHashIterate(pDataBlockHash, NULL);
   while (p1) {
-    STableDataBlocks* pBlocks = *p1;
-    insDestroyDataBlock(pBlocks);
+    SBoundColInfo* pBlocks = *p1;
+    destroyBoundColInfo(pBlocks);
 
     p1 = taosHashIterate(pDataBlockHash, p1);
   }
