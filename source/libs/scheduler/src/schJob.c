@@ -412,7 +412,7 @@ int32_t schDumpJobFetchRes(SSchJob *pJob, void **pData) {
     SCH_JOB_DLOG("empty res and set query complete, code:%x", code);
   }
 
-  SCH_JOB_DLOG("fetch done, totalRows:%d", pJob->resNumOfRows);
+  SCH_JOB_DLOG("fetch done, totalRows:%" PRId64, pJob->resNumOfRows);
 
 _return:
 
@@ -528,7 +528,7 @@ void schProcessOnDataFetched(SSchJob *pJob) { schPostJobRes(pJob, SCH_OP_FETCH);
 int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRsp *pRsp) {
   SCH_TASK_DLOG("got explain rsp, rows:%d, complete:%d", htonl(pRsp->numOfRows), pRsp->completed);
 
-  atomic_store_32(&pJob->resNumOfRows, htonl(pRsp->numOfRows));
+  atomic_store_64(&pJob->resNumOfRows, htonll(pRsp->numOfRows));
   atomic_store_ptr(&pJob->fetchRes, pRsp);
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCC);
