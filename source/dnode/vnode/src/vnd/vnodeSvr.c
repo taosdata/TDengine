@@ -344,7 +344,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
   // if ((pMsg->msgType == TDMT_SCH_QUERY) && !vnodeIsLeader(pVnode)) {
   if ((pMsg->msgType == TDMT_SCH_QUERY) && !syncIsReadyForRead(pVnode->sync)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
 
@@ -367,12 +367,12 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
        pMsg->msgType == TDMT_VND_BATCH_META) &&
       !syncIsReadyForRead(pVnode->sync)) {
     //      !vnodeIsLeader(pVnode)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
 
   if (pMsg->msgType == TDMT_VND_TMQ_CONSUME && !pVnode->restored) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+    vnodeRedirectRpcMsg(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
     return 0;
   }
 
