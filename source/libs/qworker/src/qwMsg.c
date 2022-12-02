@@ -336,7 +336,7 @@ int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *
   }
   if (tSerializeSSchedulerHbReq(msg, msgSize, &req) < 0) {
     QW_SCH_ELOG("tSerializeSSchedulerHbReq hbReq failed, size:%d", msgSize);
-    taosMemoryFree(msg);
+    rpcFreeCont(msg);
     QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
