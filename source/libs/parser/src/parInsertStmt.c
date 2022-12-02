@@ -178,6 +178,8 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
     tColDataAddValueByBind(pCol, bind + c);
   }
 
+  qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -190,15 +192,17 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
   SSchema*            pColSchema = &pSchema[boundInfo->pColIndex[colIdx]];
   SColData*           pCol = taosArrayGet(pDataBlock->pData->aCol, colIdx);
   
-  if (bind[colIdx].num != rowNum) {
+  if (bind->num != rowNum) {
     return buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
   }
   
-  if (bind[colIdx].buffer_type != pColSchema->type) {
+  if (bind->buffer_type != pColSchema->type) {
     return buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
   }
   
   tColDataAddValueByBind(pCol, bind);
+
+  qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 
   return TSDB_CODE_SUCCESS;
 }

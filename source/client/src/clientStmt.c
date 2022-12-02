@@ -764,7 +764,7 @@ int stmtAddBatch(TAOS_STMT* stmt) {
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_ADD_BATCH));
 
-  STMT_ERR_RET(stmtCacheBlock(pStmt));
+  //STMT_ERR_RET(stmtCacheBlock(pStmt));
 
   return TSDB_CODE_SUCCESS;
 }
