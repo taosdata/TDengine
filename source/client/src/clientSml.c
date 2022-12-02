@@ -707,21 +707,21 @@ static bool smlParseBool(SSmlKv *kvVal) {
   const char *pVal = kvVal->value;
   int32_t     len = kvVal->length;
   if ((len == 1) && (pVal[0] == 't' || pVal[0] == 'T')) {
-    kvVal->i = true;
+    kvVal->i = TSDB_TRUE;
     return true;
   }
 
   if ((len == 1) && (pVal[0] == 'f' || pVal[0] == 'F')) {
-    kvVal->i = false;
+    kvVal->i = TSDB_FALSE;
     return true;
   }
 
   if ((len == 4) && !strncasecmp(pVal, "true", len)) {
-    kvVal->i = true;
+    kvVal->i = TSDB_TRUE;
     return true;
   }
   if ((len == 5) && !strncasecmp(pVal, "false", len)) {
-    kvVal->i = false;
+    kvVal->i = TSDB_FALSE;
     return true;
   }
   return false;
