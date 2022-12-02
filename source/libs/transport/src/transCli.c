@@ -234,7 +234,7 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
 #define REQUEST_PERSIS_HANDLE(msg)   ((msg)->info.persistHandle == 1)
 #define REQUEST_RELEASE_HANDLE(cmsg) ((cmsg)->type == Release)
 
-#define EPSET_IS_VALID(epSet)       ((epSet) != NULL && (epSet)->numOfEps != 0)
+#define EPSET_IS_VALID(epSet)       ((epSet) != NULL && (epSet)->numOfEps >= 0 && (epSet)->inUse >= 0)
 #define EPSET_GET_SIZE(epSet)       (epSet)->numOfEps
 #define EPSET_GET_INUSE_IP(epSet)   ((epSet)->eps[(epSet)->inUse].fqdn)
 #define EPSET_GET_INUSE_PORT(epSet) ((epSet)->eps[(epSet)->inUse].port)
@@ -367,7 +367,7 @@ void cliHandleResp(SCliConn* conn) {
 
   STraceId* trace = &transMsg.info.traceId;
   tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, code str:%s", CONN_GET_INST_LABEL(conn), conn,
-          TMSG_INFO(pHead->msgType), conn->dst, conn->src, msgLen, tstrerror(transMsg.code));
+          TMSG_INFO(pHead->msgType), conn->dst, conn->src, pHead->msgLen, tstrerror(transMsg.code));
 
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
     tDebug("%s except, conn %p read while cli ignore it", CONN_GET_INST_LABEL(conn), conn);
@@ -758,6 +758,14 @@ static void cliSendCb(uv_write_t* req, int status) {
   SCliConn* pConn = transReqQueueRemove(req);
   if (pConn == NULL) return;
 
+  SCliMsg* pMsg = !transQueueEmpty(&pConn->cliMsgs) ? transQueueGet(&pConn->cliMsgs, 0) : NULL;
+  if (pMsg != NULL) {
+    int64_t cost = taosGetTimestampUs() - pMsg->st;
+    if (cost > 1000) {
+      tWarn("%s conn %p send cost:%dus, send exception", CONN_GET_INST_LABEL(pConn), pConn, (int)cost);
+    }
+  }
+
   if (status == 0) {
     tTrace("%s conn %p data already was written out", CONN_GET_INST_LABEL(pConn), pConn);
   } else {
@@ -806,6 +814,7 @@ void cliSend(SCliConn* pConn) {
     pHead->traceId = pMsg->info.traceId;
     pHead->magicNum = htonl(TRANS_MAGIC_NUM);
   }
+  pHead->timestamp = taosHton64(taosGetTimestampUs());
 
   if (pHead->persist == 1) {
     CONN_SET_PERSIST_BY_APP(pConn);
@@ -971,7 +980,7 @@ FORCE_INLINE void cliMayCvtFqdnToIp(SEpSet* pEpSet, SCvtAddr* pCvtAddr) {
 
 FORCE_INLINE bool cliIsEpsetUpdated(int32_t code, STransConnCtx* pCtx) {
   if (code != 0) return false;
-  if (pCtx->retryCnt == 0) return false;
+  // if (pCtx->retryCnt == 0) return false;
   if (transEpSetIsEqual(&pCtx->epSet, &pCtx->origEpSet)) return false;
   return true;
 }
@@ -1008,9 +1017,13 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   STransConnCtx* pCtx = pMsg->ctx;
 
   cliMayCvtFqdnToIp(&pCtx->epSet, &pThrd->cvtAddr);
+
+  char tbuf[256] = {0};
+  EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
+
   if (!EPSET_IS_VALID(&pCtx->epSet)) {
-    destroyCmsg(pMsg);
     tError("invalid epset");
+    destroyCmsg(pMsg);
     return;
   }
 
@@ -1047,12 +1060,14 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ip);
     addr.sin_port = (uint16_t)htons((uint16_t)conn->port);
-    tTrace("%s conn %p try to connect to %s:%d", pTransInst->label, conn, conn->ip, conn->port);
+
+    STraceId* trace = &(pMsg->msg.info.traceId);
+    tGTrace("%s conn %p try to connect to %s:%d", pTransInst->label, conn, conn->ip, conn->port);
 
     int ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
     if (ret != 0) {
-      tTrace("%s conn %p failed to connect to %s:%d, reason:%s", pTransInst->label, conn, conn->ip, conn->port,
-             uv_err_name(ret));
+      tGTrace("%s conn %p failed to connect to %s:%d, reason:%s", pTransInst->label, conn, conn->ip, conn->port,
+              uv_err_name(ret));
 
       uv_timer_stop(conn->timer);
       conn->timer->data = NULL;
@@ -1378,13 +1393,14 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   STraceId* trace = &pMsg->msg.info.traceId;
   char      tbuf[256] = {0};
   EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
-  tGDebug("%s retry on next node, use %s, retryCnt:%d, limit:%d", transLabel(pThrd->pTransInst), tbuf,
-          pCtx->retryCnt + 1, pCtx->retryLimit);
+  tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", transLabel(pThrd->pTransInst), tbuf,
+          pCtx->retryStep, pCtx->retryNextInterval);
 
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
   arg->param1 = pMsg;
   arg->param2 = pThrd;
-  transDQSched(pThrd->delayQueue, doDelayTask, arg, pTransInst->retryInterval);
+
+  transDQSched(pThrd->delayQueue, doDelayTask, arg, pCtx->retryNextInterval);
 }
 
 FORCE_INLINE void cliCompareAndSwap(int8_t* val, int8_t exp, int8_t newVal) {
@@ -1418,64 +1434,169 @@ FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
   *dst = epset;
   return true;
 }
+bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
+  bool noDelay = true;
+  if (hasEpSet == false) {
+    // assert(pResp->contLen == 0);
+    if (pResp->contLen == 0) {
+      if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
+        noDelay = false;
+      } else {
+        EPSET_FORWARD_INUSE(&pCtx->epSet);
+      }
+    } else {
+      if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
+        noDelay = false;
+      } else {
+        EPSET_FORWARD_INUSE(&pCtx->epSet);
+      }
+    }
+  } else {
+    SEpSet  epSet;
+    int32_t valid = tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
+    if (valid < 0) {
+      tDebug("get invalid epset, epset equal, continue");
+      if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
+        noDelay = false;
+      } else {
+        EPSET_FORWARD_INUSE(&pCtx->epSet);
+      }
+    } else {
+      if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
+        tDebug("epset not equal, retry new epset");
+        pCtx->epSet = epSet;
+        noDelay = false;
+      } else {
+        if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
+          noDelay = false;
+        } else {
+          tDebug("epset equal, continue");
+          EPSET_FORWARD_INUSE(&pCtx->epSet);
+        }
+      }
+    }
+  }
+  return noDelay;
+}
+bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
+  SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pTransInst = pThrd->pTransInst;
+
+  STransConnCtx* pCtx = pMsg->ctx;
+  int32_t        code = pResp->code;
+
+  bool retry = pTransInst->retry != NULL ? pTransInst->retry(code, pResp->msgType - 1) : false;
+  if (retry == false) {
+    return false;
+  }
+
+  if (!pCtx->retryInit) {
+    pCtx->retryMinInterval = pTransInst->retryMinInterval;
+    pCtx->retryMaxInterval = pTransInst->retryMaxInterval;
+    pCtx->retryStepFactor = pTransInst->retryStepFactor;
+    pCtx->retryMaxTimeout = pTransInst->retryMaxTimouet;
+    pCtx->retryInitTimestamp = taosGetTimestampMs();
+    pCtx->retryNextInterval = pCtx->retryMinInterval;
+    pCtx->retryStep = 0;
+    pCtx->retryInit = true;
+    pCtx->retryCode = TSDB_CODE_SUCCESS;
+  }
+
+  if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
+    return false;
+  }
+
+  // code, msgType
+
+  // A:  epset,   leader, not self
+  // B:  epset,   not know leader
+  // C:  no epset, leader but not serivce
+
+  bool noDelay = false;
+  if (code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
+    noDelay = cliResetEpset(pCtx, pResp, false);
+    transFreeMsg(pResp->pCont);
+    transUnrefCliHandle(pConn);
+  } else if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_INTERNAL_ERROR ||
+             code == TSDB_CODE_SYN_PROPOSE_NOT_READY || code == TSDB_CODE_RPC_REDIRECT || code == TSDB_CODE_VND_STOPPED) {
+    tTrace("code str %s, contlen:%d 1", tstrerror(code), pResp->contLen);
+    noDelay = cliResetEpset(pCtx, pResp, true);
+    transFreeMsg(pResp->pCont);
+    addConnToPool(pThrd->pool, pConn);
+  } else if (code == TSDB_CODE_SYN_RESTORING) {
+    tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
+    noDelay = cliResetEpset(pCtx, pResp, false);
+    addConnToPool(pThrd->pool, pConn);
+    transFreeMsg(pResp->pCont);
+  } else {
+    tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
+    noDelay = cliResetEpset(pCtx, pResp, false);
+    addConnToPool(pThrd->pool, pConn);
+    transFreeMsg(pResp->pCont);
+  }
+  if (code != TSDB_CODE_RPC_BROKEN_LINK && code != TSDB_CODE_RPC_NETWORK_UNAVAIL && code != TSDB_CODE_SUCCESS) {
+    // save one internal code
+    pCtx->retryCode = code;
+  }
+
+  if (noDelay == false) {
+    pCtx->epsetRetryCnt = 1;
+    pCtx->retryStep++;
+
+    int64_t factor = pow(pCtx->retryStepFactor, pCtx->retryStep - 1);
+    pCtx->retryNextInterval = factor * pCtx->retryMinInterval;
+    if (pCtx->retryNextInterval >= pCtx->retryMaxInterval) {
+      pCtx->retryNextInterval = pCtx->retryMaxInterval;
+    }
+
+    if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
+      return false;
+    }
+  } else {
+    pCtx->retryNextInterval = 0;
+    pCtx->epsetRetryCnt++;
+  }
+
+  pMsg->sent = 0;
+  cliSchedMsgToNextNode(pMsg, pThrd);
+  return true;
+}
 int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
 
   if (pMsg == NULL || pMsg->ctx == NULL) {
-    tDebug("%s conn %p handle resp", pTransInst->label, pConn);
+    tTrace("%s conn %p handle resp", pTransInst->label, pConn);
     pTransInst->cfp(pTransInst->parent, pResp, NULL);
     return 0;
   }
 
   STransConnCtx* pCtx = pMsg->ctx;
-  int32_t        code = pResp->code;
 
-  bool retry = (pTransInst->retry != NULL && pTransInst->retry(code, pResp->msgType - 1)) ? true : false;
-  if (retry) {
-    pMsg->sent = 0;
-    pCtx->retryCnt += 1;
+  bool retry = cliGenRetryRule(pConn, pResp, pMsg);
+  if (retry == true) {
+    return -1;
+  }
+
+  if (pCtx->retryCode != TSDB_CODE_SUCCESS) {
+    int32_t code = pResp->code;
+    // return internal code app
     if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK) {
-      cliCompareAndSwap(&pCtx->retryLimit, pTransInst->retryLimit, EPSET_GET_SIZE(&pCtx->epSet) * 3);
-      if (pCtx->retryCnt < pCtx->retryLimit) {
-        transUnrefCliHandle(pConn);
-        EPSET_FORWARD_INUSE(&pCtx->epSet);
-        transFreeMsg(pResp->pCont);
-        cliSchedMsgToNextNode(pMsg, pThrd);
-        return -1;
-      }
-    } else {
-      cliCompareAndSwap(&pCtx->retryLimit, pTransInst->retryLimit, pTransInst->retryLimit);
-      if (pCtx->retryCnt < pCtx->retryLimit) {
-        if (pResp->contLen == 0) {
-          EPSET_FORWARD_INUSE(&pCtx->epSet);
-        } else {
-          if (tDeserializeSEpSet(pResp->pCont, pResp->contLen, &pCtx->epSet) < 0) {
-            tError("%s conn %p failed to deserialize epset", CONN_GET_INST_LABEL(pConn), pConn);
-          }
-        }
-        addConnToPool(pThrd->pool, pConn);
-        transFreeMsg(pResp->pCont);
-        cliSchedMsgToNextNode(pMsg, pThrd);
-        return -1;
-      } else {
-        // change error code for taos client driver if retryCnt exceeds limit
-        if (0 == strncmp(pTransInst->label, "TSC", strlen("TSC"))) pResp->code = TSDB_CODE_APP_NOT_READY;
-      }
+      pResp->code = pCtx->retryCode;
     }
   }
 
   STraceId* trace = &pResp->info.traceId;
-
-  bool hasEpSet = cliTryExtractEpSet(pResp, &pCtx->epSet);
+  bool      hasEpSet = cliTryExtractEpSet(pResp, &pCtx->epSet);
   if (hasEpSet) {
     char tbuf[256] = {0};
     EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
-    tGDebug("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
+    tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
   }
 
   if (pCtx->pSem != NULL) {
-    tGDebug("%s conn %p(sync) handle resp", CONN_GET_INST_LABEL(pConn), pConn);
+    tGTrace("%s conn %p(sync) handle resp", CONN_GET_INST_LABEL(pConn), pConn);
     if (pCtx->pRsp == NULL) {
       tGTrace("%s conn %p(sync) failed to resp, ignore", CONN_GET_INST_LABEL(pConn), pConn);
     } else {
@@ -1484,11 +1605,11 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     tsem_post(pCtx->pSem);
     pCtx->pRsp = NULL;
   } else {
-    tGDebug("%s conn %p handle resp", CONN_GET_INST_LABEL(pConn), pConn);
+    tGTrace("%s conn %p handle resp", CONN_GET_INST_LABEL(pConn), pConn);
     if (retry == false && hasEpSet == true) {
       pTransInst->cfp(pTransInst->parent, pResp, &pCtx->epSet);
     } else {
-      if (!cliIsEpsetUpdated(code, pCtx)) {
+      if (!cliIsEpsetUpdated(pResp->code, pCtx)) {
         pTransInst->cfp(pTransInst->parent, pResp, NULL);
       } else {
         pTransInst->cfp(pTransInst->parent, pResp, &pCtx->epSet);
@@ -1568,6 +1689,7 @@ int transReleaseCliHandle(void* handle) {
 
   SCliMsg* cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cmsg->msg = tmsg;
+  cmsg->st = taosGetTimestampUs();
   cmsg->type = Release;
   cmsg->ctx = pCtx;
 

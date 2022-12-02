@@ -60,6 +60,12 @@ extern "C" {
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
        (NULL != cell ? (node = &(cell->pNode), true) : (node = NULL, false)); cell = cell->pNext)
 
+#define NODES_DESTORY_NODE(node) \
+  do {                           \
+    nodesDestroyNode((node));    \
+    (node) = NULL;               \
+  } while (0)
+
 #define NODES_DESTORY_LIST(list) \
   do {                           \
     nodesDestroyList((list));    \
@@ -187,6 +193,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_TRANSACTIONS_STMT,
   QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT,
   QUERY_NODE_SHOW_VNODES_STMT,
+  QUERY_NODE_SHOW_USER_PRIVILEGES_STMT,
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
   QUERY_NODE_SHOW_CREATE_TABLE_STMT,
   QUERY_NODE_SHOW_CREATE_STABLE_STMT,
@@ -227,6 +234,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_PROJECT,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN,
   QUERY_NODE_PHYSICAL_PLAN_HASH_AGG,

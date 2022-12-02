@@ -44,6 +44,11 @@ static void windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
   }
 }
 
+static void clearItemHelper(void* p) {
+  SScalableBf** pBf = p;
+  tScalableBfDestroy(*pBf);
+}
+
 static void windowSBfDelete(SUpdateInfo *pInfo, uint64_t count) {
   if (count < pInfo->numSBFs) {
     for (uint64_t i = 0; i < count; ++i) {
@@ -52,7 +57,7 @@ static void windowSBfDelete(SUpdateInfo *pInfo, uint64_t count) {
       taosArrayRemove(pInfo->pTsSBFs, 0);
     }
   } else {
-    taosArrayClearP(pInfo->pTsSBFs, (FDelete)tScalableBfDestroy);
+    taosArrayClearEx(pInfo->pTsSBFs, clearItemHelper);
   }
   pInfo->minTS += pInfo->interval * count;
 }

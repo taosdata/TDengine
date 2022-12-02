@@ -209,8 +209,8 @@ int vnodeCommit(SVnode *pVnode) {
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN];
 
-  vInfo("vgId:%d, start to commit, commit ID:%" PRId64 " version:%" PRId64, TD_VID(pVnode), pVnode->state.commitID,
-        pVnode->state.applied);
+  vInfo("vgId:%d, start to commit, commit ID:%" PRId64 " version:%" PRId64 " term: %" PRId64, TD_VID(pVnode),
+        pVnode->state.commitID, pVnode->state.applied, pVnode->state.applyTerm);
 
   // persist wal before starting
   if (walPersist(pVnode->pWal) < 0) {

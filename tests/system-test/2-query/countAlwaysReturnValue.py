@@ -34,6 +34,19 @@ class TDTestCase:
         )
 
         tdSql.execute(
+            f"create table {dbname}.tb_empty (ts timestamp, c0 int)"
+        )
+        tdSql.execute(
+            f"create table {dbname}.stb_empty (ts timestamp, c0 int) tags (t0 int)"
+        )
+        tdSql.execute(
+            f"create table {dbname}.ctb1_empty using {dbname}.stb tags (1)"
+        )
+        tdSql.execute(
+            f"create table {dbname}.ctb2_empty using {dbname}.stb tags (2)"
+        )
+
+        tdSql.execute(
             f"insert into {dbname}.tb values (now(), NULL)")
 
         tdSql.execute(
@@ -93,6 +106,61 @@ class TDTestCase:
         tdSql.query(f"select hyperloglog(NULL)")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
+
+        # test empty table/input
+        tdSql.query(f"select count(*) from {dbname}.tb where ts > now + 1h")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select count(ts) from {dbname}.stb where ts > now + 1h")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select count(c0) from {dbname}.ctb1 where ts > now + 1h")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select count(1) from {dbname}.ctb2 where ts > now + 1h")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select count(*) from {dbname}.tb_empty")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select count(ts) from {dbname}.stb_empty")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select count(c0) from {dbname}.ctb1_empty")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select count(1) from {dbname}.ctb2_empty")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select hyperloglog(c0) from {dbname}.tb where ts > now + 1h")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select hyperloglog(ts) from {dbname}.stb where ts > now + 1h")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select hyperloglog(1) from {dbname}.ctb1 where ts > now + 1h")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select hyperloglog(1) from {dbname}.ctb2 where ts > now + 1h")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select hyperloglog(c0) from {dbname}.tb_empty")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select hyperloglog(ts) from {dbname}.stb_empty")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select hyperloglog(1) from {dbname}.ctb1_empty")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select hyperloglog(1) from {dbname}.ctb2_empty")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select count(*), hyperloglog(c0), sum(1), max(c0) from {dbname}.tb where ts > now + 1h")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select count(*), hyperloglog(c0), sum(1), max(c0) from {dbname}.tb_empty")
+        tdSql.checkRows(0)
 
     def run(self):
         tdSql.prepare()

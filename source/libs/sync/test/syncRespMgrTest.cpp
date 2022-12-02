@@ -63,7 +63,7 @@ void syncRespMgrGetAndDelTest(uint64_t i) {
   SRpcHandleInfo stub;
   int32_t   ret = syncRespMgrGetAndDel(pMgr, i, &stub);
   if (ret == 1) {
-    //printStub(&stub);
+    // printStub(&stub);
   } else if (ret == 0) {
     printf("%" PRId64 " notFound \n", i);
   }

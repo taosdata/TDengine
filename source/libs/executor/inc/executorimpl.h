@@ -332,6 +332,7 @@ typedef struct STableScanInfo {
   int32_t                currentTable;
   int8_t                 scanMode;
   int8_t                 assignBlockUid;
+  bool                   hasGroupByTag;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
@@ -481,6 +482,28 @@ typedef struct {
   SSnapContext* sContext;
 } SStreamRawScanInfo;
 
+typedef struct STableCountScanSupp {
+  int16_t dbNameSlotId;
+  int16_t stbNameSlotId;
+  int16_t tbCountSlotId;
+
+  bool groupByDbName;
+  bool groupByStbName;
+  char    dbNameFilter[TSDB_DB_NAME_LEN];
+  char    stbNameFilter[TSDB_TABLE_NAME_LEN];
+
+} STableCountScanSupp;
+
+typedef struct STableCountScanOperatorInfo {
+  SReadHandle  readHandle;
+  SSDataBlock* pRes;
+
+  STableCountScanSupp supp;
+
+  int32_t   currGrpIdx;
+  SArray*   stbUidList; // when group by db_name and/or stable_name
+} STableCountScanOperatorInfo;
+
 typedef struct SOptrBasicInfo {
   SResultRowInfo resultRowInfo;
   SSDataBlock*   pRes;
@@ -535,24 +558,8 @@ typedef struct SStreamIntervalOperatorInfo {
   SArray*            pChildren;
   SStreamState*      pState;
   SWinKey            delKey;
+  uint64_t           numOfDatapack;
 } SStreamIntervalOperatorInfo;
-
-typedef struct SFillOperatorInfo {
-  struct SFillInfo* pFillInfo;
-  SSDataBlock*      pRes;
-  SSDataBlock*      pFinalRes;
-  int64_t           totalInputRows;
-  void**            p;
-  SSDataBlock*      existNewGroupBlock;
-  STimeWindow       win;
-  SColMatchInfo     matchInfo;
-  int32_t           primaryTsCol;
-  int32_t           primarySrcSlotId;
-  uint64_t          curGroupId;  // current handled group id
-  SExprInfo*        pExprInfo;
-  int32_t           numOfExpr;
-  SExprSupp         noFillExprSupp;
-} SFillOperatorInfo;
 
 typedef struct SDataGroupInfo {
   uint64_t groupId;
@@ -796,7 +803,7 @@ void setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t order,
 int32_t checkForQueryBuf(size_t numOfTables);
 
 bool    isTaskKilled(SExecTaskInfo* pTaskInfo);
-void    setTaskKilled(SExecTaskInfo* pTaskInfo);
+void    setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
 void    doDestroyTask(SExecTaskInfo* pTaskInfo);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 
@@ -804,8 +811,6 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
                                char* sql, EOPTR_EXEC_MODEL model);
 int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pTaskInfo, SReadHandle* readHandle);
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList);
-
-void    printTaskExecCostInLog(SExecTaskInfo* pTaskInfo);
 
 int32_t getMaximumIdleDurationSec();
 
@@ -824,9 +829,8 @@ bool isDeletedWindow(STimeWindow* pWin, uint64_t groupId, SAggSupporter* pSup);
 bool isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, SStreamState* pState, STimeWindowAggSupp* pTwSup);
 void appendOneRowToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid,
                                       uint64_t* pGp, void* pTbName);
-void printDataBlock(SSDataBlock* pBlock, const char* flag);
-uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
-void     calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock);
+uint64_t    calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
+void        calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock);
 
 int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);

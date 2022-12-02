@@ -195,7 +195,8 @@ int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, in
       btc.idx++;
     } else if (c == 0) {
       // dup key not allowed
-      ASSERT(0);
+      tdbError("unable to insert dup key. pKey: %p, kLen: %d, btc: %p, pTxn: %p", pKey, kLen, &btc, pTxn);
+      // ASSERT(0);
       return -1;
     }
   }

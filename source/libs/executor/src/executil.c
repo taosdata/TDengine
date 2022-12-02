@@ -438,13 +438,12 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
       goto end;
     }
   }
+  removeInvalidTable(uidList, tags);
 
   int32_t rows = taosArrayGetSize(uidList);
   if (rows == 0) {
     goto end;
   }
-  //  int64_t stt1 = taosGetTimestampUs();
-  //  qDebug("generate tag meta rows:%d, cost:%ld us", rows, stt1-stt);
 
   code = blockDataEnsureCapacity(pResBlock, rows);
   if (code != TSDB_CODE_SUCCESS) {
@@ -452,7 +451,6 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
     goto end;
   }
 
-  //  int64_t st = taosGetTimestampUs();
   for (int32_t i = 0; i < rows; i++) {
     int64_t* uid = taosArrayGet(uidList, i);
     for (int32_t j = 0; j < taosArrayGetSize(pResBlock->pDataBlock); j++) {
@@ -467,7 +465,9 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
 #endif
       } else {
         void* tag = taosHashGet(tags, uid, sizeof(int64_t));
-        ASSERT(tag);
+        if (tag == NULL) {
+          continue;
+        }
         STagVal tagVal = {0};
         tagVal.cid = pColInfo->info.colId;
         const char* p = metaGetTableTagVal(tag, pColInfo->info.type, &tagVal);
@@ -923,14 +923,14 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
       return -1;
     }
 
-    SArray* pTbList = getTableNameList(pList);
-    int32_t numOfTables = taosArrayGetSize(pTbList);
-    SHashObj *uHash = NULL;
+    SArray*   pTbList = getTableNameList(pList);
+    int32_t   numOfTables = taosArrayGetSize(pTbList);
+    SHashObj* uHash = NULL;
     size_t    listlen = taosArrayGetSize(list);  // len > 0 means there already have uids
     if (listlen > 0) {
       uHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
       for (int i = 0; i < listlen; i++) {
-        int64_t *uid = taosArrayGet(list, i);
+        int64_t* uid = taosArrayGet(list, i);
         taosHashPut(uHash, uid, sizeof(int64_t), &i, sizeof(i));
       }
     }
@@ -1349,6 +1349,7 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
 
     pExprNode->_function.functionId = pFuncNode->funcId;
     pExprNode->_function.pFunctNode = pFuncNode;
+    pExprNode->_function.functionType = pFuncNode->funcType;
 
     tstrncpy(pExprNode->_function.functionName, pFuncNode->functionName, tListLen(pExprNode->_function.functionName));
 
@@ -2007,4 +2008,14 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   qDebug("generate group id map completed, elapsed time:%.2f ms %s", pTaskInfo->cost.groupIdMapTime, idStr);
 
   return TSDB_CODE_SUCCESS;
+}
+
+void printDataBlock(SSDataBlock* pBlock, const char* flag) {
+  if (!pBlock || pBlock->info.rows == 0) {
+    qDebug("===stream===printDataBlock: Block is Null or Empty");
+    return;
+  }
+  char* pBuf = NULL;
+  qDebug("%s", dumpBlockData(pBlock, flag, &pBuf));
+  taosMemoryFree(pBuf);
 }

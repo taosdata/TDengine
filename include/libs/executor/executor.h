@@ -152,20 +152,13 @@ void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);
  * @param tinfo  qhandle
  * @return
  */
-int32_t qAsyncKillTask(qTaskInfo_t tinfo);
+int32_t qAsyncKillTask(qTaskInfo_t tinfo, int32_t rspCode);
 
 /**
  * destroy query info structure
  * @param qHandle
  */
 void qDestroyTask(qTaskInfo_t tinfo);
-
-/**
- * Get the queried table uid
- * @param qHandle
- * @return
- */
-int64_t qGetQueriedTableUid(qTaskInfo_t tinfo);
 
 /**
  * Extract the qualified table id list, and than pass them to the TSDB driver to load the required table data blocks.

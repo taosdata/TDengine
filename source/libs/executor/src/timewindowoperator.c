@@ -677,16 +677,6 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
   }
 }
 
-void printDataBlock(SSDataBlock* pBlock, const char* flag) {
-  if (!pBlock || pBlock->info.rows == 0) {
-    qDebug("===stream===printDataBlock: Block is Null or Empty");
-    return;
-  }
-  char* pBuf = NULL;
-  qDebug("%s", dumpBlockData(pBlock, flag, &pBuf));
-  taosMemoryFree(pBuf);
-}
-
 typedef int32_t (*__compare_fn_t)(void* pKey, void* data, int32_t index);
 
 int32_t binarySearchCom(void* keyList, int num, void* pKey, int order, __compare_fn_t comparefn) {
@@ -2531,9 +2521,11 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
       pOperator->status = OP_RES_TO_RETURN;
-      qDebug("%s return data", IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
+      qDebug("===stream===return data:%s. recv datablock num:%" PRIu64 , IS_FINAL_OP(pInfo) ? "interval final" : "interval semi", pInfo->numOfDatapack);
+      pInfo->numOfDatapack = 0;
       break;
     }
+    pInfo->numOfDatapack++;
     printDataBlock(pBlock, IS_FINAL_OP(pInfo) ? "interval final recv" : "interval semi recv");
 
     ASSERT(pBlock->info.type != STREAM_INVERT);
@@ -2749,6 +2741,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->pDelWins = taosArrayInit(4, sizeof(SWinKey));
   pInfo->delKey.ts = INT64_MAX;
   pInfo->delKey.groupId = 0;
+  pInfo->numOfDatapack = 0;
 
   pOperator->operatorType = pPhyNode->type;
   pOperator->blocking = true;
@@ -3122,7 +3115,7 @@ static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSData
     if (!winInfo.pOutputBuf) {
       T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
-  
+
     code = doOneWindowAggImpl(&pInfo->twAggSup.timeWindowData, &winInfo, &pResult, i, winRows, rows, numOfOutput,
                               pOperator);
     if (code != TSDB_CODE_SUCCESS || pResult == NULL) {
@@ -3247,8 +3240,8 @@ void doBuildDeleteDataBlock(SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlo
       char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
       STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
       colDataAppend(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
+      tdbFree(tbname);
     }
-    tdbFree(tbname);
     pBlock->info.rows += 1;
   }
   if ((*Ite) == NULL) {
@@ -3859,7 +3852,7 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   SStreamStateAggOperatorInfo* pInfo = pOperator->info;
   int32_t                      numOfOutput = pOperator->exprSupp.numOfExprs;
-  int64_t                      groupId = pSDataBlock->info.id.groupId;
+  uint64_t                     groupId = pSDataBlock->info.id.groupId;
   int64_t                      code = TSDB_CODE_SUCCESS;
   TSKEY*                       tsCols = NULL;
   SResultRow*                  pResult = NULL;
@@ -4715,8 +4708,11 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   while (1) {
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
+      qDebug("===stream===return data:single interval. recv datablock num:%" PRIu64, pInfo->numOfDatapack);
+      pInfo->numOfDatapack = 0;
       break;
     }
+    pInfo->numOfDatapack++;
     printDataBlock(pBlock, "single interval recv");
 
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
@@ -4866,6 +4862,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->pChildren = NULL;
   pInfo->delKey.ts = INT64_MAX;
   pInfo->delKey.groupId = 0;
+  pInfo->numOfDatapack = 0;
 
   setOperatorInfo(pOperator, "StreamIntervalOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);

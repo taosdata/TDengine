@@ -57,7 +57,7 @@ typedef struct SFuncExecFuncs {
 #define MAX_INTERVAL_TIME_WINDOW 10000000  // maximum allowed time windows in final results
 
 #define TOP_BOTTOM_QUERY_LIMIT    100
-#define FUNCTIONS_NAME_MAX_LENGTH 16
+#define FUNCTIONS_NAME_MAX_LENGTH 32
 
 typedef struct SResultRowEntryInfo {
   bool     initialized : 1;  // output buffer has been initialized
@@ -163,6 +163,7 @@ typedef struct tExprNode {
       int32_t               functionId;
       int32_t               num;
       struct SFunctionNode *pFunctNode;
+      int32_t               functionType;
     } _function;
 
     struct {
