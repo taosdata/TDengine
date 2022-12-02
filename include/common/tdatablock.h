@@ -41,9 +41,9 @@ typedef struct SBlockOrderInfo {
     BMCharPos(bm_, r_) |= (1u << (7u - BitPos(r_))); \
   } while (0)
 
-#define colDataClearNull_f(bm_, r_)                  \
-  do {                                                \
-    BMCharPos(bm_, r_) &= ~(1u << (7u - BitPos(r_))); \
+#define colDataClearNull_f(bm_, r_)                             \
+  do {                                                          \
+    BMCharPos(bm_, r_) &= ((char)(~(1u << (7u - BitPos(r_))))); \
   } while (0)
 
 #define colDataIsNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] == -1)

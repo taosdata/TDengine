@@ -1679,15 +1679,15 @@ static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_
     pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, 0, n);
     memset(&pColInfoData->varmeta.offset[n], 0, total - n);
   } else {  // reset the bitmap value
-    int32_t stopIndex = BitmapLen(n) * 8;
-    for(int32_t i = n + 1; i < stopIndex; ++i) {
+    /*int32_t stopIndex = BitmapLen(n) * 8;
+    for(int32_t i = n; i < stopIndex; ++i) {
       colDataClearNull_f(pColInfoData->nullbitmap, i);
     }
 
     int32_t remain = BitmapLen(total) - BitmapLen(n);
     if (remain > 0) {
-      memset(pColInfoData->nullbitmap, 0, remain);
-    }
+      memset(pColInfoData->nullbitmap+BitmapLen(n), 0, remain);
+    }*/
   }
 }
 
