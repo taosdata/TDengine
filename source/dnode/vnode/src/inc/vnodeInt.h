@@ -116,8 +116,6 @@ int32_t         metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, in
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 int             metaAlterCache(SMeta* pMeta, int32_t nPage);
 
-tb_uid_t      metaGetTableEntryUidByName(SMeta* pMeta, const char* name);
-int64_t       metaGetTbNum(SMeta* pMeta);
 int64_t       metaGetTimeSeriesNum(SMeta* pMeta);
 SMCtbCursor*  metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid, int lock);
 void          metaCloseCtbCursor(SMCtbCursor* pCtbCur, int lock);
@@ -143,12 +141,6 @@ typedef struct SMetaInfo {
   int32_t skmVer;
 } SMetaInfo;
 int32_t metaGetInfo(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo, SMetaReader* pReader);
-
-typedef struct {
-  int64_t uid;
-  int64_t ctbNum;
-} SMetaStbStats;
-int32_t metaGetStbStats(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo);
 
 // tsdb
 int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback);

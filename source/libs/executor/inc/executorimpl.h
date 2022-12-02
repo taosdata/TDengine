@@ -482,6 +482,34 @@ typedef struct {
   SSnapContext* sContext;
 } SStreamRawScanInfo;
 
+typedef struct STableCountScanSupp {
+  int16_t dbNameSlotId;
+  int16_t stbNameSlotId;
+  int16_t tbCountSlotId;
+
+  bool groupByDbName;
+  bool groupByStbName;
+  char    dbName[TSDB_DB_NAME_LEN];
+  char    stbName[TSDB_TABLE_NAME_LEN];
+
+} STableCountScanSupp;
+
+typedef struct STableCountScanOperatorInfo {
+  SReadHandle  readHandle;
+  SSDataBlock* pRes;
+
+  SName tableName;
+
+  SNodeList* groupTags;
+  SNodeList* scanCols;
+  SNodeList* pseudoCols;
+
+  STableCountScanSupp supp;
+
+  int32_t   currGrpIdx;
+  SArray*   stbUidList; // when group by db_name and stable_name
+} STableCountScanOperatorInfo;
+
 typedef struct SOptrBasicInfo {
   SResultRowInfo resultRowInfo;
   SSDataBlock*   pRes;

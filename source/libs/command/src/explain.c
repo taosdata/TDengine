@@ -19,6 +19,7 @@
 #include "query.h"
 #include "tcommon.h"
 #include "tdatablock.h"
+#include "systable.h"
 
 int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pRes);
 int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level, bool singleChannel);
@@ -210,6 +211,11 @@ int32_t qExplainGenerateResChildren(SPhysiNode *pNode, SExplainGroup *group, SNo
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN: {
       SLastRowScanPhysiNode *lastRowPhysiNode = (SLastRowScanPhysiNode *)pNode;
       pPhysiChildren = lastRowPhysiNode->scan.node.pChildren;
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN: {
+      STableCountScanPhysiNode *tableCountPhysiNode = (STableCountScanPhysiNode *)pNode;
+      pPhysiChildren = tableCountPhysiNode->scan.node.pChildren;
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT: {
@@ -1323,6 +1329,48 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
       EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT, pLastRowNode->scan.pScanCols->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      if (pLastRowNode->scan.pScanPseudoCols) {
+        EXPLAIN_ROW_APPEND(EXPLAIN_PSEUDO_COLUMNS_FORMAT, pLastRowNode->scan.pScanPseudoCols->length);
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      }
+      EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pLastRowNode->scan.node.pOutputDataBlockDesc->totalRowSize);
+      EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+      EXPLAIN_ROW_END();
+      QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+
+      if (verbose) {
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT,
+                           nodesGetOutputNumFromSlotList(pLastRowNode->scan.node.pOutputDataBlockDesc->pSlots));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pLastRowNode->scan.node.pOutputDataBlockDesc->outputRowSize);
+        EXPLAIN_ROW_APPEND_LIMIT(pLastRowNode->scan.node.pLimit);
+        EXPLAIN_ROW_APPEND_SLIMIT(pLastRowNode->scan.node.pSlimit);
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
+        if (pLastRowNode->scan.node.pConditions) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);
+          QRY_ERR_RET(nodesNodeToSQL(pLastRowNode->scan.node.pConditions, tbuf + VARSTR_HEADER_SIZE,
+                                     TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }        
+      }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN: {
+      STableCountScanPhysiNode *pLastRowNode = (STableCountScanPhysiNode *)pNode;
+      EXPLAIN_ROW_NEW(level, EXPLAIN_TABLE_COUNT_SCAN_FORMAT,
+                      ('\0' != pLastRowNode->scan.tableName.tname[0] ? pLastRowNode->scan.tableName.tname : TSDB_INS_TABLE_TABLES));
+      EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
+      if (pResNode->pExecInfo) {
+        QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      }
+      EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT, LIST_LENGTH(pLastRowNode->scan.pScanCols));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       if (pLastRowNode->scan.pScanPseudoCols) {
         EXPLAIN_ROW_APPEND(EXPLAIN_PSEUDO_COLUMNS_FORMAT, pLastRowNode->scan.pScanPseudoCols->length);
