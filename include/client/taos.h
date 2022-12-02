@@ -185,6 +185,7 @@ DLL_EXPORT void     taos_kill_query(TAOS *taos);
 DLL_EXPORT int      taos_field_count(TAOS_RES *res);
 DLL_EXPORT int      taos_num_fields(TAOS_RES *res);
 DLL_EXPORT int      taos_affected_rows(TAOS_RES *res);
+DLL_EXPORT int64_t  taos_affected_rows64(TAOS_RES *res);
 
 DLL_EXPORT TAOS_FIELD *taos_fetch_fields(TAOS_RES *res);
 DLL_EXPORT int         taos_select_db(TAOS *taos, const char *db);

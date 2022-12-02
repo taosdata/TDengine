@@ -189,7 +189,7 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   }
   SDataCacheEntry* pEntry = (SDataCacheEntry*)(pDispatcher->nextOutput.pData);
   memcpy(pOutput->pData, pEntry->data, pEntry->dataLen);
-  pOutput->numOfRows = pEntry->numOfRows;
+  pOutput->fr = pEntry->numOfRows;
   pOutput->numOfCols = pEntry->numOfCols;
   pOutput->compressed = pEntry->compressed;
 

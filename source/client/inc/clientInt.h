@@ -171,9 +171,9 @@ typedef struct SReqResultInfo {
   char**         convertBuf;
   TAOS_ROW       row;
   SResultColumn* pCol;
-  uint32_t       numOfRows;
+  uint64_t       numOfRows;
   uint64_t       totalRows;
-  uint32_t       current;
+  uint64_t       current;
   bool           localResultFetched;
   bool           completed;
   int32_t        precision;
