@@ -526,7 +526,7 @@ int32_t schProcessOnJobPartialSuccess(SSchJob *pJob) {
 void schProcessOnDataFetched(SSchJob *pJob) { schPostJobRes(pJob, SCH_OP_FETCH); }
 
 int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRsp *pRsp) {
-  SCH_TASK_DLOG("got explain rsp, rows:%d, complete:%d", htonl(pRsp->numOfRows), pRsp->completed);
+  SCH_TASK_DLOG("got explain rsp, rows:%" PRId64 ", complete:%d", htobe64(pRsp->numOfRows), pRsp->completed);
 
   atomic_store_64(&pJob->resNumOfRows, htobe64(pRsp->numOfRows));
   atomic_store_ptr(&pJob->fetchRes, pRsp);

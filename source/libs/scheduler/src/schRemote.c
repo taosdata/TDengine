@@ -114,7 +114,7 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
     SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCC);
   }
   
-  SCH_TASK_DLOG("got fetch rsp, rows:%d, complete:%d", htonl(rsp->numOfRows), rsp->completed);
+  SCH_TASK_DLOG("got fetch rsp, rows:%" PRId64 ", complete:%d", htobe64(rsp->numOfRows), rsp->completed);
 
   msg = NULL;
   schProcessOnDataFetched(pJob);
