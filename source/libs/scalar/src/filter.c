@@ -1024,8 +1024,11 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
 
       SFilterDataInfo dInfo = {idx, *data};
       taosHashPut(info->pctx.valHash, *data, dataLen, &dInfo, sizeof(dInfo));
+      if (srcFlag) {
+        FILTER_SET_FLAG(*srcFlag, FLD_DATA_NO_FREE);
+      }
     }
-  } else if (data) {
+  } else if (type != FLD_TYPE_COLUMN && data) {
     if (freeIfExists) {
       taosMemoryFreeClear(*data);
     } else if (sameBuf) {
