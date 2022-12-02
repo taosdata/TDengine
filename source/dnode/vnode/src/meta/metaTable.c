@@ -1185,6 +1185,35 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   return 0;
 }
 
+static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
+  SMetaEntry  ctbEntry = {0};
+  SMetaEntry  stbEntry = {0};
+  void       *pVal = NULL;
+  int         nVal = 0;
+  int         ret;
+  int         c;
+  tb_uid_t    uid;
+  int64_t     oversion;
+  const void *pData = NULL;
+  int         nData = 0;
+  // add index
+  return 0;
+}
+static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
+  SMetaEntry  ctbEntry = {0};
+  SMetaEntry  stbEntry = {0};
+  void       *pVal = NULL;
+  int         nVal = 0;
+  int         ret;
+  int         c;
+  tb_uid_t    uid;
+  int64_t     oversion;
+  const void *pData = NULL;
+  int         nData = 0;
+  // drop index
+  return 0;
+}
+
 int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pMetaRsp) {
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
@@ -1196,6 +1225,10 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
       return metaUpdateTableTagVal(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       return metaUpdateTableOptions(pMeta, version, pReq);
+    case TSDB_ALTER_TABLE_ADD_TAG_INDEX:
+      return metaAddTagIndex(pMeta, version, pReq);
+    case TSDB_ALTER_TABLE_DROP_TAG_INDEX:
+      return metaDropTagIndex(pMeta, version, pReq);
     default:
       terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
       return -1;
