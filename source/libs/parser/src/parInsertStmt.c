@@ -156,31 +156,84 @@ end:
   return code;
 }
 
+int32_t convertStmtNcharCol(SSchema* pSchema, TAOS_MULTI_BIND* src, TAOS_MULTI_BIND* dst) {
+  int32_t output = 0;
+  int32_t newBuflen = pSchema->bytes - VARSTR_HEADER_SIZE;
+  if (dst->buffer_length < newBuflen) {
+    dst->buffer = taosMemoryRealloc(dst->buffer, newBuflen);
+    if (NULL == dst->buffer) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (NULL == dst->length) {
+    dst->length = taosMemoryRealloc(dst->length, sizeof(int32_t) * src->num);
+    if (NULL == dst->buffer) {
+      taosMemoryFreeClear(dst->buffer);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  
+  if (!taosMbsToUcs4(value, len, (TdUcs4*)varDataVal(rowEnd), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
+    if (errno == E2BIG) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pa->schema->name);
+    }
+    char buf[512] = {0};
+    snprintf(buf, tListLen(buf), "%s", strerror(errno));
+    return buildSyntaxErrMsg(pMsgBuf, buf, value);
+  }
+
+}
+
 int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen) {
   STableDataCxt*      pDataBlock = (STableDataCxt*)pBlock;
   SSchema*            pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*      boundInfo = &pDataBlock->boundColsInfo;
   SMsgBuf             pBuf = {.buf = msgBuf, .len = msgBufLen};
   int32_t             rowNum = bind->num;
+  TAOS_MULTI_BIND     ncharBind = {0};
+  TAOS_MULTI_BIND*    pBind = NULL;
+  int32_t             code = 0;
+  char                tmpBuf[128];
 
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
     SSchema* pColSchema = &pSchema[boundInfo->pColIndex[c]];
     SColData* pCol = taosArrayGet(pDataBlock->pData->aCol, c);
 
     if (bind[c].num != rowNum) {
-      return buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
+      code = buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
+      goto _return;
     }
 
     if (bind[c].buffer_type != pColSchema->type) {
-      return buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
+      code = buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
+      goto _return;
     }
 
-    tColDataAddValueByBind(pCol, bind + c);
+    if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
+      code = convertStmtNcharCol(pColSchema, bind + c, &ncharBind);
+      if (code) {
+        snprintf(tmpBuf, sizeof(tmpBuf) - 1, "The %dth nchar column convert to ucs4 failed, error:%s", c, tstrerror(code));
+        tmpBuf[sizeof(tmpBuf) - 1] = 0;
+        code = buildInvalidOperationMsg(&pBuf, tmpBuf);
+        goto _return;
+      }
+      pBind = &ncharBind;
+    } else {
+      pBind = bind + c;
+    }
+
+    tColDataAddValueByBind(pCol, pBind);
   }
 
   qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
 
-  return TSDB_CODE_SUCCESS;
+_return:
+
+  taosMemoryFree(ncharBind.buffer);
+  taosMemoryFree(ncharBind.length);
+
+  return code;
 }
 
 int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, int32_t colIdx,
