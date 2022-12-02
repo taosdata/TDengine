@@ -446,7 +446,7 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
   return 0;
 }
 
-SHashObj *mndDupObjHash(SHashObj *pOld, int32_t dataLen) {
+SHashObj *mndDupDbHash(SHashObj *pOld, int32_t dataLen) {
   SHashObj *pNew =
       taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pNew == NULL) {
@@ -517,9 +517,9 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   newUser.updateTime = taosGetTimestampMs();
 
   taosRLockLatch(&pUser->lock);
-  newUser.readDbs = mndDupObjHash(pUser->readDbs, TSDB_DB_FNAME_LEN);
-  newUser.writeDbs = mndDupObjHash(pUser->writeDbs, TSDB_DB_FNAME_LEN);
-  newUser.topics = mndDupObjHash(pUser->topics, TSDB_TOPIC_FNAME_LEN);
+  newUser.readDbs = mndDupDbHash(pUser->readDbs, TSDB_DB_FNAME_LEN);
+  newUser.writeDbs = mndDupDbHash(pUser->writeDbs, TSDB_DB_FNAME_LEN);
+  newUser.topics = mndDupDbHash(pUser->topics, TSDB_TOPIC_FNAME_LEN);
   taosRUnLockLatch(&pUser->lock);
 
   if (newUser.readDbs == NULL || newUser.writeDbs == NULL || newUser.topics == NULL) {
