@@ -71,7 +71,7 @@ int tdEncodeSchema(void **buf, STSchema *pSchema) {
     STColumn *pCol = schemaColAt(pSchema, i);
     tlen += taosEncodeFixedI8(buf, colType(pCol));
     tlen += taosEncodeFixedI16(buf, colColId(pCol));
-    tlen += taosEncodeFixedI16(buf, colBytes(pCol));
+    tlen += taosEncodeFixedU16(buf, colBytes(pCol));
   }
 
   return tlen;
