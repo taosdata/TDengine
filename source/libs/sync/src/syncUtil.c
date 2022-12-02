@@ -242,6 +242,9 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
     logBeginIndex = pNode->pLogStore->syncLogBeginIndex(pNode->pLogStore);
   }
 
+  int32_t cacheHit = pNode->pLogStore->cacheHit;
+  int32_t cacheMiss = pNode->pLogStore->cacheMiss;
+
   char cfgStr[1024];
   if (pNode->pRaftCfg != NULL) {
     syncCfg2SimpleStr(&(pNode->pRaftCfg->cfg), cfgStr, sizeof(cfgStr));
@@ -278,12 +281,15 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
     taosPrintLog(flags, level, dflag,
                  "vgId:%d, sync %s "
                  "%s"
-                 ", tm:%" PRIu64 ", cmt:%" PRId64 ", fst:%" PRId64 ", lst:%" PRId64 ", min:%" PRId64 ", snap:%" PRId64
-                 ", snap-tm:%" PRIu64 ", sby:%d, aq:%d, snaping:%" PRId64 ", r-num:%d, lcfg:%" PRId64
-                 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s, %s, %s, %s",
+                 ", term:%" PRIu64 ", commit-index:%" PRId64 ", first-ver:%" PRId64 ", last-ver:%" PRId64
+                 ", min:%" PRId64 ", snap:%" PRId64 ", snap-term:%" PRIu64
+                 ", elect-times:%d, as-leader-times:%d, cfg-ch-times:%d, hit:%d, mis:%d, hb-slow:%d, hbr-slow:%d, "
+                 "aq-items:%d, snaping:%" PRId64 ", replicas:%d, last-cfg:%" PRId64
+                 ", chging:%d, restore:%d, quorum:%d, elect-lc-timer:%" PRId64 ", hb:%" PRId64 ", %s, %s, %s, %s",
                  pNode->vgId, syncStr(pNode->state), eventLog, currentTerm, pNode->commitIndex, logBeginIndex,
-                 logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
-                 pNode->pRaftCfg->isStandBy, aqItems, pNode->snapshottingIndex, pNode->replicaNum,
+                 logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm, pNode->electNum,
+                 pNode->becomeLeaderNum, pNode->configChangeNum, cacheHit, cacheMiss, pNode->hbSlowNum,
+                 pNode->hbrSlowNum, aqItems, pNode->snapshottingIndex, pNode->replicaNum,
                  pNode->pRaftCfg->lastConfigIndex, pNode->changing, pNode->restoreFinish, quorum,
                  pNode->electTimerLogicClock, pNode->heartbeatTimerLogicClockUser, peerStr, cfgStr, hbTimeStr,
                  hbrTimeStr);
@@ -422,7 +428,7 @@ void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntries
   sNTrace(pSyncNode,
           "send sync-append-entries-reply to %s:%d, {term:%" PRId64 ", pterm:%" PRId64
           ", success:%d, lsend-index:%" PRId64 ", match:%" PRId64 "}, %s",
-          host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->lastSendIndex, pMsg->matchIndex, s);
+          host, port, pMsg->term, pMsg->lastMatchTerm, pMsg->success, pMsg->lastSendIndex, pMsg->matchIndex, s);
 }
 
 void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
@@ -435,10 +441,11 @@ void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntries
   sNTrace(pSyncNode,
           "recv sync-append-entries-reply from %s:%d {term:%" PRId64 ", pterm:%" PRId64
           ", success:%d, lsend-index:%" PRId64 ", match:%" PRId64 "}, %s",
-          host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->lastSendIndex, pMsg->matchIndex, s);
+          host, port, pMsg->term, pMsg->lastMatchTerm, pMsg->success, pMsg->lastSendIndex, pMsg->matchIndex, s);
 }
 
-void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool printX, int64_t timerElapsed, int64_t execTime) {
+void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool printX, int64_t timerElapsed,
+                          int64_t execTime) {
   if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   char     host[64];
@@ -458,17 +465,28 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
   }
 }
 
-void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64_t timeDiff) {
+void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64_t timeDiff, const char* s) {
+  if (timeDiff > SYNC_HEARTBEAT_SLOW_MS) {
+    pSyncNode->hbSlowNum++;
+
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    sNInfo(pSyncNode,
+           "recv sync-heartbeat from %s:%d slow {term:%" PRId64 ", cmt:%" PRId64 ", min-match:%" PRId64 ", ts:%" PRId64
+           "}, %s, net elapsed:%" PRId64,
+           host, port, pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->timeStamp, s, timeDiff);
+  }
+
   if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-
   sNTrace(pSyncNode,
           "recv sync-heartbeat from %s:%d {term:%" PRId64 ", cmt:%" PRId64 ", min-match:%" PRId64 ", ts:%" PRId64
-          "}, net elapsed:%" PRId64,
-          host, port, pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->timeStamp, timeDiff);
+          "}, %s, net elapsed:%" PRId64,
+          host, port, pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->timeStamp, s, timeDiff);
 }
 
 void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s) {
@@ -482,14 +500,26 @@ void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
           pMsg->term, pMsg->timeStamp, s);
 }
 
-void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, int64_t timeDiff) {
+void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, int64_t timeDiff, const char* s) {
+  if (timeDiff > SYNC_HEARTBEAT_REPLY_SLOW_MS) {
+    pSyncNode->hbrSlowNum++;
+
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    sNTrace(pSyncNode,
+            "recv sync-heartbeat-reply from %s:%d slow {term:%" PRId64 ", ts:%" PRId64 "}, %s, net elapsed:%" PRId64,
+            host, port, pMsg->term, pMsg->timeStamp, s, timeDiff);
+  }
+
   if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "recv sync-heartbeat-reply from %s:%d {term:%" PRId64 ", ts:%" PRId64 "}, net elapsed:%" PRId64,
-          host, port, pMsg->term, pMsg->timeStamp, timeDiff);
+  sNTrace(pSyncNode,
+          "recv sync-heartbeat-reply from %s:%d {term:%" PRId64 ", ts:%" PRId64 "}, %s, net elapsed:%" PRId64, host,
+          port, pMsg->term, pMsg->timeStamp, s, timeDiff);
 }
 
 void syncLogSendSyncPreSnapshot(SSyncNode* pSyncNode, const SyncPreSnapshot* pMsg, const char* s) {
@@ -611,7 +641,7 @@ void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMs
 }
 
 void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, int32_t voteGranted, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
+  // if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   char     logBuf[256];
   char     host[64];
@@ -619,42 +649,42 @@ void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, i
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
 
   if (voteGranted == -1) {
-    sNTrace(pSyncNode,
-            "recv sync-request-vote from %s:%d, {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, %s", host,
-            port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
+    sNInfo(pSyncNode,
+           "recv sync-request-vote from %s:%d, {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, %s", host,
+           port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
   } else {
-    sNTrace(pSyncNode,
-            "recv sync-request-vote from %s:%d, {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, granted:%d",
-            host, port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, voteGranted);
+    sNInfo(pSyncNode,
+           "recv sync-request-vote from %s:%d, {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, granted:%d",
+           host, port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, voteGranted);
   }
 }
 
 void syncLogSendRequestVote(SSyncNode* pNode, const SyncRequestVote* pMsg, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
+  // if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
-  sNTrace(pNode, "send sync-request-vote to %s:%d {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, %s", host,
-          port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
+  sNInfo(pNode, "send sync-request-vote to %s:%d {term:%" PRId64 ", lindex:%" PRId64 ", lterm:%" PRId64 "}, %s", host,
+         port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
 }
 
 void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
+  // if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "recv sync-request-vote-reply from %s:%d {term:%" PRId64 ", grant:%d}, %s", host, port, pMsg->term,
-          pMsg->voteGranted, s);
+  sNInfo(pSyncNode, "recv sync-request-vote-reply from %s:%d {term:%" PRId64 ", grant:%d}, %s", host, port, pMsg->term,
+         pMsg->voteGranted, s);
 }
 
 void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
+  // if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "send sync-request-vote-reply to %s:%d {term:%" PRId64 ", grant:%d}, %s", host, port, pMsg->term,
-          pMsg->voteGranted, s);
+  sNInfo(pSyncNode, "send sync-request-vote-reply to %s:%d {term:%" PRId64 ", grant:%d}, %s", host, port, pMsg->term,
+         pMsg->voteGranted, s);
 }

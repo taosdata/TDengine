@@ -1348,6 +1348,7 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
 
     pExprNode->_function.functionId = pFuncNode->funcId;
     pExprNode->_function.pFunctNode = pFuncNode;
+    pExprNode->_function.functionType = pFuncNode->funcType;
 
     tstrncpy(pExprNode->_function.functionName, pFuncNode->functionName, tListLen(pExprNode->_function.functionName));
 
@@ -2001,4 +2002,14 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   qDebug("generate group id map completed, elapsed time:%.2f ms %s", pTaskInfo->cost.groupIdMapTime, idStr);
 
   return TSDB_CODE_SUCCESS;
+}
+
+void printDataBlock(SSDataBlock* pBlock, const char* flag) {
+  if (!pBlock || pBlock->info.rows == 0) {
+    qDebug("===stream===printDataBlock: Block is Null or Empty");
+    return;
+  }
+  char* pBuf = NULL;
+  qDebug("%s", dumpBlockData(pBlock, flag, &pBuf));
+  taosMemoryFree(pBuf);
 }

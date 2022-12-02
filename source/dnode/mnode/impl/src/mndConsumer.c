@@ -538,7 +538,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   int32_t code = -1;
   SArray *newSub = subscribe.topicNames;
-  taosArraySortString(newSub, taosArrayCompareString);
+  taosArraySort(newSub, taosArrayCompareString);
   taosArrayRemoveDuplicateP(newSub, taosArrayCompareString, taosMemoryFree);
 
   int32_t newTopicNum = taosArrayGetSize(newSub);
@@ -712,7 +712,9 @@ CM_ENCODE_OVER:
 
 SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  void *buf = NULL;
+  SSdbRow        *pRow = NULL;
+  SMqConsumerObj *pConsumer = NULL;
+  void           *buf = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto CM_DECODE_OVER;
@@ -722,10 +724,10 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
     goto CM_DECODE_OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SMqConsumerObj));
+  pRow = sdbAllocRow(sizeof(SMqConsumerObj));
   if (pRow == NULL) goto CM_DECODE_OVER;
 
-  SMqConsumerObj *pConsumer = sdbGetRowObj(pRow);
+  pConsumer = sdbGetRowObj(pRow);
   if (pConsumer == NULL) goto CM_DECODE_OVER;
 
   int32_t dataPos = 0;
@@ -745,7 +747,8 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
 CM_DECODE_OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("consumer:%" PRId64 ", failed to decode from raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
+    mError("consumer:%" PRId64 ", failed to decode from raw:%p since %s", pConsumer == NULL ? 0 : pConsumer->consumerId,
+           pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -850,7 +853,8 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 
     // add to current topic
     taosArrayPush(pOldConsumer->currentTopics, &addedTopic);
-    taosArraySortString(pOldConsumer->currentTopics, taosArrayCompareString);
+    taosArraySort(pOldConsumer->currentTopics, taosArrayCompareString);
+
     // set status
     if (taosArrayGetSize(pOldConsumer->rebNewTopics) == 0 && taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0) {
       if (pOldConsumer->status == MQ_CONSUMER_STATUS__MODIFY ||

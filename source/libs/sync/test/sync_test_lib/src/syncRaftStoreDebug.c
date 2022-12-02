@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "syncTest.h"
 #include "cJSON.h"
+#include "syncTest.h"
 
 int32_t raftStoreFromJson(SRaftStore *pRaftStore, cJSON *pJson) { return 0; }
 

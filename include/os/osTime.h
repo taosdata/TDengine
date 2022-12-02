@@ -35,6 +35,7 @@ extern "C" {
 #ifdef WINDOWS
 
 #define CLOCK_REALTIME 0
+#define CLOCK_MONOTONIC 0
 
 #define MILLISECOND_PER_SECOND (1000i64)
 #else
@@ -80,6 +81,13 @@ static FORCE_INLINE int64_t taosGetTimestampNs() {
   struct timespec systemTime = {0};
   taosClockGetTime(CLOCK_REALTIME, &systemTime);
   return (int64_t)systemTime.tv_sec * 1000000000LL + (int64_t)systemTime.tv_nsec;
+}
+
+//@return timestamp of monotonic clock in millisecond
+static FORCE_INLINE int64_t taosGetMonoTimestampMs() {
+  struct timespec systemTime = {0};
+  taosClockGetTime(CLOCK_MONOTONIC, &systemTime);
+  return (int64_t)systemTime.tv_sec * 1000LL + (int64_t)systemTime.tv_nsec / 1000000;
 }
 
 char      *taosStrpTime(const char *buf, const char *fmt, struct tm *tm);
