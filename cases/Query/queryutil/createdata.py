@@ -1030,12 +1030,16 @@ class TDCreateData():
                 elif (rows_1 > 0 and rows_1 <= 10) and (rows_2 > 0 and rows_2 <= 10):
                     self.logger.info(("=====sql1.rows:'%s',=====sql2.rows:'%s'") %(rows_1,rows_2))
                     self.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                    self.data_matrix_equal('%s' %sql1 ,1,int('%d' %rows_1),1,1,'%s' %sql2 ,1,int('%d' %rows_2),1,1)
+                    #self.data_matrix_equal('%s' %sql1 ,1,int('%d' %rows_1),1,1,'%s' %sql2 ,1,int('%d' %rows_2),1,1)
+                    for i in range(rows_1):
+                        self.dataequal('%s' %sql1 , i ,1,'%s' %sql2 , i ,1)
                     self.explain_sql(sql2)    
                     cur1.execute(sql2)      
                 elif (rows_1 > 10 ) and (rows_2 > 10 ) and (rows_1 == rows_2) :
                     self.logger.info(("=====sql1.rows:'%s',=====sql2.rows:'%s'") %(rows_1,rows_2))
-                    self.data_matrix_equal('%s' %sql1 ,1,10,1,1,'%s' %sql2 ,1,10,1,1)
+                    #self.data_matrix_equal('%s' %sql1 ,1,10,1,1,'%s' %sql2 ,1,10,1,1)
+                    for i in range(11):
+                        self.dataequal('%s' %sql1 , i ,1,'%s' %sql2 , i ,1)
                     self.explain_sql(sql2)
                     cur1.execute(sql2)
         except:
