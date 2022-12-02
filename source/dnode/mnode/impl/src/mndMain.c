@@ -85,6 +85,21 @@ static void *mndBuildTimerMsg(int32_t *pContLen) {
   return pReq;
 }
 
+static void *mndBuildCheckpointTickMsg(int32_t *pContLen, int64_t sec) {
+  SMStreamTickReq timerReq = {
+      .tick = sec,
+  };
+
+  int32_t contLen = tSerializeSMStreamTickMsg(NULL, 0, &timerReq);
+  if (contLen <= 0) return NULL;
+  void *pReq = rpcMallocCont(contLen);
+  if (pReq == NULL) return NULL;
+
+  tSerializeSMStreamTickMsg(pReq, contLen, &timerReq);
+  *pContLen = contLen;
+  return pReq;
+}
+
 static void mndPullupTrans(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
@@ -105,7 +120,24 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TMQ_TIMER, .pCont = pReq, .contLen = contLen};
+    SRpcMsg rpcMsg = {
+        .msgType = TDMT_MND_TMQ_TIMER,
+        .pCont = pReq,
+        .contLen = contLen,
+    };
+    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+  }
+}
+
+static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildCheckpointTickMsg(&contLen, sec);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {
+        .msgType = TDMT_MND_STREAM_CHECKPOINT_TIMER,
+        .pCont = pReq,
+        .contLen = contLen,
+    };
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
@@ -223,6 +255,12 @@ static void *mndThreadFp(void *param) {
     if (sec % tsMqRebalanceInterval == 0) {
       mndCalMqRebalance(pMnode);
     }
+
+#if 0
+    if (sec % tsStreamCheckpointTickInterval == 0) {
+      mndStreamCheckpointTick(pMnode, sec);
+    }
+#endif
 
     if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {
       mndPullupTelem(pMnode);
