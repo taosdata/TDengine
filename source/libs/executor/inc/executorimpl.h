@@ -781,7 +781,7 @@ void setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t order,
 int32_t checkForQueryBuf(size_t numOfTables);
 
 bool    isTaskKilled(SExecTaskInfo* pTaskInfo);
-void    setTaskKilled(SExecTaskInfo* pTaskInfo);
+void    setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
 void    doDestroyTask(SExecTaskInfo* pTaskInfo);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 
