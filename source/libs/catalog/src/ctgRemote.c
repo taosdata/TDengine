@@ -13,23 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "ctgRemote.h"
 #include "catalogInt.h"
 #include "query.h"
 #include "systable.h"
 #include "tname.h"
 #include "tref.h"
 #include "trpc.h"
-#include "ctgRemote.h"
 
 int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBuf* pMsg, int32_t rspCode) {
-  int32_t   code = 0;
-  SCatalog* pCtg = pJob->pCtg;
-  int32_t   taskNum = taosArrayGetSize(cbParam->taskId);
-  SDataBuf  taskMsg = *pMsg;
-  int32_t msgNum = 0;
-  SBatchRsp batchRsp = {0};
-  SBatchRspMsg rsp = {0};
-  SBatchRspMsg *pRsp = NULL;
+  int32_t       code = 0;
+  SCatalog*     pCtg = pJob->pCtg;
+  int32_t       taskNum = taosArrayGetSize(cbParam->taskId);
+  SDataBuf      taskMsg = *pMsg;
+  int32_t       msgNum = 0;
+  SBatchRsp     batchRsp = {0};
+  SBatchRspMsg  rsp = {0};
+  SBatchRspMsg* pRsp = NULL;
 
   if (TSDB_CODE_SUCCESS == rspCode && pMsg->pData && (pMsg->len > 0)) {
     if (tDeserializeSBatchRsp(pMsg->pData, pMsg->len, &batchRsp) < 0) {
@@ -38,8 +38,11 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
     }
 
     msgNum = taosArrayGetSize(batchRsp.pRsps);
+  } else {
+    CTG_ERR_RET(rspCode);
+    CTG_ERR_RET(TSDB_CODE_INVALID_PARA);
   }
-  
+
   ASSERT(taskNum == msgNum || 0 == msgNum);
 
   ctgDebug("QID:0x%" PRIx64 " ctg got batch %d rsp %s", pJob->queryId, cbParam->batchId,
@@ -572,8 +575,8 @@ _return:
   return code;
 }
 
-int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, int32_t vgId, void** msg, int32_t *pSize) {
-  int32_t    num = taosArrayGetSize(pBatch->pMsgs);
+int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, int32_t vgId, void** msg, int32_t* pSize) {
+  int32_t num = taosArrayGetSize(pBatch->pMsgs);
   if (num >= CTG_MAX_REQ_IN_BATCH) {
     qError("too many msgs %d in one batch request", num);
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
@@ -589,7 +592,7 @@ int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, int32_t vgId, void** msg, int32_t
     qError("tSerializeSBatchReq failed");
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
-  
+
   *msg = taosMemoryCalloc(1, msgSize);
   if (NULL == (*msg)) {
     qError("calloc batchReq msg failed, size:%d", msgSize);
@@ -615,7 +618,7 @@ int32_t ctgLaunchBatchs(SCatalog* pCtg, SCtgJob* pJob, SHashObj* pBatchs) {
     size_t     len = 0;
     int32_t*   vgId = taosHashGetKey(p, &len);
     SCtgBatch* pBatch = (SCtgBatch*)p;
-    int32_t msgSize = 0;
+    int32_t    msgSize = 0;
 
     ctgDebug("QID:0x%" PRIx64 " ctg start to launch batch %d", pJob->queryId, pBatch->batchId);
 
