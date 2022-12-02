@@ -117,7 +117,8 @@ static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
 void    tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 int32_t tsdbRowCmprFn(const void *p1, const void *p2);
 // STSDBRowIter
-void     tsdbRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
+int32_t  tsdbRowIterOpen(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
+void     tsdbRowClose(STSDBRowIter *pIter);
 SColVal *tsdbRowIterNext(STSDBRowIter *pIter);
 // SRowMerger
 int32_t tsdbRowMergerInit2(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRow, STSchema *pTSchema);
@@ -571,10 +572,14 @@ struct SDFileSet {
 };
 
 struct STSDBRowIter {
-  TSDBROW  *pRow;
-  STSchema *pTSchema;
-  SColVal   colVal;
-  int32_t   i;
+  TSDBROW *pRow;
+  union {
+    SRowIter *pIter;
+    struct {
+      int32_t iColData;
+      SColVal cv;
+    };
+  };
 };
 struct SRowMerger {
   STSchema *pTSchema;
