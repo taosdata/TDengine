@@ -217,13 +217,13 @@ void shellRunSingleCommandImp(char *command) {
   // pre string
   char * pre = "Query OK";
   if (shellRegexMatch(command, "^\\s*delete\\s*from\\s*.*", REG_EXTENDED | REG_ICASE)) {
-    pre = "Deleted OK";
+    pre = "Delete OK";
   } else if(shellRegexMatch(command, "^\\s*insert\\s*into\\s*.*", REG_EXTENDED | REG_ICASE)) {
-    pre = "Inserted OK";
+    pre = "Insert OK";
   } else if(shellRegexMatch(command, "^\\s*create\\s*.*", REG_EXTENDED | REG_ICASE)) {
-    pre = "Created OK";
+    pre = "Create OK";
   } else if(shellRegexMatch(command, "^\\s*drop\\s*.*", REG_EXTENDED | REG_ICASE)) {
-    pre = "Droped OK";
+    pre = "Drop OK";
   }
 
   TAOS_FIELD *pFields = taos_fetch_fields(pSql);
