@@ -81,15 +81,11 @@ typedef struct SIOCostSummary {
   double  createScanInfoList;
 } SIOCostSummary;
 
-typedef struct SColInfo {
-  int16_t colId;
-  int16_t slotId;
-} SColInfo;
-
 typedef struct SBlockLoadSuppInfo {
   SArray*          pColAgg;
   SColumnDataAgg   tsColAgg;
-  SColInfo*        colInfo;    // column ids for loading file block data
+  int16_t*         colId;
+  int16_t*         slotId;
   int32_t          numOfCols;
   char**           buildBuf;  // build string tmp buffer, todo remove it later after all string format being updated.
   bool             smaValid;  // the sma on all queried columns are activated
@@ -222,16 +218,17 @@ static bool outOfTimeWindow(int64_t ts, STimeWindow* pWindow) { return (ts > pWi
 static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pCols, const int32_t* pSlotIdList, int32_t numOfCols) {
   pSupInfo->smaValid = true;
   pSupInfo->numOfCols = numOfCols;
-  pSupInfo->colInfo = taosMemoryMalloc(numOfCols * (sizeof(SColInfo) + POINTER_BYTES));
-  if (pSupInfo->colInfo == NULL) {
-    taosMemoryFree(pSupInfo->colInfo);
+  pSupInfo->colId = taosMemoryMalloc(numOfCols * (sizeof(int16_t)*2 + POINTER_BYTES));
+  if (pSupInfo->colId == NULL) {
+    taosMemoryFree(pSupInfo->colId);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pSupInfo->buildBuf = (char**)((char*)pSupInfo->colInfo + (sizeof(SColInfo) * numOfCols));
+  pSupInfo->slotId = (int16_t*)((char*)pSupInfo->colId + (sizeof(int16_t) * numOfCols));
+  pSupInfo->buildBuf = (char**) ((char*)pSupInfo->slotId + (sizeof(int16_t) * numOfCols));
   for (int32_t i = 0; i < numOfCols; ++i) {
-    pSupInfo->colInfo[i].colId = pCols[i].colId;
-    pSupInfo->colInfo[i].slotId = pSlotIdList[i];
+    pSupInfo->colId[i] = pCols[i].colId;
+    pSupInfo->slotId[i] = pSlotIdList[i];
 
     if (IS_VAR_DATA_TYPE(pCols[i].type)) {
       pSupInfo->buildBuf[i] = taosMemoryMalloc(pCols[i].bytes);
@@ -248,7 +245,7 @@ static void updateBlockSMAInfo(STSchema* pSchema, SBlockLoadSuppInfo* pSupInfo) 
 
   while(i < pSchema->numOfCols && j < pSupInfo->numOfCols) {
     STColumn* pTCol = &pSchema->columns[i];
-    if (pTCol->colId == pSupInfo->colInfo[j].colId) {
+    if (pTCol->colId == pSupInfo->colId[j]) {
       if (!IS_BSMA_ON(pTCol)) {
         pSupInfo->smaValid = false;
         return;
@@ -256,7 +253,7 @@ static void updateBlockSMAInfo(STSchema* pSchema, SBlockLoadSuppInfo* pSupInfo) 
 
       i += 1;
       j += 1;
-    } else if (pTCol->colId < pSupInfo->colInfo[j].colId) {
+    } else if (pTCol->colId < pSupInfo->colId[j]) {
       // do nothing
       i += 1;
     } else {
@@ -458,7 +455,7 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, SArray* aDFileSet, STsdb
   if (pLReader->pInfo == NULL) {
     // here we ignore the first column, which is always be the primary timestamp column
     pLReader->pInfo =
-        tCreateLastBlockLoadInfo(pReader->pSchema, &pReader->suppInfo.colInfo[1].colId, pReader->suppInfo.numOfCols - 1);
+        tCreateLastBlockLoadInfo(pReader->pSchema, &pReader->suppInfo.colId[1], pReader->suppInfo.numOfCols - 1);
     if (pLReader->pInfo == NULL) {
       tsdbDebug("init fileset iterator failed, code:%s %s", tstrerror(terrno), pReader->idStr);
       return terrno;
@@ -1094,8 +1091,8 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   int32_t i = 0;
   int32_t rowIndex = 0;
 
-  SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->colInfo[i].slotId);
-  if (pSupInfo->colInfo[i].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+  SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->slotId[i]);
+  if (pSupInfo->colId[i] == PRIMARYKEY_TIMESTAMP_COL_ID) {
     copyPrimaryTsCol(pBlockData, pDumpInfo, pColData, dumpedRows, asc);
     i += 1;
   }
@@ -1106,10 +1103,10 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
     rowIndex = 0;
 
     SColData* pData = tBlockDataGetColDataByIdx(pBlockData, colIndex);
-    if (pData->cid < pSupInfo->colInfo[i].colId) {
+    if (pData->cid < pSupInfo->colId[i]) {
       colIndex += 1;
-    } else if (pData->cid == pSupInfo->colInfo[i].colId) {
-      pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->colInfo[i].slotId);
+    } else if (pData->cid == pSupInfo->colId[i]) {
+      pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->slotId[i]);
 
       if (pData->flag == HAS_NONE || pData->flag == HAS_NULL || pData->flag == (HAS_NULL | HAS_NONE)) {
         colDataAppendNNULL(pColData, 0, dumpedRows);
@@ -1127,7 +1124,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
       colIndex += 1;
       i += 1;
     } else {  // the specified column does not exist in file block, fill with null data
-      pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->colInfo[i].slotId);
+      pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->slotId[i]);
       colDataAppendNNULL(pColData, 0, dumpedRows);
       i += 1;
     }
@@ -1135,7 +1132,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
 
   // fill the mis-matched columns with null value
   while (i < numOfOutputCols) {
-    pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->colInfo[i].slotId);
+    pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->slotId[i]);
     colDataAppendNNULL(pColData, 0, dumpedRows);
     i += 1;
   }
@@ -1173,7 +1170,7 @@ static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockI
   tBlockDataReset(pBlockData);
   TABLEID tid = {.suid = pReader->suid, .uid = uid};
   int32_t code =
-      tBlockDataInit(pBlockData, &tid, pReader->pSchema, &pReader->suppInfo.colInfo[1].colId, pReader->suppInfo.numOfCols - 1);
+      tBlockDataInit(pBlockData, &tid, pReader->pSchema, &pReader->suppInfo.colId[1], pReader->suppInfo.numOfCols - 1);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1632,7 +1629,7 @@ static int32_t buildDataBlockFromBuf(STsdbReader* pReader, STableBlockScanInfo* 
   int64_t st = taosGetTimestampUs();
   int32_t code = buildDataBlockFromBufImpl(pBlockScanInfo, endKey, pReader->capacity, pReader);
 
-  blockDataUpdateTsWindow(pBlock, pReader->suppInfo.colInfo[0].slotId);
+  blockDataUpdateTsWindow(pBlock, pReader->suppInfo.slotId[0]);
   pBlock->info.id.uid = pBlockScanInfo->uid;
 
   setComposedBlockFlag(pReader, true);
@@ -2504,7 +2501,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
 _end:
   pResBlock->info.id.uid = (pBlockScanInfo != NULL) ? pBlockScanInfo->uid : 0;
-  blockDataUpdateTsWindow(pResBlock, pReader->suppInfo.colInfo[0].slotId);
+  blockDataUpdateTsWindow(pResBlock, pReader->suppInfo.slotId[0]);
 
   setComposedBlockFlag(pReader, true);
   double el = (taosGetTimestampUs() - st) / 1000.0;
@@ -3553,24 +3550,24 @@ int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, STSRow* 
   SColVal colVal = {0};
   int32_t i = 0, j = 0;
 
-  if (pSupInfo->colInfo[i].colId== PRIMARYKEY_TIMESTAMP_COL_ID) {
-    SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, pSupInfo->colInfo[i].slotId);
+  if (pSupInfo->colId[i]== PRIMARYKEY_TIMESTAMP_COL_ID) {
+    SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, pSupInfo->slotId[i]);
     ((int64_t*)pColData->pData)[outputRowIndex] = pTSRow->ts;
     i += 1;
   }
 
   while (i < pSupInfo->numOfCols && j < pSchema->numOfCols) {
-    col_id_t colId = pSupInfo->colInfo[i].colId;
+    col_id_t colId = pSupInfo->colId[i];
 
     if (colId == pSchema->columns[j].colId) {
-      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pSupInfo->colInfo[i].slotId);
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pSupInfo->slotId[i]);
 
       tTSRowGetVal(pTSRow, pSchema, j, &colVal);
       doCopyColVal(pColInfoData, outputRowIndex, i, &colVal, pSupInfo);
       i += 1;
       j += 1;
     } else if (colId < pSchema->columns[j].colId) {
-      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pSupInfo->colInfo[i].slotId);
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pSupInfo->slotId[i]);
 
       colDataAppendNULL(pColInfoData, outputRowIndex);
       i += 1;
@@ -3581,7 +3578,7 @@ int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, STSRow* 
 
   // set null value since current column does not exist in the "pSchema"
   while (i < pSupInfo->numOfCols) {
-    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pSupInfo->colInfo[i].slotId);
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pSupInfo->slotId[i]);
     colDataAppendNULL(pColInfoData, outputRowIndex);
     i += 1;
   }
@@ -3597,8 +3594,8 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
   int32_t outputRowIndex = pResBlock->info.rows;
 
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
-  if (pReader->suppInfo.colInfo[i].colId== PRIMARYKEY_TIMESTAMP_COL_ID) {
-    SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->colInfo[i].slotId);
+  if (pReader->suppInfo.colId[i]== PRIMARYKEY_TIMESTAMP_COL_ID) {
+    SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->slotId[i]);
     ((int64_t*)pColData->pData)[outputRowIndex] = pBlockData->aTSKEY[rowIndex];
     i += 1;
   }
@@ -3609,13 +3606,13 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
 
   while (i < numOfOutputCols && j < numOfInputCols) {
     SColData* pData = tBlockDataGetColDataByIdx(pBlockData, j);
-    if (pData->cid < pSupInfo->colInfo[i].colId) {
+    if (pData->cid < pSupInfo->colId[i]) {
       j += 1;
       continue;
     }
 
-    SColumnInfoData* pCol = TARRAY_GET_ELEM(pResBlock->pDataBlock, pSupInfo->colInfo[i].slotId);
-    if (pData->cid == pSupInfo->colInfo[i].colId) {
+    SColumnInfoData* pCol = TARRAY_GET_ELEM(pResBlock->pDataBlock, pSupInfo->slotId[i]);
+    if (pData->cid == pSupInfo->colId[i]) {
       tColDataGetValue(pData, rowIndex, &cv);
       doCopyColVal(pCol, outputRowIndex, i, &cv, pSupInfo);
       j += 1;
@@ -3628,7 +3625,7 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
   }
 
   while (i < numOfOutputCols) {
-    SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, pSupInfo->colInfo[i].slotId);
+    SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, pSupInfo->slotId[i]);
     colDataAppendNULL(pCol, outputRowIndex);
     i += 1;
   }
@@ -3897,7 +3894,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
     pReader->pResBlock = blockDataDestroy(pReader->pResBlock);
   }
 
-  taosMemoryFree(pSupInfo->colInfo);
+  taosMemoryFree(pSupInfo->colId);
   tBlockDataDestroy(&pReader->status.fileBlockData, true);
   cleanupDataBlockIterator(&pReader->status.blockIter);
 
@@ -4099,21 +4096,21 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg ***pBlockS
 
   while (j < numOfCols && i < size) {
     SColumnDataAgg* pAgg = taosArrayGet(pSup->pColAgg, i);
-    if (pAgg->colId == pSup->colInfo[j].colId) {
-      pResBlock->pBlockAgg[pSup->colInfo[j].slotId] = pAgg;
+    if (pAgg->colId == pSup->colId[j]) {
+      pResBlock->pBlockAgg[pSup->slotId[j]] = pAgg;
       i += 1;
       j += 1;
-    } else if (pAgg->colId < pSup->colInfo[j].colId) {
+    } else if (pAgg->colId < pSup->colId[j]) {
       i += 1;
-    } else if (pSup->colInfo[j].colId < pAgg->colId) {
-      if (pSup->colInfo[j].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-        pResBlock->pBlockAgg[pSup->colInfo[j].slotId] = &pSup->tsColAgg;
+    } else if (pSup->colId[j] < pAgg->colId) {
+      if (pSup->colId[j] == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        pResBlock->pBlockAgg[pSup->slotId[j]] = &pSup->tsColAgg;
       } else {
       // all date in this block are null
-        SColumnDataAgg nullColAgg = {.colId = pSup->colInfo[j].colId, .numOfNull = pBlock->nRow};
+        SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = pBlock->nRow};
         taosArrayPush(pSup->pColAgg, &nullColAgg);
 
-        pResBlock->pBlockAgg[pSup->colInfo[j].slotId] = taosArrayGetLast(pSup->pColAgg);
+        pResBlock->pBlockAgg[pSup->slotId[j]] = taosArrayGetLast(pSup->pColAgg);
       }
       j += 1;
     }
