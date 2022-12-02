@@ -1,0 +1,60 @@
+### python Kafka 客户端
+
+For python kafka client, please refer to [kafka client](https://cwiki.apache.org/confluence/display/KAFKA/Clients#Clients-Python). In this document, we use [kafka-python](http://github.com/dpkp/kafka-python).
+
+### consume from Kafka
+
+The simple way to consume messages from Kafka is to read messages one by one. The demo is as follows:
+
+```
+from kafka import KafkaConsumer
+consumer = KafkaConsumer('my_favorite_topic')
+for msg in consumer:
+     print (msg)
+```
+
+For higher performance, we can consume message from kafka in batch. The demo is as follows:
+
+```
+from kafka import KafkaConsumer
+consumer = KafkaConsumer('my_favorite_topic')
+while True:
+    msgs = consumer.poll(timeout_ms=500, max_records=1000)
+    if msgs:
+        print (msgs)
+```
+
+### multi-threading
+
+For more higher performance we can process data from kafka in multi-thread. We can use python's ThreadPoolExecutor to achieve multithreading. The demo is as follows:
+
+```
+from concurrent.futures import ThreadPoolExecutor, Future
+pool = ThreadPoolExecutor(max_workers=10)
+pool.submit(...)
+```
+
+### multi-process
+
+For more higher performance, sometimes we use multiprocessing. In this case, the number of Kafka Consumers should not be greater than the number of Kafka Topic Partitions. The demo is as follows:
+
+```
+from multiprocessing import Process
+
+ps = []
+for i in range(5):
+    p = Process(target=Consumer().consume())
+    p.start()
+    ps.append(p)
+
+for p in ps:
+    p.join()
+```
+
+In addition to python's built-in multithreading and multiprocessing library, we can also use the third-party library gunicorn.
+
+### Examples
+
+```py
+{{#include docs/examples/python/kafka_example.py}}
+```
