@@ -163,6 +163,7 @@ typedef struct tExprNode {
       int32_t               functionId;
       int32_t               num;
       struct SFunctionNode *pFunctNode;
+      int32_t               functionType;
     } _function;
 
     struct {

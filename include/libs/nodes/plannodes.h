@@ -62,7 +62,8 @@ typedef enum EScanType {
   SCAN_TYPE_STREAM,
   SCAN_TYPE_TABLE_MERGE,
   SCAN_TYPE_BLOCK_INFO,
-  SCAN_TYPE_LAST_ROW
+  SCAN_TYPE_LAST_ROW,
+  SCAN_TYPE_TABLE_COUNT
 } EScanType;
 
 typedef struct SScanLogicNode {
@@ -322,6 +323,8 @@ typedef struct SLastRowScanPhysiNode {
   bool           groupSort;
   bool           ignoreNull;
 } SLastRowScanPhysiNode;
+
+typedef SLastRowScanPhysiNode STableCountScanPhysiNode;
 
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
