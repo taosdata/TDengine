@@ -51,13 +51,15 @@ static inline void dmSendRedirectRsp(SRpcMsg *pMsg, const SEpSet *pNewEpSet) {
 }
 
 int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
+  const STraceId *trace = &pMsg->info.traceId;
+
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pMsg->msgType)];
   if (msgFp == NULL) {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+    dGError("msg:%p, not processed since no handler", pMsg);
     return -1;
   }
 
-  const STraceId *trace = &pMsg->info.traceId;
   dGTrace("msg:%p, will be processed by %s", pMsg, pWrapper->name);
   pMsg->info.wrapper = pWrapper;
   return (*msgFp)(pWrapper->pMgmt, pMsg);
@@ -99,18 +101,23 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       dmProcessServerStartupStatus(pDnode, pRpc);
       return;
     } else {
-      terrno = TSDB_CODE_APP_NOT_READY;
+      if (pDnode->status == DND_STAT_INIT) {
+        terrno = TSDB_CODE_APP_IS_STARTING;
+      } else {
+        terrno = TSDB_CODE_APP_IS_STOPPING;
+      }
       goto _OVER;
     }
   }
 
-  if (IsReq(pRpc) && pRpc->pCont == NULL) {
+  if (pRpc->pCont == NULL && (IsReq(pRpc) || pRpc->contLen != 0)) {
     dGError("msg:%p, type:%s pCont is NULL", pRpc, TMSG_INFO(pRpc->msgType));
     terrno = TSDB_CODE_INVALID_MSG_LEN;
     goto _OVER;
   }
 
   if (pHandle->defaultNtype == NODE_END) {
+    dGError("msg:%p, type:%s not processed since no handle", pRpc, TMSG_INFO(pRpc->msgType));
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
     goto _OVER;
   }
@@ -234,7 +241,8 @@ static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) { rpcRe
 
 static bool rpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_REDIRECT || code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_NODE_NOT_DEPLOYED ||
-      code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_BROKEN_LINK) {
+      code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_BROKEN_LINK ||
+      code == TSDB_CODE_VND_STOPPED) {
     if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH ||
         msgType == TDMT_SCH_MERGE_FETCH) {
       return false;

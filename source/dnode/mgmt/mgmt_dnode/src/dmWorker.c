@@ -144,6 +144,7 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      dGError("msg:%p, not processed in mgmt queue", pMsg);
       break;
   }
 

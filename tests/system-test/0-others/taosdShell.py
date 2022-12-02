@@ -166,7 +166,7 @@ class TDTestCase:
         # keyDict['c'] = cfgPath
         # keyDict['P'] = self.serverPort
         tdDnodes=cluster.dnodes
-        for i in range(5):
+        for i in range(len(tdDnodes)):
             tdDnodes[i].stoptaosd()  
         
         

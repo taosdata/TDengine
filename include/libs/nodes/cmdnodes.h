@@ -42,9 +42,10 @@ extern "C" {
 
 #define PRIVILEGE_TYPE_MASK(n) (1 << n)
 
-#define PRIVILEGE_TYPE_ALL   PRIVILEGE_TYPE_MASK(0)
-#define PRIVILEGE_TYPE_READ  PRIVILEGE_TYPE_MASK(1)
-#define PRIVILEGE_TYPE_WRITE PRIVILEGE_TYPE_MASK(2)
+#define PRIVILEGE_TYPE_ALL       PRIVILEGE_TYPE_MASK(0)
+#define PRIVILEGE_TYPE_READ      PRIVILEGE_TYPE_MASK(1)
+#define PRIVILEGE_TYPE_WRITE     PRIVILEGE_TYPE_MASK(2)
+#define PRIVILEGE_TYPE_SUBSCRIBE PRIVILEGE_TYPE_MASK(3)
 
 #define PRIVILEGE_TYPE_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
@@ -423,7 +424,7 @@ typedef struct SDropFunctionStmt {
 typedef struct SGrantStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
-  char      dbName[TSDB_DB_NAME_LEN];
+  char      objName[TSDB_DB_NAME_LEN];  // db or topic
   int64_t   privileges;
 } SGrantStmt;
 

@@ -129,6 +129,7 @@ extern char tsUdfdLdLibPath[];
 extern char tsSmlChildTableName[];
 extern char tsSmlTagName[];
 extern bool tsSmlDataFormat;
+extern int32_t tsSmlBatchSize;
 
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
@@ -136,6 +137,7 @@ extern int64_t tsWalFsyncDataSizeLimit;
 // internal
 extern int32_t tsTransPullupInterval;
 extern int32_t tsMqRebalanceInterval;
+extern int32_t tsStreamCheckpointTickInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushInterval;
 extern int32_t tsGrantHBInterval;
