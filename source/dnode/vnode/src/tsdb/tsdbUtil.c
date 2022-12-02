@@ -1036,17 +1036,13 @@ static int32_t tBlockDataAppendBlockRow(SBlockData *pBlockData, SBlockData *pBlo
 
   SColVal   cv = {0};
   int32_t   iColDataFrom = 0;
-  SColData *pColDataFrom =
-      (iColDataFrom < pBlockDataFrom->nColData) ? &((SColData *)pBlockDataFrom->aColData->pData)[iColDataFrom] : NULL;
+  SColData *pColDataFrom = (iColDataFrom < pBlockDataFrom->nColData) ? &pBlockDataFrom->aColData[iColDataFrom] : NULL;
 
   for (int32_t iColDataTo = 0; iColDataTo < pBlockData->nColData; iColDataTo++) {
-    SColData *pColDataTo = &((SColData *)pBlockData->aColData->pData)[iColDataTo];
+    SColData *pColDataTo = &pBlockData->aColData[iColDataTo];
 
     while (pColDataFrom && pColDataFrom->cid < pColDataTo->cid) {
-      iColDataFrom++;
-      pColDataFrom = (iColDataFrom < pBlockDataFrom->nColData)
-                         ? &((SColData *)pBlockDataFrom->aColData->pData)[iColDataFrom]
-                         : NULL;
+      pColDataFrom = (++iColDataFrom < pBlockDataFrom->nColData) ? &pBlockDataFrom->aColData[iColDataFrom] : NULL;
     }
 
     if (pColDataFrom == NULL || pColDataFrom->cid > pColDataTo->cid) {
@@ -1058,10 +1054,7 @@ static int32_t tBlockDataAppendBlockRow(SBlockData *pBlockData, SBlockData *pBlo
       code = tColDataAppendValue(pColDataTo, &cv);
       if (code) goto _exit;
 
-      iColDataFrom++;
-      pColDataFrom = (iColDataFrom < pBlockDataFrom->nColData)
-                         ? &((SColData *)pBlockDataFrom->aColData->pData)[iColDataFrom]
-                         : NULL;
+      pColDataFrom = (++iColDataFrom < pBlockDataFrom->nColData) ? &pBlockDataFrom->aColData[iColDataFrom] : NULL;
     }
   }
 
