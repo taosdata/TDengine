@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "syncMessage.h"
 #include "syncRaftEntry.h"
+#include "syncRaftStore.h"
 
 int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
                          SSyncNode* pNode) {
@@ -150,6 +151,34 @@ int32_t syncBuildAppendEntriesReply(SRpcMsg* pMsg, int32_t vgId) {
   pAppendEntriesReply->bytes = bytes;
   pAppendEntriesReply->msgType = TDMT_SYNC_APPEND_ENTRIES_REPLY;
   pAppendEntriesReply->vgId = vgId;
+  return 0;
+}
+
+int32_t syncBuildAppendEntriesFromRaftLog(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm,
+                                          SRpcMsg* pRpcMsg) {
+  uint32_t dataLen = pEntry->bytes;
+  uint32_t bytes = sizeof(SyncAppendEntries) + dataLen;
+  pRpcMsg->contLen = bytes;
+  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  if (pRpcMsg->pCont == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  SyncAppendEntries* pMsg = pRpcMsg->pCont;
+  pMsg->bytes = pRpcMsg->contLen;
+  pMsg->msgType = pRpcMsg->msgType = TDMT_SYNC_APPEND_ENTRIES;
+  pMsg->dataLen = dataLen;
+
+  (void)memcpy(pMsg->data, pEntry, dataLen);
+
+  pMsg->prevLogIndex = pEntry->index - 1;
+  pMsg->prevLogTerm = prevLogTerm;
+  pMsg->vgId = pNode->vgId;
+  pMsg->srcId = pNode->myRaftId;
+  pMsg->term = pNode->pRaftStore->currentTerm;
+  pMsg->commitIndex = pNode->commitIndex;
+  pMsg->privateTerm = 0;
   return 0;
 }
 

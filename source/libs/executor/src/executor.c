@@ -688,7 +688,7 @@ void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
   taosWUnLockLatch(&pTaskInfo->stopInfo.lock);
 }
 
-int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
+int32_t qAsyncKillTask(qTaskInfo_t qinfo, int32_t rspCode) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qinfo;
 
   if (pTaskInfo == NULL) {
@@ -697,7 +697,7 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
 
   qDebug("%s execTask async killed", GET_TASKID(pTaskInfo));
 
-  setTaskKilled(pTaskInfo);
+  setTaskKilled(pTaskInfo, rspCode);
 
   qStopTaskOperators(pTaskInfo);
 

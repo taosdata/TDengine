@@ -610,21 +610,10 @@ void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock* pB
 }
 
 bool isTaskKilled(SExecTaskInfo* pTaskInfo) {
-  // query has been executed more than tsShellActivityTimer, and the retrieve has not arrived
-  // abort current query execution.
-  if (pTaskInfo->owner != 0 &&
-      ((taosGetTimestampSec() - pTaskInfo->cost.start / 1000) > 10 * getMaximumIdleDurationSec())
-      /*(!needBuildResAfterQueryComplete(pTaskInfo))*/) {
-    assert(pTaskInfo->cost.start != 0);
-    //    qDebug("QInfo:%" PRIu64 " retrieve not arrive beyond %d ms, abort current query execution, start:%" PRId64
-    //           ", current:%d", pQInfo->qId, 1, pQInfo->startExecTs, taosGetTimestampSec());
-    //    return true;
-  }
-
-  return false;
+  return (0 != pTaskInfo->code) ? true : false;
 }
 
-void setTaskKilled(SExecTaskInfo* pTaskInfo) { pTaskInfo->code = TSDB_CODE_TSC_QUERY_CANCELLED; }
+void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode) { pTaskInfo->code = rspCode; }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key) {
