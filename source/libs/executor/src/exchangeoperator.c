@@ -367,7 +367,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     pSourceDataInfo->pRsp = pMsg->pData;
 
     SRetrieveTableRsp* pRsp = pSourceDataInfo->pRsp;
-    pRsp->numOfRows = htonll(pRsp->numOfRows);
+    pRsp->numOfRows = htobe64(pRsp->numOfRows);
     pRsp->compLen = htonl(pRsp->compLen);
     pRsp->numOfCols = htonl(pRsp->numOfCols);
     pRsp->useconds = htobe64(pRsp->useconds);
@@ -655,7 +655,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
 
     SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
     if (pRsp->completed == 1) {
-      qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d numOfRows:%d, rowsOfSource:%" PRIu64
+      qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d numOfRows:%" PRId64 ", rowsOfSource:%" PRIu64
              ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64 " try next %d/%" PRIzu,
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pRetrieveRsp->numOfRows,
              pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize, pExchangeInfo->current + 1,
@@ -664,7 +664,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
       pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
       pExchangeInfo->current += 1;
     } else {
-      qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d numOfRows:%d, totalRows:%" PRIu64
+      qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d numOfRows:%" PRId64 ", totalRows:%" PRIu64
              ", totalBytes:%" PRIu64,
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pRetrieveRsp->numOfRows,
              pLoadInfo->totalRows, pLoadInfo->totalSize);

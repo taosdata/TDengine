@@ -528,7 +528,7 @@ void schProcessOnDataFetched(SSchJob *pJob) { schPostJobRes(pJob, SCH_OP_FETCH);
 int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRsp *pRsp) {
   SCH_TASK_DLOG("got explain rsp, rows:%d, complete:%d", htonl(pRsp->numOfRows), pRsp->completed);
 
-  atomic_store_64(&pJob->resNumOfRows, htonll(pRsp->numOfRows));
+  atomic_store_64(&pJob->resNumOfRows, htobe64(pRsp->numOfRows));
   atomic_store_ptr(&pJob->fetchRes, pRsp);
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCC);

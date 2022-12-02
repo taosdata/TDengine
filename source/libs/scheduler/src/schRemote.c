@@ -108,7 +108,7 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
   }
   
   atomic_store_ptr(&pJob->fetchRes, rsp);
-  atomic_add_fetch_64(&pJob->resNumOfRows, htonll(rsp->numOfRows));
+  atomic_add_fetch_64(&pJob->resNumOfRows, htobe64(rsp->numOfRows));
   
   if (rsp->completed) {
     SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCC);

@@ -1941,7 +1941,7 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
 
   pResultInfo->pRspMsg = (const char*)pRsp;
   pResultInfo->pData = (void*)pRsp->data;
-  pResultInfo->numOfRows = htonll(pRsp->numOfRows);
+  pResultInfo->numOfRows = htobe64(pRsp->numOfRows);
   pResultInfo->current = 0;
   pResultInfo->completed = (pRsp->completed == 1);
   pResultInfo->payloadLen = htonl(pRsp->compLen);
