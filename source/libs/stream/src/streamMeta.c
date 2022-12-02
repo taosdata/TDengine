@@ -202,7 +202,7 @@ void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   }
 }
 
-void streamMetaRemoveTask1(SStreamMeta* pMeta, int32_t taskId) {
+void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
     SStreamTask* pTask = *ppTask;
@@ -217,35 +217,6 @@ void streamMetaRemoveTask1(SStreamMeta* pMeta, int32_t taskId) {
     streamMetaReleaseTask(pMeta, pTask);
     taosWUnLockLatch(&pMeta->lock);
   }
-}
-
-int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
-  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
-  if (ppTask) {
-    SStreamTask* pTask = *ppTask;
-    taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
-    atomic_store_8(&pTask->taskStatus, TASK_STATUS__DROPPING);
-
-    if (tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), pMeta->txn) < 0) {
-      /*return -1;*/
-    }
-
-    if (pTask->triggerParam != 0) {
-      taosTmrStop(pTask->timer);
-    }
-
-    while (1) {
-      int8_t schedStatus =
-          atomic_val_compare_exchange_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE, TASK_SCHED_STATUS__DROPPING);
-      if (schedStatus != TASK_SCHED_STATUS__ACTIVE) {
-        tFreeSStreamTask(pTask);
-        break;
-      }
-      taosMsleep(10);
-    }
-  }
-
-  return 0;
 }
 
 int32_t streamMetaBegin(SStreamMeta* pMeta) {

@@ -38,15 +38,9 @@ Download the latest TDengine-server from the [Downloads](http://tdengine.com/en/
 
 ## Data Connection Setup
 
-### Download TDengine plug-in to grafana plug-in directory
+### Install Grafana Plugin and Configure Data Source
 
-```bash
-1. wget -c https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip
-2. sudo unzip tdengine-datasource-3.1.3.zip -d /var/lib/grafana/plugins/
-3. sudo chown grafana:grafana -R /var/lib/grafana/plugins/tdengine
-4. echo -e "[plugins]\nallow_loading_unsigned_plugins = tdengine-datasource\n" | sudo tee -a /etc/grafana/grafana.ini
-5. sudo systemctl restart grafana-server.service
-```
+Please refer to [Install Grafana Plugin and Configure Data Source](/third-party/grafana/#install-grafana-plugin-and-configure-data-source)
 
 ### Modify /etc/telegraf/telegraf.conf
 
