@@ -198,7 +198,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
   }
 }
 
-static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator) {
+static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
@@ -307,7 +307,7 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pDummyBlock->pDataBlock);
 
   pOperator->fpSet =
-      createOperatorFpSet(prepareLoadRemoteData, doLoadRemoteData, NULL, destroyExchangeOperatorInfo, NULL);
+      createOperatorFpSet(prepareLoadRemoteData, loadRemoteData, NULL, destroyExchangeOperatorInfo, NULL);
   return pOperator;
 
 _error:
@@ -570,13 +570,10 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
 
   pOperator->status = OP_RES_TO_RETURN;
   pOperator->cost.openCost = taosGetTimestampUs() - startTs;
-
-  tsem_wait(&pExchangeInfo->ready);
   if (isTaskKilled(pTaskInfo)) {
     longjmp(pTaskInfo->env, pTaskInfo->code);
   }
 
-  tsem_post(&pExchangeInfo->ready);
   return TSDB_CODE_SUCCESS;
 }
 

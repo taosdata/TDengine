@@ -1241,6 +1241,7 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
     }
   }
 
+  // set the output flag for each column in SColMatchInfo, according to the
   *numOfOutputCols = 0;
   int32_t num = LIST_LENGTH(pOutputNodeList->pSlots);
   for (int32_t i = 0; i < num; ++i) {
@@ -1537,8 +1538,6 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->start.key = INT64_MIN;
     pCtx->end.key = INT64_MIN;
     pCtx->numOfParams = pExpr->base.numOfParams;
-    pCtx->isStream = false;
-
     pCtx->param = pFunct->pParam;
     pCtx->saveHandle.currentPage = -1;
   }
@@ -1602,20 +1601,22 @@ SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode) {
   pCond->order = pTableScanNode->scanSeq[0] > 0 ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
   pCond->numOfCols = LIST_LENGTH(pTableScanNode->scan.pScanCols);
+
   pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
-  if (pCond->colList == NULL) {
+  pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t)*pCond->numOfCols);
+  if (pCond->colList == NULL || pCond->pSlotList == NULL) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    taosMemoryFreeClear(pCond->colList);
+    taosMemoryFreeClear(pCond->pSlotList);
     return terrno;
   }
 
-  // pCond->twindow = pTableScanNode->scanRange;
   // TODO: get it from stable scan node
   pCond->twindows = pTableScanNode->scanRange;
   pCond->suid = pTableScanNode->scan.suid;
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
   pCond->endVersion = -1;
-  //  pCond->type = pTableScanNode->scanFlag;
 
   int32_t j = 0;
   for (int32_t i = 0; i < pCond->numOfCols; ++i) {
@@ -1628,6 +1629,8 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
     pCond->colList[j].type = pColNode->node.resType.type;
     pCond->colList[j].bytes = pColNode->node.resType.bytes;
     pCond->colList[j].colId = pColNode->colId;
+
+    pCond->pSlotList[j] = pNode->slotId;
     j += 1;
   }
 
@@ -1635,7 +1638,10 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   return TSDB_CODE_SUCCESS;
 }
 
-void cleanupQueryTableDataCond(SQueryTableDataCond* pCond) { taosMemoryFreeClear(pCond->colList); }
+void cleanupQueryTableDataCond(SQueryTableDataCond* pCond) {
+  taosMemoryFreeClear(pCond->colList);
+  taosMemoryFreeClear(pCond->pSlotList);
+}
 
 int32_t convertFillType(int32_t mode) {
   int32_t type = TSDB_FILL_NONE;
@@ -1965,7 +1971,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
-                                struct SExecTaskInfo* pTaskInfo) {
+                                SExecTaskInfo* pTaskInfo) {
   int64_t     st = taosGetTimestampUs();
   const char* idStr = GET_TASKID(pTaskInfo);
 
