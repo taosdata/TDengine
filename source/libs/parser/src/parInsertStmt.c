@@ -46,7 +46,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SMsgBuf             pBuf = {.buf = msgBuf, .len = msgBufLen};
   int32_t  code = TSDB_CODE_SUCCESS;
-  SParsedDataColInfo* tags = (SParsedDataColInfo*)boundTags;
+  SBoundColInfo* tags = (SBoundColInfo*)boundTags;
   if (NULL == tags) {
     return TSDB_CODE_QRY_APP_ERROR;
   }
@@ -72,7 +72,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       continue;
     }
 
-    SSchema* pTagSchema = &pSchema[tags->boundColumns[c]];
+    SSchema* pTagSchema = &pSchema[tags->pColIndex[c]];
     int32_t  colLen = pTagSchema->bytes;
     if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
       colLen = bind[c].length[0];
@@ -171,6 +171,8 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
     tColDataAddValueByBind(pCol, bind + c);
   }
 
+  qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -183,15 +185,17 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
   SSchema*            pColSchema = &pSchema[boundInfo->pColIndex[colIdx]];
   SColData*           pCol = taosArrayGet(pDataBlock->pData->aCol, colIdx);
   
-  if (bind[colIdx].num != rowNum) {
+  if (bind->num != rowNum) {
     return buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
   }
   
-  if (bind[colIdx].buffer_type != pColSchema->type) {
+  if (bind->buffer_type != pColSchema->type) {
     return buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
   }
   
   tColDataAddValueByBind(pCol, bind);
+
+  qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -224,7 +228,7 @@ int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSc
 
 int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TAOS_FIELD_E** fields) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
-  SParsedDataColInfo* tags = (SParsedDataColInfo*)boundTags;
+  SBoundColInfo* tags = (SBoundColInfo*)boundTags;
   if (NULL == tags) {
     return TSDB_CODE_QRY_APP_ERROR;
   }
@@ -241,7 +245,7 @@ int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TA
     return TSDB_CODE_SUCCESS;
   }
 
-  CHECK_CODE(buildBoundFields(tags->numOfBound, tags->boundColumns, pSchema, fieldNum, fields, 0));
+  CHECK_CODE(buildBoundFields(tags->numOfBound, tags->pColIndex, pSchema, fieldNum, fields, 0));
 
   return TSDB_CODE_SUCCESS;
 }

@@ -3748,6 +3748,31 @@ int32_t tDeserializeSMTimerMsg(void *buf, int32_t bufLen, SMTimerReq *pReq) {
   return 0;
 }
 
+int32_t tSerializeSMStreamTickMsg(void *buf, int32_t bufLen, SMStreamTickReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->tick) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMStreamTickMsg(void *buf, int32_t bufLen, SMStreamTickReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->tick) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 int32_t tEncodeSReplica(SEncoder *pEncoder, SReplica *pReplica) {
   if (tEncodeI32(pEncoder, pReplica->id) < 0) return -1;
   if (tEncodeU16(pEncoder, pReplica->port) < 0) return -1;
@@ -6886,7 +6911,6 @@ void tDestroySSubmitReq2(SSubmitReq2 *pReq, int32_t flag) {
 int32_t tEncodeSSubmitRsp2(SEncoder *pCoder, const SSubmitRsp2 *pRsp) {
   if (tStartEncode(pCoder) < 0) return -1;
 
-  if (tEncodeI32v(pCoder, pRsp->code) < 0) return -1;
   if (tEncodeI32v(pCoder, pRsp->affectedRows) < 0) return -1;
 
   if (tEncodeU64v(pCoder, taosArrayGetSize(pRsp->aCreateTbRsp)) < 0) return -1;
@@ -6905,11 +6929,6 @@ int32_t tDecodeSSubmitRsp2(SDecoder *pCoder, SSubmitRsp2 *pRsp) {
 
   // decode
   if (tStartDecode(pCoder) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto _exit;
-  }
-
-  if (tDecodeI32v(pCoder, &pRsp->code) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
@@ -6953,6 +6972,10 @@ _exit:
 }
 
 void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
+  if (NULL == pRsp) {
+    return;
+  }
+  
   if (flag & TSDB_MSG_FLG_ENCODE) {
     if (pRsp->aCreateTbRsp) {
       int32_t        nCreateTbRsp = TARRAY_SIZE(pRsp->aCreateTbRsp);
@@ -6965,7 +6988,15 @@ void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
       taosArrayDestroy(pRsp->aCreateTbRsp);
     }
   } else if (flag & TSDB_MSG_FLG_DECODE) {
-    // TODO
-    taosArrayDestroy(pRsp->aCreateTbRsp);
+    if (pRsp->aCreateTbRsp) {
+      int32_t        nCreateTbRsp = TARRAY_SIZE(pRsp->aCreateTbRsp);
+      SVCreateTbRsp *aCreateTbRsp = TARRAY_DATA(pRsp->aCreateTbRsp);
+      for (int32_t i = 0; i < nCreateTbRsp; ++i) {
+        if (aCreateTbRsp[i].pMeta) {
+          taosMemoryFree(aCreateTbRsp[i].pMeta);
+        }
+      }
+      taosArrayDestroy(pRsp->aCreateTbRsp);
+    }
   }
 }

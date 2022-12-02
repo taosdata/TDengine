@@ -120,6 +120,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_APPS,
   TSDB_MGMT_TABLE_STREAM_TASKS,
+  TSDB_MGMT_TABLE_PRIVILEGES,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -1146,6 +1147,13 @@ int32_t tSerializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
 int32_t tDeserializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
 
 typedef struct {
+  int64_t tick;
+} SMStreamTickReq;
+
+int32_t tSerializeSMStreamTickMsg(void* buf, int32_t bufLen, SMStreamTickReq* pReq);
+int32_t tDeserializeSMStreamTickMsg(void* buf, int32_t bufLen, SMStreamTickReq* pReq);
+
+typedef struct {
   int32_t  id;
   uint16_t port;                 // node sync Port
   char     fqdn[TSDB_FQDN_LEN];  // node FQDN
@@ -1747,6 +1755,8 @@ typedef struct {
   int64_t watermark;
   int32_t numOfTags;
   SArray* pTags;  // array of SField
+  // 3.0.20
+  int64_t checkpointFreq;  // ms
 } SCMCreateStreamReq;
 
 typedef struct {
@@ -1945,6 +1955,12 @@ _err:
 typedef struct {
   SHashObj* rebSubHash;  // SHashObj<key, SMqRebSubscribe>
 } SMqDoRebalanceMsg;
+
+typedef struct {
+  int64_t streamId;
+  int64_t checkpointId;
+  char    streamName[TSDB_STREAM_FNAME_LEN];
+} SMStreamDoCheckpointMsg;
 
 typedef struct {
   int64_t status;
@@ -3237,7 +3253,6 @@ void    tDestroySSubmitTbData(SSubmitTbData* pTbData, int32_t flag);
 void    tDestroySSubmitReq2(SSubmitReq2* pReq, int32_t flag);
 
 typedef struct {
-  int32_t code;
   int32_t affectedRows;
   SArray* aCreateTbRsp;  // SArray<SVCreateTbRsp>
 } SSubmitRsp2;
