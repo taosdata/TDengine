@@ -629,7 +629,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
 
   while (tsdbNextDataBlock(pTableScanInfo->base.dataReader)) {
     if (isTaskKilled(pTaskInfo)) {
-      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
     // process this data block based on the probabilities
@@ -2032,7 +2032,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
 
     if (pInfo->dataReader && tsdbNextDataBlock(pInfo->dataReader)) {
       if (isTaskKilled(pTaskInfo)) {
-        longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+        longjmp(pTaskInfo->env, pTaskInfo->code);
       }
 
       int32_t rows = 0;
@@ -2529,7 +2529,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   STsdbReader* reader = pInfo->base.dataReader;
   while (tsdbNextDataBlock(reader)) {
     if (isTaskKilled(pTaskInfo)) {
-      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
     // process this data block based on the probabilities
