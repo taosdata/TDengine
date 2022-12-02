@@ -207,7 +207,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
     }
     setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
 
-    pTaskInfo->cost.created = taosGetTimestampMs();
+    pTaskInfo->cost.created = taosGetTimestampUs();
     pTaskInfo->execModel = OPTR_EXEC_MODEL_QUEUE;
     pTaskInfo->pRoot = createRawScanOperatorInfo(readers, pTaskInfo);
     if (NULL == pTaskInfo->pRoot) {
@@ -711,7 +711,7 @@ static void printTaskExecCostInLog(SExecTaskInfo* pTaskInfo) {
   SFileBlockLoadRecorder* pRecorder = pSummary->pRecoder;
   if (pSummary->pRecoder != NULL) {
     qDebug(
-        "%s :cost summary: idle in queue:%.2f ms, elapsed time:%.2f ms, extract tableList:%.2f ms, "
+        "%s :cost summary: idle:%.2f ms, elapsed time:%.2f ms, extract tableList:%.2f ms, "
         "createGroupIdMap:%.2f ms, total blocks:%d, "
         "load block SMA:%d, load data block:%d, total rows:%" PRId64 ", check rows:%" PRId64,
         GET_TASKID(pTaskInfo), idleTime / 1000.0, pSummary->elapsedTime / 1000.0, pSummary->extractListTime,

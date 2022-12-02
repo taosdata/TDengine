@@ -1826,7 +1826,6 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
   setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
 
   pTaskInfo->schemaInfo.dbname = strdup(dbFName);
-  pTaskInfo->cost.created = taosGetTimestampMs();
   pTaskInfo->id.queryId = queryId;
   pTaskInfo->execModel = model;
   pTaskInfo->pTableInfoList = tableListCreate();
@@ -2333,6 +2332,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
     goto _complete;
   }
 
+  (*pTaskInfo)->cost.created = taosGetTimestampUs();
   return TSDB_CODE_SUCCESS;
 
 _complete:
