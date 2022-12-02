@@ -536,7 +536,7 @@ int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName*
     return TSDB_CODE_SUCCESS;
   }
   
-  CTG_ERR_JRET(ctgGetVgInfoFromHashValue2(pCtg, vgInfo ? vgInfo : dbCache->vgCache.vgInfo, pTableName, pVgroup));
+  CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, vgInfo ? vgInfo : dbCache->vgCache.vgInfo, pTableName, pVgroup));
 
 _return:
 

@@ -129,6 +129,7 @@ typedef struct SDBVgInfo {
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
   int64_t   stateTs;
   SHashObj* vgHash;      // key:vgId, value:SVgroupInfo
+  SArray*   vgArray;
 } SDBVgInfo;
 
 typedef struct SUseDbOutput {

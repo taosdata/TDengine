@@ -226,6 +226,7 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
+/*
 int32_t ctgAcquireStbMetaFromCache(SCatalog *pCtg, char *dbFName, uint64_t suid, SCtgDBCache **pDb, SCtgTbCache **pTb) {
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *pCache = NULL;
@@ -276,9 +277,9 @@ _return:
 
   return TSDB_CODE_SUCCESS;
 }
+*/
 
-
-int32_t ctgAcquireStbMetaFromCache2(SCtgDBCache *dbCache, SCatalog *pCtg, char *dbFName, uint64_t suid, SCtgTbCache **pTb) {
+int32_t ctgAcquireStbMetaFromCache(SCtgDBCache *dbCache, SCatalog *pCtg, char *dbFName, uint64_t suid, SCtgTbCache **pTb) {
   SCtgTbCache *pCache = NULL;
   char *stName = taosHashAcquire(dbCache->stbCache, &suid, sizeof(suid));
   if (NULL == stName) {
@@ -437,7 +438,7 @@ int32_t ctgReadTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **
   ctgDebug("Got ctb %s meta from cache, will continue to get its stb meta, type:%d, dbFName:%s", ctx->pName->tname,
            ctx->tbInfo.tbType, dbFName);
 
-  ctgAcquireStbMetaFromCache2(dbCache, pCtg, dbFName, ctx->tbInfo.suid, &tbCache);
+  ctgAcquireStbMetaFromCache(dbCache, pCtg, dbFName, ctx->tbInfo.suid, &tbCache);
 
   STableMeta *stbMeta = tbCache->pMeta;
   if (stbMeta->suid != ctx->tbInfo.suid) {
@@ -503,10 +504,15 @@ int32_t ctgReadTbVerFromCache(SCatalog *pCtg, SName *pTableName, int32_t *sver, 
 
   // PROCESS FOR CHILD TABLE
 
-  ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
+  //ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
+  if (tbCache) {
+    CTG_UNLOCK(CTG_READ, &tbCache->metaLock);
+    taosHashRelease(dbCache->tbCache, tbCache);
+  }
+  
   ctgDebug("Got ctb %s ver from cache, will continue to get its stb ver, dbFName:%s", pTableName->tname, dbFName);
 
-  ctgAcquireStbMetaFromCache(pCtg, dbFName, *suid, &dbCache, &tbCache);
+  ctgAcquireStbMetaFromCache(dbCache, pCtg, dbFName, *suid, &tbCache);
   if (NULL == tbCache) {
     ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
     ctgDebug("stb 0x%" PRIx64 " meta not in cache", *suid);
@@ -844,6 +850,18 @@ int32_t ctgUpdateVgroupEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId
   char *p = strchr(dbFName, '.');
   if (p && IS_SYS_DBNAME(p + 1)) {
     dbFName = p + 1;
+  }
+
+  if (dbInfo->vgHash && NULL == dbInfo->vgArray) {
+    dbInfo->vgArray = taosArrayInit(100, sizeof(SVgroupInfo));
+    
+    void*   pIter = taosHashIterate(dbInfo->vgHash, NULL);
+    while (pIter) {
+      taosArrayPush(dbInfo->vgArray, pIter);
+      pIter = taosHashIterate(dbInfo->vgHash, pIter);
+    }
+    
+    taosArraySort(dbInfo->vgArray, ctgVgInfoComp);
   }
 
   tstrncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
@@ -1592,6 +1610,20 @@ void ctgFreeAllInstance(void) {
   taosHashClear(gCtgMgmt.pCluster);
 }
 
+int32_t ctgVgInfoIdComp(void const* lp, void const* rp) {
+  int32_t*    key = (int32_t*)lp;
+  SVgroupInfo* pVg = (SVgroupInfo*)rp;
+
+  if (*key < pVg->vgId) {
+    return -1;
+  } else if (*key > pVg->vgId) {
+    return 1;
+  }
+
+  return 0;
+}
+
+
 int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
   int32_t          code = 0;
   SCtgUpdateVgMsg *msg = operation->data;
@@ -1973,7 +2005,13 @@ int32_t ctgOpUpdateEpset(SCtgCacheOperation *operation) {
 
   SVgroupInfo *pInfo = taosHashGet(vgInfo->vgHash, &msg->vgId, sizeof(msg->vgId));
   if (NULL == pInfo) {
-    ctgDebug("no vgroup %d in db %s, ignore epset update", msg->vgId, msg->dbFName);
+    ctgDebug("no vgroup %d in db %s vgHash, ignore epset update", msg->vgId, msg->dbFName);
+    goto _return;
+  }
+
+  SVgroupInfo *pInfo2 = taosArraySearch(vgInfo->vgArray, &msg->vgId, ctgVgInfoIdComp, TD_EQ);
+  if (NULL == pInfo2) {
+    ctgDebug("no vgroup %d in db %s vgArray, ignore epset update", msg->vgId, msg->dbFName);
     goto _return;
   }
 
@@ -1984,6 +2022,7 @@ int32_t ctgOpUpdateEpset(SCtgCacheOperation *operation) {
            msg->epSet.numOfEps, pNewEp->fqdn, pNewEp->port, msg->dbFName);
 
   pInfo->epSet = msg->epSet;
+  pInfo2->epSet = msg->epSet;
 
 _return:
 
