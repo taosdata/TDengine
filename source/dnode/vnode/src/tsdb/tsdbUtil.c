@@ -1097,7 +1097,8 @@ void tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColD
   int32_t ridx = pBlockData->nColData - 1;
 
   while (lidx <= ridx) {
-    int32_t   midx = (lidx + ridx) >> 2;
+    int32_t midx = lidx + (ridx - lidx) * (cid - pBlockData->aColData[lidx].cid) /
+                              (pBlockData->aColData[ridx].cid - pBlockData->aColData[lidx].cid);
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, midx);
     int32_t   c = (pColData->cid == cid) ? 0 : ((pColData->cid > cid) ? 1 : -1);
 
