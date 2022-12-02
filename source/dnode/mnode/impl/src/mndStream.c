@@ -28,7 +28,7 @@
 #include "parser.h"
 #include "tname.h"
 
-#define MND_STREAM_VER_NUMBER   1
+#define MND_STREAM_VER_NUMBER   2
 #define MND_STREAM_RESERVE_SIZE 64
 
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
@@ -133,7 +133,7 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto STREAM_DECODE_OVER;
 
-  if (sver != MND_STREAM_VER_NUMBER) {
+  if (sver != 1 && sver != 2) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto STREAM_DECODE_OVER;
   }
@@ -153,7 +153,7 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
 
   SDecoder decoder;
   tDecoderInit(&decoder, buf, tlen + 1);
-  if (tDecodeSStreamObj(&decoder, pStream) < 0) {
+  if (tDecodeSStreamObj(&decoder, pStream, sver) < 0) {
     tDecoderClear(&decoder);
     goto STREAM_DECODE_OVER;
   }

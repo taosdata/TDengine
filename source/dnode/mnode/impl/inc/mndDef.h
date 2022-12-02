@@ -647,7 +647,7 @@ typedef struct {
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
-int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj);
+int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj, int32_t sver);
 void    tFreeStreamObj(SStreamObj* pObj);
 
 typedef struct {
