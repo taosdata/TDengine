@@ -150,20 +150,26 @@ _exit:
   return code;
 }
 
+int32_t tsdbPrepareCommit(STsdb *pTsdb) {
+  taosThreadRwlockWrlock(&pTsdb->rwLock);
+  ASSERT(pTsdb->imem == NULL);
+  pTsdb->imem = pTsdb->mem;
+  pTsdb->mem = NULL;
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
+
+  return 0;
+}
+
 int32_t tsdbCommit(STsdb *pTsdb) {
   if (!pTsdb) return 0;
 
   int32_t    code = 0;
   int32_t    lino = 0;
   SCommitter commith;
-  SMemTable *pMemTable = pTsdb->mem;
+  SMemTable *pMemTable = pTsdb->imem;
 
   // check
   if (pMemTable->nRow == 0 && pMemTable->nDel == 0) {
-    taosThreadRwlockWrlock(&pTsdb->rwLock);
-    pTsdb->mem = NULL;
-    taosThreadRwlockUnlock(&pTsdb->rwLock);
-
     tsdbUnrefMemTable(pMemTable);
     goto _exit;
   }
@@ -811,12 +817,7 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   int32_t lino = 0;
 
   memset(pCommitter, 0, sizeof(*pCommitter));
-  ASSERT(pTsdb->mem && pTsdb->imem == NULL && "last tsdb commit incomplete");
-
-  taosThreadRwlockWrlock(&pTsdb->rwLock);
-  pTsdb->imem = pTsdb->mem;
-  pTsdb->mem = NULL;
-  taosThreadRwlockUnlock(&pTsdb->rwLock);
+  ASSERT(pTsdb->imem && "last tsdb commit incomplete");
 
   pCommitter->pTsdb = pTsdb;
   pCommitter->commitID = pTsdb->pVnode->state.commitID;
