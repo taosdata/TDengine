@@ -85,8 +85,6 @@ typedef struct SAggOperatorInfo {
   SExprSupp        scalarExprSup;
 } SAggOperatorInfo;
 
-int32_t getMaximumIdleDurationSec() { return tsShellActivityTimer * 2; }
-
 static void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pBlock);
 
 static void releaseQueryBuf(size_t numOfTables);
@@ -106,7 +104,7 @@ void setOperatorCompleted(SOperatorInfo* pOperator) {
   pOperator->status = OP_EXEC_DONE;
   ASSERT(pOperator->pTaskInfo != NULL);
 
-  pOperator->cost.totalCost = (taosGetTimestampUs() - pOperator->pTaskInfo->cost.start * 1000) / 1000.0;
+  pOperator->cost.totalCost = (taosGetTimestampUs() - pOperator->pTaskInfo->cost.start) / 1000.0;
   setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
 }
 
@@ -120,19 +118,21 @@ void setOperatorInfo(SOperatorInfo* pOperator, const char* name, int32_t type, b
   pOperator->pTaskInfo = pTaskInfo;
 }
 
-int32_t operatorDummyOpenFn(SOperatorInfo* pOperator) {
+int32_t optrDummyOpenFn(SOperatorInfo* pOperator) {
   OPTR_SET_OPENED(pOperator);
   pOperator->cost.openCost = 0;
   return TSDB_CODE_SUCCESS;
 }
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
-                                   __optr_close_fn_t closeFn, __optr_explain_fn_t explain) {
+                                   __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn,
+                                   __optr_explain_fn_t explain) {
   SOperatorFpSet fpSet = {
       ._openFn = openFn,
       .getNextFn = nextFn,
       .cleanupFn = cleanup,
       .closeFn = closeFn,
+      .reqBufFn = reqBufFn,
       .getExplainFn = explain,
   };
 
@@ -939,10 +939,10 @@ static void setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, u
 }
 
 static void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs,
-                              const int32_t* rowCellOffset) {
+                              const int32_t* rowEntryOffset) {
   bool returnNotNull = false;
   for (int32_t j = 0; j < numOfExprs; ++j) {
-    struct SResultRowEntryInfo* pResInfo = getResultEntryInfo(pRow, j, rowCellOffset);
+    SResultRowEntryInfo* pResInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
     if (!isRowEntryInitialized(pResInfo)) {
       continue;
     }
@@ -1144,43 +1144,6 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
     pBlock->info.id.groupId = 0;
   }
 }
-
-// void skipBlocks(STaskRuntimeEnv *pRuntimeEnv) {
-//   STaskAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
-//
-//   if (pQueryAttr->limit.offset <= 0 || pQueryAttr->numOfFilterCols > 0) {
-//     return;
-//   }
-//
-//   pQueryAttr->pos = 0;
-//   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQueryAttr->order.order);
-//
-//   STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
-//   TsdbQueryHandleT pTsdbReadHandle = pRuntimeEnv->pTsdbReadHandle;
-//
-//   SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
-//   while (tsdbNextDataBlock(pTsdbReadHandle)) {
-//     if (isTaskKilled(pRuntimeEnv->qinfo)) {
-//       T_LONG_JMP(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
-//     }
-//
-//     if (pQueryAttr->limit.offset > blockInfo.rows) {
-//       pQueryAttr->limit.offset -= blockInfo.rows;
-//       pTableQueryInfo->lastKey = (QUERY_IS_ASC_QUERY(pQueryAttr)) ? blockInfo.window.ekey : blockInfo.window.skey;
-//       pTableQueryInfo->lastKey += step;
-//
-//       //qDebug("QInfo:0x%"PRIx64" skip rows:%d, offset:%" PRId64, GET_TASKID(pRuntimeEnv), blockInfo.rows,
-//              pQuery->limit.offset);
-//     } else {  // find the appropriated start position in current block
-//       updateOffsetVal(pRuntimeEnv, &blockInfo);
-//       break;
-//     }
-//   }
-//
-//   if (terrno != TSDB_CODE_SUCCESS) {
-//     T_LONG_JMP(pRuntimeEnv->env, terrno);
-//   }
-// }
 
 // static TSKEY doSkipIntervalProcess(STaskRuntimeEnv* pRuntimeEnv, STimeWindow* win, SDataBlockInfo* pBlockInfo,
 // STableQueryInfo* pTableQueryInfo) {
@@ -1406,11 +1369,11 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
 
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
   bool hasCountFunc = false;
+
   for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
-    if ((strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "count") == 0) ||
-        (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "hyperloglog") == 0) ||
-        (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_hyperloglog_partial") == 0) ||
-        (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_hyperloglog_merge") == 0)) {
+    const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
+    if ((strcmp(pName, "count") == 0) || (strcmp(pName, "hyperloglog") == 0) ||
+        (strcmp(pName, "_hyperloglog_partial") == 0) || (strcmp(pName, "_hyperloglog_merge") == 0)) {
       hasCountFunc = true;
       break;
     }
@@ -1462,7 +1425,6 @@ static void destroyDataBlockForEmptyInput(bool blockAllocated, SSDataBlock **ppB
   blockDataDestroy(*ppBlock);
   *ppBlock = NULL;
 }
-
 
 // this is a blocking operator
 static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
@@ -1612,6 +1574,15 @@ void destroyOperatorInfo(SOperatorInfo* pOperator) {
 
   cleanupExprSupp(&pOperator->exprSupp);
   taosMemoryFreeClear(pOperator);
+}
+
+// each operator should be set their own function to return total cost buffer
+int32_t optrDefaultBufFn(SOperatorInfo* pOperator) {
+  if (pOperator->blocking) {
+    ASSERT(0);
+  } else {
+    return 0;
+  }
 }
 
 int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz) {
@@ -1794,7 +1765,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
 
   setOperatorInfo(pOperator, "TableAggregate", QUERY_NODE_PHYSICAL_PLAN_HASH_AGG, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(doOpenAggregateOptr, getAggregateResult, NULL, destroyAggOperatorInfo, NULL);
+  pOperator->fpSet = createOperatorFpSet(doOpenAggregateOptr, getAggregateResult, NULL, destroyAggOperatorInfo, optrDefaultBufFn, NULL);
 
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = downstream->info;
@@ -1871,8 +1842,6 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
 
 SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode);
 
-SOperatorInfo* createTableCountScanOperatorInfo(SReadHandle* handle, STableCountScanPhysiNode* pNode,
-                                                SExecTaskInfo* pTaskInfo);
 int32_t extractTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pHandle->meta, 0);

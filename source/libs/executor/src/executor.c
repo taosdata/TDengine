@@ -503,7 +503,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   }
 
   if (pTaskInfo->cost.start == 0) {
-    pTaskInfo->cost.start = taosGetTimestampMs();
+    pTaskInfo->cost.start = taosGetTimestampUs();
   }
 
   if (isTaskKilled(pTaskInfo)) {
@@ -597,7 +597,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
   }
 
   if (pTaskInfo->cost.start == 0) {
-    pTaskInfo->cost.start = taosGetTimestampMs();
+    pTaskInfo->cost.start = taosGetTimestampUs();
   }
 
   if (isTaskKilled(pTaskInfo)) {
@@ -706,15 +706,20 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo, int32_t rspCode) {
 
 static void printTaskExecCostInLog(SExecTaskInfo* pTaskInfo) {
   STaskCostInfo* pSummary = &pTaskInfo->cost;
+  int64_t        idleTime = pSummary->start - pSummary->created;
 
   SFileBlockLoadRecorder* pRecorder = pSummary->pRecoder;
   if (pSummary->pRecoder != NULL) {
     qDebug(
-        "%s :cost summary: elapsed time:%.2f ms, extract tableList:%.2f ms, createGroupIdMap:%.2f ms, total blocks:%d, "
+        "%s :cost summary: idle in queue:%.2f ms, elapsed time:%.2f ms, extract tableList:%.2f ms, "
+        "createGroupIdMap:%.2f ms, total blocks:%d, "
         "load block SMA:%d, load data block:%d, total rows:%" PRId64 ", check rows:%" PRId64,
-        GET_TASKID(pTaskInfo), pSummary->elapsedTime / 1000.0, pSummary->extractListTime, pSummary->groupIdMapTime,
-        pRecorder->totalBlocks, pRecorder->loadBlockStatis, pRecorder->loadBlocks, pRecorder->totalRows,
-        pRecorder->totalCheckedRows);
+        GET_TASKID(pTaskInfo), idleTime / 1000.0, pSummary->elapsedTime / 1000.0, pSummary->extractListTime,
+        pSummary->groupIdMapTime, pRecorder->totalBlocks, pRecorder->loadBlockStatis, pRecorder->loadBlocks,
+        pRecorder->totalRows, pRecorder->totalCheckedRows);
+  } else {
+    qDebug("%s :cost summary: idle in queue:%.2f ms, elapsed time:%.2f ms", GET_TASKID(pTaskInfo), idleTime / 1000.0,
+           pSummary->elapsedTime / 1000.0);
   }
 }
 
