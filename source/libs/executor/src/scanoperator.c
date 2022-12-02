@@ -224,10 +224,8 @@ static bool doFilterByBlockSMA(SFilterInfo* pFilterInfo, SColumnDataAgg** pColsA
 }
 
 static bool doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
-  bool             allColumnsHaveAgg = true;
-  SColumnDataAgg** pColAgg = NULL;
-
-  int32_t code = tsdbRetrieveDatablockSMA(pTableScanInfo->dataReader, &pColAgg, &allColumnsHaveAgg);
+  bool    allColumnsHaveAgg = true;
+  int32_t code = tsdbRetrieveDatablockSMA(pTableScanInfo->dataReader, &pBlock->pBlockAgg, &allColumnsHaveAgg);
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
@@ -387,11 +385,12 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   pCost->totalCheckedRows += pBlock->info.rows;
   pCost->loadBlocks += 1;
 
-  SArray* pCols = tsdbRetrieveDataBlock(pTableScanInfo->dataReader, NULL);
-  if (pCols == NULL) {
+  SSDataBlock* p = tsdbRetrieveDataBlock(pTableScanInfo->dataReader, NULL);
+  if (p == NULL) {
     return terrno;
   }
 
+  ASSERT(p == pBlock);
   doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
 
   // restore the previous value
@@ -994,19 +993,10 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
     return NULL;
   }
 
-  bool hasBlock = tsdbNextDataBlock(pReader);
-  if (hasBlock) {
-    SDataBlockInfo* pBInfo = &pBlock->info;
-
-//    int32_t rows = 0;
-//    tsdbRetrieveDataBlockInfo(pReader, &rows, &pBInfo->id.uid, &pBInfo->window);
-
-    SArray* pCols = tsdbRetrieveDataBlock(pReader, NULL);
-
-//    relocateColumnData(pBlock, pTableScanInfo->base.matchInfo.pList, pCols, true);
+  if (tsdbNextDataBlock(pReader)) {
+    /*SSDataBlock* p = */tsdbRetrieveDataBlock(pReader, NULL);
     doSetTagColumnData(&pTableScanInfo->base, pBlock, pTaskInfo, pBlock->info.rows);
-
-    pBlock->info.id.groupId = getTableGroupId(pTaskInfo->pTableInfoList, pBInfo->id.uid);
+    pBlock->info.id.groupId = getTableGroupId(pTaskInfo->pTableInfoList, pBlock->info.id.uid);
   }
 
   tsdbReaderClose(pReader);
@@ -2030,20 +2020,13 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
 
   qDebug("tmqsnap doRawScan called");
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
-    SSDataBlock* pBlock = &pInfo->pRes;
-
     if (pInfo->dataReader && tsdbNextDataBlock(pInfo->dataReader)) {
       if (isTaskKilled(pTaskInfo)) {
         longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
       }
 
-      int32_t rows = 0;
-      tsdbRetrieveDataBlockInfo(pInfo->dataReader, &rows, &pBlock->info.id.uid, &pBlock->info.window);
-      pBlock->info.rows = rows;
-
-      SArray* pCols = tsdbRetrieveDataBlock(pInfo->dataReader, NULL);
-      pBlock->pDataBlock = pCols;
-      if (pCols == NULL) {
+      SSDataBlock* pBlock = tsdbRetrieveDataBlock(pInfo->dataReader, NULL);
+      if (pBlock == NULL) {
         longjmp(pTaskInfo->env, terrno);
       }
 
