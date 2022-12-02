@@ -1146,7 +1146,7 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
       if (delTs > nextKey.ts) {
         break;
       }
-      endTs = delTs;
+
       SWinKey delKey = {.groupId = delGroupId, .ts = delTs};
       if (delTs == nextKey.ts) {
         code = streamStateCurNext(pOperator->pTaskInfo->streamInfo.pState, pCur);
@@ -1159,7 +1159,7 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
           streamStateFreeCur(pCur);
           pCur = streamStateGetAndCheckCur(pOperator->pTaskInfo->streamInfo.pState, &nextKey);
         }
-        endTs = TMAX(ts, nextKey.ts - 1);
+        endTs = TMAX(delTs, nextKey.ts - 1);
         if (code != TSDB_CODE_SUCCESS) {
           break;
         }

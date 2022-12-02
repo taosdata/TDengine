@@ -132,6 +132,8 @@ _OVER:
 
 static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SSdbRow *pRow = NULL;
+  SSmaObj *pSma = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -141,10 +143,10 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SSmaObj));
+  pRow = sdbAllocRow(sizeof(SSmaObj));
   if (pRow == NULL) goto _OVER;
 
-  SSmaObj *pSma = sdbGetRowObj(pRow);
+  pSma = sdbGetRowObj(pRow);
   if (pSma == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -200,7 +202,7 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("sma:%s, failed to decode from raw:%p since %s", pSma->name, pRaw, terrstr());
+    mError("sma:%s, failed to decode from raw:%p since %s", pSma == NULL ? "null" : pSma->name, pRaw, terrstr());
     taosMemoryFreeClear(pSma->expr);
     taosMemoryFreeClear(pSma->tagsFilter);
     taosMemoryFreeClear(pSma->sql);

@@ -285,6 +285,9 @@ void walAlignVersions(SWal* pWal) {
   if (pWal->vers.lastVer < pWal->vers.snapshotVer) {
     wWarn("vgId:%d, lastVer:%" PRId64 " is less than snapshotVer:%" PRId64 ". align with it.", pWal->cfg.vgId,
           pWal->vers.lastVer, pWal->vers.snapshotVer);
+    if (pWal->vers.lastVer < pWal->vers.firstVer) {
+      pWal->vers.firstVer = pWal->vers.snapshotVer + 1;
+    }
     pWal->vers.lastVer = pWal->vers.snapshotVer;
   }
   if (pWal->vers.commitVer < pWal->vers.snapshotVer) {

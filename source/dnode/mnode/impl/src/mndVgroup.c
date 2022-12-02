@@ -113,6 +113,8 @@ _OVER:
 
 SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SSdbRow *pRow = NULL;
+  SVgObj  *pVgroup = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -122,10 +124,10 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SVgObj));
+  pRow = sdbAllocRow(sizeof(SVgObj));
   if (pRow == NULL) goto _OVER;
 
-  SVgObj *pVgroup = sdbGetRowObj(pRow);
+  pVgroup = sdbGetRowObj(pRow);
   if (pVgroup == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -152,7 +154,7 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("vgId:%d, failed to decode from raw:%p since %s", pVgroup->vgId, pRaw, terrstr());
+    mError("vgId:%d, failed to decode from raw:%p since %s", pVgroup == NULL ? 0 : pVgroup->vgId, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -186,6 +188,7 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
       if (pNewGid->dnodeId == pOldGid->dnodeId) {
         pNewGid->syncState = pOldGid->syncState;
         pNewGid->syncRestore = pOldGid->syncRestore;
+        pNewGid->syncCanRead = pOldGid->syncCanRead;
       }
     }
   }
@@ -696,8 +699,16 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
         if (!exist) {
           strcpy(role, "dropping");
         } else if (online) {
-          bool show = (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER && !pVgroup->vnodeGid[i].syncRestore);
-          snprintf(role, sizeof(role), "%s%s", syncStr(pVgroup->vnodeGid[i].syncState), show ? "*" : "");
+          char *star = "";
+          if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER) {
+            if (!pVgroup->vnodeGid[i].syncRestore && !pVgroup->vnodeGid[i].syncCanRead) {
+              star = "**";
+            } else if (!pVgroup->vnodeGid[i].syncRestore && pVgroup->vnodeGid[i].syncCanRead) {
+              star = "*";
+            } else {
+            }
+          }
+          snprintf(role, sizeof(role), "%s%s", syncStr(pVgroup->vnodeGid[i].syncState), star);
         } else {
         }
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->pMeta->pSchemas[cols].bytes);

@@ -63,7 +63,7 @@ class TDCases:
 
         tdLog.info("total %d Linux test case(s) executed" % (runNum))
 
-    def runOneLinux(self, conn, fileName, replicaVar):
+    def runOneLinux(self, conn, fileName, replicaVar=1):
         testModule = self.__dynamicLoadModule(fileName)
 
         runNum = 0

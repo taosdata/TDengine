@@ -536,6 +536,7 @@ typedef struct SStreamIntervalOperatorInfo {
   SArray*            pChildren;
   SStreamState*      pState;
   SWinKey            delKey;
+  uint64_t           numOfDatapack;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {
