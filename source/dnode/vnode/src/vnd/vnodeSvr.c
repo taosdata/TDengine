@@ -291,7 +291,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       vnodeProcessAlterConfigReq(pVnode, version, pReq, len, pRsp);
       break;
     case TDMT_VND_COMMIT:
-      goto _do_commit;
+      vnodeSyncCommit(pVnode);
+      vnodeBegin(pVnode);
+      goto _exit;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
       return -1;
@@ -309,7 +311,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
 
   // commit if need
   if (vnodeShouldCommit(pVnode)) {
-  _do_commit:
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), version);
     vnodeAsyncCommit(pVnode);
 
@@ -320,6 +321,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     }
   }
 
+_exit:
   return 0;
 
 _err:
