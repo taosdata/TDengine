@@ -644,17 +644,6 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   return -1;
 }
 
-static int32_t mndCheckMsgContent(SRpcMsg *pMsg) {
-  if (!IsReq(pMsg)) return 0;
-  if (pMsg->contLen != 0 && pMsg->pCont != NULL) return 0;
-
-  const STraceId *trace = &pMsg->info.traceId;
-  mGError("msg:%p, failed to check msg, cont:%p contLen:%d, app:%p type:%s", pMsg, pMsg->pCont, pMsg->contLen,
-          pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
-  terrno = TSDB_CODE_INVALID_MSG_LEN;
-  return -1;
-}
-
 int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
   SMnode         *pMnode = pMsg->info.node;
   const STraceId *trace = &pMsg->info.traceId;
@@ -666,7 +655,6 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
     return -1;
   }
 
-  if (mndCheckMsgContent(pMsg) != 0) return -1;
   if (mndCheckMnodeState(pMsg) != 0) return -1;
 
   mGTrace("msg:%p, start to process in mnode, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));

@@ -51,13 +51,15 @@ static inline void dmSendRedirectRsp(SRpcMsg *pMsg, const SEpSet *pNewEpSet) {
 }
 
 int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
+  const STraceId *trace = &pMsg->info.traceId;
+
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pMsg->msgType)];
   if (msgFp == NULL) {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+    dGError("msg:%p, not processed since no handler", pMsg);
     return -1;
   }
 
-  const STraceId *trace = &pMsg->info.traceId;
   dGTrace("msg:%p, will be processed by %s", pMsg, pWrapper->name);
   pMsg->info.wrapper = pWrapper;
   return (*msgFp)(pWrapper->pMgmt, pMsg);
@@ -99,18 +101,23 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       dmProcessServerStartupStatus(pDnode, pRpc);
       return;
     } else {
-      terrno = TSDB_CODE_APP_NOT_READY;
+      if (pDnode->status == DND_STAT_INIT) {
+        terrno = TSDB_CODE_APP_IS_STARTING;
+      } else {
+        terrno = TSDB_CODE_APP_IS_STOPPING;
+      }
       goto _OVER;
     }
   }
 
-  if (IsReq(pRpc) && pRpc->pCont == NULL) {
+  if (pRpc->pCont == NULL && (IsReq(pRpc) || pRpc->contLen != 0)) {
     dGError("msg:%p, type:%s pCont is NULL", pRpc, TMSG_INFO(pRpc->msgType));
     terrno = TSDB_CODE_INVALID_MSG_LEN;
     goto _OVER;
   }
 
   if (pHandle->defaultNtype == NODE_END) {
+    dGError("msg:%p, type:%s not processed since no handle", pRpc, TMSG_INFO(pRpc->msgType));
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
     goto _OVER;
   }
