@@ -1196,9 +1196,165 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
   int64_t     oversion;
   const void *pData = NULL;
   int         nData = 0;
-  // add index
+
+  if (pAlterTbReq->tagName == NULL) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  // search name index
+  ret = tdbTbGet(pMeta->pNameIdx, pAlterTbReq->tbName, strlen(pAlterTbReq->tbName) + 1, &pVal, &nVal);
+  if (ret < 0) {
+    terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    return -1;
+  }
+
+  uid = *(tb_uid_t *)pVal;
+  tdbFree(pVal);
+  pVal = NULL;
+
+  // search uid index
+  TBC *pUidIdxc = NULL;
+
+  tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
+  tdbTbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
+  ASSERT(c == 0);
+
+  tdbTbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
+  oversion = ((SUidIdxVal *)pData)[0].version;
+
+  // search table.db
+  TBC     *pTbDbc = NULL;
+  SDecoder dc1 = {0};
+  SDecoder dc2 = {0};
+
+  /* get ctbEntry */
+  tdbTbcOpen(pMeta->pTbDb, &pTbDbc, &pMeta->txn);
+  tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
+  ASSERT(c == 0);
+  tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData);
+
+  ctbEntry.pBuf = taosMemoryMalloc(nData);
+  memcpy(ctbEntry.pBuf, pData, nData);
+  tDecoderInit(&dc1, ctbEntry.pBuf, nData);
+  metaDecodeEntry(&dc1, &ctbEntry);
+
+  /* get stbEntry*/
+  tdbTbGet(pMeta->pUidIdx, &ctbEntry.ctbEntry.suid, sizeof(tb_uid_t), &pVal, &nVal);
+  if (!pVal) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _err;
+  }
+
+  tdbTbGet(pMeta->pTbDb, &((STbDbKey){.uid = ctbEntry.ctbEntry.suid, .version = ((SUidIdxVal *)pVal)[0].version}),
+           sizeof(STbDbKey), (void **)&stbEntry.pBuf, &nVal);
+  tdbFree(pVal);
+  tDecoderInit(&dc2, stbEntry.pBuf, nVal);
+  metaDecodeEntry(&dc2, &stbEntry);
+
+  SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
+  SSchema        *pColumn = NULL;
+  int32_t         iCol = 0;
+  for (;;) {
+    pColumn = NULL;
+
+    if (iCol >= pTagSchema->nCols) break;
+    pColumn = &pTagSchema->pSchema[iCol];
+
+    if (strcmp(pColumn->name, pAlterTbReq->tagName) == 0) break;
+    iCol++;
+  }
+
+  if (pColumn == NULL) {
+    terrno = TSDB_CODE_VND_COL_NOT_EXISTS;
+    goto _err;
+  }
+
+  ctbEntry.version = version;
+  if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _err;
+  }
+
+  const STag *pOldTag = (const STag *)ctbEntry.ctbEntry.pTags;
+  STag       *pNewTag = NULL;
+  SArray     *pTagArray = taosArrayInit(pTagSchema->nCols, sizeof(STagVal));
+  if (!pTagArray) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  // for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+  //   SSchema *pCol = &pTagSchema->pSchema[i];
+  //   if (iCol == i) {
+  //     if (pAlterTbReq->isNull) {
+  //       continue;
+  //     }
+  //     STagVal val = {0};
+  //     val.type = pCol->type;
+  //     val.cid = pCol->colId;
+  //     if (IS_VAR_DATA_TYPE(pCol->type)) {
+  //       val.pData = pAlterTbReq->pTagVal;
+  //       val.nData = pAlterTbReq->nTagVal;
+  //     } else {
+  //       memcpy(&val.i64, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
+  //     }
+  //     taosArrayPush(pTagArray, &val);
+  //   } else {
+  //     STagVal val = {.cid = pCol->colId};
+  //     if (tTagGet(pOldTag, &val)) {
+  //       taosArrayPush(pTagArray, &val);
+  //     }
+  //   }
+  // }
+
+  // if ((terrno = tTagNew(pTagArray, pTagSchema->version, false, &pNewTag)) < 0) {
+  //   taosArrayDestroy(pTagArray);
+  //   goto _err;
+  // }
+  // ctbEntry.ctbEntry.pTags = (uint8_t *)pNewTag;
+  // taosArrayDestroy(pTagArray);
+
+  metaWLock(pMeta);
+
+  // save to table.db
+  metaSaveToTbDb(pMeta, &ctbEntry);
+
+  // save to uid.idx
+  metaUpdateUidIdx(pMeta, &ctbEntry);
+
+  if (iCol == 0) {
+    metaUpdateTagIdx(pMeta, &ctbEntry);
+  }
+
+  ASSERT(ctbEntry.ctbEntry.pTags);
+  SCtbIdxKey ctbIdxKey = {.suid = ctbEntry.ctbEntry.suid, .uid = uid};
+  tdbTbUpsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), ctbEntry.ctbEntry.pTags,
+              ((STag *)(ctbEntry.ctbEntry.pTags))->len, &pMeta->txn);
+
+  metaUidCacheClear(pMeta, ctbEntry.ctbEntry.suid);
+
+  metaULock(pMeta);
+
+  tDecoderClear(&dc1);
+  tDecoderClear(&dc2);
+  taosMemoryFree((void *)ctbEntry.ctbEntry.pTags);
+  if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
+  if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
+  tdbTbcClose(pTbDbc);
+  tdbTbcClose(pUidIdxc);
   return 0;
+
+_err:
+  tDecoderClear(&dc1);
+  tDecoderClear(&dc2);
+  if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
+  if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
+  tdbTbcClose(pTbDbc);
+  tdbTbcClose(pUidIdxc);
+  return -1;
 }
+
 static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
   SMetaEntry  ctbEntry = {0};
   SMetaEntry  stbEntry = {0};
@@ -1210,6 +1366,7 @@ static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterT
   int64_t     oversion;
   const void *pData = NULL;
   int         nData = 0;
+
   // drop index
   return 0;
 }
