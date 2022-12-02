@@ -1,0 +1,46 @@
+---
+title: Write from Kafka
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import PyKafka from "./_py_kafka.mdx";
+
+## About Kafka 
+
+Apache Kafka is an open-source distributed event streaming platform, used by thousands of companies for high-performance data pipelines, streaming analytics, data integration, and mission-critical applications. For the key concepts of kafka, please refer to [kafka documentation](https://kafka.apache.org/documentation/#gettingStarted).
+
+### kafka topic
+
+Messages in Kafka are organized by topics. A topic may have one or more partitions. We can manage kafka topics through `kafka-topics`.
+
+create a topic named `kafka-events`:
+ 
+```
+bin/kafka-topics.sh --create --topic kafka-events --bootstrap-server localhost:9092
+```
+
+Alter `kafka-events` topic to set partitions to 3:
+
+```
+bin/kafka-topics.sh --alter --topic kafka-events --partitions 3 --bootstrap-server=localhost:9092
+```
+
+Show all topics and partitions in Kafka:
+
+```
+bin/kafka-topics.sh --bootstrap-server=localhost:9092 --describe
+```
+
+## Insert into TDengine
+
+We can write data into TDengine via SQL or Schemaless. For more information, please refer to [Insert Using SQL](/develop/insert-data/sql-writing/) or [High Performance Writing](/develop/insert-data/high-volume/) or [Schemaless Writing](/reference/schemaless/).
+
+## Examples
+
+<Tabs defaultValue="Python" groupId="lang">
+  <TabItem label="Python" value="Python">
+    <PyKafka />
+  </TabItem>
+</Tabs>
+

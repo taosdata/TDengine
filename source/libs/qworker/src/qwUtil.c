@@ -279,14 +279,14 @@ void qwFreeTaskHandle(qTaskInfo_t *taskHandle) {
   }
 }
 
-int32_t qwKillTaskHandle(SQWTaskCtx *ctx) {
+int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode) {
   int32_t code = 0;
   
   // Note: free/kill may in RC
   qTaskInfo_t taskHandle = atomic_load_ptr(&ctx->taskHandle);
   if (taskHandle && atomic_val_compare_exchange_ptr(&ctx->taskHandle, taskHandle, NULL)) {
     qDebug("start to kill task");
-    code = qAsyncKillTask(taskHandle);
+    code = qAsyncKillTask(taskHandle, rspCode);
     atomic_store_ptr(&ctx->taskHandle, taskHandle);
   }
 
