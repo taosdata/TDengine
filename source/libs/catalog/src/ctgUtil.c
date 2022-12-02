@@ -849,6 +849,7 @@ int32_t ctgHashValueComp(void const* lp, void const* rp) {
 
 int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, const SName* pTableName, SVgroupInfo* pVgroup) {
   int32_t code = 0;
+  CTG_ERR_RET(ctgMakeVgArray(dbInfo));
 
   int32_t vgNum = taosArrayGetSize(dbInfo->vgArray);
   char    db[TSDB_DB_FNAME_LEN] = {0};
@@ -902,6 +903,9 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SCtgTaskReq* tReq, SDBVgInfo*
   int32_t   code = 0;
   SCtgTask* pTask = tReq->pTask;
   SMetaRes  res = {0};
+
+  CTG_ERR_RET(ctgMakeVgArray(dbInfo));
+
   int32_t   vgNum = taosArrayGetSize(dbInfo->vgArray);
   if (vgNum <= 0) {
     ctgError("db vgroup cache invalid, db:%s, vgroup number:%d", dbFName, vgNum);
