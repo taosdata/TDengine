@@ -67,7 +67,17 @@ void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   pMsg->info.hasEpSet = 1;
 
   SRpcMsg rsp = {.code = TSDB_CODE_SYN_NOT_LEADER, .info = pMsg->info, .msgType = pMsg->msgType + 1};
-  tmsgSendRedirectRsp(&rsp, &newEpSet);
+  int32_t contLen = tSerializeSEpSet(NULL, 0, &newEpSet);
+
+  rsp.pCont = rpcMallocCont(contLen);
+  if (rsp.pCont == NULL) {
+    pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    tSerializeSEpSet(rsp.pCont, contLen, &newEpSet);
+    rsp.contLen = contLen;
+  }
+
+  tmsgSendRsp(&rsp);
 }
 
 static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
