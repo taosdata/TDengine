@@ -244,7 +244,7 @@ void shellRunSingleCommandImp(char *command) {
     int64_t num_rows_affacted = taos_affected_rows64(pSql);
     taos_free_result(pSql);
     et = taosGetTimestampUs();
-    printf("%s, %" PRId64 " row(s) affected (%.6fs)\r\n", num_rows_affacted, (et - st) / 1E6);
+    printf("%s, %" PRId64 " row(s) affected (%.6fs)\r\n", pre, num_rows_affacted, (et - st) / 1E6);
 
     // call auto tab
     callbackAutoTab(command, NULL, false);
