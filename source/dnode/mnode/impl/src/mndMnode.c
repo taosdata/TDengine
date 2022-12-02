@@ -292,7 +292,7 @@ static int32_t mndBuildCreateMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *p
       .pCont = pReq,
       .contLen = contLen,
       .msgType = TDMT_DND_CREATE_MNODE,
-      .acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED,
+      .acceptableCode = TSDB_CODE_MNODE_ALREADY_DEPLOYED,
   };
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -333,7 +333,7 @@ static int32_t mndBuildDropMnodeRedoAction(STrans *pTrans, SDDropMnodeReq *pDrop
       .pCont = pReq,
       .contLen = contLen,
       .msgType = TDMT_DND_DROP_MNODE,
-      .acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED,
+      .acceptableCode = TSDB_CODE_MNODE_NOT_DEPLOYED,
   };
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -440,7 +440,7 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   }
 
   if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
-    terrno = TSDB_CODE_NODE_OFFLINE;
+    terrno = TSDB_CODE_DNODE_OFFLINE;
     goto _OVER;
   }
 
@@ -490,7 +490,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   if (totalMnodes == 2) {
     if (force) {
       mError("cant't force drop dnode, since a mnode on it and replica is 2");
-      terrno = TSDB_CODE_NODE_OFFLINE;
+      terrno = TSDB_CODE_DNODE_OFFLINE;
       return -1;
     }
     mInfo("vgId:1, has %d mnodes, exec redo log first", totalMnodes);
@@ -574,7 +574,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   }
 
   if (!mndIsDnodeOnline(pObj->pDnode, taosGetTimestampMs())) {
-    terrno = TSDB_CODE_NODE_OFFLINE;
+    terrno = TSDB_CODE_DNODE_OFFLINE;
     goto _OVER;
   }
 

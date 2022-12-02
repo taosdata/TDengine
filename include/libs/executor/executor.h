@@ -152,7 +152,7 @@ void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);
  * @param tinfo  qhandle
  * @return
  */
-int32_t qAsyncKillTask(qTaskInfo_t tinfo);
+int32_t qAsyncKillTask(qTaskInfo_t tinfo, int32_t rspCode);
 
 /**
  * destroy query info structure

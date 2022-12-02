@@ -153,8 +153,8 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
 
     if (!pVnode->restored) {
       vGError("vgId:%d, msg:%p failed to process since restore not finished", vgId, pMsg);
-      terrno = TSDB_CODE_APP_NOT_READY;
-      vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_APP_NOT_READY);
+      terrno = TSDB_CODE_SYN_RESTORING;
+      vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
       continue;
@@ -544,21 +544,23 @@ bool vnodeIsRoleLeader(SVnode *pVnode) {
 }
 
 bool vnodeIsLeader(SVnode *pVnode) {
+  terrno = 0;
   SSyncState state = syncGetState(pVnode->sync);
 
-  if (state.state != TAOS_SYNC_STATE_LEADER || !state.restored) {
-    if (state.state != TAOS_SYNC_STATE_LEADER) {
-      terrno = TSDB_CODE_SYN_NOT_LEADER;
-    } else {
-      terrno = TSDB_CODE_APP_NOT_READY;
-    }
-    vInfo("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncStr(state.state), state.restored);
+  if (terrno != 0) {
+    vInfo("vgId:%d, vnode is stopping", pVnode->config.vgId);
     return false;
   }
 
-  if (!pVnode->restored) {
-    vInfo("vgId:%d, vnode not restored", pVnode->config.vgId);
-    terrno = TSDB_CODE_APP_NOT_READY;
+  if (state.state != TAOS_SYNC_STATE_LEADER) {
+    terrno = TSDB_CODE_SYN_NOT_LEADER;
+    vInfo("vgId:%d, vnode not leader, state:%s", pVnode->config.vgId, syncStr(state.state));
+    return false;
+  }
+
+  if (!state.restored || !pVnode->restored) {
+    terrno = TSDB_CODE_SYN_RESTORING;
+    vInfo("vgId:%d, vnode not restored:%d:%d", pVnode->config.vgId, state.restored, pVnode->restored);
     return false;
   }
 

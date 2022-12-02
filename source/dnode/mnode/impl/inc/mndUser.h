@@ -31,6 +31,7 @@ void      mndReleaseUser(SMnode *pMnode, SUserObj *pUser);
 // for trans test
 SSdbRaw  *mndUserActionEncode(SUserObj *pUser);
 SHashObj *mndDupDbHash(SHashObj *pOld);
+SHashObj *mndDupTopicHash(SHashObj *pOld);
 int32_t   mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_t numOfUses, void **ppRsp,
                                   int32_t *pRspLen);
 

@@ -463,7 +463,7 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_CREATE_VNODE;
-  action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_VND_ALREADY_EXIST;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
@@ -780,7 +780,7 @@ static int32_t mndSetDropSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, SD
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_VNODE;
-  action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_VND_NOT_EXIST;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);

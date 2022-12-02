@@ -205,7 +205,7 @@ static int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_CREATE_QNODE;
-  action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_QNODE_ALREADY_DEPLOYED;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
@@ -232,7 +232,7 @@ static int32_t mndSetCreateQnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_QNODE;
-  action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_QNODE_NOT_DEPLOYED;
 
   if (mndTransAppendUndoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
@@ -345,7 +345,7 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_QNODE;
-  action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_QNODE_NOT_DEPLOYED;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);

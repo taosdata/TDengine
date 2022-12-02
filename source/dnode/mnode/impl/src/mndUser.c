@@ -161,7 +161,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   char *topic = taosHashIterate(pUser->topics, NULL);
   while (topic != NULL) {
     SDB_SET_BINARY(pRaw, dataPos, topic, TSDB_TOPIC_FNAME_LEN, _OVER);
-    db = taosHashIterate(pUser->topics, topic);
+    topic = taosHashIterate(pUser->topics, topic);
   }
 
   SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
@@ -446,7 +446,7 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
   return 0;
 }
 
-SHashObj *mndDupDbHash(SHashObj *pOld) {
+SHashObj *mndDupObjHash(SHashObj *pOld, int32_t dataLen) {
   SHashObj *pNew =
       taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pNew == NULL) {
@@ -457,7 +457,7 @@ SHashObj *mndDupDbHash(SHashObj *pOld) {
   char *db = taosHashIterate(pOld, NULL);
   while (db != NULL) {
     int32_t len = strlen(db) + 1;
-    if (taosHashPut(pNew, db, len, db, TSDB_DB_FNAME_LEN) != 0) {
+    if (taosHashPut(pNew, db, len, db, dataLen) != 0) {
       taosHashCancelIterate(pOld, db);
       taosHashCleanup(pNew);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -468,6 +468,10 @@ SHashObj *mndDupDbHash(SHashObj *pOld) {
 
   return pNew;
 }
+
+SHashObj *mndDupDbHash(SHashObj *pOld) { return mndDupObjHash(pOld, TSDB_DB_FNAME_LEN); }
+
+SHashObj *mndDupTopicHash(SHashObj *pOld) { return mndDupObjHash(pOld, TSDB_TOPIC_FNAME_LEN); }
 
 static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
@@ -519,7 +523,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   taosRLockLatch(&pUser->lock);
   newUser.readDbs = mndDupDbHash(pUser->readDbs);
   newUser.writeDbs = mndDupDbHash(pUser->writeDbs);
-  newUser.topics = mndDupDbHash(pUser->topics);
+  newUser.topics = mndDupTopicHash(pUser->topics);
   taosRUnLockLatch(&pUser->lock);
 
   if (newUser.readDbs == NULL || newUser.writeDbs == NULL || newUser.topics == NULL) {
@@ -832,6 +836,26 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     int32_t numOfTopics = taosHashGetSize(pUser->topics);
     if (numOfRows + numOfReadDbs + numOfWriteDbs + numOfTopics >= rows) break;
 
+    if (pUser->superUser) {
+      cols = 0;
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      char             userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
+      colDataAppend(pColInfo, numOfRows, (const char *)userName, false);
+
+      char privilege[20] = {0};
+      STR_WITH_MAXSIZE_TO_VARSTR(privilege, "all", pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)privilege, false);
+
+      char objName[20] = {0};
+      STR_WITH_MAXSIZE_TO_VARSTR(objName, "all", pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)objName, false);
+
+      numOfRows++;
+    }
+
     char *db = taosHashIterate(pUser->readDbs, NULL);
     while (db != NULL) {
       cols = 0;
@@ -902,7 +926,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       colDataAppend(pColInfo, numOfRows, (const char *)topicName, false);
 
       numOfRows++;
-      db = taosHashIterate(pUser->topics, topic);
+      topic = taosHashIterate(pUser->topics, topic);
     }
 
     sdbRelease(pSdb, pUser);

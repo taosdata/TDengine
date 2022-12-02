@@ -918,10 +918,13 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       sendRsp = true;
     }
   } else {
-    if (pTrans->stage == TRN_STAGE_REDO_ACTION && ((code == TSDB_CODE_APP_NOT_READY && pTrans->failedTimes > 60) ||
-                                                   (code != TSDB_CODE_APP_NOT_READY && pTrans->failedTimes > 6))) {
+    if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
+      if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_APP_IS_STARTING) {
+        if (pTrans->failedTimes > 60) sendRsp = true;
+      } else {
+        if (pTrans->failedTimes > 6) sendRsp = true;
+      }
       if (code == 0) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
-      sendRsp = true;
     }
   }
 
