@@ -168,6 +168,8 @@ _OVER:
 
 static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SUserObj *pUser = NULL;  // fix the un-initialized local parameter error, caused by log print
+  SSdbRow  *pRow = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -177,10 +179,10 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SUserObj));
+  pRow = sdbAllocRow(sizeof(SUserObj));
   if (pRow == NULL) goto _OVER;
 
-  SUserObj *pUser = sdbGetRowObj(pRow);
+  pUser = sdbGetRowObj(pRow);
   if (pUser == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -225,9 +227,12 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("user:%s, failed to decode from raw:%p since %s", pUser->user, pRaw, terrstr());
-    taosHashCleanup(pUser->readDbs);
-    taosHashCleanup(pUser->writeDbs);
+    if (pUser != NULL) {
+      mError("user:%s, failed to decode from raw:%p since %s", pUser->user, pRaw, terrstr());
+      taosHashCleanup(pUser->readDbs);
+      taosHashCleanup(pUser->writeDbs);
+    }
+
     taosMemoryFreeClear(pRow);
     return NULL;
   }
