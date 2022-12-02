@@ -589,16 +589,6 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   }
 }
 
-// int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow) {
-//   int32_t n = 0;
-
-//   n += tPutI64(p, pRow->version);
-//   if (p) memcpy(p + n, pRow->pTSRow, pRow->pTSRow->len);
-//   n += pRow->pTSRow->len;
-
-//   return n;
-// }
-
 int32_t tsdbRowCmprFn(const void *p1, const void *p2) {
   return tsdbKeyCmprFn(&TSDBROW_KEY((TSDBROW *)p1), &TSDBROW_KEY((TSDBROW *)p2));
 }

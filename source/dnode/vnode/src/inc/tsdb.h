@@ -108,13 +108,13 @@ static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
 #define TSDBROW_TS(ROW) (((ROW)->type == TSDBROW_ROW_FMT) ? (ROW)->pTSRow->ts : (ROW)->pBlockData->aTSKEY[(ROW)->iRow])
 #define TSDBROW_VERSION(ROW) \
   (((ROW)->type == TSDBROW_ROW_FMT) ? (ROW)->version : (ROW)->pBlockData->aVersion[(ROW)->iRow])
-#define TSDBROW_SVERSION(ROW)            TD_ROW_SVER((ROW)->pTSRow)
+#define TSDBROW_SVERSION(ROW)            ((ROW)->type == TSDBROW_ROW_FMT ? (ROW)->pTSRow->ts : -1)
 #define TSDBROW_KEY(ROW)                 ((TSDBKEY){.version = TSDBROW_VERSION(ROW), .ts = TSDBROW_TS(ROW)})
 #define tsdbRowFromTSRow(VERSION, TSROW) ((TSDBROW){.type = TSDBROW_ROW_FMT, .version = (VERSION), .pTSRow = (TSROW)})
 #define tsdbRowFromBlockData(BLOCKDATA, IROW) \
   ((TSDBROW){.type = TSDBROW_COL_FMT, .pBlockData = (BLOCKDATA), .iRow = (IROW)})
-void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
-// int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow);
+
+void    tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 int32_t tsdbRowCmprFn(const void *p1, const void *p2);
 // STSDBRowIter
 void     tsdbRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
