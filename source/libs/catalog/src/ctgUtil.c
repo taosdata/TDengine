@@ -896,8 +896,8 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, const SName
 */
 
   if (NULL == vgInfo) {
-    ctgError("0no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, db,
-             taosArrayGetSize(dbInfo->vgArray));
+    ctgError("no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, db,
+             (int32_t)taosArrayGetSize(dbInfo->vgArray));
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
