@@ -70,7 +70,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
     tsem_wait(&pExchangeInfo->ready);
 
     if (isTaskKilled(pTaskInfo)) {
-      longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+      longjmp(pTaskInfo->env, pTaskInfo->code);
     }
 
     for (int32_t i = 0; i < totalSources; ++i) {
@@ -573,7 +573,7 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
 
   tsem_wait(&pExchangeInfo->ready);
   if (isTaskKilled(pTaskInfo)) {
-    longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+    longjmp(pTaskInfo->env, pTaskInfo->code);
   }
 
   tsem_post(&pExchangeInfo->ready);
@@ -621,7 +621,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     doSendFetchDataRequest(pExchangeInfo, pTaskInfo, pExchangeInfo->current);
     tsem_wait(&pExchangeInfo->ready);
     if (isTaskKilled(pTaskInfo)) {
-      longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+      longjmp(pTaskInfo->env, pTaskInfo->code);
     }
 
     SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);

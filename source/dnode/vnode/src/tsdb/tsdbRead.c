@@ -194,7 +194,7 @@ static void     setComposedBlockFlag(STsdbReader* pReader, bool composed);
 static bool     hasBeenDropped(const SArray* pDelList, int32_t* index, TSDBKEY* pKey, int32_t order,
                                SVersionRange* pVerRange);
 
-static int32_t doMergeMemTableMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, SArray* pDelList, SRow** pTSRow,
+static int32_t doMergeMemTableMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, SArray* pDelList, TSDBROW* pTSRow,
                                         STsdbReader* pReader, bool* freeTSRow);
 static int32_t doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* pBlockScanInfo,
                                   STsdbReader* pReader, SRow** pTSRow);
@@ -3178,7 +3178,8 @@ TSDBROW* getValidMemRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* p
   }
 
   TSDBROW* pRow = tsdbTbDataIterGet(pIter->iter);
-  TSDBKEY  key = {.ts = pRow->pTSRow->ts, .version = pRow->version};
+  TSDBKEY  key = TSDBROW_KEY(pRow);
+
   if (outOfTimeWindow(key.ts, &pReader->window)) {
     pIter->hasVal = false;
     return NULL;
@@ -3357,7 +3358,7 @@ int32_t doMergeRowsInLastBlock(SLastBlockReader* pLastBlockReader, STableBlockSc
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t doMergeMemTableMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, SArray* pDelList, SRow** pTSRow,
+int32_t doMergeMemTableMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, SArray* pDelList, TSDBROW* pResRow,
                                  STsdbReader* pReader, bool* freeTSRow) {
   TSDBROW* pNextRow = NULL;
   TSDBROW  current = *pRow;
@@ -3366,25 +3367,27 @@ int32_t doMergeMemTableMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, 
     pIter->hasVal = tsdbTbDataIterNext(pIter->iter);
 
     if (!pIter->hasVal) {
-      *pTSRow = current.pTSRow;
+      *pResRow = *pRow;
       *freeTSRow = false;
       return TSDB_CODE_SUCCESS;
     } else {  // has next point in mem/imem
       pNextRow = getValidMemRow(pIter, pDelList, pReader);
       if (pNextRow == NULL) {
-        *pTSRow = current.pTSRow;
+        *pResRow = current;
         *freeTSRow = false;
         return TSDB_CODE_SUCCESS;
       }
 
-      if (current.pTSRow->ts != pNextRow->pTSRow->ts) {
-        *pTSRow = current.pTSRow;
+      if (TSDBROW_TS(&current) != TSDBROW_TS(pNextRow)) {
+        *pResRow = current;
         *freeTSRow = false;
         return TSDB_CODE_SUCCESS;
       }
     }
   }
 
+#if 0
+  // todo handle the data block merge
   SRowMerger merge = {0};
 
   // get the correct schema for data in memory
@@ -3422,6 +3425,8 @@ int32_t doMergeMemTableMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, 
 
   tsdbRowMergerClear(&merge);
   *freeTSRow = true;
+#endif
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3479,7 +3484,7 @@ int32_t doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* p
   return code;
 }
 
-int32_t tsdbGetNextRowInMem(STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader, SRow** pTSRow, int64_t endKey,
+int32_t tsdbGetNextRowInMem(STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader, TSDBROW* pResRow, int64_t endKey,
                             bool* freeTSRow) {
   TSDBROW* pRow = getValidMemRow(&pBlockScanInfo->iter, pBlockScanInfo->delSkyline, pReader);
   TSDBROW* piRow = getValidMemRow(&pBlockScanInfo->iiter, pBlockScanInfo->delSkyline, pReader);
@@ -3509,13 +3514,14 @@ int32_t tsdbGetNextRowInMem(STableBlockScanInfo* pBlockScanInfo, STsdbReader* pR
     int32_t code = TSDB_CODE_SUCCESS;
     if (ik.ts != k.ts) {
       if (((ik.ts < k.ts) && asc) || ((ik.ts > k.ts) && (!asc))) {  // ik.ts < k.ts
-        code = doMergeMemTableMultiRows(piRow, uid, &pBlockScanInfo->iiter, pDelList, pTSRow, pReader, freeTSRow);
+        code = doMergeMemTableMultiRows(piRow, uid, &pBlockScanInfo->iiter, pDelList, pResRow, pReader, freeTSRow);
       } else if (((k.ts < ik.ts) && asc) || ((k.ts > ik.ts) && (!asc))) {
-        code = doMergeMemTableMultiRows(pRow, uid, &pBlockScanInfo->iter, pDelList, pTSRow, pReader, freeTSRow);
+        code = doMergeMemTableMultiRows(pRow, uid, &pBlockScanInfo->iter, pDelList, pResRow, pReader, freeTSRow);
       }
     } else {  // ik.ts == k.ts
       *freeTSRow = true;
-      code = doMergeMemIMemRows(pRow, piRow, pBlockScanInfo, pReader, pTSRow);
+      pResRow->type = TSDBROW_ROW_FMT;
+      code = doMergeMemIMemRows(pRow, piRow, pBlockScanInfo, pReader, &pResRow->pTSRow);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -3525,12 +3531,12 @@ int32_t tsdbGetNextRowInMem(STableBlockScanInfo* pBlockScanInfo, STsdbReader* pR
   }
 
   if (pBlockScanInfo->iter.hasVal && pRow != NULL) {
-    return doMergeMemTableMultiRows(pRow, pBlockScanInfo->uid, &pBlockScanInfo->iter, pDelList, pTSRow, pReader,
+    return doMergeMemTableMultiRows(pRow, pBlockScanInfo->uid, &pBlockScanInfo->iter, pDelList, pResRow, pReader,
                                     freeTSRow);
   }
 
   if (pBlockScanInfo->iiter.hasVal && piRow != NULL) {
-    return doMergeMemTableMultiRows(piRow, uid, &pBlockScanInfo->iiter, pDelList, pTSRow, pReader, freeTSRow);
+    return doMergeMemTableMultiRows(piRow, uid, &pBlockScanInfo->iiter, pDelList, pResRow, pReader, freeTSRow);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3635,17 +3641,22 @@ int32_t buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, int64_t e
   SSDataBlock* pBlock = pReader->pResBlock;
 
   do {
-    SRow* pTSRow = NULL;
+//    SRow* pTSRow = NULL;
+    TSDBROW row = {.type = -1};
     bool  freeTSRow = false;
-    tsdbGetNextRowInMem(pBlockScanInfo, pReader, &pTSRow, endKey, &freeTSRow);
-    if (pTSRow == NULL) {
+    tsdbGetNextRowInMem(pBlockScanInfo, pReader, &row, endKey, &freeTSRow);
+    if (row.type == -1) {
       break;
     }
 
-    doAppendRowFromTSRow(pBlock, pReader, pTSRow, pBlockScanInfo);
+    if (row.type == TSDBROW_ROW_FMT) {
+      doAppendRowFromTSRow(pBlock, pReader, row.pTSRow, pBlockScanInfo);
 
-    if (freeTSRow) {
-      taosMemoryFree(pTSRow);
+      if (freeTSRow) {
+        taosMemoryFree(row.pTSRow);
+      }
+    } else {
+      doAppendRowFromFileBlock(pBlock, pReader, row.pBlockData, row.iRow);
     }
 
     // no data in buffer, return immediately

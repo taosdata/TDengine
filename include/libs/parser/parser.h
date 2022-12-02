@@ -104,6 +104,8 @@ void    destroyBoundColumnInfo(void* pBoundInfo);
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
                      int32_t msgBufLen);
 
+void    qDestroyBoundColInfo(void* pInfo);
+
 void*   smlInitHandle(SQuery* pQuery);
 void    smlDestroyHandle(void* pHandle);
 int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols, bool format, STableMeta* pTableMeta,

@@ -219,20 +219,20 @@ typedef struct {
   int32_t  caseRunNum;           // total run case num
 } CaseCtrl;
 
-#if 0
+#if 1
 CaseCtrl gCaseCtrl = {
   .precision = TIME_PRECISION_MICRO,
   .bindNullNum = 0,
   .printCreateTblSql = true,
   .printQuerySql = true,
   .printStmtSql = true,
-  .printVerbose = false,
-  .printRes = false,
+  .printVerbose = true,
+  .printRes = true,
   .autoCreateTbl = false,
   .numericParam = false,
   .rowNum = 0,
   .bindColNum = 0,
-  .bindTagNum = 14,
+  .bindTagNum = 0,
   .bindRowNum = 0,
   .bindColTypeNum = 0,
   .bindColTypeList = NULL,
@@ -244,7 +244,7 @@ CaseCtrl gCaseCtrl = {
   .funcIdxList = NULL,
   .checkParamNum = false,
   .runTimes = 0,
-  .caseIdx = 23,
+  .caseIdx = 0,
   .caseNum = 1,
   .caseRunIdx = -1,
   .caseRunNum = -1,
@@ -252,7 +252,7 @@ CaseCtrl gCaseCtrl = {
 #endif
 
 
-#if 1
+#if 0
 CaseCtrl gCaseCtrl = {  // default
   .precision = TIME_PRECISION_MILLI,
   .bindNullNum = 0,
@@ -2749,6 +2749,7 @@ void runAll(TAOS *taos) {
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
 
+#if 0
   strcpy(gCaseCtrl.caseCatalog, "Micro DB precision Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.precision = TIME_PRECISION_MICRO;
@@ -2804,6 +2805,7 @@ void runAll(TAOS *taos) {
   gCaseCtrl.bindColNum = 6;
   runCaseList(taos);
   gCaseCtrl.bindColNum = 0;
+#endif
 
 /*
   strcpy(gCaseCtrl.caseCatalog, "Bind Col Type Test");

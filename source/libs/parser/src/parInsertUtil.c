@@ -194,6 +194,17 @@ void destroyBoundColumnInfo(void* pBoundInfo) {
   taosMemoryFreeClear(pColList->colIdxInfo);
 }
 
+void qDestroyBoundColInfo(void* pInfo) {
+  if (NULL == pInfo) {
+    return;
+  }
+
+  SBoundColInfo* pBoundInfo = (SBoundColInfo*)pInfo;
+
+  taosMemoryFreeClear(pBoundInfo->pColIndex);
+}
+
+
 static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset, STableMeta* pTableMeta,
                                STableDataBlocks** dataBlocks) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)taosMemoryCalloc(1, sizeof(STableDataBlocks));

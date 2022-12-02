@@ -74,7 +74,7 @@ SyncTerm syncLogReplMgrGetPrevLogTerm(SSyncLogReplMgr* pMgr, SSyncNode* pNode, S
   SyncTerm        prevLogTerm = -1;
   terrno = TSDB_CODE_SUCCESS;
 
-  if (prevIndex == -1) return 0;
+  if (prevIndex == -1 && pNode->pLogStore->syncLogBeginIndex(pNode->pLogStore) == 0) return 0;
 
   if (prevIndex > pBuf->matchIndex) {
     terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
@@ -691,7 +691,6 @@ int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNod
 
   if (pMsg->matchIndex < pNode->pLogBuf->matchIndex) {
     term = syncLogReplMgrGetPrevLogTerm(pMgr, pNode, index + 1);
-
     if (term < 0 || (term != pMsg->lastMatchTerm && (index + 1 == firstVer || index == firstVer))) {
       ASSERT(term >= 0 || terrno == TSDB_CODE_WAL_LOG_NOT_EXIST);
       if (syncNodeStartSnapshot(pNode, &destId) < 0) {

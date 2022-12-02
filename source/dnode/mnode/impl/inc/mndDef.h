@@ -71,6 +71,9 @@ typedef enum {
   MND_OPER_READ_DB,
   MND_OPER_READ_OR_WRITE_DB,
   MND_OPER_SHOW_VARIBALES,
+  MND_OPER_SUBSCRIBE,
+  MND_OPER_CREATE_TOPIC,
+  MND_OPER_DROP_TOPIC,
 } EOperType;
 
 typedef enum {
@@ -273,6 +276,7 @@ typedef struct {
   int32_t   authVersion;
   SHashObj* readDbs;
   SHashObj* writeDbs;
+  SHashObj* topics;
   SRWLatch  lock;
 } SUserObj;
 
@@ -636,10 +640,14 @@ typedef struct {
   SArray*        tasks;  // SArray<SArray<SStreamTask>>
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;
+
+  // 3.0.20
+  int64_t checkpointFreq;  // ms
+  int64_t currentTick;     // do not serialize
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
-int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj);
+int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj, int32_t sver);
 void    tFreeStreamObj(SStreamObj* pObj);
 
 typedef struct {
@@ -648,15 +656,6 @@ typedef struct {
   int64_t streamUid;
   SArray* childInfo;  // SArray<SStreamChildEpInfo>
 } SStreamCheckpointObj;
-
-#if 0
-typedef struct {
-  int64_t uid;
-  int64_t streamId;
-  int8_t  status;
-  int8_t  stage;
-} SStreamRecoverObj;
-#endif
 
 #ifdef __cplusplus
 }
