@@ -447,6 +447,19 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+void freeVgInfo(SDBVgInfo* vgInfo) {
+  if (NULL == vgInfo) {
+    return;
+  }
+
+  taosHashCleanup(vgInfo->vgHash);
+  taosArrayDestroy(vgInfo->vgArray);
+
+  taosMemoryFreeClear(vgInfo);
+}
+
+
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
   if (NULL == pSrc) {
     *pDst = NULL;
@@ -475,8 +488,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
       if (0 != taosHashPut((*pDst)->vgHash, vgId, sizeof(*vgId), vgInfo, sizeof(*vgInfo))) {
         qError("taosHashPut failed, vgId:%d", vgInfo->vgId);
         taosHashCancelIterate(pSrc->vgHash, pIter);
-        taosHashCleanup((*pDst)->vgHash);
-        taosMemoryFreeClear(*pDst);
+        freeVgInfo(*pDst);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 

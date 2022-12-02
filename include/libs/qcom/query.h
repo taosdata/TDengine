@@ -239,6 +239,7 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
 char*   parseTagDatatoJson(void* p);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
+void    freeVgInfo(SDBVgInfo* vgInfo);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
                                           void* (*mallocFp)(int64_t));

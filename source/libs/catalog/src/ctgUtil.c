@@ -231,18 +231,7 @@ void ctgFreeTbCache(SCtgDBCache* dbCache) {
   CTG_CACHE_STAT_DEC(numOfTbl, tblNum);
 }
 
-void ctgFreeVgInfo(SDBVgInfo* vgInfo) {
-  if (NULL == vgInfo) {
-    return;
-  }
-
-  taosHashCleanup(vgInfo->vgHash);
-  taosArrayDestroy(vgInfo->vgArray);
-
-  taosMemoryFreeClear(vgInfo);
-}
-
-void ctgFreeVgInfoCache(SCtgDBCache* dbCache) { ctgFreeVgInfo(dbCache->vgCache.vgInfo); }
+void ctgFreeVgInfoCache(SCtgDBCache* dbCache) { freeVgInfo(dbCache->vgCache.vgInfo); }
 
 void ctgFreeDbCache(SCtgDBCache* dbCache) {
   if (NULL == dbCache) {
@@ -364,8 +353,7 @@ void ctgFreeSUseDbOutput(SUseDbOutput* pOutput) {
   }
 
   if (pOutput->dbVgroup) {
-    taosHashCleanup(pOutput->dbVgroup->vgHash);
-    taosMemoryFreeClear(pOutput->dbVgroup);
+    freeVgInfo(pOutput->dbVgroup);
   }
 
   taosMemoryFree(pOutput);
@@ -571,8 +559,7 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
     case CTG_TASK_GET_DB_VGROUP: {
       if (*pRes) {
         SDBVgInfo* pInfo = (SDBVgInfo*)*pRes;
-        taosHashCleanup(pInfo->vgHash);
-        taosMemoryFreeClear(*pRes);
+        freeVgInfo(pInfo);
       }
       break;
     }
@@ -1035,7 +1022,33 @@ int32_t ctgDbVgVersionSortCompare(const void* key1, const void* key2) {
   }
 }
 
+int32_t ctgMakeVgArray(SDBVgInfo* dbInfo) {
+  if (NULL == dbInfo) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  if (dbInfo->vgHash && NULL == dbInfo->vgArray) {
+    dbInfo->vgArray = taosArrayInit(100, sizeof(SVgroupInfo));
+    if (NULL == dbInfo->vgArray) {
+      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    
+    void*   pIter = taosHashIterate(dbInfo->vgHash, NULL);
+    while (pIter) {
+      taosArrayPush(dbInfo->vgArray, pIter);
+      pIter = taosHashIterate(dbInfo->vgHash, pIter);
+    }
+    
+    taosArraySort(dbInfo->vgArray, ctgVgInfoComp);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t ctgCloneVgInfo(SDBVgInfo* src, SDBVgInfo** dst) {
+  CTG_ERR_RET(ctgMakeVgArray(src));
+
   *dst = taosMemoryMalloc(sizeof(SDBVgInfo));
   if (NULL == *dst) {
     qError("malloc %d failed", (int32_t)sizeof(SDBVgInfo));

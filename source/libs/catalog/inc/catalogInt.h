@@ -762,7 +762,6 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
 int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList);
 void    ctgFreeJob(void* job);
 void    ctgFreeHandleImpl(SCatalog* pCtg);
-void    ctgFreeVgInfo(SDBVgInfo* vgInfo);
 int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, const SName* pTableName, SVgroupInfo* pVgroup);
 int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SCtgTaskReq* tReq, SDBVgInfo* dbInfo, SCtgTbHashsCtx* pCtx,
                                    char* dbFName, SArray* pNames, bool update);
@@ -790,6 +789,7 @@ int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName*
 SName*  ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch);
 int32_t ctgdGetOneHandle(SCatalog **pHandle);
 int     ctgVgInfoComp(const void* lp, const void* rp);
+int32_t ctgMakeVgArray(SDBVgInfo* dbInfo);
 
 extern SCatalogMgmt gCtgMgmt;
 extern SCtgDebug    gCTGDebug;

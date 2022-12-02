@@ -843,7 +843,7 @@ int32_t ctgUpdateVgroupEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateVgMsg));
     taosMemoryFree(op);
-    ctgFreeVgInfo(dbInfo);
+    freeVgInfo(dbInfo);
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
@@ -852,16 +852,12 @@ int32_t ctgUpdateVgroupEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId
     dbFName = p + 1;
   }
 
-  if (dbInfo->vgHash && NULL == dbInfo->vgArray) {
-    dbInfo->vgArray = taosArrayInit(100, sizeof(SVgroupInfo));
-    
-    void*   pIter = taosHashIterate(dbInfo->vgHash, NULL);
-    while (pIter) {
-      taosArrayPush(dbInfo->vgArray, pIter);
-      pIter = taosHashIterate(dbInfo->vgHash, pIter);
-    }
-    
-    taosArraySort(dbInfo->vgArray, ctgVgInfoComp);
+  code = ctgMakeVgArray(dbInfo);
+  if (code) {
+    taosMemoryFree(op);
+    taosMemoryFree(msg);
+    freeVgInfo(dbInfo);
+    CTG_ERR_RET(code);
   }
 
   tstrncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
@@ -877,7 +873,7 @@ int32_t ctgUpdateVgroupEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId
 
 _return:
 
-  ctgFreeVgInfo(dbInfo);
+  freeVgInfo(dbInfo);
   CTG_RET(code);
 }
 
@@ -1675,7 +1671,7 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
       goto _return;
     }
 
-    ctgFreeVgInfo(vgInfo);
+    freeVgInfo(vgInfo);
   }
 
   vgCache->vgInfo = dbInfo;
@@ -1696,7 +1692,7 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
 
 _return:
 
-  ctgFreeVgInfo(msg->dbInfo);
+  freeVgInfo(msg->dbInfo);
   taosMemoryFreeClear(msg);
 
   CTG_RET(code);
@@ -1749,7 +1745,7 @@ int32_t ctgOpDropDbVgroup(SCtgCacheOperation *operation) {
 
   CTG_ERR_JRET(ctgWLockVgInfo(pCtg, dbCache));
 
-  ctgFreeVgInfo(dbCache->vgCache.vgInfo);
+  freeVgInfo(dbCache->vgCache.vgInfo);
   dbCache->vgCache.vgInfo = NULL;
 
   ctgDebug("db vgInfo removed, dbFName:%s", msg->dbFName);
@@ -2139,7 +2135,7 @@ void ctgFreeCacheOperationData(SCtgCacheOperation *op) {
   switch (op->opId) {
     case CTG_OP_UPDATE_VGROUP: {
       SCtgUpdateVgMsg *msg = op->data;
-      ctgFreeVgInfo(msg->dbInfo);
+      freeVgInfo(msg->dbInfo);
       taosMemoryFreeClear(op->data);
       break;
     }
