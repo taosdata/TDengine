@@ -264,21 +264,22 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define SYNC_SELF_LEADER_REDIRECT_ERROR(_code) ((_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_SYN_INTERNAL_ERROR)
 #define SYNC_OTHER_LEADER_REDIRECT_ERROR(_code) (false)  // used later
 
-#define NEED_REDIRECT_ERROR(_code)                                                        \
-  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL ||       \
-   (_code) == TSDB_CODE_NODE_NOT_DEPLOYED || SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || \
-   SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || SYNC_OTHER_LEADER_REDIRECT_ERROR(_code) ||   \
-   (_code) == TSDB_CODE_APP_NOT_READY || (_code) == TSDB_CODE_RPC_BROKEN_LINK ||          \
+#define NEED_REDIRECT_ERROR(_code)                                                      \
+  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL ||     \
+   (_code) == TSDB_CODE_MNODE_NOT_FOUND || SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || \
+   SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || SYNC_OTHER_LEADER_REDIRECT_ERROR(_code) || \
+   (_code) == TSDB_CODE_SYN_RESTORING || (_code) == TSDB_CODE_RPC_BROKEN_LINK ||        \
    (_code) == TSDB_CODE_APP_IS_STARTING || (_code) == TSDB_CODE_APP_IS_STOPPING)
 
 #define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                  \
   ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE || \
    (_type) == TDMT_MND_DROP_STB)
 
-#define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                      \
-  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_NODE_NOT_DEPLOYED || \
+#define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                              \
+  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_MNODE_NOT_FOUND ||           \
    SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || \
-   SYNC_OTHER_LEADER_REDIRECT_ERROR(_code) || (_code) == TSDB_CODE_APP_NOT_READY)
+   SYNC_OTHER_LEADER_REDIRECT_ERROR(_code) || (_code) == TSDB_CODE_SYN_RESTORING ||       \
+   (_code) == TSDB_CODE_APP_IS_STARTING || (_code) == TSDB_CODE_APP_IS_STOPPING)
 
 #define REQUEST_TOTAL_EXEC_TIMES 2
 
