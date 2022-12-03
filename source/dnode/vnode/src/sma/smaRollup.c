@@ -750,8 +750,6 @@ _err:
  */
 static int32_t tdExecuteRSmaImplAsync(SSma *pSma, const void *pMsg, int32_t len, int32_t inputType, SRSmaInfo *pInfo,
                                       tb_uid_t suid) {
-  const SSubmitReq2 *pReq = (const SSubmitReq2 *)pMsg;
-
   void *qItem = taosAllocateQitem(len, DEF_QITEM);
   if (!qItem) {
     return TSDB_CODE_FAILED;
@@ -1034,7 +1032,7 @@ static int32_t tdExecuteRSmaAsync(SSma *pSma, const void *pMsg, int32_t len, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t len, int32_t inputType) {
+int32_t tdProcessRSmaSubmit(SSma *pSma, void *pReq, void* pMsg, int32_t len, int32_t inputType) {
   SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
   if (!pEnv) {
     // only applicable when rsma env exists
@@ -1048,7 +1046,7 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t len, int32_t inputTy
   }
 
   if (inputType == STREAM_INPUT__DATA_SUBMIT) {
-    if (tdFetchSubmitReqSuids(pMsg, &uidStore) < 0) {
+    if (tdFetchSubmitReqSuids(pReq, &uidStore) < 0) {
       smaError("vgId:%d, failed to process rsma submit fetch suid since: %s", SMA_VID(pSma), terrstr());
       goto _err;
     }

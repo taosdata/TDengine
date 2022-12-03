@@ -2253,7 +2253,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
               SColVal cv = COL_VAL_NULL(PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type);
               taosArrayPush(pVals, &cv);
             } else {
-              void*  data = colDataGetVarData(pColInfoData, j);
+              void*   data = colDataGetVarData(pColInfoData, j);
               SValue  sv = (SValue){.nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
               SColVal cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, pCol->type, sv);
               taosArrayPush(pVals, &cv);
