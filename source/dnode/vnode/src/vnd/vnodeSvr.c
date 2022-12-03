@@ -909,6 +909,29 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
         goto _exit;
       }
     }
+
+    if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      int32_t   nColData = TARRAY_SIZE(pSubmitTbData->aCol);
+      SColData *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
+
+      if (nColData <= 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+
+      if (aColData[0].cid != PRIMARYKEY_TIMESTAMP_COL_ID || aColData[0].type != TSDB_DATA_TYPE_TIMESTAMP ||
+          aColData[0].nVal <= 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+
+      for (int32_t i = 1; i < nColData; i++) {
+        if (aColData[i].nVal != aColData[0].nVal) {
+          code = TSDB_CODE_INVALID_MSG;
+          goto _exit;
+        }
+      }
+    }
   }
 
   // loop to handle

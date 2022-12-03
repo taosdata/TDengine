@@ -162,7 +162,7 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
       ntp = sizeof(SRow);
       break;
     case HAS_VALUE:
-      ntp = sizeof(SRow) + pTSchema->flen;
+      ntp = sizeof(SRow) + pTSchema->flen + ntp;
       break;
     case (HAS_NULL | HAS_NONE):
       ntp = sizeof(SRow) + BIT1_SIZE(pTSchema->numOfCols - 1);

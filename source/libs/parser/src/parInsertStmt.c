@@ -22,13 +22,6 @@
 #include "ttime.h"
 #include "ttypes.h"
 
-typedef struct SKvParam {
-  int16_t  pos;
-  SArray*  pTagVals;
-  SSchema* schema;
-  char     buf[TSDB_MAX_TAGS_LEN];
-} SKvParam;
-
 int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash) {
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* pVgDataBlocks = NULL;
