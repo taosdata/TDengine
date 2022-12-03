@@ -457,9 +457,9 @@ int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, Syn
   cbMeta.flag = -1;
 
   (void)syncRespMgrGetAndDel(pNode->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info);
-  pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
+  int32_t code = pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
   ASSERT(rpcMsg.pCont == NULL);
-  return 0;
+  return code;
 }
 
 int32_t syncLogBufferValidate(SSyncLogBuffer* pBuf) {
@@ -516,8 +516,9 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
     }
 
     if (syncLogFsmExecute(pNode, pFsm, role, term, pEntry) != 0) {
-      sError("vgId:%d, failed to execute sync log entry in FSM. log index:%" PRId64 ", term:%" PRId64 "", vgId,
-             pEntry->index, pEntry->term);
+      sError("vgId:%d, failed to commit sync log entry. index:%" PRId64 ", term:%" PRId64
+             ", role: %d, current term: %" PRId64,
+             vgId, pEntry->index, pEntry->term, role, term);
       goto _out;
     }
     pBuf->commitIndex = index;

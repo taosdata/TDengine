@@ -72,7 +72,7 @@ static int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   return code;
 }
 
-void mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   SMnode    *pMnode = pFsm->data;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   SSdbRaw   *pRaw = pMsg->pCont;
@@ -114,12 +114,15 @@ void mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *p
       mError("trans:%d, not found while execute in mnode since %s", transId, terrstr());
     }
   }
+
+  return 0;
 }
 
-void mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
-  mndProcessWriteMsg(pFsm, pMsg, pMeta);
+int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+  int32_t code = mndProcessWriteMsg(pFsm, pMsg, pMeta);
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
+  return code;
 }
 
 int32_t mndSyncGetSnapshot(const SSyncFSM *pFsm, SSnapshot *pSnapshot, void *pReaderParam, void **ppReader) {
