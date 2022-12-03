@@ -156,9 +156,9 @@ end:
   return code;
 }
 
-int32_t convertStmtNcharCol(SSchema* pSchema, TAOS_MULTI_BIND* src, TAOS_MULTI_BIND* dst) {
+int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND* src, TAOS_MULTI_BIND* dst) {
   int32_t output = 0;
-  int32_t newBuflen = pSchema->bytes - VARSTR_HEADER_SIZE;
+  int32_t newBuflen = (pSchema->bytes - VARSTR_HEADER_SIZE) * src->num;
   if (dst->buffer_length < newBuflen) {
     dst->buffer = taosMemoryRealloc(dst->buffer, newBuflen);
     if (NULL == dst->buffer) {
@@ -173,16 +173,31 @@ int32_t convertStmtNcharCol(SSchema* pSchema, TAOS_MULTI_BIND* src, TAOS_MULTI_B
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-  
-  if (!taosMbsToUcs4(value, len, (TdUcs4*)varDataVal(rowEnd), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
-    if (errno == E2BIG) {
-      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pa->schema->name);
+
+  dst->buffer_length = pSchema->bytes - VARSTR_HEADER_SIZE;
+
+  for (int32_t i = 0; i < src->num; ++i) {
+    if (src->is_null && src->is_null[i]) {
+      continue;
     }
-    char buf[512] = {0};
-    snprintf(buf, tListLen(buf), "%s", strerror(errno));
-    return buildSyntaxErrMsg(pMsgBuf, buf, value);
+    
+    if (!taosMbsToUcs4(src->buffer + src->buffer_length * i, src->length[i], (TdUcs4*)(dst->buffer + dst->buffer_length * i), dst->buffer_length, &output)) {
+      if (errno == E2BIG) {
+        return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
+      char buf[512] = {0};
+      snprintf(buf, tListLen(buf), "%s", strerror(errno));
+      return buildSyntaxErrMsg(pMsgBuf, buf, NULL);
+    }
+
+    dst->length[i] = output;
   }
 
+  dst->buffer_type = src->buffer_type;
+  dst->is_null = src->is_null;
+  dst->num = src->num;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen) {
@@ -194,7 +209,6 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
   TAOS_MULTI_BIND     ncharBind = {0};
   TAOS_MULTI_BIND*    pBind = NULL;
   int32_t             code = 0;
-  char                tmpBuf[128];
 
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
     SSchema* pColSchema = &pSchema[boundInfo->pColIndex[c]];
@@ -211,11 +225,8 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
     }
 
     if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
-      code = convertStmtNcharCol(pColSchema, bind + c, &ncharBind);
+      code = convertStmtNcharCol(&pBuf, pColSchema, bind + c, &ncharBind);
       if (code) {
-        snprintf(tmpBuf, sizeof(tmpBuf) - 1, "The %dth nchar column convert to ucs4 failed, error:%s", c, tstrerror(code));
-        tmpBuf[sizeof(tmpBuf) - 1] = 0;
-        code = buildInvalidOperationMsg(&pBuf, tmpBuf);
         goto _return;
       }
       pBind = &ncharBind;
@@ -244,6 +255,9 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
   SMsgBuf             pBuf = {.buf = msgBuf, .len = msgBufLen};
   SSchema*            pColSchema = &pSchema[boundInfo->pColIndex[colIdx]];
   SColData*           pCol = taosArrayGet(pDataBlock->pData->aCol, colIdx);
+  TAOS_MULTI_BIND     ncharBind = {0};
+  TAOS_MULTI_BIND*    pBind = NULL;
+  int32_t             code = 0;
   
   if (bind->num != rowNum) {
     return buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
@@ -252,12 +266,27 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
   if (bind->buffer_type != pColSchema->type) {
     return buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
   }
+
+  if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
+    code = convertStmtNcharCol(&pBuf, pColSchema, bind, &ncharBind);
+    if (code) {
+      goto _return;
+    }
+    pBind = &ncharBind;
+  } else {
+    pBind = bind;
+  }
   
-  tColDataAddValueByBind(pCol, bind);
+  tColDataAddValueByBind(pCol, pBind);
 
   qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 
-  return TSDB_CODE_SUCCESS;
+_return:
+
+  taosMemoryFree(ncharBind.buffer);
+  taosMemoryFree(ncharBind.length);
+
+  return code;
 }
 
 int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_E** fields,
