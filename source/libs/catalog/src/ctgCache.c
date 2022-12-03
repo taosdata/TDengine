@@ -439,6 +439,12 @@ int32_t ctgReadTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **
            ctx->tbInfo.tbType, dbFName);
 
   ctgAcquireStbMetaFromCache(dbCache, pCtg, dbFName, ctx->tbInfo.suid, &tbCache);
+  if (NULL == tbCache) {
+    ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
+    taosMemoryFreeClear(*pTableMeta);
+    ctgDebug("stb 0x%" PRIx64 " meta not in cache", ctx->tbInfo.suid);
+    return TSDB_CODE_SUCCESS;
+  }
 
   STableMeta *stbMeta = tbCache->pMeta;
   if (stbMeta->suid != ctx->tbInfo.suid) {
