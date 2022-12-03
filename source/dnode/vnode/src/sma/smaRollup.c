@@ -713,7 +713,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
       }
 
       if (pReq && tdProcessSubmitReq(sinkTsdb, output->info.version, pReq) < 0) {
-        taosMemoryFreeClear(pReq);
+        tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
         smaError("vgId:%d, process submit req for rsma suid:%" PRIu64 ", uid:%" PRIu64 " level %" PRIi8
                  " failed since %s",
                  SMA_VID(pSma), suid, output->info.id.groupId, pItem->level, terrstr());
@@ -723,7 +723,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
       smaDebug("vgId:%d, process submit req for rsma suid:%" PRIu64 ",uid:%" PRIu64 ", level %" PRIi8 " ver %" PRIi64,
                SMA_VID(pSma), suid, output->info.id.groupId, pItem->level, output->info.version);
 
-      taosMemoryFreeClear(pReq);
+      if(pReq) tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
     }
   }
 

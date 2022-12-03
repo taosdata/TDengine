@@ -150,7 +150,6 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
       }
     }
 #endif
-// pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT
     tInitSubmitBlkIter(&msgIter, pBlock, &blkIter);
     while ((row = tGetSubmitBlkNext(&blkIter)) != NULL) {
       if (tsdbCheckRowRange(pTsdb, msgIter.uid, row, minKey, maxKey, now) < 0) {
