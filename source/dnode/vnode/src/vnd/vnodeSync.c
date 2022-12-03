@@ -53,7 +53,7 @@ static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   }
 }
 
-void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg, int32_t code) {
   SEpSet newEpSet = {0};
   syncGetRetryEpSet(pVnode->sync, &newEpSet);
 
@@ -66,8 +66,20 @@ void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   pMsg->info.hasEpSet = 1;
 
-  SRpcMsg rsp = {.code = TSDB_CODE_SYN_NOT_LEADER, .info = pMsg->info, .msgType = pMsg->msgType + 1};
-  tmsgSendRedirectRsp(&rsp, &newEpSet);
+  if (code == 0) code = TSDB_CODE_SYN_NOT_LEADER;
+
+  SRpcMsg rsp = {.code = code, .info = pMsg->info, .msgType = pMsg->msgType + 1};
+  int32_t contLen = tSerializeSEpSet(NULL, 0, &newEpSet);
+
+  rsp.pCont = rpcMallocCont(contLen);
+  if (rsp.pCont == NULL) {
+    pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    tSerializeSEpSet(rsp.pCont, contLen, &newEpSet);
+    rsp.contLen = contLen;
+  }
+
+  tmsgSendRsp(&rsp);
 }
 
 static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -88,7 +100,7 @@ static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 static void vnodeHandleProposeError(SVnode *pVnode, SRpcMsg *pMsg, int32_t code) {
   if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+    vnodeRedirectRpcMsg(pVnode, pMsg, code);
   } else {
     const STraceId *trace = &pMsg->info.traceId;
     vGError("vgId:%d, msg:%p failed to propose since %s, code:0x%x", pVnode->config.vgId, pMsg, tstrerror(code), code);
