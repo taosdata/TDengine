@@ -7000,3 +7000,31 @@ void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
     }
   }
 }
+
+int32_t tBuildSubmitReq(int32_t vgId, SSubmitReq2 *pReq, void **pData, uint32_t *pLen, __tmalloc_fn_t fp) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  uint32_t len = 0;
+  void    *pBuf = NULL;
+  tEncodeSize(tEncodeSSubmitReq2, pReq, len, code);
+  if (TSDB_CODE_SUCCESS == code) {
+    SEncoder encoder;
+    len += sizeof(SMsgHead);
+    pBuf = (*fp)(len);
+    if (NULL == pBuf) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    ((SMsgHead *)pBuf)->vgId = htonl(vgId);
+    ((SMsgHead *)pBuf)->contLen = htonl(len);
+    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len - sizeof(SMsgHead));
+    code = tEncodeSSubmitReq2(&encoder, pReq);
+    tEncoderClear(&encoder);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pData = pBuf;
+    *pLen = len;
+  } else {
+    taosMemoryFree(pBuf);
+  }
+  return code;
+}

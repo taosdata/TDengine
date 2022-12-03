@@ -2183,11 +2183,13 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
                                     int32_t vgId, tb_uid_t suid) {
   SSubmitReq2* pReq = NULL;
   SArray*      pVals = NULL;
-  int32_t      bufSize = sizeof(SSubmitReq2);
   int32_t      numOfBlks = 0;
   int32_t      sz = 1;
 
-  if (!(pReq = taosMemoryMalloc(bufSize))) {
+  terrno = TSDB_CODE_SUCCESS;
+
+  if (!(pReq = taosMemoryMalloc(sizeof(SSubmitReq2)))) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _end;
   }
 
@@ -2205,10 +2207,9 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
 
     SSubmitTbData* pTbData = (SSubmitTbData*)taosMemoryCalloc(1, sizeof(SSubmitTbData));
     if (!pTbData) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _end;
     }
-
-    taosArrayPush(pReq->aSubmitTbData, pTbData);
 
     if(!(pTbData->aRowP = taosArrayInit(rows, sizeof(SRow*)))){
       taosMemoryFree(pTbData);

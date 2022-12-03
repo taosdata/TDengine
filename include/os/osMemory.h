@@ -47,6 +47,8 @@ void   *taosMemoryMallocAlign(uint32_t alignment, int64_t size);
     }                              \
   } while (0)
 
+typedef void *(*__tmalloc_fn_t)(int64_t);
+
 #ifdef __cplusplus
 }
 #endif
