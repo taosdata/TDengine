@@ -3264,7 +3264,8 @@ void    tDestroySSubmitRsp2(SSubmitRsp2* pRsp, int32_t flag);
 #define TSDB_MSG_FLG_ENCODE 0x1
 #define TSDB_MSG_FLG_DECODE 0x2
 
-int32_t tBuildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uint32_t* pLen, __tmalloc_fn_t fp);
+int32_t tBuildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uint32_t* pLen, __tmalloc_fn_t fp,
+                        __tfree_fn_t ff);
 
 #pragma pack(pop)
 

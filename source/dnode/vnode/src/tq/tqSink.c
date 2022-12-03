@@ -463,7 +463,7 @@ int32_t tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* p
     taosArrayPush(pReq->aSubmitTbData, pTbData);
   }
 
-  terrno = tBuildSubmitReq(TD_VID(pVnode), pReq, ppData, pLen, rpcMallocCont);
+  terrno = tBuildSubmitReq(TD_VID(pVnode), pReq, ppData, pLen, rpcMallocCont, rpcFreeCont);
 
 _end:
   taosArrayDestroy(tagArray);

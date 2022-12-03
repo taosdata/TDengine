@@ -7001,7 +7001,7 @@ void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
   }
 }
 
-int32_t tBuildSubmitReq(int32_t vgId, SSubmitReq2 *pReq, void **pData, uint32_t *pLen, __tmalloc_fn_t fp) {
+int32_t tBuildSubmitReq(int32_t vgId, SSubmitReq2 *pReq, void **pData, uint32_t *pLen, __tmalloc_fn_t fp, __tfree_fn_t ff) {
   int32_t  code = TSDB_CODE_SUCCESS;
   uint32_t len = 0;
   void    *pBuf = NULL;
@@ -7024,7 +7024,7 @@ int32_t tBuildSubmitReq(int32_t vgId, SSubmitReq2 *pReq, void **pData, uint32_t 
     *pData = pBuf;
     *pLen = len;
   } else {
-    taosMemoryFree(pBuf);
+    (*ff)(pBuf);
   }
   return code;
 }
