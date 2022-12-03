@@ -318,7 +318,7 @@ if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
         git clone --depth 1 https://github.com/taosdata/taos-connector-dotnet ${install_dir}/connector/dotnet
         rm -rf ${install_dir}/connector/dotnet/.git ||:
 
-        git clone --depth 1 https://github.com/taosdata/libtaos-rs ${install_dir}/connector/rust
+        git clone --depth 1 https://github.com/taosdata/taos-connector-rust ${install_dir}/connector/rust
         rm -rf ${install_dir}/connector/rust/.git ||:
 
         # cp -r ${connector_dir}/python ${install_dir}/connector
