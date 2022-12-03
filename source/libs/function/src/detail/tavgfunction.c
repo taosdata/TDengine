@@ -270,7 +270,7 @@ static void i64VectorSumAVX2(const int64_t* plist, int32_t numOfRows, SAvgRes* p
 
 #if __AVX2__
   // find the start position that are aligned to 32bytes address in memory
-  int32_t width = (bitWidth>>3u) / sizeof(int64_t);
+  int32_t width = (bitWidth >> 3u) / sizeof(int64_t);
 
   int32_t remainder = numOfRows % width;
   int32_t rounds = numOfRows / width;
@@ -286,20 +286,11 @@ static void i64VectorSumAVX2(const int64_t* plist, int32_t numOfRows, SAvgRes* p
   }
 
   // let sum up the final results
-  if (type == TSDB_DATA_TYPE_BIGINT) {
-    const int64_t* q = (const int64_t*)&sum;
-    pRes->sum.isum += q[0] + q[1] + q[2] + q[3];
+  const int64_t* q = (const int64_t*)&sum;
+  pRes->sum.isum += q[0] + q[1] + q[2] + q[3];
 
-    for (int32_t j = 0; j < remainder; ++j) {
-      pRes->sum.isum += plist[j + rounds * width];
-    }
-  } else {
-    const uint64_t* q = (const uint64_t*)&sum;
-    pRes->sum.usum += q[0] + q[1] + q[2] + q[3];
-
-    for (int32_t j = 0; j < remainder; ++j) {
-      pRes->sum.usum += (uint64_t)plist[j + rounds * width];
-    }
+  for (int32_t j = 0; j < remainder; ++j) {
+    pRes->sum.isum += plist[j + rounds * width];
   }
 
 #endif
@@ -588,7 +579,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
         const int64_t* plist = (const int64_t*) pCol->pData;
 
         // 1. If the CPU supports AVX, let's employ AVX instructions to speedup this loop
-        if (simdAvailable) {
+        if (simdAvailable && type == TSDB_DATA_TYPE_BIGINT) {
           i64VectorSumAVX2(plist, numOfRows, pAvgRes);
         } else {
           for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {

@@ -594,42 +594,50 @@ int32_t tsdbRowCmprFn(const void *p1, const void *p2) {
 }
 
 // STSDBRowIter ======================================================
-void tsdbRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
+int32_t tsdbRowIterOpen(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
+  int32_t code = 0;
+
   pIter->pRow = pRow;
   if (pRow->type == TSDBROW_ROW_FMT) {
-    ASSERT(pTSchema);
-    pIter->pTSchema = pTSchema;
-    pIter->i = 1;
+    code = tRowIterOpen(pRow->pTSRow, pTSchema, &pIter->pIter);
+    if (code) goto _exit;
   } else if (pRow->type == TSDBROW_COL_FMT) {
-    pIter->pTSchema = NULL;
-    pIter->i = 0;
+    pIter->iColData = 0;
   } else {
     ASSERT(0);
+  }
+
+_exit:
+  return code;
+}
+
+void tsdbRowClose(STSDBRowIter *pIter) {
+  if (pIter->pRow->type == TSDBROW_ROW_FMT) {
+    tRowIterClose(&pIter->pIter);
   }
 }
 
 SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
   if (pIter->pRow->type == TSDBROW_ROW_FMT) {
-    if (pIter->i < pIter->pTSchema->numOfCols) {
-      tRowGet(pIter->pRow->pTSRow, pIter->pTSchema, pIter->i, &pIter->colVal);
-      pIter->i++;
-
-      return &pIter->colVal;
-    }
+    return tRowIterNext(pIter->pIter);
   } else if (pIter->pRow->type == TSDBROW_COL_FMT) {
-    if (pIter->i < pIter->pRow->pBlockData->nColData) {
-      SColData *pColData = tBlockDataGetColDataByIdx(pIter->pRow->pBlockData, pIter->i);
+    if (pIter->iColData == 0) {
+      pIter->cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, TSDB_DATA_TYPE_TIMESTAMP,
+                                (SValue){.val = pIter->pRow->pBlockData->aTSKEY[pIter->pRow->iRow]});
+      ++pIter->iColData;
+      return &pIter->cv;
+    }
 
-      tColDataGetValue(pColData, pIter->pRow->iRow, &pIter->colVal);
-      pIter->i++;
-
-      return &pIter->colVal;
+    if (pIter->iColData < pIter->pRow->pBlockData->nColData) {
+      tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData], pIter->pRow->iRow, &pIter->cv);
+      ++pIter->iColData;
+      return &pIter->cv;
+    } else {
+      return NULL;
     }
   } else {
     ASSERT(0);
   }
-
-  return NULL;
 }
 
 // SRowMerger ======================================================
@@ -1097,7 +1105,8 @@ void tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColD
   int32_t ridx = pBlockData->nColData - 1;
 
   while (lidx <= ridx) {
-    int32_t   midx = (lidx + ridx) >> 2;
+    int32_t midx = lidx + (ridx - lidx) * (cid - pBlockData->aColData[lidx].cid) /
+                              (pBlockData->aColData[ridx].cid - pBlockData->aColData[lidx].cid);
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, midx);
     int32_t   c = (pColData->cid == cid) ? 0 : ((pColData->cid > cid) ? 1 : -1);
 

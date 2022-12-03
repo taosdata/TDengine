@@ -2061,8 +2061,8 @@ int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMall
   }
 
   // value
-  if (pColData->nVal) {
-    pColData->pData = xMalloc(arg, pColData->nVal);
+  if (pColData->nData) {
+    pColData->pData = xMalloc(arg, pColData->nData);
     if (pColData->pData == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
