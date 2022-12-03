@@ -21,6 +21,12 @@
 #include "sclInt.h"
 #include "sclvector.h"
 
+typedef int32_t (*_geomPrepareFunc_fn_t)(SGeosContext* context);
+typedef int32_t (*_geomExecuteOneParamFunc_fn_t)(SGeosContext* context, SColumnInfoData *pInputData,
+                                                 int32_t i, SColumnInfoData *pOutputData);
+typedef int32_t (*_geomExecuteTwoParamsFunc_fn_t)(SGeosContext* context, SColumnInfoData *pInputData[],
+                                                  int32_t iLeft, int32_t iRight, SColumnInfoData *pOutputData);
+
 // both input and output are with VARSTR format
 // need to call taosMemoryFree(*output) later
 int32_t doGeomFromTextFunc(SGeosContext *context, const char *input, unsigned char **output) {
@@ -149,258 +155,189 @@ int32_t doIntersectsFunc(SGeosContext *context, unsigned char *input1, unsigned 
   return code;
 }
 
-void appendOutputStrAndFree(SColumnInfoData *pOutputData, int32_t i, unsigned char *output) {
+int32_t executeGeomFromTextFunc(SGeosContext* context, SColumnInfoData *pInputData,
+                                int32_t i, SColumnInfoData *pOutputData) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  char *input = colDataGetData(pInputData, i);
+  unsigned char *output = NULL;
+  code = doGeomFromTextFunc(context, input, &output);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
   colDataAppend(pOutputData, i, output, (output == NULL));
 
+_exit:
   if (output) {
     taosMemoryFree(output);
   }
+
+  return code;
+}
+
+int32_t executeAsTextFunc(SGeosContext* context, SColumnInfoData *pInputData,
+                          int32_t i, SColumnInfoData *pOutputData) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  unsigned char *input = colDataGetData(pInputData, i);
+  char *output = NULL;
+  code = doAsTextFunc(context, input, &output);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
+  colDataAppend(pOutputData, i, output, (output == NULL));
+
+_exit:
+  if (output) {
+    taosMemoryFree(output);
+  }
+
+  return code;
+}
+
+int32_t executeMakePointFunc(SGeosContext* context, SColumnInfoData *pInputData[],
+                             int32_t iLeft, int32_t iRight, SColumnInfoData *pOutputData) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  _getDoubleValue_fn_t getDoubleValueFn[2];
+  getDoubleValueFn[0]= getVectorDoubleValueFn(pInputData[0]->info.type);
+  getDoubleValueFn[1]= getVectorDoubleValueFn(pInputData[1]->info.type);
+
+  unsigned char *output = NULL;
+  code = doMakePointFunc(context, getDoubleValueFn[0](pInputData[0]->pData, iLeft), getDoubleValueFn[1](pInputData[1]->pData, iRight), &output);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
+  colDataAppend(pOutputData, TMAX(iLeft, iRight), output, (output == NULL));
+
+_exit:
+  if (output) {
+    taosMemoryFree(output);
+  }
+
+  return code;
+}
+
+int32_t executeIntersectsFunc(SGeosContext* context, SColumnInfoData *pInputData[],
+                              int32_t iLeft, int32_t iRight, SColumnInfoData *pOutputData) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  char res = 0;
+  code = doIntersectsFunc(context, colDataGetData(pInputData[0], iLeft), colDataGetData(pInputData[1], iRight), &res);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  colDataAppend(pOutputData, TMAX(iLeft, iRight), &res, (res==-1));
+
+  return code;
+}
+
+int32_t geomOneParamFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput,
+                             _geomPrepareFunc_fn_t prepareFn, _geomExecuteOneParamFunc_fn_t executeOneParamFn) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  SGeosContext context = {0};
+  code = prepareFn(&context);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataAppendNULL(pOutputData, i);
+      code = TSDB_CODE_SUCCESS;
+      continue;
+    }
+
+    code = executeOneParamFn(&context, pInputData, i, pOutputData);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+
+_exit:
+  destroyGeosContext(&context);
+
+  return code;
+}
+
+int32_t geomTwoParamsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput,
+                              _geomPrepareFunc_fn_t prepareFn, _geomExecuteTwoParamsFunc_fn_t executeTwoParamsFn) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  SColumnInfoData *pInputData[inputNum];
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  for (int32_t i = 0; i < inputNum; ++i) {
+    pInputData[i] = pInput[i].columnData;
+  }
+
+  SGeosContext context = {0};
+  code = prepareFn(&context);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
+  bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+                      IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
+  bool isConstantLeft = (pInput[0].numOfRows == 1);
+  bool isConstantRight = (pInput[1].numOfRows == 1);
+  int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+
+  if (hasNullType ||                                           // one of operant is NULL type
+     (isConstantLeft && colDataIsNull_s(pInputData[0], 0)) ||  // left operand is constant NULL
+     (isConstantRight && colDataIsNull_s(pInputData[1], 0))) { // right operand is constant NULL
+    colDataAppendNNULL(pOutputData, 0, numOfRows);
+    code = TSDB_CODE_SUCCESS;
+  } else {
+    int32_t iLeft = 0;
+    int32_t iRight = 0;
+    for (int32_t i = 0; i < numOfRows; ++i) {
+      iLeft = isConstantLeft ? 0 : i;
+      iRight = isConstantRight ? 0 : i;;
+
+      if ((!isConstantLeft && colDataIsNull_s(pInputData[0], iLeft)) ||
+          (!isConstantRight && colDataIsNull_s(pInputData[1], iRight))) {
+        colDataAppendNULL(pOutputData, i);
+        code = TSDB_CODE_SUCCESS;
+        continue;
+      }
+
+      code = executeTwoParamsFn(&context, pInputData, iLeft, iRight, pOutputData);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _exit;
+      }
+    }
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_exit:
+  destroyGeosContext(&context);
+
+  return code;
 }
 
 int32_t geomFromTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t code = TSDB_CODE_FAILED;
-
-  SColumnInfoData *pInputData = pInput->columnData;
-  SColumnInfoData *pOutputData = pOutput->columnData;
-
-  SGeosContext context = {0};
-  code = prepareGeomFromText(&context);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
-
-  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
-    if (colDataIsNull_s(pInputData, i)) {
-      colDataAppendNULL(pOutputData, i);
-      code = TSDB_CODE_SUCCESS;
-      continue;
-    }
-
-    char *input = colDataGetData(pInputData, i);
-    unsigned char *output = NULL;
-    code = doGeomFromTextFunc(&context, input, &output);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _exit;
-    }
-    appendOutputStrAndFree(pOutputData, i, output);
-  }
-
-  pOutput->numOfRows = pInput->numOfRows;
-
-_exit:
-  destroyGeosContext(&context);
-
-  return code;
+  return geomOneParamFunction(pInput, inputNum, pOutput, prepareGeomFromText, executeGeomFromTextFunc);
 }
 
 int32_t asTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t code = TSDB_CODE_FAILED;
-
-  SColumnInfoData *pInputData = pInput->columnData;
-  SColumnInfoData *pOutputData = pOutput->columnData;
-
-  SGeosContext context = {0};
-  code = prepareAsText(&context);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
-
-  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
-    if (colDataIsNull_s(pInputData, i)) {
-      colDataAppendNULL(pOutputData, i);
-      code = TSDB_CODE_SUCCESS;
-      continue;
-    }
-
-    unsigned char *input = colDataGetData(pInputData, i);
-    char *output = NULL;
-    code = doAsTextFunc(&context, input, &output);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _exit;
-    }
-    appendOutputStrAndFree(pOutputData, i, output);
-  }
-
-  pOutput->numOfRows = pInput->numOfRows;
-
-_exit:
-  destroyGeosContext(&context);
-
-  return code;
+  return geomOneParamFunction(pInput, inputNum, pOutput, prepareAsText, executeAsTextFunc);
 }
 
 int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t code = TSDB_CODE_FAILED;
-
-  SColumnInfoData *pInputData[inputNum];
-  SColumnInfoData *pOutputData = pOutput->columnData;
-  _getDoubleValue_fn_t getValueFn[inputNum];
-
-  for (int32_t i = 0; i < inputNum; ++i) {
-    pInputData[i] = pInput[i].columnData;
-    getValueFn[i]= getVectorDoubleValueFn(GET_PARAM_TYPE(&pInput[i]));
-  }
-
-  SGeosContext context = {0};
-  code = prepareMakePoint(&context);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
-
-  bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
-                      IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
-
-  int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
-  if (pInput[0].numOfRows == pInput[1].numOfRows) {
-    for (int32_t i = 0; i < numOfRows; ++i) {
-      if (colDataIsNull_s(pInputData[0], i) ||
-          colDataIsNull_s(pInputData[1], i) ||
-          hasNullType) {
-        colDataAppendNULL(pOutputData, i);
-        code = TSDB_CODE_SUCCESS;
-        continue;
-      }
-
-      unsigned char *output = NULL;
-      code = doMakePointFunc(&context, getValueFn[0](pInputData[0]->pData, i), getValueFn[1](pInputData[1]->pData, i), &output);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _exit;
-      }
-      appendOutputStrAndFree(pOutputData, i, output);
-    }
-  } else if (pInput[0].numOfRows == 1) { //left operand is constant
-    if (colDataIsNull_s(pInputData[0], 0) || hasNullType) {
-      colDataAppendNNULL(pOutputData, 0, pInput[1].numOfRows);
-      code = TSDB_CODE_SUCCESS;
-    } else {
-      for (int32_t i = 0; i < numOfRows; ++i) {
-        if (colDataIsNull_s(pInputData[1], i)) {
-          colDataAppendNULL(pOutputData, i);
-          code = TSDB_CODE_SUCCESS;
-          continue;
-        }
-
-        unsigned char *output = NULL;
-        code = doMakePointFunc(&context, getValueFn[0](pInputData[0]->pData, 0), getValueFn[1](pInputData[1]->pData, i), &output);
-        if (code != TSDB_CODE_SUCCESS) {
-          goto _exit;
-        }
-        appendOutputStrAndFree(pOutputData, i, output);
-      }
-    }
-  } else if (pInput[1].numOfRows == 1) {
-    if (colDataIsNull_s(pInputData[1], 0) || hasNullType) {
-      colDataAppendNNULL(pOutputData, 0, pInput[0].numOfRows);
-      code = TSDB_CODE_SUCCESS;
-    } else {
-      for (int32_t i = 0; i < numOfRows; ++i) {
-        if (colDataIsNull_s(pInputData[0], i)) {
-          colDataAppendNULL(pOutputData, i);
-          code = TSDB_CODE_SUCCESS;
-          continue;
-        }
-
-        unsigned char *output = NULL;
-        code = doMakePointFunc(&context, getValueFn[0](pInputData[0]->pData, i), getValueFn[1](pInputData[1]->pData, 0), &output);
-        if (code != TSDB_CODE_SUCCESS) {
-          goto _exit;
-        }
-        appendOutputStrAndFree(pOutputData, i, output);
-      }
-    }
-  }
-
-  pOutput->numOfRows = numOfRows;
-
-_exit:
-  destroyGeosContext(&context);
-
-  return code;
+  return geomTwoParamsFunction(pInput, inputNum, pOutput, prepareMakePoint, executeMakePointFunc);
 }
 
 int32_t intersectsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t code = TSDB_CODE_FAILED;
-
-  SColumnInfoData *pInputData[inputNum];
-  SColumnInfoData *pOutputData = pOutput->columnData;
-
-  for (int32_t i = 0; i < inputNum; ++i) {
-    pInputData[i] = pInput[i].columnData;
-  }
-
-  SGeosContext context = {0};
-  code = prepareIntersects(&context);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
-
-  bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
-                      IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
-
-  int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
-  if (pInput[0].numOfRows == pInput[1].numOfRows) {
-    for (int32_t i = 0; i < numOfRows; ++i) {
-      if (colDataIsNull_s(pInputData[0], i) ||
-          colDataIsNull_s(pInputData[1], i) ||
-          hasNullType) {
-        colDataAppendNULL(pOutputData, i);
-        code = TSDB_CODE_SUCCESS;
-        continue;
-      }
-
-      char res = 0;
-      code = doIntersectsFunc(&context, colDataGetData(pInputData[0], i), colDataGetData(pInputData[1], i), &res);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _exit;
-      }
-      colDataAppend(pOutputData, i, &res, (res==-1));
-    }
-  } else if (pInput[0].numOfRows == 1) { //left operand is constant
-    if (colDataIsNull_s(pInputData[0], 0) || hasNullType) {
-      colDataAppendNNULL(pOutputData, 0, pInput[1].numOfRows);
-      code = TSDB_CODE_SUCCESS;
-    } else {
-      for (int32_t i = 0; i < numOfRows; ++i) {
-        if (colDataIsNull_s(pInputData[1], i)) {
-          colDataAppendNULL(pOutputData, i);
-          code = TSDB_CODE_SUCCESS;
-          continue;
-        }
-
-        char res = 0;
-        code = doIntersectsFunc(&context, colDataGetData(pInputData[0], 0), colDataGetData(pInputData[1], i), &res);
-        if (code != TSDB_CODE_SUCCESS) {
-          goto _exit;
-        }
-        colDataAppend(pOutputData, i, &res, (res==-1));
-      }
-    }
-  } else if (pInput[1].numOfRows == 1) {
-    if (colDataIsNull_s(pInputData[1], 0) || hasNullType) {
-      colDataAppendNNULL(pOutputData, 0, pInput[0].numOfRows);
-      code = TSDB_CODE_SUCCESS;
-    } else {
-      for (int32_t i = 0; i < numOfRows; ++i) {
-        if (colDataIsNull_s(pInputData[0], i)) {
-          colDataAppendNULL(pOutputData, i);
-          code = TSDB_CODE_SUCCESS;
-          continue;
-        }
-
-        char res = 0;
-        code = doIntersectsFunc(&context, colDataGetData(pInputData[0], i), colDataGetData(pInputData[1], 0), &res);
-        if (code != TSDB_CODE_SUCCESS) {
-          goto _exit;
-        }
-        colDataAppend(pOutputData, i, &res, (res==-1));
-      }
-    }
-  }
-
-  pOutput->numOfRows = numOfRows;
-
-_exit:
-  destroyGeosContext(&context);
-
-  return code;
+  return geomTwoParamsFunction(pInput, inputNum, pOutput, prepareIntersects, executeIntersectsFunc);
 }
