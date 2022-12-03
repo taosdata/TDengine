@@ -236,7 +236,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       break;
     /* TSDB */
     case TDMT_VND_SUBMIT:
-      if (vnodeProcessSubmitReq(pVnode, version, pMsg->pCont, pMsg->contLen, pRsp) < 0) goto _err;
+      if (vnodeProcessSubmitReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_DELETE:
       if (vnodeProcessDeleteReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
@@ -868,7 +868,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 
   // decode
   SDecoder dc = {0};
-  tDecoderInit(&dc, (char *)pReq + sizeof(SMsgHead), len - sizeof(SMsgHead));
+  tDecoderInit(&dc, pReq, len);
   if (tDecodeSSubmitReq2(&dc, pSubmitReq) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
@@ -876,6 +876,11 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   tDecoderClear(&dc);
 
   // check
+  code = tsdbScanAndConvertSubmitMsg(pVnode->pTsdb, pSubmitReq);
+  if (code) {
+    goto _exit;
+  }
+
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
     SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
 
@@ -982,6 +987,7 @@ _exit:
   atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
   if (code == 0) {
     atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
+    tdProcessRSmaSubmit(pVnode->pSma, pReq, len, STREAM_INPUT__DATA_SUBMIT);
   }
 
   // clear
