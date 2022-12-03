@@ -18,14 +18,15 @@
 
 #define BATCH_ENABLE 0
 
-static inline bool vnodeIsMsgBlock(tmsg_t type) {
-  return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
-         (type == TDMT_VND_UPDATE_TAG_VAL);
-}
-
 static inline bool vnodeIsMsgWeak(tmsg_t type) { return false; }
 
 static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
+  const STraceId *trace = &pMsg->info.traceId;
+  vGTrace("vgId:%d, msg:%p wait block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
+  tsem_wait(&pVnode->syncSem);
+}
+
+static inline void vnodeWaitBlockMsgOld(SVnode *pVnode, const SRpcMsg *pMsg) {
   if (vnodeIsMsgBlock(pMsg->msgType)) {
     const STraceId *trace = &pMsg->info.traceId;
     taosThreadMutexLock(&pVnode->lock);
@@ -53,7 +54,7 @@ static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   }
 }
 
-void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg, int32_t code) {
   SEpSet newEpSet = {0};
   syncGetRetryEpSet(pVnode->sync, &newEpSet);
 
@@ -66,8 +67,20 @@ void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   pMsg->info.hasEpSet = 1;
 
-  SRpcMsg rsp = {.code = TSDB_CODE_SYN_NOT_LEADER, .info = pMsg->info, .msgType = pMsg->msgType + 1};
-  tmsgSendRedirectRsp(&rsp, &newEpSet);
+  if (code == 0) code = TSDB_CODE_SYN_NOT_LEADER;
+
+  SRpcMsg rsp = {.code = code, .info = pMsg->info, .msgType = pMsg->msgType + 1};
+  int32_t contLen = tSerializeSEpSet(NULL, 0, &newEpSet);
+
+  rsp.pCont = rpcMallocCont(contLen);
+  if (rsp.pCont == NULL) {
+    pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    tSerializeSEpSet(rsp.pCont, contLen, &newEpSet);
+    rsp.contLen = contLen;
+  }
+
+  tmsgSendRsp(&rsp);
 }
 
 static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -88,7 +101,7 @@ static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 static void vnodeHandleProposeError(SVnode *pVnode, SRpcMsg *pMsg, int32_t code) {
   if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+    vnodeRedirectRpcMsg(pVnode, pMsg, code);
   } else {
     const STraceId *trace = &pMsg->info.traceId;
     vGError("vgId:%d, msg:%p failed to propose since %s, code:0x%x", pVnode->config.vgId, pMsg, tstrerror(code), code);
@@ -103,20 +116,30 @@ static void vnodeHandleProposeError(SVnode *pVnode, SRpcMsg *pMsg, int32_t code)
 
 static void inline vnodeProposeBatchMsg(SVnode *pVnode, SRpcMsg **pMsgArr, bool *pIsWeakArr, int32_t *arrSize) {
   if (*arrSize <= 0) return;
+  SRpcMsg *pLastMsg = pMsgArr[*arrSize - 1];
 
+  taosThreadMutexLock(&pVnode->lock);
   int32_t code = syncProposeBatch(pVnode->sync, pMsgArr, pIsWeakArr, *arrSize);
+  bool    wait = (code == 0 && vnodeIsBlockMsg(pLastMsg->msgType));
+  if (wait) {
+    ASSERT(!pVnode->blocked);
+    pVnode->blocked = true;
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
+
   if (code > 0) {
     for (int32_t i = 0; i < *arrSize; ++i) {
       vnodeHandleWriteMsg(pVnode, pMsgArr[i]);
     }
-  } else if (code == 0) {
-    vnodeWaitBlockMsg(pVnode, pMsgArr[*arrSize - 1]);
-  } else {
+  } else if (code < 0) {
     if (terrno != 0) code = terrno;
     for (int32_t i = 0; i < *arrSize; ++i) {
       vnodeHandleProposeError(pVnode, pMsgArr[i], code);
     }
   }
+
+  if (wait) vnodeWaitBlockMsg(pVnode, pLastMsg);
+  pLastMsg = NULL;
 
   for (int32_t i = 0; i < *arrSize; ++i) {
     SRpcMsg        *pMsg = pMsgArr[i];
@@ -194,16 +217,23 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
 #else
 
 static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak) {
+  taosThreadMutexLock(&pVnode->lock);
   int32_t code = syncPropose(pVnode->sync, pMsg, isWeak);
+  bool    wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
+  if (wait) {
+    ASSERT(!pVnode->blocked);
+    pVnode->blocked = true;
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
+
   if (code > 0) {
     vnodeHandleWriteMsg(pVnode, pMsg);
-  } else if (code == 0) {
-    vnodeWaitBlockMsg(pVnode, pMsg);
-  } else {
+  } else if (code < 0) {
     if (terrno != 0) code = terrno;
     vnodeHandleProposeError(pVnode, pMsg, code);
   }
 
+  if (wait) vnodeWaitBlockMsg(pVnode, pMsg);
   return code;
 }
 
@@ -261,6 +291,11 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
     const STraceId *trace = &pMsg->info.traceId;
     vGTrace("vgId:%d, msg:%p get from vnode-apply queue, type:%s handle:%p index:%" PRId64, vgId, pMsg,
             TMSG_INFO(pMsg->msgType), pMsg->info.handle, pMsg->info.conn.applyIndex);
+
+    if (vnodeIsMsgBlock(pMsg->msgType)) {
+      vTrace("vgId:%d, blocking msg obtained from apply-queue. index:%" PRId64 ", term: %" PRId64 ", type: %s", vgId,
+             pMsg->info.conn.applyIndex, pMsg->info.conn.applyTerm, TMSG_INFO(pMsg->msgType));
+    }
 
     SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
     if (rsp.code == 0) {
@@ -351,7 +386,7 @@ static int32_t vnodeSyncGetSnapshot(const SSyncFSM *pFsm, SSnapshot *pSnapshot) 
   return 0;
 }
 
-static void vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   SVnode *pVnode = pFsm->data;
   pMsg->info.conn.applyIndex = pMeta->index;
   pMsg->info.conn.applyTerm = pMeta->term;
@@ -362,17 +397,18 @@ static void vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbM
           pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, pMsg->info.conn.applyIndex, pMeta->isWeak, pMeta->code,
           pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType));
 
-  tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
+  return tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
 }
 
-static void vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
-  vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
+static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+  return vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
 }
 
-static void vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static int32_t vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   if (pMeta->isWeak == 1) {
-    vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
+    return vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
   }
+  return 0;
 }
 
 static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {

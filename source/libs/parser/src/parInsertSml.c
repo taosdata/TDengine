@@ -114,7 +114,7 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
   if (!isOrdered) {
     pColList->colIdxInfo = taosMemoryCalloc(pColList->numOfBound, sizeof(SBoundIdxInfo));
     if (NULL == pColList->colIdxInfo) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     SBoundIdxInfo* pColIdx = pColList->colIdxInfo;
     for (col_id_t i = 0; i < pColList->numOfBound; ++i) {
@@ -150,11 +150,11 @@ static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* p
                               SMsgBuf* msg) {
   SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
   if (!pTagArray) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   *tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
   if (!*tagName) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;

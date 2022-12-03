@@ -1335,7 +1335,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
       if (NULL == pMsgSendInfo) {
         qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
-        pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+        pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
         return NULL;
       }
 
@@ -1437,7 +1437,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   setOperatorInfo(pOperator, "SysTableScanOperator", QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doSysTableScan, NULL, destroySysScanOperator, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doSysTableScan, NULL, destroySysScanOperator, optrDefaultBufFn, NULL);
   return pOperator;
 
   _error:
@@ -1881,7 +1881,7 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
   pCond->colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
   pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t));
   if (pCond->colList == NULL || pCond->pSlotList == NULL) {
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -1943,7 +1943,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
   setOperatorInfo(pOperator, "DataBlockDistScanOperator", QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN, false,
                   OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doBlockInfoScan, NULL, destroyBlockDistScanOperatorInfo, NULL);
+      createOperatorFpSet(optrDummyOpenFn, doBlockInfoScan, NULL, destroyBlockDistScanOperatorInfo, optrDefaultBufFn, NULL);
   return pOperator;
 
 _error:

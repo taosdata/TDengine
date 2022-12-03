@@ -181,14 +181,15 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   if (version <= pVnode->state.applied) {
     vError("vgId:%d, duplicate write request. version: %" PRId64 ", applied: %" PRId64 "", TD_VID(pVnode), version,
            pVnode->state.applied);
+    terrno = TSDB_CODE_VND_DUP_REQUEST;
     pRsp->info.handle = NULL;
     return -1;
   }
 
   vDebug("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          version);
-  ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
 
+  ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
   pVnode->state.applied = version;
   pVnode->state.applyTerm = pMsg->info.conn.applyTerm;
 
@@ -344,7 +345,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
   // if ((pMsg->msgType == TDMT_SCH_QUERY) && !vnodeIsLeader(pVnode)) {
   if ((pMsg->msgType == TDMT_SCH_QUERY) && !syncIsReadyForRead(pVnode->sync)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
 
@@ -367,12 +368,12 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
        pMsg->msgType == TDMT_VND_BATCH_META) &&
       !syncIsReadyForRead(pVnode->sync)) {
     //      !vnodeIsLeader(pVnode)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
 
   if (pMsg->msgType == TDMT_VND_TMQ_CONSUME && !pVnode->restored) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+    vnodeRedirectRpcMsg(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
     return 0;
   }
 

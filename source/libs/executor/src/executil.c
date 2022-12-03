@@ -129,6 +129,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
   void* pData = NULL;
   pGroupResInfo->pRows = taosArrayInit(10, POINTER_BYTES);
 
+  // todo avoid repeated malloc memory
   size_t  keyLen = 0;
   int32_t iter = 0;
   while ((pData = tSimpleHashIterate(pHashmap, pData, &iter)) != NULL) {
@@ -1457,7 +1458,7 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   SqlFunctionCtx*  p = NULL;
   SqlFunctionCtx** pValCtx = taosMemoryCalloc(numOfOutput, POINTER_BYTES);
   if (pValCtx == NULL) {
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
@@ -1605,7 +1606,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
   pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t)*pCond->numOfCols);
   if (pCond->colList == NULL || pCond->pSlotList == NULL) {
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFreeClear(pCond->colList);
     taosMemoryFreeClear(pCond->pSlotList);
     return terrno;

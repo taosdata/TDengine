@@ -86,7 +86,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   /*assert(connectRsp.epSet.numOfEps > 0);*/
   if (connectRsp.epSet.numOfEps == 0) {
-    setErrno(pRequest, TSDB_CODE_MND_APP_ERROR);
+    setErrno(pRequest, TSDB_CODE_APP_ERROR);
     tsem_post(&pRequest->body.rspSem);
     goto End;
   }

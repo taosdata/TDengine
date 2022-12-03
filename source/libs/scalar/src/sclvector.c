@@ -395,7 +395,7 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
     func = varToTimestamp;
   } else {
     sclError("invalid convert outType:%d", pCtx->outType);
-    return TSDB_CODE_QRY_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
 
   pCtx->pOut->numOfRows = pCtx->pIn->numOfRows;
@@ -440,7 +440,7 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
         if (len < 0) {
           sclError("castConvert taosUcs4ToMbs error 1");
           taosMemoryFreeClear(tmp);
-          return TSDB_CODE_QRY_APP_ERROR;
+          return TSDB_CODE_APP_ERROR;
         }
 
         tmp[len] = 0;
@@ -642,7 +642,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
     }
   } else {
     sclError("not supported input type:%d", pCtx->inType);
-    return TSDB_CODE_QRY_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -859,7 +859,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     }
     default:
       sclError("invalid convert output type:%d", cCtx.outType);
-      return TSDB_CODE_QRY_APP_ERROR;
+      return TSDB_CODE_APP_ERROR;
   }
 
   return TSDB_CODE_SUCCESS;

@@ -159,7 +159,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   if (NULL == pMsg) {
     qError("0x%" PRIx64 " msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
     destroySendMsgInfo(pInfo);
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -441,7 +441,7 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
   *pDst = taosMemoryMalloc(metaSize);
   if (NULL == *pDst) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(*pDst, pSrc, metaSize);
   return TSDB_CODE_SUCCESS;
@@ -455,7 +455,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
 
   *pDst = taosMemoryMalloc(sizeof(*pSrc));
   if (NULL == *pDst) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(*pDst, pSrc, sizeof(*pSrc));
   if (pSrc->vgHash) {
@@ -463,7 +463,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
                                    HASH_ENTRY_LOCK);
     if (NULL == (*pDst)->vgHash) {
       taosMemoryFreeClear(*pDst);
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     SVgroupInfo* vgInfo = NULL;
