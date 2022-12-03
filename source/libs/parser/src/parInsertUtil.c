@@ -1083,8 +1083,9 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
 
 int32_t insGetTableDataCxt(SHashObj* pHash, void* id, int32_t idLen, STableMeta* pTableMeta,
                            SVCreateTbReq** pCreateTbReq, STableDataCxt** pTableCxt, bool colMode) {
-  *pTableCxt = taosHashGet(pHash, id, idLen);
-  if (NULL != *pTableCxt) {
+  STableDataCxt** tmp = (STableDataCxt**)taosHashGet(pHash, id, idLen);
+  if (NULL != tmp) {
+    *pTableCxt = *tmp;
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = createTableDataCxt(pTableMeta, pCreateTbReq, pTableCxt, colMode);
