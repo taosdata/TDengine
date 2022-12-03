@@ -1206,7 +1206,11 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
     }
 
     pColumn->pData = tmp;
+
+    // todo remove it soon
+#if defined LINUX
     ASSERT((((uint64_t)pColumn->pData) & (MALLOC_ALIGN_BYTES - 1)) == 0x0);
+#endif
 
     if (clearPayload) {
       memset(tmp + pColumn->info.bytes * existedRows, 0, pColumn->info.bytes * (numOfRows - existedRows));
