@@ -2638,7 +2638,11 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
       (*pRetIndex) = index;
     }
 
-    return syncNodeAppend(ths, pEntry);
+    int32_t code = syncNodeAppend(ths, pEntry);
+    if (code < 0 && ths->vgId != 1 && vnodeIsMsgBlock(pEntry->originalRpcType)) {
+      ASSERT(false && "failed to append blocking msg");
+    }
+    return code;
   }
 
   return -1;

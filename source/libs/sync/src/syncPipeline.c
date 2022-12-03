@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 
 #include "syncPipeline.h"
+#include "syncCommit.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
 #include "syncRaftEntry.h"
@@ -442,6 +443,11 @@ int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, Syn
     return 0;
   }
 
+  if (pNode->vgId != 1 && vnodeIsMsgBlock(pEntry->originalRpcType)) {
+    sTrace("vgId:%d, blocking msg ready to execute. index:%" PRId64 ", term: %" PRId64 ", type: %s", pNode->vgId,
+           pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType));
+  }
+
   SRpcMsg rpcMsg = {0};
   syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
@@ -514,9 +520,8 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
       }
       continue;
     }
-
     if (syncLogFsmExecute(pNode, pFsm, role, term, pEntry) != 0) {
-      sError("vgId:%d, failed to commit sync log entry. index:%" PRId64 ", term:%" PRId64
+      sError("vgId:%d, failed to execute sync log entry. index:%" PRId64 ", term:%" PRId64
              ", role: %d, current term: %" PRId64,
              vgId, pEntry->index, pEntry->term, role, term);
       goto _out;
