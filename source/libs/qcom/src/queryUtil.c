@@ -244,6 +244,7 @@ void destroyQueryExecRes(SExecResult* pRes) {
     }
     case TDMT_VND_SUBMIT: {
       tDestroySSubmitRsp2((SSubmitRsp2*)pRes->res, TSDB_MSG_FLG_DECODE);
+      taosMemoryFreeClear(pRes->res);
       break;
     }
     case TDMT_SCH_QUERY: 
@@ -499,27 +500,39 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
   }
 
   (*pDst)->flags = pSrc->flags;
-  (*pDst)->name = strdup(pSrc->name);
+  if (pSrc->name) {
+    (*pDst)->name = strdup(pSrc->name);
+  }
   (*pDst)->uid = pSrc->uid;
   (*pDst)->ctime = pSrc->ctime;
   (*pDst)->ttl = pSrc->ttl;
   (*pDst)->commentLen = pSrc->commentLen;
-  (*pDst)->comment = strdup(pSrc->comment);
+  if (pSrc->comment) {
+    (*pDst)->comment = strdup(pSrc->comment);
+  }
   (*pDst)->type = pSrc->type;
 
   if (pSrc->type == TSDB_CHILD_TABLE) {
-    (*pDst)->ctb.stbName = strdup(pSrc->ctb.stbName);
+    if (pSrc->ctb.stbName) {
+      (*pDst)->ctb.stbName = strdup(pSrc->ctb.stbName);
+    }
     (*pDst)->ctb.tagNum = pSrc->ctb.tagNum;
     (*pDst)->ctb.suid = pSrc->ctb.suid;
-    (*pDst)->ctb.tagName = taosArrayDup(pSrc->ctb.tagName, NULL);
+    if (pSrc->ctb.tagName) {
+      (*pDst)->ctb.tagName = taosArrayDup(pSrc->ctb.tagName, NULL);
+    }
     STag* pTag = (STag *)pSrc->ctb.pTag;
-    (*pDst)->ctb.pTag = taosMemoryMalloc(pTag->len);
-    memcpy((*pDst)->ctb.pTag, pTag, pTag->len);
+    if (pTag) {
+      (*pDst)->ctb.pTag = taosMemoryMalloc(pTag->len);
+      memcpy((*pDst)->ctb.pTag, pTag, pTag->len);
+    }
   } else {
     (*pDst)->ntb.schemaRow.nCols = pSrc->ntb.schemaRow.nCols;
     (*pDst)->ntb.schemaRow.version = pSrc->ntb.schemaRow.nCols;
-    (*pDst)->ntb.schemaRow.pSchema = taosMemoryMalloc(pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
-    memcpy((*pDst)->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
+    if (pSrc->ntb.schemaRow.nCols > 0 && pSrc->ntb.schemaRow.pSchema) {
+      (*pDst)->ntb.schemaRow.pSchema = taosMemoryMalloc(pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
+      memcpy((*pDst)->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
+    }
   }
 
   return TSDB_CODE_SUCCESS;

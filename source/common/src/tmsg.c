@@ -6871,11 +6871,12 @@ void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
     return;
   }
   
-  if (pTbData->pCreateTbReq) {
-    taosMemoryFree(pTbData->pCreateTbReq);
-  }
-
   if (flag == TSDB_MSG_FLG_ENCODE) {
+    if (pTbData->pCreateTbReq) {
+      tdDestroySVCreateTbReq(pTbData->pCreateTbReq);
+      taosMemoryFree(pTbData->pCreateTbReq);
+    }
+
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       int32_t   nColData = TARRAY_SIZE(pTbData->aCol);
       SColData *aColData = (SColData *)TARRAY_DATA(pTbData->aCol);
@@ -6894,6 +6895,10 @@ void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
       taosArrayDestroy(pTbData->aRowP);
     }
   } else if (flag == TSDB_MSG_FLG_DECODE) {
+    if (pTbData->pCreateTbReq) {
+      taosMemoryFree(pTbData->pCreateTbReq);
+    }
+
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       taosArrayDestroy(pTbData->aCol);
     } else {

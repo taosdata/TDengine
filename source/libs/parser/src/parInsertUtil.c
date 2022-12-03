@@ -1124,6 +1124,7 @@ void insDestroyVgroupDataCxt(SVgroupDataCxt* pVgCxt) {
   }
 
   tDestroySSubmitReq2(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
+  taosMemoryFree(pVgCxt->pData);
   taosMemoryFree(pVgCxt);
 }
 
@@ -1240,6 +1241,16 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
   while (TSDB_CODE_SUCCESS == code && NULL != p) {
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
     if (colFormat) {
+      SColData *pCol = taosArrayGet(pTableCxt->pData->aCol, 0);
+      if (pCol->nVal <= 0) {
+        p = taosHashIterate(pTableHash, p);
+        continue;
+      }
+      
+      if (pTableCxt->pData->pCreateTbReq) {
+        pTableCxt->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
+      }
+      
       taosArraySort(pTableCxt->pData->aCol, insColDataComp);
       
       tColDataSortMerge(pTableCxt->pData->aCol);
@@ -1274,7 +1285,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
   if (TSDB_CODE_SUCCESS == code) {
     *pVgDataBlocks = pVgroupList;
   } else {
-    taosArrayDestroy(pVgroupList);
+    insDestroyVgroupDataCxtList(pVgroupList);
   }
 
   return code;

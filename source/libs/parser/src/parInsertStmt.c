@@ -164,6 +164,14 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
     goto end;
   }
 
+  if (NULL == pDataBlock->pData->pCreateTbReq) {
+    pDataBlock->pData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+    if (NULL == pDataBlock->pData->pCreateTbReq) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto end;
+    }
+  }
+
   insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName, pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
 
 end:
@@ -471,7 +479,7 @@ int32_t qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_
     pBlock->pMeta->vgId = vgId;
   }
 
-  if (rebuildCreateTb && pBlock->pData->pCreateTbReq) {
+  if (rebuildCreateTb && NULL == pBlock->pData->pCreateTbReq) {
     pBlock->pData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
     if (NULL == pBlock->pData->pCreateTbReq) {
       return TSDB_CODE_OUT_OF_MEMORY;

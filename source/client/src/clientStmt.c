@@ -307,13 +307,15 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
     pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
   }
 
-  if (!keepTable) {
-    taosHashCleanup(pStmt->exec.pBlockHash);
-    pStmt->exec.pBlockHash = NULL;
+  if (keepTable) {
+    return TSDB_CODE_SUCCESS;
   }
+  
+  taosHashCleanup(pStmt->exec.pBlockHash);
+  pStmt->exec.pBlockHash = NULL;
 
-  tDestroySSubmitTbData(pStmt->exec.pCurrTbData, TSDB_MSG_FLG_DECODE);
-  pStmt->exec.pCurrTbData = NULL;
+  tDestroySSubmitTbData(pStmt->exec.pCurrTbData, TSDB_MSG_FLG_ENCODE);
+  taosMemoryFreeClear(pStmt->exec.pCurrTbData);
 
   STMT_ERR_RET(stmtCleanBindInfo(pStmt));
 
@@ -875,6 +877,9 @@ int stmtExec(TAOS_STMT* stmt) {
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
     launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
   } else {
+    tDestroySSubmitTbData(pStmt->exec.pCurrTbData, TSDB_MSG_FLG_ENCODE);
+    taosMemoryFreeClear(pStmt->exec.pCurrTbData);
+    
     STMT_ERR_RET(qCloneCurrentTbData(pStmt->exec.pCurrBlock, &pStmt->exec.pCurrTbData));
    
     STMT_ERR_RET(qBuildStmtOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, pStmt->exec.pBlockHash));
