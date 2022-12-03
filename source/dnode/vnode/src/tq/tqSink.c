@@ -304,7 +304,9 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
 
 int32_t tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pTSchema,
                       SSchemaWrapper* pTagSchemaWrapper, bool createTb, int64_t suid, const char* stbFullName,
-                      SBatchDeleteReq* pDeleteReq, void* ppData, int32_t* pLen) {
+                      SBatchDeleteReq* pDeleteReq, void** ppData, int32_t* pLen) {
+  void*        pBuf = NULL;
+  int32_t      len = 0;
   SSubmitReq2* pReq = NULL;
   SArray*      tagArray = NULL;
   SArray*      createTbArray = NULL;
@@ -462,18 +464,37 @@ int32_t tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* p
 
     taosArrayPush(pReq->aSubmitTbData, pTbData);
   }
-
-  terrno = tBuildSubmitReq(TD_VID(pVnode), pReq, ppData, pLen, rpcMallocCont, rpcFreeCont);
-
+  
+  // encode
+  tEncodeSize(tEncodeSSubmitReq2, pReq, len, terrno);
+  if (TSDB_CODE_SUCCESS == terrno) {
+    SEncoder encoder;
+    len += sizeof(SMsgHead);
+    pBuf = rpcMallocCont(len);
+    if (NULL == pBuf) {
+      goto _end;
+    }
+    ((SMsgHead*)pBuf)->vgId = htonl(TD_VID(pVnode));
+    ((SMsgHead*)pBuf)->contLen = htonl(len);
+    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len - sizeof(SMsgHead));
+    if (tEncodeSSubmitReq2(&encoder, pReq) < 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      tqError("failed to encode submit req since %s", terrstr());
+    }
+    tEncoderClear(&encoder);
+  }
 _end:
   taosArrayDestroy(tagArray);
   taosArrayDestroy(pVals);
   tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
 
   if (terrno != 0) {
+    rpcFreeCont(pBuf);
     taosArrayDestroy(pDeleteReq->deleteReqs);
     return TSDB_CODE_FAILED;
   }
+  if (ppData) *ppData = pBuf;
+  if (pLen) *pLen = len;
   return TSDB_CODE_SUCCESS;
 }
 
