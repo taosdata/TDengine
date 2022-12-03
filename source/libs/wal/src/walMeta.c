@@ -105,7 +105,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
 
     void* ptr = taosMemoryRealloc(buf, capacity);
     if (ptr == NULL) {
-      terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }
     buf = ptr;
@@ -632,7 +632,7 @@ int walRollFileInfo(SWal* pWal) {
   // TODO: change to emplace back
   SWalFileInfo* pNewInfo = taosMemoryMalloc(sizeof(SWalFileInfo));
   if (pNewInfo == NULL) {
-    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
   pNewInfo->firstVer = pWal->vers.lastVer + 1;
@@ -664,7 +664,7 @@ char* walMetaSerialize(SWal* pWal) {
     if (pFiles) {
       cJSON_Delete(pFiles);
     }
-    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   cJSON_AddItemToObject(pRoot, "meta", pMeta);
@@ -895,7 +895,7 @@ int walLoadMeta(SWal* pWal) {
   int   size = (int)fileSize;
   char* buf = taosMemoryMalloc(size + 5);
   if (buf == NULL) {
-    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
   memset(buf, 0, size + 5);

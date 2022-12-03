@@ -419,7 +419,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     
      
     if (connectRsp.epSet.numOfEps == 0) {
-      msgInfo->code = TSDB_CODE_MND_APP_ERROR;
+      msgInfo->code = TSDB_CODE_APP_ERROR;
       goto _return;
     }
 
