@@ -207,7 +207,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
     }
     setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
 
-    pTaskInfo->cost.created = taosGetTimestampMs();
+    pTaskInfo->cost.created = taosGetTimestampUs();
     pTaskInfo->execModel = OPTR_EXEC_MODEL_QUEUE;
     pTaskInfo->pRoot = createRawScanOperatorInfo(readers, pTaskInfo);
     if (NULL == pTaskInfo->pRoot) {
@@ -503,7 +503,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   }
 
   if (pTaskInfo->cost.start == 0) {
-    pTaskInfo->cost.start = taosGetTimestampMs();
+    pTaskInfo->cost.start = taosGetTimestampUs();
   }
 
   if (isTaskKilled(pTaskInfo)) {
@@ -597,7 +597,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
   }
 
   if (pTaskInfo->cost.start == 0) {
-    pTaskInfo->cost.start = taosGetTimestampMs();
+    pTaskInfo->cost.start = taosGetTimestampUs();
   }
 
   if (isTaskKilled(pTaskInfo)) {
@@ -688,7 +688,7 @@ void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
   taosWUnLockLatch(&pTaskInfo->stopInfo.lock);
 }
 
-int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
+int32_t qAsyncKillTask(qTaskInfo_t qinfo, int32_t rspCode) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qinfo;
 
   if (pTaskInfo == NULL) {
@@ -697,7 +697,7 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
 
   qDebug("%s execTask async killed", GET_TASKID(pTaskInfo));
 
-  setTaskKilled(pTaskInfo);
+  setTaskKilled(pTaskInfo, rspCode);
 
   qStopTaskOperators(pTaskInfo);
 
@@ -706,15 +706,20 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
 
 static void printTaskExecCostInLog(SExecTaskInfo* pTaskInfo) {
   STaskCostInfo* pSummary = &pTaskInfo->cost;
+  int64_t        idleTime = pSummary->start - pSummary->created;
 
   SFileBlockLoadRecorder* pRecorder = pSummary->pRecoder;
   if (pSummary->pRecoder != NULL) {
     qDebug(
-        "%s :cost summary: elapsed time:%.2f ms, extract tableList:%.2f ms, createGroupIdMap:%.2f ms, total blocks:%d, "
+        "%s :cost summary: idle:%.2f ms, elapsed time:%.2f ms, extract tableList:%.2f ms, "
+        "createGroupIdMap:%.2f ms, total blocks:%d, "
         "load block SMA:%d, load data block:%d, total rows:%" PRId64 ", check rows:%" PRId64,
-        GET_TASKID(pTaskInfo), pSummary->elapsedTime / 1000.0, pSummary->extractListTime, pSummary->groupIdMapTime,
-        pRecorder->totalBlocks, pRecorder->loadBlockStatis, pRecorder->loadBlocks, pRecorder->totalRows,
-        pRecorder->totalCheckedRows);
+        GET_TASKID(pTaskInfo), idleTime / 1000.0, pSummary->elapsedTime / 1000.0, pSummary->extractListTime,
+        pSummary->groupIdMapTime, pRecorder->totalBlocks, pRecorder->loadBlockStatis, pRecorder->loadBlocks,
+        pRecorder->totalRows, pRecorder->totalCheckedRows);
+  } else {
+    qDebug("%s :cost summary: idle in queue:%.2f ms, elapsed time:%.2f ms", GET_TASKID(pTaskInfo), idleTime / 1000.0,
+           pSummary->elapsedTime / 1000.0);
   }
 }
 
@@ -971,21 +976,27 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
   pCond->order = TSDB_ORDER_ASC;
   pCond->numOfCols = pMtInfo->schema->nCols;
   pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
-  if (pCond->colList == NULL) {
+  pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t) * pCond->numOfCols);
+  if (pCond->colList == NULL || pCond->pSlotList == NULL) {
+    taosMemoryFreeClear(pCond->colList);
+    taosMemoryFreeClear(pCond->pSlotList);
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return terrno;
   }
 
-  pCond->twindows = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
+  pCond->twindows = TSWINDOW_INITIALIZER;
   pCond->suid = pMtInfo->suid;
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
   pCond->endVersion = sContext->snapVersion;
 
   for (int32_t i = 0; i < pCond->numOfCols; ++i) {
-    pCond->colList[i].type = pMtInfo->schema->pSchema[i].type;
-    pCond->colList[i].bytes = pMtInfo->schema->pSchema[i].bytes;
-    pCond->colList[i].colId = pMtInfo->schema->pSchema[i].colId;
+    SColumnInfo* pColInfo = &pCond->colList[i];
+    pColInfo->type = pMtInfo->schema->pSchema[i].type;
+    pColInfo->bytes = pMtInfo->schema->pSchema[i].bytes;
+    pColInfo->colId = pMtInfo->schema->pSchema[i].colId;
+
+    pCond->pSlotList[i] = i;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1078,7 +1089,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
         int32_t        num = tableListGetSize(pTaskInfo->pTableInfoList);
 
         if (tsdbReaderOpen(pTableScanInfo->base.readHandle.vnode, &pTableScanInfo->base.cond, pList, num,
-                           &pTableScanInfo->base.dataReader, NULL) < 0 ||
+                           pTableScanInfo->pResBlock, &pTableScanInfo->base.dataReader, NULL) < 0 ||
             pTableScanInfo->base.dataReader == NULL) {
           ASSERT(0);
         }
@@ -1130,7 +1141,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     int32_t        size = tableListGetSize(pTaskInfo->pTableInfoList);
     ASSERT(size == 1);
 
-    tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, &pInfo->dataReader, NULL);
+    tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, NULL, &pInfo->dataReader, NULL);
 
     cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
     strcpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName);

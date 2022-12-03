@@ -381,7 +381,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
 
   setOperatorInfo(pOperator, "FillOperator", QUERY_NODE_PHYSICAL_PLAN_FILL, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = pInfo->numOfExpr;
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doFill, NULL, destroyFillOperatorInfo, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doFill, NULL, destroyFillOperatorInfo, optrDefaultBufFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
@@ -1146,7 +1146,7 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
       if (delTs > nextKey.ts) {
         break;
       }
-      endTs = delTs;
+
       SWinKey delKey = {.groupId = delGroupId, .ts = delTs};
       if (delTs == nextKey.ts) {
         code = streamStateCurNext(pOperator->pTaskInfo->streamInfo.pState, pCur);
@@ -1159,7 +1159,7 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
           streamStateFreeCur(pCur);
           pCur = streamStateGetAndCheckCur(pOperator->pTaskInfo->streamInfo.pState, &nextKey);
         }
-        endTs = TMAX(ts, nextKey.ts - 1);
+        endTs = TMAX(delTs, nextKey.ts - 1);
         if (code != TSDB_CODE_SUCCESS) {
           break;
         }
@@ -1478,7 +1478,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   pInfo->srcRowIndex = 0;
   setOperatorInfo(pOperator, "StreamFillOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamFill, NULL, destroyStreamFillOperatorInfo, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamFill, NULL, destroyStreamFillOperatorInfo, optrDefaultBufFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {

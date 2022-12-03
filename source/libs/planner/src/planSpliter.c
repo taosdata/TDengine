@@ -292,6 +292,20 @@ static bool stbSplNeedSplitJoin(bool streamQuery, SJoinLogicNode* pJoin) {
   return true;
 }
 
+static bool stbSplIsTableCountQuery(SLogicNode* pNode) {
+  if (1 != LIST_LENGTH(pNode->pChildren)) {
+    return false;
+  }
+  SNode* pChild = nodesListGetNode(pNode->pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pChild)) {
+    if (1 != LIST_LENGTH(((SLogicNode*)pChild)->pChildren)) {
+      return false;
+    }
+    pChild = nodesListGetNode(((SLogicNode*)pChild)->pChildren, 0);
+  }
+  return QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) && SCAN_TYPE_TABLE_COUNT == ((SScanLogicNode*)pChild)->scanType;
+}
+
 static SNodeList* stbSplGetPartKeys(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     return ((SScanLogicNode*)pNode)->pGroupTags;
@@ -340,7 +354,7 @@ static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return (!stbSplHasGatherExecFunc(((SAggLogicNode*)pNode)->pAggFuncs) ||
               stbSplIsPartTableAgg((SAggLogicNode*)pNode)) &&
-             stbSplHasMultiTbScan(streamQuery, pNode);
+             stbSplHasMultiTbScan(streamQuery, pNode) && !stbSplIsTableCountQuery(pNode);
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return stbSplNeedSplitWindow(streamQuery, pNode);
     case QUERY_NODE_LOGIC_PLAN_SORT:
