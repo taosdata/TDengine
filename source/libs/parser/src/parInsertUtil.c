@@ -340,8 +340,8 @@ void insDestroyBlockHashmap(SHashObj* pDataBlockHash) {
 
   void** p1 = taosHashIterate(pDataBlockHash, NULL);
   while (p1) {
-    STableDataBlocks* pBlocks = *p1;
-    insDestroyDataBlock(pBlocks);
+    SBoundColInfo* pBlocks = *p1;
+    destroyBoundColInfo(pBlocks);
 
     p1 = taosHashIterate(pDataBlockHash, p1);
   }
@@ -1083,8 +1083,9 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
 
 int32_t insGetTableDataCxt(SHashObj* pHash, void* id, int32_t idLen, STableMeta* pTableMeta,
                            SVCreateTbReq** pCreateTbReq, STableDataCxt** pTableCxt, bool colMode) {
-  *pTableCxt = taosHashGet(pHash, id, idLen);
-  if (NULL != *pTableCxt) {
+  STableDataCxt** tmp = (STableDataCxt**)taosHashGet(pHash, id, idLen);
+  if (NULL != tmp) {
+    *pTableCxt = *tmp;
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = createTableDataCxt(pTableMeta, pCreateTbReq, pTableCxt, colMode);

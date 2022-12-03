@@ -170,7 +170,6 @@ typedef struct {
   SHashObj *childTables;
   SHashObj *superTables;
   SHashObj *pVgHash;
-  void     *exec;
 
   STscObj     *taos;
   SCatalog    *pCatalog;
@@ -712,21 +711,21 @@ static bool smlParseBool(SSmlKv *kvVal) {
   const char *pVal = kvVal->value;
   int32_t     len = kvVal->length;
   if ((len == 1) && (pVal[0] == 't' || pVal[0] == 'T')) {
-    kvVal->i = true;
+    kvVal->i = TSDB_TRUE;
     return true;
   }
 
   if ((len == 1) && (pVal[0] == 'f' || pVal[0] == 'F')) {
-    kvVal->i = false;
+    kvVal->i = TSDB_FALSE;
     return true;
   }
 
   if ((len == 4) && !strncasecmp(pVal, "true", len)) {
-    kvVal->i = true;
+    kvVal->i = TSDB_TRUE;
     return true;
   }
   if ((len == 5) && !strncasecmp(pVal, "false", len)) {
-    kvVal->i = false;
+    kvVal->i = TSDB_FALSE;
     return true;
   }
   return false;
@@ -1488,7 +1487,6 @@ static void smlDestroyCols(SArray *cols) {
 static void smlDestroyInfo(SSmlHandle *info) {
   if (!info) return;
   qDestroyQuery(info->pQuery);
-  smlDestroyHandle(info->exec);
 
   // destroy info->childTables
   void **p1 = (void **)taosHashIterate(info->childTables, NULL);
@@ -1526,19 +1524,7 @@ static SSmlHandle *smlBuildSmlInfo(STscObj *pTscObj, SRequestObj *request, SMLPr
   }
   info->id = smlGenId();
 
-  info->pQuery = (SQuery *)nodesMakeNode(QUERY_NODE_QUERY);
-  if (NULL == info->pQuery) {
-    uError("SML:0x%" PRIx64 " create info->pQuery error", info->id);
-    goto cleanup;
-  }
-  info->pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
-  info->pQuery->haveResultSet = false;
-  info->pQuery->msgType = TDMT_VND_SUBMIT;
-  info->pQuery->pRoot = (SNode *)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
-  if (NULL == info->pQuery->pRoot) {
-    uError("SML:0x%" PRIx64 " create info->pQuery->pRoot error", info->id);
-    goto cleanup;
-  }
+  info->pQuery = smlInitHandle();
 
   if (pTscObj) {
     info->taos = pTscObj;
@@ -1561,10 +1547,8 @@ static SSmlHandle *smlBuildSmlInfo(STscObj *pTscObj, SRequestObj *request, SMLPr
     info->pRequest = request;
     info->msgBuf.buf = info->pRequest->msgBuf;
     info->msgBuf.len = ERROR_MSG_BUF_DEFAULT_SIZE;
-    info->pRequest->stmtType = info->pQuery->pRoot->type;
   }
 
-  info->exec = smlInitHandle(info->pQuery);
   info->childTables = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   info->superTables = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   info->pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
@@ -1577,7 +1561,7 @@ static SSmlHandle *smlBuildSmlInfo(STscObj *pTscObj, SRequestObj *request, SMLPr
       goto cleanup;
     }
   }
-  if (NULL == info->exec || NULL == info->childTables || NULL == info->superTables || NULL == info->pVgHash ||
+  if (NULL == info->pQuery || NULL == info->childTables || NULL == info->superTables || NULL == info->pVgHash ||
       NULL == info->dumplicateKey) {
     uError("SML:0x%" PRIx64 " create info failed", info->id);
     goto cleanup;
@@ -2337,7 +2321,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
     (*pMeta)->tableMeta->vgId = vg.vgId;
     (*pMeta)->tableMeta->uid = tableData->uid;  // one table merge data block together according uid
 
-    code = smlBindData(info->exec, tableData->tags, (*pMeta)->cols, tableData->cols, info->dataFormat,
+    code = smlBindData(info->pQuery, tableData->tags, (*pMeta)->cols, tableData->cols, info->dataFormat,
                        (*pMeta)->tableMeta, tableData->childTableName, tableData->sTableName, tableData->sTableNameLen,
                        info->ttl, info->msgBuf.buf, info->msgBuf.len);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2347,7 +2331,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
     oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, oneTable);
   }
 
-  code = smlBuildOutput(info->exec, info->pVgHash);
+  code = smlBuildOutput(info->pQuery, info->pVgHash);
   if (code != TSDB_CODE_SUCCESS) {
     uError("SML:0x%" PRIx64 " smlBuildOutput failed", info->id);
     return code;
