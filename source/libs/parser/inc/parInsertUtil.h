@@ -150,6 +150,7 @@ int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo *pInfo);
 void    insCheckTableDataOrder(STableDataCxt *pTableCxt, TSKEY tsKey);
 int32_t insGetTableDataCxt(SHashObj *pHash, void *id, int32_t idLen, STableMeta *pTableMeta,
                            SVCreateTbReq **pCreateTbReq, STableDataCxt **pTableCxt, bool colMode);
+int32_t initTableColSubmitData(STableDataCxt* pTableCxt);
 int32_t insMergeTableDataCxt(SHashObj *pTableHash, SArray **pVgDataBlocks);
 int32_t insBuildVgDataBlocks(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks);
 void    insDestroyTableDataCxtHashMap(SHashObj *pTableCxtHash);
@@ -157,5 +158,5 @@ void    insDestroyVgroupDataCxt(SVgroupDataCxt *pVgCxt);
 void    insDestroyVgroupDataCxtList(SArray *pVgCxtList);
 void    insDestroyVgroupDataCxtHashMap(SHashObj *pVgCxtHash);
 void    insDestroyTableDataCxt(STableDataCxt* pTableCxt);
-
+void    destroyBoundColInfo(SBoundColInfo* pInfo);
 #endif  // TDENGINE_PAR_INSERT_UTIL_H
