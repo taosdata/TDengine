@@ -262,9 +262,11 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
         SSubmitRsp2 *rsp = taosMemoryMalloc(sizeof(*rsp));
         tDecoderInit(&coder, msg, msgSize);
         code = tDecodeSSubmitRsp2(&coder, rsp);
+        tDecoderClear(&coder);
         if (code) {
           SCH_TASK_ELOG("tDecodeSSubmitRsp2 failed, code:%d", code);
           tDestroySSubmitRsp2(rsp, TSDB_MSG_FLG_DECODE);
+          taosMemoryFree(rsp);
           SCH_ERR_JRET(code);
         }
 
@@ -281,11 +283,10 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
             if (sum->aCreateTbRsp) {
               taosArrayAddAll(sum->aCreateTbRsp, rsp->aCreateTbRsp);
               taosArrayDestroy(rsp->aCreateTbRsp);
-              taosMemoryFree(rsp);
             } else {
               TSWAP(sum->aCreateTbRsp, rsp->aCreateTbRsp);
-              taosMemoryFree(rsp);
             }
+            taosMemoryFree(rsp);
           } else {
             pJob->execRes.res = rsp;
             pJob->execRes.msgType = TDMT_VND_SUBMIT;
@@ -301,6 +302,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
           }
           SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
           tDestroySSubmitRsp2(rsp, TSDB_MSG_FLG_DECODE);
+          taosMemoryFree(rsp);
         }
       }
 
