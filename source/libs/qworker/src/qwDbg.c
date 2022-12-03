@@ -28,57 +28,57 @@ int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, 
       return TSDB_CODE_SUCCESS;
     }
 
-    QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+    QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
   switch (oriStatus) {
     case JOB_TASK_STATUS_NULL:
       if (newStatus != JOB_TASK_STATUS_EXEC && newStatus != JOB_TASK_STATUS_FAIL && newStatus != JOB_TASK_STATUS_INIT) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
 
       break;
     case JOB_TASK_STATUS_INIT:
       if (newStatus != JOB_TASK_STATUS_DROP && newStatus != JOB_TASK_STATUS_EXEC && newStatus != JOB_TASK_STATUS_FAIL) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
 
       break;
     case JOB_TASK_STATUS_EXEC:
       if (newStatus != JOB_TASK_STATUS_PART_SUCC && newStatus != JOB_TASK_STATUS_SUCC &&
           newStatus != JOB_TASK_STATUS_FAIL && newStatus != JOB_TASK_STATUS_DROP) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
 
       break;
     case JOB_TASK_STATUS_PART_SUCC:
       if (newStatus != JOB_TASK_STATUS_EXEC && newStatus != JOB_TASK_STATUS_SUCC && newStatus != JOB_TASK_STATUS_FAIL &&
           newStatus != JOB_TASK_STATUS_DROP) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
 
       break;
     case JOB_TASK_STATUS_SUCC:
       if (newStatus != JOB_TASK_STATUS_DROP && newStatus != JOB_TASK_STATUS_FAIL) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
 
       break;
     case JOB_TASK_STATUS_FAIL:
       if (newStatus != JOB_TASK_STATUS_DROP) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
       break;
 
     case JOB_TASK_STATUS_DROP:
       if (newStatus != JOB_TASK_STATUS_FAIL && newStatus != JOB_TASK_STATUS_PART_SUCC) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
       break;
 
     default:
       QW_TASK_ELOG("invalid task origStatus:%s", jobTaskStatusStr(oriStatus));
-      return TSDB_CODE_QRY_APP_ERROR;
+      return TSDB_CODE_APP_ERROR;
   }
 
   return TSDB_CODE_SUCCESS;

@@ -35,12 +35,12 @@ static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOf
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
       qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
-      return TSDB_CODE_QRY_APP_ERROR;
+      return TSDB_CODE_APP_ERROR;
     }
 
     if (pOperator->numOfDownstream > 1) {  // not handle this in join query
       qError("join not supported for stream block scan, %s" PRIx64, id);
-      return TSDB_CODE_QRY_APP_ERROR;
+      return TSDB_CODE_APP_ERROR;
     }
     pOperator->status = OP_NOT_OPENED;
     return doSetSMABlock(pOperator->pDownstream[0], input, numOfBlocks, type, id);
@@ -76,12 +76,12 @@ static int32_t doSetStreamOpOpen(SOperatorInfo* pOperator, char* id) {
     if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
       if (pOperator->numOfDownstream == 0) {
         qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
-        return TSDB_CODE_QRY_APP_ERROR;
+        return TSDB_CODE_APP_ERROR;
       }
 
       if (pOperator->numOfDownstream > 1) {  // not handle this in join query
         qError("join not supported for stream block scan, %s" PRIx64, id);
-        return TSDB_CODE_QRY_APP_ERROR;
+        return TSDB_CODE_APP_ERROR;
       }
       pOperator->status = OP_NOT_OPENED;
       return doSetStreamOpOpen(pOperator->pDownstream[0], id);
@@ -95,12 +95,12 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
       qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
-      return TSDB_CODE_QRY_APP_ERROR;
+      return TSDB_CODE_APP_ERROR;
     }
 
     if (pOperator->numOfDownstream > 1) {  // not handle this in join query
       qError("join not supported for stream block scan, %s" PRIx64, id);
-      return TSDB_CODE_QRY_APP_ERROR;
+      return TSDB_CODE_APP_ERROR;
     }
     pOperator->status = OP_NOT_OPENED;
     return doSetStreamBlock(pOperator->pDownstream[0], input, numOfBlocks, type, id);
@@ -139,7 +139,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   if (tinfo == NULL) {
-    return TSDB_CODE_QRY_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
 
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
@@ -156,7 +156,7 @@ int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
 
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
-    return TSDB_CODE_QRY_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
 
   if (pBlocks == NULL || numOfBlocks == 0) {
@@ -177,7 +177,7 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
 
 int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
-    return TSDB_CODE_QRY_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
 
   if (pBlocks == NULL || numOfBlocks == 0) {
@@ -980,7 +980,7 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
   if (pCond->colList == NULL || pCond->pSlotList == NULL) {
     taosMemoryFreeClear(pCond->colList);
     taosMemoryFreeClear(pCond->pSlotList);
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 

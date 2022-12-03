@@ -1563,7 +1563,7 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
       pNode->datum.p = (char*)value;
       break;
     default:
-      return TSDB_CODE_QRY_APP_ERROR;
+      return TSDB_CODE_APP_ERROR;
   }
 
   return TSDB_CODE_SUCCESS;
