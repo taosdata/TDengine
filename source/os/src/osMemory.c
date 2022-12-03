@@ -352,8 +352,6 @@ void* taosMemoryMallocAlign(uint32_t alignment, int64_t size) {
 #else
 #if defined(LINUX)
   void* p = memalign(alignment, size);
-  ASSERT((((uint64_t)p) & (alignment - 1)) == 0x0);
-
   return p;
 #else
   return taosMemoryMalloc(size);
