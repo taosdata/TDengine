@@ -315,7 +315,7 @@ _return:
 int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_E** fields,
                          uint8_t timePrec) {
   if (fields) {
-    *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD));
+    *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD_E));
     if (NULL == *fields) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
