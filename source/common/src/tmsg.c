@@ -6867,6 +6867,10 @@ _exit:
 }
 
 void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
+  if (NULL == pTbData) {
+    return;
+  }
+  
   if (pTbData->pCreateTbReq) {
     taosMemoryFree(pTbData->pCreateTbReq);
   }
