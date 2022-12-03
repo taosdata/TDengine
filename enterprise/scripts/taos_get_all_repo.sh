@@ -230,7 +230,7 @@ function getAddRmvLinesPrNumForAppGroup () {
   cd $Repository_dir 
   getBranchInfo $output_usr_name $alert_br_1
   
-  Repository_dir=$script_dir/libtaos-rs
+  Repository_dir=$script_dir/taos-connector-rust
   cd $Repository_dir 
   getBranchInfo $output_usr_name $libtaosRs_br_1
   
@@ -351,10 +351,10 @@ cd $Repository_dir
 gitPullBranchInfo $alert_br_1
 echo  "====pull alert end"
 
-Repository_dir=$script_dir/libtaos-rs
-cd $Repository_dir 
+Repository_dir=$script_dir/taos-connector-rust
+cd $Repository_dir
 gitPullBranchInfo $libtaosRs_br_1
-echo  "====pull libtaos-rs end"
+echo  "====pull taos-connector-rust end"
 
 Repository_dir=$script_dir/taos-connector-python 
 cd $Repository_dir 
