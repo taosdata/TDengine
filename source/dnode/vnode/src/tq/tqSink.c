@@ -420,6 +420,7 @@ int32_t tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* p
 
     if (createTb) {
       pTbData->pCreateTbReq = taosArrayGetP(createTbArray, i);
+      if (pTbData->pCreateTbReq) pTbData->flags = SUBMIT_REQ_AUTO_CREATE_TABLE;
     }
 
     if (!pVals && !(pVals = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal)))) {
