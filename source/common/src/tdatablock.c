@@ -2012,9 +2012,9 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
  *
  */
 #if 0
-int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pDataBlock, STSchema* pTSchema, int32_t vgId,
+int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataBlock, STSchema* pTSchema, int32_t vgId,
                                     tb_uid_t suid) {
-  int32_t bufSize = sizeof(SSubmitReq2);
+  int32_t bufSize = sizeof(SSubmitReq);
   int32_t sz = 1;
   for (int32_t i = 0; i < sz; ++i) {
     const SDataBlockInfo* pBlkInfo = &pDataBlock->info;
