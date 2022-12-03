@@ -63,7 +63,7 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
         if len(sqlString) != 0:
             child.sendline (sqlString)
             w = child.expect(["Query OK", "Create OK", "Insert OK", "Drop OK", taosExpect.TIMEOUT, taosExpect.EOF], timeout=10)
-            if w == 0:
+            if w == 0 or w == 1 or w == 2:
                 return "TAOS_OK"
             else:
                 print(1)
