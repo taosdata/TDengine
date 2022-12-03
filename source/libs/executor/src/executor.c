@@ -971,21 +971,27 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
   pCond->order = TSDB_ORDER_ASC;
   pCond->numOfCols = pMtInfo->schema->nCols;
   pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
-  if (pCond->colList == NULL) {
+  pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t) * pCond->numOfCols);
+  if (pCond->colList == NULL || pCond->pSlotList == NULL) {
+    taosMemoryFreeClear(pCond->colList);
+    taosMemoryFreeClear(pCond->pSlotList);
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return terrno;
   }
 
-  pCond->twindows = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
+  pCond->twindows = TSWINDOW_INITIALIZER;
   pCond->suid = pMtInfo->suid;
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
   pCond->endVersion = sContext->snapVersion;
 
   for (int32_t i = 0; i < pCond->numOfCols; ++i) {
-    pCond->colList[i].type = pMtInfo->schema->pSchema[i].type;
-    pCond->colList[i].bytes = pMtInfo->schema->pSchema[i].bytes;
-    pCond->colList[i].colId = pMtInfo->schema->pSchema[i].colId;
+    SColumnInfo* pColInfo = &pCond->colList[i];
+    pColInfo->type = pMtInfo->schema->pSchema[i].type;
+    pColInfo->bytes = pMtInfo->schema->pSchema[i].bytes;
+    pColInfo->colId = pMtInfo->schema->pSchema[i].colId;
+
+    pCond->pSlotList[i] = i;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1078,7 +1084,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
         int32_t        num = tableListGetSize(pTaskInfo->pTableInfoList);
 
         if (tsdbReaderOpen(pTableScanInfo->base.readHandle.vnode, &pTableScanInfo->base.cond, pList, num,
-                           &pTableScanInfo->base.dataReader, NULL) < 0 ||
+                           pTableScanInfo->pResBlock, &pTableScanInfo->base.dataReader, NULL) < 0 ||
             pTableScanInfo->base.dataReader == NULL) {
           ASSERT(0);
         }
@@ -1130,7 +1136,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     int32_t        size = tableListGetSize(pTaskInfo->pTableInfoList);
     ASSERT(size == 1);
 
-    tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, &pInfo->dataReader, NULL);
+    tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, NULL, &pInfo->dataReader, NULL);
 
     cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
     strcpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName);

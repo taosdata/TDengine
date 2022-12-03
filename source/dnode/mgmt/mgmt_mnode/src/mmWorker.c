@@ -61,7 +61,7 @@ static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     pMsg->info.rsp = NULL;
   }
 
-  if (code == TSDB_CODE_RPC_REDIRECT) {
+  if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING) {
     mndPostProcessQueryMsg(pMsg);
   }
 

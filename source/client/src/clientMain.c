@@ -146,7 +146,6 @@ void taos_close(TAOS *taos) {
 
 int taos_errno(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ_META(res)) {
-    if (terrno == TSDB_CODE_RPC_REDIRECT) terrno = TSDB_CODE_QRY_NOT_READY;
     return terrno;
   }
 
@@ -154,12 +153,11 @@ int taos_errno(TAOS_RES *res) {
     return 0;
   }
 
-  return ((SRequestObj *)res)->code == TSDB_CODE_RPC_REDIRECT ? TSDB_CODE_QRY_NOT_READY : ((SRequestObj *)res)->code;
+  return ((SRequestObj *)res)->code;
 }
 
 const char *taos_errstr(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ_META(res)) {
-    if (terrno == TSDB_CODE_RPC_REDIRECT) terrno = TSDB_CODE_QRY_NOT_READY;
     return (const char *)tstrerror(terrno);
   }
 
@@ -171,8 +169,7 @@ const char *taos_errstr(TAOS_RES *res) {
   if (NULL != pRequest->msgBuf && (strlen(pRequest->msgBuf) > 0 || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR)) {
     return pRequest->msgBuf;
   } else {
-    return pRequest->code == TSDB_CODE_RPC_REDIRECT ? (const char *)tstrerror(TSDB_CODE_QRY_NOT_READY)
-                                                    : (const char *)tstrerror(pRequest->code);
+    return (const char *)tstrerror(pRequest->code);
   }
 }
 

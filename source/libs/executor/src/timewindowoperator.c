@@ -1276,7 +1276,6 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
     return NULL;
   }
 
-  blockDataEnsureCapacity(pBlock, pOperator->resultInfo.capacity);
   while (1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
     doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
@@ -1649,23 +1648,34 @@ static bool allInvertible(SqlFunctionCtx* pFCtx, int32_t numOfCols) {
 static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SIntervalAggOperatorInfo* pInfo) {
   // the primary timestamp column
   bool needed = false;
-  pInfo->pInterpCols = taosArrayInit(4, sizeof(SColumn));
-  pInfo->pPrevValues = taosArrayInit(4, sizeof(SGroupKeys));
 
-  {  // ts column
-    SColumn c = {0};
-    c.colId = 1;
-    c.slotId = pInfo->primaryTsIndex;
-    c.type = TSDB_DATA_TYPE_TIMESTAMP;
-    c.bytes = sizeof(int64_t);
-    taosArrayPush(pInfo->pInterpCols, &c);
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SExprInfo* pExpr = pCtx[i].pExpr;
+    if (fmIsIntervalInterpoFunc(pCtx[i].functionId)) {
+      needed = true;
+      break;
+    }
+  }
 
-    SGroupKeys key = {0};
-    key.bytes = c.bytes;
-    key.type = c.type;
-    key.isNull = true;  // to denote no value is assigned yet
-    key.pData = taosMemoryCalloc(1, c.bytes);
-    taosArrayPush(pInfo->pPrevValues, &key);
+  if (needed) {
+    pInfo->pInterpCols = taosArrayInit(4, sizeof(SColumn));
+    pInfo->pPrevValues = taosArrayInit(4, sizeof(SGroupKeys));
+
+    {  // ts column
+      SColumn c = {0};
+      c.colId = 1;
+      c.slotId = pInfo->primaryTsIndex;
+      c.type = TSDB_DATA_TYPE_TIMESTAMP;
+      c.bytes = sizeof(int64_t);
+      taosArrayPush(pInfo->pInterpCols, &c);
+
+      SGroupKeys key;
+      key.bytes = c.bytes;
+      key.type = c.type;
+      key.isNull = true;  // to denote no value is assigned yet
+      key.pData = taosMemoryCalloc(1, c.bytes);
+      taosArrayPush(pInfo->pPrevValues, &key);
+    }
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -1676,7 +1686,6 @@ static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SInt
 
       SColumn c = *pParam->pCol;
       taosArrayPush(pInfo->pInterpCols, &c);
-      needed = true;
 
       SGroupKeys key = {0};
       key.bytes = c.bytes;
@@ -1708,7 +1717,7 @@ void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SAggSuppor
 
 void initStreamFunciton(SqlFunctionCtx* pCtx, int32_t numOfExpr) {
   for (int32_t i = 0; i < numOfExpr; i++) {
-    pCtx[i].isStream = true;
+//    pCtx[i].isStream = true;
   }
 }
 
@@ -1727,7 +1736,8 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPh
   pInfo->primaryTsIndex = ((SColumnNode*)pPhyNode->window.pTspk)->slotId;
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
-  initResultSizeInfo(&pOperator->resultInfo, 4096);
+  initResultSizeInfo(&pOperator->resultInfo, 512);
+  blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
 
   int32_t    num = 0;
   SExprInfo* pExprInfo = createExprInfo(pPhyNode->window.pFuncs, NULL, &num);
@@ -1771,11 +1781,6 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPh
   code = filterInitFromNode((SNode*)pPhyNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
-  }
-
-  if (isStream) {
-    ASSERT(num > 0);
-    initStreamFunciton(pSup->pCtx, pSup->numOfExprs);
   }
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pInfo->win);
@@ -4314,7 +4319,7 @@ SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream,
   iaInfo->binfo.mergeResultBlock = pNode->window.mergeDataBlock;
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
-  initResultSizeInfo(&pOperator->resultInfo, 4096);
+  initResultSizeInfo(&pOperator->resultInfo, 512);
 
   int32_t    num = 0;
   SExprInfo* pExprInfo = createExprInfo(pNode->window.pFuncs, NULL, &num);
