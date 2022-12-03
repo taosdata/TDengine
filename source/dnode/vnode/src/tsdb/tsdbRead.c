@@ -3960,6 +3960,9 @@ static bool doTsdbNextDataBlock(STsdbReader* pReader) {
   blockDataCleanup(pBlock);
 
   SReaderStatus* pStatus = &pReader->status;
+  if (taosHashGetSize(pStatus->pTableMap) == 0){
+    return false;
+  }
 
   if (pStatus->loadFromFile) {
     int32_t code = buildBlockFromFiles(pReader);
@@ -3977,8 +3980,6 @@ static bool doTsdbNextDataBlock(STsdbReader* pReader) {
     buildBlockFromBufferSequentially(pReader);
     return pBlock->info.rows > 0;
   }
-
-  return false;
 }
 
 bool tsdbNextDataBlock(STsdbReader* pReader) {
