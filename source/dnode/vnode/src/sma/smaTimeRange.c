@@ -224,7 +224,7 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
   SRpcMsg submitReqMsg = {
       .msgType = TDMT_VND_SUBMIT,
       .pCont = pSubmitReq,
-      .contLen = ntohl(pSubmitReq->length),
+      .contLen = ntohl(contLen),
   };
 
   if (tmsgPutToQueue(&pSma->pVnode->msgCb, WRITE_QUEUE, &submitReqMsg) < 0) {
