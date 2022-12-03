@@ -19,7 +19,7 @@
 #include "tlog.h"
 #include "tname.h"
 
-#define MALLOC_ALIGN_BYTES  32
+#define MALLOC_ALIGN_BYTES  256
 
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   ASSERT(pColumnInfoData != NULL);
