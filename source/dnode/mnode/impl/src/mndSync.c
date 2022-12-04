@@ -72,7 +72,7 @@ static int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   return code;
 }
 
-void mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   SMnode    *pMnode = pFsm->data;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   SSdbRaw   *pRaw = pMsg->pCont;
@@ -114,12 +114,15 @@ void mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *p
       mError("trans:%d, not found while execute in mnode since %s", transId, terrstr());
     }
   }
+
+  return 0;
 }
 
-void mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
-  mndProcessWriteMsg(pFsm, pMsg, pMeta);
+int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+  int32_t code = mndProcessWriteMsg(pFsm, pMsg, pMeta);
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
+  return code;
 }
 
 int32_t mndSyncGetSnapshot(const SSyncFSM *pFsm, SSnapshot *pSnapshot, void *pReaderParam, void **ppReader) {
@@ -318,7 +321,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   if (pMgmt->transId != 0) {
     mError("trans:%d, can't be proposed since trans:%d already waiting for confirm", transId, pMgmt->transId);
     taosWUnLockLatch(&pMgmt->lock);
-    terrno = TSDB_CODE_APP_NOT_READY;
+    terrno = TSDB_CODE_MND_LAST_TRANS_NOT_FINISHED;
     return -1;
   }
 
@@ -339,13 +342,11 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
     sdbSetApplyInfo(pMnode->pSdb, req.info.conn.applyIndex, req.info.conn.applyTerm, SYNC_INDEX_INVALID);
     code = 0;
   } else {
-    mInfo("trans:%d, failed to proposed since %s", transId, terrstr());
+    mError("trans:%d, failed to proposed since %s", transId, terrstr());
     taosWLockLatch(&pMgmt->lock);
     pMgmt->transId = 0;
     taosWUnLockLatch(&pMgmt->lock);
-    if (terrno == TSDB_CODE_SYN_NOT_LEADER) {
-      terrno = TSDB_CODE_APP_NOT_READY;
-    } else {
+    if (terrno == 0) {
       terrno = TSDB_CODE_APP_ERROR;
     }
   }
@@ -381,20 +382,23 @@ void mndSyncStop(SMnode *pMnode) {
 }
 
 bool mndIsLeader(SMnode *pMnode) {
+  terrno = 0;
   SSyncState state = syncGetState(pMnode->syncMgmt.sync);
 
-  if (state.state != TAOS_SYNC_STATE_LEADER || !state.restored) {
-    if (state.state != TAOS_SYNC_STATE_LEADER) {
-      terrno = TSDB_CODE_SYN_NOT_LEADER;
-    } else {
-      terrno = TSDB_CODE_APP_NOT_READY;
-    }
-    mDebug("vgId:1, mnode not ready, state:%s, restore:%d", syncStr(state.state), state.restored);
+  if (terrno != 0) {
+    mDebug("vgId:1, mnode is stopping");
     return false;
   }
 
-  if (!mndGetRestored(pMnode)) {
-    terrno = TSDB_CODE_APP_NOT_READY;
+  if (state.state != TAOS_SYNC_STATE_LEADER) {
+    terrno = TSDB_CODE_SYN_NOT_LEADER;
+    mDebug("vgId:1, mnode not leader, state:%s", syncStr(state.state));
+    return false;
+  }
+
+  if (!state.restored || !pMnode->restored) {
+    terrno = TSDB_CODE_SYN_RESTORING;
+    mDebug("vgId:1, mnode not restored:%d:%d", state.restored, pMnode->restored);
     return false;
   }
 

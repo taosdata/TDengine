@@ -198,7 +198,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
   }
 }
 
-static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator) {
+static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
@@ -307,7 +307,7 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pDummyBlock->pDataBlock);
 
   pOperator->fpSet =
-      createOperatorFpSet(prepareLoadRemoteData, doLoadRemoteData, NULL, destroyExchangeOperatorInfo, NULL);
+      createOperatorFpSet(prepareLoadRemoteData, loadRemoteData, NULL, destroyExchangeOperatorInfo, optrDefaultBufFn, NULL);
   return pOperator;
 
 _error:
@@ -424,20 +424,20 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
     int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req);
     if (msgSize < 0) {
-      pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
       taosMemoryFree(pWrapper);
       return pTaskInfo->code;
     }
 
     void* msg = taosMemoryCalloc(1, msgSize);
     if (NULL == msg) {
-      pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
       taosMemoryFree(pWrapper);
       return pTaskInfo->code;
     }
 
     if (tSerializeSResFetchReq(msg, msgSize, &req) < 0) {
-      pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
       taosMemoryFree(pWrapper);
       taosMemoryFree(msg);
       return pTaskInfo->code;
@@ -453,7 +453,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       taosMemoryFreeClear(msg);
       taosMemoryFree(pWrapper);
       qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
-      pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
       return pTaskInfo->code;
     }
 
@@ -570,13 +570,10 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
 
   pOperator->status = OP_RES_TO_RETURN;
   pOperator->cost.openCost = taosGetTimestampUs() - startTs;
-
-  tsem_wait(&pExchangeInfo->ready);
   if (isTaskKilled(pTaskInfo)) {
     longjmp(pTaskInfo->env, pTaskInfo->code);
   }
 
-  tsem_post(&pExchangeInfo->ready);
   return TSDB_CODE_SUCCESS;
 }
 

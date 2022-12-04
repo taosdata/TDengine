@@ -30,6 +30,7 @@ struct SDiskbasedBuf {
   TdFilePtr pFile;
   int32_t   allocateId;  // allocated page id
   char*     path;        // file path
+  char*     prefix;      // file name prefix
   int32_t   pageSize;    // current used page size
   int32_t   inMemPages;  // numOfPages that are allocated in memory
   SList*    freePgList;  // free page list
@@ -48,6 +49,12 @@ struct SDiskbasedBuf {
 };
 
 static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
+  if (pBuf->path == NULL) { // prepare the file name when needed it
+    char path[PATH_MAX] = {0};
+    taosGetTmpfilePath(pBuf->prefix, "paged-buf", path);
+    pBuf->path = taosMemoryStrDup(path);
+  }
+
   pBuf->pFile =
       taosOpenFile(pBuf->path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
   if (pBuf->pFile == NULL) {
@@ -356,10 +363,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
 
   pPBuf->assistBuf = taosMemoryMalloc(pPBuf->pageSize + 2);  // EXTRA BYTES
   pPBuf->all = taosHashInit(10, fn, true, false);
-
-  char path[PATH_MAX] = {0};
-  taosGetTmpfilePath(dir, "paged-buf", path);
-  pPBuf->path = strdup(path);
+  pPBuf->prefix = (char*) dir;
 
   pPBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));
 
@@ -507,7 +511,9 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
 
   dBufPrintStatis(pBuf);
 
+  bool needRemoveFile = false;
   if (pBuf->pFile != NULL) {
+    needRemoveFile = true;
     uDebug(
         "Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page "
         "size:%.2f Kb, %s\n",
@@ -534,9 +540,13 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
     }
   }
 
-  if (taosRemoveFile(pBuf->path) < 0) {
-    uDebug("WARNING tPage remove file failed. path=%s", pBuf->path);
+  if (needRemoveFile) {
+    int32_t ret = taosRemoveFile(pBuf->path);
+    if (ret != 0) {  // print the error and discard this error info
+      uDebug("WARNING tPage remove file failed. path=%s, code:%s", pBuf->path, strerror(errno));
+    }
   }
+
   taosMemoryFreeClear(pBuf->path);
 
   size_t n = taosArrayGetSize(pBuf->pIdList);

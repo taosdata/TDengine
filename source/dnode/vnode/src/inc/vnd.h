@@ -99,7 +99,7 @@ int32_t vnodeSyncOpen(SVnode* pVnode, char* path);
 int32_t vnodeSyncStart(SVnode* pVnode);
 void    vnodeSyncPreClose(SVnode* pVnode);
 void    vnodeSyncClose(SVnode* pVnode);
-void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg);
+void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg, int32_t code);
 bool    vnodeIsLeader(SVnode* pVnode);
 bool    vnodeIsRoleLeader(SVnode* pVnode);
 

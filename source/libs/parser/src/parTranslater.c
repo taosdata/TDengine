@@ -5682,7 +5682,7 @@ static int32_t readFromFile(char* pName, int32_t* len, char** buf) {
   if (s != *len) {
     taosCloseFile(&tfile);
     taosMemoryFreeClear(*buf);
-    return TSDB_CODE_TSC_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
   taosCloseFile(&tfile);
   return TSDB_CODE_SUCCESS;

@@ -121,12 +121,13 @@ if $data01 != 152.420471066 then
   return -1
 endi
 
-sql select udf2(f2) from udf.t2 group by 1-udf1(f1);
+sql select udf2(f2) from udf.t2 group by 1-udf1(f1) order by 1-udf1(f1)
 print $rows , $data00 , $data10
 if $rows != 2 then
   return -1
 endi
 if $data00 != 2.000000000 then
+  print expect 2.000000000 , actual: $data00
   return -1
 endi
 if $data10 != 12.083045974 then
