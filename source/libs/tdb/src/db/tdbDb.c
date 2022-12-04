@@ -99,18 +99,36 @@ int tdbClose(TDB *pDb) {
 
 int32_t tdbAlter(TDB *pDb, int pages) { return tdbPCacheAlter(pDb->pCache, pages); }
 
-int32_t tdbBegin(TDB *pDb, TXN *pTxn) {
+int32_t tdbBegin(TDB *pDb, TXN **ppTxn, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *), void *xArg,
+                 int flags) {
   SPager *pPager;
   int     ret;
+  int64_t txnId = ++pDb->txnId;
+  if (txnId == INT64_MAX) {
+    pDb->txnId = 0;
+  }
+
+  TXN *pTxn = tdbOsCalloc(1, sizeof(*pTxn));
+  if (!pTxn) {
+    return -1;
+  }
+
+  if (tdbTxnOpen(pTxn, txnId, xMalloc, xFree, xArg, flags) < 0) {
+    tdbOsFree(pTxn);
+    return -1;
+  }
 
   for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
     ret = tdbPagerBegin(pPager, pTxn);
     if (ret < 0) {
       tdbError("failed to begin pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
                pTxn->txnId);
+      tdbTxnClose(pTxn);
       return -1;
     }
   }
+
+  *ppTxn = pTxn;
 
   return 0;
 }
@@ -144,6 +162,8 @@ int32_t tdbPostCommit(TDB *pDb, TXN *pTxn) {
     }
   }
 
+  tdbTxnClose(pTxn);
+
   return 0;
 }
 
@@ -175,6 +195,8 @@ int32_t tdbAbort(TDB *pDb, TXN *pTxn) {
       return -1;
     }
   }
+
+  tdbTxnClose(pTxn);
 
   return 0;
 }

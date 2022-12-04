@@ -75,6 +75,7 @@ typedef struct SStreamStateWriter SStreamStateWriter;
 typedef struct SRSmaSnapReader    SRSmaSnapReader;
 typedef struct SRSmaSnapWriter    SRSmaSnapWriter;
 typedef struct SSnapDataHdr       SSnapDataHdr;
+typedef struct SCommitInfo        SCommitInfo;
 
 #define VNODE_META_DIR  "meta"
 #define VNODE_TSDB_DIR  "tsdb"
@@ -100,8 +101,9 @@ typedef struct STbUidStore STbUidStore;
 int             metaOpen(SVnode* pVnode, SMeta** ppMeta, int8_t rollback);
 int             metaClose(SMeta* pMeta);
 int             metaBegin(SMeta* pMeta, int8_t fromSys);
-int             metaCommit(SMeta* pMeta);
-int             metaFinishCommit(SMeta* pMeta);
+TXN*            metaGetTxn(SMeta* pMeta);
+int             metaCommit(SMeta* pMeta, TXN* txn);
+int             metaFinishCommit(SMeta* pMeta, TXN* txn);
 int             metaPrepareAsyncCommit(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
@@ -146,7 +148,8 @@ int32_t metaGetInfo(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo, SMetaReader* pR
 int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback);
 int     tsdbClose(STsdb** pTsdb);
 int32_t tsdbBegin(STsdb* pTsdb);
-int32_t tsdbCommit(STsdb* pTsdb);
+int32_t tsdbPrepareCommit(STsdb* pTsdb);
+int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbFinishCommit(STsdb* pTsdb);
 int32_t tsdbRollbackCommit(STsdb* pTsdb);
 int32_t tsdbDoRetention(STsdb* pTsdb, int64_t now);
@@ -203,8 +206,8 @@ int32_t smaBegin(SSma* pSma);
 int32_t smaSyncPreCommit(SSma* pSma);
 int32_t smaSyncCommit(SSma* pSma);
 int32_t smaSyncPostCommit(SSma* pSma);
-int32_t smaPreCommit(SSma* pSma);
-int32_t smaCommit(SSma* pSma);
+int32_t smaPrepareAsyncCommit(SSma* pSma);
+int32_t smaCommit(SSma* pSma, SCommitInfo* pInfo);
 int32_t smaFinishCommit(SSma* pSma);
 int32_t smaPostCommit(SSma* pSma);
 int32_t smaDoRetention(SSma* pSma, int64_t now);
@@ -404,6 +407,12 @@ struct SSnapDataHdr {
   int64_t index;
   int64_t size;
   uint8_t data[];
+};
+
+struct SCommitInfo {
+  SVnodeInfo info;
+  SVnode*    pVnode;
+  TXN*       txn;
 };
 
 #ifdef __cplusplus
