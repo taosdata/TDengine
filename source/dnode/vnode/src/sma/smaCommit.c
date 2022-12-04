@@ -59,7 +59,7 @@ int32_t smaSyncPostCommit(SSma *pSma) { return tdProcessRSmaSyncPostCommitImpl(p
  * @param pSma
  * @return int32_t
  */
-int32_t smaPreCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma); }
+int32_t smaPrepareAsyncCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma); }
 
 /**
  * @brief async commit, only applicable to Rollup SMA
@@ -377,6 +377,11 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   // unlock
   taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
 #endif
+
+  // all rsma results are written completely
+  STsdb *pTsdb = NULL;
+  if ((pTsdb = VND_RSMA1(pSma->pVnode))) tsdbPrepareCommit(pTsdb);
+  if ((pTsdb = VND_RSMA2(pSma->pVnode))) tsdbPrepareCommit(pTsdb);
 
   return TSDB_CODE_SUCCESS;
 }

@@ -206,7 +206,7 @@ int32_t smaBegin(SSma* pSma);
 int32_t smaSyncPreCommit(SSma* pSma);
 int32_t smaSyncCommit(SSma* pSma);
 int32_t smaSyncPostCommit(SSma* pSma);
-int32_t smaPreCommit(SSma* pSma);
+int32_t smaPrepareAsyncCommit(SSma* pSma);
 int32_t smaCommit(SSma* pSma, SCommitInfo* pInfo);
 int32_t smaFinishCommit(SSma* pSma);
 int32_t smaPostCommit(SSma* pSma);
