@@ -232,6 +232,7 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   pInfo->info.state.committed = pVnode->state.applied;
   pInfo->info.state.commitTerm = pVnode->state.applyTerm;
   pInfo->info.state.commitID = pVnode->state.commitID;
+  pInfo->pVnode = pVnode;
   vnodeScheduleTask(vnodeCommitTask, pInfo);
 
 _exit:

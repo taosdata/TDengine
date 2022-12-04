@@ -313,7 +313,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   // commit if need
   if (vnodeShouldCommit(pVnode)) {
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), version);
+#if 1
+    vnodeSyncCommit(pVnode);
+#else
     vnodeAsyncCommit(pVnode);
+#endif
 
     // start a new one
     if (vnodeBegin(pVnode) < 0) {
