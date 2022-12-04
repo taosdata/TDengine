@@ -163,9 +163,9 @@ int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback) {
   if (rollback) {
     ASSERT(0);
   } else {
-    code = metaCommit(pWriter->pMeta);
+    code = metaCommit(pWriter->pMeta, pWriter->pMeta->txn);
     if (code) goto _err;
-    code = metaFinishCommit(pWriter->pMeta);
+    code = metaFinishCommit(pWriter->pMeta, pWriter->pMeta->txn);
     if (code) goto _err;
   }
   taosMemoryFree(pWriter);
