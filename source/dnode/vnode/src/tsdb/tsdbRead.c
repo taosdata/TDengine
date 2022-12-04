@@ -170,7 +170,9 @@ struct STsdbReader {
   SIOCostSummary     cost;
   STSchema*          pSchema;     // the newest version schema
   STSchema*          pMemSchema;  // the previous schema for in-memory data, to avoid load schema too many times
-  SDataFReader*      pFileReader;
+  SDataFReader*      pFileReader; // the file reader
+  SDelFReader*       pDelFReader; // the del file reader
+  SArray*            pDelIdx;     // del file block index;
   SVersionRange      verRange;
   SBlockInfoBuf      blockInfoBuf;
   int32_t            step;
@@ -2531,41 +2533,17 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
   }
 
   int32_t code = 0;
-  STsdb*  pTsdb = pReader->pTsdb;
-
   SArray* pDelData = taosArrayInit(4, sizeof(SDelData));
+  ASSERT(pReader->pReadSnap != NULL);
 
   SDelFile* pDelFile = pReader->pReadSnap->fs.pDelFile;
-  if (pDelFile) {
-    SDelFReader* pDelFReader = NULL;
-    code = tsdbDelFReaderOpen(&pDelFReader, pDelFile, pTsdb);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _err;
-    }
-
-    SArray* aDelIdx = taosArrayInit(4, sizeof(SDelIdx));
-    if (aDelIdx == NULL) {
-      tsdbDelFReaderClose(&pDelFReader);
-      goto _err;
-    }
-
-    // TODO: opt the perf of read del index
-    code = tsdbReadDelIdx(pDelFReader, aDelIdx);
-    if (code != TSDB_CODE_SUCCESS) {
-      taosArrayDestroy(aDelIdx);
-      tsdbDelFReaderClose(&pDelFReader);
-      goto _err;
-    }
-
+  if (pDelFile && taosArrayGetSize(pReader->pDelIdx) > 0) {
     SDelIdx  idx = {.suid = pReader->suid, .uid = pBlockScanInfo->uid};
-    SDelIdx* pIdx = taosArraySearch(aDelIdx, &idx, tCmprDelIdx, TD_EQ);
+    SDelIdx* pIdx = taosArraySearch(pReader->pDelIdx, &idx, tCmprDelIdx, TD_EQ);
 
     if (pIdx != NULL) {
-      code = tsdbReadDelData(pDelFReader, pIdx, pDelData);
+      code = tsdbReadDelData(pReader->pDelFReader, pIdx, pDelData);
     }
-
-    taosArrayDestroy(aDelIdx);
-    tsdbDelFReaderClose(&pDelFReader);
 
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
@@ -2662,6 +2640,30 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum) {
   }
 
   taosArrayDestroy(pIndexList);
+
+  if (pReader->pReadSnap != NULL) {
+
+    SDelFile* pDelFile = pReader->pReadSnap->fs.pDelFile;
+    if (pReader->pDelFReader == NULL && pDelFile != NULL) {
+      int32_t code = tsdbDelFReaderOpen(&pReader->pDelFReader, pDelFile, pReader->pTsdb);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
+      pReader->pDelIdx = taosArrayInit(4, sizeof(SDelIdx));
+      if (pReader->pDelIdx == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        return code;
+      }
+
+      code = tsdbReadDelIdx(pReader->pDelFReader, pReader->pDelIdx);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(pReader->pDelIdx);
+        return code;
+      }
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3912,6 +3914,15 @@ void tsdbReaderClose(STsdbReader* pReader) {
     tsdbDataFReaderClose(&pReader->pFileReader);
   }
 
+  if (pReader->pDelFReader != NULL) {
+    tsdbDelFReaderClose(&pReader->pDelFReader);
+  }
+
+  if (pReader->pDelIdx != NULL) {
+    taosArrayDestroy(pReader->pDelIdx);
+    pReader->pDelIdx = NULL;
+  }
+
   tsdbUntakeReadSnap(pReader->pTsdb, pReader->pReadSnap, pReader->idStr);
 
   taosMemoryFree(pReader->status.uidCheckInfo.tableUidList);
@@ -3953,6 +3964,9 @@ static bool doTsdbNextDataBlock(STsdbReader* pReader) {
   blockDataCleanup(pBlock);
 
   SReaderStatus* pStatus = &pReader->status;
+  if (taosHashGetSize(pStatus->pTableMap) == 0){
+    return false;
+  }
 
   if (pStatus->loadFromFile) {
     int32_t code = buildBlockFromFiles(pReader);
@@ -3970,8 +3984,6 @@ static bool doTsdbNextDataBlock(STsdbReader* pReader) {
     buildBlockFromBufferSequentially(pReader);
     return pBlock->info.rows > 0;
   }
-
-  return false;
 }
 
 bool tsdbNextDataBlock(STsdbReader* pReader) {
