@@ -93,7 +93,7 @@ typedef struct {
   SArray      *aDelData;  // SArray<SDelData>
 } SCommitter;
 
-static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter);
+static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter, SCommitInfo *pInfo);
 static int32_t tsdbCommitData(SCommitter *pCommitter);
 static int32_t tsdbCommitDel(SCommitter *pCommitter);
 static int32_t tsdbCommitCache(SCommitter *pCommitter);
@@ -160,7 +160,7 @@ int32_t tsdbPrepareCommit(STsdb *pTsdb) {
   return 0;
 }
 
-int32_t tsdbCommit(STsdb *pTsdb) {
+int32_t tsdbCommit(STsdb *pTsdb, SCommitInfo *pInfo) {
   if (!pTsdb) return 0;
 
   int32_t    code = 0;
@@ -179,7 +179,7 @@ int32_t tsdbCommit(STsdb *pTsdb) {
   }
 
   // start commit
-  code = tsdbStartCommit(pTsdb, &commith);
+  code = tsdbStartCommit(pTsdb, &commith, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // commit impl
@@ -816,7 +816,7 @@ _exit:
 }
 
 // ----------------------------------------------------------------------------
-static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
+static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter, SCommitInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -824,13 +824,13 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   ASSERT(pTsdb->imem && "last tsdb commit incomplete");
 
   pCommitter->pTsdb = pTsdb;
-  pCommitter->commitID = pTsdb->pVnode->state.commitID;
+  pCommitter->commitID = pInfo->info.state.commitID;
   pCommitter->minutes = pTsdb->keepCfg.days;
   pCommitter->precision = pTsdb->keepCfg.precision;
-  pCommitter->minRow = pTsdb->pVnode->config.tsdbCfg.minRows;
-  pCommitter->maxRow = pTsdb->pVnode->config.tsdbCfg.maxRows;
-  pCommitter->cmprAlg = pTsdb->pVnode->config.tsdbCfg.compression;
-  pCommitter->sttTrigger = pTsdb->pVnode->config.sttTrigger;
+  pCommitter->minRow = pInfo->info.config.tsdbCfg.minRows;
+  pCommitter->maxRow = pInfo->info.config.tsdbCfg.maxRows;
+  pCommitter->cmprAlg = pInfo->info.config.tsdbCfg.compression;
+  pCommitter->sttTrigger = pInfo->info.config.sttTrigger;
   pCommitter->aTbDataP = tsdbMemTableGetTbDataArray(pTsdb->imem);
   if (pCommitter->aTbDataP == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;

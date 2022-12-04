@@ -75,6 +75,7 @@ typedef struct SStreamStateWriter SStreamStateWriter;
 typedef struct SRSmaSnapReader    SRSmaSnapReader;
 typedef struct SRSmaSnapWriter    SRSmaSnapWriter;
 typedef struct SSnapDataHdr       SSnapDataHdr;
+typedef struct SCommitInfo        SCommitInfo;
 
 #define VNODE_META_DIR  "meta"
 #define VNODE_TSDB_DIR  "tsdb"
@@ -147,7 +148,7 @@ int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* 
 int     tsdbClose(STsdb** pTsdb);
 int32_t tsdbBegin(STsdb* pTsdb);
 int32_t tsdbPrepareCommit(STsdb* pTsdb);
-int32_t tsdbCommit(STsdb* pTsdb);
+int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbFinishCommit(STsdb* pTsdb);
 int32_t tsdbRollbackCommit(STsdb* pTsdb);
 int32_t tsdbDoRetention(STsdb* pTsdb, int64_t now);
@@ -205,7 +206,7 @@ int32_t smaSyncPreCommit(SSma* pSma);
 int32_t smaSyncCommit(SSma* pSma);
 int32_t smaSyncPostCommit(SSma* pSma);
 int32_t smaPreCommit(SSma* pSma);
-int32_t smaCommit(SSma* pSma);
+int32_t smaCommit(SSma* pSma, SCommitInfo* pInfo);
 int32_t smaFinishCommit(SSma* pSma);
 int32_t smaPostCommit(SSma* pSma);
 int32_t smaDoRetention(SSma* pSma, int64_t now);
@@ -405,6 +406,11 @@ struct SSnapDataHdr {
   int64_t index;
   int64_t size;
   uint8_t data[];
+};
+
+struct SCommitInfo {
+  SVnodeInfo info;
+  SVnode*    pVnode;
 };
 
 #ifdef __cplusplus

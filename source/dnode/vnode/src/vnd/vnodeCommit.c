@@ -14,11 +14,7 @@
  */
 
 #include "vnd.h"
-
-typedef struct {
-  SVnodeInfo info;
-  SVnode    *pVnode;
-} SCommitInfo;
+#include "vnodeInt.h"
 
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
@@ -291,11 +287,11 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  code = tsdbCommit(pVnode->pTsdb);
+  code = tsdbCommit(pVnode->pTsdb, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (VND_IS_RSMA(pVnode)) {
-    code = smaCommit(pVnode->pSma);
+    code = smaCommit(pVnode->pSma, pInfo);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
