@@ -221,6 +221,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiTableScan";
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
       return "PhysiTableSeqScan";
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+      return "PhysiTableMergeScan";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       return "PhysiSreamScan";
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
@@ -229,8 +231,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiBlockDistScan";
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
       return "PhysiLastRowScan";
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
-      return "PhysiTableMergeScan";
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
+      return "PhysiTableCountScan";
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return "PhysiProject";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
@@ -1864,6 +1866,7 @@ static int32_t jsonToPhysiAggNode(const SJson* pJson, void* pObj) {
 static const char* jkExchangePhysiPlanSrcStartGroupId = "SrcStartGroupId";
 static const char* jkExchangePhysiPlanSrcEndGroupId = "SrcEndGroupId";
 static const char* jkExchangePhysiPlanSrcEndPoints = "SrcEndPoints";
+static const char* jkExchangePhysiPlanSeqRecvData = "SeqRecvData";
 
 static int32_t physiExchangeNodeToJson(const void* pObj, SJson* pJson) {
   const SExchangePhysiNode* pNode = (const SExchangePhysiNode*)pObj;
@@ -1877,6 +1880,9 @@ static int32_t physiExchangeNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkExchangePhysiPlanSrcEndPoints, pNode->pSrcEndPoints);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkExchangePhysiPlanSeqRecvData, pNode->seqRecvData);
   }
 
   return code;
@@ -1894,6 +1900,9 @@ static int32_t jsonToPhysiExchangeNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkExchangePhysiPlanSrcEndPoints, &pNode->pSrcEndPoints);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkExchangePhysiPlanSeqRecvData, &pNode->seqRecvData);
   }
 
   return code;
@@ -2945,6 +2954,7 @@ static const char* jkValueDuration = "Duration";
 static const char* jkValueTranslate = "Translate";
 static const char* jkValueNotReserved = "NotReserved";
 static const char* jkValueIsNull = "IsNull";
+static const char* jkValueUnit = "Unit";
 static const char* jkValueDatum = "Datum";
 
 static int32_t datumToJson(const void* pObj, SJson* pJson) {
@@ -3033,6 +3043,9 @@ static int32_t valueNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkValueIsNull, pNode->isNull);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkValueUnit, pNode->unit);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->translate && !pNode->isNull) {
     code = datumToJson(pNode, pJson);
@@ -3183,6 +3196,9 @@ static int32_t jsonToValueNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkValueIsNull, &pNode->isNull);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkValueUnit, &pNode->unit);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->translate && !pNode->isNull) {
     code = jsonToDatum(pJson, pNode);
@@ -4632,6 +4648,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
       return physiScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
       return physiLastRowScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
@@ -4786,6 +4803,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicPlan(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
       return jsonToPhysiScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
       return jsonToPhysiLastRowScanNode(pJson, pObj);

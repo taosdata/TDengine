@@ -101,6 +101,7 @@ cmd ::= REVOKE privileges(A) ON priv_level(B) FROM user_name(C).                
 %destructor privileges                                                            { }
 privileges(A) ::= ALL.                                                            { A = PRIVILEGE_TYPE_ALL; }
 privileges(A) ::= priv_type_list(B).                                              { A = B; }
+privileges(A) ::= SUBSCRIBE.                                                      { A = PRIVILEGE_TYPE_SUBSCRIBE; }
 
 %type priv_type_list                                                              { int64_t }
 %destructor priv_type_list                                                        { }
@@ -116,6 +117,7 @@ priv_type(A) ::= WRITE.                                                         
 %destructor priv_level                                                            { }
 priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR.                                      { A = B; }
 priv_level(A) ::= db_name(B) NK_DOT NK_STAR.                                      { A = B; }
+priv_level(A) ::= topic_name(B).                                                  { A = B; }
 
 /************************************************ create/drop/alter dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }
@@ -393,6 +395,7 @@ col_name(A) ::= column_name(B).                                                 
 /************************************************ show ****************************************************************/
 cmd ::= SHOW DNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DNODES_STMT); }
 cmd ::= SHOW USERS.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USERS_STMT); }
+cmd ::= SHOW USER PRIVILEGES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USER_PRIVILEGES_STMT); }
 cmd ::= SHOW DATABASES.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT); }
 cmd ::= SHOW db_name_cond_opt(A) TABLES like_pattern_opt(B).                      { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TABLES_STMT, A, B, OP_TYPE_LIKE); }
 cmd ::= SHOW db_name_cond_opt(A) STABLES like_pattern_opt(B).                     { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_STABLES_STMT, A, B, OP_TYPE_LIKE); }
@@ -654,7 +657,7 @@ cgroup_name(A) ::= NK_ID(B).                                                    
 
 /************************************************ expression **********************************************************/
 expr_or_subquery(A) ::= expression(B).                                            { A = B; }
-expr_or_subquery(A) ::= subquery(B).                                              { A = B; }
+//expr_or_subquery(A) ::= subquery(B).                                              { A = createTempTableNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
 
 expression(A) ::= literal(B).                                                     { A = B; }
 expression(A) ::= pseudo_column(B).                                               { A = B; }

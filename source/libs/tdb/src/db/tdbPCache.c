@@ -129,7 +129,7 @@ static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
       pCache->nFree++;
     }
 
-    for (int32_t iPage = 0; iPage < pCache->nPage; iPage++) {
+    for (int32_t iPage = 0; iPage < pCache->nPages; iPage++) {
       aPage[iPage] = pCache->aPage[iPage];
     }
 
@@ -349,15 +349,23 @@ static void tdbPCacheUnpinPage(SPCache *pCache, SPage *pPage) {
 
   ASSERT(pPage->pLruNext == NULL);
 
-  pPage->pLruPrev = &(pCache->lru);
-  pPage->pLruNext = pCache->lru.pLruNext;
-  pCache->lru.pLruNext->pLruPrev = pPage;
-  pCache->lru.pLruNext = pPage;
+  tdbDebug("pCache:%p unpin page %p/%d/%d, nPages:%d", pCache, pPage, TDB_PAGE_PGNO(pPage), pPage->id, pCache->nPages);
+  if (pPage->id < pCache->nPages) {
+    pPage->pLruPrev = &(pCache->lru);
+    pPage->pLruNext = pCache->lru.pLruNext;
+    pCache->lru.pLruNext->pLruPrev = pPage;
+    pCache->lru.pLruNext = pPage;
 
-  pCache->nRecyclable++;
+    pCache->nRecyclable++;
 
-  // printf("unpin page %d pgno %d pPage %p\n", pPage->id, TDB_PAGE_PGNO(pPage), pPage);
-  tdbDebug("pcache/unpin page %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
+    // printf("unpin page %d pgno %d pPage %p\n", pPage->id, TDB_PAGE_PGNO(pPage), pPage);
+    tdbDebug("pcache/unpin page %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
+  } else {
+    tdbDebug("pcache destroy page: %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
+
+    tdbPCacheRemovePageFromHash(pCache, pPage);
+    tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+  }
 }
 
 static void tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage) {
@@ -443,10 +451,18 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
 }
 
 static int tdbPCacheCloseImpl(SPCache *pCache) {
-  for (i32 iPage = 0; iPage < pCache->nPages; iPage++) {
-    if (pCache->aPage[iPage]) {
-      tdbPageDestroy(pCache->aPage[iPage], tdbDefaultFree, NULL);
-      pCache->aPage[iPage] = NULL;
+  // free free page
+  for (SPage *pPage = pCache->pFree; pPage;) {
+    SPage *pPageT = pPage->pFreeNext;
+    tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+    pPage = pPageT;
+  }
+
+  for (int32_t iBucket = 0; iBucket < pCache->nHash; iBucket++) {
+    for (SPage *pPage = pCache->pgHash[iBucket]; pPage;) {
+      SPage *pPageT = pPage->pHashNext;
+      tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+      pPage = pPageT;
     }
   }
 

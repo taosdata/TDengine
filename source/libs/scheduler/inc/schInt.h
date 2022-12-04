@@ -27,6 +27,7 @@ extern "C" {
 #include "tarray.h"
 #include "thash.h"
 #include "trpc.h"
+#include "ttimer.h"
 
 enum {
   SCH_READ = 1,
@@ -146,6 +147,7 @@ typedef struct SSchedulerMgmt {
   int32_t       jobRef;
   int32_t       jobNum;
   SSchStat      stat;
+  void         *timer;
   SRWLatch      hbLock;
   SHashObj     *hbConnections;
   void         *queryMgmt;
@@ -202,12 +204,30 @@ typedef struct SSchTaskProfile {
   int64_t endTs;
 } SSchTaskProfile;
 
+typedef struct SSchRedirectCtx {
+  int32_t periodMs;
+  bool    inRedirect;
+  int32_t totalTimes;
+  int32_t roundTotal;
+  int32_t roundTimes;  // retry times in current round
+  int64_t startTs;
+} SSchRedirectCtx;
+
+typedef struct SSchTimerParam {
+  int64_t  rId;
+  uint64_t queryId;
+  uint64_t taskId;
+} SSchTimerParam;
+
 typedef struct SSchTask {
   uint64_t        taskId;          // task id
   SRWLatch        lock;            // task reentrant lock
   int32_t         maxExecTimes;    // task max exec times
   int32_t         maxRetryTimes;   // task max retry times
   int32_t         retryTimes;      // task retry times
+  int32_t         delayExecMs;     // task execution delay time
+  tmr_h           delayTimer;      // task delay execution timer
+  SSchRedirectCtx redirectCtx;     // task redirect context
   bool            waitRetry;       // wait for retry
   int32_t         execId;          // task current execute index
   SSchLevel      *level;           // level
@@ -277,7 +297,7 @@ typedef struct SSchJob {
   SExecResult          execRes;
   void                *fetchRes;  // TODO free it or not
   bool                 fetched;
-  int32_t              resNumOfRows;
+  int64_t              resNumOfRows; // from int32_t to int64_t
   SSchResInfo          userRes;
   char                *sql;
   SQueryProfileSummary summary;
@@ -488,6 +508,7 @@ extern SSchedulerMgmt schMgmt;
 void     schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask);
 void     schCleanClusterHb(void *pTrans);
 int32_t  schLaunchTask(SSchJob *job, SSchTask *task);
+int32_t  schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask);
 int32_t  schBuildAndSendMsg(SSchJob *job, SSchTask *task, SQueryNodeAddr *addr, int32_t msgType);
 SSchJob *schAcquireJob(int64_t refId);
 int32_t  schReleaseJob(int64_t refId);
@@ -529,6 +550,7 @@ int32_t  schJobFetchRows(SSchJob *pJob);
 int32_t  schJobFetchRowsA(SSchJob *pJob);
 int32_t  schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, int32_t execId);
 int32_t  schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList);
+char    *schDumpEpSet(SEpSet *pEpSet);
 char    *schGetOpStr(SCH_OP_TYPE type);
 int32_t  schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync);
 int32_t  schInitJob(int64_t *pJobId, SSchedulerReq *pReq);

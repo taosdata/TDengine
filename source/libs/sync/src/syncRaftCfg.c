@@ -395,4 +395,3 @@ int32_t raftCfgFromStr(const char *s, SRaftCfg *pRaftCfg) {
   cJSON_Delete(pRoot);
   return 0;
 }
-

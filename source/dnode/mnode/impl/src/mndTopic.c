@@ -152,8 +152,10 @@ TOPIC_ENCODE_OVER:
 
 SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SSdbRow     *pRow = NULL;
+  SMqTopicObj *pTopic = NULL;
+  void        *buf = NULL;
 
-  void  *buf = NULL;
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto TOPIC_DECODE_OVER;
 
@@ -162,11 +164,10 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     goto TOPIC_DECODE_OVER;
   }
 
-  int32_t  size = sizeof(SMqTopicObj);
-  SSdbRow *pRow = sdbAllocRow(size);
+  pRow = sdbAllocRow(sizeof(SMqTopicObj));
   if (pRow == NULL) goto TOPIC_DECODE_OVER;
 
-  SMqTopicObj *pTopic = sdbGetRowObj(pRow);
+  pTopic = sdbGetRowObj(pRow);
   if (pTopic == NULL) goto TOPIC_DECODE_OVER;
 
   int32_t len;
@@ -251,7 +252,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
 TOPIC_DECODE_OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("topic:%s, failed to decode from raw:%p since %s", pTopic->name, pRaw, terrstr());
+    mError("topic:%s, failed to decode from raw:%p since %s", pTopic == NULL ? "null" : pTopic->name, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -288,7 +289,7 @@ static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pOldTopic, SMqTopic
   return 0;
 }
 
-SMqTopicObj *mndAcquireTopic(SMnode *pMnode, char *topicName) {
+SMqTopicObj *mndAcquireTopic(SMnode *pMnode, const char *topicName) {
   SSdb        *pSdb = pMnode->pSdb;
   SMqTopicObj *pTopic = sdbAcquire(pSdb, SDB_TOPIC, topicName);
   if (pTopic == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
@@ -434,6 +435,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       return -1;
     }
     topicObj.stbUid = pStb->uid;
+    mndReleaseStb(pMnode, pStb);
   }
   /*} else if (pCreate->subType == TOPIC_SUB_TYPE__DB) {*/
   /*topicObj.ast = NULL;*/
@@ -512,6 +514,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
         mndTransDrop(pTrans);
         return -1;
       }
+
+      sdbRelease(pSdb, pVgroup);
     }
   }
 
@@ -570,7 +574,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC) != 0) {
     goto _OVER;
   }
 
@@ -628,6 +632,11 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
       mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
       return -1;
     }
+  }
+
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC) != 0) {
+    mndReleaseTopic(pMnode, pTopic);
+    return -1;
   }
 
   void           *pIter = NULL;

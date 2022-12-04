@@ -20,13 +20,13 @@
 #include "functionMgt.h"
 #include "os.h"
 #include "query.h"
-#include "qworker.h"
 #include "scheduler.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
 #include "version.h"
+#include "tdatablock.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -146,7 +146,6 @@ void taos_close(TAOS *taos) {
 
 int taos_errno(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ_META(res)) {
-    if (terrno == TSDB_CODE_RPC_REDIRECT) terrno = TSDB_CODE_QRY_NOT_READY;
     return terrno;
   }
 
@@ -154,12 +153,11 @@ int taos_errno(TAOS_RES *res) {
     return 0;
   }
 
-  return ((SRequestObj *)res)->code == TSDB_CODE_RPC_REDIRECT ? TSDB_CODE_QRY_NOT_READY : ((SRequestObj *)res)->code;
+  return ((SRequestObj *)res)->code;
 }
 
 const char *taos_errstr(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ_META(res)) {
-    if (terrno == TSDB_CODE_RPC_REDIRECT) terrno = TSDB_CODE_QRY_NOT_READY;
     return (const char *)tstrerror(terrno);
   }
 
@@ -171,8 +169,7 @@ const char *taos_errstr(TAOS_RES *res) {
   if (NULL != pRequest->msgBuf && (strlen(pRequest->msgBuf) > 0 || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR)) {
     return pRequest->msgBuf;
   } else {
-    return pRequest->code == TSDB_CODE_RPC_REDIRECT ? (const char *)tstrerror(TSDB_CODE_QRY_NOT_READY)
-                                                    : (const char *)tstrerror(pRequest->code);
+    return (const char *)tstrerror(pRequest->code);
   }
 }
 
@@ -438,7 +435,19 @@ const char *taos_data_type(int type) {
 
 const char *taos_get_client_info() { return version; }
 
+// return int32_t
 int taos_affected_rows(TAOS_RES *res) {
+  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res)) {
+    return 0;
+  }
+
+  SRequestObj    *pRequest = (SRequestObj *)res;
+  SReqResultInfo *pResInfo = &pRequest->body.resInfo;
+  return (int)pResInfo->numOfRows;
+}
+
+// return int64_t
+int64_t taos_affected_rows64(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res)) {
     return 0;
   }
@@ -959,7 +968,7 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
     tscError("0x%" PRIx64 " fetch results failed, code:%s, reqId:0x%" PRIx64, pRequest->self, tstrerror(code),
              pRequest->requestId);
   } else {
-    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
+    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
              pRequest->self, pResultInfo->numOfRows, pResultInfo->totalRows, pResultInfo->completed,
              pRequest->requestId);
 

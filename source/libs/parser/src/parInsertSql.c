@@ -236,7 +236,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, b
   if (!isOrdered) {
     pColList->colIdxInfo = taosMemoryCalloc(pColList->numOfBound, sizeof(SBoundIdxInfo));
     if (NULL == pColList->colIdxInfo) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     SBoundIdxInfo* pColIdx = pColList->colIdxInfo;
     for (col_id_t i = 0; i < pColList->numOfBound; ++i) {
@@ -562,7 +562,7 @@ static int32_t parseTagValue(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt
 
 static void buildCreateTbReq(SVnodeModifOpStmt* pStmt, STag* pTag, SArray* pTagName) {
   insBuildCreateTbReq(&pStmt->createTblReq, pStmt->targetTableName.tname, pTag, pStmt->pTableMeta->suid,
-                      pStmt->usingTableName.tname, pTagName, pStmt->pTableMeta->tableInfo.numOfTags);
+                      pStmt->usingTableName.tname, pTagName, pStmt->pTableMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
 }
 
 static int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf) {
@@ -918,7 +918,12 @@ static int32_t preParseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModif
 
 static int32_t getTableDataBlocks(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt, STableDataBlocks** pDataBuf) {
   if (pCxt->pComCxt->async) {
-    return insGetDataBlockFromList(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid),
+    uint64_t uid = pStmt->pTableMeta->uid;
+    if (pStmt->usingTableProcessing) {
+      pStmt->pTableMeta->uid = 0;
+    }
+    
+    return insGetDataBlockFromList(pStmt->pTableBlockHashObj, &uid, sizeof(pStmt->pTableMeta->uid),
                                    TSDB_DEFAULT_PAYLOAD_SIZE, sizeof(SSubmitBlk),
                                    getTableInfo(pStmt->pTableMeta).rowSize, pStmt->pTableMeta, pDataBuf, NULL,
                                    &pStmt->createTblReq);
@@ -1256,7 +1261,7 @@ static int32_t allocateMemIfNeed(STableDataBlocks* pDataBlock, int32_t rowSize, 
       // do nothing, if allocate more memory failed
       pDataBlock->nAllocSize = nAllocSizeOld;
       *numOfRows = (int32_t)(pDataBlock->nAllocSize - pDataBlock->headerSize) / rowSize;
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
@@ -1519,14 +1524,12 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
 static int32_t setStmtInfo(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) {
   SParsedDataColInfo* tags = taosMemoryMalloc(sizeof(pCxt->tags));
   if (NULL == tags) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(tags, &pCxt->tags, sizeof(pCxt->tags));
 
   SStmtCallback* pStmtCb = pCxt->pComCxt->pStmtCb;
-  char           tbFName[TSDB_TABLE_FNAME_LEN];
-  tNameExtractFullName(&pStmt->targetTableName, tbFName);
-  int32_t code = (*pStmtCb->setInfoFn)(pStmtCb->pStmt, pStmt->pTableMeta, tags, tbFName, pStmt->usingTableProcessing,
+  int32_t code = (*pStmtCb->setInfoFn)(pStmtCb->pStmt, pStmt->pTableMeta, tags, &pStmt->targetTableName, pStmt->usingTableProcessing,
                                        pStmt->pVgroupsHashObj, pStmt->pTableBlockHashObj, pStmt->usingTableName.tname);
 
   memset(&pCxt->tags, 0, sizeof(pCxt->tags));

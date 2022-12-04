@@ -195,7 +195,7 @@ sql select * from information_schema.ins_stables
 if $rows != 1 then 
   return -1
 endi
-#sql select * from performance_schema.perf_streams
+#sql select * frominformation_schema.ins_streams
 sql select * from information_schema.ins_tables
 if $rows <= 0 then
   return -1

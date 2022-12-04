@@ -2428,7 +2428,8 @@ enum {
   PHY_EXCHANGE_CODE_SRC_START_GROUP_ID,
   PHY_EXCHANGE_CODE_SRC_END_GROUP_ID,
   PHY_EXCHANGE_CODE_SINGLE_CHANNEL,
-  PHY_EXCHANGE_CODE_SRC_ENDPOINTS
+  PHY_EXCHANGE_CODE_SRC_ENDPOINTS,
+  PHY_EXCHANGE_CODE_SEQ_RECV_DATA
 };
 
 static int32_t physiExchangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2446,6 +2447,9 @@ static int32_t physiExchangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_EXCHANGE_CODE_SRC_ENDPOINTS, nodeListToMsg, pNode->pSrcEndPoints);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_EXCHANGE_CODE_SEQ_RECV_DATA, pNode->seqRecvData);
   }
 
   return code;
@@ -2472,6 +2476,9 @@ static int32_t msgToPhysiExchangeNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXCHANGE_CODE_SRC_ENDPOINTS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pSrcEndPoints);
+        break;
+      case PHY_EXCHANGE_CODE_SEQ_RECV_DATA:
+        code = tlvDecodeBool(pTlv, &pNode->seqRecvData);
         break;
       default:
         break;
@@ -3633,6 +3640,7 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
       code = physiScanNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
       code = physiLastRowScanNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
@@ -3771,6 +3779,7 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       code = msgToPhysiScanNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
       code = msgToPhysiLastRowScanNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:

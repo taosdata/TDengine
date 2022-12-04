@@ -25,7 +25,6 @@ extern "C" {
 #include "tref.h"
 #include "wal.h"
 
-#include "tref.h"
 #include "syncEnv.h"
 #include "syncIO.h"
 #include "syncIndexMgr.h"
@@ -39,6 +38,7 @@ extern "C" {
 #include "syncSnapshot.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
+#include "tref.h"
 
 extern void addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port);
 
@@ -125,12 +125,12 @@ char*  snapshotSender2Str(SSyncSnapshotSender* pSender);
 cJSON* snapshotReceiver2Json(SSyncSnapshotReceiver* pReceiver);
 char*  snapshotReceiver2Str(SSyncSnapshotReceiver* pReceiver);
 
-cJSON*   syncIndexMgr2Json(SSyncIndexMgr* pSyncIndexMgr);
-char*    syncIndexMgr2Str(SSyncIndexMgr* pSyncIndexMgr);
-void     syncIndexMgrPrint(SSyncIndexMgr* pObj);
-void     syncIndexMgrPrint2(char* s, SSyncIndexMgr* pObj);
-void     syncIndexMgrLog(SSyncIndexMgr* pObj);
-void     syncIndexMgrLog2(char* s, SSyncIndexMgr* pObj);
+cJSON* syncIndexMgr2Json(SSyncIndexMgr* pSyncIndexMgr);
+char*  syncIndexMgr2Str(SSyncIndexMgr* pSyncIndexMgr);
+void   syncIndexMgrPrint(SSyncIndexMgr* pObj);
+void   syncIndexMgrPrint2(char* s, SSyncIndexMgr* pObj);
+void   syncIndexMgrLog(SSyncIndexMgr* pObj);
+void   syncIndexMgrLog2(char* s, SSyncIndexMgr* pObj);
 
 cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg);
 cJSON* syncRpcUnknownMsg2Json();
@@ -139,7 +139,6 @@ void   syncRpcMsgPrint(SRpcMsg* pMsg);
 void   syncRpcMsgPrint2(char* s, SRpcMsg* pMsg);
 void   syncRpcMsgLog(SRpcMsg* pMsg);
 void   syncRpcMsgLog2(char* s, SRpcMsg* pMsg);
-
 
 // origin syncMessage
 typedef struct SyncPing {
@@ -152,7 +151,6 @@ typedef struct SyncPing {
   uint32_t dataLen;
   char     data[];
 } SyncPing;
-
 
 SyncPing* syncPingBuild(uint32_t dataLen);
 SyncPing* syncPingBuild2(const SRaftId* srcId, const SRaftId* destId, int32_t vgId, const char* str);

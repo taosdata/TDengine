@@ -144,9 +144,9 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->config = info.config;
   pVnode->state.committed = info.state.committed;
   pVnode->state.commitTerm = info.state.commitTerm;
-  pVnode->state.applied = info.state.committed;
   pVnode->state.commitID = info.state.commitID;
-  pVnode->state.commitTerm = info.state.commitTerm;
+  pVnode->state.applied = info.state.committed;
+  pVnode->state.applyTerm = info.state.commitTerm;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
   taosThreadMutexInit(&pVnode->lock, NULL);
@@ -242,14 +242,14 @@ _err:
   return NULL;
 }
 
-void vnodePreClose(SVnode *pVnode) { 
+void vnodePreClose(SVnode *pVnode) {
   vnodeQueryPreClose(pVnode);
-  vnodeSyncPreClose(pVnode); 
+  vnodeSyncPreClose(pVnode);
 }
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
-    vnodeCommit(pVnode);
+    vnodeSyncCommit(pVnode);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     walClose(pVnode->pWal);
@@ -269,10 +269,7 @@ void vnodeClose(SVnode *pVnode) {
 }
 
 // start the sync timer after the queue is ready
-int32_t vnodeStart(SVnode *pVnode) {
-  vnodeSyncStart(pVnode);
-  return 0;
-}
+int32_t vnodeStart(SVnode *pVnode) { return vnodeSyncStart(pVnode); }
 
 void vnodeStop(SVnode *pVnode) {}
 

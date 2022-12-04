@@ -55,7 +55,7 @@ endi
 
 # regression test case 1
 sql select count(*) from lr_tb1 where ts>'2018-09-18 08:45:00.1' and ts<'2018-09-18 08:45:00.2'
-if $row != 0 then
+if $row != 1 then
   return -1
 endi
 
@@ -70,10 +70,10 @@ sql select _wstart, t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00
 if $row != 2 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != 8 then
   return -1
 endi
-if $data02 != NULL then
+if $data02 != 8 then
   return -1
 endi
 if  $data03 != NULL then

@@ -41,9 +41,12 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pLogStore->pCache = taosLRUCacheInit(30 * 1024 * 1024, 1, .5);
   if (pLogStore->pCache == NULL) {
     taosMemoryFree(pLogStore);
-    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+
+  pLogStore->cacheHit = 0;
+  pLogStore->cacheMiss = 0;
 
   taosLRUCacheSetStrictCapacity(pLogStore->pCache, false);
 
@@ -198,9 +201,8 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
-
   int64_t tsWriteBegin = taosGetTimestampNs();
-  index = walAppendLog(pWal, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  index = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
   int64_t tsWriteEnd = taosGetTimestampNs();
   int64_t tsElapsed = tsWriteEnd - tsWriteBegin;
 
@@ -214,7 +216,8 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
             pEntry->index, err, err, errStr, sysErr, sysErrStr);
     return -1;
   }
-  pEntry->index = index;
+
+  ASSERT(pEntry->index == index);
 
   sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s, elapsed:%" PRId64, pEntry->index,
           TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType), tsElapsed);
@@ -341,8 +344,6 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
     const char* sysErrStr = strerror(errno);
     sError("vgId:%d, wal truncate error, from-index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
            pData->pSyncNode->vgId, fromIndex, err, err, errStr, sysErr, sysErrStr);
-
-    // ASSERT(0);
   }
 
   // event log
@@ -394,8 +395,6 @@ int32_t raftLogUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
     const char* sysErrStr = strerror(errno);
     sError("vgId:%d, wal update commit index error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
            pData->pSyncNode->vgId, index, err, err, errStr, sysErr, sysErrStr);
-
-    ASSERT(0);
     return -1;
   }
   return 0;

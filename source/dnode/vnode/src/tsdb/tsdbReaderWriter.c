@@ -1477,9 +1477,8 @@ int32_t tsdbDelFReaderClose(SDelFReader **ppReader) {
     }
     taosMemoryFree(pReader);
   }
-  *ppReader = NULL;
 
-_exit:
+  *ppReader = NULL;
   return code;
 }
 

@@ -126,14 +126,21 @@ class TDTestCase:
         pThread = tmqCom.asyncInsertData(paraDict)
 
         tmqCom.getStartConsumeNotifyFromTmqsim()
-        #time.sleep(5)
-        tdLog.info("check show consumers")
-        tdSql.query("show consumers")
-        # tdLog.info(tdSql.queryResult)
-        rows = tdSql.getRows()
-        tdLog.info("show consumers rows: %d"%rows)
-        if rows != len(topicNameList):
-            tdLog.exit("show consumers rows error")
+
+        for i in range(0, 10, 1):
+            tdLog.info("check show consumers")
+            tdSql.query("show consumers")
+            # tdLog.info(tdSql.queryResult)
+            rows = tdSql.getRows()
+            tdLog.info("show consumers rows: %d" % rows)
+
+            if rows == len(topicNameList):
+                tdLog.info("show consumers rows not match %d:%d" %
+                           (rows, len(topicNameList)))
+                time.sleep(1)
+                break
+            if (rows == 9):
+                tdLog.exit("show consumers rows error")
 
         for i in range(0, 10, 1):
             tdLog.info("check show subscriptions")

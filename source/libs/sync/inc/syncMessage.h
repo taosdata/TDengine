@@ -35,6 +35,7 @@ typedef struct SyncTimeout {
   ESyncTimeoutType timeoutType;
   uint64_t         logicClock;
   int32_t          timerMS;
+  int64_t          timeStamp;
   void*            data;  // need optimized
 } SyncTimeout;
 
@@ -105,7 +106,7 @@ typedef struct SyncAppendEntriesReply {
   SRaftId  destId;
   // private data
   SyncTerm  term;
-  SyncTerm  privateTerm;
+  SyncTerm  lastMatchTerm;
   bool      success;
   SyncIndex matchIndex;
   SyncIndex lastSendIndex;
@@ -124,6 +125,7 @@ typedef struct SyncHeartbeat {
   SyncIndex commitIndex;
   SyncTerm  privateTerm;
   SyncTerm  minMatchIndex;
+  int64_t   timeStamp;
 } SyncHeartbeat;
 
 typedef struct SyncHeartbeatReply {
@@ -244,6 +246,8 @@ int32_t syncBuildRequestVote(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildRequestVoteReply(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildAppendEntries(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId);
 int32_t syncBuildAppendEntriesReply(SRpcMsg* pMsg, int32_t vgId);
+int32_t syncBuildAppendEntriesFromRaftLog(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm,
+                                          SRpcMsg* pRpcMsg);
 int32_t syncBuildHeartbeat(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildHeartbeatReply(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildPreSnapshot(SRpcMsg* pMsg, int32_t vgId);

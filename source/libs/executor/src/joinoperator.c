@@ -87,7 +87,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   }
 
   int32_t      numOfCols = 0;
-  SSDataBlock* pResBlock = createResDataBlock(pJoinNode->node.pOutputDataBlockDesc);
+  SSDataBlock* pResBlock = createDataBlockFromDescNode(pJoinNode->node.pOutputDataBlockDesc);
   SExprInfo*   pExprInfo = createExprInfo(pJoinNode->pTargets, NULL, &numOfCols);
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
@@ -136,7 +136,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     pInfo->inputOrder = TSDB_ORDER_DESC;
   }
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doMergeJoin, NULL, destroyMergeJoinOperator, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doMergeJoin, NULL, destroyMergeJoinOperator, optrDefaultBufFn, NULL);
   code = appendDownstream(pOperator, pDownstream, numOfDownstream);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -185,7 +185,7 @@ static void mergeJoinJoinLeftRight(struct SOperatorInfo* pOperator, SSDataBlock*
     int32_t rowIndex = -1;
 
     SColumnInfoData* pSrc = NULL;
-    if (pLeftBlock->info.blockId == blockId) {
+    if (pLeftBlock->info.id.blockId == blockId) {
       pSrc = taosArrayGet(pLeftBlock->pDataBlock, slotId);
       rowIndex = leftPos;
     } else {

@@ -162,6 +162,8 @@ _OVER:
 
 static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SSdbRow *pRow = NULL;
+  SStbObj *pStb = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -171,10 +173,10 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SStbObj));
+  pRow = sdbAllocRow(sizeof(SStbObj));
   if (pRow == NULL) goto _OVER;
 
-  SStbObj *pStb = sdbGetRowObj(pRow);
+  pStb = sdbGetRowObj(pRow);
   if (pStb == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -254,10 +256,12 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("stb:%s, failed to decode from raw:%p since %s", pStb->name, pRaw, terrstr());
-    taosMemoryFreeClear(pStb->pColumns);
-    taosMemoryFreeClear(pStb->pTags);
-    taosMemoryFreeClear(pStb->comment);
+    mError("stb:%s, failed to decode from raw:%p since %s", pStb == NULL ? "null" : pStb->name, pRaw, terrstr());
+    if (pStb != NULL) {
+      taosMemoryFreeClear(pStb->pColumns);
+      taosMemoryFreeClear(pStb->pTags);
+      taosMemoryFreeClear(pStb->comment);
+    }
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -1187,11 +1191,11 @@ static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName,
         goto NEXT;
       }
       if (pCol->colId > 0 && pCol->colId == colId) {
-        sdbRelease(pSdb, pTopic);
-        nodesDestroyNode(pAst);
-        nodesDestroyList(pNodeList);
         terrno = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC;
         mError("topic:%s, check colId:%d conflicted", pTopic->name, pCol->colId);
+        nodesDestroyNode(pAst);
+        nodesDestroyList(pNodeList);
+        sdbRelease(pSdb, pTopic);
         return -1;
       }
       mInfo("topic:%s, check colId:%d passed", pTopic->name, pCol->colId);
@@ -1230,11 +1234,11 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
         goto NEXT;
       }
       if (pCol->colId > 0 && pCol->colId == colId) {
-        sdbRelease(pSdb, pStream);
-        nodesDestroyNode(pAst);
-        nodesDestroyList(pNodeList);
         terrno = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
         mError("stream:%s, check colId:%d conflicted", pStream->name, pCol->colId);
+        nodesDestroyNode(pAst);
+        nodesDestroyList(pNodeList);
+        sdbRelease(pSdb, pStream);
         return -1;
       }
       mInfo("stream:%s, check colId:%d passed", pStream->name, pCol->colId);
@@ -1279,11 +1283,11 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
         goto NEXT;
       }
       if ((pCol->colId) > 0 && (pCol->colId == colId)) {
-        sdbRelease(pSdb, pSma);
-        nodesDestroyNode(pAst);
-        nodesDestroyList(pNodeList);
         terrno = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TSMA;
         mError("tsma:%s, check colId:%d conflicted", pSma->name, pCol->colId);
+        nodesDestroyNode(pAst);
+        nodesDestroyList(pNodeList);
+        sdbRelease(pSdb, pSma);
         return -1;
       }
       mInfo("tsma:%s, check colId:%d passed", pSma->name, pCol->colId);
@@ -1684,7 +1688,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   }
 
   if (pStb->numOfFuncs > 0) {
-    pRsp->pFuncs = taosArrayDup(pStb->pFuncs);
+    pRsp->pFuncs = taosArrayDup(pStb->pFuncs, NULL);
   }
 
   taosRUnLockLatch(&pStb->lock);

@@ -302,7 +302,7 @@ int32_t qwtExecTask(qTaskInfo_t tinfo, SSDataBlock **pRes, uint64_t *useconds) {
   return 0;
 }
 
-int32_t qwtKillTask(qTaskInfo_t qinfo) { return 0; }
+int32_t qwtKillTask(qTaskInfo_t qinfo, int32_t rspCode) { return 0; }
 
 void qwtDestroyTask(qTaskInfo_t qHandle) {}
 

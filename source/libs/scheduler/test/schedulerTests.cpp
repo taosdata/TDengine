@@ -38,6 +38,7 @@
 #include "tglobal.h"
 #include "trpc.h"
 #include "tvariant.h"
+#include "tmisce.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"

@@ -26,7 +26,7 @@ extern "C" {
 #include "query.h"
 #include "taos.h"
 #include "tcommon.h"
-#include "tdatablock.h"
+#include "tmisce.h"
 #include "tdef.h"
 #include "thash.h"
 #include "tlist.h"
@@ -171,9 +171,9 @@ typedef struct SReqResultInfo {
   char**         convertBuf;
   TAOS_ROW       row;
   SResultColumn* pCol;
-  uint32_t       numOfRows;
+  uint64_t       numOfRows; // from int32_t change to int64_t
   uint64_t       totalRows;
-  uint32_t       current;
+  uint64_t       current;
   bool           localResultFetched;
   bool           completed;
   int32_t        precision;

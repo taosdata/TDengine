@@ -141,13 +141,38 @@ typedef struct {
 } SStreamCheckpoint;
 
 typedef struct {
-  int8_t type;
-} SStreamTaskDestroy;
-
-typedef struct {
   int8_t       type;
   SSDataBlock* pBlock;
 } SStreamTrigger;
+
+typedef struct SStreamQueueNode SStreamQueueNode;
+
+struct SStreamQueueNode {
+  SStreamQueueItem* item;
+  SStreamQueueNode* next;
+};
+
+typedef struct {
+  SStreamQueueNode* head;
+  int64_t           size;
+} SStreamQueueRes;
+
+void streamFreeQitem(SStreamQueueItem* data);
+
+bool              streamQueueResEmpty(const SStreamQueueRes* pRes);
+int64_t           streamQueueResSize(const SStreamQueueRes* pRes);
+SStreamQueueNode* streamQueueResFront(SStreamQueueRes* pRes);
+SStreamQueueNode* streamQueueResPop(SStreamQueueRes* pRes);
+void              streamQueueResClear(SStreamQueueRes* pRes);
+SStreamQueueRes   streamQueueBuildRes(SStreamQueueNode* pNode);
+
+typedef struct {
+  SStreamQueueNode* pHead;
+} SStreamQueue1;
+
+bool            streamQueueHasTask(const SStreamQueue1* pQueue);
+int32_t         streamQueuePush(SStreamQueue1* pQueue, SStreamQueueItem* pItem);
+SStreamQueueRes streamQueueGetRes(SStreamQueue1* pQueue);
 
 typedef struct {
   STaosQueue* queue;
@@ -250,31 +275,6 @@ typedef struct {
   SEpSet  epSet;
 } SStreamChildEpInfo;
 
-typedef struct {
-  int32_t srcNodeId;
-  int32_t srcChildId;
-  int64_t stateSaveVer;
-  int64_t stateProcessedVer;
-} SStreamCheckpointInfo;
-
-typedef struct {
-  int64_t streamId;
-  int64_t checkTs;
-  int32_t checkpointId;  // incremental
-  int32_t taskId;
-  SArray* checkpointVer;  // SArray<SStreamCheckpointInfo>
-} SStreamMultiVgCheckpointInfo;
-
-typedef struct {
-  int32_t taskId;
-  int32_t checkpointId;  // incremental
-} SStreamCheckpointKey;
-
-typedef struct {
-  int32_t taskId;
-  SArray* checkpointVer;
-} SStreamRecoveringState;
-
 typedef struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
@@ -339,6 +339,10 @@ typedef struct SStreamTask {
   int64_t checkReqId;
   SArray* checkReqIds;  // shuffle
   int32_t refCnt;
+
+  int64_t checkpointingId;
+  int32_t checkpointAlignCnt;
+
 } SStreamTask;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -486,6 +490,60 @@ int32_t tDecodeSStreamRecoverFinishReq(SDecoder* pDecoder, SStreamRecoverFinishR
 
 typedef struct {
   int64_t streamId;
+  int64_t checkpointId;
+  int32_t taskId;
+  int32_t nodeId;
+  int64_t expireTime;
+} SStreamCheckpointSourceReq;
+
+typedef struct {
+  int64_t streamId;
+  int64_t checkpointId;
+  int32_t taskId;
+  int32_t nodeId;
+  int64_t expireTime;
+} SStreamCheckpointSourceRsp;
+
+int32_t tEncodeSStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq);
+int32_t tDecodeSStreamCheckpointSourceReq(SDecoder* pDecoder, SStreamCheckpointSourceReq* pReq);
+
+int32_t tEncodeSStreamCheckpointSourceRsp(SEncoder* pEncoder, const SStreamCheckpointSourceRsp* pRsp);
+int32_t tDecodeSStreamCheckpointSourceRsp(SDecoder* pDecoder, SStreamCheckpointSourceRsp* pRsp);
+
+typedef struct {
+  SMsgHead msgHead;
+  int64_t  streamId;
+  int64_t  checkpointId;
+  int32_t  downstreamTaskId;
+  int32_t  downstreamNodeId;
+  int32_t  upstreamTaskId;
+  int32_t  upstreamNodeId;
+  int32_t  childId;
+  int64_t  expireTime;
+  int8_t   taskLevel;
+} SStreamCheckpointReq;
+
+typedef struct {
+  SMsgHead msgHead;
+  int64_t  streamId;
+  int64_t  checkpointId;
+  int32_t  downstreamTaskId;
+  int32_t  downstreamNodeId;
+  int32_t  upstreamTaskId;
+  int32_t  upstreamNodeId;
+  int32_t  childId;
+  int64_t  expireTime;
+  int8_t   taskLevel;
+} SStreamCheckpointRsp;
+
+int32_t tEncodeSStreamCheckpointReq(SEncoder* pEncoder, const SStreamCheckpointReq* pReq);
+int32_t tDecodeSStreamCheckpointReq(SDecoder* pDecoder, SStreamCheckpointReq* pReq);
+
+int32_t tEncodeSStreamCheckpointRsp(SEncoder* pEncoder, const SStreamCheckpointRsp* pRsp);
+int32_t tDecodeSStreamCheckpointRsp(SDecoder* pDecoder, SStreamCheckpointRsp* pRsp);
+
+typedef struct {
+  int64_t streamId;
   int32_t downstreamTaskId;
   int32_t taskId;
 } SStreamRecoverDownstreamReq;
@@ -562,7 +620,7 @@ typedef struct SStreamMeta {
   SHashObj*    pTasks;
   SHashObj*    pRecoverStatus;
   void*        ahandle;
-  TXN          txn;
+  TXN*         txn;
   FTaskExpand* expandFunc;
   int32_t      vgId;
   SRWLatch     lock;
@@ -573,17 +631,21 @@ void         streamMetaClose(SStreamMeta* streamMeta);
 
 int32_t      streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask);
 int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* msg, int32_t msgLen);
-int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
 
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
-void         streamMetaRemoveTask1(SStreamMeta* pMeta, int32_t taskId);
+void         streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 
 int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);
 int32_t streamMetaRollBack(SStreamMeta* pMeta);
 int32_t streamLoadTasks(SStreamMeta* pMeta);
+
+// checkpoint
+int32_t streamProcessCheckpointSourceReq(SStreamMeta* pMeta, SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
+int32_t streamProcessCheckpointReq(SStreamMeta* pMeta, SStreamTask* pTask, SStreamCheckpointReq* pReq);
+int32_t streamProcessCheckpointRsp(SStreamMeta* pMeta, SStreamTask* pTask, SStreamCheckpointRsp* pRsp);
 
 #ifdef __cplusplus
 }

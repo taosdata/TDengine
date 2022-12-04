@@ -142,27 +142,23 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
  */
 
 int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal);
+
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pBlock, uint64_t* useconds);
+
+void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);
 
 /**
  * kill the ongoing query asynchronously
  * @param tinfo  qhandle
  * @return
  */
-int32_t qAsyncKillTask(qTaskInfo_t tinfo);
+int32_t qAsyncKillTask(qTaskInfo_t tinfo, int32_t rspCode);
 
 /**
  * destroy query info structure
  * @param qHandle
  */
 void qDestroyTask(qTaskInfo_t tinfo);
-
-/**
- * Get the queried table uid
- * @param qHandle
- * @return
- */
-int64_t qGetQueriedTableUid(qTaskInfo_t tinfo);
 
 /**
  * Extract the qualified table id list, and than pass them to the TSDB driver to load the required table data blocks.

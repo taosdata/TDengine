@@ -45,7 +45,7 @@ static inline int32_t mndAcquireRpc(SMnode *pMnode) {
   int32_t code = 0;
   taosThreadRwlockRdlock(&pMnode->lock);
   if (pMnode->stopped) {
-    terrno = TSDB_CODE_APP_NOT_READY;
+    terrno = TSDB_CODE_APP_IS_STOPPING;
     code = -1;
   } else if (!mndIsLeader(pMnode)) {
     code = -1;
@@ -85,6 +85,21 @@ static void *mndBuildTimerMsg(int32_t *pContLen) {
   return pReq;
 }
 
+static void *mndBuildCheckpointTickMsg(int32_t *pContLen, int64_t sec) {
+  SMStreamTickReq timerReq = {
+      .tick = sec,
+  };
+
+  int32_t contLen = tSerializeSMStreamTickMsg(NULL, 0, &timerReq);
+  if (contLen <= 0) return NULL;
+  void *pReq = rpcMallocCont(contLen);
+  if (pReq == NULL) return NULL;
+
+  tSerializeSMStreamTickMsg(pReq, contLen, &timerReq);
+  *pContLen = contLen;
+  return pReq;
+}
+
 static void mndPullupTrans(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
@@ -105,7 +120,24 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TMQ_TIMER, .pCont = pReq, .contLen = contLen};
+    SRpcMsg rpcMsg = {
+        .msgType = TDMT_MND_TMQ_TIMER,
+        .pCont = pReq,
+        .contLen = contLen,
+    };
+    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+  }
+}
+
+static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildCheckpointTickMsg(&contLen, sec);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {
+        .msgType = TDMT_MND_STREAM_CHECKPOINT_TIMER,
+        .pCont = pReq,
+        .contLen = contLen,
+    };
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
@@ -150,12 +182,16 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
 
     bool roleChanged = false;
     for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
-      if (pVgroup->vnodeGid[vg].dnodeId == dnodeId) {
-        if (pVgroup->vnodeGid[vg].syncState != TAOS_SYNC_STATE_ERROR) {
-          mInfo("vgId:%d, state changed by offline check, old state:%s restored:%d new state:error restored:0",
-                pVgroup->vgId, syncStr(pVgroup->vnodeGid[vg].syncState), pVgroup->vnodeGid[vg].syncRestore);
-          pVgroup->vnodeGid[vg].syncState = TAOS_SYNC_STATE_ERROR;
-          pVgroup->vnodeGid[vg].syncRestore = 0;
+      SVnodeGid *pGid = &pVgroup->vnodeGid[vg];
+      if (pGid->dnodeId == dnodeId) {
+        if (pGid->syncState != TAOS_SYNC_STATE_OFFLINE) {
+          mInfo(
+              "vgId:%d, state changed by offline check, old state:%s restored:%d canRead:%d new state:error restored:0 "
+              "canRead:0",
+              pVgroup->vgId, syncStr(pGid->syncState), pGid->syncRestore, pGid->syncCanRead);
+          pGid->syncState = TAOS_SYNC_STATE_OFFLINE;
+          pGid->syncRestore = 0;
+          pGid->syncCanRead = 0;
           roleChanged = true;
         }
         break;
@@ -219,6 +255,12 @@ static void *mndThreadFp(void *param) {
     if (sec % tsMqRebalanceInterval == 0) {
       mndCalMqRebalance(pMnode);
     }
+
+#if 0
+    if (sec % tsStreamCheckpointTickInterval == 0) {
+      mndStreamCheckpointTick(pMnode, sec);
+    }
+#endif
 
     if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {
       mndPullupTelem(pMnode);
@@ -491,6 +533,16 @@ void mndPreClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     syncLeaderTransfer(pMnode->syncMgmt.sync);
     syncPreStop(pMnode->syncMgmt.sync);
+#if 0
+    while (syncSnapshotRecving(pMnode->syncMgmt.sync)) {
+      mInfo("vgId:1, snapshot is recving");
+      taosMsleep(300);
+    }
+    while (syncSnapshotSending(pMnode->syncMgmt.sync)) {
+      mInfo("vgId:1, snapshot is sending");
+      taosMsleep(300);
+    }
+#endif
   }
 }
 
@@ -547,11 +599,45 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
       pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_SCH_MERGE_FETCH || pMsg->msgType == TDMT_SCH_DROP_TASK) {
     return 0;
   }
-  if (mndAcquireRpc(pMsg->info.node) == 0) return 0;
 
-  SMnode    *pMnode = pMsg->info.node;
+  SMnode *pMnode = pMsg->info.node;
+  taosThreadRwlockRdlock(&pMnode->lock);
+  if (pMnode->stopped) {
+    taosThreadRwlockUnlock(&pMnode->lock);
+    terrno = TSDB_CODE_APP_IS_STOPPING;
+    return -1;
+  }
+
+  terrno = 0;
   SSyncState state = syncGetState(pMnode->syncMgmt.sync);
+  if (terrno != 0) {
+    taosThreadRwlockUnlock(&pMnode->lock);
+    return -1;
+  }
 
+  if (state.state != TAOS_SYNC_STATE_LEADER) {
+    taosThreadRwlockUnlock(&pMnode->lock);
+    terrno = TSDB_CODE_SYN_NOT_LEADER;
+    goto _OVER;
+  }
+
+  if (!state.restored || !pMnode->restored) {
+    taosThreadRwlockUnlock(&pMnode->lock);
+    terrno = TSDB_CODE_SYN_RESTORING;
+    goto _OVER;
+  }
+
+#if 1
+  atomic_add_fetch_32(&pMnode->rpcRef, 1);
+#else
+  int32_t ref = atomic_add_fetch_32(&pMnode->rpcRef, 1);
+  mTrace("mnode rpc is acquired, ref:%d", ref);
+#endif
+
+  taosThreadRwlockUnlock(&pMnode->lock);
+  return 0;
+
+_OVER:
   if (pMsg->msgType == TDMT_MND_TMQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
       pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
       pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
@@ -564,42 +650,26 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   SEpSet          epSet = {0};
   mndGetMnodeEpSet(pMnode, &epSet);
 
-  mDebug(
+  mGDebug(
       "msg:%p, type:%s failed to process since %s, mnode restored:%d stopped:%d, sync restored:%d "
       "role:%s, redirect numOfEps:%d inUse:%d",
       pMsg, TMSG_INFO(pMsg->msgType), terrstr(), pMnode->restored, pMnode->stopped, state.restored,
       syncStr(state.restored), epSet.numOfEps, epSet.inUse);
 
-  if (epSet.numOfEps > 0) {
-    for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-      mDebug("mnode index:%d, ep:%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
-    }
+  if (epSet.numOfEps <= 0) return -1;
 
-    int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
-    pMsg->info.rsp = rpcMallocCont(contLen);
-    if (pMsg->info.rsp != NULL) {
-      tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
-      pMsg->info.hasEpSet = 1;
-      pMsg->info.rspLen = contLen;
-      terrno = TSDB_CODE_RPC_REDIRECT;
-    } else {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-    }
-  } else {
-    terrno = TSDB_CODE_APP_NOT_READY;
+  for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+    mDebug("mnode index:%d, ep:%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
   }
 
-  return -1;
-}
+  int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
+  pMsg->info.rsp = rpcMallocCont(contLen);
+  if (pMsg->info.rsp != NULL) {
+    tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
+    pMsg->info.hasEpSet = 1;
+    pMsg->info.rspLen = contLen;
+  }
 
-static int32_t mndCheckMsgContent(SRpcMsg *pMsg) {
-  if (!IsReq(pMsg)) return 0;
-  if (pMsg->contLen != 0 && pMsg->pCont != NULL) return 0;
-
-  const STraceId *trace = &pMsg->info.traceId;
-  mGError("msg:%p, failed to check msg, cont:%p contLen:%d, app:%p type:%s", pMsg, pMsg->pCont, pMsg->contLen,
-          pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
-  terrno = TSDB_CODE_INVALID_MSG_LEN;
   return -1;
 }
 
@@ -614,7 +684,6 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
     return -1;
   }
 
-  if (mndCheckMsgContent(pMsg) != 0) return -1;
   if (mndCheckMnodeState(pMsg) != 0) return -1;
 
   mGTrace("msg:%p, start to process in mnode, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
@@ -747,7 +816,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
         tstrncpy(desc.status, "ready", sizeof(desc.status));
         pClusterInfo->vgroups_alive++;
       }
-      if (pVgid->syncState != TAOS_SYNC_STATE_ERROR) {
+      if (pVgid->syncState != TAOS_SYNC_STATE_ERROR && pVgid->syncState != TAOS_SYNC_STATE_OFFLINE) {
         pClusterInfo->vnodes_alive++;
       }
       pClusterInfo->vnodes_total++;
@@ -803,12 +872,12 @@ void mndSetRestored(SMnode *pMnode, bool restored) {
     taosThreadRwlockWrlock(&pMnode->lock);
     pMnode->restored = true;
     taosThreadRwlockUnlock(&pMnode->lock);
-    mTrace("mnode set restored:%d", restored);
+    mInfo("mnode set restored:%d", restored);
   } else {
     taosThreadRwlockWrlock(&pMnode->lock);
     pMnode->restored = false;
     taosThreadRwlockUnlock(&pMnode->lock);
-    mTrace("mnode set restored:%d", restored);
+    mInfo("mnode set restored:%d", restored);
     while (1) {
       if (pMnode->rpcRef <= 0) break;
       taosMsleep(3);
@@ -822,7 +891,7 @@ void mndSetStop(SMnode *pMnode) {
   taosThreadRwlockWrlock(&pMnode->lock);
   pMnode->stopped = true;
   taosThreadRwlockUnlock(&pMnode->lock);
-  mTrace("mnode set stopped");
+  mInfo("mnode set stopped");
 }
 
 bool mndGetStop(SMnode *pMnode) { return pMnode->stopped; }
