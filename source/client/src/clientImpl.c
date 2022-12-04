@@ -317,7 +317,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     tscError("0x%" PRIx64 " fetch results failed, code:%s, reqId:0x%" PRIx64, pRequest->self, tstrerror(code),
              pRequest->requestId);
   } else {
-    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
+    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
              pRequest->self, pResultInfo->numOfRows, pResultInfo->totalRows, pResultInfo->completed,
              pRequest->requestId);
   }
@@ -1527,7 +1527,7 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
       return NULL;
     }
 
-    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
+    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
              pRequest->self, pResInfo->numOfRows, pResInfo->totalRows, pResInfo->completed, pRequest->requestId);
 
     STscObj*            pTscObj = pRequest->pTscObj;
@@ -1941,7 +1941,7 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
 
   pResultInfo->pRspMsg = (const char*)pRsp;
   pResultInfo->pData = (void*)pRsp->data;
-  pResultInfo->numOfRows = htonl(pRsp->numOfRows);
+  pResultInfo->numOfRows = htobe64(pRsp->numOfRows);
   pResultInfo->current = 0;
   pResultInfo->completed = (pRsp->completed == 1);
   pResultInfo->payloadLen = htonl(pRsp->compLen);
