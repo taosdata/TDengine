@@ -887,10 +887,10 @@ static int32_t preParseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModif
 
 static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt, STableDataCxt** pTableCxt) {
   if (pCxt->pComCxt->async) {
-    return insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid), pStmt->pTableMeta,
-                              &pStmt->pCreateTblReq, pTableCxt, false);
+    return insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid),
+                              pStmt->pTableMeta, &pStmt->pCreateTblReq, pTableCxt, false);
   }
-  
+
   char tbFName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(&pStmt->targetTableName, tbFName);
   if (pStmt->usingTableProcessing) {
@@ -928,7 +928,7 @@ int32_t initTableColSubmitData(STableDataCxt* pTableCxt) {
   }
 
   for (int32_t i = 0; i < pTableCxt->boundColsInfo.numOfBound; ++i) {
-    SSchema* pSchema = &pTableCxt->pMeta->schema[pTableCxt->boundColsInfo.pColIndex[i]];
+    SSchema*  pSchema = &pTableCxt->pMeta->schema[pTableCxt->boundColsInfo.pColIndex[i]];
     SColData* pCol = taosArrayReserve(pTableCxt->pData->aCol, 1);
     if (NULL == pCol) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -1065,7 +1065,8 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
           isnan(dv)) {
         return buildSyntaxErrMsg(&pCxt->msg, "illegal float data", pToken->z);
       }
-      pVal->value.val = *(int64_t*)&dv;
+      float f = dv;
+      memcpy(&pVal->value.val, &f, sizeof(f));
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
@@ -1440,8 +1441,9 @@ static int32_t setStmtInfo(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) 
   memcpy(tags, &pCxt->tags, sizeof(pCxt->tags));
 
   SStmtCallback* pStmtCb = pCxt->pComCxt->pStmtCb;
-  int32_t code = (*pStmtCb->setInfoFn)(pStmtCb->pStmt, pStmt->pTableMeta, tags, &pStmt->targetTableName, pStmt->usingTableProcessing,
-                                       pStmt->pVgroupsHashObj, pStmt->pTableBlockHashObj, pStmt->usingTableName.tname);
+  int32_t        code = (*pStmtCb->setInfoFn)(pStmtCb->pStmt, pStmt->pTableMeta, tags, &pStmt->targetTableName,
+                                       pStmt->usingTableProcessing, pStmt->pVgroupsHashObj, pStmt->pTableBlockHashObj,
+                                       pStmt->usingTableName.tname);
 
   memset(&pCxt->tags, 0, sizeof(pCxt->tags));
   pStmt->pVgroupsHashObj = NULL;
