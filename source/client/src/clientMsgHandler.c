@@ -86,7 +86,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   /*assert(connectRsp.epSet.numOfEps > 0);*/
   if (connectRsp.epSet.numOfEps == 0) {
-    setErrno(pRequest, TSDB_CODE_MND_APP_ERROR);
+    setErrno(pRequest, TSDB_CODE_APP_ERROR);
     tsem_post(&pRequest->body.rspSem);
     goto End;
   }
@@ -450,7 +450,7 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->precision = 0;
   (*pRsp)->compressed = 0;
   (*pRsp)->compLen = 0;
-  (*pRsp)->numOfRows = htonl(pBlock->info.rows);
+  (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data, SHOW_VARIABLES_RESULT_COLS);

@@ -1388,7 +1388,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
 
   SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
   if (NULL == dst) {
-    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
   dst->vg = vgData;
@@ -1579,7 +1579,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
 
   SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
   if (NULL == dst) {
-    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
   dst->vg = vgData;
@@ -1726,7 +1726,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
       int32_t totalLen = ((SSubmitReq*)(vgData.data))->length + submitLen;
       void*   tmp = taosMemoryRealloc(vgData.data, totalLen);
       if (tmp == NULL) {
-        code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         goto end;
       }
       vgData.data = tmp;
@@ -1737,7 +1737,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
       int32_t totalLen = sizeof(SSubmitReq) + submitLen;
       void*   tmp = taosMemoryCalloc(1, totalLen);
       if (tmp == NULL) {
-        code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         goto end;
       }
       vgData.data = tmp;
@@ -1840,7 +1840,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   while (vData) {
     SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
     if (NULL == dst) {
-      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       goto end;
     }
     dst->vg = vData->vg;
@@ -2029,7 +2029,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       int32_t totalLen = ((SSubmitReq*)(vgData.data))->length + submitLen;
       void*   tmp = taosMemoryRealloc(vgData.data, totalLen);
       if (tmp == NULL) {
-        code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         goto end;
       }
       vgData.data = tmp;
@@ -2040,7 +2040,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       int32_t totalLen = sizeof(SSubmitReq) + submitLen;
       void*   tmp = taosMemoryCalloc(1, totalLen);
       if (tmp == NULL) {
-        code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         goto end;
       }
       vgData.data = tmp;
@@ -2146,7 +2146,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   while (vData) {
     SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
     if (NULL == dst) {
-      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       goto end;
     }
     dst->vg = vData->vg;

@@ -22,8 +22,8 @@
 #include "syncEnv.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
-#include "syncPipeline.h"
 #include "syncMessage.h"
+#include "syncPipeline.h"
 #include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
@@ -35,6 +35,7 @@
 #include "syncTimeout.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
+#include "tglobal.h"
 #include "tref.h"
 
 static void    syncNodeEqPingTimer(void* param, void* tmrId);
@@ -401,62 +402,62 @@ int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
 
 bool syncNodeIsReadyForRead(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     sError("sync ready for read error");
     return false;
   }
 
-  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER && pSyncNode->restoreFinish) {
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    terrno = TSDB_CODE_SYN_NOT_LEADER;
+    return false;
+  }
+
+  if (pSyncNode->restoreFinish) {
     return true;
   }
 
   bool ready = false;
-  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER && !pSyncNode->restoreFinish) {
-    if (!pSyncNode->pFsm->FpApplyQueueEmptyCb(pSyncNode->pFsm)) {
-      // apply queue not empty
-      ready = false;
+  if (!pSyncNode->pFsm->FpApplyQueueEmptyCb(pSyncNode->pFsm)) {
+    // apply queue not empty
+    ready = false;
 
-    } else {
-      if (!pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore)) {
-        SyncIndex       lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-        SSyncRaftEntry* pEntry = NULL;
-        SLRUCache*      pCache = pSyncNode->pLogStore->pCache;
-        LRUHandle*      h = taosLRUCacheLookup(pCache, &lastIndex, sizeof(lastIndex));
-        int32_t         code = 0;
-        if (h) {
-          pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
-          code = 0;
+  } else {
+    if (!pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore)) {
+      SyncIndex       lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+      SSyncRaftEntry* pEntry = NULL;
+      SLRUCache*      pCache = pSyncNode->pLogStore->pCache;
+      LRUHandle*      h = taosLRUCacheLookup(pCache, &lastIndex, sizeof(lastIndex));
+      int32_t         code = 0;
+      if (h) {
+        pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+        code = 0;
 
-          pSyncNode->pLogStore->cacheHit++;
-          sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", lastIndex, pEntry->bytes, pEntry);
+        pSyncNode->pLogStore->cacheHit++;
+        sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", lastIndex, pEntry->bytes, pEntry);
 
-        } else {
-          pSyncNode->pLogStore->cacheMiss++;
-          sNTrace(pSyncNode, "miss cache index:%" PRId64, lastIndex);
+      } else {
+        pSyncNode->pLogStore->cacheMiss++;
+        sNTrace(pSyncNode, "miss cache index:%" PRId64, lastIndex);
 
-          code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, lastIndex, &pEntry);
+        code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, lastIndex, &pEntry);
+      }
+
+      if (code == 0 && pEntry != NULL) {
+        if (pEntry->originalRpcType == TDMT_SYNC_NOOP && pEntry->term == pSyncNode->pRaftStore->currentTerm) {
+          ready = true;
         }
 
-        if (code == 0 && pEntry != NULL) {
-          if (pEntry->originalRpcType == TDMT_SYNC_NOOP && pEntry->term == pSyncNode->pRaftStore->currentTerm) {
-            ready = true;
-          }
-
-          if (h) {
-            taosLRUCacheRelease(pCache, h, false);
-          } else {
-            syncEntryDestroy(pEntry);
-          }
+        if (h) {
+          taosLRUCacheRelease(pCache, h, false);
+        } else {
+          syncEntryDestroy(pEntry);
         }
       }
     }
   }
 
   if (!ready) {
-    if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
-      terrno = TSDB_CODE_SYN_NOT_LEADER;
-    } else {
-      terrno = TSDB_CODE_APP_NOT_READY;
-    }
+    terrno = TSDB_CODE_SYN_RESTORING;
   }
 
   return ready;
@@ -549,7 +550,11 @@ SSyncState syncGetState(int64_t rid) {
   if (pSyncNode != NULL) {
     state.state = pSyncNode->state;
     state.restored = pSyncNode->restoreFinish;
-    state.canRead = syncNodeIsReadyForRead(pSyncNode);
+    if (pSyncNode->vgId != 1) {
+      state.canRead = syncNodeIsReadyForRead(pSyncNode);
+    } else {
+      state.canRead = state.restored;
+    }
     syncNodeRelease(pSyncNode);
   }
 
@@ -1111,7 +1116,9 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   pSyncNode->hbrSlowNum = 0;
   pSyncNode->tmrRoutineNum = 0;
 
-  sNTrace(pSyncNode, "sync open, node:%p", pSyncNode);
+  sNInfo(pSyncNode, "sync open, node:%p", pSyncNode);
+  sTrace("vgId:%d, tsElectInterval:%d, tsHeartbeatInterval:%d, tsHeartbeatTimeout:%d", pSyncNode->vgId, tsElectInterval,
+         tsHeartbeatInterval, tsHeartbeatTimeout);
 
   return pSyncNode;
 
@@ -1225,7 +1232,7 @@ void syncHbTimerDataFree(SSyncHbTimerData* pData) { taosMemoryFree(pData); }
 
 void syncNodeClose(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) return;
-  sNTrace(pSyncNode, "sync close, data:%p", pSyncNode);
+  sNInfo(pSyncNode, "sync close, node:%p", pSyncNode);
 
   int32_t ret = raftStoreClose(pSyncNode->pRaftStore);
   ASSERT(ret == 0);
@@ -2634,7 +2641,11 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
       (*pRetIndex) = index;
     }
 
-    return syncNodeAppend(ths, pEntry);
+    int32_t code = syncNodeAppend(ths, pEntry);
+    if (code < 0 && ths->vgId != 1 && vnodeIsMsgBlock(pEntry->originalRpcType)) {
+      ASSERT(false && "failed to append blocking msg");
+    }
+    return code;
   }
 
   return -1;

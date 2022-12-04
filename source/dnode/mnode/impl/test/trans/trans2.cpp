@@ -173,7 +173,7 @@ class MndTestTrans2 : public ::testing::Test {
       action.pCont = pReq;
       action.contLen = contLen;
       action.msgType = TDMT_DND_CREATE_MNODE;
-      action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+      action.acceptableCode = TSDB_CODE_MNODE_ALREADY_DEPLOYED;
       mndTransAppendRedoAction(pTrans, &action);
     }
 
@@ -190,7 +190,7 @@ class MndTestTrans2 : public ::testing::Test {
       action.pCont = pReq;
       action.contLen = contLen;
       action.msgType = TDMT_DND_CREATE_MNODE;
-      action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+      action.acceptableCode = TSDB_CODE_MNODE_ALREADY_DEPLOYED;
       mndTransAppendUndoAction(pTrans, &action);
     }
 

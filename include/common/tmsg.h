@@ -66,6 +66,10 @@ extern int32_t tMsgDict[];
 
 typedef uint16_t tmsg_t;
 
+static inline bool vnodeIsMsgBlock(tmsg_t type) {
+  return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
+         (type == TDMT_VND_UPDATE_TAG_VAL);
+}
 /* ------------------------ OTHER DEFINITIONS ------------------------ */
 // IE type
 #define TSDB_IE_TYPE_SEC         1
@@ -1149,6 +1153,13 @@ int32_t tSerializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
 int32_t tDeserializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
 
 typedef struct {
+  int64_t tick;
+} SMStreamTickReq;
+
+int32_t tSerializeSMStreamTickMsg(void* buf, int32_t bufLen, SMStreamTickReq* pReq);
+int32_t tDeserializeSMStreamTickMsg(void* buf, int32_t bufLen, SMStreamTickReq* pReq);
+
+typedef struct {
   int32_t  id;
   uint16_t port;                 // node sync Port
   char     fqdn[TSDB_FQDN_LEN];  // node FQDN
@@ -1396,8 +1407,8 @@ typedef struct {
   int8_t  streamBlockType;
   int32_t compLen;
   int32_t numOfBlocks;
-  int32_t numOfRows;
-  int32_t numOfCols;
+  int64_t numOfRows;  // from int32_t change to int64_t
+  int64_t numOfCols;
   int64_t skey;
   int64_t ekey;
   int64_t version;                         // for stream
@@ -1748,6 +1759,8 @@ typedef struct {
   int64_t watermark;
   int32_t numOfTags;
   SArray* pTags;  // array of SField
+  // 3.0.20
+  int64_t checkpointFreq;  // ms
 } SCMCreateStreamReq;
 
 typedef struct {
@@ -1946,6 +1959,12 @@ _err:
 typedef struct {
   SHashObj* rebSubHash;  // SHashObj<key, SMqRebSubscribe>
 } SMqDoRebalanceMsg;
+
+typedef struct {
+  int64_t streamId;
+  int64_t checkpointId;
+  char    streamName[TSDB_STREAM_FNAME_LEN];
+} SMStreamDoCheckpointMsg;
 
 typedef struct {
   int64_t status;

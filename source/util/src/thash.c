@@ -244,7 +244,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
     capacity = 4;
   }
 
-  SHashObj *pHashObj = (SHashObj *)taosMemoryCalloc(1, sizeof(SHashObj));
+  SHashObj *pHashObj = (SHashObj *)taosMemoryMalloc(sizeof(SHashObj));
   if (pHashObj == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -264,7 +264,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 
   ASSERT((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
 
-  pHashObj->hashList = (SHashEntry **)taosMemoryCalloc(pHashObj->capacity, sizeof(void *));
+  pHashObj->hashList = (SHashEntry **)taosMemoryMalloc(pHashObj->capacity * sizeof(void *));
   if (pHashObj->hashList == NULL) {
     taosMemoryFree(pHashObj);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -279,7 +279,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
     return NULL;
   }
 
-  void *p = taosMemoryCalloc(pHashObj->capacity, sizeof(SHashEntry));
+  void *p = taosMemoryMalloc(pHashObj->capacity * sizeof(SHashEntry));
   if (p == NULL) {
     taosArrayDestroy(pHashObj->pMemBlock);
     taosMemoryFree(pHashObj->hashList);
@@ -290,6 +290,9 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 
   for (int32_t i = 0; i < pHashObj->capacity; ++i) {
     pHashObj->hashList[i] = (void *)((char *)p + i * sizeof(SHashEntry));
+    pHashObj->hashList[i]->num = 0;
+    pHashObj->hashList[i]->latch = 0;
+    pHashObj->hashList[i]->next = NULL;
   }
 
   taosArrayPush(pHashObj->pMemBlock, &p);

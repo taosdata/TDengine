@@ -107,7 +107,7 @@ int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItem
 
   SArray *pArray = taosArrayInit(pMapData->nItem, itemSize);
   if (pArray == NULL) {
-    code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
