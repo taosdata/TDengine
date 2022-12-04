@@ -2534,6 +2534,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
 
   int32_t code = 0;
   SArray* pDelData = taosArrayInit(4, sizeof(SDelData));
+  ASSERT(pReader->pReadSnap != NULL);
 
   SDelFile* pDelFile = pReader->pReadSnap->fs.pDelFile;
   if (pDelFile && taosArrayGetSize(pReader->pDelIdx) > 0) {
@@ -2640,23 +2641,26 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum) {
 
   taosArrayDestroy(pIndexList);
 
-  SDelFile* pDelFile = pReader->pReadSnap->fs.pDelFile;
-  if (pReader->pDelFReader == NULL && pDelFile != NULL) {
-    int32_t code = tsdbDelFReaderOpen(&pReader->pDelFReader, pDelFile, pReader->pTsdb);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+  if (pReader->pReadSnap != NULL) {
 
-    pReader->pDelIdx = taosArrayInit(4, sizeof(SDelIdx));
-    if (pReader->pDelIdx == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      return code;
-    }
+    SDelFile* pDelFile = pReader->pReadSnap->fs.pDelFile;
+    if (pReader->pDelFReader == NULL && pDelFile != NULL) {
+      int32_t code = tsdbDelFReaderOpen(&pReader->pDelFReader, pDelFile, pReader->pTsdb);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
 
-    code = tsdbReadDelIdx(pReader->pDelFReader, pReader->pDelIdx);
-    if (code != TSDB_CODE_SUCCESS) {
-      taosArrayDestroy(pReader->pDelIdx);
-      return code;
+      pReader->pDelIdx = taosArrayInit(4, sizeof(SDelIdx));
+      if (pReader->pDelIdx == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        return code;
+      }
+
+      code = tsdbReadDelIdx(pReader->pDelFReader, pReader->pDelIdx);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(pReader->pDelIdx);
+        return code;
+      }
     }
   }
 
