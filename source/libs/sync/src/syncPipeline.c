@@ -984,6 +984,7 @@ int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex 
         ", %" PRId64 ")",
         pNode->vgId, toIndex, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
 
+  // trunc buffer
   SyncIndex index = pBuf->endIndex - 1;
   while (index >= toIndex) {
     SSyncRaftEntry* pEntry = pBuf->entries[index % pBuf->size].pItem;
@@ -997,6 +998,17 @@ int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex 
   pBuf->endIndex = toIndex;
   pBuf->matchIndex = TMIN(pBuf->matchIndex, index);
   ASSERT(index + 1 == toIndex);
+
+  // trunc wal
+  SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
+  if (lastVer >= toIndex && pNode->pLogStore->syncLogTruncate(pNode->pLogStore, toIndex) < 0) {
+    sError("vgId:%d, failed to truncate log store since %s. from index:%" PRId64 "", pNode->vgId, terrstr(), toIndex);
+    return -1;
+  }
+  lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
+  ASSERT(toIndex == lastVer + 1);
+
+  syncLogBufferValidate(pBuf);
   return 0;
 }
 
