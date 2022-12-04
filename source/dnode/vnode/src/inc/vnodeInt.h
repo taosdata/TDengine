@@ -101,8 +101,9 @@ typedef struct STbUidStore STbUidStore;
 int             metaOpen(SVnode* pVnode, SMeta** ppMeta, int8_t rollback);
 int             metaClose(SMeta* pMeta);
 int             metaBegin(SMeta* pMeta, int8_t fromSys);
-int             metaCommit(SMeta* pMeta);
-int             metaFinishCommit(SMeta* pMeta);
+TXN*            metaGetTxn(SMeta* pMeta);
+int             metaCommit(SMeta* pMeta, TXN* txn);
+int             metaFinishCommit(SMeta* pMeta, TXN* txn);
 int             metaPrepareAsyncCommit(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
@@ -411,6 +412,7 @@ struct SSnapDataHdr {
 struct SCommitInfo {
   SVnodeInfo info;
   SVnode*    pVnode;
+  TXN*       txn;
 };
 
 #ifdef __cplusplus

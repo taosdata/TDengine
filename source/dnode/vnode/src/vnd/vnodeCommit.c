@@ -189,10 +189,11 @@ _err:
 static void vnodePrepareCommit(SVnode *pVnode) {
   tsem_wait(&pVnode->canCommit);
 
+  tsdbPrepareCommit(pVnode->pTsdb);
+  metaPrepareAsyncCommit(pVnode->pMeta);
+
   vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;
-
-  tsdbPrepareCommit(pVnode->pTsdb);
 }
 static int32_t vnodeCommitTask(void *arg) {
   int32_t code = 0;
@@ -229,6 +230,7 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   pInfo->info.state.commitTerm = pVnode->state.applyTerm;
   pInfo->info.state.commitID = pVnode->state.commitID;
   pInfo->pVnode = pVnode;
+  pInfo->txn = metaGetTxn(pVnode->pMeta);
   vnodeScheduleTask(vnodeCommitTask, pInfo);
 
 _exit:
@@ -282,7 +284,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // commit each sub-system
-  if (metaCommit(pVnode->pMeta) < 0) {
+  if (metaCommit(pVnode->pMeta, pInfo->txn) < 0) {
     code = TSDB_CODE_FAILED;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -314,7 +316,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (metaFinishCommit(pVnode->pMeta) < 0) {
+  if (metaFinishCommit(pVnode->pMeta, pInfo->txn) < 0) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
