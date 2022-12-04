@@ -891,7 +891,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
 
 //     code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
 //     if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
-//     if (value2 != NULL && value3 != NULL && value2[0] != 0 && value3[0] != 0 && strcasecmp(name, "dataDir") == 0) {
+//     if (strcasecmp(name, "dataDir") == 0) {
 //       code = cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_CFG_FILE);
 //       if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
 //     }
