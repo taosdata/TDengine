@@ -139,11 +139,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_NOT_STABLE_ERROR,         "Table is not a super 
 
 // mnode-common
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_RIGHTS,                "Insufficient privilege for operation")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CONNECTION,       "Invalid message connection")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SHOWOBJ,          "Data expired")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_QUERY_ID,         "Invalid query id")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STREAM_ID,        "Invalid stream id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CONN_ID,          "Invalid connection id")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_DISABLED,            "User is disabled")
 
 // mnode-sdb
 TAOS_DEFINE_ERROR(TSDB_CODE_SDB_OBJ_ALREADY_THERE,        "Object already there")

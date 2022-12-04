@@ -198,9 +198,9 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
 
   if (retrieveReq.showId == 0) {
-    STableMetaRsp *pMeta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
+    STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
     if (pMeta == NULL) {
-      pMeta = (STableMetaRsp *)taosHashGet(pMnode->perfsMeta, retrieveReq.tb, strlen(retrieveReq.tb));
+      pMeta = taosHashGet(pMnode->perfsMeta, retrieveReq.tb, strlen(retrieveReq.tb));
       if (pMeta == NULL) {
         terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
         mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
