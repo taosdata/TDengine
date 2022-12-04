@@ -1335,7 +1335,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
       if (NULL == pMsgSendInfo) {
         qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
-        pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+        pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
         return NULL;
       }
 
@@ -1881,7 +1881,7 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
   pCond->colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
   pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t));
   if (pCond->colList == NULL || pCond->pSlotList == NULL) {
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 

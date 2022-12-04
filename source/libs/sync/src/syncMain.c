@@ -22,8 +22,8 @@
 #include "syncEnv.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
-#include "syncPipeline.h"
 #include "syncMessage.h"
+#include "syncPipeline.h"
 #include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
@@ -35,6 +35,7 @@
 #include "syncTimeout.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
+#include "tglobal.h"
 #include "tref.h"
 
 static void    syncNodeEqPingTimer(void* param, void* tmrId);
@@ -1115,7 +1116,9 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   pSyncNode->hbrSlowNum = 0;
   pSyncNode->tmrRoutineNum = 0;
 
-  sNTrace(pSyncNode, "sync open, node:%p", pSyncNode);
+  sNInfo(pSyncNode, "sync open, node:%p", pSyncNode);
+  sTrace("vgId:%d, tsElectInterval:%d, tsHeartbeatInterval:%d, tsHeartbeatTimeout:%d", pSyncNode->vgId, tsElectInterval,
+         tsHeartbeatInterval, tsHeartbeatTimeout);
 
   return pSyncNode;
 
@@ -1229,7 +1232,7 @@ void syncHbTimerDataFree(SSyncHbTimerData* pData) { taosMemoryFree(pData); }
 
 void syncNodeClose(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) return;
-  sNTrace(pSyncNode, "sync close, data:%p", pSyncNode);
+  sNInfo(pSyncNode, "sync close, node:%p", pSyncNode);
 
   int32_t ret = raftStoreClose(pSyncNode->pRaftStore);
   ASSERT(ret == 0);
@@ -2638,7 +2641,11 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
       (*pRetIndex) = index;
     }
 
-    return syncNodeAppend(ths, pEntry);
+    int32_t code = syncNodeAppend(ths, pEntry);
+    if (code < 0 && ths->vgId != 1 && vnodeIsMsgBlock(pEntry->originalRpcType)) {
+      ASSERT(false && "failed to append blocking msg");
+    }
+    return code;
   }
 
   return -1;

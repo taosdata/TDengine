@@ -432,7 +432,7 @@ class MockCatalogServiceImpl {
     int32_t len = sizeof(STableMeta) + sizeof(SSchema) * (src->tableInfo.numOfTags + src->tableInfo.numOfColumns);
     dst->reset((STableMeta*)taosMemoryCalloc(1, len));
     if (!dst) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     memcpy(dst->get(), src, len);
     return TSDB_CODE_SUCCESS;

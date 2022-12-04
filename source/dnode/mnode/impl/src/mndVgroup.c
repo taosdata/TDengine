@@ -276,7 +276,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   }
 
   if (createReq.selfIndex == -1) {
-    terrno = TSDB_CODE_MND_APP_ERROR;
+    terrno = TSDB_CODE_APP_ERROR;
     return NULL;
   }
 
@@ -376,7 +376,7 @@ static void *mndBuildAlterVnodeReplicaReq(SMnode *pMnode, SDbObj *pDb, SVgObj *p
   }
 
   if (alterReq.selfIndex == -1) {
-    terrno = TSDB_CODE_MND_APP_ERROR;
+    terrno = TSDB_CODE_APP_ERROR;
     return NULL;
   }
 

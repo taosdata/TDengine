@@ -297,7 +297,7 @@ typedef struct SSchJob {
   SExecResult          execRes;
   void                *fetchRes;  // TODO free it or not
   bool                 fetched;
-  int32_t              resNumOfRows;
+  int64_t              resNumOfRows; // from int32_t to int64_t
   SSchResInfo          userRes;
   char                *sql;
   SQueryProfileSummary summary;

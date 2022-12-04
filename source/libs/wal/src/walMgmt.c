@@ -168,7 +168,7 @@ _err:
 }
 
 int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
-  if (pWal == NULL) return TSDB_CODE_WAL_APP_ERROR;
+  if (pWal == NULL) return TSDB_CODE_APP_ERROR;
 
   if (pWal->cfg.level == pCfg->level && pWal->cfg.fsyncPeriod == pCfg->fsyncPeriod) {
     wDebug("vgId:%d, old walLevel:%d fsync:%d, new walLevel:%d fsync:%d not change", pWal->cfg.vgId, pWal->cfg.level,

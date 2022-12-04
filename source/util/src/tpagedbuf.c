@@ -49,7 +49,7 @@ struct SDiskbasedBuf {
 };
 
 static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
-  if (pBuf->path[0] == '\0') { // prepare the file name when needed it
+  if (pBuf->path == NULL) { // prepare the file name when needed it
     char path[PATH_MAX] = {0};
     taosGetTmpfilePath(pBuf->prefix, "paged-buf", path);
     pBuf->path = taosMemoryStrDup(path);
