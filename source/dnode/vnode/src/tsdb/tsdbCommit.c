@@ -170,6 +170,10 @@ int32_t tsdbCommit(STsdb *pTsdb) {
 
   // check
   if (pMemTable->nRow == 0 && pMemTable->nDel == 0) {
+    taosThreadRwlockWrlock(&pTsdb->rwLock);
+    pTsdb->imem = NULL;
+    taosThreadRwlockUnlock(&pTsdb->rwLock);
+
     tsdbUnrefMemTable(pMemTable);
     goto _exit;
   }
