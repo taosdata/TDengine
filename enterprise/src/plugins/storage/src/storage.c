@@ -18,7 +18,7 @@
 #include "tlog.h"
 #include "tglobal.h"
 
-void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {
+static void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {
   tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
   tsDiskCfg[index].level = level;
   tsDiskCfg[index].primary = primary;
@@ -54,6 +54,7 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
     }
   }
 
+#if 0
   if (tsDataDir[0] == 0) {
     if (pItem->str != NULL) {
       taosAddDataDir(tsDiskCfgNum, pItem->str, 0, 1);
@@ -68,6 +69,6 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
       return -1;
     }
   }
-
+#endif
   return 0;
 }
