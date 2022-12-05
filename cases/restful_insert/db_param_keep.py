@@ -179,7 +179,7 @@ class TestKeep(TDCase):
         self.tdRest.request(f"select * from {dbname}.{ntbname}")
         self.tdSql.checkEqual(self.tdRest.resp['data'][0][1], 1)
         self.tdRest.error(f"insert into {dbname}.{ntbname} values('2020-1-1 00:00:00',1)")
-        self.tdRest.error(f"insert into {dbname}.{ntbname} values(now+2d, 1)")
+        # self.tdRest.error(f"insert into {dbname}.{ntbname} values(now+2d, 1)")
         self.tdRest.request(f"drop database {dbname}")
 
         # # bug TD-15499

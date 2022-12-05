@@ -175,7 +175,7 @@ class TestKeep(TDCase):
         self.tdSql.query("select * from ntb")
         self.tdSql.checkRow(1)
         self.tdSql.error("insert into ntb values(now-11d,1)")
-        self.tdSql.error("insert into ntb values(now+2d, 1)")
+        # self.tdSql.error("insert into ntb values(now+2d, 1)")
         self.tdSql.execute("drop database db1")
 
         # bug TD-15499

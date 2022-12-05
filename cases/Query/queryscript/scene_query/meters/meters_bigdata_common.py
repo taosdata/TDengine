@@ -1222,133 +1222,218 @@ class TDTestQuery(TDCase):
         self.tdSql.execute("drop database %s;" %dbname) 
         self.tdSql.error("flush database %s;" %dbname) 
         self.tdSql.error("select * from %s.meters;" %dbname) 
-                                    
-    def countdb_1w_table100_row100(self,replica):
+
+                            
+    def drop_db_common(self,dbname,replica): 
+        # #每个库的通用检查
+        self.sql_base_check(dbname,sql1='',sql2='') 
+        self.dnodes_database_replica_check(dbname,replica)
+        self.count_select_column(dbname)
+        
+        self.drop_n_table(dbname,random.randint(1,5),flush='N')  
+        self.sql_base_check(dbname,sql1='',sql2='') 
+        self.dnodes_database_replica_check(dbname,replica)
+        self.count_select_column(dbname)
+        
+        self.delete_ts_data(dbname,1500000000000)  
+        self.sql_base_check(dbname,sql1='',sql2='') 
+        self.dnodes_database_replica_check(dbname,replica)
+        self.count_select_column(dbname)
+        
+        #self.taosd.kill_and_start(self.env_setting['settings'][0],3)
+        time.sleep(10)
+        self.dnodes_database_replica_check(dbname,replica)
+        
+        #drop and flush database 
+        self.drop_n_table(dbname,random.randint(6,9),flush='Y')  
+        self.delete_ts_data(dbname,1500000000000) 
+        self.sql_base_check(dbname,sql1='',sql2='') 
+        self.count_select_column(dbname)
+        
+        #self.taosd.kill_and_start(self.env_setting['settings'][0],3)
+        time.sleep(10)
+        self.dnodes_database_replica_check(dbname,replica)
+        
+        self.tdSql.execute("flush database %s;" %dbname) 
+        self.sql_base_check(dbname,sql1='',sql2='')
+        self.tdSql.execute("drop database %s;" %dbname) 
+        self.tdSql.error("flush database %s;" %dbname) 
+        self.tdSql.error("select * from %s.meters;" %dbname) 
+                                            
+    def countdb_1w_table100_row100(self,replica,func):
         #每个库的个性设置+数据创建+通用检查，支持单/3副本，下同
         dbname = 'db_1w'
         table_num = 10000
         table_per_row = 2
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica)  
-        self.count_db_common(dbname,replica)
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)
           
 
-    def countdb_2w_table100_row200(self,replica):
+    def countdb_2w_table100_row200(self,replica,func):
         dbname = 'db_2w'
         table_num = 100
         table_per_row = 200
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica)         
-        self.count_db_common(dbname,replica) 
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)
           
 
-    def countdb_10w_table100_row1000(self,replica):
+    def countdb_10w_table100_row1000(self,replica,func):
         dbname = 'db_10w'
         table_num = 100
         table_per_row = 1000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname,replica)  
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)  
         
                  
 
-    def countdb_10w_table1w_row10(self,replica):
+    def countdb_10w_table1w_row10(self,replica,func):
         dbname = 'db_10w'
         table_num = 10000
         table_per_row = 10
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname,replica)   
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)   
 
-    def countdb_20w_table1w_row20(self,replica):
+    def countdb_20w_table1w_row20(self,replica,func):
         dbname = 'db_20w'
         table_num = 10000
         table_per_row = 20
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname,replica)    
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)    
 
-    def countdb_40w_table1w_row40(self,replica):
+    def countdb_40w_table1w_row40(self,replica,func):
         dbname = 'db_40w'
         table_num = 10000
         table_per_row = 40
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname,replica)   
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)  
 
-    def countdb_80w_table1w_row80(self,replica):
+    def countdb_80w_table1w_row80(self,replica,func):
         dbname = 'db_80w'
         table_num = 10000
         table_per_row = 80
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname,replica)        
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)        
         
             
 
-    def countdb_100w_table1w_row100(self,replica):
+    def countdb_100w_table1w_row100(self,replica,func):
         dbname = 'db_100w'
         table_num = 10000
         table_per_row = 100
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname,replica)           
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)           
 
-    def countdb_200w_table1w_row200(self,replica):
+    def countdb_200w_table1w_row200(self,replica,func):
         dbname = 'db_200w'
         table_num = 10000
         table_per_row = 200
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname,replica)    
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)   
 
-    def countdb_400w_table1w_row400(self,replica):
+    def countdb_400w_table1w_row400(self,replica,func):
         dbname = 'db_400w'
         table_num = 10000
         table_per_row = 400
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname,replica)   
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)   
 
-    def countdb_800w_table1w_row800(self,replica):
+    def countdb_800w_table1w_row800(self,replica,func):
         dbname = 'db_800w'
         table_num = 10000
         table_per_row = 800
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname,replica)       
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)      
         
              
 
-    def countdb_1000w_table1w_row1000(self,replica):
+    def countdb_1000w_table1w_row1000(self,replica,func):
         dbname = 'db_1000w'
         table_num = 10000
         table_per_row = 1000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname,replica)   
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)   
 
-    def countdb_2000w_table1w_row2000(self,replica):
+    def countdb_2000w_table1w_row2000(self,replica,func):
         dbname = 'db_2000w'
         table_num = 10000
         table_per_row = 2000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname,replica)    
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)    
 
-    def countdb_4000w_table1w_row4000(self,replica):
+    def countdb_4000w_table1w_row4000(self,replica,func):
         dbname = 'db_4000w'
         table_num = 10000
         table_per_row = 4000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname,replica)   
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)  
 
-    def countdb_8000w_table1w_row8000(self,replica):
+    def countdb_8000w_table1w_row8000(self,replica,func):
         dbname = 'db_8000w'
         table_num = 10000
         table_per_row = 8000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname,replica)    
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica)    
 
-    def countdb_10000w_table1w_row1w(self,replica):
+    def countdb_10000w_table1w_row1w(self,replica,func):
         dbname = 'db_10000w'
         table_num = 10000
         table_per_row = 10000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
-        self.count_db_common(dbname,replica)   
+        if func == 'drop':
+            self.drop_db_common(dbname,replica)
+        elif func == 'count':
+            self.count_db_common(dbname,replica) 
                                                           
     def run(self):
         startTime = time.time() 
         
 
-        self.countdb_1w_table100_row100(replica=1)
+        self.countdb_1w_table100_row100(replica=1,func='drop')
         # self.countdb_2w_table100_row200(replica=1)
         # self.countdb_10w_table100_row1000(replica=1)
         
