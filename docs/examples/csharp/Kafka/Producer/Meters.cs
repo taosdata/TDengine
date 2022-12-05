@@ -8,10 +8,10 @@ namespace Producer
         public string Location { get; set; }
         public int GroupID { get; set; }
 
-        public MeterTag(string location, int gourpId)
+        public MeterTag(string location, int groupId)
         {
             Location = location;
-            GroupID = gourpId;
+            GroupID = groupId;
         }
         public override string ToString()
         {

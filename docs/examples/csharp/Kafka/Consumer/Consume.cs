@@ -9,7 +9,7 @@ namespace Consumer
         const int consumerNum = 3;
         ConsumerConfig conf = new ConsumerConfig
         {
-            GroupId = "meter_consumser",
+            GroupId = "meter_consumer",
             BootstrapServers = "localhost:9092",
             AutoOffsetReset = AutoOffsetReset.Earliest,
             EnableAutoOffsetStore = false,
@@ -30,8 +30,6 @@ namespace Consumer
         /// <param name="conn"></param>
         public void RunSimpleConsumer(string topic, IntPtr conn)
         {
-            MessageMap messageMap = new MessageMap();
-            List<Task> taskLisk = new List<Task>();
             using (var c = new ConsumerBuilder<string, string>(conf)
                 .SetErrorHandler((_, e) => Console.WriteLine("{0} Error:{1}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff:ffffff"), e.Reason))
                 .SetStatisticsHandler((_, json) => Console.WriteLine("{0}, Statistic:{1}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff:ffffff"), json))
@@ -140,8 +138,7 @@ namespace Consumer
         /// </summary>
         public void RunConsumerWriteInSQL(string topic, IntPtr conn)
         {
-            MessageMap messageMap = new MessageMap();
-            List<Task> taskLisk = new List<Task>();
+            List<Task> taskList = new List<Task>();
             using (var c = new ConsumerBuilder<string, string>(conf)
                 .SetErrorHandler((_, e) => Console.WriteLine("{0} Error:{1}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff:ffffff"), e.Reason))
                 .SetStatisticsHandler((_, json) => Console.WriteLine("{0}, Statistic:{1}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff:ffffff"), json))
@@ -205,7 +202,7 @@ namespace Consumer
                                 continue;
                             }
 
-                            taskLisk.Add(Task.Factory.StartNew((Object obj) =>
+                            taskList.Add(Task.Factory.StartNew((Object obj) =>
                             {
                                 var result = obj as ConsumeResult<string, string>;
                                 WriteData(result.Key, result.Value, conn);
@@ -256,7 +253,6 @@ namespace Consumer
         {
             MessageDictionary msgDic = new MessageDictionary();
             var watch = Stopwatch.StartNew();
-            List<Task> taskLisk = new List<Task>();
             using (var c = new ConsumerBuilder<string, string>(conf)
                 .SetErrorHandler((_, e) => Console.WriteLine("{0} Error:{1}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff:ffffff"), e.Reason))
                 .SetStatisticsHandler((_, json) => Console.WriteLine("{0}, Statistic:{1}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff:ffffff"), json))
