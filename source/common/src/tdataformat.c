@@ -2144,7 +2144,7 @@ static void tColDataMergeImpl(SColData *pColData, int32_t iStart, int32_t iEnd /
     case HAS_NULL: {
       pColData->nVal = pColData->nVal - (iEnd - iStart - 1);
     } break;
-    case HAS_NULL | HAS_NONE: {
+    case (HAS_NULL | HAS_NONE): {
       if (GET_BIT1(pColData->pBitMap, iStart) == BIT_FLG_NONE) {
         for (int32_t i = iStart + 1; i < iEnd; ++i) {
           if (GET_BIT1(pColData->pBitMap, i) == BIT_FLG_NULL) {
@@ -2194,15 +2194,48 @@ static void tColDataMergeImpl(SColData *pColData, int32_t iStart, int32_t iEnd /
 
       pColData->nVal = pColData->nVal - (iEnd - iStart - 1);
     } break;
-    case HAS_VALUE | HAS_NONE: {
+    case (HAS_VALUE | HAS_NONE): {
       // TODO
       pColData->nVal = pColData->nVal - (iEnd - iStart - 1);
     } break;
-    case HAS_VALUE | HAS_NULL: {
-      // TODO
+    case (HAS_VALUE | HAS_NULL): {
+      if (IS_VAR_DATA_TYPE(pColData->type)) {
+        int32_t nDiff = pColData->aOffset[iEnd - 1] - pColData->aOffset[iStart];
+
+        memmove(&pColData->pData[pColData->aOffset[iStart]], &pColData->pData[pColData->aOffset[iEnd - 1]],
+                pColData->nData - pColData->aOffset[iEnd - 1]);
+        pColData->nData -= nDiff;
+
+        for (int32_t i = iEnd, j = iStart + 1; i < pColData->nVal; ++i, ++j) {
+          pColData->aOffset[j] = pColData->aOffset[i] - nDiff;
+        }
+      } else {
+        memmove(&pColData->pData[TYPE_BYTES[pColData->type] * iStart],
+                &pColData->pData[TYPE_BYTES[pColData->type] * (iEnd - 1)],
+                TYPE_BYTES[pColData->type] * (pColData->nVal - iEnd + 1));
+        pColData->nData -= (TYPE_BYTES[pColData->type] * (iEnd - iStart - 1));
+      }
+
+      for (int32_t i = iEnd - 1, j = iStart; i < pColData->nVal; ++i, ++j) {
+        SET_BIT1(pColData->pBitMap, j, GET_BIT1(pColData->pBitMap, i));
+      }
+
       pColData->nVal = pColData->nVal - (iEnd - iStart - 1);
+
+      uint8_t flag = 0;
+      for (int32_t i = 0; i < pColData->nVal; ++i) {
+        uint8_t bv = GET_BIT1(pColData->pBitMap, i);
+        if (bv) {
+          flag |= HAS_VALUE;
+        } else {
+          flag |= HAS_NULL;
+        }
+
+        if (flag == pColData->flag) break;
+      }
+      pColData->flag = flag;
     } break;
-    case HAS_VALUE | HAS_NULL | HAS_NONE: {
+    case (HAS_VALUE | HAS_NULL | HAS_NONE): {
       // TODO
       pColData->nVal = pColData->nVal - (iEnd - iStart - 1);
     } break;
