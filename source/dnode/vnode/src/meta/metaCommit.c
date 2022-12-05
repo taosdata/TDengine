@@ -43,7 +43,13 @@ int metaBegin(SMeta *pMeta, int8_t fromSys) {
 TXN *metaGetTxn(SMeta *pMeta) { return pMeta->txn; }
 int  metaCommit(SMeta *pMeta, TXN *txn) { return tdbCommit(pMeta->pEnv, txn); }
 int  metaFinishCommit(SMeta *pMeta, TXN *txn) { return tdbPostCommit(pMeta->pEnv, txn); }
-int  metaPrepareAsyncCommit(SMeta *pMeta) { return tdbPrepareAsyncCommit(pMeta->pEnv, pMeta->txn); }
+int  metaPrepareAsyncCommit(SMeta *pMeta) {
+   // return tdbPrepareAsyncCommit(pMeta->pEnv, pMeta->txn);
+  int code = 0;
+  code = tdbCommit(pMeta->pEnv, pMeta->txn);
+
+  return code;
+}
 
 // abort the meta txn
 int metaAbort(SMeta *pMeta) { return tdbAbort(pMeta->pEnv, pMeta->txn); }
