@@ -1417,7 +1417,7 @@ static int32_t smlDealCols(SSmlTableInfo *oneTable, bool dataFormat, SArray *col
   SHashObj *kvHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (!kvHash) {
     uError("SML:smlDealCols failed to allocate memory");
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   for (size_t i = 0; i < taosArrayGetSize(cols); i++) {
     SSmlKv *kv = (SSmlKv *)taosArrayGetP(cols, i);
@@ -2092,7 +2092,7 @@ static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql, const int l
     cols = taosArrayInit(16, POINTER_BYTES);
     if (cols == NULL) {
       uError("SML:0x%" PRIx64 " smlParseInfluxLine failed to allocate memory", info->id);
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
   } else {  // if dataFormat is false, cols do not need to save data, there is another new memory to save data
     cols = info->colsContainer;
@@ -2121,7 +2121,7 @@ static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql, const int l
     if (!tinfo) {
       smlDestroyCols(cols);
       if (info->dataFormat) taosArrayDestroy(cols);
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     taosHashPut(info->childTables, elements.measure, elements.measureTagsLen, &tinfo, POINTER_BYTES);
     oneTable = &tinfo;
@@ -2192,13 +2192,13 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data, const int len) {
   int            ret = TSDB_CODE_SUCCESS;
   SSmlTableInfo *tinfo = smlBuildTableInfo();
   if (!tinfo) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   SArray *cols = taosArrayInit(16, POINTER_BYTES);
   if (cols == NULL) {
     uError("SML:0x%" PRIx64 " smlParseTelnetLine failed to allocate memory", info->id);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {

@@ -169,20 +169,19 @@ typedef struct STsdbReader STsdbReader;
 
 int32_t tsdbSetTableList(STsdbReader *pReader, const void *pTableList, int32_t num);
 int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
-                       STsdbReader **ppReader, const char *idstr);
+                       SSDataBlock *pResBlock, STsdbReader **ppReader, const char *idstr);
 
-void     tsdbReaderClose(STsdbReader *pReader);
-bool     tsdbNextDataBlock(STsdbReader *pReader);
-bool     tsdbTableNextDataBlock(STsdbReader *pReader, uint64_t uid);
-void     tsdbRetrieveDataBlockInfo(const STsdbReader *pReader, int32_t *rows, uint64_t *uid, STimeWindow *pWindow);
-int32_t  tsdbRetrieveDatablockSMA(STsdbReader *pReader, SColumnDataAgg ***pBlockStatis, bool *allHave);
-SArray  *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
-int32_t  tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
-int32_t  tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
-int64_t  tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
-void    *tsdbGetIdx(SMeta *pMeta);
-void    *tsdbGetIvtIdx(SMeta *pMeta);
-uint64_t getReaderMaxVersion(STsdbReader *pReader);
+void         tsdbReaderClose(STsdbReader *pReader);
+bool         tsdbNextDataBlock(STsdbReader *pReader);
+void         tsdbRetrieveDataBlockInfo(const STsdbReader *pReader, int32_t *rows, uint64_t *uid, STimeWindow *pWindow);
+int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SColumnDataAgg ***pBlockSMA, bool *allHave);
+SSDataBlock *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
+int32_t      tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
+int32_t      tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
+int64_t      tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
+void        *tsdbGetIdx(SMeta *pMeta);
+void        *tsdbGetIvtIdx(SMeta *pMeta);
+uint64_t     getReaderMaxVersion(STsdbReader *pReader);
 
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 uint64_t suid, void **pReader);

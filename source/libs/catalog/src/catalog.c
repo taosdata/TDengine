@@ -505,8 +505,7 @@ _return:
   taosMemoryFreeClear(tbMeta);
 
   if (vgInfo) {
-    taosHashCleanup(vgInfo->vgHash);
-    taosMemoryFreeClear(vgInfo);
+    freeVgInfo(vgInfo);
   }
 
   if (vgList) {
@@ -546,8 +545,7 @@ _return:
   }
 
   if (vgInfo) {
-    taosHashCleanup(vgInfo->vgHash);
-    taosMemoryFreeClear(vgInfo);
+    freeVgInfo(vgInfo);
   }
 
   CTG_RET(code);
@@ -619,7 +617,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
   gCtgMgmt.queue.head = taosMemoryCalloc(1, sizeof(SCtgQNode));
   if (NULL == gCtgMgmt.queue.head) {
     qError("calloc %d failed", (int32_t)sizeof(SCtgQNode));
-    CTG_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
   gCtgMgmt.queue.tail = gCtgMgmt.queue.head;
 
@@ -778,8 +776,7 @@ _return:
   }
 
   if (vgInfo) {
-    taosHashCleanup(vgInfo->vgHash);
-    taosMemoryFreeClear(vgInfo);
+    freeVgInfo(vgInfo);
   }
 
   CTG_API_LEAVE(code);
@@ -836,8 +833,7 @@ _return:
     ctgRUnlockVgInfo(dbCache);
     ctgReleaseDBCache(pCtg, dbCache);
   } else if (dbInfo) {
-    taosHashCleanup(dbInfo->vgHash);
-    taosMemoryFreeClear(dbInfo);
+    freeVgInfo(dbInfo);
   }
 
   CTG_API_LEAVE(code);
@@ -849,7 +845,7 @@ int32_t catalogUpdateDBVgInfo(SCatalog* pCtg, const char* dbFName, uint64_t dbId
   int32_t code = 0;
 
   if (NULL == pCtg || NULL == dbFName || NULL == dbInfo) {
-    ctgFreeVgInfo(dbInfo);
+    freeVgInfo(dbInfo);
     CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 

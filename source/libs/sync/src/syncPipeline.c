@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 
 #include "syncPipeline.h"
+#include "syncCommit.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
 #include "syncRaftEntry.h"
@@ -310,7 +311,7 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
     ASSERT(pEntry->index == pExist->index);
 
     if (pEntry->term != pExist->term) {
-      (void)syncLogBufferRollback(pBuf, index);
+      (void)syncLogBufferRollback(pBuf, pNode, index);
     } else {
       sTrace("vgId:%d, duplicate log entry received. index: %" PRId64 ", term: %" PRId64 ". log buffer: [%" PRId64
              " %" PRId64 " %" PRId64 ", %" PRId64 ")",
@@ -442,6 +443,11 @@ int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, Syn
     return 0;
   }
 
+  if (pNode->vgId != 1 && vnodeIsMsgBlock(pEntry->originalRpcType)) {
+    sTrace("vgId:%d, blocking msg ready to execute. index:%" PRId64 ", term: %" PRId64 ", type: %s", pNode->vgId,
+           pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType));
+  }
+
   SRpcMsg rpcMsg = {0};
   syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
@@ -457,9 +463,9 @@ int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, Syn
   cbMeta.flag = -1;
 
   (void)syncRespMgrGetAndDel(pNode->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info);
-  pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
+  int32_t code = pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
   ASSERT(rpcMsg.pCont == NULL);
-  return 0;
+  return code;
 }
 
 int32_t syncLogBufferValidate(SSyncLogBuffer* pBuf) {
@@ -514,10 +520,10 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
       }
       continue;
     }
-
     if (syncLogFsmExecute(pNode, pFsm, role, term, pEntry) != 0) {
-      sError("vgId:%d, failed to execute sync log entry in FSM. log index:%" PRId64 ", term:%" PRId64 "", vgId,
-             pEntry->index, pEntry->term);
+      sError("vgId:%d, failed to execute sync log entry. index:%" PRId64 ", term:%" PRId64
+             ", role: %d, current term: %" PRId64,
+             vgId, pEntry->index, pEntry->term, role, term);
       goto _out;
     }
     pBuf->commitIndex = index;
@@ -971,14 +977,19 @@ void syncLogBufferDestroy(SSyncLogBuffer* pBuf) {
   return;
 }
 
-int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SyncIndex toIndex) {
+int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex toIndex) {
   ASSERT(pBuf->commitIndex < toIndex && toIndex <= pBuf->endIndex);
 
+  sInfo("vgId:%d, rollback sync log buffer. toindex: %" PRId64 ", buffer: [%" PRId64 " %" PRId64 " %" PRId64
+        ", %" PRId64 ")",
+        pNode->vgId, toIndex, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+
+  // trunc buffer
   SyncIndex index = pBuf->endIndex - 1;
   while (index >= toIndex) {
     SSyncRaftEntry* pEntry = pBuf->entries[index % pBuf->size].pItem;
     if (pEntry != NULL) {
-      syncEntryDestroy(pEntry);
+      (void)syncEntryDestroy(pEntry);
       pEntry = NULL;
       memset(&pBuf->entries[index % pBuf->size], 0, sizeof(pBuf->entries[0]));
     }
@@ -987,6 +998,17 @@ int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SyncIndex toIndex) {
   pBuf->endIndex = toIndex;
   pBuf->matchIndex = TMIN(pBuf->matchIndex, index);
   ASSERT(index + 1 == toIndex);
+
+  // trunc wal
+  SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
+  if (lastVer >= toIndex && pNode->pLogStore->syncLogTruncate(pNode->pLogStore, toIndex) < 0) {
+    sError("vgId:%d, failed to truncate log store since %s. from index:%" PRId64 "", pNode->vgId, terrstr(), toIndex);
+    return -1;
+  }
+  lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
+  ASSERT(toIndex == lastVer + 1);
+
+  syncLogBufferValidate(pBuf);
   return 0;
 }
 
@@ -996,7 +1018,7 @@ int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   ASSERT(lastVer == pBuf->matchIndex);
   SyncIndex index = pBuf->endIndex - 1;
 
-  (void)syncLogBufferRollback(pBuf, pBuf->matchIndex + 1);
+  (void)syncLogBufferRollback(pBuf, pNode, pBuf->matchIndex + 1);
 
   sInfo("vgId:%d, reset sync log buffer. buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pNode->vgId,
         pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);

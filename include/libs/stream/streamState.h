@@ -35,7 +35,7 @@ typedef struct STdbState {
   TTB*         pFillStateDb;  // todo refactor
   TTB*         pSessionStateDb;
   TTB*         pParNameDb;
-  TXN          txn;
+  TXN*         txn;
 } STdbState;
 
 // incremental state storage

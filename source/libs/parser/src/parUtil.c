@@ -377,7 +377,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
       int32_t valLen = (int32_t)strlen(jsonValue);
       char*   tmp = taosMemoryCalloc(1, valLen * TSDB_NCHAR_SIZE);
       if (!tmp) {
-        retCode = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        retCode = TSDB_CODE_OUT_OF_MEMORY;
         goto end;
       }
       val.type = TSDB_DATA_TYPE_NCHAR;

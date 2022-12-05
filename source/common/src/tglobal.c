@@ -55,6 +55,11 @@ int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
 
+// sync raft
+int32_t tsElectInterval = 25 * 1000;
+int32_t tsHeartbeatInterval = 1000;
+int32_t tsHeartbeatTimeout = 20 * 1000;
+
 // monitor
 bool     tsEnableMonitor = true;
 int32_t  tsMonitorInterval = 30;
@@ -74,8 +79,8 @@ char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
 char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table name can be specified in tag value.
                                                      // If set to empty system will generate table name using MD5 hash.
 // true means that the name and order of cols in each line are the same(only for influx protocol)
-bool tsSmlDataFormat = false;
-int32_t  tsSmlBatchSize  = 10000;
+bool    tsSmlDataFormat = false;
+int32_t tsSmlBatchSize = 10000;
 
 // query
 int32_t tsQueryPolicy = 1;
@@ -198,9 +203,7 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
 int32_t taosSetTfsCfg(SConfig *pCfg);
 #endif
 
-struct SConfig *taosGetCfg() {
-  return tsCfg;
-}
+struct SConfig *taosGetCfg() { return tsCfg; }
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -422,6 +425,10 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsRpcQueueMemoryAllowed = TRANGE(tsRpcQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
   if (cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsRpcQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX, 0) != 0)
     return -1;
+
+  if (cfgAddInt32(pCfg, "syncElectInterval", tsElectInterval, 10, 1000 * 60 * 24 * 2, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "syncHeartbeatInterval", tsHeartbeatInterval, 10, 1000 * 60 * 24 * 2, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "syncHeartbeatTimeout", tsHeartbeatTimeout, 10, 1000 * 60 * 24 * 2, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, 0) != 0) return -1;
@@ -728,6 +735,10 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tstrncpy(tsTelemServer, cfgGetItem(pCfg, "telemetryServer")->str, TSDB_FQDN_LEN);
   tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
 
+  tsElectInterval = cfgGetItem(pCfg, "syncElectInterval")->i32;
+  tsHeartbeatInterval = cfgGetItem(pCfg, "syncHeartbeatInterval")->i32;
+  tsHeartbeatTimeout = cfgGetItem(pCfg, "syncHeartbeatTimeout")->i32;
+
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
   tsTtlUnit = cfgGetItem(pCfg, "ttlUnit")->i32;
@@ -736,6 +747,10 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsQueryRsmaTolerance = cfgGetItem(pCfg, "queryRsmaTolerance")->i32;
 
   tsWalFsyncDataSizeLimit = cfgGetItem(pCfg, "walFsyncDataSizeLimit")->i64;
+
+  tsElectInterval = cfgGetItem(pCfg, "syncElectInterval")->i32;
+  tsHeartbeatInterval = cfgGetItem(pCfg, "syncHeartbeatInterval")->i32;
+  tsHeartbeatTimeout = cfgGetItem(pCfg, "syncHeartbeatTimeout")->i32;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
   tstrncpy(tsUdfdResFuncs, cfgGetItem(pCfg, "udfdResFuncs")->str, sizeof(tsUdfdResFuncs));

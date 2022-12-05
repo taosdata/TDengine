@@ -216,7 +216,7 @@ int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo)
   if (NULL == hbInfo->rsp.taskStatus) {
     QW_UNLOCK(QW_READ, &sch->tasksLock);
     QW_ELOG("taosArrayInit taskStatus failed, num:%d", taskNum);
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   void       *key = NULL;
@@ -275,7 +275,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
           QW_ERR_RET(code);
         }
 
-        QW_TASK_DLOG("no more data in sink and query end, fetched blocks %d rows %d", pOutput->numOfBlocks,
+        QW_TASK_DLOG("no more data in sink and query end, fetched blocks %d rows %"PRId64, pOutput->numOfBlocks,
                      pOutput->numOfRows);
 
         qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC);
@@ -320,19 +320,19 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     pOutput->numOfBlocks++;
 
     if (DS_BUF_EMPTY == pOutput->bufStatus && pOutput->queryEnd) {
-      QW_TASK_DLOG("task all data fetched and done, fetched blocks %d rows %d", pOutput->numOfBlocks,
+      QW_TASK_DLOG("task all data fetched and done, fetched blocks %d rows %" PRId64, pOutput->numOfBlocks,
                    pOutput->numOfRows);
       qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC);
       break;
     }
 
     if (0 == ctx->level) {
-      QW_TASK_DLOG("task fetched blocks %d rows %d, level %d", pOutput->numOfBlocks, pOutput->numOfRows, ctx->level);
+      QW_TASK_DLOG("task fetched blocks %d rows %"PRId64", level %d", pOutput->numOfBlocks, pOutput->numOfRows, ctx->level);
       break;
     }
 
     if (pOutput->numOfRows >= QW_MIN_RES_ROWS) {
-      QW_TASK_DLOG("task fetched blocks %d rows %d reaches the min rows", pOutput->numOfBlocks, pOutput->numOfRows);
+      QW_TASK_DLOG("task fetched blocks %d rows %" PRId64 " reaches the min rows", pOutput->numOfBlocks, pOutput->numOfRows);
       break;
     }
   }
@@ -463,7 +463,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
     }
     default:
       QW_TASK_ELOG("invalid phase %s", qwPhaseStr(phase));
-      QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+      QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
   if (ctx->rspCode) {
@@ -508,7 +508,7 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
   if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
     if (QW_PHASE_POST_FETCH == phase) {
       QW_TASK_WLOG("drop received at wrong phase %s", qwPhaseStr(phase));
-      QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+      QW_ERR_JRET(TSDB_CODE_APP_ERROR);
     }
 
     // qwBuildAndSendDropRsp(&ctx->ctrlConnInfo, code);
@@ -629,7 +629,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
 
   if (NULL == sinkHandle || NULL == pTaskInfo) {
     QW_TASK_ELOG("create task result error, taskHandle:%p, sinkHandle:%p", pTaskInfo, sinkHandle);
-    QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+    QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
   qwSendQueryRsp(QW_FPARAMS(), qwMsg->msgType + 1, ctx, code, true);
@@ -1059,7 +1059,7 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
 
   if (NULL == sinkHandle || NULL == pTaskInfo) {
     QW_TASK_ELOG("create task result error, taskHandle:%p, sinkHandle:%p", pTaskInfo, sinkHandle);
-    QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+    QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
   ctx.taskHandle = pTaskInfo;
@@ -1097,7 +1097,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
   if (NULL == mgmt) {
     qError("calloc %d failed", (int32_t)sizeof(SQWorker));
     atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
-    QW_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    QW_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   mgmt->cfg.maxSchedulerNum = QW_DEFAULT_SCHEDULER_NUMBER;
@@ -1109,20 +1109,20 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
   if (NULL == mgmt->schHash) {
     taosMemoryFreeClear(mgmt);
     qError("init %d scheduler hash failed", mgmt->cfg.maxSchedulerNum);
-    QW_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    QW_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   mgmt->ctxHash =
       taosHashInit(mgmt->cfg.maxTaskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == mgmt->ctxHash) {
     qError("init %d task ctx hash failed", mgmt->cfg.maxTaskNum);
-    QW_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    QW_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   mgmt->timer = taosTmrInit(0, 0, 0, "qworker");
   if (NULL == mgmt->timer) {
     qError("init timer failed, error:%s", tstrerror(terrno));
-    QW_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    QW_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   mgmt->nodeType = nodeType;
@@ -1145,7 +1145,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
   mgmt->hbTimer = taosTmrStart(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, (void *)param, mgmt->timer);
   if (NULL == mgmt->hbTimer) {
     qError("start hb timer failed");
-    QW_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    QW_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   *qWorkerMgmt = mgmt;
@@ -1288,7 +1288,7 @@ int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64
 
   if (NULL == sinkHandle || NULL == pTaskInfo) {
     QW_TASK_ELOG("create task result error, taskHandle:%p, sinkHandle:%p", pTaskInfo, sinkHandle);
-    QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+    QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
   ctx->level = plan->level;

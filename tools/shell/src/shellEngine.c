@@ -214,6 +214,18 @@ void shellRunSingleCommandImp(char *command) {
     return;
   }
 
+  // pre string
+  char * pre = "Query OK";
+  if (shellRegexMatch(command, "^\\s*delete\\s*from\\s*.*", REG_EXTENDED | REG_ICASE)) {
+    pre = "Delete OK";
+  } else if(shellRegexMatch(command, "^\\s*insert\\s*into\\s*.*", REG_EXTENDED | REG_ICASE)) {
+    pre = "Insert OK";
+  } else if(shellRegexMatch(command, "^\\s*create\\s*.*", REG_EXTENDED | REG_ICASE)) {
+    pre = "Create OK";
+  } else if(shellRegexMatch(command, "^\\s*drop\\s*.*", REG_EXTENDED | REG_ICASE)) {
+    pre = "Drop OK";
+  }
+
   TAOS_FIELD *pFields = taos_fetch_fields(pSql);
   if (pFields != NULL) {  // select and show kinds of commands
     int32_t error_no = 0;
@@ -229,10 +241,10 @@ void shellRunSingleCommandImp(char *command) {
     }
     taos_free_result(pSql);
   } else {
-    int32_t num_rows_affacted = taos_affected_rows(pSql);
+    int64_t num_rows_affacted = taos_affected_rows64(pSql);
     taos_free_result(pSql);
     et = taosGetTimestampUs();
-    printf("Query OK, %d row(s) affected (%.6fs)\r\n", num_rows_affacted, (et - st) / 1E6);
+    printf("%s, %" PRId64 " row(s) affected (%.6fs)\r\n", pre, num_rows_affacted, (et - st) / 1E6);
 
     // call auto tab
     callbackAutoTab(command, NULL, false);

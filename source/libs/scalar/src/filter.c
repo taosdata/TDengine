@@ -833,7 +833,7 @@ int32_t filterGetRangeRes(void *h, SFilterRange *ra) {
 
   if (num == 0) {
     qError("no range result");
-    return TSDB_CODE_QRY_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1053,12 +1053,12 @@ static FORCE_INLINE int32_t filterAddColFieldFromField(SFilterInfo *info, SFilte
 int32_t filterAddFieldFromNode(SFilterInfo *info, SNode *node, SFilterFieldId *fid) {
   if (node == NULL) {
     fltError("empty node");
-    FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+    FLT_ERR_RET(TSDB_CODE_APP_ERROR);
   }
 
   if (nodeType(node) != QUERY_NODE_COLUMN && nodeType(node) != QUERY_NODE_VALUE &&
       nodeType(node) != QUERY_NODE_NODE_LIST) {
-    FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+    FLT_ERR_RET(TSDB_CODE_APP_ERROR);
   }
 
   int32_t type;
@@ -1125,7 +1125,7 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
     int32_t paramNum = scalarGetOperatorParamNum(optr);
     if (1 != paramNum) {
       fltError("invalid right field in unit, operator:%s, rightType:%d", operatorTypeStr(optr), u->right.type);
-      return TSDB_CODE_QRY_APP_ERROR;
+      return TSDB_CODE_APP_ERROR;
     }
   }
 
@@ -1208,7 +1208,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
       } else {
         void *data = taosMemoryCalloc(1, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);  // reserved space for simple_copy
         if (NULL == data) {
-          FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
         }
         memcpy(data, nodesGetValueFromNode(valueNode), tDataTypes[type].bytes);
         filterAddField(info, NULL, (void **)&data, FLD_TYPE_VALUE, &right, len, true, NULL);
@@ -1515,7 +1515,7 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
       return DEAL_RES_IGNORE_CHILD;
     }
 
-    ctx->code = TSDB_CODE_QRY_APP_ERROR;
+    ctx->code = TSDB_CODE_APP_ERROR;
 
     fltError("invalid condition type, type:%d", node->condType);
 
@@ -1946,7 +1946,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       FLT_ERR_RET(scalarGenerateSetFromList((void **)&fi->data, fi->desc, type));
       if (fi->data == NULL) {
         fltError("failed to convert in param");
-        FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+        FLT_ERR_RET(TSDB_CODE_APP_ERROR);
       }
 
       FILTER_SET_FLAG(fi->flag, FLD_DATA_IS_HASH);
@@ -2014,7 +2014,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(fi->data), varDataLen(fi->data), varDataVal(newValData));
       if (len < 0) {
         qError("filterInitValFieldData taosUcs4ToMbs error 1");
-        return TSDB_CODE_QRY_APP_ERROR;
+        return TSDB_CODE_APP_ERROR;
       }
       varDataSetLen(newValData, len);
       varDataCopy(fi->data, newValData);
@@ -3721,12 +3721,12 @@ int32_t fltAddValueNodeToConverList(SFltTreeStat *stat, SValueNode *pNode) {
   if (NULL == stat->nodeList) {
     stat->nodeList = taosArrayInit(10, POINTER_BYTES);
     if (NULL == stat->nodeList) {
-      FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
   if (NULL == taosArrayPush(stat->nodeList, &pNode)) {
-    FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3847,7 +3847,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
     if (NULL == node->pRight) {
       if (scalarGetOperatorParamNum(node->opType) > 1) {
         fltError("invalid operator, pRight:%p, nodeType:%d, opType:%d", node->pRight, nodeType(node), node->opType);
-        stat->code = TSDB_CODE_QRY_APP_ERROR;
+        stat->code = TSDB_CODE_APP_ERROR;
         return DEAL_RES_ERROR;
       }
 
@@ -3908,7 +3908,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
 
       if (OP_TYPE_IN == node->opType && QUERY_NODE_NODE_LIST != nodeType(node->pRight)) {
         fltError("invalid IN operator node, rightType:%d", nodeType(node->pRight));
-        stat->code = TSDB_CODE_QRY_APP_ERROR;
+        stat->code = TSDB_CODE_APP_ERROR;
         return DEAL_RES_ERROR;
       }
 
@@ -3994,7 +3994,7 @@ int32_t fltGetDataFromSlotId(void *param, int32_t id, void **data) {
   if (id < 0 || id >= numOfCols || id >= taosArrayGetSize(pDataBlock)) {
     fltError("invalid slot id, id:%d, numOfCols:%d, arraySize:%d", id, numOfCols,
              (int32_t)taosArrayGetSize(pDataBlock));
-    return TSDB_CODE_QRY_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
 
   SColumnInfoData *pColInfo = taosArrayGet(pDataBlock, id);
@@ -4024,14 +4024,14 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) 
   int32_t code = 0;
   if (pNode == NULL || pInfo == NULL) {
     fltError("invalid param");
-    FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+    FLT_ERR_RET(TSDB_CODE_APP_ERROR);
   }
 
   if (*pInfo == NULL) {
     *pInfo = taosMemoryCalloc(1, sizeof(SFilterInfo));
     if (NULL == *pInfo) {
       fltError("taosMemoryCalloc %d failed", (int32_t)sizeof(SFilterInfo));
-      FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
