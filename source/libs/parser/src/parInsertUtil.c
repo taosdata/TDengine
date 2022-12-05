@@ -1074,6 +1074,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
 
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pTableCxt;
+    qDebug("tableDataCxt created, uid:%" PRId64 ", vgId:%d", pTableMeta->uid, pTableMeta->vgId);
   } else {
     taosMemoryFree(pTableCxt);
   }
@@ -1124,6 +1125,7 @@ void insDestroyVgroupDataCxt(SVgroupDataCxt* pVgCxt) {
   }
 
   tDestroySSubmitReq2(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
+  taosMemoryFree(pVgCxt->pData);
   taosMemoryFree(pVgCxt);
 }
 
@@ -1180,6 +1182,8 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
   }
   taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData);
   taosMemoryFreeClear(pTableCxt->pData);
+
+  qDebug("add tableDataCxt uid:%" PRId64 " to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1240,6 +1244,16 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
   while (TSDB_CODE_SUCCESS == code && NULL != p) {
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
     if (colFormat) {
+      SColData *pCol = taosArrayGet(pTableCxt->pData->aCol, 0);
+      if (pCol->nVal <= 0) {
+        p = taosHashIterate(pTableHash, p);
+        continue;
+      }
+      
+      if (pTableCxt->pData->pCreateTbReq) {
+        pTableCxt->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
+      }
+      
       taosArraySort(pTableCxt->pData->aCol, insColDataComp);
       
       tColDataSortMerge(pTableCxt->pData->aCol);
@@ -1274,7 +1288,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
   if (TSDB_CODE_SUCCESS == code) {
     *pVgDataBlocks = pVgroupList;
   } else {
-    taosArrayDestroy(pVgroupList);
+    insDestroyVgroupDataCxtList(pVgroupList);
   }
 
   return code;

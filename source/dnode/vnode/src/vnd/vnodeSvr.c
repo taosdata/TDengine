@@ -236,7 +236,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       break;
     /* TSDB */
     case TDMT_VND_SUBMIT:
-      if (vnodeProcessSubmitReq(pVnode, version, pMsg->pCont, pMsg->contLen, pRsp) < 0) goto _err;
+      if (vnodeProcessSubmitReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_DELETE:
       if (vnodeProcessDeleteReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
@@ -857,6 +857,7 @@ static int32_t vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, 
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
 #if 1
   int32_t code = 0;
+  terrno = 0;
 
   SSubmitReq2 *pSubmitReq = &(SSubmitReq2){0};
   SSubmitRsp2 *pSubmitRsp = &(SSubmitRsp2){0};
@@ -868,7 +869,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 
   // decode
   SDecoder dc = {0};
-  tDecoderInit(&dc, (char *)pReq + sizeof(SMsgHead), len - sizeof(SMsgHead));
+  tDecoderInit(&dc, pReq, len);
   if (tDecodeSSubmitReq2(&dc, pSubmitReq) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
@@ -876,6 +877,11 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   tDecoderClear(&dc);
 
   // check
+  code = tsdbScanAndConvertSubmitMsg(pVnode->pTsdb, pSubmitReq);
+  if (code) {
+    goto _exit;
+  }
+
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
     SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
 
@@ -887,6 +893,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
       code = metaGetInfo(pVnode->pMeta, pSubmitTbData->uid, &info, NULL);
       if (code) {
         code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+        vWarn("vgId:%d, table uid:%" PRId64 " not exists", TD_VID(pVnode), pSubmitTbData->uid);
         goto _exit;
       }
 
@@ -902,6 +909,29 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
       if (pSubmitTbData->sver != info.skmVer) {
         code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
         goto _exit;
+      }
+    }
+
+    if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      int32_t   nColData = TARRAY_SIZE(pSubmitTbData->aCol);
+      SColData *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
+
+      if (nColData <= 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+
+      if (aColData[0].cid != PRIMARYKEY_TIMESTAMP_COL_ID || aColData[0].type != TSDB_DATA_TYPE_TIMESTAMP ||
+          aColData[0].nVal <= 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+
+      for (int32_t i = 1; i < nColData; i++) {
+        if (aColData[i].nVal != aColData[0].nVal) {
+          code = TSDB_CODE_INVALID_MSG;
+          goto _exit;
+        }
       }
     }
   }
@@ -982,12 +1012,15 @@ _exit:
   atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
   if (code == 0) {
     atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
+    tdProcessRSmaSubmit(pVnode->pSma, pSubmitReq, pReq, len, STREAM_INPUT__DATA_SUBMIT);
   }
 
   // clear
   taosArrayDestroy(newTbUids);
   tDestroySSubmitReq2(pSubmitReq, TSDB_MSG_FLG_DECODE);
   tDestroySSubmitRsp2(pSubmitRsp, TSDB_MSG_FLG_ENCODE);
+
+  if (code) terrno = code;
 
   return code;
 

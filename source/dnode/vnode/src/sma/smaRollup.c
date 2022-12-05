@@ -601,8 +601,8 @@ static int32_t tdProcessSubmitReq(STsdb *pTsdb, int64_t version, void *pReq) {
     return TSDB_CODE_FAILED;
   }
 
-  SSubmitReq *pSubmitReq = (SSubmitReq *)pReq;
-  // TODO: spin lock for race conditiond
+  SSubmitReq2 *pSubmitReq = (SSubmitReq2 *)pReq;
+  // spin lock for race condition during insert data
   if (tsdbInsertData(pTsdb, version, pSubmitReq, NULL) < 0) {
     return TSDB_CODE_FAILED;
   }
@@ -610,29 +610,19 @@ static int32_t tdProcessSubmitReq(STsdb *pTsdb, int64_t version, void *pReq) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tdFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
-  SSubmitMsgIter msgIter = {0};
-  SSubmitBlk    *pBlock = NULL;
-  SSubmitBlkIter blkIter = {0};
-  STSRow        *row = NULL;
+static int32_t tdFetchSubmitReqSuids(SSubmitReq2 *pMsg, STbUidStore *pStore) {
+  SArray *pSubmitTbData = pMsg ? pMsg->aSubmitTbData : NULL;
+  int32_t size = taosArrayGetSize(pSubmitTbData);
 
   terrno = TSDB_CODE_SUCCESS;
 
-  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) {
-    return -1;
-  }
-  while (true) {
-    if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) {
+  for (int32_t i = 0; i < size; ++i) {
+    SSubmitTbData *pData = TARRAY_GET_ELEM(pSubmitTbData, i);
+    if (terrno = tdUidStorePut(pStore, pData->suid, NULL) < 0) {
       return -1;
     }
-
-    if (!pBlock) break;
-    tdUidStorePut(pStore, msgIter.suid, NULL);
   }
 
-  if (terrno != TSDB_CODE_SUCCESS) {
-    return -1;
-  }
   return 0;
 }
 
@@ -712,7 +702,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
                output->info.rows);
 
       STsdb      *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb[0] : pSma->pRSmaTsdb[1]);
-      SSubmitReq *pReq = NULL;
+      SSubmitReq2 *pReq = NULL;
 
       // TODO: the schema update should be handled later(TD-17965)
       if (buildSubmitReqFromDataBlock(&pReq, output, pTSchema, SMA_VID(pSma), suid) < 0) {
@@ -723,19 +713,17 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
       }
 
       if (pReq && tdProcessSubmitReq(sinkTsdb, output->info.version, pReq) < 0) {
-        taosMemoryFreeClear(pReq);
+        tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
         smaError("vgId:%d, process submit req for rsma suid:%" PRIu64 ", uid:%" PRIu64 " level %" PRIi8
                  " failed since %s",
                  SMA_VID(pSma), suid, output->info.id.groupId, pItem->level, terrstr());
         goto _err;
       }
 
-      smaDebug("vgId:%d, process submit req for rsma suid:%" PRIu64 ",uid:%" PRIu64 ", level %" PRIi8 " ver %" PRIi64
-               " len %" PRIu32,
-               SMA_VID(pSma), suid, output->info.id.groupId, pItem->level, output->info.version,
-               htonl(pReq->header.contLen));
+      smaDebug("vgId:%d, process submit req for rsma suid:%" PRIu64 ",uid:%" PRIu64 ", level %" PRIi8 " ver %" PRIi64,
+               SMA_VID(pSma), suid, output->info.id.groupId, pItem->level, output->info.version);
 
-      taosMemoryFreeClear(pReq);
+      if(pReq) tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
     }
   }
 
@@ -754,21 +742,20 @@ _err:
  *
  * @param pSma
  * @param pMsg
+ * @param len
  * @param inputType
  * @param pInfo
  * @param suid
  * @return int32_t
  */
-static int32_t tdExecuteRSmaImplAsync(SSma *pSma, const void *pMsg, int32_t inputType, SRSmaInfo *pInfo,
+static int32_t tdExecuteRSmaImplAsync(SSma *pSma, const void *pMsg, int32_t len, int32_t inputType, SRSmaInfo *pInfo,
                                       tb_uid_t suid) {
-  const SSubmitReq *pReq = (const SSubmitReq *)pMsg;
-
-  void *qItem = taosAllocateQitem(pReq->header.contLen, DEF_QITEM);
+  void *qItem = taosAllocateQitem(len, DEF_QITEM);
   if (!qItem) {
     return TSDB_CODE_FAILED;
   }
 
-  memcpy(qItem, pMsg, pReq->header.contLen);
+  memcpy(qItem, pMsg, len);
 
   taosWriteQitem(pInfo->queue, qItem);
 
@@ -1015,7 +1002,7 @@ static FORCE_INLINE void tdReleaseRSmaInfo(SSma *pSma, SRSmaInfo *pInfo) {
  * @param suid
  * @return int32_t
  */
-static int32_t tdExecuteRSmaAsync(SSma *pSma, const void *pMsg, int32_t inputType, tb_uid_t suid) {
+static int32_t tdExecuteRSmaAsync(SSma *pSma, const void *pMsg, int32_t len, int32_t inputType, tb_uid_t suid) {
   SRSmaInfo *pRSmaInfo = tdAcquireRSmaInfoBySuid(pSma, suid);
   if (!pRSmaInfo) {
     smaDebug("vgId:%d, execute rsma, no rsma info for suid:%" PRIu64, SMA_VID(pSma), suid);
@@ -1023,7 +1010,7 @@ static int32_t tdExecuteRSmaAsync(SSma *pSma, const void *pMsg, int32_t inputTyp
   }
 
   if (inputType == STREAM_INPUT__DATA_SUBMIT) {
-    if (tdExecuteRSmaImplAsync(pSma, pMsg, inputType, pRSmaInfo, suid) < 0) {
+    if (tdExecuteRSmaImplAsync(pSma, pMsg, len, inputType, pRSmaInfo, suid) < 0) {
       tdReleaseRSmaInfo(pSma, pRSmaInfo);
       return TSDB_CODE_FAILED;
     }
@@ -1045,7 +1032,7 @@ static int32_t tdExecuteRSmaAsync(SSma *pSma, const void *pMsg, int32_t inputTyp
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
+int32_t tdProcessRSmaSubmit(SSma *pSma, void *pReq, void* pMsg, int32_t len, int32_t inputType) {
   SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
   if (!pEnv) {
     // only applicable when rsma env exists
@@ -1059,19 +1046,22 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
   }
 
   if (inputType == STREAM_INPUT__DATA_SUBMIT) {
-    if (tdFetchSubmitReqSuids(pMsg, &uidStore) < 0) {
+    if (tdFetchSubmitReqSuids(pReq, &uidStore) < 0) {
+      smaError("vgId:%d, failed to process rsma submit fetch suid since: %s", SMA_VID(pSma), terrstr());
       goto _err;
     }
 
     if (uidStore.suid != 0) {
-      if (tdExecuteRSmaAsync(pSma, pMsg, inputType, uidStore.suid) < 0) {
+      if (tdExecuteRSmaAsync(pSma, pMsg, len, inputType, uidStore.suid) < 0) {
+        smaError("vgId:%d, failed to process rsma submit exec 1 since: %s", SMA_VID(pSma), terrstr());
         goto _err;
       }
 
       void *pIter = NULL;
       while ((pIter = taosHashIterate(uidStore.uidHash, pIter))) {
         tb_uid_t *pTbSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
-        if (tdExecuteRSmaAsync(pSma, pMsg, inputType, *pTbSuid) < 0) {
+        if (tdExecuteRSmaAsync(pSma, pMsg, len, inputType, *pTbSuid) < 0) {
+          smaError("vgId:%d, failed to process rsma submit exec 2 since: %s", SMA_VID(pSma), terrstr());
           goto _err;
         }
       }
@@ -1081,7 +1071,6 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
   return TSDB_CODE_SUCCESS;
 _err:
   tdUidStoreDestory(&uidStore);
-  smaError("vgId:%d, failed to process rsma submit since: %s", SMA_VID(pSma), terrstr());
   return TSDB_CODE_FAILED;
 }
 

@@ -85,11 +85,12 @@ int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid);
 void    qCleanupKeywordsTable();
 
 int32_t     qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash);
-int32_t     qResetStmtDataBlock(void* block, bool keepBuf);
-int32_t     qCloneStmtDataBlock(void** pDst, void* pSrc, bool reset);
-int32_t     qRebuildStmtDataBlock(void** pDst, void* pSrc, uint64_t uid, int32_t vgId);
-void        qDestroyStmtDataBlock(void* pBlock);
-STableMeta* qGetTableMetaInDataBlock(void* pDataBlock);
+int32_t     qResetStmtDataBlock(STableDataCxt* block, bool keepBuf);
+int32_t     qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool reset);
+int32_t     qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_t uid, uint64_t suid, int32_t vgId, bool rebuildCreateTb);
+void        qDestroyStmtDataBlock(STableDataCxt* pBlock);
+STableMeta* qGetTableMetaInDataBlock(STableDataCxt* pDataBlock);
+int32_t qCloneCurrentTbData(STableDataCxt*       pDataBlock, SSubmitTbData **pData);
 
 int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx);
 int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery);

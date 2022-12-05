@@ -19,7 +19,7 @@
 #include "tlog.h"
 #include "tname.h"
 
-#define MALLOC_ALIGN_BYTES  32
+#define MALLOC_ALIGN_BYTES 32
 
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   ASSERT(pColumnInfoData != NULL);
@@ -38,7 +38,8 @@ int32_t colDataGetFullLength(const SColumnInfoData* pColumnInfoData, int32_t num
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     return pColumnInfoData->varmeta.length + sizeof(int32_t) * numOfRows;
   } else {
-    return ((pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) ? 0 : pColumnInfoData->info.bytes * numOfRows) + BitmapLen(numOfRows);
+    return ((pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) ? 0 : pColumnInfoData->info.bytes * numOfRows) +
+           BitmapLen(numOfRows);
   }
 }
 
@@ -279,7 +280,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
       pColumnInfoData->varmeta.allocLen = len + oldLen;
     }
 
-    if (pColumnInfoData->pData && pSource->pData) { // TD-20382
+    if (pColumnInfoData->pData && pSource->pData) {  // TD-20382
       memcpy(pColumnInfoData->pData + oldLen, pSource->pData, len);
     }
     pColumnInfoData->varmeta.length = len + oldLen;
@@ -1157,7 +1158,8 @@ void blockDataCleanup(SSDataBlock* pDataBlock) {
 }
 
 // todo temporarily disable it
-static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows, bool clearPayload) {
+static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows,
+                                bool clearPayload) {
   ASSERT(numOfRows > 0 /*&& pBlockInfo->capacity >= pBlockInfo->rows*/);
   if (numOfRows <= pBlockInfo->capacity) {
     return TSDB_CODE_SUCCESS;
@@ -2009,6 +2011,7 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
  * @param suid
  *
  */
+#if 0
 int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataBlock, STSchema* pTSchema, int32_t vgId,
                                     tb_uid_t suid) {
   int32_t bufSize = sizeof(SSubmitReq);
@@ -2172,6 +2175,167 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
     taosMemoryFreeClear(*pReq);
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+#endif
+
+int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDataBlock, STSchema* pTSchema,
+                                    int32_t vgId, tb_uid_t suid) {
+  SSubmitReq2* pReq = NULL;
+  SArray*      pVals = NULL;
+  int32_t      numOfBlks = 0;
+  int32_t      sz = 1;
+
+  terrno = TSDB_CODE_SUCCESS;
+
+  if (!(pReq = taosMemoryMalloc(sizeof(SSubmitReq2)))) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
+  }
+
+  if (!(pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData)))) {
+    goto _end;
+  }
+
+  for (int32_t i = 0; i < sz; ++i) {
+    int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
+    int32_t rows = pDataBlock->info.rows;
+
+    if (colNum <= 1) {  // invalid if only with TS col
+      continue;
+    }
+
+    SSubmitTbData* pTbData = (SSubmitTbData*)taosMemoryCalloc(1, sizeof(SSubmitTbData));
+    if (!pTbData) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _end;
+    }
+
+    if(!(pTbData->aRowP = taosArrayInit(rows, sizeof(SRow*)))){
+      taosMemoryFree(pTbData);
+      goto _end;
+    }
+    pTbData->suid = suid;
+    pTbData->uid = pDataBlock->info.id.groupId;
+    pTbData->sver = pTSchema->version;
+
+    if (!pVals && !(pVals = taosArrayInit(colNum, sizeof(SColVal)))) {
+      taosArrayDestroy(pTbData->aRowP);
+      taosMemoryFree(pTbData);
+      goto _end;
+    }
+
+    for (int32_t j = 0; j < rows; ++j) {  // iterate by row
+
+      taosArrayClear(pVals);
+
+      bool    isStartKey = false;
+      int32_t offset = 0;
+      for (int32_t k = 0; k < colNum; ++k) {  // iterate by column
+        SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
+        STColumn*        pCol = &pTSchema->columns[k];
+        void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
+
+        switch (pColInfoData->info.type) {
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            ASSERT(pColInfoData->info.type == pCol->type);
+            if (!isStartKey) {
+              isStartKey = true;
+              SColVal cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, pCol->type, (SValue){.val = *(TSKEY*)var});
+              taosArrayPush(pVals, &cv);
+            } else if (colDataIsNull_s(pColInfoData, j)) {
+              SColVal cv = COL_VAL_NULL(PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type);
+              taosArrayPush(pVals, &cv);
+            } else {
+              SColVal cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type, (SValue){.val = *(int64_t*)var});
+              taosArrayPush(pVals, &cv);
+            }
+            break;
+          case TSDB_DATA_TYPE_NCHAR:
+          case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
+            ASSERT(pColInfoData->info.type == pCol->type);
+            if (colDataIsNull_s(pColInfoData, j)) {
+              SColVal cv = COL_VAL_NULL(PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type);
+              taosArrayPush(pVals, &cv);
+            } else {
+              void*   data = colDataGetVarData(pColInfoData, j);
+              SValue  sv = (SValue){.nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
+              SColVal cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, pCol->type, sv);
+              taosArrayPush(pVals, &cv);
+            }
+            break;
+          }
+          case TSDB_DATA_TYPE_VARBINARY:
+          case TSDB_DATA_TYPE_DECIMAL:
+          case TSDB_DATA_TYPE_BLOB:
+          case TSDB_DATA_TYPE_JSON:
+          case TSDB_DATA_TYPE_MEDIUMBLOB:
+            uError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
+            ASSERT(0);
+            break;
+          default:
+            if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
+              if (colDataIsNull_s(pColInfoData, j)) {
+                SColVal cv = COL_VAL_NULL(PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type);  // should use pCol->type
+                taosArrayPush(pVals, &cv);
+              } else {
+                SValue sv;
+                if (pCol->type == pColInfoData->info.type) {
+                  memcpy(&sv.val, var, tDataTypes[pCol->type].bytes);
+                } else {
+                  /**
+                   *  1. sum/avg would convert to int64_t/uint64_t/double during aggregation
+                   *  2. below conversion may lead to overflow or loss, the app should select the right data type.
+                   */
+                  char tv[8] = {0};
+                  if (pColInfoData->info.type == TSDB_DATA_TYPE_FLOAT) {
+                    float v = 0;
+                    GET_TYPED_DATA(v, float, pColInfoData->info.type, var);
+                    SET_TYPED_DATA(&tv, pCol->type, v);
+                  } else if (pColInfoData->info.type == TSDB_DATA_TYPE_DOUBLE) {
+                    double v = 0;
+                    GET_TYPED_DATA(v, double, pColInfoData->info.type, var);
+                    SET_TYPED_DATA(&tv, pCol->type, v);
+                  } else if (IS_SIGNED_NUMERIC_TYPE(pColInfoData->info.type)) {
+                    int64_t v = 0;
+                    GET_TYPED_DATA(v, int64_t, pColInfoData->info.type, var);
+                    SET_TYPED_DATA(&tv, pCol->type, v);
+                  } else {
+                    uint64_t v = 0;
+                    GET_TYPED_DATA(v, uint64_t, pColInfoData->info.type, var);
+                    SET_TYPED_DATA(&tv, pCol->type, v);
+                  }
+                  memcpy(&sv.val, tv, tDataTypes[pCol->type].bytes);
+                }
+                SColVal cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID + k, pColInfoData->info.type, sv);
+                taosArrayPush(pVals, &cv);
+              }
+            } else {
+              uError("the column type %" PRIi16 " is undefined\n", pColInfoData->info.type);
+              ASSERT(0);
+            }
+            break;
+        }
+      }
+      SRow* pRow = NULL;
+      if ((terrno = tRowBuild(pVals, pTSchema, &pRow)) < 0) {
+        tDestroySSubmitTbData(pTbData, TSDB_MSG_FLG_ENCODE);
+        goto _end;
+      }
+      ASSERT(pRow);
+      taosArrayPush(pTbData->aRowP, &pRow);
+    }
+
+    taosArrayPush(pReq->aSubmitTbData, pTbData);
+  }
+_end:
+  taosArrayDestroy(pVals);
+  if (terrno != 0) {
+    *ppReq = NULL;
+    if (pReq) tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+    return TSDB_CODE_FAILED;
+  }
+  *ppReq = pReq;
   return TSDB_CODE_SUCCESS;
 }
 
