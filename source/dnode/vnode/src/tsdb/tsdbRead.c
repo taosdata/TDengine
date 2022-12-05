@@ -4055,6 +4055,29 @@ void tsdbRetrieveDataBlockInfo(const STsdbReader* pReader, int32_t* rows, uint64
   }
 }
 
+
+static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_t numOfCols) {
+  // do fill all null column value SMA info
+  int32_t i = 0, j = 0;
+  int32_t size = (int32_t) taosArrayGetSize(pSup->pColAgg);
+
+  while (j < numOfCols && i < size) {
+    SColumnDataAgg* pAgg = taosArrayGet(pSup->pColAgg, i);
+    if (pAgg->colId == pSup->colId[j]) {
+      i += 1;
+      j += 1;
+    } else if (pAgg->colId < pSup->colId[j]) {
+      i += 1;
+    } else if (pSup->colId[j] < pAgg->colId) {
+      if (pSup->colId[j] != PRIMARYKEY_TIMESTAMP_COL_ID) {
+        SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = numOfRows};
+        taosArrayPush(pSup->pColAgg, &nullColAgg);
+      }
+      j += 1;
+    }
+  }
+}
+
 int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg ***pBlockSMA, bool* allHave) {
   int32_t code = 0;
   *allHave = false;
@@ -4110,6 +4133,10 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg ***pBlockS
     pResBlock->pBlockAgg = taosMemoryCalloc(num, sizeof(SColumnDataAgg));
   }
 
+  // do fill all null column value SMA info
+  doFillNullColSMA(pSup, pBlock->nRow, numOfCols);
+
+  i = 0, j = 0;
   while (j < numOfCols && i < size) {
     SColumnDataAgg* pAgg = taosArrayGet(pSup->pColAgg, i);
     if (pAgg->colId == pSup->colId[j]) {
@@ -4119,15 +4146,8 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg ***pBlockS
     } else if (pAgg->colId < pSup->colId[j]) {
       i += 1;
     } else if (pSup->colId[j] < pAgg->colId) {
-      if (pSup->colId[j] == PRIMARYKEY_TIMESTAMP_COL_ID) {
-        pResBlock->pBlockAgg[pSup->slotId[j]] = &pSup->tsColAgg;
-      } else {
-      // all date in this block are null
-        SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = pBlock->nRow};
-        taosArrayPush(pSup->pColAgg, &nullColAgg);
-
-        pResBlock->pBlockAgg[pSup->slotId[j]] = taosArrayGetLast(pSup->pColAgg);
-      }
+      ASSERT(pSup->colId[j] == PRIMARYKEY_TIMESTAMP_COL_ID);
+      pResBlock->pBlockAgg[pSup->slotId[j]] = &pSup->tsColAgg;
       j += 1;
     }
   }
