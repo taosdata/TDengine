@@ -1,0 +1,6 @@
+ docker-compose -f .\docker-compose.yml up
+ docker exec broker kafka-topics --bootstrap-server broker:9092 --create --topic test --partitions 3 -- replication-factor 1
+ docker exec --interactive --tty broker kafka-console-producer --bootstrap-server broker:9092 --topic test
+ docker exec --interactive --tty broker kafka-console-consumer --bootstrap-server broker:9092 --topic test --from-beginning
+ docker exec broker kafka-topics --bootstrap-server broker:9092 --delete --topic test
+ docker-compose down
