@@ -2142,7 +2142,7 @@ static void tColDataMergeImpl(SColData *pColData, int32_t iStart, int32_t iEnd /
   switch (pColData->flag) {
     case HAS_NONE:
     case HAS_NULL: {
-      pColData->nVal = pColData->nVal - (iEnd - iStart);
+      pColData->nVal = pColData->nVal - (iEnd - iStart - 1);
     } break;
     case HAS_NULL | HAS_NONE: {
       if (GET_BIT1(pColData->pBitMap, iStart) == BIT_FLG_NONE) {
@@ -2157,7 +2157,7 @@ static void tColDataMergeImpl(SColData *pColData, int32_t iStart, int32_t iEnd /
         SET_BIT1(pColData->pBitMap, j, GET_BIT1(pColData->pBitMap, i));
       }
 
-      pColData->nVal = pColData->nVal - (iEnd - iStart);
+      pColData->nVal = pColData->nVal - (iEnd - iStart - 1);
 
       uint8_t flag = 0;
       for (int32_t i = 0; i < pColData->nVal; ++i) {
@@ -2175,20 +2175,36 @@ static void tColDataMergeImpl(SColData *pColData, int32_t iStart, int32_t iEnd /
       pColData->flag = flag;
     } break;
     case HAS_VALUE: {
-      // TODO
-      pColData->nVal = pColData->nVal - (iEnd - iStart);
+      if (IS_VAR_DATA_TYPE(pColData->type)) {
+        int32_t nDiff = pColData->aOffset[iEnd - 1] - pColData->aOffset[iStart];
+
+        memmove(&pColData->pData[pColData->aOffset[iStart]], &pColData->pData[pColData->aOffset[iEnd - 1]],
+                pColData->nData - pColData->aOffset[iEnd - 1]);
+        pColData->nData -= nDiff;
+
+        for (int32_t i = iEnd, j = iStart + 1; i < pColData->nVal; ++i, ++j) {
+          pColData->aOffset[j] = pColData->aOffset[i] - nDiff;
+        }
+      } else {
+        memmove(&pColData->pData[TYPE_BYTES[pColData->type] * iStart],
+                &pColData->pData[TYPE_BYTES[pColData->type] * (iEnd - 1)],
+                TYPE_BYTES[pColData->type] * (pColData->nVal - iEnd + 1));
+        pColData->nData -= (TYPE_BYTES[pColData->type] * (iEnd - iStart - 1));
+      }
+
+      pColData->nVal = pColData->nVal - (iEnd - iStart - 1);
     } break;
     case HAS_VALUE | HAS_NONE: {
       // TODO
-      pColData->nVal = pColData->nVal - (iEnd - iStart);
+      pColData->nVal = pColData->nVal - (iEnd - iStart - 1);
     } break;
     case HAS_VALUE | HAS_NULL: {
       // TODO
-      pColData->nVal = pColData->nVal - (iEnd - iStart);
+      pColData->nVal = pColData->nVal - (iEnd - iStart - 1);
     } break;
     case HAS_VALUE | HAS_NULL | HAS_NONE: {
       // TODO
-      pColData->nVal = pColData->nVal - (iEnd - iStart);
+      pColData->nVal = pColData->nVal - (iEnd - iStart - 1);
     } break;
     default:
       ASSERT(0);
