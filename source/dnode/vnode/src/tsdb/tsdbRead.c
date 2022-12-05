@@ -2483,12 +2483,11 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
           SBlockIndex bIndex = {0};
           bool hasNeighbor = getNeighborBlockOfSameTable(pBlockInfo, pBlockScanInfo, &nextIndex, pReader->order, &bIndex);
           if (!hasNeighbor) {  // do nothing
-            return 0;
+            setBlockAllDumped(pDumpInfo, pBlock->maxKey.ts, pReader->order);
+            break;
           }
 
-          bool overlap = overlapWithNeighborBlock(pBlock, &bIndex, pReader->order);
-
-          if (overlap) {  // load next block
+          if (overlapWithNeighborBlock(pBlock, &bIndex, pReader->order)) {  // load next block
             SReaderStatus*  pStatus = &pReader->status;
             SDataBlockIter* pBlockIter = &pStatus->blockIter;
 
@@ -2502,15 +2501,16 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
             // 3. load the neighbor block, and set it to be the currently accessed file data block
             code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData, pBlockInfo->uid);
             if (code != TSDB_CODE_SUCCESS) {
-              return code;
+              setBlockAllDumped(pDumpInfo, pBlock->maxKey.ts, pReader->order);
+              break;
             }
 
             // 4. check the data values
             initBlockDumpInfo(pReader, pBlockIter);
+          } else {
+            setBlockAllDumped(pDumpInfo, pBlock->maxKey.ts, pReader->order);
+            break;
           }
-
-          setBlockAllDumped(pDumpInfo, pBlock->maxKey.ts, pReader->order);
-          break;
         }
       }
     }
