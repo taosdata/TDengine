@@ -107,7 +107,7 @@ int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItem
 
   SArray *pArray = taosArrayInit(pMapData->nItem, itemSize);
   if (pArray == NULL) {
-    code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
@@ -728,7 +728,7 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else {
-      ASSERT(0);
+      ASSERT(0 && "dup versions not allowed");
     }
   }
 
@@ -902,7 +902,6 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _clear;
     }
-
     midx = (sidx + eidx) / 2;
 
     code = tsdbBuildDeleteSkyline(aDelData, sidx, midx, aSkyline1);

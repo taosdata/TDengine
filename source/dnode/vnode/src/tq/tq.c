@@ -75,7 +75,7 @@ static void tqPushEntryFree(void* data) {
 STQ* tqOpen(const char* path, SVnode* pVnode) {
   STQ* pTq = taosMemoryCalloc(1, sizeof(STQ));
   if (pTq == NULL) {
-    terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   pTq->path = strdup(path);
@@ -1425,7 +1425,7 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
 
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
-  streamMetaRemoveTask1(pTq->pStreamMeta, pReq->taskId);
+  streamMetaRemoveTask(pTq->pStreamMeta, pReq->taskId);
   return 0;
 }
 

@@ -28,4 +28,10 @@ int tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void 
   return 0;
 }
 
-int tdbTxnClose(TXN *pTxn) { return 0; }
+int tdbTxnClose(TXN *pTxn) {
+  if (pTxn) {
+    tdbOsFree(pTxn);
+  }
+
+  return 0;
+}

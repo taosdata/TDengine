@@ -39,15 +39,9 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 ## 数据链路设置
 
-### 下载 TDengine 插件到 Grafana 插件目录
+### 安装 Grafana Plugin 并配置数据源
 
-```bash
-1. wget -c https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip
-2. sudo unzip tdengine-datasource-3.1.3.zip -d /var/lib/grafana/plugins/
-3. sudo chown grafana:grafana -R /var/lib/grafana/plugins/tdengine
-4. echo -e "[plugins]\nallow_loading_unsigned_plugins = tdengine-datasource\n" | sudo tee -a /etc/grafana/grafana.ini
-5. sudo systemctl restart grafana-server.service
-```
+请参考[安装 Grafana Plugin 并配置数据源](/third-party/grafana/#%E5%AE%89%E8%A3%85-grafana-plugin-%E5%B9%B6%E9%85%8D%E7%BD%AE%E6%95%B0%E6%8D%AE%E6%BA%90)。
 
 ### 修改 /etc/telegraf/telegraf.conf
 

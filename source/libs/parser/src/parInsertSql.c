@@ -236,7 +236,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, b
   if (!isOrdered) {
     pColList->colIdxInfo = taosMemoryCalloc(pColList->numOfBound, sizeof(SBoundIdxInfo));
     if (NULL == pColList->colIdxInfo) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     SBoundIdxInfo* pColIdx = pColList->colIdxInfo;
     for (col_id_t i = 0; i < pColList->numOfBound; ++i) {
@@ -1261,7 +1261,7 @@ static int32_t allocateMemIfNeed(STableDataBlocks* pDataBlock, int32_t rowSize, 
       // do nothing, if allocate more memory failed
       pDataBlock->nAllocSize = nAllocSizeOld;
       *numOfRows = (int32_t)(pDataBlock->nAllocSize - pDataBlock->headerSize) / rowSize;
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
@@ -1524,7 +1524,7 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
 static int32_t setStmtInfo(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) {
   SParsedDataColInfo* tags = taosMemoryMalloc(sizeof(pCxt->tags));
   if (NULL == tags) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(tags, &pCxt->tags, sizeof(pCxt->tags));
 

@@ -71,7 +71,7 @@ static int32_t mndInsInitMeta(SHashObj *hash) {
 int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, bool sysinfo,
                                STableMetaRsp *pRsp) {
   if (NULL == pMnode->infosMeta) {
-    terrno = TSDB_CODE_APP_NOT_READY;
+    terrno = TSDB_CODE_APP_ERROR;
     return -1;
   }
 
@@ -97,7 +97,7 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
 
 int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp) {
   if (NULL == pMnode->infosMeta) {
-    terrno = TSDB_CODE_APP_NOT_READY;
+    terrno = TSDB_CODE_APP_ERROR;
     return -1;
   }
 

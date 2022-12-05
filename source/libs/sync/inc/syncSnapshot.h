@@ -87,6 +87,8 @@ void                   snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceive
 int32_t syncNodeOnSnapshot(SSyncNode *ths, const SRpcMsg *pMsg);
 int32_t syncNodeOnSnapshotReply(SSyncNode *ths, const SRpcMsg *pMsg);
 
+SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode *pSyncNode, SyncIndex snapshotLastApplyIndex);
+
 // start
 
 #ifdef __cplusplus

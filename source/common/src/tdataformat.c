@@ -518,7 +518,7 @@ int32_t tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter) {
 
   SRowIter *pIter = taosMemoryCalloc(1, sizeof(*pIter));
   if (pIter == NULL) {
-    code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
