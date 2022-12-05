@@ -142,7 +142,7 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
   }
 
   // add help or help; 
-  if(strncasecmp(command, "help ", 5) == 0) {
+  if(strncasecmp(command, "help;", 5) == 0) {
     showHelp();
     return 0;
   }
