@@ -113,6 +113,13 @@ int32_t shellRunSingleCommand(char *command) {
 }
 
 void shellRecordCommandToHistory(char *command) {
+  if (strncasecmp(command, "create user ", 12) == 0 || strncasecmp(command, "alter user ", 11) == 0) {
+    if (taosStrCaseStr(command, " pass ")) {
+      // have password command forbid record to history because security
+      return;
+    }
+  }
+
   SShellHistory *pHistory = &shell.history;
   if (pHistory->hstart == pHistory->hend ||
       pHistory->hist[(pHistory->hend + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE] == NULL ||
@@ -135,7 +142,7 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
   }
 
   // add help or help; 
-  if(strcmp(command, "help") == 0 || strcmp(command, "help;") == 0) {
+  if(strncasecmp(command, "help;", 5) == 0) {
     showHelp();
     return 0;
   }
