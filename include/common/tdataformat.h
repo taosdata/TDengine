@@ -44,31 +44,25 @@ typedef struct SColData SColData;
 #define HAS_VALUE ((uint8_t)0x4)
 
 // bitmap ================================
-const static uint8_t BIT1_OR_MAP[8] = {
-    0b00000001, 0b00000010, 0b00000100, 0b00001000, 0b00010000, 0b00100000, 0b01000000, 0b10000000,
-};
-const static uint8_t BIT1_AND_MAP[8] = {
-    0b11111110, 0b11111101, 0b11111011, 0b11110111, 0b11101111, 0b11011111, 0b10111111, 0b01111111,
-};
-const static uint8_t BIT2_MAP[4][4] = {{0b00000000, 0b00000001, 0b00000010, 0},
-                                       {0b00000000, 0b00000100, 0b00001000, 2},
-                                       {0b00000000, 0b00010000, 0b00100000, 4},
-                                       {0b00000000, 0b01000000, 0b10000000, 6}};
+const static uint8_t BIT1_MAP[8] = {0b11111110, 0b11111101, 0b11111011, 0b11110111,
+                                    0b11101111, 0b11011111, 0b10111111, 0b01111111};
 
-#define N1(n)        ((((uint8_t)1) << (n)) - 1)
-#define BIT1_SIZE(n) ((((n)-1) >> 3) + 1)
-#define BIT2_SIZE(n) ((((n)-1) >> 2) + 1)
-#define SET_BIT1(p, i, v)                   \
-  do {                                      \
-    if (v) {                                \
-      (p)[(i) >> 3] |= BIT1_OR_MAP[(i)&7];  \
-    } else {                                \
-      (p)[(i) >> 3] &= BIT1_AND_MAP[(i)&7]; \
-    }                                       \
-  } while (0)
-#define GET_BIT1(p, i)    (((p)[(i) >> 3] >> ((i)&7)) & ((uint8_t)1))
-#define SET_BIT2(p, i, v) ((p)[(i) >> 2] = (p)[(i) >> 2] & N1(BIT2_MAP[(i)&3][3]) | BIT2_MAP[(i)&3][(v)])
-#define GET_BIT2(p, i)    (((p)[(i) >> 2] >> BIT2_MAP[(i)&3][3]) & ((uint8_t)3))
+const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b00111111};
+
+#define ONE               ((uint8_t)1)
+#define TWO               ((uint8_t)2)
+#define THREE             ((uint8_t)3)
+#define DIV_8(i)          ((i) >> 3)
+#define MOD_8(i)          ((i)&7)
+#define DIV_4(i)          ((i) >> 2)
+#define MOD_4(i)          ((i)&3)
+#define MOD_4_TIME_2(i)   (MOD_4(i) << 1)
+#define BIT1_SIZE(n)      (DIV_8((n)-1) + 1)
+#define BIT2_SIZE(n)      (DIV_4((n)-1) + 1)
+#define SET_BIT1(p, i, v) ((p)[DIV_8(i)] = (p)[DIV_8(i)] & BIT1_MAP[MOD_8(i)] | ((v) << MOD_8(i)))
+#define GET_BIT1(p, i)    (((p)[DIV_8(i)] >> MOD_8(i)) & ONE)
+#define SET_BIT2(p, i, v) ((p)[DIV_4(i)] = (p)[DIV_4(i)] & BIT2_MAP[MOD_4(i)] | ((v) << MOD_4_TIME_2(i)))
+#define GET_BIT2(p, i)    (((p)[DIV_4(i)] >> MOD_4_TIME_2(i)) & THREE)
 
 // SBuffer ================================
 struct SBuffer {
