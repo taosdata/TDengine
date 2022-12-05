@@ -1074,6 +1074,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
 
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pTableCxt;
+    qDebug("tableDataCxt created, uid:%" PRId64 ", vgId:%d", pTableMeta->uid, pTableMeta->vgId);
   } else {
     taosMemoryFree(pTableCxt);
   }
@@ -1181,6 +1182,8 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
   }
   taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData);
   taosMemoryFreeClear(pTableCxt->pData);
+
+  qDebug("add tableDataCxt uid:%" PRId64 " to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
 
   return TSDB_CODE_SUCCESS;
 }
