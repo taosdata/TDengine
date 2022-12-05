@@ -553,7 +553,7 @@ ignore_timezone: {
           1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks)
 - The precision of the returned timestamp is same as the precision set for the current data base in use
 - If the input data is not formatted as a timestamp, the returned value is null.
-- If `1d` is used as time_unit to truncate the timestamp, `ignore_timezone` option can be set to indicate if the returned result is affected by client timezone or not.
+- If `1d` is used as `time_unit` to truncate the timestamp, `ignore_timezone` option can be set to indicate if the returned result is affected by client timezone or not.
   For example, if client timezone is set to UTC+0800, TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) will return '2020-01-01 08:00:00'.
   Otherwise, TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) will return '2020-01-01 00:00:00'.
   If `ignore_timezone` option is omitted, the default value is set to 1.
