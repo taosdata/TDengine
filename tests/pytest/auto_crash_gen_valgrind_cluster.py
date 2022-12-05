@@ -110,7 +110,7 @@ def random_args(args_list):
     args_list["--auto-start-service"]= False
     args_list["--continue-on-exception"]=True
     # connect_types=['native','rest','mixed'] # restful interface has change ,we should trans dbnames to connection or change sql such as "db.test"
-    connect_types=['native']
+    connect_types=['mixed']
     # args_list["--connector-type"]=connect_types[random.randint(0,2)]
     args_list["--connector-type"]= connect_types[0]
     args_list["--max-dbs"]= random.randint(1,10)
@@ -334,7 +334,7 @@ def check_memory():
 
 def main():
 
-    args_list = {"--auto-start-service":False ,"--max-dbs":0,"--connector-type":"native","--debug":False,"--run-tdengine":False,"--ignore-errors":[],
+    args_list = {"--auto-start-service":False ,"--max-dbs":0,"--connector-type":"mixed","--debug":False,"--run-tdengine":False,"--ignore-errors":[],
     "--track-memory-leaks":False , "--larger-data":False, "--mix-oos-data":False, "--dynamic-db-table-names":False,
     "--per-thread-db-connection":False , "--record-ops":False , "--max-steps":100, "--num-threads":10, "--verify-data":False,"--use-shadow-db":False , 
     "--continue-on-exception":False }
