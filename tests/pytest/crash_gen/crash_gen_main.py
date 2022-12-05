@@ -2022,7 +2022,7 @@ class TdSuperTable:
             conf.set("group.id", "tg2")
             conf.set("td.connect.user", "root")
             conf.set("td.connect.pass", "taosdata")
-            conf.set("enable.auto.commit", "true")
+#            conf.set("enable.auto.commit", "true")
 #            def tmq_commit_cb_print(tmq, resp, offset, param=None):
 #                print(f"commit: {resp}, tmq: {tmq}, offset: {offset}, param: {param}")
 #            conf.set_auto_commit_cb(tmq_commit_cb_print, None)
