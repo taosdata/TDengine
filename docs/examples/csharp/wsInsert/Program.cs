@@ -5,7 +5,7 @@ namespace Examples
 {
     public class WSInsertExample
     {
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
             string DSN = "ws://root:taosdata@127.0.0.1:6041/test";
             IntPtr wsConn = LibTaosWS.WSConnectWithDSN(DSN);
@@ -14,7 +14,7 @@ namespace Examples
             if (wsConn == IntPtr.Zero)
             {
                 Console.WriteLine("get WS connection failed");
-                return;
+                return -1;
             }
             else
             {
@@ -37,6 +37,8 @@ namespace Examples
 
             // close connection.
             LibTaosWS.WSClose(wsConn);
+
+            return 0;
         }
 
         static void ValidInsert(string desc, IntPtr wsRes)
