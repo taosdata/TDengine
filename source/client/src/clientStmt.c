@@ -240,6 +240,8 @@ int32_t stmtCacheBlock(STscStmt* pStmt) {
 }
 
 int32_t stmtParseSql(STscStmt* pStmt) {
+  pStmt->exec.pCurrBlock = NULL;
+
   SStmtCallback stmtCb = {
       .pStmt = pStmt,
       .getTbNameFn = stmtGetTbName,
@@ -352,7 +354,7 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t stmtRebuildDataBlock(STscStmt* pStmt, STableDataCxt* pDataBlock, STableDataCxt** newBlock, uint64_t uid) {
+int32_t stmtRebuildDataBlock(STscStmt* pStmt, STableDataCxt* pDataBlock, STableDataCxt** newBlock, uint64_t uid, uint64_t suid) {
   SEpSet           ep = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
   SVgroupInfo      vgInfo = {0};
   SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter,
@@ -364,7 +366,9 @@ int32_t stmtRebuildDataBlock(STscStmt* pStmt, STableDataCxt* pDataBlock, STableD
   STMT_ERR_RET(
       taosHashPut(pStmt->sql.pVgHash, (const char*)&vgInfo.vgId, sizeof(vgInfo.vgId), (char*)&vgInfo, sizeof(vgInfo)));
 
-  STMT_ERR_RET(qRebuildStmtDataBlock(newBlock, pDataBlock, uid, vgInfo.vgId, pStmt->sql.autoCreateTbl));
+  STMT_ERR_RET(qRebuildStmtDataBlock(newBlock, pDataBlock, uid, suid, vgInfo.vgId, pStmt->sql.autoCreateTbl));
+
+  STMT_DLOG("tableDataCxt rebuilt, uid:%" PRId64 ", vgId:%d", uid, vgInfo.vgId);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -410,7 +414,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
       pStmt->bInfo.tbUid = 0;
 
       STableDataCxt* pNewBlock = NULL;
-      STMT_ERR_RET(stmtRebuildDataBlock(pStmt, pCache->pDataCtx, &pNewBlock, 0));
+      STMT_ERR_RET(stmtRebuildDataBlock(pStmt, pCache->pDataCtx, &pNewBlock, 0, pStmt->bInfo.tbSuid));
 
       if (taosHashPut(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName), &pNewBlock,
                       POINTER_BYTES)) {
@@ -490,7 +494,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     pStmt->bInfo.tagsCached = true;
 
     STableDataCxt* pNewBlock = NULL;
-    STMT_ERR_RET(stmtRebuildDataBlock(pStmt, pCache->pDataCtx, &pNewBlock, uid));
+    STMT_ERR_RET(stmtRebuildDataBlock(pStmt, pCache->pDataCtx, &pNewBlock, uid, suid));
 
     if (taosHashPut(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName), &pNewBlock,
                     POINTER_BYTES)) {
@@ -596,8 +600,6 @@ int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
   STMT_ERR_RET(stmtGetFromCache(pStmt));
 
   if (pStmt->bInfo.needParse) {
-    pStmt->exec.pCurrBlock = NULL;
-    
     strncpy(pStmt->bInfo.tbName, tbName, sizeof(pStmt->bInfo.tbName) - 1);
     pStmt->bInfo.tbName[sizeof(pStmt->bInfo.tbName) - 1] = 0;
 
