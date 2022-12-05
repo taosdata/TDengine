@@ -1225,7 +1225,7 @@ void syncNodePreClose(SSyncNode* pSyncNode) {
     while (1) {
       int32_t aqItems = pSyncNode->pFsm->FpApplyQueueItems(pSyncNode->pFsm);
       sTrace("vgId:%d, pre close, %d items in apply queue", pSyncNode->vgId, aqItems);
-      if (aqItems == 0) {
+      if (aqItems == 0 || aqItems == -1) {
         break;
       }
       taosMsleep(20);
