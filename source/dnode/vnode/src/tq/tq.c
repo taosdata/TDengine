@@ -675,7 +675,12 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       if (pHead->msgType == TDMT_VND_SUBMIT) {
         SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
 
-        if (tqTaosxScanLog(pTq, pHandle, pCont, &taosxRsp) < 0) {
+        SPackedSubmit submit = {
+            .msgStr = pCont,
+            .msgLen = pHead->bodyLen,
+            .ver = pHead->version,
+        };
+        if (tqTaosxScanLog(pTq, pHandle, submit, &taosxRsp) < 0) {
         }
         if (taosxRsp.blockNum > 0 /* threshold */) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
@@ -725,9 +730,13 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
   }
   taosWUnLockLatch(&pTq->pushLock);
 
-  code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
-  if (code != 0) {
-    tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
+  STqHandle* pHandle = taosHashGet(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
+  if (pHandle) {
+    walCloseRef(pHandle->pWalReader->pWal, pHandle->pRef->refId);
+    code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
+    if (code != 0) {
+      tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
+    }
   }
 
   code = tqOffsetDelete(pTq->pOffsetStore, pReq->subKey);

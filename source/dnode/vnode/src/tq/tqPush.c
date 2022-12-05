@@ -256,7 +256,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
         SMqDataRsp* pRsp = &pPushEntry->dataRsp;
 
         // prepare scan mem data
-        qStreamScanMemData(task, pReq);
+        qStreamScanMemData(task, pReq, ver);
 
         // exec
         while (1) {

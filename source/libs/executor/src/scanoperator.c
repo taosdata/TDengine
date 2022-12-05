@@ -487,10 +487,11 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     code = metaGetTableEntryByUidCache(&mr, pBlock->info.id.uid);
     if (code != TSDB_CODE_SUCCESS) {
       if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-        qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid,
-              tstrerror(terrno), idStr);
+        qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s",
+              pBlock->info.id.uid, tstrerror(terrno), idStr);
       } else {
-        qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(terrno), idStr);
+        qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(terrno),
+               idStr);
       }
       metaReaderClear(&mr);
       return terrno;
@@ -1436,8 +1437,8 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
                                        NULL);
       if (closedWin && pInfo->partitionSup.needCalc) {
         gpId = calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pBlock, rowId);
-        appendOneRowToStreamSpecialBlock(pInfo->pUpdateDataRes, tsCol + rowId, tsCol + rowId, &pBlock->info.id.uid, &gpId,
-                                         NULL);
+        appendOneRowToStreamSpecialBlock(pInfo->pUpdateDataRes, tsCol + rowId, tsCol + rowId, &pBlock->info.id.uid,
+                                         &gpId, NULL);
       }
     }
   }
@@ -1521,8 +1522,13 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.pReq != NULL) {
     if (pInfo->tqReader->pMsg == NULL) {
       pInfo->tqReader->pMsg = pTaskInfo->streamInfo.pReq;
+      pInfo->tqReader->ver = pTaskInfo->streamInfo.scanVer;
+
       const SSubmitReq* pSubmit = pInfo->tqReader->pMsg;
-      if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {
+      /*if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {*/
+      /*void* msgStr = pTaskInfo->streamInfo.*/
+      SPackedSubmit submit = pTaskInfo->streamInfo.submit;
+      if (tqReaderSetSubmitReq2(pInfo->tqReader, submit.msgStr, submit.msgLen, submit.ver) < 0) {
         qError("submit msg messed up when initing stream submit block %p", pSubmit);
         pInfo->tqReader->pMsg = NULL;
         pTaskInfo->streamInfo.pReq = NULL;
@@ -1533,10 +1539,10 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     blockDataCleanup(pInfo->pRes);
     SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
 
-    while (tqNextDataBlock(pInfo->tqReader)) {
+    while (tqNextDataBlock2(pInfo->tqReader)) {
       SSDataBlock block = {0};
 
-      int32_t code = tqRetrieveDataBlock(&block, pInfo->tqReader);
+      int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader);
 
       if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
         continue;
@@ -1925,7 +1931,8 @@ FETCH_NEXT_BLOCK:
 
         int32_t     current = pInfo->validBlockIndex++;
         SSubmitReq* pSubmit = taosArrayGetP(pInfo->pBlockLists, current);
-        if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {
+        /*if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {*/
+        if (tqReaderSetSubmitReq2(pInfo->tqReader, pSubmit, 0, 0) < 0) {
           qError("submit msg messed up when initing stream submit block %p, current %d, total %d", pSubmit, current,
                  totBlockNum);
           pInfo->tqReader->pMsg = NULL;
@@ -1935,10 +1942,10 @@ FETCH_NEXT_BLOCK:
 
       blockDataCleanup(pInfo->pRes);
 
-      while (tqNextDataBlock(pInfo->tqReader)) {
+      while (tqNextDataBlock2(pInfo->tqReader)) {
         SSDataBlock block = {0};
 
-        int32_t code = tqRetrieveDataBlock(&block, pInfo->tqReader);
+        int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader);
 
         if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
           continue;
@@ -2462,7 +2469,8 @@ static void destroyTagScanOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pPhyNode,
+                                         SExecTaskInfo* pTaskInfo) {
   STagScanInfo*  pInfo = taosMemoryCalloc(1, sizeof(STagScanInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
