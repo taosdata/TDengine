@@ -2195,7 +2195,72 @@ static void tColDataMergeImpl(SColData *pColData, int32_t iStart, int32_t iEnd /
       pColData->nVal = pColData->nVal - (iEnd - iStart - 1);
     } break;
     case (HAS_VALUE | HAS_NONE): {
-      // TODO
+      uint8_t bv;
+      int32_t iv;
+      for (int32_t i = iEnd - 1; i >= iStart; --i) {
+        bv = GET_BIT1(pColData->pBitMap, i);
+        if (bv) {
+          iv = i;
+          break;
+        }
+      }
+
+      if (bv) {  // has a value
+        if (IS_VAR_DATA_TYPE(pColData->type)) {
+          if (iv != iStart) {
+            memmove(&pColData->pData[pColData->aOffset[iStart]], &pColData->pData[pColData->aOffset[iv]],
+                    iv < (pColData->nVal - 1) ? pColData->aOffset[iv + 1] - pColData->aOffset[iv]
+                                              : pColData->nData - pColData->aOffset[iv]);
+          }
+          // TODO
+          ASSERT(0);
+        } else {
+          if (iv != iStart) {
+            memcpy(&pColData->pData[TYPE_BYTES[pColData->type] * iStart],
+                   &pColData->pData[TYPE_BYTES[pColData->type] * iv], TYPE_BYTES[pColData->type]);
+          }
+          memmove(&pColData->pData[TYPE_BYTES[pColData->type] * (iStart + 1)],
+                  &pColData->pData[TYPE_BYTES[pColData->type] * iEnd],
+                  TYPE_BYTES[pColData->type] * (iEnd - iStart - 1));
+          pColData->nData -= (TYPE_BYTES[pColData->type] * (iEnd - iStart - 1));
+        }
+
+        SET_BIT1(pColData->pBitMap, iStart, 1);
+        for (int32_t i = iEnd, j = iStart + 1; i < pColData->nVal; ++i, ++j) {
+          SET_BIT1(pColData->pBitMap, j, GET_BIT1(pColData->pBitMap, i));
+        }
+
+        uint8_t flag = HAS_VALUE;
+        for (int32_t i = 0; i < pColData->nVal - (iEnd - iStart - 1); ++i) {
+          if (GET_BIT1(pColData->pBitMap, i) == 0) {
+            flag |= HAS_NONE;
+          }
+
+          if (flag == pColData->flag) break;
+        }
+        pColData->flag = flag;
+      } else {  // all NONE
+        if (IS_VAR_DATA_TYPE(pColData->type)) {
+          int32_t nDiff = pColData->aOffset[iEnd - 1] - pColData->aOffset[iStart];
+
+          memmove(&pColData->pData[pColData->aOffset[iStart]], &pColData->pData[pColData->aOffset[iEnd - 1]],
+                  pColData->nData - pColData->aOffset[iEnd - 1]);
+          pColData->nData -= nDiff;
+
+          for (int32_t i = iEnd, j = iStart + 1; i < pColData->nVal; ++i, ++j) {
+            pColData->aOffset[j] = pColData->aOffset[i] - nDiff;
+          }
+        } else {
+          memmove(&pColData->pData[TYPE_BYTES[pColData->type] * iStart],
+                  &pColData->pData[TYPE_BYTES[pColData->type] * (iEnd - 1)],
+                  TYPE_BYTES[pColData->type] * (pColData->nVal - iEnd + 1));
+          pColData->nData -= (TYPE_BYTES[pColData->type] * (iEnd - iStart - 1));
+        }
+
+        for (int32_t i = iEnd, j = iStart + 1; i < pColData->nVal; ++i, ++j) {
+          SET_BIT1(pColData->pBitMap, j, GET_BIT1(pColData->pBitMap, i));
+        }
+      }
       pColData->nVal = pColData->nVal - (iEnd - iStart - 1);
     } break;
     case (HAS_VALUE | HAS_NULL): {
@@ -2237,6 +2302,7 @@ static void tColDataMergeImpl(SColData *pColData, int32_t iStart, int32_t iEnd /
     } break;
     case (HAS_VALUE | HAS_NULL | HAS_NONE): {
       // TODO
+      ASSERT(0);
       pColData->nVal = pColData->nVal - (iEnd - iStart - 1);
     } break;
     default:
