@@ -1025,8 +1025,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   }
   // timer ms init
   pSyncNode->pingBaseLine = PING_TIMER_MS;
-  pSyncNode->electBaseLine = ELECT_TIMER_MS_MIN;
-  pSyncNode->hbBaseLine = HEARTBEAT_TIMER_MS;
+  pSyncNode->electBaseLine = tsElectInterval;
+  pSyncNode->hbBaseLine = tsHeartbeatInterval;
 
   // init ping timer
   pSyncNode->pPingTimer = NULL;
@@ -2384,7 +2384,7 @@ bool syncNodeHeartbeatReplyTimeout(SSyncNode* pSyncNode) {
       continue;
     }
 
-    if (tsNow - recvTime > SYNC_HEART_TIMEOUT_MS) {
+    if (tsNow - recvTime > tsHeartbeatTimeout) {
       toCount++;
     }
   }

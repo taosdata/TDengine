@@ -397,8 +397,8 @@ void taos_init_imp(void) {
   deltaToUtcInitOnce();
 
   if (taosCreateLog("taoslog", 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
-    tscInitRes = -1;
-    return;
+    // ignore create log failed, only print
+    printf(" WARING: Create taoslog failed. configDir=%s\n", configDir);
   }
 
   if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1) != 0) {
