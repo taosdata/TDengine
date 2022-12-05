@@ -39,7 +39,7 @@ var DbUtil = new function() {
 		2 : "user name and password can't be null.",
 		3 : "invalid session",
 		4 : "invalid user",
-		5 : "server return invalid json format",
+		5 : "server return invalid json format or possibly incompleted response (if response is too long).",
 		6 : "no data return from server",
 		7 : "please confirm the action, it couldn't be recovered",
 		8 : "execute error, affect rows is 0",
