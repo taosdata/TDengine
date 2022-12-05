@@ -50,7 +50,6 @@ const static uint8_t BIT1_MAP[8] = {0b11111110, 0b11111101, 0b11111011, 0b111101
 const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b00111111};
 
 #define ONE               ((uint8_t)1)
-#define TWO               ((uint8_t)2)
 #define THREE             ((uint8_t)3)
 #define DIV_8(i)          ((i) >> 3)
 #define MOD_8(i)          ((i)&7)
