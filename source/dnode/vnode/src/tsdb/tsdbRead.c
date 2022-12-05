@@ -4088,10 +4088,12 @@ void tsdbRetrieveDataBlockInfo(const STsdbReader* pReader, int32_t* rows, uint64
 }
 
 
-static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_t numOfCols) {
+static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_t numOfCols,
+    SColumnDataAgg* pTsAgg) {
   // do fill all null column value SMA info
   int32_t i = 0, j = 0;
   int32_t size = (int32_t) taosArrayGetSize(pSup->pColAgg);
+  taosArrayInsert(pSup->pColAgg, 0, pTsAgg);
 
   while (j < numOfCols && i < size) {
     SColumnDataAgg* pAgg = taosArrayGet(pSup->pColAgg, i);
@@ -4103,7 +4105,7 @@ static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
     } else if (pSup->colId[j] < pAgg->colId) {
       if (pSup->colId[j] != PRIMARYKEY_TIMESTAMP_COL_ID) {
         SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = numOfRows};
-        taosArrayPush(pSup->pColAgg, &nullColAgg);
+        taosArrayInsert(pSup->pColAgg, i ,&nullColAgg);
       }
       j += 1;
     }
@@ -4166,7 +4168,7 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg ***pBlockS
   }
 
   // do fill all null column value SMA info
-  doFillNullColSMA(pSup, pBlock->nRow, numOfCols);
+  doFillNullColSMA(pSup, pBlock->nRow, numOfCols, pTsAgg);
 
   i = 0, j = 0;
   while (j < numOfCols && i < size) {
