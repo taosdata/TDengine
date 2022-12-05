@@ -214,6 +214,7 @@ static bool          hasDataInLastBlock(SLastBlockReader* pLastBlockReader);
 static int32_t       doBuildDataBlock(STsdbReader* pReader);
 static TSDBKEY       getCurrentKeyInBuf(STableBlockScanInfo* pScanInfo, STsdbReader* pReader);
 static bool          hasDataInFileBlock(const SBlockData* pBlockData, const SFileBlockDumpInfo* pDumpInfo);
+static void          initBlockDumpInfo(STsdbReader* pReader, SDataBlockIter* pBlockIter);
 
 static bool outOfTimeWindow(int64_t ts, STimeWindow* pWindow) { return (ts > pWindow->ekey) || (ts < pWindow->skey); }
 
@@ -2477,6 +2478,37 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
         SDataBlk* pBlock = getCurrentBlock(&pReader->status.blockIter);
         if (pDumpInfo->rowIndex >= pBlock->nRow || pDumpInfo->rowIndex < 0) {
+
+          int32_t nextIndex = -1;
+          SBlockIndex bIndex = {0};
+          bool hasNeighbor = getNeighborBlockOfSameTable(pBlockInfo, pBlockScanInfo, &nextIndex, pReader->order, &bIndex);
+          if (!hasNeighbor) {  // do nothing
+            return 0;
+          }
+
+          bool overlap = overlapWithNeighborBlock(pBlock, &bIndex, pReader->order);
+
+          if (overlap) {  // load next block
+            SReaderStatus*  pStatus = &pReader->status;
+            SDataBlockIter* pBlockIter = &pStatus->blockIter;
+
+            // 1. find the next neighbor block in the scan block list
+            SFileDataBlockInfo fb = {.uid = pBlockInfo->uid, .tbBlockIdx = nextIndex};
+            int32_t            neighborIndex = findFileBlockInfoIndex(pBlockIter, &fb);
+
+            // 2. remove it from the scan block list
+            setFileBlockActiveInBlockIter(pBlockIter, neighborIndex, step);
+
+            // 3. load the neighbor block, and set it to be the currently accessed file data block
+            code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData, pBlockInfo->uid);
+            if (code != TSDB_CODE_SUCCESS) {
+              return code;
+            }
+
+            // 4. check the data values
+            initBlockDumpInfo(pReader, pBlockIter);
+          }
+
           setBlockAllDumped(pDumpInfo, pBlock->maxKey.ts, pReader->order);
           break;
         }
@@ -2888,7 +2920,7 @@ static int32_t buildBlockFromBufferSequentially(STsdbReader* pReader) {
 }
 
 // set the correct start position in case of the first/last file block, according to the query time window
-static void initBlockDumpInfo(STsdbReader* pReader, SDataBlockIter* pBlockIter) {
+void initBlockDumpInfo(STsdbReader* pReader, SDataBlockIter* pBlockIter) {
   SDataBlk* pBlock = getCurrentBlock(pBlockIter);
 
   SReaderStatus* pStatus = &pReader->status;
