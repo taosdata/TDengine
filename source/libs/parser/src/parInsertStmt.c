@@ -467,7 +467,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
   return code;
 }
 
-int32_t qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_t uid, int32_t vgId, bool rebuildCreateTb) {
+int32_t qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_t uid, uint64_t suid, int32_t vgId, bool rebuildCreateTb) {
   int32_t code = qCloneStmtDataBlock(pDst, pSrc, false);
   if (code) {
     return code;
@@ -477,7 +477,11 @@ int32_t qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_
   if (pBlock->pMeta) {
     pBlock->pMeta->uid = uid;
     pBlock->pMeta->vgId = vgId;
+    pBlock->pMeta->suid = suid;
   }
+
+  pBlock->pData->suid = suid;
+  pBlock->pData->uid = uid;
 
   if (rebuildCreateTb && NULL == pBlock->pData->pCreateTbReq) {
     pBlock->pData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));

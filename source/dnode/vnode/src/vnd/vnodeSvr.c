@@ -857,6 +857,7 @@ static int32_t vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, 
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
 #if 1
   int32_t code = 0;
+  terrno = 0;
 
   SSubmitReq2 *pSubmitReq = &(SSubmitReq2){0};
   SSubmitRsp2 *pSubmitRsp = &(SSubmitRsp2){0};
@@ -892,6 +893,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
       code = metaGetInfo(pVnode->pMeta, pSubmitTbData->uid, &info, NULL);
       if (code) {
         code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+        vWarn("vgId:%d, table uid:%" PRId64 " not exists", TD_VID(pVnode), pSubmitTbData->uid);
         goto _exit;
       }
 
@@ -1017,6 +1019,8 @@ _exit:
   taosArrayDestroy(newTbUids);
   tDestroySSubmitReq2(pSubmitReq, TSDB_MSG_FLG_DECODE);
   tDestroySSubmitRsp2(pSubmitRsp, TSDB_MSG_FLG_ENCODE);
+
+  if (code) terrno = code;
 
   return code;
 
