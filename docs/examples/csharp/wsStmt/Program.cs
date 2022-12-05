@@ -21,7 +21,8 @@ namespace Examples
             IntPtr wsConn = LibTaosWS.WSConnectWithDSN(DSN);
             if (wsConn == IntPtr.Zero)
             {
-                throw new Exception($"get WS connection failed");
+                Console.WriteLine($"get WS connection failed");
+                return;
             }
             else
             {
@@ -66,7 +67,7 @@ namespace Examples
             }
             else
             {
-                throw new Exception("Init STMT failed...");
+                Console.WriteLine("Init STMT failed...");
             }
 
             // close connection.
@@ -77,7 +78,7 @@ namespace Examples
         {
             if (code != 0)
             {
-                throw new Exception($"{desc} failed,reason: {LibTaosWS.WSErrorStr(wsStmt)}, code: {code}");
+                Console.WriteLine($"{desc} failed,reason: {LibTaosWS.WSErrorStr(wsStmt)}, code: {code}");
             }
             else
             {

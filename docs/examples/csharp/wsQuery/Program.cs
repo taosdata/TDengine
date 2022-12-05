@@ -13,7 +13,8 @@ namespace Examples
             IntPtr wsConn = LibTaosWS.WSConnectWithDSN(DSN);
             if (wsConn == IntPtr.Zero)
             {
-                throw new Exception("get WS connection failed");
+                Console.WriteLine("get WS connection failed");
+                return;
             }
             else
             {
@@ -28,7 +29,9 @@ namespace Examples
             int code = LibTaosWS.WSErrorNo(wsRes);
             if (code != 0)
             {
-                throw new Exception($"execute SQL failed: reason: {LibTaosWS.WSErrorStr(wsRes)}, code:{code}");
+                Console.WriteLine($"execute SQL failed: reason: {LibTaosWS.WSErrorStr(wsRes)}, code:{code}");
+                LibTaosWS.WSFreeResult(wsRes);
+                return;
             }
 
             // get meta data

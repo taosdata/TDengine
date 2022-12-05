@@ -12,15 +12,14 @@ namespace Examples
   
             if (wsConn == IntPtr.Zero)
             {
-                throw new Exception("get WS connection failed");
+                Console.WriteLine("get WS connection failed");
             }
             else
             {
                 Console.WriteLine("Establish connect success.");
+                // close connection.
+                LibTaosWS.WSClose(wsConn);
             }
-
-            // close connection.
-            LibTaosWS.WSClose(wsConn);
         }
     }
 }
