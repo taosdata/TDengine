@@ -3032,8 +3032,10 @@ void fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, char*
   if (pSupp->dbNameSlotId != -1) {
     ASSERT(strlen(dbName));
     SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->dbNameSlotId);
-    char             varDbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    strncpy(varDataVal(varDbName), dbName, strlen(dbName));
+
+    char varDbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    tstrncpy(varDataVal(varDbName), dbName, TSDB_DB_NAME_LEN);
+
     varDataSetLen(varDbName, strlen(dbName));
     colDataAppend(colInfoData, 0, varDbName, false);
   }
@@ -3042,7 +3044,7 @@ void fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, char*
     SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->stbNameSlotId);
     if (strlen(stbName) != 0) {
       char varStbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      strncpy(varDataVal(varStbName), stbName, strlen(stbName));
+      strncpy(varDataVal(varStbName), stbName, TSDB_TABLE_NAME_LEN);
       varDataSetLen(varStbName, strlen(stbName));
       colDataAppend(colInfoData, 0, varStbName, false);
     } else {
