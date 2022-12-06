@@ -93,6 +93,6 @@ sql_error drop database d2;
 
 sql_error create stable d1.st (ts timestamp, i int) tags (j int)
 sql create stable d2.st (ts timestamp, i int) tags (j int)
-sql_error create topic topic_2 as select ts, i from stb
+sql create topic topic_2 as select ts, i from stb
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
