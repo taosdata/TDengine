@@ -191,8 +191,7 @@ static void vnodePrepareCommit(SVnode *pVnode) {
 
   tsdbPrepareCommit(pVnode->pTsdb);
   metaPrepareAsyncCommit(pVnode->pMeta);
-  smaPrepareAsyncCommit(pVnode->pSma);
-
+  smaPrepareCommit(pVnode->pSma);
 
   vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;

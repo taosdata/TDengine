@@ -184,15 +184,15 @@ void tdDestroyTFile(STFile *pTFile) { taosMemoryFreeClear(TD_TFILE_FULL_NAME(pTF
 
 #endif
 
-void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t version,
-                      char *outputName) {
-  if (version < 0) {
+void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t suid,
+                      int8_t level, int64_t version, char *outputName) {
+  if (version >= 0 && level > 0 && suid > 0) {
     if (pdname) {
-      snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s%sv%d%s", pdname, TD_DIRSEP, TD_DIRSEP, vgId,
-               TD_DIRSEP, dname, TD_DIRSEP, vgId, fname);
+      snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s%s%" PRIi64 "%s%" PRIi8 "%s%s.%" PRIi64, pdname,
+               TD_DIRSEP, TD_DIRSEP, vgId, TD_DIRSEP, dname, TD_DIRSEP, suid, level, fname, version);
     } else {
-      snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s%sv%d%s", TD_DIRSEP, vgId, TD_DIRSEP, dname, TD_DIRSEP,
-               vgId, fname);
+      snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s%s%" PRIi64 "%s%" PRIi8 "%s%s." PRIi64, TD_DIRSEP,
+               vgId, TD_DIRSEP, dname, TD_DIRSEP, suid, level, fname, version);
     }
   } else {
     if (pdname) {

@@ -85,7 +85,8 @@ struct STSmaStat {
 
 struct SQTaskFile {
   volatile int32_t nRef;
-  int32_t          padding;
+  int8_t           level;
+  int64_t          suid;
   int64_t          version;
   int64_t          size;
 };
@@ -214,19 +215,21 @@ static FORCE_INLINE void tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
 
 // rsma
 void   *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
-int32_t tdRSmaFSOpen(SSma *pSma, int64_t version);
+int32_t tdRSmaFSOpen(SSma *pSma, int64_t version, int8_t rollback);
 void    tdRSmaFSClose(SRSmaFS *fs);
-int32_t tdRSmaFSRef(SSma *pSma, SRSmaStat *pStat, int64_t version);
-void    tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t version);
+int32_t tdRSmaFSRef(SSma *pSma, SRSmaStat *pStat, int64_t suid, int8_t level, int64_t version);
+void    tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t suid, int8_t level, int64_t version);
 int64_t tdRSmaFSMaxVer(SSma *pSma, SRSmaStat *pStat);
 int32_t tdRSmaFSUpsertQTaskFile(SRSmaFS *pFS, SQTaskFile *qTaskFile);
-int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer);
+int32_t tdRSmaFSRollback(SSma *pSma);
+int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer, int8_t rollback);
 int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
 int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type);
 int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
-int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer);
-void    tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t version, char *outputName);
-void    tdRSmaQTaskInfoGetFullName(int32_t vgId, int64_t version, const char *path, char *outputName);
+int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer, int8_t rollback);
+void    tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t suid, int8_t level, int64_t version, char *outputName);
+void    tdRSmaQTaskInfoGetFullName(int32_t vgId, int64_t suid, int8_t level, int64_t version, const char *path,
+                                   char *outputName);
 void    tdRSmaQTaskInfoGetFullPath(int32_t vgId, int8_t level, const char *path, char *outputName);
 void    tdRSmaQTaskInfoGetFullPathEx(int32_t vgId, tb_uid_t suid, int8_t level, const char *path, char *outputName);
 
@@ -290,8 +293,8 @@ void    tdCloseTFile(STFile *pTFile);
 void    tdDestroyTFile(STFile *pTFile);
 #endif
 
-void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t version,
-                      char *outputName);
+void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t suid,
+                      int8_t level, int64_t version, char *outputName);
 void tdGetVndDirName(int32_t vgId, const char *pdname, const char *dname, bool endWithSep, char *outputName);
 
 #ifdef __cplusplus

@@ -77,6 +77,7 @@ _err:
 }
 
 static int32_t rsmaQTaskInfSnapReaderOpen(SRSmaSnapReader* pReader, int64_t version) {
+  #if 0
   int32_t    code = 0;
   SSma*      pSma = pReader->pSma;
   SVnode*    pVnode = pSma->pVnode;
@@ -133,10 +134,12 @@ _end:
   }
 
   smaInfo("vgId:%d, vnode snapshot rsma reader open %s succeed", TD_VID(pVnode), qTaskInfoFullName);
+  #endif
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t rsmaQTaskInfSnapReaderClose(SQTaskFReader** ppReader) {
+#if 0
   if (!(*ppReader)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -149,7 +152,7 @@ static int32_t rsmaQTaskInfSnapReaderClose(SQTaskFReader** ppReader) {
   tdRSmaFSUnRef(pSma, pStat, version);
   taosMemoryFreeClear(*ppReader);
   smaInfo("vgId:%d, vnode snapshot rsma reader closed for qTaskInfo version %" PRIi64, SMA_VID(pSma), version);
-
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
@@ -307,6 +310,7 @@ struct SRSmaSnapWriter {
 
 int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWriter** ppWriter) {
   int32_t          code = 0;
+  #if 0
   SRSmaSnapWriter* pWriter = NULL;
   SVnode*          pVnode = pSma->pVnode;
 
@@ -361,11 +365,13 @@ _err:
   smaError("vgId:%d, rsma snapshot writer open failed since %s", TD_VID(pSma->pVnode), tstrerror(code));
   if (pWriter) rsmaSnapWriterClose(&pWriter, 0);
   *ppWriter = NULL;
+  #endif
   return code;
 }
 
 int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
   int32_t          code = 0;
+  #if 0
   SRSmaSnapWriter* pWriter = *ppWriter;
   SVnode*          pVnode = pWriter->pSma->pVnode;
 
@@ -399,7 +405,8 @@ int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
               pWriter->pQTaskFWriter->fname, qTaskInfoFullName);
 
       // rsma restore
-      if ((code = tdRSmaRestore(pWriter->pSma, RSMA_RESTORE_SYNC, pWriter->ever)) < 0) {
+      int8_t rollback = 0;
+      if ((code = tdRSmaRestore(pWriter->pSma, RSMA_RESTORE_SYNC, pWriter->ever, rollback)) < 0) {
         goto _err;
       }
       smaInfo("vgId:%d, vnode snapshot rsma writer restore from %s succeed", SMA_VID(pWriter->pSma), qTaskInfoFullName);
@@ -413,6 +420,7 @@ int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
 
 _err:
   smaError("vgId:%d, vnode snapshot rsma writer close failed since %s", SMA_VID(pWriter->pSma), tstrerror(code));
+  #endif
   return code;
 }
 

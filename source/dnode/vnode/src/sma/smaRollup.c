@@ -28,7 +28,7 @@ SSmaMgmt smaMgmt = {
     .rsetId = -1,
 };
 
-#define TD_QTASKINFO_FNAME_PREFIX "qinf.v"
+#define TD_QTASKINFO_FNAME_PREFIX "main.db"
 
 typedef struct SRSmaQTaskInfoItem SRSmaQTaskInfoItem;
 
@@ -59,12 +59,12 @@ struct SRSmaQTaskInfoItem {
   void   *qTaskInfo;
 };
 
-void tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t version, char *outputName) {
-  tdGetVndFileName(vgId, NULL, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, version, outputName);
+void tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t suid, int8_t level, int64_t version, char *outputName) {
+  tdGetVndFileName(vgId, NULL, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, suid, level, version, outputName);
 }
 
-void tdRSmaQTaskInfoGetFullName(int32_t vgId, int64_t version, const char *path, char *outputName) {
-  tdGetVndFileName(vgId, path, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, version, outputName);
+void tdRSmaQTaskInfoGetFullName(int32_t vgId, int64_t suid, int8_t level, int64_t version, const char *path, char *outputName) {
+  tdGetVndFileName(vgId, path, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, suid, level, version, outputName);
 }
 
 void tdRSmaQTaskInfoGetFullPath(int32_t vgId, int8_t level, const char *path, char *outputName) {
@@ -311,8 +311,8 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     pItem->triggerStat = TASK_TRIGGER_STAT_ACTIVE;  // fetch the data when reboot
     pItem->pStreamState = pStreamState;
     if (param->maxdelay[idx] < TSDB_MIN_ROLLUP_MAX_DELAY) {
-      int64_t msInterval =
-          convertTimeFromPrecisionToUnit(pRetention[idx + 1].freq, pTsdbCfg->precision, TIME_UNIT_MILLISECOND);
+    int64_t msInterval =
+        convertTimeFromPrecisionToUnit(pRetention[idx + 1].freq, pTsdbCfg->precision, TIME_UNIT_MILLISECOND);
       pItem->maxDelay = (int32_t)msInterval;
     } else {
       pItem->maxDelay = (int32_t)param->maxdelay[idx];
@@ -1190,7 +1190,7 @@ static int32_t tdRSmaRestoreTSDataReload(SSma *pSma) {
 }
 #endif
 
-int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer) {
+int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer, int8_t rollback) {
   // step 1: iterate all stables to restore the rsma env
   int64_t nTables = 0;
   if (tdRSmaRestoreQTaskInfoInit(pSma, &nTables) < 0) {
@@ -1209,7 +1209,7 @@ int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer) 
 #endif
 
   // step 3: open SRSmaFS for qTaskFiles
-  if (tdRSmaFSOpen(pSma, qtaskFileVer) < 0) {
+  if (tdRSmaFSOpen(pSma, qtaskFileVer, rollback) < 0) {
     goto _err;
   }
 

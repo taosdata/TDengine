@@ -17,41 +17,10 @@
 
 extern SSmaMgmt smaMgmt;
 
-#if 0
-static int32_t tdProcessRSmaSyncPreCommitImpl(SSma *pSma);
-static int32_t tdProcessRSmaSyncCommitImpl(SSma *pSma);
-static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma);
-#endif
 static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo);
 static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma);
 static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat);
-
-#if 0
-/**
- * @brief Only applicable to Rollup SMA
- *
- * @param pSma
- * @return int32_t
- */
-int32_t smaSyncPreCommit(SSma *pSma) { return tdProcessRSmaSyncPreCommitImpl(pSma); }
-
-/**
- * @brief Only applicable to Rollup SMA
- *
- * @param pSma
- * @return int32_t
- */
-int32_t smaSyncCommit(SSma *pSma) { return tdProcessRSmaSyncCommitImpl(pSma); }
-
-/**
- * @brief Only applicable to Rollup SMA
- *
- * @param pSma
- * @return int32_t
- */
-int32_t smaSyncPostCommit(SSma *pSma) { return tdProcessRSmaSyncPostCommitImpl(pSma); }
-#endif
 
 /**
  * @brief async commit, only applicable to Rollup SMA
@@ -59,7 +28,7 @@ int32_t smaSyncPostCommit(SSma *pSma) { return tdProcessRSmaSyncPostCommitImpl(p
  * @param pSma
  * @return int32_t
  */
-int32_t smaPrepareAsyncCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma); }
+int32_t smaPrepareCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma); }
 
 /**
  * @brief async commit, only applicable to Rollup SMA
@@ -143,70 +112,6 @@ _exit:
   return code;
 }
 
-#if 0
-/**
- * @brief pre-commit for rollup sma(sync commit).
- *  1) set trigger stat of rsma timer TASK_TRIGGER_STAT_PAUSED.
- *  2) wait for all triggered fetch tasks to finish
- *  3) perform persist task for qTaskInfo
- *
- * @param pSma
- * @return int32_t
- */
-static int32_t tdProcessRSmaSyncPreCommitImpl(SSma *pSma) {
-  SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
-  if (!pSmaEnv) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SSmaStat  *pStat = SMA_ENV_STAT(pSmaEnv);
-  SRSmaStat *pRSmaStat = SMA_STAT_RSMA(pStat);
-
-  // step 1: set rsma stat paused
-  atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED);
-
-  // step 2: wait for all triggered fetch tasks to finish
-  int32_t nLoops = 0;
-  while (1) {
-    if (T_REF_VAL_GET(pStat) == 0) {
-      smaDebug("vgId:%d, rsma fetch tasks are all finished", SMA_VID(pSma));
-      break;
-    } else {
-      smaDebug("vgId:%d, rsma fetch tasks are not all finished yet", SMA_VID(pSma));
-    }
-    ++nLoops;
-    if (nLoops > 1000) {
-      sched_yield();
-      nLoops = 0;
-    }
-  }
-
-  // step 3: perform persist task for qTaskInfo
-  pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
-  tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
-
-  smaDebug("vgId:%d, rsma pre commit success", SMA_VID(pSma));
-
-  return TSDB_CODE_SUCCESS;
-}
-
-/**
- * @brief commit for rollup sma
- *
- * @param pSma
- * @return int32_t
- */
-static int32_t tdProcessRSmaSyncCommitImpl(SSma *pSma) {
-#if 0
-  SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
-  if (!pSmaEnv) {
-    return TSDB_CODE_SUCCESS;
-  }
-#endif
-  return TSDB_CODE_SUCCESS;
-}
-#endif
-
 // SQTaskFile ======================================================
 
 /**
@@ -218,6 +123,7 @@ static int32_t tdProcessRSmaSyncCommitImpl(SSma *pSma) {
  * @return int32_t
  */
 static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pStat) {
+  #if 0
   SVnode  *pVnode = pSma->pVnode;
   SRSmaFS *pFS = RSMA_FS(pStat);
   int64_t  committed = pStat->commitAppliedVer;
@@ -264,30 +170,9 @@ static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pStat) {
   }
 
   taosWUnLockLatch(RSMA_FS_LOCK(pStat));
+  #endif
   return TSDB_CODE_SUCCESS;
 }
-
-#if 0
-/**
- * @brief post-commit for rollup sma
- *  1) clean up the outdated qtaskinfo files
- *
- * @param pSma
- * @return int32_t
- */
-static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma) {
-  SVnode *pVnode = pSma->pVnode;
-  if (!VND_IS_RSMA(pVnode)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSma);
-
-  tdUpdateQTaskInfoFiles(pSma, pRSmaStat);
-
-  return TSDB_CODE_SUCCESS;
-}
-#endif
 
 /**
  * @brief Rsma async commit implementation(only do some necessary light weighted task)
