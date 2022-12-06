@@ -1025,8 +1025,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   }
   // timer ms init
   pSyncNode->pingBaseLine = PING_TIMER_MS;
-  pSyncNode->electBaseLine = ELECT_TIMER_MS_MIN;
-  pSyncNode->hbBaseLine = HEARTBEAT_TIMER_MS;
+  pSyncNode->electBaseLine = tsElectInterval;
+  pSyncNode->hbBaseLine = tsHeartbeatInterval;
 
   // init ping timer
   pSyncNode->pPingTimer = NULL;
@@ -1221,6 +1221,26 @@ int32_t syncNodeStartStandBy(SSyncNode* pSyncNode) {
 }
 
 void syncNodePreClose(SSyncNode* pSyncNode) {
+  if (pSyncNode != NULL && pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpApplyQueueItems != NULL) {
+    while (1) {
+      int32_t aqItems = pSyncNode->pFsm->FpApplyQueueItems(pSyncNode->pFsm);
+      sTrace("vgId:%d, pre close, %d items in apply queue", pSyncNode->vgId, aqItems);
+      if (aqItems == 0 || aqItems == -1) {
+        break;
+      }
+      taosMsleep(20);
+    }
+  }
+
+  if (pSyncNode->pNewNodeReceiver != NULL) {
+    if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+      snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+    }
+
+    snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
+    pSyncNode->pNewNodeReceiver = NULL;
+  }
+
   // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
 
@@ -2384,7 +2404,7 @@ bool syncNodeHeartbeatReplyTimeout(SSyncNode* pSyncNode) {
       continue;
     }
 
-    if (tsNow - recvTime > SYNC_HEART_TIMEOUT_MS) {
+    if (tsNow - recvTime > tsHeartbeatTimeout) {
       toCount++;
     }
   }

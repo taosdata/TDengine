@@ -481,6 +481,10 @@ _return:
 }
 
 int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
+  if (TSDB_CODE_SCH_IGNORE_ERROR == errCode) {
+    return TSDB_CODE_SCH_IGNORE_ERROR;
+  }
+  
   schUpdateJobErrCode(pJob, errCode);
 
   int32_t code = atomic_load_32(&pJob->errCode);

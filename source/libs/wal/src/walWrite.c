@@ -120,9 +120,9 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
       return -1;
     }
 
-    // delete files
+    // delete files in descending order
     int fileSetSize = taosArrayGetSize(pWal->fileInfoSet);
-    for (int i = pWal->writeCur + 1; i < fileSetSize; i++) {
+    for (int i = fileSetSize - 1; i >= pWal->writeCur + 1; i--) {
       walBuildLogName(pWal, ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, i))->firstVer, fnameStr);
       wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
       taosRemoveFile(fnameStr);
@@ -217,14 +217,9 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   pWal->vers.lastVer = ver - 1;
   if (pWal->vers.lastVer < pWal->vers.firstVer) {
     ASSERT(pWal->vers.lastVer == pWal->vers.firstVer - 1);
-    pWal->vers.firstVer = -1;
   }
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->lastVer = ver - 1;
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize = entry.offset;
-  if (((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->lastVer < ver - 1) {
-    ASSERT(((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize == 0);
-    ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->firstVer = -1;
-  }
   taosCloseFile(&pIdxFile);
   taosCloseFile(&pLogFile);
 
@@ -338,6 +333,7 @@ int32_t walEndSnapshot(SWal *pWal) {
     } else {
       wDebug("vgId:%d, wal no remove", pWal->cfg.vgId);
     }
+
     // iterate files, until the searched result
     for (SWalFileInfo *iter = pWal->fileInfoSet->pData; iter < pInfo; iter++) {
       wDebug("vgId:%d, wal check remove file %" PRId64 "(file size %" PRId64 " close ts %" PRId64
@@ -350,34 +346,17 @@ int32_t walEndSnapshot(SWal *pWal) {
         wDebug("vgId:%d, check pass", pWal->cfg.vgId);
         deleteCnt++;
         newTotSize -= iter->fileSize;
+        taosArrayPush(pWal->toDeleteFiles, iter);
       }
       wDebug("vgId:%d, check not pass", pWal->cfg.vgId);
-    }
-    wDebug("vgId:%d, wal should delete %d files", pWal->cfg.vgId, deleteCnt);
-    int32_t actualDelete = 0;
-    char    fnameStr[WAL_FILE_LEN];
-    // remove file
-    for (int i = 0; i < deleteCnt; i++) {
-      pInfo = taosArrayGet(pWal->fileInfoSet, i);
-      walBuildLogName(pWal, pInfo->firstVer, fnameStr);
-      wDebug("vgId:%d, wal remove file %s", pWal->cfg.vgId, fnameStr);
-      if (taosRemoveFile(fnameStr) < 0) {
-        goto UPDATE_META;
-      }
-      walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
-      wDebug("vgId:%d, wal remove file %s", pWal->cfg.vgId, fnameStr);
-      if (taosRemoveFile(fnameStr) < 0) {
-        ASSERT(0);
-      }
-      actualDelete++;
     }
 
   UPDATE_META:
     // make new array, remove files
-    taosArrayPopFrontBatch(pWal->fileInfoSet, actualDelete);
+    taosArrayPopFrontBatch(pWal->fileInfoSet, deleteCnt);
     if (taosArrayGetSize(pWal->fileInfoSet) == 0) {
       pWal->writeCur = -1;
-      pWal->vers.firstVer = -1;
+      pWal->vers.firstVer = pWal->vers.lastVer + 1;
     } else {
       pWal->vers.firstVer = ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, 0))->firstVer;
     }
@@ -391,6 +370,26 @@ int32_t walEndSnapshot(SWal *pWal) {
   if (code < 0) {
     goto END;
   }
+
+  // delete files
+  deleteCnt = taosArrayGetSize(pWal->toDeleteFiles);
+  wDebug("vgId:%d, wal should delete %d files", pWal->cfg.vgId, deleteCnt);
+  char fnameStr[WAL_FILE_LEN];
+  for (int i = 0; i < deleteCnt; i++) {
+    pInfo = taosArrayGet(pWal->toDeleteFiles, i);
+    walBuildLogName(pWal, pInfo->firstVer, fnameStr);
+    wDebug("vgId:%d, wal remove file %s", pWal->cfg.vgId, fnameStr);
+    if (taosRemoveFile(fnameStr) < 0 && errno != ENOENT) {
+      wError("vgId:%d, failed to remove log file %s due to %s", pWal->cfg.vgId, fnameStr, strerror(errno));
+      goto END;
+    }
+    walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
+    wDebug("vgId:%d, wal remove file %s", pWal->cfg.vgId, fnameStr);
+    if (taosRemoveFile(fnameStr) < 0 && errno != ENOENT) {
+      ASSERT(0);
+    }
+  }
+  taosArrayClear(pWal->toDeleteFiles);
 
 END:
   taosThreadMutexUnlock(&pWal->mutex);
@@ -489,9 +488,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   SWalFileInfo *pFileInfo = walGetCurFileInfo(pWal);
   ASSERT(pFileInfo != NULL);
 
-  if (pFileInfo->firstVer == -1) {
-    pFileInfo->firstVer = index;
-  }
+  ASSERT(pFileInfo->firstVer != -1);
   pWal->writeHead.head.version = index;
   pWal->writeHead.head.bodyLen = bodyLen;
   pWal->writeHead.head.msgType = msgType;
@@ -527,7 +524,10 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   }
 
   // set status
-  if (pWal->vers.firstVer == -1) pWal->vers.firstVer = index;
+  if (pWal->vers.firstVer == -1) {
+    ASSERT(index == 0);
+    pWal->vers.firstVer = 0;
+  }
   pWal->vers.lastVer = index;
   pWal->totSize += sizeof(SWalCkHead) + bodyLen;
   pFileInfo->lastVer = index;
