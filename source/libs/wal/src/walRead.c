@@ -48,7 +48,7 @@ SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond) {
 
   pReader->pHead = taosMemoryMalloc(sizeof(SWalCkHead));
   if (pReader->pHead == NULL) {
-    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pReader);
     return NULL;
   }
@@ -280,7 +280,7 @@ static int32_t walFetchBodyNew(SWalReader *pRead) {
   if (pRead->capacity < pReadHead->bodyLen) {
     SWalCkHead *ptr = (SWalCkHead *)taosMemoryRealloc(pRead->pHead, sizeof(SWalCkHead) + pReadHead->bodyLen);
     if (ptr == NULL) {
-      terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
     pRead->pHead = ptr;
@@ -437,7 +437,7 @@ int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead) {
   if (pRead->capacity < pReadHead->bodyLen) {
     SWalCkHead *ptr = (SWalCkHead *)taosMemoryRealloc(*ppHead, sizeof(SWalCkHead) + pReadHead->bodyLen);
     if (ptr == NULL) {
-      terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
     *ppHead = ptr;
@@ -489,7 +489,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
   int32_t code;
   bool    seeked = false;
 
-  if (pReader->pWal->vers.firstVer == -1) {
+  if (walIsEmpty(pReader->pWal)) {
     terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
     return -1;
   }
@@ -546,7 +546,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     SWalCkHead *ptr =
         (SWalCkHead *)taosMemoryRealloc(pReader->pHead, sizeof(SWalCkHead) + pReader->pHead->head.bodyLen);
     if (ptr == NULL) {
-      terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       taosThreadMutexUnlock(&pReader->mutex);
       return -1;
     }

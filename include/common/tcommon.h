@@ -249,10 +249,11 @@ typedef struct SColumnInfoData {
 
 typedef struct SQueryTableDataCond {
   uint64_t     suid;
-  int32_t      order;  // desc|asc order to iterate the data block
+  int32_t      order;    // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo* colList;
-  int32_t      type;  // data block load type:
+  int32_t*     pSlotList; // the column output destation slot, and it may be null
+  int32_t      type;     // data block load type:
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;

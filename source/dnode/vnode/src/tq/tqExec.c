@@ -25,7 +25,7 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t
   pRetrieve->precision = precision;
   pRetrieve->compressed = 0;
   pRetrieve->completed = 1;
-  pRetrieve->numOfRows = htonl(pBlock->info.rows);
+  pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
 
   int32_t actualLen = blockEncode(pBlock, pRetrieve->data, numOfCols);
   actualLen += sizeof(SRetrieveTableRsp);

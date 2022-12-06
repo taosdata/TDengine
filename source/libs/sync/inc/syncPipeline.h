@@ -107,7 +107,7 @@ int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode);
 // private
 SSyncRaftEntry* syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex index, bool* pInBuf);
 int32_t         syncLogBufferValidate(SSyncLogBuffer* pBuf);
-int32_t         syncLogBufferRollback(SSyncLogBuffer* pBuf, SyncIndex toIndex);
+int32_t         syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex toIndex);
 
 #ifdef __cplusplus
 }

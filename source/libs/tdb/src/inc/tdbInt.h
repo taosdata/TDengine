@@ -147,11 +147,11 @@ struct SBTC {
   SPage       *pgStack[BTREE_MAX_DEPTH + 1];
   SCellDecoder coder;
   TXN         *pTxn;
-  TXN          txn;
+  i8           freeTxn;
 };
 
 // SBTree
-int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr,
+int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr, TDB *pEnv,
                  SBTree **ppBt);
 int tdbBtreeClose(SBTree *pBt);
 int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
@@ -197,7 +197,7 @@ int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initP
                        TXN *pTxn);
 void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
 int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
-int  tdbPagerRestore(SPager *pPager, SBTree *pBt);
+int  tdbPagerRestoreJournals(SPager *pPager, SBTree *pBt);
 int  tdbPagerRollback(SPager *pPager);
 
 // tdbPCache.c ====================================
@@ -382,9 +382,8 @@ struct STDB {
 #ifdef USE_MAINDB
   TTB *pMainDb;
 #endif
+  int64_t txnId;
 };
-
-typedef struct hashset_st *hashset_t;
 
 struct SPager {
   char    *dbFileName;
@@ -392,16 +391,15 @@ struct SPager {
   int      pageSize;
   uint8_t  fid[TDB_FILE_ID_LEN];
   tdb_fd_t fd;
-  tdb_fd_t jfd;
   SPCache *pCache;
   SPgno    dbFileSize;
   SPgno    dbOrigSize;
-  //SPage   *pDirty;
-  hashset_t jPageSet;
-  SRBTree  rbt;
-  u8       inTran;
-  SPager  *pNext;      // used by TDB
-  SPager  *pHashNext;  // used by TDB
+  // SPage   *pDirty;
+  SRBTree rbt;
+  // u8        inTran;
+  TXN    *pActiveTxn;
+  SPager *pNext;      // used by TDB
+  SPager *pHashNext;  // used by TDB
 #ifdef USE_MAINDB
   TDB *pEnv;
 #endif
