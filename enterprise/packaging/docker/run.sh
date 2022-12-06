@@ -4,7 +4,7 @@ TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=0
 #ADMIN_URL=${ADMIN_URL:-http://172.26.10.84:10001}
 TAOSD_STARTUP_TIMEOUT_SECOND=${TAOSD_STARTUP_TIMEOUT_SECOND:-160}
 TAOSADAPTER_STARTUP_TIMEOUT_SECOND=${TAOSADAPTER_STARTUP_TIMEOUT_SECOND:-180}
-TAOS_TIMEOUT_SECOND=${TAOS_TIMEOUT_SECOND:-5}
+TAOS_TIMEOUT_SECOND=${TAOS_TIMEOUT_SECOND:-10}
 BACKUP_CORE_FOLDER=/var/log/corefile
 ALERT_URL=app/system/alert/add
 ALERT_DISABLE_FILE=/var/log/disable_alert
@@ -24,7 +24,7 @@ function set_service_state() {
 set_service_state "init" "ok"
 app_name=`hostname |cut -d\- -f1`
 
-function check_taosd() {
+function check_taosd_deprecated() {
     timeout $TAOS_TIMEOUT_SECOND taos -s "show databases;" >/dev/null
     local ret=$?
     if [ $ret -ne 0 ]; then
@@ -34,6 +34,24 @@ function check_taosd() {
         fi
     else
         set_service_state "ready" "ok"
+    fi
+}
+function check_taosd() {
+    local output=`timeout $TAOS_TIMEOUT_SECOND taos -k`
+    if [ -z "${output}" ]; then
+        echo "`date` taos -k error"
+        if [ "x$1" != "xignore" ]; then
+            set_service_state "error" "taos check failed (no output)"
+        fi
+    else
+        echo "$output"|grep -q "^2"
+        if [ $? -ne 0 ]; then
+            if [ "x$1" != "xignore" ]; then
+                set_service_state "error" "taos check failed $output"
+            fi
+        else
+            set_service_state "ready" "ok"
+        fi
     fi
 }
 function post_error_msg() {
