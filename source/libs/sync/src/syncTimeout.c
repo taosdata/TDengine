@@ -19,6 +19,7 @@
 #include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncReplication.h"
+#include "syncSnapshot.h"
 #include "syncUtil.h"
 
 static void syncNodeCleanConfigIndex(SSyncNode* ths) {
@@ -69,6 +70,16 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   }
 
   int64_t timeNow = taosGetTimestampMs();
+
+  for (int i = 0; i < ths->peersNum; ++i) {
+    SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(ths->peersId[i]));
+    if (pSender != NULL) {
+      if (timeNow - pSender->lastSendTime > SYNC_SNAP_RESEND_MS) {
+        snapshotReSend(pSender);
+      }
+    }
+  }
+
   if (atomic_load_64(&ths->snapshottingIndex) != SYNC_INDEX_INVALID) {
     // end timeout wal snapshot
     if (timeNow - ths->snapshottingTime > SYNC_DEL_WAL_MS &&

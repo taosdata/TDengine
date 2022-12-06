@@ -242,9 +242,20 @@ _err:
   return NULL;
 }
 
-void vnodePreClose(SVnode *pVnode) { 
+void vnodeWaitSnapshotFinish(SVnode *pVnode) {
+  while (syncSnapshotRecving(pVnode->sync)) {
+    vInfo("vgId:%d, snapshot is recving", pVnode->config.vgId);
+    taosMsleep(300);
+  }
+  while (syncSnapshotSending(pVnode->sync)) {
+    vInfo("vgId:%d, snapshot is sending", pVnode->config.vgId);
+    taosMsleep(300);
+  }
+}
+
+void vnodePreClose(SVnode *pVnode) {
   vnodeQueryPreClose(pVnode);
-  vnodeSyncPreClose(pVnode); 
+  vnodeSyncPreClose(pVnode);
 }
 
 void vnodeClose(SVnode *pVnode) {

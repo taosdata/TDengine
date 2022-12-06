@@ -53,6 +53,7 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
 int32_t vnodeAlter(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs);
 void    vnodeDestroy(const char *path, STfs *pTfs);
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
+void    vnodeWaitSnapshotFinish(SVnode *pVnode);
 void    vnodePreClose(SVnode *pVnode);
 void    vnodeClose(SVnode *pVnode);
 

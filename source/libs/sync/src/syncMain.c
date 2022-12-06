@@ -482,6 +482,11 @@ bool syncSnapshotSending(int64_t rid) {
     return false;
   }
 
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    syncNodeRelease(pSyncNode);
+    return false;
+  }
+
   bool b = syncNodeSnapshotSending(pSyncNode);
   syncNodeRelease(pSyncNode);
   return b;
@@ -490,6 +495,11 @@ bool syncSnapshotSending(int64_t rid) {
 bool syncSnapshotRecving(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
+    return false;
+  }
+
+  if (pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER) {
+    syncNodeRelease(pSyncNode);
     return false;
   }
 
