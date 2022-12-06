@@ -551,6 +551,8 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
   if (pReq->ast2Len > 0) {
     if (tEncodeBinary(&encoder, pReq->pAst2, pReq->ast2Len) < 0) return -1;
   }
+  if (tEncodeI64(&encoder, pReq->deleteMark1) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->deleteMark2) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -643,6 +645,9 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
     if (pReq->pAst2 == NULL) return -1;
     if (tDecodeCStrTo(&decoder, pReq->pAst2) < 0) return -1;
   }
+
+  if (tDecodeI64(&decoder, &pReq->deleteMark1) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->deleteMark2) < 0) return -1;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
@@ -822,6 +827,7 @@ int32_t tSerializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pReq
   if (pReq->astLen > 0) {
     if (tEncodeBinary(&encoder, pReq->ast, pReq->astLen) < 0) return -1;
   }
+  if (tEncodeI64(&encoder, pReq->deleteMark) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -870,7 +876,7 @@ int32_t tDeserializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pR
     if (pReq->ast == NULL) return -1;
     if (tDecodeCStrTo(&decoder, pReq->ast) < 0) return -1;
   }
-
+  if (tDecodeI64(&decoder, &pReq->deleteMark) < 0) return -1;
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
@@ -992,7 +998,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tEncodeI32(&encoder, vlen) < 0) return -1;
   for (int32_t i = 0; i < vlen; ++i) {
     SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
-    int64_t reserved = 0;
+    int64_t     reserved = 0;
     if (tEncodeI32(&encoder, pload->vgId) < 0) return -1;
     if (tEncodeI8(&encoder, pload->syncState) < 0) return -1;
     if (tEncodeI8(&encoder, pload->syncRestore) < 0) return -1;

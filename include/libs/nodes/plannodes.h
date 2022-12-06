@@ -91,6 +91,7 @@ typedef struct SScanLogicNode {
   SNode*        pTagIndexCond;
   int8_t        triggerType;
   int64_t       watermark;
+  int64_t       deleteMark;
   int8_t        igExpired;
   SArray*       pSmaIndexes;
   SNodeList*    pGroupTags;
@@ -213,6 +214,7 @@ typedef struct SWindowLogicNode {
   SNode*           pStateExpr;
   int8_t           triggerType;
   int64_t          watermark;
+  int64_t          deleteMark;
   int8_t           igExpired;
   EWindowAlgorithm windowAlgo;
   EOrder           inputTsOrder;
@@ -440,6 +442,7 @@ typedef struct SWinodwPhysiNode {
   SNode*     pTsEnd;  // window end timestamp
   int8_t     triggerType;
   int64_t    watermark;
+  int64_t    deleteMark;
   int8_t     igExpired;
   EOrder     inputTsOrder;
   EOrder     outputTsOrder;
