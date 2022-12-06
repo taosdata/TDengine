@@ -896,7 +896,8 @@ void cliConnCb(uv_connect_t* req, int status) {
       SFailFastItem* item = taosHashGet(pThrd->failFastCache, key, strlen(key));
       int64_t        cTimestamp = taosGetTimestampMs();
       if (item != NULL) {
-        if (cTimestamp - item->timestamp < pTransInst->failFastInterval) {
+        int32_t elapse = cTimestamp - item->timestamp;
+        if (elapse >= 0 && elapse <= pTransInst->failFastInterval) {
           item->count++;
         } else {
           item->count = 1;
@@ -1066,8 +1067,8 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
 
     SFailFastItem* item = taosHashGet(pThrd->failFastCache, key, strlen(key));
     if (item != NULL) {
-      int32_t elapse = taosGetTimestampMs() - item->timestamp;
-      if (item->count >= pTransInst->failFastThreshold && elapse <= pTransInst->failFastInterval) {
+      int32_t elapse = (int32_t)(taosGetTimestampMs() - item->timestamp);
+      if (item->count >= pTransInst->failFastThreshold && (elapse >= 0 && elapse <= pTransInst->failFastInterval)) {
         STraceId* trace = &(pMsg->msg.info.traceId);
         tGTrace("%s, msg %p cancel to send, reason: failed to connect %s:%d: count: %d, at %d", pTransInst->label, pMsg,
                 ip, port, item->count, elapse);
