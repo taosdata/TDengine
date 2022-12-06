@@ -1153,6 +1153,16 @@ static int32_t parseValueToken(SInsertParseContext* pCxt, const char** pSql, STo
   return code;
 }
 
+static void clearColValArray(SArray* pCols) {
+  int32_t num = taosArrayGetSize(pCols);
+  for (int32_t i = 0; i < num; ++i) {
+    SColVal* pCol = taosArrayGet(pCols, i);
+    if (TSDB_DATA_TYPE_NCHAR == pCol->type) {
+      taosMemoryFreeClear(pCol->value.pData);
+    }
+  }
+}
+
 static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataCxt* pTableCxt, bool* pGotRow,
                        SToken* pToken) {
   SBoundColInfo* pCols = &pTableCxt->boundColsInfo;
@@ -1205,6 +1215,8 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
   if (TSDB_CODE_SUCCESS == code && !isParseBindParam) {
     *pGotRow = true;
   }
+
+  clearColValArray(pTableCxt->pValues);
 
   return code;
 }
