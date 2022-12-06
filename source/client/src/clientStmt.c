@@ -743,7 +743,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
         (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
     if (NULL == pDataBlock) {
       tscError("table %s not found in exec blockHash", pStmt->bInfo.tbFName);
-      STMT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+      STMT_ERR_RET(TSDB_CODE_TSC_STMT_CACHE_ERROR);
     }
     pStmt->exec.pCurrBlock = *pDataBlock;
   }
