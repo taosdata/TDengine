@@ -129,6 +129,7 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
         }
 
         tEndDecode(&dc);
+        tDecoderClear(&dc);
       }
 
       tEndDecode(&dc);
