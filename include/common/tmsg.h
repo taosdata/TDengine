@@ -504,6 +504,8 @@ typedef struct {
   char*    pComment;
   char*    pAst1;
   char*    pAst2;
+  int64_t  deleteMark1;
+  int64_t  deleteMark2;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -2017,6 +2019,7 @@ typedef struct {
 typedef struct {
   int64_t maxdelay[2];
   int64_t watermark[2];
+  int64_t deleteMark[2];
   int32_t qmsgLen[2];
   char*   qmsg[2];  // pAst:qmsg:SRetention => trigger aggr task1/2
 } SRSmaParam;
@@ -2738,6 +2741,7 @@ typedef struct {
   char*   tagsFilter;
   char*   sql;
   char*   ast;
+  int64_t deleteMark;
 } SMCreateSmaReq;
 
 int32_t tSerializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);
