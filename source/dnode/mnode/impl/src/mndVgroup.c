@@ -1174,7 +1174,7 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
       }
 
       if (mndAddDropVnodeAction(pMnode, pTrans, pDb, &newVg, &del, true) != 0) return -1;
-      for (int32_t i = 0; i < newVg.replica - 1; ++i) {
+      for (int32_t i = 0; i < newVg.replica; ++i) {
         if (i == vnIndex) continue;
         if (mndAddAlterVnodeReplicaAction(pMnode, pTrans, pDb, &newVg, newVg.vnodeGid[i].dnodeId) != 0) return -1;
       }
