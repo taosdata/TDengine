@@ -260,7 +260,7 @@ void vnodePreClose(SVnode *pVnode) {
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
-    vnodeCommit(pVnode);
+    vnodeSyncCommit(pVnode);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     walClose(pVnode->pWal);

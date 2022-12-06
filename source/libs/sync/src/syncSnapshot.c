@@ -103,6 +103,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   pSender->sendingMS = 0;
   pSender->term = pSender->pSyncNode->pRaftStore->currentTerm;
   pSender->startTime = taosGetTimestampMs();
+  pSender->lastSendTime = pSender->startTime;
   pSender->finish = false;
 
   // build begin msg
