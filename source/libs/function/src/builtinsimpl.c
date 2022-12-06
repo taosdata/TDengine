@@ -504,7 +504,7 @@ static int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
    */
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
-  if (pInput->colDataSMAIsSet && pInput->totalRows == pInput->numOfRows) {
+  if (pInput->colDataSMAIsSet && pInput->totalRows == pInput->numOfRows && !IS_VAR_DATA_TYPE(pInputCol->info.type)) {
     numOfElem = pInput->numOfRows - pInput->pColumnDataAgg[0]->numOfNull;
     ASSERT(numOfElem >= 0);
   } else {

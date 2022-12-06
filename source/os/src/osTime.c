@@ -572,7 +572,7 @@ int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
     offsetInitFinished = true;
   } else {
     while (!offsetInitFinished)
-      ; // Ensure initialization is completed.
+      ;  // Ensure initialization is completed.
   }
 
   GetSystemTimeAsFileTime(&f);

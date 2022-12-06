@@ -46,6 +46,7 @@ typedef struct SyncClientRequest {
   uint32_t originalRpcType;  // origin RpcMsg msgType
   uint64_t seqNum;
   bool     isWeak;
+  int16_t  reserved;
   uint32_t dataLen;  // origin RpcMsg.contLen
   char     data[];   // origin RpcMsg.pCont
 } SyncClientRequest;
@@ -56,6 +57,7 @@ typedef struct SyncClientRequestReply {
   uint32_t msgType;
   int32_t  errCode;
   SRaftId  leaderHint;
+  int16_t  reserved;
 } SyncClientRequestReply;
 
 typedef struct SyncRequestVote {
@@ -68,6 +70,7 @@ typedef struct SyncRequestVote {
   SyncTerm  term;
   SyncIndex lastLogIndex;
   SyncTerm  lastLogTerm;
+  int16_t   reserved;
 } SyncRequestVote;
 
 typedef struct SyncRequestVoteReply {
@@ -79,6 +82,7 @@ typedef struct SyncRequestVoteReply {
   // private data
   SyncTerm term;
   bool     voteGranted;
+  int16_t  reserved;
 } SyncRequestVoteReply;
 
 typedef struct SyncAppendEntries {
@@ -94,6 +98,7 @@ typedef struct SyncAppendEntries {
   SyncTerm  prevLogTerm;
   SyncIndex commitIndex;
   SyncTerm  privateTerm;
+  int16_t   reserved;
   uint32_t  dataLen;
   char      data[];
 } SyncAppendEntries;
@@ -111,6 +116,7 @@ typedef struct SyncAppendEntriesReply {
   SyncIndex matchIndex;
   SyncIndex lastSendIndex;
   int64_t   startTime;
+  int16_t   reserved;
 } SyncAppendEntriesReply;
 
 typedef struct SyncHeartbeat {
@@ -126,6 +132,7 @@ typedef struct SyncHeartbeat {
   SyncTerm  privateTerm;
   SyncTerm  minMatchIndex;
   int64_t   timeStamp;
+  int16_t   reserved;
 } SyncHeartbeat;
 
 typedef struct SyncHeartbeatReply {
@@ -140,6 +147,7 @@ typedef struct SyncHeartbeatReply {
   SyncTerm privateTerm;
   int64_t  startTime;
   int64_t  timeStamp;
+  int16_t  reserved;
 } SyncHeartbeatReply;
 
 typedef struct SyncPreSnapshot {
@@ -151,6 +159,7 @@ typedef struct SyncPreSnapshot {
 
   // private data
   SyncTerm term;
+  int16_t  reserved;
 } SyncPreSnapshot;
 
 typedef struct SyncPreSnapshotReply {
@@ -163,6 +172,7 @@ typedef struct SyncPreSnapshotReply {
   // private data
   SyncTerm  term;
   SyncIndex snapStart;
+  int16_t   reserved;
 } SyncPreSnapshotReply;
 
 typedef struct SyncApplyMsg {
@@ -190,6 +200,7 @@ typedef struct SyncSnapshotSend {
   SSyncCfg  lastConfig;
   int64_t   startTime;
   int32_t   seq;
+  int16_t   reserved;
   uint32_t  dataLen;
   char      data[];
 } SyncSnapshotSend;
@@ -208,6 +219,7 @@ typedef struct SyncSnapshotRsp {
   int32_t   ack;
   int32_t   code;
   SyncIndex snapBeginIndex;  // when ack = SYNC_SNAPSHOT_SEQ_BEGIN, it's valid
+  int16_t   reserved;
 } SyncSnapshotRsp;
 
 typedef struct SyncLeaderTransfer {

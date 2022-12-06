@@ -596,6 +596,13 @@ static void destroyWinodwPhysiNode(SWinodwPhysiNode* pNode) {
   nodesDestroyNode(pNode->pTsEnd);
 }
 
+static void destroyPartitionPhysiNode(SPartitionPhysiNode* pNode) {
+  destroyPhysiNode((SPhysiNode*)pNode);
+  nodesDestroyList(pNode->pExprs);
+  nodesDestroyList(pNode->pPartitionKeys);
+  nodesDestroyList(pNode->pTargets);
+}
+
 static void destroyScanPhysiNode(SScanPhysiNode* pNode) {
   destroyPhysiNode((SPhysiNode*)pNode);
   nodesDestroyList(pNode->pScanCols);
@@ -733,6 +740,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pOptions->pWatermark);
       nodesDestroyList(pOptions->pRollupFuncs);
       nodesDestroyList(pOptions->pSma);
+      nodesDestroyList(pOptions->pDeleteMark);
       break;
     }
     case QUERY_NODE_INDEX_OPTIONS: {
@@ -750,6 +758,7 @@ void nodesDestroyNode(SNode* pNode) {
       SStreamOptions* pOptions = (SStreamOptions*)pNode;
       nodesDestroyNode(pOptions->pDelay);
       nodesDestroyNode(pOptions->pWatermark);
+      nodesDestroyNode(pOptions->pDeleteMark);
       break;
     }
     case QUERY_NODE_LEFT_VALUE:  // no pointer field
@@ -905,6 +914,8 @@ void nodesDestroyNode(SNode* pNode) {
       SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->pOptions);
       nodesDestroyNode(pStmt->pQuery);
+      nodesDestroyList(pStmt->pTags);
+      nodesDestroyNode(pStmt->pSubtable);
       break;
     }
     case QUERY_NODE_DROP_STREAM_STMT:     // no pointer field
@@ -1020,6 +1031,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pTagIndexCond);
       taosArrayDestroyEx(pLogicNode->pSmaIndexes, destroySmaIndex);
       nodesDestroyList(pLogicNode->pGroupTags);
+      nodesDestroyList(pLogicNode->pTags);
+      nodesDestroyNode(pLogicNode->pSubtable);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -1092,6 +1105,8 @@ void nodesDestroyNode(SNode* pNode) {
       SPartitionLogicNode* pLogicNode = (SPartitionLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pPartitionKeys);
+      nodesDestroyList(pLogicNode->pTags);
+      nodesDestroyNode(pLogicNode->pSubtable);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC: {
@@ -1122,10 +1137,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN: {
+    case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN: {
       SLastRowScanPhysiNode* pPhyNode = (SLastRowScanPhysiNode*)pNode;
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       nodesDestroyList(pPhyNode->pGroupTags);
@@ -1139,6 +1154,8 @@ void nodesDestroyNode(SNode* pNode) {
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       nodesDestroyList(pPhyNode->pDynamicScanFuncs);
       nodesDestroyList(pPhyNode->pGroupTags);
+      nodesDestroyList(pPhyNode->pTags);
+      nodesDestroyNode(pPhyNode->pSubtable);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
@@ -1215,13 +1232,15 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pStateKey);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
+      destroyPartitionPhysiNode((SPartitionPhysiNode*)pNode);
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION: {
-      SPartitionPhysiNode* pPhyNode = (SPartitionPhysiNode*)pNode;
-      destroyPhysiNode((SPhysiNode*)pPhyNode);
-      nodesDestroyList(pPhyNode->pExprs);
-      nodesDestroyList(pPhyNode->pPartitionKeys);
-      nodesDestroyList(pPhyNode->pTargets);
+      SStreamPartitionPhysiNode* pPhyNode = (SStreamPartitionPhysiNode*)pNode;
+      destroyPartitionPhysiNode((SPartitionPhysiNode*)pPhyNode);
+      nodesDestroyList(pPhyNode->pTags);
+      nodesDestroyNode(pPhyNode->pSubtable);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC: {
