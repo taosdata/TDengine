@@ -129,10 +129,10 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
         }
 
         tEndDecode(&dc);
-        tDecoderClear(&dc);
       }
 
       tEndDecode(&dc);
+      tDecoderClear(&dc);
     } break;
     case TDMT_VND_DELETE: {
       int32_t     size;
