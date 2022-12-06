@@ -887,7 +887,8 @@ void cliConnCb(uv_connect_t* req, int status) {
            pConn->port, uv_strerror(status));
     SCliMsg* pMsg = transQueueGet(&pConn->cliMsgs, 0);
     STrans*  pTransInst = pThrd->pTransInst;
-    if (REQUEST_NO_RESP(&pMsg->msg) && (pTransInst->failFastFp != NULL && pTransInst->failFastFp(pMsg->msg.msgType))) {
+    if (pMsg != NULL && REQUEST_NO_RESP(&pMsg->msg) &&
+        (pTransInst->failFastFp != NULL && pTransInst->failFastFp(pMsg->msg.msgType))) {
       char*    ip = pConn->ip;
       uint32_t port = pConn->port;
       char     key[TSDB_FQDN_LEN + 64] = {0};
