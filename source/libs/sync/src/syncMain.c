@@ -1221,6 +1221,26 @@ int32_t syncNodeStartStandBy(SSyncNode* pSyncNode) {
 }
 
 void syncNodePreClose(SSyncNode* pSyncNode) {
+  if (pSyncNode != NULL && pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpApplyQueueItems != NULL) {
+    while (1) {
+      int32_t aqItems = pSyncNode->pFsm->FpApplyQueueItems(pSyncNode->pFsm);
+      sTrace("vgId:%d, pre close, %d items in apply queue", pSyncNode->vgId, aqItems);
+      if (aqItems == 0 || aqItems == -1) {
+        break;
+      }
+      taosMsleep(20);
+    }
+  }
+
+  if (pSyncNode->pNewNodeReceiver != NULL) {
+    if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+      snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+    }
+
+    snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
+    pSyncNode->pNewNodeReceiver = NULL;
+  }
+
   // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
 
