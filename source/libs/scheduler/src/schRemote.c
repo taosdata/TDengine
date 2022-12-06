@@ -270,7 +270,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
           SCH_ERR_JRET(code);
         }
 
-        atomic_add_fetch_32(&pJob->resNumOfRows, rsp->affectedRows);
+        atomic_add_fetch_64(&pJob->resNumOfRows, rsp->affectedRows);
 
         int32_t createTbRspNum = taosArrayGetSize(rsp->aCreateTbRsp);
         SCH_TASK_DLOG("submit succeed, affectedRows:%d, createTbRspNum:%d", rsp->affectedRows, createTbRspNum);

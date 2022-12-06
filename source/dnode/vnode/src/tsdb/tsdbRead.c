@@ -3551,9 +3551,10 @@ int32_t tsdbGetNextRowInMem(STableBlockScanInfo* pBlockScanInfo, STsdbReader* pR
 }
 
 int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, SRow* pTSRow, STableBlockScanInfo* pScanInfo) {
-  int32_t numOfRows = pBlock->info.rows;
-  int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+  int32_t outputRowIndex = pBlock->info.rows;
   int64_t uid = pScanInfo->uid;
+
+  int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
 
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
   STSchema*           pSchema = doGetSchemaForTSRow(pTSRow->sver, pReader, uid);
@@ -3571,8 +3572,10 @@ int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, SRow* pT
     col_id_t colId = pSupInfo->colId[i];
 
     if (colId == pSchema->columns[j].colId) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pSupInfo->slotId[i]);
+
       tRowGet(pTSRow, pSchema, j, &colVal);
-      doCopyColVal(pColInfoData, numOfRows, i, &colVal, pSupInfo);
+      doCopyColVal(pColInfoData, outputRowIndex, i, &colVal, pSupInfo);
       i += 1;
       j += 1;
     } else if (colId < pSchema->columns[j].colId) {
@@ -3911,7 +3914,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
   tBlockDataDestroy(&pReader->status.fileBlockData);
 
   taosMemoryFree(pSupInfo->colId);
-  tBlockDataDestroy(&pReader->status.fileBlockData, true);
+  tBlockDataDestroy(&pReader->status.fileBlockData);
   cleanupDataBlockIterator(&pReader->status.blockIter);
 
   size_t numOfTables = taosHashGetSize(pReader->status.pTableMap);

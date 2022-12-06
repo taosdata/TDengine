@@ -956,7 +956,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
       if (pSubmitRsp->aCreateTbRsp == NULL &&
           (pSubmitRsp->aCreateTbRsp = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(SVCreateTbRsp))) ==
               NULL) {
-        code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         goto _exit;
       }
 
@@ -968,7 +968,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 
         if (newTbUids == NULL &&
             (newTbUids = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(int64_t))) == NULL) {
-          code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          code = TSDB_CODE_OUT_OF_MEMORY;
           goto _exit;
         }
 
@@ -1029,13 +1029,13 @@ _exit:
 
 #else
   SSubmitReq *pSubmitReq = (SSubmitReq *)pReq;
-  SSubmitRsp  submitRsp = {0};
-  int32_t     nRows = 0;
-  int32_t     tsize, ret;
-  SEncoder    encoder = {0};
-  SArray     *newTbUids = NULL;
-  SVStatis    statis = {0};
-  bool        tbCreated = false;
+  SSubmitRsp submitRsp = {0};
+  int32_t nRows = 0;
+  int32_t tsize, ret;
+  SEncoder encoder = {0};
+  SArray *newTbUids = NULL;
+  SVStatis statis = {0};
+  bool tbCreated = false;
   terrno = TSDB_CODE_SUCCESS;
 
   pRsp->code = 0;

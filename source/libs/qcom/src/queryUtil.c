@@ -448,7 +448,6 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   return TSDB_CODE_SUCCESS;
 }
 
-
 void freeVgInfo(SDBVgInfo* vgInfo) {
   if (NULL == vgInfo) {
     return;
@@ -459,7 +458,6 @@ void freeVgInfo(SDBVgInfo* vgInfo) {
 
   taosMemoryFreeClear(vgInfo);
 }
-
 
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
   if (NULL == pSrc) {
@@ -508,7 +506,7 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
 
   *pDst = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (NULL == *pDst) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   (*pDst)->flags = pSrc->flags;
@@ -533,7 +531,7 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
     if (pSrc->ctb.tagName) {
       (*pDst)->ctb.tagName = taosArrayDup(pSrc->ctb.tagName, NULL);
     }
-    STag* pTag = (STag *)pSrc->ctb.pTag;
+    STag* pTag = (STag*)pSrc->ctb.pTag;
     if (pTag) {
       (*pDst)->ctb.pTag = taosMemoryMalloc(pTag->len);
       memcpy((*pDst)->ctb.pTag, pTag, pTag->len);
@@ -549,5 +547,3 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
 
   return TSDB_CODE_SUCCESS;
 }
-
-
