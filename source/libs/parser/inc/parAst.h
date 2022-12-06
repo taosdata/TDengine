@@ -72,7 +72,8 @@ typedef enum ETableOptionType {
   TABLE_OPTION_WATERMARK,
   TABLE_OPTION_ROLLUP,
   TABLE_OPTION_TTL,
-  TABLE_OPTION_SMA
+  TABLE_OPTION_SMA,
+  TABLE_OPTION_DELETE_MARK
 } ETableOptionType;
 
 typedef struct SAlterOption {

@@ -25,7 +25,7 @@ extern "C" {
 #include "tlrucache.h"
 #include "tmsgcb.h"
 
-#define SYNC_RESP_TTL_MS             10000000
+#define SYNC_RESP_TTL_MS             30000
 #define SYNC_SPEED_UP_HB_TIMER       400
 #define SYNC_SPEED_UP_AFTER_MS       (1000 * 20)
 #define SYNC_SLOW_DOWN_RANGE         100
