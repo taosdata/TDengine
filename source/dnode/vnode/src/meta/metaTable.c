@@ -1186,7 +1186,6 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
 }
 
 static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
-  SMetaEntry  ctbEntry = {0};
   SMetaEntry  stbEntry = {0};
   void       *pVal = NULL;
   int         nVal = 0;
@@ -1229,21 +1228,18 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
     goto _err;
   }
 
+  // Get targe schema info
   SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
-
   if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
     terrno = TSDB_CODE_VND_COL_ALREADY_EXISTS;
     goto _err;
   }
-
   SSchema *pCol = NULL;
   int32_t  iCol = 0;
   for (;;) {
     pCol = NULL;
-
     if (iCol >= pTagSchema->nCols) break;
     pCol = &pTagSchema->pSchema[iCol];
-
     if (strcmp(pCol->name, pAlterTbReq->tagName) == 0) break;
     iCol++;
   }
@@ -1273,142 +1269,32 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
     rc = tdbTbcNext(pCtbIdxc, &pKey, &nKey, &pVal, &nVal);
     if (rc < 0) break;
     if (((SCtbIdxKey *)pKey)->suid != uid) {
+      tdbFree(pKey);
       tdbFree(pVal);
       continue;
     }
-    STag *pTag = pVal;
+    STagIdxKey *pTagIdxKey = NULL;
+    int32_t     nTagIdxKey;
+
+    const void *pTagData = NULL;
+    int32_t     nTagData = 0;
+
+    STagVal tagVal = {.cid = pCol->colId};
+    tTagGet((const STag *)pVal, &tagVal);
+    if (IS_VAR_DATA_TYPE(pCol->type)) {
+      pTagData = tagVal.pData;
+      nTagData = (int32_t)tagVal.nData;
+    } else {
+      pTagData = &(tagVal.i64);
+      nTagData = tDataTypes[pCol->type].bytes;
+    }
+    if (metaCreateTagIdxKey(uid, pCol->colId, pTagData, nTagData, pCol->type, uid, &pTagIdxKey, &nTagIdxKey) < 0) {
+      metaDestroyTagIdxKey(pTagIdxKey);
+      goto _err;
+    }
+    tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, pMeta->txn);
+    metaDestroyTagIdxKey(pTagIdxKey);
   }
-
-  // search uid index
-  // TBC *pUidIdxc = NULL;
-
-  // tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, pMeta->txn);
-  // tdbTbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
-  // ASSERT(c == 0);
-
-  // tdbTbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
-  // oversion = ((SUidIdxVal *)pData)[0].version;
-
-  // search table.db
-  // TBC     *pTbDbc = NULL;
-  // SDecoder dc1 = {0};
-  // SDecoder dc2 = {0};
-
-  ///* get ctbEntry */
-  // tdbTbcOpen(pMeta->pTbDb, &pTbDbc, pMeta->txn);
-  // tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
-  // ASSERT(c == 0);
-  // tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData);
-
-  // ctbEntry.pBuf = taosMemoryMalloc(nData);
-  // memcpy(ctbEntry.pBuf, pData, nData);
-  // tDecoderInit(&dc1, ctbEntry.pBuf, nData);
-  // metaDecodeEntry(&dc1, &ctbEntry);
-
-  /* get stbEntry*/
-  // tdbTbGet(pMeta->pUidIdx, &ctbEntry.ctbEntry.suid, sizeof(tb_uid_t), &pVal, &nVal);
-  // if (!pVal) {
-  //   terrno = TSDB_CODE_INVALID_MSG;
-  //   goto _err;
-  // }
-
-  // tdbTbGet(pMeta->pTbDb, &((STbDbKey){.uid = ctbEntry.ctbEntry.suid, .version = ((SUidIdxVal *)pVal)[0].version}),
-  //          sizeof(STbDbKey), (void **)&stbEntry.pBuf, &nVal);
-  // tdbFree(pVal);
-  // tDecoderInit(&dc2, stbEntry.pBuf, nVal);
-  // metaDecodeEntry(&dc2, &stbEntry);
-
-  // SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
-  // SSchema        *pColumn = NULL;
-  // int32_t         iCol = 0;
-  // for (;;) {
-  //  pColumn = NULL;
-
-  //  if (iCol >= pTagSchema->nCols) break;
-  //  pColumn = &pTagSchema->pSchema[iCol];
-
-  //  if (strcmp(pColumn->name, pAlterTbReq->tagName) == 0) break;
-  //  iCol++;
-  //}
-
-  // if (pColumn == NULL) {
-  //   terrno = TSDB_CODE_VND_COL_NOT_EXISTS;
-  //   goto _err;
-  // }
-
-  // ctbEntry.version = version;
-  // if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
-  //   terrno = TSDB_CODE_INVALID_MSG;
-  //   goto _err;
-  // }
-
-  // const STag *pOldTag = (const STag *)ctbEntry.ctbEntry.pTags;
-  // STag       *pNewTag = NULL;
-  // SArray     *pTagArray = taosArrayInit(pTagSchema->nCols, sizeof(STagVal));
-  // if (!pTagArray) {
-  //   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  //   goto _err;
-  // }
-
-  // for (int32_t i = 0; i < pTagSchema->nCols; i++) {
-  //   SSchema *pCol = &pTagSchema->pSchema[i];
-  //   if (iCol == i) {
-  //     if (pAlterTbReq->isNull) {
-  //       continue;
-  //     }
-  //     STagVal val = {0};
-  //     val.type = pCol->type;
-  //     val.cid = pCol->colId;
-  //     if (IS_VAR_DATA_TYPE(pCol->type)) {
-  //       val.pData = pAlterTbReq->pTagVal;
-  //       val.nData = pAlterTbReq->nTagVal;
-  //     } else {
-  //       memcpy(&val.i64, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
-  //     }
-  //     taosArrayPush(pTagArray, &val);
-  //   } else {
-  //     STagVal val = {.cid = pCol->colId};
-  //     if (tTagGet(pOldTag, &val)) {
-  //       taosArrayPush(pTagArray, &val);
-  //     }
-  //   }
-  // }
-
-  // if ((terrno = tTagNew(pTagArray, pTagSchema->version, false, &pNewTag)) < 0) {
-  //   taosArrayDestroy(pTagArray);
-  //   goto _err;
-  // }
-  // ctbEntry.ctbEntry.pTags = (uint8_t *)pNewTag;
-  // taosArrayDestroy(pTagArray);
-
-  // metaWLock(pMeta);
-
-  // save to table.db
-  // metaSaveToTbDb(pMeta, &ctbEntry);
-
-  // save to uid.idx
-  // metaUpdateUidIdx(pMeta, &ctbEntry);
-
-  // if (iCol == 0) {
-  //   metaUpdateTagIdx(pMeta, &ctbEntry);
-  // }
-
-  // ASSERT(ctbEntry.ctbEntry.pTags);
-  // SCtbIdxKey ctbIdxKey = {.suid = ctbEntry.ctbEntry.suid, .uid = uid};
-  // tdbTbUpsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), ctbEntry.ctbEntry.pTags,
-  //             ((STag *)(ctbEntry.ctbEntry.pTags))->len, pMeta->txn);
-
-  // metaUidCacheClear(pMeta, ctbEntry.ctbEntry.suid);
-
-  // metaULock(pMeta);
-
-  // tDecoderClear(&dc1);
-  // tDecoderClear(&dc2);
-  // taosMemoryFree((void *)ctbEntry.ctbEntry.pTags);
-  // if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
-  // if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
-  // tdbTbcClose(pTbDbc);
-  // tdbTbcClose(pUidIdxc);
   return 0;
 
 _err:
@@ -1422,19 +1308,96 @@ _err:
 }
 
 static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
-  SMetaEntry  ctbEntry = {0};
   SMetaEntry  stbEntry = {0};
   void       *pVal = NULL;
   int         nVal = 0;
   int         ret;
   int         c;
-  tb_uid_t    uid;
+  tb_uid_t    suid;
   int64_t     oversion;
   const void *pData = NULL;
   int         nData = 0;
+  SDecoder    dc = {0};
+
+  if (pAlterTbReq->tagName == NULL) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  // search name index
+  ret = tdbTbGet(pMeta->pNameIdx, pAlterTbReq->tbName, strlen(pAlterTbReq->tbName) + 1, &pVal, &nVal);
+  if (ret < 0) {
+    terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    return -1;
+  }
+  suid = *(tb_uid_t *)pVal;
+  tdbFree(pVal);
+  pVal = NULL;
+
+  if (tdbTbGet(pMeta->pUidIdx, &suid, sizeof(tb_uid_t), &pVal, &nVal) == -1) {
+    ret = -1;
+    goto _err;
+  }
+
+  STbDbKey tbDbKey = {0};
+  tbDbKey.uid = suid;
+  tbDbKey.version = ((SUidIdxVal *)pVal)[0].version;
+  tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pVal, &nVal);
+
+  tDecoderInit(&dc, pVal, nVal);
+  ret = metaDecodeEntry(&dc, &stbEntry);
+  if (ret < 0) {
+    goto _err;
+  }
+
+  // Get targe schema info
+  SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
+  if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
+    terrno = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+    goto _err;
+  }
+  SSchema *pCol = NULL;
+  int32_t  iCol = 0;
+  for (;;) {
+    pCol = NULL;
+    if (iCol >= pTagSchema->nCols) break;
+    pCol = &pTagSchema->pSchema[iCol];
+    if (strcmp(pCol->name, pAlterTbReq->tagName) == 0) break;
+    iCol++;
+  }
+  if (iCol == 0) {
+    // cannot drop 1th tag index
+    terrno = -1;
+    goto _err;
+  }
+  if (pCol == NULL) {
+    terrno = TSDB_CODE_VND_COL_NOT_EXISTS;
+    goto _err;
+  }
+  SArray *tagIdxList = taosArrayInit(512, sizeof(STagIdxKey *));
+
+  TBC *pTagIdxc = NULL;
+  tdbTbcOpen(pMeta->pTagIdx, &pTagIdxc, NULL);
+  int rc =
+      tdbTbcMoveTo(pTagIdxc, &(STagIdxKey){.suid = suid, .cid = INT32_MIN, .type = pCol->type}, sizeof(STagIdxKey), &c);
+  for (;;) {
+    void *pKey, *pVal;
+    int   nKey, nVal;
+    rc = tdbTbcNext(pTagIdxc, &pKey, &nKey, &pVal, &nVal);
+    STagIdxKey *pIdxKey = (STagIdxKey *)pKey;
+    if (pIdxKey->suid != suid) {
+      tdbFree(pKey);
+      tdbFree(pVal);
+      continue;
+    }
+    taosArrayPush(tagIdxList, &pIdxKey);
+  }
+  tdbTbcClose(pTagIdxc);
 
   // drop index
   return 0;
+_err:
+  return -1;
 }
 
 int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pMetaRsp) {
