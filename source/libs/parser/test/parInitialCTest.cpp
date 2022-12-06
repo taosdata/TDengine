@@ -375,9 +375,68 @@ TEST_F(ParserInitialCTest, createFunction) {
 TEST_F(ParserInitialCTest, createSmaIndex) {
   useDb("root", "test");
 
+  SMCreateSmaReq expect = {0};
+
+  auto setCreateSmacReq = [&](const char* pIndexName, const char* pStbName, int64_t interval, int8_t intervalUnit,
+                              int64_t offset = 0, int64_t sliding = -1, int8_t slidingUnit = -1, int8_t igExists = 0) {
+    memset(&expect, 0, sizeof(SMCreateSmaReq));
+    strcpy(expect.name, pIndexName);
+    strcpy(expect.stb, pStbName);
+    expect.igExists = igExists;
+    expect.intervalUnit = intervalUnit;
+    expect.slidingUnit = slidingUnit < 0 ? intervalUnit : slidingUnit;
+    expect.timezone = 0;
+    expect.dstVgId = 1;
+    expect.interval = interval;
+    expect.offset = offset;
+    expect.sliding = sliding < 0 ? interval : sliding;
+    expect.maxDelay = -1;
+    expect.watermark = TSDB_DEFAULT_ROLLUP_WATERMARK;
+    expect.deleteMark = TSDB_DEFAULT_ROLLUP_DELETE_MARK;
+  };
+
+  auto setOptionsForCreateSmacReq = [&](int64_t maxDelay, int64_t watermark, int64_t deleteMark) {
+    expect.maxDelay = maxDelay;
+    expect.watermark = watermark;
+    expect.deleteMark = deleteMark;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_INDEX_STMT);
+    SMCreateSmaReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(std::string(req.name), std::string(expect.name));
+    ASSERT_EQ(std::string(req.stb), std::string(expect.stb));
+    ASSERT_EQ(req.igExists, expect.igExists);
+    ASSERT_EQ(req.intervalUnit, expect.intervalUnit);
+    ASSERT_EQ(req.slidingUnit, expect.slidingUnit);
+    ASSERT_EQ(req.timezone, expect.timezone);
+    ASSERT_EQ(req.dstVgId, expect.dstVgId);
+    ASSERT_EQ(req.interval, expect.interval);
+    ASSERT_EQ(req.offset, expect.offset);
+    ASSERT_EQ(req.sliding, expect.sliding);
+    ASSERT_EQ(req.maxDelay, expect.maxDelay);
+    ASSERT_EQ(req.watermark, expect.watermark);
+    ASSERT_EQ(req.deleteMark, expect.deleteMark);
+    ASSERT_GT(req.exprLen, 0);
+    ASSERT_EQ(req.tagsFilterLen, 0);
+    ASSERT_GT(req.sqlLen, 0);
+    ASSERT_GT(req.astLen, 0);
+    ASSERT_NE(req.expr, nullptr);
+    ASSERT_EQ(req.tagsFilter, nullptr);
+    ASSERT_NE(req.sql, nullptr);
+    ASSERT_NE(req.ast, nullptr);
+    tFreeSMCreateSmaReq(&req);
+  });
+
+  setCreateSmacReq("0.test.index1", "0.test.t1", 10 * MILLISECOND_PER_SECOND, 's');
   run("CREATE SMA INDEX index1 ON t1 FUNCTION(MAX(c1), MIN(c3 + 10), SUM(c4)) INTERVAL(10s)");
 
-  run("CREATE SMA INDEX index2 ON st1 FUNCTION(MAX(c1), MIN(tag1)) INTERVAL(10s)");
+  setCreateSmacReq("0.test.index2", "0.test.st1", 5 * MILLISECOND_PER_SECOND, 's');
+  setOptionsForCreateSmacReq(10 * MILLISECOND_PER_SECOND, 20 * MILLISECOND_PER_SECOND, 1000 * MILLISECOND_PER_SECOND);
+  run("CREATE SMA INDEX index2 ON st1 FUNCTION(MAX(c1), MIN(tag1)) INTERVAL(5s) WATERMARK 20s MAX_DELAY 10s "
+      "DELETE_MARK 1000s");
 }
 
 TEST_F(ParserInitialCTest, createMnode) {
@@ -408,23 +467,26 @@ TEST_F(ParserInitialCTest, createStable) {
     memset(&expect, 0, sizeof(SMCreateStbReq));
   };
 
-  auto setCreateStbReqFunc = [&](const char* pDbName, const char* pTbName, int8_t igExists = 0, int64_t delay1 = -1,
-                                 int64_t delay2 = -1, int64_t watermark1 = TSDB_DEFAULT_ROLLUP_WATERMARK,
-                                 int64_t watermark2 = TSDB_DEFAULT_ROLLUP_WATERMARK,
-                                 int32_t ttl = TSDB_DEFAULT_TABLE_TTL, const char* pComment = nullptr) {
-    int32_t len = snprintf(expect.name, sizeof(expect.name), "0.%s.%s", pDbName, pTbName);
-    expect.name[len] = '\0';
-    expect.igExists = igExists;
-    expect.delay1 = delay1;
-    expect.delay2 = delay2;
-    expect.watermark1 = watermark1;
-    expect.watermark2 = watermark2;
-    //    expect.ttl = ttl;
-    if (nullptr != pComment) {
-      expect.pComment = strdup(pComment);
-      expect.commentLen = strlen(pComment);
-    }
-  };
+  auto setCreateStbReqFunc =
+      [&](const char* pDbName, const char* pTbName, int8_t igExists = 0, int64_t delay1 = -1, int64_t delay2 = -1,
+          int64_t watermark1 = TSDB_DEFAULT_ROLLUP_WATERMARK, int64_t watermark2 = TSDB_DEFAULT_ROLLUP_WATERMARK,
+          int64_t deleteMark1 = TSDB_DEFAULT_ROLLUP_DELETE_MARK, int64_t deleteMark2 = TSDB_DEFAULT_ROLLUP_DELETE_MARK,
+          int32_t ttl = TSDB_DEFAULT_TABLE_TTL, const char* pComment = nullptr) {
+        int32_t len = snprintf(expect.name, sizeof(expect.name), "0.%s.%s", pDbName, pTbName);
+        expect.name[len] = '\0';
+        expect.igExists = igExists;
+        expect.delay1 = delay1;
+        expect.delay2 = delay2;
+        expect.watermark1 = watermark1;
+        expect.watermark2 = watermark2;
+        expect.deleteMark1 = deleteMark1;
+        expect.deleteMark2 = deleteMark2;
+        // expect.ttl = ttl;
+        if (nullptr != pComment) {
+          expect.pComment = strdup(pComment);
+          expect.commentLen = strlen(pComment);
+        }
+      };
 
   auto addFieldToCreateStbReqFunc = [&](bool col, const char* pFieldName, uint8_t type, int32_t bytes = 0,
                                         int8_t flags = COL_SMA_ON) {
@@ -511,7 +573,8 @@ TEST_F(ParserInitialCTest, createStable) {
   clearCreateStbReq();
 
   setCreateStbReqFunc("rollup_db", "t1", 1, 100 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_MINUTE, 10,
-                      1 * MILLISECOND_PER_MINUTE, 100, "test create table");
+                      1 * MILLISECOND_PER_MINUTE, 1000 * MILLISECOND_PER_SECOND, 200 * MILLISECOND_PER_MINUTE, 100,
+                      "test create table");
   addFieldToCreateStbReqFunc(true, "ts", TSDB_DATA_TYPE_TIMESTAMP, 0, 0);
   addFieldToCreateStbReqFunc(true, "c1", TSDB_DATA_TYPE_INT);
   addFieldToCreateStbReqFunc(true, "c2", TSDB_DATA_TYPE_UINT);
@@ -549,7 +612,8 @@ TEST_F(ParserInitialCTest, createStable) {
       "TAGS (a1 TIMESTAMP, a2 INT, a3 INT UNSIGNED, a4 BIGINT, a5 BIGINT UNSIGNED, a6 FLOAT, a7 DOUBLE, "
       "a8 BINARY(20), a9 SMALLINT, a10 SMALLINT UNSIGNED COMMENT 'test column comment', a11 TINYINT, "
       "a12 TINYINT UNSIGNED, a13 BOOL, a14 NCHAR(30), a15 VARCHAR(50)) "
-      "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) MAX_DELAY 100s,10m WATERMARK 10a,1m");
+      "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) MAX_DELAY 100s,10m WATERMARK 10a,1m "
+      "DELETE_MARK 1000s,200m");
   clearCreateStbReq();
 }
 

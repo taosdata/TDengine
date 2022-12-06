@@ -1580,6 +1580,7 @@ void destroyOperatorInfo(SOperatorInfo* pOperator) {
 int32_t optrDefaultBufFn(SOperatorInfo* pOperator) {
   if (pOperator->blocking) {
     ASSERT(0);
+    return 0;
   } else {
     return 0;
   }

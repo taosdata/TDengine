@@ -19,6 +19,7 @@
 #include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncReplication.h"
+#include "syncRespMgr.h"
 #include "syncUtil.h"
 
 static void syncNodeCleanConfigIndex(SSyncNode* ths) {
@@ -85,11 +86,9 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
     }
   }
 
-#if 0
   if (!syncNodeIsMnode(ths)) {
     syncRespClean(ths->pSyncRespMgr);
   }
-#endif
 
   return 0;
 }

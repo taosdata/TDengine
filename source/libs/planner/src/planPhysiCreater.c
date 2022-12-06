@@ -1139,6 +1139,7 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
                                              SWindowLogicNode* pWindowLogicNode) {
   pWindow->triggerType = pWindowLogicNode->triggerType;
   pWindow->watermark = pWindowLogicNode->watermark;
+  pWindow->deleteMark = pWindowLogicNode->deleteMark;
   pWindow->igExpired = pWindowLogicNode->igExpired;
   pWindow->inputTsOrder = pWindowLogicNode->inputTsOrder;
   pWindow->outputTsOrder = pWindowLogicNode->outputTsOrder;

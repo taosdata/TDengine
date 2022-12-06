@@ -473,6 +473,7 @@ void*   tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset);
 typedef struct {
   char           name[TSDB_TOPIC_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
+  char           createUser[TSDB_USER_LEN];
   int64_t        createTime;
   int64_t        updateTime;
   int64_t        uid;
@@ -644,6 +645,7 @@ typedef struct {
   // 3.0.20
   int64_t checkpointFreq;  // ms
   int64_t currentTick;     // do not serialize
+  int64_t deleteMark;
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
