@@ -132,6 +132,7 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       }
 
       tEndDecode(&dc);
+      tDecoderClear(&dc);
     } break;
     case TDMT_VND_DELETE: {
       int32_t     size;
@@ -190,14 +191,15 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   if (version <= pVnode->state.applied) {
     vError("vgId:%d, duplicate write request. version: %" PRId64 ", applied: %" PRId64 "", TD_VID(pVnode), version,
            pVnode->state.applied);
+    terrno = TSDB_CODE_VND_DUP_REQUEST;
     pRsp->info.handle = NULL;
     return -1;
   }
 
   vDebug("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          version);
-  ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
 
+  ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
   pVnode->state.applied = version;
   pVnode->state.applyTerm = pMsg->info.conn.applyTerm;
 
@@ -300,7 +302,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       vnodeProcessAlterConfigReq(pVnode, version, pReq, len, pRsp);
       break;
     case TDMT_VND_COMMIT:
-      goto _do_commit;
+      vnodeSyncCommit(pVnode);
+      vnodeBegin(pVnode);
+      goto _exit;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
       return -1;
@@ -318,13 +322,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
 
   // commit if need
   if (vnodeShouldCommit(pVnode)) {
-  _do_commit:
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), version);
-    // commit current change
-    if (vnodeCommit(pVnode) < 0) {
-      vError("vgId:%d, failed to commit vnode since %s.", TD_VID(pVnode), tstrerror(terrno));
-      goto _err;
-    }
+#if 0
+    vnodeSyncCommit(pVnode);
+#else
+    vnodeAsyncCommit(pVnode);
+#endif
 
     // start a new one
     if (vnodeBegin(pVnode) < 0) {
@@ -333,6 +336,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     }
   }
 
+_exit:
   return 0;
 
 _err:
@@ -353,7 +357,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
   // if ((pMsg->msgType == TDMT_SCH_QUERY) && !vnodeIsLeader(pVnode)) {
   if ((pMsg->msgType == TDMT_SCH_QUERY) && !syncIsReadyForRead(pVnode->sync)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
 
@@ -376,12 +380,12 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
        pMsg->msgType == TDMT_VND_BATCH_META) &&
       !syncIsReadyForRead(pVnode->sync)) {
     //      !vnodeIsLeader(pVnode)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
 
   if (pMsg->msgType == TDMT_VND_TMQ_CONSUME && !pVnode->restored) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+    vnodeRedirectRpcMsg(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
     return 0;
   }
 
@@ -953,7 +957,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
       if (pSubmitRsp->aCreateTbRsp == NULL &&
           (pSubmitRsp->aCreateTbRsp = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(SVCreateTbRsp))) ==
               NULL) {
-        code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         goto _exit;
       }
 
@@ -965,7 +969,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 
         if (newTbUids == NULL &&
             (newTbUids = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(int64_t))) == NULL) {
-          code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          code = TSDB_CODE_OUT_OF_MEMORY;
           goto _exit;
         }
 
@@ -1026,13 +1030,13 @@ _exit:
 
 #else
   SSubmitReq *pSubmitReq = (SSubmitReq *)pReq;
-  SSubmitRsp  submitRsp = {0};
-  int32_t     nRows = 0;
-  int32_t     tsize, ret;
-  SEncoder    encoder = {0};
-  SArray     *newTbUids = NULL;
-  SVStatis    statis = {0};
-  bool        tbCreated = false;
+  SSubmitRsp submitRsp = {0};
+  int32_t nRows = 0;
+  int32_t tsize, ret;
+  SEncoder encoder = {0};
+  SArray *newTbUids = NULL;
+  SVStatis statis = {0};
+  bool tbCreated = false;
   terrno = TSDB_CODE_SUCCESS;
 
   pRsp->code = 0;

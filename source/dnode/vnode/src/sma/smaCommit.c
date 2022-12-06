@@ -23,7 +23,7 @@ static int32_t tdProcessRSmaSyncCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma);
 #endif
 static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma);
-static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma);
+static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo);
 static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma);
 static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat);
 
@@ -59,7 +59,7 @@ int32_t smaSyncPostCommit(SSma *pSma) { return tdProcessRSmaSyncPostCommitImpl(p
  * @param pSma
  * @return int32_t
  */
-int32_t smaPreCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma); }
+int32_t smaPrepareAsyncCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma); }
 
 /**
  * @brief async commit, only applicable to Rollup SMA
@@ -67,7 +67,7 @@ int32_t smaPreCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma);
  * @param pSma
  * @return int32_t
  */
-int32_t smaCommit(SSma *pSma) { return tdProcessRSmaAsyncCommitImpl(pSma); }
+int32_t smaCommit(SSma *pSma, SCommitInfo *pInfo) { return tdProcessRSmaAsyncCommitImpl(pSma, pInfo); }
 
 /**
  * @brief async commit, only applicable to Rollup SMA
@@ -127,8 +127,8 @@ _exit:
 }
 
 int32_t smaFinishCommit(SSma *pSma) {
-  int32_t  code = 0;
-  SVnode  *pVnode = pSma->pVnode;
+  int32_t code = 0;
+  SVnode *pVnode = pSma->pVnode;
 
   if (VND_RSMA1(pVnode) && (code = tsdbFinishCommit(VND_RSMA1(pVnode))) < 0) {
     smaError("vgId:%d, failed to finish commit tsdb rsma1 since %s", TD_VID(pVnode), tstrerror(code));
@@ -378,6 +378,11 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
 #endif
 
+  // all rsma results are written completely
+  STsdb *pTsdb = NULL;
+  if ((pTsdb = VND_RSMA1(pSma->pVnode))) tsdbPrepareCommit(pTsdb);
+  if ((pTsdb = VND_RSMA2(pSma->pVnode))) tsdbPrepareCommit(pTsdb);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -387,9 +392,9 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
  * @param pSma
  * @return int32_t
  */
-static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma) {
-  int32_t  code = 0;
-  SVnode  *pVnode = pSma->pVnode;
+static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo) {
+  int32_t code = 0;
+  SVnode *pVnode = pSma->pVnode;
 #if 0
   SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pSmaEnv);
 
@@ -399,11 +404,11 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma) {
   }
 #endif
 
-  if ((code = tsdbCommit(VND_RSMA1(pVnode))) < 0) {
+  if ((code = tsdbCommit(VND_RSMA1(pVnode), pInfo)) < 0) {
     smaError("vgId:%d, failed to commit tsdb rsma1 since %s", TD_VID(pVnode), tstrerror(code));
     goto _exit;
   }
-  if ((code = tsdbCommit(VND_RSMA2(pVnode))) < 0) {
+  if ((code = tsdbCommit(VND_RSMA2(pVnode), pInfo)) < 0) {
     smaError("vgId:%d, failed to commit tsdb rsma2 since %s", TD_VID(pVnode), tstrerror(code));
     goto _exit;
   }

@@ -569,9 +569,9 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   int32_t    nColData = TARRAY_SIZE(pSubmitTbData->aCol);
   SColData  *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
 
-  ASSERT(aColData[0].cid = PRIMARYKEY_TIMESTAMP_COL_ID);
-  ASSERT(aColData[0].type = TSDB_DATA_TYPE_TIMESTAMP);
-  ASSERT(aColData[0].flag = HAS_VALUE);
+  ASSERT(aColData[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
+  ASSERT(aColData[0].type == TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT(aColData[0].flag == HAS_VALUE);
 
   // copy and construct block data
   SBlockData *pBlockData = vnodeBufPoolMalloc(pPool, sizeof(*pBlockData));

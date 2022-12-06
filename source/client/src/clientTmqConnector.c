@@ -303,7 +303,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_fetchRawBlockImp(
       jniDebug("jobj:%p, conn:%p, resultset:%p, no data to retrieve", jobj, tscon, (void *)res);
       return JNI_FETCH_END;
     } else {
-      jniError("jobj:%p, conn:%p, query interrupted", jobj, tscon);
+      jniError("jobj:%p, conn:%p, query interrupted, tmq fetch block error code:%d, msg:%s", jobj, tscon, error_code, taos_errstr(tres));
       return JNI_RESULT_SET_NULL;
     }
   }

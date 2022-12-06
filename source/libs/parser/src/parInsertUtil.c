@@ -204,12 +204,11 @@ void qDestroyBoundColInfo(void* pInfo) {
   taosMemoryFreeClear(pBoundInfo->pColIndex);
 }
 
-
 static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset, STableMeta* pTableMeta,
                                STableDataBlocks** dataBlocks) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)taosMemoryCalloc(1, sizeof(STableDataBlocks));
   if (dataBuf == NULL) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   dataBuf->nAllocSize = (uint32_t)defaultSize;
@@ -223,7 +222,7 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
   dataBuf->pData = taosMemoryMalloc(dataBuf->nAllocSize);
   if (dataBuf->pData == NULL) {
     taosMemoryFreeClear(dataBuf);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   memset(dataBuf->pData, 0, sizeof(SSubmitBlk));
 
@@ -260,7 +259,7 @@ int32_t insBuildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbR
       memset(pBlocks->pData + pBlocks->size, 0, pBlocks->nAllocSize - pBlocks->size);
     } else {
       pBlocks->nAllocSize -= len + pBlocks->rowSize;
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
@@ -361,7 +360,7 @@ static int sortRemoveDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* 
   if (pBlkKeyInfo->pKeyTuple == NULL || pBlkKeyInfo->maxBytesAlloc < nAlloc) {
     char* tmp = taosMemoryRealloc(pBlkKeyInfo->pKeyTuple, nAlloc);
     if (tmp == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     pBlkKeyInfo->pKeyTuple = (SBlockKeyTuple*)tmp;
     pBlkKeyInfo->maxBytesAlloc = (int32_t)nAlloc;
@@ -529,7 +528,7 @@ static int sortMergeDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* p
   if (pBlkKeyInfo->pKeyTuple == NULL || pBlkKeyInfo->maxBytesAlloc < nAlloc) {
     char* tmp = taosMemoryRealloc(pBlkKeyInfo->pKeyTuple, nAlloc);
     if (tmp == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     pBlkKeyInfo->pKeyTuple = (SBlockKeyTuple*)tmp;
     pBlkKeyInfo->maxBytesAlloc = (int32_t)nAlloc;
@@ -679,7 +678,7 @@ int32_t insMergeTableDataBlocks(SHashObj* pHashObj, SArray** pVgDataBlocks) {
           insDestroyBlockArrayList(pVnodeDataBlockList);
           taosMemoryFreeClear(dataBuf->pData);
           taosMemoryFreeClear(blkKeyInfo.pKeyTuple);
-          return TSDB_CODE_TSC_OUT_OF_MEMORY;
+          return TSDB_CODE_OUT_OF_MEMORY;
         }
       }
 
@@ -732,7 +731,7 @@ int32_t insAllocateMemForSize(STableDataBlocks* pDataBlock, int32_t allSize) {
     } else {
       // do nothing, if allocate more memory failed
       pDataBlock->nAllocSize = nAllocSizeOld;
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
@@ -949,13 +948,13 @@ int32_t insBuildOutput(SHashObj* pVgroupsHashObj, SArray* pVgDataBlocks, SArray*
   size_t numOfVg = taosArrayGetSize(pVgDataBlocks);
   *pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
   if (NULL == *pDataBlocks) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   for (size_t i = 0; i < numOfVg; ++i) {
     STableDataBlocks* src = taosArrayGetP(pVgDataBlocks, i);
     SVgDataBlocks*    dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
     if (NULL == dst) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     taosHashGetDup(pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
     dst->numOfTables = src->numOfTables;
@@ -1012,7 +1011,8 @@ void insCheckTableDataOrder(STableDataCxt* pTableCxt, TSKEY tsKey) {
 
 void destroyBoundColInfo(SBoundColInfo* pInfo) { taosMemoryFreeClear(pInfo->pColIndex); }
 
-static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreateTbReq, STableDataCxt** pOutput, bool colMode) {
+static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreateTbReq, STableDataCxt** pOutput,
+                                  bool colMode) {
   STableDataCxt* pTableCxt = taosMemoryCalloc(1, sizeof(STableDataCxt));
   if (NULL == pTableCxt) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -1229,33 +1229,33 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
   if (NULL == pVgroupHash || NULL == pVgroupList) {
     taosHashCleanup(pVgroupHash);
     taosArrayDestroy(pVgroupList);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
-  bool colFormat = false;
-  
+  bool    colFormat = false;
+
   void* p = taosHashIterate(pTableHash, NULL);
   if (p) {
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
     colFormat = (0 != (pTableCxt->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT));
   }
-  
+
   while (TSDB_CODE_SUCCESS == code && NULL != p) {
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
     if (colFormat) {
-      SColData *pCol = taosArrayGet(pTableCxt->pData->aCol, 0);
+      SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, 0);
       if (pCol->nVal <= 0) {
         p = taosHashIterate(pTableHash, p);
         continue;
       }
-      
+
       if (pTableCxt->pData->pCreateTbReq) {
         pTableCxt->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
       }
-      
+
       taosArraySort(pTableCxt->pData->aCol, insColDataComp);
-      
+
       tColDataSortMerge(pTableCxt->pData->aCol);
     } else {
       if (!pTableCxt->ordered) {
@@ -1265,7 +1265,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
         code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
       }
     }
-    
+
     if (TSDB_CODE_SUCCESS == code) {
       SVgroupDataCxt* pVgCxt = NULL;
       int32_t         vgId = pTableCxt->pMeta->vgId;
@@ -1304,7 +1304,7 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
     len += sizeof(SMsgHead);
     pBuf = taosMemoryMalloc(len);
     if (NULL == pBuf) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     ((SMsgHead*)pBuf)->vgId = htonl(vgId);
     ((SMsgHead*)pBuf)->contLen = htonl(len);
@@ -1332,7 +1332,7 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
   size_t  numOfVg = taosArrayGetSize(pVgDataCxtList);
   SArray* pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
   if (NULL == pDataBlocks) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1340,7 +1340,7 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
     SVgroupDataCxt* src = taosArrayGetP(pVgDataCxtList, i);
     SVgDataBlocks*  dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
     if (NULL == dst) {
-      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
     }
     if (TSDB_CODE_SUCCESS == code) {
       dst->numOfTables = taosArrayGetSize(src->pData->aSubmitTbData);
@@ -1350,7 +1350,7 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
       code = buildSubmitReq(src->vgId, src->pData, &dst->pData, &dst->size);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = (NULL == taosArrayPush(pDataBlocks, &dst) ? TSDB_CODE_TSC_OUT_OF_MEMORY : TSDB_CODE_SUCCESS);
+      code = (NULL == taosArrayPush(pDataBlocks, &dst) ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS);
     }
   }
 

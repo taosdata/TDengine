@@ -2352,7 +2352,6 @@ static int32_t smlParseJSONString(SSmlHandle *info, cJSON *root, SSmlTableInfo *
   return TSDB_CODE_SUCCESS;
 }
 /************* TSDB_SML_JSON_PROTOCOL function end **************/
-
 static int32_t smlParseLineBottom(SSmlHandle *info) {
   if(info->dataFormat) return TSDB_CODE_SUCCESS;
 

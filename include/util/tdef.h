@@ -189,12 +189,13 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_COLUMNS 4096
 #define TSDB_MIN_COLUMNS 2  // PRIMARY COLUMN(timestamp) + other columns
 
-#define TSDB_NODE_NAME_LEN  64
-#define TSDB_TABLE_NAME_LEN 193  // it is a null-terminated string
-#define TSDB_TOPIC_NAME_LEN 193  // it is a null-terminated string
-#define TSDB_CGROUP_LEN     193  // it is a null-terminated string
-#define TSDB_DB_NAME_LEN    65
-#define TSDB_DB_FNAME_LEN   (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_NODE_NAME_LEN   64
+#define TSDB_TABLE_NAME_LEN  193                                // it is a null-terminated string
+#define TSDB_TOPIC_NAME_LEN  193                                // it is a null-terminated string
+#define TSDB_CGROUP_LEN      193                                // it is a null-terminated string
+#define TSDB_USER_CGROUP_LEN (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
+#define TSDB_DB_NAME_LEN     65
+#define TSDB_DB_FNAME_LEN    (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 
 #define TSDB_FUNC_NAME_LEN       65
 #define TSDB_FUNC_COMMENT_LEN    1024 * 1024
@@ -280,7 +281,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_ROLE_MGMT  1
 #define TSDB_DNODE_ROLE_VNODE 2
 
-#define TSDB_MAX_REPLICA 5
+#define TSDB_MAX_REPLICA          5
 #define TSDB_SYNC_LOG_BUFFER_SIZE 4096
 
 #define TSDB_TBNAME_COLUMN_INDEX     (-1)

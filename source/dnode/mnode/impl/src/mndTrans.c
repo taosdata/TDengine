@@ -918,10 +918,13 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       sendRsp = true;
     }
   } else {
-    if (pTrans->stage == TRN_STAGE_REDO_ACTION && ((code == TSDB_CODE_APP_NOT_READY && pTrans->failedTimes > 60) ||
-                                                   (code != TSDB_CODE_APP_NOT_READY && pTrans->failedTimes > 6))) {
+    if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
+      if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_APP_IS_STARTING) {
+        if (pTrans->failedTimes > 60) sendRsp = true;
+      } else {
+        if (pTrans->failedTimes > 6) sendRsp = true;
+      }
       if (code == 0) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
-      sendRsp = true;
     }
   }
 
@@ -942,7 +945,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         code = TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL;
       }
       if (i != 0 && code == 0) {
-        code = TSDB_CODE_RPC_REDIRECT;
+        code = TSDB_CODE_MNODE_NOT_FOUND;
       }
       mInfo("trans:%d, client:%d send rsp, code:0x%x stage:%s app:%p", pTrans->id, i, code, mndTransStr(pTrans->stage),
             pInfo->ahandle);
@@ -1039,8 +1042,8 @@ static void mndTransResetAction(SMnode *pMnode, STrans *pTrans, STransAction *pA
   pAction->rawWritten = 0;
   pAction->msgSent = 0;
   pAction->msgReceived = 0;
-  if (pAction->errCode == TSDB_CODE_RPC_REDIRECT || pAction->errCode == TSDB_CODE_SYN_NEW_CONFIG_ERROR ||
-      pAction->errCode == TSDB_CODE_SYN_INTERNAL_ERROR || pAction->errCode == TSDB_CODE_SYN_NOT_LEADER) {
+  if (pAction->errCode == TSDB_CODE_SYN_NEW_CONFIG_ERROR || pAction->errCode == TSDB_CODE_SYN_INTERNAL_ERROR ||
+      pAction->errCode == TSDB_CODE_SYN_NOT_LEADER) {
     pAction->epSet.inUse = (pAction->epSet.inUse + 1) % pAction->epSet.numOfEps;
     mInfo("trans:%d, %s:%d execute status is reset and set epset inuse:%d", pTrans->id, mndTransStr(pAction->stage),
           pAction->id, pAction->epSet.inUse);

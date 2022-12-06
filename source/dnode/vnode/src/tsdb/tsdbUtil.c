@@ -107,7 +107,7 @@ int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItem
 
   SArray *pArray = taosArrayInit(pMapData->nItem, itemSize);
   if (pArray == NULL) {
-    code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
@@ -1105,8 +1105,13 @@ void tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColD
   int32_t ridx = pBlockData->nColData - 1;
 
   while (lidx <= ridx) {
-    int32_t midx = lidx + (ridx - lidx) * (cid - pBlockData->aColData[lidx].cid) /
-                              (pBlockData->aColData[ridx].cid - pBlockData->aColData[lidx].cid);
+    int32_t midx;
+    if (lidx == ridx) {
+      midx = lidx;
+    } else {
+      midx = lidx + (ridx - lidx) * (cid - pBlockData->aColData[lidx].cid) /
+                        (pBlockData->aColData[ridx].cid - pBlockData->aColData[lidx].cid);
+    }
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, midx);
     int32_t   c = (pColData->cid == cid) ? 0 : ((pColData->cid > cid) ? 1 : -1);
 

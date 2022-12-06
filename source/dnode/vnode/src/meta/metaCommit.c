@@ -20,12 +20,19 @@ static FORCE_INLINE void  metaFree(void *pPool, void *p) { vnodeBufPoolFree((SVB
 
 // begin a meta txn
 int metaBegin(SMeta *pMeta, int8_t fromSys) {
+  void *(*xMalloc)(void *, size_t);
+  void (*xFree)(void *, void *);
+  void *xArg = NULL;
+
   if (fromSys) {
-    tdbTxnOpen(&pMeta->txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+    xMalloc = tdbDefaultMalloc;
+    xFree = tdbDefaultFree;
   } else {
-    tdbTxnOpen(&pMeta->txn, 0, metaMalloc, metaFree, pMeta->pVnode->inUse, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+    xMalloc = metaMalloc;
+    xFree = metaFree;
+    xArg = pMeta->pVnode->inUse;
   }
-  if (tdbBegin(pMeta->pEnv, &pMeta->txn) < 0) {
+  if (tdbBegin(pMeta->pEnv, &pMeta->txn, xMalloc, xFree, xArg, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
 
@@ -33,9 +40,16 @@ int metaBegin(SMeta *pMeta, int8_t fromSys) {
 }
 
 // commit the meta txn
-int metaCommit(SMeta *pMeta) { return tdbCommit(pMeta->pEnv, &pMeta->txn); }
-int metaFinishCommit(SMeta *pMeta) { return tdbPostCommit(pMeta->pEnv, &pMeta->txn); }
-int metaPrepareAsyncCommit(SMeta *pMeta) { return tdbPrepareAsyncCommit(pMeta->pEnv, &pMeta->txn); }
+TXN *metaGetTxn(SMeta *pMeta) { return pMeta->txn; }
+int  metaCommit(SMeta *pMeta, TXN *txn) { return tdbCommit(pMeta->pEnv, txn); }
+int  metaFinishCommit(SMeta *pMeta, TXN *txn) { return tdbPostCommit(pMeta->pEnv, txn); }
+int  metaPrepareAsyncCommit(SMeta *pMeta) {
+   // return tdbPrepareAsyncCommit(pMeta->pEnv, pMeta->txn);
+  int code = 0;
+  code = tdbCommit(pMeta->pEnv, pMeta->txn);
+
+  return code;
+}
 
 // abort the meta txn
-int metaAbort(SMeta *pMeta) { return tdbAbort(pMeta->pEnv, &pMeta->txn); }
+int metaAbort(SMeta *pMeta) { return tdbAbort(pMeta->pEnv, pMeta->txn); }

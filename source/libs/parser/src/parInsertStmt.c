@@ -78,7 +78,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
   int32_t  code = TSDB_CODE_SUCCESS;
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
   if (NULL == tags) {
-    return TSDB_CODE_QRY_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
 
   SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
@@ -350,7 +350,7 @@ int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TA
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
   if (NULL == tags) {
-    return TSDB_CODE_QRY_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
 
   if (pDataBlock->pMeta->tableType != TSDB_SUPER_TABLE && pDataBlock->pMeta->tableType != TSDB_CHILD_TABLE) {

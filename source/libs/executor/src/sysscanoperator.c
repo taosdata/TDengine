@@ -1335,7 +1335,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
       if (NULL == pMsgSendInfo) {
         qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
-        pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+        pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
         return NULL;
       }
 
@@ -1437,7 +1437,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   setOperatorInfo(pOperator, "SysTableScanOperator", QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doSysTableScan, NULL, destroySysScanOperator, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doSysTableScan, NULL, destroySysScanOperator, optrDefaultBufFn, NULL);
   return pOperator;
 
   _error:
@@ -1874,78 +1874,80 @@ static void destroyBlockDistScanOperatorInfo(void* param) {
 }
 
 static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pCond) {
-    memset(pCond, 0, sizeof(SQueryTableDataCond));
+  memset(pCond, 0, sizeof(SQueryTableDataCond));
 
-    pCond->order = TSDB_ORDER_ASC;
-    pCond->numOfCols = 1;
-    pCond->colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
-    if (pCond->colList == NULL) {
-        terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-        return terrno;
-    }
+  pCond->order = TSDB_ORDER_ASC;
+  pCond->numOfCols = 1;
+  pCond->colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
+  pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t));
+  if (pCond->colList == NULL || pCond->pSlotList == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
 
-    pCond->colList->colId = 1;
-    pCond->colList->type = TSDB_DATA_TYPE_TIMESTAMP;
-    pCond->colList->bytes = sizeof(TSKEY);
+  pCond->colList->colId = 1;
+  pCond->colList->type = TSDB_DATA_TYPE_TIMESTAMP;
+  pCond->colList->bytes = sizeof(TSKEY);
 
-    pCond->twindows = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
-    pCond->suid = uid;
-    pCond->type = TIMEWINDOW_RANGE_CONTAINED;
-    pCond->startVersion = -1;
-    pCond->endVersion = -1;
+  pCond->pSlotList[0] = 0;
 
-    return TSDB_CODE_SUCCESS;
+  pCond->twindows = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
+  pCond->suid = uid;
+  pCond->type = TIMEWINDOW_RANGE_CONTAINED;
+  pCond->startVersion = -1;
+  pCond->endVersion = -1;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanPhysiNode* pBlockScanNode,
                                                SExecTaskInfo* pTaskInfo) {
-    SBlockDistInfo* pInfo = taosMemoryCalloc(1, sizeof(SBlockDistInfo));
-    SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-    if (pInfo == NULL || pOperator == NULL) {
-        pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _error;
-    }
+  SBlockDistInfo* pInfo = taosMemoryCalloc(1, sizeof(SBlockDistInfo));
+  SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  if (pInfo == NULL || pOperator == NULL) {
+    pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _error;
+  }
 
-    {
-        SQueryTableDataCond cond = {0};
+  pInfo->pResBlock = createDataBlockFromDescNode(pBlockScanNode->node.pOutputDataBlockDesc);
+  blockDataEnsureCapacity(pInfo->pResBlock, 1);
 
-        int32_t code = initTableblockDistQueryCond(pBlockScanNode->suid, &cond);
-        if (code != TSDB_CODE_SUCCESS) {
-            goto _error;
-        }
-
-        STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
-        size_t          num = tableListGetSize(pTableListInfo);
-        void*           pList = tableListGetInfo(pTableListInfo, 0);
-
-        code = tsdbReaderOpen(readHandle->vnode, &cond, pList, num, &pInfo->pHandle, pTaskInfo->id.str);
-        cleanupQueryTableDataCond(&cond);
-        if (code != 0) {
-            goto _error;
-        }
-    }
-
-    pInfo->readHandle = *readHandle;
-    pInfo->uid = pBlockScanNode->suid;
-
-    pInfo->pResBlock = createDataBlockFromDescNode(pBlockScanNode->node.pOutputDataBlockDesc);
-    blockDataEnsureCapacity(pInfo->pResBlock, 1);
-
-    int32_t    numOfCols = 0;
-    SExprInfo* pExprInfo = createExprInfo(pBlockScanNode->pScanPseudoCols, NULL, &numOfCols);
-    int32_t    code = initExprSupp(&pOperator->exprSupp, pExprInfo, numOfCols);
+  {
+    SQueryTableDataCond cond = {0};
+    int32_t             code = initTableblockDistQueryCond(pBlockScanNode->suid, &cond);
     if (code != TSDB_CODE_SUCCESS) {
-        goto _error;
+      goto _error;
     }
 
-    setOperatorInfo(pOperator, "DataBlockDistScanOperator", QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN, false,
-                    OP_NOT_OPENED, pInfo, pTaskInfo);
-    pOperator->fpSet =
-            createOperatorFpSet(operatorDummyOpenFn, doBlockInfoScan, NULL, destroyBlockDistScanOperatorInfo, NULL);
-    return pOperator;
+    STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
+    size_t          num = tableListGetSize(pTableListInfo);
+    void*           pList = tableListGetInfo(pTableListInfo, 0);
 
-    _error:
-    taosMemoryFreeClear(pInfo);
-    taosMemoryFreeClear(pOperator);
-    return NULL;
+    code = tsdbReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock, &pInfo->pHandle, pTaskInfo->id.str);
+    cleanupQueryTableDataCond(&cond);
+    if (code != 0) {
+      goto _error;
+    }
+  }
+
+  pInfo->readHandle = *readHandle;
+  pInfo->uid = pBlockScanNode->suid;
+
+  int32_t    numOfCols = 0;
+  SExprInfo* pExprInfo = createExprInfo(pBlockScanNode->pScanPseudoCols, NULL, &numOfCols);
+  int32_t    code = initExprSupp(&pOperator->exprSupp, pExprInfo, numOfCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  setOperatorInfo(pOperator, "DataBlockDistScanOperator", QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN, false,
+                  OP_NOT_OPENED, pInfo, pTaskInfo);
+  pOperator->fpSet =
+      createOperatorFpSet(optrDummyOpenFn, doBlockInfoScan, NULL, destroyBlockDistScanOperatorInfo, optrDefaultBufFn, NULL);
+  return pOperator;
+
+_error:
+  taosMemoryFreeClear(pInfo);
+  taosMemoryFreeClear(pOperator);
+  return NULL;
 }

@@ -47,15 +47,21 @@ typedef TdFilePtr tdb_fd_t;
 #define TDB_O_RDWR   (TD_FILE_WRITE) | (TD_FILE_READ)
 
 #define tdbOsOpen(PATH, OPTION, MODE) taosOpenFile((PATH), (OPTION))
-
-#define tdbOsClose(FD)           taosCloseFile(&(FD))
-#define tdbOsRead                taosReadFile
-#define tdbOsPRead               taosPReadFile
-#define tdbOsWrite               taosWriteFile
-#define tdbOsFSync               taosFsyncFile
-#define tdbOsLSeek               taosLSeekFile
-#define tdbOsRemove              remove
-#define tdbOsFileSize(FD, PSIZE) taosFStatFile(FD, PSIZE, NULL)
+#define tdbOsClose(FD)                taosCloseFile(&(FD))
+#define tdbOsRead                     taosReadFile
+#define tdbOsPRead                    taosPReadFile
+#define tdbOsWrite                    taosWriteFile
+#define tdbOsPWrite                   taosPWriteFile
+#define tdbOsFSync                    taosFsyncFile
+#define tdbOsLSeek                    taosLSeekFile
+#define tdbDirPtr                     TdDirPtr
+#define tdbDirEntryPtr                TdDirEntryPtr
+#define tdbReadDir                    taosReadDir
+#define tdbGetDirEntryName            taosGetDirEntryName
+#define tdbDirEntryBaseName           taosDirEntryBaseName
+#define tdbCloseDir                   taosCloseDir
+#define tdbOsRemove                   remove
+#define tdbOsFileSize(FD, PSIZE)      taosFStatFile(FD, PSIZE, NULL)
 
 /* directory */
 #define tdbOsMkdir taosMkDir

@@ -259,7 +259,7 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
   pWriter->ever = ever;
 
   // commit it
-  code = vnodeCommit(pVnode);
+  code = vnodeSyncCommit(pVnode);
   if (code) {
     taosMemoryFree(pWriter);
     goto _err;

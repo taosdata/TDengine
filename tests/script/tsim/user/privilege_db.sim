@@ -7,7 +7,7 @@ print =============== create db
 sql create database d1 vgroups 1;
 sql use d1
 sql create table stb (ts timestamp, i int) tags (j int)
-sql create topic topic_1 as select ts, i from stb
+# sql create topic topic_1 as select ts, i from stb
 
 sql create database d2 vgroups 1;
 sql create database d3 vgroups 1;
@@ -93,6 +93,6 @@ sql_error drop database d2;
 
 sql_error create stable d1.st (ts timestamp, i int) tags (j int)
 sql create stable d2.st (ts timestamp, i int) tags (j int)
-sql_error create topic topic_2 as select ts, i from stb
+#sql create topic topic_2 as select ts, i from stb
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
