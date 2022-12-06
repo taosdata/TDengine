@@ -548,6 +548,7 @@ _START_RECEIVER:
       sNTrace(pSyncNode, "snapshot receiver pre waitting for true time, now:%" PRId64 ", stime:%" PRId64, timeNow,
               pMsg->startTime);
       taosMsleep(10);
+      timeNow = taosGetTimestampMs();
     }
 
     if (snapshotReceiverIsStart(pReceiver)) {
@@ -883,9 +884,9 @@ int32_t syncNodeOnSnapshotReply(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
       // receive ack is finish, close sender
       if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
         snapshotSenderStop(pSender, true);
-        SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
+        SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
         if (pMgr) {
-            syncLogReplMgrReset(pMgr);
+          syncLogReplMgrReset(pMgr);
         }
         return 0;
       }
