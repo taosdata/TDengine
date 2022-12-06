@@ -211,15 +211,18 @@ int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operT
     goto _OVER;
   }
 
-#if 0
-  if (operType != MND_OPER_SUBSCRIBE) {
-    terrno = TSDB_CODE_MND_APP_ERROR;
-    code = -1;
-    goto _OVER;
+  if (operType == MND_OPER_SUBSCRIBE) {
+    if (strcmp(pUser->user, pTopic->createUser) == 0) goto _OVER;
+    if (taosHashGet(pUser->topics, pTopic->name, strlen(pTopic->name) + 1) != NULL) goto _OVER;
   }
-#endif
 
-  if (taosHashGet(pUser->topics, pTopic->name, strlen(pTopic->name) + 1) != NULL) goto _OVER;
+  if (operType == MND_OPER_CREATE_TOPIC) {
+    if (mndCheckDbPrivilegeByName(pMnode, user, MND_OPER_READ_DB, pTopic->db) == 0) goto _OVER;
+  }
+
+  if (operType == MND_OPER_DROP_TOPIC) {
+    if (strcmp(pUser->user, pTopic->createUser) == 0) goto _OVER;
+  }
 
   terrno = TSDB_CODE_MND_NO_RIGHTS;
   code = -1;
