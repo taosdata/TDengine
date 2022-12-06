@@ -369,6 +369,11 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   tstrncpy(topicObj.name, pCreate->name, TSDB_TOPIC_FNAME_LEN);
   tstrncpy(topicObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   tstrncpy(topicObj.createUser, userName, TSDB_USER_LEN);
+
+  if (mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC, &topicObj) != 0) {
+    return -1;
+  }
+
   topicObj.createTime = taosGetTimestampMs();
   topicObj.updateTime = topicObj.createTime;
   topicObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
@@ -580,10 +585,6 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC, NULL) != 0) {
-    goto _OVER;
-  }
-
   code = mndCreateTopic(pMnode, pReq, &createTopicReq, pDb, pReq->info.conn.user);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -640,7 +641,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     }
   }
 
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC) != 0) {
+  if (mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC, pTopic) != 0) {
     mndReleaseTopic(pMnode, pTopic);
     return -1;
   }
@@ -703,10 +704,6 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     return -1;
   }
 #endif
-
-  if (mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC, pTopic) != 0) {
-    return -1;
-  }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "drop-topic");
   mndTransSetDbName(pTrans, pTopic->db, NULL);
