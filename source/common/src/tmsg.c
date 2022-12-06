@@ -992,7 +992,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tEncodeI32(&encoder, vlen) < 0) return -1;
   for (int32_t i = 0; i < vlen; ++i) {
     SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
-    int64_t reserved = 0;
+    int64_t     reserved = 0;
     if (tEncodeI32(&encoder, pload->vgId) < 0) return -1;
     if (tEncodeI8(&encoder, pload->syncState) < 0) return -1;
     if (tEncodeI8(&encoder, pload->syncRestore) < 0) return -1;
@@ -5696,6 +5696,25 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
   return 0;
 }
 
+void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
+  if (pReq == NULL) return;
+
+  if (flags & TSDB_MSG_FLG_ENCODE) {
+    // TODO
+  } else if (flags & TSDB_MSG_FLG_DECODE) {
+    if (pReq->comment) {
+      pReq->comment = NULL;
+      taosMemoryFree(pReq->comment);
+    }
+
+    if (pReq->type == TSDB_CHILD_TABLE) {
+      if (pReq->ctb.tagName) taosArrayDestroy(pReq->ctb.tagName);
+    } else if (pReq->type == TSDB_NORMAL_TABLE) {
+      if (pReq->ntb.schemaRow.pSchema) taosMemoryFree(pReq->ntb.schemaRow.pSchema);
+    }
+  }
+}
+
 int tEncodeSVCreateTbBatchReq(SEncoder *pCoder, const SVCreateTbBatchReq *pReq) {
   int32_t nReq = taosArrayGetSize(pReq->pArray);
 
@@ -6870,7 +6889,7 @@ void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
   if (NULL == pTbData) {
     return;
   }
-  
+
   if (flag == TSDB_MSG_FLG_ENCODE) {
     if (pTbData->pCreateTbReq) {
       tdDestroySVCreateTbReq(pTbData->pCreateTbReq);
@@ -6896,6 +6915,7 @@ void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
     }
   } else if (flag == TSDB_MSG_FLG_DECODE) {
     if (pTbData->pCreateTbReq) {
+      tDestroySVCreateTbReq(pTbData->pCreateTbReq, TSDB_MSG_FLG_DECODE);
       taosMemoryFree(pTbData->pCreateTbReq);
     }
 
@@ -6984,7 +7004,7 @@ void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
   if (NULL == pRsp) {
     return;
   }
-  
+
   if (flag & TSDB_MSG_FLG_ENCODE) {
     if (pRsp->aCreateTbRsp) {
       int32_t        nCreateTbRsp = TARRAY_SIZE(pRsp->aCreateTbRsp);
