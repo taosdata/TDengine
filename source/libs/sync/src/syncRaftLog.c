@@ -234,17 +234,16 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
 
   *ppEntry = NULL;
 
-  // SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
+  int64_t ts1 = taosGetTimestampNs();
+  taosThreadMutexLock(&(pData->mutex));
+
   SWalReader* pWalHandle = pData->pWalHandle;
   if (pWalHandle == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     sError("vgId:%d, wal handle is NULL", pData->pSyncNode->vgId);
-
+    taosThreadMutexUnlock(&(pData->mutex));
     return -1;
   }
-
-  int64_t ts1 = taosGetTimestampNs();
-  taosThreadMutexLock(&(pData->mutex));
 
   int64_t ts2 = taosGetTimestampNs();
   code = walReadVer(pWalHandle, index);
