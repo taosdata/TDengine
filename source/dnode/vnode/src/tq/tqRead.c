@@ -252,7 +252,7 @@ END:
 }
 
 STqReader* tqOpenReader(SVnode* pVnode) {
-  STqReader* pReader = taosMemoryMalloc(sizeof(STqReader));
+  STqReader* pReader = taosMemoryCalloc(1, sizeof(STqReader));
   if (pReader == NULL) {
     return NULL;
   }
@@ -437,12 +437,15 @@ bool tqNextDataBlock2(STqReader* pReader) {
   int32_t blockSz = taosArrayGetSize(pReader->submit.aSubmitTbData);
   while (pReader->nextBlk < blockSz) {
     SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
+    ASSERT(pSubmitTbData->uid);
+
     if (pReader->tbIdHash == NULL) return true;
 
     void* ret = taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t));
     if (ret != NULL) {
       return true;
     }
+    pReader->nextBlk++;
   }
 
   tDestroySSubmitReq2(&pReader->submit, TSDB_MSG_FLG_DECODE);
