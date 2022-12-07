@@ -149,7 +149,7 @@ typedef struct STscObj {
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
   SHashObj*     pRequests;
-  int8_t        schemalessType;  // todo remove it, this attribute should be move to request
+  void*         smlHandle;
 } STscObj;
 
 typedef struct SResultColumn {
@@ -323,6 +323,7 @@ void     destroyTscObj(void* pObj);
 STscObj* acquireTscObj(int64_t rid);
 int32_t  releaseTscObj(int64_t rid);
 void     destroyAppInst(SAppInstInfo* pAppInfo);
+void     smlDestroyInfo(void *data);
 
 uint64_t generateRequestId();
 

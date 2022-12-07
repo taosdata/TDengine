@@ -58,7 +58,6 @@ typedef struct SParseContext {
   bool             isSuperUser;
   bool             enableSysInfo;
   bool             async;
-  int8_t           schemalessType;
   const char*      svrVer;
   bool             nodeOffline;
   SArray*          pTableMetaPos;    // sql table pos => catalog data pos

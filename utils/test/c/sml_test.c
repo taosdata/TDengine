@@ -1142,8 +1142,8 @@ int sml_ttl_Test() {
 
 int main(int argc, char *argv[]) {
   int ret = 0;
-//  ret = sml_ttl_Test();
-//  ASSERT(!ret);
+  ret = sml_ttl_Test();
+  ASSERT(!ret);
   ret = sml_ts2164_Test();
   ASSERT(!ret);
   ret = smlProcess_influx_Test();
