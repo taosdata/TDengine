@@ -136,7 +136,7 @@ static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *
              " dstTb:%s dstVg:%d",
              SMA_VID(pSma), pCfg->indexName, pCfg->indexUid, pCfg->tableUid, pCfg->dstTbUid, pReq.name, pCfg->dstVgId);
   } else {
-    tAssert(0);
+    ASSERT(0);
   }
 
   return 0;
@@ -218,7 +218,7 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
   }
 
 #if 0
-   tAssert(!strncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14));
+   ASSERT(!strncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14));
 #endif
 
   SRpcMsg submitReqMsg = {

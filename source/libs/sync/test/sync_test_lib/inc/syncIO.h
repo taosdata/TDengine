@@ -81,8 +81,6 @@ int32_t syncIOQTimerStop();
 int32_t syncIOPingTimerStart();
 int32_t syncIOPingTimerStop();
 
-void syncEntryDestory(SSyncRaftEntry* pEntry);
-
 #ifdef __cplusplus
 }
 #endif

@@ -28,8 +28,6 @@
 #undef TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
 
-#include "tlog.h"
-
 int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
   if (pMsg == NULL) {
     terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
@@ -38,7 +36,7 @@ int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
 
   pIter->totalLen = htonl(pMsg->length);
   pIter->numOfBlocks = htonl(pMsg->numOfBlocks);
-  tAssert(pIter->totalLen > 0);
+  ASSERT(pIter->totalLen > 0);
   pIter->len = 0;
   pIter->pMsg = pMsg;
   if (pIter->totalLen <= sizeof(SSubmitReq)) {
@@ -50,17 +48,17 @@ int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
 }
 
 int32_t tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
-  tAssert(pIter->len >= 0);
+  ASSERT(pIter->len >= 0);
 
   if (pIter->len == 0) {
     pIter->len += sizeof(SSubmitReq);
   } else {
     if (pIter->len >= pIter->totalLen) {
-      tAssert(0);
+      ASSERT(0);
     }
 
     pIter->len += (sizeof(SSubmitBlk) + pIter->dataLen + pIter->schemaLen);
-    tAssert(pIter->len > 0);
+    ASSERT(pIter->len > 0);
   }
 
   if (pIter->len > pIter->totalLen) {
@@ -308,7 +306,7 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
             }
           }
 
-          tAssert(desc.subPlanNum == taosArrayGetSize(desc.subDesc));
+          ASSERT(desc.subPlanNum == taosArrayGetSize(desc.subDesc));
 
           taosArrayPush(pReq->query->queryDesc, &desc);
         }
@@ -5679,7 +5677,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
     if (tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow) < 0) return -1;
   } else {
-    tAssert(0);
+    ASSERT(0);
   }
 
   tEndEncode(pCoder);
@@ -5721,7 +5719,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
     if (tDecodeSSchemaWrapperEx(pCoder, &pReq->ntb.schemaRow) < 0) return -1;
   } else {
-    tAssert(0);
+    ASSERT(0);
   }
 
   tEndDecode(pCoder);
@@ -6349,7 +6347,7 @@ int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) 
   } else if (pOffsetVal->type < 0) {
     // do nothing
   } else {
-    tAssert(0);
+    ASSERT(0);
   }
   return 0;
 }
@@ -6364,7 +6362,7 @@ int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
   } else if (pOffsetVal->type < 0) {
     // do nothing
   } else {
-    tAssert(0);
+    ASSERT(0);
   }
   return 0;
 }
@@ -6381,7 +6379,7 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     snprintf(buf, maxLen, "offset(ss data) uid:%" PRId64 ", ts:%" PRId64, pVal->uid, pVal->ts);
   } else {
-    tAssert(0);
+    ASSERT(0);
   }
   return 0;
 }
@@ -6395,8 +6393,8 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
     } else if (pLeft->type == TMQ_OFFSET__SNAPSHOT_META) {
       return pLeft->uid == pRight->uid;
     } else {
-      tAssert(0);
-      /*tAssert(pLeft->type == TMQ_OFFSET__RESET_NONE || pLeft->type == TMQ_OFFSET__RESET_EARLIEAST ||*/
+      ASSERT(0);
+      /*ASSERT(pLeft->type == TMQ_OFFSET__RESET_NONE || pLeft->type == TMQ_OFFSET__RESET_EARLIEAST ||*/
       /*pLeft->type == TMQ_OFFSET__RESET_LATEST);*/
       /*return true;*/
     }

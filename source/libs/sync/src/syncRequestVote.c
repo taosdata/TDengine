@@ -105,7 +105,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     syncNodeStepDown(ths, pMsg->term);
     // syncNodeUpdateTerm(ths, pMsg->term);
   }
-  tAssert(pMsg->term <= ths->pRaftStore->currentTerm);
+  ASSERT(pMsg->term <= ths->pRaftStore->currentTerm);
 
   bool grant = (pMsg->term == ths->pRaftStore->currentTerm) && logOK &&
                ((!raftStoreHasVoted(ths->pRaftStore)) || (syncUtilSameId(&(ths->pRaftStore->voteFor), &(pMsg->srcId))));
@@ -124,7 +124,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   // send msg
   SRpcMsg rpcMsg = {0};
   ret = syncBuildRequestVoteReply(&rpcMsg, ths->vgId);
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
 
   SyncRequestVoteReply* pReply = rpcMsg.pCont;
   pReply->srcId = ths->myRaftId;

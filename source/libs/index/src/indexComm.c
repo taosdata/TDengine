@@ -367,7 +367,7 @@ int32_t idxConvertData(void* src, int8_t type, void** dst) {
       tlen = taosEncodeBinary(dst, src, strlen(src));
       break;
     default:
-      tAssert(0);
+      ASSERT(0);
       break;
   }
   *dst = (char*)*dst - tlen;
@@ -459,7 +459,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       *dst = (char*)*dst - tlen;
       break;
     default:
-      tAssert(0);
+      ASSERT(0);
       break;
   }
   return tlen;

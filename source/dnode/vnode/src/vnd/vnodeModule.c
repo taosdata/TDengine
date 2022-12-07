@@ -115,7 +115,7 @@ void vnodeCleanup() {
 int vnodeScheduleTask(int (*execute)(void*), void* arg) {
   SVnodeTask* pTask;
 
-  tAssert(!vnodeGlobal.stop);
+  ASSERT(!vnodeGlobal.stop);
 
   pTask = taosMemoryMalloc(sizeof(*pTask));
   if (pTask == NULL) {

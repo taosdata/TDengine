@@ -105,7 +105,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
 
 #endif
 
-  tAssert(pPager != NULL);
+  ASSERT(pPager != NULL);
 
   // pTb->pBt
   ret = tdbBtreeOpen(keyLen, valLen, pPager, tbname, pgno, keyCmprFn, pEnv, &(pTb->pBt));

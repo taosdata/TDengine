@@ -111,6 +111,7 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_PRIVILEGES, len) == 0) {
     type = TSDB_MGMT_TABLE_PRIVILEGES;
   } else {
+    //    ASSERT(0);
   }
 
   return type;

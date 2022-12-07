@@ -84,7 +84,7 @@ void syncOneReplicaAdvance(SSyncNode* pSyncNode) {
 }
 
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
-  tAssert(false && "deprecated");
+  ASSERT(false && "deprecated");
   if (pSyncNode == NULL) {
     sError("pSyncNode is NULL");
     return;
@@ -202,8 +202,8 @@ bool syncAgreeIndex(SSyncNode* pSyncNode, SRaftId* pRaftId, SyncIndex index) {
 }
 
 static inline int64_t syncNodeAbs64(int64_t a, int64_t b) {
-  tAssert(a >= 0);
-  tAssert(b >= 0);
+  ASSERT(a >= 0);
+  ASSERT(b >= 0);
 
   int64_t c = a > b ? a - b : b - a;
   return c;
@@ -262,7 +262,7 @@ int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode) {
     quorum += addQuorum;
   }
 
-  tAssert(quorum <= pSyncNode->replicaNum);
+  ASSERT(quorum <= pSyncNode->replicaNum);
 
   if (quorum < pSyncNode->quorum) {
     quorum = pSyncNode->quorum;
@@ -290,7 +290,7 @@ bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
 bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index) {
   int            count = 0;
   SSyncIndexMgr* pMatches = pNode->pMatchIndex;
-  tAssert(pNode->replicaNum == pMatches->replicaNum);
+  ASSERT(pNode->replicaNum == pMatches->replicaNum);
 
   for (int i = 0; i < pNode->replicaNum; i++) {
     SyncIndex matchIndex = pMatches->index[i];

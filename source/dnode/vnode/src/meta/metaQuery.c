@@ -662,7 +662,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
         goto _exit;
       }
 
-      tAssert(c);
+      ASSERT(c);
 
       if (c < 0) {
         tdbTbcMoveToPrev(pSkmDbC);
@@ -686,7 +686,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
     }
   }
 
-  tAssert(sver > 0);
+  ASSERT(sver > 0);
 
   skmDbKey.uid = suid ? suid : uid;
   skmDbKey.sver = sver;

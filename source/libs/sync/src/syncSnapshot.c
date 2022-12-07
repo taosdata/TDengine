@@ -81,7 +81,7 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
 bool snapshotSenderIsStart(SSyncSnapshotSender *pSender) { return pSender->start; }
 
 int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
-  tAssert(!snapshotSenderIsStart(pSender));
+  ASSERT(!snapshotSenderIsStart(pSender));
 
   pSender->start = true;
   pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
@@ -140,7 +140,7 @@ int32_t snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
   // close reader
   if (pSender->pReader != NULL) {
     int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
-    tAssert(ret == 0);
+    ASSERT(ret == 0);
     pSender->pReader = NULL;
   }
 
@@ -169,7 +169,7 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   // read data
   int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotDoRead(pSender->pSyncNode->pFsm, pSender->pReader,
                                                            &(pSender->pCurrentBlock), &(pSender->blockLen));
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
   if (pSender->blockLen > 0) {
     // has read data
   } else {
@@ -250,7 +250,7 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
 }
 
 static void snapshotSenderUpdateProgress(SSyncSnapshotSender *pSender, SyncSnapshotRsp *pMsg) {
-  tAssert(pMsg->ack == pSender->seq);
+  ASSERT(pMsg->ack == pSender->seq);
   pSender->ack = pMsg->ack;
   ++(pSender->seq);
 }
@@ -330,7 +330,7 @@ void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {
     if (pReceiver->pWriter != NULL) {
       int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter,
                                                                     false, &(pReceiver->snapshot));
-      tAssert(ret == 0);
+      ASSERT(ret == 0);
       pReceiver->pWriter = NULL;
     }
 
@@ -347,7 +347,7 @@ void snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver) {
   if (pReceiver->pWriter != NULL) {
     int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, false,
                                                                   &(pReceiver->snapshot));
-    tAssert(ret == 0);
+    ASSERT(ret == 0);
     pReceiver->pWriter = NULL;
   }
 
@@ -358,7 +358,7 @@ void snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver) {
 }
 
 int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg) {
-  tAssert(snapshotReceiverIsStart(pReceiver));
+  ASSERT(snapshotReceiverIsStart(pReceiver));
 
   // update ack
   pReceiver->ack = SYNC_SNAPSHOT_SEQ_BEGIN;
@@ -372,10 +372,10 @@ int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, SyncSnapsh
   pReceiver->snapshotParam.end = pBeginMsg->lastIndex;
 
   // start writer
-  tAssert(pReceiver->pWriter == NULL);
+  ASSERT(pReceiver->pWriter == NULL);
   int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStartWrite(pReceiver->pSyncNode->pFsm,
                                                                  &(pReceiver->snapshotParam), &(pReceiver->pWriter));
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
 
   // event log
   sRTrace(pReceiver, "snapshot receiver start writer");
@@ -407,7 +407,7 @@ int32_t snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
   if (pReceiver->pWriter != NULL) {
     int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, false,
                                                                   &(pReceiver->snapshot));
-    tAssert(ret == 0);
+    ASSERT(ret == 0);
     pReceiver->pWriter = NULL;
   }
 
@@ -420,7 +420,7 @@ int32_t snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
 
 // when recv last snapshot block, apply data into snapshot
 static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg) {
-  tAssert(pMsg->seq == SYNC_SNAPSHOT_SEQ_END);
+  ASSERT(pMsg->seq == SYNC_SNAPSHOT_SEQ_END);
 
   int32_t code = 0;
   if (pReceiver->pWriter != NULL) {
@@ -478,14 +478,14 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
 // apply data block
 // update progress
 static void snapshotReceiverGotData(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg) {
-  tAssert(pMsg->seq == pReceiver->ack + 1);
+  ASSERT(pMsg->seq == pReceiver->ack + 1);
 
   if (pReceiver->pWriter != NULL) {
     if (pMsg->dataLen > 0) {
       // apply data block
       int32_t code = pReceiver->pSyncNode->pFsm->FpSnapshotDoWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter,
                                                                    pMsg->data, pMsg->dataLen);
-      tAssert(code == 0);
+      ASSERT(code == 0);
     }
 
     // update progress
@@ -790,7 +790,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
 int32_t syncNodeOnSnapshotReplyPre(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
   // get sender
   SSyncSnapshotSender *pSender = syncNodeGetSnapshotSender(pSyncNode, &(pMsg->srcId));
-  tAssert(pSender != NULL);
+  ASSERT(pSender != NULL);
 
   SSnapshot snapshot;
   pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
@@ -863,7 +863,7 @@ int32_t syncNodeOnSnapshotReply(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
 
   // get sender
   SSyncSnapshotSender *pSender = syncNodeGetSnapshotSender(pSyncNode, &(pMsg->srcId));
-  tAssert(pSender != NULL);
+  ASSERT(pSender != NULL);
 
   if (pMsg->startTime != pSender->startTime) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "sender/receiver start time not match");

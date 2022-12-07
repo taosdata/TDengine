@@ -27,7 +27,7 @@
 
 #define T_LONG_JMP(_obj, _c) \
   do {                       \
-    tAssert((_c) != -1);      \
+    ASSERT((_c) != -1);      \
     longjmp((_obj), (_c));   \
   } while (0)
 

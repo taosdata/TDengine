@@ -120,7 +120,7 @@ static inline bool syncUtilCanPrint(char c) {
 char* syncUtilPrintBin(char* ptr, uint32_t len) {
   int64_t memLen = (int64_t)(len + 1);
   char*   s = taosMemoryMalloc(memLen);
-  tAssert(s != NULL);
+  ASSERT(s != NULL);
   memset(s, 0, len + 1);
   memcpy(s, ptr, len);
 
@@ -135,7 +135,7 @@ char* syncUtilPrintBin(char* ptr, uint32_t len) {
 char* syncUtilPrintBin2(char* ptr, uint32_t len) {
   uint32_t len2 = len * 4 + 1;
   char*    s = taosMemoryMalloc(len2);
-  tAssert(s != NULL);
+  ASSERT(s != NULL);
   memset(s, 0, len2);
 
   char* p = s;

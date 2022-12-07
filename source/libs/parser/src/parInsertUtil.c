@@ -80,7 +80,7 @@ static int32_t rowDataComparStable(const void* lhs, const void* rhs) {
 
 int32_t insGetExtendedRowSize(STableDataBlocks* pBlock) {
   STableComInfo* pTableInfo = &pBlock->pTableMeta->tableInfo;
-  tAssert(pBlock->rowSize == pTableInfo->rowSize);
+  ASSERT(pBlock->rowSize == pTableInfo->rowSize);
   return pBlock->rowSize + TD_ROW_HEAD_LEN - sizeof(TSKEY) + pBlock->boundColumnInfo.extendedVarLen +
          (int32_t)TD_BITMAP_BYTES(pTableInfo->numOfColumns - 1);
 }
@@ -98,7 +98,7 @@ void insGetSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo* spd, col_id_t i
       *colIdx = idx;
     }
   } else {
-    tAssert(idx == (spd->colIdxInfo + idx)->boundIdx);
+    ASSERT(idx == (spd->colIdxInfo + idx)->boundIdx);
     schemaIdx = (spd->colIdxInfo + idx)->schemaColIdx;
     if (TD_IS_TP_ROW_T(rowType)) {
       *toffset = (spd->cols + schemaIdx)->toffset;
@@ -409,7 +409,7 @@ static int sortRemoveDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* 
 
 static void* tdGetCurRowFromBlockMerger(SBlockRowMerger* pBlkRowMerger) {
   if (pBlkRowMerger && (pBlkRowMerger->index >= 0)) {
-    tAssert(pBlkRowMerger->index < taosArrayGetSize(pBlkRowMerger->rowArray));
+    ASSERT(pBlkRowMerger->index < taosArrayGetSize(pBlkRowMerger->rowArray));
     return *(void**)taosArrayGet(pBlkRowMerger->rowArray, pBlkRowMerger->index);
   }
   return NULL;
@@ -417,9 +417,9 @@ static void* tdGetCurRowFromBlockMerger(SBlockRowMerger* pBlkRowMerger) {
 
 static int32_t tdBlockRowMerge(STableMeta* pTableMeta, SBlockKeyTuple* pEndKeyTp, int32_t nDupRows,
                                SBlockRowMerger** pBlkRowMerger, int32_t rowSize) {
-  tAssert(nDupRows > 1);
+  ASSERT(nDupRows > 1);
   SBlockKeyTuple* pStartKeyTp = pEndKeyTp - (nDupRows - 1);
-  tAssert(pStartKeyTp->skey == pEndKeyTp->skey);
+  ASSERT(pStartKeyTp->skey == pEndKeyTp->skey);
 
   // TODO: optimization if end row is all normal
 #if 0
@@ -583,7 +583,7 @@ static int sortMergeDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* p
     }
 
     if ((j - i) > 1) {
-      tAssert((pBlkKeyTuple + i)->skey == (pBlkKeyTuple + j - 1)->skey);
+      ASSERT((pBlkKeyTuple + i)->skey == (pBlkKeyTuple + j - 1)->skey);
       if (tdBlockRowMerge(pTableMeta, (pBlkKeyTuple + j - 1), j - i, ppBlkRowMerger, extendedRowSize) < 0) {
         return TSDB_CODE_FAILED;
       }
@@ -651,7 +651,7 @@ int32_t insMergeTableDataBlocks(SHashObj* pHashObj, SArray** pVgDataBlocks) {
         taosMemoryFreeClear(blkKeyInfo.pKeyTuple);
         return ret;
       }
-      tAssert(pOneTableBlock->pTableMeta->tableInfo.rowSize > 0);
+      ASSERT(pOneTableBlock->pTableMeta->tableInfo.rowSize > 0);
       // the maximum expanded size in byte when a row-wise data is converted to SDataRow format
       int64_t destSize = dataBuf->size + pOneTableBlock->size +
                          sizeof(STColumn) * getNumOfColumns(pOneTableBlock->pTableMeta) +
@@ -680,7 +680,7 @@ int32_t insMergeTableDataBlocks(SHashObj* pHashObj, SArray** pVgDataBlocks) {
         taosMemoryFreeClear(blkKeyInfo.pKeyTuple);
         return code;
       }
-      tAssert(blkKeyInfo.pKeyTuple != NULL && pBlocks->numOfRows > 0);
+      ASSERT(blkKeyInfo.pKeyTuple != NULL && pBlocks->numOfRows > 0);
 
       // erase the empty space reserved for binary data
       int32_t finalLen = trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock, blkKeyInfo.pKeyTuple);
@@ -729,7 +729,7 @@ int32_t insAllocateMemForSize(STableDataBlocks* pDataBlock, int32_t allSize) {
 }
 
 int32_t insInitRowBuilder(SRowBuilder* pBuilder, int16_t schemaVer, SParsedDataColInfo* pColInfo) {
-  tAssert(pColInfo->numOfCols > 0 && (pColInfo->numOfBound <= pColInfo->numOfCols));
+  ASSERT(pColInfo->numOfCols > 0 && (pColInfo->numOfBound <= pColInfo->numOfCols));
   tdSRowInit(pBuilder, schemaVer);
   tdSRowSetExtendedInfo(pBuilder, pColInfo->numOfCols, pColInfo->numOfBound, pColInfo->flen, pColInfo->allNullLen,
                         pColInfo->boundNullLen);

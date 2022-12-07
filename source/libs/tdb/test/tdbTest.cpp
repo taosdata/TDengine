@@ -3,7 +3,6 @@
 #define ALLOW_FORBID_FUNC
 #include "os.h"
 #include "tdb.h"
-#include "tlog.h"
 
 #include <shared_mutex>
 #include <string>
@@ -104,7 +103,7 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
   int mlen;
   int cret;
 
-  tAssert(keyLen1 > 0 && keyLen2 > 0 && pKey1 != NULL && pKey2 != NULL);
+  ASSERT(keyLen1 > 0 && keyLen2 > 0 && pKey1 != NULL && pKey2 != NULL);
 
   mlen = keyLen1 < keyLen2 ? keyLen1 : keyLen2;
   cret = memcmp(pKey1, pKey2, mlen);
@@ -182,7 +181,7 @@ TEST(tdb_test, DISABLED_simple_insert1) {
         sprintf(val, "value%d", i);
 
         ret = tdbTbGet(pDb, key, strlen(key), &pVal, &vLen);
-        tAssert(ret == 0);
+        ASSERT(ret == 0);
         GTEST_ASSERT_EQ(ret, 0);
 
         GTEST_ASSERT_EQ(vLen, strlen(val));

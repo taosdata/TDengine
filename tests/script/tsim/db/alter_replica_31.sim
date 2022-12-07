@@ -148,26 +148,6 @@ endi
 
 print ============= step3: alter database
 sql alter database db replica 1
-$wt = 0
-stepwt1:
-	$wt = $wt + 1
-	sleep 1000
-	if $wt == 200 then
-	  print ====> dnode not ready!
-		return -1
-	endi
-sql show transactions
-if $rows != 0 then
-  print wait 1 seconds to alter
-  goto stepwt1
-endi
-
-sql show db.vgroups
-print ---> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-print ---> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data27 $data28 $data29
-print ---> $data10 $data11 $data12 $data13 $data14 $data15 $data26 $data37 $data38 $data39
-print ---> $data10 $data11 $data12 $data13 $data14 $data15 $data36 $data47 $data48 $data49
-
 $hasleader = 0
 
 $x = 0

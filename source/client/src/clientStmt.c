@@ -389,7 +389,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
 
   if (NULL == pStmt->sql.pTableCache || taosHashGetSize(pStmt->sql.pTableCache) <= 0) {
     if (pStmt->bInfo.inExecCache) {
-      tAssert(taosHashGetSize(pStmt->exec.pBlockHash) == 1);
+      ASSERT(taosHashGetSize(pStmt->exec.pBlockHash) == 1);
       pStmt->bInfo.needParse = false;
       tscDebug("reuse stmt block for tb %s in execBlock", pStmt->bInfo.tbFName);
       return TSDB_CODE_SUCCESS;

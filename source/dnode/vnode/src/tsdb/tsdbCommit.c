@@ -153,7 +153,7 @@ _exit:
 
 int32_t tsdbPrepareCommit(STsdb *pTsdb) {
   taosThreadRwlockWrlock(&pTsdb->rwLock);
-  tAssert(pTsdb->imem == NULL);
+  ASSERT(pTsdb->imem == NULL);
   pTsdb->imem = pTsdb->mem;
   pTsdb->mem = NULL;
   taosThreadRwlockUnlock(&pTsdb->rwLock);
@@ -388,7 +388,7 @@ static int32_t tsdbCommitterNextTableData(SCommitter *pCommitter) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  tAssert(pCommitter->dReader.pBlockIdx);
+  ASSERT(pCommitter->dReader.pBlockIdx);
 
   pCommitter->dReader.iBlockIdx++;
   if (pCommitter->dReader.iBlockIdx < taosArrayGetSize(pCommitter->dReader.aBlockIdx)) {
@@ -398,7 +398,7 @@ static int32_t tsdbCommitterNextTableData(SCommitter *pCommitter) {
     code = tsdbReadDataBlk(pCommitter->dReader.pReader, pCommitter->dReader.pBlockIdx, &pCommitter->dReader.mBlock);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    tAssert(pCommitter->dReader.mBlock.nItem > 0);
+    ASSERT(pCommitter->dReader.mBlock.nItem > 0);
   } else {
     pCommitter->dReader.pBlockIdx = NULL;
   }
@@ -442,7 +442,7 @@ static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
     pIter->r.row = *pRow;
     break;
   }
-  tAssert(pIter->iTbDataP < taosArrayGetSize(pCommitter->aTbDataP));
+  ASSERT(pIter->iTbDataP < taosArrayGetSize(pCommitter->aTbDataP));
   tRBTreePut(&pCommitter->rbt, (SRBTreeNode *)pIter);
 
   // disk
@@ -508,7 +508,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   tsdbFidKeyRange(pCommitter->commitFid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
                   &pCommitter->maxKey);
 #if 0
-  tAssert(pCommitter->minKey <= pCommitter->nextKey && pCommitter->maxKey >= pCommitter->nextKey);
+  ASSERT(pCommitter->minKey <= pCommitter->nextKey && pCommitter->maxKey >= pCommitter->nextKey);
 #endif
 
   pCommitter->nextKey = TSKEY_MAX;
@@ -544,7 +544,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   SSttFile  fStt = {.commitID = pCommitter->commitID};
   SDFileSet wSet = {.fid = pCommitter->commitFid, .pHeadF = &fHead, .pDataF = &fData, .pSmaF = &fSma};
   if (pRSet) {
-    tAssert(pRSet->nSttF <= pCommitter->sttTrigger);
+    ASSERT(pRSet->nSttF <= pCommitter->sttTrigger);
     fData = *pRSet->pDataF;
     fSma = *pRSet->pSmaF;
     wSet.diskId = pRSet->diskId;
@@ -826,7 +826,7 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter, SCommitInfo
   int32_t lino = 0;
 
   memset(pCommitter, 0, sizeof(*pCommitter));
-  tAssert(pTsdb->imem && "last tsdb commit incomplete");
+  ASSERT(pTsdb->imem && "last tsdb commit incomplete");
 
   pCommitter->pTsdb = pTsdb;
   pCommitter->commitID = pInfo->info.state.commitID;
@@ -992,7 +992,7 @@ static int32_t tsdbCommitDel(SCommitter *pCommitter) {
   STbData *pTbData;
   SDelIdx *pDelIdx;
 
-  tAssert(nTbData > 0);
+  ASSERT(nTbData > 0);
 
   pTbData = (STbData *)taosArrayGetP(pCommitter->aTbDataP, iTbData);
   pDelIdx = (iDelIdx < nDelIdx) ? (SDelIdx *)taosArrayGet(pCommitter->aDelIdx, iDelIdx) : NULL;
@@ -1142,7 +1142,7 @@ static int32_t tsdbNextCommitRow(SCommitter *pCommitter) {
         }
       }
     } else {
-      tAssert(0);
+      ASSERT(0);
     }
 
     // compare with min in RB Tree
@@ -1153,7 +1153,7 @@ static int32_t tsdbNextCommitRow(SCommitter *pCommitter) {
         tRBTreePut(&pCommitter->rbt, (SRBTreeNode *)pCommitter->pIter);
         pCommitter->pIter = NULL;
       } else {
-        tAssert(c);
+        ASSERT(c);
       }
     }
   }
@@ -1183,7 +1183,7 @@ static int32_t tsdbCommitAheadBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) 
 
   tBlockDataClear(pBlockData);
   while (pRowInfo) {
-    tAssert(pRowInfo->row.type == 0);
+    ASSERT(pRowInfo->row.type == 0);
     code = tsdbCommitterUpdateRowSchema(pCommitter, id.suid, id.uid, TSDBROW_SVERSION(&pRowInfo->row));
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1251,7 +1251,7 @@ static int32_t tsdbCommitMergeBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) 
         pRow = NULL;
       }
     } else if (c > 0) {
-      tAssert(pRowInfo->row.type == 0);
+      ASSERT(pRowInfo->row.type == 0);
       code = tsdbCommitterUpdateRowSchema(pCommitter, id.suid, id.uid, TSDBROW_SVERSION(&pRowInfo->row));
       TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1271,7 +1271,7 @@ static int32_t tsdbCommitMergeBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) 
         }
       }
     } else {
-      tAssert(0 && "dup rows not allowed");
+      ASSERT(0 && "dup rows not allowed");
     }
 
     if (pBDataW->nRow >= pCommitter->maxRow) {
@@ -1314,14 +1314,14 @@ static int32_t tsdbMergeTableData(SCommitter *pCommitter, TABLEID id) {
 
   SBlockIdx *pBlockIdx = pCommitter->dReader.pBlockIdx;
 
-  tAssert(pBlockIdx == NULL || tTABLEIDCmprFn(pBlockIdx, &id) >= 0);
+  ASSERT(pBlockIdx == NULL || tTABLEIDCmprFn(pBlockIdx, &id) >= 0);
   if (pBlockIdx && pBlockIdx->suid == id.suid && pBlockIdx->uid == id.uid) {
     int32_t   iBlock = 0;
     SDataBlk  block;
     SDataBlk *pDataBlk = &block;
     SRowInfo *pRowInfo = tsdbGetCommitRow(pCommitter);
 
-    tAssert(pRowInfo->suid == id.suid && pRowInfo->uid == id.uid);
+    ASSERT(pRowInfo->suid == id.suid && pRowInfo->uid == id.uid);
 
     tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pDataBlk, tGetDataBlk);
     while (pDataBlk && pRowInfo) {
@@ -1399,8 +1399,8 @@ static int32_t tsdbInitSttBlockBuilderIfNeed(SCommitter *pCommitter, TABLEID id)
   }
 
   if (!pBuilder->suid && !pBuilder->uid) {
-    tAssert(pCommitter->skmTable.suid == id.suid);
-    tAssert(pCommitter->skmTable.uid == id.uid);
+    ASSERT(pCommitter->skmTable.suid == id.suid);
+    ASSERT(pCommitter->skmTable.uid == id.uid);
     code = tDiskDataBuilderInit(pBuilder, pCommitter->skmTable.pTSchema, &id, pCommitter->cmprAlg, 0);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -1416,8 +1416,8 @@ static int32_t tsdbInitSttBlockBuilderIfNeed(SCommitter *pCommitter, TABLEID id)
   }
 
   if (!pBData->suid && !pBData->uid) {
-    tAssert(pCommitter->skmTable.suid == id.suid);
-    tAssert(pCommitter->skmTable.uid == id.uid);
+    ASSERT(pCommitter->skmTable.suid == id.suid);
+    ASSERT(pCommitter->skmTable.uid == id.uid);
     TABLEID tid = {.suid = id.suid, .uid = id.suid ? 0 : id.uid};
     code = tBlockDataInit(pBData, &tid, pCommitter->skmTable.pTSchema, NULL, 0);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -1532,7 +1532,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
     }
   } else {
     SBlockData *pBData = &pCommitter->dWriter.bData;
-    tAssert(pBData->nRow == 0);
+    ASSERT(pBData->nRow == 0);
 
     while (pRowInfo) {
       STSchema *pTSchema = NULL;
@@ -1587,7 +1587,7 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
   SRowInfo *pRowInfo;
   TABLEID   id = {0};
   while ((pRowInfo = tsdbGetCommitRow(pCommitter)) != NULL) {
-    tAssert(pRowInfo->suid != id.suid || pRowInfo->uid != id.uid);
+    ASSERT(pRowInfo->suid != id.suid || pRowInfo->uid != id.uid);
     id.suid = pRowInfo->suid;
     id.uid = pRowInfo->uid;
 

@@ -785,7 +785,7 @@ static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
     case TSDB_TIME_PRECISION_NANO:
       break;
     default:
-      tAssert(0);
+      ASSERT(0);
   }
   if (ts >= (double)INT64_MAX || ts < 0) {
     return -1;
@@ -873,7 +873,7 @@ static int32_t smlParseTS(SSmlHandle *info, const char *data, int32_t len, SArra
   } else if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {
     ts = smlParseOpenTsdbTime(info, data, len);
   } else {
-    tAssert(0);
+    ASSERT(0);
   }
   uDebug("SML:0x%" PRIx64 " smlParseTS:%" PRId64, info->id, ts);
 
@@ -1287,7 +1287,7 @@ static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
       }
     } else {
       size_t tmp = taosArrayGetSize(metaArray);
-      tAssert(tmp <= INT16_MAX);
+      ASSERT(tmp <= INT16_MAX);
       int16_t size = tmp;
       taosArrayPush(metaArray, &kv);
       taosHashPut(metaHash, kv->key, kv->keyLen, &size, SHORT_BYTES);
@@ -1364,8 +1364,8 @@ static int32_t smlKvTimeArrayCompare(const void *key1, const void *key2) {
   SArray *s2 = *(SArray **)key2;
   SSmlKv *kv1 = (SSmlKv *)taosArrayGetP(s1, 0);
   SSmlKv *kv2 = (SSmlKv *)taosArrayGetP(s2, 0);
-  tAssert(kv1->type == TSDB_DATA_TYPE_TIMESTAMP);
-  tAssert(kv2->type == TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT(kv1->type == TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT(kv2->type == TSDB_DATA_TYPE_TIMESTAMP);
   if (kv1->i < kv2->i) {
     return -1;
   } else if (kv1->i > kv2->i) {
@@ -2206,7 +2206,7 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data, const int len) {
   } else if (info->protocol == TSDB_SML_JSON_PROTOCOL) {
     ret = smlParseJSONString(info, (cJSON *)data, tinfo, cols);
   } else {
-    tAssert(0);
+    ASSERT(0);
   }
   if (ret != TSDB_CODE_SUCCESS) {
     uError("SML:0x%" PRIx64 " smlParseTelnetLine failed", info->id);
@@ -2331,7 +2331,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
 
     SSmlSTableMeta **pMeta =
         (SSmlSTableMeta **)taosHashGet(info->superTables, tableData->sTableName, tableData->sTableNameLen);
-    tAssert(NULL != pMeta && NULL != *pMeta);
+    ASSERT(NULL != pMeta && NULL != *pMeta);
 
     // use tablemeta of stable to save vgid and uid of child table
     (*pMeta)->tableMeta->vgId = vg.vgId;
@@ -2421,7 +2421,7 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
     } else if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {
       code = smlParseTelnetLine(info, tmp, len);
     } else {
-      tAssert(0);
+      ASSERT(0);
     }
     if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " smlParseLine failed. line %d : %s", info->id, i, tmp);

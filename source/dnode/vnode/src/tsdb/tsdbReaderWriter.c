@@ -54,7 +54,7 @@ static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsd
     taosMemoryFree(pFD);
     goto _exit;
   }
-  tAssert(pFD->szFile % szPage == 0);
+  ASSERT(pFD->szFile % szPage == 0);
   pFD->szFile = pFD->szFile / szPage;
   *ppFD = pFD;
 
@@ -103,7 +103,7 @@ _exit:
 static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
   int32_t code = 0;
 
-  tAssert(pgno <= pFD->szFile);
+  ASSERT(pgno <= pFD->szFile);
 
   // seek
   int64_t offset = PAGE_OFFSET(pgno, pFD->szPage);
@@ -175,8 +175,8 @@ static int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t
   int32_t szPgCont = PAGE_CONTENT_SIZE(pFD->szPage);
   int64_t bOffset = fOffset % pFD->szPage;
 
-  tAssert(pgno && pgno <= pFD->szFile);
-  tAssert(bOffset < szPgCont);
+  ASSERT(pgno && pgno <= pFD->szFile);
+  ASSERT(bOffset < szPgCont);
 
   while (n < size) {
     if (pFD->pgno != pgno) {
@@ -284,7 +284,7 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
   }
 
   // stt
-  tAssert(pWriter->fStt[pSet->nSttF - 1].size == 0);
+  ASSERT(pWriter->fStt[pSet->nSttF - 1].size == 0);
   flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
   tsdbSttFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fStt[pSet->nSttF - 1], fname);
   code = tsdbOpenFile(fname, szPage, flag, &pWriter->pSttFD);
@@ -404,7 +404,7 @@ int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx) {
   for (int32_t iBlockIdx = 0; iBlockIdx < taosArrayGetSize(aBlockIdx); iBlockIdx++) {
     n += tPutBlockIdx(pWriter->aBuf[0] + n, taosArrayGet(aBlockIdx, iBlockIdx));
   }
-  tAssert(n == size);
+  ASSERT(n == size);
 
   // write
   code = tsdbWriteFile(pWriter->pHeadFD, pHeadFile->size, pWriter->aBuf[0], size);
@@ -431,7 +431,7 @@ int32_t tsdbWriteDataBlk(SDataFWriter *pWriter, SMapData *mDataBlk, SBlockIdx *p
   int64_t    size;
   int64_t    n;
 
-  tAssert(mDataBlk->nItem > 0);
+  ASSERT(mDataBlk->nItem > 0);
 
   // alloc
   size = tPutMapData(NULL, mDataBlk);
@@ -547,7 +547,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
                            int8_t cmprAlg, int8_t toLast) {
   int32_t code = 0;
 
-  tAssert(pBlockData->nRow > 0);
+  ASSERT(pBlockData->nRow > 0);
 
   if (toLast) {
     pBlkInfo->offset = pWriter->fStt[pWriter->wSet.nSttF - 1].size;
@@ -666,7 +666,7 @@ int32_t tsdbWriteDiskData(SDataFWriter *pWriter, const SDiskData *pDiskData, SBl
       SDiskCol *pDiskCol = (SDiskCol *)taosArrayGet(pDiskData->aDiskCol, iDiskCol);
       n += tPutBlockCol(pWriter->aBuf[0] + n, pDiskCol);
     }
-    tAssert(n == pDiskData->hdr.szBlkCol);
+    ASSERT(n == pDiskData->hdr.szBlkCol);
 
     code = tsdbWriteFile(pFD, pBlkInfo->offset + pBlkInfo->szBlock, pWriter->aBuf[0], pDiskData->hdr.szBlkCol);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -953,7 +953,7 @@ int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx) {
       goto _err;
     }
   }
-  tAssert(n == size);
+  ASSERT(n == size);
 
   return code;
 
@@ -990,7 +990,7 @@ int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk) {
       goto _err;
     }
   }
-  tAssert(n == size);
+  ASSERT(n == size);
 
   return code;
 
@@ -1018,7 +1018,7 @@ int32_t tsdbReadDataBlk(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *m
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-  tAssert(n == size);
+  ASSERT(n == size);
 
   return code;
 
@@ -1031,7 +1031,7 @@ int32_t tsdbReadBlockSma(SDataFReader *pReader, SDataBlk *pDataBlk, SArray *aCol
   int32_t   code = 0;
   SSmaInfo *pSmaInfo = &pDataBlk->smaInfo;
 
-  tAssert(pSmaInfo->size > 0);
+  ASSERT(pSmaInfo->size > 0);
 
   taosArrayClear(aColumnDataAgg);
 
@@ -1054,7 +1054,7 @@ int32_t tsdbReadBlockSma(SDataFReader *pReader, SDataBlk *pDataBlk, SArray *aCol
       goto _err;
     }
   }
-  tAssert(n == pSmaInfo->size);
+  ASSERT(n == pSmaInfo->size);
   return code;
 
 _err:
@@ -1080,20 +1080,20 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
   SDiskDataHdr hdr;
   uint8_t     *p = pReader->aBuf[0] + tGetDiskDataHdr(pReader->aBuf[0], &hdr);
 
-  tAssert(hdr.delimiter == TSDB_FILE_DLMT);
-  tAssert(pBlockData->suid == hdr.suid);
+  ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
+  ASSERT(pBlockData->suid == hdr.suid);
 
   pBlockData->uid = hdr.uid;
   pBlockData->nRow = hdr.nRow;
 
   // uid
   if (hdr.uid == 0) {
-    tAssert(hdr.szUid);
+    ASSERT(hdr.szUid);
     code = tsdbDecmprData(p, hdr.szUid, TSDB_DATA_TYPE_BIGINT, hdr.cmprAlg, (uint8_t **)&pBlockData->aUid,
                           sizeof(int64_t) * hdr.nRow, &pReader->aBuf[1]);
     if (code) goto _err;
   } else {
-    tAssert(!hdr.szUid);
+    ASSERT(!hdr.szUid);
   }
   p += hdr.szUid;
 
@@ -1109,7 +1109,7 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
   if (code) goto _err;
   p += hdr.szKey;
 
-  tAssert(p - pReader->aBuf[0] == pBlkInfo->szKey);
+  ASSERT(p - pReader->aBuf[0] == pBlkInfo->szKey);
 
   // read and decode columns
   if (pBlockData->nColData == 0) goto _exit;
@@ -1135,7 +1135,7 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
       if (n < hdr.szBlkCol) {
         n += tGetBlockCol(pReader->aBuf[0] + n, pBlockCol);
       } else {
-        tAssert(n == hdr.szBlkCol);
+        ASSERT(n == hdr.szBlkCol);
         pBlockCol = NULL;
       }
     }
@@ -1147,8 +1147,8 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
         if (code) goto _err;
       }
     } else {
-      tAssert(pBlockCol->type == pColData->type);
-      tAssert(pBlockCol->flag && pBlockCol->flag != HAS_NONE);
+      ASSERT(pBlockCol->type == pColData->type);
+      ASSERT(pBlockCol->flag && pBlockCol->flag != HAS_NONE);
 
       if (pBlockCol->flag == HAS_NULL) {
         // add a lot of NULL
@@ -1210,7 +1210,7 @@ int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData 
   code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[0], pBlockData, -1);
   if (code) goto _err;
 
-  tAssert(pDataBlk->nSubBlock == 1);
+  ASSERT(pDataBlk->nSubBlock == 1);
 
   return code;
 
@@ -1349,7 +1349,7 @@ int32_t tsdbWriteDelData(SDelFWriter *pWriter, SArray *aDelData, SDelIdx *pDelId
   for (int32_t iDelData = 0; iDelData < taosArrayGetSize(aDelData); iDelData++) {
     n += tPutDelData(pWriter->aBuf[0] + n, taosArrayGet(aDelData, iDelData));
   }
-  tAssert(n == size);
+  ASSERT(n == size);
 
   // write
   code = tsdbWriteFile(pWriter->pWriteH, pWriter->fDel.size, pWriter->aBuf[0], size);
@@ -1388,7 +1388,7 @@ int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SArray *aDelIdx) {
   for (int32_t iDelIdx = 0; iDelIdx < taosArrayGetSize(aDelIdx); iDelIdx++) {
     n += tPutDelIdx(pWriter->aBuf[0] + n, taosArrayGet(aDelIdx, iDelIdx));
   }
-  tAssert(n == size);
+  ASSERT(n == size);
 
   // write
   code = tsdbWriteFile(pWriter->pWriteH, pWriter->fDel.size, pWriter->aBuf[0], size);
@@ -1509,7 +1509,7 @@ int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData
       goto _err;
     }
   }
-  tAssert(n == size);
+  ASSERT(n == size);
 
   return code;
 
@@ -1547,7 +1547,7 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx) {
     }
   }
 
-  tAssert(n == size);
+  ASSERT(n == size);
 
   return code;
 

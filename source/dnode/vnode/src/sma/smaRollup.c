@@ -161,7 +161,7 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree) {
 }
 
 static FORCE_INLINE int32_t tdUidStoreInit(STbUidStore **pStore) {
-  tAssert(*pStore == NULL);
+  ASSERT(*pStore == NULL);
   *pStore = taosMemoryCalloc(1, sizeof(STbUidStore));
   if (*pStore == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -264,7 +264,7 @@ int32_t tdFetchTbUidList(SSma *pSma, STbUidStore **ppStore, tb_uid_t suid, tb_ui
     return TSDB_CODE_SUCCESS;
   }
 
-  tAssert(ppStore != NULL);
+  ASSERT(ppStore != NULL);
 
   if (!(*ppStore)) {
     if (tdUidStoreInit(ppStore) < 0) {
@@ -332,7 +332,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     }
 
     pItem->level = idx == 0 ? TSDB_RETENTION_L1 : TSDB_RETENTION_L2;
-    tAssert(pItem->level > 0);
+    ASSERT(pItem->level > 0);
 
     SRSmaRef rsmaRef = {.refId = pStat->refId, .suid = pRSmaInfo->suid};
     taosHashPut(smaMgmt.refHash, &pItem, POINTER_BYTES, &rsmaRef, sizeof(rsmaRef));
@@ -882,7 +882,7 @@ static int32_t tdCloneQTaskInfo(SSma *pSma, qTaskInfo_t dstTaskInfo, qTaskInfo_t
       .vnode = pVnode,
       .initTqReader = 1,
   };
-  tAssert(!dstTaskInfo);
+  ASSERT(!dstTaskInfo);
   dstTaskInfo = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle);
   if (!dstTaskInfo) {
     terrno = TSDB_CODE_RSMA_QTASKINFO_CREATE;
@@ -928,8 +928,8 @@ static int32_t tdRSmaInfoClone(SSma *pSma, SRSmaInfo *pInfo) {
              terrstr());
     goto _err;
   }
-  tAssert(mr.me.type == TSDB_SUPER_TABLE);
-  tAssert(mr.me.uid == pInfo->suid);
+  ASSERT(mr.me.type == TSDB_SUPER_TABLE);
+  ASSERT(mr.me.uid == pInfo->suid);
   if (TABLE_IS_ROLLUP(mr.me.flags)) {
     param = &mr.me.stbEntry.rsmaParam;
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
@@ -992,7 +992,7 @@ static SRSmaInfo *tdAcquireRSmaInfoBySuid(SSma *pSma, int64_t suid) {
     }
     tdRefRSmaInfo(pSma, pRSmaInfo);
     taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
-    tAssert(pRSmaInfo->suid == suid);
+    ASSERT(pRSmaInfo->suid == suid);
     return pRSmaInfo;
   }
   taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
@@ -1038,7 +1038,7 @@ static int32_t tdExecuteRSmaAsync(SSma *pSma, const void *pMsg, int32_t inputTyp
       }
     }
   } else {
-    tAssert(0);
+    ASSERT(0);
   }
 
   tdReleaseRSmaInfo(pSma, pRSmaInfo);
@@ -1133,8 +1133,8 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
       goto _err;
     }
     tDecoderClear(&mr.coder);
-    tAssert(mr.me.type == TSDB_SUPER_TABLE);
-    tAssert(mr.me.uid == suid);
+    ASSERT(mr.me.type == TSDB_SUPER_TABLE);
+    ASSERT(mr.me.uid == suid);
     if (TABLE_IS_ROLLUP(mr.me.flags)) {
       ++nRsmaTables;
       SRSmaParam *param = &mr.me.stbEntry.rsmaParam;
@@ -1345,8 +1345,8 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
 #if 0
       SRSmaInfo     *qInfo = tdAcquireRSmaInfoBySuid(pSma, pRSmaInfo->suid);
       SRSmaInfoItem *qItem = RSMA_INFO_ITEM(qInfo, pItem->level - 1);
-      tAssert(qItem->level == pItem->level);
-      tAssert(qItem->fetchLevel == pItem->fetchLevel);
+      ASSERT(qItem->level == pItem->level);
+      ASSERT(qItem->fetchLevel == pItem->fetchLevel);
 #endif
       if (atomic_load_8(&pRSmaInfo->assigned) == 0) {
         tsem_post(&(pStat->notEmpty));
@@ -1536,7 +1536,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
                 if (oldStat == 0 ||
                     ((oldStat == 2) && atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)) < TASK_TRIGGER_STAT_PAUSED)) {
                   int32_t oldVal = atomic_fetch_add_32(&pRSmaStat->nFetchAll, 1);
-                  tAssert(oldVal >= 0);
+                  ASSERT(oldVal >= 0);
                   tdRSmaFetchAllResult(pSma, pInfo);
                   if (0 == atomic_sub_fetch_32(&pRSmaStat->nFetchAll, 1)) {
                     atomic_store_8(RSMA_COMMIT_STAT(pRSmaStat), 0);
@@ -1567,7 +1567,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
         }
       }
     } else {
-      tAssert(0);
+      ASSERT(0);
     }
 
     if (atomic_load_64(&pRSmaStat->nBufItems) <= 0) {

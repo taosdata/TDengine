@@ -1176,7 +1176,7 @@ static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName,
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pTopic->ast, &pAst) != 0) {
-      tAssert(0);
+      ASSERT(0);
       return -1;
     }
 
@@ -1221,7 +1221,7 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pStream->ast, &pAst) != 0) {
-      tAssert(0);
+      ASSERT(0);
       return -1;
     }
 
@@ -2091,7 +2091,7 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pTopic->ast, &pAst) != 0) {
-      tAssert(0);
+      ASSERT(0);
       return -1;
     }
 
@@ -2138,7 +2138,7 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pStream->ast, &pAst) != 0) {
-      tAssert(0);
+      ASSERT(0);
       return -1;
     }
 

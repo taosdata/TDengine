@@ -25,7 +25,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
     const SStreamTrigger* pTrigger = (const SStreamTrigger*)data;
     qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
-    tAssert(pTask->taskLevel == TASK_LEVEL__SOURCE);
+    ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
     const SStreamDataSubmit* pSubmit = (const SStreamDataSubmit*)data;
     qDebug("task %d %p set submit input %p %p %d 1", pTask->taskId, pTask, pSubmit, pSubmit->data, *pSubmit->dataRef);
     qSetMultiStreamInput(exec, pSubmit->data, 1, STREAM_INPUT__DATA_SUBMIT);
@@ -43,7 +43,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
     const SStreamRefDataBlock* pRefBlock = (const SStreamRefDataBlock*)data;
     qSetMultiStreamInput(exec, pRefBlock->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
   } else {
-    tAssert(0);
+    ASSERT(0);
   }
 
   // exec
@@ -51,7 +51,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
     SSDataBlock* output = NULL;
     uint64_t     ts = 0;
     if ((code = qExecTask(exec, &output, &ts)) < 0) {
-      /*tAssert(false);*/
+      /*ASSERT(false);*/
       qError("unexpected stream execution, stream %" PRId64 " task: %d,  since %s", pTask->streamId, pTask->taskId,
              terrstr());
     }
@@ -59,7 +59,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
       if (pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
         SSDataBlock             block = {0};
         const SStreamDataBlock* pRetrieveBlock = (const SStreamDataBlock*)data;
-        tAssert(taosArrayGetSize(pRetrieveBlock->blocks) == 1);
+        ASSERT(taosArrayGetSize(pRetrieveBlock->blocks) == 1);
         assignOneDataBlock(&block, taosArrayGet(pRetrieveBlock->blocks, 0));
         block.info.type = STREAM_PULL_OVER;
         block.info.childId = pTask->selfChildId;
@@ -89,7 +89,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
 }
 
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
-  tAssert(pTask->taskLevel == TASK_LEVEL__SOURCE);
+  ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
 
   void* exec = pTask->exec.executor;
 
@@ -108,7 +108,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       SSDataBlock* output = NULL;
       uint64_t     ts = 0;
       if (qExecTask(exec, &output, &ts) < 0) {
-        tAssert(0);
+        ASSERT(0);
       }
       if (output == NULL) {
         finished = true;
@@ -171,7 +171,7 @@ int32_t streamBatchExec(SStreamTask* pTask, int32_t batchLimit) {
   }
 
   if (pTask->taskLevel == TASK_LEVEL__SINK) {
-    tAssert(((SStreamQueueItem*)pItem)->type == STREAM_INPUT__DATA_BLOCK);
+    ASSERT(((SStreamQueueItem*)pItem)->type == STREAM_INPUT__DATA_BLOCK);
     streamTaskOutput(pTask, (SStreamDataBlock*)pItem);
   }
 
@@ -222,7 +222,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     }
 
     if (pTask->taskLevel == TASK_LEVEL__SINK) {
-      tAssert(((SStreamQueueItem*)input)->type == STREAM_INPUT__DATA_BLOCK);
+      ASSERT(((SStreamQueueItem*)input)->type == STREAM_INPUT__DATA_BLOCK);
       streamTaskOutput(pTask, input);
       continue;
     }

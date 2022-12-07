@@ -334,7 +334,6 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddLocale(pCfg, "locale", tsLocale) != 0) return -1;
   if (cfgAddCharset(pCfg, "charset", tsCharset) != 0) return -1;
   if (cfgAddBool(pCfg, "enableCoreFile", 1, 1) != 0) return -1;
-  if (cfgAddBool(pCfg, "assert", 1, 1) != 0) return -1;
   if (cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 1, 100000, 1) != 0) return -1;
 
   if (cfgAddBool(pCfg, "SSE42", tsSSE42Enable, 0) != 0) return -1;
@@ -694,8 +693,6 @@ static void taosSetSystemCfg(SConfig *pCfg) {
   bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
   taosSetCoreDump(enableCore);
 
-  tsAssert = cfgGetItem(pCfg, "assert")->bval;
-
   // todo
   tsVersion = 30000000;
 }
@@ -791,9 +788,7 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
     case 'a': {
       if (strcasecmp("asyncLog", name) == 0) {
         tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
-      } else if (strcasecmp("assert", name) == 0) {
-        tsAssert = cfgGetItem(pCfg, "assert")->bval;
-      } 
+      }
       break;
     }
     case 'c': {

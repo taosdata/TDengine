@@ -122,7 +122,7 @@ static void inline vnodeProposeBatchMsg(SVnode *pVnode, SRpcMsg **pMsgArr, bool 
   int32_t code = syncProposeBatch(pVnode->sync, pMsgArr, pIsWeakArr, *arrSize);
   bool    wait = (code == 0 && vnodeIsBlockMsg(pLastMsg->msgType));
   if (wait) {
-    tAssert(!pVnode->blocked);
+    ASSERT(!pVnode->blocked);
     pVnode->blocked = true;
   }
   taosThreadMutexUnlock(&pVnode->lock);
@@ -221,7 +221,7 @@ static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak
   int32_t code = syncPropose(pVnode->sync, pMsg, isWeak);
   bool    wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
   if (wait) {
-    tAssert(!pVnode->blocked);
+    ASSERT(!pVnode->blocked);
     pVnode->blocked = true;
   }
   taosThreadMutexUnlock(&pVnode->lock);

@@ -163,7 +163,7 @@ int32_t taosMulMkDir(const char *dirname) {
       code = mkdir(temp, 0755);
 #endif
       if (code < 0 && errno != EEXIST) {
-        // terrno = TAOS_SYSTEM_ERROR(errno);
+        terrno = TAOS_SYSTEM_ERROR(errno);
         return code;
       }
       *pos = TD_DIRSEP[0];
@@ -179,7 +179,7 @@ int32_t taosMulMkDir(const char *dirname) {
     code = mkdir(temp, 0755);
 #endif
     if (code < 0 && errno != EEXIST) {
-      // terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(errno);
       return code;
     }
   }
@@ -225,7 +225,7 @@ int32_t taosMulModeMkDir(const char *dirname, int mode) {
       code = mkdir(temp, mode);
 #endif
       if (code < 0 && errno != EEXIST) {
-        // terrno = TAOS_SYSTEM_ERROR(errno);
+        terrno = TAOS_SYSTEM_ERROR(errno);
         return code;
       }
       *pos = TD_DIRSEP[0];
@@ -241,7 +241,7 @@ int32_t taosMulModeMkDir(const char *dirname, int mode) {
     code = mkdir(temp, mode);
 #endif
     if (code < 0 && errno != EEXIST) {
-      // terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(errno);
       return code;
     }
   }

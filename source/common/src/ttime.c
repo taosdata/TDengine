@@ -23,8 +23,6 @@
 #define _DEFAULT_SOURCE
 #include "ttime.h"
 
-#include "tlog.h"
-
 /*
  * mktime64 - Converts date to seconds.
  * Converts Gregorian date to seconds since 1970-01-01 00:00:00.
@@ -433,9 +431,9 @@ char getPrecisionUnit(int32_t precision) {
 }
 
 int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPrecision) {
-  tAssert(fromPrecision == TSDB_TIME_PRECISION_MILLI || fromPrecision == TSDB_TIME_PRECISION_MICRO ||
+  ASSERT(fromPrecision == TSDB_TIME_PRECISION_MILLI || fromPrecision == TSDB_TIME_PRECISION_MICRO ||
          fromPrecision == TSDB_TIME_PRECISION_NANO);
-  tAssert(toPrecision == TSDB_TIME_PRECISION_MILLI || toPrecision == TSDB_TIME_PRECISION_MICRO ||
+  ASSERT(toPrecision == TSDB_TIME_PRECISION_MILLI || toPrecision == TSDB_TIME_PRECISION_MICRO ||
          toPrecision == TSDB_TIME_PRECISION_NANO);
 
   switch (fromPrecision) {
@@ -454,7 +452,7 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
           }
           return utime * 1000000;
         default:
-          tAssert(0);
+          ASSERT(0);
           return utime;
       }
     }  // end from milli
@@ -470,7 +468,7 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
           }
           return utime * 1000;
         default:
-          tAssert(0);
+          ASSERT(0);
           return utime;
       }
     }  // end from micro
@@ -483,12 +481,12 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
         case TSDB_TIME_PRECISION_NANO:
           return utime;
         default:
-          tAssert(0);
+          ASSERT(0);
           return utime;
       }
     }  // end from nano
     default: {
-      tAssert(0);
+      ASSERT(0);
       return utime;  // only to pass windows compilation
     }
   }  // end switch fromPrecision
@@ -830,7 +828,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
     }
   }
 
-  tAssert(pInterval->offset >= 0);
+  ASSERT(pInterval->offset >= 0);
 
   if (pInterval->offset > 0) {
     start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision);

@@ -197,7 +197,7 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
     size = pg->length;
   }
 
-  tAssert(size > 0 || (pg->offset == -1 && pg->length == -1));
+  ASSERT(size > 0 || (pg->offset == -1 && pg->length == -1));
 
   char* pDataBuf = pg->pData;
   memset(pDataBuf, 0, getAllocPageSize(pBuf->pageSize));
@@ -500,7 +500,7 @@ void releaseBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* pi) {
 size_t getTotalBufSize(const SDiskbasedBuf* pBuf) { return (size_t)pBuf->totalBufSize; }
 
 SArray* getDataBufPagesIdList(SDiskbasedBuf* pBuf) {
-  tAssert(pBuf != NULL);
+  ASSERT(pBuf != NULL);
   return pBuf->pIdList;
 }
 
@@ -578,7 +578,7 @@ SPageInfo* getLastPageInfo(SArray* pList) {
 }
 
 int32_t getPageId(const SPageInfo* pPgInfo) {
-  tAssert(pPgInfo != NULL);
+  ASSERT(pPgInfo != NULL);
   return pPgInfo->pageId;
 }
 

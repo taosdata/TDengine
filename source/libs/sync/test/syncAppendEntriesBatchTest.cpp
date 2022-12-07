@@ -53,7 +53,7 @@ void test1() {
     int32_t            retArrSize = pMsg->dataCount;
     for (int i = 0; i < retArrSize; ++i) {
       SSyncRaftEntry *pEntry = (SSyncRaftEntry*)(pMsg->data + metaArr[i].offset);
-      tAssert(pEntry->bytes == metaArr[i].contLen);
+      ASSERT(pEntry->bytes == metaArr[i].contLen);
       syncEntryPrint(pEntry);
     }
   */

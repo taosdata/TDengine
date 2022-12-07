@@ -3,7 +3,6 @@
 #define ALLOW_FORBID_FUNC
 #include "os.h"
 #include "tdb.h"
-#include "tlog.h"
 
 #include <shared_mutex>
 #include <string>
@@ -104,7 +103,7 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
   int mlen;
   int cret;
 
-  tAssert(keyLen1 > 0 && keyLen2 > 0 && pKey1 != NULL && pKey2 != NULL);
+  ASSERT(keyLen1 > 0 && keyLen2 > 0 && pKey1 != NULL && pKey2 != NULL);
 
   mlen = keyLen1 < keyLen2 ? keyLen1 : keyLen2;
   cret = memcmp(pKey1, pKey2, mlen);
@@ -225,7 +224,7 @@ TEST(TdbOVFLPagesTest, TbGetTest) {
     // char const *key = "key1";
     char const *key = "key123456789";
     ret = tdbTbGet(pDb, key, strlen(key), &pVal, &vLen);
-    tAssert(ret == 0);
+    ASSERT(ret == 0);
     GTEST_ASSERT_EQ(ret, 0);
 
     GTEST_ASSERT_EQ(vLen, valLen);
@@ -277,7 +276,7 @@ TEST(TdbOVFLPagesTest, TbDeleteTest) {
     int   vLen;
 
     ret = tdbTbGet(pDb, "key1", strlen("key1"), &pVal, &vLen);
-    tAssert(ret == 0);
+    ASSERT(ret == 0);
     GTEST_ASSERT_EQ(ret, 0);
 
     GTEST_ASSERT_EQ(vLen, valLen);
@@ -303,7 +302,7 @@ tdbBegin(pEnv, &txn);
     int   vLen;
 
     ret = tdbTbGet(pDb, "key1", strlen("key1"), &pVal, &vLen);
-    tAssert(ret == 0);
+    ASSERT(ret == 0);
     GTEST_ASSERT_EQ(ret, 0);
 
     GTEST_ASSERT_EQ(vLen, strlen("value1"));
@@ -322,7 +321,7 @@ tdbBegin(pEnv, &txn);
     int   vLen = -1;
 
     ret = tdbTbGet(pDb, "key1", strlen("key1"), &pVal, &vLen);
-    tAssert(ret == -1);
+    ASSERT(ret == -1);
     GTEST_ASSERT_EQ(ret, -1);
 
     GTEST_ASSERT_EQ(vLen, -1);
@@ -416,7 +415,7 @@ TEST(tdb_test, simple_insert1) {
         // sprintf(val, "value%d", i);
 
         ret = tdbTbGet(pDb, key, strlen(key), &pVal, &vLen);
-        tAssert(ret == 0);
+        ASSERT(ret == 0);
         GTEST_ASSERT_EQ(ret, 0);
 
         GTEST_ASSERT_EQ(vLen, sizeof(val) / sizeof(val[0]));

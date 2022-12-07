@@ -22,7 +22,7 @@ extern SCatalogMgmt gCtgMgmt;
 SCtgDebug           gCTGDebug = {0};
 
 void ctgdUserCallback(SMetaData *pResult, void *param, int32_t code) {
-  tAssert(*(int32_t *)param == 1);
+  ASSERT(*(int32_t *)param == 1);
   taosMemoryFree(param);
 
   qDebug("async call result: %s", tstrerror(code));
