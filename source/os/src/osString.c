@@ -143,15 +143,17 @@ SConv  *gConv = NULL;
 int32_t convUsed = 0;
 int32_t gConvMaxNum = 0;
 
-void taosConvInit(void) {
+int32_t taosConvInit(void) {
   gConvMaxNum = 512;
   gConv = taosMemoryCalloc(gConvMaxNum, sizeof(SConv));
   for (int32_t i = 0; i < gConvMaxNum; ++i) {
     gConv[i].conv = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
     if ((iconv_t)-1 == gConv[i].conv || (iconv_t)0 == gConv[i].conv) {
-      ASSERT(0);
+      return -1;
     }
   }
+
+  return 0;
 }
 
 void taosConvDestroy() {
