@@ -389,7 +389,7 @@ int32_t tqReaderSetSubmitReq2(STqReader* pReader, void* msgStr, int32_t msgLen, 
   pReader->msg2.ver = ver;
   pReader->ver = ver;
 
-  tqDebug("tq reader set msg %p", msgStr);
+  tqDebug("tq reader set msg %p %d", msgStr, msgLen);
 
   if (pReader->setMsg == 0) {
     SDecoder decoder;
@@ -683,6 +683,7 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader) {
         } else if (pCol->cid == pColData->info.colId) {
           for (int32_t i = 0; i < pCol->nVal; i++) {
             tColDataGetValue(pCol, sourceIdx, &colVal);
+#if 0
             void* val = NULL;
             if (IS_STR_DATA_TYPE(colVal.type)) {
               val = colVal.value.pData;
@@ -691,6 +692,20 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader) {
             }
             if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
               goto FAIL;
+            }
+#endif
+            char val[65535 + 2];
+            if (IS_STR_DATA_TYPE(colVal.type)) {
+              memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
+              varDataSetLen(val, colVal.value.nData);
+              if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+                goto FAIL;
+              }
+              /*val = colVal.value.pData;*/
+            } else {
+              if (colDataAppend(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+                goto FAIL;
+              }
             }
           }
           sourceIdx++;
@@ -718,14 +733,18 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader) {
               sourceIdx++;
               continue;
             } else if (colVal.cid == pColData->info.colId) {
-              void* val = NULL;
+              char val[65535 + 2];
               if (IS_STR_DATA_TYPE(colVal.type)) {
-                val = colVal.value.pData;
+                memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
+                varDataSetLen(val, colVal.value.nData);
+                if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+                  goto FAIL;
+                }
+                /*val = colVal.value.pData;*/
               } else {
-                val = &colVal.value.val;
-              }
-              if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-                goto FAIL;
+                if (colDataAppend(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+                  goto FAIL;
+                }
               }
 
               sourceIdx++;
