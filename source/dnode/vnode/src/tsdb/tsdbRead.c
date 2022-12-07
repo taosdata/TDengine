@@ -3942,7 +3942,6 @@ void tsdbReaderClose(STsdbReader* pReader) {
   if (pReader->freeBlock) {
     pReader->pResBlock = blockDataDestroy(pReader->pResBlock);
   }
-  tBlockDataDestroy(&pReader->status.fileBlockData);
 
   taosMemoryFree(pSupInfo->colId);
   tBlockDataDestroy(&pReader->status.fileBlockData);
