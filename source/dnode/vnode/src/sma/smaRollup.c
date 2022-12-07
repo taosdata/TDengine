@@ -618,7 +618,7 @@ static int32_t tdFetchSubmitReqSuids(SSubmitReq2 *pMsg, STbUidStore *pStore) {
 
   for (int32_t i = 0; i < size; ++i) {
     SSubmitTbData *pData = TARRAY_GET_ELEM(pSubmitTbData, i);
-    if (terrno = tdUidStorePut(pStore, pData->suid, NULL) < 0) {
+    if ((terrno = tdUidStorePut(pStore, pData->suid, NULL)) < 0) {
       return -1;
     }
   }
@@ -698,10 +698,10 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
 #endif
     for (int32_t i = 0; i < taosArrayGetSize(pResList); ++i) {
       SSDataBlock *output = taosArrayGetP(pResList, i);
-      smaDebug("result block, uid:%" PRIu64 ", groupid:%" PRIu64 ", rows:%d", output->info.id.uid, output->info.id.groupId,
-               output->info.rows);
+      smaDebug("result block, uid:%" PRIu64 ", groupid:%" PRIu64 ", rows:%d", output->info.id.uid,
+               output->info.id.groupId, output->info.rows);
 
-      STsdb      *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb[0] : pSma->pRSmaTsdb[1]);
+      STsdb       *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb[0] : pSma->pRSmaTsdb[1]);
       SSubmitReq2 *pReq = NULL;
 
       // TODO: the schema update should be handled later(TD-17965)
@@ -723,7 +723,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
       smaDebug("vgId:%d, process submit req for rsma suid:%" PRIu64 ",uid:%" PRIu64 ", level %" PRIi8 " ver %" PRIi64,
                SMA_VID(pSma), suid, output->info.id.groupId, pItem->level, output->info.version);
 
-      if(pReq) tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+      if (pReq) tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
     }
   }
 
@@ -1032,7 +1032,7 @@ static int32_t tdExecuteRSmaAsync(SSma *pSma, const void *pMsg, int32_t len, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tdProcessRSmaSubmit(SSma *pSma, void *pReq, void* pMsg, int32_t len, int32_t inputType) {
+int32_t tdProcessRSmaSubmit(SSma *pSma, void *pReq, void *pMsg, int32_t len, int32_t inputType) {
   SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
   if (!pEnv) {
     // only applicable when rsma env exists
