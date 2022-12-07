@@ -20,6 +20,7 @@
 #include "scalar.h"
 #include "taoserror.h"
 #include "ttime.h"
+#include "tlog.h"
 
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
   va_list vArgList;
@@ -1354,7 +1355,7 @@ static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     } else if (IS_FLOAT_TYPE(colType)) {
       resType = TSDB_DATA_TYPE_DOUBLE;
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
   }
 

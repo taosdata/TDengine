@@ -1533,7 +1533,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         qError("submit msg messed up when initing stream submit block %p", pSubmit);
         pInfo->tqReader->pMsg = NULL;
         pTaskInfo->streamInfo.pReq = NULL;
-        ASSERT(0);
+        tAssert(0);
       }
     }
 
@@ -1592,7 +1592,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       if (ret.fetchType == FETCH_TYPE__DATA) {
         blockDataCleanup(pInfo->pRes);
         if (setBlockIntoRes(pInfo, &ret.data, true) < 0) {
-          ASSERT(0);
+          tAssert(0);
         }
         if (pInfo->pRes->info.rows > 0) {
           pOperator->status = OP_EXEC_RECV;
@@ -1600,7 +1600,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
           return pInfo->pRes;
         }
       } else if (ret.fetchType == FETCH_TYPE__META) {
-        ASSERT(0);
+        tAssert(0);
         //        pTaskInfo->streamInfo.lastStatus = ret.offset;
         //        pTaskInfo->streamInfo.metaBlk = ret.meta;
         //        return NULL;
@@ -1627,7 +1627,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     return NULL;
 #endif
   } else {
-    ASSERT(0);
+    tAssert(0);
     return NULL;
   }
 }
@@ -1701,26 +1701,26 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     };
     char tmp[100] = "abcdefg1";
     if (streamStatePut(pState, &key, &tmp, strlen(tmp) + 1) < 0) {
-      ASSERT(0);
+      tAssert(0);
     }
 
     key.ts = 2;
     char tmp2[100] = "abcdefg2";
     if (streamStatePut(pState, &key, &tmp2, strlen(tmp2) + 1) < 0) {
-      ASSERT(0);
+      tAssert(0);
     }
 
     key.groupId = 5;
     key.ts = 1;
     char tmp3[100] = "abcdefg3";
     if (streamStatePut(pState, &key, &tmp3, strlen(tmp3) + 1) < 0) {
-      ASSERT(0);
+      tAssert(0);
     }
 
     char*   val2 = NULL;
     int32_t sz;
     if (streamStateGet(pState, &key, (void**)&val2, &sz) < 0) {
-      ASSERT(0);
+      tAssert(0);
     }
     printf("stream read %s %d\n", val2, sz);
     streamFreeVal(val2);
@@ -2001,7 +2001,7 @@ FETCH_NEXT_BLOCK:
 
     goto NEXT_SUBMIT_BLK;
   } else {
-    ASSERT(0);
+    tAssert(0);
     return NULL;
   }
 }

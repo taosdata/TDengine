@@ -680,7 +680,7 @@ void setDeleteFillValueInfo(TSKEY start, TSKEY end, SStreamFillSupporter* pFillS
       pFillInfo->pLinearInfo->winIndex = 0;
     } break;
     default:
-      ASSERT(0);
+      tAssert(0);
       break;
   }
 }
@@ -811,7 +811,7 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
       }
     } break;
     default:
-      ASSERT(0);
+      tAssert(0);
       break;
   }
   ASSERT(pFillInfo->pos != FILL_POS_INVALID);
@@ -1269,7 +1269,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
           pInfo->srcRowIndex = 0;
         } break;
         default:
-          ASSERT(0);
+          tAssert(0);
           break;
       }
     }

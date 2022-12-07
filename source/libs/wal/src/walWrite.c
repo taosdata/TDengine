@@ -138,21 +138,21 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   TdFilePtr pIdxFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
 
   if (pIdxFile == NULL) {
-    ASSERT(0);
+    tAssert(0);
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   int64_t idxOff = walGetVerIdxOffset(pWal, ver);
   code = taosLSeekFile(pIdxFile, idxOff, SEEK_SET);
   if (code < 0) {
-    ASSERT(0);
+    tAssert(0);
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   // read idx file and get log file pos
   SWalIdxEntry entry;
   if (taosReadFile(pIdxFile, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) {
-    ASSERT(0);
+    tAssert(0);
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
@@ -179,7 +179,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   ASSERT(taosValidFile(pLogFile));
   int64_t size = taosReadFile(pLogFile, &head, sizeof(SWalCkHead));
   if (size != sizeof(SWalCkHead)) {
-    ASSERT(0);
+    tAssert(0);
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
@@ -188,12 +188,12 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   ASSERT(code == 0);
   if (code != 0) {
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-    ASSERT(0);
+    tAssert(0);
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   if (head.head.version != ver) {
-    ASSERT(0);
+    tAssert(0);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
@@ -202,14 +202,14 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   // truncate old files
   code = taosFtruncateFile(pLogFile, entry.offset);
   if (code < 0) {
-    ASSERT(0);
+    tAssert(0);
     terrno = TAOS_SYSTEM_ERROR(errno);
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   code = taosFtruncateFile(pIdxFile, idxOff);
   if (code < 0) {
-    ASSERT(0);
+    tAssert(0);
     terrno = TAOS_SYSTEM_ERROR(errno);
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
@@ -386,7 +386,7 @@ int32_t walEndSnapshot(SWal *pWal) {
     walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
     wDebug("vgId:%d, wal remove file %s", pWal->cfg.vgId, fnameStr);
     if (taosRemoveFile(fnameStr) < 0 && errno != ENOENT) {
-      ASSERT(0);
+      tAssert(0);
     }
   }
   taosArrayClear(pWal->toDeleteFiles);

@@ -310,7 +310,7 @@ static inline int tdbTryLockPage(tdb_spinlock_t *pLock) {
   } else if (ret == EBUSY) {
     return P_LOCK_BUSY;
   } else {
-    ASSERT(0);
+    tAssert(0);
     return P_LOCK_FAIL;
   }
 }

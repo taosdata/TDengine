@@ -85,7 +85,7 @@ void convertNumberToNumber(const void *inData, void *outData, int8_t inType, int
       break;
     }
     default: {
-      ASSERT(0);
+      tAssert(0);
     }
   }
 }
@@ -179,7 +179,7 @@ _getBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {
   } else if (srcType == TSDB_DATA_TYPE_NULL) {
     p = NULL;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
   return p;
 }
@@ -409,7 +409,7 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
     int32_t convertType = pCtx->inType;
     if (pCtx->inType == TSDB_DATA_TYPE_JSON) {
       if (*data == TSDB_DATA_TYPE_NULL) {
-        ASSERT(0);
+        tAssert(0);
       } else if (*data == TSDB_DATA_TYPE_NCHAR) {
         data += CHAR_BYTES;
         convertType = TSDB_DATA_TYPE_NCHAR;
@@ -543,11 +543,11 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
 
   if (IS_NUMERIC_TYPE(type)) {
     if (typeLeft == TSDB_DATA_TYPE_NCHAR) {
-      ASSERT(0);
+      tAssert(0);
       //      convertNcharToDouble(*pLeftData, pLeftOut);
       //      *pLeftData = pLeftOut;
     } else if (typeLeft == TSDB_DATA_TYPE_BINARY) {
-      ASSERT(0);
+      tAssert(0);
       //      convertBinaryToDouble(*pLeftData, pLeftOut);
       //      *pLeftData = pLeftOut;
     } else if (typeLeft != type) {
@@ -556,11 +556,11 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
     }
 
     if (typeRight == TSDB_DATA_TYPE_NCHAR) {
-      ASSERT(0);
+      tAssert(0);
       //      convertNcharToDouble(*pRightData, pRightOut);
       //      *pRightData = pRightOut;
     } else if (typeRight == TSDB_DATA_TYPE_BINARY) {
-      ASSERT(0);
+      tAssert(0);
       //      convertBinaryToDouble(*pRightData, pRightOut);
       //      *pRightData = pRightOut;
     } else if (typeRight != type) {
@@ -577,7 +577,7 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
       *freeRight = true;
     }
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   return true;
@@ -1602,7 +1602,7 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
       bool result = convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData,
                                      &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight);
       if (isJsonnull) {
-        ASSERT(0);
+        tAssert(0);
       }
 
       if (!pLeftData || !pRightData) {
@@ -1913,7 +1913,7 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
     case OP_TYPE_JSON_CONTAINS:
       return vectorJsonContains;
     default:
-      ASSERT(0);
+      tAssert(0);
       return NULL;
   }
 }

@@ -806,7 +806,7 @@ int32_t tmqHandleAllDelayedTask(tmq_t* tmq) {
       taosTmrReset(tmqAssignDelayedCommitTask, tmq->autoCommitInterval, pRefId, tmqMgmt.timer, &tmq->commitTimer);
     } else if (*pTaskType == TMQ_DELAYED_TASK__REPORT) {
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
     taosFreeQitem(pTaskType);
   }
@@ -1209,7 +1209,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->taosxRsp, pMsg->pData, sizeof(SMqRspHead));
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   taosMemoryFree(pMsg->pData);

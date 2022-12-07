@@ -161,7 +161,7 @@ int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback) {
   SMetaSnapWriter* pWriter = *ppWriter;
 
   if (rollback) {
-    ASSERT(0);
+    tAssert(0);
   } else {
     code = metaCommit(pWriter->pMeta, pWriter->pMeta->txn);
     if (code) goto _err;
@@ -524,7 +524,7 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, in
     } else {
       SArray* pTagVals = NULL;
       if (tTagToValArray((const STag*)p, &pTagVals) != 0) {
-        ASSERT(0);
+        tAssert(0);
       }
       int16_t nCols = taosArrayGetSize(pTagVals);
       for (int j = 0; j < nCols; ++j) {
@@ -568,7 +568,7 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, in
     ret = buildNormalChildTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_TABLE;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
   tDecoderClear(&dc);
 

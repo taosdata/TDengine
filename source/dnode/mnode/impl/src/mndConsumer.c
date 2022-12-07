@@ -134,8 +134,8 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   SMqConsumerRecoverMsg *pRecoverMsg = pMsg->pCont;
   SMqConsumerObj        *pConsumer = mndAcquireConsumer(pMnode, pRecoverMsg->consumerId);
 
-  tAssert(pConsumer != NULL, "receive consumer recover msg, consumer id %" PRId64 ", status %s",
-          pRecoverMsg->consumerId, mndConsumerStatusName(pConsumer->status));
+  tAssertS(pConsumer != NULL, "receive consumer recover msg, consumer id %" PRId64 ", status %s",
+           pRecoverMsg->consumerId, mndConsumerStatusName(pConsumer->status));
 
   mInfo("receive consumer recover msg, consumer id %" PRId64 ", status %s", pRecoverMsg->consumerId,
         mndConsumerStatusName(pConsumer->status));
@@ -383,7 +383,8 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
     return -1;
   }
 
-  tAssert(strcmp(req.cgroup, pConsumer->cgroup) == 0, "cgroup:%s not match consumer:%s", req.cgroup, pConsumer->cgroup);
+  tAssertS(strcmp(req.cgroup, pConsumer->cgroup) == 0, "cgroup:%s not match consumer:%s", req.cgroup,
+           pConsumer->cgroup);
 
   atomic_store_32(&pConsumer->hbStatus, 0);
 
@@ -432,7 +433,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, topic);
 
       // txn guarantees pSub is created
-      tAsser(pSub);
+      tAssert(pSub != NULL);
       taosRLockLatch(&pSub->lock);
 
       SMqSubTopicEp topicEp = {0};
@@ -440,7 +441,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 
       // 2.1 fetch topic schema
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
-      ASSERT(pTopic);
+      tAssertS(pTopic != NULL, "failed to acquire topic:%s", topic);
       taosRLockLatch(&pTopic->lock);
       tstrncpy(topicEp.db, pTopic->db, TSDB_DB_FNAME_LEN);
       topicEp.schema.nCols = pTopic->schema.nCols;
@@ -776,8 +777,8 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
   taosWLockLatch(&pOldConsumer->lock);
 
   if (pNewConsumer->updateType == CONSUMER_UPDATE__MODIFY) {
-    ASSERT(taosArrayGetSize(pOldConsumer->rebNewTopics) == 0);
-    ASSERT(taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0);
+    tAssert(taosArrayGetSize(pOldConsumer->rebNewTopics) == 0);
+    tAssert(taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0);
 
     if (taosArrayGetSize(pNewConsumer->rebNewTopics) == 0 && taosArrayGetSize(pNewConsumer->rebRemovedTopics) == 0) {
       pOldConsumer->status = MQ_CONSUMER_STATUS__READY;
@@ -799,8 +800,8 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
       pOldConsumer->status = MQ_CONSUMER_STATUS__MODIFY;
     }
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE__LOST) {
-    ASSERT(taosArrayGetSize(pOldConsumer->rebNewTopics) == 0);
-    ASSERT(taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0);
+    tAssert(taosArrayGetSize(pOldConsumer->rebNewTopics) == 0);
+    tAssert(taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0);
 
     int32_t sz = taosArrayGetSize(pOldConsumer->currentTopics);
     /*pOldConsumer->rebRemovedTopics = taosArrayInit(sz, sizeof(void *));*/
@@ -813,8 +814,8 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 
     pOldConsumer->status = MQ_CONSUMER_STATUS__LOST;
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE__RECOVER) {
-    ASSERT(taosArrayGetSize(pOldConsumer->currentTopics) == 0);
-    ASSERT(taosArrayGetSize(pOldConsumer->rebNewTopics) == 0);
+    tAssert(taosArrayGetSize(pOldConsumer->currentTopics) == 0);
+    tAssert(taosArrayGetSize(pOldConsumer->rebNewTopics) == 0);
 
     int32_t sz = taosArrayGetSize(pOldConsumer->assignedTopics);
     for (int32_t i = 0; i < sz; i++) {
@@ -831,15 +832,15 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     pOldConsumer->rebalanceTime = pNewConsumer->upTime;
 
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE__ADD) {
-    ASSERT(taosArrayGetSize(pNewConsumer->rebNewTopics) == 1);
-    ASSERT(taosArrayGetSize(pNewConsumer->rebRemovedTopics) == 0);
+    tAssert(taosArrayGetSize(pNewConsumer->rebNewTopics) == 1);
+    tAssert(taosArrayGetSize(pNewConsumer->rebRemovedTopics) == 0);
 
     char *addedTopic = strdup(taosArrayGetP(pNewConsumer->rebNewTopics, 0));
     // not exist in current topic
 #if 1
     for (int32_t i = 0; i < taosArrayGetSize(pOldConsumer->currentTopics); i++) {
       char *topic = taosArrayGetP(pOldConsumer->currentTopics, i);
-      ASSERT(strcmp(topic, addedTopic) != 0);
+      tAssert(strcmp(topic, addedTopic) != 0);
     }
 #endif
 
@@ -880,15 +881,15 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 
     atomic_add_fetch_32(&pOldConsumer->epoch, 1);
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE__REMOVE) {
-    ASSERT(taosArrayGetSize(pNewConsumer->rebNewTopics) == 0);
-    ASSERT(taosArrayGetSize(pNewConsumer->rebRemovedTopics) == 1);
+    tAssert(taosArrayGetSize(pNewConsumer->rebNewTopics) == 0);
+    tAssert(taosArrayGetSize(pNewConsumer->rebRemovedTopics) == 1);
     char *removedTopic = taosArrayGetP(pNewConsumer->rebRemovedTopics, 0);
 
     // not exist in new topic
 #if 1
     for (int32_t i = 0; i < taosArrayGetSize(pOldConsumer->rebNewTopics); i++) {
       char *topic = taosArrayGetP(pOldConsumer->rebNewTopics, i);
-      ASSERT(strcmp(topic, removedTopic) != 0);
+      tAssert(strcmp(topic, removedTopic) != 0);
     }
 #endif
 
@@ -914,7 +915,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
       }
     }
     // must find the topic
-    ASSERT(i < sz);
+    tAssert(i < sz);
 
     // set status
     if (taosArrayGetSize(pOldConsumer->rebNewTopics) == 0 && taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0) {

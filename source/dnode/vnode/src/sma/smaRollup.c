@@ -1038,7 +1038,7 @@ static int32_t tdExecuteRSmaAsync(SSma *pSma, const void *pMsg, int32_t inputTyp
       }
     }
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   tdReleaseRSmaInfo(pSma, pRSmaInfo);
@@ -1567,7 +1567,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
         }
       }
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
 
     if (atomic_load_64(&pRSmaStat->nBufItems) <= 0) {

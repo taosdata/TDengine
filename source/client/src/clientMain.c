@@ -575,7 +575,7 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
     (*numOfRows) = pResultInfo->numOfRows;
     return 0;
   } else {
-    ASSERT(0);
+    tAssert(0);
     return -1;
   }
 }

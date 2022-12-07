@@ -430,7 +430,7 @@ int32_t rsmaSnapWrite(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   } else if (pHdr->type == SNAP_DATA_QTASK) {
     code = rsmaSnapWriteQTaskInfo(pWriter, pData, nData);
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
   if (code < 0) goto _err;
 

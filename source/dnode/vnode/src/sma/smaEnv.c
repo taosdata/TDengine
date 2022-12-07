@@ -250,7 +250,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
     } else if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
       // TODO
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -342,7 +342,7 @@ static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
         smaDebug("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " succeed", vid, refId, smaMgmt.rsetId);
       }
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
   }
   return 0;

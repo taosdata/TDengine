@@ -2598,7 +2598,7 @@ static bool checkStateOp(int8_t op, SColumnInfoData *pCol, int32_t index, SScala
       break;
     }
     default: {
-      ASSERT(0);
+      tAssert(0);
     }
   }
   return false;

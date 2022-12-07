@@ -43,7 +43,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
     const SStreamRefDataBlock* pRefBlock = (const SStreamRefDataBlock*)data;
     qSetMultiStreamInput(exec, pRefBlock->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   // exec
@@ -108,7 +108,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       SSDataBlock* output = NULL;
       uint64_t     ts = 0;
       if (qExecTask(exec, &output, &ts) < 0) {
-        ASSERT(0);
+        tAssert(0);
       }
       if (output == NULL) {
         finished = true;

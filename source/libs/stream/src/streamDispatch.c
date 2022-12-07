@@ -139,7 +139,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
     int32_t len;
     tEncodeSize(tEncodeStreamRetrieveReq, &req, len, code);
     if (code < 0) {
-      ASSERT(0);
+      tAssert(0);
       return -1;
     }
 
@@ -163,7 +163,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
     };
 
     if (tmsgSendReq(&pEpInfo->epSet, &rpcMsg) < 0) {
-      ASSERT(0);
+      tAssert(0);
       goto CLEAR;
     }
     buf = NULL;
@@ -488,7 +488,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
     }
     return code;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
   return 0;
 }
@@ -514,7 +514,7 @@ int32_t streamDispatch(SStreamTask* pTask) {
 
   int32_t code = 0;
   if (streamDispatchAllBlocks(pTask, pBlock) < 0) {
-    ASSERT(0);
+    tAssert(0);
     code = -1;
     streamQueueProcessFail(pTask->outputQueue);
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);

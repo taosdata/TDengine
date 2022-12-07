@@ -115,13 +115,13 @@ int32_t mndAddDispatcherToInnerTask(SMnode* pMnode, SStreamObj* pStream, SStream
 
   if (pStream->fixedSinkVgId == 0) {
     SDbObj* pDb = mndAcquireDb(pMnode, pStream->targetDb);
-    ASSERT(pDb);
+    tAssert(pDb != NULL);
     if (pDb->cfg.numOfVgroups > 1) {
       isShuffle = true;
       pTask->outputType = TASK_OUTPUT__SHUFFLE_DISPATCH;
       pTask->dispatchMsgType = TDMT_STREAM_TASK_DISPATCH;
       if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
-        ASSERT(0);
+        tAssert(0);
         return -1;
       }
     }
@@ -170,7 +170,7 @@ int32_t mndAssignTaskToVg(SMnode* pMnode, SStreamTask* pTask, SSubplan* plan, co
   plan->execNode.epSet = pTask->epSet;
 
   if (qSubPlanToString(plan, &pTask->exec.qmsg, &msgLen) < 0) {
-    ASSERT(0);
+    tAssert(0);
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
     return -1;
   }
@@ -195,7 +195,7 @@ int32_t mndAssignTaskToSnode(SMnode* pMnode, SStreamTask* pTask, SSubplan* plan,
   plan->execNode.epSet = pTask->epSet;
 
   if (qSubPlanToString(plan, &pTask->exec.qmsg, &msgLen) < 0) {
-    ASSERT(0);
+    tAssert(0);
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
     return -1;
   }

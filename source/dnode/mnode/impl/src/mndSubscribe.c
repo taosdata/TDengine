@@ -155,7 +155,7 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, const SM
   int32_t vgId = pRebVg->pVgEp->vgId;
   SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
   if (pVgObj == NULL) {
-    ASSERT(0);
+    tAssert(0);
     taosMemoryFree(buf);
     return -1;
   }
@@ -492,7 +492,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     taosArrayPush(pConsumerNew->rebNewTopics, &topic);
     mndReleaseConsumer(pMnode, pConsumerOld);
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
-      ASSERT(0);
+      tAssert(0);
       tDeleteSMqConsumerObj(pConsumerNew);
       taosMemoryFree(pConsumerNew);
       goto REB_FAIL;
@@ -515,7 +515,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     taosArrayPush(pConsumerNew->rebRemovedTopics, &topic);
     mndReleaseConsumer(pMnode, pConsumerOld);
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
-      ASSERT(0);
+      tAssert(0);
       tDeleteSMqConsumerObj(pConsumerNew);
       taosMemoryFree(pConsumerNew);
       goto REB_FAIL;

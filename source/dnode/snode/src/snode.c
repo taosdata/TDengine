@@ -263,7 +263,7 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
     case TDMT_STREAM_TASK_DROP:
       return sndProcessTaskDropReq(pSnode, pReq, len);
     default:
-      ASSERT(0);
+      tAssert(0);
   }
   return 0;
 }
@@ -317,7 +317,7 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     case TDMT_STREAM_RECOVER_FINISH_RSP:
       return sndProcessTaskRecoverFinishRsp(pSnode, pMsg);
     default:
-      ASSERT(0);
+      tAssert(0);
   }
   return 0;
 }

@@ -407,7 +407,9 @@ void taos_init_imp(void) {
 
   initQueryModuleMsgHandle();
 
-  taosConvInit();
+  if (taosConvInit() != 0) {
+    tAssertS(0, "failed to init conv");
+  }
 
   rpcInit();
 

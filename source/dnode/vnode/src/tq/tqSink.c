@@ -335,7 +335,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       tEncodeSize(tEncodeSBatchDeleteReq, &deleteReq, len, code);
       if (code < 0) {
         //
-        ASSERT(0);
+        tAssert(0);
       }
       SEncoder encoder;
       void*    serializedDeleteReq = rpcMallocCont(len + sizeof(SMsgHead));
@@ -572,7 +572,7 @@ void tqSinkToTableMerge(SStreamTask* pTask, void* vnode, int64_t ver, void* data
     tEncodeSize(tEncodeSBatchDeleteReq, &deleteReq, len, code);
     if (code < 0) {
       //
-      ASSERT(0);
+      tAssert(0);
     }
     SEncoder encoder;
     void*    serializedDeleteReq = rpcMallocCont(len + sizeof(SMsgHead));

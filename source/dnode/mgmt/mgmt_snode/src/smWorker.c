@@ -161,8 +161,8 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       smPutNodeMsgToWriteQueue(pMgmt, pMsg);
       break;
     default:
-      tAssert(0, "msg:%p failed to put into snode queue since %s, type:%s qtype:%d", pMsg, terrstr(),
-              TMSG_INFO(pMsg->msgType), qtype);
+      tAssertS(0, "msg:%p failed to put into snode queue since %s, type:%s qtype:%d", pMsg, terrstr(),
+               TMSG_INFO(pMsg->msgType), qtype);
   }
   return 0;
 }

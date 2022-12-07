@@ -87,7 +87,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     uint64_t     ts = 0;
     tqDebug("vgId:%d, tmq task start to execute", pTq->pVnode->config.vgId);
     if (qExecTask(task, &pDataBlock, &ts) < 0) {
-      ASSERT(0);
+      tAssert(0);
     }
     tqDebug("vgId:%d, tmq task executed, get %p", pTq->pVnode->config.vgId, pDataBlock);
 
@@ -105,7 +105,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   }
 
   if (qStreamExtractOffset(task, &pRsp->rspOffset) < 0) {
-    ASSERT(0);
+    tAssert(0);
     return -1;
   }
   ASSERT(pRsp->rspOffset.type != 0);
@@ -148,7 +148,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
     uint64_t     ts = 0;
     tqDebug("tmqsnap task start to execute");
     if (qExecTask(task, &pDataBlock, &ts) < 0) {
-      ASSERT(0);
+      tAssert(0);
     }
     tqDebug("tmqsnap task execute end, get %p", pDataBlock);
 
@@ -216,7 +216,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
   }
 
   if (qStreamExtractOffset(task, &pRsp->rspOffset) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   ASSERT(pRsp->rspOffset.type != 0);

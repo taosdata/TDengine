@@ -2535,7 +2535,7 @@ static void doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv, int
       pDiffInfo->prev.d64 = *(double*)pv;
       break;
     default:
-      ASSERT(0);
+      tAssert(0);
   }
   pDiffInfo->prevTs = ts;
 }
@@ -2615,7 +2615,7 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
       break;
     }
     default:
-      ASSERT(0);
+      tAssert(0);
   }
 }
 
@@ -2951,7 +2951,7 @@ static STuplePos doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf
   } else {
     // other tuple save policy
     if (streamStateFuncPut(pHandle->pState, pKey, pBuf, length) < 0) {
-      ASSERT(0);
+      tAssert(0);
     }
     p.streamTupleKey = *pKey;
   }
@@ -4079,7 +4079,7 @@ static bool checkStateOp(int8_t op, SColumnInfoData* pCol, int32_t index, SVaria
       break;
     }
     default: {
-      ASSERT(0);
+      tAssert(0);
     }
   }
   return false;
@@ -5104,7 +5104,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
     }
 
     default:
-      ASSERT(0);
+      tAssert(0);
   }
 
   // the last interpolated time window value

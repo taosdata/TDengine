@@ -785,7 +785,7 @@ static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
     case TSDB_TIME_PRECISION_NANO:
       break;
     default:
-      ASSERT(0);
+      tAssert(0);
   }
   if (ts >= (double)INT64_MAX || ts < 0) {
     return -1;
@@ -873,7 +873,7 @@ static int32_t smlParseTS(SSmlHandle *info, const char *data, int32_t len, SArra
   } else if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {
     ts = smlParseOpenTsdbTime(info, data, len);
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
   uDebug("SML:0x%" PRIx64 " smlParseTS:%" PRId64, info->id, ts);
 
@@ -2206,7 +2206,7 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data, const int len) {
   } else if (info->protocol == TSDB_SML_JSON_PROTOCOL) {
     ret = smlParseJSONString(info, (cJSON *)data, tinfo, cols);
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
   if (ret != TSDB_CODE_SUCCESS) {
     uError("SML:0x%" PRIx64 " smlParseTelnetLine failed", info->id);
@@ -2421,7 +2421,7 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
     } else if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {
       code = smlParseTelnetLine(info, tmp, len);
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
     if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " smlParseLine failed. line %d : %s", info->id, i, tmp);

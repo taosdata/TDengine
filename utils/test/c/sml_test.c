@@ -1045,7 +1045,7 @@ int smlProcess_18784_Test() {
 //      ASSERT_EQ(grade, 0);
 //      ASSERT_EQ(fuel_consumption, 25);
     }else{
-//      ASSERT(0);
+//      tAssert(0);
     }
     rowIndex++;
   }

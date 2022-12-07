@@ -89,7 +89,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   } else if (mer1.me.type == TSDB_NORMAL_TABLE) {
     schema = mer1.me.ntbEntry.schemaRow;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   metaRsp.numOfTags = schemaTag.nCols;
@@ -210,7 +210,7 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       cfgRsp.pComment = strdup(mer1.me.ntbEntry.comment);
     }
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   cfgRsp.numOfTags = schemaTag.nCols;

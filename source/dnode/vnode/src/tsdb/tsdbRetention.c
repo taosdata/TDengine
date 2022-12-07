@@ -106,7 +106,7 @@ _exit:
 
 _err:
   tsdbError("vgId:%d, tsdb do retention failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  ASSERT(0);
+  tAssert(0);
   // tsdbFSRollback(pTsdb->pFS);
   return code;
 }

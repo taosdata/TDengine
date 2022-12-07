@@ -23,6 +23,8 @@
 #define _DEFAULT_SOURCE
 #include "ttime.h"
 
+#include "tlog.h"
+
 /*
  * mktime64 - Converts date to seconds.
  * Converts Gregorian date to seconds since 1970-01-01 00:00:00.
@@ -452,7 +454,7 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
           }
           return utime * 1000000;
         default:
-          ASSERT(0);
+          tAssert(0);
           return utime;
       }
     }  // end from milli
@@ -468,7 +470,7 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
           }
           return utime * 1000;
         default:
-          ASSERT(0);
+          tAssert(0);
           return utime;
       }
     }  // end from micro
@@ -481,12 +483,12 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
         case TSDB_TIME_PRECISION_NANO:
           return utime;
         default:
-          ASSERT(0);
+          tAssert(0);
           return utime;
       }
     }  // end from nano
     default: {
-      ASSERT(0);
+      tAssert(0);
       return utime;  // only to pass windows compilation
     }
   }  // end switch fromPrecision

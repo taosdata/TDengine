@@ -100,7 +100,7 @@ int smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int ty
   pKeepCfg->precision = pCfg->precision;
   switch (type) {
     case TSDB_TYPE_TSMA:
-      ASSERT(0);
+      tAssert(0);
       break;
     case TSDB_TYPE_RSMA_L0:
       SMA_SET_KEEP_CFG(pVnode, 0);
@@ -112,7 +112,7 @@ int smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int ty
       SMA_SET_KEEP_CFG(pVnode, 2);
       break;
     default:
-      ASSERT(0);
+      tAssert(0);
       break;
   }
   return 0;
@@ -145,7 +145,7 @@ int32_t smaOpen(SVnode *pVnode, int8_t rollback) {
       } else if (i == TSDB_RETENTION_L2) {
         SMA_OPEN_RSMA_IMPL(pVnode, 2);
       } else {
-        ASSERT(0);
+        tAssert(0);
       }
     }
 

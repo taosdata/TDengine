@@ -321,7 +321,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
 
     vnodeBegin(pVnode);
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
 _exit:

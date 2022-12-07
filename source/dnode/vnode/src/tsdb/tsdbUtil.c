@@ -544,7 +544,7 @@ int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now) {
   } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_NANO) {
     now = now * 1000000000l;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   key = now - pKeepCfg->keep0 * tsTickPerMin[pKeepCfg->precision];
@@ -585,7 +585,7 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
       *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
     }
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 }
 
@@ -614,7 +614,7 @@ void tsdbRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
     pIter->pTSchema = NULL;
     pIter->i = 0;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 }
 
@@ -797,7 +797,7 @@ int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
   }
 
@@ -1123,7 +1123,7 @@ static int32_t tBlockDataAppendTPRow(SBlockData *pBlockData, STSRow *pRow, STSch
           code = tColDataAppendValue(pColData, &COL_VAL_NULL(pColData->cid, pColData->type));
           if (code) goto _exit;
         } else {
-          ASSERT(0);
+          tAssert(0);
         }
       } else {
         cv.flag = CV_FLAG_VALUE;
@@ -1211,7 +1211,7 @@ static int32_t tBlockDataAppendKVRow(SBlockData *pBlockData, STSRow *pRow, STSch
         code = tColDataAppendValue(pColData, &COL_VAL_NULL(pColData->cid, pColData->type));
         if (code) goto _exit;
       } else {
-        ASSERT(0);
+        tAssert(0);
       }
 
       iTColumn++;
@@ -1253,7 +1253,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
       code = tBlockDataAppendKVRow(pBlockData, pRow->pTSRow, pTSchema);
       if (code) goto _err;
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
   } else {
     code = tBlockDataAppendBlockRow(pBlockData, pRow->pBlockData, pRow->iRow);
@@ -1348,7 +1348,7 @@ int32_t tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlock
         pRow2 = NULL;
       }
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
   }
 

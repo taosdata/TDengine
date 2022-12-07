@@ -112,9 +112,9 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.hashMethod, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfRetensions, _OVER)
   for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
-    if (tAssert(taosArrayGetSize(pDb->cfg.pRetensions) == pDb->cfg.numOfRetensions,
-                "db:%s, numOfRetensions:%d not matched with %d", pDb->name, pDb->cfg.numOfRetensions,
-                taosArrayGetSize(pDb->cfg.pRetensions))) {
+    if (tAssertS(taosArrayGetSize(pDb->cfg.pRetensions) == pDb->cfg.numOfRetensions,
+                 "db:%s, numOfRetensions:%d not matched with %d", pDb->name, pDb->cfg.numOfRetensions,
+                 taosArrayGetSize(pDb->cfg.pRetensions))) {
       pDb->cfg.numOfRetensions = taosArrayGetSize(pDb->cfg.pRetensions);
     }
     SRetention *pRetension = taosArrayGet(pDb->cfg.pRetensions, i);

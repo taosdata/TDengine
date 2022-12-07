@@ -170,7 +170,7 @@ int32_t streamProcessCheckpointReq(SStreamMeta* pMeta, SStreamTask* pTask, SStre
       return 0;
     }
     if (code < 0) {
-      ASSERT(0);
+      tAssert(0);
       return -1;
     }
   }

@@ -662,7 +662,7 @@ static int compareDataGroupInfo(const void* group1, const void* group2) {
   const SDataGroupInfo* pGroupInfo2 = group2;
 
   if (pGroupInfo1->groupId == pGroupInfo2->groupId) {
-    ASSERT(0);
+    tAssert(0);
     return 0;
   }
 

@@ -239,7 +239,7 @@ static int32_t tsdbSnapNextRow(STsdbSnapReader* pReader) {
 
         pReader->pIter = NULL;
       } else {
-        ASSERT(0);
+        tAssert(0);
       }
     }
 
@@ -935,7 +935,7 @@ static int32_t tsdbSnapWriteToDataFile(STsdbSnapWriter* pWriter, int32_t iRow, i
         code = tBlockDataAppendRow(&pWriter->dWriter.bData, &trow, NULL, id.uid);
         if (code) goto _err;
       } else {
-        ASSERT(0);
+        tAssert(0);
       }
 
       if (pWriter->dWriter.bData.nRow >= pWriter->maxRow) {
@@ -1368,7 +1368,7 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
   STsdb*           pTsdb = pWriter->pTsdb;
 
   if (rollback) {
-    ASSERT(0);
+    tAssert(0);
     // code = tsdbFSRollback(pWriter->pTsdb->pFS);
     // if (code) goto _err;
   } else {

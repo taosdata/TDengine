@@ -136,7 +136,7 @@ static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *
              " dstTb:%s dstVg:%d",
              SMA_VID(pSma), pCfg->indexName, pCfg->indexUid, pCfg->tableUid, pCfg->dstTbUid, pReq.name, pCfg->dstVgId);
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   return 0;

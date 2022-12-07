@@ -98,7 +98,7 @@ static FORCE_INLINE _getDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType)
   } else if (srcType == TSDB_DATA_TYPE_NULL) {
     p = NULL;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
   return p;
 }

@@ -46,7 +46,7 @@ static void metaGetEntryInfo(const SMetaEntry *pEntry, SMetaInfo *pInfo) {
     pInfo->suid = 0;
     pInfo->skmVer = pEntry->ntbEntry.schemaRow.version;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 }
 
@@ -558,7 +558,7 @@ static void metaBuildTtlIdxKey(STtlIdxKey *ttlKey, const SMetaEntry *pME) {
     ctime = pME->ntbEntry.ctime;
     ttlDays = pME->ntbEntry.ttlDays;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   if (ttlDays <= 0) return;
@@ -1401,7 +1401,7 @@ static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     pSW = &pME->ntbEntry.schemaRow;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   skmDbKey.uid = pME->uid;

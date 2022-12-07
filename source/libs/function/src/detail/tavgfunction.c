@@ -18,6 +18,7 @@
 #include "tdatablock.h"
 #include "tfunctionInt.h"
 #include "tglobal.h"
+#include "tlog.h"
 
 #define SET_VAL(_info, numOfElem, res) \
   do {                                 \
@@ -620,7 +621,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
         break;
       }
       default:
-        ASSERT(0);
+        tAssert(0);
     }
   } else {
     numOfElem = doAddNumericVector(pCol, type, pInput, pAvgRes);

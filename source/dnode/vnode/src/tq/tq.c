@@ -92,21 +92,21 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
 
   if (tqMetaOpen(pTq) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   pTq->pOffsetStore = tqOffsetOpen(pTq);
   if (pTq->pOffsetStore == NULL) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   pTq->pStreamMeta = streamMetaOpen(path, pTq, (FTaskExpand*)tqExpandTask, pTq->pVnode->config.vgId);
   if (pTq->pStreamMeta == NULL) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   if (streamLoadTasks(pTq->pStreamMeta) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   return pTq;
@@ -348,7 +348,7 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t m
   SDecoder  decoder;
   tDecoderInit(&decoder, msg, msgLen);
   if (tDecodeSTqOffset(&decoder, &offset) < 0) {
-    ASSERT(0);
+    tAssert(0);
     return -1;
   }
   tDecoderClear(&decoder);
@@ -363,7 +363,7 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t m
       offset.val.version += 1;
     }
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
   STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, offset.subKey);
   if (pOffset != NULL && tqOffsetLessOrEqual(&offset, pOffset)) {
@@ -371,7 +371,7 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t m
   }
 
   if (tqOffsetWrite(pTq->pOffsetStore, &offset) < 0) {
-    ASSERT(0);
+    tAssert(0);
     return -1;
   }
 
@@ -736,7 +736,7 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
   }
 
   if (tqMetaDeleteHandle(pTq, pReq->subKey) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
   return 0;
 }
@@ -802,7 +802,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
     // TODO version should be assigned and refed during preprocess
     SWalRef* pRef = walRefCommittedVer(pTq->pVnode->pWal);
     if (pRef == NULL) {
-      ASSERT(0);
+      tAssert(0);
       return -1;
     }
     int64_t ver = pRef->refVer;
@@ -862,7 +862,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
     tqDebug("try to persist handle %s consumer %" PRId64, req.subKey, pHandle->consumerId);
     if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
       // TODO
-      ASSERT(0);
+      tAssert(0);
     }
   } else {
     /*ASSERT(pExec->consumerId == req.oldConsumerId);*/
@@ -873,7 +873,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
     taosMemoryFree(req.qmsg);
     if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
       // TODO
-      ASSERT(0);
+      tAssert(0);
     }
     // close handle
   }
@@ -997,7 +997,7 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t  len;
   tEncodeSize(tEncodeSStreamTaskCheckRsp, &rsp, len, code);
   if (code < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
   void* buf = rpcMallocCont(sizeof(SMsgHead) + len);
   ((SMsgHead*)buf)->vgId = htonl(req.upstreamNodeId);
@@ -1095,7 +1095,7 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   // check param
   int64_t fillVer1 = pTask->startVer;
   if (fillVer1 <= 0) {
-    ASSERT(0);
+    tAssert(0);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
   }

@@ -571,7 +571,7 @@ static int32_t doCreateConstantValColumnAggInfo(SInputColumnInfoData* pInput, SF
   } else if (type == TSDB_DATA_TYPE_TIMESTAMP) {
     // do nothing
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1579,7 +1579,7 @@ void destroyOperatorInfo(SOperatorInfo* pOperator) {
 // each operator should be set their own function to return total cost buffer
 int32_t optrDefaultBufFn(SOperatorInfo* pOperator) {
   if (pOperator->blocking) {
-    ASSERT(0);
+    tAssert(0);
     return 0;
   } else {
     return 0;
@@ -2090,7 +2090,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_PROJECT == type) {
       pOperator = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo);
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
 
     if (pOperator != NULL) {
@@ -2182,7 +2182,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   } else if (QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC == type) {
     pOptr = createTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   taosMemoryFree(ops);
@@ -2219,13 +2219,13 @@ int32_t extractTableScanNode(SPhysiNode* pNode, STableScanPhysiNode** ppNode) {
       *ppNode = (STableScanPhysiNode*)pNode;
       return 0;
     } else {
-      ASSERT(0);
+      tAssert(0);
       terrno = TSDB_CODE_APP_ERROR;
       return -1;
     }
   } else {
     if (LIST_LENGTH(pNode->pChildren) != 1) {
-      ASSERT(0);
+      tAssert(0);
       terrno = TSDB_CODE_APP_ERROR;
       return -1;
     }
@@ -2244,7 +2244,7 @@ int32_t rebuildReader(SOperatorInfo* pOperator, SSubplan* plan, SReadHandle* pHa
 
   STableScanPhysiNode* pNode = NULL;
   if (extractTableScanNode(plan->pNode, &pNode) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   tsdbReaderClose(pTableScanInfo->dataReader);
@@ -2252,7 +2252,7 @@ int32_t rebuildReader(SOperatorInfo* pOperator, SSubplan* plan, SReadHandle* pHa
   STableListInfo info = {0};
   pTableScanInfo->dataReader = doCreateDataReader(pNode, pHandle, &info, NULL);
   if (pTableScanInfo->dataReader == NULL) {
-    ASSERT(0);
+    tAssert(0);
     qError("failed to create data reader");
     return TSDB_CODE_APP_ERROR;
   }

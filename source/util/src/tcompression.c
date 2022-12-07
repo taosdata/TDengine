@@ -1416,7 +1416,7 @@ static int32_t tCompTimestampEnd(SCompressor *pCmprsor, const uint8_t **ppData, 
     *ppData = pCmprsor->pBuf;
     *nData = pCmprsor->nBuf;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   return code;
@@ -1659,7 +1659,7 @@ static int32_t tCompIntEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_
     *ppData = pCmprsor->pBuf;
     *nData = pCmprsor->nBuf;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   return code;
@@ -1812,7 +1812,7 @@ static int32_t tCompFloatEnd(SCompressor *pCmprsor, const uint8_t **ppData, int3
     *ppData = pCmprsor->pBuf;
     *nData = pCmprsor->nBuf;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   return code;
@@ -1965,7 +1965,7 @@ static int32_t tCompDoubleEnd(SCompressor *pCmprsor, const uint8_t **ppData, int
     *ppData = pCmprsor->pBuf;
     *nData = pCmprsor->nBuf;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   return code;
@@ -2059,7 +2059,7 @@ static int32_t tCompBoolEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32
     *ppData = pCmprsor->pBuf;
     *nData = pCmprsor->nBuf;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   return code;

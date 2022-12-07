@@ -499,7 +499,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       if (code < 0) {
         sdbRelease(pSdb, pVgroup);
         mndTransDrop(pTrans);
-        ASSERT(0);
+        tAssert(0);
         return -1;
       }
       void    *buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
@@ -717,7 +717,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   // TODO check if rebalancing
   if (mndDropSubByTopic(pMnode, pTrans, dropReq.name) < 0) {
-    /*ASSERT(0);*/
+    /*tAssert(0);*/
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
     mndTransDrop(pTrans);
     mndReleaseTopic(pMnode, pTopic);

@@ -387,7 +387,7 @@ static int tdbPageFree(SPage *pPage, int idx, SCell *pCell, int szCell) {
       pPage->pPageMethods->setFreeCellInfo(pCell, szCell, cellFree);
       TDB_PAGE_FCELL_SET(pPage, pCell - pPage->pData);
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
   }
 

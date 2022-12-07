@@ -71,17 +71,17 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
 
 int32_t tqMetaOpen(STQ* pTq) {
   if (tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB, 0) < 0) {
-    ASSERT(0);
+    tAssert(0);
     return -1;
   }
 
   if (tdbTbOpen("tq.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pExecStore, 0) < 0) {
-    ASSERT(0);
+    tAssert(0);
     return -1;
   }
 
   if (tdbTbOpen("tq.check.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pCheckStore, 0) < 0) {
-    ASSERT(0);
+    tAssert(0);
     return -1;
   }
 
@@ -135,19 +135,19 @@ int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key) {
 
   if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
       0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   if (tdbTbDelete(pTq->pCheckStore, key, (int)strlen(key), txn) < 0) {
-    /*ASSERT(0);*/
+    /*tAssert(0);*/
   }
 
   if (tdbCommit(pTq->pMetaDB, txn) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   return 0;
@@ -156,7 +156,7 @@ int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key) {
 int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
   TBC* pCur = NULL;
   if (tdbTbcOpen(pTq->pCheckStore, &pCur, NULL) < 0) {
-    ASSERT(0);
+    tAssert(0);
     return -1;
   }
 
@@ -204,33 +204,33 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
 
   void* buf = taosMemoryCalloc(1, vlen);
   if (buf == NULL) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   SEncoder encoder;
   tEncoderInit(&encoder, buf, vlen);
 
   if (tEncodeSTqHandle(&encoder, pHandle) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   TXN* txn;
 
   if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
       0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   if (tdbTbUpsert(pTq->pExecStore, key, (int)strlen(key), buf, vlen, txn) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   if (tdbCommit(pTq->pMetaDB, txn) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   tEncoderClear(&encoder);
@@ -243,19 +243,19 @@ int32_t tqMetaDeleteHandle(STQ* pTq, const char* key) {
 
   if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
       0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   if (tdbTbDelete(pTq->pExecStore, key, (int)strlen(key), txn) < 0) {
-    /*ASSERT(0);*/
+    /*tAssert(0);*/
   }
 
   if (tdbCommit(pTq->pMetaDB, txn) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
 
   return 0;
@@ -264,7 +264,7 @@ int32_t tqMetaDeleteHandle(STQ* pTq, const char* key) {
 int32_t tqMetaRestoreHandle(STQ* pTq) {
   TBC* pCur = NULL;
   if (tdbTbcOpen(pTq->pExecStore, &pCur, NULL) < 0) {
-    ASSERT(0);
+    tAssert(0);
     return -1;
   }
 
@@ -284,7 +284,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
 
     handle.pRef = walOpenRef(pTq->pVnode->pWal);
     if (handle.pRef == NULL) {
-      ASSERT(0);
+      tAssert(0);
       return -1;
     }
     walRefVer(handle.pRef, handle.snapshotVer);

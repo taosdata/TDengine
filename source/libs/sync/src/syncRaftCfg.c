@@ -140,7 +140,7 @@ int32_t raftCfgIndexCreateFile(const char *path) {
     const char *sysErrStr = strerror(errno);
     sError("create raft cfg index file error, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", err, err, errStr, sysErr,
            sysErrStr);
-    ASSERT(0);
+    tAssert(0);
 
     return -1;
   }
@@ -198,7 +198,7 @@ int32_t raftCfgPersist(SRaftCfg *pRaftCfg) {
 
   if (strlen(s) + 1 > CONFIG_FILE_LEN) {
     sError("too long config str:%s", s);
-    ASSERT(0);
+    tAssert(0);
   }
 
   snprintf(buf, sizeof(buf), "%s", s);

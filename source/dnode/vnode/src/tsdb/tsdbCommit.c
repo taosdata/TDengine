@@ -1137,7 +1137,7 @@ static int32_t tsdbNextCommitRow(SCommitter *pCommitter) {
         }
       }
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
 
     // compare with min in RB Tree

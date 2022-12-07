@@ -1679,7 +1679,7 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, i
         } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
           len += (VARSTR_HEADER_SIZE + 5);
         } else {
-          ASSERT(0);
+          tAssert(0);
         }
       }
     } else if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
@@ -1785,7 +1785,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
           sprintf(varDataVal(dst), "%s", (*((char*)jsonInnerData) == 1) ? "true" : "false");
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else {
-          ASSERT(0);
+          tAssert(0);
         }
 
         offset1[j] = len;
@@ -1879,7 +1879,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     colLength[i] = htonl(colLength[i]);
     if (colLength[i] >= dataLen) {
       tscError("invalid colLength %d, dataLen %d", colLength[i], dataLen);
-      ASSERT(0);
+      tAssert(0);
     }
 
     if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {

@@ -260,7 +260,7 @@ static void updateBlockSMAInfo(STSchema* pSchema, SBlockLoadSuppInfo* pSupInfo) 
       // do nothing
       i += 1;
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
   }
 }
@@ -1446,7 +1446,7 @@ static int32_t findFileBlockInfoIndex(SDataBlockIter* pBlockIter, SFileDataBlock
     index += step;
   }
 
-  ASSERT(0);
+  tAssert(0);
   return -1;
 }
 
@@ -1991,7 +1991,7 @@ static int32_t mergeFileBlockAndLastBlock(STsdbReader* pReader, SLastBlockReader
         tRowMergerClear(&merge);
         return code;
       } else {
-        ASSERT(0);
+        tAssert(0);
         return TSDB_CODE_SUCCESS;
       }
     } else {  // desc order
@@ -3174,7 +3174,7 @@ bool hasBeenDropped(const SArray* pDelList, int32_t* index, TSDBKEY* pKey, int32
       } else if (pKey->ts == pFirst->ts) {
         return pFirst->version >= pKey->version;
       } else {
-        ASSERT(0);
+        tAssert(0);
       }
     } else {
       TSDBKEY* pCurrent = taosArrayGet(pDelList, *index);

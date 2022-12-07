@@ -325,13 +325,13 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
   // deserialize ast
   if (nodesStringToNode(pObj->ast, &pAst) < 0) {
-    /*ASSERT(0);*/
+    /*tAssert(0);*/
     goto FAIL;
   }
 
   // extract output schema from ast
   if (qExtractResultSchema(pAst, (int32_t *)&pObj->outputSchema.nCols, &pObj->outputSchema.pSchema) != 0) {
-    /*ASSERT(0);*/
+    /*tAssert(0);*/
     goto FAIL;
   }
 
@@ -346,13 +346,13 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
   // using ast and param to build physical plan
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
-    /*ASSERT(0);*/
+    /*tAssert(0);*/
     goto FAIL;
   }
 
   // save physcial plan
   if (nodesNodeToString((SNode *)pPlan, false, &pObj->physicalPlan, NULL) != 0) {
-    /*ASSERT(0);*/
+    /*tAssert(0);*/
     goto FAIL;
   }
 
@@ -793,7 +793,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
         ASSERT(pTask->nodeId > 0);
         SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->nodeId);
         if (pVgObj == NULL) {
-          ASSERT(0);
+          tAssert(0);
           taosRUnLockLatch(&pStream->lock);
           mndReleaseStream(pMnode, pStream);
           mndTransDrop(pTrans);
@@ -853,7 +853,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   SMDropStreamReq dropReq = {0};
   if (tDeserializeSMDropStreamReq(pReq->pCont, pReq->contLen, &dropReq) < 0) {
-    ASSERT(0);
+    tAssert(0);
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }

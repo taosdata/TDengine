@@ -272,7 +272,7 @@ static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SRowVa
 
       saveColData(pRowVal->pRowVal, i, p, isNull);
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
   }
 }

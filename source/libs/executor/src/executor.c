@@ -130,7 +130,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
 
     return TSDB_CODE_SUCCESS;
@@ -869,7 +869,7 @@ int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo) {
     if (pOperator->numOfDownstream != 1 || pOperator->pDownstream[0] == NULL) {
       if (pOperator->numOfDownstream > 1) {
         qError("unexpected stream, multiple downstream");
-        ASSERT(0);
+        tAssert(0);
         return -1;
       }
       return 0;
@@ -926,7 +926,7 @@ int32_t qStreamRestoreParam(qTaskInfo_t tinfo) {
     if (pOperator->numOfDownstream != 1 || pOperator->pDownstream[0] == NULL) {
       if (pOperator->numOfDownstream > 1) {
         qError("unexpected stream, multiple downstream");
-        ASSERT(0);
+        tAssert(0);
         return -1;
       }
       return 0;
@@ -1038,7 +1038,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
           pInfo->tqReader->pWalReader->curVersion != pOffset->version) {
         qError("prepare scan ver %" PRId64 " actual ver %" PRId64 ", last %" PRId64, pOffset->version,
                pInfo->tqReader->pWalReader->curVersion, pTaskInfo->streamInfo.lastStatus.version);
-        ASSERT(0);
+        tAssert(0);
       }
 #endif
       if (tqSeekVer(pInfo->tqReader, pOffset->version + 1) < 0) {
@@ -1091,7 +1091,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
         if (tsdbReaderOpen(pTableScanInfo->base.readHandle.vnode, &pTableScanInfo->base.cond, pList, num,
                            pTableScanInfo->pResBlock, &pTableScanInfo->base.dataReader, NULL) < 0 ||
             pTableScanInfo->base.dataReader == NULL) {
-          ASSERT(0);
+          tAssert(0);
         }
       }
 
@@ -1107,7 +1107,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
              ts, pTableScanInfo->currentTable, numOfTables);
       /*}*/
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
   } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SStreamRawScanInfo* pInfo = pOperator->info;

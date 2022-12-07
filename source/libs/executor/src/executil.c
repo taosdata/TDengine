@@ -1416,7 +1416,7 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
         createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pCaseNode->node.aliasName);
     pExp->pExpr->_optrRoot.pRootNode = pNode;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 }
 
@@ -1572,7 +1572,7 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
     } else if (p->info.colId < pmInfo->colId) {
       i++;
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
   }
 }

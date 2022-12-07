@@ -370,7 +370,7 @@ int32_t raftEntryCacheGetEntryP(struct SRaftEntryCache* pCache, SyncIndex index,
     code = 0;
 
   } else {
-    ASSERT(0);
+    tAssert(0);
 
     code = -1;
   }
