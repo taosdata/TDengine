@@ -38,13 +38,13 @@
   } while (TK_NK_SPACE == (token).type)
 
 typedef struct SInsertParseContext {
-  SParseContext*     pComCxt;
-  SMsgBuf            msg;
-  char               tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW];
-  SParsedDataColInfo tags;  // for stmt
-  bool               missCache;
-  bool               usingDuplicateTable;
-  bool               forceUpdate;
+  SParseContext* pComCxt;
+  SMsgBuf        msg;
+  char           tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW];
+  SBoundColInfo  tags;  // for stmt
+  bool           missCache;
+  bool           usingDuplicateTable;
+  bool           forceUpdate;
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
@@ -1846,13 +1846,11 @@ static int32_t setNextStageInfo(SInsertParseContext* pCxt, SQuery* pQuery, SCata
 }
 
 int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatalogReq, const SMetaData* pMetaData) {
-  SInsertParseContext context = {
-      .pComCxt = pCxt,
-      .msg = {.buf = pCxt->pMsg, .len = pCxt->msgLen},
-      .missCache = false,
-      .usingDuplicateTable = false,
-      .forceUpdate = (NULL != pCatalogReq ? pCatalogReq->forceUpdate : false)
-  };
+  SInsertParseContext context = {.pComCxt = pCxt,
+                                 .msg = {.buf = pCxt->pMsg, .len = pCxt->msgLen},
+                                 .missCache = false,
+                                 .usingDuplicateTable = false,
+                                 .forceUpdate = (NULL != pCatalogReq ? pCatalogReq->forceUpdate : false)};
 
   int32_t code = initInsertQuery(&context, pCatalogReq, pMetaData, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
