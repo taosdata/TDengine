@@ -2140,11 +2140,19 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     }
 
     // sTrace("enqueue ping msg");
-    code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
-    if (code != 0) {
-      sError("failed to sync enqueue ping msg since %s", terrstr());
-      rpcFreeCont(rpcMsg.pCont);
-      return;
+    if (pNode != NULL && pNode->syncEqMsg != NULL) {
+      code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
+      if (code != 0) {
+        if (syncIsInit() && pNode->isStart) {
+          taosTmrReset(syncNodeEqPingTimer, pNode->pingTimerMS, pNode, syncEnv()->pTimerManager, &pNode->pPingTimer);
+        } else {
+          sError("vgId:%d, reset ping timer error, env:%d, start:%d", pNode->vgId, syncIsInit(), pNode->isStart);
+        }
+
+        sError("vgId:%d, failed to sync enqueue ping msg since %s", pNode->vgId, terrstr());
+        rpcFreeCont(rpcMsg.pCont);
+        return;
+      }
     }
 
     taosTmrReset(syncNodeEqPingTimer, pNode->pingTimerMS, pNode, syncEnv()->pTimerManager, &pNode->pPingTimer);
