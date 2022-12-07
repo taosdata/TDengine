@@ -95,6 +95,8 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
     // TODO: optimize to ignore null values for linear interpolation.
     if (!pLinearInfo->isStartSet) {
       if (!colDataIsNull_s(pColInfoData, rowIndex)) {
+        ASSERT(IS_MATHABLE_TYPE(pColInfoData->info.type));
+
         pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
         memcpy(pLinearInfo->start.val, colDataGetData(pColInfoData, rowIndex), pLinearInfo->bytes);
       }
