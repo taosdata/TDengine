@@ -137,63 +137,10 @@ _exit:
   return code;
 }
 
-/**
- * @brief Open RSma FS from qTaskInfo files
- *
- * @param pSma
- * @param version
- * @return int32_t
- */
-#if 0
-int32_t tdRSmaFSOpen(SSma *pSma, int64_t version) {
-  SVnode    *pVnode = pSma->pVnode;
-  int64_t    commitID = pVnode->state.commitID;
-  SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
-  SRSmaStat *pStat = NULL;
-  SArray    *output = NULL;
-
-  terrno = TSDB_CODE_SUCCESS;
-
-  if (!pEnv) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (tdFetchQTaskInfoFiles(pSma, version, &output) < 0) {
-    goto _end;
-  }
-
-  pStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
-
-  for (int32_t i = 0; i < taosArrayGetSize(output); ++i) {
-    int32_t vid = 0;
-    int64_t version = -1;
-    sscanf((const char *)taosArrayGetP(output, i), "v%dqinf.v%" PRIi64, &vid, &version);
-    SQTaskFile qTaskFile = {.version = version, .nRef = 1};
-    if ((terrno = tdRSmaFSUpsertQTaskFile(RSMA_FS(pStat), &qTaskFile)) < 0) {
-      goto _end;
-    }
-    smaInfo("vgId:%d, open fs, version:%" PRIi64 ", ref:%d", TD_VID(pVnode), qTaskFile.version, qTaskFile.nRef);
-  }
-
-_end:
-  for (int32_t i = 0; i < taosArrayGetSize(output); ++i) {
-    void *ptr = taosArrayGetP(output, i);
-    taosMemoryFreeClear(ptr);
-  }
-  taosArrayDestroy(output);
-
-  if (terrno != TSDB_CODE_SUCCESS) {
-    smaError("vgId:%d, open rsma fs failed since %s", TD_VID(pVnode), terrstr());
-    return TSDB_CODE_FAILED;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-#endif
-
-static int32_t tdRSmaFSCreate(SRSmaFS *pFS) {
+static int32_t tdRSmaFSCreate(SRSmaFS *pFS, int32_t size) {
   int32_t code = 0;
 
-  pFS->aQTaskInf = taosArrayInit(0, sizeof(SQTaskFile));
+  pFS->aQTaskInf = taosArrayInit(size, sizeof(SQTaskFile));
   if (pFS->aQTaskInf == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
@@ -207,20 +154,20 @@ static void tdRSmaGetCurrentFName(SSma *pSma, char *current, char *current_t) {
   SVnode *pVnode = pSma->pVnode;
   if (pVnode->pTfs) {
     if (current) {
-      snprintf(current, TSDB_FILENAME_LEN - 1, "%s%svnode%svnode%d%srsma%sCURRENT", tfsGetPrimaryPath(pVnode->pTfs),
-               TD_DIRSEP, TD_VID(pVnode), TD_DIRSEP);
+      snprintf(current, TSDB_FILENAME_LEN - 1, "%s%svnode%svnode%d%srsma%sPRESENT", tfsGetPrimaryPath(pVnode->pTfs),
+               TD_DIRSEP, TD_DIRSEP, TD_VID(pVnode), TD_DIRSEP, TD_DIRSEP);
     }
     if (current_t) {
-      snprintf(current, TSDB_FILENAME_LEN - 1, "%s%svnode%svnode%d%srsma%sCURRENT.t", tfsGetPrimaryPath(pVnode->pTfs),
-               TD_DIRSEP, TD_VID(pVnode), TD_DIRSEP);
+      snprintf(current, TSDB_FILENAME_LEN - 1, "%s%svnode%svnode%d%srsma%sPRESENT.t", tfsGetPrimaryPath(pVnode->pTfs),
+               TD_DIRSEP, TD_DIRSEP, TD_VID(pVnode), TD_DIRSEP, TD_DIRSEP);
     }
   } else {
 #if 0
     if (current) {
-      snprintf(current, TSDB_FILENAME_LEN - 1, "%s%sCURRENT", pTsdb->path, TD_DIRSEP);
+      snprintf(current, TSDB_FILENAME_LEN - 1, "%s%sPRESENT", pTsdb->path, TD_DIRSEP);
     }
     if (current_t) {
-      snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%sCURRENT.t", pTsdb->path, TD_DIRSEP);
+      snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%sPRESENT.t", pTsdb->path, TD_DIRSEP);
     }
 #endif
   }
@@ -278,7 +225,6 @@ _exit:
   return code;
 }
 
-
 static int32_t tdQTaskInfCmprFn1(const void *p1, const void *p2) {
   const SQTaskFile *q1 = (const SQTaskFile *)p1;
   const SQTaskFile *q2 = (const SQTaskFile *)p2;
@@ -305,12 +251,15 @@ static int32_t tdQTaskInfCmprFn1(const void *p1, const void *p2) {
 }
 
 static int32_t tdRSmaFSApplyChange(SSma *pSma, SRSmaFS *pFS) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t    code = 0;
+#if 0
+  int32_t    lino = 0;
+  SVnode    *pVnode = pSma->pVnode;
+  SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
+  SRSmaStat *pStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
 
   int32_t nRef = 0;
   char    fname[TSDB_FILENAME_LEN] = {0};
-
 
   // SQTaskFile
   int32_t iOld = 0;
@@ -371,6 +320,7 @@ _exit:
   if (code) {
     smaError("vgId:%d, %s failed at line %d since %s", SMA_VID(pSma), __func__, lino, tstrerror(code));
   }
+#endif
   return code;
 }
 
@@ -393,7 +343,7 @@ static int32_t tdFetchQTaskInfoFiles(SSma *pSma, int64_t version, SArray **outpu
 
   terrno = TSDB_CODE_SUCCESS;
 
-  tdGetVndDirName(TD_VID(pVnode), tfsGetPrimaryPath(pVnode->pTfs), VNODE_RSMA_DIR, true, dir);
+  tdRSmaGetDirName(TD_VID(pVnode), tfsGetPrimaryPath(pVnode->pTfs), VNODE_RSMA_DIR, true, dir);
 
   if (!taosCheckExistFile(dir)) {
     smaDebug("vgId:%d, fetch qtask files, no need as dir %s not exist", TD_VID(pVnode), dir);
@@ -471,7 +421,123 @@ _end:
 }
 
 
+static int32_t tdRSmaFSScanAndTryFix(SSma *pSma) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  SVnode    *pVnode = pSma->pVnode;
+  SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
+  SRSmaStat *pStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
+  SRSmaFS   *pFS = RSMA_FS(pStat);
+  char       fname[TSDB_FILENAME_LEN] = {0};
+  char       fnameVer[TSDB_FILENAME_LEN] = {0};
+
+  // SArray<SQTaskFile>
+  int32_t size = taosArrayGetSize(pFS->aQTaskInf);
+  for (int32_t i = 0; i < size; ++i) {
+    SQTaskFile *pTaskF = (SQTaskFile *)taosArrayGet(pFS->aQTaskInf, i);
+
+    // main.tdb =========
+    tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->suid, pTaskF->level, pTaskF->version,
+                               tfsGetPrimaryPath(pVnode->pTfs), fnameVer);
+    tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->suid, pTaskF->level, -1, tfsGetPrimaryPath(pVnode->pTfs), fname);
+
+    if (taosCheckExistFile(fnameVer)) {
+      if (taosRenameFile(fnameVer, fname) < 0) {
+        code = TAOS_SYSTEM_ERROR(errno);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      smaDebug("vgId:%d, %s:%d succeed to to rename %s to %s", TD_VID(pVnode), __func__, lino, fnameVer, fname);
+    } else if (taosCheckExistFile(fname)) {
+      if (taosRemoveFile(fname) < 0) {
+        code = TAOS_SYSTEM_ERROR(errno);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      smaDebug("vgId:%d, %s:%d succeed to to remove %s", TD_VID(pVnode), __func__, lino, fname);
+    }
+  }
+
+  {
+    // remove those invalid files (todo)
+    // main.tdb-journal.5 // TDB should handle its clear for kill -9
+  }
+
+_exit:
+  if (code) {
+    smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+
 // EXPOSED APIS ====================================================================================
+
+int32_t tdRSmaFSOpen(SSma *pSma, int64_t version, int8_t rollback) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  SVnode    *pVnode = pSma->pVnode;
+  SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
+  SRSmaStat *pStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
+
+  // open handle
+  code = tdRSmaFSCreate(RSMA_FS(pStat), 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // open impl
+  char current[TSDB_FILENAME_LEN] = {0};
+  char current_t[TSDB_FILENAME_LEN] = {0};
+  tdRSmaGetCurrentFName(pSma, current, current_t);
+
+  if (taosCheckExistFile(current)) {
+    code = tdRSmaLoadFSFromFile(current, RSMA_FS(pStat));
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (taosCheckExistFile(current_t)) {
+      if (rollback) {
+        code = tdRSmaFSRollback(pSma);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      } else {
+        code = tdRSmaFSCommit(pSma);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+    }
+  } else {
+    // 1st open with empty current/qTaskInfoFile
+    code = tdRSmaSaveFSToFile(RSMA_FS(pStat), current);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    ASSERT(!rollback);
+  }
+
+  // scan and try fix(remove main.db/main.db.xxx and use the one with version)
+  code = tdRSmaFSScanAndTryFix(pSma);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+void tdRSmaFSClose(SRSmaFS *pFS) { taosArrayDestroy(pFS->aQTaskInf); }
+
+int32_t tdRSmaFSPrepareCommit(SSma *pSma, SRSmaFS *pFSNew) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  char    tfname[TSDB_FILENAME_LEN];
+
+  tdRSmaGetCurrentFName(pSma, NULL, tfname);
+
+  // gnrt PRESENT.t
+  code = tdRSmaSaveFSToFile(pFSNew, tfname);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pSma->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 int32_t tdRSmaFSCommit(SSma *pSma) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -490,7 +556,7 @@ int32_t tdRSmaFSCommit(SSma *pSma) {
   }
 
   // Load the new FS
-  code = tdRSmaFSCreate(&fs);
+  code = tdRSmaFSCreate(&fs, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tdRSmaLoadFSFromFile(current, &fs);
@@ -523,82 +589,31 @@ _exit:
   return code;
 }
 
-int32_t tdRSmaFSOpen(SSma *pSma, int64_t version, int8_t rollback) {
-  int32_t    code = 0;
-  int32_t    lino = 0;
-  SVnode    *pVnode = pSma->pVnode;
-  int64_t    commitID = pVnode->state.commitID;
-  SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
-  SRSmaStat *pStat = NULL;
+int32_t tdRSmaFSUpsertQTaskFile(SRSmaFS *pFS, SQTaskFile *qTaskFile, int32_t size) {
+  int32_t code = 0;
 
-  if (!pEnv) {
-    return TSDB_CODE_SUCCESS;
-  }
+  for (int32_t i = 0; i < size; ++i) {
+    SQTaskFile *qTaskF = qTaskFile + i;
 
-  // open handle
-  code = tdRSmaFSCreate(&pStat->fs);
-  TSDB_CHECK_CODE(code, lino, _exit);
+    int32_t idx = taosArraySearchIdx(pFS->aQTaskInf, qTaskF, tdQTaskInfCmprFn1, TD_GE);
 
-  // open impl
-  char current[TSDB_FILENAME_LEN] = {0};
-  char current_t[TSDB_FILENAME_LEN] = {0};
-  tdRSmaGetCurrentFName(pSma, current, current_t);
-
-  if (taosCheckExistFile(current)) {
-    code = tdRSmaLoadFSFromFile(current, &pStat->fs);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    if (taosCheckExistFile(current_t)) {
-      if (rollback) {
-        code = tdRSmaFSRollback(pSma);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      } else {
-        code = tsdbFSCommit(pTsdb);
-        TSDB_CHECK_CODE(code, lino, _exit);
+    if (idx < 0) {
+      idx = taosArrayGetSize(pFS->aQTaskInf);
+    } else {
+      SQTaskFile *pTaskF = (SQTaskFile *)taosArrayGet(pFS->aQTaskInf, idx);
+      int32_t     c = tdQTaskInfCmprFn1(pTaskF, qTaskF);
+      if (c == 0) {
+        ASSERT(0);
+        pTaskF->nRef = qTaskF->nRef;
+        ASSERT(pTaskF->size == qTaskF->size);
+        goto _exit;
       }
     }
-  } else {
-    // empty one
-    code = tsdbSaveFSToFile(&pTsdb->fs, current);
-    TSDB_CHECK_CODE(code, lino, _exit);
 
-    ASSERT(!rollback);
-  }
-
-  // scan and fix FS
-  code = tsdbScanAndTryFixFS(pTsdb);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-_exit:
-  if (code) {
-    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-void tdRSmaFSClose(SRSmaFS *pFS) { taosArrayDestroy(pFS->aQTaskInf); }
-
-
-
-int32_t tdRSmaFSUpsertQTaskFile(SRSmaFS *pFS, SQTaskFile *qTaskFile) {
-  int32_t code = 0;
-  int32_t idx = taosArraySearchIdx(pFS->aQTaskInf, qTaskFile, tdQTaskInfCmprFn1, TD_GE);
-
-  if (idx < 0) {
-    idx = taosArrayGetSize(pFS->aQTaskInf);
-  } else {
-    SQTaskFile *pTaskF = (SQTaskFile *)taosArrayGet(pFS->aQTaskInf, idx);
-    int32_t     c = tdQTaskInfCmprFn1(pTaskF, qTaskFile);
-    if (c == 0) {
-      pTaskF->nRef = qTaskFile->nRef;
-      ASSERT(pTaskF->size == qTaskFile->size);
+    if (taosArrayInsert(pFS->aQTaskInf, idx, qTaskF) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
-  }
-
-  if (taosArrayInsert(pFS->aQTaskInf, idx, qTaskFile) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
   }
 
 _exit:
@@ -613,34 +628,22 @@ int32_t tdRSmaFSRef(SSma *pSma, SRSmaStat *pStat, int64_t suid, int8_t level, in
 
   taosRLockLatch(RSMA_FS_LOCK(pStat));
   if (suid > 0 && level > 0) {
+    ASSERT(version > 0);
     if ((pTaskF = taosArraySearch(aQTaskInf, &qTaskF, tdQTaskInfCmprFn1, TD_EQ))) {
       oldVal = atomic_fetch_add_32(&pTaskF->nRef, 1);
       ASSERT(oldVal > 0);
     }
   } else {
+    // ref all 
     int32_t size = taosArrayGetSize(aQTaskInf);
     for (int32_t i = 0; i < size; ++i) {
       pTaskF = TARRAY_GET_ELEM(aQTaskInf, i);
-      if (pTaskF->version == version) {
-        oldVal = atomic_fetch_add_32(&pTaskF->nRef, 1);
-      }
+      oldVal = atomic_fetch_add_32(&pTaskF->nRef, 1);
       ASSERT(oldVal > 0);
     }
   }
   taosRUnLockLatch(RSMA_FS_LOCK(pStat));
   return oldVal;
-}
-
-int64_t tdRSmaFSMaxVer(SSma *pSma, SRSmaStat *pStat) {
-  SArray *aQTaskInf = RSMA_FS(pStat)->aQTaskInf;
-  int64_t version = -1;
-
-  taosRLockLatch(RSMA_FS_LOCK(pStat));
-  if (taosArrayGetSize(aQTaskInf) > 0) {
-    version = ((SQTaskFile *)taosArrayGetLast(aQTaskInf))->version;
-  }
-  taosRUnLockLatch(RSMA_FS_LOCK(pStat));
-  return version;
 }
 
 void tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t suid, int8_t level, int64_t version) {
@@ -653,12 +656,13 @@ void tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t suid, int8_t level, int
 
   taosWLockLatch(RSMA_FS_LOCK(pStat));
   if (suid > 0 && level > 0) {
+    ASSERT(version > 0);
     if ((idx = taosArraySearchIdx(aQTaskInf, &qTaskF, tdQTaskInfCmprFn1, TD_EQ)) >= 0) {
       ASSERT(idx < taosArrayGetSize(aQTaskInf));
       pTaskF = taosArrayGet(aQTaskInf, idx);
       if (atomic_sub_fetch_32(&pTaskF->nRef, 1) <= 0) {
-        tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->suid, level, pTaskF->version, tfsGetPrimaryPath(pVnode->pTfs),
-                                   qTaskFullName);
+        tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->suid, level, pTaskF->version,
+                                   tfsGetPrimaryPath(pVnode->pTfs), qTaskFullName);
         if (taosRemoveFile(qTaskFullName) < 0) {
           smaWarn("vgId:%d, failed to remove %s since %s", TD_VID(pVnode), qTaskFullName,
                   tstrerror(TAOS_SYSTEM_ERROR(errno)));
@@ -670,28 +674,64 @@ void tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t suid, int8_t level, int
     }
   } else {
     for (int32_t i = 0; i < taosArrayGetSize(aQTaskInf);) {
-        pTaskF = TARRAY_GET_ELEM(aQTaskInf, i);
-        int32_t nRef = INT32_MAX;
-        if (pTaskF->version == version) {
-          nRef = atomic_sub_fetch_32(&pTaskF->nRef, 1);
-        } else if (pTaskF->version < version) {
-          nRef = atomic_load_32(&pTaskF->nRef);
+      pTaskF = TARRAY_GET_ELEM(aQTaskInf, i);
+      int32_t nRef = INT32_MAX;
+      if (pTaskF->version == version) {
+        nRef = atomic_sub_fetch_32(&pTaskF->nRef, 1);
+      } else if (pTaskF->version < version) {
+        nRef = atomic_load_32(&pTaskF->nRef);
+      }
+      if (nRef <= 0) {
+        tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->suid, pTaskF->level, pTaskF->version,
+                                   tfsGetPrimaryPath(pVnode->pTfs), qTaskFullName);
+        if (taosRemoveFile(qTaskFullName) < 0) {
+          smaWarn("vgId:%d, failed to remove %s since %s", TD_VID(pVnode), qTaskFullName,
+                  tstrerror(TAOS_SYSTEM_ERROR(errno)));
+        } else {
+          smaDebug("vgId:%d, success to remove %s", TD_VID(pVnode), qTaskFullName);
         }
-        if (nRef <= 0) {
-          tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->suid, pTaskF->level, pTaskF->version,
-                                     tfsGetPrimaryPath(pVnode->pTfs), qTaskFullName);
-          if (taosRemoveFile(qTaskFullName) < 0) {
-            smaWarn("vgId:%d, failed to remove %s since %s", TD_VID(pVnode), qTaskFullName,
-                    tstrerror(TAOS_SYSTEM_ERROR(errno)));
-          } else {
-            smaDebug("vgId:%d, success to remove %s", TD_VID(pVnode), qTaskFullName);
-          }
-          taosArrayRemove(aQTaskInf, i);
-          continue;
-        }
-        ++i;
+        taosArrayRemove(aQTaskInf, i);
+        continue;
+      }
+      ++i;
     }
   }
 
   taosWUnLockLatch(RSMA_FS_LOCK(pStat));
+}
+
+int32_t tdRSmaFSTakeSnapshot(SSma *pSma, SRSmaFS *pFSOut) {
+  SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
+  SRSmaStat *pStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
+  int32_t    code = 0;
+
+  taosRLockLatch(RSMA_FS_LOCK(pStat));
+  code = tdRSmaFSCopy(pSma, pFSOut);
+  taosWUnLockLatch(RSMA_FS_LOCK(pStat));
+_exit:
+  if (code) {
+    smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pSma->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tdRSmaFSCopy(SSma *pSma, SRSmaFS *pFSOut) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
+  SRSmaStat *pStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
+  SRSmaFS   *pFS = RSMA_FS(pStat);
+  int32_t    size = 0;
+
+  code = tdRSmaFSCreate(pFSOut, size);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  taosArraySetSize(pFSOut->aQTaskInf, size);
+  memcpy(TARRAY_GET_ELEM(pFSOut->aQTaskInf, 0), TARRAY_GET_ELEM(pFS->aQTaskInf, 0), size * sizeof(SQTaskFile));
+
+_exit:
+  if (code) {
+    smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pSma->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
 }

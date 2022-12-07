@@ -28,8 +28,6 @@ SSmaMgmt smaMgmt = {
     .rsetId = -1,
 };
 
-#define TD_QTASKINFO_FNAME_PREFIX "main.db"
-
 typedef struct SRSmaQTaskInfoItem SRSmaQTaskInfoItem;
 
 static int32_t    tdUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid);
@@ -58,26 +56,6 @@ struct SRSmaQTaskInfoItem {
   int64_t suid;
   void   *qTaskInfo;
 };
-
-void tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t suid, int8_t level, int64_t version, char *outputName) {
-  tdGetVndFileName(vgId, NULL, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, suid, level, version, outputName);
-}
-
-void tdRSmaQTaskInfoGetFullName(int32_t vgId, int64_t suid, int8_t level, int64_t version, const char *path, char *outputName) {
-  tdGetVndFileName(vgId, path, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, suid, level, version, outputName);
-}
-
-void tdRSmaQTaskInfoGetFullPath(int32_t vgId, int8_t level, const char *path, char *outputName) {
-  tdGetVndDirName(vgId, path, VNODE_RSMA_DIR, true, outputName);
-  int32_t rsmaLen = strlen(outputName);
-  snprintf(outputName + rsmaLen, TSDB_FILENAME_LEN - rsmaLen, "%" PRIi8, level);
-}
-
-void tdRSmaQTaskInfoGetFullPathEx(int32_t vgId, tb_uid_t suid, int8_t level, const char *path, char *outputName) {
-  tdGetVndDirName(vgId, path, VNODE_RSMA_DIR, true, outputName);
-  int32_t rsmaLen = strlen(outputName);
-  snprintf(outputName + rsmaLen, TSDB_FILENAME_LEN - rsmaLen, "%" PRIi64 "%s%" PRIi8, suid, TD_DIRSEP, level);
-}
 
 static void tdRSmaQTaskInfoFree(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level) {
   // Note: free/kill may in RC
@@ -311,8 +289,8 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     pItem->triggerStat = TASK_TRIGGER_STAT_ACTIVE;  // fetch the data when reboot
     pItem->pStreamState = pStreamState;
     if (param->maxdelay[idx] < TSDB_MIN_ROLLUP_MAX_DELAY) {
-    int64_t msInterval =
-        convertTimeFromPrecisionToUnit(pRetention[idx + 1].freq, pTsdbCfg->precision, TIME_UNIT_MILLISECOND);
+      int64_t msInterval =
+          convertTimeFromPrecisionToUnit(pRetention[idx + 1].freq, pTsdbCfg->precision, TIME_UNIT_MILLISECOND);
       pItem->maxDelay = (int32_t)msInterval;
     } else {
       pItem->maxDelay = (int32_t)param->maxdelay[idx];
@@ -353,10 +331,12 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
     return TSDB_CODE_SUCCESS;
   }
 
+#if 0
   if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_ROLLUP) != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TDB_INIT_FAILED;
     return TSDB_CODE_FAILED;
   }
+#endif
 
   SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
   SRSmaStat *pStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
@@ -1178,20 +1158,21 @@ _err:
 }
 
 /**
- * @brief reload ts data from checkpoint
- *
- * @param pSma
- * @return int32_t
+ * N.B. the data would be restored from the unified WAL replay procedure
  */
-#if 0
-static int32_t tdRSmaRestoreTSDataReload(SSma *pSma) {
-  // NOTHING TODO: the data would be restored from the unified WAL replay procedure
-  return TSDB_CODE_SUCCESS;
-}
-#endif
-
 int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer, int8_t rollback) {
-  // step 1: iterate all stables to restore the rsma env
+  // step 1: init env
+  if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_ROLLUP) != TSDB_CODE_SUCCESS) {
+    terrno = TSDB_CODE_TDB_INIT_FAILED;
+    return TSDB_CODE_FAILED;
+  }
+
+  // step 2: open SRSmaFS for qTaskFiles
+  if (tdRSmaFSOpen(pSma, qtaskFileVer, rollback) < 0) {
+    goto _err;
+  }
+
+  // step 3: iterate all stables to restore the rsma env
   int64_t nTables = 0;
   if (tdRSmaRestoreQTaskInfoInit(pSma, &nTables) < 0) {
     goto _err;
@@ -1199,18 +1180,6 @@ int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer, 
   if (nTables <= 0) {
     smaDebug("vgId:%d, no need to restore rsma task %" PRIi8 " since no tables", SMA_VID(pSma), type);
     return TSDB_CODE_SUCCESS;
-  }
-
-  // step 2: reload ts data from checkpoint
-#if 0
-  if (tdRSmaRestoreTSDataReload(pSma) < 0) {
-    goto _err;
-  }
-#endif
-
-  // step 3: open SRSmaFS for qTaskFiles
-  if (tdRSmaFSOpen(pSma, qtaskFileVer, rollback) < 0) {
-    goto _err;
   }
 
   smaInfo("vgId:%d, restore rsma task %" PRIi8 " from qtaskf %" PRIi64 " succeed", SMA_VID(pSma), type, qtaskFileVer);
@@ -1222,19 +1191,26 @@ _err:
 }
 
 int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
-  SSma   *pSma = pRSmaStat->pSma;
-  SVnode *pVnode = pSma->pVnode;
-  int32_t vid = SMA_VID(pSma);
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  SSma     *pSma = pRSmaStat->pSma;
+  SVnode   *pVnode = pSma->pVnode;
+  SArray   *qTaskFArray = NULL;
+  int64_t   version = pRSmaStat->commitAppliedVer;
+  TdFilePtr pOutFD = NULL;
+  TdFilePtr pInFD = NULL;
+  char      fname[TSDB_FILENAME_LEN];
+  char      fnameVer[TSDB_FILENAME_LEN];
+  SRSmaFS   fs = {0};
 
   if (taosHashGetSize(pInfoHash) <= 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int64_t fsMaxVer = tdRSmaFSMaxVer(pSma, pRSmaStat);
-  if (pRSmaStat->commitAppliedVer <= fsMaxVer) {
-    smaDebug("vgId:%d, rsma persist, no need as applied %" PRIi64 " not larger than fsMaxVer %" PRIi64, vid,
-             pRSmaStat->commitAppliedVer, fsMaxVer);
-    return TSDB_CODE_SUCCESS;
+  qTaskFArray = taosArrayInit(taosHashGetSize(pInfoHash) << 1, sizeof(SQTaskFile));
+  if (!qTaskFArray) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   void *infoHash = NULL;
@@ -1249,19 +1225,69 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
       SRSmaInfoItem *pItem = RSMA_INFO_ITEM(pRSmaInfo, i);
       if (pItem && pItem->pStreamState) {
         if (streamStateCommit(pItem->pStreamState) < 0) {
-          terrno = TSDB_CODE_RSMA_STREAM_STATE_COMMIT;
-          goto _err;
+          code = TSDB_CODE_RSMA_STREAM_STATE_COMMIT;
+          TSDB_CHECK_CODE(code, lino, _exit);
         }
-        smaDebug("vgId:%d, rsma persist, stream state commit success, table %" PRIi64 " level %d", vid, pRSmaInfo->suid,
-                 i + 1);
+        smaDebug("vgId:%d, rsma persist, stream state commit success, table %" PRIi64 " level %d", TD_VID(pVnode),
+                 pRSmaInfo->suid, i + 1);
+
+        // qTaskInfo file
+        tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pRSmaInfo->suid, i + 1, -1, tfsGetPrimaryPath(pVnode->pTfs), fname);
+        tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pRSmaInfo->suid, i + 1, version, tfsGetPrimaryPath(pVnode->pTfs),
+                                   fnameVer);
+        if (taosCheckExistFile(fnameVer)) {
+          smaWarn("vgId:%d, rsma persist, duplicate file %s exist", TD_VID(pVnode), fnameVer);
+        }
+
+        pOutFD = taosCreateFile(fnameVer, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+        if (pOutFD == NULL) {
+          code = TAOS_SYSTEM_ERROR(errno);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
+        pInFD = taosOpenFile(fname, TD_FILE_READ);
+        if (pInFD == NULL) {
+          code = TAOS_SYSTEM_ERROR(errno);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
+
+        int64_t size = 0;
+        if (taosFStatFile(pInFD, &size, NULL) < 0) {
+          code = TAOS_SYSTEM_ERROR(errno);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
+
+        int64_t offset = 0;
+        if (taosFSendFile(pOutFD, pInFD, &offset, size) < 0) {
+          code = TAOS_SYSTEM_ERROR(errno);
+          smaError("vgId:%d, rsma persist, send qtaskinfo file %s failed since %s", TD_VID(pVnode), fname, tstrerror(code));
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
+        taosCloseFile(&pOutFD);
+        taosCloseFile(&pInFD);
+
+        SQTaskFile qTaskF = {.nRef = 1, .level = i + 1, .suid = pRSmaInfo->suid, .version = version, .size = size};
+        taosArrayPush(qTaskFArray, &qTaskF);
       }
     }
   }
 
-  return TSDB_CODE_SUCCESS;
-_err:
-  smaError("vgId:%d, rsma persist failed since %s", vid, terrstr());
-  return TSDB_CODE_FAILED;
+  code = tdRSmaFSTakeSnapshot(pSma, &fs);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  
+  code = tdRSmaFSPrepareCommit(pSma, &fs);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+
+  taosArrayDestroy(fs.aQTaskInf);
+  taosArrayDestroy(qTaskFArray);
+  if (code) {
+    if (pOutFD) taosCloseFile(&pOutFD);
+    if (pInFD) taosCloseFile(&pInFD);
+    smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
+  terrno = code;
+  return code;
 }
 
 /**

@@ -217,9 +217,12 @@ static FORCE_INLINE void tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
 void   *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
 int32_t tdRSmaFSOpen(SSma *pSma, int64_t version, int8_t rollback);
 void    tdRSmaFSClose(SRSmaFS *fs);
+int32_t tdRSmaFSPrepareCommit(SSma *pSma, SRSmaFS *pFSNew);
+int32_t tdRSmaFSCommit(SSma *pSma);
+int32_t tdRSmaFSCopy(SSma *pSma, SRSmaFS *pFSOut);
+int32_t tdRSmaFSTakeSnapshot(SSma *pSma, SRSmaFS *pFSOut);
 int32_t tdRSmaFSRef(SSma *pSma, SRSmaStat *pStat, int64_t suid, int8_t level, int64_t version);
 void    tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t suid, int8_t level, int64_t version);
-int64_t tdRSmaFSMaxVer(SSma *pSma, SRSmaStat *pStat);
 int32_t tdRSmaFSUpsertQTaskFile(SRSmaFS *pFS, SQTaskFile *qTaskFile);
 int32_t tdRSmaFSRollback(SSma *pSma);
 int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer, int8_t rollback);
@@ -293,9 +296,9 @@ void    tdCloseTFile(STFile *pTFile);
 void    tdDestroyTFile(STFile *pTFile);
 #endif
 
-void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t suid,
-                      int8_t level, int64_t version, char *outputName);
-void tdGetVndDirName(int32_t vgId, const char *pdname, const char *dname, bool endWithSep, char *outputName);
+void tdRSmaGetFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t suid,
+                       int8_t level, int64_t version, char *outputName);
+void tdRSmaGetDirName(int32_t vgId, const char *pdname, const char *dname, bool endWithSep, char *outputName);
 
 #ifdef __cplusplus
 }

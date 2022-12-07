@@ -28,7 +28,7 @@ static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat);
  * @param pSma
  * @return int32_t
  */
-int32_t smaPrepareCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma); }
+int32_t smaPrepareAsyncCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma); }
 
 /**
  * @brief async commit, only applicable to Rollup SMA
@@ -280,14 +280,9 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
 static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo) {
   int32_t code = 0;
   SVnode *pVnode = pSma->pVnode;
-#if 0
-  SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pSmaEnv);
 
-  // perform persist task for qTaskInfo operator
-  if (tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat)) < 0) {
-    return TSDB_CODE_FAILED;
-  }
-#endif
+
+  
 
   if ((code = tsdbCommit(VND_RSMA1(pVnode), pInfo)) < 0) {
     smaError("vgId:%d, failed to commit tsdb rsma1 since %s", TD_VID(pVnode), tstrerror(code));

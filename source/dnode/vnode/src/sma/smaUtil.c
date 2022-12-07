@@ -15,197 +15,72 @@
 
 #include "sma.h"
 
-// smaFileUtil ================
-#if 0
-#define TD_FILE_STATE_OK  0
-#define TD_FILE_STATE_BAD 1
+#define TD_QTASKINFO_FNAME_PREFIX "main.db"
 
-#define TD_FILE_INIT_MAGIC 0xFFFFFFFF
-
-static int32_t tdEncodeTFInfo(void **buf, STFInfo *pInfo);
-static void   *tdDecodeTFInfo(void *buf, STFInfo *pInfo);
-
-static int32_t tdEncodeTFInfo(void **buf, STFInfo *pInfo) {
-  int32_t tlen = 0;
-
-  tlen += taosEncodeFixedU32(buf, pInfo->magic);
-  tlen += taosEncodeFixedU32(buf, pInfo->ftype);
-  tlen += taosEncodeFixedU32(buf, pInfo->fver);
-  tlen += taosEncodeFixedI64(buf, pInfo->fsize);
-
-  return tlen;
+void tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t suid, int8_t level, int64_t version, char *outputName) {
+  tdRSmaGetFileName(vgId, NULL, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, suid, level, version, outputName);
 }
 
-static void *tdDecodeTFInfo(void *buf, STFInfo *pInfo) {
-  buf = taosDecodeFixedU32(buf, &(pInfo->magic));
-  buf = taosDecodeFixedU32(buf, &(pInfo->ftype));
-  buf = taosDecodeFixedU32(buf, &(pInfo->fver));
-  buf = taosDecodeFixedI64(buf, &(pInfo->fsize));
-
-  return buf;
+void tdRSmaQTaskInfoGetFullName(int32_t vgId, int64_t suid, int8_t level, int64_t version, const char *path,
+                                char *outputName) {
+  tdRSmaGetFileName(vgId, path, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, suid, level, version, outputName);
 }
 
-int64_t tdWriteTFile(STFile *pTFile, void *buf, int64_t nbyte) {
-  ASSERT(TD_TFILE_OPENED(pTFile));
-
-  int64_t nwrite = taosWriteFile(pTFile->pFile, buf, nbyte);
-  if (nwrite < nbyte) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  return nwrite;
+void tdRSmaQTaskInfoGetFullPath(int32_t vgId, int8_t level, const char *path, char *outputName) {
+  tdRSmaGetDirName(vgId, path, VNODE_RSMA_DIR, true, outputName);
+  int32_t rsmaLen = strlen(outputName);
+  snprintf(outputName + rsmaLen, TSDB_FILENAME_LEN - rsmaLen, "%" PRIi8, level);
 }
 
-int64_t tdSeekTFile(STFile *pTFile, int64_t offset, int whence) {
-  ASSERT(TD_TFILE_OPENED(pTFile));
-
-  int64_t loffset = taosLSeekFile(TD_TFILE_PFILE(pTFile), offset, whence);
-  if (loffset < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  return loffset;
+void tdRSmaQTaskInfoGetFullPathEx(int32_t vgId, tb_uid_t suid, int8_t level, const char *path, char *outputName) {
+  tdRSmaGetDirName(vgId, path, VNODE_RSMA_DIR, true, outputName);
+  int32_t rsmaLen = strlen(outputName);
+  snprintf(outputName + rsmaLen, TSDB_FILENAME_LEN - rsmaLen, "%" PRIi64 "%s%" PRIi8, suid, TD_DIRSEP, level);
 }
 
-int64_t tdGetTFileSize(STFile *pTFile, int64_t *size) {
-  ASSERT(TD_TFILE_OPENED(pTFile));
-  return taosFStatFile(pTFile->pFile, size, NULL);
-}
-
-int64_t tdReadTFile(STFile *pTFile, void *buf, int64_t nbyte) {
-  ASSERT(TD_TFILE_OPENED(pTFile));
-
-  int64_t nread = taosReadFile(pTFile->pFile, buf, nbyte);
-  if (nread < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  return nread;
-}
-
-int32_t tdUpdateTFileHeader(STFile *pTFile) {
-  char buf[TD_FILE_HEAD_SIZE] = "\0";
-
-  if (tdSeekTFile(pTFile, 0, SEEK_SET) < 0) {
-    return -1;
-  }
-
-  void *ptr = buf;
-  tdEncodeTFInfo(&ptr, &(pTFile->info));
-
-  taosCalcChecksumAppend(0, (uint8_t *)buf, TD_FILE_HEAD_SIZE);
-  if (tdWriteTFile(pTFile, buf, TD_FILE_HEAD_SIZE) < 0) {
-    return -1;
-  }
-
-  return 0;
-}
-
-int32_t tdLoadTFileHeader(STFile *pTFile, STFInfo *pInfo) {
-  char     buf[TD_FILE_HEAD_SIZE] = "\0";
-  uint32_t _version;
-
-  ASSERT(TD_TFILE_OPENED(pTFile));
-
-  if (tdSeekTFile(pTFile, 0, SEEK_SET) < 0) {
-    return -1;
-  }
-
-  if (tdReadTFile(pTFile, buf, TD_FILE_HEAD_SIZE) < 0) {
-    return -1;
-  }
-
-  if (!taosCheckChecksumWhole((uint8_t *)buf, TD_FILE_HEAD_SIZE)) {
-    terrno = TSDB_CODE_FILE_CORRUPTED;
-    return -1;
-  }
-
-  void *pBuf = buf;
-  pBuf = tdDecodeTFInfo(pBuf, pInfo);
-  return 0;
-}
-
-void tdUpdateTFileMagic(STFile *pTFile, void *pCksm) {
-  pTFile->info.magic = taosCalcChecksum(pTFile->info.magic, (uint8_t *)(pCksm), sizeof(TSCKSUM));
-}
-
-int64_t tdAppendTFile(STFile *pTFile, void *buf, int64_t nbyte, int64_t *offset) {
-  ASSERT(TD_TFILE_OPENED(pTFile));
-
-  int64_t toffset;
-
-  if ((toffset = tdSeekTFile(pTFile, 0, SEEK_END)) < 0) {
-    return -1;
-  }
-
-#if 0
-  smaDebug("append to file %s, offset:%" PRIi64 " nbyte:%" PRIi64 " fsize:%" PRIi64, TD_TFILE_FULL_NAME(pTFile),
-           toffset, nbyte, toffset + nbyte);
-#endif
-
-  ASSERT(pTFile->info.fsize == toffset);
-
-  if (offset) {
-    *offset = toffset;
-  }
-
-  if (tdWriteTFile(pTFile, buf, nbyte) < 0) {
-    return -1;
-  }
-
-  pTFile->info.fsize += nbyte;
-
-  return nbyte;
-}
-
-int32_t tdOpenTFile(STFile *pTFile, int flags) {
-  ASSERT(!TD_TFILE_OPENED(pTFile));
-
-  pTFile->pFile = taosOpenFile(TD_TFILE_FULL_NAME(pTFile), flags);
-  if (pTFile->pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  return 0;
-}
-
-void tdCloseTFile(STFile *pTFile) {
-  if (TD_TFILE_OPENED(pTFile)) {
-    taosCloseFile(&pTFile->pFile);
-    TD_TFILE_SET_CLOSED(pTFile);
-  }
-}
-
-void tdDestroyTFile(STFile *pTFile) { taosMemoryFreeClear(TD_TFILE_FULL_NAME(pTFile)); }
-
-#endif
-
-void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t suid,
-                      int8_t level, int64_t version, char *outputName) {
-  if (version >= 0 && level > 0 && suid > 0) {
-    if (pdname) {
-      snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s%s%" PRIi64 "%s%" PRIi8 "%s%s.%" PRIi64, pdname,
-               TD_DIRSEP, TD_DIRSEP, vgId, TD_DIRSEP, dname, TD_DIRSEP, suid, level, fname, version);
+void tdRSmaGetFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t suid,
+                       int8_t level, int64_t version, char *outputName) {
+  if (level >= 0 && suid > 0) {
+    if (version >= 0) {
+      if (pdname) {
+        snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s%s%" PRIi64 "%s%" PRIi8 "%s%s.%" PRIi64, pdname,
+                 TD_DIRSEP, TD_DIRSEP, vgId, TD_DIRSEP, dname, TD_DIRSEP, suid, TD_DIRSEP, level, TD_DIRSEP, fname,
+                 version);
+      } else {
+        snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s%s%" PRIi64 "%s%" PRIi8 "%s%s.%" PRIi64, TD_DIRSEP,
+                 vgId, TD_DIRSEP, dname, TD_DIRSEP, suid, TD_DIRSEP, level, TD_DIRSEP, fname, version);
+      }
     } else {
-      snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s%s%" PRIi64 "%s%" PRIi8 "%s%s." PRIi64, TD_DIRSEP,
-               vgId, TD_DIRSEP, dname, TD_DIRSEP, suid, level, fname, version);
+      if (pdname) {
+        snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s%s%" PRIi64 "%s%" PRIi8 "%s%s", pdname,
+                 TD_DIRSEP, TD_DIRSEP, vgId, TD_DIRSEP, dname, TD_DIRSEP, suid, TD_DIRSEP, level, TD_DIRSEP, fname);
+      } else {
+        snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s%s%" PRIi64 "%s%" PRIi8 "%s%s", TD_DIRSEP, vgId,
+                 TD_DIRSEP, dname, TD_DIRSEP, suid, TD_DIRSEP, level, TD_DIRSEP, fname);
+      }
     }
   } else {
-    if (pdname) {
-      snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s%sv%d%s%" PRIi64, pdname, TD_DIRSEP, TD_DIRSEP,
-               vgId, TD_DIRSEP, dname, TD_DIRSEP, vgId, fname, version);
+    if (version >= 0) {
+      if (pdname) {
+        snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s%sv%d%s%" PRIi64, pdname, TD_DIRSEP, TD_DIRSEP,
+                 vgId, TD_DIRSEP, dname, TD_DIRSEP, vgId, fname, version);
+      } else {
+        snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s%sv%d%s%" PRIi64, TD_DIRSEP, vgId, TD_DIRSEP, dname,
+                 TD_DIRSEP, vgId, fname, version);
+      }
     } else {
-      snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s%sv%d%s%" PRIi64, TD_DIRSEP, vgId, TD_DIRSEP, dname,
-               TD_DIRSEP, vgId, fname, version);
+      if (pdname) {
+        snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s%sv%d%s", pdname, TD_DIRSEP, TD_DIRSEP, vgId,
+                 TD_DIRSEP, dname, TD_DIRSEP, vgId, fname);
+      } else {
+        snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s%sv%d%s", TD_DIRSEP, vgId, TD_DIRSEP, dname,
+                 TD_DIRSEP, vgId, fname);
+      }
     }
   }
 }
 
-void tdGetVndDirName(int32_t vgId, const char *pdname, const char *dname, bool endWithSep, char *outputName) {
+void tdRSmaGetDirName(int32_t vgId, const char *pdname, const char *dname, bool endWithSep, char *outputName) {
   if (pdname) {
     if (endWithSep) {
       snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s%s", pdname, TD_DIRSEP, TD_DIRSEP, vgId, TD_DIRSEP,
