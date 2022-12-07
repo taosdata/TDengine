@@ -50,7 +50,7 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
 
   // initial log buffer with at least one item, e.g. commitIndex
   SSyncRaftEntry* pMatch = pBuf->entries[(index - 1 + pBuf->size) % pBuf->size].pItem;
-  ASSERT(pMatch != NULL && "no matched log entry");
+  ASSERTS(pMatch != NULL, "no matched log entry");
   ASSERT(pMatch->index + 1 == index);
 
   SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = pMatch->index, .prevLogTerm = pMatch->term};
@@ -86,14 +86,14 @@ SyncTerm syncLogReplMgrGetPrevLogTerm(SSyncLogReplMgr* pMgr, SSyncNode* pNode, S
 
   if (prevIndex >= pBuf->startIndex) {
     pEntry = pBuf->entries[(prevIndex + pBuf->size) % pBuf->size].pItem;
-    ASSERT(pEntry != NULL && "no log entry found");
+    ASSERTS(pEntry != NULL, "no log entry found");
     prevLogTerm = pEntry->term;
     return prevLogTerm;
   }
 
   if (pMgr && pMgr->startIndex <= prevIndex && prevIndex < pMgr->endIndex) {
     int64_t timeMs = pMgr->states[(prevIndex + pMgr->size) % pMgr->size].timeMs;
-    ASSERT(timeMs != 0 && "no log entry found");
+    ASSERTS(timeMs != 0, "no log entry found");
     prevLogTerm = pMgr->states[(prevIndex + pMgr->size) % pMgr->size].term;
     ASSERT(prevIndex == 0 || prevLogTerm != 0);
     return prevLogTerm;
@@ -141,9 +141,9 @@ int32_t syncLogValidateAlignmentOfCommit(SSyncNode* pNode, SyncIndex commitIndex
 }
 
 int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
-  ASSERT(pNode->pLogStore != NULL && "log store not created");
-  ASSERT(pNode->pFsm != NULL && "pFsm not registered");
-  ASSERT(pNode->pFsm->FpGetSnapshotInfo != NULL && "FpGetSnapshotInfo not registered");
+  ASSERTS(pNode->pLogStore != NULL, "log store not created");
+  ASSERTS(pNode->pFsm != NULL, "pFsm not registered");
+  ASSERTS(pNode->pFsm->FpGetSnapshotInfo != NULL, "FpGetSnapshotInfo not registered");
 
   SSnapshot snapshot;
   if (pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot) < 0) {
@@ -437,7 +437,7 @@ _out:
 }
 
 int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry) {
-  ASSERT(pFsm->FpCommitCb != NULL && "No commit cb registered for the FSM");
+  ASSERTS(pFsm->FpCommitCb != NULL, "No commit cb registered for the FSM");
 
   if ((pNode->replicaNum == 1) && pNode->restoreFinish && pNode->vgId != 1) {
     return 0;
@@ -900,7 +900,7 @@ int32_t syncNodeLogReplMgrInit(SSyncNode* pNode) {
     ASSERT(pNode->logReplMgrs[i] == NULL);
     pNode->logReplMgrs[i] = syncLogReplMgrCreate();
     pNode->logReplMgrs[i]->peerId = i;
-    ASSERT(pNode->logReplMgrs[i] != NULL && "Out of memory.");
+    ASSERTS(pNode->logReplMgrs[i] != NULL, "Out of memory.");
   }
   return 0;
 }
