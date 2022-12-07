@@ -618,7 +618,7 @@ static int32_t tdFetchSubmitReqSuids(SSubmitReq2 *pMsg, STbUidStore *pStore) {
 
   for (int32_t i = 0; i < size; ++i) {
     SSubmitTbData *pData = TARRAY_GET_ELEM(pSubmitTbData, i);
-    if (terrno = tdUidStorePut(pStore, pData->suid, NULL) < 0) {
+    if ((terrno = tdUidStorePut(pStore, pData->suid, NULL)) < 0) {
       return -1;
     }
   }

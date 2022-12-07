@@ -1056,21 +1056,15 @@ static SSmlSTableMeta *smlBuildSTableMeta(bool isDataFormat) {
 static void smlInsertMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols){
   for (int16_t i = 0; i < taosArrayGetSize(cols); ++i) {
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
-    taosArrayPush(metaArray, &kv);
+    taosArrayPush(metaArray, kv);
     if(unlikely(metaHash != NULL)) {
       taosHashPut(metaHash, kv->key, kv->keyLen, &i, SHORT_BYTES);
     }
   }
 }
 
-bool smlFormatJudge(SHashObj* superTableKeyStr, void** preLineKeys, void* currentLineKeys,
+bool smlFormatJudge(SHashObj* superTableKeyStr, void* preLineKeys, void* currentLineKeys,
                     SSmlLineInfo *currElements, SSmlLineInfo *preElements, int32_t len){
-  if(*preLineKeys == NULL){
-    *preLineKeys = taosMemoryMalloc(len);
-    varDataCopy(*preLineKeys, currentLineKeys);
-    return true;
-  }
-
   // same measure
   if(preElements->measureLen == currElements->measureLen
      && memcmp(preElements->measure, currElements->measure, currElements->measureLen) == 0){
@@ -1091,6 +1085,7 @@ bool smlFormatJudge(SHashObj* superTableKeyStr, void** preLineKeys, void* curren
       }
     }
   }
+  varDataCopy(preLineKeys, currentLineKeys);
 
   return true;
 }
@@ -1166,7 +1161,7 @@ static int32_t smlParseKv(SSmlHandle *info, const char **sql, const char *sqlEnd
   bool isSameCTable = false;
   int   cnt = 0;
   void *keyStr = NULL;
-  bool isPreLineKVNULL = false;
+//  bool isPreLineKVNULL = false;
   SArray *preLineKV = NULL;
   bool    isSuperKVInit = false;
   SArray *superKV = NULL;
@@ -1223,22 +1218,29 @@ static int32_t smlParseKv(SSmlHandle *info, const char **sql, const char *sqlEnd
       if(unlikely(info->currentLineTagKeys == NULL)){   // sml todo size need remalloc
         info->currentLineTagKeys = taosMemoryMalloc(sqlEnd - *sql);
       }
-      keyStr = info->preLineTagKeys;
+      if(info->preLineTagKeys == NULL){
+        info->preLineTagKeys = taosMemoryMalloc(sqlEnd - *sql);
+      }
+      keyStr = info->currentLineTagKeys;
 
       if(info->preLineTagKV == NULL){
         info->preLineTagKV = taosArrayInit(8, sizeof(SSmlKv));
-        isPreLineKVNULL = true;
+//        isPreLineKVNULL = true;
       }
       preLineKV = info->preLineTagKV;
     }else{
       if(unlikely(info->currentLineColKeys == NULL)){   // sml todo size need remalloc
         info->currentLineColKeys = taosMemoryMalloc(sqlEnd - *sql);
       }
-      keyStr = info->preLineColKeys;
+
+      if(info->preLineColKeys == NULL){
+        info->preLineColKeys = taosMemoryMalloc(sqlEnd - *sql);
+      }
+      keyStr = info->currentLineColKeys;
 
       if(info->preLineColKV == NULL){
         info->preLineColKV = taosArrayInit(8, sizeof(SSmlKv));
-        isPreLineKVNULL = true;
+//        isPreLineKVNULL = true;
       }
       preLineKV = info->preLineColKV;
     }
@@ -1247,6 +1249,8 @@ static int32_t smlParseKv(SSmlHandle *info, const char **sql, const char *sqlEnd
       taosArraySetSize(preLineKV, 0);
     }
     varDataLen(keyStr) = 0; // clear keys
+  }else{
+    preLineKV = taosArrayInit(8, sizeof(SSmlKv));
   }
 
   while (*sql < sqlEnd) {
@@ -1276,8 +1280,10 @@ static int32_t smlParseKv(SSmlHandle *info, const char **sql, const char *sqlEnd
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
 
-    memcpy(keyStr + varDataTLen(keyStr), key, keyLen + 1); // use = symbol
-    varDataLen(keyStr) += keyLen + 1;
+    if(info->dataFormat){
+      memcpy(keyStr + varDataTLen(keyStr), key, keyLen + 1); // use = symbol
+      varDataLen(keyStr) += keyLen + 1;
+    }
 
     // parse value
     const char *value = *sql;
@@ -1289,6 +1295,9 @@ static int32_t smlParseKv(SSmlHandle *info, const char **sql, const char *sqlEnd
         isInQuote = !isInQuote;
         (*sql)++;
         continue;
+      }
+      if (!isInQuote && IS_SPACE(*sql)) {
+        break;
       }
       if (!isInQuote && IS_COMMA(*sql)) {
         break;
@@ -1311,8 +1320,6 @@ static int32_t smlParseKv(SSmlHandle *info, const char **sql, const char *sqlEnd
     }
     PROCESS_SLASH(key, keyLen)
     PROCESS_SLASH(value, valueLen)
-
-    (*sql)++;
 
     SSmlKv kv = {.key = key, .keyLen = keyLen, .value = value, .length = valueLen};
     if (!isTag) {
@@ -1337,18 +1344,15 @@ static int32_t smlParseKv(SSmlHandle *info, const char **sql, const char *sqlEnd
         return TSDB_CODE_PAR_TOO_MANY_COLUMNS;
       }
       // bind data
-      int ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, cnt + 1);
-      if (ret != TSDB_CODE_SUCCESS) {
-        smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
-        return ret;
+      if(!isTag){
+        int ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, cnt + 1);
+        if (ret != TSDB_CODE_SUCCESS) {
+          smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
+          return ret;
+        }
       }
 
       do {
-        if(isPreLineKVNULL){
-          taosArrayPush(preLineKV, &kv);
-          break;
-        }
-
         if(isSameMeasure){
           if(cnt >= taosArrayGetSize(preLineKV)) {
             info->dataFormat = false;
@@ -1404,9 +1408,10 @@ static int32_t smlParseKv(SSmlHandle *info, const char **sql, const char *sqlEnd
           }
           taosArrayPush(preLineKV, &kv);
         }
-        cnt++;
         break;
       }while(0);
+    }else{
+      taosArrayPush(preLineKV, &kv);
     }
 
     if(!info->dataFormat && !isTag){
@@ -1416,16 +1421,21 @@ static int32_t smlParseKv(SSmlHandle *info, const char **sql, const char *sqlEnd
       }
       taosArrayPush(currElement->colArray, &kv);   //reserve for timestamp
     }
+    cnt++;
+    if(IS_SPACE(*sql)){
+      break;
+    }
+    (*sql)++;
   }
 
-  if(isTag && taosArrayGetSize(preLineKV) > TSDB_MAX_TAGS){
+  if(isTag && cnt > TSDB_MAX_TAGS){
     smlBuildInvalidDataMsg(&info->msgBuf, "too many tags than 128", NULL);
     return TSDB_CODE_PAR_INVALID_TAGS_NUM;
   }
 
   if(info->dataFormat){
     if(isTag){
-      info->dataFormat = smlFormatJudge(info->superTableTagKeyStr, &info->preLineTagKeys,
+      info->dataFormat = smlFormatJudge(info->superTableTagKeyStr, info->preLineTagKeys,
                                         info->currentLineTagKeys, currElement, &info->preLine, sqlEnd - currElement->tags);
       if(!info->dataFormat) {
         info->reRun = true;
@@ -1449,11 +1459,15 @@ static int32_t smlParseKv(SSmlHandle *info, const char **sql, const char *sqlEnd
           smlSetCTableName(tinfo);
           info->currSTableMeta->uid = tinfo->uid;
           tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);
+          if(tinfo->tableDataCtx == NULL){
+            smlBuildInvalidDataMsg(&info->msgBuf, "smlInitTableDataCtx error", NULL);
+            return TSDB_CODE_SML_INVALID_DATA;
+          }
           taosHashPut(info->childTables, currElement->measure, currElement->measureTagsLen, &tinfo, POINTER_BYTES);
         }
       }
     }else{
-      info->dataFormat = smlFormatJudge(info->superTableColKeyStr, &info->preLineColKeys,
+      info->dataFormat = smlFormatJudge(info->superTableColKeyStr, info->preLineColKeys,
                                         info->currentLineColKeys, currElement, &info->preLine, sqlEnd - currElement->cols);
       if(!info->dataFormat) {
         info->reRun = true;
@@ -1473,6 +1487,7 @@ static int32_t smlParseKv(SSmlHandle *info, const char **sql, const char *sqlEnd
       smlSetCTableName(tinfo);
       taosHashPut(info->childTables, currElement->measure, currElement->measureTagsLen, &tinfo, POINTER_BYTES);
     }
+    taosArrayDestroy(preLineKV);      // smltodo
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1815,8 +1830,20 @@ static void smlDestroyInfo(SSmlHandle *info) {
   taosHashCleanup(info->pVgHash);
   destroyRequest(info->pRequest);
 
+  p1 = (void **)taosHashIterate(info->superTableTagKeyStr, NULL);
+  while (p1) {
+    taosMemoryFree(*p1);
+    p1 = (void **)taosHashIterate(info->superTableTagKeyStr, p1);
+  }
   taosHashCleanup(info->superTableTagKeyStr);
+
+  p1 = (void **)taosHashIterate(info->superTableColKeyStr, NULL);
+  while (p1) {
+    taosMemoryFree(*p1);
+    p1 = (void **)taosHashIterate(info->superTableColKeyStr, p1);
+  }
   taosHashCleanup(info->superTableColKeyStr);
+
   taosMemoryFree(info->currentLineTagKeys);
   taosMemoryFree(info->preLineTagKeys);
   taosMemoryFree(info->currentLineColKeys);
@@ -1863,6 +1890,7 @@ static SSmlHandle *smlBuildSmlInfo(STscObj *pTscObj, SRequestObj *request, SMLPr
   }
 
   info->lines = taosArrayInit(perBatch, sizeof(SSmlLineInfo));
+  taosArraySetSize(info->lines, perBatch);
   info->superTableTagKeyStr = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   info->superTableColKeyStr = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
@@ -2612,7 +2640,8 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
     return code;
   }
 
-  for (int32_t i = 0; i < numLines; ++i) {
+  int32_t i = 0;
+  while (i < numLines) {
     char *tmp = NULL;
     int   len = 0;
     if (lines) {
@@ -2627,6 +2656,7 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
         len++;
       }
       if (info->protocol == TSDB_SML_LINE_PROTOCOL && tmp[0] == '#') {  // this line is comment
+        i++;
         continue;
       }
     }
@@ -2662,7 +2692,9 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
         p1 = (void **)taosHashIterate(info->superTables, p1);
       }
       taosHashClear(info->superTables);
+      continue;
     }
+    i++;
   }
 
   return code;
