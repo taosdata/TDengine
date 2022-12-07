@@ -221,10 +221,10 @@ typedef struct SSnapContext {
 } SSnapContext;
 
 typedef struct STqReader {
-  const SSubmitReq *pMsg;
-  //  SSubmitBlk       *pBlock;
-  //  SSubmitMsgIter    msgIter;
-  //  SSubmitBlkIter    blkIter;
+  // const SSubmitReq *pMsg;
+  //   SSubmitBlk       *pBlock;
+  //   SSubmitMsgIter    msgIter;
+  //   SSubmitBlkIter    blkIter;
 
   int64_t       ver;
   SPackedSubmit msg2;

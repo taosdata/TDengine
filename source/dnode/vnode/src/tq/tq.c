@@ -673,10 +673,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
               req.epoch, TD_VID(pTq->pVnode), fetchVer, pHead->msgType);
 
       if (pHead->msgType == TDMT_VND_SUBMIT) {
-        SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
-
         SPackedSubmit submit = {
-            .msgStr = pCont,
+            .msgStr = pHead->body,
             .msgLen = pHead->bodyLen,
             .ver = pHead->version,
         };
