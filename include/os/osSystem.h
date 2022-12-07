@@ -46,7 +46,7 @@ void    taosSetTerminalMode();
 int32_t taosGetOldTerminalMode();
 void    taosResetTerminalMode();
 
-#if defined(LINUX)
+#if !defined(WINDOWS)
 #define taosPrintTrace(flags, level, dflag)                                \
   {                                                                        \
     void*   array[100];                                                    \
