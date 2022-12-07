@@ -883,10 +883,11 @@ void cliConnCb(uv_connect_t* req, int status) {
   }
 
   if (status != 0) {
-    tError("%s conn %p failed to connect to %s:%d, reason:%s", CONN_GET_INST_LABEL(pConn), pConn, pConn->ip,
-           pConn->port, uv_strerror(status));
     SCliMsg* pMsg = transQueueGet(&pConn->cliMsgs, 0);
     STrans*  pTransInst = pThrd->pTransInst;
+
+    tError("%s msg %s failed to send, conn %p failed to connect to %s:%d, reason: %s", CONN_GET_INST_LABEL(pConn),
+           pMsg ? TMSG_INFO(pMsg->msg.msgType) : 0, pConn, pConn->ip, pConn->port, uv_strerror(status));
     if (pMsg != NULL && REQUEST_NO_RESP(&pMsg->msg) &&
         (pTransInst->failFastFp != NULL && pTransInst->failFastFp(pMsg->msg.msgType))) {
       char*    ip = pConn->ip;
@@ -1071,8 +1072,8 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
       int32_t elapse = (int32_t)(taosGetTimestampMs() - item->timestamp);
       if (item->count >= pTransInst->failFastThreshold && (elapse >= 0 && elapse <= pTransInst->failFastInterval)) {
         STraceId* trace = &(pMsg->msg.info.traceId);
-        tGTrace("%s, msg %p cancel to send, reason: failed to connect %s:%d: count: %d, at %d", pTransInst->label, pMsg,
-                ip, port, item->count, elapse);
+        tGTrace("%s, msg %s cancel to send, reason: failed to connect %s:%d: count: %d, at %d", pTransInst->label,
+                TMSG_INFO(pMsg->msg.msgType), ip, port, item->count, elapse);
         destroyCmsg(pMsg);
         return;
       }
