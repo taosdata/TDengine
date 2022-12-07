@@ -1952,7 +1952,7 @@ void smlClearInfo(void *data) {
   NodeList *tmp = info->childTables;
   while (tmp) {
     if(tmp->data.used){
-      smlDestroySTableMeta((SSmlSTableMeta *)(tmp->data.value));
+      smlDestroyTableInfo((SSmlTableInfo *)(tmp->data.value));
       tmp->data.used = false;
     }
     tmp = tmp->next;

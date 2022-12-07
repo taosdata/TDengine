@@ -1118,11 +1118,19 @@ int sml_ttl_Test() {
   const char *sql[] = {
       "meters,location=California.LosAngeles,groupid=2 current=11.8,voltage=221,phase=\"2022-02-0210:22:22\" 1626006833739000000",
   };
+  const char *sql1[] = {
+      "meters,location=California.LosAngeles,groupid=2 current=11.8,voltage=221,phase=\"2022-02-0210:22:22\" 1626006833339000000",
+  };
 
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
   pRes = taos_schemaless_insert_ttl(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, 20);
+
+  printf("%s result1:%s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert_ttl(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, 20);
 
   printf("%s result1:%s\n", __FUNCTION__, taos_errstr(pRes));
   taos_free_result(pRes);
