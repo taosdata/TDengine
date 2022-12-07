@@ -1086,7 +1086,11 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
         return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
-      pVal->value.pData = pToken->z;
+      pVal->value.pData = taosMemoryMalloc(pToken->n);
+      if (NULL == pVal->value.pData) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      memcpy(pVal->value.pData, pToken->z, pToken->n);
       pVal->value.nData = pToken->n;
       break;
     }
@@ -1113,7 +1117,11 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       if (pToken->n > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
         return buildSyntaxErrMsg(&pCxt->msg, "json string too long than 4095", pToken->z);
       }
-      pVal->value.pData = pToken->z;
+      pVal->value.pData = taosMemoryMalloc(pToken->n);
+      if (NULL == pVal->value.pData) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      memcpy(pVal->value.pData, pToken->z, pToken->n);
       pVal->value.nData = pToken->n;
       break;
     }
@@ -1157,7 +1165,7 @@ static void clearColValArray(SArray* pCols) {
   int32_t num = taosArrayGetSize(pCols);
   for (int32_t i = 0; i < num; ++i) {
     SColVal* pCol = taosArrayGet(pCols, i);
-    if (TSDB_DATA_TYPE_NCHAR == pCol->type) {
+    if (IS_VAR_DATA_TYPE(pCol->type)) {
       taosMemoryFreeClear(pCol->value.pData);
     }
   }
