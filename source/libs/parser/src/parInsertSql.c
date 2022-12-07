@@ -38,12 +38,13 @@
   } while (TK_NK_SPACE == (token).type)
 
 typedef struct SInsertParseContext {
-  SParseContext* pComCxt;
-  SMsgBuf        msg;
-  char           tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW];
-  SBoundColInfo  tags;  // for stmt
-  bool           missCache;
-  bool           usingDuplicateTable;
+  SParseContext*     pComCxt;
+  SMsgBuf            msg;
+  char               tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW];
+  SParsedDataColInfo tags;  // for stmt
+  bool               missCache;
+  bool               usingDuplicateTable;
+  bool               forceUpdate;
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
@@ -798,6 +799,11 @@ static int32_t getTableVgroup(SParseContext* pCxt, SVnodeModifOpStmt* pStmt, boo
 }
 
 static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) {
+  if (pCxt->forceUpdate) {
+    pCxt->missCache = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTableMeta(pCxt, &pStmt->targetTableName, false, &pStmt->pTableMeta, &pCxt->missCache);
@@ -813,6 +819,11 @@ static int32_t preParseUsingTableName(SInsertParseContext* pCxt, SVnodeModifOpSt
 }
 
 static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) {
+  if (pCxt->forceUpdate) {
+    pCxt->missCache = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTableMeta(pCxt, &pStmt->usingTableName, true, &pStmt->pTableMeta, &pCxt->missCache);
@@ -1840,6 +1851,7 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
       .msg = {.buf = pCxt->pMsg, .len = pCxt->msgLen},
       .missCache = false,
       .usingDuplicateTable = false,
+      .forceUpdate = (NULL != pCatalogReq ? pCatalogReq->forceUpdate : false)
   };
 
   int32_t code = initInsertQuery(&context, pCatalogReq, pMetaData, pQuery);
