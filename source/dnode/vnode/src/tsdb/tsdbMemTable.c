@@ -695,7 +695,7 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
     }
 
     while (iRow < nRow) {
-      tRow.pTSRow = aRow[iRow++];
+      tRow.pTSRow = aRow[iRow];
       key.ts = tRow.pTSRow->ts;
 
       if (SL_NODE_FORWARD(pos[0], 0) != pTbData->sl.pTail) {
