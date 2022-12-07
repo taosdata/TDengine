@@ -1562,6 +1562,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
 
     pInfo->tqReader->msg2 = (SPackedSubmit){0};
     pInfo->tqReader->setMsg = 0;
+    pTaskInfo->streamInfo.submit = (SPackedSubmit){0};
     return NULL;
   }
 
