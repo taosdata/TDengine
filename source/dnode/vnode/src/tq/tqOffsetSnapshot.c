@@ -146,7 +146,7 @@ int32_t tqOffsetSnapWrite(STqOffsetWriter* pWriter, uint8_t* pData, uint32_t nDa
   TdFilePtr     pFile = taosOpenFile(pWriter->fname, TD_FILE_CREATE | TD_FILE_WRITE);
   SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
   int64_t       size = pHdr->size;
-  ASSERT(size == nData - sizeof(SSnapDataHdr));
+  tAssert(size == nData - sizeof(SSnapDataHdr));
   if (pFile) {
     int64_t contLen = taosWriteFile(pFile, pHdr->data, size);
     if (contLen != size) {

@@ -316,7 +316,7 @@ bool avgFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
 
 static int32_t calculateAvgBySMAInfo(SAvgRes* pRes, int32_t numOfRows, int32_t type, const SColumnDataAgg* pAgg) {
   int32_t numOfElem = numOfRows - pAgg->numOfNull;
-  ASSERT(numOfElem >= 0);
+  tAssert(numOfElem >= 0);
 
   pRes->count += numOfElem;
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
@@ -653,7 +653,7 @@ static void avgTransferInfo(SAvgRes* pInput, SAvgRes* pOutput) {
 int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pCol = pInput->pData[0];
-  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
+  tAssert(pCol->info.type == TSDB_DATA_TYPE_BINARY);
 
   SAvgRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 

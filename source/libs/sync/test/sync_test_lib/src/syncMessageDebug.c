@@ -44,7 +44,7 @@ SyncPing* syncPingBuild3(const SRaftId* srcId, const SRaftId* destId, int32_t vg
 
 char* syncPingSerialize2(const SyncPing* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncPingSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -78,7 +78,7 @@ SyncPing* syncPingDeserialize3(void* buf, int32_t bufLen) {
   }
 
   pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   pMsg->bytes = bytes;
 
   if (tDecodeI32(&decoder, &pMsg->vgId) < 0) {
@@ -115,7 +115,7 @@ SyncPing* syncPingDeserialize3(void* buf, int32_t bufLen) {
     taosMemoryFree(pMsg);
     return NULL;
   }
-  ASSERT(len == pMsg->dataLen);
+  tAssert(len == pMsg->dataLen);
   memcpy(pMsg->data, data, len);
 
   tEndDecode(&decoder);
@@ -261,28 +261,28 @@ void syncPingDestroy(SyncPing* pMsg) {
 }
 
 void syncPingSerialize(const SyncPing* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
-  ASSERT(pMsg->bytes == sizeof(SyncPing) + pMsg->dataLen);
+  tAssert(len == pMsg->bytes);
+  tAssert(pMsg->bytes == sizeof(SyncPing) + pMsg->dataLen);
 }
 
 SyncPing* syncPingDeserialize2(const char* buf, uint32_t len) {
   uint32_t  bytes = *((uint32_t*)buf);
   SyncPing* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncPingDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
 SyncPing* syncPingFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncPing* pMsg = syncPingDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 
@@ -319,19 +319,19 @@ void syncPingReplyDestroy(SyncPingReply* pMsg) {
 }
 
 void syncPingReplySerialize(const SyncPingReply* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncPingReplyDeserialize(const char* buf, uint32_t len, SyncPingReply* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
-  ASSERT(pMsg->bytes == sizeof(SyncPingReply) + pMsg->dataLen);
+  tAssert(len == pMsg->bytes);
+  tAssert(pMsg->bytes == sizeof(SyncPingReply) + pMsg->dataLen);
 }
 
 char* syncPingReplySerialize2(const SyncPingReply* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncPingReplySerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -342,9 +342,9 @@ char* syncPingReplySerialize2(const SyncPingReply* pMsg, uint32_t* len) {
 SyncPingReply* syncPingReplyDeserialize2(const char* buf, uint32_t len) {
   uint32_t       bytes = *((uint32_t*)buf);
   SyncPingReply* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncPingReplyDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -403,7 +403,7 @@ SyncPingReply* syncPingReplyDeserialize3(void* buf, int32_t bufLen) {
   }
 
   pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   pMsg->bytes = bytes;
 
   if (tDecodeI32(&decoder, &pMsg->vgId) < 0) {
@@ -440,7 +440,7 @@ SyncPingReply* syncPingReplyDeserialize3(void* buf, int32_t bufLen) {
     taosMemoryFree(pMsg);
     return NULL;
   }
-  ASSERT(len == pMsg->dataLen);
+  tAssert(len == pMsg->dataLen);
   memcpy(pMsg->data, data, len);
 
   tEndDecode(&decoder);
@@ -462,7 +462,7 @@ void syncPingReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPingReply* pMsg) {
 
 SyncPingReply* syncPingReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncPingReply* pMsg = syncPingReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 
@@ -902,7 +902,7 @@ SyncTimeout* syncTimeoutBuild2(ESyncTimeoutType timeoutType, uint64_t logicClock
 
 char* syncTimeoutSerialize2(const SyncTimeout* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncTimeoutSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -917,21 +917,21 @@ void syncTimeoutDestroy(SyncTimeout* pMsg) {
 }
 
 void syncTimeoutSerialize(const SyncTimeout* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncTimeoutDeserialize(const char* buf, uint32_t len, SyncTimeout* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
 }
 
 SyncTimeout* syncTimeoutDeserialize2(const char* buf, uint32_t len) {
   uint32_t     bytes = *((uint32_t*)buf);
   SyncTimeout* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncTimeoutDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -949,7 +949,7 @@ void syncTimeoutFromRpcMsg(const SRpcMsg* pRpcMsg, SyncTimeout* pMsg) {
 
 SyncTimeout* syncTimeoutFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncTimeout* pMsg = syncTimeoutDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 
@@ -1028,18 +1028,18 @@ void syncRequestVoteDestroy(SyncRequestVote* pMsg) {
 }
 
 void syncRequestVoteSerialize(const SyncRequestVote* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncRequestVoteDeserialize(const char* buf, uint32_t len, SyncRequestVote* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
 }
 
 char* syncRequestVoteSerialize2(const SyncRequestVote* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncRequestVoteSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -1050,9 +1050,9 @@ char* syncRequestVoteSerialize2(const SyncRequestVote* pMsg, uint32_t* len) {
 SyncRequestVote* syncRequestVoteDeserialize2(const char* buf, uint32_t len) {
   uint32_t         bytes = *((uint32_t*)buf);
   SyncRequestVote* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncRequestVoteDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -1070,7 +1070,7 @@ void syncRequestVoteFromRpcMsg(const SRpcMsg* pRpcMsg, SyncRequestVote* pMsg) {
 
 SyncRequestVote* syncRequestVoteFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncRequestVote* pMsg = syncRequestVoteDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 
@@ -1179,18 +1179,18 @@ void syncRequestVoteReplyDestroy(SyncRequestVoteReply* pMsg) {
 }
 
 void syncRequestVoteReplySerialize(const SyncRequestVoteReply* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncRequestVoteReplyDeserialize(const char* buf, uint32_t len, SyncRequestVoteReply* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
 }
 
 char* syncRequestVoteReplySerialize2(const SyncRequestVoteReply* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncRequestVoteReplySerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -1201,9 +1201,9 @@ char* syncRequestVoteReplySerialize2(const SyncRequestVoteReply* pMsg, uint32_t*
 SyncRequestVoteReply* syncRequestVoteReplyDeserialize2(const char* buf, uint32_t len) {
   uint32_t              bytes = *((uint32_t*)buf);
   SyncRequestVoteReply* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncRequestVoteReplyDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -1221,7 +1221,7 @@ void syncRequestVoteReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncRequestVoteReply
 
 SyncRequestVoteReply* syncRequestVoteReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncRequestVoteReply* pMsg = syncRequestVoteReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 
@@ -1328,19 +1328,19 @@ void syncAppendEntriesDestroy(SyncAppendEntries* pMsg) {
 }
 
 void syncAppendEntriesSerialize(const SyncAppendEntries* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncAppendEntriesDeserialize(const char* buf, uint32_t len, SyncAppendEntries* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
-  ASSERT(pMsg->bytes == sizeof(SyncAppendEntries) + pMsg->dataLen);
+  tAssert(len == pMsg->bytes);
+  tAssert(pMsg->bytes == sizeof(SyncAppendEntries) + pMsg->dataLen);
 }
 
 char* syncAppendEntriesSerialize2(const SyncAppendEntries* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncAppendEntriesSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -1351,9 +1351,9 @@ char* syncAppendEntriesSerialize2(const SyncAppendEntries* pMsg, uint32_t* len) 
 SyncAppendEntries* syncAppendEntriesDeserialize2(const char* buf, uint32_t len) {
   uint32_t           bytes = *((uint32_t*)buf);
   SyncAppendEntries* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncAppendEntriesDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -1371,7 +1371,7 @@ void syncAppendEntriesFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntries* pMsg
 
 SyncAppendEntries* syncAppendEntriesFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncAppendEntries* pMsg = syncAppendEntriesDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 
@@ -1498,18 +1498,18 @@ void syncAppendEntriesReplyDestroy(SyncAppendEntriesReply* pMsg) {
 }
 
 void syncAppendEntriesReplySerialize(const SyncAppendEntriesReply* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncAppendEntriesReplyDeserialize(const char* buf, uint32_t len, SyncAppendEntriesReply* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
 }
 
 char* syncAppendEntriesReplySerialize2(const SyncAppendEntriesReply* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncAppendEntriesReplySerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -1520,9 +1520,9 @@ char* syncAppendEntriesReplySerialize2(const SyncAppendEntriesReply* pMsg, uint3
 SyncAppendEntriesReply* syncAppendEntriesReplyDeserialize2(const char* buf, uint32_t len) {
   uint32_t                bytes = *((uint32_t*)buf);
   SyncAppendEntriesReply* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncAppendEntriesReplyDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -1540,7 +1540,7 @@ void syncAppendEntriesReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntriesR
 
 SyncAppendEntriesReply* syncAppendEntriesReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncAppendEntriesReply* pMsg = syncAppendEntriesReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 
@@ -1654,18 +1654,18 @@ void syncHeartbeatDestroy(SyncHeartbeat* pMsg) {
 }
 
 void syncHeartbeatSerialize(const SyncHeartbeat* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncHeartbeatDeserialize(const char* buf, uint32_t len, SyncHeartbeat* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
 }
 
 char* syncHeartbeatSerialize2(const SyncHeartbeat* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncHeartbeatSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -1676,9 +1676,9 @@ char* syncHeartbeatSerialize2(const SyncHeartbeat* pMsg, uint32_t* len) {
 SyncHeartbeat* syncHeartbeatDeserialize2(const char* buf, uint32_t len) {
   uint32_t       bytes = *((uint32_t*)buf);
   SyncHeartbeat* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncHeartbeatDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -1696,7 +1696,7 @@ void syncHeartbeatFromRpcMsg(const SRpcMsg* pRpcMsg, SyncHeartbeat* pMsg) {
 
 SyncHeartbeat* syncHeartbeatFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncHeartbeat* pMsg = syncHeartbeatDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 
@@ -1807,18 +1807,18 @@ void syncHeartbeatReplyDestroy(SyncHeartbeatReply* pMsg) {
 }
 
 void syncHeartbeatReplySerialize(const SyncHeartbeatReply* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncHeartbeatReplyDeserialize(const char* buf, uint32_t len, SyncHeartbeatReply* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
 }
 
 char* syncHeartbeatReplySerialize2(const SyncHeartbeatReply* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncHeartbeatReplySerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -1829,9 +1829,9 @@ char* syncHeartbeatReplySerialize2(const SyncHeartbeatReply* pMsg, uint32_t* len
 SyncHeartbeatReply* syncHeartbeatReplyDeserialize2(const char* buf, uint32_t len) {
   uint32_t            bytes = *((uint32_t*)buf);
   SyncHeartbeatReply* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncHeartbeatReplyDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -1849,7 +1849,7 @@ void syncHeartbeatReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncHeartbeatReply* pM
 
 SyncHeartbeatReply* syncHeartbeatReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncHeartbeatReply* pMsg = syncHeartbeatReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 
@@ -1961,18 +1961,18 @@ void syncPreSnapshotDestroy(SyncPreSnapshot* pMsg) {
 }
 
 void syncPreSnapshotSerialize(const SyncPreSnapshot* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncPreSnapshotDeserialize(const char* buf, uint32_t len, SyncPreSnapshot* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
 }
 
 char* syncPreSnapshotSerialize2(const SyncPreSnapshot* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncPreSnapshotSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -1983,9 +1983,9 @@ char* syncPreSnapshotSerialize2(const SyncPreSnapshot* pMsg, uint32_t* len) {
 SyncPreSnapshot* syncPreSnapshotDeserialize2(const char* buf, uint32_t len) {
   uint32_t         bytes = *((uint32_t*)buf);
   SyncPreSnapshot* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncPreSnapshotDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -2003,7 +2003,7 @@ void syncPreSnapshotFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPreSnapshot* pMsg) {
 
 SyncPreSnapshot* syncPreSnapshotFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncPreSnapshot* pMsg = syncPreSnapshotDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 
@@ -2108,18 +2108,18 @@ void syncPreSnapshotReplyDestroy(SyncPreSnapshotReply* pMsg) {
 }
 
 void syncPreSnapshotReplySerialize(const SyncPreSnapshotReply* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncPreSnapshotReplyDeserialize(const char* buf, uint32_t len, SyncPreSnapshotReply* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
 }
 
 char* syncPreSnapshotReplySerialize2(const SyncPreSnapshotReply* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncPreSnapshotReplySerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -2130,9 +2130,9 @@ char* syncPreSnapshotReplySerialize2(const SyncPreSnapshotReply* pMsg, uint32_t*
 SyncPreSnapshotReply* syncPreSnapshotReplyDeserialize2(const char* buf, uint32_t len) {
   uint32_t              bytes = *((uint32_t*)buf);
   SyncPreSnapshotReply* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncPreSnapshotReplyDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -2150,7 +2150,7 @@ void syncPreSnapshotReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPreSnapshotReply
 
 SyncPreSnapshotReply* syncPreSnapshotReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncPreSnapshotReply* pMsg = syncPreSnapshotReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 
@@ -2267,18 +2267,18 @@ void syncApplyMsgDestroy(SyncApplyMsg* pMsg) {
 }
 
 void syncApplyMsgSerialize(const SyncApplyMsg* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncApplyMsgDeserialize(const char* buf, uint32_t len, SyncApplyMsg* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
 }
 
 char* syncApplyMsgSerialize2(const SyncApplyMsg* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncApplyMsgSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -2289,9 +2289,9 @@ char* syncApplyMsgSerialize2(const SyncApplyMsg* pMsg, uint32_t* len) {
 SyncApplyMsg* syncApplyMsgDeserialize2(const char* buf, uint32_t len) {
   uint32_t      bytes = *((uint32_t*)buf);
   SyncApplyMsg* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncApplyMsgDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -2412,19 +2412,19 @@ void syncSnapshotSendDestroy(SyncSnapshotSend* pMsg) {
 }
 
 void syncSnapshotSendSerialize(const SyncSnapshotSend* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncSnapshotSendDeserialize(const char* buf, uint32_t len, SyncSnapshotSend* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
-  ASSERT(pMsg->bytes == sizeof(SyncSnapshotSend) + pMsg->dataLen);
+  tAssert(len == pMsg->bytes);
+  tAssert(pMsg->bytes == sizeof(SyncSnapshotSend) + pMsg->dataLen);
 }
 
 char* syncSnapshotSendSerialize2(const SyncSnapshotSend* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncSnapshotSendSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -2435,9 +2435,9 @@ char* syncSnapshotSendSerialize2(const SyncSnapshotSend* pMsg, uint32_t* len) {
 SyncSnapshotSend* syncSnapshotSendDeserialize2(const char* buf, uint32_t len) {
   uint32_t          bytes = *((uint32_t*)buf);
   SyncSnapshotSend* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncSnapshotSendDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -2455,7 +2455,7 @@ void syncSnapshotSendFromRpcMsg(const SRpcMsg* pRpcMsg, SyncSnapshotSend* pMsg) 
 
 SyncSnapshotSend* syncSnapshotSendFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncSnapshotSend* pMsg = syncSnapshotSendDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 
@@ -2476,18 +2476,18 @@ void syncSnapshotRspDestroy(SyncSnapshotRsp* pMsg) {
 }
 
 void syncSnapshotRspSerialize(const SyncSnapshotRsp* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncSnapshotRspDeserialize(const char* buf, uint32_t len, SyncSnapshotRsp* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
 }
 
 char* syncSnapshotRspSerialize2(const SyncSnapshotRsp* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncSnapshotRspSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -2498,9 +2498,9 @@ char* syncSnapshotRspSerialize2(const SyncSnapshotRsp* pMsg, uint32_t* len) {
 SyncSnapshotRsp* syncSnapshotRspDeserialize2(const char* buf, uint32_t len) {
   uint32_t         bytes = *((uint32_t*)buf);
   SyncSnapshotRsp* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncSnapshotRspDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -2518,7 +2518,7 @@ void syncSnapshotRspFromRpcMsg(const SRpcMsg* pRpcMsg, SyncSnapshotRsp* pMsg) {
 
 SyncSnapshotRsp* syncSnapshotRspFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncSnapshotRsp* pMsg = syncSnapshotRspDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 
@@ -2639,18 +2639,18 @@ void syncLeaderTransferDestroy(SyncLeaderTransfer* pMsg) {
 }
 
 void syncLeaderTransferSerialize(const SyncLeaderTransfer* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncLeaderTransferDeserialize(const char* buf, uint32_t len, SyncLeaderTransfer* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
 }
 
 char* syncLeaderTransferSerialize2(const SyncLeaderTransfer* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncLeaderTransferSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -2661,9 +2661,9 @@ char* syncLeaderTransferSerialize2(const SyncLeaderTransfer* pMsg, uint32_t* len
 SyncLeaderTransfer* syncLeaderTransferDeserialize2(const char* buf, uint32_t len) {
   uint32_t            bytes = *((uint32_t*)buf);
   SyncLeaderTransfer* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncLeaderTransferDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -2681,7 +2681,7 @@ void syncLeaderTransferFromRpcMsg(const SRpcMsg* pRpcMsg, SyncLeaderTransfer* pM
 
 SyncLeaderTransfer* syncLeaderTransferFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncLeaderTransfer* pMsg = syncLeaderTransferDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 
@@ -2771,18 +2771,18 @@ void syncLocalCmdDestroy(SyncLocalCmd* pMsg) {
 }
 
 void syncLocalCmdSerialize(const SyncLocalCmd* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncLocalCmdDeserialize(const char* buf, uint32_t len, SyncLocalCmd* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
 }
 
 char* syncLocalCmdSerialize2(const SyncLocalCmd* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncLocalCmdSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -2793,9 +2793,9 @@ char* syncLocalCmdSerialize2(const SyncLocalCmd* pMsg, uint32_t* len) {
 SyncLocalCmd* syncLocalCmdDeserialize2(const char* buf, uint32_t len) {
   uint32_t      bytes = *((uint32_t*)buf);
   SyncLocalCmd* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncLocalCmdDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -2813,7 +2813,7 @@ void syncLocalCmdFromRpcMsg(const SRpcMsg* pRpcMsg, SyncLocalCmd* pMsg) {
 
 SyncLocalCmd* syncLocalCmdFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncLocalCmd* pMsg = syncLocalCmdDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 

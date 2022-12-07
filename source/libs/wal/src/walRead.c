@@ -97,7 +97,7 @@ int32_t walNextValidMsg(SWalReader *pReader) {
         return -1;
       }
       fetchVer++;
-      ASSERT(fetchVer == pReader->curVersion);
+      tAssert(fetchVer == pReader->curVersion);
     }
   }
   pReader->curStopped = 1;
@@ -132,7 +132,7 @@ static int64_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int
     return -1;
   }
 
-  ASSERT(entry.ver == ver);
+  tAssert(entry.ver == ver);
   ret = taosLSeekFile(pLogTFile, entry.offset, SEEK_SET);
   if (ret < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -328,8 +328,8 @@ static int32_t walFetchBodyNew(SWalReader *pRead) {
 static int32_t walSkipFetchBodyNew(SWalReader *pRead) {
   int64_t code;
 
-  ASSERT(pRead->curVersion == pRead->pHead->head.version);
-  ASSERT(pRead->curInvalid == 0);
+  tAssert(pRead->curVersion == pRead->pHead->head.version);
+  tAssert(pRead->curInvalid == 0);
 
   code = taosLSeekFile(pRead->pLogFile, pRead->pHead->head.bodyLen, SEEK_CUR);
   if (code < 0) {
@@ -410,8 +410,8 @@ int32_t walSkipFetchBody(SWalReader *pRead, const SWalCkHead *pHead) {
          pRead->pWal->cfg.vgId, pHead->head.version, pRead->pWal->vers.firstVer, pRead->pWal->vers.commitVer,
          pRead->pWal->vers.lastVer, pRead->pWal->vers.appliedVer);
 
-  ASSERT(pRead->curVersion == pHead->head.version);
-  ASSERT(pRead->curInvalid == 0);
+  tAssert(pRead->curVersion == pHead->head.version);
+  tAssert(pRead->curInvalid == 0);
 
   code = taosLSeekFile(pRead->pLogFile, pHead->head.bodyLen, SEEK_CUR);
   if (code < 0) {

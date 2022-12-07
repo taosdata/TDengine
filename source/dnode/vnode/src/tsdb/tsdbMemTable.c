@@ -168,7 +168,7 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
     goto _err;
   }
 
-  ASSERT(pPool != NULL);
+  tAssert(pPool != NULL);
   // do delete
   SDelData *pDelData = (SDelData *)vnodeBufPoolMalloc(pPool, sizeof(*pDelData));
   if (pDelData == NULL) {
@@ -180,7 +180,7 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   pDelData->eKey = eKey;
   pDelData->pNext = NULL;
   if (pTbData->pHead == NULL) {
-    ASSERT(pTbData->pTail == NULL);
+    tAssert(pTbData->pTail == NULL);
     pTbData->pHead = pTbData->pTail = pDelData;
   } else {
     pTbData->pTail->pNext = pDelData;
@@ -265,7 +265,7 @@ void tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDa
 bool tsdbTbDataIterNext(STbDataIter *pIter) {
   pIter->pRow = NULL;
   if (pIter->backward) {
-    ASSERT(pIter->pNode != pIter->pTbData->sl.pTail);
+    tAssert(pIter->pNode != pIter->pTbData->sl.pTail);
 
     if (pIter->pNode == pIter->pTbData->sl.pHead) {
       return false;
@@ -276,7 +276,7 @@ bool tsdbTbDataIterNext(STbDataIter *pIter) {
       return false;
     }
   } else {
-    ASSERT(pIter->pNode != pIter->pTbData->sl.pHead);
+    tAssert(pIter->pNode != pIter->pTbData->sl.pHead);
 
     if (pIter->pNode == pIter->pTbData->sl.pTail) {
       return false;
@@ -334,7 +334,7 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   SVBufPool *pPool = pMemTable->pTsdb->pVnode->inUse;
   int8_t     maxLevel = pMemTable->pTsdb->pVnode->config.tsdbCfg.slLevel;
 
-  ASSERT(pPool != NULL);
+  tAssert(pPool != NULL);
   pTbData = vnodeBufPoolMalloc(pPool, sizeof(*pTbData) + SL_NODE_SIZE(maxLevel) * 2);
   if (pTbData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -477,7 +477,7 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
 
   // node
   level = tsdbMemSkipListRandLevel(&pTbData->sl);
-  ASSERT(pPool != NULL);
+  tAssert(pPool != NULL);
   pNode = (SMemSkipListNode *)vnodeBufPoolMalloc(pPool, SL_NODE_SIZE(level));
   if (pNode == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -620,7 +620,7 @@ int32_t tsdbGetNRowsInTbData(STbData *pTbData) { return pTbData->sl.size; }
 
 void tsdbRefMemTable(SMemTable *pMemTable) {
   int32_t nRef = atomic_fetch_add_32(&pMemTable->nRef, 1);
-  ASSERT(nRef > 0);
+  tAssert(nRef > 0);
 }
 
 void tsdbUnrefMemTable(SMemTable *pMemTable) {

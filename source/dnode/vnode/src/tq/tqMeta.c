@@ -197,7 +197,7 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
   int32_t code;
   int32_t vlen;
   tEncodeSize(tEncodeSTqHandle, pHandle, vlen, code);
-  ASSERT(code == 0);
+  tAssert(code == 0);
 
   tqDebug("tq save %s(%d) consumer %" PRId64 " vgId:%d", pHandle->subKey, (int32_t)strlen(pHandle->subKey),
           pHandle->consumerId, TD_VID(pTq->pVnode));
@@ -300,12 +300,12 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       handle.execHandle.task =
           qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols, NULL);
-      ASSERT(handle.execHandle.task);
+      tAssert(handle.execHandle.task);
       void* scanner = NULL;
       qExtractStreamScanner(handle.execHandle.task, &scanner);
-      ASSERT(scanner);
+      tAssert(scanner);
       handle.execHandle.pExecReader = qExtractReaderFromStreamScanner(scanner);
-      ASSERT(handle.execHandle.pExecReader);
+      tAssert(handle.execHandle.pExecReader);
     } else if (handle.execHandle.subType == TOPIC_SUB_TYPE__DB) {
       handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
       handle.execHandle.pExecReader = tqOpenReader(pTq->pVnode);

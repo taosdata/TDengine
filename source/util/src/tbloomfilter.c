@@ -70,7 +70,7 @@ SBloomFilter *tBloomFilterInit(uint64_t expectedEntries, double errorRate) {
 }
 
 int32_t tBloomFilterPut(SBloomFilter *pBF, const void *keyBuf, uint32_t len) {
-  ASSERT(!tBloomFilterIsFull(pBF));
+  tAssert(!tBloomFilterIsFull(pBF));
   uint64_t                h1 = (uint64_t)pBF->hashFn1(keyBuf, len);
   uint64_t                h2 = (uint64_t)pBF->hashFn2(keyBuf, len);
   bool                    hasChange = false;

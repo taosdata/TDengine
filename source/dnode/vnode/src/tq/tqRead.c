@@ -297,11 +297,11 @@ void tqCloseReader(STqReader* pReader) {
 
 int32_t tqSeekVer(STqReader* pReader, int64_t ver) {
   if (walReadSeekVer(pReader->pWalReader, ver) < 0) {
-    ASSERT(pReader->pWalReader->curInvalid);
-    ASSERT(pReader->pWalReader->curVersion == ver);
+    tAssert(pReader->pWalReader->curInvalid);
+    tAssert(pReader->pWalReader->curVersion == ver);
     return -1;
   }
-  ASSERT(pReader->pWalReader->curVersion == ver);
+  tAssert(pReader->pWalReader->curVersion == ver);
   return 0;
 }
 
@@ -317,7 +317,7 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
         ret->offset.version = pReader->ver;
         ret->fetchType = FETCH_TYPE__NONE;
         tqDebug("return offset %" PRId64 ", no more valid", ret->offset.version);
-        ASSERT(ret->offset.version >= 0);
+        tAssert(ret->offset.version >= 0);
         return -1;
       }
       void* body = pReader->pWalReader->pHead->head.body;
@@ -351,7 +351,7 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
     if (fromProcessedMsg) {
       ret->offset.type = TMQ_OFFSET__LOG;
       ret->offset.version = pReader->ver;
-      ASSERT(pReader->ver >= 0);
+      tAssert(pReader->ver >= 0);
       ret->fetchType = FETCH_TYPE__SEP;
       tqDebug("return offset %" PRId64 ", processed finish", ret->offset.version);
       return 0;
@@ -434,7 +434,7 @@ bool tqNextDataBlockFilterOut(STqReader* pHandle, SHashObj* filterOutUids) {
     }
     if (pHandle->pBlock == NULL) return false;
 
-    ASSERT(pHandle->tbIdHash == NULL);
+    tAssert(pHandle->tbIdHash == NULL);
     void* ret = taosHashGet(filterOutUids, &pHandle->msgIter.uid, sizeof(int64_t));
     if (ret == NULL) {
       return true;
@@ -670,7 +670,7 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
         break;
       }
 
-      ASSERT(sVal.valType != TD_VTYPE_NONE);
+      tAssert(sVal.valType != TD_VTYPE_NONE);
 
       if (colDataAppend(pColData, curRow, sVal.val, sVal.valType == TD_VTYPE_NULL) < 0) {
         goto FAIL;
@@ -731,7 +731,7 @@ int tqReaderAddTbUidList(STqReader* pReader, const SArray* tbUidList) {
 }
 
 int tqReaderRemoveTbUidList(STqReader* pReader, const SArray* tbUidList) {
-  ASSERT(pReader->tbIdHash != NULL);
+  tAssert(pReader->tbIdHash != NULL);
 
   for (int32_t i = 0; i < taosArrayGetSize(tbUidList); i++) {
     int64_t* pKey = (int64_t*)taosArrayGet(tbUidList, i);
@@ -749,7 +749,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     STqHandle* pExec = (STqHandle*)pIter;
     if (pExec->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       int32_t code = qUpdateQualifiedTableId(pExec->execHandle.task, tbUidList, isAdd);
-      ASSERT(code == 0);
+      tAssert(code == 0);
     } else if (pExec->execHandle.subType == TOPIC_SUB_TYPE__DB) {
       if (!isAdd) {
         int32_t sz = taosArrayGetSize(tbUidList);
@@ -799,7 +799,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     SStreamTask* pTask = *(SStreamTask**)pIter;
     if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
       int32_t code = qUpdateQualifiedTableId(pTask->exec.executor, tbUidList, isAdd);
-      ASSERT(code == 0);
+      tAssert(code == 0);
     }
   }
   return 0;

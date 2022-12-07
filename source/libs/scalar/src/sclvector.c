@@ -132,7 +132,7 @@ int64_t getVectorBigintValue_DOUBLE(void *src, int32_t index) { return (int64_t)
 int64_t getVectorBigintValue_BOOL(void *src, int32_t index) { return (int64_t) * ((bool *)src + index); }
 
 int64_t getVectorBigintValue_JSON(void *src, int32_t index) {
-  ASSERT(!colDataIsNull_var(((SColumnInfoData *)src), index));
+  tAssert(!colDataIsNull_var(((SColumnInfoData *)src), index));
   char  *data = colDataGetVarData((SColumnInfoData *)src, index);
   double out = 0;
   if (*data == TSDB_DATA_TYPE_NULL) {
@@ -384,11 +384,11 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
   } else if (IS_FLOAT_TYPE(pCtx->outType)) {
     func = varToFloat;
   } else if (pCtx->outType == TSDB_DATA_TYPE_BINARY) {  // nchar -> binary
-    ASSERT(pCtx->inType == TSDB_DATA_TYPE_NCHAR);
+    tAssert(pCtx->inType == TSDB_DATA_TYPE_NCHAR);
     func = ncharToVar;
     vton = true;
   } else if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {  // binary -> nchar
-    ASSERT(pCtx->inType == TSDB_DATA_TYPE_VARCHAR);
+    tAssert(pCtx->inType == TSDB_DATA_TYPE_VARCHAR);
     func = varToNchar;
     vton = true;
   } else if (TSDB_DATA_TYPE_TIMESTAMP == pCtx->outType) {
@@ -434,7 +434,7 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
         memcpy(tmp, varDataVal(data), varDataLen(data));
         tmp[varDataLen(data)] = 0;
       } else if (TSDB_DATA_TYPE_NCHAR == convertType) {
-        ASSERT(varDataLen(data) <= bufSize);
+        tAssert(varDataLen(data) <= bufSize);
 
         int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(data), varDataLen(data), tmp);
         if (len < 0) {
@@ -668,7 +668,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
   }
 
   if (overflow) {
-    ASSERT(1 == pIn->numOfRows);
+    tAssert(1 == pIn->numOfRows);
 
     pOut->numOfRows = 0;
 
@@ -1429,7 +1429,7 @@ void vectorAssign(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut,
     }
   }
 
-  ASSERT(pRight->numOfQualified == 1 || pRight->numOfQualified == 0);
+  tAssert(pRight->numOfQualified == 1 || pRight->numOfQualified == 0);
   pOut->numOfQualified = pRight->numOfQualified * pOut->numOfRows;
 }
 

@@ -218,7 +218,7 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
   }
 
 #if 0
-   ASSERT(!strncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14));
+   tAssert(!strncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14));
 #endif
 
   SRpcMsg submitReqMsg = {

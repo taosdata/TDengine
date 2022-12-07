@@ -373,7 +373,7 @@ _exit:
 }
 
 static char* processAutoCreateTable(STaosxRsp* rsp) {
-  ASSERT(rsp->createTableNum != 0);
+  tAssert(rsp->createTableNum != 0);
 
   SDecoder*      decoder = taosMemoryCalloc(rsp->createTableNum, sizeof(SDecoder));
   SVCreateTbReq* pCreateReq = taosMemoryCalloc(rsp->createTableNum, sizeof(SVCreateTbReq));
@@ -389,7 +389,7 @@ static char* processAutoCreateTable(STaosxRsp* rsp) {
       goto _exit;
     }
 
-    ASSERT(pCreateReq[iReq].type == TSDB_CHILD_TABLE);
+    tAssert(pCreateReq[iReq].type == TSDB_CHILD_TABLE);
   }
   string = buildCreateCTableJson(pCreateReq, rsp->createTableNum);
 
@@ -494,7 +494,7 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
         char* buf = NULL;
 
         if (vAlterTbReq.tagType == TSDB_DATA_TYPE_JSON) {
-          ASSERT(tTagIsJson(vAlterTbReq.pTagVal) == true);
+          tAssert(tTagIsJson(vAlterTbReq.pTagVal) == true);
           buf = parseTagDatatoJson(vAlterTbReq.pTagVal);
         } else {
           buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 1, 1);
@@ -1750,7 +1750,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     }
 
     // pSW->pSchema should be same as pTableMeta->schema
-    //    ASSERT(pSW->nCols == pTableMeta->tableInfo.numOfColumns);
+    //    tAssert(pSW->nCols == pTableMeta->tableInfo.numOfColumns);
     uint64_t suid = (TSDB_NORMAL_TABLE == pTableMeta->tableType ? 0 : pTableMeta->suid);
     uint64_t uid = pTableMeta->uid;
     int16_t  sver = pTableMeta->sversion;
@@ -1975,7 +1975,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
         goto end;
       }
 
-      ASSERT(pCreateReq.type == TSDB_CHILD_TABLE);
+      tAssert(pCreateReq.type == TSDB_CHILD_TABLE);
       if (strcmp(tbName, pCreateReq.name) == 0) {
         schemaLen = *lenTmp;
         schemaData = *dataTmp;
@@ -2053,7 +2053,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     }
 
     // pSW->pSchema should be same as pTableMeta->schema
-    //    ASSERT(pSW->nCols == pTableMeta->tableInfo.numOfColumns);
+    //    tAssert(pSW->nCols == pTableMeta->tableInfo.numOfColumns);
     uint64_t suid = (TSDB_NORMAL_TABLE == pTableMeta->tableType ? 0 : pTableMeta->suid);
     uint64_t uid = pTableMeta->uid;
     int16_t  sver = pTableMeta->sversion;

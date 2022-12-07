@@ -797,7 +797,7 @@ bool taosAssertLog(bool condition, const char *file, int32_t line, const char *f
   buffer[len] = 0;
   taosPrintLogImp(1, 255, buffer, len);
 
-  taosPrintLog(flags, level, dflag, "ASSERT at file %s:%d exit:%d", file, line, tsAssert);
+  taosPrintLog(flags, level, dflag, "tAssert at file %s:%d exit:%d", file, line, tsAssert);
   taosPrintTrace(flags, level, dflag);
 
   if (tsAssert) {
@@ -807,7 +807,7 @@ bool taosAssertLog(bool condition, const char *file, int32_t line, const char *f
 #ifdef NDEBUG
     abort();
 #else
-    ASSERT(0);
+    assert(0);
 #endif
   }
 

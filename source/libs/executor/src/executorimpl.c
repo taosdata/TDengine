@@ -102,7 +102,7 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
 
 void setOperatorCompleted(SOperatorInfo* pOperator) {
   pOperator->status = OP_EXEC_DONE;
-  ASSERT(pOperator->pTaskInfo != NULL);
+  tAssert(pOperator->pTaskInfo != NULL);
 
   pOperator->cost.totalCost = (taosGetTimestampUs() - pOperator->pTaskInfo->cost.start) / 1000.0;
   setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
@@ -202,7 +202,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   if (isIntervalQuery) {
     if (masterscan && p1 != NULL) {  // the *p1 may be NULL in case of sliding+offset exists.
       pResult = getResultRowByPos(pResultBuf, p1, true);
-      ASSERT(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
+      tAssert(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
     }
   } else {
     // In case of group by column query, the required SResultRow object must be existInCurrentResusltRowInfo in the
@@ -210,7 +210,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
     if (p1 != NULL) {
       // todo
       pResult = getResultRowByPos(pResultBuf, p1, true);
-      ASSERT(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
+      tAssert(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
     }
   }
 
@@ -223,7 +223,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 
   // allocate a new buffer page
   if (pResult == NULL) {
-    ASSERT(pSup->resultRowSize > 0);
+    tAssert(pSup->resultRowSize > 0);
     pResult = getNewResultRow(pResultBuf, &pSup->currentPageId, pSup->resultRowSize);
 
     // add a new result set for a new group
@@ -463,9 +463,9 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
         // todo: refactor this
         if (fmIsImplicitTsFunc(pCtx[i].functionId) && (j == pOneExpr->base.numOfParams - 1)) {
           pInput->pPTS = pInput->pData[j];  // in case of merge function, this is not always the ts column data.
-          //          ASSERT(pInput->pPTS->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+          //          tAssert(pInput->pPTS->info.type == TSDB_DATA_TYPE_TIMESTAMP);
         }
-        ASSERT(pInput->pData[j] != NULL);
+        tAssert(pInput->pData[j] != NULL);
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
         // todo avoid case: top(k, 12), 12 is the value parameter.
         // sum(11), 11 is also the value parameter.
@@ -549,7 +549,7 @@ static int32_t doCreateConstantValColumnAggInfo(SInputColumnInfoData* pInput, SF
     da = pInput->pColumnDataAgg[paramIndex];
   }
 
-  ASSERT(!IS_VAR_DATA_TYPE(type));
+  tAssert(!IS_VAR_DATA_TYPE(type));
 
   if (type == TSDB_DATA_TYPE_BIGINT) {
     int64_t v = pFuncParam->param.i;
@@ -890,7 +890,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
       if (pBlock->info.rows == totalRows) {
         pBlock->info.rows = numOfRows;
       } else {
-        ASSERT(pBlock->info.rows == numOfRows);
+        tAssert(pBlock->info.rows == numOfRows);
       }
     }
 
@@ -1066,7 +1066,7 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
     }
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-      ASSERT(pBlock->info.rows > 0);
+      tAssert(pBlock->info.rows > 0);
       releaseBufPage(pBuf, page);
       break;
     }
@@ -1100,7 +1100,7 @@ void doBuildStreamResBlock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGr
 
   // clear the existed group id
   pBlock->info.id.groupId = 0;
-  ASSERT(!pbInfo->mergeResultBlock);
+  tAssert(!pbInfo->mergeResultBlock);
   doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo);
 
   void* tbname = NULL;
@@ -1662,7 +1662,7 @@ int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo
 }
 
 void initResultSizeInfo(SResultInfo* pResultInfo, int32_t numOfRows) {
-  ASSERT(numOfRows != 0);
+  tAssert(numOfRows != 0);
   pResultInfo->capacity = numOfRows;
   pResultInfo->threshold = numOfRows * 0.75;
 
@@ -2207,7 +2207,7 @@ static int32_t extractTbscanInStreamOpTree(SOperatorInfo* pOperator, STableScanI
     return extractTbscanInStreamOpTree(pOperator->pDownstream[0], ppInfo);
   } else {
     SStreamScanInfo* pInfo = pOperator->info;
-    ASSERT(pInfo->pTableScanOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+    tAssert(pInfo->pTableScanOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
     *ppInfo = pInfo->pTableScanOp->info;
     return 0;
   }
@@ -2449,7 +2449,7 @@ int32_t setOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResul
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   *pResult = (SResultRow*)value;
-  ASSERT(*pResult);
+  tAssert(*pResult);
   // set time window for current result
   (*pResult)->win = (*win);
   setResultRowInitCtx(*pResult, pCtx, numOfOutput, rowEntryInfoOffset);
@@ -2485,7 +2485,7 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
             .groupId = pPos->groupId,
     };
     int32_t code = streamStateGet(pState, &key, &pVal, &size);
-    ASSERT(code == 0);
+    tAssert(code == 0);
     SResultRow* pRow = (SResultRow*)pVal;
     doUpdateNumOfRows(pCtx, pRow, numOfExprs, rowEntryOffset);
     // no results, continue to check the next one
@@ -2513,7 +2513,7 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
     }
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-      ASSERT(pBlock->info.rows > 0);
+      tAssert(pBlock->info.rows > 0);
       releaseOutputBuf(pState, &key, pRow);
       break;
     }
@@ -2571,7 +2571,7 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
     int32_t      size = 0;
     void*        pVal = NULL;
     int32_t      code = streamStateSessionGet(pState, pKey, &pVal, &size);
-    ASSERT(code == 0);
+    tAssert(code == 0);
     if (code == -1) {
       // coverity scan
       pGroupResInfo->index += 1;
@@ -2605,7 +2605,7 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
     }
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-      ASSERT(pBlock->info.rows > 0);
+      tAssert(pBlock->info.rows > 0);
       releaseOutputBuf(pState, NULL, pRow);
       break;
     }

@@ -20,6 +20,7 @@
 #include <time.h>
 #include "taos.h"
 #include "types.h"
+#include "tlog.h"
 
 int smlProcess_influx_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -1016,14 +1017,14 @@ int smlProcess_18784_Test() {
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
   printf("%s result:%s, rows:%d\n", __FUNCTION__, taos_errstr(pRes), taos_affected_rows(pRes));
   int code = taos_errno(pRes);
-  ASSERT(!code);
-  ASSERT(taos_affected_rows(pRes) == 2);
+  tAssert(!code);
+  tAssert(taos_affected_rows(pRes) == 2);
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "select * from disk");
-  ASSERT(pRes);
+  tAssert(pRes);
   int fieldNum = taos_field_count(pRes);
-  ASSERT(fieldNum == 5);
+  tAssert(fieldNum == 5);
   printf("fieldNum:%d\n", fieldNum);
   TAOS_ROW row = NULL;
   int32_t rowIndex = 0;
@@ -1033,10 +1034,10 @@ int smlProcess_18784_Test() {
     int64_t total = *(int64_t*)row[2];
     int64_t freed = *(int64_t*)row[3];
     if(rowIndex == 0){
-      ASSERT(ts == 1661943960000);
-      ASSERT(used == 176059);
-      ASSERT(total == 1081101176832);
-      ASSERT(freed == 66932805);
+      tAssert(ts == 1661943960000);
+      tAssert(used == 176059);
+      tAssert(total == 1081101176832);
+      tAssert(freed == 66932805);
 //      ASSERT_EQ(latitude, 24.5208);
 //      ASSERT_EQ(longitude, 28.09377);
 //      ASSERT_EQ(elevation, 428);
@@ -1074,7 +1075,7 @@ int sml_19221_Test() {
   int32_t totalRows = 0;
   pRes = taos_schemaless_insert_raw(taos, tmp, strlen(sql[0]), &totalRows, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
 
-  ASSERT(totalRows == 3);
+  tAssert(totalRows == 3);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
@@ -1131,7 +1132,7 @@ int sml_ttl_Test() {
   printf("%s result2:%s\n", __FUNCTION__, taos_errstr(pRes));
   TAOS_ROW row = taos_fetch_row(pRes);
   int32_t ttl = *(int32_t*)row[0];
-  ASSERT(ttl == 20);
+  tAssert(ttl == 20);
 
   int code = taos_errno(pRes);
   taos_free_result(pRes);
@@ -1143,40 +1144,40 @@ int sml_ttl_Test() {
 int main(int argc, char *argv[]) {
   int ret = 0;
   ret = sml_ttl_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = sml_ts2164_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = smlProcess_influx_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = smlProcess_telnet_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = smlProcess_json1_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = smlProcess_json2_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = smlProcess_json3_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = smlProcess_json4_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = sml_TD15662_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = sml_TD15742_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = sml_16384_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = sml_oom_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = sml_16368_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = sml_dup_time_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = sml_16960_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = sml_add_tag_col_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = smlProcess_18784_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   ret = sml_19221_Test();
-  ASSERT(!ret);
+  tAssert(!ret);
   return ret;
 }

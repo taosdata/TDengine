@@ -268,8 +268,8 @@ SSkipListIterator *tSkipListCreateIter(SSkipList *pSkipList) {
 }
 
 SSkipListIterator *tSkipListCreateIterFromVal(SSkipList *pSkipList, const char *val, int32_t type, int32_t order) {
-  ASSERT(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
-  ASSERT(pSkipList != NULL);
+  tAssert(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
+  tAssert(pSkipList != NULL);
 
   SSkipListIterator *iter = doCreateSkipListIterator(pSkipList, order);
   if (val == NULL) {
@@ -362,7 +362,7 @@ void tSkipListPrint(SSkipList *pSkipList, int16_t nlevel) {
   while (p != pSkipList->pTail) {
     char *key = SL_GET_NODE_KEY(pSkipList, p);
     if (prev != NULL) {
-      ASSERT(pSkipList->comparFn(prev, key) < 0);
+      tAssert(pSkipList->comparFn(prev, key) < 0);
     }
 
     switch (pSkipList->type) {
@@ -516,7 +516,7 @@ static bool tSkipListGetPosToPut(SSkipList *pSkipList, SSkipListNode **backward,
 static void tSkipListRemoveNodeImpl(SSkipList *pSkipList, SSkipListNode *pNode) {
   int32_t level = pNode->level;
   uint8_t dupMode = SL_DUP_MODE(pSkipList);
-  ASSERT(dupMode != SL_DISCARD_DUP_KEY && dupMode != SL_UPDATE_DUP_KEY);
+  tAssert(dupMode != SL_DISCARD_DUP_KEY && dupMode != SL_UPDATE_DUP_KEY);
 
   for (int32_t j = level - 1; j >= 0; --j) {
     SSkipListNode *prev = SL_NODE_GET_BACKWARD_POINTER(pNode, j);
@@ -585,7 +585,7 @@ static FORCE_INLINE int32_t getSkipListRandLevel(SSkipList *pSkipList) {
     }
   }
 
-  ASSERT(level <= pSkipList->maxLevel);
+  tAssert(level <= pSkipList->maxLevel);
   return level;
 }
 

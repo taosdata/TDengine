@@ -1323,7 +1323,7 @@ static int32_t tCompTSSwitchToCopy(SCompressor *pCmprsor) {
     }
   }
 
-  ASSERT(n == pCmprsor->nBuf && nBuf == sizeof(int64_t) * pCmprsor->nVal + 1);
+  tAssert(n == pCmprsor->nBuf && nBuf == sizeof(int64_t) * pCmprsor->nVal + 1);
 
   uint8_t *pBuf = pCmprsor->pBuf;
   pCmprsor->pBuf = pCmprsor->aBuf[0];
@@ -1338,7 +1338,7 @@ static int32_t tCompTimestamp(SCompressor *pCmprsor, const void *pData, int32_t 
   int32_t code = 0;
 
   int64_t ts = *(int64_t *)pData;
-  ASSERT(nData == 8);
+  tAssert(nData == 8);
 
   if (pCmprsor->pBuf[0] == 1) {
     if (pCmprsor->nVal == 0) {
@@ -1502,7 +1502,7 @@ static int32_t tCompIntSwitchToCopy(SCompressor *pCmprsor) {
     pCmprsor->i_nEle--;
   }
 
-  ASSERT(n == pCmprsor->nBuf && nBuf == size);
+  tAssert(n == pCmprsor->nBuf && nBuf == size);
 
   uint8_t *pBuf = pCmprsor->pBuf;
   pCmprsor->pBuf = pCmprsor->aBuf[0];
@@ -1517,7 +1517,7 @@ _exit:
 static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData) {
   int32_t code = 0;
 
-  ASSERT(nData == DATA_TYPE_INFO[pCmprsor->type].bytes);
+  tAssert(nData == DATA_TYPE_INFO[pCmprsor->type].bytes);
 
   if (pCmprsor->pBuf[0] == 0) {
     int64_t val = DATA_TYPE_INFO[pCmprsor->type].getI64(pData);
@@ -1738,7 +1738,7 @@ _exit:
 static int32_t tCompFloat(SCompressor *pCmprsor, const void *pData, int32_t nData) {
   int32_t code = 0;
 
-  ASSERT(nData == sizeof(float));
+  tAssert(nData == sizeof(float));
 
   union {
     float    f;
@@ -1891,7 +1891,7 @@ _exit:
 static int32_t tCompDouble(SCompressor *pCmprsor, const void *pData, int32_t nData) {
   int32_t code = 0;
 
-  ASSERT(nData == sizeof(double));
+  tAssert(nData == sizeof(double));
 
   union {
     double   d;

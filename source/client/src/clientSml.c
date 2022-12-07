@@ -1287,7 +1287,7 @@ static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
       }
     } else {
       size_t tmp = taosArrayGetSize(metaArray);
-      ASSERT(tmp <= INT16_MAX);
+      tAssert(tmp <= INT16_MAX);
       int16_t size = tmp;
       taosArrayPush(metaArray, &kv);
       taosHashPut(metaHash, kv->key, kv->keyLen, &size, SHORT_BYTES);
@@ -1364,8 +1364,8 @@ static int32_t smlKvTimeArrayCompare(const void *key1, const void *key2) {
   SArray *s2 = *(SArray **)key2;
   SSmlKv *kv1 = (SSmlKv *)taosArrayGetP(s1, 0);
   SSmlKv *kv2 = (SSmlKv *)taosArrayGetP(s2, 0);
-  ASSERT(kv1->type == TSDB_DATA_TYPE_TIMESTAMP);
-  ASSERT(kv2->type == TSDB_DATA_TYPE_TIMESTAMP);
+  tAssert(kv1->type == TSDB_DATA_TYPE_TIMESTAMP);
+  tAssert(kv2->type == TSDB_DATA_TYPE_TIMESTAMP);
   if (kv1->i < kv2->i) {
     return -1;
   } else if (kv1->i > kv2->i) {
@@ -2331,7 +2331,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
 
     SSmlSTableMeta **pMeta =
         (SSmlSTableMeta **)taosHashGet(info->superTables, tableData->sTableName, tableData->sTableNameLen);
-    ASSERT(NULL != pMeta && NULL != *pMeta);
+    tAssert(NULL != pMeta && NULL != *pMeta);
 
     // use tablemeta of stable to save vgid and uid of child table
     (*pMeta)->tableMeta->vgId = vg.vgId;

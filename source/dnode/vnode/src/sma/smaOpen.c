@@ -72,7 +72,7 @@ static int32_t smaEvalDays(SVnode *pVnode, SRetention *r, int8_t level, int8_t p
     goto end;
   }
 
-  ASSERT(level >= TSDB_RETENTION_L1 && level <= TSDB_RETENTION_L2);
+  tAssert(level >= TSDB_RETENTION_L1 && level <= TSDB_RETENTION_L2);
 
   freqDuration = convertTimeFromPrecisionToUnit((r + level)->freq, precision, TIME_UNIT_MINUTE);
   keepDuration = convertTimeFromPrecisionToUnit((r + level)->keep, precision, TIME_UNIT_MINUTE);
@@ -121,7 +121,7 @@ int smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int ty
 int32_t smaOpen(SVnode *pVnode, int8_t rollback) {
   STsdbCfg *pCfg = &pVnode->config.tsdbCfg;
 
-  ASSERT(!pVnode->pSma);
+  tAssert(!pVnode->pSma);
 
   SSma *pSma = taosMemoryCalloc(1, sizeof(SSma));
   if (!pSma) {
@@ -182,7 +182,7 @@ int32_t smaClose(SSma *pSma) {
  * @return int32_t
  */
 int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer) {
-  ASSERT(VND_IS_RSMA(pSma->pVnode));
+  tAssert(VND_IS_RSMA(pSma->pVnode));
 
   return tdRSmaProcessRestoreImpl(pSma, type, committedVer);
 }

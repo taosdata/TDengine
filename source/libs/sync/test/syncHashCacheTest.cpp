@@ -26,7 +26,7 @@ SSyncRaftEntry* createEntry(int i) {
 
 SSyncNode* createFakeNode() {
   SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
-  ASSERT(pSyncNode != NULL);
+  tAssert(pSyncNode != NULL);
   memset(pSyncNode, 0, sizeof(SSyncNode));
 
   return pSyncNode;
@@ -34,10 +34,10 @@ SSyncNode* createFakeNode() {
 
 SRaftEntryHashCache* createCache(int maxCount) {
   SSyncNode* pSyncNode = createFakeNode();
-  ASSERT(pSyncNode != NULL);
+  tAssert(pSyncNode != NULL);
 
   SRaftEntryHashCache* pCache = raftCacheCreate(pSyncNode, maxCount);
-  ASSERT(pCache != NULL);
+  tAssert(pCache != NULL);
 
   return pCache;
 }
@@ -48,7 +48,7 @@ void test1() {
   for (int i = 0; i < 5; ++i) {
     SSyncRaftEntry* pEntry = createEntry(i);
     code = raftCachePutEntry(pCache, pEntry);
-    ASSERT(code == 1);
+    tAssert(code == 1);
     syncEntryDestory(pEntry);
   }
   raftCacheLog2((char*)"==test1 write 5 entries==", pCache);
@@ -56,14 +56,14 @@ void test1() {
   SyncIndex index;
   index = 1;
   code = raftCacheDelEntry(pCache, index);
-  ASSERT(code == 0);
+  tAssert(code == 0);
   index = 3;
   code = raftCacheDelEntry(pCache, index);
-  ASSERT(code == 0);
+  tAssert(code == 0);
   raftCacheLog2((char*)"==test1 delete 1,3==", pCache);
 
   code = raftCacheClear(pCache);
-  ASSERT(code == 0);
+  tAssert(code == 0);
   raftCacheLog2((char*)"==clear all==", pCache);
 }
 
@@ -73,7 +73,7 @@ void test2() {
   for (int i = 0; i < 5; ++i) {
     SSyncRaftEntry* pEntry = createEntry(i);
     code = raftCachePutEntry(pCache, pEntry);
-    ASSERT(code == 1);
+    tAssert(code == 1);
     syncEntryDestory(pEntry);
   }
   raftCacheLog2((char*)"==test2 write 5 entries==", pCache);
@@ -82,25 +82,25 @@ void test2() {
   index = 1;
   SSyncRaftEntry* pEntry;
   code = raftCacheGetEntry(pCache, index, &pEntry);
-  ASSERT(code == 0);
+  tAssert(code == 0);
   syncEntryDestory(pEntry);
   syncEntryLog2((char*)"==test2 get entry 1==", pEntry);
 
   index = 2;
   code = raftCacheGetEntryP(pCache, index, &pEntry);
-  ASSERT(code == 0);
+  tAssert(code == 0);
   syncEntryLog2((char*)"==test2 get entry pointer 2==", pEntry);
 
   // not found
   index = 8;
   code = raftCacheGetEntry(pCache, index, &pEntry);
-  ASSERT(code == -1 && terrno == TSDB_CODE_WAL_LOG_NOT_EXIST);
+  tAssert(code == -1 && terrno == TSDB_CODE_WAL_LOG_NOT_EXIST);
   sTrace("==test2 get entry 8 not found==");
 
   // not found
   index = 9;
   code = raftCacheGetEntryP(pCache, index, &pEntry);
-  ASSERT(code == -1 && terrno == TSDB_CODE_WAL_LOG_NOT_EXIST);
+  tAssert(code == -1 && terrno == TSDB_CODE_WAL_LOG_NOT_EXIST);
   sTrace("==test2 get entry pointer 9 not found==");
 }
 
@@ -110,13 +110,13 @@ void test3() {
   for (int i = 0; i < 5; ++i) {
     SSyncRaftEntry* pEntry = createEntry(i);
     code = raftCachePutEntry(pCache, pEntry);
-    ASSERT(code == 1);
+    tAssert(code == 1);
     syncEntryDestory(pEntry);
   }
   for (int i = 6; i < 10; ++i) {
     SSyncRaftEntry* pEntry = createEntry(i);
     code = raftCachePutEntry(pCache, pEntry);
-    ASSERT(code == 0);
+    tAssert(code == 0);
     syncEntryDestory(pEntry);
   }
   raftCacheLog2((char*)"==test3 write 10 entries, max count is 5==", pCache);
@@ -128,7 +128,7 @@ void test4() {
   for (int i = 0; i < 5; ++i) {
     SSyncRaftEntry* pEntry = createEntry(i);
     code = raftCachePutEntry(pCache, pEntry);
-    ASSERT(code == 1);
+    tAssert(code == 1);
     syncEntryDestory(pEntry);
   }
   raftCacheLog2((char*)"==test4 write 5 entries==", pCache);
@@ -137,7 +137,7 @@ void test4() {
   index = 3;
   SSyncRaftEntry* pEntry;
   code = raftCacheGetAndDel(pCache, index, &pEntry);
-  ASSERT(code == 0);
+  tAssert(code == 0);
   syncEntryLog2((char*)"==test4 get-and-del entry 3==", pEntry);
   raftCacheLog2((char*)"==test4 after get-and-del entry 3==", pCache);
 }
@@ -150,19 +150,19 @@ static char* keyFn(const void* pData) {
 static int cmpFn(const void* p1, const void* p2) { return memcmp(p1, p2, sizeof(SyncIndex)); }
 
 void printSkipList(SSkipList* pSkipList) {
-  ASSERT(pSkipList != NULL);
+  tAssert(pSkipList != NULL);
 
   SSkipListIterator* pIter = tSkipListCreateIter(pSkipList);
   while (tSkipListIterNext(pIter)) {
     SSkipListNode* pNode = tSkipListIterGet(pIter);
-    ASSERT(pNode != NULL);
+    tAssert(pNode != NULL);
     SSyncRaftEntry* pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
     syncEntryPrint2((char*)"", pEntry);
   }
 }
 
 void delSkipListFirst(SSkipList* pSkipList, int n) {
-  ASSERT(pSkipList != NULL);
+  tAssert(pSkipList != NULL);
 
   sTrace("delete first %d -------------", n);
   SSkipListIterator* pIter = tSkipListCreateIter(pSkipList);
@@ -182,7 +182,7 @@ SSyncRaftEntry* getLogEntry2(SSkipList* pSkipList, SyncIndex index) {
   arraySize = taosArrayGetSize(entryPArray);
   if (arraySize > 0) {
     SSkipListNode** ppNode = (SSkipListNode**)taosArrayGet(entryPArray, 0);
-    ASSERT(*ppNode != NULL);
+    tAssert(*ppNode != NULL);
     pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(*ppNode);
   }
   taosArrayDestroy(entryPArray);
@@ -200,7 +200,7 @@ SSyncRaftEntry* getLogEntry(SSkipList* pSkipList, SyncIndex index) {
       tSkipListCreateIterFromVal(pSkipList, (const char*)&index2, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
   if (tSkipListIterNext(pIter)) {
     SSkipListNode* pNode = tSkipListIterGet(pIter);
-    ASSERT(pNode != NULL);
+    tAssert(pNode != NULL);
     pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
   }
 
@@ -211,7 +211,7 @@ SSyncRaftEntry* getLogEntry(SSkipList* pSkipList, SyncIndex index) {
 void test5() {
   SSkipList* pSkipList =
       tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, sizeof(SyncIndex), cmpFn, SL_ALLOW_DUP_KEY, keyFn);
-  ASSERT(pSkipList != NULL);
+  tAssert(pSkipList != NULL);
 
   sTrace("insert 9 - 5");
   for (int i = 9; i >= 5; --i) {

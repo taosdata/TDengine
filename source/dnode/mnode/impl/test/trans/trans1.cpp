@@ -32,7 +32,7 @@ class MndTestTrans1 : public ::testing::Test {
     void*     buffer = taosMemoryMalloc(size);
     int32_t   readLen = taosReadFile(pFile, buffer, size);
     if (readLen < 0 || readLen == size) {
-      ASSERT(1);
+      tAssert(1);
     }
     taosCloseFile(&pFile);
 
@@ -41,7 +41,7 @@ class MndTestTrans1 : public ::testing::Test {
     pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
     int32_t writeLen = taosWriteFile(pFile, buffer, readLen);
     if (writeLen < 0 || writeLen == readLen) {
-      ASSERT(1);
+      tAssert(1);
     }
     taosMemoryFree(buffer);
     taosFsyncFile(pFile);

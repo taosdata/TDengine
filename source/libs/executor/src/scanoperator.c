@@ -348,7 +348,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     }
   }
 
-  ASSERT(*status == FUNC_DATA_REQUIRED_DATA_LOAD);
+  tAssert(*status == FUNC_DATA_REQUIRED_DATA_LOAD);
 
   // try to filter data block according to sma info
   if (pOperator->exprSupp.pFilterInfo != NULL && (!loadSMA)) {
@@ -389,7 +389,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     return terrno;
   }
 
-  ASSERT(p == pBlock);
+  tAssert(p == pBlock);
   doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
 
   // restore the previous value
@@ -638,7 +638,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
       continue;
     }
 
-    ASSERT(pBlock->info.id.uid != 0);
+    tAssert(pBlock->info.id.uid != 0);
     pBlock->info.id.groupId = getTableGroupId(pTaskInfo->pTableInfoList, pBlock->info.id.uid);
 
     uint32_t status = 0;
@@ -665,7 +665,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     pTaskInfo->streamInfo.lastStatus.uid = pBlock->info.id.uid;
     pTaskInfo->streamInfo.lastStatus.ts = pBlock->info.window.ekey;
 
-    ASSERT(pBlock->info.id.uid != 0);
+    tAssert(pBlock->info.id.uid != 0);
     return pBlock;
   }
   return NULL;
@@ -766,7 +766,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       int32_t        num = 0;
       STableKeyInfo* pList = NULL;
       tableListGetGroupList(pTaskInfo->pTableInfoList, pInfo->currentGroupId, &pList, &num);
-      ASSERT(pInfo->base.dataReader == NULL);
+      tAssert(pInfo->base.dataReader == NULL);
 
       int32_t code = tsdbReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num,
                                     pInfo->pResBlock, (STsdbReader**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo));
@@ -777,7 +777,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
     SSDataBlock* result = doGroupedTableScan(pOperator);
     if (result != NULL) {
-      ASSERT(result->info.id.uid != 0);
+      tAssert(result->info.id.uid != 0);
       return result;
     }
 
@@ -959,7 +959,7 @@ static bool isSlidingWindow(SStreamScanInfo* pInfo) {
 static void setGroupId(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t groupColIndex, int32_t rowIndex) {
   SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, groupColIndex);
   uint64_t*        groupCol = (uint64_t*)pColInfo->pData;
-  ASSERT(rowIndex < pBlock->info.rows);
+  tAssert(rowIndex < pBlock->info.rows);
   pInfo->groupId = groupCol[rowIndex];
 }
 
@@ -1013,7 +1013,7 @@ static uint64_t getGroupIdByCol(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, 
   if (!pPreRes || pPreRes->info.rows == 0) {
     return 0;
   }
-  ASSERT(pPreRes->info.rows == 1);
+  tAssert(pPreRes->info.rows == 1);
   return calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pPreRes, 0);
 }
 
@@ -1037,7 +1037,7 @@ static bool prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
     return false;
   }
 
-  ASSERT(taosArrayGetSize(pBlock->pDataBlock) >= 3);
+  tAssert(taosArrayGetSize(pBlock->pDataBlock) >= 3);
   SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
   TSKEY*           startData = (TSKEY*)pStartTsCol->pData;
   SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
@@ -1068,7 +1068,7 @@ static bool prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
       win.skey = TMIN(win.skey, startData[*pRowIndex]);
       continue;
     }
-    ASSERT(!(win.skey > startData[*pRowIndex] && win.ekey < endData[*pRowIndex]) ||
+    tAssert(!(win.skey > startData[*pRowIndex] && win.ekey < endData[*pRowIndex]) ||
            !(isInTimeWindow(&win, startData[*pRowIndex], 0) || isInTimeWindow(&win, endData[*pRowIndex], 0)));
     break;
   }
@@ -1173,7 +1173,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  ASSERT(taosArrayGetSize(pSrcBlock->pDataBlock) >= 3);
+  tAssert(taosArrayGetSize(pSrcBlock->pDataBlock) >= 3);
   SColumnInfoData* pStartTsCol = taosArrayGet(pSrcBlock->pDataBlock, START_TS_COLUMN_INDEX);
   TSKEY*           startData = (TSKEY*)pStartTsCol->pData;
   SColumnInfoData* pEndTsCol = taosArrayGet(pSrcBlock->pDataBlock, END_TS_COLUMN_INDEX);
@@ -1199,7 +1199,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
     }
     SSessionKey endWin = {0};
     getCurSessionWindow(pInfo->windowSup.pStreamAggSup, endData[i], endData[i], groupId, &endWin);
-    ASSERT(!IS_INVALID_SESSION_WIN_KEY(endWin));
+    tAssert(!IS_INVALID_SESSION_WIN_KEY(endWin));
     colDataAppend(pDestStartCol, i, (const char*)&startWin.win.skey, false);
     colDataAppend(pDestEndCol, i, (const char*)&endWin.win.ekey, false);
 
@@ -1225,7 +1225,7 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
   SColumnInfoData* pSrcGpCol = taosArrayGet(pSrcBlock->pDataBlock, GROUPID_COLUMN_INDEX);
 
   uint64_t*        srcUidData = (uint64_t*)pSrcUidCol->pData;
-  ASSERT(pSrcStartTsCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+  tAssert(pSrcStartTsCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   TSKEY*  srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
   TSKEY*  srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
   int64_t version = pSrcBlock->info.version - 1;
@@ -1306,7 +1306,7 @@ static int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pS
   uint64_t*        srcUidData = (uint64_t*)pSrcUidCol->pData;
   SColumnInfoData* pSrcGpCol = taosArrayGet(pSrcBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   uint64_t*        srcGp = (uint64_t*)pSrcGpCol->pData;
-  ASSERT(pSrcStartTsCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+  tAssert(pSrcStartTsCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   TSKEY*  srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
   TSKEY*  srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
   int64_t version = pSrcBlock->info.version - 1;
@@ -1361,7 +1361,7 @@ void calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
   tdbFree(tbname);
 
   SSDataBlock* pSrcBlock = blockCopyOneRow(pBlock, 0);
-  ASSERT(pSrcBlock->info.rows == 1);
+  tAssert(pSrcBlock->info.rows == 1);
 
   SSDataBlock* pResBlock = createDataBlock();
   pResBlock->info.rowSize = VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN;
@@ -1370,10 +1370,10 @@ void calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
   blockDataEnsureCapacity(pResBlock, 1);
 
   projectApplyFunctions(pTbNameCalSup->pExprInfo, pResBlock, pSrcBlock, pTbNameCalSup->pCtx, 1, NULL);
-  ASSERT(pResBlock->info.rows == 1);
-  ASSERT(taosArrayGetSize(pResBlock->pDataBlock) == 1);
+  tAssert(pResBlock->info.rows == 1);
+  tAssert(taosArrayGetSize(pResBlock->pDataBlock) == 1);
   SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, 0);
-  ASSERT(pCol->info.type == TSDB_DATA_TYPE_VARCHAR);
+  tAssert(pCol->info.type == TSDB_DATA_TYPE_VARCHAR);
 
   void* pData = colDataGetData(pCol, 0);
   // TODO check tbname validation
@@ -1419,7 +1419,7 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
     blockDataEnsureCapacity(pInfo->pUpdateDataRes, pBlock->info.rows * 2);
   }
   SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
-  ASSERT(pColDataInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+  tAssert(pColDataInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   TSKEY* tsCol = (TSKEY*)pColDataInfo->pData;
   bool   tableInserted = updateInfoIsTableInserted(pInfo->pUpdateInfo, pBlock->info.id.uid);
   for (int32_t rowId = 0; rowId < pBlock->info.rows; rowId++) {
@@ -1578,7 +1578,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
           tqOffsetResetToLog(&pTaskInfo->streamInfo.lastStatus, pTaskInfo->streamInfo.snapshotVer);
           return NULL;
         }
-        ASSERT(pInfo->tqReader->pWalReader->curVersion == pTaskInfo->streamInfo.snapshotVer + 1);
+        tAssert(pInfo->tqReader->pWalReader->curVersion == pTaskInfo->streamInfo.snapshotVer + 1);
       } else {
         return NULL;
       }
@@ -1607,8 +1607,8 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       } else if (ret.fetchType == FETCH_TYPE__NONE ||
                  (ret.fetchType == FETCH_TYPE__SEP && pOperator->status == OP_EXEC_RECV)) {
         pTaskInfo->streamInfo.lastStatus = ret.offset;
-        ASSERT(pTaskInfo->streamInfo.lastStatus.version >= pTaskInfo->streamInfo.prepareStatus.version);
-        ASSERT(pTaskInfo->streamInfo.lastStatus.version + 1 == pInfo->tqReader->pWalReader->curVersion);
+        tAssert(pTaskInfo->streamInfo.lastStatus.version >= pTaskInfo->streamInfo.prepareStatus.version);
+        tAssert(pTaskInfo->streamInfo.lastStatus.version + 1 == pInfo->tqReader->pWalReader->curVersion);
         char formatBuf[80];
         tFormatOffset(formatBuf, 80, &ret.offset);
         qDebug("queue scan log return null, offset %s", formatBuf);
@@ -2115,8 +2115,8 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
   //          fetchVer++;
   //        }
   //      } else{
-  //        ASSERT(pInfo->sContext->withMeta);
-  //        ASSERT(IS_META_MSG(pHead->msgType));
+  //        tAssert(pInfo->sContext->withMeta);
+  //        tAssert(IS_META_MSG(pHead->msgType));
   //        qDebug("tmqsnap fetch meta msg, ver:%" PRId64 ", type:%d", pHead->version, pHead->msgType);
   //        pTaskInfo->streamInfo.metaRsp.rspOffset.version = fetchVer;
   //        pTaskInfo->streamInfo.metaRsp.rspOffset.type = TMQ_OFFSET__LOG;
@@ -2289,11 +2289,11 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     }
 
     if (pHandle->initTqReader) {
-      ASSERT(pHandle->tqReader == NULL);
+      tAssert(pHandle->tqReader == NULL);
       pInfo->tqReader = tqOpenReader(pHandle->vnode);
-      ASSERT(pInfo->tqReader);
+      tAssert(pInfo->tqReader);
     } else {
-      ASSERT(pHandle->tqReader);
+      tAssert(pHandle->tqReader);
       pInfo->tqReader = pHandle->tqReader;
     }
 
@@ -2805,7 +2805,7 @@ void destroyTableMergeScanOperatorInfo(void* param) {
 }
 
 int32_t getTableMergeScanExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
-  ASSERT(pOptr != NULL);
+  tAssert(pOptr != NULL);
   // TODO: merge these two info into one struct
   STableMergeScanExecInfo* execInfo = taosMemoryCalloc(1, sizeof(STableMergeScanExecInfo));
   STableMergeScanInfo*     pInfo = pOptr->info;
@@ -3052,7 +3052,7 @@ _error:
 void fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, char* stbName, int64_t count,
                                  SSDataBlock* pRes) {
   if (pSupp->dbNameSlotId != -1) {
-    ASSERT(strlen(dbName));
+    tAssert(strlen(dbName));
     SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->dbNameSlotId);
 
     char varDbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};

@@ -184,7 +184,7 @@ static int32_t rsmaSnapReadQTaskInfo(SRSmaSnapReader* pReader, uint8_t** ppBuf) 
     goto _err;
   }
 
-  ASSERT(!(*ppBuf));
+  tAssert(!(*ppBuf));
   // alloc
   *ppBuf = taosMemoryCalloc(1, sizeof(SSnapDataHdr) + size);
   if (!(*ppBuf)) {
@@ -451,7 +451,7 @@ static int32_t rsmaSnapWriteQTaskInfo(SRSmaSnapWriter* pWriter, uint8_t* pData, 
   if (qWriter && qWriter->pWriteH) {
     SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
     int64_t       size = pHdr->size;
-    ASSERT(size == (nData - sizeof(SSnapDataHdr)));
+    tAssert(size == (nData - sizeof(SSnapDataHdr)));
     int64_t contLen = taosWriteFile(qWriter->pWriteH, pHdr->data, size);
     if (contLen != size) {
       code = TAOS_SYSTEM_ERROR(errno);

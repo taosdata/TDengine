@@ -163,7 +163,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       int32_t resultRows = pInfo->pBufferredRes->info.rows;
 
       // the results may be null, if last values are all null
-      ASSERT(resultRows == 0 || resultRows == taosArrayGetSize(pInfo->pUidList));
+      tAssert(resultRows == 0 || resultRows == taosArrayGetSize(pInfo->pUidList));
       pInfo->indexOfBufferedRes = 0;
     }
 
@@ -235,7 +235,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
           pInfo->pRes->info.id.groupId = pKeyInfo->groupId;
 
           if (taosArrayGetSize(pInfo->pUidList) > 0) {
-            ASSERT((pInfo->retrieveType & CACHESCAN_RETRIEVE_LAST_ROW) == CACHESCAN_RETRIEVE_LAST_ROW);
+            tAssert((pInfo->retrieveType & CACHESCAN_RETRIEVE_LAST_ROW) == CACHESCAN_RETRIEVE_LAST_ROW);
 
             pInfo->pRes->info.id.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, 0);
             code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes, pInfo->pRes->info.rows,

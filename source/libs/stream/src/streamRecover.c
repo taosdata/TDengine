@@ -140,7 +140,7 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
       }
       if (!found) return -1;
       int32_t left = atomic_sub_fetch_32(&pTask->recoverTryingDownstream, 1);
-      ASSERT(left >= 0);
+      tAssert(left >= 0);
       if (left == 0) {
         taosArrayDestroy(pTask->checkReqIds);
         streamTaskLaunchRecover(pTask, version);
@@ -247,7 +247,7 @@ int32_t streamAggChildrenRecoverFinish(SStreamTask* pTask) {
 int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId) {
   if (pTask->taskLevel == TASK_LEVEL__AGG) {
     int32_t left = atomic_sub_fetch_32(&pTask->recoverWaitingUpstream, 1);
-    ASSERT(left >= 0);
+    tAssert(left >= 0);
     if (left == 0) {
       streamAggChildrenRecoverFinish(pTask);
     }

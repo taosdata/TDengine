@@ -25,8 +25,8 @@
 
 SyncClientRequestBatch* syncClientRequestBatchBuild(SRpcMsg** rpcMsgPArr, SRaftMeta* raftArr, int32_t arrSize,
                                                     int32_t vgId) {
-  ASSERT(rpcMsgPArr != NULL);
-  ASSERT(arrSize > 0);
+  tAssert(rpcMsgPArr != NULL);
+  tAssert(arrSize > 0);
 
   int32_t dataLen = 0;
   int32_t raftMetaArrayLen = sizeof(SRaftMeta) * arrSize;
@@ -100,9 +100,9 @@ SRpcMsg* syncClientRequestBatchRpcMsgArr(const SyncClientRequestBatch* pSyncMsg)
 
 SyncClientRequestBatch* syncClientRequestBatchFromRpcMsg(const SRpcMsg* pRpcMsg) {
   SyncClientRequestBatch* pSyncMsg = taosMemoryMalloc(pRpcMsg->contLen);
-  ASSERT(pSyncMsg != NULL);
+  tAssert(pSyncMsg != NULL);
   memcpy(pSyncMsg, pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pRpcMsg->contLen == pSyncMsg->bytes);
+  tAssert(pRpcMsg->contLen == pSyncMsg->bytes);
 
   return pSyncMsg;
 }
@@ -194,8 +194,8 @@ void syncClientRequestBatchLog2(char* s, const SyncClientRequestBatch* pMsg) {
 // block3: entry Array
 
 SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SSyncRaftEntry** entryPArr, int32_t arrSize, int32_t vgId) {
-  ASSERT(entryPArr != NULL);
-  ASSERT(arrSize >= 0);
+  tAssert(entryPArr != NULL);
+  tAssert(arrSize >= 0);
 
   int32_t dataLen = 0;
   int32_t metaArrayLen = sizeof(SOffsetAndContLen) * arrSize;  // <offset, contLen>
@@ -229,7 +229,7 @@ SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SSyncRaftEntry** entryPArr, 
     }
 
     // init entry array
-    ASSERT(metaArr[i].contLen == entryPArr[i]->bytes);
+    tAssert(metaArr[i].contLen == entryPArr[i]->bytes);
     memcpy(pData + metaArr[i].offset, entryPArr[i], metaArr[i].contLen);
   }
 
@@ -247,19 +247,19 @@ void syncAppendEntriesBatchDestroy(SyncAppendEntriesBatch* pMsg) {
 }
 
 void syncAppendEntriesBatchSerialize(const SyncAppendEntriesBatch* pMsg, char* buf, uint32_t bufLen) {
-  ASSERT(pMsg->bytes <= bufLen);
+  tAssert(pMsg->bytes <= bufLen);
   memcpy(buf, pMsg, pMsg->bytes);
 }
 
 void syncAppendEntriesBatchDeserialize(const char* buf, uint32_t len, SyncAppendEntriesBatch* pMsg) {
   memcpy(pMsg, buf, len);
-  ASSERT(len == pMsg->bytes);
-  ASSERT(pMsg->bytes == sizeof(SyncAppendEntriesBatch) + pMsg->dataLen);
+  tAssert(len == pMsg->bytes);
+  tAssert(pMsg->bytes == sizeof(SyncAppendEntriesBatch) + pMsg->dataLen);
 }
 
 char* syncAppendEntriesBatchSerialize2(const SyncAppendEntriesBatch* pMsg, uint32_t* len) {
   char* buf = taosMemoryMalloc(pMsg->bytes);
-  ASSERT(buf != NULL);
+  tAssert(buf != NULL);
   syncAppendEntriesBatchSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
     *len = pMsg->bytes;
@@ -270,9 +270,9 @@ char* syncAppendEntriesBatchSerialize2(const SyncAppendEntriesBatch* pMsg, uint3
 SyncAppendEntriesBatch* syncAppendEntriesBatchDeserialize2(const char* buf, uint32_t len) {
   uint32_t                bytes = *((uint32_t*)buf);
   SyncAppendEntriesBatch* pMsg = taosMemoryMalloc(bytes);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   syncAppendEntriesBatchDeserialize(buf, len, pMsg);
-  ASSERT(len == pMsg->bytes);
+  tAssert(len == pMsg->bytes);
   return pMsg;
 }
 
@@ -290,7 +290,7 @@ void syncAppendEntriesBatchFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntriesB
 
 SyncAppendEntriesBatch* syncAppendEntriesBatchFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncAppendEntriesBatch* pMsg = syncAppendEntriesBatchDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   return pMsg;
 }
 

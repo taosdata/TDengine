@@ -61,7 +61,7 @@ void tdSRowPrint(STSRow *row, STSchema *pSchema, const char *tag) {
     if (!tdSTSRowIterNext(&iter, &sVal)) {
       break;
     }
-    ASSERT(sVal.valType == 0 || sVal.valType == 1 || sVal.valType == 2);
+    tAssert(sVal.valType == 0 || sVal.valType == 1 || sVal.valType == 2);
     tdSCellValPrint(&sVal, cols[iter.colIdx - 1].type);
   }
   printf("\n");
@@ -331,7 +331,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
   void     *varBuf = NULL;
   bool      isAlloc = false;
 
-  ASSERT(nColVal > 1);
+  tAssert(nColVal > 1);
 
   for (int32_t iColumn = 0; iColumn < pTSchema->numOfCols; ++iColumn) {
     pTColumn = &pTSchema->columns[iColumn];
@@ -342,9 +342,9 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
     }
 
     if (iColumn == 0) {
-      ASSERT(pColVal->cid == pTColumn->colId);
-      ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
-      ASSERT(pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
+      tAssert(pColVal->cid == pTColumn->colId);
+      tAssert(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
+      tAssert(pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
     } else {
       if (IS_VAR_DATA_TYPE(pTColumn->type)) {
         if (pColVal && COL_VAL_IS_VALUE(pColVal)) {
@@ -616,7 +616,7 @@ int32_t tdSetBitmapValTypeI(void *pBitmap, int16_t colIdx, TDRowValT valType) {
 
 int32_t tdGetKvRowValOfCol(SCellVal *output, STSRow *pRow, void *pBitmap, int32_t offset, int16_t colIdx) {
 #ifdef TD_SUPPORT_BITMAP
-  ASSERT(colIdx < tdRowGetNCols(pRow) - 1);
+  tAssert(colIdx < tdRowGetNCols(pRow) - 1);
   if (tdGetBitmapValType(pBitmap, colIdx, &output->valType, 0) != TSDB_CODE_SUCCESS) {
     output->valType = TD_VTYPE_NONE;
     return terrno;
@@ -843,7 +843,7 @@ int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
   TD_ROW_SET_INFO(pBuilder->pBuf, 0);
   TD_ROW_SET_TYPE(pBuilder->pBuf, pBuilder->rowType);
 
-  ASSERT(pBuilder->nBitmaps > 0 && pBuilder->flen > 0);
+  tAssert(pBuilder->nBitmaps > 0 && pBuilder->flen > 0);
 
   uint32_t len = 0;
   switch (pBuilder->rowType) {
@@ -885,7 +885,7 @@ int32_t tdSRowGetBuf(SRowBuilder *pBuilder, void *pBuf) {
     return terrno;
   }
 
-  ASSERT(pBuilder->nBitmaps > 0 && pBuilder->flen > 0);
+  tAssert(pBuilder->nBitmaps > 0 && pBuilder->flen > 0);
 
   uint32_t len = 0;
   switch (pBuilder->rowType) {
@@ -1070,7 +1070,7 @@ void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColV
   SCellVal  cv = {0};
   SValue    value = {0};
 
-  ASSERT((pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID) || (iCol > 0));
+  tAssert((pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID) || (iCol > 0));
 
   if (TD_IS_TP_ROW(pRow)) {
     tdSTpRowGetVal(pRow, pTColumn->colId, pTColumn->type, pTSchema->flen, pTColumn->offset, iCol - 1, &cv);

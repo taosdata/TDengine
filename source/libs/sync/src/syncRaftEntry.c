@@ -317,11 +317,11 @@ int32_t raftEntryCachePutEntry(struct SRaftEntryCache* pCache, SSyncRaftEntry* p
   }
 
   SSkipListNode* pSkipListNode = tSkipListPut(pCache->pSkipList, pEntry);
-  ASSERT(pSkipListNode != NULL);
+  tAssert(pSkipListNode != NULL);
   ++(pCache->currentCount);
 
   pEntry->rid = taosAddRef(pCache->refMgr, pEntry);
-  ASSERT(pEntry->rid >= 0);
+  tAssert(pEntry->rid >= 0);
 
   sNTrace(pCache->pSyncNode, "raft cache add, type:%s,%d, type2:%s,%d, index:%" PRId64 ", bytes:%d",
           TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType,
@@ -334,7 +334,7 @@ int32_t raftEntryCachePutEntry(struct SRaftEntryCache* pCache, SSyncRaftEntry* p
 // not found, return 0
 // error, return -1
 int32_t raftEntryCacheGetEntry(struct SRaftEntryCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry) {
-  ASSERT(ppEntry != NULL);
+  tAssert(ppEntry != NULL);
   SSyncRaftEntry* pEntry = NULL;
   int32_t         code = raftEntryCacheGetEntryP(pCache, index, &pEntry);
   if (code == 1) {
@@ -361,7 +361,7 @@ int32_t raftEntryCacheGetEntryP(struct SRaftEntryCache* pCache, SyncIndex index,
   int32_t arraySize = taosArrayGetSize(entryPArray);
   if (arraySize == 1) {
     SSkipListNode** ppNode = (SSkipListNode**)taosArrayGet(entryPArray, 0);
-    ASSERT(*ppNode != NULL);
+    tAssert(*ppNode != NULL);
     *ppEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(*ppNode);
     taosAcquireRef(pCache->refMgr, (*ppEntry)->rid);
     code = 1;
@@ -393,7 +393,7 @@ int32_t raftEntryCacheClear(struct SRaftEntryCache* pCache, int32_t count) {
     SSkipListIterator* pIter = tSkipListCreateIter(pCache->pSkipList);
     while (tSkipListIterNext(pIter)) {
       SSkipListNode* pNode = tSkipListIterGet(pIter);
-      ASSERT(pNode != NULL);
+      tAssert(pNode != NULL);
       SSyncRaftEntry* pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
       syncEntryDestroy(pEntry);
       ++returnCnt;
@@ -403,7 +403,7 @@ int32_t raftEntryCacheClear(struct SRaftEntryCache* pCache, int32_t count) {
     tSkipListDestroy(pCache->pSkipList);
     pCache->pSkipList =
         tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, sizeof(SyncIndex), cmpFn, SL_ALLOW_DUP_KEY, keyFn);
-    ASSERT(pCache->pSkipList != NULL);
+    tAssert(pCache->pSkipList != NULL);
 
   } else {
     // clear count
@@ -414,7 +414,7 @@ int32_t raftEntryCacheClear(struct SRaftEntryCache* pCache, int32_t count) {
     // free entry
     while (tSkipListIterNext(pIter)) {
       SSkipListNode* pNode = tSkipListIterGet(pIter);
-      ASSERT(pNode != NULL);
+      tAssert(pNode != NULL);
       if (i++ >= count) {
         break;
       }

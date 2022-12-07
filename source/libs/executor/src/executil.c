@@ -160,7 +160,7 @@ void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayL
 
   pGroupResInfo->pRows = pArrayList;
   pGroupResInfo->index = 0;
-  ASSERT(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
+  tAssert(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }
 
 bool hasRemainResults(SGroupResInfo* pGroupResInfo) {
@@ -314,10 +314,10 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
     return code;
   }
 
-  ASSERT(nodeType(pNew) == QUERY_NODE_VALUE);
+  tAssert(nodeType(pNew) == QUERY_NODE_VALUE);
   SValueNode* pValue = (SValueNode*)pNew;
 
-  ASSERT(pValue->node.resType.type == TSDB_DATA_TYPE_BOOL);
+  tAssert(pValue->node.resType.type == TSDB_DATA_TYPE_BOOL);
   *pQualified = pValue->datum.b;
 
   nodesDestroyNode(pNew);
@@ -626,7 +626,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
 #endif
       } else {
         void* tag = taosHashGet(tags, uid, sizeof(int64_t));
-        ASSERT(tag);
+        tAssert(tag);
 
         STagVal tagVal = {0};
         tagVal.cid = pColInfo->info.colId;
@@ -1056,7 +1056,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     }
 
     if (!pTagCond) {  // no tag condition exists, let's fetch all tables of this super table
-      ASSERT(pTagIndexCond == NULL);
+      tAssert(pTagIndexCond == NULL);
       vnodeGetCtbIdList(pVnode, pScanNode->suid, res);
     } else {
       // failed to find the result in the cache, let try to calculate the results
@@ -1150,7 +1150,7 @@ int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, 
       return code;
     }
 
-    ASSERT(nodeType(pNew) == QUERY_NODE_VALUE);
+    tAssert(nodeType(pNew) == QUERY_NODE_VALUE);
     SValueNode* pValue = (SValueNode*)pNew;
 
     if (pValue->node.resType.type == TSDB_DATA_TYPE_NULL || pValue->isNull) {
@@ -1364,7 +1364,7 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     if (!pFuncNode->pParameterList && (memcmp(pExprNode->_function.functionName, name, len) == 0) &&
         pExprNode->_function.functionName[len] == 0) {
       pFuncNode->pParameterList = nodesMakeList();
-      ASSERT(LIST_LENGTH(pFuncNode->pParameterList) == 0);
+      tAssert(LIST_LENGTH(pFuncNode->pParameterList) == 0);
       SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
       if (NULL == res) {  // todo handle error
       } else {
@@ -1758,7 +1758,7 @@ void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimit
 }
 
 uint64_t tableListGetSize(const STableListInfo* pTableList) {
-  ASSERT(taosArrayGetSize(pTableList->pTableList) == taosHashGetSize(pTableList->map));
+  tAssert(taosArrayGetSize(pTableList->pTableList) == taosHashGetSize(pTableList->map));
   return taosArrayGetSize(pTableList->pTableList);
 }
 
@@ -1774,10 +1774,10 @@ STableKeyInfo* tableListGetInfo(const STableListInfo* pTableList, int32_t index)
 
 uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
   int32_t* slot = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
-  ASSERT(pTableList->map != NULL && slot != NULL);
+  tAssert(pTableList->map != NULL && slot != NULL);
 
   STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, *slot);
-  ASSERT(pKeyInfo->uid == tableUid);
+  tAssert(pKeyInfo->uid == tableUid);
 
   return pKeyInfo->groupId;
 }
@@ -1785,7 +1785,7 @@ uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
 // TODO handle the group offset info, fix it, the rule of group output will be broken by this function
 int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid) {
   if (pTableList->map == NULL) {
-    ASSERT(taosArrayGetSize(pTableList->pTableList) == 0);
+    tAssert(taosArrayGetSize(pTableList->pTableList) == 0);
     pTableList->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   }
 
@@ -1933,7 +1933,7 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
 int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group,
                                     bool groupSort) {
   int32_t code = TSDB_CODE_SUCCESS;
-  ASSERT(pTableListInfo->map != NULL);
+  tAssert(pTableListInfo->map != NULL);
 
   bool   groupByTbname = groupbyTbname(group);
   size_t numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
@@ -1990,7 +1990,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   }
 
   int32_t numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
-  ASSERT(pTableListInfo->numOfOuputGroups == 1);
+  tAssert(pTableListInfo->numOfOuputGroups == 1);
 
   int64_t st1 = taosGetTimestampUs();
   pTaskInfo->cost.extractListTime = (st1 - st) / 1000.0;

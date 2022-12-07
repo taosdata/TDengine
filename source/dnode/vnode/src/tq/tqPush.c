@@ -25,7 +25,7 @@ void tqTmrRspFunc(void* param, void* tmrId) {
 static int32_t tqLoopExecFromQueue(STQ* pTq, STqHandle* pHandle, SStreamDataSubmit** ppSubmit, SMqDataRsp* pRsp) {
   SStreamDataSubmit* pSubmit = *ppSubmit;
   while (pSubmit != NULL) {
-    ASSERT(pSubmit->ver == pHandle->pushHandle.processedVer + 1);
+    tAssert(pSubmit->ver == pHandle->pushHandle.processedVer + 1);
     if (tqLogScanExec(pTq, &pHandle->execHandle, pSubmit->data, pRsp, 0) < 0) {
       /*tAssert(0);*/
     }
@@ -169,8 +169,8 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
       continue;
     }
 
-    ASSERT(taosArrayGetSize(rsp.blockData) == rsp.blockNum);
-    ASSERT(taosArrayGetSize(rsp.blockDataLen) == rsp.blockNum);
+    tAssert(taosArrayGetSize(rsp.blockData) == rsp.blockNum);
+    tAssert(taosArrayGetSize(rsp.blockDataLen) == rsp.blockNum);
 
     rsp.rspOffset = fetchOffset;
 

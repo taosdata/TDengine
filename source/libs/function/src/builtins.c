@@ -1010,7 +1010,7 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
       intervals[0] = -INFINITY;
       intervals[numOfBins - 1] = INFINITY;
       // in case of desc bin orders, -inf/inf should be swapped
-      ASSERT(numOfBins >= 4);
+      tAssert(numOfBins >= 4);
       if (intervals[1] > intervals[numOfBins - 2]) {
         TSWAP(intervals[0], intervals[numOfBins - 1]);
       }

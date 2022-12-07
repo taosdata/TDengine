@@ -167,7 +167,7 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
 SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
-    ASSERT((*ppTask)->taskId == taskId);
+    tAssert((*ppTask)->taskId == taskId);
     return *ppTask;
   } else {
     return NULL;
@@ -195,9 +195,9 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
 
 void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   int32_t left = atomic_sub_fetch_32(&pTask->refCnt, 1);
-  ASSERT(left >= 0);
+  tAssert(left >= 0);
   if (left == 0) {
-    ASSERT(atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING);
+    tAssert(atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING);
     tFreeSStreamTask(pTask);
   }
 }

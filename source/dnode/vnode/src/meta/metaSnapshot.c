@@ -100,7 +100,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
     break;
   }
 
-  ASSERT(pData && nData);
+  tAssert(pData && nData);
 
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + nData);
   if (*ppData == NULL) {
@@ -352,7 +352,7 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
   for (int i = 0; i < taosArrayGetSize(ctx->idList); i++) {
     int64_t* uid = taosArrayGet(ctx->idList, i);
     SIdInfo* idData = (SIdInfo*)taosHashGet(ctx->idVersion, uid, sizeof(int64_t));
-    ASSERT(idData);
+    tAssert(idData);
     idData->index = i;
     metaDebug("tmqsnap init idVersion uid:%" PRIi64 " version:%" PRIi64 " index:%d", *uid, idData->version,
               idData->index);
@@ -469,7 +469,7 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, in
     int64_t* uidTmp = taosArrayGet(ctx->idList, ctx->index);
     ctx->index++;
     SIdInfo* idInfo = (SIdInfo*)taosHashGet(ctx->idVersion, uidTmp, sizeof(tb_uid_t));
-    ASSERT(idInfo);
+    tAssert(idInfo);
 
     *uid = *uidTmp;
     ret = MoveToPosition(ctx, idInfo->version, *uidTmp);
@@ -503,7 +503,7 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, in
              (ctx->subType == TOPIC_SUB_TYPE__TABLE && me.type == TSDB_CHILD_TABLE && me.ctbEntry.suid == ctx->suid)) {
     STableInfoForChildTable* data =
         (STableInfoForChildTable*)taosHashGet(ctx->suidInfo, &me.ctbEntry.suid, sizeof(tb_uid_t));
-    ASSERT(data);
+    tAssert(data);
     SVCreateTbReq req = {0};
 
     req.type = TSDB_CHILD_TABLE;
@@ -589,7 +589,7 @@ SMetaTableInfo getUidfromSnapShot(SSnapContext* ctx) {
     int64_t* uidTmp = taosArrayGet(ctx->idList, ctx->index);
     ctx->index++;
     SIdInfo* idInfo = (SIdInfo*)taosHashGet(ctx->idVersion, uidTmp, sizeof(tb_uid_t));
-    ASSERT(idInfo);
+    tAssert(idInfo);
 
     int32_t ret = MoveToPosition(ctx, idInfo->version, *uidTmp);
     if (ret != 0) {

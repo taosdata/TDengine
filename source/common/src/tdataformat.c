@@ -98,9 +98,9 @@ typedef struct {
 int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
   int32_t code = 0;
 
-  ASSERT(taosArrayGetSize(aColVal) > 0);
-  ASSERT(((SColVal *)aColVal->pData)[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
-  ASSERT(((SColVal *)aColVal->pData)[0].type == TSDB_DATA_TYPE_TIMESTAMP);
+  tAssert(taosArrayGetSize(aColVal) > 0);
+  tAssert(((SColVal *)aColVal->pData)[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
+  tAssert(((SColVal *)aColVal->pData)[0].type == TSDB_DATA_TYPE_TIMESTAMP);
 
   // scan ---------------
   uint8_t       flag = 0;
@@ -353,8 +353,8 @@ _exit:
 }
 
 void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
-  ASSERT(iCol < pTSchema->numOfCols);
-  ASSERT(pRow->sver == pTSchema->version);
+  tAssert(iCol < pTSchema->numOfCols);
+  tAssert(pRow->sver == pTSchema->version);
 
   STColumn *pTColumn = pTSchema->columns + iCol;
 
@@ -512,7 +512,7 @@ struct SRowIter {
 };
 
 int32_t tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter) {
-  ASSERT(pRow->sver == pTSchema->version);
+  tAssert(pRow->sver == pTSchema->version);
 
   int32_t code = 0;
 
@@ -897,7 +897,7 @@ int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
     isLarge = 1;
   }
 
-  ASSERT(szTag <= INT16_MAX);
+  tAssert(szTag <= INT16_MAX);
 
   // build tag
   (*ppTag) = (STag *)taosMemoryCalloc(szTag, 1);
@@ -1142,7 +1142,7 @@ int32_t tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, c
 
   pBuilder->nCols++;
 
-  ASSERT(pCol->offset < pBuilder->flen);
+  tAssert(pCol->offset < pBuilder->flen);
 
   return 0;
 }
@@ -1179,8 +1179,8 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   pTSchema->version = version;
 
   // timestamp column
-  ASSERT(aSchema[0].type == TSDB_DATA_TYPE_TIMESTAMP);
-  ASSERT(aSchema[0].colId == PRIMARYKEY_TIMESTAMP_COL_ID);
+  tAssert(aSchema[0].type == TSDB_DATA_TYPE_TIMESTAMP);
+  tAssert(aSchema[0].colId == PRIMARYKEY_TIMESTAMP_COL_ID);
   pTSchema->columns[0].colId = aSchema[0].colId;
   pTSchema->columns[0].type = aSchema[0].type;
   pTSchema->columns[0].flags = aSchema[0].flags;
@@ -1245,7 +1245,7 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, SColVal *pColVa
       pColData->nData += pColVal->value.nData;
     }
   } else {
-    ASSERT(pColData->nData == tDataTypes[pColData->type].bytes * pColData->nVal);
+    tAssert(pColData->nData == tDataTypes[pColData->type].bytes * pColData->nVal);
     code = tRealloc(&pColData->pData, pColData->nData + tDataTypes[pColData->type].bytes);
     if (code) goto _exit;
     memcpy(pColData->pData + pColData->nData, &pColVal->value.val, tDataTypes[pColData->type].bytes);
@@ -1562,7 +1562,7 @@ static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, SColVal *pCo
     {tColDataAppendValue70, tColDataAppendValue71, tColDataAppendValue72},  // HAS_VALUE|HAS_NULL|HAS_NONE
 };
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
-  ASSERT(pColData->cid == pColVal->cid && pColData->type == pColVal->type);
+  tAssert(pColData->cid == pColVal->cid && pColData->type == pColVal->type);
   return tColDataAppendValueImpl[pColData->flag][pColVal->flag](pColData, pColVal);
 }
 
@@ -1651,7 +1651,7 @@ static void (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal 
     tColDataGetValue7   // HAS_VALUE | HAS_NULL | HAS_NONE
 };
 void tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
-  ASSERT(iVal >= 0 && iVal < pColData->nVal && pColData->flag);
+  tAssert(iVal >= 0 && iVal < pColData->nVal && pColData->flag);
   tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
 }
 
@@ -1691,9 +1691,9 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
   int32_t code = 0;
   int32_t size;
 
-  ASSERT(pColDataSrc->nVal > 0);
-  ASSERT(pColDataDest->cid == pColDataSrc->cid);
-  ASSERT(pColDataDest->type == pColDataSrc->type);
+  tAssert(pColDataSrc->nVal > 0);
+  tAssert(pColDataDest->cid == pColDataSrc->cid);
+  tAssert(pColDataDest->type == pColDataSrc->type);
 
   pColDataDest->smaOn = pColDataSrc->smaOn;
   pColDataDest->nVal = pColDataSrc->nVal;

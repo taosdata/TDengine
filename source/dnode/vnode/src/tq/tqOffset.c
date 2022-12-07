@@ -136,7 +136,7 @@ int32_t tqOffsetCommitFile(STqOffsetStore* pStore) {
     int32_t    bodyLen;
     int32_t    code;
     tEncodeSize(tEncodeSTqOffset, pOffset, bodyLen, code);
-    ASSERT(code == 0);
+    tAssert(code == 0);
     if (code < 0) {
       tAssert(0);
       taosHashCancelIterate(pStore->pHash, pIter);

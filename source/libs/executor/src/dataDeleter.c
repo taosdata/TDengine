@@ -62,8 +62,8 @@ static void toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* pInp
   pEntry->numOfCols = taosArrayGetSize(pInput->pData->pDataBlock);
   pEntry->dataLen = sizeof(SDeleterRes);
 
-  ASSERT(1 == pEntry->numOfRows);
-  ASSERT(3 == pEntry->numOfCols);
+  tAssert(1 == pEntry->numOfRows);
+  tAssert(3 == pEntry->numOfCols);
 
   pBuf->useSize = sizeof(SDataCacheEntry);
 
@@ -81,7 +81,7 @@ static void toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* pInp
   if (pRes->affectedRows) {
     pRes->skey = *(int64_t*)pColSKey->pData;
     pRes->ekey = *(int64_t*)pColEKey->pData;
-    ASSERT(pRes->skey <= pRes->ekey);
+    tAssert(pRes->skey <= pRes->ekey);
   } else {
     pRes->skey = pHandle->pDeleter->deleteTimeRange.skey;
     pRes->ekey = pHandle->pDeleter->deleteTimeRange.ekey;
@@ -167,7 +167,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryE
 
   SDataDeleterBuf* pBuf = NULL;
   taosReadQitem(pDeleter->pDataBlocks, (void**)&pBuf);
-  ASSERT(NULL != pBuf);
+  tAssert(NULL != pBuf);
   memcpy(&pDeleter->nextOutput, pBuf, sizeof(SDataDeleterBuf));
   taosFreeQitem(pBuf);
 

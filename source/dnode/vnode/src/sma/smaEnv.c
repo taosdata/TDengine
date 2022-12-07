@@ -193,7 +193,7 @@ static void tRSmaInfoHashFreeNode(void *data) {
 }
 
 static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pSma) {
-  ASSERT(pSmaStat != NULL);
+  tAssert(pSmaStat != NULL);
 
   if (*pSmaStat) {  // no lock
     return TSDB_CODE_SUCCESS;
@@ -360,7 +360,7 @@ int32_t tdLockSma(SSma *pSma) {
 }
 
 int32_t tdUnLockSma(SSma *pSma) {
-  ASSERT(SMA_LOCKED(pSma));
+  tAssert(SMA_LOCKED(pSma));
   pSma->locked = false;
   int code = taosThreadMutexUnlock(&pSma->mutex);
   if (code != 0) {

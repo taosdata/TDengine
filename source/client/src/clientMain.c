@@ -981,8 +981,8 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
 }
 
 void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
-  ASSERT(res != NULL && fp != NULL);
-  ASSERT(TD_RES_QUERY(res));
+  tAssert(res != NULL && fp != NULL);
+  tAssert(TD_RES_QUERY(res));
 
   SRequestObj *pRequest = res;
   pRequest->body.fetchFp = fp;
@@ -1025,8 +1025,8 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 }
 
 void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
-  ASSERT(res != NULL && fp != NULL);
-  ASSERT(TD_RES_QUERY(res));
+  tAssert(res != NULL && fp != NULL);
+  tAssert(TD_RES_QUERY(res));
 
   SRequestObj    *pRequest = res;
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
@@ -1039,8 +1039,8 @@ void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 }
 
 const void *taos_get_raw_block(TAOS_RES *res) {
-  ASSERT(res != NULL);
-  ASSERT(TD_RES_QUERY(res));
+  tAssert(res != NULL);
+  tAssert(TD_RES_QUERY(res));
   SRequestObj *pRequest = res;
 
   return pRequest->body.resInfo.pData;

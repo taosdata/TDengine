@@ -433,9 +433,9 @@ char getPrecisionUnit(int32_t precision) {
 }
 
 int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPrecision) {
-  ASSERT(fromPrecision == TSDB_TIME_PRECISION_MILLI || fromPrecision == TSDB_TIME_PRECISION_MICRO ||
+  tAssert(fromPrecision == TSDB_TIME_PRECISION_MILLI || fromPrecision == TSDB_TIME_PRECISION_MICRO ||
          fromPrecision == TSDB_TIME_PRECISION_NANO);
-  ASSERT(toPrecision == TSDB_TIME_PRECISION_MILLI || toPrecision == TSDB_TIME_PRECISION_MICRO ||
+  tAssert(toPrecision == TSDB_TIME_PRECISION_MILLI || toPrecision == TSDB_TIME_PRECISION_MICRO ||
          toPrecision == TSDB_TIME_PRECISION_NANO);
 
   switch (fromPrecision) {
@@ -830,7 +830,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
     }
   }
 
-  ASSERT(pInterval->offset >= 0);
+  tAssert(pInterval->offset >= 0);
 
   if (pInterval->offset > 0) {
     start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision);

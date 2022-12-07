@@ -384,7 +384,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.subType = pCreate->subType;
   topicObj.withMeta = pCreate->withMeta;
   if (topicObj.withMeta) {
-    ASSERT(topicObj.subType != TOPIC_SUB_TYPE__COLUMN);
+    tAssert(topicObj.subType != TOPIC_SUB_TYPE__COLUMN);
   }
 
   if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {

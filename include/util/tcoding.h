@@ -18,6 +18,8 @@
 
 #include "os.h"
 
+#include "tlog.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -212,7 +214,7 @@ static FORCE_INLINE int32_t taosEncodeVariantU16(void **buf, uint16_t value) {
     if (buf != NULL) ((uint8_t *)(*buf))[i] = (uint8_t)(value | ENCODE_LIMIT);
     value >>= 7;
     i++;
-    ASSERT(i < 3);
+    tAssert(i < 3);
   }
 
   if (buf != NULL) {
@@ -260,7 +262,7 @@ static FORCE_INLINE int32_t taosEncodeVariantU32(void **buf, uint32_t value) {
     if (buf != NULL) ((uint8_t *)(*buf))[i] = (value | ENCODE_LIMIT);
     value >>= 7;
     i++;
-    ASSERT(i < 5);
+    tAssert(i < 5);
   }
 
   if (buf != NULL) {
@@ -308,7 +310,7 @@ static FORCE_INLINE int32_t taosEncodeVariantU64(void **buf, uint64_t value) {
     if (buf != NULL) ((uint8_t *)(*buf))[i] = (uint8_t)(value | ENCODE_LIMIT);
     value >>= 7;
     i++;
-    ASSERT(i < 10);
+    tAssert(i < 10);
   }
 
   if (buf != NULL) {

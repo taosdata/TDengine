@@ -194,14 +194,14 @@ static FORCE_INLINE void doUpdateHashNode(SHashObj *pHashObj, SHashEntry *pe, SH
   atomic_sub_fetch_16(&pNode->refCount, 1);
   if (prev != NULL) {
     prev->next = pNewNode;
-    ASSERT(prev->next != prev);
+    tAssert(prev->next != prev);
   } else {
     pe->next = pNewNode;
   }
 
   if (pNode->refCount <= 0) {
     pNewNode->next = pNode->next;
-    ASSERT(pNewNode->next != pNewNode);
+    tAssert(pNewNode->next != pNewNode);
 
     FREE_HASH_NODE(pHashObj->freeFp, pNode);
   } else {
@@ -262,7 +262,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
   pHashObj->freeFp = NULL;
   pHashObj->callbackFp = NULL;
 
-  ASSERT((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
+  tAssert((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
 
   pHashObj->hashList = (SHashEntry **)taosMemoryMalloc(pHashObj->capacity * sizeof(void *));
   if (pHashObj->hashList == NULL) {
@@ -533,7 +533,7 @@ int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
           pe->next = pNode->next;
         } else {
           prevNode->next = pNode->next;
-          ASSERT(prevNode->next != prevNode);
+          tAssert(prevNode->next != prevNode);
         }
 
         pe->num--;
@@ -729,7 +729,7 @@ void pushfrontNodeInEntryList(SHashEntry *pEntry, SHashNode *pNode) {
   pNode->next = pEntry->next;
   pEntry->next = pNode;
 
-  ASSERT(pNode->next != pNode);
+  tAssert(pNode->next != pNode);
   pEntry->num += 1;
 }
 
@@ -780,12 +780,12 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
     if (pOld->refCount <= 0) {
       if (prevNode) {
         prevNode->next = pOld->next;
-        ASSERT(prevNode->next != prevNode);
+        tAssert(prevNode->next != prevNode);
       } else {
         pe->next = pOld->next;
         SHashNode *x = pe->next;
         if (x != NULL) {
-          ASSERT(x->next != x);
+          tAssert(x->next != x);
         }
       }
 
@@ -844,7 +844,7 @@ void *taosHashIterate(SHashObj *pHashObj, void *p) {
     /*uint16_t prevRef = atomic_load_16(&pNode->refCount);*/
     uint16_t afterRef = atomic_add_fetch_16(&pNode->refCount, 1);
 #if 0
-    ASSERT(prevRef < afterRef);
+    tAssert(prevRef < afterRef);
 
     // the reference count value is overflow, which will cause the delete node operation immediately.
     if (prevRef > afterRef) {

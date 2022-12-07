@@ -418,7 +418,7 @@ int32_t tmqCommitDone(SMqCommitCbParamSet* pParamSet) {
 
 static void tmqCommitRspCountDown(SMqCommitCbParamSet* pParamSet) {
   int32_t waitingRspNum = atomic_sub_fetch_32(&pParamSet->waitingRspNum, 1);
-  ASSERT(waitingRspNum >= 0);
+  tAssert(waitingRspNum >= 0);
   if (waitingRspNum == 0) {
     tmqCommitDone(pParamSet);
   }
@@ -529,7 +529,7 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
 int32_t tmqCommitMsgImpl(tmq_t* tmq, const TAOS_RES* msg, int8_t async, tmq_commit_cb* userCb, void* userParam) {
   char*   topic;
   int32_t vgId;
-  ASSERT(msg != NULL);
+  tAssert(msg != NULL);
   if (TD_RES_TMQ(msg)) {
     SMqRspObj* pRspObj = (SMqRspObj*)msg;
     topic = pRspObj->topic;
@@ -916,9 +916,9 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   const char* user = conf->user == NULL ? TSDB_DEFAULT_USER : conf->user;
   const char* pass = conf->pass == NULL ? TSDB_DEFAULT_PASS : conf->pass;
 
-  ASSERT(user);
-  ASSERT(pass);
-  ASSERT(conf->groupId[0]);
+  tAssert(user);
+  tAssert(pass);
+  tAssert(conf->groupId[0]);
 
   pTmq->clientTopics = taosArrayInit(0, sizeof(SMqClientTopic));
   pTmq->mqueue = taosOpenQueue();

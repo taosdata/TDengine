@@ -59,12 +59,12 @@ static void extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDown
       rightTsCol = col2;
     } else {
       if (col1->dataBlockId == pDownstream[0]->resultDataBlockId) {
-        ASSERT(col2->dataBlockId == pDownstream[1]->resultDataBlockId);
+        tAssert(col2->dataBlockId == pDownstream[1]->resultDataBlockId);
         leftTsCol = col1;
         rightTsCol = col2;
       } else {
-        ASSERT(col1->dataBlockId == pDownstream[1]->resultDataBlockId);
-        ASSERT(col2->dataBlockId == pDownstream[0]->resultDataBlockId);
+        tAssert(col1->dataBlockId == pDownstream[1]->resultDataBlockId);
+        tAssert(col2->dataBlockId == pDownstream[0]->resultDataBlockId);
         leftTsCol = col2;
         rightTsCol = col1;
       }
@@ -72,7 +72,7 @@ static void extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDown
     setJoinColumnInfo(&pInfo->leftCol, leftTsCol);
     setJoinColumnInfo(&pInfo->rightCol, rightTsCol);
   } else {
-    ASSERT(false);
+    tAssert(false);
   }}
 
 SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
@@ -210,7 +210,7 @@ typedef struct SRowLocation {
 static int32_t mergeJoinGetBlockRowsEqualTs(SSDataBlock* pBlock, int16_t tsSlotId, int32_t startPos, int64_t timestamp,
                                             int32_t* pEndPos, SArray* rowLocations, SArray* createdBlocks) {
   int32_t numRows = pBlock->info.rows;
-  ASSERT(startPos < numRows);
+  tAssert(startPos < numRows);
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
 
   int32_t i = startPos;
@@ -248,7 +248,7 @@ static int32_t mergeJoinGetDownStreamRowsEqualTimeStamp(SOperatorInfo* pOperator
                                                         SSDataBlock* startDataBlock, int32_t startPos,
                                                         int64_t timestamp, SArray* rowLocations,
                                                         SArray* createdBlocks) {
-  ASSERT(whichChild == 0 || whichChild == 1);
+  tAssert(whichChild == 0 || whichChild == 1);
 
   SJoinOperatorInfo* pJoinInfo = pOperator->info;
   int32_t            endPos = -1;
@@ -364,8 +364,8 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
   char*            pRightVal = colDataGetData(pRightCol, pJoinInfo->rightPos);
   *pRightTs = *(int64_t*)pRightVal;
 
-  ASSERT(pLeftCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
-  ASSERT(pRightCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+  tAssert(pLeftCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+  tAssert(pRightCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   return true;
 }
 

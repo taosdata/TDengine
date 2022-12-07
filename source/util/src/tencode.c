@@ -100,7 +100,7 @@ void tEndEncode(SEncoder* pCoder) {
 
   if (pCoder->data) {
     pNode = pCoder->eStack;
-    ASSERT(pNode);
+    tAssert(pNode);
     pCoder->eStack = pNode->pNext;
 
     len = pCoder->pos;
@@ -142,7 +142,7 @@ void tEndDecode(SDecoder* pCoder) {
   SDecoderNode* pNode;
 
   pNode = pCoder->dStack;
-  ASSERT(pNode);
+  tAssert(pNode);
   pCoder->dStack = pNode->pNext;
 
   pCoder->data = pNode->data;

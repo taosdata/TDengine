@@ -189,7 +189,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   vDebug("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          version);
 
-  ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
+  tAssert(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
   pVnode->state.applied = version;
   pVnode->state.applyTerm = pMsg->info.conn.applyTerm;
 
@@ -849,7 +849,7 @@ static int32_t vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, 
 }
 
 static int32_t vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const char *tags) {
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   SSubmitMsgIter msgIter = {0};
   SMeta         *pMeta = pVnode->pMeta;
   SSubmitBlk    *pBlock = NULL;
@@ -1227,7 +1227,7 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq
 
   tDecoderInit(pCoder, pReq, len);
   tDecodeDeleteRes(pCoder, pRes);
-  ASSERT(taosArrayGetSize(pRes->uidList) == 0 || (pRes->skey != 0 && pRes->ekey != 0));
+  tAssert(taosArrayGetSize(pRes->uidList) == 0 || (pRes->skey != 0 && pRes->ekey != 0));
 
   for (int32_t iUid = 0; iUid < taosArrayGetSize(pRes->uidList); iUid++) {
     code = tsdbDeleteTableData(pVnode->pTsdb, version, pRes->suid, *(uint64_t *)taosArrayGet(pRes->uidList, iUid),

@@ -195,10 +195,10 @@ SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn) {
 void tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn) {
   i32 nRef;
 
-  ASSERT(pTxn);
+  tAssert(pTxn);
 
   // nRef = tdbUnrefPage(pPage);
-  // ASSERT(nRef >= 0);
+  // tAssert(nRef >= 0);
 
   tdbPCacheLock(pCache);
   nRef = tdbUnrefPage(pPage);
@@ -230,7 +230,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   SPage *pPage = NULL;
   SPage *pPageH = NULL;
 
-  ASSERT(pTxn);
+  tAssert(pTxn);
 
   // 1. Search the hash table
   pPage = pCache->pgHash[tdbPCachePageHash(pPgid) % pCache->nHash];
@@ -325,7 +325,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
 
 static void tdbPCachePinPage(SPCache *pCache, SPage *pPage) {
   if (pPage->pLruNext != NULL) {
-    ASSERT(tdbGetPageRef(pPage) == 0);
+    tAssert(tdbGetPageRef(pPage) == 0);
 
     pPage->pLruPrev->pLruNext = pPage->pLruNext;
     pPage->pLruNext->pLruPrev = pPage->pLruPrev;
@@ -340,11 +340,11 @@ static void tdbPCachePinPage(SPCache *pCache, SPage *pPage) {
 static void tdbPCacheUnpinPage(SPCache *pCache, SPage *pPage) {
   i32 nRef;
 
-  ASSERT(pPage->isLocal);
-  ASSERT(!pPage->isDirty);
-  ASSERT(tdbGetPageRef(pPage) == 0);
+  tAssert(pPage->isLocal);
+  tAssert(!pPage->isDirty);
+  tAssert(tdbGetPageRef(pPage) == 0);
 
-  ASSERT(pPage->pLruNext == NULL);
+  tAssert(pPage->pLruNext == NULL);
 
   tdbTrace("pCache:%p unpin page %p/%d/%d, nPages:%d", pCache, pPage, TDB_PAGE_PGNO(pPage), pPage->id, pCache->nPages);
   if (pPage->id < pCache->nPages) {

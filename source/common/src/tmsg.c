@@ -38,7 +38,7 @@ int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
 
   pIter->totalLen = htonl(pMsg->length);
   pIter->numOfBlocks = htonl(pMsg->numOfBlocks);
-  ASSERT(pIter->totalLen > 0);
+  tAssert(pIter->totalLen > 0);
   pIter->len = 0;
   pIter->pMsg = pMsg;
   if (pIter->totalLen <= sizeof(SSubmitReq)) {
@@ -50,7 +50,7 @@ int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
 }
 
 int32_t tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
-  ASSERT(pIter->len >= 0);
+  tAssert(pIter->len >= 0);
 
   if (pIter->len == 0) {
     pIter->len += sizeof(SSubmitReq);
@@ -60,7 +60,7 @@ int32_t tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
     }
 
     pIter->len += (sizeof(SSubmitBlk) + pIter->dataLen + pIter->schemaLen);
-    ASSERT(pIter->len > 0);
+    tAssert(pIter->len > 0);
   }
 
   if (pIter->len > pIter->totalLen) {
@@ -308,7 +308,7 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
             }
           }
 
-          ASSERT(desc.subPlanNum == taosArrayGetSize(desc.subDesc));
+          tAssert(desc.subPlanNum == taosArrayGetSize(desc.subDesc));
 
           taosArrayPush(pReq->query->queryDesc, &desc);
         }
@@ -6396,7 +6396,7 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
       return pLeft->uid == pRight->uid;
     } else {
       tAssert(0);
-      /*ASSERT(pLeft->type == TMQ_OFFSET__RESET_NONE || pLeft->type == TMQ_OFFSET__RESET_EARLIEAST ||*/
+      /*tAssert(pLeft->type == TMQ_OFFSET__RESET_NONE || pLeft->type == TMQ_OFFSET__RESET_EARLIEAST ||*/
       /*pLeft->type == TMQ_OFFSET__RESET_LATEST);*/
       /*return true;*/
     }

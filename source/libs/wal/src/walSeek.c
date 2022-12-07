@@ -40,7 +40,7 @@ static int64_t walSeekWritePos(SWal* pWal, int64_t ver) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
-  ASSERT(entry.ver == ver);
+  tAssert(entry.ver == ver);
   code = taosLSeekFile(pLogTFile, entry.offset, SEEK_SET);
   if (code < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -53,7 +53,7 @@ static int64_t walSeekWritePos(SWal* pWal, int64_t ver) {
 int walInitWriteFile(SWal* pWal) {
   TdFilePtr     pIdxTFile, pLogTFile;
   SWalFileInfo* pRet = taosArrayGetLast(pWal->fileInfoSet);
-  ASSERT(pRet != NULL);
+  tAssert(pRet != NULL);
   int64_t fileFirstVer = pRet->firstVer;
 
   char fnameStr[WAL_FILE_LEN];
@@ -109,9 +109,9 @@ int64_t walChangeWrite(SWal* pWal, int64_t ver) {
   tmpInfo.firstVer = ver;
   // bsearch in fileSet
   int32_t idx = taosArraySearchIdx(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
-  ASSERT(idx != -1);
+  tAssert(idx != -1);
   SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, idx);
-  /*ASSERT(pFileInfo != NULL);*/
+  /*tAssert(pFileInfo != NULL);*/
 
   int64_t fileFirstVer = pFileInfo->firstVer;
   walBuildIdxName(pWal, fileFirstVer, fnameStr);

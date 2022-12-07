@@ -125,7 +125,7 @@ static int32_t streamAlignCheckpoint(SStreamTask* pTask, int64_t checkpointId, i
     pTask->checkpointAlignCnt = taosArrayGetSize(pTask->childEpInfo);
   }
 
-  ASSERT(pTask->checkpointingId == checkpointId);
+  tAssert(pTask->checkpointingId == checkpointId);
 
   return atomic_sub_fetch_32(&pTask->checkpointAlignCnt, 1);
 }
