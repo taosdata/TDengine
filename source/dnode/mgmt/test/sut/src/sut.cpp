@@ -105,7 +105,7 @@ int32_t Testbase::SendShowReq(int8_t showType, const char* tb, const char* db) {
   tSerializeSRetrieveTableReq(pReq, contLen, &retrieveReq);
 
   SRpcMsg* pRsp = SendReq(TDMT_MND_SYSTABLE_RETRIEVE, pReq, contLen);
-  tAssert(pRsp->pCont != nullptr);
+  ASSERT(pRsp->pCont != nullptr);
 
   if (pRsp->contLen == 0) return -1;
   if (pRsp->code != 0) return -1;

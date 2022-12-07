@@ -72,7 +72,6 @@ static int32_t  tsDaylightActive; /* Currently in daylight saving time. */
 
 bool    tsLogEmbedded = 0;
 bool    tsAsyncLog = true;
-bool    tsAssert = true;
 int32_t tsNumOfLogLines = 10000000;
 int32_t tsLogKeepDays = 0;
 LogFp   tsLogFp = NULL;
@@ -778,38 +777,4 @@ cmp_end:
   taosMemoryFree(data);
 
   return ret;
-}
-
-bool taosAssertLog(bool condition, const char *file, int32_t line, const char *format, ...) {
-  if (condition) return false;
-
-  const char *flags = "UTL FATAL ";
-  ELogLevel   level = DEBUG_FATAL;
-  int32_t     dflag = 255;  // tsLogEmbedded ? 255 : uDebugFlag
-  char        buffer[LOG_MAX_LINE_BUFFER_SIZE];
-  int32_t     len = taosBuildLogHead(buffer, flags);
-
-  va_list argpointer;
-  va_start(argpointer, format);
-  len = len + vsnprintf(buffer + len, LOG_MAX_LINE_BUFFER_SIZE - len, format, argpointer);
-  va_end(argpointer);
-  buffer[len++] = '\n';
-  buffer[len] = 0;
-  taosPrintLogImp(1, 255, buffer, len);
-
-  taosPrintLog(flags, level, dflag, "tAssert at file %s:%d exit:%d", file, line, tsAssert);
-  taosPrintTrace(flags, level, dflag);
-
-  if (tsAssert) {
-    taosCloseLog();
-    taosMsleep(300);
-
-#ifdef NDEBUG
-    abort();
-#else
-    assert(0);
-#endif
-  }
-
-  return true;
 }

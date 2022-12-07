@@ -22,7 +22,7 @@
 
 static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pReader, const int32_t* slotIds,
                        void** pRes) {
-  tAssert(pReader->numOfCols <= taosArrayGetSize(pBlock->pDataBlock));
+  ASSERT(pReader->numOfCols <= taosArrayGetSize(pBlock->pDataBlock));
   int32_t numOfRows = pBlock->info.rows;
 
   if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST)) {
@@ -66,7 +66,7 @@ static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pRea
 
     pBlock->info.rows += allNullRow ? 0 : 1;
   } else {
-    tAssert(HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST_ROW));
+    ASSERT(HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST_ROW));
 
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);

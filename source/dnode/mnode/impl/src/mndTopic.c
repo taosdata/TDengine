@@ -384,7 +384,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.subType = pCreate->subType;
   topicObj.withMeta = pCreate->withMeta;
   if (topicObj.withMeta) {
-    tAssert(topicObj.subType != TOPIC_SUB_TYPE__COLUMN);
+    ASSERT(topicObj.subType != TOPIC_SUB_TYPE__COLUMN);
   }
 
   if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
@@ -499,7 +499,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       if (code < 0) {
         sdbRelease(pSdb, pVgroup);
         mndTransDrop(pTrans);
-        tAssert(0);
+        ASSERT(0);
         return -1;
       }
       void    *buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
@@ -717,7 +717,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   // TODO check if rebalancing
   if (mndDropSubByTopic(pMnode, pTrans, dropReq.name) < 0) {
-    /*tAssert(0);*/
+    /*ASSERT(0);*/
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
     mndTransDrop(pTrans);
     mndReleaseTopic(pMnode, pTopic);

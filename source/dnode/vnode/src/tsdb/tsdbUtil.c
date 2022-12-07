@@ -97,7 +97,7 @@ _exit:
 }
 
 void tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *)) {
-  tAssert(idx >= 0 && idx < pMapData->nItem);
+  ASSERT(idx >= 0 && idx < pMapData->nItem);
   tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem);
 }
 
@@ -379,7 +379,7 @@ int32_t tPutBlockCol(uint8_t *p, void *ph) {
   int32_t    n = 0;
   SBlockCol *pBlockCol = (SBlockCol *)ph;
 
-  tAssert(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
+  ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
 
   n += tPutI16v(p ? p + n : p, pBlockCol->cid);
   n += tPutI8(p ? p + n : p, pBlockCol->type);
@@ -417,7 +417,7 @@ int32_t tGetBlockCol(uint8_t *p, void *ph) {
   n += tGetI8(p + n, &pBlockCol->flag);
   n += tGetI32v(p + n, &pBlockCol->szOrigin);
 
-  tAssert(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
+  ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
 
   pBlockCol->szBitmap = 0;
   pBlockCol->szOffset = 0;
@@ -544,7 +544,7 @@ int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now) {
   } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_NANO) {
     now = now * 1000000000l;
   } else {
-    tAssert(0);
+    ASSERT(0);
   }
 
   key = now - pKeepCfg->keep0 * tsTickPerMin[pKeepCfg->precision];
@@ -570,7 +570,7 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   STColumn *pTColumn = &pTSchema->columns[iCol];
   SValue    value;
 
-  tAssert(iCol > 0);
+  ASSERT(iCol > 0);
 
   if (pRow->type == 0) {
     tTSRowGetVal(pRow->pTSRow, pTSchema, iCol, pColVal);
@@ -585,7 +585,7 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
       *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
     }
   } else {
-    tAssert(0);
+    ASSERT(0);
   }
 }
 
@@ -607,14 +607,14 @@ int32_t tsdbRowCmprFn(const void *p1, const void *p2) {
 void tsdbRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
   pIter->pRow = pRow;
   if (pRow->type == 0) {
-    tAssert(pTSchema);
+    ASSERT(pTSchema);
     pIter->pTSchema = pTSchema;
     pIter->i = 1;
   } else if (pRow->type == 1) {
     pIter->pTSchema = NULL;
     pIter->i = 0;
   } else {
-    tAssert(0);
+    ASSERT(0);
   }
 }
 
@@ -661,7 +661,7 @@ int32_t tRowMergerInit2(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRo
   // ts
   pTColumn = &pTSchema->columns[jCol++];
 
-  tAssert(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
 
   *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = key.ts});
   if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
@@ -704,7 +704,7 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
   STColumn *pTColumn;
   int32_t   iCol, jCol = 1;
 
-  tAssert(((SColVal *)pMerger->pArray->pData)->value.val == key.ts);
+  ASSERT(((SColVal *)pMerger->pArray->pData)->value.val == key.ts);
 
   for (iCol = 1; iCol < pMerger->pTSchema->numOfCols && jCol < pTSchema->numOfCols; ++iCol) {
     pTColumn = &pMerger->pTSchema->columns[iCol];
@@ -728,7 +728,7 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else {
-      tAssert(0 && "dup versions not allowed");
+      ASSERT(0 && "dup versions not allowed");
     }
   }
 
@@ -754,7 +754,7 @@ int32_t tRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
   // ts
   pTColumn = &pTSchema->columns[0];
 
-  tAssert(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
 
   *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = key.ts});
   if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
@@ -782,7 +782,7 @@ int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
   TSDBKEY  key = TSDBROW_KEY(pRow);
   SColVal *pColVal = &(SColVal){0};
 
-  tAssert(((SColVal *)pMerger->pArray->pData)->value.val == key.ts);
+  ASSERT(((SColVal *)pMerger->pArray->pData)->value.val == key.ts);
 
   for (int32_t iCol = 1; iCol < pMerger->pTSchema->numOfCols; iCol++) {
     tsdbRowGetColVal(pRow, pMerger->pTSchema, iCol, pColVal);
@@ -797,7 +797,7 @@ int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else {
-      tAssert(0);
+      ASSERT(0);
     }
   }
 
@@ -828,7 +828,7 @@ static int32_t tsdbMergeSkyline(SArray *aSkyline1, SArray *aSkyline2, SArray *aS
   int64_t  version1 = 0;
   int64_t  version2 = 0;
 
-  tAssert(n1 > 0 && n2 > 0);
+  ASSERT(n1 > 0 && n2 > 0);
 
   taosArrayClear(aSkyline);
 
@@ -955,7 +955,7 @@ void tBlockDataDestroy(SBlockData *pBlockData, int8_t deepClear) {
 int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid) {
   int32_t code = 0;
 
-  tAssert(pId->suid || pId->uid);
+  ASSERT(pId->suid || pId->uid);
 
   pBlockData->suid = pId->suid;
   pBlockData->uid = pId->uid;
@@ -1007,7 +1007,7 @@ void tBlockDataReset(SBlockData *pBlockData) {
 }
 
 void tBlockDataClear(SBlockData *pBlockData) {
-  tAssert(pBlockData->suid || pBlockData->uid);
+  ASSERT(pBlockData->suid || pBlockData->uid);
 
   pBlockData->nRow = 0;
   for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
@@ -1095,7 +1095,7 @@ static int32_t tBlockDataAppendTPRow(SBlockData *pBlockData, STSRow *pRow, STSch
       code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
       if (code) goto _exit;
     } else {
-      tAssert(pTColumn->type == pColData->type);
+      ASSERT(pTColumn->type == pColData->type);
 
       SColVal cv = {.cid = pTColumn->colId, .type = pTColumn->type};
 
@@ -1123,7 +1123,7 @@ static int32_t tBlockDataAppendTPRow(SBlockData *pBlockData, STSRow *pRow, STSch
           code = tColDataAppendValue(pColData, &COL_VAL_NULL(pColData->cid, pColData->type));
           if (code) goto _exit;
         } else {
-          tAssert(0);
+          ASSERT(0);
         }
       } else {
         cv.flag = CV_FLAG_VALUE;
@@ -1171,7 +1171,7 @@ static int32_t tBlockDataAppendKVRow(SBlockData *pBlockData, STSRow *pRow, STSch
       code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
       if (code) goto _exit;
     } else {
-      tAssert(pTColumn->type == pColData->type);
+      ASSERT(pTColumn->type == pColData->type);
 
       SColVal    cv = {.cid = pTColumn->colId, .type = pTColumn->type};
       TDRowValT  vt = TD_VTYPE_NONE;  // default is NONE
@@ -1211,7 +1211,7 @@ static int32_t tBlockDataAppendKVRow(SBlockData *pBlockData, STSRow *pRow, STSch
         code = tColDataAppendValue(pColData, &COL_VAL_NULL(pColData->cid, pColData->type));
         if (code) goto _exit;
       } else {
-        tAssert(0);
+        ASSERT(0);
       }
 
       iTColumn++;
@@ -1226,11 +1226,11 @@ _exit:
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid) {
   int32_t code = 0;
 
-  tAssert(pBlockData->suid || pBlockData->uid);
+  ASSERT(pBlockData->suid || pBlockData->uid);
 
   // uid
   if (pBlockData->uid == 0) {
-    tAssert(uid);
+    ASSERT(uid);
     code = tRealloc((uint8_t **)&pBlockData->aUid, sizeof(int64_t) * (pBlockData->nRow + 1));
     if (code) goto _err;
     pBlockData->aUid[pBlockData->nRow] = uid;
@@ -1253,7 +1253,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
       code = tBlockDataAppendKVRow(pBlockData, pRow->pTSRow, pTSchema);
       if (code) goto _err;
     } else {
-      tAssert(0);
+      ASSERT(0);
     }
   } else {
     code = tBlockDataAppendBlockRow(pBlockData, pRow->pBlockData, pRow->iRow);
@@ -1310,10 +1310,10 @@ _exit:
 int32_t tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData) {
   int32_t code = 0;
 
-  tAssert(pBlockData->suid == pBlockData1->suid);
-  tAssert(pBlockData->uid == pBlockData1->uid);
-  tAssert(pBlockData1->nRow > 0);
-  tAssert(pBlockData2->nRow > 0);
+  ASSERT(pBlockData->suid == pBlockData1->suid);
+  ASSERT(pBlockData->uid == pBlockData1->uid);
+  ASSERT(pBlockData1->nRow > 0);
+  ASSERT(pBlockData2->nRow > 0);
 
   tBlockDataClear(pBlockData);
 
@@ -1348,7 +1348,7 @@ int32_t tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlock
         pRow2 = NULL;
       }
     } else {
-      tAssert(0);
+      ASSERT(0);
     }
   }
 
@@ -1383,12 +1383,12 @@ _exit:
 }
 
 SColData *tBlockDataGetColDataByIdx(SBlockData *pBlockData, int32_t idx) {
-  tAssert(idx >= 0 && idx < pBlockData->nColData);
+  ASSERT(idx >= 0 && idx < pBlockData->nColData);
   return (SColData *)taosArrayGet(pBlockData->aColData, idx);
 }
 
 void tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData) {
-  tAssert(cid != PRIMARYKEY_TIMESTAMP_COL_ID);
+  ASSERT(cid != PRIMARYKEY_TIMESTAMP_COL_ID);
   int32_t lidx = 0;
   int32_t ridx = pBlockData->nColData - 1;
 
@@ -1427,7 +1427,7 @@ int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, 
   for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
 
-    tAssert(pColData->flag);
+    ASSERT(pColData->flag);
 
     if (pColData->flag == HAS_NONE) continue;
 
@@ -1508,7 +1508,7 @@ int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uin
 
   // SDiskDataHdr
   n += tGetDiskDataHdr(pIn + n, &hdr);
-  tAssert(hdr.delimiter == TSDB_FILE_DLMT);
+  ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
 
   pBlockData->suid = hdr.suid;
   pBlockData->uid = hdr.uid;
@@ -1516,12 +1516,12 @@ int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uin
 
   // uid
   if (hdr.uid == 0) {
-    tAssert(hdr.szUid);
+    ASSERT(hdr.szUid);
     code = tsdbDecmprData(pIn + n, hdr.szUid, TSDB_DATA_TYPE_BIGINT, hdr.cmprAlg, (uint8_t **)&pBlockData->aUid,
                           sizeof(int64_t) * hdr.nRow, &aBuf[0]);
     if (code) goto _exit;
   } else {
-    tAssert(!hdr.szUid);
+    ASSERT(!hdr.szUid);
   }
   n += hdr.szUid;
 
@@ -1544,7 +1544,7 @@ int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uin
   while (nt < hdr.szBlkCol) {
     SBlockCol blockCol = {0};
     nt += tGetBlockCol(pIn + n + nt, &blockCol);
-    tAssert(nt <= hdr.szBlkCol);
+    ASSERT(nt <= hdr.szBlkCol);
 
     SColData *pColData;
     code = tBlockDataAddColData(pBlockData, &pColData);
@@ -1632,7 +1632,7 @@ int32_t tsdbCmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, ui
                      int32_t *szOut, uint8_t **ppBuf) {
   int32_t code = 0;
 
-  tAssert(szIn > 0 && ppOut);
+  ASSERT(szIn > 0 && ppOut);
 
   if (cmprAlg == NO_COMPRESSION) {
     code = tRealloc(ppOut, nOut + szIn);
@@ -1647,7 +1647,7 @@ int32_t tsdbCmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, ui
     if (code) goto _exit;
 
     if (cmprAlg == TWO_STAGE_COMP) {
-      tAssert(ppBuf);
+      ASSERT(ppBuf);
       code = tRealloc(ppBuf, size);
       if (code) goto _exit;
     }
@@ -1672,7 +1672,7 @@ int32_t tsdbDecmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, 
   if (code) goto _exit;
 
   if (cmprAlg == NO_COMPRESSION) {
-    tAssert(szIn == szOut);
+    ASSERT(szIn == szOut);
     memcpy(*ppOut, pIn, szOut);
   } else {
     if (cmprAlg == TWO_STAGE_COMP) {
@@ -1687,7 +1687,7 @@ int32_t tsdbDecmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, 
       goto _exit;
     }
 
-    tAssert(size == szOut);
+    ASSERT(size == szOut);
   }
 
 _exit:
@@ -1698,7 +1698,7 @@ int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol
                         uint8_t **ppBuf) {
   int32_t code = 0;
 
-  tAssert(pColData->flag && (pColData->flag != HAS_NONE) && (pColData->flag != HAS_NULL));
+  ASSERT(pColData->flag && (pColData->flag != HAS_NONE) && (pColData->flag != HAS_NULL));
 
   pBlockCol->szBitmap = 0;
   pBlockCol->szOffset = 0;
@@ -1744,8 +1744,8 @@ int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, in
                           uint8_t **ppBuf) {
   int32_t code = 0;
 
-  tAssert(pColData->cid == pBlockCol->cid);
-  tAssert(pColData->type == pBlockCol->type);
+  ASSERT(pColData->cid == pBlockCol->cid);
+  ASSERT(pColData->type == pBlockCol->type);
   pColData->smaOn = pBlockCol->smaOn;
   pColData->flag = pBlockCol->flag;
   pColData->nVal = nVal;

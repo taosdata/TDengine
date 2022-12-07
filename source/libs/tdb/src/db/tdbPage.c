@@ -43,9 +43,9 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   u8    *ptr;
   int    size;
 
-  tAssert(xMalloc);
+  ASSERT(xMalloc);
 
-  tAssert(TDB_IS_PGSIZE_VLD(pageSize));
+  ASSERT(TDB_IS_PGSIZE_VLD(pageSize));
 
   *ppPage = NULL;
   size = pageSize + sizeof(*pPage);
@@ -77,8 +77,8 @@ int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg)
   u8 *ptr;
 
   tdbTrace("page/destroy: %p/%d %p", pPage, pPage->id, xFree);
-  tAssert(!pPage->isDirty);
-  tAssert(xFree);
+  ASSERT(!pPage->isDirty);
+  ASSERT(xFree);
 
   for (int iOvfl = 0; iOvfl < pPage->nOverflow; iOvfl++) {
     tdbTrace("tdbPage/destroy/free ovfl cell: %p/%p", pPage->apOvfl[iOvfl], pPage);
@@ -105,7 +105,7 @@ void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell
   pPage->nOverflow = 0;
   pPage->xCellSize = xCellSize;
 
-  tAssert((u8 *)pPage->pPageFtr == pPage->pFreeEnd);
+  ASSERT((u8 *)pPage->pPageFtr == pPage->pFreeEnd);
 }
 
 void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt)) {
@@ -118,8 +118,8 @@ void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell
   pPage->nOverflow = 0;
   pPage->xCellSize = xCellSize;
 
-  tAssert(pPage->pFreeEnd >= pPage->pFreeStart);
-  tAssert(pPage->pFreeEnd - pPage->pFreeStart <= TDB_PAGE_NFREE(pPage));
+  ASSERT(pPage->pFreeEnd >= pPage->pFreeStart);
+  ASSERT(pPage->pFreeEnd - pPage->pFreeStart <= TDB_PAGE_NFREE(pPage));
 }
 
 int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl) {
@@ -129,7 +129,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
   int    lidx;  // local idx
   SCell *pNewCell;
 
-  tAssert(szCell <= TDB_PAGE_MAX_FREE_BLOCK(pPage, pPage->pPageHdr - pPage->pData));
+  ASSERT(szCell <= TDB_PAGE_MAX_FREE_BLOCK(pPage, pPage->pPageHdr - pPage->pData));
 
   nFree = TDB_PAGE_NFREE(pPage);
   nCells = TDB_PAGE_NCELLS(pPage);
@@ -173,7 +173,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
     TDB_PAGE_CELL_OFFSET_AT_SET(pPage, lidx, pNewCell - pPage->pData);
     TDB_PAGE_NCELLS_SET(pPage, nCells + 1);
 
-    tAssert(pPage->pFreeStart == pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * (nCells + 1));
+    ASSERT(pPage->pFreeStart == pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * (nCells + 1));
   }
 
   for (; iOvfl < pPage->nOverflow; iOvfl++) {
@@ -197,7 +197,7 @@ int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
 
   nCells = TDB_PAGE_NCELLS(pPage);
 
-  tAssert(idx >= 0 && idx < nCells + pPage->nOverflow);
+  ASSERT(idx >= 0 && idx < nCells + pPage->nOverflow);
 
   iOvfl = 0;
   for (; iOvfl < pPage->nOverflow; iOvfl++) {
@@ -225,7 +225,7 @@ int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
 
   for (; iOvfl < pPage->nOverflow; iOvfl++) {
     pPage->aiOvfl[iOvfl]--;
-    tAssert(pPage->aiOvfl[iOvfl] > 0);
+    ASSERT(pPage->aiOvfl[iOvfl] > 0);
   }
 
   return 0;
@@ -237,12 +237,12 @@ void tdbPageCopy(SPage *pFromPage, SPage *pToPage, int deepCopyOvfl) {
   pToPage->pFreeStart = pToPage->pPageHdr + (pFromPage->pFreeStart - pFromPage->pPageHdr);
   pToPage->pFreeEnd = (u8 *)(pToPage->pPageFtr) - ((u8 *)pFromPage->pPageFtr - pFromPage->pFreeEnd);
 
-  tAssert(pToPage->pFreeEnd >= pToPage->pFreeStart);
+  ASSERT(pToPage->pFreeEnd >= pToPage->pFreeStart);
 
   memcpy(pToPage->pPageHdr, pFromPage->pPageHdr, pFromPage->pFreeStart - pFromPage->pPageHdr);
   memcpy(pToPage->pFreeEnd, pFromPage->pFreeEnd, (u8 *)pFromPage->pPageFtr - pFromPage->pFreeEnd);
 
-  tAssert(TDB_PAGE_CCELLS(pToPage) == pToPage->pFreeEnd - pToPage->pData);
+  ASSERT(TDB_PAGE_CCELLS(pToPage) == pToPage->pFreeEnd - pToPage->pData);
 
   delta = (pToPage->pPageHdr - pToPage->pData) - (pFromPage->pPageHdr - pFromPage->pData);
   if (delta != 0) {
@@ -292,8 +292,8 @@ static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
   *ppCell = NULL;
   nFree = TDB_PAGE_NFREE(pPage);
 
-  tAssert(nFree >= szCell + TDB_PAGE_OFFSET_SIZE(pPage));
-  tAssert(TDB_PAGE_CCELLS(pPage) == pPage->pFreeEnd - pPage->pData);
+  ASSERT(nFree >= szCell + TDB_PAGE_OFFSET_SIZE(pPage));
+  ASSERT(TDB_PAGE_CCELLS(pPage) == pPage->pFreeEnd - pPage->pData);
 
   // 1. Try to allocate from the free space block area
   if (pPage->pFreeEnd - pPage->pFreeStart >= szCell + TDB_PAGE_OFFSET_SIZE(pPage)) {
@@ -305,7 +305,7 @@ static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
 
   // 2. Try to allocate from the page free list
   cellFree = TDB_PAGE_FCELL(pPage);
-  tAssert(cellFree == 0 || cellFree >= pPage->pFreeEnd - pPage->pData);
+  ASSERT(cellFree == 0 || cellFree >= pPage->pFreeEnd - pPage->pData);
   if (cellFree && pPage->pFreeEnd - pPage->pFreeStart >= TDB_PAGE_OFFSET_SIZE(pPage)) {
     SCell *pPrevFreeCell = NULL;
     int    szPrevFreeCell;
@@ -350,16 +350,16 @@ static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
 
   // 3. Try to dfragment and allocate again
   tdbPageDefragment(pPage);
-  tAssert(pPage->pFreeEnd - pPage->pFreeStart == nFree);
-  tAssert(nFree == TDB_PAGE_NFREE(pPage));
-  tAssert(pPage->pFreeEnd - pPage->pData == TDB_PAGE_CCELLS(pPage));
+  ASSERT(pPage->pFreeEnd - pPage->pFreeStart == nFree);
+  ASSERT(nFree == TDB_PAGE_NFREE(pPage));
+  ASSERT(pPage->pFreeEnd - pPage->pData == TDB_PAGE_CCELLS(pPage));
 
   pPage->pFreeEnd -= szCell;
   pCell = pPage->pFreeEnd;
   TDB_PAGE_CCELLS_SET(pPage, pPage->pFreeEnd - pPage->pData);
 
 _alloc_finish:
-  tAssert(pCell);
+  ASSERT(pCell);
   pPage->pFreeStart += TDB_PAGE_OFFSET_SIZE(pPage);
   TDB_PAGE_NFREE_SET(pPage, nFree - szCell - TDB_PAGE_OFFSET_SIZE(pPage));
   *ppCell = pCell;
@@ -372,9 +372,9 @@ static int tdbPageFree(SPage *pPage, int idx, SCell *pCell, int szCell) {
   u8 *dest;
   u8 *src;
 
-  tAssert(pCell >= pPage->pFreeEnd);
-  tAssert(pCell + szCell <= (u8 *)(pPage->pPageFtr));
-  tAssert(pCell == TDB_PAGE_CELL_AT(pPage, idx));
+  ASSERT(pCell >= pPage->pFreeEnd);
+  ASSERT(pCell + szCell <= (u8 *)(pPage->pPageFtr));
+  ASSERT(pCell == TDB_PAGE_CELL_AT(pPage, idx));
 
   nFree = TDB_PAGE_NFREE(pPage);
 
@@ -387,7 +387,7 @@ static int tdbPageFree(SPage *pPage, int idx, SCell *pCell, int szCell) {
       pPage->pPageMethods->setFreeCellInfo(pCell, szCell, cellFree);
       TDB_PAGE_FCELL_SET(pPage, pCell - pPage->pData);
     } else {
-      tAssert(0);
+      ASSERT(0);
     }
   }
 
@@ -414,7 +414,7 @@ static int tdbPageDefragment(SPage *pPage) {
   nFree = TDB_PAGE_NFREE(pPage);
   nCells = TDB_PAGE_NCELLS(pPage);
 
-  tAssert(pPage->pFreeEnd - pPage->pFreeStart < nFree);
+  ASSERT(pPage->pFreeEnd - pPage->pFreeStart < nFree);
 
   // Loop to compact the page content
   // Here we use an O(n^2) algorithm to do the job since
@@ -440,11 +440,11 @@ static int tdbPageDefragment(SPage *pPage) {
       }
     }
 
-    tAssert(pCell != NULL);
+    ASSERT(pCell != NULL);
 
     szCell = (*pPage->xCellSize)(pPage, pCell, 0, NULL, NULL);
 
-    tAssert(pCell + szCell <= pNextCell);
+    ASSERT(pCell + szCell <= pNextCell);
     if (pCell + szCell < pNextCell) {
       memmove(pNextCell - szCell, pCell, szCell);
     }
@@ -454,7 +454,7 @@ static int tdbPageDefragment(SPage *pPage) {
     TDB_PAGE_CELL_OFFSET_AT_SET(pPage, idx, pNextCell - pPage->pData);
   }
 
-  tAssert(pPage->pFreeEnd - pPage->pFreeStart == nFree);
+  ASSERT(pPage->pFreeEnd - pPage->pFreeStart == nFree);
   TDB_PAGE_CCELLS_SET(pPage, pPage->pFreeEnd - pPage->pData);
   TDB_PAGE_FCELL_SET(pPage, 0);
 
@@ -480,39 +480,39 @@ typedef struct {
 // cellNum
 static inline int  getPageCellNum(SPage *pPage) { return ((SPageHdr *)(pPage->pPageHdr))[0].cellNum; }
 static inline void setPageCellNum(SPage *pPage, int cellNum) {
-  tAssert(cellNum < 65536);
+  ASSERT(cellNum < 65536);
   ((SPageHdr *)(pPage->pPageHdr))[0].cellNum = (u16)cellNum;
 }
 
 // cellBody
 static inline int  getPageCellBody(SPage *pPage) { return ((SPageHdr *)(pPage->pPageHdr))[0].cellBody; }
 static inline void setPageCellBody(SPage *pPage, int cellBody) {
-  tAssert(cellBody < 65536);
+  ASSERT(cellBody < 65536);
   ((SPageHdr *)(pPage->pPageHdr))[0].cellBody = (u16)cellBody;
 }
 
 // cellFree
 static inline int  getPageCellFree(SPage *pPage) { return ((SPageHdr *)(pPage->pPageHdr))[0].cellFree; }
 static inline void setPageCellFree(SPage *pPage, int cellFree) {
-  tAssert(cellFree < 65536);
+  ASSERT(cellFree < 65536);
   ((SPageHdr *)(pPage->pPageHdr))[0].cellFree = (u16)cellFree;
 }
 
 // nFree
 static inline int  getPageNFree(SPage *pPage) { return ((SPageHdr *)(pPage->pPageHdr))[0].nFree; }
 static inline void setPageNFree(SPage *pPage, int nFree) {
-  tAssert(nFree < 65536);
+  ASSERT(nFree < 65536);
   ((SPageHdr *)(pPage->pPageHdr))[0].nFree = (u16)nFree;
 }
 
 // cell offset
 static inline int getPageCellOffset(SPage *pPage, int idx) {
-  tAssert(idx >= 0 && idx < getPageCellNum(pPage));
+  ASSERT(idx >= 0 && idx < getPageCellNum(pPage));
   return ((u16 *)pPage->pCellIdx)[idx];
 }
 
 static inline void setPageCellOffset(SPage *pPage, int idx, int offset) {
-  tAssert(offset < 65536);
+  ASSERT(offset < 65536);
   ((u16 *)pPage->pCellIdx)[idx] = (u16)offset;
 }
 
@@ -587,7 +587,7 @@ static inline void setLPageNFree(SPage *pPage, int nFree) {
 
 // cell offset
 static inline int getLPageCellOffset(SPage *pPage, int idx) {
-  tAssert(idx >= 0 && idx < getLPageCellNum(pPage));
+  ASSERT(idx >= 0 && idx < getLPageCellNum(pPage));
   return TDB_GET_U24(pPage->pCellIdx + 3 * idx);
 }
 

@@ -373,7 +373,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     pRsp->useconds = htobe64(pRsp->useconds);
     pRsp->numOfBlocks = htonl(pRsp->numOfBlocks);
 
-    tAssert(pRsp != NULL);
+    ASSERT(pRsp != NULL);
     qDebug("%s fetch rsp received, index:%d, blocks:%d, rows:%" PRId64 ", %p", pSourceDataInfo->taskId, index, pRsp->numOfBlocks,
            pRsp->numOfRows, pExchangeInfo);
   } else {
@@ -401,7 +401,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
   SSourceDataInfo*       pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, sourceIndex);
   pDataInfo->startTime = taosGetTimestampUs();
 
-  tAssert(pDataInfo->status == EX_SOURCE_DATA_NOT_READY);
+  ASSERT(pDataInfo->status == EX_SOURCE_DATA_NOT_READY);
 
   SFetchRspHandleWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SFetchRspHandleWrapper));
   pWrapper->exchangeId = pExchangeInfo->self;

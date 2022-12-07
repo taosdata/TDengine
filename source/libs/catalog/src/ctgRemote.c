@@ -40,7 +40,7 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
     msgNum = taosArrayGetSize(batchRsp.pRsps);
   }
   
-  tAssert(taskNum == msgNum || 0 == msgNum);
+  ASSERT(taskNum == msgNum || 0 == msgNum);
 
   ctgDebug("QID:0x%" PRIx64 " ctg got batch %d rsp %s", pJob->queryId, cbParam->batchId,
            TMSG_INFO(cbParam->reqType + 1));
@@ -62,7 +62,7 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
       taskMsg.pData = pRsp->msg;
       taskMsg.len = pRsp->msgLen;
 
-      tAssert(pRsp->msgIdx == *msgIdx);
+      ASSERT(pRsp->msgIdx == *msgIdx);
     } else {
       pRsp = &rsp;
       pRsp->msgIdx = *msgIdx;

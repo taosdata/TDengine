@@ -17,7 +17,6 @@
 #include "taoserror.h"
 #include "tdef.h"
 #include "tpagedbuf.h"
-#include "tlog.h"
 
 #define LHASH_CAP_RATIO 0.85
 
@@ -59,7 +58,7 @@ static int32_t doGetBucketIdFromHashVal(int32_t hashv, int32_t bits) { return ha
 
 static int32_t doGetAlternativeBucketId(int32_t bucketId, int32_t bits, int32_t numOfBuckets) {
   int32_t v = bucketId - (1ul << (bits - 1));
-  tAssert(v < numOfBuckets);
+  ASSERT(v < numOfBuckets);
   return v;
 }
 
@@ -85,11 +84,11 @@ static int32_t doAddToBucket(SLHashObj* pHashObj, SLHashBucket* pBucket, int32_t
   int32_t pageId = *(int32_t*)taosArrayGetLast(pBucket->pPageIdList);
 
   SFilePage* pPage = getBufPage(pHashObj->pBuf, pageId);
-  tAssert(pPage != NULL);
+  ASSERT(pPage != NULL);
 
   // put to current buf page
   size_t nodeSize = sizeof(SLHashNode) + keyLen + size;
-  tAssert(nodeSize + sizeof(SFilePage) <= getBufPageSize(pHashObj->pBuf));
+  ASSERT(nodeSize + sizeof(SFilePage) <= getBufPageSize(pHashObj->pBuf));
 
   if (pPage->num + nodeSize > getBufPageSize(pHashObj->pBuf)) {
     releaseBufPage(pHashObj->pBuf, pPage);
@@ -123,7 +122,7 @@ static int32_t doAddToBucket(SLHashObj* pHashObj, SLHashBucket* pBucket, int32_t
 }
 
 static void doRemoveFromBucket(SFilePage* pPage, SLHashNode* pNode, SLHashBucket* pBucket) {
-  tAssert(pPage != NULL && pNode != NULL && pBucket->size >= 1);
+  ASSERT(pPage != NULL && pNode != NULL && pBucket->size >= 1);
 
   int32_t len = GET_LHASH_NODE_LEN(pNode);
   char*   p = (char*)pNode + len;
@@ -172,7 +171,7 @@ static void doTrimBucketPages(SLHashObj* pHashObj, SLHashBucket* pBucket) {
       setBufPageDirty(pFirst, true);
       setBufPageDirty(pLast, true);
 
-      tAssert(pLast->num >= nodeSize + sizeof(SFilePage));
+      ASSERT(pLast->num >= nodeSize + sizeof(SFilePage));
 
       pFirst->num += nodeSize;
       pLast->num -= nodeSize;
@@ -301,7 +300,7 @@ void* tHashCleanup(SLHashObj* pHashObj) {
 }
 
 int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data, size_t size) {
-  tAssert(pHashObj != NULL && key != NULL);
+  ASSERT(pHashObj != NULL && key != NULL);
 
   if (pHashObj->bits == 0) {
     SLHashBucket* pBucket = pHashObj->pBucket[0];
@@ -337,7 +336,7 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
     int32_t numOfBits = ceil(log(pHashObj->numOfBuckets) / log(2));
     if (numOfBits > pHashObj->bits) {
       //      printf("extend the bits from %d to %d, new bucket:%d\n", pHashObj->bits, numOfBits, newBucketId);
-      tAssert(numOfBits == pHashObj->bits + 1);
+      ASSERT(numOfBits == pHashObj->bits + 1);
       pHashObj->bits = numOfBits;
     }
 
@@ -354,14 +353,14 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
       char* pStart = p->data;
       while (pStart - ((char*)p) < p->num) {
         SLHashNode* pNode = (SLHashNode*)pStart;
-        tAssert(pNode->keyLen > 0);
+        ASSERT(pNode->keyLen > 0);
 
         char*   k = GET_LHASH_NODE_KEY(pNode);
         int32_t hashv = pHashObj->hashFn(k, pNode->keyLen);
         int32_t v1 = doGetBucketIdFromHashVal(hashv, pHashObj->bits);
 
         if (v1 != splitBucketId) {  // place it into the new bucket
-          tAssert(v1 == newBucketId);
+          ASSERT(v1 == newBucketId);
           //          printf("move key:%d to 0x%x bucket, remain items:%d\n", *(int32_t*)k, v1, pBucket->size - 1);
 
           SLHashBucket* pNewBucket = pHashObj->pBucket[newBucketId];
@@ -385,7 +384,7 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
 }
 
 char* tHashGet(SLHashObj* pHashObj, const void* key, size_t keyLen) {
-  tAssert(pHashObj != NULL && key != NULL && keyLen > 0);
+  ASSERT(pHashObj != NULL && key != NULL && keyLen > 0);
   int32_t hashv = pHashObj->hashFn(key, keyLen);
 
   int32_t bucketId = doGetBucketIdFromHashVal(hashv, pHashObj->bits);

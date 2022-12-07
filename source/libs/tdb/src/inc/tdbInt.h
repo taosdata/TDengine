@@ -310,7 +310,7 @@ static inline int tdbTryLockPage(tdb_spinlock_t *pLock) {
   } else if (ret == EBUSY) {
     return P_LOCK_BUSY;
   } else {
-    tAssert(0);
+    ASSERT(0);
     return P_LOCK_FAIL;
   }
 }
@@ -345,7 +345,7 @@ static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
   int    iOvfl;
   int    lidx;
 
-  tAssert(idx >= 0 && idx < TDB_PAGE_TOTAL_CELLS(pPage));
+  ASSERT(idx >= 0 && idx < TDB_PAGE_TOTAL_CELLS(pPage));
 
   iOvfl = 0;
   for (; iOvfl < pPage->nOverflow; iOvfl++) {
@@ -358,7 +358,7 @@ static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
   }
 
   lidx = idx - iOvfl;
-  tAssert(lidx >= 0 && lidx < pPage->pPageMethods->getCellNum(pPage));
+  ASSERT(lidx >= 0 && lidx < pPage->pPageMethods->getCellNum(pPage));
   pCell = pPage->pData + pPage->pPageMethods->getCellOffset(pPage, lidx);
 
   return pCell;

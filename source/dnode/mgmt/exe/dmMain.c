@@ -201,12 +201,7 @@ int mainWindows(int argc, char **argv) {
     return -1;
   }
 
-  if (taosConvInit() != 0) {
-    dError("failed to init conv");
-    taosCloseLog();
-    taosCleanupArgs();
-    return -1;
-  }
+  taosConvInit();
 
   if (global.dumpConfig) {
     dmDumpCfg();

@@ -20,7 +20,6 @@
 #include "scalar.h"
 #include "taoserror.h"
 #include "ttime.h"
-#include "tlog.h"
 
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
   va_list vArgList;
@@ -1010,7 +1009,7 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
       intervals[0] = -INFINITY;
       intervals[numOfBins - 1] = INFINITY;
       // in case of desc bin orders, -inf/inf should be swapped
-      tAssert(numOfBins >= 4);
+      ASSERT(numOfBins >= 4);
       if (intervals[1] > intervals[numOfBins - 2]) {
         TSWAP(intervals[0], intervals[numOfBins - 1]);
       }
@@ -1355,7 +1354,7 @@ static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     } else if (IS_FLOAT_TYPE(colType)) {
       resType = TSDB_DATA_TYPE_DOUBLE;
     } else {
-      tAssert(0);
+      ASSERT(0);
     }
   }
 

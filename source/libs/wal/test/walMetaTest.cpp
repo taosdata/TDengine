@@ -12,7 +12,7 @@ class WalCleanEnv : public ::testing::Test {
  protected:
   static void SetUpTestCase() {
     int code = walInit();
-    tAssert(code == 0);
+    ASSERT(code == 0);
   }
 
   static void TearDownTestCase() { walCleanUp(); }
@@ -28,7 +28,7 @@ class WalCleanEnv : public ::testing::Test {
     pCfg->level = TAOS_WAL_FSYNC;
     pWal = walOpen(pathName, pCfg);
     taosMemoryFree(pCfg);
-    tAssert(pWal != NULL);
+    ASSERT(pWal != NULL);
   }
 
   void TearDown() override {
@@ -44,7 +44,7 @@ class WalCleanDeleteEnv : public ::testing::Test {
  protected:
   static void SetUpTestCase() {
     int code = walInit();
-    tAssert(code == 0);
+    ASSERT(code == 0);
   }
 
   static void TearDownTestCase() { walCleanUp(); }
@@ -58,7 +58,7 @@ class WalCleanDeleteEnv : public ::testing::Test {
     pCfg->level = TAOS_WAL_FSYNC;
     pWal = walOpen(pathName, pCfg);
     taosMemoryFree(pCfg);
-    tAssert(pWal != NULL);
+    ASSERT(pWal != NULL);
   }
 
   void TearDown() override {
@@ -74,7 +74,7 @@ class WalKeepEnv : public ::testing::Test {
  protected:
   static void SetUpTestCase() {
     int code = walInit();
-    tAssert(code == 0);
+    ASSERT(code == 0);
   }
 
   static void TearDownTestCase() { walCleanUp(); }
@@ -95,7 +95,7 @@ class WalKeepEnv : public ::testing::Test {
     pCfg->level = TAOS_WAL_FSYNC;
     pWal = walOpen(pathName, pCfg);
     taosMemoryFree(pCfg);
-    tAssert(pWal != NULL);
+    ASSERT(pWal != NULL);
   }
 
   void TearDown() override {
@@ -111,7 +111,7 @@ class WalRetentionEnv : public ::testing::Test {
  protected:
   static void SetUpTestCase() {
     int code = walInit();
-    tAssert(code == 0);
+    ASSERT(code == 0);
   }
 
   static void TearDownTestCase() { walCleanUp(); }
@@ -132,7 +132,7 @@ class WalRetentionEnv : public ::testing::Test {
     cfg.vgId = 0;
     cfg.level = TAOS_WAL_FSYNC;
     pWal = walOpen(pathName, &cfg);
-    tAssert(pWal != NULL);
+    ASSERT(pWal != NULL);
   }
 
   void TearDown() override {
@@ -146,7 +146,7 @@ class WalRetentionEnv : public ::testing::Test {
 
 TEST_F(WalCleanEnv, createNew) {
   walRollFileInfo(pWal);
-  tAssert(pWal->fileInfoSet != NULL);
+  ASSERT(pWal->fileInfoSet != NULL);
   ASSERT_EQ(pWal->fileInfoSet->size, 1);
   SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
   ASSERT_EQ(pInfo->firstVer, 0);
@@ -157,36 +157,36 @@ TEST_F(WalCleanEnv, createNew) {
 
 TEST_F(WalCleanEnv, serialize) {
   int code = walRollFileInfo(pWal);
-  tAssert(code == 0);
-  tAssert(pWal->fileInfoSet != NULL);
+  ASSERT(code == 0);
+  ASSERT(pWal->fileInfoSet != NULL);
 
   code = walRollFileInfo(pWal);
-  tAssert(code == 0);
+  ASSERT(code == 0);
   code = walRollFileInfo(pWal);
-  tAssert(code == 0);
+  ASSERT(code == 0);
   code = walRollFileInfo(pWal);
-  tAssert(code == 0);
+  ASSERT(code == 0);
   code = walRollFileInfo(pWal);
-  tAssert(code == 0);
+  ASSERT(code == 0);
   code = walRollFileInfo(pWal);
-  tAssert(code == 0);
+  ASSERT(code == 0);
   char* ss = walMetaSerialize(pWal);
   printf("%s\n", ss);
   taosMemoryFree(ss);
   code = walSaveMeta(pWal);
-  tAssert(code == 0);
+  ASSERT(code == 0);
 }
 
 TEST_F(WalCleanEnv, removeOldMeta) {
   int code = walRollFileInfo(pWal);
-  tAssert(code == 0);
-  tAssert(pWal->fileInfoSet != NULL);
+  ASSERT(code == 0);
+  ASSERT(pWal->fileInfoSet != NULL);
   code = walSaveMeta(pWal);
-  tAssert(code == 0);
+  ASSERT(code == 0);
   code = walRollFileInfo(pWal);
-  tAssert(code == 0);
+  ASSERT(code == 0);
   code = walSaveMeta(pWal);
-  tAssert(code == 0);
+  ASSERT(code == 0);
 }
 
 TEST_F(WalKeepEnv, readOldMeta) {
@@ -327,7 +327,7 @@ TEST_F(WalKeepEnv, readHandleRead) {
   walResetEnv();
   int         code;
   SWalReader* pRead = walOpenReader(pWal, NULL);
-  tAssert(pRead != NULL);
+  ASSERT(pRead != NULL);
 
   int i;
   for (i = 0; i < 100; i++) {
@@ -388,7 +388,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
   ASSERT_EQ(pWal->vers.lastVer, 99);
 
   SWalReader* pRead = walOpenReader(pWal, NULL);
-  tAssert(pRead != NULL);
+  ASSERT(pRead != NULL);
 
   for (int i = 0; i < 1000; i++) {
     int ver = taosRand() % 100;

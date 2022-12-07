@@ -193,7 +193,7 @@ static void tRSmaInfoHashFreeNode(void *data) {
 }
 
 static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pSma) {
-  tAssert(pSmaStat != NULL);
+  ASSERT(pSmaStat != NULL);
 
   if (*pSmaStat) {  // no lock
     return TSDB_CODE_SUCCESS;
@@ -250,7 +250,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
     } else if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
       // TODO
     } else {
-      tAssert(0);
+      ASSERT(0);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -342,7 +342,7 @@ static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
         smaDebug("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " succeed", vid, refId, smaMgmt.rsetId);
       }
     } else {
-      tAssert(0);
+      ASSERT(0);
     }
   }
   return 0;
@@ -360,7 +360,7 @@ int32_t tdLockSma(SSma *pSma) {
 }
 
 int32_t tdUnLockSma(SSma *pSma) {
-  tAssert(SMA_LOCKED(pSma));
+  ASSERT(SMA_LOCKED(pSma));
   pSma->locked = false;
   int code = taosThreadMutexUnlock(&pSma->mutex);
   if (code != 0) {

@@ -19,7 +19,7 @@ SyncAppendEntriesReply *createMsg() {
   pMsg->success = true;
   pMsg->matchIndex = 77;
   pMsg->term = 33;
-  // pMsg->privateTerm = 44;
+  pMsg->privateTerm = 44;
   pMsg->startTime = taosGetTimestampMs();
   return pMsg;
 }

@@ -48,11 +48,11 @@ static void    syncIOTickPing(void *param, void *tmrId);
 int32_t syncIOStart(char *host, uint16_t port) {
   int32_t ret = 0;
   gSyncIO = syncIOCreate(host, port);
-  tAssert(gSyncIO != NULL);
+  ASSERT(gSyncIO != NULL);
 
   taosSeedRand(taosGetTimestampSec());
   ret = syncIOStartInternal(gSyncIO);
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
 
   sTrace("syncIOStart ok, gSyncIO:%p", gSyncIO);
   return ret;
@@ -60,16 +60,16 @@ int32_t syncIOStart(char *host, uint16_t port) {
 
 int32_t syncIOStop() {
   int32_t ret = syncIOStopInternal(gSyncIO);
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
 
   ret = syncIODestroy(gSyncIO);
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
   return ret;
 }
 
 int32_t syncIOSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  tAssert(pEpSet->inUse == 0);
-  tAssert(pEpSet->numOfEps == 1);
+  ASSERT(pEpSet->inUse == 0);
+  ASSERT(pEpSet->numOfEps == 1);
 
   int32_t ret = 0;
   {
@@ -108,25 +108,25 @@ int32_t syncIOEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
 
 int32_t syncIOQTimerStart() {
   int32_t ret = syncIOStartQ(gSyncIO);
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
   return ret;
 }
 
 int32_t syncIOQTimerStop() {
   int32_t ret = syncIOStopQ(gSyncIO);
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
   return ret;
 }
 
 int32_t syncIOPingTimerStart() {
   int32_t ret = syncIOStartPing(gSyncIO);
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
   return ret;
 }
 
 int32_t syncIOPingTimerStop() {
   int32_t ret = syncIOStopPing(gSyncIO);
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
   return ret;
 }
 
@@ -152,7 +152,7 @@ static SSyncIO *syncIOCreate(char *host, uint16_t port) {
 static int32_t syncIODestroy(SSyncIO *io) {
   int32_t ret = 0;
   int8_t  start = atomic_load_8(&io->isStart);
-  tAssert(start == 0);
+  ASSERT(start == 0);
 
   if (io->serverRpc != NULL) {
     rpcClose(io->serverRpc);
@@ -265,7 +265,7 @@ static void *syncIOConsumerFunc(void *param) {
       if (pRpcMsg->msgType == TDMT_SYNC_PING) {
         if (io->FpOnSyncPing != NULL) {
           SyncPing *pSyncMsg = syncPingFromRpcMsg2(pRpcMsg);
-          tAssert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncPing(io->pSyncNode, pSyncMsg);
           syncPingDestroy(pSyncMsg);
         }
@@ -273,7 +273,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == TDMT_SYNC_PING_REPLY) {
         if (io->FpOnSyncPingReply != NULL) {
           SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pRpcMsg);
-          tAssert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncPingReply(io->pSyncNode, pSyncMsg);
           syncPingReplyDestroy(pSyncMsg);
         }
@@ -286,7 +286,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
         if (io->FpOnSyncRequestVote != NULL) {
           SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pRpcMsg);
-          tAssert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncRequestVote(io->pSyncNode, pSyncMsg);
           syncRequestVoteDestroy(pSyncMsg);
         }
@@ -294,7 +294,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
         if (io->FpOnSyncRequestVoteReply != NULL) {
           SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pRpcMsg);
-          tAssert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncRequestVoteReply(io->pSyncNode, pSyncMsg);
           syncRequestVoteReplyDestroy(pSyncMsg);
         }
@@ -302,7 +302,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
         if (io->FpOnSyncAppendEntries != NULL) {
           SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pRpcMsg);
-          tAssert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncAppendEntries(io->pSyncNode, pSyncMsg);
           syncAppendEntriesDestroy(pSyncMsg);
         }
@@ -310,7 +310,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
         if (io->FpOnSyncAppendEntriesReply != NULL) {
           SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pRpcMsg);
-          tAssert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncAppendEntriesReply(io->pSyncNode, pSyncMsg);
           syncAppendEntriesReplyDestroy(pSyncMsg);
         }
@@ -318,7 +318,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == TDMT_SYNC_TIMEOUT) {
         if (io->FpOnSyncTimeout != NULL) {
           SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pRpcMsg);
-          tAssert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncTimeout(io->pSyncNode, pSyncMsg);
           syncTimeoutDestroy(pSyncMsg);
         }
@@ -326,7 +326,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
         if (io->FpOnSyncSnapshot != NULL) {
           SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pRpcMsg);
-          tAssert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncSnapshot(io->pSyncNode, pSyncMsg);
           syncSnapshotSendDestroy(pSyncMsg);
         }
@@ -334,7 +334,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
         if (io->FpOnSyncSnapshotReply != NULL) {
           SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pRpcMsg);
-          tAssert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncSnapshotReply(io->pSyncNode, pSyncMsg);
           syncSnapshotRspDestroy(pSyncMsg);
         }
@@ -469,5 +469,3 @@ static void syncIOTickPing(void *param, void *tmrId) {
 
   taosTmrReset(syncIOTickPing, io->pingTimerMS, io, io->timerMgr, &io->pingTimer);
 }
-
-void syncEntryDestory(SSyncRaftEntry* pEntry) {}

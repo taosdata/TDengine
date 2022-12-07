@@ -49,7 +49,7 @@ static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
 }
 
 SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn) {
-  tAssert(fn != NULL);
+  ASSERT(fn != NULL);
 
   if (capacity == 0) {
     capacity = 4;
@@ -66,7 +66,7 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn) {
 
   pHashObj->equalFp = memcmp;
   pHashObj->hashFp = fn;
-  tAssert((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
+  ASSERT((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
 
   pHashObj->hashList = (SHNode **)taosMemoryCalloc(pHashObj->capacity, sizeof(void *));
   if (!pHashObj->hashList) {
@@ -214,7 +214,7 @@ static FORCE_INLINE SHNode *doSearchInEntryList(SSHashObj *pHashObj, const void 
   SHNode *pNode = pHashObj->hashList[index];
   while (pNode) {
     const char* p = GET_SHASH_NODE_KEY(pNode, pNode->dataLen);
-    tAssert(keyLen > 0);
+    ASSERT(keyLen > 0);
 
     if (pNode->keyLen == keyLen && ((*(pHashObj->equalFp))(p, key, keyLen) == 0)) {
       break;

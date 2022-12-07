@@ -34,34 +34,34 @@ SRaftStore *raftStoreOpen(const char *path) {
   snprintf(pRaftStore->path, sizeof(pRaftStore->path), "%s", path);
   if (!raftStoreFileExist(pRaftStore->path)) {
     ret = raftStoreInit(pRaftStore);
-    tAssert(ret == 0);
+    ASSERT(ret == 0);
   }
 
   char storeBuf[RAFT_STORE_BLOCK_SIZE] = {0};
   pRaftStore->pFile = taosOpenFile(path, TD_FILE_READ | TD_FILE_WRITE);
-  tAssert(pRaftStore->pFile != NULL);
+  ASSERT(pRaftStore->pFile != NULL);
 
   int len = taosReadFile(pRaftStore->pFile, storeBuf, RAFT_STORE_BLOCK_SIZE);
-  tAssert(len > 0);
+  ASSERT(len > 0);
 
   ret = raftStoreDeserialize(pRaftStore, storeBuf, len);
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
 
   return pRaftStore;
 }
 
 static int32_t raftStoreInit(SRaftStore *pRaftStore) {
-  tAssert(pRaftStore != NULL);
+  ASSERT(pRaftStore != NULL);
 
   pRaftStore->pFile = taosOpenFile(pRaftStore->path, TD_FILE_CREATE | TD_FILE_WRITE);
-  tAssert(pRaftStore->pFile != NULL);
+  ASSERT(pRaftStore->pFile != NULL);
 
   pRaftStore->currentTerm = 0;
   pRaftStore->voteFor.addr = 0;
   pRaftStore->voteFor.vgId = 0;
 
   int32_t ret = raftStorePersist(pRaftStore);
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
 
   taosCloseFile(&pRaftStore->pFile);
   return 0;
@@ -77,17 +77,17 @@ int32_t raftStoreClose(SRaftStore *pRaftStore) {
 }
 
 int32_t raftStorePersist(SRaftStore *pRaftStore) {
-  tAssert(pRaftStore != NULL);
+  ASSERT(pRaftStore != NULL);
 
   int32_t ret;
   char    storeBuf[RAFT_STORE_BLOCK_SIZE] = {0};
   ret = raftStoreSerialize(pRaftStore, storeBuf, sizeof(storeBuf));
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
 
   taosLSeekFile(pRaftStore->pFile, 0, SEEK_SET);
 
   ret = taosWriteFile(pRaftStore->pFile, storeBuf, sizeof(storeBuf));
-  tAssert(ret == RAFT_STORE_BLOCK_SIZE);
+  ASSERT(ret == RAFT_STORE_BLOCK_SIZE);
 
   taosFsyncFile(pRaftStore->pFile);
   return 0;
@@ -99,7 +99,7 @@ static bool raftStoreFileExist(char *path) {
 }
 
 int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len) {
-  tAssert(pRaftStore != NULL);
+  ASSERT(pRaftStore != NULL);
 
   cJSON *pRoot = cJSON_CreateObject();
 
@@ -121,7 +121,7 @@ int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len) {
 
   char *serialized = cJSON_Print(pRoot);
   int   len2 = strlen(serialized);
-  tAssert(len2 < len);
+  ASSERT(len2 < len);
   memset(buf, 0, len);
   snprintf(buf, len, "%s", serialized);
   taosMemoryFree(serialized);
@@ -131,17 +131,17 @@ int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len) {
 }
 
 int32_t raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len) {
-  tAssert(pRaftStore != NULL);
+  ASSERT(pRaftStore != NULL);
 
-  tAssert(len > 0 && len <= RAFT_STORE_BLOCK_SIZE);
+  ASSERT(len > 0 && len <= RAFT_STORE_BLOCK_SIZE);
   cJSON *pRoot = cJSON_Parse(buf);
 
   cJSON *pCurrentTerm = cJSON_GetObjectItem(pRoot, "current_term");
-  tAssert(cJSON_IsString(pCurrentTerm));
+  ASSERT(cJSON_IsString(pCurrentTerm));
   sscanf(pCurrentTerm->valuestring, "%" PRIu64 "", &(pRaftStore->currentTerm));
 
   cJSON *pVoteForAddr = cJSON_GetObjectItem(pRoot, "vote_for_addr");
-  tAssert(cJSON_IsString(pVoteForAddr));
+  ASSERT(cJSON_IsString(pVoteForAddr));
   sscanf(pVoteForAddr->valuestring, "%" PRIu64 "", &(pRaftStore->voteFor.addr));
 
   cJSON *pVoteForVgid = cJSON_GetObjectItem(pRoot, "vote_for_vgid");
@@ -157,7 +157,7 @@ bool raftStoreHasVoted(SRaftStore *pRaftStore) {
 }
 
 void raftStoreVote(SRaftStore *pRaftStore, SRaftId *pRaftId) {
-  tAssert(!syncUtilEmptyId(pRaftId));
+  ASSERT(!syncUtilEmptyId(pRaftId));
   pRaftStore->voteFor = *pRaftId;
   raftStorePersist(pRaftStore);
 }

@@ -90,8 +90,8 @@ typedef struct STbVerInfo {
 } STbVerInfo;
 
 /*
- * tAssert(sizeof(SCTableMeta) == 24)
- * tAssert(tableType == TSDB_CHILD_TABLE)
+ * ASSERT(sizeof(SCTableMeta) == 24)
+ * ASSERT(tableType == TSDB_CHILD_TABLE)
  * The cached child table meta info. For each child table, 24 bytes are required to keep the essential table info.
  */
 typedef struct SCTableMeta {

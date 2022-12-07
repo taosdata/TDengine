@@ -46,7 +46,7 @@ static void *tdDecodeTFInfo(void *buf, STFInfo *pInfo) {
 }
 
 int64_t tdWriteTFile(STFile *pTFile, void *buf, int64_t nbyte) {
-  tAssert(TD_TFILE_OPENED(pTFile));
+  ASSERT(TD_TFILE_OPENED(pTFile));
 
   int64_t nwrite = taosWriteFile(pTFile->pFile, buf, nbyte);
   if (nwrite < nbyte) {
@@ -58,7 +58,7 @@ int64_t tdWriteTFile(STFile *pTFile, void *buf, int64_t nbyte) {
 }
 
 int64_t tdSeekTFile(STFile *pTFile, int64_t offset, int whence) {
-  tAssert(TD_TFILE_OPENED(pTFile));
+  ASSERT(TD_TFILE_OPENED(pTFile));
 
   int64_t loffset = taosLSeekFile(TD_TFILE_PFILE(pTFile), offset, whence);
   if (loffset < 0) {
@@ -70,12 +70,12 @@ int64_t tdSeekTFile(STFile *pTFile, int64_t offset, int whence) {
 }
 
 int64_t tdGetTFileSize(STFile *pTFile, int64_t *size) {
-  tAssert(TD_TFILE_OPENED(pTFile));
+  ASSERT(TD_TFILE_OPENED(pTFile));
   return taosFStatFile(pTFile->pFile, size, NULL);
 }
 
 int64_t tdReadTFile(STFile *pTFile, void *buf, int64_t nbyte) {
-  tAssert(TD_TFILE_OPENED(pTFile));
+  ASSERT(TD_TFILE_OPENED(pTFile));
 
   int64_t nread = taosReadFile(pTFile->pFile, buf, nbyte);
   if (nread < 0) {
@@ -108,7 +108,7 @@ int32_t tdLoadTFileHeader(STFile *pTFile, STFInfo *pInfo) {
   char     buf[TD_FILE_HEAD_SIZE] = "\0";
   uint32_t _version;
 
-  tAssert(TD_TFILE_OPENED(pTFile));
+  ASSERT(TD_TFILE_OPENED(pTFile));
 
   if (tdSeekTFile(pTFile, 0, SEEK_SET) < 0) {
     return -1;
@@ -133,7 +133,7 @@ void tdUpdateTFileMagic(STFile *pTFile, void *pCksm) {
 }
 
 int64_t tdAppendTFile(STFile *pTFile, void *buf, int64_t nbyte, int64_t *offset) {
-  tAssert(TD_TFILE_OPENED(pTFile));
+  ASSERT(TD_TFILE_OPENED(pTFile));
 
   int64_t toffset;
 
@@ -146,7 +146,7 @@ int64_t tdAppendTFile(STFile *pTFile, void *buf, int64_t nbyte, int64_t *offset)
            toffset, nbyte, toffset + nbyte);
 #endif
 
-  tAssert(pTFile->info.fsize == toffset);
+  ASSERT(pTFile->info.fsize == toffset);
 
   if (offset) {
     *offset = toffset;
@@ -162,7 +162,7 @@ int64_t tdAppendTFile(STFile *pTFile, void *buf, int64_t nbyte, int64_t *offset)
 }
 
 int32_t tdOpenTFile(STFile *pTFile, int flags) {
-  tAssert(!TD_TFILE_OPENED(pTFile));
+  ASSERT(!TD_TFILE_OPENED(pTFile));
 
   pTFile->pFile = taosOpenFile(TD_TFILE_FULL_NAME(pTFile), flags);
   if (pTFile->pFile == NULL) {
@@ -245,7 +245,7 @@ int32_t tdInitTFile(STFile *pTFile, const char *dname, const char *fname) {
 }
 
 int32_t tdCreateTFile(STFile *pTFile, bool updateHeader, int8_t fType) {
-  tAssert(pTFile->info.fsize == 0 && pTFile->info.magic == TD_FILE_INIT_MAGIC);
+  ASSERT(pTFile->info.fsize == 0 && pTFile->info.magic == TD_FILE_INIT_MAGIC);
   pTFile->pFile = taosOpenFile(TD_TFILE_FULL_NAME(pTFile), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pTFile->pFile == NULL) {
     if (errno == ENOENT) {

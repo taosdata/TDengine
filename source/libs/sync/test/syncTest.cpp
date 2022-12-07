@@ -1,5 +1,5 @@
 #include "syncTest.h"
-// #include <gtest/gtest.h>
+#include <gtest/gtest.h>
 
 /*
 typedef enum {

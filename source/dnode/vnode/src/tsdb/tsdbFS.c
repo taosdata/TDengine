@@ -82,7 +82,7 @@ static int32_t tsdbBinaryToFS(uint8_t *pData, int64_t nData, STsdbFS *pFS) {
     }
   }
 
-  tAssert(n + sizeof(TSCKSUM) == nData);
+  ASSERT(n + sizeof(TSCKSUM) == nData);
 
 _exit:
   return code;
@@ -512,7 +512,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
   // stt
   if (sameDisk) {
     if (pSetNew->nSttF > pSetOld->nSttF) {
-      tAssert(pSetNew->nSttF == pSetOld->nSttF + 1);
+      ASSERT(pSetNew->nSttF == pSetOld->nSttF + 1);
       pSetOld->aSttF[pSetOld->nSttF] = (SSttFile *)taosMemoryMalloc(sizeof(SSttFile));
       if (pSetOld->aSttF[pSetOld->nSttF] == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
@@ -522,7 +522,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
       pSetOld->aSttF[pSetOld->nSttF]->nRef = 1;
       pSetOld->nSttF++;
     } else if (pSetNew->nSttF < pSetOld->nSttF) {
-      tAssert(pSetNew->nSttF == 1);
+      ASSERT(pSetNew->nSttF == 1);
       for (int32_t iStt = 0; iStt < pSetOld->nSttF; iStt++) {
         SSttFile *pSttFile = pSetOld->aSttF[iStt];
         nRef = atomic_sub_fetch_32(&pSttFile->nRef, 1);
@@ -561,8 +561,8 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
           *pSetOld->aSttF[iStt] = *pSetNew->aSttF[iStt];
           pSetOld->aSttF[iStt]->nRef = 1;
         } else {
-          tAssert(pSetOld->aSttF[iStt]->size == pSetOld->aSttF[iStt]->size);
-          tAssert(pSetOld->aSttF[iStt]->offset == pSetOld->aSttF[iStt]->offset);
+          ASSERT(pSetOld->aSttF[iStt]->size == pSetOld->aSttF[iStt]->size);
+          ASSERT(pSetOld->aSttF[iStt]->offset == pSetOld->aSttF[iStt]->offset);
         }
       }
     }
@@ -634,7 +634,7 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
       }
     }
   } else {
-    tAssert(pTsdb->fs.pDelFile == NULL);
+    ASSERT(pTsdb->fs.pDelFile == NULL);
   }
 
   // aDFileSet
@@ -783,7 +783,7 @@ int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback) {
     code = tsdbSaveFSToFile(&pTsdb->fs, current);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    tAssert(!rollback);
+    ASSERT(!rollback);
   }
 
   // scan and fix FS
@@ -801,7 +801,7 @@ int32_t tsdbFSClose(STsdb *pTsdb) {
   int32_t code = 0;
 
   if (pTsdb->fs.pDelFile) {
-    tAssert(pTsdb->fs.pDelFile->nRef == 1);
+    ASSERT(pTsdb->fs.pDelFile->nRef == 1);
     taosMemoryFree(pTsdb->fs.pDelFile);
   }
 
@@ -809,20 +809,20 @@ int32_t tsdbFSClose(STsdb *pTsdb) {
     SDFileSet *pSet = (SDFileSet *)taosArrayGet(pTsdb->fs.aDFileSet, iSet);
 
     // head
-    tAssert(pSet->pHeadF->nRef == 1);
+    ASSERT(pSet->pHeadF->nRef == 1);
     taosMemoryFree(pSet->pHeadF);
 
     // data
-    tAssert(pSet->pDataF->nRef == 1);
+    ASSERT(pSet->pDataF->nRef == 1);
     taosMemoryFree(pSet->pDataF);
 
     // sma
-    tAssert(pSet->pSmaF->nRef == 1);
+    ASSERT(pSet->pSmaF->nRef == 1);
     taosMemoryFree(pSet->pSmaF);
 
     // stt
     for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
-      tAssert(pSet->aSttF[iStt]->nRef == 1);
+      ASSERT(pSet->aSttF[iStt]->nRef == 1);
       taosMemoryFree(pSet->aSttF[iStt]);
     }
   }
@@ -939,7 +939,7 @@ int32_t tsdbFSUpsertFSet(STsdbFS *pFS, SDFileSet *pSet) {
       *pDFileSet->pSmaF = *pSet->pSmaF;
       // stt
       if (pSet->nSttF > pDFileSet->nSttF) {
-        tAssert(pSet->nSttF == pDFileSet->nSttF + 1);
+        ASSERT(pSet->nSttF == pDFileSet->nSttF + 1);
 
         pDFileSet->aSttF[pDFileSet->nSttF] = (SSttFile *)taosMemoryMalloc(sizeof(SSttFile));
         if (pDFileSet->aSttF[pDFileSet->nSttF] == NULL) {
@@ -949,7 +949,7 @@ int32_t tsdbFSUpsertFSet(STsdbFS *pFS, SDFileSet *pSet) {
         *pDFileSet->aSttF[pDFileSet->nSttF] = *pSet->aSttF[pSet->nSttF - 1];
         pDFileSet->nSttF++;
       } else if (pSet->nSttF < pDFileSet->nSttF) {
-        tAssert(pSet->nSttF == 1);
+        ASSERT(pSet->nSttF == 1);
         for (int32_t iStt = 1; iStt < pDFileSet->nSttF; iStt++) {
           taosMemoryFree(pDFileSet->aSttF[iStt]);
         }
@@ -966,7 +966,7 @@ int32_t tsdbFSUpsertFSet(STsdbFS *pFS, SDFileSet *pSet) {
     }
   }
 
-  tAssert(pSet->nSttF == 1);
+  ASSERT(pSet->nSttF == 1);
   SDFileSet fSet = {.diskId = pSet->diskId, .fid = pSet->fid, .nSttF = 1};
 
   // head
@@ -1041,7 +1041,7 @@ int32_t tsdbFSRef(STsdb *pTsdb, STsdbFS *pFS) {
   pFS->pDelFile = pTsdb->fs.pDelFile;
   if (pFS->pDelFile) {
     nRef = atomic_fetch_add_32(&pFS->pDelFile->nRef, 1);
-    tAssert(nRef > 0);
+    ASSERT(nRef > 0);
   }
 
   SDFileSet fSet;
@@ -1050,17 +1050,17 @@ int32_t tsdbFSRef(STsdb *pTsdb, STsdbFS *pFS) {
     fSet = *pSet;
 
     nRef = atomic_fetch_add_32(&pSet->pHeadF->nRef, 1);
-    tAssert(nRef > 0);
+    ASSERT(nRef > 0);
 
     nRef = atomic_fetch_add_32(&pSet->pDataF->nRef, 1);
-    tAssert(nRef > 0);
+    ASSERT(nRef > 0);
 
     nRef = atomic_fetch_add_32(&pSet->pSmaF->nRef, 1);
-    tAssert(nRef > 0);
+    ASSERT(nRef > 0);
 
     for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
       nRef = atomic_fetch_add_32(&pSet->aSttF[iStt]->nRef, 1);
-      tAssert(nRef > 0);
+      ASSERT(nRef > 0);
     }
 
     if (taosArrayPush(pFS->aDFileSet, &fSet) == NULL) {
@@ -1079,7 +1079,7 @@ void tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS) {
 
   if (pFS->pDelFile) {
     nRef = atomic_sub_fetch_32(&pFS->pDelFile->nRef, 1);
-    tAssert(nRef >= 0);
+    ASSERT(nRef >= 0);
     if (nRef == 0) {
       tsdbDelFileName(pTsdb, pFS->pDelFile, fname);
       (void)taosRemoveFile(fname);
@@ -1092,7 +1092,7 @@ void tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS) {
 
     // head
     nRef = atomic_sub_fetch_32(&pSet->pHeadF->nRef, 1);
-    tAssert(nRef >= 0);
+    ASSERT(nRef >= 0);
     if (nRef == 0) {
       tsdbHeadFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pHeadF, fname);
       (void)taosRemoveFile(fname);
@@ -1101,7 +1101,7 @@ void tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS) {
 
     // data
     nRef = atomic_sub_fetch_32(&pSet->pDataF->nRef, 1);
-    tAssert(nRef >= 0);
+    ASSERT(nRef >= 0);
     if (nRef == 0) {
       tsdbDataFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pDataF, fname);
       (void)taosRemoveFile(fname);
@@ -1110,7 +1110,7 @@ void tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS) {
 
     // sma
     nRef = atomic_sub_fetch_32(&pSet->pSmaF->nRef, 1);
-    tAssert(nRef >= 0);
+    ASSERT(nRef >= 0);
     if (nRef == 0) {
       tsdbSmaFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pSmaF, fname);
       (void)taosRemoveFile(fname);
@@ -1120,7 +1120,7 @@ void tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS) {
     // stt
     for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
       nRef = atomic_sub_fetch_32(&pSet->aSttF[iStt]->nRef, 1);
-      tAssert(nRef >= 0);
+      ASSERT(nRef >= 0);
       if (nRef == 0) {
         tsdbSttFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aSttF[iStt], fname);
         (void)taosRemoveFile(fname);

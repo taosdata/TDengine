@@ -195,7 +195,7 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
         memcpy(pkey->pData, val, dataLen);
       } else if (IS_VAR_DATA_TYPE(pkey->type)) {
         memcpy(pkey->pData, val, varDataTLen(val));
-        tAssert(varDataTLen(val) <= pkey->bytes);
+        ASSERT(varDataTLen(val) <= pkey->bytes);
       } else {
         memcpy(pkey->pData, val, pkey->bytes);
       }
@@ -204,7 +204,7 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
 }
 
 static int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
-  tAssert(pKey != NULL);
+  ASSERT(pKey != NULL);
   size_t numOfGroupCols = taosArrayGetSize(pGroupColVals);
 
   char* isNull = (char*)pKey;
@@ -224,7 +224,7 @@ static int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
     } else if (IS_VAR_DATA_TYPE(pkey->type)) {
       varDataCopy(pStart, pkey->pData);
       pStart += varDataTLen(pkey->pData);
-      tAssert(varDataTLen(pkey->pData) <= pkey->bytes);
+      ASSERT(varDataTLen(pkey->pData) <= pkey->bytes);
     } else {
       memcpy(pStart, pkey->pData, pkey->bytes);
       pStart += pkey->bytes;
@@ -535,7 +535,7 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
           memcpy(data + (*columnLen), src, dataLen);
           int32_t v = (data + (*columnLen) + dataLen - (char*)pPage);
-          tAssert(v > 0);
+          ASSERT(v > 0);
 
           contentLen = dataLen;
         } else {
@@ -543,7 +543,7 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
           char* src = colDataGetData(pColInfoData, j);
           memcpy(data + (*columnLen), src, varDataTLen(src));
           int32_t v = (data + (*columnLen) + varDataTLen(src) - (char*)pPage);
-          tAssert(v > 0);
+          ASSERT(v > 0);
 
           contentLen = varDataTLen(src);
         }
@@ -557,13 +557,13 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
           colDataSetNull_f(bitmap, (*rows));
         } else {
           memcpy(data + (*columnLen), colDataGetData(pColInfoData, j), bytes);
-          tAssert((data + (*columnLen) + bytes - (char*)pPage) <= getBufPageSize(pInfo->pBuf));
+          ASSERT((data + (*columnLen) + bytes - (char*)pPage) <= getBufPageSize(pInfo->pBuf));
         }
         contentLen = bytes;
       }
 
       (*columnLen) += contentLen;
-      tAssert(*columnLen >= 0);
+      ASSERT(*columnLen >= 0);
     }
 
     (*rows) += 1;
@@ -662,7 +662,7 @@ static int compareDataGroupInfo(const void* group1, const void* group2) {
   const SDataGroupInfo* pGroupInfo2 = group2;
 
   if (pGroupInfo1->groupId == pGroupInfo2->groupId) {
-    tAssert(0);
+    ASSERT(0);
     return 0;
   }
 
@@ -897,7 +897,7 @@ static bool hasRemainPartion(SStreamPartitionOperatorInfo* pInfo) { return pInfo
 static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   SStreamPartitionOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*                  pDest = pInfo->binfo.pRes;
-  tAssert(hasRemainPartion(pInfo));
+  ASSERT(hasRemainPartion(pInfo));
   SPartitionDataInfo* pParInfo = (SPartitionDataInfo*)pInfo->parIte;
   blockDataCleanup(pDest);
   int32_t      rows = taosArrayGetSize(pParInfo->rowIds);
@@ -926,10 +926,10 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
         taosArrayPush(pResBlock->pDataBlock, &data);
         blockDataEnsureCapacity(pResBlock, 1);
         projectApplyFunctions(pInfo->tbnameCalSup.pExprInfo, pResBlock, pTmpBlock, pInfo->tbnameCalSup.pCtx, 1, NULL);
-        tAssert(pResBlock->info.rows == 1);
-        tAssert(taosArrayGetSize(pResBlock->pDataBlock) == 1);
+        ASSERT(pResBlock->info.rows == 1);
+        ASSERT(taosArrayGetSize(pResBlock->pDataBlock) == 1);
         SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, 0);
-        tAssert(pCol->info.type == TSDB_DATA_TYPE_VARCHAR);
+        ASSERT(pCol->info.type == TSDB_DATA_TYPE_VARCHAR);
         void* pData = colDataGetVarData(pCol, 0);
         // TODO check tbname validity
         if (pData != (void*)-1) {
@@ -955,7 +955,7 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   pDest->info.id.groupId = pParInfo->groupId;
   pOperator->resultInfo.totalRows += pDest->info.rows;
   pInfo->parIte = taosHashIterate(pInfo->pPartitions, pInfo->parIte);
-  tAssert(pDest->info.rows > 0);
+  ASSERT(pDest->info.rows > 0);
   printDataBlock(pDest, "stream partitionby");
   return pDest;
 }

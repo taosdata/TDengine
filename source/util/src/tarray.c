@@ -317,7 +317,7 @@ SArray* taosArrayDup(const SArray* pSrc, __array_item_dup_fn_t fn) {
   if (fn == NULL) {
     memcpy(dst->pData, pSrc->pData, pSrc->elemSize * pSrc->size);
   } else {
-    tAssert(pSrc->elemSize == sizeof(void*));
+    ASSERT(pSrc->elemSize == sizeof(void*));
 
     for (int32_t i = 0; i < pSrc->size; ++i) {
       void* p = fn(taosArrayGetP(pSrc, i));
@@ -399,7 +399,7 @@ void taosArrayDestroyEx(SArray* pArray, FDelete fp) {
 }
 
 void taosArraySort(SArray* pArray, __compar_fn_t compar) {
-  tAssert(pArray != NULL && compar != NULL);
+  ASSERT(pArray != NULL && compar != NULL);
   taosSort(pArray->pData, pArray->size, pArray->elemSize, compar);
 }
 

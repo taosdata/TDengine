@@ -617,14 +617,14 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
     return 0;
   } else {
     // printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
-    // terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 #elif defined(_TD_DARWIN_64)
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
     // printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
-    // terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   } else {
     diskSize->total = info.f_blocks * info.f_frsize;
@@ -635,7 +635,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
 #else
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
-    // terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   } else {
     diskSize->total = info.f_blocks * info.f_frsize;

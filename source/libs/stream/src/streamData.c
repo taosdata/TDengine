@@ -23,8 +23,8 @@ int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock
   }
   taosArraySetSize(pArray, blockNum);
 
-  tAssert(pReq->blockNum == taosArrayGetSize(pReq->data));
-  tAssert(pReq->blockNum == taosArrayGetSize(pReq->dataLen));
+  ASSERT(pReq->blockNum == taosArrayGetSize(pReq->data));
+  ASSERT(pReq->blockNum == taosArrayGetSize(pReq->dataLen));
 
   for (int32_t i = 0; i < blockNum; i++) {
     SRetrieveTableRsp* pRetrieve = taosArrayGetP(pReq->data, i);
@@ -118,7 +118,7 @@ SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit) {
 
 void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) {
   int32_t ref = atomic_sub_fetch_32(pDataSubmit->dataRef, 1);
-  tAssert(ref >= 0);
+  ASSERT(ref >= 0);
   if (ref == 0) {
     taosMemoryFree(pDataSubmit->data);
     taosMemoryFree(pDataSubmit->dataRef);
@@ -126,7 +126,7 @@ void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) {
 }
 
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* elem) {
-  tAssert(elem);
+  ASSERT(elem);
   if (dst->type == STREAM_INPUT__DATA_BLOCK && elem->type == STREAM_INPUT__DATA_BLOCK) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)dst;
     SStreamDataBlock* pBlockSrc = (SStreamDataBlock*)elem;
@@ -142,7 +142,7 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
     return dst;
   } else if (dst->type == STREAM_INPUT__DATA_SUBMIT && elem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamMergedSubmit* pMerged = streamMergedSubmitNew();
-    tAssert(pMerged);
+    ASSERT(pMerged);
     streamMergeSubmit(pMerged, (SStreamDataSubmit*)dst);
     streamMergeSubmit(pMerged, (SStreamDataSubmit*)elem);
     taosFreeQitem(dst);
@@ -170,7 +170,7 @@ void streamFreeQitem(SStreamQueueItem* data) {
     for (int32_t i = 0; i < sz; i++) {
       int32_t* pRef = taosArrayGetP(pMerge->dataRefs, i);
       int32_t  ref = atomic_sub_fetch_32(pRef, 1);
-      tAssert(ref >= 0);
+      ASSERT(ref >= 0);
       if (ref == 0) {
         void* dataStr = taosArrayGetP(pMerge->reqs, i);
         taosMemoryFree(dataStr);
@@ -184,7 +184,7 @@ void streamFreeQitem(SStreamQueueItem* data) {
     SStreamRefDataBlock* pRefBlock = (SStreamRefDataBlock*)data;
 
     int32_t ref = atomic_sub_fetch_32(pRefBlock->dataRef, 1);
-    tAssert(ref >= 0);
+    ASSERT(ref >= 0);
     if (ref == 0) {
       blockDataDestroy(pRefBlock->pBlock);
       taosMemoryFree(pRefBlock->dataRef);

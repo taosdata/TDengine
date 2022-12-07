@@ -488,7 +488,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   memcpy(smaObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   smaObj.createdTime = taosGetTimestampMs();
   smaObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
-  tAssert(smaObj.uid != 0);
+  ASSERT(smaObj.uid != 0);
   char resultTbName[TSDB_TABLE_FNAME_LEN + 16] = {0};
   snprintf(resultTbName, TSDB_TABLE_FNAME_LEN + 16, "%s_td_tsma_rst_tb", pCreate->name);
   memcpy(smaObj.dstTbName, resultTbName, TSDB_TABLE_FNAME_LEN);
@@ -558,13 +558,13 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
 
   SNode *pAst = NULL;
   if (nodesStringToNode(streamObj.ast, &pAst) < 0) {
-    tAssert(0);
+    ASSERT(0);
     return -1;
   }
 
   // extract output schema from ast
   if (qExtractResultSchema(pAst, (int32_t *)&streamObj.outputSchema.nCols, &streamObj.outputSchema.pSchema) != 0) {
-    tAssert(0);
+    ASSERT(0);
     return -1;
   }
 
@@ -579,13 +579,13 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   };
 
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
-    tAssert(0);
+    ASSERT(0);
     return -1;
   }
 
   // save physcial plan
   if (nodesNodeToString((SNode *)pPlan, false, &streamObj.physicalPlan, NULL) != 0) {
-    tAssert(0);
+    ASSERT(0);
     return -1;
   }
   if (pAst != NULL) nodesDestroyNode(pAst);
@@ -822,14 +822,14 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
     if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
       mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
       sdbRelease(pMnode->pSdb, pStream);
-      tAssert(0);
+      ASSERT(0);
       goto _OVER;
     }
 
     // drop stream
     if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
       sdbRelease(pMnode->pSdb, pStream);
-      tAssert(0);
+      ASSERT(0);
       goto _OVER;
     }
   }

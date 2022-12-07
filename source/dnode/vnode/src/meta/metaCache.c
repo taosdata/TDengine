@@ -205,7 +205,7 @@ _exit:
 int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
   int32_t code = 0;
 
-  // tAssert(metaIsWLocked(pMeta));
+  // ASSERT(metaIsWLocked(pMeta));
 
   // search
   SMetaCache*       pCache = pMeta->pCache;
@@ -216,7 +216,7 @@ int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
   }
 
   if (*ppEntry) {  // update
-    tAssert(pInfo->suid == (*ppEntry)->info.suid);
+    ASSERT(pInfo->suid == (*ppEntry)->info.suid);
     if (pInfo->version > (*ppEntry)->info.version) {
       (*ppEntry)->info.version = pInfo->version;
       (*ppEntry)->info.skmVer = pInfo->skmVer;
@@ -335,7 +335,7 @@ _exit:
 int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo) {
   int32_t code = 0;
 
-  // tAssert(metaIsWLocked(pMeta));
+  // ASSERT(metaIsWLocked(pMeta));
 
   // search
   SMetaCache*          pCache = pMeta->pCache;
@@ -435,7 +435,7 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
     return TSDB_CODE_SUCCESS;
   } else {  // do some book mark work after acquiring the filter result from cache
     STagFilterResEntry** pEntry = taosHashGet(pMeta->pCache->sTagFilterResCache.pTableEntry, &suid, sizeof(uint64_t));
-    tAssert(pEntry != NULL);
+    ASSERT(pEntry != NULL);
     *acquireRes = 1;
 
     const char* p = taosLRUCacheValue(pMeta->pCache->sTagFilterResCache.pUidResCache, pHandle);
@@ -522,7 +522,7 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
   pBuf[0] = suid;
 
   memcpy(&pBuf[1], pKey, keyLen);
-  tAssert(sizeof(uint64_t) + keyLen == 24);
+  ASSERT(sizeof(uint64_t) + keyLen == 24);
 
   // add to cache.
   taosLRUCacheInsert(pCache, pBuf, sizeof(uint64_t) + keyLen, pPayload, payloadLen, freePayload, NULL, TAOS_LRU_PRIORITY_LOW);

@@ -170,7 +170,7 @@ static int32_t doAddNewExternalMemSource(SDiskbasedBuf* pBuf, SArray* pAllSource
   // The value of numOfRows must be greater than 0, which is guaranteed by the previous memory allocation
   int32_t numOfRows =
       (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock))) / rowSize;
-  tAssert(numOfRows > 0);
+  ASSERT(numOfRows > 0);
 
   return blockDataEnsureCapacity(pSource->src.pBlock, numOfRows);
 }
@@ -735,7 +735,7 @@ int32_t tsortOpen(SSortHandle* pHandle) {
 
   int32_t numOfSources = taosArrayGetSize(pHandle->pOrderedSource);
   if (pHandle->pBuf != NULL) {
-    tAssert(numOfSources <= getNumOfInMemBufPages(pHandle->pBuf));
+    ASSERT(numOfSources <= getNumOfInMemBufPages(pHandle->pBuf));
   }
 
   if (numOfSources == 0) {
@@ -808,7 +808,7 @@ STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
   index = tMergeTreeGetChosenIndex(pHandle->pMergeTree);
   pSource = pHandle->cmpParam.pSources[index];
 
-  tAssert(pSource->src.pBlock != NULL);
+  ASSERT(pSource->src.pBlock != NULL);
 
   pHandle->tupleHandle.rowIndex = pSource->src.rowIndex;
   pHandle->tupleHandle.pBlock = pSource->src.pBlock;

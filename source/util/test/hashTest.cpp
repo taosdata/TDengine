@@ -6,7 +6,6 @@
 #include "taos.h"
 #include "taosdef.h"
 #include "thash.h"
-#include "tlog.h"
 
 namespace {
 
@@ -251,7 +250,7 @@ void perfTest() {
   int64_t start1h = taosGetTimestampMs();
   int64_t start1hCt = taosHashGetCompTimes(hash1h);
   for (int64_t i = 0; i < 10000000; ++i) {
-    tAssert(taosHashGet(hash1h, name + (i % 50) * 9, 9));
+    ASSERT(taosHashGet(hash1h, name + (i % 50) * 9, 9));
   }
   int64_t end1h = taosGetTimestampMs();
   int64_t end1hCt = taosHashGetCompTimes(hash1h);
@@ -259,7 +258,7 @@ void perfTest() {
   int64_t start1s = taosGetTimestampMs();
   int64_t start1sCt = taosHashGetCompTimes(hash1s);
   for (int64_t i = 0; i < 10000000; ++i) {
-    tAssert(taosHashGet(hash1s, name + (i % 500) * 9, 9));
+    ASSERT(taosHashGet(hash1s, name + (i % 500) * 9, 9));
   }
   int64_t end1s = taosGetTimestampMs();
   int64_t end1sCt = taosHashGetCompTimes(hash1s);
@@ -267,7 +266,7 @@ void perfTest() {
   int64_t start10s = taosGetTimestampMs();
   int64_t start10sCt = taosHashGetCompTimes(hash10s);
   for (int64_t i = 0; i < 10000000; ++i) {
-    tAssert(taosHashGet(hash10s, name + (i % 5000) * 9, 9));
+    ASSERT(taosHashGet(hash10s, name + (i % 5000) * 9, 9));
   }
   int64_t end10s = taosGetTimestampMs();
   int64_t end10sCt = taosHashGetCompTimes(hash10s);
@@ -275,7 +274,7 @@ void perfTest() {
   int64_t start100s = taosGetTimestampMs();
   int64_t start100sCt = taosHashGetCompTimes(hash100s);
   for (int64_t i = 0; i < 10000000; ++i) {
-    tAssert(taosHashGet(hash100s, name + (i % 50000) * 9, 9));
+    ASSERT(taosHashGet(hash100s, name + (i % 50000) * 9, 9));
   }
   int64_t end100s = taosGetTimestampMs();
   int64_t end100sCt = taosHashGetCompTimes(hash100s);
@@ -283,7 +282,7 @@ void perfTest() {
   int64_t start1m = taosGetTimestampMs();
   int64_t start1mCt = taosHashGetCompTimes(hash1m);
   for (int64_t i = 0; i < 10000000; ++i) {
-    tAssert(taosHashGet(hash1m, name + (i % 500000) * 9, 9));
+    ASSERT(taosHashGet(hash1m, name + (i % 500000) * 9, 9));
   }
   int64_t end1m = taosGetTimestampMs();
   int64_t end1mCt = taosHashGetCompTimes(hash1m);
@@ -291,7 +290,7 @@ void perfTest() {
   int64_t start10m = taosGetTimestampMs();
   int64_t start10mCt = taosHashGetCompTimes(hash10m);
   for (int64_t i = 0; i < 10000000; ++i) {
-    tAssert(taosHashGet(hash10m, name + (i % 5000000) * 9, 9));
+    ASSERT(taosHashGet(hash10m, name + (i % 5000000) * 9, 9));
   }
   int64_t end10m = taosGetTimestampMs();
   int64_t end10mCt = taosHashGetCompTimes(hash10m);
@@ -299,7 +298,7 @@ void perfTest() {
   int64_t start100m = taosGetTimestampMs();
   int64_t start100mCt = taosHashGetCompTimes(hash100m);
   for (int64_t i = 0; i < 10000000; ++i) {
-    tAssert(taosHashGet(hash100m, name + (i % 50000000) * 9, 9));
+    ASSERT(taosHashGet(hash100m, name + (i % 50000000) * 9, 9));
   }
   int64_t end100m = taosGetTimestampMs();
   int64_t end100mCt = taosHashGetCompTimes(hash100m);
@@ -324,14 +323,14 @@ void perfTest() {
     SArray* pArray = sArray[i];
     for (int64_t m = 0; m < num; ++m) {
       char* p = (char*)taosArrayGet(pArray, m);
-      tAssert(taosArrayPush(slArray, p));
+      ASSERT(taosArrayPush(slArray, p));
     }
   }
   int64_t start100mS = taosGetTimestampMs();
   int64_t start100mSCt = taosHashGetCompTimes(hash100m);
   int32_t num = taosArrayGetSize(slArray);
   for (int64_t i = 0; i < num; ++i) {
-    tAssert(taosHashGet(hash100m, (char*)TARRAY_GET_ELEM(slArray, i), 9));
+    ASSERT(taosHashGet(hash100m, (char*)TARRAY_GET_ELEM(slArray, i), 9));
   }
   int64_t end100mS = taosGetTimestampMs();
   int64_t end100mSCt = taosHashGetCompTimes(hash100m);
@@ -378,12 +377,12 @@ void perfTest() {
   int64_t startMhash = taosGetTimestampMs();
 #if 0
   for (int32_t i = 0; i < 10000000; ++i) {
-    tAssert(taosHashGet(mhash[i%1000], name + i * 9, 9));
+    ASSERT(taosHashGet(mhash[i%1000], name + i * 9, 9));
   }
 #else
   //  for (int64_t i = 0; i < 10000000; ++i) {
   for (int64_t i = 0; i < 50000000; i += 5) {
-    tAssert(taosHashGet(mhash[i / 50000], name + i * 9, 9));
+    ASSERT(taosHashGet(mhash[i / 50000], name + i * 9, 9));
   }
 #endif
   int64_t endMhash = taosGetTimestampMs();

@@ -147,7 +147,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
     size_t numOfResBlock = taosArrayGetSize(pResList);
     for (int32_t j = 0; j < numOfResBlock; ++j) {
       SSDataBlock *pRes = taosArrayGetP(pResList, j);
-      tAssert(pRes->info.rows > 0);
+      ASSERT(pRes->info.rows > 0);
 
       SInputData inputData = {.pData = pRes};
       code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);

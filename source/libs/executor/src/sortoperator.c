@@ -138,7 +138,7 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColMatchItem* pmInfo = taosArrayGet(pColMatchInfo, i);
-      //      tAssert(pmInfo->matchType == COL_MATCH_FROM_SLOT_ID);
+      //      ASSERT(pmInfo->matchType == COL_MATCH_FROM_SLOT_ID);
 
       SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
       SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->dstSlotId);
@@ -271,7 +271,7 @@ void destroySortOperatorInfo(void* param) {
 }
 
 int32_t getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
-  tAssert(pOptr != NULL);
+  ASSERT(pOptr != NULL);
   SSortExecInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortExecInfo));
 
   SSortOperatorInfo* pOperatorInfo = (SSortOperatorInfo*)pOptr->info;
@@ -328,7 +328,7 @@ SSDataBlock* getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlo
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColMatchItem* pmInfo = taosArrayGet(pColMatchInfo, i);
-      //      tAssert(pmInfo->matchType == COL_MATCH_FROM_SLOT_ID);
+      //      ASSERT(pmInfo->matchType == COL_MATCH_FROM_SLOT_ID);
 
       SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
       SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->dstSlotId);
@@ -447,7 +447,7 @@ SSDataBlock* doGroupSort(SOperatorInfo* pOperator) {
   SSDataBlock* pBlock = NULL;
   while (pInfo->pCurrSortHandle != NULL) {
     // beginSortGroup would fetch all child blocks of pInfo->currGroupId;
-    tAssert(pInfo->childOpStatus != CHILD_OP_SAME_GROUP);
+    ASSERT(pInfo->childOpStatus != CHILD_OP_SAME_GROUP);
     pBlock = getGroupSortedBlockData(pInfo->pCurrSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
                                      pInfo->matchInfo.pList, pInfo);
     if (pBlock != NULL) {
@@ -744,7 +744,7 @@ void destroyMultiwayMergeOperatorInfo(void* param) {
 }
 
 int32_t getMultiwayMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
-  tAssert(pOptr != NULL);
+  ASSERT(pOptr != NULL);
   SSortExecInfo* pSortExecInfo = taosMemoryCalloc(1, sizeof(SSortExecInfo));
 
   SMultiwayMergeOperatorInfo* pInfo = (SMultiwayMergeOperatorInfo*)pOptr->info;
@@ -774,7 +774,7 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
 
   int32_t rowSize = pInfo->binfo.pRes->info.rowSize;
-  tAssert(rowSize < 100 * 1024 * 1024);
+  ASSERT(rowSize < 100 * 1024 * 1024);
 
   int32_t numOfOutputCols = 0;
   code = extractColMatchInfo(pMergePhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID,

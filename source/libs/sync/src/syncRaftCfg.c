@@ -23,7 +23,7 @@ SRaftCfgIndex *raftCfgIndexOpen(const char *path) {
   snprintf(pRaftCfgIndex->path, sizeof(pRaftCfgIndex->path), "%s", path);
 
   pRaftCfgIndex->pFile = taosOpenFile(pRaftCfgIndex->path, TD_FILE_READ | TD_FILE_WRITE);
-  tAssert(pRaftCfgIndex->pFile != NULL);
+  ASSERT(pRaftCfgIndex->pFile != NULL);
 
   taosLSeekFile(pRaftCfgIndex->pFile, 0, SEEK_SET);
 
@@ -31,10 +31,10 @@ SRaftCfgIndex *raftCfgIndexOpen(const char *path) {
   char   *pBuf = taosMemoryMalloc(bufLen);
   memset(pBuf, 0, bufLen);
   int64_t len = taosReadFile(pRaftCfgIndex->pFile, pBuf, bufLen);
-  tAssert(len > 0);
+  ASSERT(len > 0);
 
   int32_t ret = raftCfgIndexFromStr(pBuf, pRaftCfgIndex);
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
 
   taosMemoryFree(pBuf);
 
@@ -44,20 +44,20 @@ SRaftCfgIndex *raftCfgIndexOpen(const char *path) {
 int32_t raftCfgIndexClose(SRaftCfgIndex *pRaftCfgIndex) {
   if (pRaftCfgIndex != NULL) {
     int64_t ret = taosCloseFile(&(pRaftCfgIndex->pFile));
-    tAssert(ret == 0);
+    ASSERT(ret == 0);
     taosMemoryFree(pRaftCfgIndex);
   }
   return 0;
 }
 
 int32_t raftCfgIndexPersist(SRaftCfgIndex *pRaftCfgIndex) {
-  tAssert(pRaftCfgIndex != NULL);
+  ASSERT(pRaftCfgIndex != NULL);
 
   char *s = raftCfgIndex2Str(pRaftCfgIndex);
   taosLSeekFile(pRaftCfgIndex->pFile, 0, SEEK_SET);
 
   int64_t ret = taosWriteFile(pRaftCfgIndex->pFile, s, strlen(s) + 1);
-  tAssert(ret == strlen(s) + 1);
+  ASSERT(ret == strlen(s) + 1);
 
   taosMemoryFree(s);
   taosFsyncFile(pRaftCfgIndex->pFile);
@@ -65,7 +65,7 @@ int32_t raftCfgIndexPersist(SRaftCfgIndex *pRaftCfgIndex) {
 }
 
 int32_t raftCfgIndexAddConfigIndex(SRaftCfgIndex *pRaftCfgIndex, SyncIndex configIndex) {
-  tAssert(pRaftCfgIndex->configIndexCount <= MAX_CONFIG_INDEX_COUNT);
+  ASSERT(pRaftCfgIndex->configIndexCount <= MAX_CONFIG_INDEX_COUNT);
   (pRaftCfgIndex->configIndexArr)[pRaftCfgIndex->configIndexCount] = configIndex;
   ++(pRaftCfgIndex->configIndexCount);
   return 0;
@@ -105,15 +105,15 @@ int32_t raftCfgIndexFromJson(const cJSON *pRoot, SRaftCfgIndex *pRaftCfgIndex) {
 
   cJSON *pIndexArr = cJSON_GetObjectItem(pJson, "configIndexArr");
   int    arraySize = cJSON_GetArraySize(pIndexArr);
-  tAssert(arraySize == pRaftCfgIndex->configIndexCount);
+  ASSERT(arraySize == pRaftCfgIndex->configIndexCount);
 
   memset(pRaftCfgIndex->configIndexArr, 0, sizeof(pRaftCfgIndex->configIndexArr));
   for (int i = 0; i < arraySize; ++i) {
     cJSON *pIndexObj = cJSON_GetArrayItem(pIndexArr, i);
-    tAssert(pIndexObj != NULL);
+    ASSERT(pIndexObj != NULL);
 
     cJSON *pIndex = cJSON_GetObjectItem(pIndexObj, "index");
-    tAssert(cJSON_IsString(pIndex));
+    ASSERT(cJSON_IsString(pIndex));
     (pRaftCfgIndex->configIndexArr)[i] = atoll(pIndex->valuestring);
   }
 
@@ -122,10 +122,10 @@ int32_t raftCfgIndexFromJson(const cJSON *pRoot, SRaftCfgIndex *pRaftCfgIndex) {
 
 int32_t raftCfgIndexFromStr(const char *s, SRaftCfgIndex *pRaftCfgIndex) {
   cJSON *pRoot = cJSON_Parse(s);
-  tAssert(pRoot != NULL);
+  ASSERT(pRoot != NULL);
 
   int32_t ret = raftCfgIndexFromJson(pRoot, pRaftCfgIndex);
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
 
   cJSON_Delete(pRoot);
   return 0;
@@ -140,7 +140,7 @@ int32_t raftCfgIndexCreateFile(const char *path) {
     const char *sysErrStr = strerror(errno);
     sError("create raft cfg index file error, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", err, err, errStr, sysErr,
            sysErrStr);
-    tAssert(0);
+    ASSERT(0);
 
     return -1;
   }
@@ -152,7 +152,7 @@ int32_t raftCfgIndexCreateFile(const char *path) {
 
   char   *s = raftCfgIndex2Str(&raftCfgIndex);
   int64_t ret = taosWriteFile(pFile, s, strlen(s) + 1);
-  tAssert(ret == strlen(s) + 1);
+  ASSERT(ret == strlen(s) + 1);
 
   taosMemoryFree(s);
   taosCloseFile(&pFile);
@@ -166,29 +166,29 @@ SRaftCfg *raftCfgOpen(const char *path) {
   snprintf(pCfg->path, sizeof(pCfg->path), "%s", path);
 
   pCfg->pFile = taosOpenFile(pCfg->path, TD_FILE_READ | TD_FILE_WRITE);
-  tAssert(pCfg->pFile != NULL);
+  ASSERT(pCfg->pFile != NULL);
 
   taosLSeekFile(pCfg->pFile, 0, SEEK_SET);
 
   char buf[CONFIG_FILE_LEN] = {0};
   int  len = taosReadFile(pCfg->pFile, buf, sizeof(buf));
-  tAssert(len > 0);
+  ASSERT(len > 0);
 
   int32_t ret = raftCfgFromStr(buf, pCfg);
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
 
   return pCfg;
 }
 
 int32_t raftCfgClose(SRaftCfg *pRaftCfg) {
   int64_t ret = taosCloseFile(&(pRaftCfg->pFile));
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
   taosMemoryFree(pRaftCfg);
   return 0;
 }
 
 int32_t raftCfgPersist(SRaftCfg *pRaftCfg) {
-  tAssert(pRaftCfg != NULL);
+  ASSERT(pRaftCfg != NULL);
 
   char *s = raftCfg2Str(pRaftCfg);
   taosLSeekFile(pRaftCfg->pFile, 0, SEEK_SET);
@@ -198,15 +198,15 @@ int32_t raftCfgPersist(SRaftCfg *pRaftCfg) {
 
   if (strlen(s) + 1 > CONFIG_FILE_LEN) {
     sError("too long config str:%s", s);
-    tAssert(0);
+    ASSERT(0);
   }
 
   snprintf(buf, sizeof(buf), "%s", s);
   int64_t ret = taosWriteFile(pRaftCfg->pFile, buf, sizeof(buf));
-  tAssert(ret == sizeof(buf));
+  ASSERT(ret == sizeof(buf));
 
   // int64_t ret = taosWriteFile(pRaftCfg->pFile, s, strlen(s) + 1);
-  // tAssert(ret == strlen(s) + 1);
+  // ASSERT(ret == strlen(s) + 1);
 
   taosMemoryFree(s);
   taosFsyncFile(pRaftCfg->pFile);
@@ -214,7 +214,7 @@ int32_t raftCfgPersist(SRaftCfg *pRaftCfg) {
 }
 
 int32_t raftCfgAddConfigIndex(SRaftCfg *pRaftCfg, SyncIndex configIndex) {
-  tAssert(pRaftCfg->configIndexCount <= MAX_CONFIG_INDEX_COUNT);
+  ASSERT(pRaftCfg->configIndexCount <= MAX_CONFIG_INDEX_COUNT);
   (pRaftCfg->configIndexArr)[pRaftCfg->configIndexCount] = configIndex;
   ++(pRaftCfg->configIndexCount);
   return 0;
@@ -247,27 +247,27 @@ int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg) {
   const cJSON *pJson = pRoot;
 
   cJSON *pReplicaNum = cJSON_GetObjectItem(pJson, "replicaNum");
-  tAssert(cJSON_IsNumber(pReplicaNum));
+  ASSERT(cJSON_IsNumber(pReplicaNum));
   pSyncCfg->replicaNum = cJSON_GetNumberValue(pReplicaNum);
 
   cJSON *pMyIndex = cJSON_GetObjectItem(pJson, "myIndex");
-  tAssert(cJSON_IsNumber(pMyIndex));
+  ASSERT(cJSON_IsNumber(pMyIndex));
   pSyncCfg->myIndex = cJSON_GetNumberValue(pMyIndex);
 
   cJSON *pNodeInfoArr = cJSON_GetObjectItem(pJson, "nodeInfo");
   int    arraySize = cJSON_GetArraySize(pNodeInfoArr);
-  tAssert(arraySize == pSyncCfg->replicaNum);
+  ASSERT(arraySize == pSyncCfg->replicaNum);
 
   for (int i = 0; i < arraySize; ++i) {
     cJSON *pNodeInfo = cJSON_GetArrayItem(pNodeInfoArr, i);
-    tAssert(pNodeInfo != NULL);
+    ASSERT(pNodeInfo != NULL);
 
     cJSON *pNodePort = cJSON_GetObjectItem(pNodeInfo, "nodePort");
-    tAssert(cJSON_IsNumber(pNodePort));
+    ASSERT(cJSON_IsNumber(pNodePort));
     ((pSyncCfg->nodeInfo)[i]).nodePort = cJSON_GetNumberValue(pNodePort);
 
     cJSON *pNodeFqdn = cJSON_GetObjectItem(pNodeInfo, "nodeFqdn");
-    tAssert(cJSON_IsString(pNodeFqdn));
+    ASSERT(cJSON_IsString(pNodeFqdn));
     snprintf(((pSyncCfg->nodeInfo)[i]).nodeFqdn, sizeof(((pSyncCfg->nodeInfo)[i]).nodeFqdn), "%s",
              pNodeFqdn->valuestring);
   }
@@ -332,13 +332,13 @@ int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path) {
 
   char buf[CONFIG_FILE_LEN] = {0};
   memset(buf, 0, sizeof(buf));
-  tAssert(strlen(s) + 1 <= CONFIG_FILE_LEN);
+  ASSERT(strlen(s) + 1 <= CONFIG_FILE_LEN);
   snprintf(buf, sizeof(buf), "%s", s);
   int64_t ret = taosWriteFile(pFile, buf, sizeof(buf));
-  tAssert(ret == sizeof(buf));
+  ASSERT(ret == sizeof(buf));
 
   // int64_t ret = taosWriteFile(pFile, s, strlen(s) + 1);
-  // tAssert(ret == strlen(s) + 1);
+  // ASSERT(ret == strlen(s) + 1);
 
   taosMemoryFree(s);
   taosCloseFile(&pFile);
@@ -366,31 +366,31 @@ int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg) {
 
   cJSON *pIndexArr = cJSON_GetObjectItem(pJson, "configIndexArr");
   int    arraySize = cJSON_GetArraySize(pIndexArr);
-  tAssert(arraySize == pRaftCfg->configIndexCount);
+  ASSERT(arraySize == pRaftCfg->configIndexCount);
 
   memset(pRaftCfg->configIndexArr, 0, sizeof(pRaftCfg->configIndexArr));
   for (int i = 0; i < arraySize; ++i) {
     cJSON *pIndexObj = cJSON_GetArrayItem(pIndexArr, i);
-    tAssert(pIndexObj != NULL);
+    ASSERT(pIndexObj != NULL);
 
     cJSON *pIndex = cJSON_GetObjectItem(pIndexObj, "index");
-    tAssert(cJSON_IsString(pIndex));
+    ASSERT(cJSON_IsString(pIndex));
     (pRaftCfg->configIndexArr)[i] = atoll(pIndex->valuestring);
   }
 
   cJSON  *pJsonSyncCfg = cJSON_GetObjectItem(pJson, "SSyncCfg");
   int32_t code = syncCfgFromJson(pJsonSyncCfg, &(pRaftCfg->cfg));
-  tAssert(code == 0);
+  ASSERT(code == 0);
 
   return code;
 }
 
 int32_t raftCfgFromStr(const char *s, SRaftCfg *pRaftCfg) {
   cJSON *pRoot = cJSON_Parse(s);
-  tAssert(pRoot != NULL);
+  ASSERT(pRoot != NULL);
 
   int32_t ret = raftCfgFromJson(pRoot, pRaftCfg);
-  tAssert(ret == 0);
+  ASSERT(ret == 0);
 
   cJSON_Delete(pRoot);
   return 0;

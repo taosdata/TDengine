@@ -62,7 +62,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       return -1;
     }
 
-    tAssert(pMsg->term == ths->pRaftStore->currentTerm);
+    ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
 
     sTrace("vgId:%d received append entries reply. srcId:0x%016" PRIx64 ",  term:%" PRId64 ", matchIndex:%" PRId64 "",
            pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);
@@ -112,7 +112,7 @@ int32_t syncNodeOnAppendEntriesReplyOld(SSyncNode* ths, SyncAppendEntriesReply* 
       return -1;
     }
 
-    tAssert(pMsg->term == ths->pRaftStore->currentTerm);
+    ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
 
     if (pMsg->success) {
       SyncIndex oldMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
@@ -135,7 +135,7 @@ int32_t syncNodeOnAppendEntriesReplyOld(SSyncNode* ths, SyncAppendEntriesReply* 
 
     // send next append entries
     SPeerState* pState = syncNodeGetPeerState(ths, &(pMsg->srcId));
-    tAssert(pState != NULL);
+    ASSERT(pState != NULL);
 
     if (pMsg->lastSendIndex == pState->lastSendIndex) {
       int64_t timeNow = taosGetTimestampMs();

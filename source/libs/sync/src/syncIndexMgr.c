@@ -72,7 +72,7 @@ void syncIndexMgrSetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, 
   }
 
   // maybe config change
-  // tAssert(0);
+  // ASSERT(0);
 
   char     host[128];
   uint16_t port;
@@ -114,7 +114,7 @@ void syncIndexMgrSetStartTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaft
   }
 
   // maybe config change
-  // tAssert(0);
+  // ASSERT(0);
   char     host[128];
   uint16_t port;
   syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
@@ -129,7 +129,7 @@ int64_t syncIndexMgrGetStartTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pR
       return startTime;
     }
   }
-  tAssert(0);
+  ASSERT(0);
   return -1;
 }
 
@@ -142,7 +142,7 @@ void syncIndexMgrSetRecvTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftI
   }
 
   // maybe config change
-  // tAssert(0);
+  // ASSERT(0);
   char     host[128];
   uint16_t port;
   syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
@@ -170,7 +170,7 @@ void syncIndexMgrSetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, S
   }
 
   // maybe config change
-  // tAssert(0);
+  // ASSERT(0);
   char     host[128];
   uint16_t port;
   syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
@@ -184,6 +184,6 @@ SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftI
       return term;
     }
   }
-  tAssert(0);
+  ASSERT(0);
   return -1;
 }

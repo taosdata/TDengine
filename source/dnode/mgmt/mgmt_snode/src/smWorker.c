@@ -139,7 +139,7 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
 
   SSnode *pSnode = pMgmt->pSnode;
   if (pSnode == NULL) {
-    dError("msg:%p failed to put into snode queue since %s, type:%s qtype:%d", pMsg, terrstr(),
+    dError("snode: msg:%p failed to put into vnode queue since %s, type:%s qtype:%d", pMsg, terrstr(),
            TMSG_INFO(pMsg->msgType), qtype);
     taosFreeQitem(pMsg);
     rpcFreeCont(pRpc->pCont);
@@ -161,8 +161,7 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       smPutNodeMsgToWriteQueue(pMgmt, pMsg);
       break;
     default:
-      tAssertS(0, "msg:%p failed to put into snode queue since %s, type:%s qtype:%d", pMsg, terrstr(),
-               TMSG_INFO(pMsg->msgType), qtype);
+      ASSERT(0);
   }
   return 0;
 }

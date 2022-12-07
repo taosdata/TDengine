@@ -32,7 +32,7 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *
   int32_t        affectedrows = 0;
   int32_t        numOfRows = 0;
 
-  tAssert(pTsdb->mem != NULL);
+  ASSERT(pTsdb->mem != NULL);
 
   // scan and convert
   if (tsdbScanAndConvertSubmitMsg(pTsdb, pMsg) < 0) {
@@ -97,7 +97,7 @@ static FORCE_INLINE int tsdbCheckRowRange(STsdb *pTsdb, tb_uid_t uid, STSRow *ro
 }
 
 int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
-  tAssert(pMsg != NULL);
+  ASSERT(pMsg != NULL);
   // STsdbMeta *    pMeta = pTsdb->tsdbMeta;
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk    *pBlock = NULL;

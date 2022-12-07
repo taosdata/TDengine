@@ -446,7 +446,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
 }
 
 void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols) {
-  tAssert(pSchema != NULL && numOfCols > 0);
+  ASSERT(pSchema != NULL && numOfCols > 0);
 
   pResInfo->numOfCols = numOfCols;
   if (pResInfo->fields != NULL) {
@@ -457,7 +457,7 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
   }
   pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
   pResInfo->userFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
-  tAssert(numOfCols == pResInfo->numOfCols);
+  ASSERT(numOfCols == pResInfo->numOfCols);
 
   for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
     pResInfo->fields[i].bytes = pSchema[i].bytes;
@@ -1617,8 +1617,8 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
           char* pStart = pCol->offset[j] + pCol->pData;
 
           int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(pStart), varDataLen(pStart), varDataVal(p));
-          tAssert(len <= bytes);
-          tAssert((p + len) < (pResultInfo->convertBuf[i] + colLength[i]));
+          ASSERT(len <= bytes);
+          ASSERT((p + len) < (pResultInfo->convertBuf[i] + colLength[i]));
 
           varDataSetLen(p, len);
           pCol->offset[j] = (p - pResultInfo->convertBuf[i]);
@@ -1636,7 +1636,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
 
 int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
   int32_t cols = *(int32_t*)(p + sizeof(int32_t) * 3);
-  tAssert(numOfCols == cols);
+  ASSERT(numOfCols == cols);
 
   return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) * 3 + sizeof(uint64_t) +
          numOfCols * (sizeof(int8_t) + sizeof(int32_t));
@@ -1679,7 +1679,7 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, i
         } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
           len += (VARSTR_HEADER_SIZE + 5);
         } else {
-          tAssert(0);
+          ASSERT(0);
         }
       }
     } else if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
@@ -1739,7 +1739,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   for (int32_t i = 0; i < numOfCols; ++i) {
     int32_t colLen = htonl(colLength[i]);
     int32_t colLen1 = htonl(colLength1[i]);
-    tAssert(colLen < dataLen);
+    ASSERT(colLen < dataLen);
 
     if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
       int32_t* offset = (int32_t*)pStart;
@@ -1785,7 +1785,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
           sprintf(varDataVal(dst), "%s", (*((char*)jsonInnerData) == 1) ? "true" : "false");
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else {
-          tAssert(0);
+          ASSERT(0);
         }
 
         offset1[j] = len;
@@ -1852,7 +1852,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   int32_t cols = *(int32_t*)p;
   p += sizeof(int32_t);
 
-  tAssert(rows == numOfRows && cols == numOfCols);
+  ASSERT(rows == numOfRows && cols == numOfCols);
 
   int32_t hasColumnSeg = *(int32_t*)p;
   p += sizeof(int32_t);
@@ -1868,7 +1868,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     int32_t bytes = *(int32_t*)p;
     p += sizeof(int32_t);
 
-    /*tAssert(type == pFields[i].type && bytes == pFields[i].bytes);*/
+    /*ASSERT(type == pFields[i].type && bytes == pFields[i].bytes);*/
   }
 
   int32_t* colLength = (int32_t*)p;
@@ -1879,7 +1879,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     colLength[i] = htonl(colLength[i]);
     if (colLength[i] >= dataLen) {
       tscError("invalid colLength %d, dataLen %d", colLength[i], dataLen);
-      tAssert(0);
+      ASSERT(0);
     }
 
     if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {

@@ -55,7 +55,7 @@ void TestClient::DoInit() {
   // rpcInit.spi = 1;
 
   clientRpc = rpcOpen(&rpcInit);
-  tAssert(clientRpc);
+  ASSERT(clientRpc);
   tsem_init(&this->sem, 0, 0);
 }
 

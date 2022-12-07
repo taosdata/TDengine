@@ -111,7 +111,7 @@ STSchema *genSTSchema(int16_t nCols) {
       } break;
 
       default:
-        tAssert(0);
+        ASSERT(0);
         break;
     }
   }
@@ -197,7 +197,7 @@ static int32_t genTestData(const char **data, int16_t nCols, SArray **pArray) {
         sscanf(data[i], "%" PRIu64, &colVal.value.u64);
       } break;
       default:
-        tAssert(0);
+        ASSERT(0);
     }
     taosArrayPush(*pArray, &colVal);
   }
@@ -297,7 +297,7 @@ void debugPrintTSRow(STSRow2 *row, STSchema *pTSchema, const char *tags, int32_t
 }
 
 static int32_t checkSColVal(const char *rawVal, SColVal *cv, int8_t type) {
-  tAssert(rawVal);
+  ASSERT(rawVal);
 
   if (COL_VAL_IS_NONE(cv)) {
     EXPECT_STRCASEEQ(rawVal, NONE_CSTR);

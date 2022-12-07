@@ -266,12 +266,12 @@ static void pushfrontNodeInEntryList(SCacheEntry *pEntry, SCacheNode *pNode) {
   pNode->pNext = pEntry->next;
   pEntry->next = pNode;
   pEntry->num += 1;
-  tAssert((pEntry->next && pEntry->num > 0) || (NULL == pEntry->next && pEntry->num == 0));
+  ASSERT((pEntry->next && pEntry->num > 0) || (NULL == pEntry->next && pEntry->num == 0));
 }
 
 static void removeNodeInEntryList(SCacheEntry *pe, SCacheNode *prev, SCacheNode *pNode) {
   if (prev == NULL) {
-    tAssert(pe->next == pNode);
+    ASSERT(pe->next == pNode);
     pe->next = pNode->pNext;
   } else {
     prev->pNext = pNode->pNext;
@@ -279,7 +279,7 @@ static void removeNodeInEntryList(SCacheEntry *pe, SCacheNode *prev, SCacheNode 
 
   pNode->pNext = NULL;
   pe->num -= 1;
-  tAssert((pe->next && pe->num > 0) || (NULL == pe->next && pe->num == 0));
+  ASSERT((pe->next && pe->num > 0) || (NULL == pe->next && pe->num == 0));
 }
 
 static FORCE_INLINE SCacheEntry *doFindEntry(SCacheObj *pCacheObj, const void *key, size_t keyLen) {
@@ -471,7 +471,7 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
   SCacheNode *pNode = doSearchInEntryList(pe, key, keyLen, &prev);
   if (pNode != NULL) {
     int32_t ref = T_REF_INC(pNode);
-    tAssert(ref > 0);
+    ASSERT(ref > 0);
   }
 
   taosRUnLockLatch(&pe->latch);
@@ -670,7 +670,7 @@ void doTraverseElems(SCacheObj *pCacheObj, bool (*fp)(void *param, SCacheNode *p
       } else {
         *pPre = next;
         pEntry->num -= 1;
-        tAssert((pEntry->next && pEntry->num > 0) || (NULL == pEntry->next && pEntry->num == 0));
+        ASSERT((pEntry->next && pEntry->num > 0) || (NULL == pEntry->next && pEntry->num == 0));
 
         atomic_sub_fetch_ptr(&pCacheObj->numOfElems, 1);
         pNode = next;
@@ -928,7 +928,7 @@ void taosStopCacheRefreshWorker(void) {
 size_t taosCacheGetNumOfObj(const SCacheObj *pCacheObj) { return pCacheObj->numOfElems + pCacheObj->numOfElemsInTrash; }
 
 SCacheIter *taosCacheCreateIter(const SCacheObj *pCacheObj) {
-  tAssert(pCacheObj != NULL);
+  ASSERT(pCacheObj != NULL);
   SCacheIter *pIter = taosMemoryCalloc(1, sizeof(SCacheIter));
   pIter->pCacheObj = (SCacheObj *)pCacheObj;
   pIter->entryIndex = -1;
@@ -978,11 +978,11 @@ bool taosCacheIterNext(SCacheIter *pIter) {
 
       SCacheNode *pNode = pEntry->next;
       for (int32_t i = 0; i < pEntry->num; ++i) {
-        tAssert(pNode != NULL);
+        ASSERT(pNode != NULL);
 
         pIter->pCurrent[i] = pNode;
         int32_t ref = T_REF_INC(pIter->pCurrent[i]);
-        tAssert(ref >= 1);
+        ASSERT(ref >= 1);
 
         pNode = pNode->pNext;
       }

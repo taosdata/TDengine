@@ -22,7 +22,6 @@
 #include "tpagedbuf.h"
 #include "tpercentile.h"
 #include "ttypes.h"
-#include "tlog.h"
 
 #define DEFAULT_NUM_OF_SLOT 1024
 
@@ -496,7 +495,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
 
         int32_t groupId = getGroupId(pMemBucket->numOfSlots, i, pMemBucket->times - 1);
         SArray* list = taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
-        tAssert(list != NULL && list->size > 0);
+        ASSERT(list != NULL && list->size > 0);
 
         for (int32_t f = 0; f < list->size; ++f) {
           SPageInfo *pgInfo = *(SPageInfo **)taosArrayGet(list, f);
