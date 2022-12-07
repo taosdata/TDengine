@@ -85,6 +85,7 @@ print ======== step3
 system sh/exec.sh -n dnode2 -s stop
 sleep 3000
 
+$t = 0
 $x = 0
 loop:
 
@@ -126,8 +127,8 @@ print ======== step8
 $lastRows = $data00
 print ======== loop Times $x
 
-if $x < 2 then
-  $x = $x + 1
+if $t < 2 then
+  $t = $t + 1
   goto loop
 endi
 
