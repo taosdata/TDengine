@@ -133,6 +133,9 @@ typedef struct STableOptions {
   SNodeList* pWatermark;
   int64_t    watermark1;
   int64_t    watermark2;
+  SNodeList* pDeleteMark;
+  int64_t    deleteMark1;
+  int64_t    deleteMark2;
   SNodeList* pRollupFuncs;
   int32_t    ttl;
   SNodeList* pSma;
@@ -383,6 +386,7 @@ typedef struct SStreamOptions {
   int8_t    triggerType;
   SNode*    pDelay;
   SNode*    pWatermark;
+  SNode*    pDeleteMark;
   int8_t    fillHistory;
   int8_t    ignoreExpired;
 } SStreamOptions;

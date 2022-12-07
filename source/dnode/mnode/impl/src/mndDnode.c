@@ -383,9 +383,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
               pGid->syncCanRead != pVload->syncCanRead) {
             mInfo(
                 "vgId:%d, state changed by status msg, old state:%s restored:%d canRead:%d new state:%s restored:%d "
-                "canRead:%d",
+                "canRead:%d, dnode:%d",
                 pVgroup->vgId, syncStr(pGid->syncState), pGid->syncRestore, pGid->syncCanRead,
-                syncStr(pVload->syncState), pVload->syncRestore, pVload->syncCanRead);
+                syncStr(pVload->syncState), pVload->syncRestore, pVload->syncCanRead, pDnode->id);
             pGid->syncState = pVload->syncState;
             pGid->syncRestore = pVload->syncRestore;
             pGid->syncCanRead = pVload->syncCanRead;
