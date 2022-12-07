@@ -1525,10 +1525,9 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
 
   qDebug("queue scan called");
 
-  if (pTaskInfo->streamInfo.pReq != NULL) {
+  if (pTaskInfo->streamInfo.submit.msgStr != NULL) {
     if (pInfo->tqReader->msg2.msgStr == NULL) {
       /*pInfo->tqReader->pMsg = pTaskInfo->streamInfo.pReq;*/
-      pInfo->tqReader->ver = pTaskInfo->streamInfo.scanVer;
 
       /*const SSubmitReq* pSubmit = pInfo->tqReader->pMsg;*/
       /*if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {*/
@@ -1538,7 +1537,6 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         qError("submit msg messed up when initing stream submit block %p", submit.msgStr);
         pInfo->tqReader->msg2 = (SPackedSubmit){0};
         pInfo->tqReader->setMsg = 0;
-        pTaskInfo->streamInfo.pReq = NULL;
         ASSERT(0);
       }
     }
@@ -1562,7 +1560,8 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       }
     }
 
-    pTaskInfo->streamInfo.pReq = NULL;
+    pInfo->tqReader->msg2 = (SPackedSubmit){0};
+    pInfo->tqReader->setMsg = 0;
     return NULL;
   }
 

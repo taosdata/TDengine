@@ -320,8 +320,8 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
         ASSERT(ret->offset.version >= 0);
         return -1;
       }
-      void*   body = pReader->pWalReader->pHead->head.body;
-      int32_t bodyLen = pReader->pWalReader->pHead->head.bodyLen;
+      void*   body = POINTER_SHIFT(pReader->pWalReader->pHead->head.body, sizeof(SMsgHead));
+      int32_t bodyLen = pReader->pWalReader->pHead->head.bodyLen - sizeof(SMsgHead);
       int64_t ver = pReader->pWalReader->pHead->head.version;
 #if 0
       if (pReader->pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) {
@@ -383,9 +383,11 @@ int32_t tqReaderSetSubmitReq2(STqReader* pReader, void* msgStr, int32_t msgLen, 
   ASSERT(pReader->msg2.msgStr == NULL);
   ASSERT(msgStr);
   ASSERT(msgLen);
+  ASSERT(ver >= 0);
   pReader->msg2.msgStr = msgStr;
   pReader->msg2.msgLen = msgLen;
   pReader->msg2.ver = ver;
+  pReader->ver = ver;
 
   tqDebug("tq reader set msg %p", msgStr);
 

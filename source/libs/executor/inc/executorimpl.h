@@ -126,13 +126,12 @@ enum {
 
 typedef struct {
   // TODO remove prepareStatus
-  STqOffsetVal      prepareStatus;  // for tmq
-  STqOffsetVal      lastStatus;     // for tmq
-  SMqMetaRsp        metaRsp;        // for tmq fetching meta
-  int8_t            returned;
-  int64_t           snapshotVer;
-  const SSubmitReq* pReq;
-  int64_t           scanVer;
+  STqOffsetVal prepareStatus;  // for tmq
+  STqOffsetVal lastStatus;     // for tmq
+  SMqMetaRsp   metaRsp;        // for tmq fetching meta
+  int8_t       returned;
+  int64_t      snapshotVer;
+  // const SSubmitReq* pReq;
 
   SPackedSubmit submit;
 

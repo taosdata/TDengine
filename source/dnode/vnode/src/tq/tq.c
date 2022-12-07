@@ -674,8 +674,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
       if (pHead->msgType == TDMT_VND_SUBMIT) {
         SPackedSubmit submit = {
-            .msgStr = pHead->body,
-            .msgLen = pHead->bodyLen,
+            .msgStr = POINTER_SHIFT(pHead->body, sizeof(SMsgHead)),
+            .msgLen = pHead->bodyLen - sizeof(SMsgHead),
             .ver = pHead->version,
         };
         if (tqTaosxScanLog(pTq, pHandle, submit, &taosxRsp) < 0) {
