@@ -947,6 +947,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
       }
 
       taosArrayPush(pReq->aSubmitTbData, pTbData);
+      taosMemoryFree(pTbData);
 
       // encode
       int32_t code;
@@ -978,10 +979,12 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
     }
   }
 _end:
+  taosArrayDestroy(createTbArray);
   taosArrayDestroy(tagArray);
   taosArrayDestroy(pVals);
   // TODO: change
   tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+  taosMemoryFree(pReq);
 }
 
 #if 0
