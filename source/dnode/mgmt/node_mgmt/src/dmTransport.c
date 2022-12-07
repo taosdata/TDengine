@@ -50,7 +50,7 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
 
 static bool dmFailFastFp(tmsg_t msgType) {
   // add more msg type later
-  return msgType == TDMT_SYNC_HEARTBEAT;
+  return msgType == TDMT_SYNC_HEARTBEAT || msgType == TDMT_SYNC_APPEND_ENTRIES;
 }
 
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
