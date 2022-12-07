@@ -871,6 +871,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 
   pRsp->code = TSDB_CODE_SUCCESS;
 
+  vDebug("vvvvvvvvvvvv %p, %d", pReq, len);
+
   // decode
   SDecoder dc = {0};
   tDecoderInit(&dc, pReq, len);

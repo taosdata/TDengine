@@ -202,7 +202,7 @@ typedef struct SOperatorFpSet {
   __optr_fn_t         getNextFn;
   __optr_fn_t         cleanupFn;  // call this function to release the allocated resources ASAP
   __optr_close_fn_t   closeFn;
-  __optr_reqBuf_fn_t  reqBufFn;   // total used buffer for blocking operator
+  __optr_reqBuf_fn_t  reqBufFn;  // total used buffer for blocking operator
   __optr_encode_fn_t  encodeResultRow;
   __optr_decode_fn_t  decodeResultRow;
   __optr_explain_fn_t getExplainFn;
@@ -503,8 +503,8 @@ typedef struct STableCountScanOperatorInfo {
 
   STableCountScanSupp supp;
 
-  int32_t   currGrpIdx;
-  SArray*   stbUidList; // when group by db_name and/or stable_name
+  int32_t currGrpIdx;
+  SArray* stbUidList;  // when group by db_name and/or stable_name
 } STableCountScanOperatorInfo;
 
 typedef struct SOptrBasicInfo {
