@@ -101,6 +101,7 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
         }
 
         if (flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+          // SVCreateTbReq
           if (tStartDecode(&dc) < 0) {
             code = TSDB_CODE_INVALID_MSG;
             goto _err;
@@ -126,6 +127,15 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
           *(int64_t *)(dc.data + dc.pos + 8) = ctime;
 
           tEndDecode(&dc);
+
+          // SSubmitTbData
+          int64_t suid;
+          if (tDecodeI64(&dc, &suid) < 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            goto _err;
+          }
+
+          *(int64_t *)(dc.data + dc.pos) = uid;
         }
 
         tEndDecode(&dc);
@@ -870,6 +880,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   SEncoder     ec = {0};
 
   pRsp->code = TSDB_CODE_SUCCESS;
+
+  vDebug("vvvvvvvvvvvv %p, %d", pReq, len);
 
   // decode
   SDecoder dc = {0};

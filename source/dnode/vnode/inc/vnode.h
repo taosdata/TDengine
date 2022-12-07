@@ -220,12 +220,6 @@ typedef struct SSnapContext {
   bool      queryMetaOrData;  // true-get meta, false-get data
 } SSnapContext;
 
-typedef struct {
-  void   *msgStr;
-  int32_t msgLen;
-  int64_t ver;
-} SPackedSubmit;
-
 typedef struct STqReader {
   const SSubmitReq *pMsg;
   //  SSubmitBlk       *pBlock;
@@ -234,8 +228,10 @@ typedef struct STqReader {
 
   int64_t       ver;
   SPackedSubmit msg2;
-  SSubmitReq2  *pSubmit;
-  int32_t       nextBlk;
+
+  int8_t      setMsg;
+  SSubmitReq2 submit;
+  int32_t     nextBlk;
 
   int64_t lastBlkUid;
 

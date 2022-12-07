@@ -182,7 +182,8 @@ int32_t         tqOffsetCommitFile(STqOffsetStore* pStore);
 
 // tqSink
 // void tqSinkToTableMerge(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
-void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
+// void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
+void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
 
 // tqOffset
 char*   tqOffsetBuildFName(const char* path, int32_t fVer);

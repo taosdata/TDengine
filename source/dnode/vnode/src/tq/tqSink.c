@@ -957,7 +957,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
       if (NULL == pBuf) {
         goto _end;
       }
-      ((SMsgHead*)pBuf)->vgId = htonl(TD_VID(pVnode));
+      ((SMsgHead*)pBuf)->vgId = TD_VID(pVnode);
       ((SMsgHead*)pBuf)->contLen = htonl(len);
       tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len - sizeof(SMsgHead));
       if (tEncodeSSubmitReq2(&encoder, pReq) < 0) {
@@ -969,7 +969,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
       SRpcMsg msg = {
           .msgType = TDMT_VND_SUBMIT,
           .pCont = pBuf,
-          .contLen = ntohl(len),
+          .contLen = len,
       };
 
       if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
