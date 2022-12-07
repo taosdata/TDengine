@@ -42,7 +42,7 @@ static int32_t mndAddTaskToTaskSet(SArray* pArray, SStreamTask* pTask) {
 }
 
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
-                           int64_t watermark) {
+                           int64_t watermark, int64_t deleteMark) {
   SNode*      pAst = NULL;
   SQueryPlan* pPlan = NULL;
   terrno = TSDB_CODE_SUCCESS;
@@ -64,6 +64,7 @@ int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64
       .rSmaQuery = true,
       .triggerType = triggerType,
       .watermark = watermark,
+      .deleteMark = deleteMark,
   };
 
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {

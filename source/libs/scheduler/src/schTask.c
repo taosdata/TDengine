@@ -340,7 +340,7 @@ int32_t schRescheduleTask(SSchJob *pJob, SSchTask *pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet) {
+int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, int32_t rspCode) {
   SSchRedirectCtx *pCtx = &pTask->redirectCtx;
   if (!pCtx->inRedirect) {
     pCtx->inRedirect = true;
@@ -362,17 +362,12 @@ int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet) 
   }
 
   pCtx->totalTimes++;
+  pCtx->roundTimes++;
 
   if (SCH_IS_DATA_BIND_TASK(pTask) && pEpSet) {
     pCtx->roundTotal = pEpSet->numOfEps;
-    pCtx->roundTimes = 0;
-
-    pTask->delayExecMs = 0;
-
-    goto _return;
   }
 
-  pCtx->roundTimes++;
 
   if (pCtx->roundTimes >= pCtx->roundTotal) {
     int64_t nowTs = taosGetTimestampMs();
@@ -380,7 +375,7 @@ int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet) 
     if (lastTime > tsMaxRetryWaitTime) {
       SCH_TASK_DLOG("task no more redirect retry since timeout, now:%" PRId64 ", start:%" PRId64 ", max:%d, total:%d",
                     nowTs, pCtx->startTs, tsMaxRetryWaitTime, pCtx->totalTimes);
-      SCH_ERR_RET(TSDB_CODE_TIMEOUT_ERROR);
+      SCH_ERR_RET(SCH_GET_REDICT_CODE(pJob, rspCode));
     }
 
     pCtx->periodMs *= tsRedirectFactor;
@@ -415,7 +410,11 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
     pTask->retryTimes = 0;
   }
 
-  SCH_ERR_JRET(schChkUpdateRedirectCtx(pJob, pTask, pData ? pData->pEpSet : NULL));
+  if (!NO_RET_REDIRECT_ERROR(rspCode)) {
+    SCH_UPDATE_REDICT_CODE(pJob, rspCode);
+  }
+
+  SCH_ERR_JRET(schChkUpdateRedirectCtx(pJob, pTask, pData ? pData->pEpSet : NULL, rspCode));
 
   pTask->waitRetry = true;
 

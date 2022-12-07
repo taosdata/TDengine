@@ -293,6 +293,7 @@ typedef struct SSchJob {
   void                *chkKillParam;
   SSchTask            *fetchTask;
   int32_t              errCode;
+  int32_t              redirectCode;
   SRWLatch             resLock;
   SExecResult          execRes;
   void                *fetchRes;  // TODO free it or not
@@ -330,6 +331,9 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_IS_LOCAL_EXEC_TASK(_job, _task)                                          \
   ((_job)->attr.localExec && SCH_IS_QUERY_JOB(_job) && (!SCH_IS_INSERT_JOB(_job)) && \
    (!SCH_IS_DATA_BIND_QRY_TASK(_task)))
+
+#define SCH_UPDATE_REDICT_CODE(job, _code) atomic_val_compare_exchange_32(&((job)->redirectCode), 0, _code)
+#define SCH_GET_REDICT_CODE(job, _code) (((!NO_RET_REDIRECT_ERROR(_code)) || (job)->redirectCode == 0) ? (_code) : (job)->redirectCode)
 
 #define SCH_SET_TASK_STATUS(task, st) atomic_store_8(&(task)->status, st)
 #define SCH_GET_TASK_STATUS(task)     atomic_load_8(&(task)->status)
@@ -373,7 +377,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_IS_EXPLAIN_JOB(_job) (EXPLAIN_MODE_ANALYZE == (_job)->attr.explainMode)
 #define SCH_NETWORK_ERR(_code)   ((_code) == TSDB_CODE_RPC_BROKEN_LINK || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL)
 #define SCH_MERGE_TASK_NETWORK_ERR(_task, _code, _len) \
-  (SCH_NETWORK_ERR(_code) && (((_len) > 0) || (!SCH_IS_DATA_BIND_TASK(_task))))
+  (SCH_NETWORK_ERR(_code) && (((_len) > 0) || (!SCH_IS_DATA_BIND_TASK(_task)) || (_task)->redirectCtx.inRedirect))
 #define SCH_REDIRECT_MSGTYPE(_msgType)                                                                         \
   ((_msgType) == TDMT_SCH_LINK_BROKEN || (_msgType) == TDMT_SCH_QUERY || (_msgType) == TDMT_SCH_MERGE_QUERY || \
    (_msgType) == TDMT_SCH_FETCH || (_msgType) == TDMT_SCH_MERGE_FETCH)

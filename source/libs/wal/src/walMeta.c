@@ -24,7 +24,9 @@ bool FORCE_INLINE walLogExist(SWal* pWal, int64_t ver) {
   return !walIsEmpty(pWal) && walGetFirstVer(pWal) <= ver && walGetLastVer(pWal) >= ver;
 }
 
-bool FORCE_INLINE walIsEmpty(SWal* pWal) { return pWal->vers.firstVer == -1; }
+bool FORCE_INLINE walIsEmpty(SWal* pWal) {
+  return (pWal->vers.firstVer == -1 || pWal->vers.lastVer < pWal->vers.firstVer); // [firstVer, lastVer + 1)
+}
 
 int64_t FORCE_INLINE walGetFirstVer(SWal* pWal) { return pWal->vers.firstVer; }
 

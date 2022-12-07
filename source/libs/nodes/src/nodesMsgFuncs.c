@@ -2607,6 +2607,7 @@ enum {
   PHY_WINDOW_CODE_TS_END,
   PHY_WINDOW_CODE_TRIGGER_TYPE,
   PHY_WINDOW_CODE_WATERMARK,
+  PHY_WINDOW_CODE_DELETE_MARK,
   PHY_WINDOW_CODE_IG_EXPIRED,
   PHY_WINDOW_CODE_INPUT_TS_ORDER,
   PHY_WINDOW_CODE_OUTPUT_TS_ORDER,
@@ -2634,6 +2635,9 @@ static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI64(pEncoder, PHY_WINDOW_CODE_WATERMARK, pNode->watermark);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_WINDOW_CODE_DELETE_MARK, pNode->deleteMark);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI8(pEncoder, PHY_WINDOW_CODE_IG_EXPIRED, pNode->igExpired);
@@ -2678,6 +2682,9 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_WINDOW_CODE_WATERMARK:
         code = tlvDecodeI64(pTlv, &pNode->watermark);
+        break;
+      case PHY_WINDOW_CODE_DELETE_MARK:
+        code = tlvDecodeI64(pTlv, &pNode->deleteMark);
         break;
       case PHY_WINDOW_CODE_IG_EXPIRED:
         code = tlvDecodeI8(pTlv, &pNode->igExpired);

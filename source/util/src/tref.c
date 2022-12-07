@@ -67,14 +67,14 @@ int32_t taosOpenRef(int32_t max, RefFp fp) {
 
   nodeList = taosMemoryCalloc(sizeof(SRefNode *), (size_t)max);
   if (nodeList == NULL) {
-    terrno = TSDB_CODE_REF_NO_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   lockedBy = taosMemoryCalloc(sizeof(int64_t), (size_t)max);
   if (lockedBy == NULL) {
     taosMemoryFree(nodeList);
-    terrno = TSDB_CODE_REF_NO_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -164,7 +164,7 @@ int64_t taosAddRef(int32_t rsetId, void *p) {
 
   pNode = taosMemoryCalloc(sizeof(SRefNode), 1);
   if (pNode == NULL) {
-    terrno = TSDB_CODE_REF_NO_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
