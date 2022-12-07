@@ -513,13 +513,8 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
     if (!syncUtilUserCommit(pEntry->originalRpcType)) {
       sInfo("vgId:%d, commit sync barrier. index: %" PRId64 ", term:%" PRId64 ", type: %s", vgId, pEntry->index,
             pEntry->term, TMSG_INFO(pEntry->originalRpcType));
-      pBuf->commitIndex = index;
-      if (!inBuf) {
-        syncEntryDestroy(pEntry);
-        pEntry = NULL;
-      }
-      continue;
     }
+
     if (syncLogFsmExecute(pNode, pFsm, role, term, pEntry) != 0) {
       sError("vgId:%d, failed to execute sync log entry. index:%" PRId64 ", term:%" PRId64
              ", role: %d, current term: %" PRId64,
