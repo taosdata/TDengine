@@ -133,7 +133,9 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   SMnode                *pMnode = pMsg->info.node;
   SMqConsumerRecoverMsg *pRecoverMsg = pMsg->pCont;
   SMqConsumerObj        *pConsumer = mndAcquireConsumer(pMnode, pRecoverMsg->consumerId);
-  ASSERT(pConsumer);
+
+  tAssert(pConsumer != NULL, "receive consumer recover msg, consumer id %" PRId64 ", status %s",
+          pRecoverMsg->consumerId, mndConsumerStatusName(pConsumer->status));
 
   mInfo("receive consumer recover msg, consumer id %" PRId64 ", status %s", pRecoverMsg->consumerId,
         mndConsumerStatusName(pConsumer->status));
@@ -381,7 +383,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
     return -1;
   }
 
-  ASSERT(strcmp(req.cgroup, pConsumer->cgroup) == 0);
+  tAssert(strcmp(req.cgroup, pConsumer->cgroup) == 0, "cgroup:%s not match consumer:%s", req.cgroup, pConsumer->cgroup);
 
   atomic_store_32(&pConsumer->hbStatus, 0);
 
