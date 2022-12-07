@@ -432,7 +432,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, topic);
 
       // txn guarantees pSub is created
-      ASSERT(pSub);
+      tAsser(pSub);
       taosRLockLatch(&pSub->lock);
 
       SMqSubTopicEp topicEp = {0};

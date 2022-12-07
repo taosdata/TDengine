@@ -84,8 +84,7 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
     ;
 
 bool taosAssertLog(bool condition, const char *file, int32_t line, const char *format, ...);
-#define tAssert(condition, ...)  (void)taosAssertLog(condition, __FILE__, __LINE__, __VA_ARGS__);
-#define tAssertR(condition, ...) taosAssertLog(condition, __FILE__, __LINE__, __VA_ARGS__)
+#define tAssert(condition, ...) taosAssertLog(condition, __FILE__, __LINE__, __VA_ARGS__)
 
 // clang-format off
 #define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", DEBUG_FATAL, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
