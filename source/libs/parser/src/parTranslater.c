@@ -3879,12 +3879,20 @@ static int32_t checkDbKeepOption(STranslateContext* pCxt, SDatabaseOptions* pOpt
     pOptions->keep[2] = getBigintFromValueNode((SValueNode*)nodesListGetNode(pOptions->pKeep, 2));
   }
 
+  int64_t tsdbMaxKeep = TSDB_MAX_KEEP;
+  if (pOptions->precision == TSDB_TIME_PRECISION_NANO) {
+    int64_t now = taosGetTimestampSec();
+    if (now < 0) now = 0;
+    tsdbMaxKeep = now / 60 + 292 * 365 * 1440;
+    tsdbMaxKeep = TMIN(tsdbMaxKeep, TSDB_MAX_KEEP);
+  }
+
   if (pOptions->keep[0] < TSDB_MIN_KEEP || pOptions->keep[1] < TSDB_MIN_KEEP || pOptions->keep[2] < TSDB_MIN_KEEP ||
-      pOptions->keep[0] > TSDB_MAX_KEEP || pOptions->keep[1] > TSDB_MAX_KEEP || pOptions->keep[2] > TSDB_MAX_KEEP) {
+      pOptions->keep[0] > tsdbMaxKeep || pOptions->keep[1] > tsdbMaxKeep || pOptions->keep[2] > tsdbMaxKeep) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                    "Invalid option keep: %" PRId64 ", %" PRId64 ", %" PRId64 " valid range: [%dm, %dm]",
                                    pOptions->keep[0], pOptions->keep[1], pOptions->keep[2], TSDB_MIN_KEEP,
-                                   TSDB_MAX_KEEP);
+                                   tsdbMaxKeep);
   }
 
   if (!((pOptions->keep[0] <= pOptions->keep[1]) && (pOptions->keep[1] <= pOptions->keep[2]))) {
@@ -4036,7 +4044,10 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
                               TSDB_MAX_MINROWS_FBLOCK);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbKeepOption(pCxt, pOptions);
+    code = checkDbPrecisionOption(pCxt, pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbKeepOption(pCxt, pOptions); // use precision
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "pages", pOptions->pages, TSDB_MIN_PAGES_PER_VNODE, TSDB_MAX_PAGES_PER_VNODE);
@@ -4048,9 +4059,6 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "tsdbPagesize", pOptions->tsdbPageSize, TSDB_MIN_TSDB_PAGESIZE,
                               TSDB_MAX_TSDB_PAGESIZE);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbPrecisionOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "replications", pOptions->replica, TSDB_MIN_DB_REPLICA, TSDB_MAX_DB_REPLICA);
