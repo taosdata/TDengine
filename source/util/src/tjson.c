@@ -181,7 +181,7 @@ int32_t tjsonGetObjectValueString(const SJson* pJson, char** pValueString) {
 int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal) {
   char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
   if (NULL == p) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_SUCCESS;
   }
   strcpy(pVal, p);
   return TSDB_CODE_SUCCESS;
@@ -190,7 +190,7 @@ int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal) {
 int32_t tjsonDupStringValue(const SJson* pJson, const char* pName, char** pVal) {
   char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
   if (NULL == p) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_SUCCESS;
   }
   *pVal = strdup(p);
   return TSDB_CODE_SUCCESS;
@@ -199,7 +199,7 @@ int32_t tjsonDupStringValue(const SJson* pJson, const char* pName, char** pVal) 
 int32_t tjsonGetBigIntValue(const SJson* pJson, const char* pName, int64_t* pVal) {
   char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
   if (NULL == p) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_SUCCESS;
   }
 #ifdef WINDOWS
   sscanf(p, "%" PRId64, pVal);
@@ -233,7 +233,7 @@ int32_t tjsonGetTinyIntValue(const SJson* pJson, const char* pName, int8_t* pVal
 int32_t tjsonGetUBigIntValue(const SJson* pJson, const char* pName, uint64_t* pVal) {
   char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
   if (NULL == p) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_SUCCESS;
   }
 #ifdef WINDOWS
   sscanf(p, "%" PRIu64, pVal);
@@ -259,6 +259,9 @@ int32_t tjsonGetUTinyIntValue(const SJson* pJson, const char* pName, uint8_t* pV
 
 int32_t tjsonGetBoolValue(const SJson* pJson, const char* pName, bool* pVal) {
   const SJson* pObject = tjsonGetObjectItem(pJson, pName);
+  if (NULL == pObject) {
+    return TSDB_CODE_SUCCESS;
+  }
   if (!cJSON_IsBool(pObject)) {
     return TSDB_CODE_FAILED;
   }
@@ -268,6 +271,9 @@ int32_t tjsonGetBoolValue(const SJson* pJson, const char* pName, bool* pVal) {
 
 int32_t tjsonGetDoubleValue(const SJson* pJson, const char* pName, double* pVal) {
   const SJson* pObject = tjsonGetObjectItem(pJson, pName);
+  if (NULL == pObject) {
+    return TSDB_CODE_SUCCESS;
+  }
   if (!cJSON_IsNumber(pObject)) {
     return TSDB_CODE_FAILED;
   }
@@ -282,7 +288,7 @@ SJson* tjsonGetArrayItem(const SJson* pJson, int32_t index) { return cJSON_GetAr
 int32_t tjsonToObject(const SJson* pJson, const char* pName, FToObject func, void* pObj) {
   SJson* pJsonObj = tjsonGetObjectItem(pJson, pName);
   if (NULL == pJsonObj) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_SUCCESS;
   }
   return func(pJsonObj, pObj);
 }
@@ -294,7 +300,7 @@ int32_t tjsonMakeObject(const SJson* pJson, const char* pName, FToObject func, v
 
   SJson* pJsonObj = tjsonGetObjectItem(pJson, pName);
   if (NULL == pJsonObj) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_SUCCESS;
   }
   *pObj = taosMemoryCalloc(1, objSize);
   if (NULL == *pObj) {
