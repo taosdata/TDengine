@@ -34,6 +34,7 @@ typedef struct SPlanContext {
   bool        showRewrite;
   int8_t      triggerType;
   int64_t     watermark;
+  int64_t     deleteMark;
   int8_t      igExpired;
   char*       pMsg;
   int32_t     msgLen;

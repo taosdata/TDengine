@@ -231,10 +231,9 @@ void destroyTscObj(void *pObj) {
   tscDebug("connObj 0x%" PRIx64 " p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj,
            pTscObj->pAppInfo->numOfConns);
 
-  int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
-  if (0 == connNum) {
-    destroyAppInst(pTscObj->pAppInfo);
-  }
+  // In any cases, we should not free app inst here. Or an race condition rises.
+  /*int64_t connNum = */atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
+
   taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFree(pTscObj);
 

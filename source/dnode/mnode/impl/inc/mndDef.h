@@ -645,6 +645,7 @@ typedef struct {
   // 3.0.20
   int64_t checkpointFreq;  // ms
   int64_t currentTick;     // do not serialize
+  int64_t deleteMark;
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
