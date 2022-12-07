@@ -781,28 +781,33 @@ cmp_end:
 }
 
 bool taosAssertLog(bool condition, const char *file, int32_t line, const char *format, ...) {
-  if (!condition) return false;
+  if (condition) return false;
 
-  char    buffer[LOG_MAX_LINE_BUFFER_SIZE];
-  int32_t len = taosBuildLogHead(buffer, "UTL FATAL");
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;  // tsLogEmbedded ? 255 : uDebugFlag
+  char        buffer[LOG_MAX_LINE_BUFFER_SIZE];
+  int32_t     len = taosBuildLogHead(buffer, flags);
 
   va_list argpointer;
   va_start(argpointer, format);
-  int32_t writeLen = len + vsnprintf(buffer + len, LOG_MAX_LINE_BUFFER_SIZE - len, format, argpointer);
+  len = len + vsnprintf(buffer + len, LOG_MAX_LINE_BUFFER_SIZE - len, format, argpointer);
   va_end(argpointer);
+  buffer[len++] = '\n';
+  buffer[len] = 0;
+  taosPrintLogImp(1, 255, buffer, len);
 
-  char    fullBuf[LOG_MAX_LINE_BUFFER_SIZE];
-  int32_t fullLen = snprintf(fullBuf, sizeof(fullBuf), "ASSERT at file:%s:%d, %s", file, line, buffer);
-  taosPrintLogImp(1, 255, fullBuf, fullLen);
+  taosPrintLog(flags, level, dflag, "ASSERT at file %s:%d exit:%d", file, line, tsAssert);
+  taosPrintTrace(flags, level, dflag);
 
   if (tsAssert) {
     taosCloseLog();
     taosMsleep(300);
 
-#if NDEBUG
+#ifdef NDEBUG
     abort();
 #else
-    ASSERT(1);
+    ASSERT(0);
 #endif
   }
 

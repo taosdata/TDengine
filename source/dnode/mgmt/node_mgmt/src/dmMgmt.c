@@ -103,6 +103,8 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 
+  tAssert(0, "");
+  
   pDnode->wrappers[DNODE].func = dmGetMgmtFunc();
   pDnode->wrappers[MNODE].func = mmGetMgmtFunc();
   pDnode->wrappers[VNODE].func = vmGetMgmtFunc();

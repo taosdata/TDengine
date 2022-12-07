@@ -27,6 +27,7 @@ extern "C" {
 
 #if !defined(WINDOWS)
 #include <dirent.h>
+#include <execinfo.h>
 #include <libgen.h>
 #include <sched.h>
 #include <unistd.h>
