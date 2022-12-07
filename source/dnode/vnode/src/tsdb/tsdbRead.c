@@ -3272,12 +3272,16 @@ int32_t doMergeRowsInBuf(SIterInfo* pIter, uint64_t uid, int64_t ts, SArray* pDe
       break;
     }
 
-    STSchema* pTSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, uid);
-    if (pTSchema == NULL) {
-      return terrno;
-    }
+    if (pRow->type == TSDBROW_ROW_FMT) {
+      STSchema* pTSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, uid);
+      if (pTSchema == NULL) {
+        return terrno;
+      }
 
-    tsdbRowMergerAdd(pMerger, pRow, pTSchema);
+      tsdbRowMergerAdd(pMerger, pRow, pTSchema);
+    } else {  // column format
+      tsdbRowMerge(pMerger, pRow);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3426,12 +3430,13 @@ int32_t doMergeMemTableMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, 
     }
   }
 
+  SRowMerger merge = {0};
+  terrno = 0;
+  int32_t code = 0;
+
   // start to merge duplicated rows
   if (current.type == TSDBROW_ROW_FMT) {
-    SRowMerger merge = {0};
-
     // get the correct schema for data in memory
-    terrno = 0;
     STSchema* pTSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(&current), pReader, uid);
     if (pTSchema == NULL) {
       return terrno;
@@ -3441,7 +3446,7 @@ int32_t doMergeMemTableMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, 
       pReader->pSchema = pTSchema;
     }
 
-    int32_t code = tsdbRowMergerInit2(&merge, pReader->pSchema, &current, pTSchema);
+    code = tsdbRowMergerInit2(&merge, pReader->pSchema, &current, pTSchema);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -3452,21 +3457,28 @@ int32_t doMergeMemTableMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, 
     }
 
     tsdbRowMergerAdd(&merge, pNextRow, pTSchema1);
-
-    code = doMergeRowsInBuf(pIter, uid, current.pTSRow->ts, pDelList, &merge, pReader);
+  } else {  // let's merge rows in file block
+    code = tsdbRowMergerInit(&merge, &current, pReader->pSchema);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    code = tsdbRowMergerGetRow(&merge, &pResRow->pTSRow);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-
-    pResRow->type = current.type;
-    tsdbRowMergerClear(&merge);
-    *freeTSRow = true;
+    tsdbRowMerge(&merge, pNextRow);
   }
+
+  code = doMergeRowsInBuf(pIter, uid, current.pTSRow->ts, pDelList, &merge, pReader);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  code = tsdbRowMergerGetRow(&merge, &pResRow->pTSRow);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pResRow->type = current.type;
+  tsdbRowMergerClear(&merge);
+  *freeTSRow = true;
 
   return TSDB_CODE_SUCCESS;
 }
