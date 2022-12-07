@@ -4112,8 +4112,9 @@ static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
   }
 }
 
-int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg ***pBlockSMA, bool* allHave) {
+int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pBlock, bool* allHave) {
   int32_t code = 0;
+  SColumnDataAgg ***pBlockSMA = &pBlock->pBlockAgg;
   *allHave = false;
 
   if (pReader->type == TIMEWINDOW_RANGE_EXTERNAL) {
@@ -4160,6 +4161,12 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg ***pBlockS
 
   int32_t i = 0, j = 0;
   size_t  size = taosArrayGetSize(pSup->pColAgg);
+
+  // ensure capacity
+  if(pBlock->pDataBlock) {
+     size_t colsNum = taosArrayGetSize(pBlock->pDataBlock);
+     taosArrayEnsureCap(pSup->pColAgg, colsNum);
+  }
 
   SSDataBlock* pResBlock = pReader->pResBlock;
   if (pResBlock->pBlockAgg == NULL) {
