@@ -75,7 +75,8 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   for (int i = 0; i < ths->peersNum; ++i) {
     SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(ths->peersId[i]));
     if (pSender != NULL) {
-      if (timeNow - pSender->lastSendTime > SYNC_SNAP_RESEND_MS) {
+      if (ths->isStart && ths->state == TAOS_SYNC_STATE_LEADER && pSender->start &&
+          timeNow - pSender->lastSendTime > SYNC_SNAP_RESEND_MS) {
         snapshotReSend(pSender);
       }
     }
