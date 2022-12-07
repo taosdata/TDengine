@@ -3129,7 +3129,7 @@ bool hasBeenDropped(const SArray* pDelList, int32_t* index, TSDBKEY* pKey, int32
         return false;
       } else if (pKey->ts == last->ts) {
         TSDBKEY* prev = taosArrayGet(pDelList, num - 2);
-        return (prev->version >= pKey->version);
+        return (prev->version >= pKey->version && pKey->version >= pVerRange->maxVer);
       }
     } else {
       TSDBKEY* pCurrent = taosArrayGet(pDelList, *index);
