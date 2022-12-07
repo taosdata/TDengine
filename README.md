@@ -79,7 +79,7 @@ By default, TDengine compiling does not include taosTools. You can use 'cmake ..
 To build the [taosTools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config
 ```
 
 ### CentOS 7
@@ -126,7 +126,7 @@ sudo dnf install -y maven
 To build the [taosTools](https://github.com/taosdata/taos-tools) on CentOS, the following packages need to be installed.
 
 ```bash
-sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static
+sudo yum install zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static
 ```
 
 Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it lead a cmake prompt libsnappy not found. But snappy will works well.

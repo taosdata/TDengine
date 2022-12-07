@@ -77,7 +77,7 @@ taosTools 是用于 TDengine 的辅助工具软件集合。目前它包含 taosB
 为了在 Ubuntu/Debian 系统上编译 [taos-tools](https://github.com/taosdata/taos-tools) 需要安装如下软件：
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config
 ```
 
 ### CentOS 7：
@@ -121,7 +121,7 @@ sudo dnf install -y maven
 为了在 CentOS 上构建 [taosTools](https://github.com/taosdata/taos-tools) 需要安装如下依赖软件
 
 ```bash
-sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static
+sudo yum install zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static
 ```
 
 注意：由于 snappy 缺乏 pkg-config 支持
