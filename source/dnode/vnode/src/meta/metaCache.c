@@ -454,7 +454,7 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
 
       SListNode* pNode = NULL;
       while ((pNode = tdListNext(&iter)) != NULL) {
-        memcpy(pBuf + sizeof(suid), pNode->data, keyLen);
+        memcpy(&pBuf[1], pNode->data, keyLen);
 
         // check whether it is existed in LRU cache, and remove it from linked list if not.
         LRUHandle* pRes = taosLRUCacheLookup(pCache, pBuf, len);
