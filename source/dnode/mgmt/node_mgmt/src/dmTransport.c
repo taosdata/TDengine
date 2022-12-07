@@ -48,6 +48,11 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   return (*msgFp)(pWrapper->pMgmt, pMsg);
 }
 
+static bool dmFailFastFp(tmsg_t msgType) {
+  // add more msg type later
+  return msgType == TDMT_SYNC_HEARTBEAT || msgType == TDMT_SYNC_APPEND_ENTRIES;
+}
+
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
@@ -259,6 +264,10 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.retryStepFactor = tsRedirectFactor;
   rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
   rpcInit.retryMaxTimouet = tsMaxRetryWaitTime;
+
+  rpcInit.failFastInterval = 1000;  // interval threshold(ms)
+  rpcInit.failFastThreshold = 3;    // failed threshold
+  rpcInit.ffp = dmFailFastFp;
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
