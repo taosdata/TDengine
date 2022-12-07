@@ -148,7 +148,7 @@ endi
 
 print ============= step3: alter database
 sql alter database db replica 1
-wt = 0
+$wt = 0
  stepwt1:
  	$wt = $wt + 1
  	sleep 1000
