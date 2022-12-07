@@ -720,7 +720,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
   // data in current data block are qualified to the query
   if (pInput->colDataSMAIsSet) {
     numOfElems = pInput->numOfRows - pAgg->numOfNull;
-    ASSERT(pInput->numOfRows == pInput->totalRows && numOfElems >= 0);
+    tAssert(pInput->numOfRows == pInput->totalRows && numOfElems >= 0);
 
     if (numOfElems == 0) {
       goto _over;
@@ -826,7 +826,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
     }
 
     if (i >= end) {
-      ASSERT(numOfElems == 0);
+      tAssert(numOfElems == 0);
       goto _over;
     }
 

@@ -525,7 +525,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
 
       return code;
     default:
-      ASSERT(0);
+      tAssert(0);
       break;
   }
 
@@ -723,7 +723,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
 
       return code;
     default:
-      ASSERT(0);
+      tAssert(0);
       break;
   }
 
@@ -822,7 +822,7 @@ static int32_t getNextRowFromMem(void *iter, TSDBROW **ppRow) {
         return code;
       }
     default:
-      ASSERT(0);
+      tAssert(0);
       break;
   }
 

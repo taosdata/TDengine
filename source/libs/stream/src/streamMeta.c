@@ -107,7 +107,7 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t ver, char* msg, 
   tDecoderClear(&decoder);
 
   if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
-    ASSERT(0);
+    tAssert(0);
     goto FAIL;
   }
 
@@ -117,7 +117,7 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t ver, char* msg, 
 
   if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), msg, msgLen, pMeta->txn) < 0) {
     taosHashRemove(pMeta->pTasks, &pTask->taskId, sizeof(int32_t));
-    ASSERT(0);
+    tAssert(0);
     goto FAIL;
   }
 
@@ -153,7 +153,7 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
   tEncoderClear(&encoder);
 
   if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), buf, len, pMeta->txn) < 0) {
-    ASSERT(0);
+    tAssert(0);
     return -1;
   }
 
@@ -167,7 +167,7 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
 SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
-    ASSERT((*ppTask)->taskId == taskId);
+    tAssert((*ppTask)->taskId == taskId);
     return *ppTask;
   } else {
     return NULL;
@@ -195,9 +195,9 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
 
 void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   int32_t left = atomic_sub_fetch_32(&pTask->refCnt, 1);
-  ASSERT(left >= 0);
+  tAssert(left >= 0);
   if (left == 0) {
-    ASSERT(atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING);
+    tAssert(atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING);
     tFreeSStreamTask(pTask);
   }
 }
@@ -257,7 +257,7 @@ int32_t streamMetaAbort(SStreamMeta* pMeta) {
 int32_t streamLoadTasks(SStreamMeta* pMeta) {
   TBC* pCur = NULL;
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
-    ASSERT(0);
+    tAssert(0);
     return -1;
   }
 

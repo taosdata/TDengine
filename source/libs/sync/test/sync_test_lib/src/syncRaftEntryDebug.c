@@ -172,7 +172,7 @@ cJSON* raftEntryCache2Json(SRaftEntryCache* pCache) {
     SSkipListIterator* pIter = tSkipListCreateIter(pCache->pSkipList);
     while (tSkipListIterNext(pIter)) {
       SSkipListNode* pNode = tSkipListIterGet(pIter);
-      ASSERT(pNode != NULL);
+      tAssert(pNode != NULL);
       SSyncRaftEntry* pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
       cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
     }

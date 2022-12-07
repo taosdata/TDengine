@@ -56,7 +56,7 @@ static inline int tdbPutVarInt(u8 *p, int v) {
     v >>= 7;
   }
 
-  ASSERT(n < 6);
+  tAssert(n < 6);
 
   return n;
 }
@@ -79,7 +79,7 @@ static inline int tdbGetVarInt(const u8 *p, int *v) {
     n++;
   }
 
-  ASSERT(n < 6);
+  tAssert(n < 6);
 
   *v = tv;
   return n;

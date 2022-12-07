@@ -317,7 +317,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
     }
   }
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
-  ASSERT(pRSmaStat->commitAppliedVer > 0);
+  tAssert(pRSmaStat->commitAppliedVer > 0);
 
   // step 2: wait for all triggered fetch tasks to finish
   nLoops = 0;
@@ -361,7 +361,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   // lock
   taosWLockLatch(SMA_ENV_LOCK(pEnv));
 
-  ASSERT(RSMA_INFO_HASH(pRSmaStat));
+  tAssert(RSMA_INFO_HASH(pRSmaStat));
 
   void *pIter = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), NULL);
 

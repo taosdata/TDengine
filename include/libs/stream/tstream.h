@@ -188,13 +188,13 @@ SStreamQueue* streamQueueOpen();
 void          streamQueueClose(SStreamQueue* queue);
 
 static FORCE_INLINE void streamQueueProcessSuccess(SStreamQueue* queue) {
-  ASSERT(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);
+  tAssert(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);
   queue->qItem = NULL;
   atomic_store_8(&queue->status, STREAM_QUEUE__SUCESS);
 }
 
 static FORCE_INLINE void streamQueueProcessFail(SStreamQueue* queue) {
-  ASSERT(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);
+  tAssert(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);
   atomic_store_8(&queue->status, STREAM_QUEUE__FAILED);
 }
 
@@ -206,7 +206,7 @@ static FORCE_INLINE void* streamQueueCurItem(SStreamQueue* queue) {
 static FORCE_INLINE void* streamQueueNextItem(SStreamQueue* queue) {
   int8_t dequeueFlag = atomic_exchange_8(&queue->status, STREAM_QUEUE__PROCESSING);
   if (dequeueFlag == STREAM_QUEUE__FAILED) {
-    ASSERT(queue->qItem != NULL);
+    tAssert(queue->qItem != NULL);
     return streamQueueCurItem(queue);
   } else {
     queue->qItem = NULL;

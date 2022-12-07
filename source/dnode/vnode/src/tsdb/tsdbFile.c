@@ -135,7 +135,7 @@ int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype) {
       tPutSmaFile(hdr, pSet->pSmaF);
       break;
     default:
-      ASSERT(0);
+      tAssert(0);
   }
 
   taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);

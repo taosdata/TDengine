@@ -284,7 +284,7 @@ int32_t tfsMkdir(STfs *pTfs, const char *rname) {
 }
 
 int32_t tfsRmdir(STfs *pTfs, const char *rname) {
-  ASSERT(rname[0] != 0);
+  tAssert(rname[0] != 0);
 
   char aname[TMPNAME_LEN] = "\0";
 

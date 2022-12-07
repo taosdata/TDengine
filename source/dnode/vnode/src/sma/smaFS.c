@@ -90,7 +90,7 @@ int32_t tdRSmaFSRef(SSma *pSma, SRSmaStat *pStat, int64_t version) {
   taosRLockLatch(RSMA_FS_LOCK(pStat));
   if ((pTaskF = taosArraySearch(aQTaskInf, &version, tdQTaskInfCmprFn1, TD_EQ))) {
     oldVal = atomic_fetch_add_32(&pTaskF->nRef, 1);
-    ASSERT(oldVal > 0);
+    tAssert(oldVal > 0);
   }
   taosRUnLockLatch(RSMA_FS_LOCK(pStat));
   return oldVal;
@@ -117,7 +117,7 @@ void tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t version) {
 
   taosWLockLatch(RSMA_FS_LOCK(pStat));
   if ((idx = taosArraySearchIdx(aQTaskInf, &version, tdQTaskInfCmprFn1, TD_EQ)) >= 0) {
-    ASSERT(idx < taosArrayGetSize(aQTaskInf));
+    tAssert(idx < taosArrayGetSize(aQTaskInf));
     pTaskF = taosArrayGet(aQTaskInf, idx);
     if (atomic_sub_fetch_32(&pTaskF->nRef, 1) <= 0) {
       tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->version, tfsGetPrimaryPath(pVnode->pTfs), qTaskFullName);

@@ -393,7 +393,7 @@ char* parseTagDatatoJson(void* p) {
       } else if (pTagVal->nData == 0) {
         value = cJSON_CreateString("");
       } else {
-        ASSERT(0);
+        tAssert(0);
       }
 
       cJSON_AddItemToObject(json, tagJsonKey, value);
@@ -412,7 +412,7 @@ char* parseTagDatatoJson(void* p) {
       }
       cJSON_AddItemToObject(json, tagJsonKey, value);
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
   }
   string = cJSON_PrintUnformatted(json);

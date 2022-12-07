@@ -167,7 +167,7 @@ int main(int argc, char **argv) {
   pSyncNode->pLogStore->syncLogAppendEntry(pSyncNode->pLogStore, pEntry);
  
   int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, pEntry->index, &pEntry);
-  ASSERT(code == 0);
+  tAssert(code == 0);
 
   syncEntryLog2((char *)"==pEntry==", pEntry);
 

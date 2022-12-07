@@ -38,6 +38,7 @@ typedef void (*LogFp)(int64_t ts, ELogLevel level, const char *content);
 
 extern bool    tsLogEmbedded;
 extern bool    tsAsyncLog;
+extern bool    tsAssert;
 extern int32_t tsNumOfLogLines;
 extern int32_t tsLogKeepDays;
 extern LogFp   tsLogFp;
@@ -81,6 +82,10 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
     __attribute__((format(printf, 4, 5)))
 #endif
     ;
+
+bool taosAssertLog(bool condition, const char *file, int32_t line, const char *format, ...);
+#define tAssertS(condition, ...) taosAssertLog(condition, __FILE__, __LINE__, __VA_ARGS__)
+#define tAssert(condition)  tAssertS(condition, "assert info not provided")
 
 // clang-format off
 #define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", DEBUG_FATAL, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}

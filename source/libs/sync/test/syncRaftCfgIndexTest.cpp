@@ -52,7 +52,7 @@ const char* pFile = "./raft_config_index.json";
 
 void test1() {
   int32_t code = raftCfgIndexCreateFile(pFile);
-  ASSERT(code == 0);
+  tAssert(code == 0);
 
   SRaftCfgIndex* pRaftCfgIndex = raftCfgIndexOpen(pFile);
 

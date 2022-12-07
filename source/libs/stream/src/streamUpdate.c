@@ -301,7 +301,7 @@ void updateInfoDestoryColseWinSBF(SUpdateInfo *pInfo) {
 }
 
 int32_t updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *pInfo) {
-  ASSERT(pInfo);
+  tAssert(pInfo);
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
   if (tStartEncode(&encoder) < 0) return -1;
@@ -352,7 +352,7 @@ int32_t updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *pInfo)
 }
 
 int32_t updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo) {
-  ASSERT(pInfo);
+  tAssert(pInfo);
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
   if (tStartDecode(&decoder) < 0) return -1;
@@ -394,7 +394,7 @@ int32_t updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo) {
     if (tDecodeI64(&decoder, &ts) < 0) return -1;
     taosHashPut(pInfo->pMap, &uid, sizeof(uint64_t), &ts, sizeof(TSKEY));
   }
-  ASSERT(mapSize == taosHashGetSize(pInfo->pMap));
+  tAssert(mapSize == taosHashGetSize(pInfo->pMap));
 
   if (tDecodeI64(&decoder, &pInfo->scanWindow.skey) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->scanWindow.ekey) < 0) return -1;

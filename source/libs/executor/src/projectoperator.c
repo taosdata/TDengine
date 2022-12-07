@@ -162,7 +162,7 @@ static int32_t discardGroupDataBlock(SSDataBlock* pBlock, SLimitInfo* pLimitInfo
 static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, SOperatorInfo* pOperator) {
   // remainGroupOffset == 0
   // here check for a new group data, we need to handle the data of the previous group.
-  ASSERT(pLimitInfo->remainGroupOffset == 0 || pLimitInfo->remainGroupOffset == -1);
+  tAssert(pLimitInfo->remainGroupOffset == 0 || pLimitInfo->remainGroupOffset == -1);
 
   if (pLimitInfo->currentGroupId != 0 && pLimitInfo->currentGroupId != pBlock->info.id.groupId) {
     pLimitInfo->numOfOutputGroups += 1;
@@ -618,7 +618,7 @@ SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
   for (int32_t k = 0; k < pSup->numOfExprs; ++k) {
     int32_t outputSlotId = pExpr[k].base.resSchema.slotId;
 
-    ASSERT(pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE);
+    tAssert(pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE);
     SColumnInfoData* pColInfoData = taosArrayGet(pRes->pDataBlock, outputSlotId);
 
     int32_t type = pExpr[k].base.pParam[0].param.nType;
@@ -659,7 +659,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     for (int32_t k = 0; k < numOfOutput; ++k) {
       int32_t outputSlotId = pExpr[k].base.resSchema.slotId;
 
-      ASSERT(pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE);
+      tAssert(pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE);
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
 
       int32_t type = pExpr[k].base.pParam[0].param.nType;
@@ -734,7 +734,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       }
 
       int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
-      ASSERT(pResult->info.capacity > 0);
+      tAssert(pResult->info.capacity > 0);
 
       colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
       colDataDestroy(&idata);
@@ -804,7 +804,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         }
 
         int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
-        ASSERT(pResult->info.capacity > 0);
+        tAssert(pResult->info.capacity > 0);
         colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
         colDataDestroy(&idata);
 

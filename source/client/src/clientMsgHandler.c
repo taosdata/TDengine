@@ -454,7 +454,7 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data, SHOW_VARIABLES_RESULT_COLS);
-  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
+  tAssert(len == rspSize - sizeof(SRetrieveTableRsp));
 
   blockDataDestroy(pBlock);
   return TSDB_CODE_SUCCESS;

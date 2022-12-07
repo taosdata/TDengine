@@ -72,7 +72,7 @@ int vnodeOpenBufPool(SVnode *pVnode) {
   SVBufPool *pPool = NULL;
   int64_t    size = pVnode->config.szBuf / VNODE_BUFPOOL_SEGMENTS;
 
-  ASSERT(pVnode->pPool == NULL);
+  tAssert(pVnode->pPool == NULL);
 
   for (int i = 0; i < 3; i++) {
     // create pool
@@ -110,14 +110,14 @@ int vnodeCloseBufPool(SVnode *pVnode) {
 
 void vnodeBufPoolReset(SVBufPool *pPool) {
   for (SVBufPoolNode *pNode = pPool->pTail; pNode->prev; pNode = pPool->pTail) {
-    ASSERT(pNode->pnext == &pPool->pTail);
+    tAssert(pNode->pnext == &pPool->pTail);
     pNode->prev->pnext = &pPool->pTail;
     pPool->pTail = pNode->prev;
     pPool->size = pPool->size - sizeof(*pNode) - pNode->size;
     taosMemoryFree(pNode);
   }
 
-  ASSERT(pPool->size == pPool->ptr - pPool->node.data);
+  tAssert(pPool->size == pPool->ptr - pPool->node.data);
 
   pPool->size = 0;
   pPool->ptr = pPool->node.data;
@@ -126,7 +126,7 @@ void vnodeBufPoolReset(SVBufPool *pPool) {
 void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
   SVBufPoolNode *pNode;
   void          *p = NULL;
-  ASSERT(pPool != NULL);
+  tAssert(pPool != NULL);
 
   if (pPool->lock) taosThreadSpinLock(pPool->lock);
   if (pPool->node.size >= pPool->ptr - pPool->node.data + size) {
@@ -172,7 +172,7 @@ void vnodeBufPoolFree(SVBufPool *pPool, void *p) {
 
 void vnodeBufPoolRef(SVBufPool *pPool) {
   int32_t nRef = atomic_fetch_add_32(&pPool->nRef, 1);
-  ASSERT(nRef > 0);
+  tAssert(nRef > 0);
 }
 
 void vnodeBufPoolUnRef(SVBufPool *pPool) {

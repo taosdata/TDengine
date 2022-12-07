@@ -325,13 +325,13 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
   // deserialize ast
   if (nodesStringToNode(pObj->ast, &pAst) < 0) {
-    /*ASSERT(0);*/
+    /*tAssert(0);*/
     goto FAIL;
   }
 
   // extract output schema from ast
   if (qExtractResultSchema(pAst, (int32_t *)&pObj->outputSchema.nCols, &pObj->outputSchema.pSchema) != 0) {
-    /*ASSERT(0);*/
+    /*tAssert(0);*/
     goto FAIL;
   }
 
@@ -346,13 +346,13 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
   // using ast and param to build physical plan
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
-    /*ASSERT(0);*/
+    /*tAssert(0);*/
     goto FAIL;
   }
 
   // save physcial plan
   if (nodesNodeToString((SNode *)pPlan, false, &pObj->physicalPlan, NULL) != 0) {
-    /*ASSERT(0);*/
+    /*tAssert(0);*/
     goto FAIL;
   }
 
@@ -360,7 +360,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   if (pCreate->numOfTags) {
     pObj->tagSchema.pSchema = taosMemoryCalloc(pCreate->numOfTags, sizeof(SSchema));
   }
-  ASSERT(pCreate->numOfTags == taosArrayGetSize(pCreate->pTags));
+  tAssert(pCreate->numOfTags == taosArrayGetSize(pCreate->pTags));
   for (int32_t i = 0; i < pCreate->numOfTags; i++) {
     SField *pField = taosArrayGet(pCreate->pTags, i);
     pObj->tagSchema.pSchema[i].colId = pObj->outputSchema.nCols + i + 1;
@@ -378,7 +378,7 @@ FAIL:
 
 int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
   if (pTask->taskLevel == TASK_LEVEL__AGG) {
-    ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
+    tAssert(taosArrayGetSize(pTask->childEpInfo) != 0);
   }
   SEncoder encoder;
   tEncoderInit(&encoder, NULL, 0);
@@ -544,7 +544,7 @@ _OVER:
 }
 
 static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
-  ASSERT(pTask->nodeId != 0);
+  tAssert(pTask->nodeId != 0);
 
   // vnode
   /*if (pTask->nodeId > 0) {*/
@@ -790,10 +790,10 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
       int32_t sz = taosArrayGetSize(pLevel);
       for (int32_t j = 0; j < sz; j++) {
         SStreamTask *pTask = taosArrayGetP(pLevel, j);
-        ASSERT(pTask->nodeId > 0);
+        tAssert(pTask->nodeId > 0);
         SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->nodeId);
         if (pVgObj == NULL) {
-          ASSERT(0);
+          tAssert(0);
           taosRUnLockLatch(&pStream->lock);
           mndReleaseStream(pMnode, pStream);
           mndTransDrop(pTrans);
@@ -853,7 +853,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   SMDropStreamReq dropReq = {0};
   if (tDeserializeSMDropStreamReq(pReq->pCont, pReq->contLen, &dropReq) < 0) {
-    ASSERT(0);
+    tAssert(0);
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }

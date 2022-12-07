@@ -321,7 +321,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
 
     vnodeBegin(pVnode);
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
 _exit:
@@ -339,8 +339,8 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   SSnapDataHdr *pHdr = (SSnapDataHdr *)pData;
   SVnode       *pVnode = pWriter->pVnode;
 
-  ASSERT(pHdr->size + sizeof(SSnapDataHdr) == nData);
-  ASSERT(pHdr->index == pWriter->index + 1);
+  tAssert(pHdr->size + sizeof(SSnapDataHdr) == nData);
+  tAssert(pHdr->index == pWriter->index + 1);
   pWriter->index = pHdr->index;
 
   vInfo("vgId:%d, vnode snapshot write data, index:%" PRId64 " type:%d nData:%d", TD_VID(pVnode), pHdr->index,

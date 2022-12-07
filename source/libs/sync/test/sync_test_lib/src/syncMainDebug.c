@@ -223,7 +223,7 @@ int32_t syncNodePingSelf(SSyncNode* pSyncNode) {
   int32_t   ret = 0;
   SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, &pSyncNode->myRaftId, pSyncNode->vgId);
   ret = syncNodePing(pSyncNode, &pMsg->destId, pMsg);
-  ASSERT(ret == 0);
+  tAssert(ret == 0);
 
   syncPingDestroy(pMsg);
   return ret;
@@ -235,7 +235,7 @@ int32_t syncNodePingPeers(SSyncNode* pSyncNode) {
     SRaftId*  destId = &(pSyncNode->peersId[i]);
     SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, destId, pSyncNode->vgId);
     ret = syncNodePing(pSyncNode, destId, pMsg);
-    ASSERT(ret == 0);
+    tAssert(ret == 0);
     syncPingDestroy(pMsg);
   }
   return ret;
@@ -247,7 +247,7 @@ int32_t syncNodePingAll(SSyncNode* pSyncNode) {
     SRaftId*  destId = &(pSyncNode->replicasId[i]);
     SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, destId, pSyncNode->vgId);
     ret = syncNodePing(pSyncNode, destId, pMsg);
-    ASSERT(ret == 0);
+    tAssert(ret == 0);
     syncPingDestroy(pMsg);
   }
   return ret;

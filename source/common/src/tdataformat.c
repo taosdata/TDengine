@@ -89,7 +89,7 @@ typedef struct {
           SET_BIT2(PB, IDX, VAL);                 \
           break;                                  \
         default:                                  \
-          ASSERT(0);                              \
+          tAssert(0);                              \
           break;                                  \
       }                                           \
     }                                             \
@@ -98,9 +98,9 @@ typedef struct {
 int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
   int32_t code = 0;
 
-  ASSERT(taosArrayGetSize(aColVal) > 0);
-  ASSERT(((SColVal *)aColVal->pData)[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
-  ASSERT(((SColVal *)aColVal->pData)[0].type == TSDB_DATA_TYPE_TIMESTAMP);
+  tAssert(taosArrayGetSize(aColVal) > 0);
+  tAssert(((SColVal *)aColVal->pData)[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
+  tAssert(((SColVal *)aColVal->pData)[0].type == TSDB_DATA_TYPE_TIMESTAMP);
 
   // scan ---------------
   uint8_t       flag = 0;
@@ -135,7 +135,7 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
           nkv += tPutI16v(NULL, -pTColumn->colId);
           nIdx++;
         } else {
-          ASSERT(0);
+          tAssert(0);
         }
 
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
@@ -174,7 +174,7 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
       ntp = sizeof(SRow) + BIT2_SIZE(pTSchema->numOfCols - 1) + ntp;
       break;
     default:
-      ASSERT(0);
+      tAssert(0);
       break;
   }
   if (maxIdx <= UINT8_MAX) {
@@ -302,7 +302,7 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
         pv = pf + pTSchema->flen;
         break;
       default:
-        ASSERT(0);
+        tAssert(0);
         break;
     }
 
@@ -353,8 +353,8 @@ _exit:
 }
 
 void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
-  ASSERT(iCol < pTSchema->numOfCols);
-  ASSERT(pRow->sver == pTSchema->version);
+  tAssert(iCol < pTSchema->numOfCols);
+  tAssert(pRow->sver == pTSchema->version);
 
   STColumn *pTColumn = pTSchema->columns + iCol;
 
@@ -512,7 +512,7 @@ struct SRowIter {
 };
 
 int32_t tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter) {
-  ASSERT(pRow->sver == pTSchema->version);
+  tAssert(pRow->sver == pTSchema->version);
 
   int32_t code = 0;
 
@@ -559,7 +559,7 @@ int32_t tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter) {
         pIter->pv = pIter->pf + pTSchema->flen;
         break;
       default:
-        ASSERT(0);
+        tAssert(0);
         break;
     }
   }
@@ -649,7 +649,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
         pIter->cv = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
         goto _exit;
       } else {
-        ASSERT(0);
+        tAssert(0);
       }
     } else {
       pIter->cv = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
@@ -673,7 +673,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
           bv = GET_BIT2(pIter->pb, pIter->iTColumn - 1);
           break;
         default:
-          ASSERT(0);
+          tAssert(0);
           break;
       }
 
@@ -773,7 +773,7 @@ static void debugPrintTagVal(int8_t type, const void *val, int32_t vlen, const c
       printf("%s:%d type:%d vlen:%d, val:%" PRIi8 "\n", tag, ln, (int32_t)type, vlen, *(int8_t *)val);
       break;
     default:
-      ASSERT(0);
+      tAssert(0);
       break;
   }
 }
@@ -897,7 +897,7 @@ int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
     isLarge = 1;
   }
 
-  ASSERT(szTag <= INT16_MAX);
+  tAssert(szTag <= INT16_MAX);
 
   // build tag
   (*ppTag) = (STag *)taosMemoryCalloc(szTag, 1);
@@ -1142,7 +1142,7 @@ int32_t tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, c
 
   pBuilder->nCols++;
 
-  ASSERT(pCol->offset < pBuilder->flen);
+  tAssert(pCol->offset < pBuilder->flen);
 
   return 0;
 }
@@ -1179,8 +1179,8 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   pTSchema->version = version;
 
   // timestamp column
-  ASSERT(aSchema[0].type == TSDB_DATA_TYPE_TIMESTAMP);
-  ASSERT(aSchema[0].colId == PRIMARYKEY_TIMESTAMP_COL_ID);
+  tAssert(aSchema[0].type == TSDB_DATA_TYPE_TIMESTAMP);
+  tAssert(aSchema[0].colId == PRIMARYKEY_TIMESTAMP_COL_ID);
   pTSchema->columns[0].colId = aSchema[0].colId;
   pTSchema->columns[0].type = aSchema[0].type;
   pTSchema->columns[0].flags = aSchema[0].flags;
@@ -1245,7 +1245,7 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, SColVal *pColVa
       pColData->nData += pColVal->value.nData;
     }
   } else {
-    ASSERT(pColData->nData == tDataTypes[pColData->type].bytes * pColData->nVal);
+    tAssert(pColData->nData == tDataTypes[pColData->type].bytes * pColData->nVal);
     code = tRealloc(&pColData->pData, pColData->nData + tDataTypes[pColData->type].bytes);
     if (code) goto _exit;
     memcpy(pColData->pData + pColData->nData, &pColVal->value.val, tDataTypes[pColData->type].bytes);
@@ -1562,7 +1562,7 @@ static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, SColVal *pCo
     {tColDataAppendValue70, tColDataAppendValue71, tColDataAppendValue72},  // HAS_VALUE|HAS_NULL|HAS_NONE
 };
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
-  ASSERT(pColData->cid == pColVal->cid && pColData->type == pColVal->type);
+  tAssert(pColData->cid == pColVal->cid && pColData->type == pColVal->type);
   return tColDataAppendValueImpl[pColData->flag][pColVal->flag](pColData, pColVal);
 }
 
@@ -1581,7 +1581,7 @@ static FORCE_INLINE void tColDataGetValue3(SColData *pColData, int32_t iVal, SCo
       *pColVal = COL_VAL_NULL(pColData->cid, pColData->type);
       break;
     default:
-      ASSERT(0);
+      tAssert(0);
   }
 }
 static FORCE_INLINE void tColDataGetValue4(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_VALUE
@@ -1608,7 +1608,7 @@ static FORCE_INLINE void tColDataGetValue5(SColData *pColData, int32_t iVal,
       tColDataGetValue4(pColData, iVal, pColVal);
       break;
     default:
-      ASSERT(0);
+      tAssert(0);
   }
 }
 static FORCE_INLINE void tColDataGetValue6(SColData *pColData, int32_t iVal,
@@ -1621,7 +1621,7 @@ static FORCE_INLINE void tColDataGetValue6(SColData *pColData, int32_t iVal,
       tColDataGetValue4(pColData, iVal, pColVal);
       break;
     default:
-      ASSERT(0);
+      tAssert(0);
   }
 }
 static FORCE_INLINE void tColDataGetValue7(SColData *pColData, int32_t iVal,
@@ -1637,7 +1637,7 @@ static FORCE_INLINE void tColDataGetValue7(SColData *pColData, int32_t iVal,
       tColDataGetValue4(pColData, iVal, pColVal);
       break;
     default:
-      ASSERT(0);
+      tAssert(0);
   }
 }
 static void (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal *pColVal) = {
@@ -1651,7 +1651,7 @@ static void (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal 
     tColDataGetValue7   // HAS_VALUE | HAS_NULL | HAS_NONE
 };
 void tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
-  ASSERT(iVal >= 0 && iVal < pColData->nVal && pColData->flag);
+  tAssert(iVal >= 0 && iVal < pColData->nVal && pColData->flag);
   tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
 }
 
@@ -1681,7 +1681,7 @@ uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal) {
       v = GET_BIT2(pColData->pBitMap, iVal);
       break;
     default:
-      ASSERT(0);
+      tAssert(0);
       break;
   }
   return v;
@@ -1691,9 +1691,9 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
   int32_t code = 0;
   int32_t size;
 
-  ASSERT(pColDataSrc->nVal > 0);
-  ASSERT(pColDataDest->cid == pColDataSrc->cid);
-  ASSERT(pColDataDest->type == pColDataSrc->type);
+  tAssert(pColDataSrc->nVal > 0);
+  tAssert(pColDataDest->cid == pColDataSrc->cid);
+  tAssert(pColDataDest->type == pColDataSrc->type);
 
   pColDataDest->smaOn = pColDataSrc->smaOn;
   pColDataDest->nVal = pColDataSrc->nVal;
@@ -1759,7 +1759,7 @@ static FORCE_INLINE void tColDataCalcSMABool(SColData *pColData, int64_t *sum, i
           CALC_SUM_MAX_MIN(*sum, *max, *min, val);
           break;
         default:
-          ASSERT(0);
+          tAssert(0);
           break;
       }
     }
@@ -1791,7 +1791,7 @@ static FORCE_INLINE void tColDataCalcSMATinyInt(SColData *pColData, int64_t *sum
           CALC_SUM_MAX_MIN(*sum, *max, *min, val);
           break;
         default:
-          ASSERT(0);
+          tAssert(0);
           break;
       }
     }
@@ -1823,7 +1823,7 @@ static FORCE_INLINE void tColDataCalcSMATinySmallInt(SColData *pColData, int64_t
           CALC_SUM_MAX_MIN(*sum, *max, *min, val);
           break;
         default:
-          ASSERT(0);
+          tAssert(0);
           break;
       }
     }
@@ -1855,7 +1855,7 @@ static FORCE_INLINE void tColDataCalcSMAInt(SColData *pColData, int64_t *sum, in
           CALC_SUM_MAX_MIN(*sum, *max, *min, val);
           break;
         default:
-          ASSERT(0);
+          tAssert(0);
           break;
       }
     }
@@ -1887,7 +1887,7 @@ static FORCE_INLINE void tColDataCalcSMABigInt(SColData *pColData, int64_t *sum,
           CALC_SUM_MAX_MIN(*sum, *max, *min, val);
           break;
         default:
-          ASSERT(0);
+          tAssert(0);
           break;
       }
     }
@@ -1919,7 +1919,7 @@ static FORCE_INLINE void tColDataCalcSMAFloat(SColData *pColData, int64_t *sum, 
           CALC_SUM_MAX_MIN(*(double *)sum, *(double *)max, *(double *)min, val);
           break;
         default:
-          ASSERT(0);
+          tAssert(0);
           break;
       }
     }
@@ -1951,7 +1951,7 @@ static FORCE_INLINE void tColDataCalcSMADouble(SColData *pColData, int64_t *sum,
           CALC_SUM_MAX_MIN(*(double *)sum, *(double *)max, *(double *)min, val);
           break;
         default:
-          ASSERT(0);
+          tAssert(0);
           break;
       }
     }
@@ -1983,7 +1983,7 @@ static FORCE_INLINE void tColDataCalcSMAUTinyInt(SColData *pColData, int64_t *su
           CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
           break;
         default:
-          ASSERT(0);
+          tAssert(0);
           break;
       }
     }
@@ -2015,7 +2015,7 @@ static FORCE_INLINE void tColDataCalcSMATinyUSmallInt(SColData *pColData, int64_
           CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
           break;
         default:
-          ASSERT(0);
+          tAssert(0);
           break;
       }
     }
@@ -2047,7 +2047,7 @@ static FORCE_INLINE void tColDataCalcSMAUInt(SColData *pColData, int64_t *sum, i
           CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
           break;
         default:
-          ASSERT(0);
+          tAssert(0);
           break;
       }
     }
@@ -2079,7 +2079,7 @@ static FORCE_INLINE void tColDataCalcSMAUBigInt(SColData *pColData, int64_t *sum
           CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
           break;
         default:
-          ASSERT(0);
+          tAssert(0);
           break;
       }
     }

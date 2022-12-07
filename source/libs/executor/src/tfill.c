@@ -272,7 +272,7 @@ static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SRowVa
 
       saveColData(pRowVal->pRowVal, i, p, isNull);
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
   }
 }
@@ -286,7 +286,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
   bool    ascFill = FILL_IS_ASC_FILL(pFillInfo);
 
 #if 0
-  ASSERT(ascFill && (pFillInfo->currentKey >= pFillInfo->start) || (!ascFill && (pFillInfo->currentKey <= pFillInfo->start)));
+  tAssert(ascFill && (pFillInfo->currentKey >= pFillInfo->start) || (!ascFill && (pFillInfo->currentKey <= pFillInfo->start)));
 #endif
 
   while (pFillInfo->numOfCurrent < outputRows) {
@@ -311,7 +311,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
         return outputRows;
       }
     } else {
-      ASSERT(pFillInfo->currentKey == ts);
+      tAssert(pFillInfo->currentKey == ts);
       int32_t index = pBlock->info.rows;
 
       if (pFillInfo->type == TSDB_FILL_NEXT && (pFillInfo->index + 1) < pFillInfo->numOfRows) {

@@ -61,7 +61,7 @@ int32_t tqOffsetSnapRead(STqOffsetReader* pReader, uint8_t** ppData) {
 
   int64_t sz = 0;
   if (taosStatFile(fname, &sz, NULL) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
   taosMemoryFree(fname);
 
@@ -73,7 +73,7 @@ int32_t tqOffsetSnapRead(STqOffsetReader* pReader, uint8_t** ppData) {
   void*   abuf = POINTER_SHIFT(buf, sizeof(SSnapDataHdr));
   int64_t contLen = taosReadFile(pFile, abuf, sz);
   if (contLen != sz) {
-    ASSERT(0);
+    tAssert(0);
     return -1;
   }
   buf->size = sz;
@@ -122,14 +122,14 @@ int32_t tqOffsetWriterClose(STqOffsetWriter** ppWriter, int8_t rollback) {
 
   if (rollback) {
     if (taosRemoveFile(pWriter->fname) < 0) {
-      ASSERT(0);
+      tAssert(0);
     }
   } else {
     if (taosRenameFile(pWriter->fname, fname) < 0) {
-      ASSERT(0);
+      tAssert(0);
     }
     if (tqOffsetRestoreFromFile(pTq->pOffsetStore, fname) < 0) {
-      ASSERT(0);
+      tAssert(0);
     }
   }
   taosMemoryFree(fname);
@@ -146,14 +146,14 @@ int32_t tqOffsetSnapWrite(STqOffsetWriter* pWriter, uint8_t* pData, uint32_t nDa
   TdFilePtr     pFile = taosOpenFile(pWriter->fname, TD_FILE_CREATE | TD_FILE_WRITE);
   SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
   int64_t       size = pHdr->size;
-  ASSERT(size == nData - sizeof(SSnapDataHdr));
+  tAssert(size == nData - sizeof(SSnapDataHdr));
   if (pFile) {
     int64_t contLen = taosWriteFile(pFile, pHdr->data, size);
     if (contLen != size) {
-      ASSERT(0);
+      tAssert(0);
     }
   } else {
-    ASSERT(0);
+    tAssert(0);
     return -1;
   }
   return 0;

@@ -361,7 +361,7 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  ASSERT(pOutputData->info.type == TSDB_DATA_TYPE_BIGINT);
+  tAssert(pOutputData->info.type == TSDB_DATA_TYPE_BIGINT);
   int64_t *out = (int64_t *)pOutputData->pData;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
@@ -1729,37 +1729,37 @@ bool getTimePseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv
 }
 
 int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  ASSERT(inputNum == 1);
+  tAssert(inputNum == 1);
   colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 0));
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  ASSERT(inputNum == 1);
+  tAssert(inputNum == 1);
   colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 1));
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t winDurFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  ASSERT(inputNum == 1);
+  tAssert(inputNum == 1);
   colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 2));
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t winStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  ASSERT(inputNum == 1);
+  tAssert(inputNum == 1);
   colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 3));
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  ASSERT(inputNum == 1);
+  tAssert(inputNum == 1);
   colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 4));
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  ASSERT(inputNum == 1);
+  tAssert(inputNum == 1);
   char* p = colDataGetVarData(pInput->columnData, 0);
 
   colDataAppendNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows);
@@ -2598,7 +2598,7 @@ static bool checkStateOp(int8_t op, SColumnInfoData *pCol, int32_t index, SScala
       break;
     }
     default: {
-      ASSERT(0);
+      tAssert(0);
     }
   }
   return false;
@@ -2771,7 +2771,7 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
       intervals[0] = -INFINITY;
       intervals[numOfBins - 1] = INFINITY;
       // in case of desc bin orders, -inf/inf should be swapped
-      ASSERT(numOfBins >= 4);
+      tAssert(numOfBins >= 4);
       if (intervals[1] > intervals[numOfBins - 2]) {
         TSWAP(intervals[0], intervals[numOfBins - 1]);
       }

@@ -358,7 +358,7 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
     return -1;
   }
 
-  ASSERT(pTagIdxKey1->type == pTagIdxKey2->type);
+  tAssert(pTagIdxKey1->type == pTagIdxKey2->type);
 
   // check NULL, NULL is always the smallest
   if (pTagIdxKey1->isNull && !pTagIdxKey2->isNull) {

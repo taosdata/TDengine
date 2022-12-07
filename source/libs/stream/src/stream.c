@@ -82,7 +82,7 @@ void streamSchedByTimer(void* param, void* tmrId) {
 int32_t streamSetupTrigger(SStreamTask* pTask) {
   if (pTask->triggerParam != 0) {
     int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
-    ASSERT(ref == 2);
+    tAssert(ref == 2);
     pTask->timer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer);
     pTask->triggerStatus = TASK_TRIGGER_STATUS__INACTIVE;
   }
@@ -210,7 +210,7 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 }
 
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code) {
-  ASSERT(pRsp->inputStatus == TASK_OUTPUT_STATUS__NORMAL || pRsp->inputStatus == TASK_OUTPUT_STATUS__BLOCKED);
+  tAssert(pRsp->inputStatus == TASK_OUTPUT_STATUS__NORMAL || pRsp->inputStatus == TASK_OUTPUT_STATUS__BLOCKED);
 
   qDebug("task %d receive dispatch rsp, code: %x", pTask->taskId, code);
 
@@ -221,10 +221,10 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   }
 
   int8_t old = atomic_exchange_8(&pTask->outputStatus, pRsp->inputStatus);
-  ASSERT(old == TASK_OUTPUT_STATUS__WAIT);
+  tAssert(old == TASK_OUTPUT_STATUS__WAIT);
   if (pRsp->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
     // TODO: init recover timer
-    ASSERT(0);
+    tAssert(0);
     return 0;
   }
   // continue dispatch
@@ -248,7 +248,7 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
 
   streamTaskEnqueueRetrieve(pTask, pReq, pRsp);
 
-  ASSERT(pTask->taskLevel != TASK_LEVEL__SINK);
+  tAssert(pTask->taskLevel != TASK_LEVEL__SINK);
   streamSchedExec(pTask);
 
   /*streamTryExec(pTask);*/

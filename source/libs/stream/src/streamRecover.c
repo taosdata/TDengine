@@ -40,7 +40,7 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
     };
 
     if (tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &rpcMsg) < 0) {
-      /*ASSERT(0);*/
+      /*tAssert(0);*/
     }
 
   } else if (pTask->taskLevel == TASK_LEVEL__AGG) {
@@ -140,7 +140,7 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
       }
       if (!found) return -1;
       int32_t left = atomic_sub_fetch_32(&pTask->recoverTryingDownstream, 1);
-      ASSERT(left >= 0);
+      tAssert(left >= 0);
       if (left == 0) {
         taosArrayDestroy(pTask->checkReqIds);
         streamTaskLaunchRecover(pTask, version);
@@ -149,7 +149,7 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
       if (pRsp->reqId != pTask->checkReqId) return -1;
       streamTaskLaunchRecover(pTask, version);
     } else {
-      ASSERT(0);
+      tAssert(0);
     }
   } else {
     streamRecheckOneDownstream(pTask, pRsp);
@@ -199,7 +199,7 @@ int32_t streamBuildSourceRecover2Req(SStreamTask* pTask, SStreamRecoverStep2Req*
 int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver) {
   void* exec = pTask->exec.executor;
   if (qStreamSourceRecoverStep2(exec, ver) < 0) {
-    ASSERT(0);
+    tAssert(0);
   }
   return streamScanExec(pTask, 100);
 }
@@ -247,7 +247,7 @@ int32_t streamAggChildrenRecoverFinish(SStreamTask* pTask) {
 int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId) {
   if (pTask->taskLevel == TASK_LEVEL__AGG) {
     int32_t left = atomic_sub_fetch_32(&pTask->recoverWaitingUpstream, 1);
-    ASSERT(left >= 0);
+    tAssert(left >= 0);
     if (left == 0) {
       streamAggChildrenRecoverFinish(pTask);
     }

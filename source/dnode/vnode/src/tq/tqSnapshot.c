@@ -100,7 +100,7 @@ int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
     }
   }
 
-  ASSERT(pVal && vLen);
+  tAssert(pVal && vLen);
 
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
   if (*ppData == NULL) {

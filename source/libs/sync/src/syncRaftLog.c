@@ -51,16 +51,16 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   taosLRUCacheSetStrictCapacity(pLogStore->pCache, false);
 
   pLogStore->data = taosMemoryMalloc(sizeof(SSyncLogStoreData));
-  ASSERT(pLogStore->data != NULL);
+  tAssert(pLogStore->data != NULL);
 
   SSyncLogStoreData* pData = pLogStore->data;
   pData->pSyncNode = pSyncNode;
   pData->pWal = pSyncNode->pWal;
-  ASSERT(pData->pWal != NULL);
+  tAssert(pData->pWal != NULL);
 
   taosThreadMutexInit(&(pData->mutex), NULL);
   pData->pWalHandle = walOpenReader(pData->pWal, NULL);
-  ASSERT(pData->pWalHandle != NULL);
+  tAssert(pData->pWalHandle != NULL);
 
   pLogStore->syncLogUpdateCommitIndex = raftLogUpdateCommitIndex;
   pLogStore->syncLogCommitIndex = raftlogCommitIndex;
@@ -103,7 +103,7 @@ void logStoreDestory(SSyncLogStore* pLogStore) {
 
 // log[m .. n]
 static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncIndex snapshotIndex) {
-  ASSERT(snapshotIndex >= 0);
+  tAssert(snapshotIndex >= 0);
 
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -217,7 +217,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
     return -1;
   }
 
-  ASSERT(pEntry->index == index);
+  tAssert(pEntry->index == index);
 
   sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s, elapsed:%" PRId64, pEntry->index,
           TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType), tsElapsed);
@@ -275,14 +275,14 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
   }
 
   *ppEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
-  ASSERT(*ppEntry != NULL);
+  tAssert(*ppEntry != NULL);
   (*ppEntry)->msgType = TDMT_SYNC_CLIENT_REQUEST;
   (*ppEntry)->originalRpcType = pWalHandle->pHead->head.msgType;
   (*ppEntry)->seqNum = pWalHandle->pHead->head.syncMeta.seqNum;
   (*ppEntry)->isWeak = pWalHandle->pHead->head.syncMeta.isWeek;
   (*ppEntry)->term = pWalHandle->pHead->head.syncMeta.term;
   (*ppEntry)->index = index;
-  ASSERT((*ppEntry)->dataLen == pWalHandle->pHead->head.bodyLen);
+  tAssert((*ppEntry)->dataLen == pWalHandle->pHead->head.bodyLen);
   memcpy((*ppEntry)->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
 
   /*
@@ -356,7 +356,7 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
 static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** ppLastEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  ASSERT(ppLastEntry != NULL);
+  tAssert(ppLastEntry != NULL);
 
   *ppLastEntry = NULL;
   if (walIsEmpty(pWal)) {
@@ -364,7 +364,7 @@ static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** pp
     return -1;
   } else {
     SyncIndex lastIndex = raftLogLastIndex(pLogStore);
-    ASSERT(lastIndex >= SYNC_INDEX_BEGIN);
+    tAssert(lastIndex >= SYNC_INDEX_BEGIN);
     int32_t code = raftLogGetEntry(pLogStore, lastIndex, ppLastEntry);
     return code;
   }

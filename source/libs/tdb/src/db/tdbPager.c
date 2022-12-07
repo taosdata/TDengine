@@ -234,7 +234,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   int     ret;
   SPage **ppPage;
 
-  // ASSERT(pPager->inTran);
+  // tAssert(pPager->inTran);
   if (pPage->isDirty) return 0;
 
   // ref page one more time so the page will not be release
@@ -255,7 +255,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
     return 0;
   }
 
-  ASSERT(*ppPage == NULL || TDB_PAGE_PGNO(*ppPage) > TDB_PAGE_PGNO(pPage));
+  tAssert(*ppPage == NULL || TDB_PAGE_PGNO(*ppPage) > TDB_PAGE_PGNO(pPage));
   pPage->pDirtyNext = *ppPage;
   *ppPage = pPage;
   */
@@ -324,7 +324,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
 
-    ASSERT(pPage->nOverflow == 0);
+    tAssert(pPage->nOverflow == 0);
     ret = tdbPagerPWritePageToDB(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page to db since %s", tstrerror(terrno));
@@ -632,12 +632,12 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
     loadPage = 0;
     ret = tdbPagerAllocPage(pPager, &pgno);
     if (ret < 0) {
-      ASSERT(0);
+      tAssert(0);
       return -1;
     }
   }
 
-  ASSERT(pgno > 0);
+  tAssert(pgno > 0);
 
   // fetch a page container
   memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
@@ -651,7 +651,7 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
   if (!TDB_PAGE_INITIALIZED(pPage)) {
     ret = tdbPagerInitPage(pPager, pPage, initPage, arg, loadPage);
     if (ret < 0) {
-      ASSERT(0);
+      tAssert(0);
       return -1;
     }
   }
@@ -659,8 +659,8 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
   // printf("thread %" PRId64 " pager fetch page %d pgno %d ppage %p\n", taosGetSelfPthreadId(), pPage->id,
   //        TDB_PAGE_PGNO(pPage), pPage);
 
-  ASSERT(TDB_PAGE_INITIALIZED(pPage));
-  ASSERT(pPage->pPager == pPager);
+  tAssert(TDB_PAGE_INITIALIZED(pPage));
+  tAssert(pPage->pPager == pPager);
 
   *ppgno = pgno;
   *ppPage = pPage;
@@ -702,7 +702,7 @@ int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno) {
     return -1;
   }
 
-  ASSERT(*ppgno != 0);
+  tAssert(*ppgno != 0);
 
   return 0;
 }
@@ -732,7 +732,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
       nRead = tdbOsPRead(pPager->fd, pPage->pData, pPage->pageSize, ((i64)pPage->pageSize) * (pgno - 1));
       tdbTrace("tdbttl pager:%p, pgno:%d, nRead:%" PRId64, pPager, pgno, nRead);
       if (nRead < pPage->pageSize) {
-        ASSERT(0);
+        tAssert(0);
         return -1;
       }
     } else {
@@ -741,7 +741,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
 
     ret = (*initPage)(pPage, arg, init);
     if (ret < 0) {
-      ASSERT(0);
+      tAssert(0);
       TDB_UNLOCK_PAGE(pPage);
       return -1;
     }
@@ -760,7 +760,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
       }
     }
   } else {
-    ASSERT(0);
+    tAssert(0);
     return -1;
   }
 

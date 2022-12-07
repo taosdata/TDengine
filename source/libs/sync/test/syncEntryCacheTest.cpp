@@ -26,7 +26,7 @@ SSyncRaftEntry* createEntry(int i) {
 
 SSyncNode* createFakeNode() {
   SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
-  ASSERT(pSyncNode != NULL);
+  tAssert(pSyncNode != NULL);
   memset(pSyncNode, 0, sizeof(SSyncNode));
 
   return pSyncNode;
@@ -34,10 +34,10 @@ SSyncNode* createFakeNode() {
 
 SRaftEntryCache* createCache(int maxCount) {
   SSyncNode* pSyncNode = createFakeNode();
-  ASSERT(pSyncNode != NULL);
+  tAssert(pSyncNode != NULL);
 
   SRaftEntryCache* pCache = raftEntryCacheCreate(pSyncNode, maxCount);
-  ASSERT(pCache != NULL);
+  tAssert(pCache != NULL);
 
   return pCache;
 }
@@ -73,12 +73,12 @@ void test2() {
   SSyncRaftEntry* pEntry = NULL;
 
   code = raftEntryCacheGetEntryP(pCache, index, &pEntry);
-  ASSERT(code == 1 && index == pEntry->index);
+  tAssert(code == 1 && index == pEntry->index);
   sTrace("get entry:%p for %" PRId64, pEntry, index);
   syncEntryLog2((char*)"==test2 get entry pointer 2==", pEntry);
 
   code = raftEntryCacheGetEntry(pCache, index, &pEntry);
-  ASSERT(code == 1 && index == pEntry->index);
+  tAssert(code == 1 && index == pEntry->index);
   sTrace("get entry:%p for %" PRId64, pEntry, index);
   syncEntryLog2((char*)"==test2 get entry 2==", pEntry);
   syncEntryDestory(pEntry);
@@ -86,14 +86,14 @@ void test2() {
   // not found
   index = 8;
   code = raftEntryCacheGetEntry(pCache, index, &pEntry);
-  ASSERT(code == 0);
+  tAssert(code == 0);
   sTrace("get entry:%p for %" PRId64, pEntry, index);
   sTrace("==test2 get entry 8 not found==");
 
   // not found
   index = 9;
   code = raftEntryCacheGetEntry(pCache, index, &pEntry);
-  ASSERT(code == 0);
+  tAssert(code == 0);
   sTrace("get entry:%p for %" PRId64, pEntry, index);
   sTrace("==test2 get entry 9 not found==");
 }
@@ -124,7 +124,7 @@ void test4() {
   int32_t testRefId = taosOpenRef(200, freeObj);
 
   SSyncRaftEntry* pEntry = createEntry(10);
-  ASSERT(pEntry != NULL);
+  tAssert(pEntry != NULL);
 
   int64_t rid = taosAddRef(testRefId, pEntry);
   sTrace("rid: %" PRId64, rid);
@@ -153,7 +153,7 @@ void test5() {
   int32_t testRefId = taosOpenRef(5, freeObj);
   for (int i = 0; i < 100; i++) {
     SSyncRaftEntry* pEntry = createEntry(i);
-    ASSERT(pEntry != NULL);
+    tAssert(pEntry != NULL);
 
     int64_t rid = taosAddRef(testRefId, pEntry);
     sTrace("rid: %" PRId64, rid);

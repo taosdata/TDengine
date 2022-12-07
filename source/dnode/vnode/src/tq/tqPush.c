@@ -25,9 +25,9 @@ void tqTmrRspFunc(void* param, void* tmrId) {
 static int32_t tqLoopExecFromQueue(STQ* pTq, STqHandle* pHandle, SStreamDataSubmit** ppSubmit, SMqDataRsp* pRsp) {
   SStreamDataSubmit* pSubmit = *ppSubmit;
   while (pSubmit != NULL) {
-    ASSERT(pSubmit->ver == pHandle->pushHandle.processedVer + 1);
+    tAssert(pSubmit->ver == pHandle->pushHandle.processedVer + 1);
     if (tqLogScanExec(pTq, &pHandle->execHandle, pSubmit->data, pRsp, 0) < 0) {
-      /*ASSERT(0);*/
+      /*tAssert(0);*/
     }
     // update processed
     atomic_store_64(&pHandle->pushHandle.processedVer, pSubmit->ver);
@@ -161,7 +161,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
       tqLogScanExec(pTq, &pHandle->execHandle, pReq, &rsp, workerId);
     } else {
       // TODO
-      ASSERT(0);
+      tAssert(0);
     }
 
     if (rsp.blockNum == 0) {
@@ -169,8 +169,8 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
       continue;
     }
 
-    ASSERT(taosArrayGetSize(rsp.blockData) == rsp.blockNum);
-    ASSERT(taosArrayGetSize(rsp.blockDataLen) == rsp.blockNum);
+    tAssert(taosArrayGetSize(rsp.blockData) == rsp.blockNum);
+    tAssert(taosArrayGetSize(rsp.blockDataLen) == rsp.blockNum);
 
     rsp.rspOffset = fetchOffset;
 
@@ -263,7 +263,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
           SSDataBlock* pDataBlock = NULL;
           uint64_t     ts = 0;
           if (qExecTask(task, &pDataBlock, &ts) < 0) {
-            ASSERT(0);
+            tAssert(0);
           }
 
           if (pDataBlock == NULL) {
@@ -296,7 +296,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
         void*  key = taosArrayGetP(cachedKeys, i);
         size_t kLen = *(size_t*)taosArrayGet(cachedKeyLens, i);
         if (taosHashRemove(pTq->pPushMgr, key, kLen) != 0) {
-          ASSERT(0);
+          tAssert(0);
         }
       }
       taosArrayDestroyP(cachedKeys, (FDelete)taosMemoryFree);

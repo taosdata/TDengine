@@ -46,7 +46,7 @@ static void metaGetEntryInfo(const SMetaEntry *pEntry, SMetaInfo *pInfo) {
     pInfo->suid = 0;
     pInfo->skmVer = pEntry->ntbEntry.schemaRow.version;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 }
 
@@ -342,10 +342,10 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   tdbTbcOpen(pMeta->pTbDb, &pTbDbc, NULL);
   ret = tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = pReq->suid, .version = oversion}), sizeof(STbDbKey), &c);
-  ASSERT(ret == 0 && c == 0);
+  tAssert(ret == 0 && c == 0);
 
   ret = tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData);
-  ASSERT(ret == 0);
+  tAssert(ret == 0);
 
   oStbEntry.pBuf = taosMemoryMalloc(nData);
   memcpy(oStbEntry.pBuf, pData, nData);
@@ -558,7 +558,7 @@ static void metaBuildTtlIdxKey(STtlIdxKey *ttlKey, const SMetaEntry *pME) {
     ctime = pME->ntbEntry.ctime;
     ttlDays = pME->ntbEntry.ttlDays;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   if (ttlDays <= 0) return;
@@ -770,7 +770,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, NULL);
   tdbTbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
-  ASSERT(c == 0);
+  tAssert(c == 0);
 
   tdbTbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
   oversion = ((SUidIdxVal *)pData)[0].version;
@@ -780,7 +780,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   tdbTbcOpen(pMeta->pTbDb, &pTbDbc, NULL);
   tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
-  ASSERT(c == 0);
+  tAssert(c == 0);
   tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData);
 
   // get table entry
@@ -789,7 +789,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   memcpy(entry.pBuf, pData, nData);
   tDecoderInit(&dc, entry.pBuf, nData);
   ret = metaDecodeEntry(&dc, &entry);
-  ASSERT(ret == 0);
+  tAssert(ret == 0);
 
   if (entry.type != TSDB_NORMAL_TABLE) {
     terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
@@ -809,7 +809,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
     if (iCol >= pSchema->nCols) break;
     pColumn = &pSchema->pSchema[iCol];
 
-    ASSERT(pAlterTbReq->colName);
+    tAssert(pAlterTbReq->colName);
     if (strcmp(pColumn->name, pAlterTbReq->colName) == 0) break;
     iCol++;
   }
@@ -961,7 +961,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
 
   tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, NULL);
   tdbTbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
-  ASSERT(c == 0);
+  tAssert(c == 0);
 
   tdbTbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
   oversion = ((SUidIdxVal *)pData)[0].version;
@@ -974,7 +974,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   /* get ctbEntry */
   tdbTbcOpen(pMeta->pTbDb, &pTbDbc, NULL);
   tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
-  ASSERT(c == 0);
+  tAssert(c == 0);
   tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData);
 
   ctbEntry.pBuf = taosMemoryMalloc(nData);
@@ -1072,7 +1072,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     metaUpdateTagIdx(pMeta, &ctbEntry);
   }
 
-  ASSERT(ctbEntry.ctbEntry.pTags);
+  tAssert(ctbEntry.ctbEntry.pTags);
   SCtbIdxKey ctbIdxKey = {.suid = ctbEntry.ctbEntry.suid, .uid = uid};
   tdbTbUpsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), ctbEntry.ctbEntry.pTags,
               ((STag *)(ctbEntry.ctbEntry.pTags))->len, pMeta->txn);
@@ -1127,7 +1127,7 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
 
   tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, NULL);
   tdbTbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
-  ASSERT(c == 0);
+  tAssert(c == 0);
 
   tdbTbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
   oversion = ((SUidIdxVal *)pData)[0].version;
@@ -1137,7 +1137,7 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
 
   tdbTbcOpen(pMeta->pTbDb, &pTbDbc, NULL);
   tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
-  ASSERT(c == 0);
+  tAssert(c == 0);
   tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData);
 
   // get table entry
@@ -1146,7 +1146,7 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   memcpy(entry.pBuf, pData, nData);
   tDecoderInit(&dc, entry.pBuf, nData);
   ret = metaDecodeEntry(&dc, &entry);
-  ASSERT(ret == 0);
+  tAssert(ret == 0);
 
   entry.version = version;
   metaWLock(pMeta);
@@ -1401,7 +1401,7 @@ static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     pSW = &pME->ntbEntry.schemaRow;
   } else {
-    ASSERT(0);
+    tAssert(0);
   }
 
   skmDbKey.uid = pME->uid;

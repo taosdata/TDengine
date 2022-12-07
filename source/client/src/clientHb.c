@@ -376,7 +376,7 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
         desc.subPlanNum = 0;
       }
       desc.subPlanNum = taosArrayGetSize(desc.subDesc);
-      ASSERT(desc.subPlanNum == taosArrayGetSize(desc.subDesc));
+      tAssert(desc.subPlanNum == taosArrayGetSize(desc.subDesc));
     } else {
       desc.subDesc = NULL;
     }

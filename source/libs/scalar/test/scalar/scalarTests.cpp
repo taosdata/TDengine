@@ -94,7 +94,7 @@ void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *s
     res->info.capacity = rows;
     res->info.rows = rows;
     SColumnInfoData *p = static_cast<SColumnInfoData *>(taosArrayGet(res->pDataBlock, 0));
-    ASSERT(p->pData != NULL && p->nullbitmap != NULL);
+    tAssert(p->pData != NULL && p->nullbitmap != NULL);
 
     taosArrayPush(pBlockList, &res);
     *dataBlockId = taosArrayGetSize(pBlockList) - 1;

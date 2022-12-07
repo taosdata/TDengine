@@ -61,8 +61,8 @@ FAIL:
 }
 
 int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
-  ASSERT(pTask->taskLevel == TASK_LEVEL__AGG);
-  ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
+  tAssert(pTask->taskLevel == TASK_LEVEL__AGG);
+  tAssert(taosArrayGetSize(pTask->childEpInfo) != 0);
 
   pTask->refCnt = 1;
   pTask->schedStatus = TASK_SCHED_STATUS__INACTIVE;
@@ -91,7 +91,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
       .pStateBackend = pTask->pState,
   };
   pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle);
-  ASSERT(pTask->exec.executor);
+  tAssert(pTask->exec.executor);
 
   return 0;
 }
@@ -149,7 +149,7 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   }
   tDecoderClear(&decoder);
 
-  ASSERT(pTask->taskLevel == TASK_LEVEL__AGG);
+  tAssert(pTask->taskLevel == TASK_LEVEL__AGG);
 
   // 2.save task
   code = streamMetaAddTask(pSnode->pMeta, -1, pTask);
@@ -263,7 +263,7 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
     case TDMT_STREAM_TASK_DROP:
       return sndProcessTaskDropReq(pSnode, pReq, len);
     default:
-      ASSERT(0);
+      tAssert(0);
   }
   return 0;
 }
@@ -317,7 +317,7 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     case TDMT_STREAM_RECOVER_FINISH_RSP:
       return sndProcessTaskRecoverFinishRsp(pSnode, pMsg);
     default:
-      ASSERT(0);
+      tAssert(0);
   }
   return 0;
 }

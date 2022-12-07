@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "talgo.h"
+#include "tlog.h"
 
 #define doswap(__left, __right, __size, __buf) \
   do {                                         \
@@ -200,7 +201,7 @@ void *taosbsearch(const void *key, const void *base, int32_t nmemb, int32_t size
   } else if (flags == TD_LT) {
     return (c > 0) ? p : (midx > 0 ? p - size : NULL);
   } else {
-    ASSERT(0);
+    tAssert(0);
     return NULL;
   }
 }

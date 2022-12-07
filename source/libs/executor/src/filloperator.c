@@ -496,7 +496,7 @@ void getCurWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupI
   SWinKey key = {.ts = ts, .groupId = groupId};
   int32_t curVLen = 0;
   int32_t code = streamStateFillGet(pState, &key, (void**)&pFillSup->cur.pRowVal, &curVLen);
-  ASSERT(code == TSDB_CODE_SUCCESS);
+  tAssert(code == TSDB_CODE_SUCCESS);
   pFillSup->cur.key = key.ts;
 }
 
@@ -508,7 +508,7 @@ void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, 
   void*   curVal = NULL;
   int32_t curVLen = 0;
   int32_t code = streamStateFillGet(pState, &key, (void**)&curVal, &curVLen);
-  ASSERT(code == TSDB_CODE_SUCCESS);
+  tAssert(code == TSDB_CODE_SUCCESS);
   pFillSup->cur.key = key.ts;
   pFillSup->cur.pRowVal = curVal;
 
@@ -523,7 +523,7 @@ void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, 
     pFillSup->prev.pRowVal = preVal;
 
     code = streamStateCurNext(pState, pCur);
-    ASSERT(code == TSDB_CODE_SUCCESS);
+    tAssert(code == TSDB_CODE_SUCCESS);
 
     code = streamStateCurNext(pState, pCur);
     if (code != TSDB_CODE_SUCCESS) {
@@ -680,7 +680,7 @@ void setDeleteFillValueInfo(TSKEY start, TSKEY end, SStreamFillSupporter* pFillS
       pFillInfo->pLinearInfo->winIndex = 0;
     } break;
     default:
-      ASSERT(0);
+      tAssert(0);
       break;
   }
 }
@@ -764,7 +764,7 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
         pFillSup->next.pRowVal = pFillSup->cur.pRowVal;
         pFillInfo->preRowKey = INT64_MIN;
       } else {
-        ASSERT(hasNextWindow(pFillSup));
+        tAssert(hasNextWindow(pFillSup));
         setFillKeyInfo(ts, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
       }
@@ -798,7 +798,7 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
         pFillInfo->pResRow = &pFillSup->prev;
         pFillInfo->pLinearInfo->hasNext = false;
       } else {
-        ASSERT(hasNextWindow(pFillSup));
+        tAssert(hasNextWindow(pFillSup));
         setFillKeyInfo(ts, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
         pFillInfo->pLinearInfo->nextEnd = INT64_MIN;
@@ -811,10 +811,10 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
       }
     } break;
     default:
-      ASSERT(0);
+      tAssert(0);
       break;
   }
-  ASSERT(pFillInfo->pos != FILL_POS_INVALID);
+  tAssert(pFillInfo->pos != FILL_POS_INVALID);
 }
 
 static bool checkResult(SStreamFillSupporter* pFillSup, TSKEY ts, uint64_t groupId) {
@@ -916,7 +916,7 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
 static void keepResultInDiscBuf(SOperatorInfo* pOperator, uint64_t groupId, SResultRowData* pRow, int32_t len) {
   SWinKey key = {.groupId = groupId, .ts = pRow->key};
   int32_t code = streamStateFillPut(pOperator->pTaskInfo->streamInfo.pState, &key, pRow->pRowVal, len);
-  ASSERT(code == TSDB_CODE_SUCCESS);
+  tAssert(code == TSDB_CODE_SUCCESS);
 }
 
 static void doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSup, SSDataBlock* pRes) {
@@ -1269,7 +1269,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
           pInfo->srcRowIndex = 0;
         } break;
         default:
-          ASSERT(0);
+          tAssert(0);
           break;
       }
     }

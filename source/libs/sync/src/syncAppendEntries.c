@@ -117,10 +117,10 @@ int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
 
       // call back Wal
       int32_t code = ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->commitIndex);
-      ASSERT(code == 0);
+      tAssert(code == 0);
 
       code = syncNodeDoCommit(ths, beginIndex, endIndex, ths->state);
-      ASSERT(code == 0);
+      tAssert(code == 0);
     }
   }
 
@@ -134,7 +134,7 @@ SSyncRaftEntry* syncLogAppendEntriesToRaftEntry(const SyncAppendEntries* pMsg) {
     return NULL;
   }
   (void)memcpy(pEntry, pMsg->data, pMsg->dataLen);
-  ASSERT(pEntry->bytes == pMsg->dataLen);
+  tAssert(pEntry->bytes == pMsg->dataLen);
   return pEntry;
 }
 
@@ -280,7 +280,7 @@ int32_t syncNodeOnAppendEntriesOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   if (pMsg->prevLogIndex >= startIndex) {
     SyncTerm myPreLogTerm = syncNodeGetPreTerm(ths, pMsg->prevLogIndex + 1);
-    // ASSERT(myPreLogTerm != SYNC_TERM_INVALID);
+    // tAssert(myPreLogTerm != SYNC_TERM_INVALID);
     if (myPreLogTerm == SYNC_TERM_INVALID) {
       syncLogRecvAppendEntries(ths, pMsg, "reject, pre-term invalid");
       goto _SEND_RESPONSE;
@@ -297,7 +297,7 @@ int32_t syncNodeOnAppendEntriesOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   bool hasAppendEntries = pMsg->dataLen > 0;
   if (hasAppendEntries) {
     SSyncRaftEntry* pAppendEntry = syncEntryBuildFromAppendEntries(pMsg);
-    ASSERT(pAppendEntry != NULL);
+    tAssert(pAppendEntry != NULL);
 
     SyncIndex appendIndex = pMsg->prevLogIndex + 1;
 
@@ -352,7 +352,7 @@ int32_t syncNodeOnAppendEntriesOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
           goto _IGNORE;
         }
 
-        ASSERT(pAppendEntry->index == appendIndex);
+        tAssert(pAppendEntry->index == appendIndex);
 
         // append
         code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);

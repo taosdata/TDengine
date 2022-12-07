@@ -92,7 +92,7 @@ static int32_t tDiskColBuilderInit(SDiskColBuilder *pBuilder, int16_t cid, int8_
 static int32_t tGnrtDiskCol(SDiskColBuilder *pBuilder, SDiskCol *pDiskCol) {
   int32_t code = 0;
 
-  ASSERT(pBuilder->flag && pBuilder->flag != HAS_NONE);
+  tAssert(pBuilder->flag && pBuilder->flag != HAS_NONE);
 
   *pDiskCol = (SDiskCol){(SBlockCol){.cid = pBuilder->cid,
                                      .type = pBuilder->type,
@@ -489,7 +489,7 @@ int32_t tDiskDataBuilderInit(SDiskDataBuilder *pBuilder, STSchema *pTSchema, TAB
                              uint8_t calcSma) {
   int32_t code = 0;
 
-  ASSERT(pId->suid || pId->uid);
+  tAssert(pId->suid || pId->uid);
 
   pBuilder->suid = pId->suid;
   pBuilder->uid = pId->uid;
@@ -560,8 +560,8 @@ int32_t tDiskDataBuilderClear(SDiskDataBuilder *pBuilder) {
 int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTSchema, TABLEID *pId) {
   int32_t code = 0;
 
-  ASSERT(pBuilder->suid || pBuilder->uid);
-  ASSERT(pId->suid == pBuilder->suid);
+  tAssert(pBuilder->suid || pBuilder->uid);
+  tAssert(pId->suid == pBuilder->suid);
 
   TSDBKEY kRow = TSDBROW_KEY(pRow);
   if (tsdbKeyCmprFn(&pBuilder->bi.minTKey, &kRow) > 0) pBuilder->bi.minTKey = kRow;
@@ -569,7 +569,7 @@ int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTS
 
   // uid
   if (pBuilder->uid && pBuilder->uid != pId->uid) {
-    ASSERT(pBuilder->suid);
+    tAssert(pBuilder->suid);
     for (int32_t iRow = 0; iRow < pBuilder->nRow; iRow++) {
       code = tCompress(pBuilder->pUidC, &pBuilder->uid, sizeof(int64_t));
       if (code) return code;
@@ -623,7 +623,7 @@ int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTS
 int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData, const SBlkInfo **ppBlkInfo) {
   int32_t code = 0;
 
-  ASSERT(pBuilder->nRow);
+  tAssert(pBuilder->nRow);
 
   *ppDiskData = NULL;
   *ppBlkInfo = NULL;

@@ -25,10 +25,10 @@ char *syncCfg2Str(SSyncCfg *pSyncCfg) {
 
 int32_t syncCfgFromStr(const char *s, SSyncCfg *pSyncCfg) {
   cJSON *pRoot = cJSON_Parse(s);
-  ASSERT(pRoot != NULL);
+  tAssert(pRoot != NULL);
 
   int32_t ret = syncCfgFromJson(pRoot, pSyncCfg);
-  ASSERT(ret == 0);
+  tAssert(ret == 0);
 
   cJSON_Delete(pRoot);
   return 0;

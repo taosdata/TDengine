@@ -112,10 +112,10 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
 
   if (pColAgg != NULL) {
     if (pColAgg->numOfNull == totalRows) {
-      ASSERT(pColumnInfoData->nullbitmap == NULL);
+      tAssert(pColumnInfoData->nullbitmap == NULL);
       return true;
     } else if (pColAgg->numOfNull == 0) {
-      ASSERT(pColumnInfoData->nullbitmap == NULL);
+      tAssert(pColumnInfoData->nullbitmap == NULL);
       return false;
     }
   }
@@ -157,40 +157,40 @@ static FORCE_INLINE void colDataAppendNNULL(SColumnInfoData* pColumnInfoData, ui
 }
 
 static FORCE_INLINE void colDataAppendInt8(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int8_t* v) {
-  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_TINYINT ||
+  tAssert(pColumnInfoData->info.type == TSDB_DATA_TYPE_TINYINT ||
          pColumnInfoData->info.type == TSDB_DATA_TYPE_UTINYINT || pColumnInfoData->info.type == TSDB_DATA_TYPE_BOOL);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(int8_t*)p = *(int8_t*)v;
 }
 
 static FORCE_INLINE void colDataAppendInt16(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int16_t* v) {
-  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_SMALLINT ||
+  tAssert(pColumnInfoData->info.type == TSDB_DATA_TYPE_SMALLINT ||
          pColumnInfoData->info.type == TSDB_DATA_TYPE_USMALLINT);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(int16_t*)p = *(int16_t*)v;
 }
 
 static FORCE_INLINE void colDataAppendInt32(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int32_t* v) {
-  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_INT || pColumnInfoData->info.type == TSDB_DATA_TYPE_UINT);
+  tAssert(pColumnInfoData->info.type == TSDB_DATA_TYPE_INT || pColumnInfoData->info.type == TSDB_DATA_TYPE_UINT);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(int32_t*)p = *(int32_t*)v;
 }
 
 static FORCE_INLINE void colDataAppendInt64(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int64_t* v) {
   int32_t type = pColumnInfoData->info.type;
-  ASSERT(type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_UBIGINT || type == TSDB_DATA_TYPE_TIMESTAMP);
+  tAssert(type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_UBIGINT || type == TSDB_DATA_TYPE_TIMESTAMP);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(int64_t*)p = *(int64_t*)v;
 }
 
 static FORCE_INLINE void colDataAppendFloat(SColumnInfoData* pColumnInfoData, uint32_t currentRow, float* v) {
-  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_FLOAT);
+  tAssert(pColumnInfoData->info.type == TSDB_DATA_TYPE_FLOAT);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(float*)p = *(float*)v;
 }
 
 static FORCE_INLINE void colDataAppendDouble(SColumnInfoData* pColumnInfoData, uint32_t currentRow, double* v) {
-  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_DOUBLE);
+  tAssert(pColumnInfoData->info.type == TSDB_DATA_TYPE_DOUBLE);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(double*)p = *(double*)v;
 }

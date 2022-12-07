@@ -49,7 +49,7 @@
 int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
 
 int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapshot) {
-  ASSERT(false && "deprecated");
+  tAssert(false && "deprecated");
   // next index
   SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
 
@@ -92,10 +92,10 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
   }
 
   if (code == 0) {
-    ASSERT(pEntry != NULL);
+    tAssert(pEntry != NULL);
 
     code = syncBuildAppendEntries(&rpcMsg, (int32_t)(pEntry->bytes), pSyncNode->vgId);
-    ASSERT(code == 0);
+    tAssert(code == 0);
 
     pMsg = rpcMsg.pCont;
     memcpy(pMsg->data, pEntry, pEntry->bytes);
@@ -103,7 +103,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
     if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
       // no entry in log
       code = syncBuildAppendEntries(&rpcMsg, 0, pSyncNode->vgId);
-      ASSERT(code == 0);
+      tAssert(code == 0);
 
       pMsg = rpcMsg.pCont;
     } else {
@@ -122,7 +122,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
   }
 
   // prepare msg
-  ASSERT(pMsg != NULL);
+  tAssert(pMsg != NULL);
   pMsg->srcId = pSyncNode->myRaftId;
   pMsg->destId = *pDestId;
   pMsg->term = pSyncNode->pRaftStore->currentTerm;

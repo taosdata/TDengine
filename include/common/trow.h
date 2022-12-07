@@ -214,7 +214,7 @@ static FORCE_INLINE SKvRowIdx *tdKvRowColIdxAt(STSRow *pRow, col_id_t idx) {
 }
 
 static FORCE_INLINE int16_t tdKvRowColIdAt(STSRow *pRow, col_id_t idx) {
-  ASSERT(idx >= 0);
+  tAssert(idx >= 0);
   if (idx == 0) {
     return PRIMARYKEY_TIMESTAMP_COL_ID;
   }

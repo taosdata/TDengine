@@ -43,7 +43,7 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
   for (int i = 0; i < pNode->peersNum; ++i) {
     SRpcMsg rpcMsg = {0};
     ret = syncBuildRequestVote(&rpcMsg, pNode->vgId);
-    ASSERT(ret == 0);
+    tAssert(ret == 0);
 
     SyncRequestVote* pMsg = rpcMsg.pCont;
     pMsg->srcId = pNode->myRaftId;
@@ -51,10 +51,10 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
     pMsg->term = pNode->pRaftStore->currentTerm;
 
     ret = syncNodeGetLastIndexTerm(pNode, &pMsg->lastLogIndex, &pMsg->lastLogTerm);
-    ASSERT(ret == 0);
+    tAssert(ret == 0);
 
     ret = syncNodeSendMsgById(&pNode->peersId[i], pNode, &rpcMsg);
-    ASSERT(ret == 0);
+    tAssert(ret == 0);
   }
 
   return ret;
@@ -83,7 +83,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   syncNodeVoteForSelf(pSyncNode);
   if (voteGrantedMajority(pSyncNode->pVotesGranted)) {
     // only myself, to leader
-    ASSERT(!pSyncNode->pVotesGranted->toLeader);
+    tAssert(!pSyncNode->pVotesGranted->toLeader);
     syncNodeCandidate2Leader(pSyncNode);
     pSyncNode->pVotesGranted->toLeader = true;
     return ret;
@@ -102,7 +102,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   }
 
   ret = syncNodeRequestVotePeers(pSyncNode);
-  ASSERT(ret == 0);
+  tAssert(ret == 0);
 
   syncNodeResetElectTimer(pSyncNode);
 

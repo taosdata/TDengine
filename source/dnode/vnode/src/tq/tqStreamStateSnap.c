@@ -100,7 +100,7 @@ int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
     }
   }
 
-  ASSERT(pVal && vLen);
+  tAssert(pVal && vLen);
 
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
   if (*ppData == NULL) {
@@ -168,7 +168,7 @@ int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
 
   if (rollback) {
     tdbAbort(pWriter->pTq->pMetaDB, pWriter->txn);
-    ASSERT(0);
+    tAssert(0);
   } else {
     code = tdbCommit(pWriter->pTq->pMetaDB, pWriter->txn);
     if (code) goto _err;
