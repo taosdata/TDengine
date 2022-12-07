@@ -44,6 +44,7 @@ typedef struct SSyncSnapshotSender {
   SyncTerm       term;
   int64_t        startTime;
   int64_t        endTime;
+  int64_t        lastSendTime;
   bool           finish;
 
   // init when create
