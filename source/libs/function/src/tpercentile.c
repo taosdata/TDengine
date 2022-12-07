@@ -367,16 +367,16 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
         pSlot->info.data = NULL;
       }
 
-      SArray *pPageIdList = (SArray *)taosHashGet(pBucket->groupPagesMap, &groupId, sizeof(groupId));
+      SArray **pPageIdList = taosHashGet(pBucket->groupPagesMap, &groupId, sizeof(groupId));
       if (pPageIdList == NULL) {
         SArray *pList = taosArrayInit(4, sizeof(int32_t));
         taosHashPut(pBucket->groupPagesMap, &groupId, sizeof(groupId), &pList, POINTER_BYTES);
-        pPageIdList = pList;
+        pPageIdList = &pList;
       }
 
       pSlot->info.data = getNewBufPage(pBucket->pBuffer, &pageId);
       pSlot->info.pageId = pageId;
-      taosArrayPush(pPageIdList, &pageId);
+      taosArrayPush(*pPageIdList, &pageId);
     }
 
     memcpy(pSlot->info.data->data + pSlot->info.data->num * pBucket->bytes, d, pBucket->bytes);
