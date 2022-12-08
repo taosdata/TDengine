@@ -22,6 +22,7 @@
 #include "tpagedbuf.h"
 #include "tpercentile.h"
 #include "ttypes.h"
+#include "tlog.h"
 
 #define DEFAULT_NUM_OF_SLOT 1024
 

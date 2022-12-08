@@ -46,6 +46,26 @@ void    taosSetTerminalMode();
 int32_t taosGetOldTerminalMode();
 void    taosResetTerminalMode();
 
+#if !defined(WINDOWS)
+#define taosPrintTrace(flags, level, dflag)                                \
+  {                                                                        \
+    void*   array[100];                                                    \
+    int32_t size = backtrace(array, 100);                                  \
+    char**  strings = backtrace_symbols(array, size);                      \
+    if (strings != NULL) {                                                 \
+      taosPrintLog(flags, level, dflag, "obtained %d stack frames", size); \
+      for (int32_t i = 0; i < size; i++) {                                 \
+        taosPrintLog(flags, level, dflag, "frame:%d, %s", i, strings[i]);  \
+      }                                                                    \
+    }                                                                      \
+                                                                           \
+    taosMemoryFree(strings);                                               \
+  }
+#else
+#define taosPrintTrace(flags, level, dflag) \
+  {}
+#endif
+
 #ifdef __cplusplus
 }
 #endif
