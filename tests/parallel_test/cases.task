@@ -816,6 +816,7 @@
 3,,pytest,python3 test.py -f table/tbNameCaseSensitive.py
 3,,pytest,python3 test.py -f functions/function_max_row.py
 3,,pytest,python3 test.py -f functions/function_min_row.py
+3,,pytest,python3 test.py -f insert/long_string.py
 3,,develop-test,python3 ./test.py -f 2-query/ts_hidden_column.py
 3,,develop-test,python3 ./test.py -f 2-query/ts_shortcut.py
 3,,develop-test,python3 ./test.py -f 2-query/nchar_funcs.py
