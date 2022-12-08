@@ -51,8 +51,8 @@ static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOf
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
       for (int32_t i = 0; i < numOfBlocks; i++) {
-        SSubmitReq* pReq = *(void**)POINTER_SHIFT(input, i * sizeof(void*));
-        taosArrayPush(pInfo->pBlockLists, &pReq);
+        SPackedData* pReq = POINTER_SHIFT(input, i * sizeof(SPackedData));
+        taosArrayPush(pInfo->pBlockLists, pReq);
       }
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_SUBMIT) {
@@ -61,7 +61,10 @@ static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOf
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
-        taosArrayPush(pInfo->pBlockLists, &pDataBlock);
+        SPackedData  tmp = {
+             .pDataBlock = pDataBlock,
+        };
+        taosArrayPush(pInfo->pBlockLists, &tmp);
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     }

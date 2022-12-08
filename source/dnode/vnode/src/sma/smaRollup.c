@@ -750,12 +750,14 @@ _err:
  */
 static int32_t tdExecuteRSmaImplAsync(SSma *pSma, const void *pMsg, int32_t len, int32_t inputType, SRSmaInfo *pInfo,
                                       tb_uid_t suid) {
-  void *qItem = taosAllocateQitem(len, DEF_QITEM);
+  int32_t size = sizeof(int32_t) + len;
+  void   *qItem = taosAllocateQitem(size, DEF_QITEM);
   if (!qItem) {
     return TSDB_CODE_FAILED;
   }
 
-  memcpy(qItem, pMsg, len);
+  *(int32_t *)qItem = len;
+  memcpy(POINTER_SHIFT(qItem, sizeof(int32_t)), pMsg, len);
 
   taosWriteQitem(pInfo->queue, qItem);
 
@@ -1367,7 +1369,8 @@ _end:
 
 static void tdFreeRSmaSubmitItems(SArray *pItems) {
   for (int32_t i = 0; i < taosArrayGetSize(pItems); ++i) {
-    taosFreeQitem(*(void **)taosArrayGet(pItems, i));
+    SPackedData *packData = taosArrayGet(pItems, i);
+    taosFreeQitem(POINTER_SHIFT(packData->msgStr, -sizeof(int32_t)));
   }
   taosArrayClear(pItems);
 }
@@ -1436,7 +1439,8 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
     void *msg = NULL;
     taosGetQitem(qall, (void **)&msg);
     if (msg) {
-      if (!taosArrayPush(pSubmitArr, &msg)) {
+      SPackedData packData = {.msgLen = *(int32_t *)msg, .msgStr = POINTER_SHIFT(msg, sizeof(int32_t))};
+      if (!taosArrayPush(pSubmitArr, &packData)) {
         tdFreeRSmaSubmitItems(pSubmitArr);
         goto _err;
       }
@@ -1491,7 +1495,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
   }
 
   if (!(pSubmitArr =
-            taosArrayInit(TMIN(RSMA_SUBMIT_BATCH_SIZE, atomic_load_64(&pRSmaStat->nBufItems)), POINTER_BYTES))) {
+            taosArrayInit(TMIN(RSMA_SUBMIT_BATCH_SIZE, atomic_load_64(&pRSmaStat->nBufItems)), sizeof(SPackedData)))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
