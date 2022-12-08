@@ -1542,7 +1542,10 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd,
         taosArrayPush(preLineKV, &kv);
       }
     }else{
-      taosArraySetSize(currElement->colArray, 1);
+      if(currElement->colArray == NULL){
+        currElement->colArray = taosArrayInit(16, sizeof(SSmlKv));
+        taosArraySetSize(currElement->colArray, 1);
+      }
       taosArrayPush(currElement->colArray, &kv);   //reserve for timestamp
     }
 
@@ -1935,6 +1938,9 @@ static int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, S
       return ret;
     }
   }else{
+    if(elements->colArray == NULL){
+      elements->colArray = taosArrayInit(16, sizeof(SSmlKv));
+    }
     taosArrayPush(elements->colArray, &kvTs);
     taosArrayPush(elements->colArray, &kv);
   }
@@ -2632,6 +2638,9 @@ static int32_t smlParseJSONString(SSmlHandle *info, cJSON *root, SSmlLineInfo *e
       return ret;
     }
   }else{
+    if(elements->colArray == NULL){
+      elements->colArray = taosArrayInit(16, sizeof(SSmlKv));
+    }
     taosArrayPush(elements->colArray, &kvTs);
     taosArrayPush(elements->colArray, &kv);
   }
@@ -2767,9 +2776,7 @@ static int32_t smlParseJSON(SSmlHandle *info, char *payload) {
       }
       info->lineNum = payloadNum;
       info->lines = taosMemoryCalloc(info->lineNum, sizeof(SSmlLineInfo));
-      for(int j = 0; j < info->lineNum; j++){
-        info->lines[j].colArray = taosArrayInit(8, sizeof(SSmlKv));
-      }
+
       memset(&info->preLine, 0, sizeof(SSmlLineInfo));
       SVnodeModifOpStmt* stmt= (SVnodeModifOpStmt*)(info->pQuery->pRoot);
       stmt->freeHashFunc(stmt->pTableBlockHashObj);
@@ -2939,9 +2946,6 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
       }
       info->lines = taosMemoryCalloc(info->lineNum, sizeof(SSmlLineInfo));
 
-      for(int j = 0; j < info->lineNum; j++){
-        info->lines[j].colArray = taosArrayInit(8, sizeof(SSmlKv));
-      }
       memset(&info->preLine, 0, sizeof(SSmlLineInfo));
       SVnodeModifOpStmt* stmt= (SVnodeModifOpStmt*)(info->pQuery->pRoot);
       stmt->freeHashFunc(stmt->pTableBlockHashObj);
