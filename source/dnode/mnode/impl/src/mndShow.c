@@ -132,7 +132,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   showObj.type = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
   memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
 
-  int32_t   keepTime = tsShellActivityTimer * 6 * 1000;
+  int32_t   keepTime = tsShellActivityTimer * 3 * 1000;
   SShowObj *pShow = taosCachePut(pMgmt->cache, &showId, sizeof(int64_t), &showObj, size, keepTime);
   if (pShow == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -176,7 +176,7 @@ static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
   mTrace("show:0x%" PRIx64 ", released from cache, data:%p force:%d", pShow->id, pShow, forceRemove);
 
   // A bug in tcache.c
-  forceRemove = 0;
+  // forceRemove = 0;
 
   SMnode    *pMnode = pShow->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
