@@ -2778,6 +2778,9 @@ static int32_t smlParseJSON(SSmlHandle *info, char *payload) {
       info->lines = taosMemoryCalloc(info->lineNum, sizeof(SSmlLineInfo));
 
       memset(&info->preLine, 0, sizeof(SSmlLineInfo));
+      info->currSTableMeta = NULL;
+      info->currTableDataCtx = NULL;
+
       SVnodeModifOpStmt* stmt= (SVnodeModifOpStmt*)(info->pQuery->pRoot);
       stmt->freeHashFunc(stmt->pTableBlockHashObj);
       stmt->pTableBlockHashObj = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
@@ -2947,6 +2950,9 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
       info->lines = taosMemoryCalloc(info->lineNum, sizeof(SSmlLineInfo));
 
       memset(&info->preLine, 0, sizeof(SSmlLineInfo));
+      info->currSTableMeta = NULL;
+      info->currTableDataCtx = NULL;
+
       SVnodeModifOpStmt* stmt= (SVnodeModifOpStmt*)(info->pQuery->pRoot);
       stmt->freeHashFunc(stmt->pTableBlockHashObj);
       stmt->pTableBlockHashObj = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
