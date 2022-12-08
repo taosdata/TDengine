@@ -865,12 +865,12 @@ static int64_t smlGetTimeValue(const char *value, int32_t len, uint8_t fromPreci
   }
 
   if(unlikely(fromPrecision >= TSDB_TIME_PRECISION_HOURS)){
-    fromPrecision = TSDB_TIME_PRECISION_MILLI;
     int64_t unit = smlToMilli[fromPrecision - TSDB_TIME_PRECISION_HOURS];
     if(unit > INT64_MAX / tsInt64){
       return -1;
     }
     tsInt64 *= unit;
+    fromPrecision = TSDB_TIME_PRECISION_MILLI;
   }
 
   return convertTimePrecision(tsInt64, fromPrecision, toPrecision);
