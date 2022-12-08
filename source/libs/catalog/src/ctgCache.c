@@ -239,6 +239,7 @@ _return:
 int32_t ctgAcquireVgMetaFromCache(SCatalog *pCtg, const char *dbFName, const char *tbName, SCtgDBCache **pDb, SCtgTbCache **pTb) {
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *tbCache = NULL;
+  bool vgInCache = false;
 
   ctgAcquireDBCache(pCtg, dbFName, &dbCache);
   if (NULL == dbCache) {
@@ -247,7 +248,6 @@ int32_t ctgAcquireVgMetaFromCache(SCatalog *pCtg, const char *dbFName, const cha
     goto _return;
   }
 
-  bool vgInCache = false;
   ctgRLockVgInfo(pCtg, dbCache, &vgInCache);
   if (!vgInCache) {
     ctgDebug("vgInfo of db %s not in cache", dbFName);
