@@ -97,18 +97,22 @@ _exit:
 
 int32_t smaFinishCommit(SSma *pSma) {
   int32_t code = 0;
+  int32_t lino = 0;
   SVnode *pVnode = pSma->pVnode;
 
+  code = tdRSmaFSFinishCommit(pSma);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   if (VND_RSMA1(pVnode) && (code = tsdbFinishCommit(VND_RSMA1(pVnode))) < 0) {
-    smaError("vgId:%d, failed to finish commit tsdb rsma1 since %s", TD_VID(pVnode), tstrerror(code));
-    goto _exit;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
   if (VND_RSMA2(pVnode) && (code = tsdbFinishCommit(VND_RSMA2(pVnode))) < 0) {
-    smaError("vgId:%d, failed to finish commit tsdb rsma2 since %s", TD_VID(pVnode), tstrerror(code));
-    goto _exit;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 _exit:
-  terrno = code;
+  if (code) {
+    smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -123,7 +127,7 @@ _exit:
  * @return int32_t
  */
 static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pStat) {
-  #if 0
+#if 0
   SVnode  *pVnode = pSma->pVnode;
   SRSmaFS *pFS = RSMA_FS(pStat);
   int64_t  committed = pStat->commitAppliedVer;
@@ -170,7 +174,7 @@ static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pStat) {
   }
 
   taosWUnLockLatch(RSMA_FS_LOCK(pStat));
-  #endif
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
@@ -279,21 +283,22 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
  */
 static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo) {
   int32_t code = 0;
+  int32_t lino = 0;
   SVnode *pVnode = pSma->pVnode;
 
+  code = tdRSmaFSCommit(pSma);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  
+  code = tsdbCommit(VND_RSMA1(pVnode), pInfo);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  if ((code = tsdbCommit(VND_RSMA1(pVnode), pInfo)) < 0) {
-    smaError("vgId:%d, failed to commit tsdb rsma1 since %s", TD_VID(pVnode), tstrerror(code));
-    goto _exit;
-  }
-  if ((code = tsdbCommit(VND_RSMA2(pVnode), pInfo)) < 0) {
-    smaError("vgId:%d, failed to commit tsdb rsma2 since %s", TD_VID(pVnode), tstrerror(code));
-    goto _exit;
-  }
+  code = tsdbCommit(VND_RSMA2(pVnode), pInfo);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
 _exit:
-  terrno = code;
+  if (code) {
+    smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
