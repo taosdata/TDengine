@@ -1118,6 +1118,13 @@ int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, const SName* pTableName,
   CTG_API_LEAVE(ctgGetTbHashVgroup(pCtg, NULL, pTableName, pVgroup, exists));
 }
 
+int32_t catalogGetCachedTableVgMeta(SCatalog* pCtg, const SName* pTableName,          SVgroupInfo* pVgroup, STableMeta** pTableMeta) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgGetTbHashVgroup(pCtg, NULL, pTableName, pVgroup, exists));
+}
+
+
 #if 0
 int32_t catalogGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalogReq* pReq, SMetaData* pRsp) {
   CTG_API_ENTER();
