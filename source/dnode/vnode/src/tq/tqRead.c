@@ -694,8 +694,8 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader) {
               goto FAIL;
             }
 #endif
-            char val[65535 + 2];
             if (IS_STR_DATA_TYPE(colVal.type)) {
+              char val[65535 + 2];
               memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
               varDataSetLen(val, colVal.value.nData);
               if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
@@ -733,8 +733,8 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader) {
               sourceIdx++;
               continue;
             } else if (colVal.cid == pColData->info.colId) {
-              char val[65535 + 2];
               if (IS_STR_DATA_TYPE(colVal.type)) {
+                char val[65535 + 2];
                 memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
                 varDataSetLen(val, colVal.value.nData);
                 if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
