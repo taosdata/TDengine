@@ -3881,10 +3881,7 @@ static int32_t checkDbKeepOption(STranslateContext* pCxt, SDatabaseOptions* pOpt
 
   int64_t tsdbMaxKeep = TSDB_MAX_KEEP;
   if (pOptions->precision == TSDB_TIME_PRECISION_NANO) {
-    int64_t now = taosGetTimestampSec();
-    if (now < 0) now = 0;
-    tsdbMaxKeep = now / 60 + 292 * 365 * 1440;
-    tsdbMaxKeep = TMIN(tsdbMaxKeep, TSDB_MAX_KEEP);
+    tsdbMaxKeep = TSDB_MAX_KEEP_NS;
   }
 
   if (pOptions->keep[0] < TSDB_MIN_KEEP || pOptions->keep[1] < TSDB_MIN_KEEP || pOptions->keep[2] < TSDB_MIN_KEEP ||
