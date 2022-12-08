@@ -149,7 +149,7 @@ void mndRestoreFinish(const SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
 
   if (!pMnode->deploy) {
-    if (pMnode->restored) {
+    if (!pMnode->restored) {
       mInfo("vgId:1, sync restore finished, and will handle outstanding transactions");
       mndTransPullup(pMnode);
       mndSetRestored(pMnode, true);
