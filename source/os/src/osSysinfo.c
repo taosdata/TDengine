@@ -297,10 +297,10 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
   }
   if (major >= 20) {
       major -= 9; // macOS 11 and newer
-      sprintf(releaseName, "%u.%u", major, minor);
+      sprintf(releaseName, "macOS %u.%u", major, minor);
   } else {
       major -= 4; // macOS 10.1.1 and newer
-      sprintf(releaseName, "10.%d.%d", major, minor);
+      sprintf(releaseName, "macOS 10.%d.%d", major, minor);
   }
 
   return 0;
