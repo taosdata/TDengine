@@ -800,7 +800,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
          tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
-    pWrapper->pCatalogReq->forceUpdate = false;
+    //pWrapper->pCatalogReq->forceUpdate = false;
     code = qContinueParseSql(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
 
@@ -881,6 +881,9 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
     code = pRequest->prevCode;
+    terrno = code;
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    return;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
