@@ -2,7 +2,7 @@
 # taosadapter
 ExternalProject_Add(taosadapter
         GIT_REPOSITORY https://github.com/taosdata/taosadapter.git
-        GIT_TAG e07f41b
+        GIT_TAG 0dfad5b
         SOURCE_DIR "${TD_SOURCE_DIR}/tools/taosadapter"
         BINARY_DIR ""
         #BUILD_IN_SOURCE TRUE

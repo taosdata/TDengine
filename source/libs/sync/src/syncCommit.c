@@ -84,7 +84,7 @@ void syncOneReplicaAdvance(SSyncNode* pSyncNode) {
 }
 
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
-  ASSERT(false && "deprecated");
+  ASSERTS(false, "deprecated");
   if (pSyncNode == NULL) {
     sError("pSyncNode is NULL");
     return;

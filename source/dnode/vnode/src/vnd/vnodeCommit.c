@@ -193,7 +193,6 @@ static void vnodePrepareCommit(SVnode *pVnode) {
   metaPrepareAsyncCommit(pVnode->pMeta);
   smaPrepareAsyncCommit(pVnode->pSma);
 
-
   vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;
 }
@@ -283,11 +282,6 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   syncBeginSnapshot(pVnode->sync, pVnode->state.applied);
 
   // commit each sub-system
-  if (metaCommit(pVnode->pMeta, pInfo->txn) < 0) {
-    code = TSDB_CODE_FAILED;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
   code = tsdbCommit(pVnode->pTsdb, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 

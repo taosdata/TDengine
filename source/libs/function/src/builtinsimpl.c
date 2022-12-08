@@ -423,6 +423,8 @@ typedef struct SGroupKeyInfo {
     (_p).val = (_v);                \
   } while (0)
 
+static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst);
+
 bool functionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
   if (pResultInfo->initialized) {
     return false;
@@ -457,11 +459,12 @@ int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || pDBuf->ts > pSBuf->ts)) {
-    memcpy(pDBuf->buf, pSBuf->buf, bytes);
-    pDBuf->ts = pSBuf->ts;
-    pDResInfo->numOfRes = 1;
+  if (TSDB_CODE_SUCCESS == firstLastTransferInfoImpl(pSBuf, pDBuf, true)) {
+    pDBuf->hasResult = true;
   }
+
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
+  pDResInfo->isNullRes &= pSResInfo->isNullRes;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -501,7 +504,7 @@ static int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
    */
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
-  if (pInput->colDataSMAIsSet && pInput->totalRows == pInput->numOfRows) {
+  if (pInput->colDataSMAIsSet && pInput->totalRows == pInput->numOfRows && !IS_VAR_DATA_TYPE(pInputCol->info.type)) {
     numOfElem = pInput->numOfRows - pInput->pColumnDataAgg[0]->numOfNull;
     ASSERT(numOfElem >= 0);
   } else {
@@ -1274,17 +1277,8 @@ int32_t stddevCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SStddevRes*          pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
   int16_t              type = pDBuf->type == TSDB_DATA_TYPE_NULL ? pSBuf->type : pDBuf->type;
 
-  if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    pDBuf->isum += pSBuf->isum;
-    pDBuf->quadraticISum += pSBuf->quadraticISum;
-  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    pDBuf->usum += pSBuf->usum;
-    pDBuf->quadraticUSum += pSBuf->quadraticUSum;
-  } else {
-    pDBuf->dsum += pSBuf->dsum;
-    pDBuf->quadraticDSum += pSBuf->quadraticDSum;
-  }
-  pDBuf->count += pSBuf->count;
+  stddevTransferInfo(pSBuf, pDBuf);
+
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   pDResInfo->isNullRes &= pSResInfo->isNullRes;
   return TSDB_CODE_SUCCESS;
@@ -2289,16 +2283,15 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
-                                  int32_t rowIndex) {
+static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst) {
   if (pOutput->hasResult) {
     if (isFirst) {
       if (pInput->ts > pOutput->ts) {
-        return;
+        return TSDB_CODE_FAILED;
       }
     } else {
       if (pInput->ts < pOutput->ts) {
-        return;
+        return TSDB_CODE_FAILED;
       }
     }
   }
@@ -2308,9 +2301,15 @@ static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, S
   pOutput->bytes = pInput->bytes;
 
   memcpy(pOutput->buf, pInput->buf, pOutput->bytes);
-  firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pOutput);
+  return TSDB_CODE_SUCCESS;
+}
 
-  pOutput->hasResult = true;
+static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
+                                  int32_t rowIndex) {
+  if (TSDB_CODE_SUCCESS == firstLastTransferInfoImpl(pInput, pOutput, isFirst)) {
+    firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pOutput);
+    pOutput->hasResult = true;
+  }
 }
 
 static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuery) {
@@ -2378,7 +2377,6 @@ int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return 1;
 }
 
-// todo rewrite:
 int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   SFirstLastRes*       pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
@@ -2387,11 +2385,12 @@ int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || pDBuf->ts < pSBuf->ts)) {
-    memcpy(pDBuf->buf, pSBuf->buf, bytes);
-    pDBuf->ts = pSBuf->ts;
-    pDResInfo->numOfRes = 1;
+  if (TSDB_CODE_SUCCESS == firstLastTransferInfoImpl(pSBuf, pDBuf, false)) {
+    pDBuf->hasResult = true;
   }
+
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
+  pDResInfo->isNullRes &= pSResInfo->isNullRes;
   return TSDB_CODE_SUCCESS;
 }
 

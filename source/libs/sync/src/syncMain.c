@@ -151,7 +151,7 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
     }
 
     syncNodeStartHeartbeatTimer(pSyncNode);
-    syncNodeReplicate(pSyncNode);
+    //syncNodeReplicate(pSyncNode);
   }
 
   syncNodeRelease(pSyncNode);
@@ -791,9 +791,9 @@ static int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
 }
 
 int32_t syncNodeLogStoreRestoreOnNeed(SSyncNode* pNode) {
-  ASSERT(pNode->pLogStore != NULL && "log store not created");
-  ASSERT(pNode->pFsm != NULL && "pFsm not registered");
-  ASSERT(pNode->pFsm->FpGetSnapshotInfo != NULL && "FpGetSnapshotInfo not registered");
+  ASSERTS(pNode->pLogStore != NULL, "log store not created");
+  ASSERTS(pNode->pFsm != NULL, "pFsm not registered");
+  ASSERTS(pNode->pFsm->FpGetSnapshotInfo != NULL, "FpGetSnapshotInfo not registered");
   SSnapshot snapshot;
   if (pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot) < 0) {
     sError("vgId:%d, failed to get snapshot info since %s", pNode->vgId, terrstr());
@@ -1025,8 +1025,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   }
   // timer ms init
   pSyncNode->pingBaseLine = PING_TIMER_MS;
-  pSyncNode->electBaseLine = ELECT_TIMER_MS_MIN;
-  pSyncNode->hbBaseLine = HEARTBEAT_TIMER_MS;
+  pSyncNode->electBaseLine = tsElectInterval;
+  pSyncNode->hbBaseLine = tsHeartbeatInterval;
 
   // init ping timer
   pSyncNode->pPingTimer = NULL;
@@ -1144,8 +1144,8 @@ void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeRestore(SSyncNode* pSyncNode) {
-  ASSERT(pSyncNode->pLogStore != NULL && "log store not created");
-  ASSERT(pSyncNode->pLogBuf != NULL && "ring log buffer not created");
+  ASSERTS(pSyncNode->pLogStore != NULL, "log store not created");
+  ASSERTS(pSyncNode->pLogBuf != NULL, "ring log buffer not created");
 
   SyncIndex lastVer = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
   SyncIndex commitIndex = pSyncNode->pLogStore->syncLogCommitIndex(pSyncNode->pLogStore);
@@ -1221,6 +1221,26 @@ int32_t syncNodeStartStandBy(SSyncNode* pSyncNode) {
 }
 
 void syncNodePreClose(SSyncNode* pSyncNode) {
+  if (pSyncNode != NULL && pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpApplyQueueItems != NULL) {
+    while (1) {
+      int32_t aqItems = pSyncNode->pFsm->FpApplyQueueItems(pSyncNode->pFsm);
+      sTrace("vgId:%d, pre close, %d items in apply queue", pSyncNode->vgId, aqItems);
+      if (aqItems == 0 || aqItems == -1) {
+        break;
+      }
+      taosMsleep(20);
+    }
+  }
+
+  if (pSyncNode->pNewNodeReceiver != NULL) {
+    if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+      snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+    }
+
+    snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
+    pSyncNode->pNewNodeReceiver = NULL;
+  }
+
   // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
 
@@ -1819,7 +1839,8 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 #endif
 
   // close receiver
-  if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+  if (pSyncNode != NULL && pSyncNode->pNewNodeReceiver != NULL &&
+      snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
     snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
   }
 
@@ -2384,7 +2405,7 @@ bool syncNodeHeartbeatReplyTimeout(SSyncNode* pSyncNode) {
       continue;
     }
 
-    if (tsNow - recvTime > SYNC_HEART_TIMEOUT_MS) {
+    if (tsNow - recvTime > tsHeartbeatTimeout) {
       toCount++;
     }
   }
@@ -2643,7 +2664,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
 
     int32_t code = syncNodeAppend(ths, pEntry);
     if (code < 0 && ths->vgId != 1 && vnodeIsMsgBlock(pEntry->originalRpcType)) {
-      ASSERT(false && "failed to append blocking msg");
+      ASSERTS(false, "failed to append blocking msg");
     }
     return code;
   }

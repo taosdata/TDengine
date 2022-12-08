@@ -1924,7 +1924,8 @@ static int32_t translateToUnixtimestamp(SFunctionNode* pFunc, char* pErrBuf, int
 }
 
 static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (2 != numOfParams && 3 != numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -1935,9 +1936,7 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-
   int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1));
   if (ret == TIME_UNIT_TOO_SMALL) {
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
@@ -1948,7 +1947,26 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
         "TIMETRUNCATE function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
   }
 
+  if (3 == numOfParams) {
+    uint8_t para3Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type;
+    if (!IS_INTEGER_TYPE(para3Type)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    if (pValue->datum.i != 0 && pValue->datum.i != 1) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+
+  // add database precision as param
+
   int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  // add client timezone as param
+  code = addTimezoneParam(pFunc->pParameterList);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

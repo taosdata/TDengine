@@ -79,6 +79,9 @@ int64_t bpTs;
 #define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)))
 
 typedef struct {
+  bool       singleTbInsert;
+  int32_t    singleTbIdx;
+  
   int64_t*   tsData;
   bool*      boolData;
   int8_t*    tinyData;
@@ -116,6 +119,7 @@ int insertMBMETest4(TAOS_STMT *stmt, TAOS *taos);
 int insertMPMETest1(TAOS_STMT *stmt, TAOS *taos);
 int insertAUTOTest1(TAOS_STMT *stmt, TAOS *taos);
 int insertAUTOTest2(TAOS_STMT *stmt, TAOS *taos);
+int insertAUTOTest3(TAOS_STMT *stmt, TAOS *taos);
 int queryColumnTest(TAOS_STMT *stmt, TAOS *taos);
 int queryMiscTest(TAOS_STMT *stmt, TAOS *taos);
 
@@ -130,6 +134,7 @@ typedef struct {
   int32_t *colList;         // full table column list
   int32_t  testType;     
   int32_t  autoCreateTbl;
+  bool     duplicateValue;
   bool     fullCol;
   int32_t  (*runFn)(TAOS_STMT*, TAOS*);
   int32_t  tblNum;
@@ -143,46 +148,47 @@ typedef struct {
 } CaseCfg;
 
 CaseCfg gCase[] = {
-  {"insert:MBSE0-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, 0, true, insertMBSETest1,  1, 10, 10, 0, 0, 0, 1, -1},
-  {"insert:MBSE0-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, 0, true, insertMBSETest1, 10, 100, 10, 0, 0, 0, 1, -1},
+  {"insert:MBSE0-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, 0, false, true, insertMBSETest1,  1, 10, 10, 0, 0, 0, 1, -1},
+  {"insert:MBSE0-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, 0, false, true, insertMBSETest1, 10, 100, 10, 0, 0, 0, 1, -1},
 
-  {"insert:MBSE1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, insertMBSETest1, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBSE1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBSETest1, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBSE1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBSETest1, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBSE1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBSETest1, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBSE1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBSETest1, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBSE1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBSETest1, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MBSE2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, insertMBSETest2, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBSE2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBSETest2, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBSE2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBSETest2, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBSE2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBSETest2, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBSE2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBSETest2, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBSE2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBSETest2, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MBME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, insertMBMETest1, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest1, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBME1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest1, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBMETest1, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest1, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBME1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest1, 10, 10, 2, 2, 0, 0, 1, -1},
 
   // 11
-  {"insert:MBME2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, insertMBMETest2, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBME2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest2, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBME2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest2, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBME2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBMETest2, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBME2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest2, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBME2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest2, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MBME3-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, insertMBMETest3, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBME3-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest3, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBME3-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest3, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBME3-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBMETest3, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBME3-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest3, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBME3-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest3, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MBME4-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, insertMBMETest4, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBME4-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest4, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBME4-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMBMETest4, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBME4-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBMETest4, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBME4-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest4, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBME4-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest4, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MPME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, insertMPMETest1, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MPME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, insertMPMETest1, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MPME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMPMETest1, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MPME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMPMETest1, 10, 10, 2, 12, 0, 0, 1, -1},
 
   // 22
-  {"insert:AUTO1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 1, true, insertAUTOTest1, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:AUTO1-TBEXISTS", tListLen(fullColList), fullColList, TTYPE_INSERT, 3, true, insertAUTOTest2, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:AUTO1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 1, false, true, insertAUTOTest1, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:AUTO2-TBEXISTS", tListLen(fullColList), fullColList, TTYPE_INSERT, 3, false, true, insertAUTOTest2, 10, 10, 2, 0, 0, 0, 1, -1},
+//  {"insert:AUTO3-NTB", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, true, insertAUTOTest3, 10, 10, 2, 0, 0, 0, 1, -1},
 
-  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, queryColumnTest, 10, 10, 1, 3, 0, 0, 1, 2},
-  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, queryMiscTest, 10, 10, 1, 3, 0, 0, 1, 2},
+  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryColumnTest, 10, 10, 1, 3, 0, 0, 1, 2},
+  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryMiscTest, 10, 10, 1, 3, 0, 0, 1, 2},
 
-//  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, queryColumnTest, 1, 10, 1, 1, 0, 0, 1, 2},
-//  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, queryMiscTest, 2, 10, 1, 1, 0, 0, 1, 2},
+//  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryColumnTest, 1, 10, 1, 1, 0, 0, 1, 2},
+//  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryMiscTest, 2, 10, 1, 1, 0, 0, 1, 2},
 
 };
 
@@ -232,7 +238,7 @@ CaseCtrl gCaseCtrl = {
   .numericParam = false,
   .rowNum = 0,
   .bindColNum = 0,
-  .bindTagNum = 14,
+  .bindTagNum = 0,
   .bindRowNum = 0,
   .bindColTypeNum = 0,
   .bindColTypeList = NULL,
@@ -244,7 +250,7 @@ CaseCtrl gCaseCtrl = {
   .funcIdxList = NULL,
   .checkParamNum = false,
   .runTimes = 0,
-  .caseIdx = 23,
+  .caseIdx = 24,
   .caseNum = 1,
   .caseRunIdx = -1,
   .caseRunNum = -1,
@@ -382,7 +388,11 @@ bool colExists(TAOS_MULTI_BIND* pBind, int32_t dataType) {
 void generateInsertSQL(BindData *data) {
   int32_t len = 0;
   if (gCurCase->tblNum > 1) {
-    len = sprintf(data->sql, "insert into ? ");
+    if (data->singleTbInsert) {
+      len = sprintf(data->sql, "insert into %s%d ", bpTbPrefix, data->singleTbIdx);
+    } else {
+      len = sprintf(data->sql, "insert into ? ");
+    }
   } else {
     len = sprintf(data->sql, "insert into %s0 ", bpTbPrefix);
   }
@@ -938,7 +948,14 @@ int32_t prepareInsertData(BindData *data) {
   }
   
   for (int32_t i = 0; i < allRowNum; ++i) {
-    data->tsData[i] = bpTs++;
+    if (gCurCase->duplicateValue) {
+      data->tsData[i] = bpTs;
+      if (i % 2 == 1) {
+        bpTs++;
+      }
+    } else {
+      data->tsData[i] = bpTs++;
+    }
     data->boolData[i] = (bool)(i % 2);
     data->tinyData[i] = (int8_t)i;
     data->utinyData[i] = (uint8_t)(i+1);
@@ -1251,6 +1268,9 @@ void bpCheckParamNum(TAOS_STMT *stmt) {
 void bpCheckAffectedRows(TAOS_STMT *stmt, int32_t times) {
   int32_t rows = taos_stmt_affected_rows(stmt);
   int32_t insertNum = gCurCase->rowNum * gCurCase->tblNum * times;
+  if (gCurCase->duplicateValue) {
+    insertNum /= 2;
+  }
   if (insertNum != rows) {
     printf("!!!affected rows %d mis-match with insert num %d\n", rows, insertNum);
     exit(1);
@@ -2014,6 +2034,65 @@ int insertAUTOTest2(TAOS_STMT *stmt, TAOS *taos) {
   return 0;
 }
 
+/* normal table [prepare [bind add exec]]   */
+int insertAUTOTest3(TAOS_STMT *stmt, TAOS *taos) {
+  int32_t loop = 0;
+  
+  while (gCurCase->bindColNum > 0) {
+    BindData data = {0};
+    data.singleTbInsert = true;
+    prepareInsertData(&data);
+
+    int32_t bindTimes = gCurCase->rowNum/gCurCase->bindRowNum;
+    for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
+      data.singleTbIdx = t;        
+      generateInsertSQL(&data);
+      
+      int code = taos_stmt_prepare(stmt, data.sql, 0);
+      if (code != 0){
+        printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }
+      
+      for (int32_t b = 0; b <bindTimes; ++b) {
+        bpCheckIsInsert(stmt, 1);
+      
+        if (gCaseCtrl.checkParamNum) {
+          bpCheckParamNum(stmt);
+        }
+        
+        if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+          exit(1);
+        }
+        
+        if (taos_stmt_add_batch(stmt)) {
+          printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+          exit(1);
+        }
+        
+        if (taos_stmt_execute(stmt) != 0) {
+          printf("!!!taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+          exit(1);
+        }
+      }
+    }
+
+    bpCheckIsInsert(stmt, 1);
+
+    destroyData(&data);
+
+    gCurCase->bindColNum -= 2;
+    gCurCase->fullCol = false;
+    loop++;
+  }
+
+  bpCheckAffectedRows(stmt, loop);
+
+  gExecLoopTimes = loop;
+  
+  return 0;
+}
+
 
 /* select * from table */
 int queryColumnTest(TAOS_STMT *stmt, TAOS *taos) {
@@ -2160,7 +2239,7 @@ void prepareCheckResult(TAOS     *taos, bool silent) {
       sprintf(buf, "%s%d", bpTbPrefix, 0);
     }
 
-    prepareCheckResultImpl(taos, buf, gCaseCtrl.printRes, gCurCase->rowNum * gExecLoopTimes, silent);
+    prepareCheckResultImpl(taos, buf, gCaseCtrl.printRes, gCurCase->duplicateValue ? (gCurCase->rowNum * gExecLoopTimes / 2) : (gCurCase->rowNum * gExecLoopTimes), silent);
   }
 
   gExecLoopTimes = 1;
@@ -2749,6 +2828,7 @@ void runAll(TAOS *taos) {
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
 
+#if 0
   strcpy(gCaseCtrl.caseCatalog, "Micro DB precision Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.precision = TIME_PRECISION_MICRO;
@@ -2804,6 +2884,8 @@ void runAll(TAOS *taos) {
   gCaseCtrl.bindColNum = 6;
   runCaseList(taos);
   gCaseCtrl.bindColNum = 0;
+
+#endif
 
 /*
   strcpy(gCaseCtrl.caseCatalog, "Bind Col Type Test");

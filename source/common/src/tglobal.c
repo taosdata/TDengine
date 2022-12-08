@@ -333,6 +333,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddTimezone(pCfg, "timezone", tsTimezoneStr) != 0) return -1;
   if (cfgAddLocale(pCfg, "locale", tsLocale) != 0) return -1;
   if (cfgAddCharset(pCfg, "charset", tsCharset) != 0) return -1;
+  if (cfgAddBool(pCfg, "assert", 1, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "enableCoreFile", 1, 1) != 0) return -1;
   if (cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 1, 100000, 1) != 0) return -1;
 
@@ -407,7 +408,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   tsNumOfQnodeQueryThreads = tsNumOfCores * 2;
   tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 4);
-  if (cfgAddInt32(pCfg, "numOfQnodeQueryThreads", tsNumOfQnodeQueryThreads, 1, 1024, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "numOfQnodeQueryThreads", tsNumOfQnodeQueryThreads, 4, 1024, 0) != 0) return -1;
 
   //  tsNumOfQnodeFetchThreads = tsNumOfCores / 2;
   //  tsNumOfQnodeFetchThreads = TMAX(tsNumOfQnodeFetchThreads, 4);
@@ -693,6 +694,8 @@ static void taosSetSystemCfg(SConfig *pCfg) {
   bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
   taosSetCoreDump(enableCore);
 
+  tsAssert = cfgGetItem(pCfg, "assert")->bval;
+
   // todo
   tsVersion = 30000000;
 }
@@ -788,6 +791,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
     case 'a': {
       if (strcasecmp("asyncLog", name) == 0) {
         tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
+      } else if (strcasecmp("assert", name) == 0) {
+        tsAssert = cfgGetItem(pCfg, "assert")->bval;
       }
       break;
     }

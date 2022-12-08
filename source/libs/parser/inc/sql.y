@@ -362,6 +362,7 @@ table_options(A) ::= table_options(B) WATERMARK duration_list(C).               
 table_options(A) ::= table_options(B) ROLLUP NK_LP rollup_func_list(C) NK_RP.     { A = setTableOption(pCxt, B, TABLE_OPTION_ROLLUP, C); }
 table_options(A) ::= table_options(B) TTL NK_INTEGER(C).                          { A = setTableOption(pCxt, B, TABLE_OPTION_TTL, &C); }
 table_options(A) ::= table_options(B) SMA NK_LP col_name_list(C) NK_RP.           { A = setTableOption(pCxt, B, TABLE_OPTION_SMA, C); }
+table_options(A) ::= table_options(B) DELETE_MARK duration_list(C).               { A = setTableOption(pCxt, B, TABLE_OPTION_DELETE_MARK, C); }
 
 alter_table_options(A) ::= alter_table_option(B).                                 { A = createAlterTableOptions(pCxt); A = setTableOption(pCxt, A, B.type, &B.val); }
 alter_table_options(A) ::= alter_table_options(B) alter_table_option(C).          { A = setTableOption(pCxt, B, C.type, &C.val); }
@@ -475,8 +476,9 @@ func_list(A) ::= func_list(B) NK_COMMA func(C).                                 
 func(A) ::= function_name(B) NK_LP expression_list(C) NK_RP.                      { A = createFunctionNode(pCxt, &B, C); }
 
 sma_stream_opt(A) ::= .                                                           { A = createStreamOptions(pCxt); }
-sma_stream_opt(A) ::= stream_options(B) WATERMARK duration_literal(C).            { ((SStreamOptions*)B)->pWatermark = releaseRawExprNode(pCxt, C); A = B; }
-sma_stream_opt(A) ::= stream_options(B) MAX_DELAY duration_literal(C).            { ((SStreamOptions*)B)->pDelay = releaseRawExprNode(pCxt, C); A = B; }
+sma_stream_opt(A) ::= sma_stream_opt(B) WATERMARK duration_literal(C).            { ((SStreamOptions*)B)->pWatermark = releaseRawExprNode(pCxt, C); A = B; }
+sma_stream_opt(A) ::= sma_stream_opt(B) MAX_DELAY duration_literal(C).            { ((SStreamOptions*)B)->pDelay = releaseRawExprNode(pCxt, C); A = B; }
+sma_stream_opt(A) ::= sma_stream_opt(B) DELETE_MARK duration_literal(C).          { ((SStreamOptions*)B)->pDeleteMark = releaseRawExprNode(pCxt, C); A = B; }
 
 /************************************************ create/drop topic ***************************************************/
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS query_or_subquery(C).     { pCxt->pRootNode = createCreateTopicStmtUseQuery(pCxt, A, &B, C); }

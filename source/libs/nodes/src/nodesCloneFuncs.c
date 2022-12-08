@@ -378,6 +378,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_NODE_FIELD(pTagIndexCond);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
+  COPY_SCALAR_FIELD(deleteMark);
   COPY_SCALAR_FIELD(igExpired);
   CLONE_NODE_LIST_FIELD(pGroupTags);
   COPY_SCALAR_FIELD(groupSort);
@@ -463,6 +464,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   CLONE_NODE_FIELD(pStateExpr);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
+  COPY_SCALAR_FIELD(deleteMark);
   COPY_SCALAR_FIELD(igExpired);
   COPY_SCALAR_FIELD(windowAlgo);
   COPY_SCALAR_FIELD(inputTsOrder);

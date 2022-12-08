@@ -1019,8 +1019,8 @@ int main(int argc, char *argv[]) {
   }
 
   if (udfdInitLog() != 0) {
+    // ignore create log failed, because this error no matter
     printf("failed to start since init log error\n");
-    return -1;
   }
 
   if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {
