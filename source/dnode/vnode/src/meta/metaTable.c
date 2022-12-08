@@ -1353,6 +1353,10 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
     goto end;
   }
 
+  if (stbEntry.stbEntry.schemaTag.pSchema == NULL) {
+    goto end;
+  }
+
   pTagColumn = &stbEntry.stbEntry.schemaTag.pSchema[0];
 
   STagVal tagVal = {.cid = pTagColumn->colId};
