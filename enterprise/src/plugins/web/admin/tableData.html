@@ -67,6 +67,10 @@
 							<input type="text" class="form-control" id="dbEndTime" style="font-size:12px;width:155px;height:28px;" placeholder="2050-01-01 12:34:56">
 						</div>
 						<a id="download" style="display:none" download="tableData.csv" href="#">download</a>
+
+						<div class="limit">
+							<input placeholder="1000"  id="dbLimit" type="number" min="1" style="width:100px;border:none;border: 1px solid #ccc;height:28px;border-radius:4px;font-size: 12px;">
+						</div>
 						<button type="button" class="btn btn-default btn-sm" onclick="dbFilter()">
 							<span class="glyphicon glyphicon-plus-sign"></span> 
 							Query
@@ -215,7 +219,7 @@
 		if (dbTableFirstCol != "") {
 			var begin = $.trim($('#dbBeginTime').val());
 			var end = $.trim($('#dbEndTime').val());
-			
+			var limit=$.trim($('#dbLimit').val())
 			if (begin != "" && end != ""){
 				sql = sql + " where " + dbTableFirstCol + " >= '" + begin + "' and " + dbTableFirstCol + " <= '" + end + "'";
 			}
@@ -226,6 +230,7 @@
 				sql = sql + " where " + dbTableFirstCol + " <= '" + end + "'";
 			}
 			else {}
+			sql=sql +' ' + 'limit '+ (limit?limit:1000);
 		}
 		
 		if (path == "sql") {

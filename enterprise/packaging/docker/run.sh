@@ -4,14 +4,15 @@ TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=0
 #ADMIN_URL=${ADMIN_URL:-http://172.26.10.84:10001}
 TAOSD_STARTUP_TIMEOUT_SECOND=${TAOSD_STARTUP_TIMEOUT_SECOND:-160}
 TAOSADAPTER_STARTUP_TIMEOUT_SECOND=${TAOSADAPTER_STARTUP_TIMEOUT_SECOND:-180}
-TAOS_TIMEOUT_SECOND=${TAOS_TIMEOUT_SECOND:-5}
+TAOS_TIMEOUT_SECOND=${TAOS_TIMEOUT_SECOND:-10}
 BACKUP_CORE_FOLDER=/var/log/corefile
 ALERT_URL=app/system/alert/add
 ALERT_DISABLE_FILE=/var/log/disable_alert
-START_TAOSD_MAX_NUMBER=3
+START_TAOSD_MAX_NUMBER=${START_TAOSD_MAX_NUMBER:-3}
 start_taosd_count=0
-START_TAOSADAPTER_MAX_NUMBER=3
+START_TAOSADAPTER_MAX_NUMBER=${START_TAOSADAPTER_MAX_NUMBER:-3}
 start_taosadapter_count=0
+SLEEP_INTERVAL=${SLEEP_INTERVAL:-10}
 
 echo "ADMIN_URL: ${ADMIN_URL}"
 echo "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
@@ -24,13 +25,51 @@ function set_service_state() {
 set_service_state "init" "ok"
 app_name=`hostname |cut -d\- -f1`
 
-function check_taosd() {
+function check_taosd_deprecated() {
     timeout $TAOS_TIMEOUT_SECOND taos -s "show databases;" >/dev/null
     local ret=$?
     if [ $ret -ne 0 ]; then
         echo "`date` check taosd error $ret"
         if [ "x$1" != "xignore" ]; then
             set_service_state "error" "taos check failed $ret"
+        fi
+    else
+        set_service_state "ready" "ok"
+    fi
+}
+function check_taosd_deprecated_1() {
+    local output=`timeout $TAOS_TIMEOUT_SECOND taos -k`
+    if [ -z "${output}" ]; then
+        echo "`date` taos -k error"
+        if [ "x$1" != "xignore" ]; then
+            set_service_state "error" "taos check failed (no output)"
+        fi
+    else
+        echo "$output"|grep -q "^2"
+        if [ $? -ne 0 ]; then
+            if [ "x$1" != "xignore" ]; then
+                set_service_state "error" "taos check failed $output"
+            fi
+        else
+            set_service_state "ready" "ok"
+        fi
+    fi
+}
+function check_taosd() {
+    # timeout $TAOS_TIMEOUT_SECOND taos -R -E http://127.0.0.1:6041 -s "show databases;" >/dev/null
+    timeout $TAOS_TIMEOUT_SECOND curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "show databases;" localhost:6041/rest/sql >/tmp/taosd.json 2>&1
+    local ret=$?
+    if [ $ret -eq 0 ]; then
+        cat /tmp/taosd.json |grep -q "\"code\":0"
+        ret=$?
+        if [ $ret -ne 0 ]; then
+            cat /tmp/taosd.json
+        fi
+    fi
+    if [ $ret -ne 0 ]; then
+        echo "`date` check taosd error $ret"
+        if [ "x$1" != "xignore" ]; then
+            set_service_state "error" "taosd/taosadapter check failed $ret"
         fi
     else
         set_service_state "ready" "ok"
@@ -91,12 +130,20 @@ function set_adapter_state() {
 }
 set_adapter_state "init" "ok"
 function check_taosadapter() {
-    timeout $TAOS_TIMEOUT_SECOND taos -R -E http://127.0.0.1:6041 -s "show databases;" >/dev/null
+    # timeout $TAOS_TIMEOUT_SECOND taos -R -E http://127.0.0.1:6041 -s "show databases;" >/dev/null
+    timeout $TAOS_TIMEOUT_SECOND curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "show databases;" localhost:6041/rest/sql >/tmp/taosadapter.json 2>&1
     local ret=$?
+    if [ $ret -eq 0 ]; then
+        cat /tmp/taosadapter.json |grep -q "\"code\":0"
+        ret=$?
+        if [ $ret -ne 0 ]; then
+            cat /tmp/taosadapter.json
+        fi
+    fi
     if [ $ret -ne 0 ]; then
         echo "`date` check taosadapter error $ret"
         if [ "x$1" != "xignore" ]; then
-            set_adapter_state "error" "taosadapter check failed $ret"
+            set_adapter_state "error" "taosd/taosadapter check failed $ret"
         fi
     else
         set_adapter_state "ready" "ok"
@@ -308,5 +355,5 @@ do
             print_adapter_state_change "error"
         fi
     fi
-    sleep 10
+    sleep ${SLEEP_INTERVAL}
 done
