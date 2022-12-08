@@ -151,7 +151,7 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
     }
 
     syncNodeStartHeartbeatTimer(pSyncNode);
-    syncNodeReplicate(pSyncNode);
+    //syncNodeReplicate(pSyncNode);
   }
 
   syncNodeRelease(pSyncNode);
