@@ -127,6 +127,19 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   return 0;
 }
 
+static void dmPrintArgs(int32_t argc, char const *argv[]) {
+  char path[1024] = {0};
+  taosGetCwd(path, sizeof(path));
+
+  char    args[1024] = {0};
+  int32_t arglen = snprintf(args, sizeof(args), "%s", argv[0]);
+  for (int32_t i = 1; i < argc; ++i) {
+    arglen = arglen + snprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
+  }
+
+  dInfo("startup path:%s args:%s", path, args);
+}
+
 static void dmGenerateGrant() { mndGenerateMachineCode(); }
 
 static void dmPrintVersion() {
@@ -215,6 +228,8 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     return -1;
   }
+
+  dmPrintArgs(argc, argv);
 
   if (taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0) != 0) {
     dError("failed to start since read config error");
