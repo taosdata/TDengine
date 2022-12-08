@@ -1052,9 +1052,6 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
 
   cliMayCvtFqdnToIp(&pCtx->epSet, &pThrd->cvtAddr);
 
-  char tbuf[256] = {0};
-  EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
-
   if (!EPSET_IS_VALID(&pCtx->epSet)) {
     tError("invalid epset");
     destroyCmsg(pMsg);
