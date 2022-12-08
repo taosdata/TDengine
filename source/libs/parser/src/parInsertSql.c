@@ -1782,6 +1782,10 @@ static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCata
                                    SVnodeModifOpStmt* pStmt) {
   clearCatalogReq(pCatalogReq);
 
+  if (NULL == pMetaData) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pStmt->usingTableProcessing) {
     return getTableSchemaFromMetaData(pCxt, pMetaData, pStmt, true);
   }
