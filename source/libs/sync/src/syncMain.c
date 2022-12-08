@@ -1839,7 +1839,8 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 #endif
 
   // close receiver
-  if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+  if (pSyncNode != NULL && pSyncNode->pNewNodeReceiver != NULL &&
+      snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
     snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
   }
 
