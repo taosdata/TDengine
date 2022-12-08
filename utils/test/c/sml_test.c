@@ -1026,7 +1026,7 @@ int smlProcess_18784_Test() {
   printf("%s result:%s, rows:%d\n", __FUNCTION__, taos_errstr(pRes), taos_affected_rows(pRes));
   int code = taos_errno(pRes);
   ASSERT(!code);
-  ASSERT(taos_affected_rows(pRes) == 2);
+  ASSERT(taos_affected_rows(pRes) == 1);
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "select * from disk");
@@ -1160,8 +1160,8 @@ int sml_ttl_Test() {
 
 int main(int argc, char *argv[]) {
   int ret = 0;
-//  ret = sml_ttl_Test();
-//  ASSERT(!ret);
+  ret = sml_ttl_Test();
+  ASSERT(!ret);
   ret = sml_ts2164_Test();
   ASSERT(!ret);
   ret = smlProcess_influx_Test();

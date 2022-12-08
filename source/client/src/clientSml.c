@@ -1280,7 +1280,9 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
     SSmlKv kv = {.key = key, .type = TSDB_DATA_TYPE_NCHAR, .keyLen = keyLen, .value = value, .length = valueLen};
     if(info->dataFormat){
       if(unlikely(cnt + 1 > info->currSTableMeta->tableInfo.numOfTags)){
-        info->needModifySchema = true;
+        info->dataFormat = false;
+        info->reRun      = true;
+        return TSDB_CODE_SUCCESS;
       }
 
       if(isSameMeasure){
@@ -1488,13 +1490,17 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd,
     if(info->dataFormat){
       //cnt begin 0, add ts so + 2
       if(unlikely(cnt + 2 > info->currSTableMeta->tableInfo.numOfColumns)){
-        info->needModifySchema = true;
+        info->dataFormat = false;
+        info->reRun      = true;
+        return TSDB_CODE_SUCCESS;
       }
       // bind data
       ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, cnt + 1);
       if (unlikely(ret != TSDB_CODE_SUCCESS)) {
-        smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
-        return ret;
+        uError("smlBuildCol error, retry");
+        info->dataFormat = false;
+        info->reRun      = true;
+        return TSDB_CODE_SUCCESS;
       }
 
       if(isSameMeasure){
@@ -1795,7 +1801,9 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
 
     if(info->dataFormat){
       if(unlikely(cnt + 1 > info->currSTableMeta->tableInfo.numOfTags)){
-        info->needModifySchema = true;
+        info->dataFormat = false;
+        info->reRun      = true;
+        return TSDB_CODE_SUCCESS;
       }
 
       if(isSameMeasure){
@@ -2516,7 +2524,9 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *root, SSmlLineInfo 
 
     if(info->dataFormat){
       if(unlikely(cnt + 1 > info->currSTableMeta->tableInfo.numOfTags)){
-        info->needModifySchema = true;
+        info->dataFormat = false;
+        info->reRun      = true;
+        return TSDB_CODE_SUCCESS;
       }
 
       if(isSameMeasure){
@@ -2899,6 +2909,7 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
     return code;
   }
 
+  char *oldRaw = rawLine;
   int32_t i = 0;
   while (i < numLines) {
     char *tmp = NULL;
@@ -2915,7 +2926,6 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
         len++;
       }
       if (info->protocol == TSDB_SML_LINE_PROTOCOL && tmp[0] == '#') {  // this line is comment
-        i++;
         continue;
       }
     }
@@ -2946,6 +2956,7 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
     }
     if(info->reRun){
       i = 0;
+      rawLine = oldRaw;
       info->reRun = false;
       // clear info->childTables
       NodeList* pList = info->childTables;
