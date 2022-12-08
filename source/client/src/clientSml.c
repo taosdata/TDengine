@@ -1902,13 +1902,12 @@ static int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, S
   SSmlKv kv = {.key = VALUE, .keyLen = VALUE_LEN, .value = elements->cols, .length = elements->colsLen};
   if (smlParseNumber(&kv, &info->msgBuf)) {
     kv.length = (int16_t)tDataTypes[kv.type].bytes;
-    return TSDB_CODE_SUCCESS;
   }else{
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
   // move measure before tags to combine keys to identify child table
-  memcpy(sql - elements->measureLen, elements->measure, elements->measureLen);
+  memmove(sql - elements->measureLen, elements->measure, elements->measureLen);
   elements->measure = sql - elements->measureLen;
   elements->measureLen += sqlEnd - sql;
 
