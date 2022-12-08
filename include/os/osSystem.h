@@ -66,8 +66,7 @@ void    taosResetTerminalMode();
   {                                                                                                        \
     taosPrintLog(flags, level, dflag,                                                                      \
                  "backtrace not implemented on windows, so detailed stack information cannot be printed"); \
-    \                                                                                                      \
-  }
+    }
 #endif
 
 #ifdef __cplusplus
