@@ -1082,11 +1082,20 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   return code;
 }
 
+static void resetColValues(SArray* pValues) {
+  int32_t num = taosArrayGetSize(pValues);
+  for (int32_t i = 0; i < num; ++i) {
+    SColVal* pVal = taosArrayGet(pValues, i);
+    pVal->flag = CV_FLAG_NONE;
+  }
+}
+
 int32_t insGetTableDataCxt(SHashObj* pHash, void* id, int32_t idLen, STableMeta* pTableMeta,
                            SVCreateTbReq** pCreateTbReq, STableDataCxt** pTableCxt, bool colMode) {
   STableDataCxt** tmp = (STableDataCxt**)taosHashGet(pHash, id, idLen);
   if (NULL != tmp) {
     *pTableCxt = *tmp;
+    resetColValues((*pTableCxt)->pValues);
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = createTableDataCxt(pTableMeta, pCreateTbReq, pTableCxt, colMode);
