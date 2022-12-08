@@ -200,6 +200,7 @@ typedef struct {
   int32_t     sTableNameLen;
   char        childTableName[TSDB_TABLE_NAME_LEN];
   uint64_t    uid;
+  void       *key;        // for openTsdb telnet
 
   SArray *tags;
 
@@ -855,7 +856,7 @@ static uint8_t smlPrecisionConvert[7] = {TSDB_TIME_PRECISION_NANO, TSDB_TIME_PRE
                                      TSDB_TIME_PRECISION_NANO};
 static int64_t smlFactorNS[3] = {NANOSECOND_PER_MSEC, NANOSECOND_PER_USEC, 1};
 static int64_t smlFactorS[3] = {1000LL, 1000000LL, 1000000000LL};
-static int64_t smlToMilli[3] = {3600LL, 60LL, 1LL};
+static int64_t smlToMilli[3] = {3600000LL, 60000LL, 1000LL};
 
 static int64_t smlGetTimeValue(const char *value, int32_t len, uint8_t fromPrecision, uint8_t toPrecision) {
   char   *endPtr = NULL;
@@ -1147,6 +1148,13 @@ static int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
 
 int32_t is_same_child_table_json(const void *a, const void *b){
   return (cJSON_Compare((const cJSON *)a, (const cJSON *)b, true)) ? 0 : 1;
+}
+
+int32_t is_same_child_table_telnet(const void *a, const void *b){
+  SSmlLineInfo *t1 = (SSmlLineInfo *)a;
+  SSmlLineInfo *t2 = (SSmlLineInfo *)b;
+  return (((t1->measureLen == t2->measureLen) && memcmp(t1->measure, t2->measure, t1->measureLen) == 0)
+      && ((t1->tagsLen == t2->tagsLen) && memcmp(t1->tags, t2->tags, t1->tagsLen) == 0)) ? 0 : 1;
 }
 
 #define IS_SAME_CHILD_TABLE (elements->measureTagsLen == info->preLine.measureTagsLen \
@@ -1687,7 +1695,7 @@ static void smlParseTelnetElement(char **sql, char *sqlEnd, char **data, int32_t
 }
 
 static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SSmlLineInfo *elements, SSmlMsgBuf *msg) {
-  if(IS_SAME_CHILD_TABLE){
+  if(is_same_child_table_telnet(elements, &info->preLine)){
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1725,7 +1733,6 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
   }
 
   const char *sql = data;
-  size_t      childTableNameLen = strlen(tsSmlChildTableName);
   while (sql < sqlEnd) {
     JUMP_SPACE(sql, sqlEnd)
     if (unlikely(*sql == '\0')) break;
@@ -1839,7 +1846,7 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
     }
     cnt++;
   }
-  SSmlTableInfo *tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements->measure, elements->measureTagsLen, NULL);
+  SSmlTableInfo *tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements, POINTER_BYTES, is_same_child_table_telnet);
   if (unlikely(tinfo == NULL)) {
     tinfo = smlBuildTableInfo(1, elements->measure, elements->measureLen);
     if (!tinfo) {
@@ -1858,7 +1865,10 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
       }
     }
 
-    nodeListSet(&info->childTables, elements->measure, elements->measureTagsLen, tinfo);
+    SSmlLineInfo *key = taosMemoryMalloc(sizeof(SSmlLineInfo));
+    *key = *elements;
+    tinfo->key = key;
+    nodeListSet(&info->childTables, key, POINTER_BYTES, tinfo);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1906,11 +1916,8 @@ static int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, S
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  // move measure before tags to combine keys to identify child table
-  memmove(sql - elements->measureLen, elements->measure, elements->measureLen);
-  elements->measure = sql - elements->measureLen;
-  elements->measureLen += sqlEnd - sql;
-
+  elements->tags = sql;
+  elements->tagsLen = sqlEnd - sql;
 
   int ret = smlParseTelnetTags(info, sql, sqlEnd, elements, &info->msgBuf);
   if (unlikely(ret != TSDB_CODE_SUCCESS)) {
@@ -1987,6 +1994,7 @@ static void smlDestroyTableInfo(SSmlTableInfo *tag) {
     taosHashCleanup(kvHash);
   }
 
+  taosMemoryFree(tag->key);
   taosArrayDestroy(tag->cols);
   taosArrayDestroy(tag->tags);
   taosMemoryFree(tag);
@@ -2433,6 +2441,7 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *root, SSmlLineInfo 
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
+  elements->tags = (char*)tags;
   if(is_same_child_table_json(elements->tags, info->preLine.tags) == 0){
     return TSDB_CODE_SUCCESS;
   }
@@ -2654,8 +2663,10 @@ static int32_t smlParseLineBottom(SSmlHandle *info) {
   for(int32_t i = 0; i < info->lineNum; i ++){
     SSmlLineInfo* elements = info->lines + i;
     SSmlTableInfo *tinfo = NULL;
-    if(info->protocol != TSDB_SML_JSON_PROTOCOL){
+    if(info->protocol == TSDB_SML_LINE_PROTOCOL){
       tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements->measure, elements->measureTagsLen, NULL);
+    }else if(info->protocol == TSDB_SML_TELNET_PROTOCOL){
+      tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements, POINTER_BYTES, is_same_child_table_telnet);
     }else{
       tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements->tags, POINTER_BYTES, is_same_child_table_json);
     }
