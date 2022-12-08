@@ -62,6 +62,7 @@ int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen);
 bool    taosIsDir(const char *dirname);
 char   *taosDirName(char *dirname);
 char   *taosDirEntryBaseName(char *dirname);
+void    taosGetCwd(char *buf, int32_t len);
 
 TdDirPtr      taosOpenDir(const char *dirname);
 TdDirEntryPtr taosReadDir(TdDirPtr pDir);
