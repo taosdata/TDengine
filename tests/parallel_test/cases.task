@@ -113,7 +113,7 @@
 ,,y,script,./test.sh -f tsim/parser/first_last.sim
 ,,y,script,./test.sh -f tsim/parser/fill_stb.sim
 ,,y,script,./test.sh -f tsim/parser/interp.sim
-,,y,script,./test.sh -f tsim/parser/fourArithmetic-basic.sim
+#,,y,script,./test.sh -f tsim/parser/fourArithmetic-basic.sim
 ,,y,script,./test.sh -f tsim/parser/function.sim
 ,,y,script,./test.sh -f tsim/parser/groupby-basic.sim
 ,,y,script,./test.sh -f tsim/parser/groupby.sim
