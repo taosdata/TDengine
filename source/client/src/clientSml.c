@@ -1870,6 +1870,8 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
     tinfo->key = key;
     nodeListSet(&info->childTables, key, POINTER_BYTES, tinfo);
   }
+  info->currTableDataCtx = tinfo->tableDataCtx;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2210,8 +2212,15 @@ static int64_t smlParseTSFromJSON(SSmlHandle *info, cJSON *root) {
                              "timestamp precision can only be seconds(10 digits) or milli seconds(13 digits)", NULL);
       return -1;
     }
-
-    return convertTimePrecision(timeDouble, fromPrecision, toPrecision);
+    int64_t tsInt64 = timeDouble;
+    if(fromPrecision == TSDB_TIME_PRECISION_SECONDS){
+      if(smlFactorS[toPrecision] < INT64_MAX / tsInt64){
+        return tsInt64 * smlFactorS[toPrecision];
+      }
+      return -1;
+    }else{
+      return convertTimePrecision(timeDouble, fromPrecision, toPrecision);
+    }
   } else if (cJSON_IsObject(timestamp)) {
     return smlParseTSFromJSONObj(info, timestamp, toPrecision);
   } else {
@@ -2441,11 +2450,12 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *root, SSmlLineInfo 
   if(unlikely(cMeasure == NULL)){
     return TSDB_CODE_TSC_INVALID_JSON;
   }
-
   elements->tags = (char*)tags;
   if(is_same_child_table_json(elements->tags, info->preLine.tags) == 0){
+    cJSON_DeleteItemFromObjectCaseSensitive(tags, JSON_METERS_NAME);
     return TSDB_CODE_SUCCESS;
   }
+  cJSON_DeleteItemFromObjectCaseSensitive(tags, JSON_METERS_NAME);
 
   bool isSameMeasure = IS_SAME_SUPER_TABLE;
 
@@ -2558,29 +2568,28 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *root, SSmlLineInfo 
     cnt++;
   }
 
-  void* oneTable = nodeListGet(info->childTables, elements->tags, POINTER_BYTES, is_same_child_table_json);
-  if ((oneTable != NULL)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SSmlTableInfo *tinfo = smlBuildTableInfo(1, elements->measure, elements->measureLen);
-  if (unlikely(!tinfo)) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  for(int i = 0; i < taosArrayGetSize(preLineKV); i++){
-    taosArrayPush(tinfo->tags, taosArrayGet(preLineKV, i));
-  }
-  smlSetCTableName(tinfo);
-  if(info->dataFormat) {
-    info->currSTableMeta->uid = tinfo->uid;
-    tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);
-    if(tinfo->tableDataCtx == NULL){
-      smlBuildInvalidDataMsg(&info->msgBuf, "smlInitTableDataCtx error", NULL);
-      return TSDB_CODE_SML_INVALID_DATA;
+  SSmlTableInfo *tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements->tags, POINTER_BYTES, is_same_child_table_json);
+  if (unlikely(tinfo == NULL)) {
+    tinfo = smlBuildTableInfo(1, elements->measure, elements->measureLen);
+    if (unlikely(!tinfo)) {
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
-  }
+    for (int i = 0; i < taosArrayGetSize(preLineKV); i++) {
+      taosArrayPush(tinfo->tags, taosArrayGet(preLineKV, i));
+    }
+    smlSetCTableName(tinfo);
+    if (info->dataFormat) {
+      info->currSTableMeta->uid = tinfo->uid;
+      tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);
+      if (tinfo->tableDataCtx == NULL) {
+        smlBuildInvalidDataMsg(&info->msgBuf, "smlInitTableDataCtx error", NULL);
+        return TSDB_CODE_SML_INVALID_DATA;
+      }
+    }
 
-  nodeListSet(&info->childTables, tags, POINTER_BYTES, tinfo);
+    nodeListSet(&info->childTables, tags, POINTER_BYTES, tinfo);
+  }
+  info->currTableDataCtx = tinfo->tableDataCtx;
 
   return ret;
 }
@@ -2797,6 +2806,7 @@ static int32_t smlParseJSON(SSmlHandle *info, char *payload) {
       stmt->pTableBlockHashObj = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
       continue;
     }
+    i++;
   }
 
   return TSDB_CODE_SUCCESS;
