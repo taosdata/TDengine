@@ -798,6 +798,9 @@ SName*  ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch);
 int32_t ctgdGetOneHandle(SCatalog **pHandle);
 int     ctgVgInfoComp(const void* lp, const void* rp);
 int32_t ctgMakeVgArray(SDBVgInfo* dbInfo);
+int32_t ctgAcquireVgMetaFromCache(SCatalog *pCtg, const char *dbFName, const char *tbName, SCtgDBCache **pDb, SCtgTbCache **pTb);
+int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache *dbCache, SCtgTbCache **pTb, STableMeta **pTableMeta, char* dbFName);
+void    ctgReleaseVgMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, SCtgTbCache *pCache);
 
 extern SCatalogMgmt gCtgMgmt;
 extern SCtgDebug    gCTGDebug;
