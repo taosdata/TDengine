@@ -887,11 +887,11 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifOpStmt
     code = getTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
   }
 #endif
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
+  if (TSDB_CODE_SUCCESS == code && !pCxt->pComCxt->async) {
     code = collectUseDatabase(&pStmt->targetTableName, pStmt->pDbFNameHashObj);
-  }
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
-    code = collectUseTable(&pStmt->targetTableName, pStmt->pTableNameHashObj);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = collectUseTable(&pStmt->targetTableName, pStmt->pTableNameHashObj);
+    }
   }
   return code;
 }
@@ -912,6 +912,12 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifOpStmt*
   }
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTableVgroup(pCxt->pComCxt, pStmt, true, &pCxt->missCache);
+  }
+  if (TSDB_CODE_SUCCESS == code && !pCxt->pComCxt->async) {
+    code = collectUseDatabase(&pStmt->usingTableName, pStmt->pDbFNameHashObj);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = collectUseTable(&pStmt->usingTableName, pStmt->pTableNameHashObj);
+    }
   }
   return code;
 }
