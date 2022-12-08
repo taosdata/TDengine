@@ -825,7 +825,13 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   dbObj.cfgVersion++;
   dbObj.updateTime = taosGetTimestampMs();
   code = mndAlterDb(pMnode, pReq, pDb, &dbObj);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  if (dbObj.cfg.replications != pDb->cfg.replications) {
+    // return quickly, operation executed asynchronously
+    mInfo("db:%s, alter db replica from %d to %d", pDb->name, pDb->cfg.replications, dbObj.cfg.replications);
+  } else {
+    if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

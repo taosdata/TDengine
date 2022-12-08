@@ -952,7 +952,10 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
     SArray *pDelIdxArray = taosArrayInit(32, sizeof(SDelIdx));
 
     code = tsdbReadDelIdx(pDelFReader, pDelIdxArray);
-    if (code) goto _err;
+    if (code) {
+      tsdbDelFReaderClose(&pDelFReader);
+      goto _err;
+    }
 
     SDelIdx *delIdx = taosArraySearch(pDelIdxArray, &(SDelIdx){.suid = suid, .uid = uid}, tCmprDelIdx, TD_EQ);
 

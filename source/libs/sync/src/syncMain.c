@@ -791,9 +791,9 @@ static int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
 }
 
 int32_t syncNodeLogStoreRestoreOnNeed(SSyncNode* pNode) {
-  ASSERT(pNode->pLogStore != NULL && "log store not created");
-  ASSERT(pNode->pFsm != NULL && "pFsm not registered");
-  ASSERT(pNode->pFsm->FpGetSnapshotInfo != NULL && "FpGetSnapshotInfo not registered");
+  ASSERTS(pNode->pLogStore != NULL, "log store not created");
+  ASSERTS(pNode->pFsm != NULL, "pFsm not registered");
+  ASSERTS(pNode->pFsm->FpGetSnapshotInfo != NULL, "FpGetSnapshotInfo not registered");
   SSnapshot snapshot;
   if (pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot) < 0) {
     sError("vgId:%d, failed to get snapshot info since %s", pNode->vgId, terrstr());
@@ -1144,8 +1144,8 @@ void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeRestore(SSyncNode* pSyncNode) {
-  ASSERT(pSyncNode->pLogStore != NULL && "log store not created");
-  ASSERT(pSyncNode->pLogBuf != NULL && "ring log buffer not created");
+  ASSERTS(pSyncNode->pLogStore != NULL, "log store not created");
+  ASSERTS(pSyncNode->pLogBuf != NULL, "ring log buffer not created");
 
   SyncIndex lastVer = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
   SyncIndex commitIndex = pSyncNode->pLogStore->syncLogCommitIndex(pSyncNode->pLogStore);
@@ -2663,7 +2663,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
 
     int32_t code = syncNodeAppend(ths, pEntry);
     if (code < 0 && ths->vgId != 1 && vnodeIsMsgBlock(pEntry->originalRpcType)) {
-      ASSERT(false && "failed to append blocking msg");
+      ASSERTS(false, "failed to append blocking msg");
     }
     return code;
   }
