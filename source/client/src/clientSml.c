@@ -140,13 +140,20 @@ static void* nodeListGet(NodeList* list, const void *key, int32_t len, _equal_fn
   return NULL;
 }
 
-static int nodeListSet(NodeList** list, const void *key, int32_t len, void* value){
+static int nodeListSet(NodeList** list, const void *key, int32_t len, void* value, _equal_fn_sml fn){
   NodeList *tmp = *list;
   while (tmp){
     if(!tmp->data.used) break;
-    if(tmp->data.keyLen == len && memcmp(tmp->data.key, key, len) == 0) {
-      return -1;
+    if(fn == NULL){
+      if(tmp->data.keyLen == len && memcmp(tmp->data.key, key, len) == 0) {
+        return -1;
+      }
+    }else{
+      if(tmp->data.keyLen == len && fn(tmp->data.key, key) == 0) {
+        return -1;
+      }
     }
+
     tmp = tmp->next;
   }
   if(tmp){
@@ -1188,7 +1195,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
           info->reRun      = true;
           return TSDB_CODE_SUCCESS;
         }
-        nodeListSet(&info->superTables, currElement->measure, currElement->measureLen, sMeta);
+        nodeListSet(&info->superTables, currElement->measure, currElement->measureLen, sMeta, NULL);
       }
       info->currSTableMeta = sMeta->tableMeta;
       superKV = sMeta->tags;
@@ -1355,7 +1362,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
     }
   }
 
-  nodeListSet(&info->childTables, currElement->measure, currElement->measureTagsLen, tinfo);
+  nodeListSet(&info->childTables, currElement->measure, currElement->measureTagsLen, tinfo, NULL);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1388,7 +1395,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd,
           info->reRun      = true;
           return TSDB_CODE_SUCCESS;
         }
-        nodeListSet(&info->superTables, currElement->measure, currElement->measureLen, sMeta);
+        nodeListSet(&info->superTables, currElement->measure, currElement->measureLen, sMeta, NULL);
       }
       info->currSTableMeta = sMeta->tableMeta;
       superKV = sMeta->cols;
@@ -1614,31 +1621,27 @@ static int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, S
     isSameMeasure = IS_SAME_SUPER_TABLE;
   }
   // parse tag
-  if (*sql == SPACE) {
-    elements->tagsLen = 0;
-  } else {
-    if (*sql == COMMA) sql++;
-    elements->tags = sql;
+  if (*sql == COMMA) sql++;
+  elements->tags = sql;
 
-    // tinfo != NULL means child table has never occur before
-    int ret = smlParseTagKv(info, &sql, sqlEnd, elements, isSameMeasure, isSameCTable);
-    if(unlikely(ret != TSDB_CODE_SUCCESS)){
-      return ret;
-    }
-    if(unlikely(info->reRun)){
-      return TSDB_CODE_SUCCESS;
-    }
-
-    sql = elements->measure + elements->measureTagsLen;
-
-    elements->tagsLen = sql - elements->tags;
+  // tinfo != NULL means child table has never occur before
+  int ret = smlParseTagKv(info, &sql, sqlEnd, elements, isSameMeasure, isSameCTable);
+  if(unlikely(ret != TSDB_CODE_SUCCESS)){
+    return ret;
   }
+  if(unlikely(info->reRun)){
+    return TSDB_CODE_SUCCESS;
+  }
+
+  sql = elements->measure + elements->measureTagsLen;
+
+  elements->tagsLen = sql - elements->tags;
 
   // parse cols
   JUMP_SPACE(sql, sqlEnd)
   elements->cols = sql;
 
-  int ret = smlParseColKv(info, &sql, sqlEnd, elements, isSameMeasure, isSameCTable);
+  ret = smlParseColKv(info, &sql, sqlEnd, elements, isSameMeasure, isSameCTable);
   if(unlikely(ret != TSDB_CODE_SUCCESS)){
     return ret;
   }
@@ -1718,7 +1721,7 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
           info->reRun      = true;
           return TSDB_CODE_SUCCESS;
         }
-        nodeListSet(&info->superTables, elements->measure, elements->measureLen, sMeta);
+        nodeListSet(&info->superTables, elements->measure, elements->measureLen, sMeta, NULL);
       }
       info->currSTableMeta = sMeta->tableMeta;
       superKV = sMeta->tags;
@@ -1868,7 +1871,7 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
     SSmlLineInfo *key = taosMemoryMalloc(sizeof(SSmlLineInfo));
     *key = *elements;
     tinfo->key = key;
-    nodeListSet(&info->childTables, key, POINTER_BYTES, tinfo);
+    nodeListSet(&info->childTables, key, POINTER_BYTES, tinfo, is_same_child_table_telnet);
   }
   info->currTableDataCtx = tinfo->tableDataCtx;
 
@@ -2476,7 +2479,7 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *root, SSmlLineInfo 
           info->reRun      = true;
           return TSDB_CODE_SUCCESS;
         }
-        nodeListSet(&info->superTables, elements->measure, elements->measureLen, sMeta);
+        nodeListSet(&info->superTables, elements->measure, elements->measureLen, sMeta, NULL);
       }
       info->currSTableMeta = sMeta->tableMeta;
       superKV = sMeta->tags;
@@ -2587,7 +2590,7 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *root, SSmlLineInfo 
       }
     }
 
-    nodeListSet(&info->childTables, tags, POINTER_BYTES, tinfo);
+    nodeListSet(&info->childTables, tags, POINTER_BYTES, tinfo, is_same_child_table_json);
   }
   info->currTableDataCtx = tinfo->tableDataCtx;
 
@@ -2722,7 +2725,7 @@ static int32_t smlParseLineBottom(SSmlHandle *info) {
       SSmlSTableMeta *meta = smlBuildSTableMeta(info->dataFormat);
       smlInsertMeta(meta->tagHash, meta->tags, tinfo->tags);
       smlInsertMeta(meta->colHash, meta->cols, elements->colArray);
-      nodeListSet(&info->superTables, elements->measure, elements->measureLen, meta);
+      nodeListSet(&info->superTables, elements->measure, elements->measureLen, meta, NULL);
     }
   }
 
