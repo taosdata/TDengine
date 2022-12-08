@@ -81,6 +81,8 @@ void tdbFree(void *);
 
 typedef struct hashset_st *hashset_t;
 
+void hashset_destroy(hashset_t set);
+
 struct STxn {
   int     flags;
   int64_t txnId;
