@@ -62,8 +62,11 @@ void    taosResetTerminalMode();
     taosMemoryFree(strings);                                               \
   }
 #else
-#define taosPrintTrace(flags, level, dflag) \
-  {}
+#define taosPrintTrace(flags, level, dflag)                                                                \
+  {                                                                                                        \
+    taosPrintLog(flags, level, dflag,                                                                      \
+                 "backtrace not implemented on windows, so detailed stack information cannot be printed"); \
+    }
 #endif
 
 #ifdef __cplusplus

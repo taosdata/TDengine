@@ -863,19 +863,20 @@ static void removeResults(SArray* pWins, SHashObj* pUpdatedMap) {
 
 int32_t compareWinRes(void* pKey, void* data, int32_t index) {
   SArray*     res = (SArray*)data;
-  SWinKey*    pos = taosArrayGet(res, index);
-  SResKeyPos* pData = (SResKeyPos*)pKey;
-  if (*(int64_t*)pData->key == pos->ts) {
-    if (pData->groupId > pos->groupId) {
-      return 1;
-    } else if (pData->groupId < pos->groupId) {
-      return -1;
-    }
-    return 0;
-  } else if (*(int64_t*)pData->key > pos->ts) {
+  SWinKey*    pDataPos = taosArrayGet(res, index);
+  SResKeyPos* pRKey = (SResKeyPos*)pKey;
+  if (pRKey->groupId > pDataPos->groupId) {
     return 1;
+  } else if (pRKey->groupId < pDataPos->groupId) {
+    return -1;
   }
-  return -1;
+  
+  if (*(int64_t*)pRKey->key > pDataPos->ts) {
+    return 1;
+  } else if (*(int64_t*)pRKey->key < pDataPos->ts){
+    return -1;
+  }
+  return 0;
 }
 
 static void removeDeleteResults(SHashObj* pUpdatedMap, SArray* pDelWins) {
@@ -1400,19 +1401,21 @@ static int32_t getAllIntervalWindow(SSHashObj* pHashMap, SHashObj* resWins) {
 
 int32_t compareWinKey(void* pKey, void* data, int32_t index) {
   SArray*  res = (SArray*)data;
-  SWinKey* pos = taosArrayGet(res, index);
-  SWinKey* pData = (SWinKey*)pKey;
-  if (pData->ts == pos->ts) {
-    if (pData->groupId > pos->groupId) {
-      return 1;
-    } else if (pData->groupId < pos->groupId) {
-      return -1;
-    }
-    return 0;
-  } else if (pData->ts > pos->ts) {
+  SWinKey* pDataPos = taosArrayGet(res, index);
+  SWinKey* pWKey = (SWinKey*)pKey;
+
+  if (pWKey->groupId > pDataPos->groupId) {
     return 1;
+  } else if (pWKey->groupId < pDataPos->groupId) {
+    return -1;
   }
-  return -1;
+
+  if (pWKey->ts > pDataPos->ts) {
+    return 1;
+  } else if (pWKey->ts < pDataPos->ts) {
+    return -1;
+  }
+  return 0;
 }
 
 static int32_t closeStreamIntervalWindow(SSHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SInterval* pInterval,
