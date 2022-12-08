@@ -1091,9 +1091,10 @@ int sml_ts2164_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
+//      "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
+      "meters,location=la,groupid=ca current=11.8,voltage=221",
       "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
-      "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
-      "meters,location=la,groupid=cb current=11.8,voltage=221,phase=0.27",
+//      "meters,location=la,groupid=cb current=11.8,voltage=221,phase=0.27",
   };
 
   pRes = taos_query(taos, "use line_test");
@@ -1150,8 +1151,8 @@ int sml_ttl_Test() {
 
 int main(int argc, char *argv[]) {
   int ret = 0;
-  ret = sml_ttl_Test();
-  ASSERT(!ret);
+//  ret = sml_ttl_Test();
+//  ASSERT(!ret);
   ret = sml_ts2164_Test();
   ASSERT(!ret);
   ret = smlProcess_influx_Test();

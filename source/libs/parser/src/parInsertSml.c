@@ -301,7 +301,9 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
       SSchema* pColSchema = &pSchema[pTableCxt->boundColsInfo.pColIndex[c]];
       SColVal* pVal = taosArrayGet(pTableCxt->pValues, pTableCxt->boundColsInfo.pColIndex[c]);
       void** p = taosHashGet(rowData, pColSchema->name, strlen(pColSchema->name));
-      ASSERT(p != NULL);
+      if (p == NULL) {
+        continue;
+      }
       SSmlKv *kv = *(SSmlKv **)p;
 
       if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
@@ -365,7 +367,7 @@ SQuery* smlInitHandle() {
     qDestroyQuery(pQuery);
     return NULL;
   }
-  stmt->pTableBlockHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  stmt->pTableBlockHashObj = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   stmt->freeHashFunc = insDestroyTableDataCxtHashMap;
   stmt->freeArrayFunc = insDestroyVgroupDataCxtList;
 
