@@ -847,7 +847,7 @@ static int32_t getTableMetaAndVgroup(SInsertParseContext* pCxt, SVnodeModifOpStm
   SParseContext* pComCxt = pCxt->pComCxt;
   int32_t        code = TSDB_CODE_SUCCESS;
   if (pComCxt->async) {
-    code = getTableMetaAndVgroupImpl(pComCxt->pCatalog, pStmt, pMissCache);
+    code = getTableMetaAndVgroupImpl(pComCxt, pStmt, pMissCache);
   } else {
     code = getTableMeta(pCxt, &pStmt->targetTableName, false, &pStmt->pTableMeta, pMissCache);
     if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
