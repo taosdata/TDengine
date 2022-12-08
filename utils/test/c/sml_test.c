@@ -77,10 +77,19 @@ int smlProcess_telnet_Test() {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  const char *sql[] = {"sys.if.bytes.out  1479496100 1.3E0 host=web01 interface=eth0",
+  char *sql[4] = {0};
+  sql[0] = taosMemoryCalloc(1, 128);
+  sql[1] = taosMemoryCalloc(1, 128);
+  sql[2] = taosMemoryCalloc(1, 128);
+  sql[3] = taosMemoryCalloc(1, 128);
+  const char *sql1[] = {"sys.if.bytes.out  1479496100 1.3E0 host=web01 interface=eth0",
                        "sys.if.bytes.out  1479496101 1.3E1 interface=eth0    host=web01   ",
                        "sys.if.bytes.out  1479496102 1.3E3 network=tcp",
                        " sys.procs.running   1479496100 42 host=web01   "};
+
+  for(int i = 0; i < 4; i++){
+    strncpy(sql[i], sql1[i], 128);
+  }
 
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_TELNET_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -1017,7 +1026,7 @@ int smlProcess_18784_Test() {
   printf("%s result:%s, rows:%d\n", __FUNCTION__, taos_errstr(pRes), taos_affected_rows(pRes));
   int code = taos_errno(pRes);
   ASSERT(!code);
-  ASSERT(taos_affected_rows(pRes) == 2);
+  ASSERT(taos_affected_rows(pRes) == 1);
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "select * from disk");
@@ -1091,9 +1100,10 @@ int sml_ts2164_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
+//      "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
+      "meters,location=la,groupid=ca current=11.8,voltage=221",
       "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
-      "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
-      "meters,location=la,groupid=cb current=11.8,voltage=221,phase=0.27",
+//      "meters,location=la,groupid=cb current=11.8,voltage=221,phase=0.27",
   };
 
   pRes = taos_query(taos, "use line_test");
@@ -1118,11 +1128,19 @@ int sml_ttl_Test() {
   const char *sql[] = {
       "meters,location=California.LosAngeles,groupid=2 current=11.8,voltage=221,phase=\"2022-02-0210:22:22\" 1626006833739000000",
   };
+  const char *sql1[] = {
+      "meters,location=California.LosAngeles,groupid=2 current=11.8,voltage=221,phase=\"2022-02-0210:22:22\" 1626006833339000000",
+  };
 
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
   pRes = taos_schemaless_insert_ttl(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, 20);
+
+  printf("%s result1:%s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert_ttl(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, 20);
 
   printf("%s result1:%s\n", __FUNCTION__, taos_errstr(pRes));
   taos_free_result(pRes);

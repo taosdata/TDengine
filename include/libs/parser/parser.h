@@ -58,7 +58,6 @@ typedef struct SParseContext {
   bool             isSuperUser;
   bool             enableSysInfo;
   bool             async;
-  int8_t           schemalessType;
   const char*      svrVer;
   bool             nodeOffline;
   SArray*          pTableMetaPos;    // sql table pos => catalog data pos
@@ -108,7 +107,11 @@ int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char*
 void    qDestroyBoundColInfo(void* pInfo);
 
 SQuery* smlInitHandle();
-int32_t smlBindData(SQuery* handle, SArray* tags, SArray* colsSchema, SArray* cols, bool format, STableMeta* pTableMeta,
+int32_t smlBuildRow(STableDataCxt* pTableCxt);
+int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void *kv, int32_t index);
+STableDataCxt* smlInitTableDataCtx(SQuery* query, STableMeta* pTableMeta);
+
+int32_t smlBindData(SQuery* handle, bool dataFormat, SArray* tags, SArray* colsSchema, SArray* cols, STableMeta* pTableMeta,
                     char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl, char* msgBuf, int16_t msgBufLen);
 int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash);
 
