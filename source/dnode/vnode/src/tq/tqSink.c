@@ -967,6 +967,9 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
       if (tEncodeSSubmitReq2(&encoder, pReq) < 0) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         tqError("failed to encode submit req since %s", terrstr());
+        tEncoderClear(&encoder);
+        rpcFreeCont(pBuf);
+        continue;
       }
       tEncoderClear(&encoder);
 
