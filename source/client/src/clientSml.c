@@ -1974,7 +1974,7 @@ static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
       size_t tmp = taosArrayGetSize(metaArray);
       ASSERT(tmp <= INT16_MAX);
       int16_t size = tmp;
-      taosArrayPush(metaArray, &kv);
+      taosArrayPush(metaArray, kv);
       taosHashPut(metaHash, kv->key, kv->keyLen, &size, SHORT_BYTES);
     }
   }
