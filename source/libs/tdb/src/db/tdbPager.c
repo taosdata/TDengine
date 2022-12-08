@@ -379,9 +379,6 @@ int tdbPagerPostCommit(SPager *pPager, TXN *pTxn) {
     return -1;
   }
 
-  if (pTxn->jPageSet) {
-    hashset_destroy(pTxn->jPageSet);
-  }
   // pPager->inTran = 0;
 
   return 0;
@@ -548,8 +545,6 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
-
-  hashset_destroy(pTxn->jPageSet);
 
   // pPager->inTran = 0;
 
@@ -922,6 +917,8 @@ int tdbPagerRestoreJournals(SPager *pPager, SBTree *pBt) {
     char *name = tdbDirEntryBaseName(tdbGetDirEntryName(pDirEntry));
     if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
       if (tdbPagerRestore(pPager, pBt, name) < 0) {
+        tdbCloseDir(&pDir);
+
         tdbError("failed to restore file due to %s. jFileName:%s", strerror(errno), name);
         return -1;
       }
@@ -946,6 +943,8 @@ int tdbPagerRollback(SPager *pPager) {
 
     if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
       if (tdbOsRemove(name) < 0 && errno != ENOENT) {
+        tdbCloseDir(&pDir);
+
         tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), name);
         terrno = TAOS_SYSTEM_ERROR(errno);
         return -1;
