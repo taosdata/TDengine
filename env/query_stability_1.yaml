@@ -76,7 +76,7 @@ settings:
     spec:
       version: 3.0.0.99
       taos_version: 3.0.0.99
-      config_dir: /etc/taos
+      config_dir: /root/data/taosd
       taos_config:
         firstEP: u1-43:6030
         logDir: /root/data/taosd

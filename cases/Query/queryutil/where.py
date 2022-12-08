@@ -159,7 +159,25 @@ class TDWhere():
         # t_like_match = column + like  + condition
         t_like = ['t_binary like \'binary%\' and','t_nchar like \'nchar%\' and','(t_binary like \'binary%\'  or t_nchar = \'0\' ) and','(t_nchar like \'nchar%\' or t_binary = \'0\' ) and',]
         t_match = ['t_binary match \'binary\' and','t_binary nmatch \'binarynchar\' and','t_nchar match \'nchar\' and','t_nchar nmatch \'binarynchar\' and',]
-        t_like_match = random.sample(t_like,1) + random.sample(t_match,1)
+        t_match_regular = ['loc match \'<table>\' and', 'loc match \'<^qwryuiop>\' and','loc nmatch \'<qwryuiop>\' and', 'loc nmatch \'<^>\' and', #[abc] 匹配[...]的所有字符
+                           't_binary match \'<binary>\' and', 't_binary match \'<^爨龘>\' and','t_binary nmatch \'<爨龘>\' and', 't_binary nmatch \'<^>\' and', #[^abc] 取反，除了[...]的其他字符
+                           't_nchar match \'<nchar>\' and', 't_nchar match \'<^爨龘>\' and','t_nchar nmatch \'<爨龘>\' and', 't_nchar nmatch \'<^>\' and',
+                           'loc match \'<a-z>\' and','t_binary match \'<a-z>\' and','t_nchar match \'<a-z>\' and', #[A-Z] 区间字母A到Z
+                           'loc match \'<a-zA-Z>\' and','t_binary match \'<a-zA-Z>\' and','t_nchar match \'<a-zA-Z>\' and',
+                           'loc match \'.\' and','t_binary match \'.\' and','t_nchar match \'.\' and',  # . 匹配除（\n换行符 \r 回车符）的任何单个字符
+                           'loc match \'.*\' and','t_binary match \'.*\' and','t_nchar match \'.*\' and',  # . 匹配除（\n换行符 \r 回车符）的任何单个字符                           
+                           #'loc match \'<.\n>\' and','t_binary match \'<.\n>\' and','t_nchar match \'<.\n>\' and',  # 要匹配包括 '\n' 在内的任何字符，请使用象 '[.\n]' 的模式。目前不支持
+                           'loc match \'a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z\' and','loc match \'a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z\' and',  #  | 两项间的一个
+                           't_binary match \'a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z\' and','t_binary match \'a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z\' and',
+                           't_nchar match \'a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z\' and','t_nchar match \'a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z\' and',
+                           '(loc match \'\\s\' or loc match \'\\S\' ) and','(t_binary match \'\\s\' or t_binary match \'\\S\' ) and','(t_nchar match \'\\s\' or t_nchar match \'\\S\' ) and', # \s \S 匹配所有，\s所有空白符，包括换行 \S非空白符，不包括换行
+                           '(loc nmatch \'\\s\' ) and','(t_binary nmatch \'\\s\') and','(t_nchar nmatch \'\\s\' ) and', 
+                           '(loc match \'\\w\' or loc match \'\\W\' ) and','(t_binary match \'\\w\' or t_binary match \'\\W\' ) and','(t_nchar match \'\\w\' or t_nchar match \'\\W\' ) and', # \w 匹配字母数字及下划线  \W 匹配非字母数字及下划线
+                           '(loc match \'\\w\') and','(t_binary match \'\\w\') and','(t_nchar match \'\\w\') and',] # \w 匹配字母数字及下划线  \W 匹配非字母数字及下划线
+                           #'(loc match \'\d\' or loc match \'\D\' ) and','(t_binary match \'\d\' or t_binary match \'\D\' ) and','(t_nchar match \'\d\' or t_nchar match \'\D\' ) and',] # \d匹配任意数字，等价于 [0-9]. \D	匹配任意非数字
+                            # < > repalce [ ]
+                            #我们现在支持的是POSIX标准的正则表达式，POSXI标准里是没有/s/d/w等的支持，同时因为我们用的是GNU的库，GNU又有自己的正则表达式扩展，在它的扩展里支持/s/w，但是不支持/d，所以目前就是这个样子
+        t_like_match = random.sample(t_like,1) + random.sample(t_match,1) + random.sample(t_match_regular,2)
         t_like_match = random.sample(t_like_match,1)
 
         t_tinyint_list=[]
@@ -196,7 +214,7 @@ class TDWhere():
         t_like = ['t_binary like \'binary_\' and','t_binary like \'0%\' and','t_nchar like \'nchar_\' and','t_nchar like \'0%\' and',]
         t_match = ['t_binary nmatch \'binary\' and','t_binary match \'binarynchar\' and','t_nchar nmatch \'nchar\' and','t_nchar match \'binarynchar\' and',]
         t_like_match = random.sample(t_like,1) + random.sample(t_match,1)
-        t_match_regular = ['tbname match \'[elbats]\' and', 'tbname match \'[^qwertyuiopzxcvnmdfghj]\' and',]
+        t_match_regular = ['loc match \'(elbats)\' and', 'loc match \'(^qwertyuiopzxcvnmdfghj)\' and',]
         t_like_match = random.sample(t_like,1) + random.sample(t_match,1) + random.sample(t_match_regular,2)
         t_like_match_null = random.sample(t_like_match,1)
 
@@ -345,8 +363,8 @@ class TDWhere():
         sliding_interval_offset = 'interval'+'(' + sliding_interval_no_offset + ',' + sliding_interval_offset + ')'
         
         #单fill,对时间强要求
-        fills = ['NONE','VALUE,100','PREV','NULL','LINEAR','NEXT']
-        fill_base = str(random.sample(fills,1)).replace("[","").replace("]","").replace("'","").replace(", ","")
+        fills = ['NONE','VALUE,100','PREV','NULL','LINEAR','NEXT','VALUE,10000']
+        fill_base = str(random.sample(fills,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'")
         single_fill = 'Fill' +'(' +fill_base + ')'
 
         #超级表，不支持session，state_window
@@ -481,7 +499,7 @@ class TDWhere():
         q_where = random.sample(regular_q_where[0],5)        
 
         if self.NUM%3 ==0:
-            q_like_match = str(regular_q_where[1]).replace("[","").replace("]","").replace("\"","")
+            q_like_match = str(regular_q_where[1]).replace("[","").replace("]","").replace("\"","").replace("<","[").replace(">","]")
         else :
             q_like_match = " "
 
@@ -502,7 +520,7 @@ class TDWhere():
         q_where_null = random.sample(regular_q_where_null[0],5) 
 
         if self.NUM%3 ==0:
-            q_like_match_null = str(regular_q_where_null[1]).replace("[","").replace("]","").replace("\"","")
+            q_like_match_null = str(regular_q_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("<","[").replace(">","]")
         else :
             q_like_match_null = " "
 
@@ -522,7 +540,7 @@ class TDWhere():
         q_where = random.sample(regular_q_where[0],5) 
 
         if self.NUM%3 ==0:
-            q_like_match = str(regular_q_where[1]).replace("[","").replace("]","").replace("\"","")
+            q_like_match = str(regular_q_where[1]).replace("[","").replace("]","").replace("\"","").replace("<","[").replace(">","]")
         else :
             q_like_match = " "
 
@@ -535,7 +553,7 @@ class TDWhere():
         if self.NUM%3 ==0:
             q_like_match_null = " "
         else :
-            q_like_match_null = str(regular_q_where_null[1]).replace("[","").replace("]","").replace("\"","")
+            q_like_match_null = str(regular_q_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("<","[").replace(">","]")
             
         q_in_where_null = str(regular_q_where_null[2]).replace("[","").replace("]","").replace("'","")
 
@@ -555,9 +573,9 @@ class TDWhere():
         qt_where = random.sample(stable_q_where[0],3) + random.sample(stable_t_where[0],3)
         
         if self.NUM%3 ==0:
-            qt_like_match = str(stable_q_where[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match = str(stable_q_where[1]).replace("[","").replace("]","").replace("\"","").replace("<","[").replace(">","]")
         elif self.NUM%3 ==1:
-            qt_like_match = str(stable_t_where[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match = str(stable_t_where[1]).replace("[","").replace("]","").replace("\"","").replace("<","[").replace(">","]")
         else :
             qt_like_match = " "
 
@@ -580,9 +598,9 @@ class TDWhere():
         qt_where_null = random.sample(stable_q_where_null[0],3) + random.sample(stable_t_where_null[0],3) 
 
         if self.NUM%3 ==0:
-            qt_like_match_null = str(stable_q_where_null[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match_null = str(stable_q_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("<","[").replace(">","]")
         elif self.NUM%3 ==1:
-            qt_like_match_null = str(stable_t_where_null[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match_null = str(stable_t_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("<","[").replace(">","]")
         else :
             qt_like_match_null = " "
 
@@ -605,9 +623,9 @@ class TDWhere():
         qt_where = random.sample(stable_q_where[0],3) + random.sample(stable_t_where[0],3)
         
         if self.NUM%3 ==0:
-            qt_like_match = str(stable_q_where[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match = str(stable_q_where[1]).replace("[","").replace("]","").replace("\"","").replace("<","[").replace(">","]")
         elif self.NUM%3 ==1:
-            qt_like_match = str(stable_t_where[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match = str(stable_t_where[1]).replace("[","").replace("]","").replace("\"","").replace("<","[").replace(">","]")
         else :
             qt_like_match = " "
 
@@ -621,9 +639,9 @@ class TDWhere():
         qt_where_null = random.sample(stable_q_where_null[0],3) + random.sample(stable_t_where_null[0],3) 
 
         if self.NUM%3 ==0:
-            qt_like_match_null = str(stable_q_where_null[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match_null = str(stable_q_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("<","[").replace(">","]")
         elif self.NUM%3 ==1:
-            qt_like_match_null = str(stable_t_where_null[1]).replace("[","").replace("]","").replace("\"","")
+            qt_like_match_null = str(stable_t_where_null[1]).replace("[","").replace("]","").replace("\"","").replace("<","[").replace(">","]")
         else :
             qt_like_match_null = " "
 

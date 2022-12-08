@@ -30,6 +30,7 @@ class TestKeep(TDCase):
                 self.taosd_setting = env_setting
                 self.fqdn = self.taosd_setting["fqdn"][0]
                 self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
+
     def keep_check(self):
         """
         keep check
@@ -174,7 +175,7 @@ class TestKeep(TDCase):
         self.tdSql.query("select * from ntb")
         self.tdSql.checkRow(1)
         self.tdSql.error("insert into ntb values(now-11d,1)")
-        self.tdSql.error("insert into ntb values(now+2d, 1)")
+        # self.tdSql.error("insert into ntb values(now+2d, 1)")
         self.tdSql.execute("drop database db1")
 
         # bug TD-15499

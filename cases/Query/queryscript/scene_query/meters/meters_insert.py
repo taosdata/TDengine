@@ -108,7 +108,7 @@ class TDTestQuery(TDCase):
         
     
     def insert_data(self,database,n):
-        self.num_random = 2
+        self.num_random = 10
         fake = Faker('zh_CN')
         self.tdSql.execute('''use %s;'''%database)
 
@@ -134,6 +134,9 @@ class TDTestQuery(TDCase):
 
         self.tdSql.query("select count(*) from stb0;")
         self.logger.info("\n==========================count(result)=%d=======\n" %self.tdSql.getData(0,0))
+        
+        self.tdSql.query("select * from stb0 order by ts desc;")
+        self.logger.info("\n==========================*(result)=%s=======\n" %self.tdSql.getData(0,0))
     
     
         
