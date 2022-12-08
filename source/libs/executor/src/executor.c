@@ -115,7 +115,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
       // ASSERT(numOfBlocks > 1);
       for (int32_t i = 0; i < numOfBlocks; i++) {
-        SPackedSubmit* pReq = POINTER_SHIFT(input, i * sizeof(SPackedSubmit));
+        SPackedData* pReq = POINTER_SHIFT(input, i * sizeof(SPackedData));
         taosArrayPush(pInfo->pBlockLists, pReq);
       }
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
@@ -125,9 +125,9 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
-        SSDataBlock*  pDataBlock = &((SSDataBlock*)input)[i];
-        SPackedSubmit tmp = {
-            .msgStr = pDataBlock,
+        SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
+        SPackedData  tmp = {
+             .pDataBlock = pDataBlock,
         };
         taosArrayPush(pInfo->pBlockLists, &tmp);
       }
@@ -1016,7 +1016,7 @@ int32_t qStreamScanMemData(qTaskInfo_t tinfo, const SSubmitReq* pReq, int64_t sc
 }
 #endif
 
-int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedSubmit submit) {
+int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
   ASSERT(pTaskInfo->streamInfo.submit.msgStr == NULL);

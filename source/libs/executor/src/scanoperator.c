@@ -1532,10 +1532,10 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       /*const SSubmitReq* pSubmit = pInfo->tqReader->pMsg;*/
       /*if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {*/
       /*void* msgStr = pTaskInfo->streamInfo.*/
-      SPackedSubmit submit = pTaskInfo->streamInfo.submit;
+      SPackedData submit = pTaskInfo->streamInfo.submit;
       if (tqReaderSetSubmitReq2(pInfo->tqReader, submit.msgStr, submit.msgLen, submit.ver) < 0) {
         qError("submit msg messed up when initing stream submit block %p", submit.msgStr);
-        pInfo->tqReader->msg2 = (SPackedSubmit){0};
+        pInfo->tqReader->msg2 = (SPackedData){0};
         pInfo->tqReader->setMsg = 0;
         ASSERT(0);
       }
@@ -1560,9 +1560,9 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       }
     }
 
-    pInfo->tqReader->msg2 = (SPackedSubmit){0};
+    pInfo->tqReader->msg2 = (SPackedData){0};
     pInfo->tqReader->setMsg = 0;
-    pTaskInfo->streamInfo.submit = (SPackedSubmit){0};
+    pTaskInfo->streamInfo.submit = (SPackedData){0};
     return NULL;
   }
 
@@ -1791,7 +1791,8 @@ FETCH_NEXT_BLOCK:
     }
 
     int32_t      current = pInfo->validBlockIndex++;
-    SSDataBlock* pBlock = taosArrayGetP(pInfo->pBlockLists, current);
+    SPackedData* pPacked = taosArrayGet(pInfo->pBlockLists, current);
+    SSDataBlock* pBlock = pPacked->pDataBlock;
     if (pBlock->info.id.groupId && pBlock->info.parTbName[0]) {
       streamStatePutParName(pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, pBlock->info.parTbName);
     }
@@ -1928,8 +1929,8 @@ FETCH_NEXT_BLOCK:
           return NULL;
         }
 
-        int32_t        current = pInfo->validBlockIndex++;
-        SPackedSubmit* pSubmit = taosArrayGet(pInfo->pBlockLists, current);
+        int32_t      current = pInfo->validBlockIndex++;
+        SPackedData* pSubmit = taosArrayGet(pInfo->pBlockLists, current);
         /*if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {*/
         if (tqReaderSetSubmitReq2(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver) < 0) {
           qError("submit msg messed up when initing stream submit block %p, current %d, total %d", pSubmit, current,
@@ -2264,7 +2265,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     }
   }
 
-  pInfo->pBlockLists = taosArrayInit(4, sizeof(SPackedSubmit));
+  pInfo->pBlockLists = taosArrayInit(4, sizeof(SPackedData));
   if (pInfo->pBlockLists == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;

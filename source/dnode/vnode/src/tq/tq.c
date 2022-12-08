@@ -673,7 +673,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
               req.epoch, TD_VID(pTq->pVnode), fetchVer, pHead->msgType);
 
       if (pHead->msgType == TDMT_VND_SUBMIT) {
-        SPackedSubmit submit = {
+        SPackedData submit = {
             .msgStr = POINTER_SHIFT(pHead->body, sizeof(SMsgHead)),
             .msgLen = pHead->bodyLen - sizeof(SMsgHead),
             .ver = pHead->version,
@@ -1332,7 +1332,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   return 0;
 }
 
-int32_t tqProcessSubmitReq(STQ* pTq, SPackedSubmit submit) {
+int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
   void*               pIter = NULL;
   bool                failed = false;
   SStreamDataSubmit2* pSubmit = NULL;

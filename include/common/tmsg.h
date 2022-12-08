@@ -3274,10 +3274,15 @@ void    tDestroySSubmitRsp2(SSubmitRsp2* pRsp, int32_t flag);
 #define TSDB_MSG_FLG_DECODE 0x2
 
 typedef struct {
-  void*   msgStr;
-  int32_t msgLen;
-  int64_t ver;
-} SPackedSubmit;
+  union {
+    struct {
+      void*   msgStr;
+      int32_t msgLen;
+      int64_t ver;
+    };
+    void* pDataBlock;
+  };
+} SPackedData;
 
 #pragma pack(pop)
 

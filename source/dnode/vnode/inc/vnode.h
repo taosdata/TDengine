@@ -226,8 +226,8 @@ typedef struct STqReader {
   //   SSubmitMsgIter    msgIter;
   //   SSubmitBlkIter    blkIter;
 
-  int64_t       ver;
-  SPackedSubmit msg2;
+  int64_t     ver;
+  SPackedData msg2;
 
   int8_t      setMsg;
   SSubmitReq2 submit;

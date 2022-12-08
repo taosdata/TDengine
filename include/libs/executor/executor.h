@@ -192,7 +192,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
 // int32_t qStreamScanMemData(qTaskInfo_t tinfo, const SSubmitReq* pReq, int64_t ver);
 //
-int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedSubmit submit);
+int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit);
 
 int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 

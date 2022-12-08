@@ -258,7 +258,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
         SMqDataRsp* pRsp = &pPushEntry->dataRsp;
 
         // prepare scan mem data
-        SPackedSubmit submit = {
+        SPackedData submit = {
             .msgStr = data,
             .msgLen = len,
             .ver = ver,
@@ -324,7 +324,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
         return -1;
       }
       memcpy(data, pReq, len);
-      SPackedSubmit submit = {
+      SPackedData submit = {
           .msgStr = data,
           .msgLen = len,
           .ver = ver,

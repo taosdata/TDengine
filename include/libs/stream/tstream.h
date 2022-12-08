@@ -120,10 +120,10 @@ typedef struct {
 #endif
 
 typedef struct {
-  int8_t        type;
-  int64_t       ver;
-  int32_t*      dataRef;
-  SPackedSubmit submit;
+  int8_t      type;
+  int64_t     ver;
+  int32_t*    dataRef;
+  SPackedData submit;
 } SStreamDataSubmit2;
 
 typedef struct {
@@ -235,7 +235,7 @@ static FORCE_INLINE void* streamQueueNextItem(SStreamQueue* queue) {
   }
 }
 
-SStreamDataSubmit2* streamDataSubmitNew(SPackedSubmit submit);
+SStreamDataSubmit2* streamDataSubmitNew(SPackedData submit);
 
 void streamDataSubmitRefDec(SStreamDataSubmit2* pDataSubmit);
 
