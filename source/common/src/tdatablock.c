@@ -2246,6 +2246,9 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
       continue;
     }
 
+    // the rsma result should has the same column number with schema.
+    ASSERT(colNum == pTSchema->numOfCols);
+
     SSubmitTbData tbData = {0};
 
     if (!(tbData.aRowP = taosArrayInit(rows, sizeof(SRow*)))) {
