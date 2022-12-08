@@ -43,7 +43,7 @@
 
 #define JUMP_SPACE(sql, sqlEnd) \
   while (sql < sqlEnd) {        \
-    if (*sql == SPACE)          \
+    if (unlikely(*sql == SPACE))          \
       sql++;                    \
     else                        \
       break;                    \
@@ -1695,7 +1695,7 @@ static void smlParseTelnetElement(char **sql, char *sqlEnd, char **data, int32_t
 }
 
 static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SSmlLineInfo *elements, SSmlMsgBuf *msg) {
-  if(is_same_child_table_telnet(elements, &info->preLine)){
+  if(is_same_child_table_telnet(elements, &info->preLine) == 0){
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1915,6 +1915,7 @@ static int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, S
   }else{
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
+  JUMP_SPACE(sql, sqlEnd)
 
   elements->tags = sql;
   elements->tagsLen = sqlEnd - sql;
