@@ -762,7 +762,6 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
   tqDebug("vgId:%d, task %d write into table, block num: %d", TD_VID(pVnode), pTask->taskId, blockSz);
 
   void*        pBuf = NULL;
-  int32_t      len = 0;
   SSubmitReq2* pReq = NULL;
   SArray*      tagArray = NULL;
   SArray*      pVals = NULL;
@@ -931,6 +930,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
       taosMemoryFree(pTbData);
 
       // encode
+      int32_t len;
       int32_t code;
       tEncodeSize(tEncodeSSubmitReq2, pReq, len, code);
       SEncoder encoder;
