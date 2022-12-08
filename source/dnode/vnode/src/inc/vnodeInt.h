@@ -215,7 +215,7 @@ int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
 
 int32_t tdProcessRSmaCreate(SSma* pSma, SVCreateStbReq* pReq);
-int32_t tdProcessRSmaSubmit(SSma* pSma, void* pReq, void* pMsg, int32_t len, int32_t inputType);
+int32_t tdProcessRSmaSubmit(SSma* pSma, int64_t version, void* pReq, void* pMsg, int32_t len, int32_t inputType);
 int32_t tdProcessRSmaDrop(SSma* pSma, SVDropStbReq* pReq);
 int32_t tdFetchTbUidList(SSma* pSma, STbUidStore** ppStore, tb_uid_t suid, tb_uid_t uid);
 int32_t tdUpdateTbUidList(SSma* pSma, STbUidStore* pUidStore, bool isAdd);

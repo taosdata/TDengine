@@ -1026,7 +1026,7 @@ _exit:
   atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
   if (code == 0) {
     atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
-    tdProcessRSmaSubmit(pVnode->pSma, pSubmitReq, pReq, len, STREAM_INPUT__DATA_SUBMIT);
+    tdProcessRSmaSubmit(pVnode->pSma, version, pSubmitReq, pReq, len, STREAM_INPUT__DATA_SUBMIT);
   }
 
   // clear
