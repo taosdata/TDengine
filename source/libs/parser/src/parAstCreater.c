@@ -605,6 +605,20 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr) {
   return (SNode*)state;
 }
 
+SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond) {
+  CHECK_PARSER_STATUS(pCxt);
+  SEventWindowNode* pEvent = (SEventWindowNode*)nodesMakeNode(QUERY_NODE_EVENT_WINDOW);
+  CHECK_OUT_OF_MEM(pEvent);
+  pEvent->pCol = createPrimaryKeyCol(pCxt, NULL);
+  if (NULL == pEvent->pCol) {
+    nodesDestroyNode((SNode*)pEvent);
+    CHECK_OUT_OF_MEM(NULL);
+  }
+  pEvent->pStartCond = pStartCond;
+  pEvent->pEndCond = pEndCond;
+  return (SNode*)pEvent;
+}
+
 SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding,
                                 SNode* pFill) {
   CHECK_PARSER_STATUS(pCxt);

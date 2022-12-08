@@ -85,6 +85,8 @@ const char* nodesNodeName(ENodeType type) {
       return "WhenThen";
     case QUERY_NODE_CASE_WHEN:
       return "CaseWhen";
+    case QUERY_NODE_EVENT_WINDOW:
+      return "EventWindow";
     case QUERY_NODE_SET_OPERATOR:
       return "SetOperator";
     case QUERY_NODE_SELECT_STMT:
@@ -3660,6 +3662,36 @@ static int32_t jsonToSessionWindowNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkEventWindowTsPrimaryKey = "TsPrimaryKey";
+static const char* jkEventWindowStartCond = "StartCond";
+static const char* jkEventWindowEndCond = "EndCond";
+
+static int32_t eventWindowNodeToJson(const void* pObj, SJson* pJson) {
+  const SEventWindowNode* pNode = (const SEventWindowNode*)pObj;
+
+  int32_t code = tjsonAddObject(pJson, jkEventWindowTsPrimaryKey, nodeToJson, pNode->pCol);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkEventWindowStartCond, nodeToJson, pNode->pStartCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkEventWindowEndCond, nodeToJson, pNode->pEndCond);
+  }
+  return code;
+}
+
+static int32_t jsonToEventWindowNode(const SJson* pJson, void* pObj) {
+  SEventWindowNode* pNode = (SEventWindowNode*)pObj;
+
+  int32_t code = jsonToNodeObject(pJson, jkEventWindowTsPrimaryKey, &pNode->pCol);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkEventWindowStartCond, &pNode->pStartCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkEventWindowEndCond, &pNode->pEndCond);
+  }
+  return code;
+}
+
 static const char* jkIntervalWindowInterval = "Interval";
 static const char* jkIntervalWindowOffset = "Offset";
 static const char* jkIntervalWindowSliding = "Sliding";
@@ -4615,6 +4647,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return whenThenNodeToJson(pObj, pJson);
     case QUERY_NODE_CASE_WHEN:
       return caseWhenNodeToJson(pObj, pJson);
+    case QUERY_NODE_EVENT_WINDOW:
+      return eventWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_SET_OPERATOR:
       return setOperatorToJson(pObj, pJson);
     case QUERY_NODE_SELECT_STMT:
@@ -4787,6 +4821,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToWhenThenNode(pJson, pObj);
     case QUERY_NODE_CASE_WHEN:
       return jsonToCaseWhenNode(pJson, pObj);
+    case QUERY_NODE_EVENT_WINDOW:
+      return jsonToEventWindowNode(pJson, pObj);
     case QUERY_NODE_SET_OPERATOR:
       return jsonToSetOperator(pJson, pObj);
     case QUERY_NODE_SELECT_STMT:
