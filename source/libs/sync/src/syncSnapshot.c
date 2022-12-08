@@ -345,6 +345,8 @@ bool snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver) { return pReceive
 void snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver) {
   // force close, abandon incomplete data
   if (pReceiver->pWriter != NULL) {
+    // event log
+    sRTrace(pReceiver, "snapshot receiver force stop");
     int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, false,
                                                                   &(pReceiver->snapshot));
     ASSERT(ret == 0);
@@ -354,7 +356,7 @@ void snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver) {
   pReceiver->start = false;
 
   // event log
-  sRTrace(pReceiver, "snapshot receiver force stop");
+  // sRTrace(pReceiver, "snapshot receiver force stop");
 }
 
 int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg) {
@@ -675,6 +677,7 @@ static int32_t syncNodeOnSnapshotEnd(SSyncNode *pSyncNode, SyncSnapshotSend *pMs
     sNTrace(pSyncNode, "snapshot receiver finish waitting for true time, now:%" PRId64 ", stime:%" PRId64, timeNow,
             pMsg->startTime);
     taosMsleep(10);
+    timeNow = taosGetTimestampMs();
   }
 
   int32_t code = snapshotReceiverFinish(pReceiver, pMsg);
