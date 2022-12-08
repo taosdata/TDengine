@@ -17,6 +17,7 @@
 #include "dmMgmt.h"
 #include "mnode.h"
 #include "tconfig.h"
+#include "tglobal.h"
 
 // clang-format off
 #define DM_APOLLO_URL    "The apollo string to use when configuring the server, such as: -a 'jsonFile:./tests/cfg.json', cfg.json text can be '{\"fqdn\":\"td1\"}'."
@@ -45,9 +46,30 @@ static struct {
   SArray      *pArgs;  // SConfigPair
 } global = {0};
 
-static void dmStopDnode(int signum, void *info, void *ctx) { dmStop(); }
+static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { taosSetAllDebugFlag(143, true); }
+static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert = 1; }
+
+static void dmStopDnode(int signum, void *sigInfo, void *context) {
+  // taosIgnSignal(SIGUSR1);
+  // taosIgnSignal(SIGUSR2);
+  taosIgnSignal(SIGTERM);
+  taosIgnSignal(SIGHUP);
+  taosIgnSignal(SIGINT);
+  taosIgnSignal(SIGABRT);
+  taosIgnSignal(SIGBREAK);
+
+  dInfo("shut down signal is %d", signum);
+#ifndef WINDOWS
+  dInfo("sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
+        taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
+#endif
+
+  dmStop();
+}
 
 static void dmSetSignalHandle() {
+  taosSetSignal(SIGUSR1, dmSetDebugFlag);
+  taosSetSignal(SIGUSR2, dmSetAssert);
   taosSetSignal(SIGTERM, dmStopDnode);
   taosSetSignal(SIGHUP, dmStopDnode);
   taosSetSignal(SIGINT, dmStopDnode);
