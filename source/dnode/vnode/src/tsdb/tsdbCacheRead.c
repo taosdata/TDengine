@@ -250,7 +250,11 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         return code;
       }
 
-      if (h == NULL || taosArrayGetSize(pRow) <= 0) {
+      if (h == NULL) {
+        continue;
+      }
+      if (taosArrayGetSize(pRow) <= 0) {
+        tsdbCacheRelease(lruCache, h);
         continue;
       }
 
@@ -319,7 +323,11 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         return code;
       }
 
-      if (h == NULL || taosArrayGetSize(pRow) <= 0) {
+      if (h == NULL) {
+        continue;
+      }
+      if (taosArrayGetSize(pRow) <= 0) {
+        tsdbCacheRelease(lruCache, h);
         continue;
       }
 
