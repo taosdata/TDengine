@@ -28,7 +28,7 @@ log = "0.4"
 parquet = "23.0.0"
 pretty_env_logger = "0.4"
 regex = "1"
-scc = "0.11.1"
+scc = "0.12.0"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 thiserror = "1"
@@ -53,7 +53,7 @@ metrics-exporter-prometheus = { version = "0.11.0", default-features = false, fe
 palaver = "0.2.8"
 procfs = "0.14.0"
 psutil = { version = "3.2.0", default-features = false, features = ["cpu", "process"] }
-shadow-rs = "0.17.1"
+shadow-rs = "0.18.0"
 const_format = "0.2.30"
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
@@ -62,14 +62,15 @@ jemallocator = "0.5.0"
 [build-dependencies]
 sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "sqlite", "chrono"] }
 dotenv = "0.15.0"
-shadow-rs = "0.17.1"
+shadow-rs = "0.18.0"
 
 [features]
 default = ["sys"]
 optin = ["taos/optin"]
 sys = ["taos/native"]
 
-[profile.release]
+[profile.min]
+inherits = "release"
 codegen-units = 1
 opt-level = "z"
 strip = true
