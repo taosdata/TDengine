@@ -101,6 +101,10 @@ typedef struct SMCtbCursor SMCtbCursor;
 typedef struct SMStbCursor SMStbCursor;
 typedef struct STbUidStore STbUidStore;
 
+#define META_BEGIN_HEAP_BUFFERPOOL 0
+#define META_BEGIN_HEAP_OS         1
+#define META_BEGIN_HEAP_NIL        2
+
 int             metaOpen(SVnode* pVnode, SMeta** ppMeta, int8_t rollback);
 int             metaClose(SMeta* pMeta);
 int             metaBegin(SMeta* pMeta, int8_t fromSys);
@@ -108,6 +112,7 @@ TXN*            metaGetTxn(SMeta* pMeta);
 int             metaCommit(SMeta* pMeta, TXN* txn);
 int             metaFinishCommit(SMeta* pMeta, TXN* txn);
 int             metaPrepareAsyncCommit(SMeta* pMeta);
+int             metaAbort(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq, SArray* tbUidList);
