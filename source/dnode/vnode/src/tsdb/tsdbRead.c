@@ -3827,12 +3827,17 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pReader->suid, -1, 1);
     if (pReader->pSchema == NULL) {
       tsdbError("failed to get table schema, suid:%" PRIu64 ", ver:-1, %s", pReader->suid, pReader->idStr);
+      // no valid error code set in metaGetTbTSchema, so let's set the error code here.
+      code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      goto _err;
     }
   } else if (numOfTables > 0) {
     STableKeyInfo* pKey = pTableList;
     pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pKey->uid, -1, 1);
     if (pReader->pSchema == NULL) {
       tsdbError("failed to get table schema, uid:%" PRIu64 ", ver:-1, %s", pKey->uid, pReader->idStr);
+      code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      goto _err;
     }
   }
 
@@ -3840,7 +3845,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     updateBlockSMAInfo(pReader->pSchema, &pReader->suppInfo);
   }
 
-  STsdbReader* p = (pReader->innerReader[0] != NULL)? pReader->innerReader[0]:pReader;
+  STsdbReader* p = (pReader->innerReader[0] != NULL) ? pReader->innerReader[0] : pReader;
   pReader->status.pTableMap = createDataBlockScanInfo(p, &pReader->blockInfoBuf, pTableList, numOfTables);
   if (pReader->status.pTableMap == NULL) {
     tsdbReaderClose(p);
@@ -3888,10 +3893,11 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
   tsdbDebug("%p total numOfTable:%d in this query %s", pReader, numOfTables, pReader->idStr);
   return code;
 
-  _err:
+_err:
   tsdbError("failed to create data reader, code:%s %s", tstrerror(code), idstr);
+  tsdbReaderClose(pReader);
   return code;
-  }
+}
 
 void tsdbReaderClose(STsdbReader* pReader) {
   if (pReader == NULL) {
