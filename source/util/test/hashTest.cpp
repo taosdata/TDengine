@@ -6,6 +6,7 @@
 #include "taos.h"
 #include "taosdef.h"
 #include "thash.h"
+#include "tlog.h"
 
 namespace {
 

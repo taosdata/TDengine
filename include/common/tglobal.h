@@ -64,6 +64,11 @@ extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsRpcQueueMemoryAllowed;
 
+// sync raft
+extern int32_t tsElectInterval;
+extern int32_t tsHeartbeatInterval;
+extern int32_t tsHeartbeatTimeout;
+
 // monitor
 extern bool     tsEnableMonitor;
 extern int32_t  tsMonitorInterval;
@@ -126,9 +131,9 @@ extern char tsUdfdResFuncs[];
 extern char tsUdfdLdLibPath[];
 
 // schemaless
-extern char tsSmlChildTableName[];
-extern char tsSmlTagName[];
-extern bool tsSmlDataFormat;
+extern char    tsSmlChildTableName[];
+extern char    tsSmlTagName[];
+extern bool    tsSmlDataFormat;
 extern int32_t tsSmlBatchSize;
 
 // wal
@@ -146,7 +151,7 @@ extern int32_t tsUptimeInterval;
 extern int32_t tsRpcRetryLimit;
 extern int32_t tsRpcRetryInterval;
 
-//#define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
+// #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);

@@ -165,10 +165,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
       SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    colDataDestroy(out.columnData);
-    taosMemoryFreeClear(out.columnData);
-    out.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
-
+    colInfoDataCleanup(out.columnData, out.numOfRows);
     cell = cell->pNext;
   }
 

@@ -108,24 +108,22 @@ int32_t tqMetaClose(STQ* pTq) {
 }
 
 int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_t vLen) {
-  TXN txn;
-  if (tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+  TXN* txn;
+
+  if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
+      0) {
     return -1;
   }
 
-  if (tdbBegin(pTq->pMetaDB, &txn) < 0) {
+  if (tdbTbUpsert(pTq->pCheckStore, key, strlen(key), value, vLen, txn) < 0) {
     return -1;
   }
 
-  if (tdbTbUpsert(pTq->pCheckStore, key, strlen(key), value, vLen, &txn) < 0) {
+  if (tdbCommit(pTq->pMetaDB, txn) < 0) {
     return -1;
   }
 
-  if (tdbCommit(pTq->pMetaDB, &txn) < 0) {
-    return -1;
-  }
-
-  if (tdbPostCommit(pTq->pMetaDB, &txn) < 0) {
+  if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
     return -1;
   }
 
@@ -133,25 +131,22 @@ int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_
 }
 
 int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key) {
-  TXN txn;
+  TXN* txn;
 
-  if (tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+  if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
+      0) {
     ASSERT(0);
   }
 
-  if (tdbBegin(pTq->pMetaDB, &txn) < 0) {
-    ASSERT(0);
-  }
-
-  if (tdbTbDelete(pTq->pCheckStore, key, (int)strlen(key), &txn) < 0) {
+  if (tdbTbDelete(pTq->pCheckStore, key, (int)strlen(key), txn) < 0) {
     /*ASSERT(0);*/
   }
 
-  if (tdbCommit(pTq->pMetaDB, &txn) < 0) {
+  if (tdbCommit(pTq->pMetaDB, txn) < 0) {
     ASSERT(0);
   }
 
-  if (tdbPostCommit(pTq->pMetaDB, &txn) < 0) {
+  if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
     ASSERT(0);
   }
 
@@ -219,25 +214,22 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
     ASSERT(0);
   }
 
-  TXN txn;
+  TXN* txn;
 
-  if (tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+  if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
+      0) {
     ASSERT(0);
   }
 
-  if (tdbBegin(pTq->pMetaDB, &txn) < 0) {
+  if (tdbTbUpsert(pTq->pExecStore, key, (int)strlen(key), buf, vlen, txn) < 0) {
     ASSERT(0);
   }
 
-  if (tdbTbUpsert(pTq->pExecStore, key, (int)strlen(key), buf, vlen, &txn) < 0) {
+  if (tdbCommit(pTq->pMetaDB, txn) < 0) {
     ASSERT(0);
   }
 
-  if (tdbCommit(pTq->pMetaDB, &txn) < 0) {
-    ASSERT(0);
-  }
-
-  if (tdbPostCommit(pTq->pMetaDB, &txn) < 0) {
+  if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
     ASSERT(0);
   }
 
@@ -247,25 +239,22 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
 }
 
 int32_t tqMetaDeleteHandle(STQ* pTq, const char* key) {
-  TXN txn;
+  TXN* txn;
 
-  if (tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+  if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
+      0) {
     ASSERT(0);
   }
 
-  if (tdbBegin(pTq->pMetaDB, &txn) < 0) {
-    ASSERT(0);
-  }
-
-  if (tdbTbDelete(pTq->pExecStore, key, (int)strlen(key), &txn) < 0) {
+  if (tdbTbDelete(pTq->pExecStore, key, (int)strlen(key), txn) < 0) {
     /*ASSERT(0);*/
   }
 
-  if (tdbCommit(pTq->pMetaDB, &txn) < 0) {
+  if (tdbCommit(pTq->pMetaDB, txn) < 0) {
     ASSERT(0);
   }
 
-  if (tdbPostCommit(pTq->pMetaDB, &txn) < 0) {
+  if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
     ASSERT(0);
   }
 

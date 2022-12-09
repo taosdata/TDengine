@@ -121,7 +121,16 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->writeCur = -1;
   pWal->fileInfoSet = taosArrayInit(8, sizeof(SWalFileInfo));
   if (pWal->fileInfoSet == NULL) {
-    wError("vgId:%d, path:%s, failed to init taosArray %s", pWal->cfg.vgId, pWal->path, strerror(errno));
+    wError("vgId:%d, failed to init taosArray of fileInfoSet due to %s. path:%s", pWal->cfg.vgId, strerror(errno),
+           pWal->path);
+    goto _err;
+  }
+
+  // init gc
+  pWal->toDeleteFiles = taosArrayInit(8, sizeof(SWalFileInfo));
+  if (pWal->toDeleteFiles == NULL) {
+    wError("vgId:%d, failed to init taosArray of toDeleteFiles due to %s. path:%s", pWal->cfg.vgId, strerror(errno),
+           pWal->path);
     goto _err;
   }
 
@@ -203,6 +212,8 @@ void walClose(SWal *pWal) {
   pWal->pIdxFile = NULL;
   taosArrayDestroy(pWal->fileInfoSet);
   pWal->fileInfoSet = NULL;
+  taosArrayDestroy(pWal->toDeleteFiles);
+  pWal->toDeleteFiles = NULL;
 
   void *pIter = NULL;
   while (1) {

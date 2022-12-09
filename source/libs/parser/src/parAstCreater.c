@@ -1124,6 +1124,9 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
     case TABLE_OPTION_SMA:
       ((STableOptions*)pOptions)->pSma = pVal;
       break;
+    case TABLE_OPTION_DELETE_MARK:
+      ((STableOptions*)pOptions)->pDeleteMark = pVal;
+      break;
     default:
       break;
   }

@@ -149,7 +149,7 @@ DLL_EXPORT TAOS      *taos_connect(const char *ip, const char *user, const char 
 DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
 DLL_EXPORT void  taos_close(TAOS *taos);
 
-const char *taos_data_type(int type);
+DLL_EXPORT const char *taos_data_type(int type);
 
 DLL_EXPORT TAOS_STMT *taos_stmt_init(TAOS *taos);
 DLL_EXPORT TAOS_STMT *taos_stmt_init_with_reqid(TAOS *taos, int64_t reqid);
@@ -185,6 +185,7 @@ DLL_EXPORT void     taos_kill_query(TAOS *taos);
 DLL_EXPORT int      taos_field_count(TAOS_RES *res);
 DLL_EXPORT int      taos_num_fields(TAOS_RES *res);
 DLL_EXPORT int      taos_affected_rows(TAOS_RES *res);
+DLL_EXPORT int64_t  taos_affected_rows64(TAOS_RES *res);
 
 DLL_EXPORT TAOS_FIELD *taos_fetch_fields(TAOS_RES *res);
 DLL_EXPORT int         taos_select_db(TAOS *taos, const char *db);

@@ -62,7 +62,7 @@ sudo apt-get install -y gcc cmake build-essential git libssl-dev
 To build the [taosTools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config
 ```
 
 ### CentOS 7.9
@@ -85,7 +85,7 @@ sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 #### CentOS 7.9
 
 ```
-sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
+sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static openssl-devel
 ```
 
 #### CentOS 8/Rocky Linux
@@ -94,7 +94,7 @@ sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgco
 sudo yum install -y epel-release
 sudo yum install -y dnf-plugins-core
 sudo yum config-manager --set-enabled powertools
-sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
+sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static openssl-devel
 ```
 
 Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it leads a cmake prompt libsnappy not found. But snappy still works well.

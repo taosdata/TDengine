@@ -108,13 +108,13 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
   }
   
   atomic_store_ptr(&pJob->fetchRes, rsp);
-  atomic_add_fetch_32(&pJob->resNumOfRows, htonl(rsp->numOfRows));
+  atomic_add_fetch_64(&pJob->resNumOfRows, htobe64(rsp->numOfRows));
   
   if (rsp->completed) {
     SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCC);
   }
   
-  SCH_TASK_DLOG("got fetch rsp, rows:%d, complete:%d", htonl(rsp->numOfRows), rsp->completed);
+  SCH_TASK_DLOG("got fetch rsp, rows:%" PRId64 ", complete:%d", htobe64(rsp->numOfRows), rsp->completed);
 
   msg = NULL;
   schProcessOnDataFetched(pJob);
@@ -155,6 +155,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
   if (SCH_TASK_NEED_REDIRECT(pTask, reqType, rspCode, pMsg->len)) {
     SCH_RET(schHandleRedirect(pJob, pTask, (SDataBuf *)pMsg, rspCode));
   }
+
+  pTask->redirectCtx.inRedirect = false;
 
   switch (msgType) {
     case TDMT_VND_COMMIT_RSP: {
@@ -279,7 +281,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
           }
         }
 
-        atomic_add_fetch_32(&pJob->resNumOfRows, rsp->affectedRows);
+        atomic_add_fetch_64(&pJob->resNumOfRows, rsp->affectedRows);
         SCH_TASK_DLOG("submit succeed, affectedRows:%d, blocks:%d", rsp->affectedRows, rsp->nBlocks);
 
         SCH_LOCK(SCH_WRITE, &pJob->resLock);
@@ -317,7 +319,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
         tDecodeSVDeleteRsp(&coder, &rsp);
         tDecoderClear(&coder);
 
-        atomic_add_fetch_32(&pJob->resNumOfRows, rsp.affectedRows);
+        atomic_add_fetch_64(&pJob->resNumOfRows, rsp.affectedRows);
         SCH_TASK_DLOG("delete succeed, affectedRows:%" PRId64, rsp.affectedRows);
       }
 
@@ -344,7 +346,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
 
       SCH_ERR_JRET(schSaveJobExecRes(pJob, &rsp));
 
-      atomic_add_fetch_32(&pJob->resNumOfRows, rsp.affectedRows);
+      atomic_add_fetch_64(&pJob->resNumOfRows, rsp.affectedRows);
 
       taosMemoryFreeClear(msg);
 

@@ -107,6 +107,8 @@ typedef struct SWal {
   TdFilePtr pIdxFile;
   int32_t   writeCur;
   SArray   *fileInfoSet;  // SArray<SWalFileInfo>
+  // gc
+  SArray *toDeleteFiles;  // SArray<SWalFileInfo>
   // status
   int64_t totSize;
   int64_t lastRollSeq;

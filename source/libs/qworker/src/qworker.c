@@ -275,7 +275,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
           QW_ERR_RET(code);
         }
 
-        QW_TASK_DLOG("no more data in sink and query end, fetched blocks %d rows %d", pOutput->numOfBlocks,
+        QW_TASK_DLOG("no more data in sink and query end, fetched blocks %d rows %"PRId64, pOutput->numOfBlocks,
                      pOutput->numOfRows);
 
         qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC);
@@ -320,19 +320,19 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     pOutput->numOfBlocks++;
 
     if (DS_BUF_EMPTY == pOutput->bufStatus && pOutput->queryEnd) {
-      QW_TASK_DLOG("task all data fetched and done, fetched blocks %d rows %d", pOutput->numOfBlocks,
+      QW_TASK_DLOG("task all data fetched and done, fetched blocks %d rows %" PRId64, pOutput->numOfBlocks,
                    pOutput->numOfRows);
       qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC);
       break;
     }
 
     if (0 == ctx->level) {
-      QW_TASK_DLOG("task fetched blocks %d rows %d, level %d", pOutput->numOfBlocks, pOutput->numOfRows, ctx->level);
+      QW_TASK_DLOG("task fetched blocks %d rows %"PRId64", level %d", pOutput->numOfBlocks, pOutput->numOfRows, ctx->level);
       break;
     }
 
     if (pOutput->numOfRows >= QW_MIN_RES_ROWS) {
-      QW_TASK_DLOG("task fetched blocks %d rows %d reaches the min rows", pOutput->numOfBlocks, pOutput->numOfRows);
+      QW_TASK_DLOG("task fetched blocks %d rows %" PRId64 " reaches the min rows", pOutput->numOfBlocks, pOutput->numOfRows);
       break;
     }
   }

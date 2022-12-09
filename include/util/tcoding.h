@@ -17,6 +17,7 @@
 #define _TD_UTIL_CODING_H_
 
 #include "os.h"
+#include "tlog.h"
 
 #ifdef __cplusplus
 extern "C" {

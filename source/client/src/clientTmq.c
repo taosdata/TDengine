@@ -875,6 +875,7 @@ void tmqFreeImpl(void* handle) {
   tmq_t* tmq = (tmq_t*)handle;
 
   // TODO stop timer
+  tmqClearUnhandleMsg(tmq);
   if (tmq->mqueue) taosCloseQueue(tmq->mqueue);
   if (tmq->delayedTask) taosCloseQueue(tmq->delayedTask);
   if (tmq->qall) taosFreeQall(tmq->qall);
@@ -884,8 +885,7 @@ void tmqFreeImpl(void* handle) {
   int32_t sz = taosArrayGetSize(tmq->clientTopics);
   for (int32_t i = 0; i < sz; i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
-    if (pTopic->schema.nCols) taosMemoryFreeClear(pTopic->schema.pSchema);
-    int32_t vgSz = taosArrayGetSize(pTopic->vgs);
+    taosMemoryFreeClear(pTopic->schema.pSchema);
     taosArrayDestroy(pTopic->vgs);
   }
   taosArrayDestroy(tmq->clientTopics);
@@ -1215,6 +1215,8 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
+  tscDebug("consumer:%" PRId64 ", put poll res into mqueue %p", tmq->consumerId, pRspWrapper);
+
   taosWriteQitem(tmq->mqueue, pRspWrapper);
   tsem_post(&tmq->rspSem);
 
@@ -1304,7 +1306,6 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) {
     for (int32_t i = 0; i < sz; i++) {
       SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
       if (pTopic->schema.nCols) taosMemoryFreeClear(pTopic->schema.pSchema);
-      int32_t vgSz = taosArrayGetSize(pTopic->vgs);
       taosArrayDestroy(pTopic->vgs);
     }
     taosArrayDestroy(tmq->clientTopics);
@@ -1410,7 +1411,7 @@ int32_t tmqAskEp(tmq_t* tmq, bool async) {
     return -1;
   }
   void* pReq = taosMemoryCalloc(1, tlen);
-  if (tlen < 0) {
+  if (pReq == NULL) {
     tscError("failed to malloc askEpReq msg, size:%d", tlen);
     return -1;
   }
@@ -1665,6 +1666,8 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
       }
     }
 
+    tscDebug("consumer:%" PRId64 " handle rsp %p", tmq->consumerId, rspWrapper);
+
     if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__END_RSP) {
       taosFreeQitem(rspWrapper);
       terrno = TSDB_CODE_TQ_NO_COMMITTED_OFFSET;
@@ -1738,7 +1741,7 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         taosFreeQitem(pollRspWrapper);
         return pRsp;
       } else {
-        tscDebug("msg discard since epoch mismatch: msg epoch %d, consumer epoch %d\n",
+        tscDebug("msg discard since epoch mismatch: msg epoch %d, consumer epoch %d",
                  pollRspWrapper->taosxRsp.head.epoch, consumerEpoch);
         taosFreeQitem(pollRspWrapper);
       }

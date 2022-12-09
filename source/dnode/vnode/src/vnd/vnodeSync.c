@@ -18,14 +18,15 @@
 
 #define BATCH_ENABLE 0
 
-static inline bool vnodeIsMsgBlock(tmsg_t type) {
-  return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
-         (type == TDMT_VND_UPDATE_TAG_VAL);
-}
-
 static inline bool vnodeIsMsgWeak(tmsg_t type) { return false; }
 
 static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
+  const STraceId *trace = &pMsg->info.traceId;
+  vGTrace("vgId:%d, msg:%p wait block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
+  tsem_wait(&pVnode->syncSem);
+}
+
+static inline void vnodeWaitBlockMsgOld(SVnode *pVnode, const SRpcMsg *pMsg) {
   if (vnodeIsMsgBlock(pMsg->msgType)) {
     const STraceId *trace = &pMsg->info.traceId;
     taosThreadMutexLock(&pVnode->lock);
@@ -115,20 +116,30 @@ static void vnodeHandleProposeError(SVnode *pVnode, SRpcMsg *pMsg, int32_t code)
 
 static void inline vnodeProposeBatchMsg(SVnode *pVnode, SRpcMsg **pMsgArr, bool *pIsWeakArr, int32_t *arrSize) {
   if (*arrSize <= 0) return;
+  SRpcMsg *pLastMsg = pMsgArr[*arrSize - 1];
 
+  taosThreadMutexLock(&pVnode->lock);
   int32_t code = syncProposeBatch(pVnode->sync, pMsgArr, pIsWeakArr, *arrSize);
+  bool    wait = (code == 0 && vnodeIsBlockMsg(pLastMsg->msgType));
+  if (wait) {
+    ASSERT(!pVnode->blocked);
+    pVnode->blocked = true;
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
+
   if (code > 0) {
     for (int32_t i = 0; i < *arrSize; ++i) {
       vnodeHandleWriteMsg(pVnode, pMsgArr[i]);
     }
-  } else if (code == 0) {
-    vnodeWaitBlockMsg(pVnode, pMsgArr[*arrSize - 1]);
-  } else {
+  } else if (code < 0) {
     if (terrno != 0) code = terrno;
     for (int32_t i = 0; i < *arrSize; ++i) {
       vnodeHandleProposeError(pVnode, pMsgArr[i], code);
     }
   }
+
+  if (wait) vnodeWaitBlockMsg(pVnode, pLastMsg);
+  pLastMsg = NULL;
 
   for (int32_t i = 0; i < *arrSize; ++i) {
     SRpcMsg        *pMsg = pMsgArr[i];
@@ -206,16 +217,23 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
 #else
 
 static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak) {
+  taosThreadMutexLock(&pVnode->lock);
   int32_t code = syncPropose(pVnode->sync, pMsg, isWeak);
+  bool    wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
+  if (wait) {
+    ASSERT(!pVnode->blocked);
+    pVnode->blocked = true;
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
+
   if (code > 0) {
     vnodeHandleWriteMsg(pVnode, pMsg);
-  } else if (code == 0) {
-    vnodeWaitBlockMsg(pVnode, pMsg);
-  } else {
+  } else if (code < 0) {
     if (terrno != 0) code = terrno;
     vnodeHandleProposeError(pVnode, pMsg, code);
   }
 
+  if (wait) vnodeWaitBlockMsg(pVnode, pMsg);
   return code;
 }
 
@@ -273,6 +291,11 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
     const STraceId *trace = &pMsg->info.traceId;
     vGTrace("vgId:%d, msg:%p get from vnode-apply queue, type:%s handle:%p index:%" PRId64, vgId, pMsg,
             TMSG_INFO(pMsg->msgType), pMsg->info.handle, pMsg->info.conn.applyIndex);
+
+    if (vnodeIsMsgBlock(pMsg->msgType)) {
+      vTrace("vgId:%d, blocking msg obtained from apply-queue. index:%" PRId64 ", term: %" PRId64 ", type: %s", vgId,
+             pMsg->info.conn.applyIndex, pMsg->info.conn.applyTerm, TMSG_INFO(pMsg->msgType));
+    }
 
     SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
     if (rsp.code == 0) {
@@ -583,16 +606,7 @@ void vnodeSyncPreClose(SVnode *pVnode) {
   vInfo("vgId:%d, pre close sync", pVnode->config.vgId);
   syncLeaderTransfer(pVnode->sync);
   syncPreStop(pVnode->sync);
-#if 0
-  while (syncSnapshotRecving(pVnode->sync)) {
-    vInfo("vgId:%d, snapshot is recving", pVnode->config.vgId);
-    taosMsleep(300);
-  }
-  while (syncSnapshotSending(pVnode->sync)) {
-    vInfo("vgId:%d, snapshot is sending", pVnode->config.vgId);
-    taosMsleep(300);
-  }
-#endif
+
   taosThreadMutexLock(&pVnode->lock);
   if (pVnode->blocked) {
     vInfo("vgId:%d, post block after close sync", pVnode->config.vgId);

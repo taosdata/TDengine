@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 
 #include "syncPipeline.h"
+#include "syncCommit.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
 #include "syncRaftEntry.h"
@@ -49,7 +50,7 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
 
   // initial log buffer with at least one item, e.g. commitIndex
   SSyncRaftEntry* pMatch = pBuf->entries[(index - 1 + pBuf->size) % pBuf->size].pItem;
-  ASSERT(pMatch != NULL && "no matched log entry");
+  ASSERTS(pMatch != NULL, "no matched log entry");
   ASSERT(pMatch->index + 1 == index);
 
   SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = pMatch->index, .prevLogTerm = pMatch->term};
@@ -85,14 +86,14 @@ SyncTerm syncLogReplMgrGetPrevLogTerm(SSyncLogReplMgr* pMgr, SSyncNode* pNode, S
 
   if (prevIndex >= pBuf->startIndex) {
     pEntry = pBuf->entries[(prevIndex + pBuf->size) % pBuf->size].pItem;
-    ASSERT(pEntry != NULL && "no log entry found");
+    ASSERTS(pEntry != NULL, "no log entry found");
     prevLogTerm = pEntry->term;
     return prevLogTerm;
   }
 
   if (pMgr && pMgr->startIndex <= prevIndex && prevIndex < pMgr->endIndex) {
     int64_t timeMs = pMgr->states[(prevIndex + pMgr->size) % pMgr->size].timeMs;
-    ASSERT(timeMs != 0 && "no log entry found");
+    ASSERTS(timeMs != 0, "no log entry found");
     prevLogTerm = pMgr->states[(prevIndex + pMgr->size) % pMgr->size].term;
     ASSERT(prevIndex == 0 || prevLogTerm != 0);
     return prevLogTerm;
@@ -140,9 +141,9 @@ int32_t syncLogValidateAlignmentOfCommit(SSyncNode* pNode, SyncIndex commitIndex
 }
 
 int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
-  ASSERT(pNode->pLogStore != NULL && "log store not created");
-  ASSERT(pNode->pFsm != NULL && "pFsm not registered");
-  ASSERT(pNode->pFsm->FpGetSnapshotInfo != NULL && "FpGetSnapshotInfo not registered");
+  ASSERTS(pNode->pLogStore != NULL, "log store not created");
+  ASSERTS(pNode->pFsm != NULL, "pFsm not registered");
+  ASSERTS(pNode->pFsm->FpGetSnapshotInfo != NULL, "FpGetSnapshotInfo not registered");
 
   SSnapshot snapshot;
   if (pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot) < 0) {
@@ -436,10 +437,15 @@ _out:
 }
 
 int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry) {
-  ASSERT(pFsm->FpCommitCb != NULL && "No commit cb registered for the FSM");
+  ASSERTS(pFsm->FpCommitCb != NULL, "No commit cb registered for the FSM");
 
   if ((pNode->replicaNum == 1) && pNode->restoreFinish && pNode->vgId != 1) {
     return 0;
+  }
+
+  if (pNode->vgId != 1 && vnodeIsMsgBlock(pEntry->originalRpcType)) {
+    sTrace("vgId:%d, blocking msg ready to execute. index:%" PRId64 ", term: %" PRId64 ", type: %s", pNode->vgId,
+           pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType));
   }
 
   SRpcMsg rpcMsg = {0};
@@ -507,16 +513,10 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
     if (!syncUtilUserCommit(pEntry->originalRpcType)) {
       sInfo("vgId:%d, commit sync barrier. index: %" PRId64 ", term:%" PRId64 ", type: %s", vgId, pEntry->index,
             pEntry->term, TMSG_INFO(pEntry->originalRpcType));
-      pBuf->commitIndex = index;
-      if (!inBuf) {
-        syncEntryDestroy(pEntry);
-        pEntry = NULL;
-      }
-      continue;
     }
 
     if (syncLogFsmExecute(pNode, pFsm, role, term, pEntry) != 0) {
-      sError("vgId:%d, failed to commit sync log entry. index:%" PRId64 ", term:%" PRId64
+      sError("vgId:%d, failed to execute sync log entry. index:%" PRId64 ", term:%" PRId64
              ", role: %d, current term: %" PRId64,
              vgId, pEntry->index, pEntry->term, role, term);
       goto _out;
@@ -900,7 +900,7 @@ int32_t syncNodeLogReplMgrInit(SSyncNode* pNode) {
     ASSERT(pNode->logReplMgrs[i] == NULL);
     pNode->logReplMgrs[i] = syncLogReplMgrCreate();
     pNode->logReplMgrs[i]->peerId = i;
-    ASSERT(pNode->logReplMgrs[i] != NULL && "Out of memory.");
+    ASSERTS(pNode->logReplMgrs[i] != NULL, "Out of memory.");
   }
   return 0;
 }
@@ -979,6 +979,7 @@ int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex 
         ", %" PRId64 ")",
         pNode->vgId, toIndex, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
 
+  // trunc buffer
   SyncIndex index = pBuf->endIndex - 1;
   while (index >= toIndex) {
     SSyncRaftEntry* pEntry = pBuf->entries[index % pBuf->size].pItem;
@@ -992,6 +993,17 @@ int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex 
   pBuf->endIndex = toIndex;
   pBuf->matchIndex = TMIN(pBuf->matchIndex, index);
   ASSERT(index + 1 == toIndex);
+
+  // trunc wal
+  SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
+  if (lastVer >= toIndex && pNode->pLogStore->syncLogTruncate(pNode->pLogStore, toIndex) < 0) {
+    sError("vgId:%d, failed to truncate log store since %s. from index:%" PRId64 "", pNode->vgId, terrstr(), toIndex);
+    return -1;
+  }
+  lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
+  ASSERT(toIndex == lastVer + 1);
+
+  syncLogBufferValidate(pBuf);
   return 0;
 }
 

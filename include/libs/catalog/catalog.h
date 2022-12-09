@@ -211,6 +211,8 @@ int32_t catalogGetCachedSTableMeta(SCatalog* pCtg, const SName* pTableName, STab
 
 int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, const SName* pTableName, SVgroupInfo* pVgroup, bool* exists);
 
+int32_t catalogGetCachedTableVgMeta(SCatalog* pCtg, const SName* pTableName,          SVgroupInfo* pVgroup, STableMeta** pTableMeta);
+
 /**
  * Force refresh DB's local cached vgroup info.
  * @param pCtg (input, got with catalogGetHandle)

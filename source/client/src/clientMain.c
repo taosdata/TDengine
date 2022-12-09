@@ -21,12 +21,12 @@
 #include "os.h"
 #include "query.h"
 #include "scheduler.h"
+#include "tdatablock.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
 #include "version.h"
-#include "tdatablock.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -177,6 +177,8 @@ void taos_free_result(TAOS_RES *res) {
   if (NULL == res) {
     return;
   }
+
+  tscDebug("taos free res %p", res);
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
@@ -435,7 +437,19 @@ const char *taos_data_type(int type) {
 
 const char *taos_get_client_info() { return version; }
 
+// return int32_t
 int taos_affected_rows(TAOS_RES *res) {
+  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res)) {
+    return 0;
+  }
+
+  SRequestObj    *pRequest = (SRequestObj *)res;
+  SReqResultInfo *pResInfo = &pRequest->body.resInfo;
+  return (int)pResInfo->numOfRows;
+}
+
+// return int64_t
+int64_t taos_affected_rows64(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res)) {
     return 0;
   }
@@ -784,9 +798,11 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
   SQuery              *pQuery = pRequest->pQuery;
 
   pRequest->metric.ctgEnd = taosGetTimestampUs();
-  qDebug("0x%" PRIx64 " start to continue parse, reqId:0x%" PRIx64, pRequest->self, pRequest->requestId);
+  qDebug("0x%" PRIx64 " start to continue parse, reqId:0x%" PRIx64 ", code:%s", pRequest->self, pRequest->requestId,
+         tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
+    //pWrapper->pCatalogReq->forceUpdate = false;
     code = qContinueParseSql(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
 
@@ -867,6 +883,11 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
     code = pRequest->prevCode;
+    terrno = code;
+    pRequest->code = code;
+    tscDebug("call sync query cb with code: %s", tstrerror(code));
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    return;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -917,6 +938,17 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code, tstrerror(code),
              pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
+    qDestroyQuery(pRequest->pQuery);
+    pRequest->pQuery = NULL;
+
+    if (NEED_CLIENT_HANDLE_ERROR(code)) {
+      tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
+               pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
+      pRequest->prevCode = code;
+      doAsyncQuery(pRequest, true);
+      return;
+    }
+
     terrno = code;
     pRequest->code = code;
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
@@ -956,7 +988,7 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
     tscError("0x%" PRIx64 " fetch results failed, code:%s, reqId:0x%" PRIx64, pRequest->self, tstrerror(code),
              pRequest->requestId);
   } else {
-    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
+    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
              pRequest->self, pResultInfo->numOfRows, pResultInfo->totalRows, pResultInfo->completed,
              pRequest->requestId);
 
