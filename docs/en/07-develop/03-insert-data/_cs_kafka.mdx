@@ -1,0 +1,56 @@
+### .Net Kafka 客户端
+
+[Confluent.Kafka](https://www.nuget.org/packages/Confluent.Kafka/1.9.4-RC1#readme-body-tab) is Confluent's .NET client for Apache Kafka and the Confluent Platform. More information reference [Kafka .NET Client](https://docs.confluent.io/kafka-clients/dotnet/current/overview.html#dotnet-installation)
+
+### Consume Data From Kafka
+
+
+This Kafka pull message from Kafka's topics. The "Confluent.Kafka" consumer usage example is like the following code.
+
+```csharp
+using using Confluent.Kafka;
+
+using (var consumer = new ConsumerBuilder<Ignore, string>(config).Build())
+{
+    consumer.Subscribe(topics);
+
+    while (!cancelled)
+    {
+        var consumeResult = consumer.Consume(cancellationToken);
+
+        // handle consumed message.
+        ...
+    }
+
+    consumer.Close();
+}
+```
+
+### Writing Message to TDengine Examples
+
+Up to now, Every time the [Confluent.Kafka](https://www.nuget.org/packages/Confluent.Kafka/1.9.4-RC1#readme-body-tab) consumer consumes one message (one record) from topic. The following content include following example of witting data to TDengine:
+
+* One SQL statement per message;
+* One SQL statement per message and handle the SQL in task；
+* Cache the message into `CocurrentDictionary<string,Queue<string>>`, put the message to together as long SQL and handle the SQL in Task.
+
+
+#### One SQL statement per message
+
+```csharp
+{{#include docs/examples/csharp/Kafka/Consumer/Consume.cs:basicUsage}}
+```
+
+#### Handle SQL Statement In Tasks
+
+```csharp
+{{#include docs/examples/csharp/Kafka/Consumer/Consume.cs:insertTasks}}
+```
+
+#### Handle Long SQL In Tasks
+
+In this example, we cached the message in an `CocurrentDictionary<string,Queue<string>>`, once the `CocurrentDictionary<string,Queue<string>>.Length` reach 500, we start to combine the values in the `Queue` into a long SQL, and handle the SQL in different tasks.
+
+```csharp
+{{#include docs/examples/csharp/Kafka/Consumer/Consume.cs:insertBatchTasks}}
+```

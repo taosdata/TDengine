@@ -25,3 +25,5 @@ wsConnect/obj
 wsInsert/obj
 wsQuery/obj
 wsStmt/obj
+Kafka/Producer/obj/
+Kafka/Consumer/obj/

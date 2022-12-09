@@ -1,0 +1,54 @@
+### .Net Kafka 客户端
+
+[Confluent.Kafka](https://www.nuget.org/packages/Confluent.Kafka/1.9.4-RC1#readme-body-tab) 是 Confluent 为 Apache Kafka 提供的 .NET 客户端。 更多内容可以参考 [Kafka .NET Client](https://docs.confluent.io/kafka-clients/dotnet/current/overview.html#dotnet-installation)
+
+### 从 Kafka 消费数据
+
+Kafka 客户端采用 pull 的方式从 Kafka topic 消费数据。使用 Confluent.Kafka 消费 Kafka 数据的示例如下：
+
+```csharp
+using using Confluent.Kafka;
+
+using (var consumer = new ConsumerBuilder<Ignore, string>(config).Build())
+{
+    consumer.Subscribe(topics);
+
+    while (!cancelled)
+    {
+        var consumeResult = consumer.Consume(cancellationToken);
+
+        // handle consumed message.
+        ...
+    }
+
+    consumer.Close();
+}
+```
+
+### 写入 TDengine 示例程序
+
+目前 [Confluent.Kafka](https://www.nuget.org/packages/Confluent.Kafka/1.9.4-RC1#readme-body-tab) 支持每次 consume 一条数据。本文的示例包中含了如下几个示例
+* 每条 message 拼 SQL 写入；
+* 每条 message 拼 SQL 多线程写入；
+* 将 message 按照 message.key 作为 `ConcurrentDictionary<string,Queue<string>>` Key，message.Value 存储到对应的 `ConcurrentDictionary<string,Queue<string>>` 的 value 中， 然后在拼接长 SQL 多线程写入；
+
+
+#### 每条记录拼 SQL 写入
+
+```csharp
+{{#include docs/examples/csharp/Kafka/Consumer/Consume.cs:basicUsage}}
+```
+
+#### 每条记录拼 SQL 多线写入
+
+```csharp
+{{#include docs/examples/csharp/Kafka/Consumer/Consume.cs:insertTasks}}
+```
+
+#### Message 存储到 CurrentDictionary，多线程批次写入
+
+本例子中会拼接每 500 条 message， 拼成长 SQL 插入到 TDengine。
+
+```csharp
+{{#include docs/examples/csharp/Kafka/Consumer/Consume.cs:insertBatchTasks}}
+```
