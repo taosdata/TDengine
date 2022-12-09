@@ -101,6 +101,7 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
         }
 
         if (flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+          // SVCreateTbReq
           if (tStartDecode(&dc) < 0) {
             code = TSDB_CODE_INVALID_MSG;
             goto _err;
@@ -126,6 +127,15 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
           *(int64_t *)(dc.data + dc.pos + 8) = ctime;
 
           tEndDecode(&dc);
+
+          // SSubmitTbData
+          int64_t suid;
+          if (tDecodeI64(&dc, &suid) < 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            goto _err;
+          }
+
+          *(int64_t *)(dc.data + dc.pos) = uid;
         }
 
         tEndDecode(&dc);
@@ -200,8 +210,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
          version);
 
   ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
+  ASSERT(pVnode->state.applied + 1 == version);
+
   pVnode->state.applied = version;
   pVnode->state.applyTerm = pMsg->info.conn.applyTerm;
+
+  if (!syncUtilUserCommit(pMsg->msgType)) goto _exit;
 
   // skip header
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
@@ -1016,7 +1030,7 @@ _exit:
   atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
   if (code == 0) {
     atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
-    tdProcessRSmaSubmit(pVnode->pSma, pSubmitReq, pReq, len, STREAM_INPUT__DATA_SUBMIT);
+    tdProcessRSmaSubmit(pVnode->pSma, version, pSubmitReq, pReq, len, STREAM_INPUT__DATA_SUBMIT);
   }
 
   // clear

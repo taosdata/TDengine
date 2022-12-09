@@ -673,11 +673,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
               req.epoch, TD_VID(pTq->pVnode), fetchVer, pHead->msgType);
 
       if (pHead->msgType == TDMT_VND_SUBMIT) {
-        SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
-
-        SPackedSubmit submit = {
-            .msgStr = pCont,
-            .msgLen = pHead->bodyLen,
+        SPackedData submit = {
+            .msgStr = POINTER_SHIFT(pHead->body, sizeof(SMsgHead)),
+            .msgLen = pHead->bodyLen - sizeof(SMsgHead),
             .ver = pHead->version,
         };
         if (tqTaosxScanLog(pTq, pHandle, submit, &taosxRsp) < 0) {
@@ -953,7 +951,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     pTask->smaSink.smaSink = smaHandleRes;
   } else if (pTask->outputType == TASK_OUTPUT__TABLE) {
     pTask->tbSink.vnode = pTq->pVnode;
-    pTask->tbSink.tbSinkFunc = tqSinkToTablePipeline;
+    pTask->tbSink.tbSinkFunc = tqSinkToTablePipeline2;
 
     ASSERT(pTask->tbSink.pSchemaWrapper);
     ASSERT(pTask->tbSink.pSchemaWrapper->pSchema);
@@ -1334,12 +1332,12 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   return 0;
 }
 
-int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
-  void*              pIter = NULL;
-  bool               failed = false;
-  SStreamDataSubmit* pSubmit = NULL;
+int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
+  void*               pIter = NULL;
+  bool                failed = false;
+  SStreamDataSubmit2* pSubmit = NULL;
 
-  pSubmit = streamDataSubmitNew(pReq);
+  pSubmit = streamDataSubmitNew(submit);
   if (pSubmit == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tqError("failed to create data submit for stream since out of memory");
@@ -1356,7 +1354,7 @@ int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
       continue;
     }
 
-    tqDebug("data submit enqueue stream task: %d, ver: %" PRId64, pTask->taskId, ver);
+    tqDebug("data submit enqueue stream task: %d, ver: %" PRId64, pTask->taskId, submit.ver);
 
     if (!failed) {
       if (streamTaskInput(pTask, (SStreamQueueItem*)pSubmit) < 0) {

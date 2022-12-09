@@ -750,29 +750,23 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
 }
 
 void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
-  const SArray*   pBlocks = (const SArray*)data;
-  SVnode*         pVnode = (SVnode*)vnode;
-  int64_t         suid = pTask->tbSink.stbUid;
-  char*           stbFullName = pTask->tbSink.stbFullName;
-  STSchema*       pTSchema = pTask->tbSink.pTSchema;
-  SSchemaWrapper* pSchemaWrapper = pTask->tbSink.pSchemaWrapper;
+  const SArray* pBlocks = (const SArray*)data;
+  SVnode*       pVnode = (SVnode*)vnode;
+  int64_t       suid = pTask->tbSink.stbUid;
+  char*         stbFullName = pTask->tbSink.stbFullName;
+  STSchema*     pTSchema = pTask->tbSink.pTSchema;
+  /*SSchemaWrapper* pSchemaWrapper = pTask->tbSink.pSchemaWrapper;*/
 
   int32_t blockSz = taosArrayGetSize(pBlocks);
 
   tqDebug("vgId:%d, task %d write into table, block num: %d", TD_VID(pVnode), pTask->taskId, blockSz);
 
   void*        pBuf = NULL;
-  int32_t      len = 0;
   SSubmitReq2* pReq = NULL;
   SArray*      tagArray = NULL;
-  SArray*      createTbArray = NULL;
   SArray*      pVals = NULL;
 
   if (!(tagArray = taosArrayInit(1, sizeof(STagVal)))) {
-    goto _end;
-  }
-
-  if (!(createTbArray = taosArrayInit(blockSz, POINTER_BYTES))) {
     goto _end;
   }
 
@@ -786,7 +780,6 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
   }
 
   for (int32_t i = 0; i < blockSz; i++) {
-    bool         createTb = true;
     SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
     if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
       SBatchDeleteReq deleteReq = {0};
@@ -824,94 +817,103 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         tqDebug("failed to put delete req into write-queue since %s", terrstr());
       }
     } else {
-      // create table req
-      if (createTb) {
-        for (int32_t i = 0; i < blockSz; ++i) {
-          SSDataBlock*   pDataBlock = taosArrayGet(pBlocks, i);
-          SVCreateTbReq* pCreateTbReq = NULL;
-          if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
-            taosArrayPush(createTbArray, &pCreateTbReq);
-            continue;
-          }
-
-          if (!(pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateStbReq)))) {
-            goto _end;
-          };
-
-          // don't move to the end of loop as to destroy in the end of func when error occur
-          taosArrayPush(createTbArray, &pCreateTbReq);
-
-          // set const
-          pCreateTbReq->flags = 0;
-          pCreateTbReq->type = TSDB_CHILD_TABLE;
-          pCreateTbReq->ctb.suid = suid;
-
-          // set super table name
-          SName name = {0};
-          tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-          pCreateTbReq->ctb.stbName = strdup((char*)tNameGetTableName(&name));  // strdup(stbFullName);
-
-          // set tag content
-          taosArrayClear(tagArray);
-          STagVal tagVal = {
-              .cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1,
-              .type = TSDB_DATA_TYPE_UBIGINT,
-              .i64 = (int64_t)pDataBlock->info.id.groupId,
-          };
-          taosArrayPush(tagArray, &tagVal);
-          pCreateTbReq->ctb.tagNum = taosArrayGetSize(tagArray);
-
-          STag* pTag = NULL;
-          tTagNew(tagArray, 1, false, &pTag);
-          if (pTag == NULL) {
-            terrno = TSDB_CODE_OUT_OF_MEMORY;
-            goto _end;
-          }
-          pCreateTbReq->ctb.pTag = (uint8_t*)pTag;
-
-          // set tag name
-          SArray* tagName = taosArrayInit(1, TSDB_COL_NAME_LEN);
-          char    tagNameStr[TSDB_COL_NAME_LEN] = {0};
-          strcpy(tagNameStr, "group_id");
-          taosArrayPush(tagName, tagNameStr);
-          pCreateTbReq->ctb.tagName = tagName;
-
-          // set table name
-          if (pDataBlock->info.parTbName[0]) {
-            pCreateTbReq->name = strdup(pDataBlock->info.parTbName);
-          } else {
-            pCreateTbReq->name = buildCtbNameByGroupId(stbFullName, pDataBlock->info.id.groupId);
-          }
-        }
-      }
-
-      // SSubmitTbData req
-      int32_t rows = pDataBlock->info.rows;
-
-      SSubmitTbData* pTbData = (SSubmitTbData*)taosMemoryCalloc(1, sizeof(SSubmitTbData));
-      if (!pTbData) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        goto _end;
-      }
-
-      if (!(pTbData->aRowP = taosArrayInit(rows, sizeof(SRow*)))) {
-        taosMemoryFree(pTbData);
-        goto _end;
-      }
-      pTbData->suid = suid;
-      pTbData->uid = 0;  // uid is assigned by vnode
-      pTbData->sver = pTSchema->version;
-
+      SSubmitTbData tbData = {0};
+      int32_t       rows = pDataBlock->info.rows;
       tqDebug("tq sink, convert block1 %d, rows: %d", i, rows);
 
-      if (createTb) {
-        pTbData->pCreateTbReq = taosArrayGetP(createTbArray, i);
-        if (pTbData->pCreateTbReq) pTbData->flags = SUBMIT_REQ_AUTO_CREATE_TABLE;
+      if (!(tbData.aRowP = taosArrayInit(rows, sizeof(SRow*)))) {
+        goto _end;
       }
 
+      tbData.suid = suid;
+      tbData.uid = 0;  // uid is assigned by vnode
+      tbData.sver = pTSchema->version;
+
+      char* ctbName = NULL;
+      if (pDataBlock->info.parTbName[0]) {
+        ctbName = strdup(pDataBlock->info.parTbName);
+      } else {
+        ctbName = buildCtbNameByGroupId(stbFullName, pDataBlock->info.id.groupId);
+      }
+
+      SMetaReader mr = {0};
+      metaReaderInit(&mr, pVnode->pMeta, 0);
+      if (metaGetTableEntryByName(&mr, ctbName) < 0) {
+        metaReaderClear(&mr);
+        tqDebug("vgId:%d, stream write into %s, table auto created", TD_VID(pVnode), ctbName);
+
+        SVCreateTbReq* pCreateTbReq = NULL;
+
+        if (!(pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateStbReq)))) {
+          goto _end;
+        };
+
+        // set const
+        pCreateTbReq->flags = 0;
+        pCreateTbReq->type = TSDB_CHILD_TABLE;
+        pCreateTbReq->ctb.suid = suid;
+
+        // set super table name
+        SName name = {0};
+        tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+        pCreateTbReq->ctb.stbName = strdup((char*)tNameGetTableName(&name));  // strdup(stbFullName);
+
+        // set tag content
+        taosArrayClear(tagArray);
+        STagVal tagVal = {
+            .cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1,
+            .type = TSDB_DATA_TYPE_UBIGINT,
+            .i64 = (int64_t)pDataBlock->info.id.groupId,
+        };
+        taosArrayPush(tagArray, &tagVal);
+        pCreateTbReq->ctb.tagNum = taosArrayGetSize(tagArray);
+
+        STag* pTag = NULL;
+        tTagNew(tagArray, 1, false, &pTag);
+        if (pTag == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          goto _end;
+        }
+        pCreateTbReq->ctb.pTag = (uint8_t*)pTag;
+
+        // set tag name
+        SArray* tagName = taosArrayInit(1, TSDB_COL_NAME_LEN);
+        char    tagNameStr[TSDB_COL_NAME_LEN] = {0};
+        strcpy(tagNameStr, "group_id");
+        taosArrayPush(tagName, tagNameStr);
+        pCreateTbReq->ctb.tagName = tagName;
+
+        // set table name
+        pCreateTbReq->name = ctbName;
+        ctbName = NULL;
+
+        tbData.pCreateTbReq = pCreateTbReq;
+        tbData.flags = SUBMIT_REQ_AUTO_CREATE_TABLE;
+      } else {
+        if (mr.me.type != TSDB_CHILD_TABLE) {
+          tqError("vgId:%d, failed to write into %s, since table type incorrect, type %d", TD_VID(pVnode), ctbName,
+                  mr.me.type);
+          metaReaderClear(&mr);
+          taosMemoryFree(ctbName);
+          continue;
+        }
+
+        if (mr.me.ctbEntry.suid != suid) {
+          tqError("vgId:%d, failed to write into %s, since suid mismatch, expect suid: %" PRId64
+                  ", actual suid %" PRId64 "",
+                  TD_VID(pVnode), ctbName, suid, mr.me.ctbEntry.suid);
+          metaReaderClear(&mr);
+          taosMemoryFree(ctbName);
+        }
+
+        tbData.uid = mr.me.uid;
+        metaReaderClear(&mr);
+        taosMemoryFreeClear(ctbName);
+      }
+
+      // rows
       if (!pVals && !(pVals = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal)))) {
-        taosArrayDestroy(pTbData->aRowP);
-        taosMemoryFree(pTbData);
+        taosArrayDestroy(tbData.aRowP);
         goto _end;
       }
 
@@ -924,14 +926,15 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
             SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
             taosArrayPush(pVals, &cv);
           } else {
-            void* data = colDataGetData(pColData, j);
+            void* colData = colDataGetData(pColData, j);
             if (IS_STR_DATA_TYPE(pCol->type)) {
-              SValue  sv = (SValue){.nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
+              SValue sv =
+                  (SValue){.nData = varDataLen(colData), .pData = varDataVal(colData)};  // address copy, no value
               SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, sv);
               taosArrayPush(pVals, &cv);
             } else {
               SValue sv;
-              memcpy(&sv.val, data, tDataTypes[pCol->type].bytes);
+              memcpy(&sv.val, colData, tDataTypes[pCol->type].bytes);
               SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, sv);
               taosArrayPush(pVals, &cv);
             }
@@ -939,16 +942,17 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         }
         SRow* pRow = NULL;
         if ((terrno = tRowBuild(pVals, (STSchema*)pTSchema, &pRow)) < 0) {
-          tDestroySSubmitTbData(pTbData, TSDB_MSG_FLG_ENCODE);
+          tDestroySSubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
           goto _end;
         }
         ASSERT(pRow);
-        taosArrayPush(pTbData->aRowP, &pRow);
+        taosArrayPush(tbData.aRowP, &pRow);
       }
 
-      taosArrayPush(pReq->aSubmitTbData, pTbData);
+      taosArrayPush(pReq->aSubmitTbData, &tbData);
 
       // encode
+      int32_t len;
       int32_t code;
       tEncodeSize(tEncodeSSubmitReq2, pReq, len, code);
       SEncoder encoder;
@@ -957,19 +961,22 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
       if (NULL == pBuf) {
         goto _end;
       }
-      ((SMsgHead*)pBuf)->vgId = htonl(TD_VID(pVnode));
+      ((SMsgHead*)pBuf)->vgId = TD_VID(pVnode);
       ((SMsgHead*)pBuf)->contLen = htonl(len);
       tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len - sizeof(SMsgHead));
       if (tEncodeSSubmitReq2(&encoder, pReq) < 0) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         tqError("failed to encode submit req since %s", terrstr());
+        tEncoderClear(&encoder);
+        rpcFreeCont(pBuf);
+        continue;
       }
       tEncoderClear(&encoder);
 
       SRpcMsg msg = {
           .msgType = TDMT_VND_SUBMIT,
           .pCont = pBuf,
-          .contLen = ntohl(len),
+          .contLen = len,
       };
 
       if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
@@ -982,6 +989,7 @@ _end:
   taosArrayDestroy(pVals);
   // TODO: change
   tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+  taosMemoryFree(pReq);
 }
 
 #if 0

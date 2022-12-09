@@ -23,6 +23,8 @@
 #define _DEFAULT_SOURCE
 #include "ttime.h"
 
+#include "tlog.h"
+
 /*
  * mktime64 - Converts date to seconds.
  * Converts Gregorian date to seconds since 1970-01-01 00:00:00.
