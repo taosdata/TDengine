@@ -79,7 +79,6 @@ char*       syncUtilPrintBin2(char* ptr, uint32_t len);
 void        syncUtilMsgHtoN(void* msg);
 void        syncUtilMsgNtoH(void* msg);
 bool        syncUtilUserPreCommit(tmsg_t msgType);
-bool        syncUtilUserCommit(tmsg_t msgType);
 bool        syncUtilUserRollback(tmsg_t msgType);
 
 void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNode* pNode, const char* format, ...);

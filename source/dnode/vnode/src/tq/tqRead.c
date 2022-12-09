@@ -252,7 +252,7 @@ END:
 }
 
 STqReader* tqOpenReader(SVnode* pVnode) {
-  STqReader* pReader = taosMemoryMalloc(sizeof(STqReader));
+  STqReader* pReader = taosMemoryCalloc(1, sizeof(STqReader));
   if (pReader == NULL) {
     return NULL;
   }
@@ -306,7 +306,7 @@ int32_t tqSeekVer(STqReader* pReader, int64_t ver) {
 }
 
 int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
-  bool fromProcessedMsg = pReader->pMsg != NULL;
+  bool fromProcessedMsg = pReader->msg2.msgStr != NULL;
 
   while (1) {
     if (!fromProcessedMsg) {
@@ -320,8 +320,8 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
         ASSERT(ret->offset.version >= 0);
         return -1;
       }
-      void*   body = pReader->pWalReader->pHead->head.body;
-      int32_t bodyLen = pReader->pWalReader->pHead->head.bodyLen;
+      void*   body = POINTER_SHIFT(pReader->pWalReader->pHead->head.body, sizeof(SMsgHead));
+      int32_t bodyLen = pReader->pWalReader->pHead->head.bodyLen - sizeof(SMsgHead);
       int64_t ver = pReader->pWalReader->pHead->head.version;
 #if 0
       if (pReader->pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) {
@@ -381,15 +381,24 @@ int32_t tqReaderSetDataMsg(STqReader* pReader, const SSubmitReq* pMsg, int64_t v
 
 int32_t tqReaderSetSubmitReq2(STqReader* pReader, void* msgStr, int32_t msgLen, int64_t ver) {
   ASSERT(pReader->msg2.msgStr == NULL);
+  ASSERT(msgStr);
+  ASSERT(msgLen);
+  ASSERT(ver >= 0);
   pReader->msg2.msgStr = msgStr;
   pReader->msg2.msgLen = msgLen;
   pReader->msg2.ver = ver;
+  pReader->ver = ver;
 
-  if (pReader->pSubmit == NULL) {
+  tqDebug("tq reader set msg %p %d", msgStr, msgLen);
+
+  if (pReader->setMsg == 0) {
     SDecoder decoder;
     tDecoderInit(&decoder, pReader->msg2.msgStr, pReader->msg2.msgLen);
-    tDecodeSSubmitReq2(&decoder, pReader->pSubmit);
+    if (tDecodeSSubmitReq2(&decoder, &pReader->submit) < 0) {
+      ASSERT(0);
+    }
     tDecoderClear(&decoder);
+    pReader->setMsg = 1;
   }
   return 0;
 }
@@ -422,21 +431,27 @@ bool tqNextDataBlock(STqReader* pReader) {
 
 bool tqNextDataBlock2(STqReader* pReader) {
   if (pReader->msg2.msgStr == NULL) return false;
-  ASSERT(pReader->pSubmit != NULL);
+  ASSERT(pReader->setMsg == 1);
 
-  int32_t blockSz = taosArrayGetSize(pReader->pSubmit->aSubmitTbData);
+  tqDebug("tq reader next data block %p, %d %" PRId64 " %d", pReader->msg2.msgStr, pReader->msg2.msgLen,
+          pReader->msg2.ver, pReader->nextBlk);
+
+  int32_t blockSz = taosArrayGetSize(pReader->submit.aSubmitTbData);
   while (pReader->nextBlk < blockSz) {
-    SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->pSubmit->aSubmitTbData, pReader->nextBlk);
+    SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
+    ASSERT(pSubmitTbData->uid);
+
     if (pReader->tbIdHash == NULL) return true;
 
     void* ret = taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t));
     if (ret != NULL) {
       return true;
     }
+    pReader->nextBlk++;
   }
 
-  tDestroySSubmitReq2(pReader->pSubmit, TSDB_MSG_FLG_DECODE);
-  pReader->pSubmit = NULL;
+  tDestroySSubmitReq2(&pReader->submit, TSDB_MSG_FLG_DECODE);
+  pReader->setMsg = 0;
   pReader->nextBlk = 0;
   pReader->msg2.msgStr = NULL;
 
@@ -445,11 +460,11 @@ bool tqNextDataBlock2(STqReader* pReader) {
 
 bool tqNextDataBlockFilterOut2(STqReader* pReader, SHashObj* filterOutUids) {
   if (pReader->msg2.msgStr == NULL) return false;
-  ASSERT(pReader->pSubmit != NULL);
+  ASSERT(pReader->setMsg == 1);
 
-  int32_t blockSz = taosArrayGetSize(pReader->pSubmit->aSubmitTbData);
+  int32_t blockSz = taosArrayGetSize(pReader->submit.aSubmitTbData);
   while (pReader->nextBlk < blockSz) {
-    SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->pSubmit->aSubmitTbData, pReader->nextBlk);
+    SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
     if (pReader->tbIdHash == NULL) return true;
 
     void* ret = taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t));
@@ -458,8 +473,8 @@ bool tqNextDataBlockFilterOut2(STqReader* pReader, SHashObj* filterOutUids) {
     }
   }
 
-  tDestroySSubmitReq2(pReader->pSubmit, TSDB_MSG_FLG_DECODE);
-  pReader->pSubmit = NULL;
+  tDestroySSubmitReq2(&pReader->submit, TSDB_MSG_FLG_DECODE);
+  pReader->setMsg = 0;
   pReader->nextBlk = 0;
   pReader->msg2.msgStr = NULL;
 
@@ -548,10 +563,12 @@ int32_t tqScanSubmitSplit(SArray* pBlocks, SArray* schemas, STqReader* pReader) 
 #endif
 
 int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader) {
-  int32_t blockSz = taosArrayGetSize(pReader->pSubmit->aSubmitTbData);
+  int32_t blockSz = taosArrayGetSize(pReader->submit.aSubmitTbData);
   ASSERT(pReader->nextBlk < blockSz);
 
-  SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->pSubmit->aSubmitTbData, pReader->nextBlk);
+  tqDebug("tq reader retrieve data block %p, %d", pReader->msg2.msgStr, pReader->nextBlk);
+
+  SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
   pReader->nextBlk++;
 
   int32_t sversion = pSubmitTbData->sver;
@@ -666,14 +683,32 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader) {
         } else if (pCol->cid == pColData->info.colId) {
           for (int32_t i = 0; i < pCol->nVal; i++) {
             tColDataGetValue(pCol, sourceIdx, &colVal);
+#if 0
             void* val = NULL;
             if (IS_STR_DATA_TYPE(colVal.type)) {
               val = colVal.value.pData;
             } else {
               val = &colVal.value.val;
             }
-            if (colDataAppend(pColData, i, val, colVal.type != TD_VTYPE_NORM) < 0) {
+            if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
               goto FAIL;
+            }
+#endif
+            if (IS_STR_DATA_TYPE(colVal.type)) {
+              if (colVal.value.pData != NULL) {
+                char val[65535 + 2];
+                memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
+                varDataSetLen(val, colVal.value.nData);
+                if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+                  goto FAIL;
+                }
+              } else {
+                colDataAppendNULL(pColData, i);
+              }
+            } else {
+              if (colDataAppend(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+                goto FAIL;
+              }
             }
           }
           sourceIdx++;
@@ -686,14 +721,14 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader) {
       SArray* pRows = pSubmitTbData->aRowP;
 
       for (int32_t i = 0; i < numOfRows; i++) {
-        SRow*   pRow = taosArrayGet(pRows, i);
+        SRow*   pRow = taosArrayGetP(pRows, i);
         int32_t targetIdx = 0;
         int32_t sourceIdx = 0;
 
         for (int32_t j = 0; j < colActual; j++) {
           SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, j);
           while (1) {
-            ASSERT(sourceIdx < numOfRows);
+            ASSERT(sourceIdx < pTschema->numOfCols);
 
             SColVal colVal;
             tRowGet(pRow, pTschema, sourceIdx, &colVal);
@@ -701,14 +736,22 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader) {
               sourceIdx++;
               continue;
             } else if (colVal.cid == pColData->info.colId) {
-              void* val = NULL;
               if (IS_STR_DATA_TYPE(colVal.type)) {
-                val = colVal.value.pData;
+                if (colVal.value.pData != NULL) {
+                  char val[65535 + 2];
+                  memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
+                  varDataSetLen(val, colVal.value.nData);
+                  if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+                    goto FAIL;
+                  }
+                } else {
+                  colDataAppendNULL(pColData, i);
+                }
+                /*val = colVal.value.pData;*/
               } else {
-                val = &colVal.value.val;
-              }
-              if (colDataAppend(pColData, i, val, colVal.type != TD_VTYPE_NORM) < 0) {
-                goto FAIL;
+                if (colDataAppend(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+                  goto FAIL;
+                }
               }
 
               sourceIdx++;

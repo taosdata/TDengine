@@ -88,11 +88,13 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   }
 #ifdef WINDOWS
   if (strlen(path) == 0) {
-    strcat(path, "udfd.exe");
-  } else {
-    strcat(path, "\\udfd.exe");
+    strcat(path, "C:\\TDengine");
   }
+  strcat(path, "\\udfd.exe");
 #else
+  if (strlen(path) == 0) {
+    strcat(path, "/usr/bin");
+  }
   strcat(path, "/udfd");
 #endif
   char *argsUdfd[] = {path, "-c", configDir, NULL};

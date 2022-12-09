@@ -53,6 +53,7 @@ typedef struct {
   // --------------
   TSKEY   nextKey;  // reset by each table commit
   int32_t commitFid;
+  int32_t expLevel;
   TSKEY   minKey;
   TSKEY   maxKey;
   // commit file data
@@ -503,6 +504,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
 
   // memory
   pCommitter->commitFid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
+  pCommitter->expLevel = tsdbFidLevel(pCommitter->commitFid, &pCommitter->pTsdb->keepCfg, taosGetTimestampSec());
   tsdbFidKeyRange(pCommitter->commitFid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
                   &pCommitter->maxKey);
 #if 0
@@ -556,7 +558,10 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
     }
   } else {
     SDiskID did = {0};
-    tfsAllocDisk(pTsdb->pVnode->pTfs, 0, &did);
+    if (tfsAllocDisk(pTsdb->pVnode->pTfs, pCommitter->expLevel, &did) < 0) {
+      code = terrno;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
     tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, did);
     wSet.diskId = did;
     wSet.nSttF = 1;

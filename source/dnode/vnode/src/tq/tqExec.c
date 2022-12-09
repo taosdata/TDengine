@@ -215,7 +215,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
   return 0;
 }
 
-int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedSubmit submit, STaosxRsp* pRsp) {
+int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp) {
   STqExecHandle* pExec = &pHandle->execHandle;
   ASSERT(pExec->subType != TOPIC_SUB_TYPE__COLUMN);
 

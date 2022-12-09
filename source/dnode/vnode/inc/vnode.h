@@ -174,7 +174,7 @@ int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableL
 void         tsdbReaderClose(STsdbReader *pReader);
 bool         tsdbNextDataBlock(STsdbReader *pReader);
 void         tsdbRetrieveDataBlockInfo(const STsdbReader *pReader, int32_t *rows, uint64_t *uid, STimeWindow *pWindow);
-int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SColumnDataAgg ***pBlockSMA, bool *allHave);
+int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock* pDataBlock, bool *allHave);
 SSDataBlock *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
 int32_t      tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
 int32_t      tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
@@ -220,22 +220,18 @@ typedef struct SSnapContext {
   bool      queryMetaOrData;  // true-get meta, false-get data
 } SSnapContext;
 
-typedef struct {
-  void   *msgStr;
-  int32_t msgLen;
-  int64_t ver;
-} SPackedSubmit;
-
 typedef struct STqReader {
-  const SSubmitReq *pMsg;
-  //  SSubmitBlk       *pBlock;
-  //  SSubmitMsgIter    msgIter;
-  //  SSubmitBlkIter    blkIter;
+  // const SSubmitReq *pMsg;
+  //   SSubmitBlk       *pBlock;
+  //   SSubmitMsgIter    msgIter;
+  //   SSubmitBlkIter    blkIter;
 
-  int64_t       ver;
-  SPackedSubmit msg2;
-  SSubmitReq2  *pSubmit;
-  int32_t       nextBlk;
+  int64_t     ver;
+  SPackedData msg2;
+
+  int8_t      setMsg;
+  SSubmitReq2 submit;
+  int32_t     nextBlk;
 
   int64_t lastBlkUid;
 

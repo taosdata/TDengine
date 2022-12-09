@@ -2246,23 +2246,17 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
       continue;
     }
 
-    SSubmitTbData* pTbData = (SSubmitTbData*)taosMemoryCalloc(1, sizeof(SSubmitTbData));
-    if (!pTbData) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      goto _end;
-    }
+    SSubmitTbData tbData = {0};
 
-    if (!(pTbData->aRowP = taosArrayInit(rows, sizeof(SRow*)))) {
-      taosMemoryFree(pTbData);
+    if (!(tbData.aRowP = taosArrayInit(rows, sizeof(SRow*)))) {
       goto _end;
     }
-    pTbData->suid = suid;
-    pTbData->uid = pDataBlock->info.id.groupId;
-    pTbData->sver = pTSchema->version;
+    tbData.suid = suid;
+    tbData.uid = pDataBlock->info.id.groupId;
+    tbData.sver = pTSchema->version;
 
     if (!pVals && !(pVals = taosArrayInit(colNum, sizeof(SColVal)))) {
-      taosArrayDestroy(pTbData->aRowP);
-      taosMemoryFree(pTbData);
+      taosArrayDestroy(tbData.aRowP);
       goto _end;
     }
 
@@ -2360,14 +2354,14 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
       }
       SRow* pRow = NULL;
       if ((terrno = tRowBuild(pVals, pTSchema, &pRow)) < 0) {
-        tDestroySSubmitTbData(pTbData, TSDB_MSG_FLG_ENCODE);
+        tDestroySSubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
         goto _end;
       }
       ASSERT(pRow);
-      taosArrayPush(pTbData->aRowP, &pRow);
+      taosArrayPush(tbData.aRowP, &pRow);
     }
 
-    taosArrayPush(pReq->aSubmitTbData, pTbData);
+    taosArrayPush(pReq->aSubmitTbData, &tbData);
   }
 _end:
   taosArrayDestroy(pVals);

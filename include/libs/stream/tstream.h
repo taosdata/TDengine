@@ -103,6 +103,7 @@ typedef struct {
   int8_t type;
 } SStreamQueueItem;
 
+#if 0
 typedef struct {
   int8_t      type;
   int64_t     ver;
@@ -116,6 +117,21 @@ typedef struct {
   SArray* dataRefs;  // SArray<int32_t*>
   SArray* reqs;      // SArray<SSubmitReq*>
 } SStreamMergedSubmit;
+#endif
+
+typedef struct {
+  int8_t      type;
+  int64_t     ver;
+  int32_t*    dataRef;
+  SPackedData submit;
+} SStreamDataSubmit2;
+
+typedef struct {
+  int8_t  type;
+  int64_t ver;
+  SArray* dataRefs;  // SArray<int32_t*>
+  SArray* submits;   // SArray<SPackedSubmit>
+} SStreamMergedSubmit2;
 
 typedef struct {
   int8_t type;
@@ -219,11 +235,11 @@ static FORCE_INLINE void* streamQueueNextItem(SStreamQueue* queue) {
   }
 }
 
-SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq);
+SStreamDataSubmit2* streamDataSubmitNew(SPackedData submit);
 
-void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit);
+void streamDataSubmitRefDec(SStreamDataSubmit2* pDataSubmit);
 
-SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit);
+SStreamDataSubmit2* streamSubmitRefClone(SStreamDataSubmit2* pSubmit);
 
 typedef struct {
   char* qmsg;
@@ -355,14 +371,15 @@ void         tFreeSStreamTask(SStreamTask* pTask);
 
 static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
-    SStreamDataSubmit* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit*)pItem);
+    SStreamDataSubmit2* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit2*)pItem);
     if (pSubmitClone == NULL) {
       qDebug("task %d %p submit enqueue failed since out of memory", pTask->taskId, pTask);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
       return -1;
     }
-    qDebug("task %d %p submit enqueue %p %p %p", pTask->taskId, pTask, pItem, pSubmitClone, pSubmitClone->data);
+    qDebug("task %d %p submit enqueue %p %p %p %d %" PRId64, pTask->taskId, pTask, pItem, pSubmitClone,
+           pSubmitClone->submit.msgStr, pSubmitClone->submit.msgLen, pSubmitClone->submit.ver);
     taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
     // qStreamInput(pTask->exec.executor, pSubmitClone);
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE ||

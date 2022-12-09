@@ -1030,17 +1030,22 @@ static int32_t tRowAppendKVToColData(SRow *pRow, STSchema *pTSchema, SColData *a
           }
 
           int16_t cid;
-          pData += tGetI16(pData, &cid);
+          pData += tGetI16v(pData, &cid);
 
           if (TABS(cid) == pTColumn->colId) {
             if (cid < 0) {
               code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
               if (code) goto _exit;
             } else {
-              uint32_t nData;
-              pData += tGetU32v(pData, &nData);
-              code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, nData);
-              if (code) goto _exit;
+              if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+                uint32_t nData;
+                pData += tGetU32v(pData, &nData);
+                code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, nData);
+                if (code) goto _exit;
+              } else {
+                code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, 0);
+                if (code) goto _exit;
+              }
             }
             iCol++;
             goto _continue;
