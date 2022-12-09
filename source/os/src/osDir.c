@@ -394,8 +394,8 @@ char *taosDirEntryBaseName(char *name) {
   char *pPoint = strrchr(name, '/');
   if (pPoint != NULL) {
     if (*(pPoint + 1) == '\0') {
-        *pPoint = '\0';
-        return taosDirEntryBaseName(name);
+      *pPoint = '\0';
+      return taosDirEntryBaseName(name);
     }
     return pPoint + 1;
   }
@@ -500,8 +500,9 @@ int32_t taosCloseDir(TdDirPtr *ppDir) {
 
 void taosGetCwd(char *buf, int32_t len) {
 #if !defined(WINDOWS)
-  (void)getcwd(buf, len - 1);
+  char *unused __attribute__((unused));
+  unused = getcwd(buf, len - 1);
 #else
-  strncpy(buf, "not implemented on windows", len -1);
+  strncpy(buf, "not implemented on windows", len - 1);
 #endif
 }
