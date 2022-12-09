@@ -32,15 +32,18 @@ SWalRef *walOpenRef(SWal *pWal) {
   return pRef;
 }
 
-#if 1
 void walCloseRef(SWal *pWal, int64_t refId) {
   SWalRef **ppRef = taosHashGet(pWal->pRefHash, &refId, sizeof(int64_t));
   if (ppRef == NULL) return;
   SWalRef *pRef = *ppRef;
+  if (pRef) {
+    wDebug("vgId:%d, wal close ref %" PRId64 ", refId %" PRId64, pWal->cfg.vgId, pRef->refVer, pRef->refId);
+  } else {
+    wDebug("vgId:%d, wal close ref null, refId %" PRId64, pWal->cfg.vgId, refId);
+  }
   taosHashRemove(pWal->pRefHash, &refId, sizeof(int64_t));
   taosMemoryFree(pRef);
 }
-#endif
 
 int32_t walRefVer(SWalRef *pRef, int64_t ver) {
   SWal *pWal = pRef->pWal;
