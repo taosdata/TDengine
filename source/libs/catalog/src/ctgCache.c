@@ -130,7 +130,7 @@ void ctgReleaseVgInfoToCache(SCatalog *pCtg, SCtgDBCache *dbCache) {
 }
 
 void ctgReleaseTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, SCtgTbCache *pCache) {
-  if (pCache) {
+  if (pCache && dbCache) {
     CTG_UNLOCK(CTG_READ, &pCache->metaLock);
     taosHashRelease(dbCache->tbCache, pCache);
   }
@@ -152,13 +152,15 @@ void ctgReleaseTbIndexToCache(SCatalog *pCtg, SCtgDBCache *dbCache, SCtgTbCache 
 }
 
 void ctgReleaseVgMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, SCtgTbCache *pCache) {
-  if (pCache) {
+  if (pCache && dbCache) {
     CTG_UNLOCK(CTG_READ, &pCache->metaLock);
     taosHashRelease(dbCache->tbCache, pCache);
   }
 
-  ctgRUnlockVgInfo(dbCache);
-  ctgReleaseDBCache(pCtg, dbCache);
+  if (dbCache) {
+    ctgRUnlockVgInfo(dbCache);
+    ctgReleaseDBCache(pCtg, dbCache);
+  }
 }
 
 int32_t ctgAcquireVgInfoFromCache(SCatalog *pCtg, const char *dbFName, SCtgDBCache **pCache) {
@@ -457,7 +459,8 @@ int32_t ctgTbMetaExistInCache(SCatalog *pCtg, char *dbFName, char *tbName, int32
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache *dbCache, SCtgTbCache **pTb, STableMeta **pTableMeta, char* dbFName) {
+int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCtgTbCache **pTb, STableMeta **pTableMeta, char* dbFName) {
+  SCtgDBCache *dbCache = *pDb;
   SCtgTbCache *tbCache = *pTb;
   STableMeta *tbMeta = tbCache->pMeta;
   ctx->tbInfo.inCache = true;
@@ -502,6 +505,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache *dbCache, 
   ctgAcquireStbMetaFromCache(dbCache, pCtg, dbFName, ctx->tbInfo.suid, &tbCache);
   if (NULL == tbCache) {
     taosMemoryFreeClear(*pTableMeta);
+    *pDb = NULL;
     ctgDebug("stb 0x%" PRIx64 " meta not in cache", ctx->tbInfo.suid);
     return TSDB_CODE_SUCCESS;
   }
@@ -546,7 +550,7 @@ int32_t ctgReadTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **
     return TSDB_CODE_SUCCESS;
   }
 
-  CTG_ERR_JRET(ctgCopyTbMeta(pCtg, ctx, dbCache, &tbCache, pTableMeta, dbFName));
+  CTG_ERR_JRET(ctgCopyTbMeta(pCtg, ctx, &dbCache, &tbCache, pTableMeta, dbFName));
 
   ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
 

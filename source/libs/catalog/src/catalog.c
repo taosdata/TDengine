@@ -570,7 +570,7 @@ int32_t ctgGetCachedTbVgMeta(SCatalog* pCtg, const SName* pTableName, SVgroupInf
   SCtgTbMetaCtx ctx = {0};
   ctx.pName = (SName*)pTableName;
   ctx.flag = CTG_FLAG_UNKNOWN_STB;
-  CTG_ERR_JRET(ctgCopyTbMeta(pCtg, &ctx, dbCache, &tbCache, pTableMeta, db));
+  CTG_ERR_JRET(ctgCopyTbMeta(pCtg, &ctx, &dbCache, &tbCache, pTableMeta, db));
 
 _return:
   
