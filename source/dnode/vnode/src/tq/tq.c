@@ -725,9 +725,15 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
   }
   taosWUnLockLatch(&pTq->pushLock);
 
-  code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
-  if (code != 0) {
-    tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
+  STqHandle* pHandle = taosHashGet(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
+  if (pHandle) {
+    if (pHandle->pRef) {
+      walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
+    }
+    code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
+    if (code != 0) {
+      tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
+    }
   }
 
   code = tqOffsetDelete(pTq->pOffsetStore, pReq->subKey);
@@ -736,7 +742,7 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
   }
 
   if (tqMetaDeleteHandle(pTq, pReq->subKey) < 0) {
-    ASSERT(0);
+    tqError("cannot process tq delete req %s, since no such offset in tdb", pReq->subKey);
   }
   return 0;
 }
