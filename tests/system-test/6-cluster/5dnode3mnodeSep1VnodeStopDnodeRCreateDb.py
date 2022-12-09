@@ -1,5 +1,4 @@
 from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
-from numpy import row_stack
 import taos
 import sys
 import time
@@ -31,7 +30,7 @@ class TDTestCase:
         self.TDDnodes = None
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
-
+        self.replicaVar=int(replicaVar)
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -93,31 +92,30 @@ class TDTestCase:
 
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
         tdLog.printNoPrefix("======== test case 1: ")
-        paraDict = {'dbName':     'db0_0',
+        paraDict = {'dbName':     'db',
+                    'dbNumbers':   4,
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    4,
                     'replica':    3,
                     'stbName':    'stb',
-                    'stbNumbers': 2,
+                    'stbNumbers': 100,
                     'colPrefix':  'c',
                     'tagPrefix':  't',
                     'colSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
-                    'ctbNum':     100,
-                    'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    "rowsPerTbl": 100000,
-                    "batchNum": 5000
+                    'ctbNum':     1,
                     }
 
         dnodeNumbers=int(dnodeNumbers)
+        dbNumbers=paraDict['dbNumbers']
         mnodeNums=int(mnodeNums)
+        repeatNumber = 2
         vnodeNumbers = int(dnodeNumbers-mnodeNums)
-        allctbNumbers=(paraDict['stbNumbers']*paraDict["ctbNum"])
-        rowsPerStb=paraDict["ctbNum"]*paraDict["rowsPerTbl"]
-        rowsall=rowsPerStb*paraDict['stbNumbers']
-        dbNumbers = 1
+        allDbNumbers=dbNumbers
+        allStbNumbers=(paraDict['stbNumbers']*restartNumbers)
+        paraDict['replica'] = self.replicaVar
 
         tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")
@@ -137,29 +135,23 @@ class TDTestCase:
         clusterComCheck.checkDnodes(dnodeNumbers)
 
         # create database and stable
-        clusterComCreate.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])
-        tdLog.info("Take turns stopping Mnodes ")
+
 
         tdDnodes=cluster.dnodes
         stopcount =0
         threads=[]
+        for i in range(dbNumbers):
+            dbNameIndex = '%s%d'%(paraDict["dbName"],0)
+            newTdSql=tdCom.newTdSql()
+            # a11111=paraDict["dbNumbers"]
+            # print(f"==================={dbNameIndex},{a11111}")
+            clusterComCreate.createDeltedatabases(newTdSql, dbNameIndex,repeatNumber,paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])
 
-        # create stable:stb_0
-        stableName= paraDict['stbName']
-        newTdSql=tdCom.newTdSql()
-        clusterComCreate.create_stables(newTdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])
-        #create child table:ctb_0
-        for i in range(paraDict['stbNumbers']):
-            stableName= '%s_%d'%(paraDict['stbName'],i)
-            newTdSql=tdCom.newTdSql()
-            clusterComCreate.create_ctable(newTdSql, paraDict["dbName"],stableName,stableName, paraDict['ctbNum'])
-        #insert date
-        for i in range(paraDict['stbNumbers']):
-            stableName= '%s_%d'%(paraDict['stbName'],i)
-            newTdSql=tdCom.newTdSql()
-            threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
-        for tr in threads:
-            tr.start()
+            redbNameIndex = '%s%d'%(paraDict["dbName"],100)
+            clusterComCreate.createDeltedatabases(newTdSql, redbNameIndex,1,paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])
+
+
+        tdLog.info("Take turns stopping Mnodes ")
         while stopcount < restartNumbers:
             tdLog.info(" restart loop: %d"%stopcount )
             if stopRole == "mnode":
@@ -183,31 +175,31 @@ class TDTestCase:
 
             # dnodeNumbers don't include database of schema
             if clusterComCheck.checkDnodes(dnodeNumbers):
-                tdLog.info("123")
+                tdLog.info("check dnodes status is ready")
             else:
-                print("456")
-
+                tdLog.info("check dnodes status is not ready")
                 self.stopThread(threads)
                 tdLog.exit("one or more of dnodes failed to start ")
                 # self.check3mnode()
             stopcount+=1
 
-        for tr in threads:
-            tr.join()
-        clusterComCheck.checkDnodes(dnodeNumbers)
-        clusterComCheck.checkDbRows(dbNumbers)
-        # clusterComCheck.checkDb(dbNumbers,1,paraDict["dbName"])
 
-        # tdSql.execute("use %s" %(paraDict["dbName"]))
-        tdSql.query("show %s.stables"%(paraDict["dbName"]))
-        tdSql.checkRows(paraDict["stbNumbers"])
-        for i in range(paraDict['stbNumbers']):
-            stableName= '%s.%s_%d'%(paraDict["dbName"],paraDict['stbName'],i)
-            tdSql.query("select count(*) from %s"%stableName)
-            tdSql.checkData(0,0,rowsPerStb)
+        tdLog.info("check dnode number:")
+        clusterComCheck.checkDnodes(dnodeNumbers)
+        tdSql.query("select * from information_schema.ins_databases")
+        tdLog.debug("we find %d databases but exepect to create %d  databases "%(tdSql.queryRows-2,allDbNumbers))
+
+        # tdLog.info("check DB Rows:")
+        # clusterComCheck.checkDbRows(allDbNumbers)
+        # tdLog.info("check DB Status on by on")
+        # for i in range(restartNumbers):
+        #     clusterComCheck.checkDb(paraDict['dbNumbers'],restartNumbers,dbNameIndex = '%s%d'%(paraDict["dbName"],i))
+
+
+
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=1,stopRole='dnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=2,stopRole='dnode')
 
     def stop(self):
         tdSql.close()
