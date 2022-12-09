@@ -472,6 +472,7 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
       for (int32_t i = 0; i < s; ++i) {
         SListNode** p1 = taosArrayGet(pList, i);
         tdListPopNode(&(*pEntry)->list, *p1);
+        taosMemoryFree(*p1);
       }
 
       (*pEntry)->qTimes = 0;  // reset the query times
