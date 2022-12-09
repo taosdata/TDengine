@@ -313,7 +313,7 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     assert(!(tdFileOptions & TD_FILE_EXCL));
     fp = fopen(path, mode);
     if (fp == NULL) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      // terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
     }
   } else {
@@ -336,14 +336,14 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     fd = open(path, access, S_IRWXU | S_IRWXG | S_IRWXO);
 #endif
     if (fd == -1) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      // terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
     }
   }
 
   TdFilePtr pFile = (TdFilePtr)taosMemoryMalloc(sizeof(TdFile));
   if (pFile == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    // terrno = TSDB_CODE_OUT_OF_MEMORY;
     if (fd >= 0) close(fd);
     if (fp != NULL) fclose(fp);
     return NULL;

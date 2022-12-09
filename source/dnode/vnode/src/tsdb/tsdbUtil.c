@@ -637,6 +637,7 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
     }
   } else {
     ASSERT(0);
+    return NULL;   // suppress error report by compiler
   }
 }
 

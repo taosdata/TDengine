@@ -47,6 +47,7 @@ extern "C" {
 
 #define SYNC_HEARTBEAT_SLOW_MS       1500
 #define SYNC_HEARTBEAT_REPLY_SLOW_MS 1500
+#define SYNC_SNAP_RESEND_MS          1000 * 60
 
 #define SYNC_MAX_BATCH_SIZE 1
 #define SYNC_INDEX_BEGIN    0

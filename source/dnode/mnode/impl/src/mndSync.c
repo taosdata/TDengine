@@ -119,7 +119,13 @@ int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta
 }
 
 int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
-  int32_t code = mndProcessWriteMsg(pFsm, pMsg, pMeta);
+  int32_t code = 0;
+  if (!syncUtilUserCommit(pMsg->msgType)) {
+    goto _out;
+  }
+  code = mndProcessWriteMsg(pFsm, pMsg, pMeta);
+
+_out:
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
   return code;
@@ -143,9 +149,13 @@ void mndRestoreFinish(const SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
 
   if (!pMnode->deploy) {
-    mInfo("vgId:1, sync restore finished, and will handle outstanding transactions");
-    mndTransPullup(pMnode);
-    mndSetRestored(pMnode, true);
+    if (!pMnode->restored) {
+      mInfo("vgId:1, sync restore finished, and will handle outstanding transactions");
+      mndTransPullup(pMnode);
+      mndSetRestored(pMnode, true);
+    } else {
+      mInfo("vgId:1, sync restore finished, repeat call");
+    }
   } else {
     mInfo("vgId:1, sync restore finished");
   }

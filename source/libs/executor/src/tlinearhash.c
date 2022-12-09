@@ -17,6 +17,7 @@
 #include "taoserror.h"
 #include "tdef.h"
 #include "tpagedbuf.h"
+#include "tlog.h"
 
 #define LHASH_CAP_RATIO 0.85
 

@@ -20,6 +20,7 @@
 #include <time.h>
 #include "taos.h"
 #include "types.h"
+#include "tlog.h"
 
 int smlProcess_influx_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);

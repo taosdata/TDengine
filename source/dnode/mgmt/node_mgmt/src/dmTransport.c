@@ -301,6 +301,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
+  rpcInit.compressSize = tsCompressMsgSize;
 
   pTrans->serverRpc = rpcOpen(&rpcInit);
   if (pTrans->serverRpc == NULL) {
