@@ -285,6 +285,7 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
     }
     destroyCmsg(msg);
   }
+  memset(conn->ctx, 0, sizeof(conn->ctx));
 }
 bool cliMaySendCachedMsg(SCliConn* conn) {
   if (!transQueueEmpty(&conn->cliMsgs)) {
