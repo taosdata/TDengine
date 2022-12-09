@@ -331,6 +331,12 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   int32_t code = 0;
   SVnode *pVnode = pWriter->pVnode;
 
+  // prepare
+  if (pWriter->pTsdbSnapWriter) {
+    tsdbSnapWriterPrepareClose(pWriter->pTsdbSnapWriter);
+  }
+
+  // commit json
   if (!rollback) {
     pVnode->config = pWriter->info.config;
     pVnode->state = (SVState){.committed = pWriter->info.state.committed,
@@ -351,6 +357,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     vnodeRollback(pWriter->pVnode);
   }
 
+  // commit/rollback sub-system
   if (pWriter->pMetaSnapWriter) {
     code = metaSnapWriterClose(&pWriter->pMetaSnapWriter, rollback);
     if (code) goto _exit;
