@@ -401,9 +401,13 @@ pub async fn tmq_to_td(
                 .await
             });
             handles.push(handle);
+            log::info!("spawn consuming task with id {task_id}", );
+
             task_id += 1;
         }
     }
+
+    log::info!("spawn consuming tasks {}", handles.len());
     for handle in handles {
         let _ = handle.await??;
     }
