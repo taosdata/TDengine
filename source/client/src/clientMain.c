@@ -802,7 +802,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
          tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
-    pWrapper->pCatalogReq->forceUpdate = false;
+    //pWrapper->pCatalogReq->forceUpdate = false;
     code = qContinueParseSql(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
 
@@ -883,6 +883,11 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
     code = pRequest->prevCode;
+    terrno = code;
+    pRequest->code = code;
+    tscDebug("call sync query cb with code: %s", tstrerror(code));
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    return;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -933,6 +938,17 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code, tstrerror(code),
              pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
+    qDestroyQuery(pRequest->pQuery);
+    pRequest->pQuery = NULL;
+
+    if (NEED_CLIENT_HANDLE_ERROR(code)) {
+      tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
+               pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
+      pRequest->prevCode = code;
+      doAsyncQuery(pRequest, true);
+      return;
+    }
+
     terrno = code;
     pRequest->code = code;
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
