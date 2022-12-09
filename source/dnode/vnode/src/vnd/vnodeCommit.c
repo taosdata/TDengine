@@ -16,11 +16,9 @@
 #include "vnd.h"
 #include "vnodeInt.h"
 
-#define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
 static int vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
-static int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo);
 static int vnodeCommitImpl(SCommitInfo *pInfo);
 
 int vnodeBegin(SVnode *pVnode) {
@@ -407,7 +405,7 @@ _err:
   return -1;
 }
 
-static int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo) {
+int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo) {
   SJson *pJson = NULL;
 
   pJson = tjsonParse(pData);

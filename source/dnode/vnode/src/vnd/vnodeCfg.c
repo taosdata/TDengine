@@ -135,9 +135,6 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
     tjsonAddItemToArray(pNodeInfoArr, pNodeInfo);
   }
 
-  // add tsdb page size config
-  if (tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize) < 0) return -1;
-
   return 0;
 }
 

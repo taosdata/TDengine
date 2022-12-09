@@ -87,11 +87,14 @@ typedef struct SCommitInfo        SCommitInfo;
 #define VNODE_RSMA1_DIR "rsma1"
 #define VNODE_RSMA2_DIR "rsma2"
 
+#define VND_INFO_FNAME "vnode.json"
+
 // vnd.h
 void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
 void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
 void  vnodeBufPoolRef(SVBufPool* pPool);
 void  vnodeBufPoolUnRef(SVBufPool* pPool);
+int   vnodeDecodeInfo(uint8_t* pData, SVnodeInfo* pInfo);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;
