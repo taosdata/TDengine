@@ -882,6 +882,8 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
     code = pRequest->prevCode;
     terrno = code;
+    pRequest->code = code;
+    tscDebug("call sync query cb with code: %s", tstrerror(code));
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
     return;
   }
