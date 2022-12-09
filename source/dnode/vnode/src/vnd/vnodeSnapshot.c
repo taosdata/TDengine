@@ -382,7 +382,7 @@ _exit:
     vInfo("vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
     taosMemoryFree(pWriter);
   }
-  tsem_wait(&pVnode->canCommit);
+  tsem_post(&pVnode->canCommit);
   return code;
 }
 
