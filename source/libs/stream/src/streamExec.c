@@ -54,6 +54,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
       /*ASSERT(false);*/
       qError("unexpected stream execution, stream %" PRId64 " task: %d,  since %s", pTask->streamId, pTask->taskId,
              terrstr());
+      continue;
     }
     if (output == NULL) {
       if (pItem->type == STREAM_INPUT__DATA_RETRIEVE) {

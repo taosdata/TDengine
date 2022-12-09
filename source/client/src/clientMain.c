@@ -21,12 +21,12 @@
 #include "os.h"
 #include "query.h"
 #include "scheduler.h"
+#include "tdatablock.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
 #include "version.h"
-#include "tdatablock.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -177,6 +177,8 @@ void taos_free_result(TAOS_RES *res) {
   if (NULL == res) {
     return;
   }
+
+  tscDebug("taos free res %p", res);
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
@@ -796,7 +798,8 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
   SQuery              *pQuery = pRequest->pQuery;
 
   pRequest->metric.ctgEnd = taosGetTimestampUs();
-  qDebug("0x%" PRIx64 " start to continue parse, reqId:0x%" PRIx64 ", code:%s", pRequest->self, pRequest->requestId, tstrerror(code));
+  qDebug("0x%" PRIx64 " start to continue parse, reqId:0x%" PRIx64 ", code:%s", pRequest->self, pRequest->requestId,
+         tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
     pWrapper->pCatalogReq->forceUpdate = false;
