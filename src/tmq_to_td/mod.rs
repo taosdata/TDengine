@@ -187,6 +187,7 @@ async fn sync(
     cancel: CancellationToken,
     metrics: Arc<TmqMetrics>,
 ) -> Result<()> {
+    log::info!("[id] task start");
     let mut stream = consumer.stream();
     let mut rows = 0;
     let target_is_v3 = taos
@@ -222,6 +223,7 @@ async fn sync(
             }
         }
     }
+    log::info!("[id] task done");
 
     // while let Some((offset, message)) = stream.try_next().await? {}
     Ok(())
@@ -305,10 +307,14 @@ pub async fn tmq_to_td(
         metrics
             .workers
             .fetch_add(jobs as _, std::sync::atomic::Ordering::SeqCst);
+        let mut target_dsn = to.clone();
+        target_dsn.subject.replace(target_database.to_string());
+        let target = TaosBuilder::from_dsn(target_dsn)?.pool()?;
+
         if let Some(table) = topic.table.as_ref() {
             // schema rebuild
             let taos = target.get()?;
-            taos.exec(format!("use `{target_database}`")).await?;
+            // taos.exec(format!("use `{target_database}`")).await?;
 
             if let Some(sql) = table.stable_sql.as_deref() {
                 let mut sql = sql.replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS");
@@ -383,7 +389,7 @@ pub async fn tmq_to_td(
         for _ in 0..jobs {
             let consumer = consumers.pop().unwrap();
             let taos = target.get()?;
-            taos.exec(format!("use `{target_database}`")).await?;
+            // taos.exec(format!("use `{target_database}`")).await?;
             let table = topic.table.as_ref().map(|t| t.table.clone());
             let actions = actions.to_vec();
             let cancellation = cancel.clone();
@@ -401,7 +407,7 @@ pub async fn tmq_to_td(
                 .await
             });
             handles.push(handle);
-            log::info!("spawn consuming task with id {task_id}", );
+            log::info!("spawn consuming task with id {task_id}",);
 
             task_id += 1;
         }

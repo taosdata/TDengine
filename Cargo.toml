@@ -20,16 +20,18 @@ clap-verbosity-flag = "2.0.0"
 config = "0.13.2"
 convert_case = "0.6.0"
 csv-async = { version = "1.2.4", features = ["tokio"] }
+# scc = "0.12.0"
+dashmap = "5.4.0"
 futures = "0.3"
 itertools = "0.10.4"
 lazy_static = "1.4"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = "0.4"
+num_cpus = "1"
 parquet = "23.0.0"
+parse_duration = "2.1"
 pretty_env_logger = "0.4"
 regex = "1"
-# scc = "0.12.0"
-dashmap = "5.4.0"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 thiserror = "1"
@@ -37,10 +39,6 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7" }
 toml = "0.5.9"
 zstd = "0.11.2"
-num_cpus = "1"
-parse_duration = "2.1"
-
-taos = { version = "0.4.14", default-features = false, features = ["ws"] }
 
 actix-web = "4"
 serde_json = "1.0"
@@ -49,13 +47,19 @@ utoipa = { version = "2.0.0", features = ["actix_extras", "chrono"] }
 utoipa-swagger-ui = { version = "3.0.1", features = ["actix-web"] }
 
 # lru = "0.7.5"
+const_format = "0.2.30"
 metrics = "0.20.1"
 metrics-exporter-prometheus = { version = "0.11.0", default-features = false, features = ["push-gateway"] }
 palaver = "0.2.8"
 procfs = "0.14.0"
 psutil = { version = "3.2.0", default-features = false, features = ["cpu", "process"] }
 shadow-rs = "0.18.0"
-const_format = "0.2.30"
+
+[dependencies.taos]
+version = "0.4.14"
+default-features = false
+git = "https://github.com/taosdata/taos-connector-rust"
+features = ["ws"]
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 jemallocator = "0.5.0"
