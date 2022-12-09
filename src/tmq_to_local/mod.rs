@@ -21,13 +21,13 @@ struct ZFileMan {
     // db: String,
     topic: String,
     sync: Mutex<()>,
-    writers: scc::HashMap<i32, Mutex<ZFile>>,
+    writers: dashmap::DashMap<i32, Mutex<ZFile>>,
 }
 
 impl Drop for ZFileMan {
     fn drop(&mut self) {
-        self.writers.for_each(|_, v| {
-            let _ = block_in_place(async { v.lock().await.shutdown().await });
+        self.writers.iter().for_each(|entry| {
+            let _ = block_in_place(async { entry.value().lock().await.shutdown().await });
         });
         self.writers.clear();
     }
@@ -48,12 +48,12 @@ where
 
 impl ZFileMan {
     async fn assert_vgroup(&self, vgroup: i32) -> Result<()> {
-        if !self.writers.contains(&vgroup) {
+        if !self.writers.contains_key(&vgroup) {
             let _ = self.sync.lock().await;
-            if !self.writers.contains(&vgroup) {
+            if !self.writers.contains_key(&vgroup) {
                 let prefix = self.path.join(format!("{}-{}", self.topic, vgroup));
                 let file = ZFile::new(prefix, async_compression::Level::Best).await?;
-                let _ = self.writers.insert_async(vgroup, Mutex::new(file)).await;
+                let _ = self.writers.insert(vgroup, Mutex::new(file));
             }
         }
         Ok(())
@@ -66,19 +66,9 @@ impl ZFileMan {
     ) -> Result<()> {
         let raw = meta.as_raw_meta().await?;
         self.assert_vgroup(vgroup).await?;
-        self.writers
-            .update_async(&vgroup, |_vg, wtr| {
-                use tokio::runtime::Handle;
-                use tokio::task;
+        let entry = self.writers.get(&vgroup).expect("should always exist");
+        entry.value().lock().await.write_meta(&raw).await?;
 
-                match Handle::try_current() {
-                    Ok(handle) => task::block_in_place(move || {
-                        handle.block_on(async { wtr.lock().await.write_meta(&raw).await })
-                    }),
-                    Err(_) => unreachable!(),
-                }
-            })
-            .await;
         metrics
             .messages_of_meta
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -92,51 +82,32 @@ impl ZFileMan {
     ) -> Result<usize> {
         // let raw = meta.as_raw_meta().await?;
         self.assert_vgroup(vgroup).await?;
-        let nrows = self
-            .writers
-            .update_async(&vgroup, |vg, writer| {
-                use tokio::runtime::Handle;
-                use tokio::task;
+        let entry = self.writers.get(&vgroup).expect("should always exist");
+        let mut writer = entry.value().lock().await;
+        writer.start_raw_block().await?;
+        let mut nrows = 0;
+        while let Some(block) = data.fetch_raw_block().await.unwrap() {
+            // dbg!(&block);
+            writer.write_raw_block(&block).await?;
+            nrows += block.nrows();
+            log::debug!(
+                "[vg:{vgroup}] table {} rows: {}",
+                block.table_name().unwrap_or_default(),
+                block.nrows()
+            );
 
-                match Handle::try_current() {
-                    Ok(handle) => {
-                        task::block_in_place(move || {
-                            handle.block_on(async {
-                                let mut writer = writer.lock().await;
-                                writer.start_raw_block().await?;
-                                let mut nrows = 0;
-                                while let Some(block) = data.fetch_raw_block().await.unwrap() {
-                                    // dbg!(&block);
-                                    writer.write_raw_block(&block).await?;
-                                    nrows += block.nrows();
-                                    log::debug!(
-                                        "[vg:{vg}] table {} rows: {}",
-                                        block.table_name().unwrap_or_default(),
-                                        block.nrows()
-                                    );
-
-                                    metrics
-                                        .blocks
-                                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                                    metrics.records.fetch_add(
-                                        block.nrows() as _,
-                                        std::sync::atomic::Ordering::SeqCst,
-                                    );
-                                    metrics.points.fetch_add(
-                                        block.nrows() as u64 * block.ncols() as u64,
-                                        std::sync::atomic::Ordering::SeqCst,
-                                    );
-                                }
-                                writer.finish_raw_block().await?;
-                                Ok::<usize, std::io::Error>(nrows)
-                            })
-                        })
-                    }
-                    Err(_) => unreachable!(),
-                }
-            })
-            .await
-            .unwrap()?;
+            metrics
+                .blocks
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            metrics
+                .records
+                .fetch_add(block.nrows() as _, std::sync::atomic::Ordering::SeqCst);
+            metrics.points.fetch_add(
+                block.nrows() as u64 * block.ncols() as u64,
+                std::sync::atomic::Ordering::SeqCst,
+            );
+        }
+        writer.finish_raw_block().await?;
 
         metrics
             .messages_of_data
@@ -146,20 +117,9 @@ impl ZFileMan {
 
     async fn flush_vgroup(&self, vgroup: i32) -> Result<()> {
         self.assert_vgroup(vgroup).await?;
-        self.writers
-            .update_async(&vgroup, |_vg, writer| {
-                use tokio::runtime::Handle;
-                use tokio::task;
+        let entry = self.writers.get(&vgroup).expect("should always exist");
+        entry.value().lock().await.flush().await?;
 
-                match Handle::try_current() {
-                    Ok(handle) => task::block_in_place(move || {
-                        handle.block_on(async { writer.lock().await.flush().await })
-                    }),
-                    Err(_) => unreachable!(),
-                }
-            })
-            .await
-            .unwrap()?;
         Ok(())
     }
 }
