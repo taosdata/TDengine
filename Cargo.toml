@@ -56,7 +56,7 @@ psutil = { version = "3.2.0", default-features = false, features = ["cpu", "proc
 shadow-rs = "0.18.0"
 
 [dependencies.taos]
-version = "0.4.14"
+version = "0.4.15"
 default-features = false
 git = "https://github.com/taosdata/taos-connector-rust"
 features = ["ws"]
