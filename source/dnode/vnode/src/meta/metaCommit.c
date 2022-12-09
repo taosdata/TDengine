@@ -24,6 +24,7 @@ int metaBegin(SMeta *pMeta, int8_t heap) {
   void (*xFree)(void *, void *) = NULL;
   void *xArg = NULL;
 
+  // default heap to META_BEGIN_HEAP_NIL
   if (heap == META_BEGIN_HEAP_OS) {
     xMalloc = tdbDefaultMalloc;
     xFree = tdbDefaultFree;
