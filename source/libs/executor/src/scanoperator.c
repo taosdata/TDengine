@@ -2001,6 +2001,7 @@ FETCH_NEXT_BLOCK:
 
     goto NEXT_SUBMIT_BLK;
   } else {
+    ASSERT(0)
     return NULL;
   }
 }
