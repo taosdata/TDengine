@@ -432,7 +432,7 @@ do { \
 #define TSDB_PORT_HTTP                         11
 #define TSDB_PORT_ARBITRATOR                   12
 
-#define TSDB_MAX_WAL_SIZE    (1024*1024*3)
+#define TSDB_MAX_WAL_SIZE                     (4<<20)
 
 #define TSDB_ARB_DUMMY_TIME                    4765104000000 // 2121-01-01 00:00:00.000, :P
 
