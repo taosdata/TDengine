@@ -133,7 +133,7 @@ static int32_t getStatus(SDataDeleterHandle* pDeleter) {
 
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataDeleterHandle* pDeleter = (SDataDeleterHandle*)pHandle;
-  SDataDeleterBuf*    pBuf = taosAllocateQitem(sizeof(SDataDeleterBuf), DEF_QITEM);
+  SDataDeleterBuf*    pBuf = taosAllocateQitem(sizeof(SDataDeleterBuf), DEF_QITEM, 0);
   if (NULL == pBuf) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
