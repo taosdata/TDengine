@@ -1,7 +1,7 @@
 FROM ubuntu:22.04
 LABEL maintainer "Linhe Huo <linhe.huo@gmail.com"
 
-RUN apt update && apt install -y wget && rm -rf /var/cache/apt/*
+RUN apt update && apt install -y wget ca-certificates && rm -rf /var/cache/apt/*
 
 ENV TAOS_VERSION=3.0.2.0
 
