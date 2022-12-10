@@ -56,9 +56,9 @@ psutil = { version = "3.2.0", default-features = false, features = ["cpu", "proc
 shadow-rs = "0.18.0"
 
 [dependencies.taos]
-version = "0.4.15"
+version = "0.4.16"
 default-features = false
-git = "https://github.com/taosdata/taos-connector-rust"
+git = "https://github.com/taosdata/taos-connector-rust.git"
 features = ["ws", "r2d2"]
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
