@@ -125,6 +125,7 @@ impl ZFileMan {
 }
 
 async fn backup(
+    sender: tokio::sync::mpsc::UnboundedSender<Consumer>,
     consumer: Consumer,
     man: Arc<ZFileMan>,
     id: usize,
@@ -134,8 +135,7 @@ async fn backup(
 ) -> Result<()> {
     let mut stream = consumer.stream();
     let mut rows = 0;
-
-    // let mut wtr: scc::HashMap<i32, ZFile> = scc::HashMap::new();
+    let mut messages = 0;
 
     loop {
         tokio::select! {
@@ -145,53 +145,27 @@ async fn backup(
             }
             next = stream.try_next() => {
                 if let Some((offset, message)) = next? {
-
                     metrics
                         .messages
                         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    let total = metrics.messages.load(std::sync::atomic::Ordering::SeqCst);
+                    messages += 1;
+                    if messages % 2000 == 0 {
+                        log::info!("[{id}] received {messages} messages ({:.2})", messages as f64 / total as f64);
+                    }
                     let vgroup = offset.vgroup_id();
 
-                    // let prefix = path.join(format!("{}-{}", topic.name, id));
-                    // log::info!("start with {}", prefix.display());
-                    // let file = ZFile::new(prefix, async_compression::Level::Best).await?;
                     match message {
                         MessageSet::Meta(meta) => {
-                            //dbg!(meta.as_json_meta().await?);
-                            // writer.write_meta(&meta.as_raw_meta().await?).await?;
                             man.write_vgroup_with_meta(vgroup, meta, &metrics).await?;
                         }
                         MessageSet::Data(data) => {
                             rows += man.write_vgroup_with_data(vgroup, data, &metrics).await?;
-                            // writer.start_raw_block().await?;
-                            // while let Some(block) = data.fetch_raw_block().await.unwrap() {
-                            //     // dbg!(&block);
-                            //     writer.write_raw_block(&block).await?;
-                            //     rows += block.nrows();
-                            //     log::info!(
-                            //         "[{id}] table {} rows: {}",
-                            //         block.table_name().unwrap_or_default(),
-                            //         block.nrows()
-                            //     );
-                            // }
-                            // writer.finish_raw_block().await?;
                         }
                         MessageSet::MetaData(meta, data) => {
                             // writer.write_meta(&meta.as_raw_meta().await?).await?;
                             man.write_vgroup_with_meta(vgroup, meta, &metrics).await?;
                             rows += man.write_vgroup_with_data(vgroup, data, &metrics).await?;
-
-                            // writer.start_raw_block().await?;
-                            // while let Some(block) = data.fetch_raw_block().await.unwrap() {
-                            //     // dbg!(&block);
-                            //     writer.write_raw_block(&block).await?;
-                            //     rows += block.nrows();
-                            //     log::info!(
-                            //         "[{id}] table {} rows: {}",
-                            //         block.table_name().unwrap_or_default(),
-                            //         block.nrows()
-                            //     );
-                            // }
-                            // writer.finish_raw_block().await?;
                         }
                     }
                     // writer.flush().await?;
@@ -208,7 +182,8 @@ async fn backup(
     barrier.wait().await;
     log::info!("[{id}] total backup {} rows", rows);
     drop(stream);
-    consumer.unsubscribe().await;
+    let _ = sender.send(consumer);
+    // consumer.unsubscribe().await;
     log::info!("[{id}] backup done");
     Ok(())
 }
@@ -350,6 +325,7 @@ pub async fn tmq_to_local(
     let mut handles = Vec::new();
 
     let mut task_id = 0;
+    let (consumers_sender, mut consumers_receiver) = tokio::sync::mpsc::unbounded_channel();
 
     for (_, topic) in config.topics.iter().enumerate() {
         if jobs == 0 && topic.vgroups == 0 {
@@ -388,7 +364,10 @@ pub async fn tmq_to_local(
             let man = man.clone();
             let cancel = cancel.clone();
             let metrics = metrics.clone();
-            let handle = tokio::spawn(backup(consumer, man, task_id, barrier, cancel, metrics));
+            let sender = consumers_sender.clone();
+            let handle = tokio::spawn(backup(
+                sender, consumer, man, task_id, barrier, cancel, metrics,
+            ));
             handles.push(handle);
             task_id += 1;
         }
@@ -396,6 +375,10 @@ pub async fn tmq_to_local(
     for handle in handles {
         let _ = handle.await??;
         log::info!("worker done");
+    }
+    log::info!("stop all consumers({})", task_id);
+    for _ in 0..task_id {
+        let _ = consumers_receiver.recv().await;
     }
     log::info!("all workers done for backup");
 
