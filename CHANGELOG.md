@@ -1,3 +1,9 @@
+<a name="v0.3.2"></a>
+## v0.3.2 TDengine Data Replication Toolkit (2022-12-10)
+
+
+
+
 <a name="v0.3.1"></a>
 ## v0.3.1 TDengine Data Replication Toolkit (2022-12-10)
 
