@@ -49,10 +49,10 @@ static void doKeepPrevRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
     if (!colDataIsNull_s(pColInfoData, rowIndex)) {
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
-      if (!IS_VAR_DATA_TYPE(pkey->type)) {
-        memcpy(pkey->pData, val, pkey->bytes);
-      } else {
+      if (IS_VAR_DATA_TYPE(pkey->type)) {
         memcpy(pkey->pData, val, varDataLen(val));
+      } else {
+        memcpy(pkey->pData, val, pkey->bytes);
       }
     } else {
       pkey->isNull = true;
@@ -114,9 +114,9 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
           ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
-          memcpy(pLinearInfo->start.val, p, varDataTLen(p));
+          memcpy(pLinearInfo->end.val, p, varDataTLen(p));
         } else {
-          memcpy(pLinearInfo->start.val, p, pLinearInfo->bytes);
+          memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
         }
       }
       pLinearInfo->isEndSet = true;
@@ -130,9 +130,9 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
           ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
-          memcpy(pLinearInfo->start.val, p, varDataTLen(p));
+          memcpy(pLinearInfo->end.val, p, varDataTLen(p));
         } else {
-          memcpy(pLinearInfo->start.val, p, pLinearInfo->bytes);
+          memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
         }
 
       } else {
