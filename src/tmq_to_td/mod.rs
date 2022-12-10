@@ -180,6 +180,7 @@ async fn write_meta(
 
 async fn sync(
     id: usize,
+    sender: tokio::sync::mpsc::UnboundedSender<Consumer>,
     consumer: Consumer,
     taos: &Taos,
     table: Option<String>,
@@ -187,14 +188,14 @@ async fn sync(
     cancel: CancellationToken,
     metrics: Arc<TmqMetrics>,
 ) -> Result<()> {
-    log::info!("[id] task start");
+    log::info!("[{id}] task start");
     let mut stream = consumer.stream();
     let mut rows = 0;
+    let mut messages = 0;
     let target_is_v3 = taos
         .exec("desc information_schema.ins_databases")
         .await
         .is_ok();
-
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
@@ -204,6 +205,11 @@ async fn sync(
             next = stream.try_next() => {
                 if let Some((offset, message)) = next? {
                     metrics.messages.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    let total = metrics.messages.load(std::sync::atomic::Ordering::SeqCst);
+                    messages += 1;
+                    if messages % 2000 == 0 {
+                        log::info!("[{id}] received {messages} messages ({:.2})", messages as f64 / total as f64);
+                    }
                     match message {
                         MessageSet::Meta(meta) => {
                             write_meta(taos, &actions, &meta, target_is_v3, &metrics).await?;
@@ -223,9 +229,11 @@ async fn sync(
             }
         }
     }
-    log::info!("[id] task done");
+    log::info!("[{id}] task done");
 
-    // while let Some((offset, message)) = stream.try_next().await? {}
+    // do not drop consumer when single task done.
+    drop(stream);
+    let _ = sender.send(consumer);
     Ok(())
 }
 
@@ -268,6 +276,8 @@ pub async fn tmq_to_td(
     let target = TaosBuilder::from_dsn(&to)?.pool()?;
 
     let global_taos = target.get()?;
+
+    let (consumers_sender, mut consumers_receiver) = tokio::sync::mpsc::unbounded_channel();
 
     for topic in topics {
         let target_database = if let Some(target) = target_database.as_ref() {
@@ -394,9 +404,11 @@ pub async fn tmq_to_td(
             let actions = actions.to_vec();
             let cancellation = cancel.clone();
             let metrics = metrics.clone();
+            let sender = consumers_sender.clone();
             let handle = tokio::spawn(async move {
                 sync(
                     task_id,
+                    sender,
                     consumer,
                     &taos,
                     table,
@@ -417,6 +429,12 @@ pub async fn tmq_to_td(
     for handle in handles {
         let _ = handle.await??;
     }
+
+    log::info!("stop all consumers({})", task_id);
+    for _ in 0..task_id {
+        let _ = consumers_receiver.recv().await;
+    }
+    // for consumers in consumers_receiver.
 
     drop(global_taos);
     drop(target);
