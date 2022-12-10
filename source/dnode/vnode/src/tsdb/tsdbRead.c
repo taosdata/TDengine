@@ -2790,7 +2790,8 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
   while (1) {
     // load the last data block of current table
     STableBlockScanInfo* pScanInfo = *(STableBlockScanInfo**)pStatus->pTableIter;
-    bool                 hasVal = initLastBlockReader(pLastBlockReader, pScanInfo, pReader);
+
+    bool hasVal = initLastBlockReader(pLastBlockReader, pScanInfo, pReader);
     if (!hasVal) {
       bool hasNexTable = moveToNextTable(pOrderedCheckInfo, pStatus);
       if (!hasNexTable) {
@@ -3823,21 +3824,18 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
   }
 
   // NOTE: the endVersion in pCond is the data version not schema version, so pCond->endVersion is not correct here.
+  //  no valid error code set in metaGetTbTSchema, so let's set the error code here.
+  //  we should proceed in case of tmq processing.
   if (pCond->suid != 0) {
     pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pReader->suid, -1, 1);
     if (pReader->pSchema == NULL) {
       tsdbError("failed to get table schema, suid:%" PRIu64 ", ver:-1, %s", pReader->suid, pReader->idStr);
-      // no valid error code set in metaGetTbTSchema, so let's set the error code here.
-      code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-      goto _err;
     }
   } else if (numOfTables > 0) {
     STableKeyInfo* pKey = pTableList;
     pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pKey->uid, -1, 1);
     if (pReader->pSchema == NULL) {
       tsdbError("failed to get table schema, uid:%" PRIu64 ", ver:-1, %s", pKey->uid, pReader->idStr);
-      code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-      goto _err;
     }
   }
 
