@@ -109,8 +109,9 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
 
     SStreamScanInfo* pInfo = pOperator->info;
 
-    ASSERT(pInfo->validBlockIndex == 0);
-    ASSERT(taosArrayGetSize(pInfo->pBlockLists) == 0);
+    if (pInfo->validBlockIndex != 0 || taosArrayGetSize(pInfo->pBlockLists) == 0) {
+      return TSDB_CODE_APP_ERROR;
+    }
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
       // ASSERT(numOfBlocks > 1);

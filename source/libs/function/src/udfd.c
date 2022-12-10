@@ -744,10 +744,15 @@ bool isUdfdUvMsgComplete(SUdfdUvConn *pipe) {
 }
 
 void udfdHandleRequest(SUdfdUvConn *conn) {
+  char* inputBuf = taosMemoryMalloc(conn->inputLen);
+  memcpy(inputBuf, conn->inputBuf, conn->inputLen);
+  int32_t inputLen = conn->inputLen;
+  taosMemoryFree(conn->inputBuf);
+
   uv_work_t * work = taosMemoryMalloc(sizeof(uv_work_t));
   SUvUdfWork *udfWork = taosMemoryMalloc(sizeof(SUvUdfWork));
   udfWork->client = conn->client;
-  udfWork->input = uv_buf_init(conn->inputBuf, conn->inputLen);
+  udfWork->input = uv_buf_init(inputBuf, inputLen);
   conn->inputBuf = NULL;
   conn->inputLen = 0;
   conn->inputCap = 0;
