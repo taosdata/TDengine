@@ -298,7 +298,7 @@ class TDTestCase:
                 if (platform.system().lower() == 'windows' and pre_result.dtype == 'int32'):
                     pre_result = np.array(pre_result, dtype = 'int64')
 
-                pre_mavg = pre_mavg = np.convolve(pre_result, np.ones(k), "valid")[offset_val:]/k
+                #pre_mavg = pre_mavg = np.convolve(pre_result, np.ones(k), "valid")[offset_val:]/k
                 tdSql.query(self.mavg_query_form(
                     sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                     table_expr=table_expr, condition=condition

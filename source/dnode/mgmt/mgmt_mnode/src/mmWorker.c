@@ -61,7 +61,7 @@ static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     pMsg->info.rsp = NULL;
   }
 
-  if (code == TSDB_CODE_RPC_REDIRECT) {
+  if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING) {
     mndPostProcessQueryMsg(pMsg);
   }
 
@@ -162,11 +162,13 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
   if (pMsg == NULL) return -1;
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
+  pRpc->pCont = NULL;
 
   dTrace("msg:%p, is created and will put into %s queue, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
   int32_t code = mmPutMsgToWorker(pMgmt, pWorker, pMsg);
   if (code != 0) {
     dTrace("msg:%p, is freed", pMsg);
+    rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
   return code;

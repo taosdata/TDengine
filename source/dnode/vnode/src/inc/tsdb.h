@@ -56,7 +56,7 @@ typedef struct SDataFWriter     SDataFWriter;
 typedef struct SDataFReader     SDataFReader;
 typedef struct SDelFWriter      SDelFWriter;
 typedef struct SDelFReader      SDelFReader;
-typedef struct SRowIter         SRowIter;
+typedef struct STSDBRowIter     STSDBRowIter;
 typedef struct STsdbFS          STsdbFS;
 typedef struct SRowMerger       SRowMerger;
 typedef struct STsdbReadSnap    STsdbReadSnap;
@@ -111,9 +111,9 @@ static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
 void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 // int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow);
 int32_t tsdbRowCmprFn(const void *p1, const void *p2);
-// SRowIter
-void     tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
-SColVal *tRowIterNext(SRowIter *pIter);
+// STSDBRowIter
+void     tsdbRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
+SColVal *tsdbRowIterNext(STSDBRowIter *pIter);
 // SRowMerger
 int32_t tRowMergerInit2(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRow, STSchema *pTSchema);
 int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
@@ -185,6 +185,8 @@ int32_t tMapDataSearch(SMapData *pMapData, void *pSearchItem, int32_t (*tGetItem
                        int32_t (*tItemCmprFn)(const void *, const void *), void *pItem);
 int32_t tPutMapData(uint8_t *p, SMapData *pMapData);
 int32_t tGetMapData(uint8_t *p, SMapData *pMapData);
+int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItemFn)(uint8_t *, void *),
+                        SArray **ppArray);
 // other
 int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision);
 void    tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minKey, TSKEY *maxKey);
@@ -562,7 +564,7 @@ struct SDFileSet {
   SSttFile  *aSttF[TSDB_MAX_STT_TRIGGER];
 };
 
-struct SRowIter {
+struct STSDBRowIter {
   TSDBROW  *pRow;
   STSchema *pTSchema;
   SColVal   colVal;

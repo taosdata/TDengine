@@ -25,7 +25,7 @@ extern "C" {
 #include "tlrucache.h"
 #include "tmsgcb.h"
 
-#define SYNC_RESP_TTL_MS             10000000
+#define SYNC_RESP_TTL_MS             30000
 #define SYNC_SPEED_UP_HB_TIMER       400
 #define SYNC_SPEED_UP_AFTER_MS       (1000 * 20)
 #define SYNC_SLOW_DOWN_RANGE         100
@@ -40,12 +40,19 @@ extern "C" {
 #define SNAPSHOT_MAX_CLOCK_SKEW_MS   1000 * 10
 #define SNAPSHOT_WAIT_MS             1000 * 30
 
+#define SYNC_MAX_RETRY_BACKOFF         5
+#define SYNC_LOG_REPL_RETRY_WAIT_MS    100
 #define SYNC_APPEND_ENTRIES_TIMEOUT_MS 10000
+#define SYNC_HEART_TIMEOUT_MS          1000 * 15
+
+#define SYNC_HEARTBEAT_SLOW_MS       1500
+#define SYNC_HEARTBEAT_REPLY_SLOW_MS 1500
+#define SYNC_SNAP_RESEND_MS          1000 * 60
 
 #define SYNC_MAX_BATCH_SIZE 1
 #define SYNC_INDEX_BEGIN    0
 #define SYNC_INDEX_INVALID  -1
-#define SYNC_TERM_INVALID   0xFFFFFFFFFFFFFFFF
+#define SYNC_TERM_INVALID   -1  // 0xFFFFFFFFFFFFFFFF
 
 typedef enum {
   SYNC_STRATEGY_NO_SNAPSHOT = 0,
@@ -56,13 +63,14 @@ typedef enum {
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
 typedef int64_t  SyncIndex;
-typedef uint64_t SyncTerm;
+typedef int64_t  SyncTerm;
 
 typedef struct SSyncNode      SSyncNode;
 typedef struct SWal           SWal;
 typedef struct SSyncRaftEntry SSyncRaftEntry;
 
 typedef enum {
+  TAOS_SYNC_STATE_OFFLINE = 0,
   TAOS_SYNC_STATE_FOLLOWER = 100,
   TAOS_SYNC_STATE_CANDIDATE = 101,
   TAOS_SYNC_STATE_LEADER = 102,
@@ -131,13 +139,13 @@ typedef struct SSnapshotMeta {
 typedef struct SSyncFSM {
   void* data;
 
-  void (*FpCommitCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
-  void (*FpPreCommitCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
-  void (*FpRollBackCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
+  int32_t (*FpCommitCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
+  int32_t (*FpPreCommitCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
+  void (*FpRollBackCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
 
   void (*FpRestoreFinishCb)(const struct SSyncFSM* pFsm);
-  void (*FpReConfigCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SReConfigCbMeta* pMeta);
-  void (*FpLeaderTransferCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
+  void (*FpReConfigCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, const SReConfigCbMeta* pMeta);
+  void (*FpLeaderTransferCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
   bool (*FpApplyQueueEmptyCb)(const struct SSyncFSM* pFsm);
   int32_t (*FpApplyQueueItems)(const struct SSyncFSM* pFsm);
 
@@ -161,7 +169,10 @@ typedef struct SSyncFSM {
 // SWal implements it
 typedef struct SSyncLogStore {
   SLRUCache* pCache;
-  void*      data;
+  int32_t    cacheHit;
+  int32_t    cacheMiss;
+
+  void* data;
 
   int32_t (*syncLogUpdateCommitIndex)(struct SSyncLogStore* pLogStore, SyncIndex index);
   SyncIndex (*syncLogCommitIndex)(struct SSyncLogStore* pLogStore);
@@ -203,15 +214,20 @@ typedef struct SSyncInfo {
   int32_t (*syncEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 } SSyncInfo;
 
+// if state == leader
+//     if restored, display "leader"
+//     if !restored && canRead, display "leader*"
+//     if !restored && !canRead, display "leader**"
 typedef struct SSyncState {
   ESyncState state;
   bool       restored;
+  bool       canRead;
 } SSyncState;
 
 int32_t syncInit();
 void    syncCleanUp();
 int64_t syncOpen(SSyncInfo* pSyncInfo);
-void    syncStart(int64_t rid);
+int32_t syncStart(int64_t rid);
 void    syncStop(int64_t rid);
 void    syncPreStop(int64_t rid);
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
@@ -222,6 +238,8 @@ int32_t syncEndSnapshot(int64_t rid);
 int32_t syncLeaderTransfer(int64_t rid);
 int32_t syncStepDown(int64_t rid, SyncTerm newTerm);
 bool    syncIsReadyForRead(int64_t rid);
+bool    syncSnapshotSending(int64_t rid);
+bool    syncSnapshotRecving(int64_t rid);
 
 SSyncState  syncGetState(int64_t rid);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);

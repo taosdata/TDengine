@@ -101,6 +101,30 @@ void tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t 
   tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem);
 }
 
+int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItemFn)(uint8_t *, void *),
+                        SArray **ppArray) {
+  int32_t code = 0;
+
+  SArray *pArray = taosArrayInit(pMapData->nItem, itemSize);
+  if (pArray == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < pMapData->nItem; i++) {
+    tMapDataGetItemByIdx(pMapData, i, taosArrayReserve(pArray, 1), tGetItemFn);
+  }
+
+_exit:
+  if (code) {
+    *ppArray = NULL;
+    if (pArray) taosArrayDestroy(pArray);
+  } else {
+    *ppArray = pArray;
+  }
+  return code;
+}
+
 int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
   int32_t n = 0;
 
@@ -579,8 +603,8 @@ int32_t tsdbRowCmprFn(const void *p1, const void *p2) {
   return tsdbKeyCmprFn(&TSDBROW_KEY((TSDBROW *)p1), &TSDBROW_KEY((TSDBROW *)p2));
 }
 
-// SRowIter ======================================================
-void tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
+// STSDBRowIter ======================================================
+void tsdbRowIterInit(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
   pIter->pRow = pRow;
   if (pRow->type == 0) {
     ASSERT(pTSchema);
@@ -594,7 +618,7 @@ void tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
   }
 }
 
-SColVal *tRowIterNext(SRowIter *pIter) {
+SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
   if (pIter->pRow->type == 0) {
     if (pIter->i < pIter->pTSchema->numOfCols) {
       tTSRowGetVal(pIter->pRow->pTSRow, pIter->pTSchema, pIter->i, &pIter->colVal);
@@ -704,7 +728,7 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else {
-      ASSERT(0);
+      ASSERT(0 && "dup versions not allowed");
     }
   }
 
@@ -878,7 +902,6 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _clear;
     }
-
     midx = (sidx + eidx) / 2;
 
     code = tsdbBuildDeleteSkyline(aDelData, sidx, midx, aSkyline1);
@@ -1084,11 +1107,11 @@ static int32_t tBlockDataAppendTPRow(SBlockData *pBlockData, STSRow *pRow, STSch
           cv.flag = CV_FLAG_VALUE;
 
           if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-            void *pData = (char *)pRow + *(int32_t *)(pRow->data + pTColumn->offset - sizeof(TSKEY));
+            void *pData = (char *)pRow + *(int32_t *)(pRow->data + pTColumn->offset);
             cv.value.nData = varDataLen(pData);
             cv.value.pData = varDataVal(pData);
           } else {
-            memcpy(&cv.value.val, pRow->data + pTColumn->offset - sizeof(TSKEY), pTColumn->bytes);
+            memcpy(&cv.value.val, pRow->data + pTColumn->offset, pTColumn->bytes);
           }
 
           code = tColDataAppendValue(pColData, &cv);
@@ -1106,11 +1129,11 @@ static int32_t tBlockDataAppendTPRow(SBlockData *pBlockData, STSRow *pRow, STSch
         cv.flag = CV_FLAG_VALUE;
 
         if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-          void *pData = (char *)pRow + *(int32_t *)(pRow->data + pTColumn->offset - sizeof(TSKEY));
+          void *pData = (char *)pRow + *(int32_t *)(pRow->data + pTColumn->offset);
           cv.value.nData = varDataLen(pData);
           cv.value.pData = varDataVal(pData);
         } else {
-          memcpy(&cv.value.val, pRow->data + pTColumn->offset - sizeof(TSKEY), pTColumn->bytes);
+          memcpy(&cv.value.val, pRow->data + pTColumn->offset, pTColumn->bytes);
         }
 
         code = tColDataAppendValue(pColData, &cv);

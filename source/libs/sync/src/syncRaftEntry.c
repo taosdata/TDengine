@@ -20,7 +20,7 @@
 
 SSyncRaftEntry* syncEntryBuild(int32_t dataLen) {
   int32_t         bytes = sizeof(SSyncRaftEntry) + dataLen;
-  SSyncRaftEntry* pEntry = taosMemoryMalloc(bytes);
+  SSyncRaftEntry* pEntry = taosMemoryCalloc(1, bytes);
   if (pEntry == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -64,7 +64,7 @@ SSyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, Syn
 }
 
 SSyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg) {
-  SSyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);
+  SSyncRaftEntry* pEntry = syncEntryBuild((int32_t)(pMsg->dataLen));
   if (pEntry == NULL) return NULL;
 
   memcpy(pEntry, pMsg->data, pMsg->dataLen);
@@ -89,17 +89,16 @@ SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId)
   return pEntry;
 }
 
-void syncEntryDestory(SSyncRaftEntry* pEntry) {
+void syncEntryDestroy(SSyncRaftEntry* pEntry) {
   if (pEntry != NULL) {
-    taosMemoryFree(pEntry);
-
     sTrace("free entry: %p", pEntry);
+    taosMemoryFree(pEntry);
   }
 }
 
 void syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg) {
   pRpcMsg->msgType = pEntry->originalRpcType;
-  pRpcMsg->contLen = pEntry->dataLen;
+  pRpcMsg->contLen = (int32_t)(pEntry->dataLen);
   pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
   memcpy(pRpcMsg->pCont, pEntry->data, pRpcMsg->contLen);
 }
@@ -266,7 +265,7 @@ static int cmpFn(const void* p1, const void* p2) { return memcmp(p1, p2, sizeof(
 
 static void freeRaftEntry(void* param) {
   SSyncRaftEntry* pEntry = (SSyncRaftEntry*)param;
-  syncEntryDestory(pEntry);
+  syncEntryDestroy(pEntry);
 }
 
 SRaftEntryCache* raftEntryCacheCreate(SSyncNode* pSyncNode, int32_t maxCount) {
@@ -339,7 +338,8 @@ int32_t raftEntryCacheGetEntry(struct SRaftEntryCache* pCache, SyncIndex index, 
   SSyncRaftEntry* pEntry = NULL;
   int32_t         code = raftEntryCacheGetEntryP(pCache, index, &pEntry);
   if (code == 1) {
-    *ppEntry = taosMemoryMalloc((int64_t)(pEntry->bytes));
+    int32_t bytes = (int32_t)pEntry->bytes;
+    *ppEntry = taosMemoryMalloc((int64_t)bytes);
     memcpy(*ppEntry, pEntry, pEntry->bytes);
     (*ppEntry)->rid = -1;
   } else {
@@ -395,7 +395,7 @@ int32_t raftEntryCacheClear(struct SRaftEntryCache* pCache, int32_t count) {
       SSkipListNode* pNode = tSkipListIterGet(pIter);
       ASSERT(pNode != NULL);
       SSyncRaftEntry* pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
-      syncEntryDestory(pEntry);
+      syncEntryDestroy(pEntry);
       ++returnCnt;
     }
     tSkipListDestroyIter(pIter);
@@ -424,7 +424,7 @@ int32_t raftEntryCacheClear(struct SRaftEntryCache* pCache, int32_t count) {
       ++returnCnt;
       SSyncRaftEntry* pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
 
-      // syncEntryDestory(pEntry);
+      // syncEntryDestroy(pEntry);
       taosRemoveRef(pCache->refMgr, pEntry->rid);
     }
     tSkipListDestroyIter(pIter);

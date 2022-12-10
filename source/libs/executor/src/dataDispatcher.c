@@ -128,17 +128,19 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   SDataDispatchBuf*    pBuf = taosAllocateQitem(sizeof(SDataDispatchBuf), DEF_QITEM);
   if (NULL == pBuf) {
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   if (!allocBuf(pDispatcher, pInput, pBuf)) {
     taosFreeQitem(pBuf);
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   
   toDataCacheEntry(pDispatcher, pInput, pBuf);
   taosWriteQitem(pDispatcher->pDataBlocks, pBuf);
-  *pContinue = (DS_BUF_LOW == updateStatus(pDispatcher) ? true : false);
+
+  int32_t status = updateStatus(pDispatcher);
+  *pContinue = (status == DS_BUF_LOW || status == DS_BUF_EMPTY);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -235,8 +237,8 @@ static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
 int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {
   SDataDispatchHandle* dispatcher = taosMemoryCalloc(1, sizeof(SDataDispatchHandle));
   if (NULL == dispatcher) {
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   dispatcher->sink.fPut = putDataBlock;
   dispatcher->sink.fEndPut = endPut;
@@ -252,8 +254,8 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   taosThreadMutexInit(&dispatcher->mutex, NULL);
   if (NULL == dispatcher->pDataBlocks) {
     taosMemoryFree(dispatcher);
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   *pHandle = dispatcher;
   return TSDB_CODE_SUCCESS;

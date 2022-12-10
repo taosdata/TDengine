@@ -547,6 +547,14 @@ typedef struct SCtgOperation {
 #define ctgDebug(param, ...) qDebug("CTG:%p " param, pCtg, __VA_ARGS__)
 #define ctgTrace(param, ...) qTrace("CTG:%p " param, pCtg, __VA_ARGS__)
 
+#define ctgTaskFatal(param, ...) qFatal("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskError(param, ...) qError("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskWarn(param, ...)  qWarn("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskInfo(param, ...)  qInfo("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskDebug(param, ...) qDebug("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskTrace(param, ...) qTrace("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+
+
 #define CTG_LOCK_DEBUG(...)     \
   do {                          \
     if (gCTGDebug.lockEnable) { \
@@ -762,7 +770,6 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
 int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList);
 void    ctgFreeJob(void* job);
 void    ctgFreeHandleImpl(SCatalog* pCtg);
-void    ctgFreeVgInfo(SDBVgInfo* vgInfo);
 int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, const SName* pTableName, SVgroupInfo* pVgroup);
 int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SCtgTaskReq* tReq, SDBVgInfo* dbInfo, SCtgTbHashsCtx* pCtx,
                                    char* dbFName, SArray* pNames, bool update);
@@ -789,6 +796,11 @@ int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName);
 int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* pVgroup, bool* exists);
 SName*  ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch);
 int32_t ctgdGetOneHandle(SCatalog **pHandle);
+int     ctgVgInfoComp(const void* lp, const void* rp);
+int32_t ctgMakeVgArray(SDBVgInfo* dbInfo);
+int32_t ctgAcquireVgMetaFromCache(SCatalog *pCtg, const char *dbFName, const char *tbName, SCtgDBCache **pDb, SCtgTbCache **pTb);
+int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCtgTbCache **pTb, STableMeta **pTableMeta, char* dbFName);
+void    ctgReleaseVgMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, SCtgTbCache *pCache);
 
 extern SCatalogMgmt gCtgMgmt;
 extern SCtgDebug    gCTGDebug;

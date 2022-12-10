@@ -101,6 +101,7 @@ cmd ::= REVOKE privileges(A) ON priv_level(B) FROM user_name(C).                
 %destructor privileges                                                            { }
 privileges(A) ::= ALL.                                                            { A = PRIVILEGE_TYPE_ALL; }
 privileges(A) ::= priv_type_list(B).                                              { A = B; }
+privileges(A) ::= SUBSCRIBE.                                                      { A = PRIVILEGE_TYPE_SUBSCRIBE; }
 
 %type priv_type_list                                                              { int64_t }
 %destructor priv_type_list                                                        { }
@@ -116,6 +117,7 @@ priv_type(A) ::= WRITE.                                                         
 %destructor priv_level                                                            { }
 priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR.                                      { A = B; }
 priv_level(A) ::= db_name(B) NK_DOT NK_STAR.                                      { A = B; }
+priv_level(A) ::= topic_name(B).                                                  { A = B; }
 
 /************************************************ create/drop/alter dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }
@@ -360,6 +362,7 @@ table_options(A) ::= table_options(B) WATERMARK duration_list(C).               
 table_options(A) ::= table_options(B) ROLLUP NK_LP rollup_func_list(C) NK_RP.     { A = setTableOption(pCxt, B, TABLE_OPTION_ROLLUP, C); }
 table_options(A) ::= table_options(B) TTL NK_INTEGER(C).                          { A = setTableOption(pCxt, B, TABLE_OPTION_TTL, &C); }
 table_options(A) ::= table_options(B) SMA NK_LP col_name_list(C) NK_RP.           { A = setTableOption(pCxt, B, TABLE_OPTION_SMA, C); }
+table_options(A) ::= table_options(B) DELETE_MARK duration_list(C).               { A = setTableOption(pCxt, B, TABLE_OPTION_DELETE_MARK, C); }
 
 alter_table_options(A) ::= alter_table_option(B).                                 { A = createAlterTableOptions(pCxt); A = setTableOption(pCxt, A, B.type, &B.val); }
 alter_table_options(A) ::= alter_table_options(B) alter_table_option(C).          { A = setTableOption(pCxt, B, C.type, &C.val); }
@@ -393,6 +396,7 @@ col_name(A) ::= column_name(B).                                                 
 /************************************************ show ****************************************************************/
 cmd ::= SHOW DNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DNODES_STMT); }
 cmd ::= SHOW USERS.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USERS_STMT); }
+cmd ::= SHOW USER PRIVILEGES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USER_PRIVILEGES_STMT); }
 cmd ::= SHOW DATABASES.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT); }
 cmd ::= SHOW db_name_cond_opt(A) TABLES like_pattern_opt(B).                      { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TABLES_STMT, A, B, OP_TYPE_LIKE); }
 cmd ::= SHOW db_name_cond_opt(A) STABLES like_pattern_opt(B).                     { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_STABLES_STMT, A, B, OP_TYPE_LIKE); }
@@ -472,8 +476,9 @@ func_list(A) ::= func_list(B) NK_COMMA func(C).                                 
 func(A) ::= function_name(B) NK_LP expression_list(C) NK_RP.                      { A = createFunctionNode(pCxt, &B, C); }
 
 sma_stream_opt(A) ::= .                                                           { A = createStreamOptions(pCxt); }
-sma_stream_opt(A) ::= stream_options(B) WATERMARK duration_literal(C).            { ((SStreamOptions*)B)->pWatermark = releaseRawExprNode(pCxt, C); A = B; }
-sma_stream_opt(A) ::= stream_options(B) MAX_DELAY duration_literal(C).            { ((SStreamOptions*)B)->pDelay = releaseRawExprNode(pCxt, C); A = B; }
+sma_stream_opt(A) ::= sma_stream_opt(B) WATERMARK duration_literal(C).            { ((SStreamOptions*)B)->pWatermark = releaseRawExprNode(pCxt, C); A = B; }
+sma_stream_opt(A) ::= sma_stream_opt(B) MAX_DELAY duration_literal(C).            { ((SStreamOptions*)B)->pDelay = releaseRawExprNode(pCxt, C); A = B; }
+sma_stream_opt(A) ::= sma_stream_opt(B) DELETE_MARK duration_literal(C).          { ((SStreamOptions*)B)->pDeleteMark = releaseRawExprNode(pCxt, C); A = B; }
 
 /************************************************ create/drop topic ***************************************************/
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS query_or_subquery(C).     { pCxt->pRootNode = createCreateTopicStmtUseQuery(pCxt, A, &B, C); }
@@ -654,7 +659,7 @@ cgroup_name(A) ::= NK_ID(B).                                                    
 
 /************************************************ expression **********************************************************/
 expr_or_subquery(A) ::= expression(B).                                            { A = B; }
-expr_or_subquery(A) ::= subquery(B).                                              { A = B; }
+//expr_or_subquery(A) ::= subquery(B).                                              { A = createTempTableNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
 
 expression(A) ::= literal(B).                                                     { A = B; }
 expression(A) ::= pseudo_column(B).                                               { A = B; }

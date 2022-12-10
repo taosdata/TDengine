@@ -7,6 +7,7 @@ import os
 from util.log import *
 from util.sql import *
 from util.cases import *
+from util.dnodes import *
 from util.dnodes import TDDnodes
 from util.dnodes import TDDnode
 import time
@@ -68,6 +69,8 @@ class TDTestCase:
         self.TDDnodes.init("")
         self.TDDnodes.setTestCluster(testCluster)
         self.TDDnodes.setValgrind(valgrind)
+
+        self.TDDnodes.setAsan(tdDnodes.getAsan())
         self.TDDnodes.stopAll()
         for dnode in self.TDDnodes.dnodes:
             self.TDDnodes.deploy(dnode.index,{})

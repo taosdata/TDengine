@@ -31,7 +31,7 @@ extern "C" {
 
 #define QW_DEFAULT_SCHEDULER_NUMBER 100
 #define QW_DEFAULT_TASK_NUMBER      10000
-#define QW_DEFAULT_SCH_TASK_NUMBER  10000
+#define QW_DEFAULT_SCH_TASK_NUMBER  3000
 #define QW_DEFAULT_SHORT_RUN_TIMES  2
 #define QW_DEFAULT_HEARTBEAT_MSEC   5000
 #define QW_SCH_TIMEOUT_MSEC         180000
@@ -127,6 +127,7 @@ typedef struct SQWTaskCtx {
   bool    queryRsped;
   bool    queryEnd;
   bool    queryContinue;
+  bool    queryExecDone;
   bool    queryInQueue;
   int32_t rspCode;
   int64_t affectedRows;  // for insert ...select stmt
@@ -246,7 +247,7 @@ typedef struct SQWorkerMgmt {
 
 #define QW_ERR_RET(c)                 \
   do {                                \
-    int32_t _code = (c);                \
+    int32_t _code = (c);              \
     if (_code != TSDB_CODE_SUCCESS) { \
       terrno = _code;                 \
       return _code;                   \
@@ -254,7 +255,7 @@ typedef struct SQWorkerMgmt {
   } while (0)
 #define QW_RET(c)                     \
   do {                                \
-    int32_t _code = (c);                \
+    int32_t _code = (c);              \
     if (_code != TSDB_CODE_SUCCESS) { \
       terrno = _code;                 \
     }                                 \
@@ -262,7 +263,7 @@ typedef struct SQWorkerMgmt {
   } while (0)
 #define QW_ERR_JRET(c)               \
   do {                               \
-    code = (c);                        \
+    code = (c);                      \
     if (code != TSDB_CODE_SUCCESS) { \
       terrno = code;                 \
       goto _return;                  \
@@ -362,7 +363,7 @@ int32_t qwAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
 int32_t qwGetTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
 int32_t qwAddAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
 void    qwReleaseTaskCtx(SQWorker *mgmt, void *ctx);
-int32_t qwKillTaskHandle(SQWTaskCtx *ctx);
+int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode);
 int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status);
 int32_t qwDropTask(QW_FPARAMS_DEF);
 void    qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx);

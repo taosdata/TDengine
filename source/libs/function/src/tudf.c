@@ -88,11 +88,13 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   }
 #ifdef WINDOWS
   if (strlen(path) == 0) {
-    strcat(path, "udfd.exe");
-  } else {
-    strcat(path, "\\udfd.exe");
+    strcat(path, "C:\\TDengine");
   }
+  strcat(path, "\\udfd.exe");
 #else
+  if (strlen(path) == 0) {
+    strcat(path, "/usr/bin");
+  }
   strcat(path, "/udfd");
 #endif
   char *argsUdfd[] = {path, "-c", configDir, NULL};
@@ -1096,7 +1098,7 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
 
   SSDataBlock *pTempBlock = createDataBlock();
   pTempBlock->info.rows = pInput->totalRows;
-  pTempBlock->info.uid = pInput->uid;
+  pTempBlock->info.id.uid = pInput->uid;
   for (int32_t i = 0; i < numOfCols; ++i) {
     blockDataAppendColInfo(pTempBlock, pInput->pData[i]);
   }

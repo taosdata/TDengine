@@ -24,6 +24,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "tmisce.h"
 
 #define TSDB_DNODE_VER_NUMBER   1
 #define TSDB_DNODE_RESERVE_SIZE 64
@@ -153,8 +154,9 @@ _OVER:
 }
 
 static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
-  SSdbRow *pRow = NULL;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SSdbRow   *pRow = NULL;
+  SDnodeObj *pDnode = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -165,7 +167,8 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
 
   pRow = sdbAllocRow(sizeof(SDnodeObj));
   if (pRow == NULL) goto _OVER;
-  SDnodeObj *pDnode = sdbGetRowObj(pRow);
+
+  pDnode = sdbGetRowObj(pRow);
   if (pDnode == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -180,7 +183,7 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("dnode:%d, failed to decode from raw:%p since %s", pDnode->id, pRaw, terrstr());
+    mError("dnode:%d, failed to decode from raw:%p since %s", pDnode == NULL ? 0 : pDnode->id, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -374,14 +377,18 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       }
       bool roleChanged = false;
       for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
-        if (pVgroup->vnodeGid[vg].dnodeId == statusReq.dnodeId) {
-          if (pVgroup->vnodeGid[vg].syncState != pVload->syncState ||
-              pVgroup->vnodeGid[vg].syncRestore != pVload->syncRestore) {
-            mInfo("vgId:%d, state changed by status msg, old state:%s restored:%d new state:%s restored:%d",
-                  pVgroup->vgId, syncStr(pVgroup->vnodeGid[vg].syncState), pVgroup->vnodeGid[vg].syncRestore,
-                  syncStr(pVload->syncState), pVload->syncRestore);
-            pVgroup->vnodeGid[vg].syncState = pVload->syncState;
-            pVgroup->vnodeGid[vg].syncRestore = pVload->syncRestore;
+        SVnodeGid *pGid = &pVgroup->vnodeGid[vg];
+        if (pGid->dnodeId == statusReq.dnodeId) {
+          if (pGid->syncState != pVload->syncState || pGid->syncRestore != pVload->syncRestore ||
+              pGid->syncCanRead != pVload->syncCanRead) {
+            mInfo(
+                "vgId:%d, state changed by status msg, old state:%s restored:%d canRead:%d new state:%s restored:%d "
+                "canRead:%d, dnode:%d",
+                pVgroup->vgId, syncStr(pGid->syncState), pGid->syncRestore, pGid->syncCanRead,
+                syncStr(pVload->syncState), pVload->syncRestore, pVload->syncCanRead, pDnode->id);
+            pGid->syncState = pVload->syncState;
+            pGid->syncRestore = pVload->syncRestore;
+            pGid->syncCanRead = pVload->syncCanRead;
             roleChanged = true;
           }
           break;
@@ -780,7 +787,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   int32_t numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
   if ((numOfVnodes > 0 || pMObj != NULL || pSObj != NULL || pQObj != NULL) && !dropReq.force) {
     if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
-      terrno = TSDB_CODE_NODE_OFFLINE;
+      terrno = TSDB_CODE_DNODE_OFFLINE;
       mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
              numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
       goto _OVER;

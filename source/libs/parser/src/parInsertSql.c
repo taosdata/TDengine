@@ -44,6 +44,7 @@ typedef struct SInsertParseContext {
   SParsedDataColInfo tags;  // for stmt
   bool               missCache;
   bool               usingDuplicateTable;
+  bool               forceUpdate;
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
@@ -172,8 +173,8 @@ static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModifO
 }
 
 // pStmt->pSql -> field1_name, ...)
-static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, SParsedDataColInfo* pColList,
-                                 SSchema* pSchema) {
+static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, bool isTags,
+                                 SParsedDataColInfo* pColList, SSchema* pSchema) {
   col_id_t nCols = pColList->numOfCols;
 
   pColList->numOfBound = 0;
@@ -227,12 +228,16 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, S
     }
   }
 
+  if (!isTags && pColList->cols[0].valStat == VAL_STAT_NONE) {
+    return buildInvalidOperationMsg(&pCxt->msg, "primary timestamp column can not be null");
+  }
+
   pColList->orderStatus = isOrdered ? ORDER_STATUS_ORDERED : ORDER_STATUS_DISORDERED;
 
   if (!isOrdered) {
     pColList->colIdxInfo = taosMemoryCalloc(pColList->numOfBound, sizeof(SBoundIdxInfo));
     if (NULL == pColList->colIdxInfo) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     SBoundIdxInfo* pColIdx = pColList->colIdxInfo;
     for (col_id_t i = 0; i < pColList->numOfBound; ++i) {
@@ -525,7 +530,7 @@ static int32_t parseBoundTagsClause(SInsertParseContext* pCxt, SVnodeModifOpStmt
   }
 
   pStmt->pSql += index;
-  return parseBoundColumns(pCxt, &pStmt->pSql, &pCxt->tags, pTagsSchema);
+  return parseBoundColumns(pCxt, &pStmt->pSql, true, &pCxt->tags, pTagsSchema);
 }
 
 static int32_t parseTagValue(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt, SSchema* pTagSchema, SToken* pToken,
@@ -558,7 +563,8 @@ static int32_t parseTagValue(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt
 
 static void buildCreateTbReq(SVnodeModifOpStmt* pStmt, STag* pTag, SArray* pTagName) {
   insBuildCreateTbReq(&pStmt->createTblReq, pStmt->targetTableName.tname, pTag, pStmt->pTableMeta->suid,
-                      pStmt->usingTableName.tname, pTagName, pStmt->pTableMeta->tableInfo.numOfTags);
+                      pStmt->usingTableName.tname, pTagName, pStmt->pTableMeta->tableInfo.numOfTags,
+                      TSDB_DEFAULT_TABLE_TTL);
 }
 
 static int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf) {
@@ -792,6 +798,8 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, bool isSt
       *pMissCache = true;
     } else if (isStb && TSDB_SUPER_TABLE != (*pTableMeta)->tableType) {
       code = buildInvalidOperationMsg(&pCxt->msg, "create table only from super table is allowed");
+    } else if (!isStb && TSDB_SUPER_TABLE == (*pTableMeta)->tableType) {
+      code = buildInvalidOperationMsg(&pCxt->msg, "insert data into super table is not supported");
     }
   }
   return code;
@@ -822,13 +830,68 @@ static int32_t getTableVgroup(SParseContext* pCxt, SVnodeModifOpStmt* pStmt, boo
   return code;
 }
 
+static int32_t getTableMetaAndVgroupImpl(SParseContext* pCxt, SVnodeModifOpStmt* pStmt, bool* pMissCache) {
+  SVgroupInfo vg;
+  int32_t     code = catalogGetCachedTableVgMeta(pCxt->pCatalog, &pStmt->targetTableName, &vg, &pStmt->pTableMeta);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pStmt->pTableMeta) {
+      code = taosHashPut(pStmt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg));
+    }
+    *pMissCache = (NULL == pStmt->pTableMeta);
+  }
+  return code;
+}
+
+static int32_t getTableMetaAndVgroup(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt, bool* pMissCache) {
+  SParseContext* pComCxt = pCxt->pComCxt;
+  int32_t        code = TSDB_CODE_SUCCESS;
+  if (pComCxt->async) {
+    code = getTableMetaAndVgroupImpl(pComCxt, pStmt, pMissCache);
+  } else {
+    code = getTableMeta(pCxt, &pStmt->targetTableName, false, &pStmt->pTableMeta, pMissCache);
+    if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
+      code = getTableVgroup(pCxt->pComCxt, pStmt, false, &pCxt->missCache);
+    }
+  }
+  return code;
+}
+
+static int32_t collectUseTable(const SName* pName, SHashObj* pTable) {
+  char fullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pName, fullName);
+  return taosHashPut(pTable, fullName, strlen(fullName), pName, sizeof(SName));
+}
+
+static int32_t collectUseDatabase(const SName* pName, SHashObj* pDbs) {
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(pName, dbFName);
+  return taosHashPut(pDbs, dbFName, strlen(dbFName), dbFName, sizeof(dbFName));
+}
+
 static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) {
+  if (pCxt->forceUpdate) {
+    pCxt->missCache = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache);
+#if 0
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTableMeta(pCxt, &pStmt->targetTableName, false, &pStmt->pTableMeta, &pCxt->missCache);
   }
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTableVgroup(pCxt->pComCxt, pStmt, false, &pCxt->missCache);
+  }
+#else
+  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
+    code = getTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
+  }
+#endif
+  if (TSDB_CODE_SUCCESS == code && !pCxt->pComCxt->async) {
+    code = collectUseDatabase(&pStmt->targetTableName, pStmt->pDbFNameHashObj);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = collectUseTable(&pStmt->targetTableName, pStmt->pTableNameHashObj);
+    }
   }
   return code;
 }
@@ -838,12 +901,23 @@ static int32_t preParseUsingTableName(SInsertParseContext* pCxt, SVnodeModifOpSt
 }
 
 static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) {
+  if (pCxt->forceUpdate) {
+    pCxt->missCache = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTableMeta(pCxt, &pStmt->usingTableName, true, &pStmt->pTableMeta, &pCxt->missCache);
   }
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTableVgroup(pCxt->pComCxt, pStmt, true, &pCxt->missCache);
+  }
+  if (TSDB_CODE_SUCCESS == code && !pCxt->pComCxt->async) {
+    code = collectUseDatabase(&pStmt->usingTableName, pStmt->pDbFNameHashObj);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = collectUseTable(&pStmt->usingTableName, pStmt->pTableNameHashObj);
+    }
   }
   return code;
 }
@@ -912,10 +986,14 @@ static int32_t preParseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModif
 
 static int32_t getTableDataBlocks(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt, STableDataBlocks** pDataBuf) {
   if (pCxt->pComCxt->async) {
-    return insGetDataBlockFromList(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid),
-                                   TSDB_DEFAULT_PAYLOAD_SIZE, sizeof(SSubmitBlk),
-                                   getTableInfo(pStmt->pTableMeta).rowSize, pStmt->pTableMeta, pDataBuf, NULL,
-                                   &pStmt->createTblReq);
+    uint64_t uid = pStmt->pTableMeta->uid;
+    if (pStmt->usingTableProcessing) {
+      pStmt->pTableMeta->uid = 0;
+    }
+
+    return insGetDataBlockFromList(
+        pStmt->pTableBlockHashObj, &uid, sizeof(pStmt->pTableMeta->uid), TSDB_DEFAULT_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+        getTableInfo(pStmt->pTableMeta).rowSize, pStmt->pTableMeta, pDataBuf, NULL, &pStmt->createTblReq);
   }
   char tbFName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(&pStmt->targetTableName, tbFName);
@@ -935,11 +1013,12 @@ static int32_t parseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModifOpS
       return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is expected", token.z);
     }
     // pStmt->pSql -> field1_name, ...)
-    return parseBoundColumns(pCxt, &pStmt->pSql, &pDataBuf->boundColumnInfo, getTableColumnSchema(pStmt->pTableMeta));
+    return parseBoundColumns(pCxt, &pStmt->pSql, false, &pDataBuf->boundColumnInfo,
+                             getTableColumnSchema(pStmt->pTableMeta));
   }
 
   if (NULL != pStmt->pBoundCols) {
-    return parseBoundColumns(pCxt, &pStmt->pBoundCols, &pDataBuf->boundColumnInfo,
+    return parseBoundColumns(pCxt, &pStmt->pBoundCols, false, &pDataBuf->boundColumnInfo,
                              getTableColumnSchema(pStmt->pTableMeta));
   }
 
@@ -1249,7 +1328,7 @@ static int32_t allocateMemIfNeed(STableDataBlocks* pDataBlock, int32_t rowSize, 
       // do nothing, if allocate more memory failed
       pDataBlock->nAllocSize = nAllocSizeOld;
       *numOfRows = (int32_t)(pDataBlock->nAllocSize - pDataBlock->headerSize) / rowSize;
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
@@ -1512,15 +1591,14 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
 static int32_t setStmtInfo(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) {
   SParsedDataColInfo* tags = taosMemoryMalloc(sizeof(pCxt->tags));
   if (NULL == tags) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(tags, &pCxt->tags, sizeof(pCxt->tags));
 
   SStmtCallback* pStmtCb = pCxt->pComCxt->pStmtCb;
-  char           tbFName[TSDB_TABLE_FNAME_LEN];
-  tNameExtractFullName(&pStmt->targetTableName, tbFName);
-  int32_t code = (*pStmtCb->setInfoFn)(pStmtCb->pStmt, pStmt->pTableMeta, tags, tbFName, pStmt->usingTableProcessing,
-                                       pStmt->pVgroupsHashObj, pStmt->pTableBlockHashObj, pStmt->usingTableName.tname);
+  int32_t        code = (*pStmtCb->setInfoFn)(pStmtCb->pStmt, pStmt->pTableMeta, tags, &pStmt->targetTableName,
+                                       pStmt->usingTableProcessing, pStmt->pVgroupsHashObj, pStmt->pTableBlockHashObj,
+                                       pStmt->usingTableName.tname);
 
   memset(&pCxt->tags, 0, sizeof(pCxt->tags));
   pStmt->pVgroupsHashObj = NULL;
@@ -1571,16 +1649,16 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifOpStmt* pSt
 
 static void destroySubTableHashElem(void* p) { taosMemoryFree(*(STableMeta**)p); }
 
-static int32_t createVnodeModifOpStmt(SParseContext* pCxt, bool reentry, SNode** pOutput) {
+static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, SNode** pOutput) {
   SVnodeModifOpStmt* pStmt = (SVnodeModifOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
   if (NULL == pStmt) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  if (pCxt->pStmtCb) {
+  if (pCxt->pComCxt->pStmtCb) {
     TSDB_QUERY_SET_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT);
   }
-  pStmt->pSql = pCxt->pSql;
+  pStmt->pSql = pCxt->pComCxt->pSql;
   pStmt->freeHashFunc = insDestroyBlockHashmap;
   pStmt->freeArrayFunc = insDestroyBlockArrayList;
 
@@ -1604,7 +1682,7 @@ static int32_t createVnodeModifOpStmt(SParseContext* pCxt, bool reentry, SNode**
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createInsertQuery(SParseContext* pCxt, SQuery** pOutput) {
+static int32_t createInsertQuery(SInsertParseContext* pCxt, SQuery** pOutput) {
   SQuery* pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
   if (NULL == pQuery) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -1667,10 +1745,14 @@ static int32_t getTableVgroupFromMetaData(const SArray* pTables, SVnodeModifOpSt
                      sizeof(SVgroupInfo));
 }
 
-static int32_t getTableSchemaFromMetaData(const SMetaData* pMetaData, SVnodeModifOpStmt* pStmt, bool isStb) {
+static int32_t getTableSchemaFromMetaData(SInsertParseContext* pCxt, const SMetaData* pMetaData,
+                                          SVnodeModifOpStmt* pStmt, bool isStb) {
   int32_t code = checkAuthFromMetaData(pMetaData->pUser);
   if (TSDB_CODE_SUCCESS == code) {
     code = getTableMetaFromMetaData(pMetaData->pTableMeta, &pStmt->pTableMeta);
+  }
+  if (TSDB_CODE_SUCCESS == code && !isStb && TSDB_SUPER_TABLE == pStmt->pTableMeta->tableType) {
+    code = buildInvalidOperationMsg(&pCxt->msg, "insert data into super table is not supported");
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = getTableVgroupFromMetaData(pMetaData->pTableHash, pStmt, isStb);
@@ -1696,24 +1778,25 @@ static void clearCatalogReq(SCatalogReq* pCatalogReq) {
   pCatalogReq->pUser = NULL;
 }
 
-static int32_t setVnodeModifOpStmt(SParseContext* pCxt, SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
+static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
                                    SVnodeModifOpStmt* pStmt) {
   clearCatalogReq(pCatalogReq);
 
   if (pStmt->usingTableProcessing) {
-    return getTableSchemaFromMetaData(pMetaData, pStmt, true);
+    return getTableSchemaFromMetaData(pCxt, pMetaData, pStmt, true);
   }
-  return getTableSchemaFromMetaData(pMetaData, pStmt, false);
+  return getTableSchemaFromMetaData(pCxt, pMetaData, pStmt, false);
 }
 
-static int32_t resetVnodeModifOpStmt(SParseContext* pCxt, SQuery* pQuery) {
+static int32_t resetVnodeModifOpStmt(SInsertParseContext* pCxt, SQuery* pQuery) {
   nodesDestroyNode(pQuery->pRoot);
 
   int32_t code = createVnodeModifOpStmt(pCxt, true, &pQuery->pRoot);
   if (TSDB_CODE_SUCCESS == code) {
     SVnodeModifOpStmt* pStmt = (SVnodeModifOpStmt*)pQuery->pRoot;
 
-    (*pCxt->pStmtCb->getExecInfoFn)(pCxt->pStmtCb->pStmt, &pStmt->pVgroupsHashObj, &pStmt->pTableBlockHashObj);
+    (*pCxt->pComCxt->pStmtCb->getExecInfoFn)(pCxt->pComCxt->pStmtCb->pStmt, &pStmt->pVgroupsHashObj,
+                                             &pStmt->pTableBlockHashObj);
     if (NULL == pStmt->pVgroupsHashObj) {
       pStmt->pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
     }
@@ -1729,13 +1812,13 @@ static int32_t resetVnodeModifOpStmt(SParseContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
-static int32_t initInsertQuery(SParseContext* pCxt, SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
+static int32_t initInsertQuery(SInsertParseContext* pCxt, SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
                                SQuery** pQuery) {
   if (NULL == *pQuery) {
     return createInsertQuery(pCxt, pQuery);
   }
 
-  if (NULL != pCxt->pStmtCb) {
+  if (NULL != pCxt->pComCxt->pStmtCb) {
     return resetVnodeModifOpStmt(pCxt, *pQuery);
   }
 
@@ -1750,16 +1833,25 @@ static int32_t initInsertQuery(SParseContext* pCxt, SCatalogReq* pCatalogReq, co
 
 static int32_t setRefreshMate(SQuery* pQuery) {
   SVnodeModifOpStmt* pStmt = (SVnodeModifOpStmt*)pQuery->pRoot;
-  SName*             pTable = taosHashIterate(pStmt->pTableNameHashObj, NULL);
-  while (NULL != pTable) {
-    taosArrayPush(pQuery->pTableList, pTable);
-    pTable = taosHashIterate(pStmt->pTableNameHashObj, pTable);
+
+  if (taosHashGetSize(pStmt->pTableNameHashObj) > 0) {
+    taosArrayDestroy(pQuery->pTableList);
+    pQuery->pTableList = taosArrayInit(taosHashGetSize(pStmt->pTableNameHashObj), sizeof(SName));
+    SName* pTable = taosHashIterate(pStmt->pTableNameHashObj, NULL);
+    while (NULL != pTable) {
+      taosArrayPush(pQuery->pTableList, pTable);
+      pTable = taosHashIterate(pStmt->pTableNameHashObj, pTable);
+    }
   }
 
-  char* pDb = taosHashIterate(pStmt->pDbFNameHashObj, NULL);
-  while (NULL != pDb) {
-    taosArrayPush(pQuery->pDbList, pDb);
-    pDb = taosHashIterate(pStmt->pDbFNameHashObj, pDb);
+  if (taosHashGetSize(pStmt->pDbFNameHashObj) > 0) {
+    taosArrayDestroy(pQuery->pDbList);
+    pQuery->pDbList = taosArrayInit(taosHashGetSize(pStmt->pDbFNameHashObj), TSDB_DB_FNAME_LEN);
+    char* pDb = taosHashIterate(pStmt->pDbFNameHashObj, NULL);
+    while (NULL != pDb) {
+      taosArrayPush(pQuery->pDbList, pDb);
+      pDb = taosHashIterate(pStmt->pDbFNameHashObj, pDb);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1873,30 +1965,30 @@ static int32_t buildInsertCatalogReq(SInsertParseContext* pCxt, SVnodeModifOpStm
 }
 
 static int32_t setNextStageInfo(SInsertParseContext* pCxt, SQuery* pQuery, SCatalogReq* pCatalogReq) {
+  SVnodeModifOpStmt* pStmt = (SVnodeModifOpStmt*)pQuery->pRoot;
   if (pCxt->missCache) {
-    parserDebug("0x%" PRIx64 " %d rows have been inserted before cache miss", pCxt->pComCxt->requestId,
-                ((SVnodeModifOpStmt*)pQuery->pRoot)->totalRowsNum);
+    parserDebug("0x%" PRIx64 " %d rows of %d tables have been inserted before cache miss", pCxt->pComCxt->requestId,
+                pStmt->totalRowsNum, pStmt->totalTbNum);
 
     pQuery->execStage = QUERY_EXEC_STAGE_PARSE;
-    return buildInsertCatalogReq(pCxt, (SVnodeModifOpStmt*)pQuery->pRoot, pCatalogReq);
+    return buildInsertCatalogReq(pCxt, pStmt, pCatalogReq);
   }
 
-  parserDebug("0x%" PRIx64 " %d rows have been inserted", pCxt->pComCxt->requestId,
-              ((SVnodeModifOpStmt*)pQuery->pRoot)->totalRowsNum);
+  parserDebug("0x%" PRIx64 " %d rows of %d tables have been inserted", pCxt->pComCxt->requestId, pStmt->totalRowsNum,
+              pStmt->totalTbNum);
 
   pQuery->execStage = QUERY_EXEC_STAGE_SCHEDULE;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatalogReq, const SMetaData* pMetaData) {
-  SInsertParseContext context = {
-      .pComCxt = pCxt,
-      .msg = {.buf = pCxt->pMsg, .len = pCxt->msgLen},
-      .missCache = false,
-      .usingDuplicateTable = false,
-  };
+  SInsertParseContext context = {.pComCxt = pCxt,
+                                 .msg = {.buf = pCxt->pMsg, .len = pCxt->msgLen},
+                                 .missCache = false,
+                                 .usingDuplicateTable = false,
+                                 .forceUpdate = (NULL != pCatalogReq ? pCatalogReq->forceUpdate : false)};
 
-  int32_t code = initInsertQuery(pCxt, pCatalogReq, pMetaData, pQuery);
+  int32_t code = initInsertQuery(&context, pCatalogReq, pMetaData, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
     code = parseInsertSqlImpl(&context, (SVnodeModifOpStmt*)(*pQuery)->pRoot);
   }

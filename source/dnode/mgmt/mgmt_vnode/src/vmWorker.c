@@ -246,12 +246,12 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   pHead->contLen = htonl(pHead->contLen);
   pHead->vgId = htonl(pHead->vgId);
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
+  pRpc->pCont = NULL;
 
   int32_t code = vmPutMsgToQueue(pMgmt, pMsg, qtype);
   if (code != 0) {
     dTrace("msg:%p, is freed", pMsg);
     rpcFreeCont(pMsg->pCont);
-    pRpc->pCont = NULL;
     taosFreeQitem(pMsg);
   }
 

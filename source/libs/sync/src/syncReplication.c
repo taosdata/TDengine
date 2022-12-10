@@ -16,12 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "syncReplication.h"
 #include "syncIndexMgr.h"
+#include "syncPipeline.h"
 #include "syncRaftEntry.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
-
-static int32_t syncNodeSendAppendEntries(SSyncNode* pNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
-static int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
 
 // TLA+ Spec
 // AppendEntries(i, j) ==
@@ -48,7 +46,10 @@ static int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pNode, const SRaftId* d
 //                mdest          |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 
+int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
+
 int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapshot) {
+  ASSERT(false && "deprecated");
   // next index
   SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
 
@@ -80,9 +81,11 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
     pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
     code = 0;
 
+    pSyncNode->pLogStore->cacheHit++;
     sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", nextIndex, pEntry->bytes, pEntry);
 
   } else {
+    pSyncNode->pLogStore->cacheMiss++;
     sNTrace(pSyncNode, "miss cache index:%" PRId64, nextIndex);
 
     code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, nextIndex, &pEntry);
@@ -91,7 +94,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
   if (code == 0) {
     ASSERT(pEntry != NULL);
 
-    code = syncBuildAppendEntries(&rpcMsg, pEntry->bytes, pSyncNode->vgId);
+    code = syncBuildAppendEntries(&rpcMsg, (int32_t)(pEntry->bytes), pSyncNode->vgId);
     ASSERT(code == 0);
 
     pMsg = rpcMsg.pCont;
@@ -115,7 +118,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
   if (h) {
     taosLRUCacheRelease(pCache, h, false);
   } else {
-    syncEntryDestory(pEntry);
+    syncEntryDestroy(pEntry);
   }
 
   // prepare msg
@@ -134,7 +137,29 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
   return 0;
 }
 
-int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
+int32_t syncNodeReplicate(SSyncNode* pNode) {
+  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+  taosThreadMutexLock(&pBuf->mutex);
+  int32_t ret = syncNodeReplicateWithoutLock(pNode);
+  taosThreadMutexUnlock(&pBuf->mutex);
+  return ret;
+}
+
+int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
+  if (pNode->state != TAOS_SYNC_STATE_LEADER || pNode->replicaNum == 1) {
+    return -1;
+  }
+  for (int32_t i = 0; i < pNode->replicaNum; i++) {
+    if (syncUtilSameId(&pNode->replicasId[i], &pNode->myRaftId)) {
+      continue;
+    }
+    SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
+    (void)syncLogReplMgrReplicateOnce(pMgr, pNode);
+  }
+  return 0;
+}
+
+int32_t syncNodeReplicateOld(SSyncNode* pSyncNode) {
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
     return -1;
   }
@@ -157,6 +182,14 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
+  SyncAppendEntries* pMsg = pRpcMsg->pCont;
+  int32_t ret = 0;
+  pMsg->destId = *destRaftId;
+  syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
+  return 0;
+}
+
+int32_t syncNodeSendAppendEntriesOld(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
   int32_t            ret = 0;
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
   if (pMsg == NULL) {
@@ -208,14 +241,15 @@ int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* dest
 }
 
 int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destId, SRpcMsg* pMsg) {
-  syncLogSendHeartbeat(pSyncNode, pMsg->pCont, "");
   return syncNodeSendMsgById(destId, pSyncNode, pMsg);
 }
 
 int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
+  int64_t ts = taosGetTimestampMs();
   for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     SRpcMsg rpcMsg = {0};
     if (syncBuildHeartbeat(&rpcMsg, pSyncNode->vgId) != 0) {
+      sError("vgId:%d, build sync-heartbeat error", pSyncNode->vgId);
       continue;
     }
 
@@ -226,8 +260,10 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     pSyncMsg->commitIndex = pSyncNode->commitIndex;
     pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
     pSyncMsg->privateTerm = 0;
+    pSyncMsg->timeStamp = ts;
 
     // send msg
+    syncLogSendHeartbeat(pSyncNode, pSyncMsg, true, 0, 0);
     syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
   }
 

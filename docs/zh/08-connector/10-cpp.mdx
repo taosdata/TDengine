@@ -73,7 +73,95 @@ TDengine 客户端驱动的安装请参考 [安装指南](../#安装步骤)
 ```c
 {{#include examples/c/demo.c}}
 ```
+格式化输出不同类型字段函数 taos_print_row
+```c
+int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
+  int32_t len = 0;
+  for (int i = 0; i < num_fields; ++i) {
+    if (i > 0) {
+      str[len++] = ' ';
+    }
 
+    if (row[i] == NULL) {
+      len += sprintf(str + len, "%s", TSDB_DATA_NULL_STR);
+      continue;
+    }
+
+    switch (fields[i].type) {
+      case TSDB_DATA_TYPE_TINYINT:
+        len += sprintf(str + len, "%d", *((int8_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_UTINYINT:
+        len += sprintf(str + len, "%u", *((uint8_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_SMALLINT:
+        len += sprintf(str + len, "%d", *((int16_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_USMALLINT:
+        len += sprintf(str + len, "%u", *((uint16_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_INT:
+        len += sprintf(str + len, "%d", *((int32_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_UINT:
+        len += sprintf(str + len, "%u", *((uint32_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_BIGINT:
+        len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_UBIGINT:
+        len += sprintf(str + len, "%" PRIu64, *((uint64_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_FLOAT: {
+        float fv = 0;
+        fv = GET_FLOAT_VAL(row[i]);
+        len += sprintf(str + len, "%f", fv);
+      } break;
+
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double dv = 0;
+        dv = GET_DOUBLE_VAL(row[i]);
+        len += sprintf(str + len, "%lf", dv);
+      } break;
+
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_NCHAR: {
+        int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
+        if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
+          assert(charLen <= fields[i].bytes && charLen >= 0);
+        } else {
+          assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
+        }
+
+        memcpy(str + len, row[i], charLen);
+        len += charLen;
+      } break;
+
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_BOOL:
+        len += sprintf(str + len, "%d", *((int8_t *)row[i]));
+      default:
+        break;
+    }
+  }
+  str[len] = 0;
+
+  return len;
+}
+  
+```  
+  
 </details>
 
 ### 异步查询示例

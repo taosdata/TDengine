@@ -136,7 +136,7 @@ int32_t check_for_params(jobject jobj, jlong conn, jlong res) {
   }
 
   if ((TAOS_RES *)res == NULL) {
-    jniError("jobj:%p, conn:%p, res is null", jobj, (TAOS *)conn);
+    jniError("jobj:%p, conn:%p, param res is null", jobj, (TAOS *)conn);
     return JNI_RESULT_SET_NULL;
   }
 
@@ -393,9 +393,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_freeResultSetImp(
     return code;
   }
 
-  taos_free_result((void *)res);
   jniDebug("jobj:%p, conn:%p, free resultset:%p", jobj, (TAOS *)con, (void *)res);
-
+  taos_free_result((void *)res);
   return JNI_SUCCESS;
 }
 
@@ -489,7 +488,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
                numOfFields);
       return JNI_FETCH_END;
     } else {
-      jniDebug("jobj:%p, conn:%p, interrupted query", jobj, tscon);
+      jniDebug("jobj:%p, conn:%p, interrupted query. fetch row error code: %d, msg:%s", jobj, tscon, code, taos_errstr(result));
       return JNI_RESULT_SET_NULL;
     }
   }
@@ -584,7 +583,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchBlockImp(JNI
       jniDebug("jobj:%p, conn:%p, resultset:%p, no data to retrieve", jobj, tscon, (void *)res);
       return JNI_FETCH_END;
     } else {
-      jniError("jobj:%p, conn:%p, query interrupted", jobj, tscon);
+      jniError("jobj:%p, conn:%p, query interrupted. fetch block error code:%d, msg:%s", jobj, tscon, error_code, taos_errstr(tres));
       return JNI_RESULT_SET_NULL;
     }
   }

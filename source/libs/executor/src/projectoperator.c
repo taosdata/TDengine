@@ -85,7 +85,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   int32_t    numOfCols = 0;
   SExprInfo* pExprInfo = createExprInfo(pProjPhyNode->pProjections, NULL, &numOfCols);
 
-  SSDataBlock* pResBlock = createResDataBlock(pProjPhyNode->node.pOutputDataBlockDesc);
+  SSDataBlock* pResBlock = createDataBlockFromDescNode(pProjPhyNode->node.pOutputDataBlockDesc);
   initLimitInfo(pProjPhyNode->node.pLimit, pProjPhyNode->node.pSlimit, &pInfo->limitInfo);
 
   pInfo->binfo.pRes = pResBlock;
@@ -102,7 +102,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   }
 
   initResultSizeInfo(&pOperator->resultInfo, numOfRows);
-  code = initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
+  code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -118,8 +118,8 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfCols);
 
   setOperatorInfo(pOperator, "ProjectOperator", QUERY_NODE_PHYSICAL_PLAN_PROJECT, false, OP_NOT_OPENED, pInfo, pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doProjectOperation, NULL,
-                                         destroyProjectOperatorInfo, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doProjectOperation, NULL,
+                                         destroyProjectOperatorInfo, optrDefaultBufFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -138,13 +138,13 @@ _error:
 static int32_t discardGroupDataBlock(SSDataBlock* pBlock, SLimitInfo* pLimitInfo) {
   if (pLimitInfo->remainGroupOffset > 0) {
     // it is the first group
-    if (pLimitInfo->currentGroupId == 0 || pLimitInfo->currentGroupId == pBlock->info.groupId) {
-      pLimitInfo->currentGroupId = pBlock->info.groupId;
+    if (pLimitInfo->currentGroupId == 0 || pLimitInfo->currentGroupId == pBlock->info.id.groupId) {
+      pLimitInfo->currentGroupId = pBlock->info.id.groupId;
       return PROJECT_RETRIEVE_CONTINUE;
-    } else if (pLimitInfo->currentGroupId != pBlock->info.groupId) {
+    } else if (pLimitInfo->currentGroupId != pBlock->info.id.groupId) {
       // now it is the data from a new group
       pLimitInfo->remainGroupOffset -= 1;
-      pLimitInfo->currentGroupId = pBlock->info.groupId;
+      pLimitInfo->currentGroupId = pBlock->info.id.groupId;
 
       // ignore data block in current group
       if (pLimitInfo->remainGroupOffset > 0) {
@@ -153,7 +153,7 @@ static int32_t discardGroupDataBlock(SSDataBlock* pBlock, SLimitInfo* pLimitInfo
     }
 
     // set current group id of the project operator
-    pLimitInfo->currentGroupId = pBlock->info.groupId;
+    pLimitInfo->currentGroupId = pBlock->info.id.groupId;
   }
 
   return PROJECT_RETRIEVE_DONE;
@@ -164,7 +164,7 @@ static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, S
   // here check for a new group data, we need to handle the data of the previous group.
   ASSERT(pLimitInfo->remainGroupOffset == 0 || pLimitInfo->remainGroupOffset == -1);
 
-  if (pLimitInfo->currentGroupId != 0 && pLimitInfo->currentGroupId != pBlock->info.groupId) {
+  if (pLimitInfo->currentGroupId != 0 && pLimitInfo->currentGroupId != pBlock->info.id.groupId) {
     pLimitInfo->numOfOutputGroups += 1;
     if ((pLimitInfo->slimit.limit > 0) && (pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
       setOperatorCompleted(pOperator);
@@ -306,7 +306,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
 
-      status = doIngroupLimitOffset(pLimitInfo, pBlock->info.groupId, pInfo->pRes, pOperator);
+      status = doIngroupLimitOffset(pLimitInfo, pBlock->info.id.groupId, pInfo->pRes, pOperator);
       if (status == PROJECT_RETRIEVE_CONTINUE) {
         continue;
       }
@@ -316,7 +316,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
     if (pProjectInfo->mergeDataBlocks) {
       if (pRes->info.rows > 0) {
-        pFinalRes->info.groupId = pRes->info.groupId;
+        pFinalRes->info.id.groupId = pRes->info.id.groupId;
         pFinalRes->info.version = pRes->info.version;
 
         // continue merge data, ignore the group id
@@ -385,7 +385,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
     }
   }
 
-  SSDataBlock* pResBlock = createResDataBlock(pPhyNode->node.pOutputDataBlockDesc);
+  SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->node.pOutputDataBlockDesc);
 
   int32_t numOfRows = 4096;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
@@ -400,7 +400,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   initResultSizeInfo(&pOperator->resultInfo, numOfRows);
   blockDataEnsureCapacity(pResBlock, numOfRows);
 
-  int32_t code = initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str);
+  int32_t code = initAggSup(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -415,7 +415,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr);
 
   setOperatorInfo(pOperator, "IndefinitOperator", QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC, false, OP_NOT_OPENED, pInfo, pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doApplyIndefinitFunction, NULL, destroyIndefinitOperatorInfo, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doApplyIndefinitFunction, NULL, destroyIndefinitOperatorInfo, optrDefaultBufFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -511,11 +511,11 @@ SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
           break;
         }
 
-        if (pIndefInfo->groupId == 0 && pBlock->info.groupId != 0) {
-          pIndefInfo->groupId = pBlock->info.groupId;  // this is the initial group result
+        if (pIndefInfo->groupId == 0 && pBlock->info.id.groupId != 0) {
+          pIndefInfo->groupId = pBlock->info.id.groupId;  // this is the initial group result
         } else {
-          if (pIndefInfo->groupId != pBlock->info.groupId) {  // reset output buffer and computing status
-            pIndefInfo->groupId = pBlock->info.groupId;
+          if (pIndefInfo->groupId != pBlock->info.id.groupId) {  // reset output buffer and computing status
+            pIndefInfo->groupId = pBlock->info.id.groupId;
             pIndefInfo->pNextGroupRes = pBlock;
             break;
           }
@@ -642,4 +642,183 @@ SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
   }
 
   return (pRes->info.rows > 0) ? pRes : NULL;
+}
+
+static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, SArray* pPseudoList) {
+  size_t num = (pPseudoList != NULL) ? taosArrayGetSize(pPseudoList) : 0;
+  for (int32_t i = 0; i < num; ++i) {
+    pCtx[i].pOutput = taosArrayGet(pResult->pDataBlock, i);
+  }
+}
+
+int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
+                              int32_t numOfOutput, SArray* pPseudoList) {
+  setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
+
+  if (pSrcBlock == NULL) {
+    for (int32_t k = 0; k < numOfOutput; ++k) {
+      int32_t outputSlotId = pExpr[k].base.resSchema.slotId;
+
+      ASSERT(pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE);
+      SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+
+      int32_t type = pExpr[k].base.pParam[0].param.nType;
+      if (TSDB_DATA_TYPE_NULL == type) {
+        colDataAppendNNULL(pColInfoData, 0, 1);
+      } else {
+        colDataAppend(pColInfoData, 0, taosVariantGet(&pExpr[k].base.pParam[0].param, type), false);
+      }
+    }
+
+    pResult->info.rows = 1;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pResult != pSrcBlock) {
+    pResult->info.id.groupId = pSrcBlock->info.id.groupId;
+    memcpy(pResult->info.parTbName, pSrcBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
+  }
+
+  // if the source equals to the destination, it is to create a new column as the result of scalar
+  // function or some operators.
+  bool createNewColModel = (pResult == pSrcBlock);
+  if (createNewColModel) {
+    blockDataEnsureCapacity(pResult, pResult->info.rows);
+  }
+
+  int32_t numOfRows = 0;
+
+  for (int32_t k = 0; k < numOfOutput; ++k) {
+    int32_t               outputSlotId = pExpr[k].base.resSchema.slotId;
+    SqlFunctionCtx*       pfCtx = &pCtx[k];
+    SInputColumnInfoData* pInputData = &pfCtx->input;
+
+    if (pExpr[k].pExpr->nodeType == QUERY_NODE_COLUMN) {  // it is a project query
+      SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+      if (pResult->info.rows > 0 && !createNewColModel) {
+        colDataMergeCol(pColInfoData, pResult->info.rows, (int32_t*)&pResult->info.capacity, pInputData->pData[0],
+                        pInputData->numOfRows);
+      } else {
+        colDataAssign(pColInfoData, pInputData->pData[0], pInputData->numOfRows, &pResult->info);
+      }
+
+      numOfRows = pInputData->numOfRows;
+    } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+
+      int32_t offset = createNewColModel ? 0 : pResult->info.rows;
+
+      int32_t type = pExpr[k].base.pParam[0].param.nType;
+      if (TSDB_DATA_TYPE_NULL == type) {
+        colDataAppendNNULL(pColInfoData, offset, pSrcBlock->info.rows);
+      } else {
+        char* p = taosVariantGet(&pExpr[k].base.pParam[0].param, type);
+        for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
+          colDataAppend(pColInfoData, i + offset, p, false);
+        }
+      }
+
+      numOfRows = pSrcBlock->info.rows;
+    } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_OPERATOR) {
+      SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
+      taosArrayPush(pBlockList, &pSrcBlock);
+
+      SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+      SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
+
+      SScalarParam dest = {.columnData = &idata};
+      int32_t      code = scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(pBlockList);
+        return code;
+      }
+
+      int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
+      ASSERT(pResult->info.capacity > 0);
+
+      colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
+      colDataDestroy(&idata);
+
+      numOfRows = dest.numOfRows;
+      taosArrayDestroy(pBlockList);
+    } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
+      // _rowts/_c0, not tbname column
+      if (fmIsPseudoColumnFunc(pfCtx->functionId) && (!fmIsScanPseudoColumnFunc(pfCtx->functionId))) {
+        // do nothing
+      } else if (fmIsIndefiniteRowsFunc(pfCtx->functionId)) {
+        SResultRowEntryInfo* pResInfo = GET_RES_INFO(pfCtx);
+        pfCtx->fpSet.init(pfCtx, pResInfo);
+
+        pfCtx->pOutput = taosArrayGet(pResult->pDataBlock, outputSlotId);
+        pfCtx->offset = createNewColModel ? 0 : pResult->info.rows;  // set the start offset
+
+        // set the timestamp(_rowts) output buffer
+        if (taosArrayGetSize(pPseudoList) > 0) {
+          int32_t* outputColIndex = taosArrayGet(pPseudoList, 0);
+          pfCtx->pTsOutput = (SColumnInfoData*)pCtx[*outputColIndex].pOutput;
+        }
+
+        // link pDstBlock to set selectivity value
+        if (pfCtx->subsidiaries.num > 0) {
+          pfCtx->pDstBlock = pResult;
+        }
+
+        int32_t code = pfCtx->fpSet.process(pfCtx);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+        numOfRows = pResInfo->numOfRes;
+      } else if (fmIsAggFunc(pfCtx->functionId)) {
+        // selective value output should be set during corresponding function execution
+        if (fmIsSelectValueFunc(pfCtx->functionId)) {
+          continue;
+        }
+        // _group_key function for "partition by tbname" + csum(col_name) query
+        SColumnInfoData* pOutput = taosArrayGet(pResult->pDataBlock, outputSlotId);
+        int32_t          slotId = pfCtx->param[0].pCol->slotId;
+
+        // todo handle the json tag
+        SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
+        for (int32_t f = 0; f < pSrcBlock->info.rows; ++f) {
+          bool isNull = colDataIsNull_s(pInput, f);
+          if (isNull) {
+            colDataAppendNULL(pOutput, pResult->info.rows + f);
+          } else {
+            char* data = colDataGetData(pInput, f);
+            colDataAppend(pOutput, pResult->info.rows + f, data, isNull);
+          }
+        }
+
+      } else {
+        SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
+        taosArrayPush(pBlockList, &pSrcBlock);
+
+        SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+        SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
+
+        SScalarParam dest = {.columnData = &idata};
+        int32_t      code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosArrayDestroy(pBlockList);
+          return code;
+        }
+
+        int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
+        ASSERT(pResult->info.capacity > 0);
+        colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
+        colDataDestroy(&idata);
+
+        numOfRows = dest.numOfRows;
+        taosArrayDestroy(pBlockList);
+      }
+    } else {
+      return TSDB_CODE_OPS_NOT_SUPPORT;
+    }
+  }
+
+  if (!createNewColModel) {
+    pResult->info.rows += numOfRows;
+  }
+
+  return TSDB_CODE_SUCCESS;
 }

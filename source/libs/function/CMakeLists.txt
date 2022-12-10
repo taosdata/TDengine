@@ -1,6 +1,7 @@
 aux_source_directory(src FUNCTION_SRC)
+aux_source_directory(src/detail FUNCTION_SRC_DETAIL)
 list(REMOVE_ITEM FUNCTION_SRC src/udfd.c)
-add_library(function STATIC ${FUNCTION_SRC})
+add_library(function STATIC ${FUNCTION_SRC} ${FUNCTION_SRC_DETAIL})
 target_include_directories(
     function
     PUBLIC

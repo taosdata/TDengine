@@ -176,6 +176,9 @@ void vnodeBufPoolRef(SVBufPool *pPool) {
 }
 
 void vnodeBufPoolUnRef(SVBufPool *pPool) {
+  if (pPool == NULL) {
+    return;
+  }
   int32_t nRef = atomic_sub_fetch_32(&pPool->nRef, 1);
   if (nRef == 0) {
     SVnode *pVnode = pPool->pVnode;

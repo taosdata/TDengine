@@ -52,10 +52,19 @@ typedef struct {
   int32_t retryLimit;     // retry limit
   int32_t retryInterval;  // retry interval ms
 
+  int32_t retryMinInterval;  // retry init interval
+  int32_t retryStepFactor;   // retry interval factor
+  int32_t retryMaxInterval;  // retry max interval
+  int32_t retryMaxTimouet;
+
+  int32_t failFastThreshold;
+  int32_t failFastInterval;
+
   void (*cfp)(void* parent, SRpcMsg*, SEpSet*);
   bool (*retry)(int32_t code, tmsg_t msgType);
   bool (*startTimer)(int32_t code, tmsg_t msgType);
   void (*destroyFp)(void* ahandle);
+  bool (*failFastFp)(tmsg_t msgType);
 
   int           index;
   void*         parent;

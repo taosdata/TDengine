@@ -108,6 +108,7 @@ SWords shellCommands[] = {
     {"drop topic <topic_name> ;", 0, 0, NULL},
     {"drop stream <stream_name> ;", 0, 0, NULL},
     {"explain select", 0, 0, NULL},  // 44 append sub sql
+    {"help;", 0, 0, NULL},
     {"grant all on <anyword> to <user_name> ;", 0, 0, NULL},
     {"grant read on <anyword> to <user_name> ;", 0, 0, NULL},
     {"grant write on <anyword> to <user_name> ;", 0, 0, NULL},
@@ -386,6 +387,8 @@ void showHelp() {
     drop stream <stream_name> ;\n\
   ----- E ----- \n\
     explain select clause ...\n\
+  ----- H ----- \n\
+    help;\n\
   ----- I ----- \n\
     insert into <tb_name> values(...) ;\n\
     insert into <tb_name> using <stb_name> tags(...) values(...) ;\n\
@@ -1478,24 +1481,36 @@ bool matchSelectQuery(TAOS* con, SShellCmd* cmd) {
 
 // if is input create fields or tags area, return true
 bool isCreateFieldsArea(char* p) {
-  char* left = strrchr(p, '(');
-  if (left == NULL) {
-    // like 'create table st'
-    return false;
-  }
+  // put to while, support like create table st(ts timestamp, bin1 binary(16), bin2 + blank + TAB 
+  char* p1 = strdup(p);
+  bool ret = false;
+  while (1) {
+    char* left = strrchr(p1, '(');
+    if (left == NULL) {
+      // like 'create table st'
+      ret = false;
+      break;
+    }
 
-  char* right = strrchr(p, ')');
-  if (right == NULL) {
-    // like 'create table st( '
-    return true;
-  }
+    char* right = strrchr(p1, ')');
+    if (right == NULL) {
+      // like 'create table st( '
+      ret = true;
+      break;
+    }
 
-  if (left > right) {
-    // like 'create table st( ts timestamp, age int) tags(area '
-    return true;
+    if (left > right) {
+      // like 'create table st( ts timestamp, age int) tags(area '
+      ret = true;
+      break;
+    }
+    
+    // set string end by small for next strrchr search
+    *left = 0;
   }
+  taosMemoryFree(p1);
 
-  return false;
+  return ret;
 }
 
 bool matchCreateTable(TAOS* con, SShellCmd* cmd) {

@@ -61,6 +61,7 @@ int32_t qmPutRpcMsgToQueue(SQnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
   if (pMsg == NULL) return -1;
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
+  pRpc->pCont = NULL;
 
   switch (qtype) {
     case QUERY_QUEUE:
@@ -74,6 +75,7 @@ int32_t qmPutRpcMsgToQueue(SQnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       return 0;
     default:
       terrno = TSDB_CODE_INVALID_PARA;
+      rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
       return -1;
   }

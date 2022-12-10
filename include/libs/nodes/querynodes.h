@@ -106,7 +106,7 @@ typedef struct SValueNode {
     char*    p;
   } datum;
   int64_t typeData;
-  char    unit;
+  int8_t  unit;
 } SValueNode;
 
 typedef struct SLeftValueNode {

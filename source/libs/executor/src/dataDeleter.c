@@ -135,12 +135,12 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
   SDataDeleterHandle* pDeleter = (SDataDeleterHandle*)pHandle;
   SDataDeleterBuf*    pBuf = taosAllocateQitem(sizeof(SDataDeleterBuf), DEF_QITEM);
   if (NULL == pBuf) {
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   if (!allocBuf(pDeleter, pInput, pBuf)) {
     taosFreeQitem(pBuf);
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   
   toDataCacheEntry(pDeleter, pInput, pBuf);

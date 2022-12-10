@@ -25,6 +25,8 @@ extern "C" {
 #include "tcommon.h"
 #include "tsimplehash.h"
 
+#define GET_DEST_SLOT_ID(_p) ((_p)->pExpr->base.resSchema.slotId)
+
 struct SSDataBlock;
 
 typedef struct SFillColInfo {
@@ -113,12 +115,12 @@ typedef struct SStreamFillInfo {
 
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
 
-void                 taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
-void                 taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
-void                 taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
-struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprInfo* pNotFillExpr,
-                                       int32_t numOfNotFillCols, const struct SNodeListNode* val);
-bool                 taosFillHasMoreResults(struct SFillInfo* pFillInfo);
+void          taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
+void          taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
+void          taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
+SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprInfo* pNotFillExpr,
+                                int32_t numOfNotFillCols, const struct SNodeListNode* val);
+bool          taosFillHasMoreResults(struct SFillInfo* pFillInfo);
 
 SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t capacity,
                               SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol, int32_t slotId,
@@ -128,6 +130,8 @@ void*   taosDestroyFillInfo(struct SFillInfo* pFillInfo);
 int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);
 int64_t getFillInfoStart(struct SFillInfo* pFillInfo);
 
+bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnInfoData* pDstColInfoData,
+                                     int32_t rowIndex);
 #ifdef __cplusplus
 }
 #endif

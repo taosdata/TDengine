@@ -489,6 +489,8 @@ static ENodeType getScanOperatorType(EScanType scanType) {
       return QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
     case SCAN_TYPE_BLOCK_INFO:
       return QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN;
+    case SCAN_TYPE_TABLE_COUNT:
+      return QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN;
     default:
       break;
   }
@@ -524,6 +526,24 @@ static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSu
   pScan->ignoreNull = pScanLogicNode->igLastNull;
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
 
+  return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
+}
+
+static int32_t createTableCountScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan,
+                                             SScanLogicNode* pScanLogicNode, SPhysiNode** pPhyNode) {
+  STableCountScanPhysiNode* pScan = (STableCountScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode,
+                                                                             QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN);
+  if (NULL == pScan) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pScan->pGroupTags = nodesCloneList(pScanLogicNode->pGroupTags);
+  if (NULL != pScanLogicNode->pGroupTags && NULL == pScan->pGroupTags) {
+    nodesDestroyNode((SNode*)pScan);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pScan->groupSort = pScanLogicNode->groupSort;
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
@@ -589,7 +609,6 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   pScan->accountId = pCxt->pPlanCxt->acctId;
   pScan->sysInfo = pCxt->pPlanCxt->sysInfo;
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TABLES) ||
-      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TABLE_DISTRIBUTED) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TAGS)) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
   } else {
@@ -624,6 +643,8 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
     case SCAN_TYPE_TAG:
     case SCAN_TYPE_BLOCK_INFO:
       return createSimpleScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
+    case SCAN_TYPE_TABLE_COUNT:
+      return createTableCountScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
     case SCAN_TYPE_LAST_ROW:
       return createLastRowScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
     case SCAN_TYPE_TABLE:
@@ -1064,6 +1085,7 @@ static int32_t doCreateExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogic
 
   pExchange->srcStartGroupId = pExchangeLogicNode->srcStartGroupId;
   pExchange->srcEndGroupId = pExchangeLogicNode->srcEndGroupId;
+  pExchange->seqRecvData = pExchangeLogicNode->seqRecvData;
   *pPhyNode = (SPhysiNode*)pExchange;
 
   return TSDB_CODE_SUCCESS;
@@ -1117,6 +1139,7 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
                                              SWindowLogicNode* pWindowLogicNode) {
   pWindow->triggerType = pWindowLogicNode->triggerType;
   pWindow->watermark = pWindowLogicNode->watermark;
+  pWindow->deleteMark = pWindowLogicNode->deleteMark;
   pWindow->igExpired = pWindowLogicNode->igExpired;
   pWindow->inputTsOrder = pWindowLogicNode->inputTsOrder;
   pWindow->outputTsOrder = pWindowLogicNode->outputTsOrder;

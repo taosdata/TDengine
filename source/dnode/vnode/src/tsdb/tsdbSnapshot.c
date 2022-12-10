@@ -155,7 +155,7 @@ static int32_t tsdbSnapReadOpenFile(STsdbSnapReader* pReader) {
 
         if (rowVer >= pReader->sver && rowVer <= pReader->ever) {
           pIter->rInfo.suid = pIter->bData.suid;
-          pIter->rInfo.uid = pIter->bData.uid;
+          pIter->rInfo.uid = pIter->bData.uid ? pIter->bData.uid : pIter->bData.aUid[pIter->iRow];
           pIter->rInfo.row = tsdbRowFromBlockData(&pIter->bData, pIter->iRow);
           goto _add_iter;
         }
@@ -179,16 +179,14 @@ _err:
   return code;
 }
 
-static SRowInfo* tsdbSnapGetRow(STsdbSnapReader* pReader) { return pReader->pIter ? &pReader->pIter->rInfo : NULL; }
-
 static int32_t tsdbSnapNextRow(STsdbSnapReader* pReader) {
   int32_t code = 0;
 
   if (pReader->pIter) {
-    SFDataIter* pIter = pReader->pIter;
-
+    SFDataIter* pIter = NULL;
     while (true) {
     _find_row:
+      pIter = pReader->pIter;
       for (pIter->iRow++; pIter->iRow < pIter->bData.nRow; pIter->iRow++) {
         int64_t rowVer = pIter->bData.aVersion[pIter->iRow];
 
@@ -224,6 +222,7 @@ static int32_t tsdbSnapNextRow(STsdbSnapReader* pReader) {
         }
 
         pReader->pIter = NULL;
+        break;
       } else if (pIter->type == SNAP_STT_FILE_ITER) {
         for (pIter->iSttBlk++; pIter->iSttBlk < taosArrayGetSize(pIter->aSttBlk); pIter->iSttBlk++) {
           SSttBlk* pSttBlk = (SSttBlk*)taosArrayGet(pIter->aSttBlk, pIter->iSttBlk);
@@ -238,6 +237,7 @@ static int32_t tsdbSnapNextRow(STsdbSnapReader* pReader) {
         }
 
         pReader->pIter = NULL;
+        break;
       } else {
         ASSERT(0);
       }
@@ -267,6 +267,20 @@ static int32_t tsdbSnapNextRow(STsdbSnapReader* pReader) {
 
 _err:
   return code;
+}
+
+static SRowInfo* tsdbSnapGetRow(STsdbSnapReader* pReader) {
+  if (pReader->pIter) {
+    return &pReader->pIter->rInfo;
+  } else {
+    tsdbSnapNextRow(pReader);
+
+    if (pReader->pIter) {
+      return &pReader->pIter->rInfo;
+    } else {
+      return NULL;
+    }
+  }
 }
 
 static int32_t tsdbSnapCmprData(STsdbSnapReader* pReader, uint8_t** ppData) {
@@ -555,7 +569,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
   }
 
   tBlockDataDestroy(&pReader->bData, 1);
-  tTSchemaDestroy(pReader->skmTable.pTSchema);
+  tDestroyTSchema(pReader->skmTable.pTSchema);
 
   // del
   if (pReader->pDelFReader) tsdbDelFReaderClose(&pReader->pDelFReader);
@@ -1356,7 +1370,7 @@ _exit:
       taosMemoryFree(pWriter);
     }
   } else {
-    tsdbDebug("vgId:%d, tsdb snapshot writer open for %s succeed", TD_VID(pTsdb->pVnode), pTsdb->path);
+    tsdbInfo("vgId:%d %s done", TD_VID(pTsdb->pVnode), __func__);
     *ppWriter = pWriter;
   }
   return code;
@@ -1416,12 +1430,12 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
   taosArrayDestroy(pWriter->dReader.aBlockIdx);
 
   tBlockDataDestroy(&pWriter->bData, 1);
-  tTSchemaDestroy(pWriter->skmTable.pTSchema);
+  tDestroyTSchema(pWriter->skmTable.pTSchema);
 
   for (int32_t iBuf = 0; iBuf < sizeof(pWriter->aBuf) / sizeof(uint8_t*); iBuf++) {
     tFree(pWriter->aBuf[iBuf]);
   }
-  tsdbInfo("vgId:%d, vnode snapshot tsdb writer close for %s", TD_VID(pWriter->pTsdb->pVnode), pWriter->pTsdb->path);
+  tsdbInfo("vgId:%d %s done", TD_VID(pWriter->pTsdb->pVnode), __func__);
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
   return code;

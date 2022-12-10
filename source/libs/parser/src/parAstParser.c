@@ -140,7 +140,7 @@ static int32_t collectMetaKeyFromInsTagsImpl(SCollectMetaKeyCxt* pCxt, SName* pN
 static int32_t collectMetaKeyFromInsTags(SCollectMetaKeyCxt* pCxt) {
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pStmt;
   SName        name = {0};
-  int32_t      code = getInsTagsTableTargetName(pCxt->pParseCxt->acctId, pSelect->pWhere, &name);
+  int32_t      code = getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pSelect->pWhere, &name);
   if (TSDB_CODE_SUCCESS == code) {
     code = collectMetaKeyFromInsTagsImpl(pCxt, &name);
   }
@@ -165,7 +165,8 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
   if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES))) {
     code = reserveDnodeRequiredInCache(pCxt->pMetaCache);
   }
-  if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)) &&
+  if (TSDB_CODE_SUCCESS == code &&
+      (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS) || 0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) &&
       QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
     code = collectMetaKeyFromInsTags(pCxt);
   }
@@ -504,6 +505,11 @@ static int32_t collectMetaKeyFromShowVnodes(SCollectMetaKeyCxt* pCxt, SShowVnode
                                  pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromShowUserPrivileges(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USER_PRIVILEGES,
+                                 pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromShowCreateDatabase(SCollectMetaKeyCxt* pCxt, SShowCreateDatabaseStmt* pStmt) {
   return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
 }
@@ -648,6 +654,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowDnodeVariables(pCxt, (SShowDnodeVariablesStmt*)pStmt);
     case QUERY_NODE_SHOW_VNODES_STMT:
       return collectMetaKeyFromShowVnodes(pCxt, (SShowVnodesStmt*)pStmt);
+    case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
+      return collectMetaKeyFromShowUserPrivileges(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return collectMetaKeyFromShowCreateDatabase(pCxt, (SShowCreateDatabaseStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:

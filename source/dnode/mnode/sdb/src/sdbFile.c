@@ -415,7 +415,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
           break;
         }
       } else {
-        code = TSDB_CODE_SDB_APP_ERROR;
+        code = TSDB_CODE_APP_ERROR;
         taosHashCancelIterate(hash, ppRow);
         break;
       }

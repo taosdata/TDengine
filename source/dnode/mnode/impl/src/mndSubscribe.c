@@ -440,9 +440,9 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
 }
 
 static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOutputObj *pOutput) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg, "persist-reb");
-  mndTransSetDbName(pTrans, pOutput->pSub->dbName, NULL);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg, "tmq-reb");
   if (pTrans == NULL) return -1;
+  mndTransSetDbName(pTrans, pOutput->pSub->dbName, NULL);
 
   // make txn:
   // 1. redo action: action to all vg
@@ -523,28 +523,6 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     tDeleteSMqConsumerObj(pConsumerNew);
     taosMemoryFree(pConsumerNew);
   }
-#if 0
-  if (consumerNum) {
-    char topic[TSDB_TOPIC_FNAME_LEN];
-    char cgroup[TSDB_CGROUP_LEN];
-    mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup, true);
-    SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
-    if (pTopic) {
-      // TODO make topic complete
-      SMqTopicObj topicObj = {0};
-      memcpy(&topicObj, pTopic, sizeof(SMqTopicObj));
-      topicObj.refConsumerCnt = pTopic->refConsumerCnt - consumerNum;
-      // TODO is that correct?
-      pTopic->refConsumerCnt = topicObj.refConsumerCnt;
-      mInfo("subscribe topic %s unref %d consumer cgroup %s, refcnt %d", pTopic->name, consumerNum, cgroup,
-            topicObj.refConsumerCnt);
-      if (mndSetTopicCommitLogs(pMnode, pTrans, &topicObj) != 0) {
-        ASSERT(0);
-        goto REB_FAIL;
-      }
-    }
-  }
-#endif
 
   // 4. TODO commit log: modification log
 
@@ -743,7 +721,9 @@ SUB_ENCODE_OVER:
 
 static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  void *buf = NULL;
+  SSdbRow         *pRow = NULL;
+  SMqSubscribeObj *pSub = NULL;
+  void            *buf = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto SUB_DECODE_OVER;
@@ -753,11 +733,10 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
     goto SUB_DECODE_OVER;
   }
 
-  int32_t  size = sizeof(SMqSubscribeObj);
-  SSdbRow *pRow = sdbAllocRow(size);
+  pRow = sdbAllocRow(sizeof(SMqSubscribeObj));
   if (pRow == NULL) goto SUB_DECODE_OVER;
 
-  SMqSubscribeObj *pSub = sdbGetRowObj(pRow);
+  pSub = sdbGetRowObj(pRow);
   if (pSub == NULL) goto SUB_DECODE_OVER;
 
   int32_t dataPos = 0;
@@ -777,11 +756,12 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
 SUB_DECODE_OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("subscribe:%s, failed to decode from raw:%p since %s", pSub->key, pRaw, terrstr());
+    mError("subscribe:%s, failed to decode from raw:%p since %s", pSub == NULL ? "null" : pSub->key, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
 
+  mTrace("subscribe:%s, decode from raw:%p, row:%p", pSub->key, pRaw, pSub);
   return pRow;
 }
 
@@ -928,6 +908,7 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
       action.msgType = TDMT_VND_TMQ_DELETE_SUB;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(pReq);
+        sdbRelease(pSdb, pSub);
         return -1;
       }
     }
@@ -936,6 +917,8 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
       sdbRelease(pSdb, pSub);
       goto END;
     }
+
+    sdbRelease(pSdb, pSub);
   }
 
   code = 0;

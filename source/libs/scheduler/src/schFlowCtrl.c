@@ -63,7 +63,7 @@ int32_t schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
       taosHashInit(pJob->taskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == pJob->flowCtrl) {
     SCH_JOB_ELOG("taosHashInit %d flowCtrl failed", pJob->taskNum);
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   SCH_SET_JOB_NEED_FLOW_CTRL(pJob);
@@ -122,7 +122,7 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough) {
         }
 
         SCH_TASK_ELOG("taosHashPut flowCtrl failed, size:%d", (int32_t)sizeof(nctrl));
-        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+        SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
 
       SCH_TASK_DLOG("task quota added, fqdn:%s, port:%d, tableNum:%d, remainNum:%d, remainExecTaskNum:%d", ep->fqdn,
@@ -156,13 +156,13 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough) {
       ctrl->taskList = taosArrayInit(pLevel->taskNum, POINTER_BYTES);
       if (NULL == ctrl->taskList) {
         SCH_TASK_ELOG("taosArrayInit taskList failed, size:%d", (int32_t)pLevel->taskNum);
-        SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+        SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
       }
     }
 
     if (NULL == taosArrayPush(ctrl->taskList, &pTask)) {
       SCH_TASK_ELOG("taosArrayPush to taskList failed, size:%d", (int32_t)taosArrayGetSize(ctrl->taskList));
-      SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
     *enough = false;

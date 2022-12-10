@@ -344,14 +344,176 @@ endi
 
 
 
+sql drop stream if exists streams11;
+sql drop stream if exists streams12;
+sql drop stream if exists streams13;
+sql drop stream if exists streams14;
+sql drop stream if exists streams15;
+sql drop database if exists test7;
+sql create database test7  vgroups 1;
+sql use test7;
+sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
+sql create stream streams11 trigger at_once  into streamt11 as select  _wstart as ts, avg(a), count(*), timezone(), to_iso8601(1) from t1 where ts >= 1648791210000 and ts < 1648791240000 interval(1s) fill(NULL);
+sql create stream streams12 trigger at_once  into streamt12 as select  _wstart as ts, avg(a), count(*), timezone(), to_iso8601(1) from t1 where ts >= 1648791210000 and ts < 1648791240000 interval(1s) fill(value,100.0,200);
+sql create stream streams13 trigger at_once  into streamt13 as select  _wstart as ts, avg(a), count(*), timezone(), to_iso8601(1) from t1 where ts >= 1648791210000 and ts < 1648791240000 interval(1s) fill(next);
+sql create stream streams14 trigger at_once  into streamt14 as select  _wstart as ts, avg(a), count(*), timezone(), to_iso8601(1) from t1 where ts >= 1648791210000 and ts < 1648791240000 interval(1s) fill(prev);
+sql create stream streams15 trigger at_once  into streamt15 as select  _wstart as ts, avg(a), count(*), timezone(), to_iso8601(1) from t1 where ts >= 1648791210000 and ts < 1648791240000 interval(1s) fill(linear);
 
 
+sql insert into t1 values(1648791210000,1,1,1,1.0,'aaa');
+sql insert into t1 values(1648791210001,1,1,1,1.0,'aaa');
+
+sql insert into t1 values(1648791215000,2,2,2,2.0,'bbb');
+sql insert into t1 values(1648791220000,3,3,3,3.0,'ccc');
+sql insert into t1 values(1648791225000,4,4,4,4.0,'fff');
+
+sql insert into t1 values(1648791230000,5,5,5,5.0,'ddd');
+sql insert into t1 values(1648791230001,6,6,6,6.0,'eee');
+sql insert into t1 values(1648791230002,7,7,7,7.0,'fff');
+
+$loop_count = 0
+
+loop7:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sql select * from streamt11 order by ts;
+
+if $rows != 21 then
+  print ====streamt11=rows3=$rows
+  goto loop7
+endi
+
+sql select * from streamt12 order by ts;
+
+if $rows != 21 then
+  print ====streamt12=rows3=$rows
+  goto loop7
+endi
+
+sql select * from streamt13 order by ts;
+
+if $rows != 21 then
+  print ====streamt13=rows3=$rows
+  goto loop7
+endi
+
+sql select * from streamt14 order by ts;
+
+if $rows != 21 then
+  print ====streamt14=rows3=$rows
+  goto loop7
+endi
+
+sql select * from streamt15 order by ts;
+
+if $rows != 21 then
+  print ====streamt15=rows3=$rows
+  goto loop7
+endi
+
+sql delete from t1 where ts > 1648791210001 and ts < 1648791230000;
+
+$loop_count = 0
+
+loop8:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sql select * from streamt11 order by ts;
+
+if $rows != 21 then
+  print ====streamt11=rows3=$rows
+  goto loop8
+endi
+
+if $data12 != NULL then
+  print ====streamt11=3=data01=$data01
+  goto loop8
+endi
+
+if $data[19][2] != NULL then
+  print ====streamt11=3=data[19][2]=$data[19][2]
+  goto loop8
+endi
+
+sql select * from streamt12 order by ts;
+
+if $rows != 21 then
+  print ====streamt12=rows3=$rows
+  goto loop8
+endi
+
+if $data12 != 200 then
+  print ====streamt12=3=data12=$data12
+  goto loop8
+endi
+
+if $data[19][2] != 200 then
+  print ====streamt12=3=data[19][2]=$data[19][2]
+  goto loop8
+endi
+
+sql select * from streamt13 order by ts;
+
+if $rows != 21 then
+  print ====streamt13=rows3=$rows
+  goto loop8
+endi
+
+if $data12 != 3 then
+  print ====streamt13=3=data12=$data12
+  goto loop8
+endi
+
+if $data[19][2] != 3 then
+  print ====streamt13=3=data[19][2]=$data[19][2]
+  goto loop8
+endi
 
 
+sql select * from streamt14 order by ts;
+
+if $rows != 21 then
+  print ====streamt14=rows3=$rows
+  goto loop8
+endi
+
+if $data12 != 2 then
+  print ====streamt14=3=data12=$data12
+  goto loop8
+endi
+
+if $data[19][2] != 2 then
+  print ====streamt14=3=data[19][2]=$data[19][2]
+  goto loop8
+endi
 
 
+sql select * from streamt15 order by ts;
 
+if $rows != 21 then
+  print ====streamt15=rows3=$rows
+  goto loop8
+endi
 
+if $data12 != 2 then
+  print ====streamt15=3=data12=$data12
+  goto loop8
+endi
+
+if $data[19][2] != 2 then
+  print ====streamt15=3=data[19][2]=$data[19][2]
+  goto loop8
+endi
 
 
 
@@ -384,6 +546,11 @@ sql drop stream if exists streams7;
 sql drop stream if exists streams8;
 sql drop stream if exists streams9;
 sql drop stream if exists streams10;
+sql drop stream if exists streams11;
+sql drop stream if exists streams12;
+sql drop stream if exists streams13;
+sql drop stream if exists streams14;
+sql drop stream if exists streams15;
 
 sql use test1;
 sql select * from t1;

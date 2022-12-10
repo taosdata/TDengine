@@ -30,8 +30,8 @@ void test1() {
 
 void test2() {
   SyncPreSnapshotReply *pMsg = createMsg();
-  uint32_t       len = pMsg->bytes;
-  char *         serialized = (char *)taosMemoryMalloc(len);
+  uint32_t              len = pMsg->bytes;
+  char                 *serialized = (char *)taosMemoryMalloc(len);
   syncPreSnapshotReplySerialize(pMsg, serialized, len);
   SyncPreSnapshotReply *pMsg2 = syncPreSnapshotReplyBuild(789);
   syncPreSnapshotReplyDeserialize(serialized, len, pMsg2);
@@ -44,8 +44,8 @@ void test2() {
 
 void test3() {
   SyncPreSnapshotReply *pMsg = createMsg();
-  uint32_t       len;
-  char *         serialized = syncPreSnapshotReplySerialize2(pMsg, &len);
+  uint32_t              len;
+  char                 *serialized = syncPreSnapshotReplySerialize2(pMsg, &len);
   SyncPreSnapshotReply *pMsg2 = syncPreSnapshotReplyDeserialize2(serialized, len);
   syncPreSnapshotReplyLog2((char *)"test3: syncPreSnapshotReplySerialize2 -> syncPreSnapshotReplyDeserialize2 ", pMsg2);
 
@@ -56,7 +56,7 @@ void test3() {
 
 void test4() {
   SyncPreSnapshotReply *pMsg = createMsg();
-  SRpcMsg        rpcMsg;
+  SRpcMsg               rpcMsg;
   syncPreSnapshotReply2RpcMsg(pMsg, &rpcMsg);
   SyncPreSnapshotReply *pMsg2 = (SyncPreSnapshotReply *)taosMemoryMalloc(rpcMsg.contLen);
   syncPreSnapshotReplyFromRpcMsg(&rpcMsg, pMsg2);
@@ -69,7 +69,7 @@ void test4() {
 
 void test5() {
   SyncPreSnapshotReply *pMsg = createMsg();
-  SRpcMsg        rpcMsg;
+  SRpcMsg               rpcMsg;
   syncPreSnapshotReply2RpcMsg(pMsg, &rpcMsg);
   SyncPreSnapshotReply *pMsg2 = syncPreSnapshotReplyFromRpcMsg2(&rpcMsg);
   syncPreSnapshotReplyLog2((char *)"test5: syncPreSnapshotReply2RpcMsg -> syncPreSnapshotReplyFromRpcMsg2 ", pMsg2);

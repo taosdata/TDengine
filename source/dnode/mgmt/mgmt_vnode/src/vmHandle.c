@@ -216,7 +216,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     dDebug("vgId:%d, already exist", req.vgId);
     tFreeSCreateVnodeReq(&req);
     vmReleaseVnode(pMgmt, pVnode);
-    terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+    terrno = TSDB_CODE_VND_ALREADY_EXIST;
     code = terrno;
     return 0;
   }
@@ -307,7 +307,7 @@ int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
   if (pVnode == NULL) {
     dError("vgId:%d, failed to alter replica since %s", vgId, terrstr());
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    terrno = TSDB_CODE_VND_NOT_EXIST;
     return -1;
   }
 
@@ -369,7 +369,7 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
   if (pVnode == NULL) {
     dDebug("vgId:%d, failed to drop since %s", vgId, terrstr());
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    terrno = TSDB_CODE_VND_NOT_EXIST;
     return -1;
   }
 

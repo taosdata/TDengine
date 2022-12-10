@@ -1124,6 +1124,9 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
     case TABLE_OPTION_SMA:
       ((STableOptions*)pOptions)->pSma = pVal;
       break;
+    case TABLE_OPTION_DELETE_MARK:
+      ((STableOptions*)pOptions)->pDeleteMark = pVal;
+      break;
     default:
       break;
   }
@@ -1407,7 +1410,7 @@ SNode* createShowTableTagsStmt(SAstCreateContext* pCxt, SNode* pTbName, SNode* p
 
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo) {
   CHECK_PARSER_STATUS(pCxt);
-  char password[TSDB_USET_PASSWORD_LEN] = {0};
+  char password[TSDB_USET_PASSWORD_LEN + 3] = {0};
   if (!checkUserName(pCxt, pUserName) || !checkPassword(pCxt, pPassword, password)) {
     return NULL;
   }
@@ -1815,7 +1818,7 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDbN
   SGrantStmt* pStmt = (SGrantStmt*)nodesMakeNode(QUERY_NODE_GRANT_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->privileges = privileges;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->objName, pDbName);
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   return (SNode*)pStmt;
 }
@@ -1828,7 +1831,7 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDb
   SRevokeStmt* pStmt = (SRevokeStmt*)nodesMakeNode(QUERY_NODE_REVOKE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->privileges = privileges;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->objName, pDbName);
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   return (SNode*)pStmt;
 }

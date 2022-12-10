@@ -16,16 +16,17 @@
 #define _DEFAULT_SOURCE
 #include "vnd.h"
 
-#define BATCH_DISABLE 1
-
-static inline bool vnodeIsMsgBlock(tmsg_t type) {
-  return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
-         (type == TDMT_VND_UPDATE_TAG_VAL);
-}
+#define BATCH_ENABLE 0
 
 static inline bool vnodeIsMsgWeak(tmsg_t type) { return false; }
 
 static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
+  const STraceId *trace = &pMsg->info.traceId;
+  vGTrace("vgId:%d, msg:%p wait block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
+  tsem_wait(&pVnode->syncSem);
+}
+
+static inline void vnodeWaitBlockMsgOld(SVnode *pVnode, const SRpcMsg *pMsg) {
   if (vnodeIsMsgBlock(pMsg->msgType)) {
     const STraceId *trace = &pMsg->info.traceId;
     taosThreadMutexLock(&pVnode->lock);
@@ -53,7 +54,7 @@ static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   }
 }
 
-void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg, int32_t code) {
   SEpSet newEpSet = {0};
   syncGetRetryEpSet(pVnode->sync, &newEpSet);
 
@@ -66,8 +67,20 @@ void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   pMsg->info.hasEpSet = 1;
 
-  SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info, .msgType = pMsg->msgType + 1};
-  tmsgSendRedirectRsp(&rsp, &newEpSet);
+  if (code == 0) code = TSDB_CODE_SYN_NOT_LEADER;
+
+  SRpcMsg rsp = {.code = code, .info = pMsg->info, .msgType = pMsg->msgType + 1};
+  int32_t contLen = tSerializeSEpSet(NULL, 0, &newEpSet);
+
+  rsp.pCont = rpcMallocCont(contLen);
+  if (rsp.pCont == NULL) {
+    pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    tSerializeSEpSet(rsp.pCont, contLen, &newEpSet);
+    rsp.contLen = contLen;
+  }
+
+  tmsgSendRsp(&rsp);
 }
 
 static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -87,8 +100,8 @@ static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 }
 
 static void vnodeHandleProposeError(SVnode *pVnode, SRpcMsg *pMsg, int32_t code) {
-  if (code == TSDB_CODE_SYN_NOT_LEADER) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+  if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING) {
+    vnodeRedirectRpcMsg(pVnode, pMsg, code);
   } else {
     const STraceId *trace = &pMsg->info.traceId;
     vGError("vgId:%d, msg:%p failed to propose since %s, code:0x%x", pVnode->config.vgId, pMsg, tstrerror(code), code);
@@ -99,27 +112,34 @@ static void vnodeHandleProposeError(SVnode *pVnode, SRpcMsg *pMsg, int32_t code)
   }
 }
 
+#if BATCH_ENABLE
+
 static void inline vnodeProposeBatchMsg(SVnode *pVnode, SRpcMsg **pMsgArr, bool *pIsWeakArr, int32_t *arrSize) {
   if (*arrSize <= 0) return;
+  SRpcMsg *pLastMsg = pMsgArr[*arrSize - 1];
 
-#if BATCH_DISABLE
-  int32_t code = syncPropose(pVnode->sync, pMsgArr[0], pIsWeakArr[0]);
-#else
+  taosThreadMutexLock(&pVnode->lock);
   int32_t code = syncProposeBatch(pVnode->sync, pMsgArr, pIsWeakArr, *arrSize);
-#endif
+  bool    wait = (code == 0 && vnodeIsBlockMsg(pLastMsg->msgType));
+  if (wait) {
+    ASSERT(!pVnode->blocked);
+    pVnode->blocked = true;
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
 
   if (code > 0) {
     for (int32_t i = 0; i < *arrSize; ++i) {
       vnodeHandleWriteMsg(pVnode, pMsgArr[i]);
     }
-  } else if (code == 0) {
-    vnodeWaitBlockMsg(pVnode, pMsgArr[*arrSize - 1]);
-  } else {
+  } else if (code < 0) {
     if (terrno != 0) code = terrno;
     for (int32_t i = 0; i < *arrSize; ++i) {
       vnodeHandleProposeError(pVnode, pMsgArr[i], code);
     }
   }
+
+  if (wait) vnodeWaitBlockMsg(pVnode, pLastMsg);
+  pLastMsg = NULL;
 
   for (int32_t i = 0; i < *arrSize; ++i) {
     SRpcMsg        *pMsg = pMsgArr[i];
@@ -153,8 +173,8 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
 
     if (!pVnode->restored) {
       vGError("vgId:%d, msg:%p failed to process since restore not finished", vgId, pMsg);
-      terrno = TSDB_CODE_APP_NOT_READY;
-      vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_APP_NOT_READY);
+      terrno = TSDB_CODE_SYN_RESTORING;
+      vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
       continue;
@@ -177,7 +197,7 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
       continue;
     }
 
-    if (isBlock || BATCH_DISABLE) {
+    if (isBlock) {
       vnodeProposeBatchMsg(pVnode, pMsgArr, pIsWeakArr, &arrayPos);
     }
 
@@ -185,7 +205,7 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
     pIsWeakArr[arrayPos] = isWeak;
     arrayPos++;
 
-    if (isBlock || msg == numOfMsgs - 1 || BATCH_DISABLE) {
+    if (isBlock || msg == numOfMsgs - 1) {
       vnodeProposeBatchMsg(pVnode, pMsgArr, pIsWeakArr, &arrayPos);
     }
   }
@@ -193,6 +213,72 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
   taosMemoryFree(pMsgArr);
   taosMemoryFree(pIsWeakArr);
 }
+
+#else
+
+static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak) {
+  taosThreadMutexLock(&pVnode->lock);
+  int32_t code = syncPropose(pVnode->sync, pMsg, isWeak);
+  bool    wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
+  if (wait) {
+    ASSERT(!pVnode->blocked);
+    pVnode->blocked = true;
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
+
+  if (code > 0) {
+    vnodeHandleWriteMsg(pVnode, pMsg);
+  } else if (code < 0) {
+    if (terrno != 0) code = terrno;
+    vnodeHandleProposeError(pVnode, pMsg, code);
+  }
+
+  if (wait) vnodeWaitBlockMsg(pVnode, pMsg);
+  return code;
+}
+
+void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
+  SVnode  *pVnode = pInfo->ahandle;
+  int32_t  vgId = pVnode->config.vgId;
+  int32_t  code = 0;
+  SRpcMsg *pMsg = NULL;
+  vTrace("vgId:%d, get %d msgs from vnode-write queue", vgId, numOfMsgs);
+
+  for (int32_t msg = 0; msg < numOfMsgs; msg++) {
+    if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
+    bool isWeak = vnodeIsMsgWeak(pMsg->msgType);
+
+    const STraceId *trace = &pMsg->info.traceId;
+    vGTrace("vgId:%d, msg:%p get from vnode-write queue, weak:%d block:%d msg:%d:%d, handle:%p", vgId, pMsg, isWeak,
+            vnodeIsMsgBlock(pMsg->msgType), msg, numOfMsgs, pMsg->info.handle);
+
+    if (!pVnode->restored) {
+      vGError("vgId:%d, msg:%p failed to process since restore not finished", vgId, pMsg);
+      vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
+      rpcFreeCont(pMsg->pCont);
+      taosFreeQitem(pMsg);
+      continue;
+    }
+
+    code = vnodePreProcessWriteMsg(pVnode, pMsg);
+    if (code != 0) {
+      vGError("vgId:%d, msg:%p failed to pre-process since %s", vgId, pMsg, terrstr());
+      if (terrno != 0) code = terrno;
+      vnodeHandleProposeError(pVnode, pMsg, code);
+      rpcFreeCont(pMsg->pCont);
+      taosFreeQitem(pMsg);
+      continue;
+    }
+
+    code = vnodeProposeMsg(pVnode, pMsg, isWeak);
+
+    vGTrace("vgId:%d, msg:%p is freed, code:0x%x", vgId, pMsg, code);
+    rpcFreeCont(pMsg->pCont);
+    taosFreeQitem(pMsg);
+  }
+}
+
+#endif
 
 void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnode  *pVnode = pInfo->ahandle;
@@ -205,6 +291,11 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
     const STraceId *trace = &pMsg->info.traceId;
     vGTrace("vgId:%d, msg:%p get from vnode-apply queue, type:%s handle:%p index:%" PRId64, vgId, pMsg,
             TMSG_INFO(pMsg->msgType), pMsg->info.handle, pMsg->info.conn.applyIndex);
+
+    if (vnodeIsMsgBlock(pMsg->msgType)) {
+      vTrace("vgId:%d, blocking msg obtained from apply-queue. index:%" PRId64 ", term: %" PRId64 ", type: %s", vgId,
+             pMsg->info.conn.applyIndex, pMsg->info.conn.applyTerm, TMSG_INFO(pMsg->msgType));
+    }
 
     SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
     if (rsp.code == 0) {
@@ -295,47 +386,32 @@ static int32_t vnodeSyncGetSnapshot(const SSyncFSM *pFsm, SSnapshot *pSnapshot) 
   return 0;
 }
 
-static void vnodeSyncApplyMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   SVnode *pVnode = pFsm->data;
+  pMsg->info.conn.applyIndex = pMeta->index;
+  pMsg->info.conn.applyTerm = pMeta->term;
 
-  if (pMeta->code == 0) {
-    SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
-    rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-    memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
-    rpcMsg.info = pMsg->info;
-    rpcMsg.info.conn.applyIndex = pMeta->index;
-    rpcMsg.info.conn.applyTerm = pMeta->term;
+  const STraceId *trace = &pMsg->info.traceId;
+  vGTrace("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
+          ", weak:%d, code:%d, state:%d %s, type:%s",
+          pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, pMsg->info.conn.applyIndex, pMeta->isWeak, pMeta->code,
+          pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType));
 
-    const STraceId *trace = &pMsg->info.traceId;
-    vGTrace("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
-            ", weak:%d, code:%d, state:%d %s, type:%s",
-            pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, rpcMsg.info.conn.applyIndex, pMeta->isWeak,
-            pMeta->code, pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType));
-
-    tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
-  } else {
-    SRpcMsg rsp = {.code = pMeta->code, .info = pMsg->info};
-    vError("vgId:%d, commit-cb execute error, type:%s, index:%" PRId64 ", error:0x%x %s", pVnode->config.vgId,
-           TMSG_INFO(pMsg->msgType), pMeta->index, pMeta->code, tstrerror(pMeta->code));
-    if (rsp.info.handle != NULL) {
-      tmsgSendRsp(&rsp);
-    }
-  }
+  return tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
 }
 
-static void vnodeSyncCommitMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
-  if (pMeta->isWeak == 0) {
-    vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
-  }
+static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+  return vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
 }
 
-static void vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static int32_t vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   if (pMeta->isWeak == 1) {
-    vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
+    return vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
   }
+  return 0;
 }
 
-static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   SVnode *pVnode = pFsm->data;
   vTrace("vgId:%d, rollback-cb is excuted, fsm:%p, index:%" PRId64 ", weak:%d, code:%d, state:%d %s, type:%s",
          pVnode->config.vgId, pFsm, pMeta->index, pMeta->isWeak, pMeta->code, pMeta->state, syncStr(pMeta->state),
@@ -415,12 +491,12 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm) {
   walApplyVer(pVnode->pWal, pVnode->state.applied);
 
   pVnode->restored = true;
-  vDebug("vgId:%d, sync restore finished", pVnode->config.vgId);
+  vInfo("vgId:%d, sync restore finished", pVnode->config.vgId);
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
-  vDebug("vgId:%d, become follower", pVnode->config.vgId);
+  vInfo("vgId:%d, become follower", pVnode->config.vgId);
 
   taosThreadMutexLock(&pVnode->lock);
   if (pVnode->blocked) {
@@ -517,15 +593,20 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   return 0;
 }
 
-void vnodeSyncStart(SVnode *pVnode) {
+int32_t vnodeSyncStart(SVnode *pVnode) {
   vInfo("vgId:%d, start sync", pVnode->config.vgId);
-  syncStart(pVnode->sync);
+  if (syncStart(pVnode->sync) < 0) {
+    vError("vgId:%d, failed to start sync subsystem since %s", pVnode->config.vgId, terrstr());
+    return -1;
+  }
+  return 0;
 }
 
 void vnodeSyncPreClose(SVnode *pVnode) {
   vInfo("vgId:%d, pre close sync", pVnode->config.vgId);
   syncLeaderTransfer(pVnode->sync);
   syncPreStop(pVnode->sync);
+
   taosThreadMutexLock(&pVnode->lock);
   if (pVnode->blocked) {
     vInfo("vgId:%d, post block after close sync", pVnode->config.vgId);
@@ -546,21 +627,23 @@ bool vnodeIsRoleLeader(SVnode *pVnode) {
 }
 
 bool vnodeIsLeader(SVnode *pVnode) {
+  terrno = 0;
   SSyncState state = syncGetState(pVnode->sync);
 
-  if (state.state != TAOS_SYNC_STATE_LEADER || !state.restored) {
-    if (state.state != TAOS_SYNC_STATE_LEADER) {
-      terrno = TSDB_CODE_SYN_NOT_LEADER;
-    } else {
-      terrno = TSDB_CODE_APP_NOT_READY;
-    }
-    vDebug("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncStr(state.state), state.restored);
+  if (terrno != 0) {
+    vInfo("vgId:%d, vnode is stopping", pVnode->config.vgId);
     return false;
   }
 
-  if (!pVnode->restored) {
-    vDebug("vgId:%d, vnode not restored", pVnode->config.vgId);
-    terrno = TSDB_CODE_APP_NOT_READY;
+  if (state.state != TAOS_SYNC_STATE_LEADER) {
+    terrno = TSDB_CODE_SYN_NOT_LEADER;
+    vInfo("vgId:%d, vnode not leader, state:%s", pVnode->config.vgId, syncStr(state.state));
+    return false;
+  }
+
+  if (!state.restored || !pVnode->restored) {
+    terrno = TSDB_CODE_SYN_RESTORING;
+    vInfo("vgId:%d, vnode not restored:%d:%d", pVnode->config.vgId, state.restored, pVnode->restored);
     return false;
   }
 

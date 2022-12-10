@@ -31,8 +31,8 @@ void test1() {
 
 void test2() {
   SyncLocalCmd *pMsg = createMsg();
-  uint32_t           len = pMsg->bytes;
-  char              *serialized = (char *)taosMemoryMalloc(len);
+  uint32_t      len = pMsg->bytes;
+  char         *serialized = (char *)taosMemoryMalloc(len);
   syncLocalCmdSerialize(pMsg, serialized, len);
   SyncLocalCmd *pMsg2 = syncLocalCmdBuild(1000);
   syncLocalCmdDeserialize(serialized, len, pMsg2);
@@ -45,8 +45,8 @@ void test2() {
 
 void test3() {
   SyncLocalCmd *pMsg = createMsg();
-  uint32_t           len;
-  char              *serialized = syncLocalCmdSerialize2(pMsg, &len);
+  uint32_t      len;
+  char         *serialized = syncLocalCmdSerialize2(pMsg, &len);
   SyncLocalCmd *pMsg2 = syncLocalCmdDeserialize2(serialized, len);
   syncLocalCmdLog2((char *)"test3: syncLocalCmdSerialize3 -> syncLocalCmdDeserialize2 ", pMsg2);
 
@@ -57,7 +57,7 @@ void test3() {
 
 void test4() {
   SyncLocalCmd *pMsg = createMsg();
-  SRpcMsg            rpcMsg;
+  SRpcMsg       rpcMsg;
   syncLocalCmd2RpcMsg(pMsg, &rpcMsg);
   SyncLocalCmd *pMsg2 = (SyncLocalCmd *)taosMemoryMalloc(rpcMsg.contLen);
   syncLocalCmdFromRpcMsg(&rpcMsg, pMsg2);
@@ -70,7 +70,7 @@ void test4() {
 
 void test5() {
   SyncLocalCmd *pMsg = createMsg();
-  SRpcMsg            rpcMsg;
+  SRpcMsg       rpcMsg;
   syncLocalCmd2RpcMsg(pMsg, &rpcMsg);
   SyncLocalCmd *pMsg2 = syncLocalCmdFromRpcMsg2(&rpcMsg);
   syncLocalCmdLog2((char *)"test5: syncLocalCmd2RpcMsg -> syncLocalCmdFromRpcMsg2 ", pMsg2);

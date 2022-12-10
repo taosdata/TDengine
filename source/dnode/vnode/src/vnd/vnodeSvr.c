@@ -178,11 +178,24 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     return -1;
   }
 
+  if (version <= pVnode->state.applied) {
+    vError("vgId:%d, duplicate write request. version: %" PRId64 ", applied: %" PRId64 "", TD_VID(pVnode), version,
+           pVnode->state.applied);
+    terrno = TSDB_CODE_VND_DUP_REQUEST;
+    pRsp->info.handle = NULL;
+    return -1;
+  }
+
   vDebug("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          version);
 
+  ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
+  ASSERT(pVnode->state.applied + 1 == version);
+
   pVnode->state.applied = version;
   pVnode->state.applyTerm = pMsg->info.conn.applyTerm;
+
+  if (!syncUtilUserCommit(pMsg->msgType)) goto _exit;
 
   // skip header
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
@@ -263,7 +276,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
         goto _err;
       }
     } break;
-    case TDMT_VND_STREAM_RECOVER_STEP2: {
+    case TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE: {
       if (tqProcessTaskRecover2Req(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) {
         goto _err;
       }
@@ -283,7 +296,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       vnodeProcessAlterConfigReq(pVnode, version, pReq, len, pRsp);
       break;
     case TDMT_VND_COMMIT:
-      goto _do_commit;
+      vnodeSyncCommit(pVnode);
+      vnodeBegin(pVnode);
+      goto _exit;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
       return -1;
@@ -301,13 +316,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
 
   // commit if need
   if (vnodeShouldCommit(pVnode)) {
-  _do_commit:
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), version);
-    // commit current change
-    if (vnodeCommit(pVnode) < 0) {
-      vError("vgId:%d, failed to commit vnode since %s.", TD_VID(pVnode), tstrerror(terrno));
-      goto _err;
-    }
+#if 0
+    vnodeSyncCommit(pVnode);
+#else
+    vnodeAsyncCommit(pVnode);
+#endif
 
     // start a new one
     if (vnodeBegin(pVnode) < 0) {
@@ -316,6 +330,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     }
   }
 
+_exit:
   return 0;
 
 _err:
@@ -336,7 +351,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
   // if ((pMsg->msgType == TDMT_SCH_QUERY) && !vnodeIsLeader(pVnode)) {
   if ((pMsg->msgType == TDMT_SCH_QUERY) && !syncIsReadyForRead(pVnode->sync)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
 
@@ -359,12 +374,12 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
        pMsg->msgType == TDMT_VND_BATCH_META) &&
       !syncIsReadyForRead(pVnode->sync)) {
     //      !vnodeIsLeader(pVnode)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
 
   if (pMsg->msgType == TDMT_VND_TMQ_CONSUME && !pVnode->restored) {
-    vnodeRedirectRpcMsg(pVnode, pMsg);
+    vnodeRedirectRpcMsg(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
     return 0;
   }
 
@@ -402,7 +417,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE_RSP:
       return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
-    case TDMT_VND_STREAM_RECOVER_STEP1:
+    case TDMT_VND_STREAM_RECOVER_NONBLOCKING_STAGE:
       return tqProcessTaskRecover1Req(pVnode->pTq, pMsg);
     case TDMT_STREAM_RECOVER_FINISH:
       return tqProcessTaskRecoverFinishReq(pVnode->pTq, pMsg);
@@ -1184,11 +1199,11 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t version, void 
 
     int64_t uid = mr.me.uid;
 
-    int32_t code = tsdbDeleteTableData(pVnode->pTsdb, version, deleteReq.suid, uid, pOneReq->ts, pOneReq->ts);
+    int32_t code = tsdbDeleteTableData(pVnode->pTsdb, version, deleteReq.suid, uid, pOneReq->startTs, pOneReq->endTs);
     if (code < 0) {
       terrno = code;
       vError("vgId:%d, delete error since %s, suid:%" PRId64 ", uid:%" PRId64 ", start ts:%" PRId64 ", end ts:%" PRId64,
-             TD_VID(pVnode), terrstr(), deleteReq.suid, uid, pOneReq->ts, pOneReq->ts);
+             TD_VID(pVnode), terrstr(), deleteReq.suid, uid, pOneReq->startTs, pOneReq->endTs);
     }
 
     tDecoderClear(&mr.coder);

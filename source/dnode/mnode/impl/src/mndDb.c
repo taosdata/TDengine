@@ -147,6 +147,8 @@ _OVER:
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SSdbRow *pRow = NULL;
+  SDbObj  *pDb = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -156,10 +158,10 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SDbObj));
+  pRow = sdbAllocRow(sizeof(SDbObj));
   if (pRow == NULL) goto _OVER;
 
-  SDbObj *pDb = sdbGetRowObj(pRow);
+  pDb = sdbGetRowObj(pRow);
   if (pDb == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -219,12 +221,12 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
 
-  if (pDb->cfg.tsdbPageSize <= TSDB_MIN_TSDB_PAGESIZE) {
+  if (pDb->cfg.tsdbPageSize != TSDB_MIN_TSDB_PAGESIZE) {
     mInfo("db:%s, tsdbPageSize set from %d to default %d", pDb->name, pDb->cfg.tsdbPageSize,
           TSDB_DEFAULT_TSDB_PAGESIZE);
   }
 
-  if (pDb->cfg.sstTrigger <= TSDB_MIN_STT_TRIGGER) {
+  if (pDb->cfg.sstTrigger != TSDB_MIN_STT_TRIGGER) {
     mInfo("db:%s, sstTrigger set from %d to default %d", pDb->name, pDb->cfg.sstTrigger, TSDB_DEFAULT_SST_TRIGGER);
   }
 
@@ -232,7 +234,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("db:%s, failed to decode from raw:%p since %s", pDb->name, pRaw, terrstr());
+    mError("db:%s, failed to decode from raw:%p since %s", pDb == NULL ? "null" : pDb->name, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -810,7 +812,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 
   memcpy(&dbObj, pDb, sizeof(SDbObj));
   if (dbObj.cfg.pRetensions != NULL) {
-    dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions);
+    dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
     if (dbObj.cfg.pRetensions == NULL) goto _OVER;
   }
 
@@ -823,7 +825,13 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   dbObj.cfgVersion++;
   dbObj.updateTime = taosGetTimestampMs();
   code = mndAlterDb(pMnode, pReq, pDb, &dbObj);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  if (dbObj.cfg.replications != pDb->cfg.replications) {
+    // return quickly, operation executed asynchronously
+    mInfo("db:%s, alter db replica from %d to %d", pDb->name, pDb->cfg.replications, dbObj.cfg.replications);
+  } else {
+    if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

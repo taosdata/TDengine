@@ -76,7 +76,7 @@ int32_t qwAddSchedulerImpl(SQWorker *mgmt, uint64_t sId, int32_t rwType) {
       taosHashInit(mgmt->cfg.maxSchTaskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (NULL == newSch.tasksHash) {
     QW_SCH_ELOG("taosHashInit %d failed", mgmt->cfg.maxSchTaskNum);
-    QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   QW_LOCK(QW_WRITE, &mgmt->schLock);
@@ -87,7 +87,7 @@ int32_t qwAddSchedulerImpl(SQWorker *mgmt, uint64_t sId, int32_t rwType) {
 
       QW_SCH_ELOG("taosHashPut new sch to scheduleHash failed, errno:%d", errno);
       taosHashCleanup(newSch.tasksHash);
-      QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
     taosHashCleanup(newSch.tasksHash);
@@ -114,7 +114,7 @@ int32_t qwAcquireSchedulerImpl(SQWorker *mgmt, uint64_t sId, int32_t rwType, SQW
         QW_RET(TSDB_CODE_QRY_SCH_NOT_EXIST);
       } else {
         QW_SCH_ELOG("unknown notExistOpt:%d", nOpt);
-        QW_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_RET(TSDB_CODE_APP_ERROR);
       }
     }
 
@@ -171,7 +171,7 @@ int32_t qwAddTaskStatusImpl(QW_FPARAMS_DEF, SQWSchStatus *sch, int32_t rwType, i
       }
     } else {
       QW_TASK_ELOG("taosHashPut to tasksHash failed, error:%x - %s", code, tstrerror(code));
-      QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
   QW_UNLOCK(QW_WRITE, &sch->tasksLock);
@@ -251,7 +251,7 @@ int32_t qwAddTaskCtxImpl(QW_FPARAMS_DEF, bool acquire, SQWTaskCtx **ctx) {
       }
     } else {
       QW_TASK_ELOG("taosHashPut to ctxHash failed, error:%x", code);
-      QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
@@ -275,18 +275,18 @@ void qwFreeTaskHandle(qTaskInfo_t *taskHandle) {
   qTaskInfo_t otaskHandle = atomic_load_ptr(taskHandle);
   if (otaskHandle && atomic_val_compare_exchange_ptr(taskHandle, otaskHandle, NULL)) {
     qDestroyTask(otaskHandle);
-    qDebug("task handle destryed");
+    qDebug("task handle destroyed");
   }
 }
 
-int32_t qwKillTaskHandle(SQWTaskCtx *ctx) {
+int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode) {
   int32_t code = 0;
-  
+
   // Note: free/kill may in RC
   qTaskInfo_t taskHandle = atomic_load_ptr(&ctx->taskHandle);
   if (taskHandle && atomic_val_compare_exchange_ptr(&ctx->taskHandle, taskHandle, NULL)) {
     qDebug("start to kill task");
-    code = qAsyncKillTask(taskHandle);
+    code = qAsyncKillTask(taskHandle, rspCode);
     atomic_store_ptr(&ctx->taskHandle, taskHandle);
   }
 
@@ -308,7 +308,7 @@ void qwFreeTaskCtx(SQWTaskCtx *ctx) {
   if (ctx->sinkHandle) {
     dsDestroyDataSinker(ctx->sinkHandle);
     ctx->sinkHandle = NULL;
-    qDebug("sink handle destryed");
+    qDebug("sink handle destroyed");
   }
 }
 
@@ -363,7 +363,7 @@ int32_t qwDropTaskStatus(QW_FPARAMS_DEF) {
 
   if (taosHashRemove(sch->tasksHash, id, sizeof(id))) {
     QW_TASK_ELOG_E("taosHashRemove task from hash failed");
-    QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+    QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
   QW_TASK_DLOG_E("task status dropped");
@@ -463,6 +463,8 @@ void qwDestroyImpl(void *pMgmt) {
   int8_t    nodeType = mgmt->nodeType;
   int32_t   nodeId = mgmt->nodeId;
 
+  int32_t taskCount = 0;
+  int32_t schStatusCount = 0;
   qDebug("start to destroy qworker, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);
 
   taosTmrStop(mgmt->hbTimer);
@@ -472,6 +474,7 @@ void qwDestroyImpl(void *pMgmt) {
   uint64_t qId, tId;
   int32_t  eId;
   void    *pIter = taosHashIterate(mgmt->ctxHash, NULL);
+
   while (pIter) {
     SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
     void       *key = taosHashGetKey(pIter, NULL);
@@ -480,6 +483,7 @@ void qwDestroyImpl(void *pMgmt) {
     qwFreeTaskCtx(ctx);
     QW_TASK_DLOG_E("task ctx freed");
     pIter = taosHashIterate(mgmt->ctxHash, pIter);
+    taskCount++;
   }
   taosHashCleanup(mgmt->ctxHash);
 
@@ -487,7 +491,9 @@ void qwDestroyImpl(void *pMgmt) {
   while (pIter) {
     SQWSchStatus *sch = (SQWSchStatus *)pIter;
     qwDestroySchStatus(sch);
+
     pIter = taosHashIterate(mgmt->schHash, pIter);
+    schStatusCount++;
   }
   taosHashCleanup(mgmt->schHash);
 
@@ -499,7 +505,8 @@ void qwDestroyImpl(void *pMgmt) {
 
   qwCloseRef();
 
-  qDebug("qworker destroyed, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);
+  qDebug("qworker destroyed, type:%d, id:%d, handle:%p, taskCount:%d, schStatusCount: %d", nodeType, nodeId, mgmt,
+         taskCount, schStatusCount);
 }
 
 int32_t qwOpenRef(void) {
@@ -509,7 +516,7 @@ int32_t qwOpenRef(void) {
     if (gQwMgmt.qwRef < 0) {
       taosWUnLockLatch(&gQwMgmt.lock);
       qError("init qworker ref failed");
-      QW_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      QW_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
   taosWUnLockLatch(&gQwMgmt.lock);

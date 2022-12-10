@@ -613,7 +613,7 @@ TEST_F(ParserInitialATest, alterUser) {
     if (nullptr != pPass) {
       strcpy(expect.pass, pPass);
     }
-    strcpy(expect.dbname, "test");
+    strcpy(expect.objname, "test");
   };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
@@ -627,7 +627,7 @@ TEST_F(ParserInitialATest, alterUser) {
     ASSERT_EQ(req.enable, expect.enable);
     ASSERT_EQ(std::string(req.user), std::string(expect.user));
     ASSERT_EQ(std::string(req.pass), std::string(expect.pass));
-    ASSERT_EQ(std::string(req.dbname), std::string(expect.dbname));
+    ASSERT_EQ(std::string(req.objname), std::string(expect.objname));
   });
 
   setAlterUserReq("wxy", TSDB_ALTER_USER_PASSWD, "123456");

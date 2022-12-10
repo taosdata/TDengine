@@ -444,6 +444,7 @@ class PlannerTestBaseImpl {
       tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req);
       g_mockCatalogService->createSmaIndex(&req);
       nodesStringToNode(req.ast, &pCxt->pAstRoot);
+      pCxt->deleteMark = req.deleteMark;
       tFreeSMCreateSmaReq(&req);
       nodesDestroyNode(pQuery->pRoot);
       pQuery->pRoot = pCxt->pAstRoot;

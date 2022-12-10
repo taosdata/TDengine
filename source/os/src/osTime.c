@@ -339,7 +339,7 @@ char *taosStrpTime(const char *buf, const char *fmt, struct tm *tm) {
 #endif
 }
 
-FORCE_INLINE int32_t taosGetTimeOfDay(struct timeval *tv) {
+int32_t taosGetTimeOfDay(struct timeval *tv) {
 #ifdef WINDOWS
   time_t t;
   t = taosGetTimestampSec();
@@ -455,6 +455,7 @@ static int isLeapYear(time_t year) {
   else
     return 1;
 }
+
 struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst) {
   if (result == NULL) {
     return localtime(timep);
@@ -542,7 +543,9 @@ struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst) 
 #endif
   return result;
 }
+
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
+
 int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
 #ifdef WINDOWS
   LARGE_INTEGER        t;
@@ -551,17 +554,26 @@ int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
   static SYSTEMTIME    ss;
   static LARGE_INTEGER offset;
 
-  ss.wYear = 1970;
-  ss.wMonth = 1;
-  ss.wDay = 1;
-  ss.wHour = 0;
-  ss.wMinute = 0;
-  ss.wSecond = 0;
-  ss.wMilliseconds = 0;
-  SystemTimeToFileTime(&ss, &ff);
-  offset.QuadPart = ff.dwHighDateTime;
-  offset.QuadPart <<= 32;
-  offset.QuadPart |= ff.dwLowDateTime;
+  static int8_t        offsetInit = 0;
+  static volatile bool offsetInitFinished = false;
+  int8_t               old = atomic_val_compare_exchange_8(&offsetInit, 0, 1);
+  if (0 == old) {
+    ss.wYear = 1970;
+    ss.wMonth = 1;
+    ss.wDay = 1;
+    ss.wHour = 0;
+    ss.wMinute = 0;
+    ss.wSecond = 0;
+    ss.wMilliseconds = 0;
+    SystemTimeToFileTime(&ss, &ff);
+    offset.QuadPart = ff.dwHighDateTime;
+    offset.QuadPart <<= 32;
+    offset.QuadPart |= ff.dwLowDateTime;
+    offsetInitFinished = true;
+  } else {
+    while (!offsetInitFinished)
+      ;  // Ensure initialization is completed.
+  }
 
   GetSystemTimeAsFileTime(&f);
   t.QuadPart = f.dwHighDateTime;

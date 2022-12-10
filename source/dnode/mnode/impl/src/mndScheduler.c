@@ -42,7 +42,7 @@ static int32_t mndAddTaskToTaskSet(SArray* pArray, SStreamTask* pTask) {
 }
 
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
-                           int64_t watermark) {
+                           int64_t watermark, int64_t deleteMark) {
   SNode*      pAst = NULL;
   SQueryPlan* pPlan = NULL;
   terrno = TSDB_CODE_SUCCESS;
@@ -64,6 +64,7 @@ int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64
       .rSmaQuery = true,
       .triggerType = triggerType,
       .watermark = watermark,
+      .deleteMark = deleteMark,
   };
 
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
@@ -224,7 +225,7 @@ int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, SStreamObj* pStream) {
   ASSERT(taosArrayGetSize(pStream->tasks) == 1);
 
   while (1) {
-    SVgObj* pVgroup;
+    SVgObj* pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
     if (pIter == NULL) break;
     if (!mndVgroupInDb(pVgroup, pStream->targetDbUid)) {
@@ -258,6 +259,7 @@ int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, SStreamObj* pStream) {
       pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
       ASSERT(pTask->tbSink.pSchemaWrapper);
     }
+    sdbRelease(pSdb, pVgroup);
   }
   return 0;
 }
@@ -316,9 +318,9 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
   bool    externalTargetDB = strcmp(pStream->sourceDb, pStream->targetDb) != 0;
   SDbObj* pDbObj = mndAcquireDb(pMnode, pStream->targetDb);
   ASSERT(pDbObj != NULL);
-  sdbRelease(pSdb, pDbObj);
 
   bool multiTarget = pDbObj->cfg.numOfVgroups > 1;
+  sdbRelease(pSdb, pDbObj);
 
   if (planTotLevel == 2 || externalTargetDB || multiTarget || pStream->fixedSinkVgId) {
     /*if (true) {*/
@@ -382,6 +384,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
             qDestroyQueryPlan(pPlan);
             return -1;
           }
+          sdbRelease(pSdb, pVgroup);
         } else {
           if (mndAssignTaskToSnode(pMnode, pInnerTask, plan, pSnode) < 0) {
             sdbRelease(pSdb, pSnode);
@@ -396,6 +399,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
           qDestroyQueryPlan(pPlan);
           return -1;
         }
+        sdbRelease(pSdb, pVgroup);
       }
     }
 
@@ -448,7 +452,6 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
 
       SStreamChildEpInfo* pEpInfo = taosMemoryMalloc(sizeof(SStreamChildEpInfo));
       if (pEpInfo == NULL) {
-        ASSERT(0);
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         sdbRelease(pSdb, pVgroup);
         qDestroyQueryPlan(pPlan);
@@ -459,6 +462,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
       pEpInfo->nodeId = pTask->nodeId;
       pEpInfo->taskId = pTask->taskId;
       taosArrayPush(pInnerTask->childEpInfo, &pEpInfo);
+      sdbRelease(pSdb, pVgroup);
     }
   }
 
@@ -582,6 +586,8 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     } else {
       pVgEp->qmsg = strdup("");
     }
+
+    sdbRelease(pSdb, pVgroup);
   }
 
   ASSERT(pSub->unassignedVgs->size > 0);

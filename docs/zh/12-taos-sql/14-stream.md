@@ -72,7 +72,7 @@ SHOW STREAMS;
 若要展示更详细的信息，可以使用：
 
 ```sql
-SELECT * from performance_schema.`perf_streams`;
+SELECT * from information_schema.`ins_streams`;
 ```
 
 ## 流式计算的触发模式

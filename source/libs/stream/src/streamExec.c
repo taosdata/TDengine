@@ -16,7 +16,8 @@
 #include "streamInc.h"
 
 static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* pRes) {
-  void* exec = pTask->exec.executor;
+  int32_t code;
+  void*   exec = pTask->exec.executor;
 
   // set input
   const SStreamQueueItem* pItem = (const SStreamQueueItem*)data;
@@ -49,8 +50,11 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
   while (1) {
     SSDataBlock* output = NULL;
     uint64_t     ts = 0;
-    if (qExecTask(exec, &output, &ts) < 0) {
-      ASSERT(false);
+    if ((code = qExecTask(exec, &output, &ts)) < 0) {
+      /*ASSERT(false);*/
+      qError("unexpected stream execution, stream %" PRId64 " task: %d,  since %s", pTask->streamId, pTask->taskId,
+             terrstr());
+      continue;
     }
     if (output == NULL) {
       if (pItem->type == STREAM_INPUT__DATA_RETRIEVE) {

@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "syncSnapshot.h"
 #include "syncIndexMgr.h"
+#include "syncPipeline.h"
 #include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
@@ -102,6 +103,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   pSender->sendingMS = 0;
   pSender->term = pSender->pSyncNode->pRaftStore->currentTerm;
   pSender->startTime = taosGetTimestampMs();
+  pSender->lastSendTime = pSender->startTime;
   pSender->finish = false;
 
   // build begin msg
@@ -200,6 +202,8 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg);
   syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "");
 
+  pSender->lastSendTime = taosGetTimestampMs();
+
   // event log
   if (pSender->seq == SYNC_SNAPSHOT_SEQ_END) {
     sSTrace(pSender, "snapshot sender finish");
@@ -212,32 +216,35 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
 // send snapshot data from cache
 int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   // send current block data
+
+  // build msg
+  SRpcMsg rpcMsg = {0};
+  (void)syncBuildSnapshotSend(&rpcMsg, pSender->blockLen, pSender->pSyncNode->vgId);
+
+  SyncSnapshotSend *pMsg = rpcMsg.pCont;
+  pMsg->srcId = pSender->pSyncNode->myRaftId;
+  pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
+  pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  pMsg->beginIndex = pSender->snapshotParam.start;
+  pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
+  pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
+  pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
+  pMsg->lastConfig = pSender->lastConfig;
+  pMsg->seq = pSender->seq;
+
   if (pSender->pCurrentBlock != NULL && pSender->blockLen > 0) {
-    // build msg
-    SRpcMsg rpcMsg = {0};
-    (void)syncBuildSnapshotSend(&rpcMsg, pSender->blockLen, pSender->pSyncNode->vgId);
-
-    SyncSnapshotSend *pMsg = rpcMsg.pCont;
-    pMsg->srcId = pSender->pSyncNode->myRaftId;
-    pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
-    pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
-    pMsg->beginIndex = pSender->snapshotParam.start;
-    pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
-    pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
-    pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
-    pMsg->lastConfig = pSender->lastConfig;
-    pMsg->seq = pSender->seq;
-
     //  pMsg->privateTerm = pSender->privateTerm;
     memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
-
-    // send msg
-    syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg);
-    syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "");
-
-    // event log
-    sSTrace(pSender, "snapshot sender resend");
   }
+
+  // send msg
+  syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg);
+  syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "");
+
+  pSender->lastSendTime = taosGetTimestampMs();
+
+  // event log
+  sSTrace(pSender, "snapshot sender resend");
 
   return 0;
 }
@@ -272,6 +279,11 @@ int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
     sNTrace(pSyncNode, "snapshot sender too frequently, ignore");
     return 1;
   }
+
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
+  sInfo("vgId:%d, start snapshot for peer: %s:%d", pSyncNode->vgId, host, port);
 
   code = snapshotSenderStart(pSender);
   if (code != 0) {
@@ -333,6 +345,8 @@ bool snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver) { return pReceive
 void snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver) {
   // force close, abandon incomplete data
   if (pReceiver->pWriter != NULL) {
+    // event log
+    sRTrace(pReceiver, "snapshot receiver force stop");
     int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, false,
                                                                   &(pReceiver->snapshot));
     ASSERT(ret == 0);
@@ -342,7 +356,7 @@ void snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver) {
   pReceiver->start = false;
 
   // event log
-  sRTrace(pReceiver, "snapshot receiver force stop");
+  // sRTrace(pReceiver, "snapshot receiver force stop");
 }
 
 int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg) {
@@ -372,7 +386,10 @@ int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, SyncSnapsh
 }
 
 int32_t snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pPreMsg) {
-  ASSERT(!snapshotReceiverIsStart(pReceiver));
+  if (snapshotReceiverIsStart(pReceiver)) {
+    sWarn("vgId:%d, snapshot receiver has started.", pReceiver->pSyncNode->vgId);
+    return 0;
+  }
 
   pReceiver->start = true;
   pReceiver->ack = SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT;
@@ -539,6 +556,11 @@ _START_RECEIVER:
       sNTrace(pSyncNode, "snapshot receiver pre waitting for true time, now:%" PRId64 ", stime:%" PRId64, timeNow,
               pMsg->startTime);
       taosMsleep(10);
+      timeNow = taosGetTimestampMs();
+    }
+
+    if (snapshotReceiverIsStart(pReceiver)) {
+      snapshotReceiverForceStop(pReceiver);
     }
 
     snapshotReceiverStart(pReceiver, pMsg);  // set start-time same with sender
@@ -655,6 +677,7 @@ static int32_t syncNodeOnSnapshotEnd(SSyncNode *pSyncNode, SyncSnapshotSend *pMs
     sNTrace(pSyncNode, "snapshot receiver finish waitting for true time, now:%" PRId64 ", stime:%" PRId64, timeNow,
             pMsg->startTime);
     taosMsleep(10);
+    timeNow = taosGetTimestampMs();
   }
 
   int32_t code = snapshotReceiverFinish(pReceiver, pMsg);
@@ -738,6 +761,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
 
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_END) {
         syncNodeOnSnapshotEnd(pSyncNode, pMsg);
+        (void)syncLogBufferReInit(pSyncNode->pLogBuf, pSyncNode);
 
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_FORCE_CLOSE) {
         // force close, no response
@@ -869,11 +893,10 @@ int32_t syncNodeOnSnapshotReply(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
       // receive ack is finish, close sender
       if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
         snapshotSenderStop(pSender, true);
-
-        // update next-index
-        syncIndexMgrSetIndex(pSyncNode->pNextIndex, &(pMsg->srcId), pMsg->lastIndex + 1);
-        syncNodeReplicateOne(pSyncNode, &(pMsg->srcId), false);
-
+        SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
+        if (pMgr) {
+          syncLogReplMgrReset(pMgr);
+        }
         return 0;
       }
 

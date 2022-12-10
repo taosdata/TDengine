@@ -22,6 +22,7 @@
 #include "tpagedbuf.h"
 #include "tpercentile.h"
 #include "ttypes.h"
+#include "tlog.h"
 
 #define DEFAULT_NUM_OF_SLOT 1024
 
@@ -367,11 +368,13 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
         pSlot->info.data = NULL;
       }
 
-      SArray *pPageIdList = (SArray *)taosHashGet(pBucket->groupPagesMap, &groupId, sizeof(groupId));
-      if (pPageIdList == NULL) {
-        SArray *pList = taosArrayInit(4, sizeof(int32_t));
-        taosHashPut(pBucket->groupPagesMap, &groupId, sizeof(groupId), &pList, POINTER_BYTES);
-        pPageIdList = pList;
+      SArray *pPageIdList;
+      void *p = taosHashGet(pBucket->groupPagesMap, &groupId, sizeof(groupId));
+      if (p == NULL) {
+        pPageIdList = taosArrayInit(4, sizeof(int32_t));
+        taosHashPut(pBucket->groupPagesMap, &groupId, sizeof(groupId), &pPageIdList, POINTER_BYTES);
+      } else {
+        pPageIdList = *(SArray **)p;
       }
 
       pSlot->info.data = getNewBufPage(pBucket->pBuffer, &pageId);
@@ -494,7 +497,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
         resetSlotInfo(pMemBucket);
 
         int32_t groupId = getGroupId(pMemBucket->numOfSlots, i, pMemBucket->times - 1);
-        SIDList list = taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
+        SArray* list = taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
         ASSERT(list != NULL && list->size > 0);
 
         for (int32_t f = 0; f < list->size; ++f) {

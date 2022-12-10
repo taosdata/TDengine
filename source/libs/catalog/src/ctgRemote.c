@@ -384,13 +384,13 @@ int32_t ctgMakeMsgSendInfo(SCtgJob* pJob, SArray* pTaskId, int32_t batchId, SArr
   SMsgSendInfo* msgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (NULL == msgSendInfo) {
     qError("calloc %d failed", (int32_t)sizeof(SMsgSendInfo));
-    CTG_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   SCtgTaskCallbackParam* param = taosMemoryCalloc(1, sizeof(SCtgTaskCallbackParam));
   if (NULL == param) {
     qError("calloc %d failed", (int32_t)sizeof(SCtgTaskCallbackParam));
-    CTG_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   param->reqType = msgType;
