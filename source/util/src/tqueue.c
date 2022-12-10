@@ -109,7 +109,7 @@ int64_t taosQueueMemorySize(STaosQueue *queue) {
   return memOfItems;
 }
 
-void *taosAllocateQitem(int32_t size, EQItype itype, int32_t dataSize) {
+void *taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize) {
   STaosQnode *pNode = taosMemoryCalloc(1, sizeof(STaosQnode) + size);
   if (pNode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -124,7 +124,9 @@ void *taosAllocateQitem(int32_t size, EQItype itype, int32_t dataSize) {
   if (itype == RPC_QITEM) {
     int64_t alloced = atomic_add_fetch_64(&tsRpcQueueMemoryUsed, size + dataSize);
     if (alloced > tsRpcQueueMemoryAllowed) {
-      uError("failed to alloc qitem, size:%d alloc:%" PRId64 " allowed:%" PRId64, size + dataSize, alloced, tsRpcQueueMemoryUsed);
+      uError("failed to alloc qitem, size:%" PRId64 " alloc:%" PRId64 " allowed:%" PRId64, size + dataSize, alloced,
+             tsRpcQueueMemoryUsed);
+      atomic_sub_fetch_64(&tsRpcQueueMemoryUsed, size + dataSize);
       taosMemoryFree(pNode);
       terrno = TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE;
       return NULL;

@@ -139,8 +139,8 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
 
   SSnode *pSnode = pMgmt->pSnode;
   if (pSnode == NULL) {
-    dError("msg:%p failed to put into snode queue since %s, type:%s qtype:%d", pMsg, terrstr(),
-           TMSG_INFO(pMsg->msgType), qtype);
+    dError("msg:%p failed to put into snode queue since %s, type:%s qtype:%d len:%d", pMsg, terrstr(),
+           TMSG_INFO(pMsg->msgType), qtype, pRpc->contLen);
     taosFreeQitem(pMsg);
     rpcFreeCont(pRpc->pCont);
     pRpc->pCont = NULL;
