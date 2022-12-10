@@ -1,3 +1,13 @@
+<a name="v0.3.1"></a>
+## v0.3.1 TDengine Data Replication Toolkit (2022-12-10)
+
+
+#### Bug Fixes
+
+*   update to 3.0.2.0 in docker image ([e366f821](https://github.com/taosdata/taosx.git/commit/e366f821ce5a417a1d173286f04d2f1df0b2b1fa))
+
+
+
 <a name="v0.3.0"></a>
 ## v0.3.0 TDengine Data Replication Toolkit (2022-12-10)
 
