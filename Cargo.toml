@@ -42,7 +42,7 @@ zstd = "0.11.2"
 
 actix-web = "4"
 serde_json = "1.0"
-sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "sqlite", "chrono"] }
+sqlx = { version = "0.6", features = [ "sqlite", "chrono"] }
 utoipa = { version = "2.0.0", features = ["actix_extras", "chrono"] }
 utoipa-swagger-ui = { version = "3.0.1", features = ["actix-web"] }
 
@@ -59,20 +59,22 @@ shadow-rs = "0.18.0"
 version = "0.4.15"
 default-features = false
 git = "https://github.com/taosdata/taos-connector-rust"
-features = ["ws"]
+features = ["ws", "r2d2"]
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 jemallocator = "0.5.0"
 
 [build-dependencies]
-sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "sqlite", "chrono"] }
+sqlx = { version = "0.6", features = ["sqlite", "chrono"] }
 dotenv = "0.15.0"
 shadow-rs = "0.18.0"
 
 [features]
-default = ["sys"]
+default = ["sys", "rustls"]
 optin = ["taos/optin"]
 sys = ["taos/native"]
+rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls"]
+native-tls = ["sqlx/runtime-tokio-native-tls", "taos/ws-native-tls"]
 
 [profile.min]
 inherits = "release"
