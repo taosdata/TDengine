@@ -318,7 +318,6 @@ class StreamComputingPerfTest(TDCase):
                     select_ts_elm = "ts"
                     order_by_elm = "ts"
                 if "stream_info" in cfg[cases][json_file]:
-                    print("inin1")
                     if "partition by" in cfg[cases][json_file]["stream_info"]["source_sql"]:
                         if cfg[cases][json_file]["stream_info"]["trigger_mode"] == "at_once":
                             if "interval" in cfg[cases][json_file]["stream_info"]["source_sql"]:
@@ -333,7 +332,6 @@ class StreamComputingPerfTest(TDCase):
                             self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select {order_by_elm},spread(cha) as sp, `tbname` from ((select {select_ts_elm}  ,tbname, max(cast({non_prikey_ts_col_name} as bigint)) as cha from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]} partition by tbname interval({cfg[cases][json_file]["stream_info"]["interval"]})) \
                                 union all (select {order_by_elm}, `tbname`, cast(`now` as bigint)  from {cfg[cases][json_file]["stream_info"]["stream_stb"]}) order by {order_by_elm}, `tbname`) partition by {order_by_elm},`tbname` order by {order_by_elm} ) where sp>0;')
                     else:
-                        print("inin2")
                         self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select {order_by_elm},spread(cha) as sp from ((select {select_ts_elm}  ,max(cast({non_prikey_ts_col_name} as bigint)) as cha from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]} interval({cfg[cases][json_file]["stream_info"]["interval"]})) \
                             union all (select {order_by_elm}, cast(`now` as bigint)  from {cfg[cases][json_file]["stream_info"]["stream_stb"]}) order by {order_by_elm}) partition by {order_by_elm} order by {order_by_elm} );')
                 if len(self.tdSql.query_data) > 0:
