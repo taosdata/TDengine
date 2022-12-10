@@ -153,11 +153,11 @@ The parameters described in this document by the effect that they have on the sy
 | Meaning     | Execution policy for query statements            |
 | Unit     | None                            |
 | Default   | 1                             |
-| Notes | 1: Run queries on vnodes and not on qnodes |
+| Value Range | 1: Run queries on vnodes and not on qnodes 
 
 2: Run subtasks without scan operators on qnodes and subtasks with scan operators on vnodes.
 
-3: Only run scan operators on vnodes; run all other operators on qnodes.
+3: Only run scan operators on vnodes; run all other operators on qnodes. |
 
 ### querySmaOptimize
 
@@ -173,6 +173,14 @@ The parameters described in this document by the effect that they have on the sy
 
 1: Enable SMA indexing and perform queries from suitable statements on precomputation results.|
 
+### countAlwaysReturnValue 
+
+| Attribute     | Description                             |
+| -------- | -------------------------------- |
+| Applicable | Server only                     |
+| Meaning   | count()/hyperloglog() return value or not if the result data is NULL |
+| Vlue Range | 0：Return empty line，1：Return 0       |
+| Default   | 1                            |
 
 ### maxNumOfDistinctRes
 
@@ -307,6 +315,14 @@ The charset that takes effect is UTF-8.
 | Meaning       | All data files are stored in this directory |
 | Default Value | /var/lib/taos                               |
 
+### tempDir
+
+| Attribute    | Description                                     |
+| -------- | ------------------------------------------ |
+| Applicable | Server only                               |
+| Meaning     | The directory where to put all the temporary files generated during system running |
+| Default   | /tmp                           |
+
 ### minimalTmpDirGB
 
 | Attribute     | Description                            |
@@ -336,63 +352,8 @@ The charset that takes effect is UTF-8.
 | Value Range | 0-4096                                     |
 | Default Value | 2x the CPU cores                                                    |
 
-## Time Parameters
 
-### statusInterval
-
-| Attribute     | Description                            |
-| -------- | --------------------------- |
-| Applicable    | Server Only                                                    |
-| Meaning       | the interval of dnode reporting status to mnode |
-| Unit          | second                                          |
-| Value Range   | 1-10                                         |
-| Default Value | 1                          |
-
-### shellActivityTimer
-
-| Attribute     | Description                            |
-| -------- | --------------------------------- |
-| Applicable    | Server and Client         |
-| Meaning       | The interval for TDengine CLI to send heartbeat to mnode |
-| Unit          | second                                          |
-| Value Range   | 1-120                                         |
-| Default Value | 3                              |
-
-## Performance Optimization Parameters
-
-### numOfCommitThreads
-
-| Attribute     | Description                            |
-| -------- | ---------------------- |
-| Applicable    | Server Only                                                    |
-| Meaning       | Maximum of threads for committing to disk |
-| Default Value | |
-
-## Compression Parameters
-
-### compressMsgSize
-
-| Attribute     | Description                                                                                                                                                                         |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Applicable    | Server Only                                                                                                                                                                         |
-| Meaning       | The threshold for message size to compress the message.                         | Set the value to 64330 bytes for good message compression. |
-| Unit          | bytes                                                                            |
-| Value Range   | 0: already compress; >0: compress when message exceeds it; -1: always uncompress |
-| Default Value | -1                                                               |
-
-### compressColData
-
-| Attribute     | Description                            |
-| -------- | --------------------------------------------------------------------------------------- |
-| Applicable    | Server Only                                                    |
-| Meaning       | The threshold for size of column data to trigger compression for the query result              |
-| Unit          | bytes                                                                                                               |
-| Value Range   | 0: always compress; >0: only compress when the size of any column data exceeds the threshold; -1: always uncompress |
-| Default Value | -1                                                               |
-| Default Value | -1                                                                                                                  |
-| Note          | available from version 2.3.0.0                                                                                      |                                                                                                                       |
-
-## Continuous Query Parameters                                  |
+## Continuous Query Parameters                                 
 
 ### minSlidingTime
 
@@ -686,172 +647,150 @@ To prevent system resource from being exhausted by multiple concurrent streams, 
 | Value Range   | 0: disable UDF; 1: enabled UDF |
 | Default Value | 1                              |
 
-## Parameter Comparison of TDengine 2.x and 3.0
-| #   | **Parameter**             | **In 2.x** | **In 3.0** |
-| --- | :-----------------: | ---------------    | ---------------   |
-| 1   | firstEp | Yes | Yes |
-| 2   | secondEp | Yes | Yes |
-| 3   | fqdn | Yes | Yes |
-| 4   | serverPort | Yes | Yes |
-| 5   | maxShellConns | Yes | Yes |
-| 6   | monitor | Yes | Yes |
-| 7   | monitorFqdn | No | Yes |
-| 8   | monitorPort | No | Yes |
-| 9   | monitorInterval | Yes | Yes |
-| 10  | monitorMaxLogs | No | Yes |
-| 11  | monitorComp | No | Yes |
-| 12  | telemetryReporting | Yes | Yes |
-| 13  | telemetryInterval | No | Yes |
-| 14  | telemetryServer | No | Yes |
-| 15  | telemetryPort | No | Yes |
-| 16  | queryPolicy | No | Yes |
-| 17  | querySmaOptimize | No | Yes |
-| 18  | queryRsmaTolerance | No | Yes |
-| 19  | queryBufferSize | Yes | Yes |
-| 20  | maxNumOfDistinctRes | Yes | Yes |
-| 21  | minSlidingTime | Yes | Yes |
-| 22  | minIntervalTime | Yes | Yes |
-| 23  | countAlwaysReturnValue | Yes | Yes |
-| 24  | dataDir | Yes | Yes |
-| 25  | minimalDataDirGB | Yes | Yes |
-| 26  | supportVnodes | No | Yes |
-| 27  | tempDir | Yes | Yes |
-| 28  | minimalTmpDirGB | Yes | Yes |
-| 29  | compressMsgSize | Yes | Yes |
-| 30  | compressColData | Yes | Yes |
-| 31  | smlChildTableName | Yes | Yes |
-| 32  | smlTagName | Yes | Yes |
-| 33  | smlDataFormat | No | Yes |
-| 34  | statusInterval | Yes | Yes |
-| 35  | shellActivityTimer | Yes | Yes |
-| 36  | transPullupInterval | No | Yes |
-| 37  | mqRebalanceInterval | No | Yes |
-| 38  | ttlUnit | No | Yes |
-| 39  | ttlPushInterval | No | Yes |
-| 40  | numOfTaskQueueThreads | No | Yes |
-| 41  | numOfRpcThreads | No | Yes |
-| 42  | numOfCommitThreads | Yes | Yes |
-| 43  | numOfMnodeReadThreads | No | Yes |
-| 44  | numOfVnodeQueryThreads | No | Yes |
-| 45  | numOfVnodeStreamThreads | No | Yes |
-| 46  | numOfVnodeFetchThreads | No | Yes |
-| 47  | numOfVnodeRsmaThreads | No | Yes | 
-| 48  | numOfQnodeQueryThreads | No | Yes |
-| 49  | numOfQnodeFetchThreads | No | Yes |
-| 50  | numOfSnodeSharedThreads | No | Yes |
-| 51  | numOfSnodeUniqueThreads | No | Yes |
-| 52  | rpcQueueMemoryAllowed | No | Yes |
-| 53  | logDir | Yes | Yes |
-| 54  | minimalLogDirGB | Yes | Yes |
-| 55  | numOfLogLines | Yes | Yes |
-| 56  | asyncLog | Yes | Yes |
-| 57  | logKeepDays | Yes | Yes |
-| 60  | debugFlag | Yes | Yes |
-| 61  | tmrDebugFlag | Yes | Yes |
-| 62  | uDebugFlag | Yes | Yes |
-| 63  | rpcDebugFlag | Yes | Yes |
-| 64  | jniDebugFlag | Yes | Yes |
-| 65  | qDebugFlag | Yes | Yes |
-| 66  | cDebugFlag | Yes | Yes |
-| 67  | dDebugFlag | Yes | Yes |
-| 68  | vDebugFlag | Yes | Yes |
-| 69  | mDebugFlag | Yes | Yes |
-| 70  | wDebugFlag | Yes | Yes |
-| 71  | sDebugFlag | Yes | Yes |
-| 72  | tsdbDebugFlag | Yes | Yes |
-| 73  | tqDebugFlag | No | Yes |
-| 74  | fsDebugFlag | Yes | Yes |
-| 75  | udfDebugFlag | No | Yes |
-| 76  | smaDebugFlag | No | Yes |
-| 77  | idxDebugFlag | No | Yes |
-| 78  | tdbDebugFlag | No | Yes |
-| 79  | metaDebugFlag | No | Yes |
-| 80  | timezone | Yes | Yes |
-| 81  | locale | Yes | Yes |
-| 82  | charset | Yes | Yes |
-| 83  | udf | Yes | Yes |
-| 84  | enableCoreFile | Yes | Yes |
-| 85  | arbitrator | Yes | No |
-| 86  | numOfThreadsPerCore | Yes | No |
-| 87  | numOfMnodes | Yes | No |
-| 88  | vnodeBak | Yes | No |
-| 89  | balance | Yes | No |
-| 90  | balanceInterval | Yes | No |
-| 91  | offlineThreshold | Yes | No |
-| 92  | role | Yes | No |
-| 93  | dnodeNopLoop | Yes | No |
-| 94  | keepTimeOffset | Yes | No |
-| 95  | rpcTimer | Yes | No |
-| 96  | rpcMaxTime | Yes | No |
-| 97  | rpcForceTcp | Yes | No |
-| 98  | tcpConnTimeout | Yes | No |
-| 99  | syncCheckInterval | Yes | No |
-| 100 | maxTmrCtrl | Yes | No |
-| 101 | monitorReplica | Yes | No |
-| 102 | smlTagNullName | Yes | No |
-| 103 | keepColumnName | Yes | No |
-| 104 | ratioOfQueryCores | Yes | No |
-| 105 | maxStreamCompDelay | Yes | No |
-| 106 | maxFirstStreamCompDelay | Yes | No |
-| 107 | retryStreamCompDelay | Yes | No |
-| 108 | streamCompDelayRatio | Yes | No |
-| 109 | maxVgroupsPerDb | Yes | No |
-| 110 | maxTablesPerVnode | Yes | No |
-| 111 | minTablesPerVnode | Yes | No |
-| 112 | tableIncStepPerVnode | Yes | No |
-| 113 | cache | Yes | No |
-| 114 | blocks | Yes | No |
-| 115 | days | Yes | No |
-| 116 | keep | Yes | No |
-| 117 | minRows | Yes | No |
-| 118 | maxRows | Yes | No |
-| 119 | quorum | Yes | No |
-| 120 | comp | Yes | No |
-| 121 | walLevel | Yes | No |
-| 122 | fsync | Yes | No |
-| 123 | replica | Yes | No |
-| 124 | partitions | Yes | No |
-| 125 | quorum | Yes | No |
-| 126 | update | Yes | No |
-| 127 | cachelast | Yes | No |
-| 128 | maxSQLLength | Yes | No |
-| 129 | maxWildCardsLength | Yes | No |
-| 130 | maxRegexStringLen | Yes | No |
-| 131 | maxNumOfOrderedRes | Yes | No |
-| 132 | maxConnections | Yes | No |
-| 133 | mnodeEqualVnodeNum | Yes | No |
-| 134 | http | Yes | No |
-| 135 | httpEnableRecordSql | Yes | No |
-| 136 | httpMaxThreads | Yes | No |
-| 137 | restfulRowLimit | Yes | No |
-| 138 | httpDbNameMandatory | Yes | No |
-| 139 | httpKeepAlive | Yes | No |
-| 140 | enableRecordSql | Yes | No |
-| 141 | maxBinaryDisplayWidth | Yes | No |
-| 142 | stream | Yes | No |
-| 143 | retrieveBlockingModel | Yes | No |
-| 144 | tsdbMetaCompactRatio | Yes | No |
-| 145 | defaultJSONStrType | Yes | No |
-| 146 | walFlushSize | Yes | No |
-| 147 | keepTimeOffset | Yes | No |
-| 148 | flowctrl | Yes | No |
-| 149 | slaveQuery | Yes | No |
-| 150 | adjustMaster | Yes | No |
-| 151 | topicBinaryLen | Yes | No |
-| 152 | telegrafUseFieldNum | Yes | No |
-| 153 | deadLockKillQuery | Yes | No |
-| 154 | clientMerge | Yes | No |
-| 155 | sdbDebugFlag | Yes | No |
-| 156 | odbcDebugFlag | Yes | No |
-| 157 | httpDebugFlag | Yes | No |
-| 158 | monDebugFlag | Yes | No |
-| 159 | cqDebugFlag | Yes | No |
-| 160 | shortcutFlag | Yes | No |
-| 161 | probeSeconds | Yes | No |
-| 162 | probeKillSeconds | Yes | No |
-| 163 | probeInterval | Yes | No |
-| 164 | lossyColumns | Yes | No |
-| 165 | fPrecision | Yes | No |
-| 166 | dPrecision | Yes | No |
-| 167 | maxRange | Yes | No |
-| 168 | range | Yes | No |
+
+## 3.0 Parameters
+
+| #   |        **参数**         | **适用于 2.X ** | **适用于 3.0 ** | 3.0 版本的当前行为                                |
+| --- | :---------------------: | --------------- | --------------- | ------------------------------------------------- |
+| 1   |         firstEp         | 是              | 是              |                                                   |
+| 2   |        secondEp         | 是              | 是              |                                                   |
+| 3   |          fqdn           | 是              | 是              |                                                   |
+| 4   |       serverPort        | 是              | 是              |                                                   |
+| 5   |      maxShellConns      | 是              | 是              |                                                   |
+| 6   |         monitor         | 是              | 是              |                                                   |
+| 7   |       monitorFqdn       | 否              | 是              |                                                   |
+| 8   |       monitorPort       | 否              | 是              |                                                   |
+| 9   |     monitorInterval     | 是              | 是              |                                                   |
+| 10  |       queryPolicy       | 否              | 是              |                                                   |
+| 11  |    querySmaOptimize     | 否              | 是              |                                                   |
+| 12  |   maxNumOfDistinctRes   | 是              | 是              |                                                   |
+| 13  |     minSlidingTime      | 是              | 是              |                                                   |
+| 14  |     minIntervalTime     | 是              | 是              |                                                   |
+| 15  | countAlwaysReturnValue  | 是              | 是              |                                                   |
+| 16  |         dataDir         | 是              | 是              |                                                   |
+| 17  |    minimalDataDirGB     | 是              | 是              |                                                   |
+| 18  |      supportVnodes      | 否              | 是              |                                                   |
+| 19  |         tempDir         | 是              | 是              |                                                   |
+| 20  |     minimalTmpDirGB     | 是              | 是              |                                                   |
+| 21  |    smlChildTableName    | 是              | 是              |                                                   |
+| 22  |       smlTagName        | 是              | 是              |                                                   |
+| 23  |      smlDataFormat      | 否              | 是              |                                                   |
+| 24  |     statusInterval      | 是              | 是              |                                                   |
+| 25  |         logDir          | 是              | 是              |                                                   |
+| 26  |     minimalLogDirGB     | 是              | 是              |                                                   |
+| 27  |      numOfLogLines      | 是              | 是              |                                                   |
+| 28  |        asyncLog         | 是              | 是              |                                                   |
+| 29  |       logKeepDays       | 是              | 是              |                                                   |
+| 30  |        debugFlag        | 是              | 是              |                                                   |
+| 31  |      tmrDebugFlag       | 是              | 是              |                                                   |
+| 32  |       uDebugFlag        | 是              | 是              |                                                   |
+| 33  |      rpcDebugFlag       | 是              | 是              |                                                   |
+| 34  |      jniDebugFlag       | 是              | 是              |                                                   |
+| 35  |       qDebugFlag        | 是              | 是              |                                                   |
+| 36  |       cDebugFlag        | 是              | 是              |                                                   |
+| 37  |       dDebugFlag        | 是              | 是              |                                                   |
+| 38  |       vDebugFlag        | 是              | 是              |                                                   |
+| 39  |       mDebugFlag        | 是              | 是              |                                                   |
+| 40  |       wDebugFlag        | 是              | 是              |                                                   |
+| 41  |       sDebugFlag        | 是              | 是              |                                                   |
+| 42  |      tsdbDebugFlag      | 是              | 是              |                                                   |
+| 43  |       tqDebugFlag       | 否              | 是              |                                                   |
+| 44  |       fsDebugFlag       | 是              | 是              |                                                   |
+| 45  |      udfDebugFlag       | 否              | 是              |                                                   |
+| 46  |      smaDebugFlag       | 否              | 是              |                                                   |
+| 47  |      idxDebugFlag       | 否              | 是              |                                                   |
+| 48  |      tdbDebugFlag       | 否              | 是              |                                                   |
+| 49  |      metaDebugFlag      | 否              | 是              |                                                   |
+| 50  |        timezone         | 是              | 是              |                                                   |
+| 51  |         locale          | 是              | 是              |                                                   |
+| 52  |         charset         | 是              | 是              |                                                   |
+| 53  |           udf           | 是              | 是              |                                                   |
+| 54  |     enableCoreFile      | 是              | 是              |                                                   |
+
+## Abandoned 2.x Parameters
+
+| #   |        **参数**         | **适用于 2.X ** | **适用于 3.0 ** | 3.0 版本的当前行为                                |
+| --- | :---------------------: | --------------- | --------------- | ------------------------------------------------- |
+| 1  |       arbitrator        | 是              | 否              | 通过 RAFT 协议选主                                |
+| 2  |   numOfThreadsPerCore   | 是              | 否              | 有其它参数设置多种线程池的大小                    |
+| 3  |       numOfMnodes       | 是              | 否              | 通过 create mnode 命令动态创建 mnode              |
+| 4  |        vnodeBak         | 是              | 否              | 3.0 行为未知                                      |
+| 5  |         balance         | 是              | 否              | 负载均衡功能由 split/merge vgroups 实现           |
+| 6  |     balanceInterval     | 是              | 否              | 随着 balance 参数失效                             |
+| 7  |    offlineThreshold     | 是              | 否              | 3.0 行为未知                                      |
+| 8  |          role           | 是              | 否              | 由 supportVnode 决定是否能够创建                  |
+| 9  |      dnodeNopLoop       | 是              | 否              | 2.6 文档中未找到此参数                            |
+| 10  |     keepTimeOffset      | 是              | 否              | 2.6 文档中未找到此参数                            |
+| 11  |        rpcTimer         | 是              | 否              | 3.0 行为未知                                      |
+| 12  |       rpcMaxTime        | 是              | 否              | 3.0 行为未知                                      |
+| 13  |       rpcForceTcp       | 是              | 否              | 默认为 TCP                                        |
+| 14  |     tcpConnTimeout      | 是              | 否              | 3.0 行为未知                                      |
+| 15  |    syncCheckInterval    | 是              | 否              | 3.0 行为未知                                      |
+| 16  |       maxTmrCtrl        | 是              | 否              | 3.0 行为未知                                      |
+| 17 |     monitorReplica      | 是              | 否              | 由 RAFT 协议管理多副本                            |
+| 18 |     smlTagNullName      | 是              | 否              | 3.0 行为未知                                      |
+| 19 |     keepColumnName      | 是              | 否              | 3.0 行为未知                                      |
+| 20 |    ratioOfQueryCores    | 是              | 否              | 由 线程池 相关配置参数决定                        |
+| 21 |   maxStreamCompDelay    | 是              | 否              | 3.0 行为未知                                      |
+| 22 | maxFirstStreamCompDelay | 是              | 否              | 3.0 行为未知                                      |
+| 23 |  retryStreamCompDelay   | 是              | 否              | 3.0 行为未知                                      |
+| 24 |  streamCompDelayRatio   | 是              | 否              | 3.0 行为未知                                      |
+| 25 |     maxVgroupsPerDb     | 是              | 否              | 由 create db 的参数 vgroups 指定实际 vgroups 数量 |
+| 26 |    maxTablesPerVnode    | 是              | 否              | DB 中的所有表近似平均分配到各个 vgroup            |
+| 27 |    minTablesPerVnode    | 是              | 否              | DB 中的所有表近似平均分配到各个 vgroup            |
+| 28 |  tableIncStepPerVnode   | 是              | 否              | DB 中的所有表近似平均分配到各个 vgroup            |
+| 29 |          cache          | 是              | 否              | 由 buffer 代替 cache\*blocks                      |
+| 30 |         blocks          | 是              | 否              | 由 buffer 代替 cache\*blocks                      |
+| 31 |          days           | 是              | 否              | 由 create db 的参数 duration 取代                 |
+| 32 |          keep           | 是              | 否              | 由 create db 的参数 keep 取代                     |
+| 33 |         minRows         | 是              | 否              | 由 create db 的参数 minRows 取代                  |
+| 34 |         maxRows         | 是              | 否              | 由 create db 的参数 maxRows 取代                  |
+| 35 |         quorum          | 是              | 否              | 由 RAFT 协议决定                                  |
+| 36 |          comp           | 是              | 否              | 由 create db 的参数 comp 取代                     |
+| 37 |        walLevel         | 是              | 否              | 由 create db 的参数 wal_level 取代                |
+| 38 |          fsync          | 是              | 否              | 由 create db 的参数 wal_fsync_period 取代         |
+| 39 |         replica         | 是              | 否              | 由 create db 的参数 replica 取代                  |
+| 40 |       partitions        | 是              | 否              | 3.0 行为未知                                      |
+| 41 |         update          | 是              | 否              | 允许更新部分列                                    |
+| 42 |        cachelast        | 是              | 否              | 由 create db 的参数 cacheModel 取代               |
+| 43 |      maxSQLLength       | 是              | 否              | SQL 上限为 1MB，无需参数控制                      |
+| 44 |   maxWildCardsLength    | 是              | 否              | 3.0 行为未知                                      |
+| 45 |    maxRegexStringLen    | 是              | 否              | 3.0 行为未知                                      |
+| 46 |   maxNumOfOrderedRes    | 是              | 否              | 3.0 行为未知                                      |
+| 47 |     maxConnections      | 是              | 否              | 取决于系统配置和系统处理能力，详见后面的 Note     |
+| 48 |   mnodeEqualVnodeNum    | 是              | 否              | 3.0 行为未知                                      |
+| 49 |          http           | 是              | 否              | http 服务由 taosAdapter 提供                      |
+| 50 |   httpEnableRecordSql   | 是              | 否              | taosd 不提供 http 服务                            |
+| 51 |     httpMaxThreads      | 是              | 否              | taosd 不提供 http 服务                            |
+| 52 |     restfulRowLimit     | 是              | 否              | taosd 不提供 http 服务                            |
+| 53 |   httpDbNameMandatory   | 是              | 否              | taosd 不提供 http 服务                            |
+| 54 |      httpKeepAlive      | 是              | 否              | taosd 不提供 http 服务                            |
+| 55 |     enableRecordSql     | 是              | 否              | 3.0 行为未知                                      |
+| 56 |  maxBinaryDisplayWidth  | 是              | 否              | 3.0 行为未知                                      |
+| 57 |         stream          | 是              | 否              | 默认启用连续查询                                  |
+| 58 |  retrieveBlockingModel  | 是              | 否              | 3.0 行为未知                                      |
+| 59 |  tsdbMetaCompactRatio   | 是              | 否              | 3.0 行为未知                                      |
+| 60 |   defaultJSONStrType    | 是              | 否              | 3.0 行为未知                                      |
+| 61 |      walFlushSize       | 是              | 否              | 3.0 行为未知                                      |
+| 62 |     keepTimeOffset      | 是              | 否              | 3.0 行为未知                                      |
+| 63 |        flowctrl         | 是              | 否              | 3.0 行为未知                                      |
+| 64 |       slaveQuery        | 是              | 否              | 3.0 行为未知： slave vnode 是否能够处理查询？     |
+| 65 |      adjustMaster       | 是              | 否              | 3.0 行为未知                                      |
+| 66 |     topicBinaryLen      | 是              | 否              | 3.0 行为未知                                      |
+| 67 |   telegrafUseFieldNum   | 是              | 否              | 3.0 行为未知                                      |
+| 68 |    deadLockKillQuery    | 是              | 否              | 3.0 行为未知                                      |
+| 69 |       clientMerge       | 是              | 否              | 3.0 行为未知                                      |
+| 70 |      sdbDebugFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                    |
+| 71 |      odbcDebugFlag      | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                    |
+| 72 |      httpDebugFlag      | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                    |
+| 73 |      monDebugFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                    |
+| 74 |       cqDebugFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                    |
+| 75 |      shortcutFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                    |
+| 76 |      probeSeconds       | 是              | 否              | 3.0 行为未知                                      |
+| 77 |    probeKillSeconds     | 是              | 否              | 3.0 行为未知                                      |
+| 78 |      probeInterval      | 是              | 否              | 3.0 行为未知                                      |
+| 79 |      lossyColumns       | 是              | 否              | 3.0 行为未知                                      |
+| 80 |       fPrecision        | 是              | 否              | 3.0 行为未知                                      |
+| 81 |       dPrecision        | 是              | 否              | 3.0 行为未知                                      |
+| 82 |        maxRange         | 是              | 否              | 3.0 行为未知                                      |
+| 83 |          range          | 是              | 否              | 3.0 行为未知                                      |
