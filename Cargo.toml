@@ -70,7 +70,7 @@ dotenv = "0.15.0"
 shadow-rs = "0.18.0"
 
 [features]
-default = ["sys", "rustls"]
+default = ["sys", "native-tls"]
 optin = ["taos/optin"]
 sys = ["taos/native"]
 rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls"]
