@@ -36,9 +36,10 @@ class LongTimeInsert(TDCase):
         self.des_table_suffix = "_output"
         self.non_prikey_ts_col_name = ""
         self.restart_timeout = 10
+        self.syncing_drop_count = 10
         # self.query_interval = 7200
         # self.query_interval = 3600
-        self.query_interval = 300
+        self.query_interval = 120
         self._remote: Remote = Remote(self.logger)
         self.taosd = TaosD(self._remote)
         self.taosd_setting = self.tdCom.get_components_setting(
@@ -74,15 +75,15 @@ class LongTimeInsert(TDCase):
         f.write(msg)
         f.close
 
-    def alter_replica(self, dbname, dnode_count=3):
+    def alter_replica(self, dbname, dnode_count=3, history_replica=None):
         self.write_log(f'--------- alter database: {dbname} replica 1 \t--------\n')
         self.tdSql.execute(f'alter database {dbname} replica 1')
-        sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, True, dnode_count=dnode_count))
+        sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, True, dnode_count=dnode_count, history_replica=history_replica))
         self.write_log(f'--------- alter {dbname} replica 1 sync time --- {sync_time}s \t--------\n')
 
         self.write_log(f'--------- alter database: {dbname} replica 3 \t--------\n')
         self.tdSql.execute(f'alter database {dbname} replica {dnode_count}')
-        sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, True, dnode_count=dnode_count))
+        sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, True, dnode_count=dnode_count, history_replica=history_replica))
         self.write_log(f'--------- alter {dbname} replica {dnode_count} sync time --- {sync_time}s \t--------\n')
 
     def drop_exist_table(self, dbname, ctbname_prefix, count=10):
@@ -100,22 +101,29 @@ class LongTimeInsert(TDCase):
 
     def alter_table(self, dbname, stb_info_dict):
         if "alter_table" in stb_info_dict:
-            self.tdSql.execute(f'alter stable {dbname}.{stb_info_dict["stb_name"]} rename tag `t12` `t12_update`')
+            self.tdSql.execute(f'alter stable {dbname}.{stb_info_dict["stb_name"]} rename tag `t1` `t1_update`')
+            self.tdSql.execute(f'alter stable {dbname}.{stb_info_dict["stb_name"]} rename tag `t1_update` `t1`')
 
-    def restart_sync(self, db_list, db_info_dict=None, stb_info_dict=None, dnode_count=3, stop_dnode=True, alter_replica=False, drop_count=10):
+    def restart_sync(self, db_list, db_info_dict=None, stb_info_dict=None, dnode_count=3, stop_dnode=True, drop_count=10):
         dnodes_out_mnodes = self.tdSql.get_dnodes_out_mnodes()
         random_endpoint = random.choice(dnodes_out_mnodes[1])
-        self.tdSql.query(f'select name,ntables from information_schema.ins_databases;')
+        self.tdSql.query(f'select name,ntables,`replica` from information_schema.ins_databases;')
         db_field_kv = self.tdSql.get_db_field_kv(0, db_info_dict["db_name"])
         ntables_count = db_field_kv["ntables"]
-        if stop_dnode:
-            if self.record_endpoint is not None:
-                if self.record_endpoint not in dnodes_out_mnodes:
-                    self.write_log(f'--------- trying to start dnode again: --- {self.record_endpoint} \t--------\n')
-                    self.write_log(f'--------- self.record_endpoint ----------- {self.record_endpoint} \t--------\n')
-                    self.write_log(f'--------- dnodes_out_mnodes ----------- {dnodes_out_mnodes} \t--------\n')
 
-                    self.taosd.start(self.record_dnode)
+        if stop_dnode and "alter_replica" not in stb_info_dict:
+            self.write_log(f'--------- self.record_endpoint ----------- {self.record_endpoint} \t--------\n')
+            self.write_log(f'--------- dnodes_out_mnodes ----------- {dnodes_out_mnodes} \t--------\n')
+            if self.record_endpoint is not None:
+                if "offline" in dnodes_out_mnodes[2]:
+                    for i in range(len(dnodes_out_mnodes[2])):
+                        if dnodes_out_mnodes[2][i] == "offline":
+                            # get a random dnode
+                            for taosd_setting in self.taosd_setting["spec"]["dnodes"]:
+                                if taosd_setting["endpoint"] == dnodes_out_mnodes[2][i]:
+                                    self.record_dnode = taosd_setting
+                            self.write_log(f'--------- trying to restart dnode again: --- {self.record_endpoint} \t--------\n')
+                            self.taosd.start(self.record_dnode)
                     for dbname in db_list:
                         sync_time = self.tdSql.wait_sync_ready(dbname, sync_value=self.tdSql.get_db_vgroup_status(dbname, False))
                         self.write_log(f'--------- dbname: {dbname} <start again > sync time --- {sync_time}s \t--------\n\n')
@@ -151,17 +159,20 @@ class LongTimeInsert(TDCase):
                     drop_kill_rows = 1000000
 
                 dbname = db_info_dict["db_name"]
-                self.tdSql.query(f'select count(*) from {dbname}.stb0;')
+                
                 if "syncing_drop" in stb_info_dict and not self.drop_tag:
-                    if stb_info_dict["syncing_drop"] == 0:
-                        self.write_log(f'--------- drop before sync will start when row_count > {drop_kill_rows} \t--------\n')
+                    if stb_info_dict["syncing_drop"] == 0 or stb_info_dict["syncing_drop"] == 2:
+                        self.write_log(f'---------  syncing_drop (=0): drop before sync will start when row_count > {drop_kill_rows} \t--------\n')
+                        self.tdSql.query(f'select count(*) from {dbname}.stb0;')
+                        self.write_log(f'--------- select count(*) from {dbname}.stb0 --- {self.tdSql.query_data[0][0]} rows (syncing_drop=0) \t--------\n')
                         if len(self.tdSql.query_data) > 0:
                             if int(self.tdSql.query_data[0][0]) >= drop_kill_rows:
                                 create_tb_sql_list = self.drop_exist_table(dbname, ctbname_prefix=stb_info_dict["childtable_prefix"], count=drop_count)
                                 self.create_dropped_table(dbname, create_tb_sql_list)
                                 self.alter_table(dbname, stb_info_dict)
                                 # self.tdSql.execute(f'drop database {dbname};')
-                                self.drop_tag = True
+                                # self.tdCom.createDb(db_info_dict["db_name"], replica=db_info_dict["replica"], vgroups=db_info_dict["vgroups"])
+                                # self.drop_tag = True
                     else:
                         self.write_log(f'--------- syncing_drop != 0 and will not start drop operate before sync \t--------\n')
                 else:
@@ -170,16 +181,20 @@ class LongTimeInsert(TDCase):
                 self.write_log(f'--------- starting dnode: --- {random_endpoint} \t--------\n')
                 self.taosd.start(random_dnode)
                 
+                
                 if "syncing_drop" in stb_info_dict and not self.drop_tag:
-                    if stb_info_dict["syncing_drop"] == 1:
-                        self.write_log(f'--------- syncing_drop will start when row_count > {drop_kill_rows} \t--------\n')
+                    if stb_info_dict["syncing_drop"] == 1 or stb_info_dict["syncing_drop"] == 2:
+                        self.write_log(f'--------- syncing_drop (=1) will start when row_count > {drop_kill_rows} \t--------\n')
+                        self.tdSql.query(f'select count(*) from {dbname}.stb0;')
+                        self.write_log(f'--------- select count(*) from {dbname}.stb0 --- {self.tdSql.query_data[0][0]} rows (syncing_drop=1) \t--------\n')
                         if len(self.tdSql.query_data) > 0:
                             if int(self.tdSql.query_data[0][0]) >= drop_kill_rows:
                                 create_tb_sql_list = self.drop_exist_table(dbname, ctbname_prefix=stb_info_dict["childtable_prefix"], count=drop_count)
                                 self.create_dropped_table(dbname, create_tb_sql_list)
                                 self.alter_table(dbname, stb_info_dict)
                                 # self.tdSql.execute(f'drop database {dbname};')
-                                self.drop_tag = True
+                                # self.tdCom.createDb(db_info_dict["db_name"], replica=db_info_dict["replica"], vgroups=db_info_dict["vgroups"])
+                                # self.drop_tag = True
 
                     else:
                         self.write_log(f'--------- syncing_drop != 1 and will not start syncing_drop operate \t--------\n')
@@ -193,9 +208,10 @@ class LongTimeInsert(TDCase):
             else:
                 self.write_log(f'--------- dbname: {db_info_dict["db_name"]} {ntables_count} != {stb_info_dict["childtable_count"]} stop restart-action: \t--------\n')
             
-        if alter_replica:
+        if "alter_replica"  in stb_info_dict:
+            history_replica = db_field_kv["replica"]
             for dbname in db_list:
-                self.alter_replica(dbname, dnode_count)
+                self.alter_replica(dbname, dnode_count, history_replica)
 
 
     def desc(self):
@@ -212,19 +228,6 @@ class LongTimeInsert(TDCase):
 
     def run(self):
         taosBenchmark_iplist: List = self.get_fqdn("taosBenchmark")
-
-        # print(self.tdCom.get_db_list())
-        # print(self.tdSql.get_db_vgroup_status("test2", True))
-        # self.tdCom.createDb("sml_line_rest", replica=3, vgroups=10)
-        # while True:
-        #     scheduler = BackgroundScheduler()
-        #     scheduler.add_job(self.restart_sync, 'interval', seconds=self.query_interval, max_instances=1)
-        #     scheduler.start()
-        # self.tdCom.createDb("sml_line_rest", replica=3, vgroups=10)
-        # print(self.tdSql.get_vnode_status_list("sml_line_rest"))
-        # # print(self.tdSql.wait_sync_ready("sml_line_rest"))
-        # print(self.tdSql.wait_sync_ready("sml_line_rest", sync_value=[("follower", "follower", "leader")]))
-        # return
         json_data: List = []
         file_name = []
         test_root = os.environ['TEST_ROOT']
@@ -232,8 +235,6 @@ class LongTimeInsert(TDCase):
 
         jfile = InsertFile()
         Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
-        # self.tdSql.execute(f'drop database if exists perf_db1')
-        # self.tdSql.execute(f'create database if not exists perf_db1 vgroups 300')
         for cases in cfg:
             db_list = list()
             i = 0
@@ -307,6 +308,7 @@ class LongTimeInsert(TDCase):
                                      vgroups=cfg[cases][json_file]["db_info"]["vgroups"],
                                      duration=cfg[cases][json_file]["db_info"]["duration"],
                                      keep=cfg[cases][json_file]["db_info"]["keep"],
+                                     cachemodel=cfg[cases][json_file]["db_info"]["cachemodel"],
                                      stt_trigger=cfg[cases][json_file]["db_info"]["stt_trigger"]
                                      )
                 if "retentions" in cfg[cases][json_file]["db_info"]:
@@ -395,6 +397,7 @@ class LongTimeInsert(TDCase):
             Insert_file.put_file(taosBenchmark_iplist, json_data, file_name)
             self.result_file_name = self.run_log_dir + "/perf_report.txt"
             self.write_log("-------- \tinsert\t" + str(cases) + ":\tinsert result--------\n")
+
             if "repeat_delete_times" in cfg[cases][json_file]["stb_info"]:
                 timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
                 # # run taosBenchmark
@@ -406,7 +409,7 @@ class LongTimeInsert(TDCase):
                     )
                     self.tdSql.query(f'select count(*) from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0], cfg[cases][json_file]["stb_info"]["childtable_count"] * cfg[cases][json_file]["stb_info"]["insert_rows"])
-                    self.restart_sync(db_list=[cfg[cases][json_file]["db_info"]["db_name"]], db_info_dict=cfg[cases][json_file]["db_info"], stb_info_dict=cfg[cases][json_file]["stb_info"])
+                    self.restart_sync(db_list=[cfg[cases][json_file]["db_info"]["db_name"]], db_info_dict=cfg[cases][json_file]["db_info"], stb_info_dict=cfg[cases][json_file]["stb_info"], drop_count=self.syncing_drop_count)
                     for j in range(int(cfg[cases][json_file]["stb_info"]["childtable_count"])):
                         self.tdSql.execute(f'drop table {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["childtable_prefix"]}0{j}')
                     self.tdSql.execute(f'drop stable {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
@@ -448,7 +451,7 @@ class LongTimeInsert(TDCase):
             else:
                 if "restart_sync" in cfg[cases][json_file]["stb_info"]:
                     scheduler = BackgroundScheduler()
-                    scheduler.add_job(self.restart_sync, 'interval', seconds=self.query_interval, max_instances=1, args=[db_list, cfg[cases][json_file]["db_info"], cfg[cases][json_file]["stb_info"], 3, True, False, 10])
+                    scheduler.add_job(self.restart_sync, 'interval', seconds=self.query_interval, max_instances=1, args=[db_list, cfg[cases][json_file]["db_info"], cfg[cases][json_file]["stb_info"], 3, True, self.syncing_drop_count])
                     scheduler.start()
                 timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
                 # # run taosBenchmark
