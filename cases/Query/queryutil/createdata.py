@@ -841,6 +841,9 @@ class TDCreateData():
         cur1.execute('use %s;' %db)
         sql = 'select * from regular_table_1 limit 5;'
         cur1.execute(sql)
+                       
+        #cur1.close()
+        #conn1.close()
 
         return(conn1,cur1)  
              
