@@ -1,3 +1,30 @@
+<a name="v0.3.0"></a>
+## v0.3.0 TDengine Data Replication Toolkit (2022-12-10)
+
+
+#### Features
+
+*   support almost realtime synchronization in legacy mode ([b851de90](https://github.com/taosdata/taosx.git/commit/b851de90f998a69d27b20929516224b97a2e777d))
+*   print performance metrics at the end ([e5ce5f5f](https://github.com/taosdata/taosx.git/commit/e5ce5f5ff7c119edf1c47c89227a8513795fbfe5))
+*   use rustls instead of native tls ([72cae692](https://github.com/taosdata/taosx.git/commit/72cae69217071ed493ef2725fd7d085c0e771bb6))
+
+#### Bug Fixes
+
+*   drop consumers after all tasks done ([6ebf3efc](https://github.com/taosdata/taosx.git/commit/6ebf3efc0f380b5a3debf408fade5c97da0868dd))
+*   remove use db in tmq2taos ([21e8c34a](https://github.com/taosdata/taosx.git/commit/21e8c34a380faa6701bd14abb714006a4efe2da9))
+*   use dashmap instead of scc ([3dbc96c2](https://github.com/taosdata/taosx.git/commit/3dbc96c2a33b583ac2eee887d30435e164f6589f))
+*   scc v0.12.0 ([f9311fdd](https://github.com/taosdata/taosx.git/commit/f9311fdd8ad49565e671af209d3aed80c086e52b))
+*   fix timed out error when use large vgroups ([0bf61de0](https://github.com/taosdata/taosx.git/commit/0bf61de0485962e5c405899d184044900faaf27b))
+*   fix v3 to v2 subscription error ([0b32a1aa](https://github.com/taosdata/taosx.git/commit/0b32a1aafe604db0ac42b550bf2496788b2cf10b))
+*   add records per second, points per seconds in metrics output ([498f4338](https://github.com/taosdata/taosx.git/commit/498f4338caaa199ce17b0683188d0da4419770de))
+*   support utf8 table names in sync ([edbf6bd4](https://github.com/taosdata/taosx.git/commit/edbf6bd420e32f8957b71f6d716667787f57181e))
+*   fix can not use keyword as database cases ([0e94b256](https://github.com/taosdata/taosx.git/commit/0e94b25660fdd15cc608d3d871c3532576e63cdb))
+*   fix sync override with partial updates ([d5cb7ede](https://github.com/taosdata/taosx.git/commit/d5cb7eded3a2d44c18bf6ec89a302900bd567dc4))
+*   fix compile error when target/ deleted ([5f4335ae](https://github.com/taosdata/taosx.git/commit/5f4335ae51e61929f07fa00e8182739cd92e1608))
+*   fix panic when clear target failed ([a63da7e7](https://github.com/taosdata/taosx.git/commit/a63da7e71613d6781d2940e8f07e6d24cab1b0a1))
+
+
+
 <a name="v0.2.1"></a>
 ## v0.2.1 TDengine Data Replication Toolkit (2022-11-18)
 
