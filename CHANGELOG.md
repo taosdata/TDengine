@@ -1,3 +1,13 @@
+<a name="v0.3.3"></a>
+## v0.3.3 TDengine Data Replication Toolkit (2022-12-10)
+
+
+#### Bug Fixes
+
+*   3.0.2.0/3.0.1.x compatible ([c7865be4](https://github.com/taosdata/taosx.git/commit/c7865be434fc403b15c63163f7b2b9a41c334ebc))
+
+
+
 <a name="v0.3.2"></a>
 ## v0.3.2 TDengine Data Replication Toolkit (2022-12-10)
 
