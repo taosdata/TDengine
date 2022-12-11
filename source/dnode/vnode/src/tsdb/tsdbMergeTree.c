@@ -121,7 +121,7 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
     return &pInfo->blockData[1];
   }
 
-  if (pIter->pSttBlk == NULL) {
+  if (pIter->pSttBlk == NULL || pInfo->pSchema == NULL) {
     return NULL;
   }
 
