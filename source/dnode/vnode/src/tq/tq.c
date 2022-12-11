@@ -1271,7 +1271,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
     qDebug("delete req enqueue stream task: %d, ver: %" PRId64, pTask->taskId, ver);
 
     if (!failed) {
-      SStreamRefDataBlock* pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM);
+      SStreamRefDataBlock* pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
       pRefBlock->type = STREAM_INPUT__REF_DATA_BLOCK;
       pRefBlock->pBlock = pDelBlock;
       pRefBlock->dataRef = pRef;
@@ -1303,7 +1303,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   }
 
 #if 0
-    SStreamDataBlock* pStreamBlock = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+    SStreamDataBlock* pStreamBlock = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
     pStreamBlock->type = STREAM_INPUT__DATA_BLOCK;
     pStreamBlock->blocks = taosArrayInit(0, sizeof(SSDataBlock));
     SSDataBlock block = {0};
