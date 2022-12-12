@@ -204,6 +204,12 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-a/--replica <replicaNum\>** :
   Specify the number of replicas when creating the database. The default value is 1.
 
+- **-k/--keep-trying <NUMBER\>** :
+  Keep trying if failed to insert, default is no.
+
+- **-z/--trying-interval <NUMBER\>** :
+  Specify interval between keep trying insert. Valid value is a postive number. Only valid when keep trying be enabled.
+
 - **-V/--version** :
   Show version information only. Users should not use it with other parameters.
 

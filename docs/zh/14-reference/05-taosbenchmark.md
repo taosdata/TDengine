@@ -204,6 +204,10 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-a/--replica <replicaNum\>** :
   创建数据库时指定其副本数，默认值为 1 。
 
+- ** -k/--keep-trying <NUMBER\>** : 失败后进行重试的次数，默认不重试。
+
+- ** -z/--trying-interval <NUMBER\>** : 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。
+
 - **-V/--version** :
   显示版本信息并退出。不能与其它参数混用。
 
