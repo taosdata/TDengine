@@ -148,8 +148,8 @@ static int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
   }
 
   if (pVal->value[0] == 't' || pVal->value[0] == 'T'){
-    if(pVal->length == 1 || (pVal->length == 4 && (pVal->value[1] == 'u' || pVal->value[1] == 'U')
-                              && (pVal->value[2] == 'r' || pVal->value[2] == 'R')
+    if(pVal->length == 1 || (pVal->length == 4 && (pVal->value[1] == 'r' || pVal->value[1] == 'R')
+                              && (pVal->value[2] == 'u' || pVal->value[2] == 'U')
                               && (pVal->value[3] == 'e' || pVal->value[3] == 'E'))){
       pVal->i = TSDB_TRUE;
       pVal->type = TSDB_DATA_TYPE_BOOL;
@@ -492,6 +492,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd,
     SSmlKv kv = {.key = key, .keyLen = keyLen, .value = value, .length = valueLen};
     int32_t ret = smlParseValue(&kv, &info->msgBuf);
     if (ret != TSDB_CODE_SUCCESS) {
+      smlBuildInvalidDataMsg(&info->msgBuf, "smlParseValue error", value);
       return ret;
     }
 

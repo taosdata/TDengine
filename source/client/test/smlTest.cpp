@@ -239,6 +239,7 @@ TEST(testCase, smlParseCols_Test) {
   info->protocol = TSDB_SML_LINE_PROTOCOL;
   info->dataFormat = false;
   SSmlLineInfo elements = {0};
+  info->msgBuf = msgBuf;
 
   const char *data =
       "st,t=1 cb\\=in=\"pass\\,it "
