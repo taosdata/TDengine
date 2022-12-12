@@ -5516,7 +5516,10 @@ static void getStreamQueryFirstProjectAliasName(SHashObj* pUserAliasSet, char* a
     snprintf(aliasName, len, "%s", "ts");
     return;
   }
-  taosRandStr(aliasName, len);
+  do {
+    taosRandStr(aliasName, len - 1);
+    aliasName[len - 1] = '\0';
+  } while (NULL != taosHashGet(pUserAliasSet, aliasName, strlen(aliasName)));
   return;
 }
 
