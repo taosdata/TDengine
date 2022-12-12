@@ -8366,7 +8366,7 @@ static void doUpdateSqlFunctionForColTagPrj(SQueryInfo* pQueryInfo) {
       SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
       if (pExpr->base.functionId == TSDB_FUNC_MIN_ROW || pExpr->base.functionId == TSDB_FUNC_MAX_ROW) {
         continue;
-      } else if (pExpr->base.functionId == TSDB_FUNC_PRJ) {
+      } else if (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.numOfParams == 0) {
         pExpr->base.functionId = TSDB_FUNC_COL_DUMMY;
         tagLength += pExpr->base.resBytes;
       }
