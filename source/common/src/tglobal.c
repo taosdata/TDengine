@@ -340,7 +340,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "AVX", tsAVXEnable, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "AVX2", tsAVX2Enable, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "FMA", tsFMAEnable, 0) != 0) return -1;
-  if (cfgAddBool(pCfg, "SIMD-Supported", tsSIMDEnable, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "SIMD-builtins", tsSIMDBuiltins, 0) != 0) return -1;
 
   if (cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, 1) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamMax", tsStreamMax, 0, INT64_MAX, 1) != 0) return -1;
