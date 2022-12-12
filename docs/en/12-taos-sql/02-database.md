@@ -27,7 +27,6 @@ database_option: {
   | PRECISION {'ms' | 'us' | 'ns'}
   | REPLICA value
   | RETENTIONS ingestion_duration:keep_duration ...
-  | STRICT {'off' | 'on'}
   | WAL_LEVEL {1 | 2}
   | VGROUPS value
   | SINGLE_STABLE {0 | 1}
@@ -61,9 +60,6 @@ database_option: {
 - PRECISION: specifies the precision at which a database records timestamps. Enter ms for milliseconds, us for microseconds, or ns for nanoseconds. The default value is ms.
 - REPLICA: specifies the number of replicas that are made of the database. Enter 1 or 3. The default value is 1. The value of the REPLICA parameter cannot exceed the number of dnodes in the cluster.
 - RETENTIONS: specifies the retention period for data aggregated at various intervals. For example, RETENTIONS 15s:7d,1m:21d,15m:50d indicates that data aggregated every 15 seconds is retained for 7 days, data aggregated every 1 minute is retained for 21 days, and data aggregated every 15 minutes is retained for 50 days. You must enter three aggregation intervals and corresponding retention periods.
-- STRICT: specifies whether strong data consistency is enabled. The default value is off.
-  - on: Strong consistency is enabled and implemented through the Raft consensus algorithm. In this mode, an operation is considered successful once it is confirmed by half of the nodes in the cluster.
-  - off: Strong consistency is disabled. In this mode, an operation is considered successful when it is initiated by the local node.
 - WAL_LEVEL: specifies whether fsync is enabled. The default value is 1.
   - 1: WAL is enabled but fsync is disabled.
   - 2: WAL and fsync are both enabled.
