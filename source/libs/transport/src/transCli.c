@@ -1052,9 +1052,6 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
 
   cliMayCvtFqdnToIp(&pCtx->epSet, &pThrd->cvtAddr);
 
-  char tbuf[256] = {0};
-  EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
-
   if (!EPSET_IS_VALID(&pCtx->epSet)) {
     tError("invalid epset");
     destroyCmsg(pMsg);
@@ -1493,18 +1490,35 @@ FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
 bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
   bool noDelay = true;
   if (hasEpSet == false) {
-    // assert(pResp->contLen == 0);
     if (pResp->contLen == 0) {
       if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
         noDelay = false;
       } else {
         EPSET_FORWARD_INUSE(&pCtx->epSet);
       }
-    } else {
-      if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
-        noDelay = false;
+    } else if (pResp->contLen != 0) {
+      SEpSet  epSet;
+      int32_t valid = tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
+      if (valid < 0) {
+        tDebug("get invalid epset, epset equal, continue");
+        if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
+          noDelay = false;
+        } else {
+          EPSET_FORWARD_INUSE(&pCtx->epSet);
+        }
       } else {
-        EPSET_FORWARD_INUSE(&pCtx->epSet);
+        if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
+          tDebug("epset not equal, retry new epset");
+          pCtx->epSet = epSet;
+          noDelay = false;
+        } else {
+          if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
+            noDelay = false;
+          } else {
+            tDebug("epset equal, continue");
+            EPSET_FORWARD_INUSE(&pCtx->epSet);
+          }
+        }
       }
     }
   } else {
@@ -1584,7 +1598,7 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     addConnToPool(pThrd->pool, pConn);
   } else if (code == TSDB_CODE_SYN_RESTORING) {
     tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
-    noDelay = cliResetEpset(pCtx, pResp, false);
+    noDelay = cliResetEpset(pCtx, pResp, true);
     addConnToPool(pThrd->pool, pConn);
     transFreeMsg(pResp->pCont);
   } else {

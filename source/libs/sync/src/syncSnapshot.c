@@ -103,6 +103,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   pSender->sendingMS = 0;
   pSender->term = pSender->pSyncNode->pRaftStore->currentTerm;
   pSender->startTime = taosGetTimestampMs();
+  pSender->lastSendTime = pSender->startTime;
   pSender->finish = false;
 
   // build begin msg
@@ -201,6 +202,8 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg);
   syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "");
 
+  pSender->lastSendTime = taosGetTimestampMs();
+
   // event log
   if (pSender->seq == SYNC_SNAPSHOT_SEQ_END) {
     sSTrace(pSender, "snapshot sender finish");
@@ -213,32 +216,35 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
 // send snapshot data from cache
 int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   // send current block data
+
+  // build msg
+  SRpcMsg rpcMsg = {0};
+  (void)syncBuildSnapshotSend(&rpcMsg, pSender->blockLen, pSender->pSyncNode->vgId);
+
+  SyncSnapshotSend *pMsg = rpcMsg.pCont;
+  pMsg->srcId = pSender->pSyncNode->myRaftId;
+  pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
+  pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  pMsg->beginIndex = pSender->snapshotParam.start;
+  pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
+  pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
+  pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
+  pMsg->lastConfig = pSender->lastConfig;
+  pMsg->seq = pSender->seq;
+
   if (pSender->pCurrentBlock != NULL && pSender->blockLen > 0) {
-    // build msg
-    SRpcMsg rpcMsg = {0};
-    (void)syncBuildSnapshotSend(&rpcMsg, pSender->blockLen, pSender->pSyncNode->vgId);
-
-    SyncSnapshotSend *pMsg = rpcMsg.pCont;
-    pMsg->srcId = pSender->pSyncNode->myRaftId;
-    pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
-    pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
-    pMsg->beginIndex = pSender->snapshotParam.start;
-    pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
-    pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
-    pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
-    pMsg->lastConfig = pSender->lastConfig;
-    pMsg->seq = pSender->seq;
-
     //  pMsg->privateTerm = pSender->privateTerm;
     memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
-
-    // send msg
-    syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg);
-    syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "");
-
-    // event log
-    sSTrace(pSender, "snapshot sender resend");
   }
+
+  // send msg
+  syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg);
+  syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "");
+
+  pSender->lastSendTime = taosGetTimestampMs();
+
+  // event log
+  sSTrace(pSender, "snapshot sender resend");
 
   return 0;
 }
@@ -339,6 +345,8 @@ bool snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver) { return pReceive
 void snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver) {
   // force close, abandon incomplete data
   if (pReceiver->pWriter != NULL) {
+    // event log
+    sRTrace(pReceiver, "snapshot receiver force stop");
     int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, false,
                                                                   &(pReceiver->snapshot));
     ASSERT(ret == 0);
@@ -348,7 +356,7 @@ void snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver) {
   pReceiver->start = false;
 
   // event log
-  sRTrace(pReceiver, "snapshot receiver force stop");
+  // sRTrace(pReceiver, "snapshot receiver force stop");
 }
 
 int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg) {
@@ -669,6 +677,7 @@ static int32_t syncNodeOnSnapshotEnd(SSyncNode *pSyncNode, SyncSnapshotSend *pMs
     sNTrace(pSyncNode, "snapshot receiver finish waitting for true time, now:%" PRId64 ", stime:%" PRId64, timeNow,
             pMsg->startTime);
     taosMsleep(10);
+    timeNow = taosGetTimestampMs();
   }
 
   int32_t code = snapshotReceiverFinish(pReceiver, pMsg);

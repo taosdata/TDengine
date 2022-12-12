@@ -210,8 +210,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
          version);
 
   ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
+  ASSERT(pVnode->state.applied + 1 == version);
+
   pVnode->state.applied = version;
   pVnode->state.applyTerm = pMsg->info.conn.applyTerm;
+
+  if (!syncUtilUserCommit(pMsg->msgType)) goto _exit;
 
   // skip header
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));

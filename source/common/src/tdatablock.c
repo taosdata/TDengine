@@ -2384,24 +2384,15 @@ char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
     return NULL;
   }
 
-  SSmlKv* pTag = taosMemoryCalloc(1, sizeof(SSmlKv));
-  if (pTag == NULL) {
-    taosArrayDestroy(tags);
-    return NULL;
-  }
-
   void* cname = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
   if (cname == NULL) {
     taosArrayDestroy(tags);
-    taosMemoryFree(pTag);
     return NULL;
   }
 
-  pTag->key = "group_id";
-  pTag->keyLen = strlen(pTag->key);
-  pTag->type = TSDB_DATA_TYPE_UBIGINT;
-  pTag->u = groupId;
-  pTag->length = sizeof(uint64_t);
+  SSmlKv pTag = {.key = "group_id", .keyLen = sizeof("group_id") - 1,
+                 .type = TSDB_DATA_TYPE_UBIGINT, .u = groupId,
+                 .length = sizeof(uint64_t)};
   taosArrayPush(tags, &pTag);
 
   RandTableName rname = {
@@ -2413,7 +2404,6 @@ char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
 
   buildChildTableName(&rname);
 
-  taosMemoryFree(pTag);
   taosArrayDestroy(tags);
 
   ASSERT(rname.ctbShortName && rname.ctbShortName[0]);
