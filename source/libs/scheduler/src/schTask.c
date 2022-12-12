@@ -362,17 +362,12 @@ int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, 
   }
 
   pCtx->totalTimes++;
+  pCtx->roundTimes++;
 
   if (SCH_IS_DATA_BIND_TASK(pTask) && pEpSet) {
     pCtx->roundTotal = pEpSet->numOfEps;
-    pCtx->roundTimes = 0;
-
-    pTask->delayExecMs = 0;
-
-    goto _return;
   }
 
-  pCtx->roundTimes++;
 
   if (pCtx->roundTimes >= pCtx->roundTotal) {
     int64_t nowTs = taosGetTimestampMs();

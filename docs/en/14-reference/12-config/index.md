@@ -153,11 +153,11 @@ The parameters described in this document by the effect that they have on the sy
 | Meaning     | Execution policy for query statements            |
 | Unit     | None                            |
 | Default   | 1                             |
-| Notes | 1: Run queries on vnodes and not on qnodes |
+| Value Range | 1: Run queries on vnodes and not on qnodes 
 
 2: Run subtasks without scan operators on qnodes and subtasks with scan operators on vnodes.
 
-3: Only run scan operators on vnodes; run all other operators on qnodes.
+3: Only run scan operators on vnodes; run all other operators on qnodes. |
 
 ### querySmaOptimize
 
@@ -173,6 +173,14 @@ The parameters described in this document by the effect that they have on the sy
 
 1: Enable SMA indexing and perform queries from suitable statements on precomputation results.|
 
+### countAlwaysReturnValue 
+
+| Attribute     | Description                             |
+| -------- | -------------------------------- |
+| Applicable | Server only                     |
+| Meaning   | count()/hyperloglog() return value or not if the result data is NULL |
+| Vlue Range | 0：Return empty line，1：Return 0       |
+| Default   | 1                            |
 
 ### maxNumOfDistinctRes
 
@@ -307,6 +315,14 @@ The charset that takes effect is UTF-8.
 | Meaning       | All data files are stored in this directory |
 | Default Value | /var/lib/taos                               |
 
+### tempDir
+
+| Attribute    | Description                                     |
+| -------- | ------------------------------------------ |
+| Applicable | Server only                               |
+| Meaning     | The directory where to put all the temporary files generated during system running |
+| Default   | /tmp                           |
+
 ### minimalTmpDirGB
 
 | Attribute     | Description                            |
@@ -335,89 +351,6 @@ The charset that takes effect is UTF-8.
 | Meaning     | Maximum number of vnodes per dnode |
 | Value Range | 0-4096                                     |
 | Default Value | 2x the CPU cores                                                    |
-
-## Time Parameters
-
-### statusInterval
-
-| Attribute     | Description                            |
-| -------- | --------------------------- |
-| Applicable    | Server Only                                                    |
-| Meaning       | the interval of dnode reporting status to mnode |
-| Unit          | second                                          |
-| Value Range   | 1-10                                         |
-| Default Value | 1                          |
-
-### shellActivityTimer
-
-| Attribute     | Description                            |
-| -------- | --------------------------------- |
-| Applicable    | Server and Client         |
-| Meaning       | The interval for TDengine CLI to send heartbeat to mnode |
-| Unit          | second                                          |
-| Value Range   | 1-120                                         |
-| Default Value | 3                              |
-
-## Performance Optimization Parameters
-
-### numOfCommitThreads
-
-| Attribute     | Description                            |
-| -------- | ---------------------- |
-| Applicable    | Server Only                                                    |
-| Meaning       | Maximum of threads for committing to disk |
-| Default Value | |
-
-## Compression Parameters
-
-### compressMsgSize
-
-| Attribute     | Description                                                                                                                                                                         |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Applicable    | Server Only                                                                                                                                                                         |
-| Meaning       | The threshold for message size to compress the message.                         | Set the value to 64330 bytes for good message compression. |
-| Unit          | bytes                                                                            |
-| Value Range   | 0: already compress; >0: compress when message exceeds it; -1: always uncompress |
-| Default Value | -1                                                               |
-
-### compressColData
-
-| Attribute     | Description                            |
-| -------- | --------------------------------------------------------------------------------------- |
-| Applicable    | Server Only                                                    |
-| Meaning       | The threshold for size of column data to trigger compression for the query result              |
-| Unit          | bytes                                                                                                               |
-| Value Range   | 0: always compress; >0: only compress when the size of any column data exceeds the threshold; -1: always uncompress |
-| Default Value | -1                                                               |
-| Default Value | -1                                                                                                                  |
-| Note          | available from version 2.3.0.0                                                                                      |                                                                                                                       |
-
-## Continuous Query Parameters                                  |
-
-### minSlidingTime
-
-| Attribute     | Description                                              |
-| ------------- | -------------------------------------------------------- |
-| Applicable    | Server Only                                              |
-| Meaning       | Minimum sliding time of time window                      |
-| Unit          | millisecond or microsecond , depending on time precision |
-| Value Range   | 10-1000000                                               |
-| Default Value | 10                                                       |
-
-### minIntervalTime
-
-| Attribute     | Description                 |
-| ------------- | --------------------------- |
-| Applicable    | Server Only                 |
-| Meaning       | Minimum size of time window |
-| Unit          | millisecond                 |
-| Value Range   | 1-1000000                   |
-| Default Value | 10                          |
-
-:::info
-To prevent system resource from being exhausted by multiple concurrent streams, a random delay is applied on each stream automatically. `maxFirstStreamCompDelay` is the maximum delay time before a continuous query is started the first time. `streamCompDelayRatio` is the ratio for calculating delay time, with the size of the time window as base. `maxStreamCompDelay` is the maximum delay time. The actual delay time is a random time not bigger than `maxStreamCompDelay`. If a continuous query fails, `retryStreamComDelay` is the delay time before retrying it, also not bigger than `maxStreamCompDelay`.
-
-:::
 
 ## Log Parameters
 
@@ -686,172 +619,60 @@ To prevent system resource from being exhausted by multiple concurrent streams, 
 | Value Range   | 0: disable UDF; 1: enabled UDF |
 | Default Value | 1                              |
 
-## Parameter Comparison of TDengine 2.x and 3.0
-| #   | **Parameter**             | **In 2.x** | **In 3.0** |
-| --- | :-----------------: | ---------------    | ---------------   |
-| 1   | firstEp | Yes | Yes |
-| 2   | secondEp | Yes | Yes |
-| 3   | fqdn | Yes | Yes |
-| 4   | serverPort | Yes | Yes |
-| 5   | maxShellConns | Yes | Yes |
-| 6   | monitor | Yes | Yes |
-| 7   | monitorFqdn | No | Yes |
-| 8   | monitorPort | No | Yes |
-| 9   | monitorInterval | Yes | Yes |
-| 10  | monitorMaxLogs | No | Yes |
-| 11  | monitorComp | No | Yes |
-| 12  | telemetryReporting | Yes | Yes |
-| 13  | telemetryInterval | No | Yes |
-| 14  | telemetryServer | No | Yes |
-| 15  | telemetryPort | No | Yes |
-| 16  | queryPolicy | No | Yes |
-| 17  | querySmaOptimize | No | Yes |
-| 18  | queryRsmaTolerance | No | Yes |
-| 19  | queryBufferSize | Yes | Yes |
-| 20  | maxNumOfDistinctRes | Yes | Yes |
-| 21  | minSlidingTime | Yes | Yes |
-| 22  | minIntervalTime | Yes | Yes |
-| 23  | countAlwaysReturnValue | Yes | Yes |
-| 24  | dataDir | Yes | Yes |
-| 25  | minimalDataDirGB | Yes | Yes |
-| 26  | supportVnodes | No | Yes |
-| 27  | tempDir | Yes | Yes |
-| 28  | minimalTmpDirGB | Yes | Yes |
-| 29  | compressMsgSize | Yes | Yes |
-| 30  | compressColData | Yes | Yes |
-| 31  | smlChildTableName | Yes | Yes |
-| 32  | smlTagName | Yes | Yes |
-| 33  | smlDataFormat | No | Yes |
-| 34  | statusInterval | Yes | Yes |
-| 35  | shellActivityTimer | Yes | Yes |
-| 36  | transPullupInterval | No | Yes |
-| 37  | mqRebalanceInterval | No | Yes |
-| 38  | ttlUnit | No | Yes |
-| 39  | ttlPushInterval | No | Yes |
-| 40  | numOfTaskQueueThreads | No | Yes |
-| 41  | numOfRpcThreads | No | Yes |
-| 42  | numOfCommitThreads | Yes | Yes |
-| 43  | numOfMnodeReadThreads | No | Yes |
-| 44  | numOfVnodeQueryThreads | No | Yes |
-| 45  | numOfVnodeStreamThreads | No | Yes |
-| 46  | numOfVnodeFetchThreads | No | Yes |
-| 47  | numOfVnodeRsmaThreads | No | Yes | 
-| 48  | numOfQnodeQueryThreads | No | Yes |
-| 49  | numOfQnodeFetchThreads | No | Yes |
-| 50  | numOfSnodeSharedThreads | No | Yes |
-| 51  | numOfSnodeUniqueThreads | No | Yes |
-| 52  | rpcQueueMemoryAllowed | No | Yes |
-| 53  | logDir | Yes | Yes |
-| 54  | minimalLogDirGB | Yes | Yes |
-| 55  | numOfLogLines | Yes | Yes |
-| 56  | asyncLog | Yes | Yes |
-| 57  | logKeepDays | Yes | Yes |
-| 60  | debugFlag | Yes | Yes |
-| 61  | tmrDebugFlag | Yes | Yes |
-| 62  | uDebugFlag | Yes | Yes |
-| 63  | rpcDebugFlag | Yes | Yes |
-| 64  | jniDebugFlag | Yes | Yes |
-| 65  | qDebugFlag | Yes | Yes |
-| 66  | cDebugFlag | Yes | Yes |
-| 67  | dDebugFlag | Yes | Yes |
-| 68  | vDebugFlag | Yes | Yes |
-| 69  | mDebugFlag | Yes | Yes |
-| 70  | wDebugFlag | Yes | Yes |
-| 71  | sDebugFlag | Yes | Yes |
-| 72  | tsdbDebugFlag | Yes | Yes |
-| 73  | tqDebugFlag | No | Yes |
-| 74  | fsDebugFlag | Yes | Yes |
-| 75  | udfDebugFlag | No | Yes |
-| 76  | smaDebugFlag | No | Yes |
-| 77  | idxDebugFlag | No | Yes |
-| 78  | tdbDebugFlag | No | Yes |
-| 79  | metaDebugFlag | No | Yes |
-| 80  | timezone | Yes | Yes |
-| 81  | locale | Yes | Yes |
-| 82  | charset | Yes | Yes |
-| 83  | udf | Yes | Yes |
-| 84  | enableCoreFile | Yes | Yes |
-| 85  | arbitrator | Yes | No |
-| 86  | numOfThreadsPerCore | Yes | No |
-| 87  | numOfMnodes | Yes | No |
-| 88  | vnodeBak | Yes | No |
-| 89  | balance | Yes | No |
-| 90  | balanceInterval | Yes | No |
-| 91  | offlineThreshold | Yes | No |
-| 92  | role | Yes | No |
-| 93  | dnodeNopLoop | Yes | No |
-| 94  | keepTimeOffset | Yes | No |
-| 95  | rpcTimer | Yes | No |
-| 96  | rpcMaxTime | Yes | No |
-| 97  | rpcForceTcp | Yes | No |
-| 98  | tcpConnTimeout | Yes | No |
-| 99  | syncCheckInterval | Yes | No |
-| 100 | maxTmrCtrl | Yes | No |
-| 101 | monitorReplica | Yes | No |
-| 102 | smlTagNullName | Yes | No |
-| 103 | keepColumnName | Yes | No |
-| 104 | ratioOfQueryCores | Yes | No |
-| 105 | maxStreamCompDelay | Yes | No |
-| 106 | maxFirstStreamCompDelay | Yes | No |
-| 107 | retryStreamCompDelay | Yes | No |
-| 108 | streamCompDelayRatio | Yes | No |
-| 109 | maxVgroupsPerDb | Yes | No |
-| 110 | maxTablesPerVnode | Yes | No |
-| 111 | minTablesPerVnode | Yes | No |
-| 112 | tableIncStepPerVnode | Yes | No |
-| 113 | cache | Yes | No |
-| 114 | blocks | Yes | No |
-| 115 | days | Yes | No |
-| 116 | keep | Yes | No |
-| 117 | minRows | Yes | No |
-| 118 | maxRows | Yes | No |
-| 119 | quorum | Yes | No |
-| 120 | comp | Yes | No |
-| 121 | walLevel | Yes | No |
-| 122 | fsync | Yes | No |
-| 123 | replica | Yes | No |
-| 124 | partitions | Yes | No |
-| 125 | quorum | Yes | No |
-| 126 | update | Yes | No |
-| 127 | cachelast | Yes | No |
-| 128 | maxSQLLength | Yes | No |
-| 129 | maxWildCardsLength | Yes | No |
-| 130 | maxRegexStringLen | Yes | No |
-| 131 | maxNumOfOrderedRes | Yes | No |
-| 132 | maxConnections | Yes | No |
-| 133 | mnodeEqualVnodeNum | Yes | No |
-| 134 | http | Yes | No |
-| 135 | httpEnableRecordSql | Yes | No |
-| 136 | httpMaxThreads | Yes | No |
-| 137 | restfulRowLimit | Yes | No |
-| 138 | httpDbNameMandatory | Yes | No |
-| 139 | httpKeepAlive | Yes | No |
-| 140 | enableRecordSql | Yes | No |
-| 141 | maxBinaryDisplayWidth | Yes | No |
-| 142 | stream | Yes | No |
-| 143 | retrieveBlockingModel | Yes | No |
-| 144 | tsdbMetaCompactRatio | Yes | No |
-| 145 | defaultJSONStrType | Yes | No |
-| 146 | walFlushSize | Yes | No |
-| 147 | keepTimeOffset | Yes | No |
-| 148 | flowctrl | Yes | No |
-| 149 | slaveQuery | Yes | No |
-| 150 | adjustMaster | Yes | No |
-| 151 | topicBinaryLen | Yes | No |
-| 152 | telegrafUseFieldNum | Yes | No |
-| 153 | deadLockKillQuery | Yes | No |
-| 154 | clientMerge | Yes | No |
-| 155 | sdbDebugFlag | Yes | No |
-| 156 | odbcDebugFlag | Yes | No |
-| 157 | httpDebugFlag | Yes | No |
-| 158 | monDebugFlag | Yes | No |
-| 159 | cqDebugFlag | Yes | No |
-| 160 | shortcutFlag | Yes | No |
-| 161 | probeSeconds | Yes | No |
-| 162 | probeKillSeconds | Yes | No |
-| 163 | probeInterval | Yes | No |
-| 164 | lossyColumns | Yes | No |
-| 165 | fPrecision | Yes | No |
-| 166 | dPrecision | Yes | No |
-| 167 | maxRange | Yes | No |
-| 168 | range | Yes | No |
+
+## 3.0 Parameters
+
+| #   |        **参数**         | **Applicable to 2.x ** | **Applicable to  3.0 ** | Current behavior in 3.0             |
+| --- | :---------------------: | --------------- | --------------- | ------------------------------------------------- |
+| 1   |         firstEp         | Yes              | Yes              |                                                   |
+| 2   |        secondEp         | Yes              | Yes              |                                                   |
+| 3   |          fqdn           | Yes              | Yes              |                                                   |
+| 4   |       serverPort        | Yes              | Yes              |                                                   |
+| 5   |      maxShellConns      | Yes              | Yes              |                                                   |
+| 6   |         monitor         | Yes              | Yes              |                                                   |
+| 7   |       monitorFqdn       | No              | Yes              |                                                   |
+| 8   |       monitorPort       | No              | Yes              |                                                   |
+| 9   |     monitorInterval     | Yes              | Yes              |                                                   |
+| 10  |       queryPolicy       | No              | Yes              |                                                   |
+| 11  |    querySmaOptimize     | No              | Yes              |                                                   |
+| 12  |   maxNumOfDistinctRes   | Yes              | Yes              |                                                   |
+| 15  | countAlwaysReturnValue  | Yes              | Yes              |                                                   |
+| 16  |         dataDir         | Yes              | Yes              |                                                   |
+| 17  |    minimalDataDirGB     | Yes              | Yes              |                                                   |
+| 18  |      supportVnodes      | No              | Yes              |                                                   |
+| 19  |         tempDir         | Yes              | Yes              |                                                   |
+| 20  |     minimalTmpDirGB     | Yes              | Yes              |                                                   |
+| 21  |    smlChildTableName    | Yes              | Yes              |                                                   |
+| 22  |       smlTagName        | Yes              | Yes              |                                                   |
+| 23  |      smlDataFormat      | No              | Yes              |                                                   |
+| 24  |     statusInterval      | Yes              | Yes              |                                                   |
+| 25  |         logDir          | Yes              | Yes              |                                                   |
+| 26  |     minimalLogDirGB     | Yes              | Yes              |                                                   |
+| 27  |      numOfLogLines      | Yes              | Yes              |                                                   |
+| 28  |        asyncLog         | Yes              | Yes              |                                                   |
+| 29  |       logKeepDays       | Yes              | Yes              |                                                   |
+| 30  |        debugFlag        | Yes              | Yes              |                                                   |
+| 31  |      tmrDebugFlag       | Yes              | Yes              |                                                   |
+| 32  |       uDebugFlag        | Yes              | Yes              |                                                   |
+| 33  |      rpcDebugFlag       | Yes              | Yes              |                                                   |
+| 34  |      jniDebugFlag       | Yes              | Yes              |                                                   |
+| 35  |       qDebugFlag        | Yes              | Yes              |                                                   |
+| 36  |       cDebugFlag        | Yes              | Yes              |                                                   |
+| 37  |       dDebugFlag        | Yes              | Yes              |                                                   |
+| 38  |       vDebugFlag        | Yes              | Yes              |                                                   |
+| 39  |       mDebugFlag        | Yes              | Yes              |                                                   |
+| 40  |       wDebugFlag        | Yes              | Yes              |                                                   |
+| 41  |       sDebugFlag        | Yes              | Yes              |                                                   |
+| 42  |      tsdbDebugFlag      | Yes              | Yes              |                                                   |
+| 43  |       tqDebugFlag       | No              | Yes              |                                                   |
+| 44  |       fsDebugFlag       | Yes              | Yes              |                                                   |
+| 45  |      udfDebugFlag       | No              | Yes              |                                                   |
+| 46  |      smaDebugFlag       | No              | Yes              |                                                   |
+| 47  |      idxDebugFlag       | No              | Yes              |                                                   |
+| 48  |      tdbDebugFlag       | No              | Yes              |                                                   |
+| 49  |      metaDebugFlag      | No              | Yes              |                                                   |
+| 50  |        timezone         | Yes              | Yes              |                                                   |
+| 51  |         locale          | Yes              | Yes              |                                                   |
+| 52  |         charset         | Yes              | Yes              |                                                   |
+| 53  |           udf           | Yes              | Yes              |                                                   |
+| 54  |     enableCoreFile      | Yes              | Yes              |                                                   |

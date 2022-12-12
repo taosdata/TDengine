@@ -507,7 +507,7 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
     SDnodeObj *pDnode = taosArrayGet(pArray, v);
-    if (pDnode == NULL || pDnode->numOfVnodes > pDnode->numOfSupportVnodes) {
+    if (pDnode == NULL || pDnode->numOfVnodes >= pDnode->numOfSupportVnodes) {
       terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
       return -1;
     }
@@ -891,7 +891,7 @@ static int32_t mndAddVnodeToVgroup(SMnode *pMnode, STrans *pTrans, SVgObj *pVgro
     }
     if (used) continue;
 
-    if (pDnode == NULL || pDnode->numOfVnodes > pDnode->numOfSupportVnodes) {
+    if (pDnode == NULL || pDnode->numOfVnodes >= pDnode->numOfSupportVnodes) {
       terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
       return -1;
     }

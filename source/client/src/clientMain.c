@@ -21,12 +21,12 @@
 #include "os.h"
 #include "query.h"
 #include "scheduler.h"
+#include "tdatablock.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
 #include "version.h"
-#include "tdatablock.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -178,16 +178,18 @@ void taos_free_result(TAOS_RES *res) {
     return;
   }
 
+  tscDebug("taos free res %p", res);
+
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
     tscDebug("0x%" PRIx64 " taos_free_result start to free query", pRequest->requestId);
     destroyRequest(pRequest);
   } else if (TD_RES_TMQ_METADATA(res)) {
     SMqTaosxRspObj *pRsp = (SMqTaosxRspObj *)res;
-    if (pRsp->rsp.blockData) taosArrayDestroyP(pRsp->rsp.blockData, taosMemoryFree);
-    if (pRsp->rsp.blockDataLen) taosArrayDestroy(pRsp->rsp.blockDataLen);
-    if (pRsp->rsp.withTbName) taosArrayDestroyP(pRsp->rsp.blockTbName, taosMemoryFree);
-    if (pRsp->rsp.withSchema) taosArrayDestroyP(pRsp->rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
+    taosArrayDestroyP(pRsp->rsp.blockData, taosMemoryFree);
+    taosArrayDestroy(pRsp->rsp.blockDataLen);
+    taosArrayDestroyP(pRsp->rsp.blockTbName, taosMemoryFree);
+    taosArrayDestroyP(pRsp->rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
     // taosx
     taosArrayDestroy(pRsp->rsp.createTableLen);
     taosArrayDestroyP(pRsp->rsp.createTableReq, taosMemoryFree);
@@ -197,10 +199,10 @@ void taos_free_result(TAOS_RES *res) {
     taosMemoryFree(pRsp);
   } else if (TD_RES_TMQ(res)) {
     SMqRspObj *pRsp = (SMqRspObj *)res;
-    if (pRsp->rsp.blockData) taosArrayDestroyP(pRsp->rsp.blockData, taosMemoryFree);
-    if (pRsp->rsp.blockDataLen) taosArrayDestroy(pRsp->rsp.blockDataLen);
-    if (pRsp->rsp.withTbName) taosArrayDestroyP(pRsp->rsp.blockTbName, taosMemoryFree);
-    if (pRsp->rsp.withSchema) taosArrayDestroyP(pRsp->rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
+    taosArrayDestroyP(pRsp->rsp.blockData, taosMemoryFree);
+    taosArrayDestroy(pRsp->rsp.blockDataLen);
+    taosArrayDestroyP(pRsp->rsp.blockTbName, taosMemoryFree);
+    taosArrayDestroyP(pRsp->rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
     pRsp->resInfo.pRspMsg = NULL;
     doFreeReqResultInfo(&pRsp->resInfo);
     taosMemoryFree(pRsp);
@@ -796,9 +798,11 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
   SQuery              *pQuery = pRequest->pQuery;
 
   pRequest->metric.ctgEnd = taosGetTimestampUs();
-  qDebug("0x%" PRIx64 " start to continue parse, reqId:0x%" PRIx64, pRequest->self, pRequest->requestId);
+  qDebug("0x%" PRIx64 " start to continue parse, reqId:0x%" PRIx64 ", code:%s", pRequest->self, pRequest->requestId,
+         tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
+    //pWrapper->pCatalogReq->forceUpdate = false;
     code = qContinueParseSql(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
 
@@ -879,6 +883,11 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
     code = pRequest->prevCode;
+    terrno = code;
+    pRequest->code = code;
+    tscDebug("call sync query cb with code: %s", tstrerror(code));
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    return;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -929,6 +938,17 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code, tstrerror(code),
              pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
+    qDestroyQuery(pRequest->pQuery);
+    pRequest->pQuery = NULL;
+
+    if (NEED_CLIENT_HANDLE_ERROR(code)) {
+      tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
+               pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
+      pRequest->prevCode = code;
+      doAsyncQuery(pRequest, true);
+      return;
+    }
+
     terrno = code;
     pRequest->code = code;
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);

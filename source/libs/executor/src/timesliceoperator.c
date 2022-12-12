@@ -49,10 +49,10 @@ static void doKeepPrevRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
     if (!colDataIsNull_s(pColInfoData, rowIndex)) {
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
-      if (!IS_VAR_DATA_TYPE(pkey->type)) {
-        memcpy(pkey->pData, val, pkey->bytes);
-      } else {
+      if (IS_VAR_DATA_TYPE(pkey->type)) {
         memcpy(pkey->pData, val, varDataLen(val));
+      } else {
+        memcpy(pkey->pData, val, pkey->bytes);
       }
     } else {
       pkey->isNull = true;
@@ -95,14 +95,29 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
     // TODO: optimize to ignore null values for linear interpolation.
     if (!pLinearInfo->isStartSet) {
       if (!colDataIsNull_s(pColInfoData, rowIndex)) {
+        ASSERT(IS_MATHABLE_TYPE(pColInfoData->info.type));
+
         pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
-        memcpy(pLinearInfo->start.val, colDataGetData(pColInfoData, rowIndex), pLinearInfo->bytes);
+        char* p = colDataGetData(pColInfoData, rowIndex);
+        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
+          memcpy(pLinearInfo->start.val, p, varDataTLen(p));
+        } else {
+          memcpy(pLinearInfo->start.val, p, pLinearInfo->bytes);
+        }
       }
       pLinearInfo->isStartSet = true;
     } else if (!pLinearInfo->isEndSet) {
       if (!colDataIsNull_s(pColInfoData, rowIndex)) {
         pLinearInfo->end.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
-        memcpy(pLinearInfo->end.val, colDataGetData(pColInfoData, rowIndex), pLinearInfo->bytes);
+
+        char* p = colDataGetData(pColInfoData, rowIndex);
+        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
+          memcpy(pLinearInfo->end.val, p, varDataTLen(p));
+        } else {
+          memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
+        }
       }
       pLinearInfo->isEndSet = true;
     } else {
@@ -111,7 +126,15 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
       if (!colDataIsNull_s(pColInfoData, rowIndex)) {
         pLinearInfo->end.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
-        memcpy(pLinearInfo->end.val, colDataGetData(pColInfoData, rowIndex), pLinearInfo->bytes);
+
+        char* p = colDataGetData(pColInfoData, rowIndex);
+        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
+          memcpy(pLinearInfo->end.val, p, varDataTLen(p));
+        } else {
+          memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
+        }
+
       } else {
         pLinearInfo->end.key = INT64_MIN;
       }

@@ -110,6 +110,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
 
     ret = tdbBegin(pEnv, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
     if (ret < 0) {
+      tdbOsFree(pBt);
       return -1;
     }
 
@@ -119,6 +120,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
     ret = tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &zArg, txn);
     if (ret < 0) {
       tdbAbort(pEnv, txn);
+      tdbOsFree(pBt);
       return -1;
     }
 
@@ -126,6 +128,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
     if (ret < 0) {
       tdbError("failed to write page since %s", terrstr());
       tdbAbort(pEnv, txn);
+      tdbOsFree(pBt);
       return -1;
     }
 
@@ -138,6 +141,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
       ret = tdbTbInsert(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pBt->info, sizeof(pBt->info), txn);
       if (ret < 0) {
         tdbAbort(pEnv, txn);
+        tdbOsFree(pBt);
         return -1;
       }
     }
