@@ -764,10 +764,8 @@ bool isUdfdUvMsgComplete(SUdfdUvConn *pipe) {
 }
 
 void udfdHandleRequest(SUdfdUvConn *conn) {
-  char *inputBuf = taosMemoryMalloc(conn->inputLen);
-  memcpy(inputBuf, conn->inputBuf, conn->inputLen);
+  char *inputBuf = conn->inputBuf;
   int32_t inputLen = conn->inputLen;
-  taosMemoryFree(conn->inputBuf);
 
   uv_work_t  *work = taosMemoryMalloc(sizeof(uv_work_t));
   SUvUdfWork *udfWork = taosMemoryMalloc(sizeof(SUvUdfWork));
@@ -797,7 +795,7 @@ void udfdPipeCloseCb(uv_handle_t *pipe) {
 }
 
 void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
-  fnDebug("udf read %zd bytes from client", nread);
+  fnDebug("udfd read %zd bytes from client", nread);
   if (nread == 0) return;
 
   SUdfdUvConn *conn = client->data;
@@ -813,10 +811,10 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
   }
 
   if (nread < 0) {
-    fnError("Receive error %s", uv_err_name(nread));
     if (nread == UV_EOF) {
-      // TODO check more when close
+      fnError("udfd read EOF");
     } else {
+      fnError("Receive error %s", uv_err_name(nread));
     }
     udfdUvHandleError(conn);
   }
