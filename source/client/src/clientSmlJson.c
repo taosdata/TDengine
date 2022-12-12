@@ -576,7 +576,7 @@ static int32_t smlParseJSONString(SSmlHandle *info, cJSON *root, SSmlLineInfo *e
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
   uDebug("OTD:0x%" PRIx64 " Parse timestamp from JSON payload finished", info->id);
-  SSmlKv kvTs = { .key = TS, .keyLen = TS_LEN, .i = ts, .type = TSDB_DATA_TYPE_TIMESTAMP, .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
+  SSmlKv kvTs = { .key = TS, .keyLen = TS_LEN, .type = TSDB_DATA_TYPE_TIMESTAMP, .i = ts, .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
 
   if(info->dataFormat){
     ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kvTs, 0);

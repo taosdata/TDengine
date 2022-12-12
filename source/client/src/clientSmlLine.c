@@ -286,7 +286,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
       return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
     }
 
-    SSmlKv kv = {.key = key, .type = TSDB_DATA_TYPE_NCHAR, .keyLen = keyLen, .value = value, .length = valueLen};
+    SSmlKv kv = {.key = key, .keyLen = keyLen, .type = TSDB_DATA_TYPE_NCHAR, .value = value, .length = valueLen};
     if(info->dataFormat){
       if(unlikely(cnt + 1 > info->currSTableMeta->tableInfo.numOfTags)){
         info->dataFormat = false;
@@ -686,7 +686,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
   // add ts to
-  SSmlKv kv = { .key = TS, .keyLen = TS_LEN, .i = ts, .type = TSDB_DATA_TYPE_TIMESTAMP, .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
+  SSmlKv kv = { .key = TS, .keyLen = TS_LEN, .type = TSDB_DATA_TYPE_TIMESTAMP, .i = ts, .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
   if(info->dataFormat){
     smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, 0);
     smlBuildRow(info->currTableDataCtx);
