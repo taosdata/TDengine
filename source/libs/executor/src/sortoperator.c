@@ -105,6 +105,7 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
     }
   }
 
+  pBlock->info.dataLoad = 1;
   pBlock->info.rows += 1;
 }
 
