@@ -1159,7 +1159,46 @@ int sml_ttl_Test() {
   return code;
 }
 
+//char *str[] ={
+//    "",
+//    "f64",
+//    "F64",
+//    "f32",
+//    "F32",
+//    "i",
+//    "I",
+//    "i64",
+//    "I64",
+//    "u",
+//    "U",
+//    "u64",
+//    "U64",
+//    "i32",
+//    "I32",
+//    "u32",
+//    "U32",
+//    "i16",
+//    "I16",
+//    "u16",
+//    "U16",
+//    "i8",
+//    "I8",
+//    "u8",
+//    "U8",
+//};
+//uint8_t smlCalTypeSum(char* endptr, int32_t left){
+//  uint8_t sum = 0;
+//  for(int i = 0; i < left; i++){
+//    sum += endptr[i];
+//  }
+//  return sum;
+//}
+
 int main(int argc, char *argv[]) {
+
+//  for(int i = 0; i < sizeof(str)/sizeof(str[0]); i++){
+//    printf("str:%s \t %d\n", str[i], smlCalTypeSum(str[i], strlen(str[i])));
+//  }
   int ret = 0;
   ret = sml_ttl_Test();
   ASSERT(!ret);

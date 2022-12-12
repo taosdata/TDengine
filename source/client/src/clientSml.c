@@ -235,7 +235,182 @@ SSmlSTableMeta *smlBuildSTableMeta(bool isDataFormat) {
   return NULL;
 }
 
+//uint16_t smlCalTypeSum(char* endptr, int32_t left){
+//  uint16_t sum = 0;
+//  for(int i = 0; i < left; i++){
+//    sum += endptr[i];
+//  }
+//  return sum;
+//}
+
+#define RETURN_FALSE \
+smlBuildInvalidDataMsg(msg, "invalid data", pVal); \
+return false;
+
+#define SET_DOUBLE kvVal->type = TSDB_DATA_TYPE_DOUBLE;\
+                   kvVal->d = result;
+
+#define SET_FLOAT \
+  if (!IS_VALID_FLOAT(result)) {\
+    smlBuildInvalidDataMsg(msg, "float out of range[-3.402823466e+38,3.402823466e+38]", pVal);\
+    return false;\
+  }\
+  kvVal->type = TSDB_DATA_TYPE_FLOAT;\
+  kvVal->f = (float)result;
+
+#define SET_BIGINT \
+  if (smlDoubleToInt64OverFlow(result)) {\
+    errno = 0;\
+    int64_t tmp = taosStr2Int64(pVal, &endptr, 10);\
+    if (errno == ERANGE) {\
+      smlBuildInvalidDataMsg(msg, "big int out of range[-9223372036854775808,9223372036854775807]", pVal);\
+      return false;\
+    }\
+    kvVal->type = TSDB_DATA_TYPE_BIGINT;\
+    kvVal->i = tmp;\
+    return true;\
+  }\
+  kvVal->type = TSDB_DATA_TYPE_BIGINT;\
+  kvVal->i = (int64_t)result;
+
+#define SET_INT \
+  if (!IS_VALID_INT(result)) {\
+    smlBuildInvalidDataMsg(msg, "int out of range[-2147483648,2147483647]", pVal);\
+    return false;\
+  }\
+  kvVal->type = TSDB_DATA_TYPE_INT;\
+  kvVal->i = result;
+
+#define SET_SMALL_INT \
+  if (!IS_VALID_SMALLINT(result)) {\
+    smlBuildInvalidDataMsg(msg, "small int our of range[-32768,32767]", pVal);\
+    return false;\
+  }\
+  kvVal->type = TSDB_DATA_TYPE_SMALLINT;\
+  kvVal->i = result;
+
+#define SET_UBIGINT \
+  if (result >= (double)UINT64_MAX || result < 0) {\
+    errno = 0;\
+    uint64_t tmp = taosStr2UInt64(pVal, &endptr, 10);\
+    if (errno == ERANGE || result < 0) {\
+      smlBuildInvalidDataMsg(msg, "unsigned big int out of range[0,18446744073709551615]", pVal);\
+      return false;\
+    }\
+    kvVal->type = TSDB_DATA_TYPE_UBIGINT;\
+    kvVal->u = tmp;\
+    return true;\
+  }\
+  kvVal->type = TSDB_DATA_TYPE_UBIGINT;\
+  kvVal->u = result;
+
+#define SET_UINT \
+  if (!IS_VALID_UINT(result)) {\
+    smlBuildInvalidDataMsg(msg, "unsigned int out of range[0,4294967295]", pVal);\
+    return false;\
+  }\
+  kvVal->type = TSDB_DATA_TYPE_UINT;\
+  kvVal->u = result;
+
+#define SET_USMALL_INT \
+  if (!IS_VALID_USMALLINT(result)) {\
+    smlBuildInvalidDataMsg(msg, "unsigned small int out of rang[0,65535]", pVal);\
+    return false;\
+  }\
+  kvVal->type = TSDB_DATA_TYPE_USMALLINT;\
+  kvVal->u = result;
+
+#define SET_TINYINT \
+  if (!IS_VALID_TINYINT(result)) { \
+    smlBuildInvalidDataMsg(msg, "tiny int out of range[-128,127]", pVal);\
+    return false;\
+  }\
+  kvVal->type = TSDB_DATA_TYPE_TINYINT;\
+  kvVal->i = result;
+
+#define SET_UTINYINT \
+  if (!IS_VALID_UTINYINT(result)) {\
+    smlBuildInvalidDataMsg(msg, "unsigned tiny int out of range[0,255]", pVal);\
+    return false;\
+  }\
+  kvVal->type = TSDB_DATA_TYPE_UTINYINT;\
+  kvVal->u = result;
+
 bool smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg) {
+  const char *pVal = kvVal->value;
+  int32_t     len = kvVal->length;
+  char *      endptr = NULL;
+  double      result = taosStr2Double(pVal, &endptr);
+  if (pVal == endptr) {
+    RETURN_FALSE
+  }
+
+  int32_t left = len - (endptr - pVal);
+  if (left == 0) {
+    SET_DOUBLE
+  } else if (left == 3) {
+    if(endptr[0] == 'f' || endptr[0] == 'F'){
+      if(endptr[1] == '6' && endptr[2] == '4'){
+        SET_DOUBLE
+      }else if(endptr[1] == '3' && endptr[2] == '2'){
+        SET_FLOAT
+      }else{
+        RETURN_FALSE
+      }
+    }else if(endptr[0] == 'i' || endptr[0] == 'I'){
+      if(endptr[1] == '6' && endptr[2] == '4'){
+        SET_BIGINT
+      }else if(endptr[1] == '3' && endptr[2] == '2'){
+        SET_INT
+      }else if(endptr[1] == '1' && endptr[2] == '6'){
+        SET_SMALL_INT
+      }else{
+        RETURN_FALSE
+      }
+    }else if(endptr[0] == 'u' || endptr[0] == 'U'){
+      if(endptr[1] == '6' && endptr[2] == '4'){
+        SET_UBIGINT
+      }else if(endptr[1] == '3' && endptr[2] == '2'){
+        SET_UINT
+      }else if(endptr[1] == '1' && endptr[2] == '6'){
+        SET_USMALL_INT
+      }else{
+        RETURN_FALSE
+      }
+    }else{
+      RETURN_FALSE
+    }
+  } else if(left == 2){
+    if(endptr[0] == 'i' || endptr[0] == 'I'){
+      if(endptr[1] == '8') {
+        SET_TINYINT
+      }else{
+        RETURN_FALSE
+      }
+    }else if(endptr[0] == 'u' || endptr[0] == 'U') {
+      if (endptr[1] == '8') {
+        SET_UTINYINT
+      } else {
+        RETURN_FALSE
+      }
+    }else{
+      RETURN_FALSE
+    }
+  } else if(left == 1){
+    if(endptr[0] == 'i' || endptr[0] == 'I'){
+      SET_BIGINT
+    }else if(endptr[0] == 'u' || endptr[0] == 'U') {
+      SET_UBIGINT
+    }else{
+      RETURN_FALSE
+    }
+  } else {
+    RETURN_FALSE;
+  }
+  return true;
+}
+
+bool smlParseNumberOld(SSmlKv *kvVal, SSmlMsgBuf *msg) {
   const char *pVal = kvVal->value;
   int32_t     len = kvVal->length;
   char       *endptr = NULL;
