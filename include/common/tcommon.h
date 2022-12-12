@@ -339,7 +339,7 @@ typedef struct SExprInfo {
 
 typedef struct {
   const char* key;
-  int32_t     keyLen;
+  size_t     keyLen;
   uint8_t     type;
   union {
     const char* value;
@@ -348,7 +348,7 @@ typedef struct {
     double      d;
     float       f;
   };
-  int32_t length;
+  size_t length;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1
