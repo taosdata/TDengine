@@ -274,7 +274,7 @@ static int32_t tdRSmaFSApplyChange(SSma *pSma, SRSmaFS *pFS) {
       SQTaskFile *pTaskF = (SQTaskFile *)taosArrayGet(pFSOld->aQTaskInf, idx);
       int32_t     c = tdQTaskInfCmprFn1(pTaskF, pQTaskFNew);
       if (c < 0) {
-        
+        l
       } else if(c == 0) {
         ++iNew;
         continue;
