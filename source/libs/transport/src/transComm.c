@@ -282,6 +282,9 @@ void transCtxCleanup(STransCtx* ctx) {
 }
 
 void transCtxMerge(STransCtx* dst, STransCtx* src) {
+  if (src->args == NULL || src->freeFunc == NULL) {
+    return;
+  }
   if (dst->args == NULL) {
     dst->args = src->args;
     dst->brokenVal = src->brokenVal;

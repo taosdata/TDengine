@@ -1026,6 +1026,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
     code = tsdbReadDelIdx(pDelFReader, pDelIdxArray);
     if (code) {
+      taosArrayDestroy(pDelIdxArray);
       tsdbDelFReaderClose(&pDelFReader);
       goto _err;
     }
@@ -1034,6 +1035,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
     code = getTableDelSkyline(pMem, pIMem, pDelFReader, delIdx, pIter->pSkyline);
     if (code) {
+      taosArrayDestroy(pDelIdxArray);
       tsdbDelFReaderClose(&pDelFReader);
       goto _err;
     }

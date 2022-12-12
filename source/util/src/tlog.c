@@ -801,7 +801,7 @@ bool taosAssert(bool condition, const char *file, int32_t line, const char *form
   taosPrintTrace(flags, level, dflag);
 
   if (tsAssert) {
-    taosCloseLog();
+    // taosCloseLog();
     taosMsleep(300);
 
 #ifdef NDEBUG

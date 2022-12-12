@@ -757,6 +757,7 @@ static int32_t tdExecuteRSmaImplAsync(SSma *pSma, int64_t version, const void *p
                                       SRSmaInfo *pInfo, tb_uid_t suid) {
   int32_t size = sizeof(int32_t) + sizeof(int64_t) + len;
   void   *qItem = taosAllocateQitem(size, DEF_QITEM, 0);
+
   if (!qItem) {
     return TSDB_CODE_FAILED;
   }
