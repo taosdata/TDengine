@@ -41,7 +41,7 @@ int smlProcess_influx_Test() {
       "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 "
       "load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation="
       "124,heading=221,grade=0,fuel_consumption=25 1451608403000000000",
-      /*"readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 "
+      "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 "
       "fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,"
       "heading=221,grade=0,fuel_consumption=25 1451609404000000000",
       "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 "
@@ -58,7 +58,7 @@ int smlProcess_influx_Test() {
       "readings,fleet=South,name=truck_0,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 "
       "1451629409000000000",
       "stable,t1=t1,t2=t2,t3=t3 c1=1,c2=2,c3=\"kk\",c4=4 1451629501000000000",
-      "stable,t2=t2,t1=t1,t3=t3 c1=1,c3=\"\",c4=4 1451629602000000000",*/
+      "stable,t2=t2,t1=t1,t3=t3 c1=1,c3=\"\",c4=4 1451629602000000000",
   };
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
@@ -1161,10 +1161,10 @@ int sml_ttl_Test() {
 
 int main(int argc, char *argv[]) {
   int ret = 0;
-//  ret = sml_ttl_Test();
-//  ASSERT(!ret);
-//  ret = sml_ts2164_Test();
-//  ASSERT(!ret);
+  ret = sml_ttl_Test();
+  ASSERT(!ret);
+  ret = sml_ts2164_Test();
+  ASSERT(!ret);
   ret = smlProcess_influx_Test();
   ASSERT(!ret);
   ret = smlProcess_telnet_Test();
