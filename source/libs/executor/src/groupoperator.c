@@ -951,6 +951,8 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   }
   taosArrayDestroy(pParInfo->rowIds);
   pParInfo->rowIds = NULL;
+  pDest->info.dataLoad = 1;
+
   blockDataUpdateTsWindow(pDest, pInfo->tsColIndex);
   pDest->info.id.groupId = pParInfo->groupId;
   pOperator->resultInfo.totalRows += pDest->info.rows;
