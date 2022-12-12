@@ -212,7 +212,7 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
       continue;
     }
     
-    if (!taosMbsToUcs4(src->buffer + src->buffer_length * i, src->length[i], (TdUcs4*)(dst->buffer + dst->buffer_length * i), dst->buffer_length, &output)) {
+    if (!taosMbsToUcs4((char*)src->buffer + src->buffer_length * i, src->length[i], (TdUcs4*)(dst->buffer + dst->buffer_length * i), dst->buffer_length, &output)) {
       if (errno == E2BIG) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
