@@ -2790,7 +2790,8 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
   while (1) {
     // load the last data block of current table
     STableBlockScanInfo* pScanInfo = *(STableBlockScanInfo**)pStatus->pTableIter;
-    bool                 hasVal = initLastBlockReader(pLastBlockReader, pScanInfo, pReader);
+
+    bool hasVal = initLastBlockReader(pLastBlockReader, pScanInfo, pReader);
     if (!hasVal) {
       bool hasNexTable = moveToNextTable(pOrderedCheckInfo, pStatus);
       if (!hasNexTable) {
@@ -3823,6 +3824,8 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
   }
 
   // NOTE: the endVersion in pCond is the data version not schema version, so pCond->endVersion is not correct here.
+  //  no valid error code set in metaGetTbTSchema, so let's set the error code here.
+  //  we should proceed in case of tmq processing.
   if (pCond->suid != 0) {
     pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pReader->suid, -1, 1);
     if (pReader->pSchema == NULL) {
@@ -3840,7 +3843,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     updateBlockSMAInfo(pReader->pSchema, &pReader->suppInfo);
   }
 
-  STsdbReader* p = (pReader->innerReader[0] != NULL)? pReader->innerReader[0]:pReader;
+  STsdbReader* p = (pReader->innerReader[0] != NULL) ? pReader->innerReader[0] : pReader;
   pReader->status.pTableMap = createDataBlockScanInfo(p, &pReader->blockInfoBuf, pTableList, numOfTables);
   if (pReader->status.pTableMap == NULL) {
     tsdbReaderClose(p);
@@ -3888,10 +3891,11 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
   tsdbDebug("%p total numOfTable:%d in this query %s", pReader, numOfTables, pReader->idStr);
   return code;
 
-  _err:
+_err:
   tsdbError("failed to create data reader, code:%s %s", tstrerror(code), idstr);
+  tsdbReaderClose(pReader);
   return code;
-  }
+}
 
 void tsdbReaderClose(STsdbReader* pReader) {
   if (pReader == NULL) {

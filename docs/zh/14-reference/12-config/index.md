@@ -191,24 +191,6 @@ taos --dump-config
 | 取值范围 | 0：返回空行，1：返回 0       |
 | 缺省值   | 1                            |
 
-### minSlidingTime 
-
-| 属性     | 说明                             |
-| -------- | -------------------------------- |
-| 适用范围 | 仅服务端适用                     |
-| 含义     | sliding 的最小允许值 |
-| 单位     | 同数据库时间单位   |
-| 缺省值   | 1                            |
-
-### minIntervalTime 
-
-| 属性     | 说明                             |
-| -------- | -------------------------------- |
-| 适用范围 | 仅服务端适用                     |
-| 含义     | interval窗口的最小允许值 |
-| 单位     | 同数据库时间单位   |
-| 缺省值   | 1                            |
-
 ## 区域相关
 
 ### timezone
@@ -656,8 +638,6 @@ charset 的有效值是 UTF-8。
 | 10  |       queryPolicy       | 否              | 是              |                                                   |
 | 11  |    querySmaOptimize     | 否              | 是              |                                                   |
 | 12  |   maxNumOfDistinctRes   | 是              | 是              |                                                   |
-| 13  |     minSlidingTime      | 是              | 是              |                                                   |
-| 14  |     minIntervalTime     | 是              | 是              |                                                   |
 | 15  | countAlwaysReturnValue  | 是              | 是              |                                                   |
 | 16  |         dataDir         | 是              | 是              |                                                   |
 | 17  |    minimalDataDirGB     | 是              | 是              |                                                   |

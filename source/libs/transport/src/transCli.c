@@ -1626,9 +1626,9 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
       pCtx->retryNextInterval = pCtx->retryMaxInterval;
     }
 
-    if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
-      return false;
-    }
+    // if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
+    //   return false;
+    // }
   } else {
     pCtx->retryNextInterval = 0;
     pCtx->epsetRetryCnt++;
