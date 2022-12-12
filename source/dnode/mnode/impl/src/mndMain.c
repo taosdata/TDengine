@@ -213,6 +213,8 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
 }
 
 static void mndCheckDnodeOffline(SMnode *pMnode) {
+  if (mndAcquireRpc(pMnode) != 0) return;
+
   SSdb   *pSdb = pMnode->pSdb;
   int64_t curMs = taosGetTimestampMs();
 
@@ -230,6 +232,8 @@ static void mndCheckDnodeOffline(SMnode *pMnode) {
 
     sdbRelease(pSdb, pDnode);
   }
+
+  mndReleaseRpc(pMnode);
 }
 
 static void *mndThreadFp(void *param) {
