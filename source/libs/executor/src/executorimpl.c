@@ -2546,6 +2546,7 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
     pBlock->info.rows += pRow->numOfRows;
     releaseOutputBuf(pState, &key, pRow);
   }
+  pBlock->info.dataLoad = 1;
   blockDataUpdateTsWindow(pBlock, 0);
   return TSDB_CODE_SUCCESS;
 }
@@ -2635,6 +2636,7 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
       }
     }
 
+    pBlock->info.dataLoad = 1;
     pBlock->info.rows += pRow->numOfRows;
     // saveSessionDiscBuf(pState, pKey, pVal, size);
     releaseOutputBuf(pState, NULL, pRow);

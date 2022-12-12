@@ -1313,6 +1313,7 @@ static int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock,
   }
   pDestBlock->info.type = STREAM_CLEAR;
   pDestBlock->info.version = pSrcBlock->info.version;
+  pDestBlock->info.dataLoad = 1;
   blockDataUpdateTsWindow(pDestBlock, 0);
   return code;
 }
@@ -1421,6 +1422,7 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
   }
   if (out && pInfo->pUpdateDataRes->info.rows > 0) {
     pInfo->pUpdateDataRes->info.version = pBlock->info.version;
+    pInfo->pUpdateDataRes->info.dataLoad = 1;
     blockDataUpdateTsWindow(pInfo->pUpdateDataRes, 0);
     pInfo->pUpdateDataRes->info.type = pInfo->partitionSup.needCalc ? STREAM_DELETE_DATA : STREAM_CLEAR;
   }
@@ -1483,6 +1485,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
   }
 
+  pInfo->pRes->info.dataLoad = 1;
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
   blockDataFreeRes((SSDataBlock*)pBlock);
 
@@ -1771,6 +1774,7 @@ FETCH_NEXT_BLOCK:
     // TODO move into scan
     pBlock->info.calWin.skey = INT64_MIN;
     pBlock->info.calWin.ekey = INT64_MAX;
+    pBlock->info.dataLoad = 1;
     blockDataUpdateTsWindow(pBlock, 0);
     switch (pBlock->info.type) {
       case STREAM_NORMAL:
@@ -1948,6 +1952,7 @@ FETCH_NEXT_BLOCK:
         }
 
         doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+        pInfo->pRes->info.dataLoad = 1;
         blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
 
         if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
