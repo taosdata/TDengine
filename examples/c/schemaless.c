@@ -1,6 +1,4 @@
 #include "../../include/client/taos.h"
-#include "taoserror.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -67,10 +65,9 @@ int main(int argc, char* argv[]) {
   printf("%s\n", "begin taos_insert_lines");
   int64_t  begin = getTimeInUs();
   TAOS_RES *res = taos_schemaless_insert(taos, lines, lineNum, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
-  int code = taos_errno(res);
-  taos_free_result(res);
   int64_t end = getTimeInUs();
-  printf("code: %d, %s. time used: %" PRId64 "\n", code, tstrerror(code), end-begin);
+  printf("code: %s. time used: %" PRId64 "\n", taos_errstr(res), end-begin);
+  taos_free_result(res);
 
   return 0;
 }
