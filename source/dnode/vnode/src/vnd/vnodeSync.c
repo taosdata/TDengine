@@ -26,21 +26,6 @@ static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   tsem_wait(&pVnode->syncSem);
 }
 
-static inline void vnodeWaitBlockMsgOld(SVnode *pVnode, const SRpcMsg *pMsg) {
-  if (vnodeIsMsgBlock(pMsg->msgType)) {
-    const STraceId *trace = &pMsg->info.traceId;
-    taosThreadMutexLock(&pVnode->lock);
-    if (!pVnode->blocked) {
-      vGTrace("vgId:%d, msg:%p wait block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
-      pVnode->blocked = true;
-      taosThreadMutexUnlock(&pVnode->lock);
-      tsem_wait(&pVnode->syncSem);
-    } else {
-      taosThreadMutexUnlock(&pVnode->lock);
-    }
-  }
-}
-
 static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   if (vnodeIsMsgBlock(pMsg->msgType)) {
     const STraceId *trace = &pMsg->info.traceId;
