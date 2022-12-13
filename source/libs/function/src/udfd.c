@@ -812,7 +812,7 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
 
   if (nread < 0) {
     if (nread == UV_EOF) {
-      fnError("udfd read EOF");
+      fnInfo("udfd pipe read EOF");
     } else {
       fnError("Receive error %s", uv_err_name(nread));
     }
