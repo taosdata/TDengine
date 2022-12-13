@@ -337,7 +337,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_STRICT_ON_STR           "on"
 #define TSDB_DB_STRICT_OFF              0
 #define TSDB_DB_STRICT_ON               1
-#define TSDB_DEFAULT_DB_STRICT          TSDB_DB_STRICT_OFF
+#define TSDB_DEFAULT_DB_STRICT          TSDB_DB_STRICT_ON
 #define TSDB_CACHE_MODEL_STR_LEN        sizeof(TSDB_CACHE_MODEL_LAST_VALUE_STR)
 #define TSDB_CACHE_MODEL_NONE_STR       "none"
 #define TSDB_CACHE_MODEL_LAST_ROW_STR   "last_row"
