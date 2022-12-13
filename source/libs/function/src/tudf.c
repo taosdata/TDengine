@@ -88,7 +88,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   }
 #ifdef WINDOWS
   if (strlen(path) == 0) {
-    strcat(path, "C:\\TDengine")
+    strcat(path, "C:\\TDengine");
   }
   strcat(path, "\\udfd.exe");
 #else
