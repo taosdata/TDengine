@@ -830,17 +830,11 @@ static int32_t createWindowLogicNodeByEvent(SLogicPlanContext* pCxt, SEventWindo
   pWindow->pStartCond = nodesCloneNode(pEvent->pStartCond);
   pWindow->pEndCond = nodesCloneNode(pEvent->pEndCond);
   pWindow->pTspk = nodesCloneNode(pEvent->pCol);
-  if (NULL == pWindow->pStateExpr || NULL == pWindow->pTspk) {
+  if (NULL == pWindow->pStartCond || NULL == pWindow->pEndCond || NULL == pWindow->pTspk) {
     nodesDestroyNode((SNode*)pWindow);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  // rewrite the expression in subsequent clauses
-  int32_t code = rewriteExprForSelect(pWindow->pStateExpr, pSelect, SQL_CLAUSE_WINDOW);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
-  }
-
-  return code;
+  return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }
 
 static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
