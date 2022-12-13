@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../../../include/client/taos.h"  // TAOS header file
+#include "../../include/client/taos.h"  // TAOS header file
 
 static void queryDB(TAOS *taos, char *command) {
   int i;
