@@ -1515,6 +1515,10 @@ static void rpcProcessConnError(void *param, void *id) {
     rpcMsg.pCont = NULL;
     rpcMsg.contLen = 0;
 
+    if( pContext->numOfTry >= pContext->epSet.numOfEps && rpcMsg.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+      rpcMsg.code = TSDB_CODE_RPC_VGROUP_NOT_REACHED;
+    }
+
     tWarn("%s %p, connection error. notify client query over. numOfTry=%d msgType=%d", pRpc->label, pContext->ahandle, pContext->numOfTry, pContext->msgType);
     rpcNotifyClient(pContext, &rpcMsg);
   } else {

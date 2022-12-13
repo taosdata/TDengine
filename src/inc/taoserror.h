@@ -61,6 +61,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_RPC_FQDN_ERROR                TAOS_DEF_ERROR_CODE(0, 0x0015)  //"Unable to resolve FQDN"
 #define TSDB_CODE_RPC_INVALID_VERSION           TAOS_DEF_ERROR_CODE(0, 0x0016)  //"Invalid app version"
 #define TSDB_CODE_RPC_SHORTCUT                  TAOS_DEF_ERROR_CODE(0, 0x0017)  //"Shortcut"
+#define TSDB_CODE_RPC_VGROUP_NOT_REACHED        TAOS_DEF_ERROR_CODE(0, 0x0018)  //"Vgroup could not be reached"
 
 //common & util
 #define TSDB_CODE_COM_OPS_NOT_SUPPORT           TAOS_DEF_ERROR_CODE(0, 0x0100)  //"Operation not supported"
