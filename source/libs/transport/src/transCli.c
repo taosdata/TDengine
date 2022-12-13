@@ -604,6 +604,7 @@ static int32_t allocConnRef(SCliConn* conn, bool update) {
 
 static int32_t specifyConnRef(SCliConn* conn, bool update, int64_t handle) {
   if (update) {
+    transReleaseExHandle(transGetRefMgt(), conn->refId);
     transRemoveExHandle(transGetRefMgt(), conn->refId);
     conn->refId = -1;
   }
@@ -956,7 +957,6 @@ static void cliHandleRelease(SCliMsg* pMsg, SCliThrd* pThrd) {
 
   SCliConn* conn = exh->handle;
   transReleaseExHandle(transGetRefMgt(), refId);
-
   tDebug("%s conn %p start to release to inst", CONN_GET_INST_LABEL(conn), conn);
 
   if (T_REF_VAL_GET(conn) == 2) {
@@ -1574,6 +1574,9 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pCtx->retryStep = 0;
     pCtx->retryInit = true;
     pCtx->retryCode = TSDB_CODE_SUCCESS;
+
+    // already retry, not use handle specified by app;
+    pMsg->msg.info.handle = 0;
   }
 
   if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
