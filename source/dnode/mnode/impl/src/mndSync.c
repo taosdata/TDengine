@@ -341,7 +341,7 @@ void mndSyncCheckTimeout(SMnode *pMnode) {
              curSec - pMgmt->transSec);
     }
   } else {
-    mTrace("check sync timeout msg, no trans waiting for confirm");
+    // mTrace("check sync timeout msg, no trans waiting for confirm");
   }
   taosThreadMutexUnlock(&pMgmt->lock);
 }
@@ -422,6 +422,7 @@ void mndSyncStop(SMnode *pMnode) {
     mInfo("vgId:1, is stopped and post sem, trans:%d", pMgmt->transId);
     pMgmt->transId = 0;
     pMgmt->transSec = 0;
+    pMgmt->errCode = TSDB_CODE_APP_IS_STOPPING;
     tsem_post(&pMgmt->syncSem);
   }
   taosThreadMutexUnlock(&pMgmt->lock);
