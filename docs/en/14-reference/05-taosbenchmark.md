@@ -205,10 +205,10 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
   Specify the number of replicas when creating the database. The default value is 1.
 
 - **-k/--keep-trying <NUMBER\>** :
-  Keep trying if failed to insert, default is no.
+  Keep trying if failed to insert, default is no. Available with v3.0.9+.
 
 - **-z/--trying-interval <NUMBER\>** :
-  Specify interval between keep trying insert. Valid value is a postive number. Only valid when keep trying be enabled.
+  Specify interval between keep trying insert. Valid value is a postive number. Only valid when keep trying be enabled. Available with v3.0.9+.
 
 - **-V/--version** :
   Show version information only. Users should not use it with other parameters.
@@ -236,6 +236,10 @@ The parameters listed in this section apply to all function modes.
 ### Insert scenario configuration parameters
 
 `filetype` must be set to `insert` in the insertion scenario. See [General Configuration Parameters](#General Configuration Parameters)
+
+- ** keep_trying ** : Keep trying if failed to insert, default is no. Available with v3.0.9+.
+
+- ** trying_interval ** : Specify interval between keep trying insert. Valid value is a postive number. Only valid when keep trying be enabled. Available with v3.0.9+.
 
 #### Database related configuration parameters
 
