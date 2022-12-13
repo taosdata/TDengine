@@ -280,6 +280,7 @@ static void *mndThreadFp(void *param) {
 
     if (sec % (tsStatusInterval * 5) == 0) {
       mndCheckDnodeOffline(pMnode);
+      mndSyncCheckTimeout(pMnode);
     }
   }
 
