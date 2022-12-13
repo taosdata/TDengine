@@ -19,6 +19,7 @@ import sys
 import os
 import random
 from taostest.components import TaosD
+import time
 class StreamComputingTest(TDCase):
     def init(self):
         self.stream_case_env_root = os.path.join(os.environ["TEST_ROOT"], "cases/stream_computing")
@@ -537,9 +538,11 @@ class StreamComputingTest(TDCase):
             self.tdCom.check_query_data(f'select start, `udf2(c10)` from {self.ctb_name}{self.des_table_suffix}', f'select _wstart AS start, udf2(c10) from {self.ctb_name} interval({self.dataDict["interval"]}s)')
             self.tdCom.check_query_data(f'select start, `udf2(c10)` from {self.tb_name}{self.des_table_suffix}', f'select _wstart AS start, udf2(c10) from {self.tb_name} interval({self.dataDict["interval"]}s)')
 
-    def at_once_interval(self, interval, partition="tbname", delete=False, fill_value=None, fill_history_value=None):
+    def at_once_interval(self, interval, partition="tbname", delete=False, fill_value=None, fill_history_value=None, interval_value=None):
         self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
+        # if interval_value is None:
+        #     interval_value = f'{self.dataDict["interval"]}s'
         self.prepare_data(interval=interval, fill_history_value=fill_history_value)
 
         if partition == "tbname":
@@ -560,12 +563,14 @@ class StreamComputingTest(TDCase):
             tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast(cast(abs({partition_elm_alias}) as timestamp) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
         
         self.tdCom.write_latency(self.case_name)
-        if "value" in fill_value.lower():
-            fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
+        if fill_value:
+            if "value" in fill_value.lower():
+                fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
         self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.stb_name} partition by {partition} {partition_elm_alias} interval({self.dataDict["interval"]}s)', trigger_mode="at_once", subtable_value=stb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value)
         self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.ctb_name} partition by {partition} {partition_elm_alias} interval({self.dataDict["interval"]}s)', trigger_mode="at_once", subtable_value=ctb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value)
-        if "value" in fill_value.lower():
-            fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11'
+        if fill_value:
+            if "value" in fill_value.lower():
+                fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11'
         self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, {self.tb_source_select_str}  from {self.tb_name} partition by {partition} {partition_elm_alias} interval({self.dataDict["interval"]}s)', trigger_mode="at_once", subtable_value=tb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value)
         start_time = self.date_time
         for i in range(self.range_count):
@@ -591,11 +596,12 @@ class StreamComputingTest(TDCase):
             # if self.delete and i%2 != 0:
             #     self.tdCom.delete_rows(tbname=ctb_name, start_ts=ts_cast_delete_value)
             # self.date_time += 1
-            for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
-                if tbname != self.tb_name:
-                    self.tdCom.check_query_data(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} partition by {partition} interval({self.dataDict["interval"]}s) order by start', sorted=True)
-                else:
-                    self.tdCom.check_query_data(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} partition by {partition} interval({self.dataDict["interval"]}s) order by start', sorted=True)
+            if not fill_value:
+                for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+                    if tbname != self.tb_name:
+                        self.tdCom.check_query_data(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} partition by {partition} interval({self.dataDict["interval"]}s) order by start', sorted=True)
+                    else:
+                        self.tdCom.check_query_data(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} partition by {partition} interval({self.dataDict["interval"]}s) order by start', sorted=True)
 
         if self.subtable:
             # self.tdSql.query(f'select count(*) from {self.stb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
@@ -633,69 +639,78 @@ class StreamComputingTest(TDCase):
             # self.tdSql.query(f'select count(*) from {self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix};')
             # self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
         if fill_value:
-            history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
-            print(history_ts)
+            end_date_time = self.date_time
+            final_range_count = self.range_count
+            history_ts = str(start_time)+f'-{self.dataDict["interval"]*(final_range_count+2)}s'
             start_ts = self.tdCom.time_cast(history_ts, "-")
-            future_ts = str(self.date_time)+f'+{self.dataDict["interval"]*(self.range_count+2)}s'
+            future_ts = str(end_date_time)+f'+{self.dataDict["interval"]*(final_range_count+2)}s'
             end_ts = self.tdCom.time_cast(future_ts)
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=history_ts)
             self.tdCom.insert_rows(tbname=self.tb_name, ts_value=history_ts)
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=future_ts)
             self.tdCom.insert_rows(tbname=self.tb_name, ts_value=future_ts)
             self.date_time = start_time
-
-            # ! TD-20682
-            # ******
-            # if fill_value:
-            #     history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
-            # print(history_ts)
-            # start_ts = self.tdCom.time_cast(history_ts, "-")
-            # future_ts = str(self.date_time)+f'+{self.dataDict["interval"]*(self.range_count+2)}s'
-            # end_ts = self.tdCom.time_cast(future_ts)
-            # self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=history_ts)
-            # self.tdCom.insert_rows(tbname=self.tb_name, ts_value=history_ts)
-            # self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=future_ts)
-            # self.tdCom.insert_rows(tbname=self.tb_name, ts_value=future_ts)
-            # self.date_time = start_time
-            # ******
-
-            for i in range(self.range_count):
-                
-                ts_value = str(self.date_time+self.dataDict["interval"])+f'+{i*10}s'
-                ts_cast_delete_value = self.tdCom.time_cast(ts_value)
-                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
-                # if self.delete and i%2 != 0:
-                #     self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
-                self.date_time += 1
-                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
-                # if self.delete and i%2 != 0:
-                #     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
-                self.date_time += 1
-            print(ts_cast_delete_value)
-            print(start_ts)
-            print(self.tdCom.time_cast(self.date_time))
-            self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=self.tdCom.time_cast(start_time), end_ts=ts_cast_delete_value)
+            if self.update:
+                history_ts = str(start_time)+f'-{self.dataDict["interval"]*(final_range_count+2)}s'
+                start_ts = self.tdCom.time_cast(history_ts, "-")
+                future_ts = str(end_date_time)+f'+{self.dataDict["interval"]*(final_range_count+2)}s'
+                end_ts = self.tdCom.time_cast(future_ts)
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=history_ts)
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=history_ts)
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=future_ts)
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=future_ts)
+                self.date_time = start_time
+                for i in range(self.range_count):
+                    
+                    ts_value = str(self.date_time+self.dataDict["interval"])+f'+{i*10}s'
+                    ts_cast_delete_value = self.tdCom.time_cast(ts_value)
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+                    # if self.delete and i%2 != 0:
+                    #     self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
+                    self.date_time += 1
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+                    # if self.delete and i%2 != 0:
+                    #     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
+                    self.date_time += 1
+            if self.delete:
+                self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=self.tdCom.time_cast(start_time), end_ts=ts_cast_delete_value)
+                self.tdCom.delete_rows(tbname=self.tb_name, start_ts=self.tdCom.time_cast(start_time), end_ts=ts_cast_delete_value)
             # self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=start_ts, end_ts=ts_cast_delete_value)
             for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
                 if tbname != self.tb_name:
                     if "value" in fill_value.lower():
                         fill_value='VALUE,1,2,3,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
-                    self.tdCom.check_query_data(f'select start, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_stb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', sorted=True, fill_value=fill_value)
+                    if partition == "tbname":
+                        self.tdCom.check_query_data(f'select start, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_stb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', fill_value=fill_value)
+                    else:
+                        self.tdCom.check_query_data(f'select start, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix} order by start,`min(c1)`', f'select * from (select _wstart AS start, {self.fill_stb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start) where `min(c1)` is not Null order by start,`min(c1)`', fill_value=fill_value)
                 else:
                     if "value" in fill_value.lower():
                         fill_value='VALUE,1,2,3,6,7,8,9,10,11'
-                    self.tdCom.check_query_data(f'select start, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', sorted=True, fill_value=fill_value)
-            # # ! TD-20755
-            # self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=start_ts, end_ts=ts_cast_delete_value)
-            # for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
-            #     if tbname != self.tb_name:
-            #         if "value" in fill_value.lower():
-            #             fill_value='VALUE,1,2,3,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
-            #         self.tdCom.check_query_data(f'select start, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_stb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', sorted=True, fill_value=fill_value)
-            #     else:
-            #         if "value" in fill_value.lower():
-            #             fill_value='VALUE,1,2,3,6,7,8,9,10,11'
-                    # self.tdCom.check_query_data(f'select start, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', sorted=True, fill_value=fill_value)
+                    if partition == "tbname":
+                        self.tdCom.check_query_data(f'select start, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', fill_value=fill_value)
+                    else:
+                        self.tdCom.check_query_data(f'select start, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by start,`min(c1)`', f'select * from (select _wstart AS start, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start) where `min(c1)` is not Null order by start,`min(c1)`', fill_value=fill_value)
+
+            if self.delete:
+                self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=start_ts, end_ts=ts_cast_delete_value)
+                self.tdCom.delete_rows(tbname=self.tb_name, start_ts=start_ts, end_ts=ts_cast_delete_value)
+                for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+                    if tbname != self.tb_name:
+                        if "value" in fill_value.lower():
+                            fill_value='VALUE,1,2,3,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
+                        if partition == "tbname":
+                            self.tdCom.check_query_data(f'select start, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_stb_source_select_str}  from {tbname} where ts >= {start_ts.replace("-", "+")} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', fill_value=fill_value)
+                        else:
+                            self.tdCom.check_query_data(f'select start, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix} order by start,`min(c1)`', f'select * from (select _wstart AS start, {self.fill_stb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start) where `min(c1)` is not Null order by start,`min(c1)`', fill_value=fill_value)
+
+                    else:
+                        if "value" in fill_value.lower():
+                            fill_value='VALUE,1,2,3,6,7,8,9,10,11'
+                        if partition == "tbname":
+                            self.tdCom.check_query_data(f'select start, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts.replace("-", "+")} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', fill_value=fill_value)
+                        else:
+                            self.tdCom.check_query_data(f'select start, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by start,`min(c1)`', f'select * from (select _wstart AS start, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start) where `min(c1)` is not Null order by start,`min(c1)`', fill_value=fill_value)
 
 
 
@@ -992,7 +1007,8 @@ class StreamComputingTest(TDCase):
 
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
 
-    def window_close_interval(self, interval, watermark=None, ignore_expired=None, partition="tbname"):
+    def window_close_interval(self, interval, watermark=None, ignore_expired=None, partition="tbname", fill_value=None, delete=False):
+        self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
         if watermark is not None:
             self.case_name = "watermark" + sys._getframe().f_code.co_name
@@ -1022,10 +1038,17 @@ class StreamComputingTest(TDCase):
         else:
             watermark_value = None
         # create stb/ctb/tb stream
-        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.stb_name} partition by {partition} {partition_elm_alias} interval({self.dataDict["interval"]}s)', trigger_mode="window_close", watermark=watermark_value, ignore_expired=ignore_expired, subtable_value=stb_subtable_value)
-        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.ctb_name} partition by {partition} {partition_elm_alias} interval({self.dataDict["interval"]}s)', trigger_mode="window_close", watermark=watermark_value, ignore_expired=ignore_expired, subtable_value=ctb_subtable_value)
-        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, {self.tb_source_select_str}  from {self.tb_name} partition by {partition} {partition_elm_alias} interval({self.dataDict["interval"]}s)', trigger_mode="window_close", watermark=watermark_value, ignore_expired=ignore_expired, subtable_value=tb_subtable_value)
-        
+        if fill_value:
+            if "value" in fill_value.lower():
+                fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.stb_name} partition by {partition} {partition_elm_alias} interval({self.dataDict["interval"]}s)', trigger_mode="window_close", watermark=watermark_value, ignore_expired=ignore_expired, subtable_value=stb_subtable_value, fill_value=fill_value)
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.ctb_name} partition by {partition} {partition_elm_alias} interval({self.dataDict["interval"]}s)', trigger_mode="window_close", watermark=watermark_value, ignore_expired=ignore_expired, subtable_value=ctb_subtable_value, fill_value=fill_value)
+        if fill_value:
+            if "value" in fill_value.lower():
+                fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11'
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, {self.tb_source_select_str}  from {self.tb_name} partition by {partition} {partition_elm_alias} interval({self.dataDict["interval"]}s)', trigger_mode="window_close", watermark=watermark_value, ignore_expired=ignore_expired, subtable_value=tb_subtable_value, fill_value=fill_value)
+
+        start_time = self.date_time
         for i in range(self.range_count):
             if i == 0:
                 if watermark is not None:
@@ -1049,26 +1072,27 @@ class StreamComputingTest(TDCase):
                     dt = f'cast({ts_value-num*self.offset} as timestamp)'
                     self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=dt)
                     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=dt)
-
-                for tbname in [self.stb_stream_des_table, self.ctb_stream_des_table, self.tb_stream_des_table]:
-                    if tbname != self.tb_stream_des_table:
-                        self.tdSql.query(f'select start, {self.stb_output_select_str} from {tbname}')
-                    else:
-                        self.tdSql.query(f'select start, {self.tb_output_select_str} from {tbname}')
-                    self.tdSql.checkEqual(self.tdSql.query_row, i)
+                if not fill_value:
+                    for tbname in [self.stb_stream_des_table, self.ctb_stream_des_table, self.tb_stream_des_table]:
+                        if tbname != self.tb_stream_des_table:
+                            self.tdSql.query(f'select start, {self.stb_output_select_str} from {tbname}')
+                        else:
+                            self.tdSql.query(f'select start, {self.tb_output_select_str} from {tbname}')
+                        self.tdSql.checkEqual(self.tdSql.query_row, i)
             
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts-1)
             self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts-1)
             if self.update and i%2 == 0:
                 self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts-1)
                 self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts-1)
-            for tbname in [self.stb_stream_des_table, self.ctb_stream_des_table, self.tb_stream_des_table]:
-                if tbname != self.tb_stream_des_table:
-                    self.tdSql.query(f'select start, {self.stb_output_select_str} from {tbname}')
-                else:
-                    self.tdSql.query(f'select start, {self.tb_output_select_str} from {tbname}')
+            if not fill_value:
+                for tbname in [self.stb_stream_des_table, self.ctb_stream_des_table, self.tb_stream_des_table]:
+                    if tbname != self.tb_stream_des_table:
+                        self.tdSql.query(f'select start, {self.stb_output_select_str} from {tbname}')
+                    else:
+                        self.tdSql.query(f'select start, {self.tb_output_select_str} from {tbname}')
 
-                self.tdSql.checkEqual(self.tdSql.query_row, i)
+                    self.tdSql.checkEqual(self.tdSql.query_row, i)
 
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
             self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
@@ -1077,12 +1101,13 @@ class StreamComputingTest(TDCase):
                 self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
             
             # for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
-            for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
-                if tbname != self.tb_name:
-                    self.tdCom.check_stream(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname}  partition by {partition} interval({self.dataDict["interval"]}s) order by start limit {i+1}', i+1)
-                else:
-                    self.tdCom.check_stream(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname}  partition by {partition} interval({self.dataDict["interval"]}s) order by start limit {i+1}', i+1)
-        if self.disorder:
+            if not fill_value:
+                for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+                    if tbname != self.tb_name:
+                        self.tdCom.check_stream(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname}  partition by {partition} interval({self.dataDict["interval"]}s) order by start limit {i+1}', i+1)
+                    else:
+                        self.tdCom.check_stream(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname}  partition by {partition} interval({self.dataDict["interval"]}s) order by start limit {i+1}', i+1)
+        if self.disorder and not fill_value:
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=record_window_close_ts)
             self.tdCom.insert_rows(tbname=self.tb_name, ts_value=record_window_close_ts)
             if ignore_expired:
@@ -1137,7 +1162,72 @@ class StreamComputingTest(TDCase):
                     ptn_counter += 1
 
                 self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
-            
+
+        if fill_value:
+            history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
+            start_ts = self.tdCom.time_cast(history_ts, "-")
+            future_ts = str(self.date_time)+f'+{self.dataDict["interval"]*(self.range_count+2)}s'
+            end_ts = self.tdCom.time_cast(future_ts)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=history_ts)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=history_ts)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=future_ts)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=future_ts)
+            future_ts_bigint = self.tdCom.str_ts_trans_bigint(future_ts)
+            if watermark is not None:
+                window_close_ts = self.cal_watermark_window_close_interval_endts(future_ts_bigint, self.dataDict['interval'], self.dataDict['watermark'])
+            else:
+                window_close_ts = self.cal_watermark_window_close_interval_endts(future_ts_bigint, self.dataDict['interval'])
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
+
+
+            if self.update:
+                for i in range(self.range_count):
+                    if i == 0:
+                        if watermark is not None:
+                            window_close_ts = self.cal_watermark_window_close_interval_endts(self.date_time, self.dataDict['interval'], self.dataDict['watermark'])
+                        else:
+                            window_close_ts = self.cal_watermark_window_close_interval_endts(self.date_time, self.dataDict['interval'])
+                    else:
+                        self.date_time = window_close_ts + self.offset
+                        window_close_ts += self.dataDict['interval']*self.offset
+                    if i == 0:
+                        record_window_close_ts = window_close_ts
+                    for num in range(int(window_close_ts/self.offset-self.date_time/self.offset)):
+                        ts_value=self.date_time+num*self.offset
+                        self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+                        self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts-1)
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts-1)
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
+            if self.delete:
+                self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=self.tdCom.time_cast(start_time), end_ts=self.tdCom.time_cast(window_close_ts))
+                self.tdCom.delete_rows(tbname=self.tb_name, start_ts=self.tdCom.time_cast(start_time), end_ts=self.tdCom.time_cast(window_close_ts))
+            self.date_time = start_time
+            for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+                if tbname != self.tb_name:
+                    if "value" in fill_value.lower():
+                        fill_value='VALUE,1,2,3,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
+                    if (fill_value == "NULL" or fill_value == "NEXT" or fill_value == "LINEAR") and self.delete:
+                        self.tdCom.check_query_data(f'select start, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select * from (select _wstart AS start, {self.fill_stb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts}  partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start) where `min(c1)` is not Null', fill_value=fill_value)
+                    else:
+                        if self.delete and (fill_value == "PREV" or "value" in fill_value.lower()):
+                            additional_options = f"where ts >= {start_ts}-1s and  ts <= {start_ts}"
+                        else:
+                            additional_options = f"where ts >= {start_ts} and ts <= {end_ts}"
+                        self.tdCom.check_query_data(f'select start, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_stb_source_select_str}  from {tbname} {additional_options}  partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', fill_value=fill_value)
+                else:
+                    if "value" in fill_value.lower():
+                        fill_value='VALUE,1,2,3,6,7,8,9,10,11'
+                    if (fill_value == "NULL" or fill_value == "NEXT" or fill_value == "LINEAR") and self.delete:
+                        self.tdCom.check_query_data(f'select start, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select * from (select _wstart AS start, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts}  partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start) where `min(c1)` is not Null', fill_value=fill_value)
+                    else:
+                        if self.delete and (fill_value == "PREV" or "value" in fill_value.lower()):
+                            additional_options = f"where ts >= {start_ts}-1s and  ts <= {start_ts}"
+                        else:
+                            additional_options = f"where ts >= {start_ts} and ts <= {end_ts}"
+                        self.tdCom.check_query_data(f'select start, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.fill_tb_source_select_str}  from {tbname} {additional_options}  partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by start', fill_value=fill_value)
 
     def window_close_session(self, session):
         self.case_name = sys._getframe().f_code.co_name
@@ -1200,7 +1290,8 @@ class StreamComputingTest(TDCase):
                 else:
                     self.tdCom.check_stream(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} state_window({state_window_col_name}) limit {i}', i)
 
-    def watermark_max_delay_interval(self, interval, max_delay, watermark=None):
+    def watermark_max_delay_interval(self, interval, max_delay, watermark=None, fill_value=None, delete=False):
+        self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
         if watermark is not None:
             self.case_name = "watermark" + sys._getframe().f_code.co_name
@@ -1209,14 +1300,24 @@ class StreamComputingTest(TDCase):
         self.date_time = 1658921623245
         if watermark is not None:
             watermark_value = f'{self.dataDict["watermark"]}s'
+            fill_watermark_value = watermark_value
         else:
             watermark_value = None
+            fill_watermark_value = "0s"
+
         max_delay_value = f'{self.tdCom.trans_time_to_s(max_delay)}s'
+        if fill_value:
+            if "value" in fill_value.lower():
+                fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
         # create stb/ctb/tb stream
-        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.stb_name} interval({self.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value)
-        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.ctb_name} interval({self.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value)
-        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, {self.tb_source_select_str}  from {self.tb_name} interval({self.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value)
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.stb_name} interval({self.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_value=fill_value)
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.ctb_name} interval({self.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_value=fill_value)
+        if fill_value:
+            if "value" in fill_value.lower():
+                fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11'
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, {self.tb_source_select_str}  from {self.tb_name} interval({self.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_value=fill_value)
         init_num = 0
+        start_time = self.date_time
         for i in range(self.range_count):
             if i == 0:
                 if watermark is not None:
@@ -1232,44 +1333,95 @@ class StreamComputingTest(TDCase):
                 if self.update and i%2 == 0:
                     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.date_time+num*self.offset)
                     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=self.date_time+num*self.offset)
-                for tbname in [self.stb_stream_des_table, self.ctb_stream_des_table, self.tb_stream_des_table]:
-                    if tbname != self.tb_stream_des_table:
-                        self.tdSql.query(f'select start, {self.stb_output_select_str} from {tbname}')
-                    else:
-                        self.tdSql.query(f'select start, {self.tb_output_select_str} from {tbname}')
-                    self.tdSql.checkEqual(self.tdSql.query_row, init_num)
+                if not fill_value:
+                    for tbname in [self.stb_stream_des_table, self.ctb_stream_des_table, self.tb_stream_des_table]:
+                        if tbname != self.tb_stream_des_table:
+                            self.tdSql.query(f'select start, {self.stb_output_select_str} from {tbname}')
+                        else:
+                            self.tdSql.query(f'select start, {self.tb_output_select_str} from {tbname}')
+                        self.tdSql.checkEqual(self.tdSql.query_row, init_num)
             
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts-1)
             self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts-1)
             if self.update and i%2 == 0:
                 self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts-1)
                 self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts-1)
-
-            for tbname in [self.stb_stream_des_table, self.ctb_stream_des_table, self.tb_stream_des_table]:
-                if tbname != self.tb_stream_des_table:
-                    self.tdSql.query(f'select start, {self.stb_output_select_str} from {tbname}')
-                else:
-                    self.tdSql.query(f'select start, {self.tb_output_select_str} from {tbname}')
-                self.tdSql.checkEqual(self.tdSql.query_row, init_num)
+            if not fill_value:
+                for tbname in [self.stb_stream_des_table, self.ctb_stream_des_table, self.tb_stream_des_table]:
+                    if tbname != self.tb_stream_des_table:
+                        self.tdSql.query(f'select start, {self.stb_output_select_str} from {tbname}')
+                    else:
+                        self.tdSql.query(f'select start, {self.tb_output_select_str} from {tbname}')
+                    self.tdSql.checkEqual(self.tdSql.query_row, init_num)
 
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
             self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
             if self.update and i%2 == 0:
                 self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
                 self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
-
+            
             if i == 0:
                 init_num = 2 + i
                 if watermark is not None: 
                     init_num += 1
             else:
                 init_num += 1
-            
+            if not fill_value:
+                for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+                    if tbname != self.tb_name:
+                        self.tdCom.check_stream(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)', init_num, max_delay)
+                    else:
+                        self.tdCom.check_stream(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)', init_num, max_delay)
+        if fill_value:
+            history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
+            start_ts = self.tdCom.time_cast(history_ts, "-")
+            future_ts = str(self.date_time)+f'+{self.dataDict["interval"]*(self.range_count+2)}s'
+            end_ts = self.tdCom.time_cast(future_ts)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=history_ts)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=history_ts)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=future_ts)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=future_ts)
+            future_ts_bigint = self.tdCom.str_ts_trans_bigint(future_ts)
+            if watermark is not None:
+                window_close_ts = self.cal_watermark_window_close_interval_endts(future_ts_bigint, self.dataDict['interval'], self.dataDict['watermark'])
+            else:
+                window_close_ts = self.cal_watermark_window_close_interval_endts(future_ts_bigint, self.dataDict['interval'])
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
+
+            if self.update:
+                for i in range(self.range_count):
+                    if i == 0:
+                        if watermark is not None:
+                            window_close_ts = self.cal_watermark_window_close_interval_endts(self.date_time, self.dataDict['interval'], self.dataDict['watermark'])
+                        else:
+                            window_close_ts = self.cal_watermark_window_close_interval_endts(self.date_time, self.dataDict['interval'])
+                    else:
+                        self.date_time = window_close_ts + self.offset
+                        window_close_ts += self.dataDict['interval']*self.offset
+                    for num in range(int(window_close_ts/self.offset-self.date_time/self.offset)):
+                        self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.date_time+num*self.offset)
+                        self.tdCom.insert_rows(tbname=self.tb_name, ts_value=self.date_time+num*self.offset)
+                    
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts-1)
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts-1)
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
+            if self.delete:
+                self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=self.tdCom.time_cast(start_time), end_ts=self.tdCom.time_cast(window_close_ts))
+                self.tdCom.delete_rows(tbname=self.tb_name, start_ts=self.tdCom.time_cast(start_time), end_ts=self.tdCom.time_cast(window_close_ts))
+            time.sleep(int(max_delay.replace("s", "")))
             for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
                 if tbname != self.tb_name:
-                    self.tdCom.check_stream(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)', init_num, max_delay)
+                    if "value" in fill_value.lower():
+                        fill_value='VALUE,1,2,3,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
+                    self.tdCom.check_query_data(f'select start, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.fill_stb_source_select_str}  from {tbname}  where ts >= {start_ts} and ts <= {end_ts}+{self.dataDict["interval"]}s+{fill_watermark_value}  interval({self.dataDict["interval"]}s) fill ({fill_value})', fill_value=fill_value)
                 else:
-                    self.tdCom.check_stream(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)', init_num, max_delay)
+                    if "value" in fill_value.lower():
+                        fill_value='VALUE,1,2,3,6,7,8,9,10,11'
+                    self.tdCom.check_query_data(f'select start, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.fill_tb_source_select_str}  from {tbname}  where ts >= {start_ts} and ts <= {end_ts}+{self.dataDict["interval"]}s+{fill_watermark_value}  interval({self.dataDict["interval"]}s) fill ({fill_value})', fill_value=fill_value)
+    
+            
 
     def watermark_window_close_session(self, session, watermark, fill_history_value=None):
         self.case_name = sys._getframe().f_code.co_name
@@ -1863,27 +2015,17 @@ class StreamComputingTest(TDCase):
     
 
     def run(self):
-        # self.subtable = False
+        # ! not stable
+        # self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 25), fill_history_value=1)
 
-        # self.insert_after_restart()
-        # ! TD-20440
-        self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="NULL")
-        # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="PREV")
-        # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="NEXT")
-        # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="LINEAR")
-        # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11")
-        # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_history_value=1)
+        # TODO
+        # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(5, 6)}s", fill_value="NULL")
+        # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(5, 6)}s", fill_value="NEXT")
+        # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(5, 6)}s", fill_value="PREV")
+        # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(5, 6)}s", fill_value="LINEAR")
+        # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(5, 6)}s", fill_value="VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11")
 
-        # self.watermark_window_close_session(session=random.randint(10, 15), watermark=None, fill_history_value=1)
-        # self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 30), fill_history_value=1)
-        # self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s", fill_history_value=1)
-        # self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s", fill_history_value=1)
-
-        # self.vgroups = 1
-        # ! TD-20512
-        # fill_history_value = 1
-        # self.at_once_state_window(state_window="c1", partition="c1", fill_history_value=fill_history_value)
-        return
+        # return
         for vgroups in self.vgroups_list:
             self.vgroups = vgroups
             self.create_none_db_stream()
@@ -1891,15 +2033,17 @@ class StreamComputingTest(TDCase):
             self.create_none_source_tb_tag_stream()
             self.create_none_source_tb_col_stream()
             self.create_error_source_sql_stream()
-            # ! TD-20280
-            # self.insert_after_restart()
-            self.insert_after_restart(delete=True, fill_history_value=1)
-            ## ! TD-18123
-            # self.insert_after_recreate_source_table()
-            self.query_after_drop_stream_db()
+            # ## ! TD-20280
+            # # self.insert_after_restart()
+            # # self.insert_after_restart(delete=True, fill_history_value=1)
+            # ## ! TD-18123
+            # # self.insert_after_recreate_source_table()
+            # # ! rep3 bug
+            # self.query_after_drop_stream_db()
             self.data_filter()
             self.data_filter(delete=True)
             self.data_filter(delete=True, fill_history_value=1)
+            # # ! rep3 bug
             self.life_cycle()
             self.scalar_function(partition="tbname")
             self.scalar_function(partition="tbname", delete=True)
@@ -1911,8 +2055,8 @@ class StreamComputingTest(TDCase):
             self.udf_test(8, "int")
             self.udf_test(8, "int", 1)
             self.udaf_test(10, 8, "double")
-            # TODO confirm
-            # self.udaf_test(10, 8, "double", 1)
+            # # TODO confirm
+            self.udaf_test(10, 8, "double", 1)
             
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname")
             self.at_once_interval(interval=random.randint(10, 15), partition="c1")
@@ -1920,14 +2064,14 @@ class StreamComputingTest(TDCase):
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname", delete=True)
             self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
             self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
+            # return
             for fill_history_value in [None, 1]:
                 self.at_once_state_window(state_window="c1", partition="tbname", fill_history_value=fill_history_value)
-                # ! TD-20512
-                # self.at_once_state_window(state_window="c1", partition="c1", fill_history_value=fill_history_value)
-                # self.at_once_state_window(state_window="c1", partition="abs(c1)", fill_history_value=fill_history_value)
-                # self.at_once_state_window(state_window="c1", partition="tbname", delete=True, fill_history_value=fill_history_value)
-                # self.at_once_state_window(state_window="c1", partition="c1", delete=True, fill_history_value=fill_history_value)
-                # self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
+                self.at_once_state_window(state_window="c1", partition="c1", fill_history_value=fill_history_value)
+                self.at_once_state_window(state_window="c1", partition="abs(c1)", fill_history_value=fill_history_value)
+                self.at_once_state_window(state_window="c1", partition="tbname", delete=True, fill_history_value=fill_history_value)
+                self.at_once_state_window(state_window="c1", partition="c1", delete=True, fill_history_value=fill_history_value)
+                self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="tbname", fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="c1", fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", fill_history_value=fill_history_value)
@@ -1935,12 +2079,10 @@ class StreamComputingTest(TDCase):
                 self.at_once_session(session=random.randint(10, 15), partition="c1", delete=True, fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), ignore_expired=0, fill_history_value=fill_history_value)
-                # ! TD-20511
-                # self.watermark_window_close_session(session=random.randint(10, 15), watermark=None, fill_history_value=fill_history_value)
-                # self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 30), fill_history_value=fill_history_value)
+                self.watermark_window_close_session(session=random.randint(10, 15), watermark=None, fill_history_value=fill_history_value)
+                self.watermark_window_close_session(session=random.randint(10, 12), watermark=random.randint(20, 25), fill_history_value=fill_history_value)
                 self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s", fill_history_value=fill_history_value)
                 self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s", fill_history_value=fill_history_value)
-            # return
             self.window_close_interval(interval=random.randint(10, 15), watermark=None)
             self.window_close_interval(interval=random.randint(10, 15), watermark=None, ignore_expired=0)
             self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20))
@@ -1950,10 +2092,6 @@ class StreamComputingTest(TDCase):
             # * in this case, when vgroups = 10, max_delay must be set upper than 4, root cause not found 
             self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
 
-            # self.watermark_window_close_session(session=random.randint(10, 15), watermark=None)
-            # self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 30))
-            # self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s")
-            # self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s")
             self.partitionby_interval(interval=None, partition_by_elm="tbname")
             self.partitionby_interval(interval=None, partition_by_elm="tbname", ignore_expired=0)
             self.partitionby_interval(interval=10, partition_by_elm="tbname")
@@ -1961,6 +2099,69 @@ class StreamComputingTest(TDCase):
             self.partitionby_interval(interval=10, partition_by_elm="t1")
             self.partition_tag_by_interval(interval=10, partition_by_elm="t1")
 
+
+            # # * FILL
+            for fill_value in ["NULL", "PREV", "NEXT", "LINEAR", "VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"]:
+                self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value=fill_value)
+                self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value=fill_value, delete=True)
+                self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value=fill_value)
+
+                for watermark in [None, random.randint(15, 20)]:
+                    self.window_close_interval(interval=random.randint(10, 12), watermark=watermark, fill_value=fill_value)
+
+            self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_history_value=1, fill_value="NULL")
+            # TODO not stable
+            # self.at_once_interval(interval=random.randint(10, 12), partition="c1", fill_value="NULL")
+            self.at_once_interval(interval=random.randint(10, 15), partition="c1", fill_value="NULL", delete=True)
+            
+
+
+
+
+            # * FILL
+            # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="NULL")
+            # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="NULL", delete=True)
+            # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="PREV")
+            # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="PREV", delete=True)
+            # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="NEXT")
+            # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="NEXT", delete=True)
+            # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="LINEAR")
+            # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="LINEAR", delete=True)
+            # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11")
+            # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11", delete=True)
+
+            # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_history_value=1, fill_value="NULL")
+            # self.at_once_interval(interval=random.randint(10, 15), partition="c1", fill_value="NULL")
+            # self.at_once_interval(interval=random.randint(10, 15), partition="c1", fill_value="NULL", delete=True)
+
+            
+
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=None, fill_value="NULL")
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=None, fill_value="NEXT")
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=None, fill_value="PREV")
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=None, fill_value="LINEAR")
+            # self.window_close_interval(interval=random.randint(10, 12), watermark=None, fill_value="VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11")
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), fill_value="NULL")
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), fill_value="NEXT")
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), fill_value="PREV")
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), fill_value="LINEAR")
+            # self.window_close_interval(interval=random.randint(10, 12), watermark=random.randint(15, 20), fill_value="VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11")
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=None, fill_value="NULL", delete=True)
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=None, fill_value="NEXT", delete=True)
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=None, fill_value="PREV", delete=True)
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=None, fill_value="LINEAR", delete=True)
+            # self.window_close_interval(interval=random.randint(10, 12), watermark=None, fill_value="VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11", delete=True)
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), fill_value="NULL", delete=True)
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), fill_value="NEXT", delete=True)
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), fill_value="PREV", delete=True)
+            # self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), fill_value="LINEAR", delete=True)
+            # self.window_close_interval(interval=random.randint(10, 12), watermark=random.randint(15, 20), fill_value="VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11", delete=True)
+
+            # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value="NULL")
+            # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value="NEXT")
+            # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value="PREV")
+            # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value="LINEAR")
+            # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value="VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11")
             # TODO to be supported
         # self.vgroups = 2
         # self.partitionby_interval(interval=10, partition_by_elm="c1")
