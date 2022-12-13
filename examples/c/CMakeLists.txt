@@ -77,10 +77,6 @@ IF (TD_LINUX)
       PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
       )
 
-  target_include_directories(api_reqid
-      PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-      )
-
 
   SET_TARGET_PROPERTIES(tmq PROPERTIES OUTPUT_NAME tmq)
   SET_TARGET_PROPERTIES(stream_demo PROPERTIES OUTPUT_NAME stream_demo)
