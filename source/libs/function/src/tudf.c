@@ -853,8 +853,15 @@ int32_t convertScalarParamToDataBlock(SScalarParam *input, int32_t numOfCols, SS
       if (isNull) {
         colDataAppendNNULL(pColInfoData, startRow, expandRows);
       } else {
-        char* data = colDataGetData(pColInfoData, (input + i)->numOfRows - 1);
-        colDataAppendNItems(pColInfoData, startRow, data, expandRows);
+        char* src = colDataGetData(pColInfoData, (input + i)->numOfRows - 1);
+        int32_t bytes = pColInfoData->info.bytes;
+        char* data = taosMemoryMalloc(bytes);
+        memcpy(data, src, bytes);
+        for (int j = 0; j < expandRows; ++j) {
+          colDataAppend(pColInfoData, startRow+j, data, false);
+        }
+        //colDataAppendNItems(pColInfoData, startRow, data, expandRows);
+        taosMemoryFree(data);
       }
     }
 
