@@ -552,7 +552,7 @@ sql use test4;
 sql create table st (ts timestamp, c1 tinyint, c2 smallint) tags (t1 tinyint) ;
 sql create table t1 using st tags (-81) ;
 sql create table t2 using st tags (-81) ;
-sql create stream if not exists streams4 trigger window_close into streamt4 as select _wstart AS start, min(c1),count(c1) from t1 state_window(c1);
+sql create stream if not exists streams4 trigger window_close into streamt4 as select _wstart AS startts, min(c1),count(c1) from t1 state_window(c1);
 
 sql insert into t1 (ts, c1) values (1668073288209, 11);
 sql insert into t1 (ts, c1) values (1668073288210, 11);
@@ -567,7 +567,7 @@ loop7:
 
 sleep 200
 
-sql select * from streamt4 order by start;
+sql select * from streamt4 order by startts;
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -606,7 +606,7 @@ loop8:
 
 sleep 200
 
-sql select * from streamt4 order by start;
+sql select * from streamt4 order by startts;
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -640,7 +640,7 @@ loop8:
 
 sleep 200
 
-sql select * from streamt4 order by start;
+sql select * from streamt4 order by startts;
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -679,7 +679,7 @@ loop9:
 
 sleep 200
 
-sql select * from streamt4 order by start;
+sql select * from streamt4 order by startts;
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
