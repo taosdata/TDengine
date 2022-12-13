@@ -88,6 +88,7 @@ typedef struct {
   int64_t       sync;
   int32_t       errCode;
   int32_t       transId;
+  int32_t       transSec;
   TdThreadMutex lock;
   int8_t        selfIndex;
   int8_t        numOfReplicas;
