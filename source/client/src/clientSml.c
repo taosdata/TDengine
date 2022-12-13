@@ -1376,7 +1376,7 @@ static int smlProcess(SSmlHandle *info, char *lines[], char *rawLine, char *rawL
     return code;
   }
 
-  info->cost.lineNum = numLines;
+  info->cost.lineNum = info->lineNum;
   info->cost.numOfSTables = nodeListSize(info->superTables);
   info->cost.numOfCTables = nodeListSize(info->childTables);
 
@@ -1463,10 +1463,9 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
   request->code = code;
   info->cost.endTime = taosGetTimestampUs();
   info->cost.code = code;
-  smlPrintStatisticInfo(info);
+//  smlPrintStatisticInfo(info);
 
 end:
-  uDebug("resultend:%s", request->msgBuf);
   smlDestroyInfo(info);
   return (TAOS_RES *)request;
 }

@@ -622,3 +622,31 @@ TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
   ASSERT_NE(ret, 0);
   smlDestroyInfo(info);
 }
+
+TEST(testCase, smlParseNumber_performance_Test) {
+  char       msg[256] = {0};
+  SSmlMsgBuf msgBuf;
+  SSmlKv kv;
+
+  char* str[3] = {"2893f64", "2323u32", "93u8"};
+  for (int i = 0; i < 3; ++i) {
+    int64_t t1 = taosGetTimestampUs();
+    for (int j = 0; j < 10000000; ++j) {
+      kv.value = str[i];
+      kv.length = strlen(str[i]);
+      smlParseNumber(&kv, &msgBuf);
+    }
+    printf("smlParseNumber:%s cost:%" PRId64, str[i], taosGetTimestampUs() - t1);
+    printf("\n");
+    int64_t t2 = taosGetTimestampUs();
+    for (int j = 0; j < 10000000; ++j) {
+      kv.value = str[i];
+      kv.length = strlen(str[i]);
+      smlParseNumberOld(&kv, &msgBuf);
+    }
+    printf("smlParseNumberOld:%s cost:%" PRId64, str[i], taosGetTimestampUs() - t2);
+    printf("\n\n");
+  }
+
+
+}
