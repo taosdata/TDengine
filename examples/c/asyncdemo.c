@@ -23,7 +23,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <string.h>
-
+#include <inttypes.h>
 #include "../../include/client/taos.h"
 
 int     points = 5;
@@ -230,7 +230,7 @@ void taos_insert_call_back(void *param, TAOS_RES *tres, int code)
     if (tablesInsertProcessed >= numOfTables) {
       gettimeofday(&systemTime, NULL);
       et = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
-      printf("%lld mseconds to insert %d data points\n", (et - st) / 1000, points*numOfTables);
+      printf("%" PRId64 " mseconds to insert %d data points\n", (et - st) / 1000, points*numOfTables);
     }
   }
   
@@ -267,7 +267,7 @@ void taos_retrieve_call_back(void *param, TAOS_RES *tres, int numOfRows)
     if (tablesSelectProcessed >= numOfTables) {
       gettimeofday(&systemTime, NULL);
       et = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
-      printf("%lld mseconds to query %d data rows\n", (et - st) / 1000, points * numOfTables);
+      printf("%" PRId64 " mseconds to query %d data rows\n", (et - st) / 1000, points * numOfTables);
     }
 
     taos_free_result(tres);
