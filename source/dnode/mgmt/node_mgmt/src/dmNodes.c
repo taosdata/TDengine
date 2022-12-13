@@ -149,10 +149,13 @@ int32_t dmRunDnode(SDnode *pDnode) {
       return 0;
     }
 
-    if (count == 0) osUpdate();
-
-    count %= 10;
-    count++;
+    if (count == 10) {
+      osUpdate();
+      count = 0;
+    } else {
+      count++;
+    }
+    
     taosMsleep(100);
   }
 }

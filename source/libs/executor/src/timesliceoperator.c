@@ -91,11 +91,15 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
     SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pSliceInfo->tsCol.slotId);
     SFillLinearInfo* pLinearInfo = taosArrayGet(pSliceInfo->pLinearInfo, i);
 
+
+    if (!IS_MATHABLE_TYPE(pColInfoData->info.type)) {
+      continue;
+    }
+
     // null value is represented by using key = INT64_MIN for now.
     // TODO: optimize to ignore null values for linear interpolation.
     if (!pLinearInfo->isStartSet) {
       if (!colDataIsNull_s(pColInfoData, rowIndex)) {
-        ASSERT(IS_MATHABLE_TYPE(pColInfoData->info.type));
 
         pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
         char* p = colDataGetData(pColInfoData, rowIndex);

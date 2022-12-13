@@ -354,6 +354,10 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
     code = 0;
     done |= 1;
   }
+  int endPos = strlen(cpuModel)-1;
+  if (cpuModel[endPos] == '\n') {
+    cpuModel[endPos] = '\0';
+  }
   taosCloseCmd(&pCmd);
 
   pCmd = taosOpenCmd("sysctl -n machdep.cpu.core_count");

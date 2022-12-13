@@ -598,6 +598,18 @@ The charset that takes effect is UTF-8.
 | Value Range     | 0: not consistent; 1: consistent.            |
 | Default   | 1                             |
 
+## Compress Parameters
+
+### compressMsgSize
+
+| Attribute     | Description                          |
+| -------- | ----------------------------- |
+| Applicable | Both Client and Server side                                           |
+| Meaning     | Whether RPC message is compressed |
+| Value Range     | -1: none message is compressed; 0: all messages are compressed; N (N>0): messages exceeding N bytes are compressed        |
+| Default   | -1                           |
+
+
 ## Other Parameters
 
 ### enableCoreFile
