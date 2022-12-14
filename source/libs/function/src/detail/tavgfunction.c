@@ -377,7 +377,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
         // check overflow for int
         if(pRes->sum.isum > 0 && plist[i] > 0 && INT64_MAX - pRes->sum.isum <= plist[i] ||
             pRes->sum.isum < 0 && plist[i] < 0 && INT64_MIN - pRes->sum.isum >= plist[i] ) {
-            double dsum = (double) pAvgRes->sum.isum;
+            double dsum = (double) pRes->sum.isum;
             pRes->sum.overflow = true;
             pRes->sum.dsum = dsum + plist[i];
         } else {
