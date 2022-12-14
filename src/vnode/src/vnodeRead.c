@@ -145,7 +145,7 @@ int32_t vnodeWriteToRQueue(void *vparam, void *pCont, int32_t contLen, int8_t qt
 
   atomic_add_fetch_32(&pVnode->queuedRMsg, 1);
 
-  if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRead->msgType == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED ||
+  if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRead->code == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED ||
       pRead->msgType == TSDB_MSG_TYPE_FETCH) {
     vTrace("vgId:%d, write into vfetch queue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount,
            pVnode->queuedRMsg);
