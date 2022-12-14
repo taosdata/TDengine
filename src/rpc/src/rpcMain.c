@@ -1517,7 +1517,7 @@ static void rpcProcessConnError(void *param, void *id) {
 
     if( pContext->numOfTry >= pContext->epSet.numOfEps && rpcMsg.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
       if(pContext->msgType == TSDB_MSG_TYPE_SUBMIT || pContext->msgType == TSDB_MSG_TYPE_QUERY) {
-        rpcMsg.code = TSDB_CODE_RPC_VGROUP_NOT_REACHED;
+        rpcMsg.code = TSDB_CODE_RPC_VGROUP_NOT_CONNECTED;
       }
     }
 

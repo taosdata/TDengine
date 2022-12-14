@@ -145,7 +145,8 @@ int32_t vnodeWriteToRQueue(void *vparam, void *pCont, int32_t contLen, int8_t qt
 
   atomic_add_fetch_32(&pVnode->queuedRMsg, 1);
 
-  if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRead->msgType == TSDB_MSG_TYPE_FETCH) {
+  if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRead->msgType == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED ||
+      pRead->msgType == TSDB_MSG_TYPE_FETCH) {
     vTrace("vgId:%d, write into vfetch queue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount,
            pVnode->queuedRMsg);
     return taosWriteQitem(pVnode->fqueue, qtype, pRead);
@@ -229,7 +230,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
   memset(pRet, 0, sizeof(SRspRet));
 
   // qHandle needs to be freed correctly
-  if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+  if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRead->code == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED) {
     vError("error rpc msg in query, %s", tstrerror(pRead->code));
   }
 

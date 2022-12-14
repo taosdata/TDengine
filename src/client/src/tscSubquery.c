@@ -3462,6 +3462,7 @@ static bool needRetryInsert(SSqlObj* pParentObj) {
 
     if (code != TSDB_CODE_TDB_TABLE_RECONFIGURE && code != TSDB_CODE_TDB_INVALID_TABLE_ID &&
         code != TSDB_CODE_VND_INVALID_VGROUP_ID && code != TSDB_CODE_RPC_NETWORK_UNAVAIL &&
+        code != TSDB_CODE_RPC_VGROUP_NOT_CONNECTED &&
         code != TSDB_CODE_APP_NOT_READY) {
       pParentObj->res.code = code;
       ret = false;
