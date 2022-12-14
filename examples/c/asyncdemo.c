@@ -24,7 +24,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <inttypes.h>
-#include "../../include/client/taos.h"
+#include "taos.h"
 
 int     points = 5;
 int     numOfTables = 3;

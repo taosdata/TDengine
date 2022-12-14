@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../../include/client/taos.h"
+#include "taos.h"
 
 void taosMsleep(int mseconds);
 

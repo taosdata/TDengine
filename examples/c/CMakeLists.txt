@@ -65,19 +65,6 @@ IF (TD_LINUX)
       taos_static
       )
 
-  target_include_directories(tmq
-      PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-      )
-
-  target_include_directories(stream_demo
-      PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-      )
-
-  target_include_directories(schemaless
-      PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-      )
-
-
   SET_TARGET_PROPERTIES(tmq PROPERTIES OUTPUT_NAME tmq)
   SET_TARGET_PROPERTIES(stream_demo PROPERTIES OUTPUT_NAME stream_demo)
   SET_TARGET_PROPERTIES(schemaless PROPERTIES OUTPUT_NAME schemaless)
