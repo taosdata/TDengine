@@ -222,13 +222,19 @@ async fn sync_super_table_schema(
     let mut res = from.query(sql).await?;
 
     let mut blocks = res.blocks();
+    const MAX_SQL_LEN: usize = 1000 * 1000; // 800kb.
     while let Some(block) = blocks.try_next().await? {
         let mut sql = format!("CREATE TABLE");
         for mut row in block.rows() {
             let child = row.next().unwrap().1.to_string().unwrap();
 
             let tags = row.map(|(_, v)| v.to_value().to_sql_value()).join(",");
-            sql.extend(format!("  IF NOT EXISTS `{child}` USING `{name}` TAGS({tags})").chars());
+            let e = format!("  IF NOT EXISTS `{child}` USING `{name}` TAGS({tags})");
+            if sql.len() + e.len() > MAX_SQL_LEN {
+                to.exec(&sql).await?;
+                sql = format!("CREATE TABLE");
+            }
+            sql.extend(e.chars());
         }
         log::debug!("create child tables with sql length {}", sql.len());
         to.exec(&sql).await?;
