@@ -20,8 +20,96 @@ typedef struct {
   STsdbFS fs;
 } STsdbCompactor;
 
-int32_t tsdbCompact(STsdb *pTsdb) {
+#define TSDB_FLG_DEEP_COMPACT 0x1
+
+static int32_t tsdbBeginCompact(STsdb *pTsdb) {
   int32_t code = 0;
+  int32_t lino = 0;
+
   // TODO
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tsdbCommitCompact(STsdb *pTsdb) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  // TODO
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tsdbAbortCompact(STsdb *pTsdb) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  // TODO
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tsdbDeepCompact(STsdb *pTsdb) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  // TODO
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tsdbShallowCompact(STsdb *pTsdb) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  // TODO
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tsdbCompact(STsdb *pTsdb, int32_t flag) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  // Check if can do compact (TODO)
+
+  // Do compact
+  code = tsdbBeginCompact(pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (flag & TSDB_FLG_DEEP_COMPACT) {
+    code = tsdbDeepCompact(pTsdb);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else {
+    code = tsdbShallowCompact(pTsdb);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbAbortCompact(pTsdb);
+  } else {
+    tsdbCommitCompact(pTsdb);
+  }
   return code;
 }
