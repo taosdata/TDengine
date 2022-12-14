@@ -223,11 +223,15 @@ void syncSendTimeoutRsp(int64_t rid, int64_t seq) {
   if (pNode == NULL) return;
 
   SRpcMsg rpcMsg = {0};
-  (void)syncRespMgrGetAndDel(pNode->pSyncRespMgr, seq, &rpcMsg.info);
+  int32_t ret = syncRespMgrGetAndDel(pNode->pSyncRespMgr, seq, &rpcMsg.info);
   rpcMsg.code = TSDB_CODE_SYN_TIMEOUT;
 
   syncNodeRelease(pNode);
-  rpcSendResponse(&rpcMsg);
+  if (ret == 1) {
+    sInfo("send response since sync timeout, seq:%" PRId64 " handle:%p ahandle:%p", seq, rpcMsg.info.handle,
+          rpcMsg.info.ahandle);
+    rpcSendResponse(&rpcMsg);
+  }
 }
 
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {

@@ -335,15 +335,17 @@ static void vmCleanup(SVnodeMgmt *pMgmt) {
 }
 
 static void vmCheckSyncTimeout(SVnodeMgmt *pMgmt) {
-  taosThreadRwlockRdlock(&pMgmt->lock);
-  void *pIter = taosHashIterate(pMgmt->hash, NULL);
-  while (pIter) {
-    SVnodeObj **ppVnode = pIter;
-    if (ppVnode == NULL || *ppVnode == NULL) continue;
+  int32_t     numOfVnodes = 0;
+  SVnodeObj **ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
 
-    SVnodeObj *pVnode = *ppVnode;
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
+    SVnodeObj *pVnode = ppVnodes[i];
     vnodeSyncCheckTimeout(pVnode->pImpl);
-    pIter = taosHashIterate(pMgmt->hash, pIter);
+    vmReleaseVnode(pMgmt, pVnode);
+  }
+
+  if (ppVnodes != NULL) {
+    taosMemoryFree(ppVnodes);
   }
 }
 
