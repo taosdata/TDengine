@@ -89,6 +89,7 @@ typedef struct {
   int32_t       errCode;
   int32_t       transId;
   int32_t       transSec;
+  int64_t       transSeq;
   TdThreadMutex lock;
   int8_t        selfIndex;
   int8_t        numOfReplicas;
