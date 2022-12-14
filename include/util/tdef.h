@@ -497,6 +497,9 @@ enum {
 // sort page size by default
 #define DEFAULT_PAGESIZE 4096
 
+#define VNODE_TIMEOUT_SEC 60
+#define MNODE_TIMEOUT_SEC 10
+
 #ifdef __cplusplus
 }
 #endif

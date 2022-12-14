@@ -101,6 +101,7 @@ static void *mndBuildCheckpointTickMsg(int32_t *pContLen, int64_t sec) {
 }
 
 static void mndPullupTrans(SMnode *pMnode) {
+  mTrace("pullup trans msg");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
@@ -110,6 +111,7 @@ static void mndPullupTrans(SMnode *pMnode) {
 }
 
 static void mndPullupTtl(SMnode *pMnode) {
+  mTrace("pullup ttl");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TTL_TIMER, .pCont = pReq, .contLen = contLen};
@@ -117,6 +119,7 @@ static void mndPullupTtl(SMnode *pMnode) {
 }
 
 static void mndCalMqRebalance(SMnode *pMnode) {
+  mTrace("calc mq rebalance");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
@@ -143,6 +146,7 @@ static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
 }
 
 static void mndPullupTelem(SMnode *pMnode) {
+  mTrace("pullup telem msg");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
@@ -152,6 +156,7 @@ static void mndPullupTelem(SMnode *pMnode) {
 }
 
 static void mndPullupGrant(SMnode *pMnode) {
+  mTrace("pullup grant msg");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
@@ -162,6 +167,7 @@ static void mndPullupGrant(SMnode *pMnode) {
 }
 
 static void mndIncreaseUpTime(SMnode *pMnode) {
+  mTrace("increate uptime");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
@@ -213,6 +219,7 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
 }
 
 static void mndCheckDnodeOffline(SMnode *pMnode) {
+  mTrace("check dnode offline");
   if (mndAcquireRpc(pMnode) != 0) return;
 
   SSdb   *pSdb = pMnode->pSdb;
@@ -280,6 +287,9 @@ static void *mndThreadFp(void *param) {
 
     if (sec % (tsStatusInterval * 5) == 0) {
       mndCheckDnodeOffline(pMnode);
+    }
+
+    if (sec % (MNODE_TIMEOUT_SEC / 2) == 0) {
       mndSyncCheckTimeout(pMnode);
     }
   }
