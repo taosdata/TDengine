@@ -341,23 +341,24 @@ async fn sync_tables_only(from: &Taos, to: &Taos, opts: QueryOpts) -> anyhow::Re
     let to_is_v3 = v2.starts_with('3');
     if v1.starts_with('2') {
         let mut res = from.query("SHOW TABLES").await?;
-        res.deserialize()
-            .try_for_each(|row: TableRecord| async move {
-                sync_single_table(from, &row.table_name, to, &opts, to_is_v3)
-                    .await
-                    .map_err(Error::Any)
-            })
-            .await?;
+        let tables: Vec<TableRecord> = res.deserialize().try_collect().await?;
+        drop(res);
+        for row in tables {
+            sync_single_table(from, &row.table_name, to, &opts, to_is_v3)
+                .await
+                .map_err(Error::Any)?;
+        }
     } else {
         //  get normal tables.
         let mut res = from.query("SHOW TABLES").await?;
-        res.deserialize()
-            .try_for_each(|row: String| async move {
-                sync_single_table(from, row.as_str(), to, &opts, to_is_v3)
-                    .await
-                    .map_err(Error::Any)
-            })
-            .await?;
+        let tables: Vec<String> = res.deserialize().try_collect().await?;
+        drop(res);
+
+        for table in tables {
+            sync_single_table(from, table.as_str(), to, &opts, to_is_v3)
+                .await
+                .map_err(Error::Any)?;
+        }
     }
     Ok(())
 }
@@ -548,8 +549,11 @@ pub async fn legacy_to_taos(
             sync_tables_only(&from, &to, source_opts.query).await?;
         }
         (SyncMode::AsIs, SchemaMode::Always) => {
+            log::info!("synchronize schema");
             sync_schema(&from, &to).await?;
+            log::info!("synchronize all tables");
             sync_tables_only(&from, &to, source_opts.query).await?;
+            log::info!("synchronize finished.");
         }
         (SyncMode::Realtime, _) => {
             let mut tables = TablesHandle::new(from_builder, to_builder, source_opts.table).await?;
@@ -578,36 +582,6 @@ pub async fn legacy_to_taos(
 
         _ => unreachable!(),
     }
-
-    // match source_opts.mode {
-    //     SyncMode::AsIs => match source_opts.schema {
-    //         SchemaMode::None => sync_tables_only(&from, &to, source_opts.query).await?,
-    //         SchemaMode::Only => {
-    //             sync_schema(&from, &to).await?;
-    //         }
-    //         SchemaMode::Always => {
-    //             sync_schema(&from, &to).await?;
-    //             sync_tables_only(&from, &to, source_opts.query).await?
-    //         }
-    //     },
-    //     SyncMode::Realtime => todo!(),
-    //     SyncMode::All => {
-    //         //  historical first
-    //         // use now as realtime start position
-    //         let tick = Utc::now();
-    //         source_opts.query.time_range.end.and(Some(tick));
-    //         match source_opts.schema {
-    //             SchemaMode::None => sync_tables_only(&from, &to, source_opts.query).await?,
-    //             SchemaMode::Only => {
-    //                 sync_schema(&from, &to).await?;
-    //             }
-    //             SchemaMode::Always => {
-    //                 sync_schema(&from, &to).await?;
-    //                 sync_tables_only(&from, &to, source_opts.query).await?
-    //             }
-    //         }
-    //     }
-    // }
 
     log::info!("syncing done, wait to release resources");
     // if to_is_v3 {
