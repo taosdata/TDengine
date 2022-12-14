@@ -22,7 +22,8 @@ static inline bool vnodeIsMsgWeak(tmsg_t type) { return false; }
 
 static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
-  vGTrace("vgId:%d, msg:%p wait block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
+  vGTrace("vgId:%d, msg:%p wait block, type:%s sec:%d seq:%" PRId64, pVnode->config.vgId, pMsg,
+          TMSG_INFO(pMsg->msgType), pVnode->blockSec, pVnode->blockSeq);
   tsem_wait(&pVnode->syncSem);
 }
 
@@ -202,12 +203,16 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
 #else
 
 static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak) {
+  int64_t seq = 0;
+
   taosThreadMutexLock(&pVnode->lock);
-  int32_t code = syncPropose(pVnode->sync, pMsg, isWeak);
+  int32_t code = syncPropose(pVnode->sync, pMsg, isWeak, &seq);
   bool    wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
   if (wait) {
     ASSERT(!pVnode->blocked);
     pVnode->blocked = true;
+    pVnode->blockSec = taosGetTimestampSec();
+    pVnode->blockSeq = seq;
   }
   taosThreadMutexUnlock(&pVnode->lock);
 
@@ -604,6 +609,25 @@ void vnodeSyncPreClose(SVnode *pVnode) {
 void vnodeSyncClose(SVnode *pVnode) {
   vInfo("vgId:%d, close sync", pVnode->config.vgId);
   syncStop(pVnode->sync);
+}
+
+void vnodeSyncCheckTimeout(SVnode *pVnode) {
+  vTrace("vgId:%d, check sync timeout msg", pVnode->config.vgId);
+  taosThreadMutexLock(&pVnode->lock);
+  if (pVnode->blocked) {
+    int32_t curSec = taosGetTimestampSec();
+    int32_t delta = curSec - pVnode->blockSec;
+    if (delta > VNODE_TIMEOUT_SEC) {
+      syncSendTimeoutRsp(pVnode->sync, pVnode->blockSeq);
+      vError("vgId:%d, failed to propose since timeout and post block, start:%d cur:%d delta:%d seq:%" PRId64,
+             pVnode->config.vgId, pVnode->blockSec, curSec, delta, pVnode->blockSeq);
+      pVnode->blocked = false;
+      pVnode->blockSec = 0;
+      pVnode->blockSeq = 0;
+      tsem_post(&pVnode->syncSem);
+    }
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
 }
 
 bool vnodeIsRoleLeader(SVnode *pVnode) {

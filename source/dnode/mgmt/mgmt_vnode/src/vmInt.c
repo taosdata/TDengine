@@ -334,7 +334,18 @@ static void vmCleanup(SVnodeMgmt *pMgmt) {
   taosMemoryFree(pMgmt);
 }
 
-static void vmCheckSyncTimeout(SVnodeMgmt *pMgmt) {}
+static void vmCheckSyncTimeout(SVnodeMgmt *pMgmt) {
+  taosThreadRwlockRdlock(&pMgmt->lock);
+  void *pIter = taosHashIterate(pMgmt->hash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode == NULL || *ppVnode == NULL) continue;
+
+    SVnodeObj *pVnode = *ppVnode;
+    vnodeSyncCheckTimeout(pVnode->pImpl);
+    pIter = taosHashIterate(pMgmt->hash, pIter);
+  }
+}
 
 static void *vmThreadFp(void *param) {
   SVnodeMgmt *pMgmt = param;
@@ -348,7 +359,7 @@ static void *vmThreadFp(void *param) {
     if (lastTime % 10 != 0) continue;
 
     int64_t sec = lastTime / 10;
-    if (sec % (tsStatusInterval * 5) == 0) {
+    if (sec % (VNODE_TIMEOUT_SEC / 2) == 0) {
       vmCheckSyncTimeout(pMgmt);
     }
   }
