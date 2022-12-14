@@ -27,7 +27,7 @@ int32_t is_same_child_table_telnet(const void *a, const void *b){
           && ((t1->tagsLen == t2->tagsLen) && memcmp(t1->tags, t2->tags, t1->tagsLen) == 0)) ? 0 : 1;
 }
 
-static int64_t smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32_t len) {
+int64_t smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32_t len) {
   uint8_t toPrecision = info->currSTableMeta ? info->currSTableMeta->tableInfo.precision : TSDB_TIME_PRECISION_NANO;
 
   if (unlikely(!data)) {

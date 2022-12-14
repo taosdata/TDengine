@@ -1060,7 +1060,6 @@ static void smlDestroyInfo(SSmlHandle *info) {
     taosMemoryFree(info->lines);
   }
 
-  cJSON_Delete(info->root);
   taosMemoryFreeClear(info);
 }
 
@@ -1125,7 +1124,7 @@ static int32_t smlParseLineBottom(SSmlHandle *info) {
     }else if(info->protocol == TSDB_SML_TELNET_PROTOCOL){
       tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements, POINTER_BYTES, is_same_child_table_telnet);
     }else{
-      tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements->tags, POINTER_BYTES, is_same_child_table_json);
+      tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements, POINTER_BYTES, is_same_child_table_telnet);
     }
 
     if(tinfo == NULL){

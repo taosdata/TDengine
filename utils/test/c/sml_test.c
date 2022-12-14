@@ -156,28 +156,7 @@ int smlProcess_json3_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "{\"metric\":\"meter_current1\",\"timestamp\":{\"value\":1662344042,\"type\":\"s\"},\"value\":{\"value\":10.3,\"type\":\"i64\"},\"tags\":{\"t1\":{\"value\":2,\"type\":\"bigint\"},\"t2\":{\"value\":2,\"type\":\"int\"},\"t3\":{\"value\":2,\"type\":\"i16\"},\"t4\":{\"value\":2,\"type\":\"i8\"},\"t5\":{\"value\":2,\"type\":\"f32\"},\"t6\":{\"value\":2,\"type\":\"double\"},\"t7\":{\"value\":\"8323\",\"type\":\"binary\"},\"t8\":{\"value\":\"北京\",\"type\":\"nchar\"},\"t9\":{\"value\":true,\"type\":\"bool\"},\"id\":\"d1001\"}}"};
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
-                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
-  int code = taos_errno(pRes);
-  taos_free_result(pRes);
-  taos_close(taos);
-
-  return code;
-}
-
-int smlProcess_json4_Test() {
-  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
-
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
-  taos_free_result(pRes);
-
-  pRes = taos_query(taos, "use sml_db");
-  taos_free_result(pRes);
-
-  const char *sql[] = {
-      "{\"metric\":\"meter_current2\",\"timestamp\":{\"value\":1662344042000,\"type\":\"ms\"},\"value\":\"ni\",\"tags\":{\"t1\":{\"value\":20,\"type\":\"i64\"},\"t2\":{\"value\":25,\"type\":\"i32\"},\"t3\":{\"value\":2,\"type\":\"smallint\"},\"t4\":{\"value\":2,\"type\":\"tinyint\"},\"t5\":{\"value\":2,\"type\":\"float\"},\"t6\":{\"value\":0.2,\"type\":\"f64\"},\"t7\":\"nsj\",\"t8\":{\"value\":\"北京\",\"type\":\"nchar\"},\"t9\":false,\"id\":\"d1001\"}}"
+      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":0,\"value\":\"18\",\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}}]"
   };
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -686,52 +665,6 @@ int sml_oom_Test() {
   return code;
 }
 
-int sml_16368_Test() {
-  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
-
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
-  taos_free_result(pRes);
-
-  pRes = taos_query(taos, "use sml_db");
-  taos_free_result(pRes);
-
-  const char *sql[] = {
-      "[{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833639000, \"type\": \"us\"}, \"value\": 1, "
-      "\"tags\": {\"t1\": 3, \"t2\": {\"value\": 4, \"type\": \"double\"}, \"t3\": {\"value\": \"t3\", \"type\": "
-      "\"binary\"}}},"
-      "{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833739000, \"type\": \"us\"}, \"value\": 2, "
-      "\"tags\": {\"t1\": {\"value\": 4, \"type\": \"double\"}, \"t3\": {\"value\": \"t4\", \"type\": \"binary\"}, "
-      "\"t2\": {\"value\": 5, \"type\": \"double\"}, \"t4\": {\"value\": 5, \"type\": \"double\"}}},"
-      "{\"metric\": \"stb_name\", \"timestamp\": {\"value\": 1626006833639100, \"type\": \"us\"}, \"value\": 3, "
-      "\"tags\": {\"t2\": {\"value\": 5, \"type\": \"double\"}, \"t3\": {\"value\": \"ste\", \"type\": \"nchar\"}}},"
-      "{\"metric\": \"stf567890\", \"timestamp\": {\"value\": 1626006833639200, \"type\": \"us\"}, \"value\": 4, "
-      "\"tags\": {\"t1\": {\"value\": 4, \"type\": \"bigint\"}, \"t3\": {\"value\": \"t4\", \"type\": \"binary\"}, "
-      "\"t2\": {\"value\": 5, \"type\": \"double\"}, \"t4\": {\"value\": 5, \"type\": \"double\"}}},"
-      "{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833639300, \"type\": \"us\"}, \"value\": "
-      "{\"value\": 5, \"type\": \"double\"}, \"tags\": {\"t1\": {\"value\": 4, \"type\": \"double\"}, \"t2\": 5.0, "
-      "\"t3\": {\"value\": \"t4\", \"type\": \"binary\"}}},"
-      "{\"metric\": \"stb_name\", \"timestamp\": {\"value\": 1626006833639400, \"type\": \"us\"}, \"value\": "
-      "{\"value\": 6, \"type\": \"double\"}, \"tags\": {\"t2\": 5.0, \"t3\": {\"value\": \"ste2\", \"type\": "
-      "\"nchar\"}}},"
-      "{\"metric\": \"stb_name\", \"timestamp\": {\"value\": 1626006834639400, \"type\": \"us\"}, \"value\": "
-      "{\"value\": 7, \"type\": \"double\"}, \"tags\": {\"t2\": {\"value\": 5.0, \"type\": \"double\"}, \"t3\": "
-      "{\"value\": \"ste2\", \"type\": \"nchar\"}}},"
-      "{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833839006, \"type\": \"us\"}, \"value\": "
-      "{\"value\": 8, \"type\": \"double\"}, \"tags\": {\"t1\": {\"value\": 4, \"type\": \"double\"}, \"t3\": "
-      "{\"value\": \"t4\", \"type\": \"binary\"}, \"t2\": {\"value\": 5, \"type\": \"double\"}, \"t4\": {\"value\": 5, "
-      "\"type\": \"double\"}}},"
-      "{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833939007, \"type\": \"us\"}, \"value\": "
-      "{\"value\": 9, \"type\": \"double\"}, \"tags\": {\"t1\": 4, \"t3\": {\"value\": \"t4\", \"type\": \"binary\"}, "
-      "\"t2\": {\"value\": 5, \"type\": \"double\"}, \"t4\": {\"value\": 5, \"type\": \"double\"}}}]"};
-  pRes = taos_schemaless_insert(taos, (char **)sql, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_MICRO_SECONDS);
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
-  int code = taos_errno(pRes);
-  taos_free_result(pRes);
-  taos_close(taos);
-
-  return code;
-}
-
 int sml_dup_time_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
@@ -763,214 +696,6 @@ int sml_dup_time_Test() {
   taos_free_result(pRes);
 
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
-  int code = taos_errno(pRes);
-  taos_free_result(pRes);
-  taos_close(taos);
-
-  return code;
-}
-
-int sml_16960_Test() {
-  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
-
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
-  taos_free_result(pRes);
-
-  pRes = taos_query(taos, "use sml_db");
-  taos_free_result(pRes);
-
-  const char *sql[] = {
-      "["
-      "{"
-      "\"timestamp\":"
-      ""
-      "{ \"value\": 1664418955000, \"type\": \"ms\" }"
-      ","
-      "\"value\":"
-      ""
-      "{ \"value\": 830525384, \"type\": \"int\" }"
-      ","
-      "\"tags\": {"
-      "\"id\": \"stb00_0\","
-      "\"t0\":"
-      ""
-      "{ \"value\": 83972721, \"type\": \"int\" }"
-      ","
-      "\"t1\":"
-      ""
-      "{ \"value\": 539147525, \"type\": \"int\" }"
-      ","
-      "\"t2\":"
-      ""
-      "{ \"value\": 618258572, \"type\": \"int\" }"
-      ","
-      "\"t3\":"
-      ""
-      "{ \"value\": -10536201, \"type\": \"int\" }"
-      ","
-      "\"t4\":"
-      ""
-      "{ \"value\": 349227409, \"type\": \"int\" }"
-      ","
-      "\"t5\":"
-      ""
-      "{ \"value\": 249347042, \"type\": \"int\" }"
-      "},"
-      "\"metric\": \"stb0\""
-      "},"
-      "{"
-      "\"timestamp\":"
-      ""
-      "{ \"value\": 1664418955001, \"type\": \"ms\" }"
-      ","
-      "\"value\":"
-      ""
-      "{ \"value\": -588348364, \"type\": \"int\" }"
-      ","
-      "\"tags\": {"
-      "\"id\": \"stb00_0\","
-      "\"t0\":"
-      ""
-      "{ \"value\": 83972721, \"type\": \"int\" }"
-      ","
-      "\"t1\":"
-      ""
-      "{ \"value\": 539147525, \"type\": \"int\" }"
-      ","
-      "\"t2\":"
-      ""
-      "{ \"value\": 618258572, \"type\": \"int\" }"
-      ","
-      "\"t3\":"
-      ""
-      "{ \"value\": -10536201, \"type\": \"int\" }"
-      ","
-      "\"t4\":"
-      ""
-      "{ \"value\": 349227409, \"type\": \"int\" }"
-      ","
-      "\"t5\":"
-      ""
-      "{ \"value\": 249347042, \"type\": \"int\" }"
-      "},"
-      "\"metric\": \"stb0\""
-      "},"
-      "{"
-      "\"timestamp\":"
-      ""
-      "{ \"value\": 1664418955002, \"type\": \"ms\" }"
-      ","
-      "\"value\":"
-      ""
-      "{ \"value\": -370310823, \"type\": \"int\" }"
-      ","
-      "\"tags\": {"
-      "\"id\": \"stb00_0\","
-      "\"t0\":"
-      ""
-      "{ \"value\": 83972721, \"type\": \"int\" }"
-      ","
-      "\"t1\":"
-      ""
-      "{ \"value\": 539147525, \"type\": \"int\" }"
-      ","
-      "\"t2\":"
-      ""
-      "{ \"value\": 618258572, \"type\": \"int\" }"
-      ","
-      "\"t3\":"
-      ""
-      "{ \"value\": -10536201, \"type\": \"int\" }"
-      ","
-      "\"t4\":"
-      ""
-      "{ \"value\": 349227409, \"type\": \"int\" }"
-      ","
-      "\"t5\":"
-      ""
-      "{ \"value\": 249347042, \"type\": \"int\" }"
-      "},"
-      "\"metric\": \"stb0\""
-      "},"
-      "{"
-      "\"timestamp\":"
-      ""
-      "{ \"value\": 1664418955003, \"type\": \"ms\" }"
-      ","
-      "\"value\":"
-      ""
-      "{ \"value\": -811250191, \"type\": \"int\" }"
-      ","
-      "\"tags\": {"
-      "\"id\": \"stb00_0\","
-      "\"t0\":"
-      ""
-      "{ \"value\": 83972721, \"type\": \"int\" }"
-      ","
-      "\"t1\":"
-      ""
-      "{ \"value\": 539147525, \"type\": \"int\" }"
-      ","
-      "\"t2\":"
-      ""
-      "{ \"value\": 618258572, \"type\": \"int\" }"
-      ","
-      "\"t3\":"
-      ""
-      "{ \"value\": -10536201, \"type\": \"int\" }"
-      ","
-      "\"t4\":"
-      ""
-      "{ \"value\": 349227409, \"type\": \"int\" }"
-      ","
-      "\"t5\":"
-      ""
-      "{ \"value\": 249347042, \"type\": \"int\" }"
-      "},"
-      "\"metric\": \"stb0\""
-      "},"
-      "{"
-      "\"timestamp\":"
-      ""
-      "{ \"value\": 1664418955004, \"type\": \"ms\" }"
-      ","
-      "\"value\":"
-      ""
-      "{ \"value\": -330340558, \"type\": \"int\" }"
-      ","
-      "\"tags\": {"
-      "\"id\": \"stb00_0\","
-      "\"t0\":"
-      ""
-      "{ \"value\": 83972721, \"type\": \"int\" }"
-      ","
-      "\"t1\":"
-      ""
-      "{ \"value\": 539147525, \"type\": \"int\" }"
-      ","
-      "\"t2\":"
-      ""
-      "{ \"value\": 618258572, \"type\": \"int\" }"
-      ","
-      "\"t3\":"
-      ""
-      "{ \"value\": -10536201, \"type\": \"int\" }"
-      ","
-      "\"t4\":"
-      ""
-      "{ \"value\": 349227409, \"type\": \"int\" }"
-      ","
-      "\"t5\":"
-      ""
-      "{ \"value\": 249347042, \"type\": \"int\" }"
-      "},"
-      "\"metric\": \"stb0\""
-      "}"
-      "]"};
-
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
-                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
@@ -1211,11 +936,9 @@ int main(int argc, char *argv[]) {
   ret = smlProcess_json1_Test();
   ASSERT(!ret);
   ret = smlProcess_json2_Test();
-  ASSERT(!ret);
+  ASSERT(ret);
   ret = smlProcess_json3_Test();
-  ASSERT(!ret);
-  ret = smlProcess_json4_Test();
-  ASSERT(!ret);
+  ASSERT(ret);
   ret = sml_TD15662_Test();
   ASSERT(!ret);
   ret = sml_TD15742_Test();
@@ -1224,11 +947,7 @@ int main(int argc, char *argv[]) {
   ASSERT(!ret);
   ret = sml_oom_Test();
   ASSERT(!ret);
-  ret = sml_16368_Test();
-  ASSERT(!ret);
   ret = sml_dup_time_Test();
-  ASSERT(!ret);
-  ret = sml_16960_Test();
   ASSERT(!ret);
   ret = sml_add_tag_col_Test();
   ASSERT(!ret);

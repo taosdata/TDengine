@@ -414,28 +414,28 @@ TEST(testCase, smlParseCols_Test) {
   smlDestroyInfo(info);
 }
 
-TEST(testCase, smlGetTimestampLen_Test) {
-  uint8_t len = smlGetTimestampLen(0);
-  ASSERT_EQ(len, 1);
-
-  len = smlGetTimestampLen(1);
-  ASSERT_EQ(len, 1);
-
-  len = smlGetTimestampLen(10);
-  ASSERT_EQ(len, 2);
-
-  len = smlGetTimestampLen(390);
-  ASSERT_EQ(len, 3);
-
-  len = smlGetTimestampLen(-1);
-  ASSERT_EQ(len, 1);
-
-  len = smlGetTimestampLen(-10);
-  ASSERT_EQ(len, 2);
-
-  len = smlGetTimestampLen(-390);
-  ASSERT_EQ(len, 3);
-}
+//TEST(testCase, smlGetTimestampLen_Test) {
+//  uint8_t len = smlGetTimestampLen(0);
+//  ASSERT_EQ(len, 1);
+//
+//  len = smlGetTimestampLen(1);
+//  ASSERT_EQ(len, 1);
+//
+//  len = smlGetTimestampLen(10);
+//  ASSERT_EQ(len, 2);
+//
+//  len = smlGetTimestampLen(390);
+//  ASSERT_EQ(len, 3);
+//
+//  len = smlGetTimestampLen(-1);
+//  ASSERT_EQ(len, 1);
+//
+//  len = smlGetTimestampLen(-10);
+//  ASSERT_EQ(len, 2);
+//
+//  len = smlGetTimestampLen(-390);
+//  ASSERT_EQ(len, 3);
+//}
 
 TEST(testCase, smlParseNumber_Test) {
   SSmlKv     kv = {0};
@@ -487,139 +487,32 @@ TEST(testCase, smlParseTelnetLine_error_Test) {
   smlDestroyInfo(info);
 }
 
-TEST(testCase, smlParseTelnetLine_json_error_Test) {
-  SSmlHandle *info = smlBuildSmlInfo(NULL);
-  info->protocol = TSDB_SML_JSON_PROTOCOL;
-  info->dataFormat = false;
-  ASSERT_NE(info, nullptr);
-
-  const char *sql[] = {
-      "[\n"
-      "    {\n"
-      "        \"metric\": \"sys.cpu.nice\",\n"
-      "        \"timestamp\": 13468464009999333322222223,\n"
-      "        \"value\": 18,\n"
-      "        \"tags\": {\n"
-      "           \"host\": \"web01\",\n"
-      "           \"dc\": \"lga\"\n"
-      "        }\n"
-      "    },\n"
-      "]",
-      "[\n"
-      "    {\n"
-      "        \"metric\": \"sys.cpu.nice\",\n"
-      "        \"timestamp\": 1346846400i,\n"
-      "        \"value\": 18,\n"
-      "        \"tags\": {\n"
-      "           \"host\": \"web01\",\n"
-      "           \"dc\": \"lga\"\n"
-      "        }\n"
-      "    },\n"
-      "]",
-      "[\n"
-      "    {\n"
-      "        \"metric\": \"sys.cpu.nice\",\n"
-      "        \"timestamp\": 1346846400,\n"
-      "        \"value\": 18,\n"
-      "        \"tags\": {\n"
-      "           \"groupid\": { \n"
-      "                 \"value\" : 2,\n"
-      "                 \"type\"  : \"nchar\"\n"
-      "             },\n"
-      "           \"location\": { \n"
-      "                 \"value\" : \"北京\",\n"
-      "                 \"type\"  : \"binary\"\n"
-      "             },\n"
-      "           \"id\": \"d1001\"\n"
-      "         }\n"
-      "    },\n"
-      "]",
-  };
-
-  int ret = TSDB_CODE_SUCCESS;
-  for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
-    SSmlLineInfo elements = {0};
-    ret = smlParseTelnetString(info, (char *)sql[i], (char*)(sql[i] + strlen(sql[i])), &elements);
-    ASSERT_NE(ret, 0);
-  }
-
-  smlDestroyInfo(info);
-}
-
-TEST(testCase, smlParseTelnetLine_diff_json_type1_Test) {
-  SSmlHandle *info = smlBuildSmlInfo(NULL);
-  info->protocol = TSDB_SML_JSON_PROTOCOL;
-  info->dataFormat = false;
-  ASSERT_NE(info, nullptr);
-
-  const char *sql[] = {
-      "[\n"
-      "    {\n"
-      "        \"metric\": \"sys.cpu.nice\",\n"
-      "        \"timestamp\": 1346846400,\n"
-      "        \"value\": 18,\n"
-      "        \"tags\": {\n"
-      "           \"host\": \"lga\"\n"
-      "        }\n"
-      "    },\n"
-      "]",
-      "[\n"
-      "    {\n"
-      "        \"metric\": \"sys.cpu.nice\",\n"
-      "        \"timestamp\": 1346846400,\n"
-      "        \"value\": 18,\n"
-      "        \"tags\": {\n"
-      "           \"host\": 8\n"
-      "        }\n"
-      "    },\n"
-      "]",
-  };
-
-  int ret = TSDB_CODE_SUCCESS;
-  for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
-    SSmlLineInfo elements = {0};
-    ret = smlParseTelnetString(info, (char *)sql[i], (char*)(sql[i] + strlen(sql[i])), &elements);
-    if (ret != TSDB_CODE_SUCCESS) break;
-  }
-  ASSERT_NE(ret, 0);
-  smlDestroyInfo(info);
-}
-
 TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
   SSmlHandle *info = smlBuildSmlInfo(NULL);
   info->protocol = TSDB_SML_JSON_PROTOCOL;
-  info->dataFormat = false;
   ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
-      "[\n"
-      "    {\n"
-      "        \"metric\": \"sys.cpu.nice\",\n"
-      "        \"timestamp\": 1346846400,\n"
-      "        \"value\": 18,\n"
-      "        \"tags\": {\n"
-      "           \"host\": \"lga\"\n"
-      "        }\n"
-      "    },\n"
-      "]",
-      "[\n"
-      "    {\n"
-      "        \"metric\": \"sys.cpu.nice\",\n"
-      "        \"timestamp\": 1346846400,\n"
-      "        \"value\": \"18\",\n"
-      "        \"tags\": {\n"
-      "           \"host\": \"fff\"\n"
-      "        }\n"
-      "    },\n"
-      "]",
+      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\": 1346846400,\"value\": 18,\"tags\": {\"host\": \"lga\"}},{\"metric\": \"sys.sdfa\",\"timestamp\": 1346846400,\"value\": \"18\",\"tags\": {\"host\": 8932}},]",
   };
-  int ret = TSDB_CODE_SUCCESS;
   for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
-    SSmlLineInfo elements = {0};
-    ret = smlParseTelnetString(info, (char *)sql[i], (char*)(sql[i] + strlen(sql[i])), &elements);
-    if (ret != TSDB_CODE_SUCCESS) break;
+    char *dataPointStart = (char *)sql[i];
+    char *dataPointEnd = NULL;
+    while (1) {
+      dataPointEnd = smlJsonGetObj(dataPointStart);
+      if (dataPointEnd == NULL) break;
+
+      SSmlLineInfo elements = {0};
+      smlJsonParseObj(dataPointStart, dataPointEnd, &elements);
+
+      SArray *tags = smlJsonParseTags(elements.tags, elements.tags + elements.tagsLen);
+      size_t num = taosArrayGetSize(tags);
+      ASSERT_EQ(num, 1);
+
+      taosArrayDestroy(tags);
+      dataPointStart = dataPointEnd;
+    }
   }
-  ASSERT_NE(ret, 0);
   smlDestroyInfo(info);
 }
 
@@ -647,6 +540,4 @@ TEST(testCase, smlParseNumber_performance_Test) {
     printf("smlParseNumberOld:%s cost:%" PRId64, str[i], taosGetTimestampUs() - t2);
     printf("\n\n");
   }
-
-
 }
