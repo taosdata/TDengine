@@ -509,6 +509,7 @@ bool shouldRewTableMeta(SSqlObj* pSql, SRpcMsg* rpcMsg) {
       rpcMsg->code != TSDB_CODE_VND_INVALID_VGROUP_ID &&
       rpcMsg->code != TSDB_CODE_QRY_INVALID_SCHEMA_VERSION &&
       rpcMsg->code != TSDB_CODE_RPC_NETWORK_UNAVAIL &&
+      rpcMsg->code != TSDB_CODE_RPC_VGROUP_NOT_CONNECTED &&
       rpcMsg->code != TSDB_CODE_APP_NOT_READY ) {
     return false;
   }

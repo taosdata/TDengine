@@ -974,6 +974,7 @@ static void insertCallback(void *param, TAOS_RES *res, int32_t notUsedCode) {
        || code == TSDB_CODE_VND_INVALID_VGROUP_ID
        || code == TSDB_CODE_TDB_TABLE_RECONFIGURE
        || code == TSDB_CODE_APP_NOT_READY
+       || code == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED
        || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) && batch->tryTimes < TSDB_MAX_REPLICA) {
     batch->tryAgain = true;
   }
@@ -985,7 +986,7 @@ static void insertCallback(void *param, TAOS_RES *res, int32_t notUsedCode) {
     }
   }
 
-  if (code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+  if (code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED) {
     if (batch->tryAgain) {
       batch->sleep = true;
     }

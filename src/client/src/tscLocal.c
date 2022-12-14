@@ -910,7 +910,7 @@ static int32_t tscProcessServStatus(SSqlObj *pSql) {
     pSql->res.code = pHb->res.code;
   }
 
-  if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+  if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pSql->res.code == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED) {
     taosReleaseRef(tscObjRef, pObj->hbrid);
     return pSql->res.code;
   }
@@ -920,7 +920,7 @@ static int32_t tscProcessServStatus(SSqlObj *pSql) {
     taosReleaseRef(tscObjRef, pObj->hbrid);
   }
 
-  if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+  if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pSql->res.code == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED) {
     return pSql->res.code;
   }
 
