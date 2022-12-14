@@ -61,65 +61,37 @@ fn fields_to_arrow(fields: &[Field], precision: Precision) -> Schema {
 
 fn column_to_arrow(column: &ColumnView) -> ArrayRef {
     match column {
-        ColumnView::Bool(v) => {
-            Arc::new(arrow::array::BooleanArray::from_iter(v.iter()))
-        }
-        ColumnView::TinyInt(v) => {
-            Arc::new(arrow::array::Int8Array::from_iter(v.iter()))
-        }
-        ColumnView::SmallInt(v) => {
-            Arc::new(arrow::array::Int16Array::from_iter(v.iter()))
-        }
-        ColumnView::Int(v) => {
-            Arc::new(arrow::array::Int32Array::from_iter(v.iter()))
-        }
-        ColumnView::BigInt(v) => {
-            Arc::new(arrow::array::Int64Array::from_iter(v.iter()))
-        }
-        ColumnView::Float(v) => {
-            Arc::new(arrow::array::Float32Array::from_iter(v.iter()))
-        }
-        ColumnView::Double(v) => {
-            Arc::new(arrow::array::Float64Array::from_iter(v.iter()))
-        }
-        ColumnView::VarChar(v) => {
-            Arc::new(arrow::array::BinaryArray::from_iter(v.iter_as_bytes()))
-        }
+        ColumnView::Bool(v) => Arc::new(arrow::array::BooleanArray::from_iter(v.iter())),
+        ColumnView::TinyInt(v) => Arc::new(arrow::array::Int8Array::from_iter(v.iter())),
+        ColumnView::SmallInt(v) => Arc::new(arrow::array::Int16Array::from_iter(v.iter())),
+        ColumnView::Int(v) => Arc::new(arrow::array::Int32Array::from_iter(v.iter())),
+        ColumnView::BigInt(v) => Arc::new(arrow::array::Int64Array::from_iter(v.iter())),
+        ColumnView::Float(v) => Arc::new(arrow::array::Float32Array::from_iter(v.iter())),
+        ColumnView::Double(v) => Arc::new(arrow::array::Float64Array::from_iter(v.iter())),
+        ColumnView::VarChar(v) => Arc::new(arrow::array::BinaryArray::from_iter(v.iter_as_bytes())),
         ColumnView::Timestamp(v) => {
             let iter = v
                 .to_vec()
                 .into_iter()
                 .map(|ts| ts.map(|ts| ts.as_raw_i64()));
             match v.precision() {
-                Precision::Millisecond => Arc::new(
-                    arrow::array::TimestampMillisecondArray::from_iter(iter),
-                ),
-                Precision::Microsecond => Arc::new(
-                    arrow::array::TimestampMicrosecondArray::from_iter(iter),
-                ),
-                Precision::Nanosecond => Arc::new(
-                    arrow::array::TimestampNanosecondArray::from_iter(iter),
-                ),
+                Precision::Millisecond => {
+                    Arc::new(arrow::array::TimestampMillisecondArray::from_iter(iter))
+                }
+                Precision::Microsecond => {
+                    Arc::new(arrow::array::TimestampMicrosecondArray::from_iter(iter))
+                }
+                Precision::Nanosecond => {
+                    Arc::new(arrow::array::TimestampNanosecondArray::from_iter(iter))
+                }
             }
         }
-        ColumnView::NChar(v) => {
-            Arc::new(arrow::array::StringArray::from_iter(v.to_vec().iter()))
-        }
-        ColumnView::UTinyInt(v) => {
-            Arc::new(arrow::array::UInt8Array::from_iter(v.iter()))
-        }
-        ColumnView::USmallInt(v) => {
-            Arc::new(arrow::array::UInt16Array::from_iter(v.iter()))
-        }
-        ColumnView::UInt(v) => {
-            Arc::new(arrow::array::UInt32Array::from_iter(v.iter()))
-        }
-        ColumnView::UBigInt(v) => {
-            Arc::new(arrow::array::UInt64Array::from_iter(v.iter()))
-        }
-        ColumnView::Json(v) => {
-            Arc::new(arrow::array::StringArray::from_iter(v.to_vec().iter()))
-        }
+        ColumnView::NChar(v) => Arc::new(arrow::array::StringArray::from_iter(v.to_vec().iter())),
+        ColumnView::UTinyInt(v) => Arc::new(arrow::array::UInt8Array::from_iter(v.iter())),
+        ColumnView::USmallInt(v) => Arc::new(arrow::array::UInt16Array::from_iter(v.iter())),
+        ColumnView::UInt(v) => Arc::new(arrow::array::UInt32Array::from_iter(v.iter())),
+        ColumnView::UBigInt(v) => Arc::new(arrow::array::UInt64Array::from_iter(v.iter())),
+        ColumnView::Json(v) => Arc::new(arrow::array::StringArray::from_iter(v.to_vec().iter())),
     }
 }
 
