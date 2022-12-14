@@ -322,31 +322,32 @@ struct STsdbKeepCfg {
 };
 
 struct SVnode {
-  char*         path;
-  SVnodeCfg     config;
-  SVState       state;
-  SVStatis      statis;
-  STfs*         pTfs;
-  SMsgCb        msgCb;
-  TdThreadMutex mutex;
-  TdThreadCond  poolNotEmpty;
-  SVBufPool*    pPool;
-  SVBufPool*    inUse;
-  SMeta*        pMeta;
-  SSma*         pSma;
-  STsdb*        pTsdb;
-  SWal*         pWal;
-  STQ*          pTq;
-  SSink*        pSink;
-  tsem_t        canCommit;
-  int64_t       sync;
-  TdThreadMutex lock;
-  bool          blocked;
-  bool          restored;
-  tsem_t        syncSem;
-  int32_t       blockSec;
-  int64_t       blockSeq;
-  SQHandle*     pQuery;
+  char*          path;
+  SVnodeCfg      config;
+  SVState        state;
+  SVStatis       statis;
+  STfs*          pTfs;
+  SMsgCb         msgCb;
+  TdThreadMutex  mutex;
+  TdThreadCond   poolNotEmpty;
+  SVBufPool*     pPool;
+  SVBufPool*     inUse;
+  SMeta*         pMeta;
+  SSma*          pSma;
+  STsdb*         pTsdb;
+  SWal*          pWal;
+  STQ*           pTq;
+  SSink*         pSink;
+  tsem_t         canCommit;
+  int64_t        sync;
+  TdThreadMutex  lock;
+  bool           blocked;
+  bool           restored;
+  tsem_t         syncSem;
+  int32_t        blockSec;
+  int64_t        blockSeq;
+  SRpcHandleInfo blockInfo;
+  SQHandle*      pQuery;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)

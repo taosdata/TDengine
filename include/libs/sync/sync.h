@@ -240,7 +240,7 @@ int32_t syncStepDown(int64_t rid, SyncTerm newTerm);
 bool    syncIsReadyForRead(int64_t rid);
 bool    syncSnapshotSending(int64_t rid);
 bool    syncSnapshotRecving(int64_t rid);
-void    syncSendTimeoutRsp(int64_t rid, int64_t seq);
+int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq);
 
 SSyncState  syncGetState(int64_t rid);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);

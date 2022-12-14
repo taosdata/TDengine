@@ -218,9 +218,9 @@ int32_t syncLeaderTransfer(int64_t rid) {
   return ret;
 }
 
-void syncSendTimeoutRsp(int64_t rid, int64_t seq) {
+int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq) {
   SSyncNode* pNode = syncNodeAcquire(rid);
-  if (pNode == NULL) return;
+  if (pNode == NULL) return -1;
 
   SRpcMsg rpcMsg = {0};
   int32_t ret = syncRespMgrGetAndDel(pNode->pSyncRespMgr, seq, &rpcMsg.info);
@@ -228,9 +228,13 @@ void syncSendTimeoutRsp(int64_t rid, int64_t seq) {
 
   syncNodeRelease(pNode);
   if (ret == 1) {
-    sInfo("send response since sync timeout, seq:%" PRId64 " handle:%p ahandle:%p", seq, rpcMsg.info.handle,
+    sInfo("send timeout response, seq:%" PRId64 " handle:%p ahandle:%p", seq, rpcMsg.info.handle,
           rpcMsg.info.ahandle);
     rpcSendResponse(&rpcMsg);
+    return 0;
+  } else {
+    sInfo("no rpcinfo to send timeout response, seq:%" PRId64, seq);
+    return -1;
   }
 }
 
