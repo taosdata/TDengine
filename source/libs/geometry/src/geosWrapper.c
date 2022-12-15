@@ -51,6 +51,11 @@ void destroyGeosContext(SGeosContext *context) {
   }
 }
 
+void geosErrMsgeHandler(const char *errMsg, void *userData) {
+  char* targetErrMsg = userData;
+  snprintf(targetErrMsg, 512, errMsg);
+}
+
 int32_t prepareGeomFromText(SGeosContext *context) {
   int32_t code = TSDB_CODE_FAILED;
 
@@ -59,6 +64,8 @@ int32_t prepareGeomFromText(SGeosContext *context) {
     if (context->handle == NULL) {
       return code;
     }
+
+    GEOSContext_setErrorMessageHandler_r(context->handle, geosErrMsgeHandler, context->errMsg);
   }
 
   if (context->WKTReader == NULL) {
@@ -117,6 +124,8 @@ int32_t prepareAsText(SGeosContext *context) {
     if (context->handle == NULL) {
       return code;
     }
+
+    GEOSContext_setErrorMessageHandler_r(context->handle, geosErrMsgeHandler, context->errMsg);
   }
 
   if (context->WKBReader == NULL) {
@@ -178,6 +187,8 @@ int32_t prepareMakePoint(SGeosContext *context) {
     if (context->handle == NULL) {
       return code;
     }
+
+    GEOSContext_setErrorMessageHandler_r(context->handle, geosErrMsgeHandler, context->errMsg);
   }
 
   if (context->WKBWriter == NULL) {
@@ -229,6 +240,8 @@ int32_t prepareIntersects(SGeosContext *context) {
     if (context->handle == NULL) {
       return code;
     }
+
+    GEOSContext_setErrorMessageHandler_r(context->handle, geosErrMsgeHandler, context->errMsg);
   }
 
   if (context->WKBReader == NULL) {

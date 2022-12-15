@@ -32,11 +32,15 @@ typedef struct SGeosContext {
 
   GEOSWKBReader *WKBReader;
   GEOSWKBWriter *WKBWriter;
+
+  char errMsg[512];
 } SGeosContext;
 
 SGeosContext *getGlobleGeosCtx();
 
 void destroyGeosContext(SGeosContext *context);
+
+void geosErrMsgeHandler(const char *errMsg, void *userData);
 
 int32_t prepareGeomFromText(SGeosContext *context);
 int32_t doGeomFromText(SGeosContext *context, const char *inputWKT, unsigned char **outputGeom, size_t *size);

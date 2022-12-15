@@ -509,14 +509,14 @@ void shellPrintGeometry(const unsigned char *val, int32_t length, int32_t width)
   SGeosContext* geosCxt = getGlobleGeosCtx();
   code = prepareAsText(geosCxt);
   if (code != TSDB_CODE_SUCCESS) {
-    shellPrintString("failed to prepareAsText", width);
+    shellPrintString(geosCxt->errMsg, width);
     return;
   }
 
   char *outputWKT = NULL;
   code = doAsText(geosCxt, val, length, &outputWKT);
   if (code != TSDB_CODE_SUCCESS) {
-    shellPrintString("invalid geometry", width);  //should NOT happen
+    shellPrintString(geosCxt->errMsg, width);  //should NOT happen
     return;
   }
 

@@ -678,7 +678,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
 
       code = parseGeometry(pGeosCxt, pToken, &output, &size);
       if (code != TSDB_CODE_SUCCESS) {
-        code = generateSyntaxErrMsg(pMsgBuf, code, "Failed to parse geometry, the input may not be a valid WTK string");
+        code = buildSyntaxErrMsg(pMsgBuf, pGeosCxt->errMsg, pToken->z);
       }
       // Too long values will raise the invalid sql error message
       else if (size > pSchema->bytes) {
