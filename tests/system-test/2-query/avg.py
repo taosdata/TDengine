@@ -409,7 +409,7 @@ class TDTestCase:
         tdSql.query(f"select avg(c1) ,avg(c2) , avg(c3) , avg(c4), avg(c5), avg(c6) from {dbname}.sub1_bound ")
         tdSql.checkRows(1)
         tdSql.checkData(0,0,920350133.571428537)
-        tdSql.checkData(0,1,1.3176245766935393e+18)
+        tdSql.checkData(0,1,3.952873730080618e+18)
         tdSql.checkData(0,2,14042.142857143)
         tdSql.checkData(0,3,53.571428571)
         tdSql.checkData(0,4,5.828571332045761e+37)
