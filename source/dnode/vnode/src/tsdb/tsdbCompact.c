@@ -21,25 +21,34 @@ typedef struct {
 typedef struct {
   SArray    *aBlockIdx;  // SArray<SBlockIdx>
   SMapData   mDataBlk;   // SMapData<SDataBlk>
-  SBlockData bData
+  SBlockData bData;
+  int32_t    iBlockIdx;
+  int32_t    iDataBlk;
+  int32_t    iRow;
 } SDataDIter;
 
 typedef struct {
   SArray    *aSttBlk;  // SArray<SSttBlk>
   SBlockData bData;
+  int32_t    iSttBlk;
+  int32_t    iRow;
 } SSttDIter;
 
 typedef struct {
-  STsdb     *pTsdb;
-  STsdbFS    fs;
-  int64_t    cid;
-  int32_t    fid;
-  SDFileSet *pDFileSet;
-  SRBTree    rtree;
+  STsdb        *pTsdb;
+  STsdbFS       fs;
+  int64_t       cid;
+  int32_t       fid;
+  SDataFReader *pReader;
+  SDFileSet    *pDFileSet;
+  SRBTree       rtree;
 } STsdbCompactor;
 
 #define TSDB_FLG_DEEP_COMPACT 0x1
 
+// ITER =========================
+
+// COMPACT =========================
 static int32_t tsdbBeginCompact(STsdb *pTsdb, STsdbCompactor *pCompactor) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -94,6 +103,11 @@ static int32_t tsdbDeepCompact(STsdbCompactor *pCompactor) {
 
   STsdb *pTsdb = pCompactor->pTsdb;
 
+  code = tsdbDataFReaderOpen(&pCompactor->pReader, pTsdb, pCompactor->pDFileSet);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // 
+
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
@@ -106,8 +120,6 @@ static int32_t tsdbShallowCompact(STsdbCompactor *pCompactor) {
   int32_t lino = 0;
 
   STsdb *pTsdb = pCompactor->pTsdb;
-
-  // TODO
 
 _exit:
   if (code) {
@@ -131,6 +143,8 @@ int32_t tsdbCompact(STsdb *pTsdb, int32_t flag) {
   while (true) {
     compactor.pDFileSet = (SDFileSet *)taosArraySearch(compactor.fs.aDFileSet, &compactor.fid, tDFileSetCmprFn, TD_GT);
     if (compactor.pDFileSet == NULL) break;
+
+    compactor.fid = compactor.pDFileSet->fid;
 
     if (flag & TSDB_FLG_DEEP_COMPACT) {
       code = tsdbDeepCompact(&compactor);
