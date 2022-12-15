@@ -353,7 +353,12 @@ struct SVnode {
   bool          blocked;
   bool          restored;
   tsem_t        syncSem;
+  int32_t       blockSec;
+  int64_t       blockSeq;
   SQHandle*     pQuery;
+#if 0
+  SRpcHandleInfo blockInfo;
+#endif
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
