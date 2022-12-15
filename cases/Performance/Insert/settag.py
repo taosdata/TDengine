@@ -36,14 +36,13 @@ class InsertTest(TDCase):
         self.tdSql.query('show databases')
         print(self.tdSql.query_data)
         for dbname in self.tdSql.query_data:
-            print(dbname[0])
-            if dbname[0].lower() != "information_schema" and dbname[0].lower() != "performance_schema":
+            if dbname[0].lower() == "db_settag":
                 self.dbname = dbname[0]
         self.tdSql.execute(f'use {self.dbname}')
         self.tdSql.query('show tables')
         print(f"tbnum = {len(self.tdSql.query_data)}")
         for tbname in self.tdSql.query_data:
-            tag_value = self.tdCom.get_long_name(10)
+            tag_value = self.tdCom.get_long_name(20)
             start_time = time.time()
             self.tdSql.execute(f'alter table {tbname[0]} set tag location = "{tag_value}"')
             end_time = time.time()
