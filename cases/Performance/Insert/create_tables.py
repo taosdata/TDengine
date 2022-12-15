@@ -109,6 +109,6 @@ class InsertTest(TDCase):
             # Insert_file.taosBenchmark_id_insert_result(result_filename)
 
             # get node_info and process_info
-            # env_setting = self.get_component_by_name("prometheus")
-            # Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
-            # Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
+            env_setting = self.get_component_by_name("prometheus")
+            Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
+            Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)

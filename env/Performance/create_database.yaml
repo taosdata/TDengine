@@ -47,3 +47,28 @@ settings:
         firstEP: u1-42:6030
         logDir: /root/data/var/3.0/dnode3
         debugFlag: 131
+  - name: prometheus
+    fqdn: [vm85]
+    spec:
+      server:
+        run_dir: /opt/prometheus
+        config:
+          global:
+            evaluation_interval: 1s
+            scrape_interval: 3s
+            scrape_timeout: 3s
+          scrape_configs:
+            job_name: prometheus
+            targets: [vm85:9090]
+      node_exporter:
+        fqdn: [u1-45,u1-42-u1-62]
+        run_dir: /opt/node_exporter
+      process_exporter:
+        fqdn: [u1-45,u1-42-u1-62]
+        run_dir: /opt/process_exporter
+        config:
+          common_process: [taosd, taosBenchmark]
+          custom_process:
+            u1-42: [taosd]
+            u1-45: [taosd]
+            u1-62: [taosd,taosBenchmark]
