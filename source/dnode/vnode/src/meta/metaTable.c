@@ -1191,7 +1191,7 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
   int         nVal = 0;
   int         ret;
   int         c;
-  tb_uid_t    uid;
+  tb_uid_t    uid, suid;
   int64_t     oversion;
   const void *pData = NULL;
   int         nData = 0;
@@ -1216,12 +1216,12 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
     ret = -1;
     goto _err;
   }
+  suid = ((SUidIdxVal *)pVal)[0].suid;
 
   STbDbKey tbDbKey = {0};
-  tbDbKey.uid = uid;
+  tbDbKey.uid = suid;
   tbDbKey.version = ((SUidIdxVal *)pVal)[0].version;
   tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pVal, &nVal);
-
   tDecoderInit(&dc, pVal, nVal);
   ret = metaDecodeEntry(&dc, &stbEntry);
   if (ret < 0) {
@@ -1252,13 +1252,13 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
     terrno = TSDB_CODE_VND_COL_NOT_EXISTS;
     goto _err;
   }
+
   /*
    * iterator all pTdDbc by uid and version
    */
-  // drop all child tables
   TBC *pCtbIdxc = NULL;
   tdbTbcOpen(pMeta->pCtbIdx, &pCtbIdxc, NULL);
-  int rc = tdbTbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = uid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
+  int rc = tdbTbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = suid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
   if (rc < 0) {
     tdbTbcClose(pCtbIdxc);
     goto _err;
@@ -1306,6 +1306,11 @@ _err:
   // tdbTbcClose(pUidIdxc);
   return -1;
 }
+
+typedef struct SMetaPair {
+  void *key;
+  int   nkey;
+} SMetaPair;
 
 static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
   SMetaEntry  stbEntry = {0};
@@ -1374,7 +1379,7 @@ static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterT
     terrno = TSDB_CODE_VND_COL_NOT_EXISTS;
     goto _err;
   }
-  SArray *tagIdxList = taosArrayInit(512, sizeof(STagIdxKey *));
+  SArray *tagIdxList = taosArrayInit(512, sizeof(SMetaPair));
 
   TBC *pTagIdxc = NULL;
   tdbTbcOpen(pMeta->pTagIdx, &pTagIdxc, NULL);
@@ -1385,14 +1390,23 @@ static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterT
     int   nKey, nVal;
     rc = tdbTbcNext(pTagIdxc, &pKey, &nKey, &pVal, &nVal);
     STagIdxKey *pIdxKey = (STagIdxKey *)pKey;
-    if (pIdxKey->suid != suid) {
+    if (pIdxKey->suid != suid || pIdxKey->cid != pCol->colId) {
       tdbFree(pKey);
       tdbFree(pVal);
       continue;
     }
-    taosArrayPush(tagIdxList, &pIdxKey);
+
+    SMetaPair pair = {.key = pKey, nKey = nKey};
+    taosArrayPush(tagIdxList, &pair);
   }
   tdbTbcClose(pTagIdxc);
+
+  for (int i = 0; i < taosArrayGetSize(tagIdxList); i++) {
+    SMetaPair *pair = taosArrayGet(tagIdxList, i);
+    tdbTbDelete(pMeta->pTagIdx, pair->key, pair->nkey, pMeta->txn);
+  }
+
+  taosArrayDestroy(tagIdxList);
 
   // drop index
   return 0;
