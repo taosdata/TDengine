@@ -127,8 +127,7 @@ typedef struct SLogicConditionNode {
 } SLogicConditionNode;
 
 typedef struct SNodeListNode {
-  ENodeType  type;  // QUERY_NODE_NODE_LIST
-  SDataType  dataType;
+  SExprNode  node;  // QUERY_NODE_NODE_LIST
   SNodeList* pNodeList;
 } SNodeListNode;
 

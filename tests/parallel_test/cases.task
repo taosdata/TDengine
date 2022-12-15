@@ -313,6 +313,7 @@
 ,,y,script,./test.sh -f tsim/scalar/scalar.sim
 ,,y,script,./test.sh -f tsim/scalar/filter.sim 
 ,,y,script,./test.sh -f tsim/scalar/caseWhen.sim 
+,,y,script,./test.sh -f tsim/scalar/tsConvert.sim 
 ,,y,script,./test.sh -f tsim/alter/cached_schema_after_alter.sim
 ,,y,script,./test.sh -f tsim/alter/dnode.sim
 ,,y,script,./test.sh -f tsim/alter/table.sim
