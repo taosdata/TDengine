@@ -21,7 +21,7 @@
 
 #define JUMP_JSON_SPACE(start) \
 while(*(start)){\
-  if(unlikely(isspace(*(start)) == 0))\
+  if(unlikely(*(start) > 32))\
     break;\
   else\
     (start)++;\
@@ -34,13 +34,13 @@ static SArray *smlJsonParseTags(char *start, char *end){
     kv.type = TSDB_DATA_TYPE_NCHAR;
     bool isInQuote = false;
     while(start < end){
-      if(!isInQuote && *start == '"'){
+      if(unlikely(!isInQuote && *start == '"')){
         start++;
         kv.key = start;
         isInQuote = true;
         continue;
       }
-      if(isInQuote && *start == '"'){
+      if(unlikely(isInQuote && *start == '"')){
         kv.keyLen = start - kv.key;
         start++;
         break;
@@ -49,18 +49,18 @@ static SArray *smlJsonParseTags(char *start, char *end){
     }
     bool hasColon = false;
     while(start < end){
-      if(!hasColon && *start == ':'){
+      if(unlikely(!hasColon && *start == ':')){
         start++;
         hasColon = true;
         continue;
       }
-      if(hasColon && kv.value == NULL && (isspace(*start) == 0 && *start != '"')){
+      if(unlikely(hasColon && kv.value == NULL && (*start > 32 && *start != '"'))){
         kv.value = start;
         start++;
         continue;
       }
 
-      if(hasColon && kv.value != NULL && (*start == '"' || *start == ',' || *start == '}')){
+      if(unlikely(hasColon && kv.value != NULL && (*start == '"' || *start == ',' || *start == '}'))){
         kv.length = start - kv.value;
         taosArrayPush(tags, &kv);
         start++;
@@ -233,9 +233,13 @@ static char* smlJsonGetObj(char *payload){
   return NULL;
 }
 
-static void smlJsonParseObj(char **start, SSmlLineInfo *element){
+static inline void smlJsonParseObj(char **start, SSmlLineInfo *element){
   while(*(*start)){
-    if((*start)[0]== '"' && (*start)[1] == 'm' && (*start)[2] == 'e' && (*start)[3] == 't'
+    if((*start)[0] != '"'){
+      (*start)++;
+      continue;
+    }
+    if((*start)[1] == 'm' && (*start)[2] == 'e' && (*start)[3] == 't'
        && (*start)[4] == 'r' &&  (*start)[5] == 'i' && (*start)[6] == 'c' && (*start)[7] == '"'){
 
       (*start) += 8;
@@ -253,7 +257,7 @@ static void smlJsonParseObj(char **start, SSmlLineInfo *element){
         }
         (*start)++;
       }
-    }else if((*start)[0] == '"' && (*start)[1] == 't' && (*start)[2] == 'i' && (*start)[3] == 'm'
+    }else if((*start)[1] == 't' && (*start)[2] == 'i' && (*start)[3] == 'm'
              && (*start)[4] == 'e' &&  (*start)[5] == 's' && (*start)[6] == 't'
              && (*start)[7] == 'a' &&  (*start)[8] == 'm' && (*start)[9] == 'p' && (*start)[10] == '"'){
 
@@ -267,13 +271,13 @@ static void smlJsonParseObj(char **start, SSmlLineInfo *element){
           hasColon = true;
           continue;
         }
-        if(unlikely(hasColon && (*(*start) == ',' || *(*start) == '}' || isspace(*(*start)) != 0))){
+        if(unlikely(hasColon && (*(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32))){
           element->timestampLen = (*start) - element->timestamp;
           break;
         }
         (*start)++;
       }
-    }else if((*start)[0]== '"' && (*start)[1] == 'v' && (*start)[2] == 'a' && (*start)[3] == 'l'
+    }else if((*start)[1] == 'v' && (*start)[2] == 'a' && (*start)[3] == 'l'
              && (*start)[4] == 'u' &&  (*start)[5] == 'e' && (*start)[6] == '"'){
 
       (*start) += 7;
@@ -287,13 +291,13 @@ static void smlJsonParseObj(char **start, SSmlLineInfo *element){
           hasColon = true;
           continue;
         }
-        if(unlikely(hasColon && (*(*start) == ',' || *(*start) == '}' || isspace(*(*start)) != 0))){
+        if(unlikely(hasColon && (*(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32))){
           element->colsLen = (*start) - element->cols;
           break;
         }
         (*start)++;
       }
-    }else if((*start)[0] == '"' && (*start)[1] == 't' && (*start)[2] == 'a' && (*start)[3] == 'g'
+    }else if((*start)[1] == 't' && (*start)[2] == 'a' && (*start)[3] == 'g'
              && (*start)[4] == 's' && (*start)[5] == '"'){
       (*start) += 6;
 
@@ -325,23 +329,6 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
 
   smlJsonParseObj(start, elements);
   if(**start == '\0') return TSDB_CODE_SUCCESS;
-
-  if(unlikely(elements->measure == NULL || elements->measureLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid measure data", *start);
-    return TSDB_CODE_SML_INVALID_DATA;
-  }
-  if(unlikely(elements->tags == NULL || elements->tagsLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid tags data", *start);
-    return TSDB_CODE_SML_INVALID_DATA;
-  }
-  if(unlikely(elements->cols == NULL || elements->colsLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid cols data", *start);
-    return TSDB_CODE_SML_INVALID_DATA;
-  }
-  if(unlikely(elements->timestamp == NULL || elements->timestampLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp data", *start);
-    return TSDB_CODE_SML_INVALID_DATA;
-  }
 
   SSmlKv kv = {.key = VALUE, .keyLen = VALUE_LEN, .value = elements->cols, .length = (size_t)elements->colsLen};
   if (smlParseNumber(&kv, &info->msgBuf)) {
@@ -393,16 +380,6 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
 
   return TSDB_CODE_SUCCESS;
 }
-
-//#define JUMP_TO_QUOTE(sql) \
-//  while (sql){                   \
-//    if (unlikely(isspace(*(sql))) != 0) \
-//      (sql)++;                   \
-//    else                        \
-//      break;                    \
-//  }
-//
-
 
 int32_t smlParseJSON(SSmlHandle *info, char *payload) {
   int32_t payloadNum = 1 << 15;
