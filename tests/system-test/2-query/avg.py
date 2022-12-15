@@ -425,7 +425,35 @@ class TDTestCase:
         tdSql.checkData(0,4,2.9142856660228804e+37)
         tdSql.checkData(0,5,None)
 
+    #
+    # test bigint to check overflow
+    #
+    def avg_check_overflow(self):
+        # create db
+        tdSql.execute(f"drop database if exists db")
+        tdSql.execute(f"create database if not exists db")
+        time.sleep(3)
+        tdSql.execute(f"use db")
+        tdSql.execute(f"create table st(ts timestamp, ibv bigint, ubv bigint unsigned) tags(area int)")
+        # insert t1 data
+        tdSql.execute(f"insert into t1 using st tags(1) values(now,9223372036854775801,18446744073709551611)")
+        tdSql.execute(f"insert into t1 using st tags(1) values(now,8223372036854775801,17446744073709551611)")
+        tdSql.execute(f"insert into t1 using st tags(1) values(now,7223372036854775801,16446744073709551611)")
+        # insert t2 data
+        tdSql.execute(f"insert into t2 using st tags(2) values(now,9223372036854775801,18446744073709551611)")
+        tdSql.execute(f"insert into t2 using st tags(2) values(now,8223372036854775801,17446744073709551611)")
+        tdSql.execute(f"insert into t2 using st tags(2) values(now,7223372036854775801,16446744073709551611)")
+        
+        # check single table answer
+        tdSql.query(f"select avg(ibv), avg(ubv) from t1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0,8.223372036854776e+18)
+        tdSql.checkData(0, 1,1.744674407370955e+19)
 
+        tdSql.query(f"select avg(ibv), avg(ubv) from st")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0,8.223372036854776e+18)
+        tdSql.checkData(0, 1,1.744674407370955e+19)
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
@@ -455,6 +483,8 @@ class TDTestCase:
         self.avg_func_filter()
         self.avg_check_unsigned()
 
+        # check avg overflow
+        self.avg_check_overflow()
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
