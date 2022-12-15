@@ -233,12 +233,19 @@ static char* smlJsonGetObj(char *payload){
   return NULL;
 }
 
-static inline void smlJsonParseObj(char **start, SSmlLineInfo *element){
+static inline void smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
+  int index = 0;
   while(*(*start)){
     if((*start)[0] != '"'){
       (*start)++;
       continue;
     }
+
+    if(unlikely(index >= 4)) {
+      uError("index >= 4, %s", *start)
+      break;
+    }
+    char *sTmp = *start;
     if((*start)[1] == 'm' && (*start)[2] == 'e' && (*start)[3] == 't'
        && (*start)[4] == 'r' &&  (*start)[5] == 'i' && (*start)[6] == 'c' && (*start)[7] == '"'){
 
@@ -247,6 +254,7 @@ static inline void smlJsonParseObj(char **start, SSmlLineInfo *element){
       while(*(*start)){
         if(unlikely(!isInQuote && *(*start) == '"')){
           (*start)++;
+          offset[index++] = *start - sTmp;
           element->measure = (*start);
           isInQuote = true;
           continue;
@@ -267,6 +275,7 @@ static inline void smlJsonParseObj(char **start, SSmlLineInfo *element){
         if(unlikely(!hasColon && *(*start) == ':')){
           (*start)++;
           JUMP_JSON_SPACE((*start))
+          offset[index++] = *start - sTmp;
           element->timestamp = (*start);
           hasColon = true;
           continue;
@@ -287,6 +296,7 @@ static inline void smlJsonParseObj(char **start, SSmlLineInfo *element){
         if(unlikely(!hasColon && *(*start) == ':')){
           (*start)++;
           JUMP_JSON_SPACE((*start))
+          offset[index++] = *start - sTmp;
           element->cols = (*start);
           hasColon = true;
           continue;
@@ -305,6 +315,7 @@ static inline void smlJsonParseObj(char **start, SSmlLineInfo *element){
         if(unlikely(*(*start) == ':')){
           (*start)++;
           JUMP_JSON_SPACE((*start))
+          offset[index++] = *start - sTmp;
           element->tags = (*start);
           char* tmp = smlJsonGetObj((*start));
           if(tmp){
@@ -324,10 +335,74 @@ static inline void smlJsonParseObj(char **start, SSmlLineInfo *element){
   }
 }
 
+static inline void smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
+  int index = 0;
+  while(*(*start)){
+    if((*start)[0] != '"'){
+      (*start)++;
+      continue;
+    }
+
+    if(unlikely(index >= 4)) {
+      uError("index >= 4, %s", *start)
+      break;
+    }
+    if((*start)[1] == 'm'){
+      (*start) += offset[index++];
+      element->measure = *start;
+      while(*(*start)){
+        if(unlikely(*(*start) == '"')){
+          element->measureLen = (*start) - element->measure;
+          break;
+        }
+        (*start)++;
+      }
+    }else if((*start)[1] == 't' && (*start)[2] == 'i'){
+      (*start) += offset[index++];
+      element->timestamp = *start;
+      while(*(*start)){
+        if(unlikely(*(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32)){
+          element->timestampLen = (*start) - element->timestamp;
+          break;
+        }
+        (*start)++;
+      }
+    }else if((*start)[1] == 'v'){
+      (*start) += offset[index++];
+      element->cols = *start;
+      while(*(*start)){
+        if(unlikely( *(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32)){
+          element->colsLen = (*start) - element->cols;
+          break;
+        }
+        (*start)++;
+      }
+    }else if((*start)[1] == 't' && (*start)[2] == 'a'){
+      (*start) += offset[index++];
+      element->tags = (*start);
+      char* tmp = smlJsonGetObj((*start));
+      if(tmp){
+        element->tagsLen = tmp - (*start);
+        *start = tmp;
+      }
+      break;
+    }
+    if(*(*start) == '}'){
+      (*start)++;
+      break;
+    }
+    (*start)++;
+  }
+}
+
 static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *elements) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
-  smlJsonParseObj(start, elements);
+  if(info->offset[0] == 0){
+    smlJsonParseObjFirst(start, elements, info->offset);
+  }else{
+    smlJsonParseObj(start, elements, info->offset);
+  }
   if(**start == '\0') return TSDB_CODE_SUCCESS;
 
   SSmlKv kv = {.key = VALUE, .keyLen = VALUE_LEN, .value = elements->cols, .length = (size_t)elements->colsLen};

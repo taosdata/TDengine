@@ -497,9 +497,14 @@ TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
   };
   for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
     char *dataPointStart = (char *)sql[i];
+    int8_t offset[4] = {0};
     while (1) {
       SSmlLineInfo elements = {0};
-      smlJsonParseObj(&dataPointStart, &elements);
+      if(offset[0] == 0){
+        smlJsonParseObjFirst(&dataPointStart, &elements, offset);
+      }else{
+        smlJsonParseObj(&dataPointStart, &elements, offset);
+      }
       if(*dataPointStart == '\0') break;
 
       SArray *tags = smlJsonParseTags(elements.tags, elements.tags + elements.tagsLen);

@@ -178,6 +178,7 @@ typedef struct {
   SSmlMsgBuf   msgBuf;
 
 //  cJSON       *root;  // for parse json
+  int8_t             offset[4];
   SSmlLineInfo      *lines; // element is SSmlLineInfo
 
   //
