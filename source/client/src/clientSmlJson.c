@@ -19,12 +19,12 @@
 #include <string.h>
 #include "clientSml.h"
 
-#define JUMP_JSON_SPACE(start,end) \
-while(start < end){\
-  if(unlikely(isspace(*start) == 0))\
+#define JUMP_JSON_SPACE(start) \
+while(*(start)){\
+  if(unlikely(isspace(*(start)) == 0))\
     break;\
   else\
-    start++;\
+    (start)++;\
   }
 
 static SArray *smlJsonParseTags(char *start, char *end){
@@ -213,12 +213,12 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, SSmlLineInfo *elements) {
 static char* smlJsonGetObj(char *payload){
   int   leftBracketCnt = 0;
   while(*payload) {
-    if (*payload == '{') {
+    if (unlikely(*payload == '{')) {
       leftBracketCnt++;
       payload++;
       continue;
     }
-    if (*payload == '}') {
+    if (unlikely(*payload == '}')) {
       leftBracketCnt--;
       payload++;
       if (leftBracketCnt == 0) {
@@ -233,107 +233,113 @@ static char* smlJsonGetObj(char *payload){
   return NULL;
 }
 
-static void smlJsonParseObj(char *start, char *end, SSmlLineInfo *element){
-  while(start < end){
-    if(start[0]== '"' && start[1] == 'm' && start[2] == 'e' && start[3] == 't'
-       && start[4] == 'r' &&  start[5] == 'i' && start[6] == 'c' && start[7] == '"'){
+static void smlJsonParseObj(char **start, SSmlLineInfo *element){
+  while(*(*start)){
+    if((*start)[0]== '"' && (*start)[1] == 'm' && (*start)[2] == 'e' && (*start)[3] == 't'
+       && (*start)[4] == 'r' &&  (*start)[5] == 'i' && (*start)[6] == 'c' && (*start)[7] == '"'){
 
-      start += 8;
+      (*start) += 8;
       bool isInQuote = false;
-      while(start < end){
-        if(!isInQuote && *start == '"'){
-          start++;
-          element->measure = start;
+      while(*(*start)){
+        if(unlikely(!isInQuote && *(*start) == '"')){
+          (*start)++;
+          element->measure = (*start);
           isInQuote = true;
           continue;
         }
-        if(isInQuote && *start == '"'){
-          element->measureLen = start - element->measure;
-          start++;
+        if(unlikely(isInQuote && *(*start) == '"')){
+          element->measureLen = (*start) - element->measure;
           break;
         }
-        start++;
+        (*start)++;
       }
-    }else if(start[0] == '"' && start[1] == 't' && start[2] == 'i' && start[3] == 'm'
-             && start[4] == 'e' &&  start[5] == 's' && start[6] == 't'
-             && start[7] == 'a' &&  start[8] == 'm' && start[9] == 'p' && start[10] == '"'){
+    }else if((*start)[0] == '"' && (*start)[1] == 't' && (*start)[2] == 'i' && (*start)[3] == 'm'
+             && (*start)[4] == 'e' &&  (*start)[5] == 's' && (*start)[6] == 't'
+             && (*start)[7] == 'a' &&  (*start)[8] == 'm' && (*start)[9] == 'p' && (*start)[10] == '"'){
 
-      start += 11;
+      (*start) += 11;
       bool hasColon = false;
-      while(start < end){
-        if(!hasColon && *start == ':'){
-          start++;
-          JUMP_JSON_SPACE(start,end)
-          element->timestamp = start;
+      while(*(*start)){
+        if(unlikely(!hasColon && *(*start) == ':')){
+          (*start)++;
+          JUMP_JSON_SPACE((*start))
+          element->timestamp = (*start);
           hasColon = true;
           continue;
         }
-        if(hasColon && (*start == ',' || *start == '}' || isspace(*start) != 0)){
-          element->timestampLen = start - element->timestamp;
-          start++;
+        if(unlikely(hasColon && (*(*start) == ',' || *(*start) == '}' || isspace(*(*start)) != 0))){
+          element->timestampLen = (*start) - element->timestamp;
           break;
         }
-        start++;
+        (*start)++;
       }
-    }else if(start[0]== '"' && start[1] == 'v' && start[2] == 'a' && start[3] == 'l'
-             && start[4] == 'u' &&  start[5] == 'e' && start[6] == '"'){
+    }else if((*start)[0]== '"' && (*start)[1] == 'v' && (*start)[2] == 'a' && (*start)[3] == 'l'
+             && (*start)[4] == 'u' &&  (*start)[5] == 'e' && (*start)[6] == '"'){
 
-      start += 7;
+      (*start) += 7;
 
       bool hasColon = false;
-      while(start < end){
-        if(!hasColon && *start == ':'){
-          start++;
-          JUMP_JSON_SPACE(start,end)
-          element->cols = start;
+      while(*(*start)){
+        if(unlikely(!hasColon && *(*start) == ':')){
+          (*start)++;
+          JUMP_JSON_SPACE((*start))
+          element->cols = (*start);
           hasColon = true;
           continue;
         }
-        if(hasColon && (*start == ',' || *start == '}' || isspace(*start) != 0)){
-          element->colsLen = start - element->cols;
-          start++;
+        if(unlikely(hasColon && (*(*start) == ',' || *(*start) == '}' || isspace(*(*start)) != 0))){
+          element->colsLen = (*start) - element->cols;
           break;
         }
-        start++;
+        (*start)++;
       }
-    }else if(start[0] == '"' && start[1] == 't' && start[2] == 'a' && start[3] == 'g'
-             && start[4] == 's' && start[5] == '"'){
-      start += 6;
+    }else if((*start)[0] == '"' && (*start)[1] == 't' && (*start)[2] == 'a' && (*start)[3] == 'g'
+             && (*start)[4] == 's' && (*start)[5] == '"'){
+      (*start) += 6;
 
-      while(start < end){
-        if(*start == ':'){
-          start++;
-          JUMP_JSON_SPACE(start,end)
-          element->tags = start;
-          element->tagsLen = smlJsonGetObj(start) - start;
+      while(*(*start)){
+        if(unlikely(*(*start) == ':')){
+          (*start)++;
+          JUMP_JSON_SPACE((*start))
+          element->tags = (*start);
+          char* tmp = smlJsonGetObj((*start));
+          if(tmp){
+            element->tagsLen = tmp - (*start);
+            *start = tmp;
+          }
           break;
         }
-        start++;
+        (*start)++;
       }
-    }else{
-      start++;
     }
+    if(*(*start) == '}'){
+      (*start)++;
+      break;
+    }
+    (*start)++;
   }
 }
 
-static int32_t smlParseJSONString(SSmlHandle *info, char *start, char *end, SSmlLineInfo *elements) {
+static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *elements) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
-  smlJsonParseObj(start, end, elements);
+  smlJsonParseObj(start, elements);
+  if(**start == '\0') return TSDB_CODE_SUCCESS;
+
   if(unlikely(elements->measure == NULL || elements->measureLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid measure data", start);
+    smlBuildInvalidDataMsg(&info->msgBuf, "invalid measure data", *start);
     return TSDB_CODE_SML_INVALID_DATA;
   }
   if(unlikely(elements->tags == NULL || elements->tagsLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid tags data", start);
+    smlBuildInvalidDataMsg(&info->msgBuf, "invalid tags data", *start);
     return TSDB_CODE_SML_INVALID_DATA;
   }
   if(unlikely(elements->cols == NULL || elements->colsLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid cols data", start);
+    smlBuildInvalidDataMsg(&info->msgBuf, "invalid cols data", *start);
     return TSDB_CODE_SML_INVALID_DATA;
   }
   if(unlikely(elements->timestamp == NULL || elements->timestampLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp data", start);
+    smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp data", *start);
     return TSDB_CODE_SML_INVALID_DATA;
   }
 
@@ -404,14 +410,10 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
 
   int cnt = 0;
   char *dataPointStart = payload;
-  char *dataPointEnd = NULL;
   while (1) {
-    dataPointEnd = smlJsonGetObj(dataPointStart);
-    if(dataPointEnd == NULL) break;
-
     if(info->dataFormat) {
       SSmlLineInfo element = {0};
-      ret = smlParseJSONString(info, dataPointStart, dataPointEnd, &element);
+      ret = smlParseJSONString(info, &dataPointStart, &element);
     }else{
       if(cnt >= payloadNum){
         payloadNum = payloadNum << 1;
@@ -420,12 +422,14 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
           info->lines = (SSmlLineInfo*)tmp;
         }
       }
-      ret = smlParseJSONString(info, dataPointStart, dataPointEnd, info->lines + cnt);
+      ret = smlParseJSONString(info, &dataPointStart, info->lines + cnt);
     }
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       uError("SML:0x%" PRIx64 " Invalid JSON Payload", info->id);
       return ret;
     }
+
+    if(*dataPointStart == '\0') break;
 
     if(unlikely(info->reRun)){
       cnt = 0;
@@ -438,7 +442,6 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
       continue;
     }
     cnt++;
-    dataPointStart = dataPointEnd;
   }
   info->lineNum = cnt;
 

@@ -497,20 +497,16 @@ TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
   };
   for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
     char *dataPointStart = (char *)sql[i];
-    char *dataPointEnd = NULL;
     while (1) {
-      dataPointEnd = smlJsonGetObj(dataPointStart);
-      if (dataPointEnd == NULL) break;
-
       SSmlLineInfo elements = {0};
-      smlJsonParseObj(dataPointStart, dataPointEnd, &elements);
+      smlJsonParseObj(&dataPointStart, &elements);
+      if(*dataPointStart == '\0') break;
 
       SArray *tags = smlJsonParseTags(elements.tags, elements.tags + elements.tagsLen);
       size_t num = taosArrayGetSize(tags);
       ASSERT_EQ(num, 1);
 
       taosArrayDestroy(tags);
-      dataPointStart = dataPointEnd;
     }
   }
   smlDestroyInfo(info);

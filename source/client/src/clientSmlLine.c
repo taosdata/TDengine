@@ -513,32 +513,32 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd,
       }
 
       if(isSameMeasure){
-//        if(cnt >= taosArrayGetSize(preLineKV)) {
-//          info->dataFormat = false;
-//          info->reRun      = true;
-//          return TSDB_CODE_SUCCESS;
-//        }
-//        SSmlKv *preKV = (SSmlKv *)taosArrayGet(preLineKV, cnt);
-//        if(kv.type != preKV->type){
-//          info->dataFormat = false;
-//          info->reRun      = true;
-//          return TSDB_CODE_SUCCESS;
-//        }
-//
-//        if(unlikely(IS_VAR_DATA_TYPE(kv.type) && kv.length > preKV->length)){
-//          preKV->length = kv.length;
-//          SSmlSTableMeta *tableMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, currElement->measure, currElement->measureLen, NULL);
-//          ASSERT(tableMeta != NULL);
-//
-//          SSmlKv *oldKV = (SSmlKv *)taosArrayGet(tableMeta->cols, cnt);
-//          oldKV->length = kv.length;
-//          info->needModifySchema = true;
-//        }
-//        if(unlikely(!IS_SAME_KEY)){
-//          info->dataFormat = false;
-//          info->reRun      = true;
-//          return TSDB_CODE_SUCCESS;
-//        }
+        if(cnt >= taosArrayGetSize(preLineKV)) {
+          info->dataFormat = false;
+          info->reRun      = true;
+          return TSDB_CODE_SUCCESS;
+        }
+        SSmlKv *preKV = (SSmlKv *)taosArrayGet(preLineKV, cnt);
+        if(kv.type != preKV->type){
+          info->dataFormat = false;
+          info->reRun      = true;
+          return TSDB_CODE_SUCCESS;
+        }
+
+        if(unlikely(IS_VAR_DATA_TYPE(kv.type) && kv.length > preKV->length)){
+          preKV->length = kv.length;
+          SSmlSTableMeta *tableMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, currElement->measure, currElement->measureLen, NULL);
+          ASSERT(tableMeta != NULL);
+
+          SSmlKv *oldKV = (SSmlKv *)taosArrayGet(tableMeta->cols, cnt);
+          oldKV->length = kv.length;
+          info->needModifySchema = true;
+        }
+        if(unlikely(!IS_SAME_KEY)){
+          info->dataFormat = false;
+          info->reRun      = true;
+          return TSDB_CODE_SUCCESS;
+        }
       }else{
         if(isSuperKVInit){
           if(unlikely(cnt >= taosArrayGetSize(superKV))) {

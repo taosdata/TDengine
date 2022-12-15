@@ -738,10 +738,10 @@ int sml_add_tag_col_Test() {
 int smlProcess_18784_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists db_18784 schemaless 1");
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "use sml_db");
+  pRes = taos_query(taos, "use db_18784");
   taos_free_result(pRes);
 
   const char *sql[] = {
