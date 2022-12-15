@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::bail;
+use anyhow::{bail, Context};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use taos::*;
@@ -156,23 +156,30 @@ async fn sync_single_table(
     } else {
         format!("SELECT * FROM `{table}` WHERE {opts}")
     };
-    let mut res = from.query(sql).await?;
+    let mut res = from
+        .query(&sql)
+        .await
+        .context(format!("query with {sql}"))?;
     let fields = res.num_of_fields();
     let mut blocks = res.blocks();
     if target_is_v3 {
         while let Some(mut block) = blocks.try_next().await? {
             block.with_table_name(table);
-            to.write_raw_block(&block).await?;
+            to.write_raw_block(&block).await.context(format!(
+                "write raw block of table {table} ({} rows)",
+                block.nrows()
+            ))?;
         }
     } else {
-        let mut stmt = Stmt::init(to)?;
+        let mut stmt = Stmt::init(to).context("initialize stmt")?;
         let question_masks = std::iter::repeat('?').take(fields).join(",");
-        stmt.prepare(format!("INSERT INTO `{table}` VALUES({question_masks})"))?;
+        stmt.prepare(format!("INSERT INTO `{table}` VALUES({question_masks})"))
+            .context("prepare statement")?;
         while let Some(block) = blocks.try_next().await? {
             // let views = block.columns().collect_vec();
-            stmt.bind(block.column_views())?;
-            stmt.add_batch()?;
-            stmt.execute()?;
+            stmt.bind(block.column_views()).context("bind")?;
+            stmt.add_batch().context("add batch")?;
+            stmt.execute().context("execute")?;
         }
     }
     Ok(())
@@ -223,23 +230,32 @@ async fn sync_super_table_schema(
 
     let mut blocks = res.blocks();
     const MAX_SQL_LEN: usize = 1000 * 1000; // 800kb.
+    let mut tables = 0;
+    let mut batch = 0;
+    let mut sql = format!("CREATE TABLE");
     while let Some(block) = blocks.try_next().await? {
-        let mut sql = format!("CREATE TABLE");
         for mut row in block.rows() {
             let child = row.next().unwrap().1.to_string().unwrap();
+            tables += 1;
+            batch += 0;
 
             let tags = row.map(|(_, v)| v.to_value().to_sql_value()).join(",");
             let e = format!("  IF NOT EXISTS `{child}` USING `{name}` TAGS({tags})");
+
             if sql.len() + e.len() > MAX_SQL_LEN {
                 to.exec(&sql).await?;
+                log::info!("Already created {} tables, {} in batch", tables, batch);
                 sql = format!("CREATE TABLE");
+                batch = 0;
             }
             sql.extend(e.chars());
         }
-        log::debug!("create child tables with sql length {}", sql.len());
-        to.exec(&sql).await?;
         // }
     }
+
+        log::debug!("create child tables with sql length {}", sql.len());
+        to.exec(&sql).await?;
+    log::info!("Finally created {} tables", tables);
     Ok(())
 }
 
@@ -375,6 +391,13 @@ pub async fn sync(from: Taos, to: Taos, opts: QueryOpts, schema: bool) -> anyhow
     sync_tables_only(&from, &to, opts).await?;
     Ok(())
 }
+// async fn sync(from: Taos, to: Taos, opts: QueryOpts, schema: bool) -> anyhow::Result<()> {
+//     if schema {
+//         sync_schema(&from, &to).await?;
+//     }
+//     sync_tables_only(&from, &to, opts).await?;
+//     Ok(())
+// }
 
 #[derive(Debug, Default)]
 pub enum SyncMode {
