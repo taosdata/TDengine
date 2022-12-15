@@ -55,7 +55,7 @@
   }
 
 // define unsigned number sum with check overflow
-#define CHECK_OVERFLOW_SUM_UNSIGNED (out, val)                \
+#define CHECK_OVERFLOW_SUM_UNSIGNED(out, val)                 \
   if (out->sum.overflow) {                                    \
     out->sum.dsum += val;                                     \
   } else if (UINT64_MAX - out->sum.usum <= val) {             \
