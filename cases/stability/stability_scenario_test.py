@@ -51,14 +51,15 @@ class TestStabilityScenario(TDCase):
         self.tb_name = str()
         self.dnodes_out_mnodes = self.tdSql.get_dnodes_out_mnodes()
         self.dnode_kill_time = 5
-
+        self.default_syncHeartbeatTimeout = 20
         self.dbname = "stability_scenario_test"
         self.range_count = 10
         self.vgroups = 10
         
-        
-
     def prepare_data(self, range_count=None):
+        for endpoint in self.dnodes_out_mnodes[1]:
+            host = endpoint.split(":")[0]
+            self.tdCom.clean_remote_iptables(self._remote, host)
         self.tdCom.drop_all_db()
         self.case_name = sys._getframe().f_code.co_name
         self.dataDict = {
@@ -110,9 +111,11 @@ class TestStabilityScenario(TDCase):
                 host = endpoint.split(":")[0]
                 port = endpoint.split(":")[1]
                 self.tdCom.drop_remote_ports(self._remote, host, [port], "OUTPUT", "tcp")
+        import time
+        time.sleep(self.default_syncHeartbeatTimeout+1)
         for tbname in [self.ctb_name, self.tb_name]:
             self.tdSql.error(f'insert into {self.dbname}.{tbname} (ts, c1) values (now, 1);')
-            self.tdSql.error(f'select count(*) from {self.dbname}.{tbname};')
+            # self.tdSql.error(f'select count(*) from {self.dbname}.{tbname};')
         for endpoint in self.dnodes_out_mnodes[1]:
             if endpoint == self.dnodes_out_mnodes[1][1]:
                 host = endpoint.split(":")[0]
@@ -125,27 +128,34 @@ class TestStabilityScenario(TDCase):
 
     def two_dnode_restore_work(self):
         self.prepare_data()
+        for tbname in [self.ctb_name, self.tb_name]:
+            self.tdSql.query(f'select count(*) from {self.dbname}.{tbname}')
         for endpoint in self.dnodes_out_mnodes[1]:
             host = endpoint.split(":")[0]
             port = endpoint.split(":")[1]
             self.tdCom.drop_remote_ports(self._remote, host, [port], "OUTPUT", "tcp")
-        time.sleep(self.dnode_kill_time)
+        time.sleep(self.dnode_kill_time + 1)
         for tbname in [self.ctb_name, self.tb_name]:
             self.tdSql.error(f'insert into {self.dbname}.{tbname} (ts, c1) values (now, 1);')
-            self.tdSql.error(f'select count(*) from {self.dbname}.{tbname};')
+            # self.tdSql.error(f'select count(*) from {self.dbname}.{tbname};')
         for endpoint in self.dnodes_out_mnodes[1]:
             if endpoint != self.dnodes_out_mnodes[1][-1]:
                 host = endpoint.split(":")[0]
                 port = endpoint.split(":")[1]
                 self.tdCom.accept_remote_ports(self._remote, host, [port], "OUTPUT", "tcp")
-        time.sleep(self.dnode_kill_time)
+        time.sleep(self.default_syncHeartbeatTimeout)
 
+        for tbname in [self.ctb_name, self.tb_name]:
+            self.tdSql.query(f'select count(*) from {self.dbname}.{tbname}')
         for tbname in [self.ctb_name, self.tb_name]:
             self.tdSql.execute(f'insert into {self.dbname}.{tbname} (ts, c1) values (now, 1);')
             self.tdSql.query(f'select count(*) from {self.dbname}.{tbname}')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.range_count + 1)
 
     def full_vnodes_create_drop(self):
+        for endpoint in self.dnodes_out_mnodes[1]:
+            host = endpoint.split(":")[0]
+            self.tdCom.clean_remote_iptables(self._remote, host)
         last_dnode_id = self.dnodes_out_mnodes[0][-1]
         dnode_list = self.taosd_setting["spec"]["dnodes"]
         end_tag = 0
@@ -156,12 +166,12 @@ class TestStabilityScenario(TDCase):
                 end_tag = 1
         self.tdCom.createDb(dbname=self.dbname, vgroups=self.vgroups)
         self.tdSql.error(f'drop dnode {last_dnode_id}')
-        self.tdSql.error(f'create dababase test_erro replica 3 vgroups 1')
+        self.tdSql.error(f'create database test_erro replica 3 vgroups 1')
 
     def run(self):
-        self.loop_dnode_net_restore()
-        self.one_dnode_stop_work()
-        self.two_dnode_restore_work()
+        # self.loop_dnode_net_restore()
+        # self.one_dnode_stop_work()
+        # self.two_dnode_restore_work()
         self.full_vnodes_create_drop()
 
     def cleanup(self):

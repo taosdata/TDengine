@@ -1,43 +1,12 @@
 settings:
   - name: taosd
-    fqdn: [u1-53,u1-55, u1-56, u1-57]
+    fqdn: [u1-53]
     spec:
-      version: 3.0.1.8  # 默认最新版
+      version: 3.0.1.0  # 默认最新版
       config: # common config for all dnodes
         firstEP: u1-53:6030
       dnodes:
         - endpoint: u1-53:6030
-          config_dir: /etc/taos
-          config: # will write into taos.cfg
-            numOfMnodes: 1
-            supportVnodes: 0
-            dataDir: /var/lib/taos
-            logDir: /var/log/taos
-            debugFlag: 131
-            rpcDebugFlag: 0
-            tdbDebugFlag: 131
-            asynclog: 0
-        - endpoint: u1-55:6030
-          config_dir: /etc/taos
-          config: # will write into taos.cfg
-            supportVnodes: 256
-            dataDir: /var/lib/taos
-            logDir: /var/log/taos
-            debugFlag: 131
-            rpcDebugFlag: 0
-            tdbDebugFlag: 131
-            asynclog: 0
-        - endpoint: u1-56:6030
-          config_dir: /etc/taos
-          config: # will write into taos.cfg
-            supportVnodes: 256
-            dataDir: /var/lib/taos
-            logDir: /var/log/taos
-            debugFlag: 131
-            rpcDebugFlag: 0
-            tdbDebugFlag: 131
-            asynclog: 0
-        - endpoint: u1-57:6030
           config_dir: /etc/taos
           config: # will write into taos.cfg
             supportVnodes: 256
@@ -51,8 +20,8 @@ settings:
   - name: taospy
     fqdn: [u1-53]
     spec:
-      version: 3.0.1.8
-      client_version: 3.0.1.8
+      version: 3.0.1.0
+      client_version: 3.0.1.0
       config:
         firstEP: u1-53:6030
         dataDir: /var/lib/taos
@@ -61,9 +30,9 @@ settings:
         asynclog: 0
 
   - name: taosAdapter
-    fqdn: [u1-53, u1-55, u1-56, u1-57]
+    fqdn: [u1-53]
     spec:
-      version: 3.0.1.8
+      version: 3.0.1.0
       config_file: /etc/taos/taosadaper.toml
       adapter_config:
         debug: true
@@ -88,11 +57,11 @@ settings:
         debugFlag: 131
 
   - name: taosBenchmark
-    # fqdn: [u1-55, u1-55, u1-56, u1-56, u1-56, u1-57, u1-57, u1-57, u1-58, u1-58, u1-58, u1-59, u1-59]
+    # fqdn: [u1-53, u1-53, u1-53, u1-53, u1-53, u1-53, u1-53, u1-53, u1-58, u1-58, u1-58, u1-59, u1-59]
     fqdn: [u1-53]
     spec:
-      version: 3.0.1.8
-      taos_version: 3.0.1.8
+      version: 3.0.1.0
+      taos_version: 3.0.1.0
       config_dir: /etc/taos
       taos_config:
         firstEP: u1-53:6030
@@ -113,15 +82,13 @@ settings:
             job_name: prometheus
             targets: [192.168.1.53:9090]
       node_exporter:
-        fqdn: [u1-53, u1-55, u1-56, u1-57]
+        fqdn: [u1-53, u1-55]
         run_dir: /opt/node_exporter
       process_exporter:
-        fqdn: [u1-53, u1-55, u1-56, u1-57]
+        fqdn: [u1-53, u1-55]
         run_dir: /opt/process_exporter
         config:
-          common_process: [taosd, taosBenchmark, taosadapter]
+          common_process: [taosd, taosBenchmark]
           custom_process:
-            u1-53: [taosd, taosBenchmark, taosadapter]
-            u1-55: [taosd, taosBenchmark, taosadapter]
-            u1-56: [taosd, taosBenchmark, taosadapter]
-            u1-57: [taosd, taosBenchmark, taosadapter]
+            u1-53: [taosd, taosBenchmark]
+            u1-53: [taosd, taosBenchmark]
