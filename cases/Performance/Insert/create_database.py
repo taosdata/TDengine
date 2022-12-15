@@ -1,5 +1,6 @@
 # utf-8
 import os
+import time
 from taostest.util.file import read_yaml
 from datetime import datetime
 from typing import List
@@ -10,10 +11,12 @@ from prettytable import PrettyTable
 class CreateDatabase(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.vgroups_list = [2,10,20,40,80]
+        self.vgroups_list = [2,10,20,40]
         self.resultfile = Perf_Base_func(self.logger, self.run_log_dir)
+        
         self.create_result = []
-
+        self.test_num = 10
+        self.avg_time = []
     def desc(self):
         pass
 
@@ -27,15 +30,21 @@ class CreateDatabase(TDCase):
         pass
     def create_database_time(self):
         for vgroups in self.vgroups_list:
-            dbname = self.tdCom.get_long_name(5)
-            start_time = datetime.now()
-            self.tdSql.execute(f'create database {dbname} replica 3 vgroups {vgroups}')
-            end_time = datetime.now()
-            self.create_result.append(end_time-start_time)
-            self.tdSql.execute(f'drop database {dbname}')
+            test_result = []
+            for i in range(self.test_num):
+                dbname = self.tdCom.get_long_name(5)
+                start_time = time.time()
+                self.tdSql.execute(f'create database {dbname} replica 3 vgroups {vgroups}')
+                end_time = time.time()
+                test_result.append(end_time-start_time)
+                self.tdSql.execute(f'drop database {dbname}')
+            sum = 0
+            for i in test_result:
+                sum += i
+            self.avg_time.append(round(sum / len(test_result),3))
         data_list = []
         for i in range(len(self.vgroups_list)):
-            data_list.append([self.vgroups_list[i],self.create_result[i]])
+            data_list.append([self.vgroups_list[i],self.avg_time[i]])
         file_name = self.run_log_dir + f'/create_database_perfreport_{self.mnode_num}mnode.txt'
         tb = PrettyTable()
         tb.field_names = ['vgroups','create_time(s)']
