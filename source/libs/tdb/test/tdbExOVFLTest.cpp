@@ -8,6 +8,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include "tlog.h"
 
 typedef struct SPoolMem {
   int64_t          size;

@@ -72,6 +72,7 @@ typedef struct SRpcMsg {
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *epset);
 typedef bool (*RpcRfp)(int32_t code, tmsg_t msgType);
 typedef bool (*RpcTfp)(int32_t code, tmsg_t msgType);
+typedef bool (*RpcFFfp)(tmsg_t msgType);
 typedef void (*RpcDfp)(void *ahandle);
 
 typedef struct SRpcInit {
@@ -90,6 +91,9 @@ typedef struct SRpcInit {
   int32_t retryMaxInterval;  // retry max interval
   int64_t retryMaxTimouet;
 
+  int32_t failFastThreshold;
+  int32_t failFastInterval;
+
   int32_t compressSize;  // -1: no compress, 0 : all data compressed, size: compress data if larger than size
   int8_t  encryption;    // encrypt or not
 
@@ -107,6 +111,8 @@ typedef struct SRpcInit {
 
   // destroy client ahandle;
   RpcDfp dfp;
+  // fail fast fp
+  RpcFFfp ffp;
 
   void *parent;
 } SRpcInit;

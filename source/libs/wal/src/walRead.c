@@ -489,7 +489,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
   int32_t code;
   bool    seeked = false;
 
-  if (pReader->pWal->vers.firstVer == -1) {
+  if (walIsEmpty(pReader->pWal)) {
     terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
     return -1;
   }

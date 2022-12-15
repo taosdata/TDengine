@@ -3143,6 +3143,15 @@ static int32_t translateSessionWindow(STranslateContext* pCxt, SSelectStmt* pSel
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateEventWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
+      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
+                                   "EVENT_WINDOW requires valid time series input");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   switch (nodeType(pSelect->pWindow)) {
     case QUERY_NODE_STATE_WINDOW:
@@ -3151,6 +3160,8 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
       return translateSessionWindow(pCxt, pSelect);
     case QUERY_NODE_INTERVAL_WINDOW:
       return translateIntervalWindow(pCxt, pSelect);
+    case QUERY_NODE_EVENT_WINDOW:
+      return translateEventWindow(pCxt, pSelect);
     default:
       break;
   }
@@ -3804,10 +3815,11 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
 
-static int32_t checkRangeOption(STranslateContext* pCxt, int32_t code, const char* pName, int32_t val, int32_t minVal,
-                                int32_t maxVal) {
+static int32_t checkRangeOption(STranslateContext* pCxt, int32_t code, const char* pName, int64_t val, int64_t minVal,
+                                int64_t maxVal) {
   if (val >= 0 && (val < minVal || val > maxVal)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Invalid option %s: %d valid range: [%d, %d]", pName, val,
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
+                                   "Invalid option %s: %" PRId64 " valid range: [%" PRId64 ", %" PRId64 "]", pName, val,
                                    minVal, maxVal);
   }
   return TSDB_CODE_SUCCESS;
@@ -3818,8 +3830,8 @@ static int32_t checkDbRangeOption(STranslateContext* pCxt, const char* pName, in
   return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_DB_OPTION, pName, val, minVal, maxVal);
 }
 
-static int32_t checkTableRangeOption(STranslateContext* pCxt, const char* pName, int32_t val, int32_t minVal,
-                                     int32_t maxVal) {
+static int32_t checkTableRangeOption(STranslateContext* pCxt, const char* pName, int64_t val, int64_t minVal,
+                                     int64_t maxVal) {
   return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_TABLE_OPTION, pName, val, minVal, maxVal);
 }
 
@@ -3878,12 +3890,17 @@ static int32_t checkDbKeepOption(STranslateContext* pCxt, SDatabaseOptions* pOpt
     pOptions->keep[2] = getBigintFromValueNode((SValueNode*)nodesListGetNode(pOptions->pKeep, 2));
   }
 
+  int64_t tsdbMaxKeep = TSDB_MAX_KEEP;
+  if (pOptions->precision == TSDB_TIME_PRECISION_NANO) {
+    tsdbMaxKeep = TSDB_MAX_KEEP_NS;
+  }
+
   if (pOptions->keep[0] < TSDB_MIN_KEEP || pOptions->keep[1] < TSDB_MIN_KEEP || pOptions->keep[2] < TSDB_MIN_KEEP ||
-      pOptions->keep[0] > TSDB_MAX_KEEP || pOptions->keep[1] > TSDB_MAX_KEEP || pOptions->keep[2] > TSDB_MAX_KEEP) {
+      pOptions->keep[0] > tsdbMaxKeep || pOptions->keep[1] > tsdbMaxKeep || pOptions->keep[2] > tsdbMaxKeep) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                    "Invalid option keep: %" PRId64 ", %" PRId64 ", %" PRId64 " valid range: [%dm, %dm]",
                                    pOptions->keep[0], pOptions->keep[1], pOptions->keep[2], TSDB_MIN_KEEP,
-                                   TSDB_MAX_KEEP);
+                                   tsdbMaxKeep);
   }
 
   if (!((pOptions->keep[0] <= pOptions->keep[1]) && (pOptions->keep[1] <= pOptions->keep[2]))) {
@@ -4035,7 +4052,10 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
                               TSDB_MAX_MINROWS_FBLOCK);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbKeepOption(pCxt, pOptions);
+    code = checkDbPrecisionOption(pCxt, pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbKeepOption(pCxt, pOptions); // use precision
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "pages", pOptions->pages, TSDB_MIN_PAGES_PER_VNODE, TSDB_MAX_PAGES_PER_VNODE);
@@ -4047,9 +4067,6 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "tsdbPagesize", pOptions->tsdbPageSize, TSDB_MIN_TSDB_PAGESIZE,
                               TSDB_MAX_TSDB_PAGESIZE);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbPrecisionOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "replications", pOptions->replica, TSDB_MIN_DB_REPLICA, TSDB_MAX_DB_REPLICA);
@@ -4463,6 +4480,37 @@ static int32_t checkTableWatermarkOption(STranslateContext* pCxt, STableOptions*
   return code;
 }
 
+static int32_t getTableDeleteMarkOption(STranslateContext* pCxt, SValueNode* pVal, int64_t* pMaxDelay) {
+  return getTableDelayOrWatermarkOption(pCxt, "delete_mark", TSDB_MIN_ROLLUP_DELETE_MARK, TSDB_MAX_ROLLUP_DELETE_MARK,
+                                        pVal, pMaxDelay);
+}
+
+static int32_t checkTableDeleteMarkOption(STranslateContext* pCxt, STableOptions* pOptions, bool createStable,
+                                          SDbCfgInfo* pDbCfg) {
+  if (NULL == pOptions->pDeleteMark) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!createStable || NULL == pDbCfg->pRetensions) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
+                                   "Invalid option delete_mark: Only supported for create super table in databases "
+                                   "configured with the 'RETENTIONS' option");
+  }
+
+  if (LIST_LENGTH(pOptions->pDeleteMark) > 2) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION, "Invalid option delete_mark");
+  }
+
+  int32_t code =
+      getTableDeleteMarkOption(pCxt, (SValueNode*)nodesListGetNode(pOptions->pDeleteMark, 0), &pOptions->deleteMark1);
+  if (TSDB_CODE_SUCCESS == code && 2 == LIST_LENGTH(pOptions->pDeleteMark)) {
+    code =
+        getTableDeleteMarkOption(pCxt, (SValueNode*)nodesListGetNode(pOptions->pDeleteMark, 1), &pOptions->deleteMark2);
+  }
+
+  return code;
+}
+
 static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt, bool createStable) {
   if (NULL != strchr(pStmt->tableName, '.')) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
@@ -4481,6 +4529,9 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableWatermarkOption(pCxt, pStmt->pOptions, createStable, &dbCfg);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkTableDeleteMarkOption(pCxt, pStmt->pOptions, createStable, &dbCfg);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableRollupOption(pCxt, pStmt->pOptions->pRollupFuncs, createStable, &dbCfg);
@@ -4749,6 +4800,8 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   pReq->delay2 = pStmt->pOptions->maxDelay2;
   pReq->watermark1 = pStmt->pOptions->watermark1;
   pReq->watermark2 = pStmt->pOptions->watermark2;
+  pReq->deleteMark1 = pStmt->pOptions->deleteMark1;
+  pReq->deleteMark2 = pStmt->pOptions->deleteMark2;
   pReq->colVer = 1;
   pReq->tagVer = 1;
   pReq->source = TD_REQ_FROM_APP;
@@ -5144,20 +5197,34 @@ static int32_t buildCreateSmaReq(STranslateContext* pCxt, SCreateIndexStmt* pStm
       (NULL != pStmt->pOptions->pSliding ? ((SValueNode*)pStmt->pOptions->pSliding)->datum.i : pReq->interval);
   pReq->slidingUnit =
       (NULL != pStmt->pOptions->pSliding ? ((SValueNode*)pStmt->pOptions->pSliding)->unit : pReq->intervalUnit);
+
+  int32_t code = TSDB_CODE_SUCCESS;
   if (NULL != pStmt->pOptions->pStreamOptions) {
     SStreamOptions* pStreamOpt = (SStreamOptions*)pStmt->pOptions->pStreamOptions;
-    pReq->maxDelay = (NULL != pStreamOpt->pDelay ? ((SValueNode*)pStreamOpt->pDelay)->datum.i : -1);
-    pReq->watermark = (NULL != pStreamOpt->pWatermark ? ((SValueNode*)pStreamOpt->pWatermark)->datum.i
-                                                      : TSDB_DEFAULT_ROLLUP_WATERMARK);
-    if (pReq->watermark < TSDB_MIN_ROLLUP_WATERMARK) {
-      pReq->watermark = TSDB_MIN_ROLLUP_WATERMARK;
+    if (NULL != pStreamOpt->pDelay) {
+      code = getTableMaxDelayOption(pCxt, (SValueNode*)pStreamOpt->pDelay, &pReq->maxDelay);
+    } else {
+      pReq->maxDelay = -1;
     }
-    if (pReq->watermark > TSDB_MAX_ROLLUP_WATERMARK) {
-      pReq->watermark = TSDB_MAX_ROLLUP_WATERMARK;
+    if (TSDB_CODE_SUCCESS == code) {
+      if (NULL != pStreamOpt->pWatermark) {
+        code = getTableWatermarkOption(pCxt, (SValueNode*)pStreamOpt->pWatermark, &pReq->watermark);
+      } else {
+        pReq->watermark = TSDB_DEFAULT_ROLLUP_WATERMARK;
+      }
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      if (NULL != pStreamOpt->pDeleteMark) {
+        code = getTableDeleteMarkOption(pCxt, (SValueNode*)pStreamOpt->pDeleteMark, &pReq->deleteMark);
+      } else {
+        pReq->deleteMark = TSDB_DEFAULT_ROLLUP_DELETE_MARK;
+      }
     }
   }
 
-  int32_t code = getSmaIndexDstVgId(pCxt, pStmt->dbName, pStmt->tableName, &pReq->dstVgId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getSmaIndexDstVgId(pCxt, pStmt->dbName, pStmt->tableName, &pReq->dstVgId);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = getSmaIndexSql(pCxt, &pReq->sql, &pReq->sqlLen);
   }
@@ -5183,16 +5250,6 @@ static int32_t checkCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt* pS
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pOptions->pSliding) {
     code = doTranslateValue(pCxt, (SValueNode*)pStmt->pOptions->pSliding);
-  }
-
-  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pOptions->pStreamOptions) {
-    SStreamOptions* pStreamOpt = (SStreamOptions*)pStmt->pOptions->pStreamOptions;
-    if (NULL != pStreamOpt->pWatermark) {
-      code = doTranslateValue(pCxt, (SValueNode*)pStreamOpt->pWatermark);
-    }
-    if (TSDB_CODE_SUCCESS == code && NULL != pStreamOpt->pDelay) {
-      code = doTranslateValue(pCxt, (SValueNode*)pStreamOpt->pDelay);
-    }
   }
 
   return code;

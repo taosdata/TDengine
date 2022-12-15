@@ -450,13 +450,15 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
     req.rsmaParam.watermark[1] = pStb->watermark[1];
     if (pStb->ast1Len > 0) {
       if (mndConvertRsmaTask(&req.rsmaParam.qmsg[0], &req.rsmaParam.qmsgLen[0], pStb->pAst1, pStb->uid,
-                             STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[0]) < 0) {
+                             STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[0],
+                             req.rsmaParam.deleteMark[0]) < 0) {
         goto _err;
       }
     }
     if (pStb->ast2Len > 0) {
       if (mndConvertRsmaTask(&req.rsmaParam.qmsg[1], &req.rsmaParam.qmsgLen[1], pStb->pAst2, pStb->uid,
-                             STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[1]) < 0) {
+                             STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[1],
+                             req.rsmaParam.deleteMark[1]) < 0) {
         goto _err;
       }
     }

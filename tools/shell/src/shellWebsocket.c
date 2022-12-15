@@ -223,11 +223,14 @@ void shellRunSingleCommandWebsocketImp(char *command) {
       if (code == TSDB_CODE_WS_SEND_TIMEOUT || code == TSDB_CODE_WS_RECV_TIMEOUT) {
         fprintf(stderr, "Hint: use -t to increase the timeout in seconds\n");
       } else if (code == TSDB_CODE_WS_INTERNAL_ERRO || code == TSDB_CODE_WS_CLOSED) {
-        fprintf(stderr, "TDengine server is down, will try to reconnect\n");
         shell.ws_conn = NULL;
       }
       ws_free_result(res);
-      if (reconnectNum == 0) continue;
+      if (reconnectNum == 0) {
+        continue;
+      } else {
+        fprintf(stderr, "TDengine server is disconnected, will try to reconnect\n");
+      }
       return;
     }
     break;

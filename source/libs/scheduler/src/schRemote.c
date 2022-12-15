@@ -156,6 +156,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
     SCH_RET(schHandleRedirect(pJob, pTask, (SDataBuf *)pMsg, rspCode));
   }
 
+  pTask->redirectCtx.inRedirect = false;
+
   switch (msgType) {
     case TDMT_VND_COMMIT_RSP: {
       SCH_ERR_JRET(rspCode);

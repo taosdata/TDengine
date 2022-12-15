@@ -27,7 +27,6 @@ database_option: {
   | PRECISION {'ms' | 'us' | 'ns'}
   | REPLICA value
   | RETENTIONS ingestion_duration:keep_duration ...
-  | STRICT {'off' | 'on'}
   | WAL_LEVEL {1 | 2}
   | VGROUPS value
   | SINGLE_STABLE {0 | 1}
@@ -61,9 +60,6 @@ database_option: {
 - PRECISION：数据库的时间戳精度。ms 表示毫秒，us 表示微秒，ns 表示纳秒，默认 ms 毫秒。
 - REPLICA：表示数据库副本数，取值为 1 或 3，默认为 1。在集群中使用，副本数必须小于或等于 DNODE 的数目。
 - RETENTIONS：表示数据的聚合周期和保存时长，如 RETENTIONS 15s:7d,1m:21d,15m:50d 表示数据原始采集周期为 15 秒，原始数据保存 7 天；按 1 分钟聚合的数据保存 21 天；按 15 分钟聚合的数据保存 50 天。目前支持且只支持三级存储周期。
-- STRICT：表示数据同步的一致性要求，默认为 off。
-  - on 表示强一致，即运行标准的 raft 协议，半数提交返回成功。
-  - off 表示弱一致，本地提交即返回成功。
 - WAL_LEVEL：WAL 级别，默认为 1。
   - 1：写 WAL，但不执行 fsync。
   - 2：写 WAL，而且执行 fsync。

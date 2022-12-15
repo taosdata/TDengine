@@ -6,8 +6,8 @@ sql connect
 print =============== create db
 sql create database d1 vgroups 1;
 sql use d1
-sql create table stb (ts timestamp, i int) tags (j int)
-sql create topic topic_1 as select ts, i from stb
+sql create table d1_stb (ts timestamp, i int) tags (j int)
+sql create topic d1_topic_1 as select ts, i from d1_stb
 
 sql create database d2 vgroups 1;
 sql create database d3 vgroups 1;
@@ -72,7 +72,6 @@ sql REVOKE read,write ON d1.* from user1;
 sql REVOKE read,write ON d2.* from user1;
 sql REVOKE read,write ON *.* from user1;
 
-
 print =============== create users
 sql create user u1 PASS 'taosdata'
 sql select * from information_schema.ins_users
@@ -92,7 +91,17 @@ sql_error drop database d1;
 sql_error drop database d2;
 
 sql_error create stable d1.st (ts timestamp, i int) tags (j int)
-sql create stable d2.st (ts timestamp, i int) tags (j int)
-sql_error create topic topic_2 as select ts, i from stb
+sql use d2
+sql create table d2_stb (ts timestamp, i int) tags (j int)
+
+# Insufficient privilege for operation
+sql_error create topic d2_topic_1 as select ts, i from d2_stb
+
+sql use d1
+# Insufficient privilege for operation
+sql_error drop topic d1_topic_1
+sql create topic d1_topic_2 as select ts, i from d1_stb
+
+sql drop topic d1_topic_2
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

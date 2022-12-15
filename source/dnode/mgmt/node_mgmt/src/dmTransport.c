@@ -48,6 +48,11 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   return (*msgFp)(pWrapper->pMgmt, pMsg);
 }
 
+static bool dmFailFastFp(tmsg_t msgType) {
+  // add more msg type later
+  return msgType == TDMT_SYNC_HEARTBEAT || msgType == TDMT_SYNC_APPEND_ENTRIES;
+}
+
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
@@ -136,11 +141,11 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   pRpc->info.wrapper = pWrapper;
-  pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
+  pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
   if (pMsg == NULL) goto _OVER;
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
-  dGTrace("msg:%p, is created, type:%s handle:%p", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle);
+  dGTrace("msg:%p, is created, type:%s handle:%p len:%d", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle, pRpc->contLen);
 
   code = dmProcessNodeMsg(pWrapper, pMsg);
 
@@ -260,6 +265,10 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
   rpcInit.retryMaxTimouet = tsMaxRetryWaitTime;
 
+  rpcInit.failFastInterval = 1000;  // interval threshold(ms)
+  rpcInit.failFastThreshold = 3;    // failed threshold
+  rpcInit.ffp = dmFailFastFp;
+
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
     dError("failed to init dnode rpc client");
@@ -292,6 +301,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
+  rpcInit.compressSize = tsCompressMsgSize;
 
   pTrans->serverRpc = rpcOpen(&rpcInit);
   if (pTrans->serverRpc == NULL) {

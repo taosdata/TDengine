@@ -439,7 +439,9 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
       goto end;
     }
   }
-  removeInvalidTable(uidList, tags);
+  if (suid != 0) {
+    removeInvalidTable(uidList, tags);
+  }
 
   int32_t rows = taosArrayGetSize(uidList);
   if (rows == 0) {
@@ -1604,7 +1606,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   pCond->numOfCols = LIST_LENGTH(pTableScanNode->scan.pScanCols);
 
   pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
-  pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t)*pCond->numOfCols);
+  pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t) * pCond->numOfCols);
   if (pCond->colList == NULL || pCond->pSlotList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFreeClear(pCond->colList);
