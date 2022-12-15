@@ -3,12 +3,12 @@ case1:
     json_info:
       host: "u1-42"
       port: 6030
-      thread_count: 16
-      thread_count_create_tbl: 16
+      thread_count: 40
+      thread_count_create_tbl: 40
       result_file: ""
       confirm_parameter_prompt: "no"
       insert_interval: 0
-      num_of_records_per_req: 1
+      num_of_records_per_req: 1000
       max_sql_len: 1024000
     db_info:
       db_name: "perf_db1"
@@ -29,7 +29,7 @@ case1:
       batch_create_tbl_num: 1000
       data_source: "rand"
       insert_mode: "taosc"
-      insert_rows: 1
+      insert_rows: 0
       line_protocol: null
       tcp_transfer: "no"
       max_sql_len: 65480

@@ -1,7 +1,7 @@
 {
     "filetype": "insert",
     "cfgdir": "/root/data/taosd",
-    "host": "u1-42",
+    "host": "u1-85",
     "port": 6030,
     "user": "root",
     "password": "taosdata",
@@ -18,7 +18,7 @@
     "databases": [
         {
             "dbinfo": {
-                "name": "db",
+                "name": "db_test",
                 "drop": "yes",
                 "replica": 3,
                 "precision": "ms",
@@ -43,7 +43,7 @@
                     "insert_mode": "taosc",
                     "non_stop_mode": "no",
                     "line_protocol": "line",
-                    "insert_rows": 0,
+                    "insert_rows": 1000,
                     "interlace_rows": 0,
                     "insert_interval": 0,
                     "partial_col_num": 0,

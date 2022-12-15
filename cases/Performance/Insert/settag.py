@@ -51,14 +51,15 @@ class InsertTest(TDCase):
         sum = 0
         for i in avg_set_tag:
             sum += i
-        
-        avg_time = sum / len(avg_set_tag)
+        set_tag_delay = sorted(avg_set_tag)
+        avg_time = sum / len(set_tag_delay)
         print(f"=========================================\n")
-        print(f"avg_delay = {int(avg_time*1000)} ms")
-        print(f'max_delay = {int(max(avg_set_tag)*1000)} ms')
-        print(f'min_delay = {int(min(avg_set_tag)*1000)} ms')
-
-        
+        print(f"avg_delay = {(avg_time*1000)} ms")
+        print(f'max_delay = {(max(set_tag_delay)*1000)} ms')
+        print(f'min_delay = {(min(set_tag_delay)*1000)} ms')
+        print(f'p90_delay = {set_tag_delay[90000-1]*1000} ms')
+        print(f'p95_delay = {set_tag_delay[95000-1]*1000} ms')
+        print(f'p99_delay = {set_tag_delay[99000-1]*1000} ms')
     def run(self):
         self.alter_set_tag()
         

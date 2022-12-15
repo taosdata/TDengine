@@ -78,12 +78,12 @@ class InsertTest(TDCase):
                                        start_timestamp=cfg[cases][json_file]["stb_info"]["start_timestamp"],
                                        insert_mode=cfg[cases][json_file]["stb_info"]["insert_mode"],
                                        line_protocol=cfg[cases][json_file]["stb_info"]["line_protocol"],
-                                       tcp_transfer=cfg[cases][json_file]["stb_info"]["tcp_transfer"],
                                        batch_create_tbl_num=cfg[cases][json_file]["stb_info"]["batch_create_tbl_num"])
 
                 database1 = jfile.setDatabases(dbinfo=db, super_tables=[stb])
                 json_info = jfile.setJsoninfo(host=cfg[cases][json_file]["json_info"]["host"], databases=[database1],
-                                              thread_count=cfg[cases][json_file]["json_info"]["thread_count"])
+                                              thread_count=cfg[cases][json_file]["json_info"]["thread_count"],
+                                              create_table_thread_count=cfg[cases][json_file]["json_info"]['thread_count_create_tbl'])
                 json_info.update({"test_log": "/root/testlog/"})
                 json_data.append({})
                 json_data[i] = json_info
@@ -109,6 +109,6 @@ class InsertTest(TDCase):
             # Insert_file.taosBenchmark_id_insert_result(result_filename)
 
             # get node_info and process_info
-            # env_setting = self.get_component_by_name("prometheus")
-            # Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
-            # Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
+            env_setting = self.get_component_by_name("prometheus")
+            Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
+            Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
