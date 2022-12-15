@@ -612,7 +612,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
           for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
             if (type == TSDB_DATA_TYPE_BIGINT) {
               CHECK_OVERFLOW_SUM_SIGNED(pAvgRes, plist[i])
-\            } else {
+            } else {
               CHECK_OVERFLOW_SUM_UNSIGNED(pAvgRes, (uint64_t)plist[i])
             }
           }
