@@ -299,6 +299,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SWhenThenNode));
     case QUERY_NODE_CASE_WHEN:
       return makeNode(type, sizeof(SCaseWhenNode));
+    case QUERY_NODE_EVENT_WINDOW:
+      return makeNode(type, sizeof(SEventWindowNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -535,6 +537,10 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SStateWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
       return makeNode(type, sizeof(SStreamStateWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
+      return makeNode(type, sizeof(SEventWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
+      return makeNode(type, sizeof(SStreamEventWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return makeNode(type, sizeof(SPartitionPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
@@ -765,16 +771,23 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_COLUMN_REF:  // no pointer field
       break;
     case QUERY_NODE_WHEN_THEN: {
-      SWhenThenNode* pStmt = (SWhenThenNode*)pNode;
-      nodesDestroyNode(pStmt->pWhen);
-      nodesDestroyNode(pStmt->pThen);
+      SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
+      nodesDestroyNode(pWhenThen->pWhen);
+      nodesDestroyNode(pWhenThen->pThen);
       break;
     }
     case QUERY_NODE_CASE_WHEN: {
-      SCaseWhenNode* pStmt = (SCaseWhenNode*)pNode;
-      nodesDestroyNode(pStmt->pCase);
-      nodesDestroyNode(pStmt->pElse);
-      nodesDestroyList(pStmt->pWhenThenList);
+      SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)pNode;
+      nodesDestroyNode(pCaseWhen->pCase);
+      nodesDestroyNode(pCaseWhen->pElse);
+      nodesDestroyList(pCaseWhen->pWhenThenList);
+      break;
+    }
+    case QUERY_NODE_EVENT_WINDOW: {
+      SEventWindowNode* pEvent = (SEventWindowNode*)pNode;
+      nodesDestroyNode(pEvent->pCol);
+      nodesDestroyNode(pEvent->pStartCond);
+      nodesDestroyNode(pEvent->pEndCond);
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {
@@ -1230,6 +1243,14 @@ void nodesDestroyNode(SNode* pNode) {
       SStateWinodwPhysiNode* pPhyNode = (SStateWinodwPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pStateKey);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT: {
+      SEventWinodwPhysiNode* pPhyNode = (SEventWinodwPhysiNode*)pNode;
+      destroyWinodwPhysiNode((SWinodwPhysiNode*)pPhyNode);
+      nodesDestroyNode(pPhyNode->pStartCond);
+      nodesDestroyNode(pPhyNode->pEndCond);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {

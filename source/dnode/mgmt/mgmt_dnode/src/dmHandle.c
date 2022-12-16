@@ -103,7 +103,12 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   tSerializeSStatusReq(pHead, contLen, &req);
   tFreeSStatusReq(&req);
 
-  SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .info.ahandle = (void *)0x9527};
+  SRpcMsg rpcMsg = {.pCont = pHead,
+                    .contLen = contLen,
+                    .msgType = TDMT_MND_STATUS,
+                    .info.ahandle = (void *)0x9527,
+                    .info.refId = 0,
+                    .info.noResp = 0};
   SRpcMsg rpcRsp = {0};
 
   dTrace("send status req to mnode, dnodeVer:%" PRId64 " statusSeq:%d", req.dnodeVer, req.statusSeq);
@@ -150,7 +155,8 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   SServerStatusRsp statusRsp = {0};
   SMonMloadInfo    minfo = {0};
   (*pMgmt->getMnodeLoadsFp)(&minfo);
-  if (minfo.isMnode && (minfo.load.syncState == TAOS_SYNC_STATE_ERROR || minfo.load.syncState == TAOS_SYNC_STATE_OFFLINE)) {
+  if (minfo.isMnode &&
+      (minfo.load.syncState == TAOS_SYNC_STATE_ERROR || minfo.load.syncState == TAOS_SYNC_STATE_OFFLINE)) {
     pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
     snprintf(pStatus->details, sizeof(pStatus->details), "mnode sync state is %s", syncStr(minfo.load.syncState));
     return;

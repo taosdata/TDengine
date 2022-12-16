@@ -248,6 +248,13 @@ int32_t __catalogGetCachedTableHashVgroup(SCatalog* pCtg, const SName* pTableNam
   return code;
 }
 
+int32_t __catalogGetCachedTableVgMeta(SCatalog* pCtg, const SName* pTableName,          SVgroupInfo* pVgroup, STableMeta** pTableMeta) {
+  int32_t code = g_mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta, true);
+  if (code) return code;
+  code = g_mockCatalogService->catalogGetTableHashVgroup(pTableName, pVgroup, true);
+  return code;
+}
+
 int32_t __catalogGetTableDistVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
                                     SArray** pVgList) {
   return g_mockCatalogService->catalogGetTableDistVgInfo(pTableName, pVgList);
@@ -316,6 +323,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetCachedSTableMeta, __catalogGetCachedTableMeta);
   stub.set(catalogGetTableHashVgroup, __catalogGetTableHashVgroup);
   stub.set(catalogGetCachedTableHashVgroup, __catalogGetCachedTableHashVgroup);
+  stub.set(catalogGetCachedTableVgMeta, __catalogGetCachedTableVgMeta);
   stub.set(catalogGetTableDistVgInfo, __catalogGetTableDistVgInfo);
   stub.set(catalogGetDBVgVersion, __catalogGetDBVgVersion);
   stub.set(catalogGetDBVgList, __catalogGetDBVgList);

@@ -67,7 +67,7 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
 }
 
 SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq) {
-  SStreamDataSubmit* pDataSubmit = (SStreamDataSubmit*)taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
+  SStreamDataSubmit* pDataSubmit = (SStreamDataSubmit*)taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM, 0);
   if (pDataSubmit == NULL) return NULL;
   pDataSubmit->dataRef = (int32_t*)taosMemoryMalloc(sizeof(int32_t));
   if (pDataSubmit->dataRef == NULL) goto FAIL;
@@ -81,7 +81,7 @@ FAIL:
 }
 
 SStreamMergedSubmit* streamMergedSubmitNew() {
-  SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)taosAllocateQitem(sizeof(SStreamMergedSubmit), DEF_QITEM);
+  SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)taosAllocateQitem(sizeof(SStreamMergedSubmit), DEF_QITEM, 0);
   if (pMerged == NULL) return NULL;
   pMerged->reqs = taosArrayInit(0, sizeof(void*));
   pMerged->dataRefs = taosArrayInit(0, sizeof(void*));
@@ -107,7 +107,7 @@ static FORCE_INLINE void streamDataSubmitRefInc(SStreamDataSubmit* pDataSubmit) 
 }
 
 SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit) {
-  SStreamDataSubmit* pSubmitClone = taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
+  SStreamDataSubmit* pSubmitClone = taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM, 0);
   if (pSubmitClone == NULL) {
     return NULL;
   }

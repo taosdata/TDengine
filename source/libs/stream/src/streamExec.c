@@ -54,6 +54,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
       /*ASSERT(false);*/
       qError("unexpected stream execution, stream %" PRId64 " task: %d,  since %s", pTask->streamId, pTask->taskId,
              terrstr());
+      continue;
     }
     if (output == NULL) {
       if (pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
@@ -126,7 +127,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       taosArrayDestroy(pRes);
       break;
     }
-    SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+    SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
     if (qRes == NULL) {
       taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -234,7 +235,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     qDebug("stream task %d exec end", pTask->taskId);
 
     if (taosArrayGetSize(pRes) != 0) {
-      SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+      SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
       if (qRes == NULL) {
         taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
         streamFreeQitem(input);

@@ -151,7 +151,7 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
     }
 
     syncNodeStartHeartbeatTimer(pSyncNode);
-    syncNodeReplicate(pSyncNode);
+    //syncNodeReplicate(pSyncNode);
   }
 
   syncNodeRelease(pSyncNode);
@@ -1839,7 +1839,8 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 #endif
 
   // close receiver
-  if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+  if (pSyncNode != NULL && pSyncNode->pNewNodeReceiver != NULL &&
+      snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
     snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
   }
 

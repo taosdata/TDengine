@@ -223,6 +223,7 @@ void walClose(SWal *pWal) {
     taosMemoryFree(pRef);
   }
   taosHashCleanup(pWal->pRefHash);
+  pWal->pRefHash = NULL;
   taosThreadMutexUnlock(&pWal->mutex);
 
   taosRemoveRef(tsWal.refSetId, pWal->refId);

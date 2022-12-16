@@ -10,6 +10,7 @@
 ,,y,script,./test.sh -f tsim/user/password.sim
 ,,y,script,./test.sh -f tsim/user/privilege_db.sim
 ,,y,script,./test.sh -f tsim/user/privilege_sysinfo.sim
+,,y,script,./test.sh -f tsim/user/privilege_topic.sim
 ,,y,script,./test.sh -f tsim/db/alter_option.sim
 ,,y,script,./test.sh -f tsim/db/alter_replica_13.sim
 ,,y,script,./test.sh -f tsim/db/alter_replica_31.sim
@@ -1037,4 +1038,4 @@
 ,,n,docs-examples-test,bash node.sh
 ,,n,docs-examples-test,bash csharp.sh
 ,,n,docs-examples-test,bash jdbc.sh
-,,n,docs-examples-test,bash go.sh
+#,,n,docs-examples-test,bash go.sh
