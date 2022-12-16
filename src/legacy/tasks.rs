@@ -27,9 +27,9 @@ impl Drop for TablesHandle {
 }
 
 impl TablesHandle {
-    pub async fn new(source: TaosBuilder, target: TaosBuilder, opts: TableOpts) -> Result<Self> {
-        let source = source.pool()?;
-        let target = target.pool()?;
+    pub async fn new(source: TaosPool, target: TaosPool, opts: TableOpts) -> Result<Self> {
+        // let source = source.pool()?;
+        // let target = target.pool()?;
         let version: String = target
             .get()?
             .query_one("SELECT server_version()")
@@ -244,7 +244,7 @@ mod tests {
         opts.restro(Duration::from_secs(60))
             .excursion(Duration::from_secs(2));
 
-        let mut tables_handle = TablesHandle::new(source, target, opts).await?;
+        let mut tables_handle = TablesHandle::new(source.pool()?, target.pool()?, opts).await?;
         tables_handle.spawn().await?;
 
         let sleep = tokio::time::sleep(Duration::from_secs(10));

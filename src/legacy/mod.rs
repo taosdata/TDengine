@@ -1,6 +1,11 @@
 use std::{
     fmt::{Debug, Display},
+    num::{NonZeroU32, NonZeroUsize},
     str::FromStr,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 
@@ -8,6 +13,7 @@ use anyhow::{bail, Context};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use taos::*;
+use tokio::sync::Semaphore;
 
 use crate::{legacy::tasks::TablesHandle, Action};
 
@@ -253,8 +259,8 @@ async fn sync_super_table_schema(
         // }
     }
 
-        log::debug!("create child tables with sql length {}", sql.len());
-        to.exec(&sql).await?;
+    log::debug!("create child tables with sql length {}", sql.len());
+    to.exec(&sql).await?;
     log::info!("Finally created {} tables", tables);
     Ok(())
 }
@@ -374,21 +380,110 @@ async fn sync_tables_only(from: &Taos, to: &Taos, opts: QueryOpts) -> anyhow::Re
         //  get normal tables.
         let mut res = from.query("SHOW TABLES").await?;
         let tables: Vec<String> = res.deserialize().try_collect().await?;
+
         drop(res);
 
-        for table in tables {
+        let mut count = 0;
+        for table in &tables {
             sync_single_table(from, table.as_str(), to, &opts, to_is_v3)
                 .await
                 .map_err(Error::Any)?;
+            count += 1;
+            log::info!(
+                "synchronized {:.2}% of tables ({} of {})",
+                count as f64 * 100.0 / tables.len() as f64,
+                count,
+                tables.len(),
+            )
         }
     }
     Ok(())
 }
-pub async fn sync(from: Taos, to: Taos, opts: QueryOpts, schema: bool) -> anyhow::Result<()> {
-    if schema {
-        sync_schema(&from, &to).await?;
+
+async fn sync_tables_only_with_workers(
+    from: TaosPool,
+    to: TaosPool,
+    opts: QueryOpts,
+    workers: usize,
+) -> anyhow::Result<()> {
+    let from_taos = from.get()?;
+    let to_taos = to.get()?;
+    let workers = if workers > 0 {
+        workers
+    } else {
+        std::thread::available_parallelism()?.get() * 2
+    };
+    let semaphore = Arc::new(Semaphore::new(workers));
+    let v1: String = from_taos
+        .query_one("SELECT server_version()")
+        .await?
+        .unwrap();
+    let v2: String = to_taos.query_one("SELECT server_version()").await?.unwrap();
+    let to_is_v3 = v2.starts_with('3');
+    let tables = if v1.starts_with('2') {
+        let mut res = from_taos.query("SHOW TABLES").await?;
+        let tables: Vec<_> = res
+            .deserialize::<TableRecord>()
+            .map_ok(|f| f.table_name)
+            .try_collect()
+            .await?;
+        drop(res);
+        tables
+    } else {
+        //  get normal tables.
+        let mut res = from_taos.query("SHOW TABLES").await?;
+        let tables: Vec<String> = res.deserialize().try_collect().await?;
+        drop(res);
+        tables
+    };
+
+    let chunk_size = tables.len() / (workers * 4);
+    let chunk_size = if chunk_size > 0 { chunk_size } else { 1 };
+
+    let count = Arc::new(AtomicUsize::new(0));
+    let mut join_handles = Vec::new();
+    let mut dot = tables.len() / 100;
+    if dot == 0 {
+        dot = 1;
     }
-    sync_tables_only(&from, &to, opts).await?;
+    let total_tables = tables.len();
+
+    let chunks = tables
+        .into_iter()
+        .chunks(chunk_size)
+        .into_iter()
+        .map(|c| c.collect_vec())
+        .collect_vec();
+
+    for (id, chunk) in chunks.into_iter().enumerate() {
+        let permit = semaphore.clone().acquire_owned().await.unwrap();
+        let from = from.get()?;
+        let to = to.get()?;
+        let count = count.clone();
+        // let chunk = chunk.collect_vec();
+        join_handles.push(tokio::spawn(async move {
+            for table in chunk {
+                sync_single_table(&from, table.as_str(), &to, &opts, to_is_v3)
+                    .await
+                    .map_err(Error::Any)?;
+                let count = count.fetch_add(1, Ordering::SeqCst);
+                if count % dot == 0 {
+                    log::info!(
+                        "[{id}] synchronized {:.2}% of tables ({} of {})",
+                        count as f64 * 100.0 / total_tables as f64,
+                        count,
+                        total_tables,
+                    )
+                }
+            }
+            drop(permit);
+            Ok::<(), anyhow::Error>(())
+        }));
+    }
+    for handle in join_handles {
+        handle.await.unwrap()?;
+    }
+
     Ok(())
 }
 // async fn sync(from: Taos, to: Taos, opts: QueryOpts, schema: bool) -> anyhow::Result<()> {
@@ -545,7 +640,8 @@ pub async fn legacy_to_taos(
     let target_opts = TargetOpts::from_params(&mut to)?;
 
     let from_builder = TaosBuilder::from_dsn(&from)?;
-    let from = from_builder.build()?;
+    let from_pool = from_builder.pool()?;
+    let from = from_pool.get()?;
 
     if target_opts.assert {
         if let Some(db) = to.subject.take() {
@@ -564,7 +660,9 @@ pub async fn legacy_to_taos(
         }
     }
     let to_builder = TaosBuilder::from_dsn(&to)?;
-    let to = to_builder.build()?;
+    let to_pool = to_builder.pool()?;
+    // let to = to_builder.build()?;
+    let to = to_pool.get()?;
 
     // let to_is_v3 = to
     //     .query_one::<_, String>("SELECT server_version()")
@@ -575,17 +673,19 @@ pub async fn legacy_to_taos(
     match (source_opts.mode, source_opts.schema) {
         (_, SchemaMode::Only) => sync_schema(&from, &to).await?,
         (SyncMode::AsIs, SchemaMode::None) => {
-            sync_tables_only(&from, &to, source_opts.query).await?;
+            // sync_tables_only(&from, &to, source_opts.query).await?;
+            sync_tables_only_with_workers(from_pool, to_pool, source_opts.query, jobs).await?;
         }
         (SyncMode::AsIs, SchemaMode::Always) => {
             log::info!("synchronize schema");
             sync_schema(&from, &to).await?;
             log::info!("synchronize all tables");
-            sync_tables_only(&from, &to, source_opts.query).await?;
+            // sync_tables_only(&from, &to, source_opts.query).await?;
+            sync_tables_only_with_workers(from_pool, to_pool, source_opts.query, jobs).await?;
             log::info!("synchronize finished.");
         }
         (SyncMode::Realtime, _) => {
-            let mut tables = TablesHandle::new(from_builder, to_builder, source_opts.table).await?;
+            let mut tables = TablesHandle::new(from_pool, to_pool, source_opts.table).await?;
             tables.spawn().await?;
             tables.join().await?;
         }
@@ -604,7 +704,7 @@ pub async fn legacy_to_taos(
                     source_opts.table.restro
                 );
             }
-            let mut tables = TablesHandle::new(from_builder, to_builder, source_opts.table).await?;
+            let mut tables = TablesHandle::new(from_pool, to_pool, source_opts.table).await?;
             tables.spawn().await?;
             tables.join().await?;
         }
