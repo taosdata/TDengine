@@ -663,7 +663,9 @@ _OVER:
 
   const STraceId *trace = &pMsg->info.traceId;
   SEpSet          epSet = {0};
+  int32_t         tmpCode = terrno;
   mndGetMnodeEpSet(pMnode, &epSet);
+  terrno = tmpCode;
 
   mGDebug(
       "msg:%p, type:%s failed to process since %s, mnode restored:%d stopped:%d, sync restored:%d "
