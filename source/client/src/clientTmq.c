@@ -1172,6 +1172,8 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (code != 0) {
     tscWarn("msg discard from vgId:%d, epoch %d, since %s", vgId, epoch, terrstr());
     if (pMsg->pData) taosMemoryFree(pMsg->pData);
+    if (pMsg->pEpSet) taosMemoryFree(pMsg->pEpSet);
+
     if (code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
       atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__RECOVER);
       goto CREATE_MSG_FAIL;
