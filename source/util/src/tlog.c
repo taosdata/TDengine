@@ -780,7 +780,7 @@ cmp_end:
   return ret;
 }
 
-bool taosAssertLog(bool condition, const char *file, int32_t line, const char *format, ...) {
+bool taosAssert(bool condition, const char *file, int32_t line, const char *format, ...) {
   if (condition) return false;
 
   const char *flags = "UTL FATAL ";
@@ -801,7 +801,7 @@ bool taosAssertLog(bool condition, const char *file, int32_t line, const char *f
   taosPrintTrace(flags, level, dflag);
 
   if (tsAssert) {
-    taosCloseLog();
+    // taosCloseLog();
     taosMsleep(300);
 
 #ifdef NDEBUG

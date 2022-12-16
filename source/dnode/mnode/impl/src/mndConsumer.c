@@ -554,11 +554,6 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
       goto SUBSCRIBE_OVER;
     }
 
-    if (mndCheckDbPrivilegeByName(pMnode, pMsg->info.conn.user, MND_OPER_READ_DB, pTopic->db) != 0) {
-      mndReleaseTopic(pMnode, pTopic);
-      goto SUBSCRIBE_OVER;
-    }
-
     if (mndCheckTopicPrivilege(pMnode, pMsg->info.conn.user, MND_OPER_SUBSCRIBE, pTopic) != 0) {
       mndReleaseTopic(pMnode, pTopic);
       goto SUBSCRIBE_OVER;

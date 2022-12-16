@@ -379,9 +379,6 @@ int tdbPagerPostCommit(SPager *pPager, TXN *pTxn) {
     return -1;
   }
 
-  if (pTxn->jPageSet) {
-    hashset_destroy(pTxn->jPageSet);
-  }
   // pPager->inTran = 0;
 
   return 0;
@@ -548,8 +545,6 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
-
-  hashset_destroy(pTxn->jPageSet);
 
   // pPager->inTran = 0;
 
@@ -725,14 +720,16 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
 
     pgno = TDB_PAGE_PGNO(pPage);
 
-    tdbTrace("tdbttl init pager:%p, pgno:%d, loadPage:%d, size:%d", pPager, pgno, loadPage, pPager->dbOrigSize);
+    tdbTrace("tdb/pager:%p, pgno:%d, loadPage:%d, size:%d", pPager, pgno, loadPage, pPager->dbOrigSize);
     if (loadPage && pgno <= pPager->dbOrigSize) {
       init = 1;
 
       nRead = tdbOsPRead(pPager->fd, pPage->pData, pPage->pageSize, ((i64)pPage->pageSize) * (pgno - 1));
-      tdbTrace("tdbttl pager:%p, pgno:%d, nRead:%" PRId64, pPager, pgno, nRead);
+      tdbTrace("tdb/pager:%p, pgno:%d, nRead:%" PRId64, pPager, pgno, nRead);
       if (nRead < pPage->pageSize) {
         ASSERT(0);
+        tdbError("tdb/pager:%p, pgno:%d, nRead:%" PRId64 "pgSize:%" PRId32, pPager, pgno, nRead, pPage->pageSize);
+        TDB_UNLOCK_PAGE(pPage);
         return -1;
       }
     } else {
@@ -922,6 +919,8 @@ int tdbPagerRestoreJournals(SPager *pPager, SBTree *pBt) {
     char *name = tdbDirEntryBaseName(tdbGetDirEntryName(pDirEntry));
     if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
       if (tdbPagerRestore(pPager, pBt, name) < 0) {
+        tdbCloseDir(&pDir);
+
         tdbError("failed to restore file due to %s. jFileName:%s", strerror(errno), name);
         return -1;
       }
@@ -946,6 +945,8 @@ int tdbPagerRollback(SPager *pPager) {
 
     if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
       if (tdbOsRemove(name) < 0 && errno != ENOENT) {
+        tdbCloseDir(&pDir);
+
         tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), name);
         terrno = TAOS_SYSTEM_ERROR(errno);
         return -1;

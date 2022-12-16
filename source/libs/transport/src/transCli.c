@@ -285,6 +285,7 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
     }
     destroyCmsg(msg);
   }
+  memset(&conn->ctx, 0, sizeof(conn->ctx));
 }
 bool cliMaySendCachedMsg(SCliConn* conn) {
   if (!transQueueEmpty(&conn->cliMsgs)) {
@@ -589,6 +590,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
 }
 static int32_t allocConnRef(SCliConn* conn, bool update) {
   if (update) {
+    transReleaseExHandle(transGetRefMgt(), conn->refId);
     transRemoveExHandle(transGetRefMgt(), conn->refId);
     conn->refId = -1;
   }
@@ -602,6 +604,7 @@ static int32_t allocConnRef(SCliConn* conn, bool update) {
 
 static int32_t specifyConnRef(SCliConn* conn, bool update, int64_t handle) {
   if (update) {
+    transReleaseExHandle(transGetRefMgt(), conn->refId);
     transRemoveExHandle(transGetRefMgt(), conn->refId);
     conn->refId = -1;
   }
@@ -697,6 +700,7 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   tTrace("%s conn %p remove from conn pool", CONN_GET_INST_LABEL(conn), conn);
   QUEUE_REMOVE(&conn->q);
   QUEUE_INIT(&conn->q);
+  transReleaseExHandle(transGetRefMgt(), conn->refId);
   transRemoveExHandle(transGetRefMgt(), conn->refId);
   conn->refId = -1;
 
@@ -731,6 +735,7 @@ static void cliDestroy(uv_handle_t* handle) {
     conn->timer = NULL;
   }
 
+  transReleaseExHandle(transGetRefMgt(), conn->refId);
   transRemoveExHandle(transGetRefMgt(), conn->refId);
   taosMemoryFree(conn->ip);
   taosMemoryFree(conn->stream);
@@ -952,7 +957,6 @@ static void cliHandleRelease(SCliMsg* pMsg, SCliThrd* pThrd) {
 
   SCliConn* conn = exh->handle;
   transReleaseExHandle(transGetRefMgt(), refId);
-
   tDebug("%s conn %p start to release to inst", CONN_GET_INST_LABEL(conn), conn);
 
   if (T_REF_VAL_GET(conn) == 2) {
@@ -1051,9 +1055,6 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   STransConnCtx* pCtx = pMsg->ctx;
 
   cliMayCvtFqdnToIp(&pCtx->epSet, &pThrd->cvtAddr);
-
-  char tbuf[256] = {0};
-  EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
 
   if (!EPSET_IS_VALID(&pCtx->epSet)) {
     tError("invalid epset");
@@ -1493,18 +1494,35 @@ FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
 bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
   bool noDelay = true;
   if (hasEpSet == false) {
-    // assert(pResp->contLen == 0);
     if (pResp->contLen == 0) {
       if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
         noDelay = false;
       } else {
         EPSET_FORWARD_INUSE(&pCtx->epSet);
       }
-    } else {
-      if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
-        noDelay = false;
+    } else if (pResp->contLen != 0) {
+      SEpSet  epSet;
+      int32_t valid = tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
+      if (valid < 0) {
+        tDebug("get invalid epset, epset equal, continue");
+        if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
+          noDelay = false;
+        } else {
+          EPSET_FORWARD_INUSE(&pCtx->epSet);
+        }
       } else {
-        EPSET_FORWARD_INUSE(&pCtx->epSet);
+        if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
+          tDebug("epset not equal, retry new epset");
+          pCtx->epSet = epSet;
+          noDelay = false;
+        } else {
+          if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
+            noDelay = false;
+          } else {
+            tDebug("epset equal, continue");
+            EPSET_FORWARD_INUSE(&pCtx->epSet);
+          }
+        }
       }
     }
   } else {
@@ -1556,6 +1574,9 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pCtx->retryStep = 0;
     pCtx->retryInit = true;
     pCtx->retryCode = TSDB_CODE_SUCCESS;
+
+    // already retry, not use handle specified by app;
+    pMsg->msg.info.handle = 0;
   }
 
   if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
@@ -1584,7 +1605,7 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     addConnToPool(pThrd->pool, pConn);
   } else if (code == TSDB_CODE_SYN_RESTORING) {
     tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
-    noDelay = cliResetEpset(pCtx, pResp, false);
+    noDelay = cliResetEpset(pCtx, pResp, true);
     addConnToPool(pThrd->pool, pConn);
     transFreeMsg(pResp->pCont);
   } else {
@@ -1608,9 +1629,9 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
       pCtx->retryNextInterval = pCtx->retryMaxInterval;
     }
 
-    if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
-      return false;
-    }
+    // if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
+    //   return false;
+    // }
   } else {
     pCtx->retryNextInterval = 0;
     pCtx->epsetRetryCnt++;
