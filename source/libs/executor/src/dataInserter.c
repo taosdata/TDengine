@@ -81,7 +81,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
     }
 
     pInserter->submitRes.affectedRows += pInserter->submitRes.pRsp->affectedRows;
-    qDebug("submit rsp received, affectedRows:%d, total:%"PRId64, pInserter->submitRes.pRsp->affectedRows,
+    qDebug("submit rsp received, affectedRows:%d, total:%" PRId64, pInserter->submitRes.pRsp->affectedRows,
            pInserter->submitRes.affectedRows);
 
     tFreeSSubmitRsp(pInserter->submitRes.pRsp);
@@ -92,6 +92,7 @@ _return:
   tsem_post(&pInserter->ready);
 
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -251,7 +252,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
   }
 
   taosArrayClear(pInserter->pDataBlocks);
-  
+
   code = sendSubmitRequest(pInserter, pMsg, pInserter->pParam->readHandle->pMsgCb->clientRpc, &pInserter->pNode->epSet);
   if (code) {
     return code;

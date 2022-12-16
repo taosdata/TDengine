@@ -13,17 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "executorimpl.h"
 #include "filter.h"
 #include "function.h"
+#include "index.h"
 #include "os.h"
+#include "query.h"
+#include "tdatablock.h"
+#include "thash.h"
+#include "tmsg.h"
 #include "tname.h"
 #include "tref.h"
-#include "tdatablock.h"
-#include "tmsg.h"
-#include "executorimpl.h"
-#include "index.h"
-#include "query.h"
-#include "thash.h"
 
 typedef struct SFetchRspHandleWrapper {
   uint32_t exchangeId;
@@ -115,14 +115,14 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
       if (pRsp->completed == 1) {
         pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
         qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64
-               " execId:%d index:%d completed, blocks:%d, numOfRows:%" PRId64 ", rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64
-               ", total:%.2f Kb, try next %d/%" PRIzu,
+               " execId:%d index:%d completed, blocks:%d, numOfRows:%" PRId64 ", rowsOfSource:%" PRIu64
+               ", totalRows:%" PRIu64 ", total:%.2f Kb, try next %d/%" PRIzu,
                GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, i, pRsp->numOfBlocks,
                pRsp->numOfRows, pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0, i + 1,
                totalSources);
       } else {
-        qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64
-               " execId:%d blocks:%d, numOfRows:%" PRId64 ", totalRows:%" PRIu64 ", total:%.2f Kb",
+        qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d blocks:%d, numOfRows:%" PRId64
+               ", totalRows:%" PRIu64 ", total:%.2f Kb",
                GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pRsp->numOfBlocks,
                pRsp->numOfRows, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0);
       }
@@ -306,8 +306,8 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
                   pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pDummyBlock->pDataBlock);
 
-  pOperator->fpSet =
-      createOperatorFpSet(prepareLoadRemoteData, loadRemoteData, NULL, destroyExchangeOperatorInfo, optrDefaultBufFn, NULL);
+  pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteData, NULL, destroyExchangeOperatorInfo,
+                                         optrDefaultBufFn, NULL);
   return pOperator;
 
 _error:
@@ -363,6 +363,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   int32_t          index = pWrapper->sourceIndex;
   SSourceDataInfo* pSourceDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, index);
 
+  taosMemoryFree(pMsg->pEpSet);
   if (code == TSDB_CODE_SUCCESS) {
     pSourceDataInfo->pRsp = pMsg->pData;
 
@@ -374,8 +375,8 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     pRsp->numOfBlocks = htonl(pRsp->numOfBlocks);
 
     ASSERT(pRsp != NULL);
-    qDebug("%s fetch rsp received, index:%d, blocks:%d, rows:%" PRId64 ", %p", pSourceDataInfo->taskId, index, pRsp->numOfBlocks,
-           pRsp->numOfRows, pExchangeInfo);
+    qDebug("%s fetch rsp received, index:%d, blocks:%d, rows:%" PRId64 ", %p", pSourceDataInfo->taskId, index,
+           pRsp->numOfBlocks, pRsp->numOfRows, pExchangeInfo);
   } else {
     taosMemoryFree(pMsg->pData);
     pSourceDataInfo->code = code;
@@ -652,8 +653,8 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
 
     SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
     if (pRsp->completed == 1) {
-      qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d numOfRows:%" PRId64 ", rowsOfSource:%" PRIu64
-             ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64 " try next %d/%" PRIzu,
+      qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d numOfRows:%" PRId64
+             ", rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64 " try next %d/%" PRIzu,
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, pRetrieveRsp->numOfRows,
              pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize, pExchangeInfo->current + 1,
              totalSources);

@@ -18,10 +18,10 @@
 #include "clientLog.h"
 #include "os.h"
 #include "query.h"
+#include "systable.h"
+#include "tdatablock.h"
 #include "tdef.h"
 #include "tname.h"
-#include "tdatablock.h"
-#include "systable.h"
 
 static void setErrno(SRequestObj* pRequest, int32_t code) {
   pRequest->code = code;
@@ -47,11 +47,11 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
-  SRequestObj *pRequest = acquireRequest(*(int64_t*)param);
+  SRequestObj* pRequest = acquireRequest(*(int64_t*)param);
   if (NULL == pRequest) {
     goto End;
   }
-  
+
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
@@ -65,7 +65,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     tsem_post(&pRequest->body.rspSem);
     goto End;
   }
-  
+
   SConnectRsp connectRsp = {0};
   if (tDeserializeSConnectRsp(pMsg->pData, pMsg->len, &connectRsp) != 0) {
     code = TSDB_CODE_TSC_INVALID_VERSION;
@@ -126,14 +126,14 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,
            pTscObj->pAppInfo->numOfConns);
-           
+
   tsem_post(&pRequest->body.rspSem);
 End:
 
   if (pRequest) {
     releaseRequest(pRequest->self);
   }
-  
+
   taosMemoryFree(param);
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pMsg->pData);
@@ -158,8 +158,10 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pRequest) {
 int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   // todo rsp with the vnode id list
   SRequestObj* pRequest = param;
+
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
+
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
   }
@@ -181,7 +183,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
     struct SCatalog* pCatalog = NULL;
 
-    if (usedbRsp.vgVersion >= 0) { // cached in local
+    if (usedbRsp.vgVersion >= 0) {  // cached in local
       uint64_t clusterId = pRequest->pTscObj->pAppInfo->clusterId;
       int32_t  code1 = catalogGetHandle(clusterId, &pCatalog);
       if (code1 != TSDB_CODE_SUCCESS) {
@@ -326,13 +328,13 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     int32_t          code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
     if (TSDB_CODE_SUCCESS == code) {
       catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
-      STscObj*             pTscObj = pRequest->pTscObj;
+      STscObj* pTscObj = pRequest->pTscObj;
 
       SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
                                .requestId = pRequest->requestId,
                                .requestObjRefId = pRequest->self,
                                .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
-      char dbFName[TSDB_DB_FNAME_LEN];
+      char             dbFName[TSDB_DB_FNAME_LEN];
       snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_INFORMATION_SCHEMA_DB);
       catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
       snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_PERFORMANCE_SCHEMA_DB);
