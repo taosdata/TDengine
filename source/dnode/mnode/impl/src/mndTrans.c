@@ -927,7 +927,8 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
     }
   } else {
     if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
-      if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_APP_IS_STARTING) {
+      if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_APP_IS_STARTING ||
+          code == TSDB_CODE_SYN_PROPOSE_NOT_READY) {
         if (pTrans->failedTimes > 60) sendRsp = true;
       } else {
         if (pTrans->failedTimes > 6) sendRsp = true;
@@ -1336,6 +1337,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
   }
 
   if (mndCannotExecuteTransAction(pMnode)) return false;
+  terrno = code;
 
   if (code == 0) {
     pTrans->code = 0;
