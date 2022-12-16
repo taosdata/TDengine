@@ -633,6 +633,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     pDb = NULL;
     goto _OVER;
   }
+  mndReleaseDb(pMnode, pDb);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream");
   if (pTrans == NULL) {
