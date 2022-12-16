@@ -255,7 +255,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
 
   tjsonGetNumberValue(pJson, "tsdbPageSize", pCfg->tsdbPageSize, code);
-  if (code < 0 || pCfg->tsdbPageSize < TSDB_MIN_PAGESIZE_PER_VNODE) {
+  if (code < 0 || pCfg->tsdbPageSize < TSDB_MIN_PAGESIZE_PER_VNODE * 1024) {
     pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE * 1024;
   }
 
