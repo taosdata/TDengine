@@ -89,6 +89,7 @@ create stream if not exists s1 fill_history 1 into st1  as select count(*) from 
 
 If some streams are totally outdated, and you do not want it to monitor or process anymore, those streams can be manually dropped and output data will be still kept.
 
+
 ## Delete a Stream
 
 ```sql
