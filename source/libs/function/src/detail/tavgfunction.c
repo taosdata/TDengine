@@ -344,9 +344,9 @@ static int32_t calculateAvgBySMAInfo(SAvgRes* pRes, int32_t numOfRows, int32_t t
 
   pRes->count += numOfElem;
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    pRes->sum.isum += pAgg->sum;
+    CHECK_OVERFLOW_SUM_SIGNED(pRes, pAgg->sum);
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    pRes->sum.usum += pAgg->sum;
+    CHECK_OVERFLOW_SUM_UNSIGNED(pRes, pAgg->sum);
   } else if (IS_FLOAT_TYPE(type)) {
     pRes->sum.dsum += GET_DOUBLE_VAL((const char*)&(pAgg->sum));
   }
