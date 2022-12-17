@@ -233,7 +233,7 @@ int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq) {
     rpcSendResponse(&rpcMsg);
     return 0;
   } else {
-    sInfo("no rpcinfo to send timeout response, seq:%" PRId64, seq);
+    sError("no message handle to send timeout response, seq:%" PRId64, seq);
     return -1;
   }
 }
