@@ -10,7 +10,7 @@ Because stream processing is built in to TDengine, you are no longer reliant on 
 ## Create a Stream
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name AS subquery
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name SUBTABLE(expression) AS subquery
 stream_options: {
  TRIGGER    [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
  WATERMARK   time
@@ -30,6 +30,8 @@ subquery: SELECT [DISTINCT] select_list
 
 Session windows, state windows, and sliding windows are supported. When you configure a session or state window for a supertable, you must use PARTITION BY TBNAME.
 
+Subtable Clause defines the naming rules of auto-created subtable, you can see more details in below part: Partitions of Stream.
+
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
@@ -45,6 +47,32 @@ For example, the following SQL statement creates a stream and automatically crea
 ```sql
 CREATE STREAM avg_vol_s INTO avg_vol AS
 SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
+```
+
+## Partitions of Stream
+
+A Stream can process data in multiple partitions. Partition rules can be defined by PARTITION BY clause in stream processing. Each partition will have different timelines and windows, and will be processed separately and be written into different subtables of target supertable.
+
+If a stream is created without PARTITION BY clause, all data will be written into one subtable.
+
+If a stream is created with PARTITION BY clause without SUBTABLE clause, each partition will be given a random name. 
+
+If a stream is created with PARTITION BY clause and SUBTABLE clause, the name of each partition will be calculated according to SUBTABLE clause. For example:
+
+```sql
+CREATE STREAM avg_vol_s INTO avg_vol SUBTABLE(CONCAT('new-', tname)) AS SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname tname INTERVAL(1m);
+```
+
+IN PARTITION clause, 'tbname', representing each subtable name of source supertable, is given alias 'tname'. And 'tname' is used in SUBTABLE clause. In SUBTABLE clause, each auto created subtable will concat 'new-' and source subtable name as their name. Other expressions are also allowed in SUBTABLE clause, but the output type must be varchar.
+
+If the output length exceeds the limitation of TDengine(192), the name will be truncated. If the generated name is occupied by some other table, the creation and writing of the new subtable will be failed.
+
+## Filling history data
+
+Normally a stream does not process data already or being written into source table when it's being creating. But adding FILL_HISTORY 1 as a stream option when creating the stream will allow it to process data written before and while creating the stream. For example:
+
+```sql
+create stream if not exists s1 fill_history 1 into st1  as select count(*) from t1 interval(10s)
 ```
 
 ## Delete a Stream
