@@ -419,7 +419,7 @@ class TDTestCase:
         # check  + - * / in functions
         tdSql.query(f" select avg(c1+1) ,avg(c2) , avg(c3*1) , avg(c4/2), avg(c5)/2, avg(c6) from {dbname}.sub1_bound ")
         tdSql.checkData(0,0,920350134.5714285)
-        tdSql.checkData(0,1,1.3176245766935393e+18)
+        tdSql.checkData(0,1,3.952873730080618e+18)
         tdSql.checkData(0,2,14042.142857143)
         tdSql.checkData(0,3,26.785714286)
         tdSql.checkData(0,4,2.9142856660228804e+37)
@@ -450,10 +450,25 @@ class TDTestCase:
         tdSql.checkData(0, 0,8.223372036854776e+18)
         tdSql.checkData(0, 1,1.744674407370955e+19)
 
+        # check super table
         tdSql.query(f"select avg(ibv), avg(ubv) from st")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0,8.223372036854776e+18)
         tdSql.checkData(0, 1,1.744674407370955e+19)
+
+        # check child query
+        tdSql.query(f"select avg(ibv), avg(ubv) from (select * from st)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0,8.223372036854776e+18)
+        tdSql.checkData(0, 1,1.744674407370955e+19)
+
+        # check group by
+        tdSql.query(f"select avg(ibv), avg(ubv) from st group by tbname")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0,8.223372036854776e+18)
+        tdSql.checkData(0, 1,1.744674407370955e+19)
+        tdSql.checkData(1, 0,8.223372036854776e+18)
+        tdSql.checkData(1, 1,1.744674407370955e+19)
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
