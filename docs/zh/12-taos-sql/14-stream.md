@@ -79,13 +79,13 @@ create stream if not exists s1 fill_history 1 into st1  as select count(*) from 
 结合 fill_history 1 选项，可以实现只处理特定历史时间范围的数据，例如：只处理某历史时刻（2020年1月30日）之后的数据
 
 ```sql
-create stream if not exists s1 fill_history 1 into st1  as select count(*) from t1 where ts > timestamp '2020-01-30' interval(10s)
+create stream if not exists s1 fill_history 1 into st1  as select count(*) from t1 where ts > '2020-01-30' interval(10s)
 ```
 
 再如，仅处理某时间段内的数据，结束时间可以是未来时间
 
 ```sql
-create stream if not exists s1 fill_history 1 into st1  as select count(*) from t1 where ts > timestamp '2020-01-30' and ts < timestamp '2023-01-01 '> interval(10s)
+create stream if not exists s1 fill_history 1 into st1  as select count(*) from t1 where ts > '2020-01-30' and ts < '2023-01-01' interval(10s)
 ```
 
 如果该流任务已经彻底过期，并且您不再想让它检测或处理数据，您可以手动删除它，被计算出的数据仍会被保留。
