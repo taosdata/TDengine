@@ -75,6 +75,20 @@ Normally a stream does not process data already or being written into source tab
 create stream if not exists s1 fill_history 1 into st1  as select count(*) from t1 interval(10s)
 ```
 
+Combining fill_history option and where clause, stream can processing data of specific time range. For example, only process data after a past time. (In this case, 2020-01-30)
+
+```sql
+create stream if not exists s1 fill_history 1 into st1  as select count(*) from t1 where ts > timestamp '2020-01-30' interval(10s)
+```
+
+As another example, only processing data starting from some past time, and ending at some future time.
+
+```sql
+create stream if not exists s1 fill_history 1 into st1  as select count(*) from t1 where ts > timestamp '2020-01-30' and ts < timestamp '2023-01-01 '> interval(10s)
+```
+
+If some streams are totally outdated, and you do not want it to monitor or process anymore, those streams can be manually dropped and output data will be still kept.
+
 ## Delete a Stream
 
 ```sql
