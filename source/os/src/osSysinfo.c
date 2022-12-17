@@ -1007,6 +1007,19 @@ SysNameInfo taosGetSysNameInfo() {
     tstrncpy(info.machine, uts.machine, sizeof(info.machine));
   }
 
+  char     localHostName[512];
+  TdCmdPtr pCmd = taosOpenCmd("scutil --get LocalHostName");
+  if (pCmd != NULL) {
+    if (taosGetsCmd(pCmd, 511, localHostName) > 0) {
+      int len = strlen(localHostName);
+      if (localHostName[len-1] == '\n') {
+        localHostName[len-1] = '\0';
+      }
+      tstrncpy(info.nodename, localHostName, sizeof(info.nodename));
+    }
+    taosCloseCmd(&pCmd);
+  }
+
   return info;
 #else
   SysNameInfo info = {0};
@@ -1040,5 +1053,24 @@ bool taosCheckCurrentInDll() {
   return false;
 #else
   return false;
+#endif
+}
+
+int taosGetlocalhostname(char *hostname, size_t maxLen) {
+#ifdef _TD_DARWIN_64
+  TdCmdPtr pCmd = taosOpenCmd("scutil --get LocalHostName");
+  if (pCmd != NULL) {
+    if (taosGetsCmd(pCmd, maxLen, hostname) > 0) {
+      int len = strlen(hostname);
+      if (hostname[len-1] == '\n') {
+        hostname[len-1] = '\0';
+      }
+      return 0;
+    }
+    taosCloseCmd(&pCmd);
+  }
+  return -1;
+#else
+  return gethostname(hostname, maxLen);
 #endif
 }
