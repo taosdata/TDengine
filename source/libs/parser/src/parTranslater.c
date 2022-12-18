@@ -3147,6 +3147,15 @@ static int32_t translateSessionWindow(STranslateContext* pCxt, SSelectStmt* pSel
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateEventWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
+      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
+                                   "EVENT_WINDOW requires valid time series input");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   switch (nodeType(pSelect->pWindow)) {
     case QUERY_NODE_STATE_WINDOW:
@@ -3155,6 +3164,8 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
       return translateSessionWindow(pCxt, pSelect);
     case QUERY_NODE_INTERVAL_WINDOW:
       return translateIntervalWindow(pCxt, pSelect);
+    case QUERY_NODE_EVENT_WINDOW:
+      return translateEventWindow(pCxt, pSelect);
     default:
       break;
   }
