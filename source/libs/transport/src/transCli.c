@@ -599,6 +599,10 @@ static int32_t allocConnRef(SCliConn* conn, bool update) {
   exh->pThrd = conn->hostThrd;
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
   conn->refId = exh->refId;
+
+  if (conn->refId == -1) {
+    taosMemoryFree(exh);
+  }
   return 0;
 }
 
