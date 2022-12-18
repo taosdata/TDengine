@@ -17,6 +17,7 @@
 #include "tworker.h"
 #include "taoserror.h"
 #include "tlog.h"
+#include "geosWrapper.h"
 
 typedef void *(*ThreadFp)(void *param);
 
@@ -92,6 +93,8 @@ static void *tQWorkerThreadFp(SQWorker *worker) {
 
     taosUpdateItemSize(qinfo.queue, 1);
   }
+
+  destroyGeosContext(getThreadLocalGeosCtx());
 
   return NULL;
 }

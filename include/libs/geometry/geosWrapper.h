@@ -36,7 +36,7 @@ typedef struct SGeosContext {
   char errMsg[512];
 } SGeosContext;
 
-SGeosContext *getGlobleGeosCtx();
+SGeosContext *getThreadLocalGeosCtx();
 
 void destroyGeosContext(SGeosContext *context);
 

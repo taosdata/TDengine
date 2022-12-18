@@ -9,6 +9,7 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include/util"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
     PRIVATE "${TD_SOURCE_DIR}/include/common"
+    PRIVATE "${TD_SOURCE_DIR}/include/libs/geometry"
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
 )
 target_link_libraries(
@@ -21,4 +22,3 @@ target_link_libraries(
 if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)
 endif(${BUILD_TEST})
-

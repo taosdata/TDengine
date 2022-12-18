@@ -506,7 +506,7 @@ void shellPrintGeometry(const unsigned char *val, int32_t length, int32_t width)
 
   int32_t code = TSDB_CODE_FAILED;
 
-  SGeosContext* geosCxt = getGlobleGeosCtx();
+  SGeosContext* geosCxt = getThreadLocalGeosCtx();
   code = prepareAsText(geosCxt);
   if (code != TSDB_CODE_SUCCESS) {
     shellPrintString(geosCxt->errMsg, width);
@@ -1077,7 +1077,7 @@ void *shellThreadLoop(void *arg) {
     taosResetTerminalMode();
   } while (shellRunCommand(command, true) == 0);
 
-  destroyGeosContext(getGlobleGeosCtx());
+  destroyGeosContext(getThreadLocalGeosCtx());
   taosMemoryFreeClear(command);
   shellWriteHistory();
   shellExit();

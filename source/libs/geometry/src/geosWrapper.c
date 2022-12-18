@@ -17,11 +17,10 @@
 #include "tdef.h"
 #include "types.h"
 
-// Use globle SGeosContext if thread is not cared
-SGeosContext gGeosCtx = {0};
+static threadlocal SGeosContext tlGeosCtx = {0};
 
-SGeosContext *getGlobleGeosCtx() {
-  return &gGeosCtx;
+SGeosContext *getThreadLocalGeosCtx() {
+  return &tlGeosCtx;
 }
 
 void destroyGeosContext(SGeosContext *context) {

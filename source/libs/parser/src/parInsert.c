@@ -1489,8 +1489,6 @@ static void destroyInsertParseContext(SInsertParseContext* pCxt) {
 
   destroyBlockHashmap(pCxt->pTableBlockHashObj);
   destroyBlockArrayList(pCxt->pVgDataBlocks);
-
-  destroyGeosContext(&pCxt->geosCxt);
 }
 
 static int32_t parseTableName(SInsertParseContext* pCxt, SToken* pTbnameToken, SName* pName, char* pDbFName,

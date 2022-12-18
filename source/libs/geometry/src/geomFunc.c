@@ -243,8 +243,8 @@ int32_t geomOneParamFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  SGeosContext context = {0};
-  code = prepareFn(&context);
+  SGeosContext* context = getThreadLocalGeosCtx();
+  code = prepareFn(context);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -256,7 +256,7 @@ int32_t geomOneParamFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
       continue;
     }
 
-    code = executeOneParamFn(&context, pInputData, i, pOutputData);
+    code = executeOneParamFn(context, pInputData, i, pOutputData);
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }
@@ -265,8 +265,6 @@ int32_t geomOneParamFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   pOutput->numOfRows = pInput->numOfRows;
 
 _exit:
-  destroyGeosContext(&context);
-
   return code;
 }
 
@@ -280,8 +278,8 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     pInputData[i] = pInput[i].columnData;
   }
 
-  SGeosContext context = {0};
-  code = prepareFn(&context);
+  SGeosContext* context = getThreadLocalGeosCtx();;
+  code = prepareFn(context);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -311,7 +309,7 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
         continue;
       }
 
-      code = executeTwoParamsFn(&context, pInputData, iLeft, iRight, pOutputData);
+      code = executeTwoParamsFn(context, pInputData, iLeft, iRight, pOutputData);
       if (code != TSDB_CODE_SUCCESS) {
         goto _exit;
       }
@@ -321,8 +319,6 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   pOutput->numOfRows = numOfRows;
 
 _exit:
-  destroyGeosContext(&context);
-
   return code;
 }
 

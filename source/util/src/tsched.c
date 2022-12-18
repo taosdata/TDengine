@@ -19,6 +19,7 @@
 #include "tlog.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "geosWrapper.h"
 
 #define DUMP_SCHEDULER_TIME_WINDOW 30000  // every 30sec, take a snap shot of task queue.
 
@@ -145,6 +146,8 @@ void *taosProcessSchedQueue(void *scheduler) {
     else if (msg.tfp)
       (*(msg.tfp))(msg.ahandle, msg.thandle);
   }
+
+  destroyGeosContext(getThreadLocalGeosCtx());
 
   return NULL;
 }
