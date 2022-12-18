@@ -369,7 +369,7 @@ static int32_t findFirstValPosition(const SColumnInfoData* pCol, int32_t start, 
 static void handleInt8Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                           bool signVal) {
   // AVX2 version to speedup the loop
-  if (tsAVX2Enable && tsSIMDEnable) {
+  if (tsAVX2Enable && tsSIMDBuiltins) {
     pBuf->v = i8VectorCmpAVX2(data, numOfRows, isMinFunc, signVal);
   } else {
     if (!pBuf->assign) {
@@ -403,7 +403,7 @@ static void handleInt8Col(const void* data, int32_t start, int32_t numOfRows, SM
 static void handleInt16Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                            bool signVal) {
   // AVX2 version to speedup the loop
-  if (tsAVX2Enable && tsSIMDEnable) {
+  if (tsAVX2Enable && tsSIMDBuiltins) {
     pBuf->v = i16VectorCmpAVX2(data, numOfRows, isMinFunc, signVal);
   } else {
     if (!pBuf->assign) {
@@ -437,7 +437,7 @@ static void handleInt16Col(const void* data, int32_t start, int32_t numOfRows, S
 static void handleInt32Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                            bool signVal) {
   // AVX2 version to speedup the loop
-  if (tsAVX2Enable && tsSIMDEnable) {
+  if (tsAVX2Enable && tsSIMDBuiltins) {
     pBuf->v = i32VectorCmpAVX2(data, numOfRows, isMinFunc, signVal);
   } else {
     if (!pBuf->assign) {
@@ -500,7 +500,7 @@ static void handleFloatCol(SColumnInfoData* pCol, int32_t start, int32_t numOfRo
   float* val = (float*)&pBuf->v;
 
   // AVX version to speedup the loop
-  if (tsAVXEnable && tsSIMDEnable) {
+  if (tsAVXEnable && tsSIMDBuiltins) {
     *val = floatVectorCmpAVX(pData, numOfRows, isMinFunc);
   } else {
     if (!pBuf->assign) {
@@ -530,7 +530,7 @@ static void handleDoubleCol(SColumnInfoData* pCol, int32_t start, int32_t numOfR
   double* val = (double*)&pBuf->v;
 
   // AVX version to speedup the loop
-  if (tsAVXEnable && tsSIMDEnable) {
+  if (tsAVXEnable && tsSIMDBuiltins) {
     *val = (double)doubleVectorCmpAVX(pData, numOfRows, isMinFunc);
   } else {
     if (!pBuf->assign) {
