@@ -692,10 +692,10 @@ static void avgTransferInfo(SAvgRes* pInput, SAvgRes* pOutput) {
   pOutput->type = pInput->type;
   if (IS_SIGNED_NUMERIC_TYPE(pOutput->type)) {
     bool overflow = pInput->sum.overflow;
-    CHECK_OVERFLOW_SUM_SIGNED_BIG(pOutput, overflow ? pInput->sum.dsum : pInput->sum.isum, overflow);
+    CHECK_OVERFLOW_SUM_SIGNED_BIG(pOutput, (overflow ? pInput->sum.dsum : pInput->sum.isum), overflow);
   } else if (IS_UNSIGNED_NUMERIC_TYPE(pOutput->type)) {
     bool overflow = pInput->sum.overflow;
-    CHECK_OVERFLOW_SUM_UNSIGNED_BIG(pOutput, overflow ? pInput->sum.dsum : pInput->sum.usum, overflow);
+    CHECK_OVERFLOW_SUM_UNSIGNED_BIG(pOutput, (overflow ? pInput->sum.dsum : pInput->sum.usum), overflow);
   } else {
     pOutput->sum.dsum += pInput->sum.dsum;
   }
