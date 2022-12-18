@@ -506,23 +506,22 @@ void shellPrintGeometry(const unsigned char *val, int32_t length, int32_t width)
 
   int32_t code = TSDB_CODE_FAILED;
 
-  SGeosContext* geosCxt = getThreadLocalGeosCtx();
-  code = prepareAsText(geosCxt);
+  code = prepareAsText();
   if (code != TSDB_CODE_SUCCESS) {
-    shellPrintString(geosCxt->errMsg, width);
+    shellPrintString(getThreadLocalGeosCtx()->errMsg, width);
     return;
   }
 
   char *outputWKT = NULL;
-  code = doAsText(geosCxt, val, length, &outputWKT);
+  code = doAsText(val, length, &outputWKT);
   if (code != TSDB_CODE_SUCCESS) {
-    shellPrintString(geosCxt->errMsg, width);  //should NOT happen
+    shellPrintString(getThreadLocalGeosCtx()->errMsg, width);  //should NOT happen
     return;
   }
 
   shellPrintString(outputWKT, width);
 
-  GEOSFree_r(geosCxt->handle, outputWKT);
+  geosFreeBuffer(outputWKT);
 }
 
 void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision) {
@@ -1077,7 +1076,7 @@ void *shellThreadLoop(void *arg) {
     taosResetTerminalMode();
   } while (shellRunCommand(command, true) == 0);
 
-  destroyGeosContext(getThreadLocalGeosCtx());
+  destroyThreadLocalGeosCtx();
   taosMemoryFreeClear(command);
   shellWriteHistory();
   shellExit();

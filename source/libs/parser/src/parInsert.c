@@ -69,7 +69,6 @@ typedef struct SInsertParseContext {
   SArray*            pVgDataBlocks;       // global
   SHashObj*          pTableNameHashObj;   // global
   SHashObj*          pDbFNameHashObj;     // global
-  SGeosContext       geosCxt;
   int32_t            totalNum;
   SVnodeModifOpStmt* pOutput;
   SStmtCallback*     pStmtCb;
@@ -441,18 +440,18 @@ static int parseTime(char** end, SToken* pToken, int16_t timePrec, int64_t* time
   return TSDB_CODE_SUCCESS;
 }
 
-// need to call GEOSFree_r(pGeosCxt->handle, output) later
-static int parseGeometry(SGeosContext *pGeosCxt, SToken *pToken, unsigned char **output, size_t *size) {
+// need to call geosFreeBuffer(output) later
+static int parseGeometry(SToken *pToken, unsigned char **output, size_t *size) {
   int32_t code = TSDB_CODE_FAILED;
 
   //[ToDo] support to parse WKB as well as WKT
   if (pToken->type == TK_NK_STRING) {
-    code = prepareGeomFromText(pGeosCxt);
+    code = prepareGeomFromText();
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    code = doGeomFromText(pGeosCxt, pToken->z, output, size);
+    code = doGeomFromText(pToken->z, output, size);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -506,7 +505,7 @@ static FORCE_INLINE int32_t toDouble(SToken* pToken, double* value, char** endPt
 }
 
 static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, char* tmpTokenBuf,
-                               _row_append_fn_t func, void* param, SGeosContext *pGeosCxt, SMsgBuf* pMsgBuf) {
+                               _row_append_fn_t func, void* param, SMsgBuf* pMsgBuf) {
   int64_t  iv;
   uint64_t uv;
   char*    endptr = NULL;
@@ -676,9 +675,9 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
       unsigned char *output = NULL;
       size_t size = 0;
 
-      code = parseGeometry(pGeosCxt, pToken, &output, &size);
+      code = parseGeometry(pToken, &output, &size);
       if (code != TSDB_CODE_SUCCESS) {
-        code = buildSyntaxErrMsg(pMsgBuf, pGeosCxt->errMsg, pToken->z);
+        code = buildSyntaxErrMsg(pMsgBuf, getThreadLocalGeosCtx()->errMsg, pToken->z);
       }
       // Too long values will raise the invalid sql error message
       else if (size > pSchema->bytes) {
@@ -689,7 +688,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
       }
 
       if (output) {
-        GEOSFree_r(pGeosCxt->handle, output);
+        geosFreeBuffer(output);
         output = NULL;
       }
 
@@ -1299,7 +1298,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
 
     param.schema = pSchema;
     getSTSRowAppendInfo(pBuilder->rowType, spd, i, &param.toffset, &param.colIdx);
-    CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pSchema, timePrec, tmpTokenBuf, MemRowAppend, &param, &pCxt->geosCxt, &pCxt->msg));
+    CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pSchema, timePrec, tmpTokenBuf, MemRowAppend, &param, &pCxt->msg));
 
     if (i < spd->numOfBound - 1) {
       NEXT_VALID_TOKEN(pCxt->pSql, sToken);
@@ -1678,7 +1677,6 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery, SParseMetaCache
       .pSubTableHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK),
       .pTableNameHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK),
       .pDbFNameHashObj = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK),
-      .geosCxt = {0},
       .totalNum = 0,
       .pOutput = (SVnodeModifOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT),
       .pStmtCb = pContext->pStmtCb,

@@ -94,7 +94,7 @@ static void *tQWorkerThreadFp(SQWorker *worker) {
     taosUpdateItemSize(qinfo.queue, 1);
   }
 
-  destroyGeosContext(getThreadLocalGeosCtx());
+  destroyThreadLocalGeosCtx();
 
   return NULL;
 }

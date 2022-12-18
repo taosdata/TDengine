@@ -36,24 +36,22 @@ typedef struct SGeosContext {
   char errMsg[512];
 } SGeosContext;
 
-SGeosContext *getThreadLocalGeosCtx();
+SGeosContext* getThreadLocalGeosCtx();
+void destroyThreadLocalGeosCtx();
 
-void destroyGeosContext(SGeosContext *context);
+void geosFreeBuffer(void *buffer);
 
-void geosErrMsgeHandler(const char *errMsg, void *userData);
+int32_t prepareGeomFromText();
+int32_t doGeomFromText(const char *inputWKT, unsigned char **outputGeom, size_t *size);
 
-int32_t prepareGeomFromText(SGeosContext *context);
-int32_t doGeomFromText(SGeosContext *context, const char *inputWKT, unsigned char **outputGeom, size_t *size);
+int32_t prepareAsText();
+int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT);
 
-int32_t prepareAsText(SGeosContext *context);
-int32_t doAsText(SGeosContext *context, const unsigned char *inputGeom, size_t size, char **outputWKT);
+int32_t prepareMakePoint();
+int32_t doMakePoint(double x, double y, unsigned char **outputGeom, size_t *size);
 
-int32_t prepareMakePoint(SGeosContext *context);
-int32_t doMakePoint(SGeosContext *context, double x, double y, unsigned char **outputGeom, size_t *size);
-
-int32_t prepareIntersects(SGeosContext *context);
-int32_t doIntersects(SGeosContext *context,
-                     const unsigned char *inputGeom1, size_t size1,
+int32_t prepareIntersects();
+int32_t doIntersects(const unsigned char *inputGeom1, size_t size1,
                      const unsigned char *inputGeom2, size_t size2,
                      char *res);
 

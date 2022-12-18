@@ -21,15 +21,14 @@
 #include "sclInt.h"
 #include "sclvector.h"
 
-typedef int32_t (*_geomPrepareFunc_fn_t)(SGeosContext* context);
-typedef int32_t (*_geomExecuteOneParamFunc_fn_t)(SGeosContext* context, SColumnInfoData *pInputData,
-                                                 int32_t i, SColumnInfoData *pOutputData);
-typedef int32_t (*_geomExecuteTwoParamsFunc_fn_t)(SGeosContext* context, SColumnInfoData *pInputData[],
-                                                  int32_t iLeft, int32_t iRight, SColumnInfoData *pOutputData);
+typedef int32_t (*_geomPrepareFunc_fn_t)();
+typedef int32_t (*_geomExecuteOneParamFunc_fn_t)(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData);
+typedef int32_t (*_geomExecuteTwoParamsFunc_fn_t)(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
+                                                  SColumnInfoData *pOutputData);
 
 // both input and output are with VARSTR format
 // need to call taosMemoryFree(*output) later
-int32_t doGeomFromTextFunc(SGeosContext *context, const char *input, unsigned char **output) {
+int32_t doGeomFromTextFunc(const char *input, unsigned char **output) {
   int32_t code = TSDB_CODE_FAILED;
 
   if ((varDataLen(input)) == 0) { //empty value
@@ -45,7 +44,7 @@ int32_t doGeomFromTextFunc(SGeosContext *context, const char *input, unsigned ch
   unsigned char *outputGeom = NULL;
   size_t size = 0;
 
-  code = doGeomFromText(context, varDataVal(input), &outputGeom, &size);
+  code = doGeomFromText(varDataVal(input), &outputGeom, &size);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -62,7 +61,7 @@ int32_t doGeomFromTextFunc(SGeosContext *context, const char *input, unsigned ch
 
 _exit:
   if (outputGeom) {
-    GEOSFree_r(context->handle, outputGeom);
+    geosFreeBuffer(outputGeom);
     outputGeom = NULL;
   }
 
@@ -73,7 +72,7 @@ _exit:
 
 // both input and output are with VARSTR format
 // need to call taosMemoryFree(*output) later
-int32_t doAsTextFunc(SGeosContext *context, unsigned char *input, char **output) {
+int32_t doAsTextFunc(unsigned char *input, char **output) {
   int32_t code = TSDB_CODE_FAILED;
 
   if ((varDataLen(input)) == 0) { //empty value
@@ -82,7 +81,7 @@ int32_t doAsTextFunc(SGeosContext *context, unsigned char *input, char **output)
   }
 
   char *outputWKT = NULL;
-  code = doAsText(context, varDataVal(input), varDataLen(input), &outputWKT);
+  code = doAsText(varDataVal(input), varDataLen(input), &outputWKT);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -100,7 +99,7 @@ int32_t doAsTextFunc(SGeosContext *context, unsigned char *input, char **output)
 
 _exit:
   if (outputWKT) {
-    GEOSFree_r(context->handle, outputWKT);
+    geosFreeBuffer(outputWKT);
     outputWKT = NULL;
   }
 
@@ -109,12 +108,12 @@ _exit:
 
 // output is with VARSTR format
 // need to call taosMemoryFree(*output) later
-int32_t doMakePointFunc(SGeosContext *context, double x, double y, unsigned char **output) {
+int32_t doMakePointFunc(double x, double y, unsigned char **output) {
   int32_t code = TSDB_CODE_FAILED;
 
   unsigned char *outputGeom = NULL;
   size_t size = 0;
-  code = doMakePoint(context, x, y, &outputGeom, &size);
+  code = doMakePoint(x, y, &outputGeom, &size);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -131,7 +130,7 @@ int32_t doMakePointFunc(SGeosContext *context, double x, double y, unsigned char
 
 _exit:
   if (outputGeom) {
-    GEOSFree_r(context->handle, outputGeom);
+    geosFreeBuffer(outputGeom);
     outputGeom = NULL;
   }
 
@@ -139,7 +138,7 @@ _exit:
 }
 
 // both input and output are with VARSTR format
-int32_t doIntersectsFunc(SGeosContext *context, unsigned char *input1, unsigned char *input2, char *res) {
+int32_t doIntersectsFunc(unsigned char *input1, unsigned char *input2, char *res) {
   int32_t code = TSDB_CODE_FAILED;
 
   if (varDataLen(input1) == 0 || varDataLen(input2) == 0) { //empty value
@@ -147,21 +146,19 @@ int32_t doIntersectsFunc(SGeosContext *context, unsigned char *input1, unsigned 
     return TSDB_CODE_SUCCESS;
   }
 
-  code = doIntersects(context,
-                      varDataVal(input1), varDataLen(input1),
+  code = doIntersects(varDataVal(input1), varDataLen(input1),
                       varDataVal(input2), varDataLen(input2),
                       res);
 
   return code;
 }
 
-int32_t executeGeomFromTextFunc(SGeosContext* context, SColumnInfoData *pInputData,
-                                int32_t i, SColumnInfoData *pOutputData) {
+int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
 
   char *input = colDataGetData(pInputData, i);
   unsigned char *output = NULL;
-  code = doGeomFromTextFunc(context, input, &output);
+  code = doGeomFromTextFunc(input, &output);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -176,13 +173,12 @@ _exit:
   return code;
 }
 
-int32_t executeAsTextFunc(SGeosContext* context, SColumnInfoData *pInputData,
-                          int32_t i, SColumnInfoData *pOutputData) {
+int32_t executeAsTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
 
   unsigned char *input = colDataGetData(pInputData, i);
   char *output = NULL;
-  code = doAsTextFunc(context, input, &output);
+  code = doAsTextFunc(input, &output);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -197,8 +193,8 @@ _exit:
   return code;
 }
 
-int32_t executeMakePointFunc(SGeosContext* context, SColumnInfoData *pInputData[],
-                             int32_t iLeft, int32_t iRight, SColumnInfoData *pOutputData) {
+int32_t executeMakePointFunc(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
+                             SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
 
   _getDoubleValue_fn_t getDoubleValueFn[2];
@@ -206,7 +202,7 @@ int32_t executeMakePointFunc(SGeosContext* context, SColumnInfoData *pInputData[
   getDoubleValueFn[1]= getVectorDoubleValueFn(pInputData[1]->info.type);
 
   unsigned char *output = NULL;
-  code = doMakePointFunc(context, getDoubleValueFn[0](pInputData[0]->pData, iLeft), getDoubleValueFn[1](pInputData[1]->pData, iRight), &output);
+  code = doMakePointFunc(getDoubleValueFn[0](pInputData[0]->pData, iLeft), getDoubleValueFn[1](pInputData[1]->pData, iRight), &output);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -221,12 +217,12 @@ _exit:
   return code;
 }
 
-int32_t executeIntersectsFunc(SGeosContext* context, SColumnInfoData *pInputData[],
-                              int32_t iLeft, int32_t iRight, SColumnInfoData *pOutputData) {
+int32_t executeIntersectsFunc(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
+                              SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
 
   char res = 0;
-  code = doIntersectsFunc(context, colDataGetData(pInputData[0], iLeft), colDataGetData(pInputData[1], iRight), &res);
+  code = doIntersectsFunc(colDataGetData(pInputData[0], iLeft), colDataGetData(pInputData[1], iRight), &res);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -243,8 +239,7 @@ int32_t geomOneParamFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  SGeosContext* context = getThreadLocalGeosCtx();
-  code = prepareFn(context);
+  code = prepareFn();
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -256,7 +251,7 @@ int32_t geomOneParamFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
       continue;
     }
 
-    code = executeOneParamFn(context, pInputData, i, pOutputData);
+    code = executeOneParamFn(pInputData, i, pOutputData);
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }
@@ -278,8 +273,7 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     pInputData[i] = pInput[i].columnData;
   }
 
-  SGeosContext* context = getThreadLocalGeosCtx();;
-  code = prepareFn(context);
+  code = prepareFn();
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -309,7 +303,7 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
         continue;
       }
 
-      code = executeTwoParamsFn(context, pInputData, iLeft, iRight, pOutputData);
+      code = executeTwoParamsFn(pInputData, iLeft, iRight, pOutputData);
       if (code != TSDB_CODE_SUCCESS) {
         goto _exit;
       }
