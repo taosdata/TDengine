@@ -52,8 +52,6 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
 
   pRpc->encryption = pInit->encryption;
-  pRpc->retryLimit = pInit->retryLimit;
-  pRpc->retryInterval = pInit->retryInterval;
 
   pRpc->retryMinInterval = pInit->retryMinInterval;  // retry init interval
   pRpc->retryStepFactor = pInit->retryStepFactor;

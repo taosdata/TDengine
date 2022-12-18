@@ -837,9 +837,34 @@ int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
 }
 
 int32_t convertScalarParamToDataBlock(SScalarParam *input, int32_t numOfCols, SSDataBlock *output) {
-  output->info.rows = input->numOfRows;
+  int32_t numOfRows = 0;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    numOfRows = (input[i].numOfRows > numOfRows) ? input[i].numOfRows : numOfRows;
+  }
+  output->info.rows = numOfRows;
   output->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
   for (int32_t i = 0; i < numOfCols; ++i) {
+    if ((input+i)->numOfRows < numOfRows) {
+      SColumnInfoData* pColInfoData = (input+i)->columnData;
+      int32_t startRow = (input+i)->numOfRows;
+      int32_t expandRows = numOfRows - startRow;
+      colInfoDataEnsureCapacity(pColInfoData, numOfRows, false);
+      bool isNull = colDataIsNull_s(pColInfoData, (input+i)->numOfRows - 1);
+      if (isNull) {
+        colDataAppendNNULL(pColInfoData, startRow, expandRows);
+      } else {
+        char* src = colDataGetData(pColInfoData, (input + i)->numOfRows - 1);
+        int32_t bytes = pColInfoData->info.bytes;
+        char* data = taosMemoryMalloc(bytes);
+        memcpy(data, src, bytes);
+        for (int j = 0; j < expandRows; ++j) {
+          colDataAppend(pColInfoData, startRow+j, data, false);
+        }
+        //colDataAppendNItems(pColInfoData, startRow, data, expandRows);
+        taosMemoryFree(data);
+      }
+    }
+
     taosArrayPush(output->pDataBlock, (input + i)->columnData);
 
     if (IS_VAR_DATA_TYPE((input + i)->columnData->info.type)) {

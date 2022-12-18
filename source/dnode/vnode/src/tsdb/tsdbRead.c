@@ -1143,6 +1143,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
     i += 1;
   }
 
+  pResBlock->info.dataLoad = 1;
   pResBlock->info.rows = dumpedRows;
   pDumpInfo->rowIndex += step * dumpedRows;
 
@@ -2538,6 +2539,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
 _end:
   pResBlock->info.id.uid = (pBlockScanInfo != NULL) ? pBlockScanInfo->uid : 0;
+  pResBlock->info.dataLoad = 1;
   blockDataUpdateTsWindow(pResBlock, pReader->suppInfo.slotId[0]);
 
   setComposedBlockFlag(pReader, true);
@@ -3622,6 +3624,7 @@ int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, STSRow* 
     i += 1;
   }
 
+  pBlock->info.dataLoad = 1;
   pBlock->info.rows += 1;
   pScanInfo->lastKey = pTSRow->ts;
   return TSDB_CODE_SUCCESS;
@@ -3669,6 +3672,7 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
     i += 1;
   }
 
+  pResBlock->info.dataLoad = 1;
   pResBlock->info.rows += 1;
   return TSDB_CODE_SUCCESS;
 }
