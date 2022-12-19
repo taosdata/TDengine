@@ -1157,6 +1157,8 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
     setBlockAllDumped(pDumpInfo, ts, pReader->order);
   }
 
+  pBlockScanInfo->lastKey = pDumpInfo->lastKey;
+
   double elapsedTime = (taosGetTimestampUs() - st) / 1000.0;
   pReader->cost.blockLoadTime += elapsedTime;
 
@@ -2468,7 +2470,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
   while (1) {
     bool hasBlockData = false;
     {
-      while (pBlockData->nRow > 0) {  // find the first qualified row in data block
+      while (pBlockData->nRow > 0 && pBlockData->uid == pBlockScanInfo->uid) {  // find the first qualified row in data block
         if (isValidFileBlockRow(pBlockData, pDumpInfo, pBlockScanInfo, pReader)) {
           hasBlockData = true;
           break;
@@ -2478,10 +2480,13 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
         SDataBlk* pBlock = getCurrentBlock(&pReader->status.blockIter);
         if (pDumpInfo->rowIndex >= pBlock->nRow || pDumpInfo->rowIndex < 0) {
-          int32_t     nextIndex = -1;
           SBlockIndex bIndex = {0};
-          bool        hasNeighbor =
-              getNeighborBlockOfSameTable(pBlockInfo, pBlockScanInfo, &nextIndex, pReader->order, &bIndex);
+          int32_t     nextIndex = -1;
+          bool        hasNeighbor = false;
+          if (pBlockInfo != NULL) {
+            hasNeighbor = getNeighborBlockOfSameTable(pBlockInfo, pBlockScanInfo, &nextIndex, pReader->order, &bIndex);
+          }
+
           if (!hasNeighbor) {  // do nothing
             setBlockAllDumped(pDumpInfo, pBlock->maxKey.ts, pReader->order);
             break;
@@ -2789,7 +2794,8 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
   while (1) {
     // load the last data block of current table
     STableBlockScanInfo* pScanInfo = *(STableBlockScanInfo**)pStatus->pTableIter;
-    bool                 hasVal = initLastBlockReader(pLastBlockReader, pScanInfo, pReader);
+
+    bool hasVal = initLastBlockReader(pLastBlockReader, pScanInfo, pReader);
     if (!hasVal) {
       bool hasNexTable = moveToNextTable(pOrderedCheckInfo, pStatus);
       if (!hasNexTable) {
@@ -3020,7 +3026,12 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
         } else {
           if (pReader->status.pCurrentFileset->nSttF > 0) {
             // data blocks in current file are exhausted, let's try the next file now
-            tBlockDataReset(&pReader->status.fileBlockData);
+            SBlockData* pBlockData = &pReader->status.fileBlockData;
+            if (pBlockData->uid != 0) {
+              tBlockDataClear(pBlockData);
+            }
+
+            tBlockDataReset(pBlockData);
             resetDataBlockIterator(pBlockIter, pReader->order);
             goto _begin;
           } else {
@@ -3377,6 +3388,11 @@ int32_t doMergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pSc
 
       SFileDataBlockInfo* pFileBlockInfo = getCurrentBlockInfo(&pReader->status.blockIter);
       SDataBlk*           pCurrentBlock = getCurrentBlock(&pReader->status.blockIter);
+      if (pFileBlockInfo == NULL) {
+        st = CHECK_FILEBLOCK_QUIT;
+        break;
+      }
+
       checkForNeighborFileBlock(pReader, pScanInfo, pCurrentBlock, pFileBlockInfo, pMerger, key, &st);
       if (st == CHECK_FILEBLOCK_QUIT) {
         break;
@@ -3847,6 +3863,8 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
   }
 
   // NOTE: the endVersion in pCond is the data version not schema version, so pCond->endVersion is not correct here.
+  //  no valid error code set in metaGetTbTSchema, so let's set the error code here.
+  //  we should proceed in case of tmq processing.
   if (pCond->suid != 0) {
     pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pReader->suid, -1, 1);
     if (pReader->pSchema == NULL) {
@@ -3914,6 +3932,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
 
 _err:
   tsdbError("failed to create data reader, code:%s %s", tstrerror(code), idstr);
+  tsdbReaderClose(pReader);
   return code;
 }
 

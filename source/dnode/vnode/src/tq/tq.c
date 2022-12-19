@@ -730,7 +730,10 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
 
   STqHandle* pHandle = taosHashGet(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
   if (pHandle) {
-    walCloseRef(pHandle->pWalReader->pWal, pHandle->pRef->refId);
+    //walCloseRef(pHandle->pWalReader->pWal, pHandle->pRef->refId);
+    if (pHandle->pRef) {
+      walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
+    }
     code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
     if (code != 0) {
       tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
@@ -743,7 +746,7 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
   }
 
   if (tqMetaDeleteHandle(pTq, pReq->subKey) < 0) {
-    ASSERT(0);
+    tqError("cannot process tq delete req %s, since no such offset in tdb", pReq->subKey);
   }
   return 0;
 }
@@ -1272,7 +1275,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
     qDebug("delete req enqueue stream task: %d, ver: %" PRId64, pTask->taskId, ver);
 
     if (!failed) {
-      SStreamRefDataBlock* pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM);
+      SStreamRefDataBlock* pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
       pRefBlock->type = STREAM_INPUT__REF_DATA_BLOCK;
       pRefBlock->pBlock = pDelBlock;
       pRefBlock->dataRef = pRef;
@@ -1304,7 +1307,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   }
 
 #if 0
-    SStreamDataBlock* pStreamBlock = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+    SStreamDataBlock* pStreamBlock = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
     pStreamBlock->type = STREAM_INPUT__DATA_BLOCK;
     pStreamBlock->blocks = taosArrayInit(0, sizeof(SSDataBlock));
     SSDataBlock block = {0};

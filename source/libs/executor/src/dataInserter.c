@@ -27,7 +27,7 @@ extern SDataSinkStat gDataSinkStat;
 typedef struct SSubmitRes {
   int64_t     affectedRows;
   int32_t     code;
-  SSubmitRsp* pRsp;
+  SSubmitRsp2* pRsp;
 } SSubmitRes;
 
 typedef struct SDataInserterHandle {
@@ -61,38 +61,39 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
     pInserter->submitRes.pRsp = taosMemoryCalloc(1, sizeof(SSubmitRsp));
     SDecoder coder = {0};
     tDecoderInit(&coder, pMsg->pData, pMsg->len);
-    code = tDecodeSSubmitRsp(&coder, pInserter->submitRes.pRsp);
+    code = tDecodeSSubmitRsp2(&coder, pInserter->submitRes.pRsp);
     if (code) {
-      tFreeSSubmitRsp(pInserter->submitRes.pRsp);
+//      tFreeSSubmitRsp(pInserter->submitRes.pRsp);
       pInserter->submitRes.code = code;
       goto _return;
     }
 
-    if (pInserter->submitRes.pRsp->nBlocks > 0) {
-      for (int32_t i = 0; i < pInserter->submitRes.pRsp->nBlocks; ++i) {
-        SSubmitBlkRsp* blk = pInserter->submitRes.pRsp->pBlocks + i;
-        if (TSDB_CODE_SUCCESS != blk->code) {
-          code = blk->code;
-          tFreeSSubmitRsp(pInserter->submitRes.pRsp);
+    if (pInserter->submitRes.pRsp->affectedRows > 0) {
+      SArray* pCreateTbList = pInserter->submitRes.pRsp->aCreateTbRsp;
+      int32_t numOfTables = taosArrayGetSize(pCreateTbList);
+
+      for (int32_t i = 0; i < numOfTables; ++i) {
+        SVCreateTbRsp* pRsp = taosArrayGet(pCreateTbList, i);
+        if (TSDB_CODE_SUCCESS != pRsp->code) {
+          code = pRsp->code;
+//          tFreeSSubmitRsp(pInserter->submitRes.pRsp);
           pInserter->submitRes.code = code;
           goto _return;
         }
       }
     }
 
-    pInserter->submitRes.affectedRows += pInserter->submitRes.pRsp->affectedRows;
+//    pInserter->submitRes.affectedRows += pInserter->submitRes.pRsp->affectedRows;
+//    pInserter->submitRes.affectedRows += pInserter->submitRes.
     qDebug("submit rsp received, affectedRows:%d, total:%"PRId64, pInserter->submitRes.pRsp->affectedRows,
            pInserter->submitRes.affectedRows);
 
-    tFreeSSubmitRsp(pInserter->submitRes.pRsp);
+//    tFreeSSubmitRsp(pInserter->submitRes.pRsp);
   }
 
 _return:
-
   tsem_post(&pInserter->ready);
-
   taosMemoryFree(pMsg->pData);
-
   return TSDB_CODE_SUCCESS;
 }
 

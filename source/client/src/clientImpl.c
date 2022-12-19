@@ -190,8 +190,9 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   (*pRequest)->body.param = param;
 
   STscObj* pTscObj = (*pRequest)->pTscObj;
-  if (taosHashPut(pTscObj->pRequests, &(*pRequest)->self, sizeof((*pRequest)->self), &(*pRequest)->self,
-                  sizeof((*pRequest)->self))) {
+  int32_t err = taosHashPut(pTscObj->pRequests, &(*pRequest)->self, sizeof((*pRequest)->self), &(*pRequest)->self,
+                  sizeof((*pRequest)->self));
+  if (err) {
     tscError("%" PRId64 " failed to add to request container, reqId:0x%" PRIx64 ", conn:%" PRId64 ", %s",
              (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
 
