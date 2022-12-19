@@ -110,9 +110,9 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
 
   if (order == TSDB_ORDER_ASC) {
     w = getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.skey);
-    assert(w.ekey >= pBlockInfo->window.skey);
+    ASSERT(w.ekey >= pBlockInfo->window.skey);
 
-    if (TMAX(w.skey, pBlockInfo->window.skey) <= TMIN(w.ekey, pBlockInfo->window.ekey)) {
+    if (w.ekey < pBlockInfo->window.ekey) {
       return true;
     }
 
@@ -122,16 +122,16 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
         break;
       }
 
-      assert(w.ekey > pBlockInfo->window.ekey);
+      ASSERT(w.ekey > pBlockInfo->window.ekey);
       if (TMAX(w.skey, pBlockInfo->window.skey) <= pBlockInfo->window.ekey) {
         return true;
       }
     }
   } else {
     w = getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.ekey);
-    assert(w.skey <= pBlockInfo->window.ekey);
+    ASSERT(w.skey <= pBlockInfo->window.ekey);
 
-    if (TMAX(w.skey, pBlockInfo->window.skey) <= TMIN(w.ekey, pBlockInfo->window.ekey)) {
+    if (w.skey > pBlockInfo->window.skey) {
       return true;
     }
 
@@ -1342,6 +1342,7 @@ static int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock,
   }
   pDestBlock->info.type = STREAM_CLEAR;
   pDestBlock->info.version = pSrcBlock->info.version;
+  pDestBlock->info.dataLoad = 1;
   blockDataUpdateTsWindow(pDestBlock, 0);
   return code;
 }
@@ -1450,6 +1451,7 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
   }
   if (out && pInfo->pUpdateDataRes->info.rows > 0) {
     pInfo->pUpdateDataRes->info.version = pBlock->info.version;
+    pInfo->pUpdateDataRes->info.dataLoad = 1;
     blockDataUpdateTsWindow(pInfo->pUpdateDataRes, 0);
     pInfo->pUpdateDataRes->info.type = pInfo->partitionSup.needCalc ? STREAM_DELETE_DATA : STREAM_CLEAR;
   }
@@ -1512,6 +1514,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
   }
 
+  pInfo->pRes->info.dataLoad = 1;
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
   blockDataFreeRes((SSDataBlock*)pBlock);
 
@@ -1799,6 +1802,7 @@ FETCH_NEXT_BLOCK:
     // TODO move into scan
     pBlock->info.calWin.skey = INT64_MIN;
     pBlock->info.calWin.ekey = INT64_MAX;
+    pBlock->info.dataLoad = 1;
     blockDataUpdateTsWindow(pBlock, 0);
     switch (pBlock->info.type) {
       case STREAM_NORMAL:
@@ -1976,6 +1980,7 @@ FETCH_NEXT_BLOCK:
         }
 
         doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+        pInfo->pRes->info.dataLoad = 1;
         blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
 
         if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
