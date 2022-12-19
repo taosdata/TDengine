@@ -1494,6 +1494,10 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SVnodeModifOpStmt* p
 
 static int32_t parseFileClause(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt, STableDataBlocks* pDataBuf,
                                SToken* pToken) {
+  if (tsUseAdapter) {
+    return buildInvalidOperationMsg(&pCxt->msg, "proxy mode does not support csv loading");
+  }
+
   NEXT_TOKEN(pStmt->pSql, *pToken);
   if (0 == pToken->n || (TK_NK_STRING != pToken->type && TK_NK_ID != pToken->type)) {
     return buildSyntaxErrMsg(&pCxt->msg, "file path is required following keyword FILE", pToken->z);
