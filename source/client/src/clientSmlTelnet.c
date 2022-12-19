@@ -283,11 +283,10 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   }
 
   SSmlKv kv = {.key = VALUE, .keyLen = VALUE_LEN, .value = elements->cols, .length = (size_t)elements->colsLen};
-  if (smlParseValue(&kv, &info->msgBuf) == TSDB_CODE_SUCCESS) {
-    kv.length = (int16_t)tDataTypes[kv.type].bytes;
-  }else{
+  if (smlParseValue(&kv, &info->msgBuf) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
+
   JUMP_SPACE(sql, sqlEnd)
 
   elements->tags = sql;
