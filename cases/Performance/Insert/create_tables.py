@@ -110,5 +110,5 @@ class InsertTest(TDCase):
 
             # get node_info and process_info
             env_setting = self.get_component_by_name("prometheus")
-            Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
-            Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
+            Insert_file.get_process_exporter_info(env_setting, 0.1, timestamp_start, timestamp_end)
+            Insert_file.get_node_exporter_info(env_setting, 0.1, timestamp_start, timestamp_end)
