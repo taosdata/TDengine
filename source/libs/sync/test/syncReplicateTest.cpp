@@ -189,7 +189,7 @@ int main(int argc, char** argv) {
 
     if (alreadySend < writeRecordNum) {
       SRpcMsg* pRpcMsg = createRpcMsg(alreadySend, writeRecordNum, myIndex);
-      int32_t  ret = syncPropose(rid, pRpcMsg, false);
+      int32_t  ret = syncPropose(rid, pRpcMsg, false, NULL);
       if (ret == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
         sTrace("%s value%d write not leader", s, alreadySend);
       } else {
