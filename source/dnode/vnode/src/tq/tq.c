@@ -738,7 +738,7 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
 
   code = tqOffsetDelete(pTq->pOffsetStore, pReq->subKey);
   if (code != 0) {
-    tqError("cannot process tq delete req %s, since no such offset", pReq->subKey);
+    tqError("cannot process tq delete req %s, since no such offset in cache", pReq->subKey);
   }
 
   if (tqMetaDeleteHandle(pTq, pReq->subKey) < 0) {

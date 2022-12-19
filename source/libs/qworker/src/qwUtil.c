@@ -74,6 +74,8 @@ int32_t qwAddSchedulerImpl(SQWorker *mgmt, uint64_t sId, int32_t rwType) {
   SQWSchStatus newSch = {0};
   newSch.tasksHash =
       taosHashInit(mgmt->cfg.maxSchTaskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  newSch.hbBrokenTs = taosGetTimestampMs();
+
   if (NULL == newSch.tasksHash) {
     QW_SCH_ELOG("taosHashInit %d failed", mgmt->cfg.maxSchTaskNum);
     QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
