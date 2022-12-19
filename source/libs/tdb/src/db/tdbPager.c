@@ -524,6 +524,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
 
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
+    tdbPCacheMarkFree(pPager->pCache, pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
