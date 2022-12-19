@@ -739,6 +739,7 @@ int32_t handleSubmitExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog
   SArray*     pArray = NULL;
   SSubmitRsp* pRsp = (SSubmitRsp*)res;
   if (pRsp->nBlocks <= 0) {
+    taosMemoryFree(pRsp->pBlocks);
     return TSDB_CODE_SUCCESS;
   }
 
