@@ -1373,7 +1373,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt,
       strtolower(pLine, pLine);
       const char* pRow = pLine;
 
-      code = parseOneRow(pCxt, (const char**)&pRow, pDataBuf, &gotRow, &token);
+      code = parseOneRow(pCxt, (const char**)&pRow, pTableCxt, &gotRow, &token);
       if (code && firstLine) {
         firstLine = false;
         code = 0;
