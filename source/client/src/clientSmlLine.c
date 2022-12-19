@@ -120,7 +120,7 @@ static int64_t smlParseInfluxTime(SSmlHandle *info, const char *data, int32_t le
   return ts;
 }
 
-static int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
+int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
   if (pVal->value[0] == '"'){  // binary
     if (pVal->length >= 2 && pVal->value[pVal->length - 1] == '"') {
       pVal->type = TSDB_DATA_TYPE_BINARY;
