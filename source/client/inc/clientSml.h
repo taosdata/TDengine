@@ -204,6 +204,12 @@ extern int64_t smlFactorS[3];
 
 typedef int32_t (*_equal_fn_sml)(const void *, const void *);
 
+SSmlHandle   *smlBuildSmlInfo(TAOS *taos);
+void          smlDestroyInfo(SSmlHandle *info);
+void          smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset);
+void          smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset);
+SArray       *smlJsonParseTags(char *start, char *end);
+bool          smlParseNumberOld(SSmlKv *kvVal, SSmlMsgBuf *msg);
 void*         nodeListGet(NodeList* list, const void *key, int32_t len, _equal_fn_sml fn);
 int           nodeListSet(NodeList** list, const void *key, int32_t len, void* value, _equal_fn_sml fn);
 int           nodeListSize(NodeList* list);

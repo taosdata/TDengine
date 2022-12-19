@@ -25,10 +25,7 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
-#include "../src/clientSmlLine.c"
-#include "../src/clientSmlJson.c"
-#include "../src/clientSmlTelnet.c"
-#include "../src/clientSml.c"
+#include "../inc/clientSml.h"
 #include "taos.h"
 
 int main(int argc, char **argv) {

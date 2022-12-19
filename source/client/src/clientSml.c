@@ -1021,7 +1021,7 @@ static void smlDestroyTableInfo(SSmlTableInfo *tag) {
   taosMemoryFree(tag);
 }
 
-static void smlDestroyInfo(SSmlHandle *info) {
+void smlDestroyInfo(SSmlHandle *info) {
   if (!info) return;
   qDestroyQuery(info->pQuery);
 
@@ -1063,7 +1063,7 @@ static void smlDestroyInfo(SSmlHandle *info) {
   taosMemoryFreeClear(info);
 }
 
-static SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
+SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
   int32_t     code = TSDB_CODE_SUCCESS;
   SSmlHandle *info = (SSmlHandle *)taosMemoryCalloc(1, sizeof(SSmlHandle));
   if (NULL == info) {
