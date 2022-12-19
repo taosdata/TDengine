@@ -222,7 +222,17 @@ class ClusterComCreate:
         tsql.execute(f" ALTER STABLE {dbName}.{stbName} ADD COLUMN c4 DOUBLE;")
         tdLog.debug(f"ALTER STABLE {dbName}.{stbName} DROP COLUMN c2;")
         tsql.execute(f" ALTER STABLE {dbName}.{stbName} DROP COLUMN c2;")
-
+        tdLog.debug(f"ALTER STABLE {dbName}.{stbName} RENAME TAG t1 t1r;")
+        tsql.execute(f" ALTER STABLE {dbName}.{stbName} RENAME TAG t1 t1r;")
+        tdLog.debug(f"ALTER STABLE {dbName}.{stbName} DROP TAG t2;")
+        tsql.execute(f" ALTER STABLE {dbName}.{stbName} DROP TAG t2;")
+        tdLog.debug(f"ALTER STABLE {dbName}.{stbName} ADD TAG t2 binary(32) ;")
+        tsql.execute(f" ALTER STABLE {dbName}.{stbName} ADD TAG t2 binary(32);")        
+        tdLog.debug(f"ALTER STABLE {dbName}.{stbName} MODIFY TAG t2 binary(34) ;")
+        tsql.execute(f" ALTER STABLE {dbName}.{stbName}  MODIFY TAG t2 binary(34);")    
+        tdLog.debug(f"ALTER STABLE {dbName}.{stbName} ADD TAG t3 double ;")
+        tsql.execute(f" ALTER STABLE {dbName}.{stbName} ADD TAG t3 double;")  
+        tsql.error(f" ALTER STABLE {dbName}.{stbName} ADD TAG t2 double;")  
 
         tdLog.debug("start to insert data ............")
         # tsql.execute("use %s" %dbName)
