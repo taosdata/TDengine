@@ -296,7 +296,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       vnodeProcessAlterConfigReq(pVnode, version, pReq, len, pRsp);
       break;
     case TDMT_VND_COMMIT:
+#if 0
       vnodeSyncCommit(pVnode);
+#else
+      vnodeAsyncCompact(pVnode);
+#endif
       vnodeBegin(pVnode);
       goto _exit;
     case TDMT_VND_COMPACT:
