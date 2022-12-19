@@ -192,6 +192,28 @@ SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn) {
   return pPage;
 }
 
+void tdbPCacheMarkFree(SPCache *pCache, SPage *pPage) {
+  tdbPCacheLock(pCache);
+  tdbPCacheRemovePageFromHash(pCache, pPage);
+  pPage->isFree = 1;
+  tdbPCacheUnlock(pCache);
+}
+
+static void tdbPCacheFreePage(SPCache *pCache, SPage *pPage) {
+  if (pPage->id < pCache->nPages) {
+    pPage->pFreeNext = pCache->pFree;
+    pCache->pFree = pPage;
+    pPage->isFree = 0;
+    ++pCache->nFree;
+    tdbTrace("pcache/free page %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
+  } else {
+    tdbTrace("pcache destroy page: %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
+
+    tdbPCacheRemovePageFromHash(pCache, pPage);
+    tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+  }
+}
+
 void tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn) {
   i32 nRef;
 
@@ -209,7 +231,11 @@ void tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn) {
     // nRef = tdbGetPageRef(pPage);
     // if (nRef == 0) {
     if (pPage->isLocal) {
-      tdbPCacheUnpinPage(pCache, pPage);
+      if (!pPage->isFree) {
+        tdbPCacheUnpinPage(pCache, pPage);
+      } else {
+        tdbPCacheFreePage(pCache, pPage);
+      }
     } else {
       if (TDB_TXN_IS_WRITE(pTxn)) {
         // remove from hash
