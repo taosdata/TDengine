@@ -184,7 +184,7 @@ _err:
   return -1;
 }
 
-static void vnodePrepareCommit(SVnode *pVnode) {
+void vnodePrepareCommit(SVnode *pVnode) {
   tsem_wait(&pVnode->canCommit);
 
   tsdbPrepareCommit(pVnode->pTsdb);

@@ -76,6 +76,7 @@ typedef struct SRSmaSnapReader    SRSmaSnapReader;
 typedef struct SRSmaSnapWriter    SRSmaSnapWriter;
 typedef struct SSnapDataHdr       SSnapDataHdr;
 typedef struct SCommitInfo        SCommitInfo;
+typedef struct SCompactInfo       SCompactInfo;
 
 #define VNODE_META_DIR  "meta"
 #define VNODE_TSDB_DIR  "tsdb"
@@ -424,6 +425,11 @@ struct SSnapDataHdr {
 };
 
 struct SCommitInfo {
+  SVnodeInfo info;
+  SVnode*    pVnode;
+  TXN*       txn;
+};
+struct SCompactInfo {
   SVnodeInfo info;
   SVnode*    pVnode;
   TXN*       txn;

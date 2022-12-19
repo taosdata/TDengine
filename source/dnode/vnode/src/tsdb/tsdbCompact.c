@@ -15,8 +15,8 @@
 
 #include "tsdb.h"
 
-typedef struct {
-} SMemDIter;
+// typedef struct {
+// } SMemDIter;
 
 typedef struct {
   SArray    *aBlockIdx;  // SArray<SBlockIdx>
@@ -35,6 +35,12 @@ typedef struct {
 } SSttDIter;
 
 typedef struct {
+  int32_t  flag;
+  SRowInfo rowInfo;
+  char     handle[];
+} STsdbDataIter;
+
+typedef struct {
   STsdb        *pTsdb;
   STsdbFS       fs;
   int64_t       cid;
@@ -47,6 +53,25 @@ typedef struct {
 #define TSDB_FLG_DEEP_COMPACT 0x1
 
 // ITER =========================
+static int32_t tsdbDataIterOpen(STsdbDataIter *pIter) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  // TODO
+_exit:
+  return code;
+}
+
+static void tsdbDataIterClose(STsdbDataIter *pIter) {
+  // TODO
+}
+
+static int32_t tsdbDataIterNext(STsdbDataIter *pIter) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  // TODO
+_exit:
+  return code;
+}
 
 // COMPACT =========================
 static int32_t tsdbBeginCompact(STsdb *pTsdb, STsdbCompactor *pCompactor) {
@@ -105,8 +130,6 @@ static int32_t tsdbDeepCompact(STsdbCompactor *pCompactor) {
 
   code = tsdbDataFReaderOpen(&pCompactor->pReader, pTsdb, pCompactor->pDFileSet);
   TSDB_CHECK_CODE(code, lino, _exit);
-
-  // 
 
 _exit:
   if (code) {
