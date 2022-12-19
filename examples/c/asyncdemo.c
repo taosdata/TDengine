@@ -35,7 +35,7 @@ int64_t st, et;
 typedef struct {
   int       id;
   TAOS     *taos;
-  char      name[16];
+  char      name[32];
   time_t    timeStamp;
   int       value;
   int       rowsInserted;
