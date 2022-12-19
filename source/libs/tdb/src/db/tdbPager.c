@@ -830,7 +830,7 @@ static int tdbPagerPWritePageToDB(SPager *pPager, SPage *pPage) {
   return 0;
 }
 
-static int tdbPagerRestore(SPager *pPager, SBTree *pBt, const char *jFileName) {
+static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
   int   ret = 0;
   SPgno journalSize = 0;
   u8   *pageBuf = NULL;
@@ -908,7 +908,7 @@ static int tdbPagerRestore(SPager *pPager, SBTree *pBt, const char *jFileName) {
   return 0;
 }
 
-int tdbPagerRestoreJournals(SPager *pPager, SBTree *pBt) {
+int tdbPagerRestoreJournals(SPager *pPager) {
   tdbDirEntryPtr pDirEntry;
   tdbDirPtr      pDir = taosOpenDir(pPager->pEnv->dbName);
   if (pDir == NULL) {
@@ -919,7 +919,7 @@ int tdbPagerRestoreJournals(SPager *pPager, SBTree *pBt) {
   while ((pDirEntry = tdbReadDir(pDir)) != NULL) {
     char *name = tdbDirEntryBaseName(tdbGetDirEntryName(pDirEntry));
     if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
-      if (tdbPagerRestore(pPager, pBt, name) < 0) {
+      if (tdbPagerRestore(pPager, name) < 0) {
         tdbCloseDir(&pDir);
 
         tdbError("failed to restore file due to %s. jFileName:%s", strerror(errno), name);
