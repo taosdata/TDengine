@@ -471,6 +471,8 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     return -1;
   }
 
+  tdbTrace("tdb/abort: pgno:%p,", pPager);
+
   for (int pgIndex = 0; pgIndex < journalSize; ++pgIndex) {
     // read pgno & the page from journal
     SPgno pgno;
@@ -480,6 +482,8 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
       tdbOsFree(pageBuf);
       return -1;
     }
+
+    tdbTrace("tdb/abort: pgno:%d,", pgno);
 
     ret = tdbOsRead(jfd, pageBuf, pPager->pageSize);
     if (ret < 0) {
@@ -578,12 +582,12 @@ int tdbPagerFlushPage(SPager *pPager, TXN *pTxn) {
       return -1;
     }
 
-    tdbTrace("tdb/flush:%p, %d/%d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize, maxPgno);
+    tdbTrace("tdb/flush:%p, pgno:%d, %d/%d/%d", pPager, pgno, pPager->dbOrigSize, pPager->dbFileSize, maxPgno);
     pPager->dbOrigSize = maxPgno;
 
     pPage->isDirty = 0;
 
-    tdbTrace("pager/flush drop page: %p %d from dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
+    tdbTrace("pager/flush drop page: %p, pgno:%d, from dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
 
