@@ -21,9 +21,6 @@
 #include "taos.h"
 
 static int  running = 1;
-static char dbName[64] = "tmqdb";
-static char stbName[64] = "stb";
-static char topicName[64] = "topicname";
 
 static int32_t msg_process(TAOS_RES* msg) {
   char    buf[1024];
@@ -43,7 +40,7 @@ static int32_t msg_process(TAOS_RES* msg) {
 
     TAOS_FIELD* fields = taos_fetch_fields(msg);
     int32_t     numOfFields = taos_field_count(msg);
-    int32_t*    length = taos_fetch_lengths(msg);
+    //int32_t*    length = taos_fetch_lengths(msg);
     int32_t     precision = taos_result_precision(msg);
     rows++;
     taos_print_row(buf, row, fields, numOfFields);
@@ -62,6 +59,13 @@ static int32_t init_env() {
   TAOS_RES* pRes;
   // drop database if exists
   printf("create database\n");
+  pRes = taos_query(pConn, "drop topic topicname");
+  if (taos_errno(pRes) != 0) {
+    printf("error in drop tmqdb, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
   pRes = taos_query(pConn, "drop database if exists tmqdb");
   if (taos_errno(pRes) != 0) {
     printf("error in drop tmqdb, reason:%s\n", taos_errstr(pRes));
@@ -249,7 +253,7 @@ int main(int argc, char* argv[]) {
 
   tmq_t* tmq = build_consumer();
   if (NULL == tmq) {
-    fprintf(stderr, "%% build_consumer() fail!\n");
+    fprintf(stderr, "build_consumer() fail!\n");
     return -1;
   }
 
@@ -259,7 +263,7 @@ int main(int argc, char* argv[]) {
   }
 
   if ((code = tmq_subscribe(tmq, topic_list))) {
-    fprintf(stderr, "%% Failed to tmq_subscribe(): %s\n", tmq_err2str(code));
+    fprintf(stderr, "Failed to tmq_subscribe(): %s\n", tmq_err2str(code));
   }
   tmq_list_destroy(topic_list);
 
@@ -267,9 +271,9 @@ int main(int argc, char* argv[]) {
 
   code = tmq_consumer_close(tmq);
   if (code) {
-    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(code));
+    fprintf(stderr, "Failed to close consumer: %s\n", tmq_err2str(code));
   } else {
-    fprintf(stderr, "%% Consumer closed\n");
+    fprintf(stderr, "Consumer closed\n");
   }
 
   return 0;

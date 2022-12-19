@@ -195,6 +195,7 @@ typedef struct SDataBlockInfo {
   uint32_t    capacity;
   SBlockID    id;
   int16_t     hasVarCol;
+  int16_t     dataLoad;   // denote if the data is loaded or not
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization

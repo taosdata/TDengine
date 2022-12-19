@@ -125,7 +125,7 @@ class TDTestCase:
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
         tdSql.query('select * from information_schema.ins_databases;')
-        tdSql.checkData(2,5,'off')
+        tdSql.checkData(2,5,'on')
         tdSql.error("alter database db strict 'off'")
         # tdSql.execute('alter database db strict 'on'')
         # tdSql.query('select * from information_schema.ins_databases;')
