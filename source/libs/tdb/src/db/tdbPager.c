@@ -466,12 +466,18 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     return -1;
   }
 
+  if (tdbOsLSeek(jfd, 0L, SEEK_SET) < 0) {
+    tdbError("failed to lseek jfd due to %s. file:%s, offset:0", strerror(errno), pPager->dbFileName);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
   u8 *pageBuf = tdbOsCalloc(1, pPager->pageSize);
   if (pageBuf == NULL) {
     return -1;
   }
 
-  tdbTrace("tdb/abort: pgno:%p,", pPager);
+  tdbDebug("tdb/abort: pager:%p,", pPager);
 
   for (int pgIndex = 0; pgIndex < journalSize; ++pgIndex) {
     // read pgno & the page from journal
