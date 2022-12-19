@@ -239,6 +239,7 @@ TEST(testCase, smlParseCols_Test) {
   info->protocol = TSDB_SML_LINE_PROTOCOL;
   info->dataFormat = false;
   SSmlLineInfo elements = {0};
+  info->msgBuf = msgBuf;
 
   const char *data =
       "st,t=1 cb\\=in=\"pass\\,it "
@@ -413,28 +414,28 @@ TEST(testCase, smlParseCols_Test) {
   smlDestroyInfo(info);
 }
 
-TEST(testCase, smlGetTimestampLen_Test) {
-  uint8_t len = smlGetTimestampLen(0);
-  ASSERT_EQ(len, 1);
-
-  len = smlGetTimestampLen(1);
-  ASSERT_EQ(len, 1);
-
-  len = smlGetTimestampLen(10);
-  ASSERT_EQ(len, 2);
-
-  len = smlGetTimestampLen(390);
-  ASSERT_EQ(len, 3);
-
-  len = smlGetTimestampLen(-1);
-  ASSERT_EQ(len, 1);
-
-  len = smlGetTimestampLen(-10);
-  ASSERT_EQ(len, 2);
-
-  len = smlGetTimestampLen(-390);
-  ASSERT_EQ(len, 3);
-}
+//TEST(testCase, smlGetTimestampLen_Test) {
+//  uint8_t len = smlGetTimestampLen(0);
+//  ASSERT_EQ(len, 1);
+//
+//  len = smlGetTimestampLen(1);
+//  ASSERT_EQ(len, 1);
+//
+//  len = smlGetTimestampLen(10);
+//  ASSERT_EQ(len, 2);
+//
+//  len = smlGetTimestampLen(390);
+//  ASSERT_EQ(len, 3);
+//
+//  len = smlGetTimestampLen(-1);
+//  ASSERT_EQ(len, 1);
+//
+//  len = smlGetTimestampLen(-10);
+//  ASSERT_EQ(len, 2);
+//
+//  len = smlGetTimestampLen(-390);
+//  ASSERT_EQ(len, 3);
+//}
 
 TEST(testCase, smlParseNumber_Test) {
   SSmlKv     kv = {0};
@@ -486,138 +487,77 @@ TEST(testCase, smlParseTelnetLine_error_Test) {
   smlDestroyInfo(info);
 }
 
-TEST(testCase, smlParseTelnetLine_json_error_Test) {
+TEST(testCase, smlParseTelnetLine_Test) {
   SSmlHandle *info = smlBuildSmlInfo(NULL);
-  info->protocol = TSDB_SML_JSON_PROTOCOL;
   info->dataFormat = false;
+  info->protocol = TSDB_SML_TELNET_PROTOCOL;
   ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
-      "[\n"
-      "    {\n"
-      "        \"metric\": \"sys.cpu.nice\",\n"
-      "        \"timestamp\": 13468464009999333322222223,\n"
-      "        \"value\": 18,\n"
-      "        \"tags\": {\n"
-      "           \"host\": \"web01\",\n"
-      "           \"dc\": \"lga\"\n"
-      "        }\n"
-      "    },\n"
-      "]",
-      "[\n"
-      "    {\n"
-      "        \"metric\": \"sys.cpu.nice\",\n"
-      "        \"timestamp\": 1346846400i,\n"
-      "        \"value\": 18,\n"
-      "        \"tags\": {\n"
-      "           \"host\": \"web01\",\n"
-      "           \"dc\": \"lga\"\n"
-      "        }\n"
-      "    },\n"
-      "]",
-      "[\n"
-      "    {\n"
-      "        \"metric\": \"sys.cpu.nice\",\n"
-      "        \"timestamp\": 1346846400,\n"
-      "        \"value\": 18,\n"
-      "        \"tags\": {\n"
-      "           \"groupid\": { \n"
-      "                 \"value\" : 2,\n"
-      "                 \"type\"  : \"nchar\"\n"
-      "             },\n"
-      "           \"location\": { \n"
-      "                 \"value\" : \"北京\",\n"
-      "                 \"type\"  : \"binary\"\n"
-      "             },\n"
-      "           \"id\": \"d1001\"\n"
-      "         }\n"
-      "    },\n"
-      "]",
+      "twudyr 1626006833641 \"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal\" id=twudyr_17102_17825 t0=t t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7=\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal\" t8=L\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal\"",
   };
-
-  int ret = TSDB_CODE_SUCCESS;
   for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
     SSmlLineInfo elements = {0};
-    ret = smlParseTelnetString(info, (char *)sql[i], (char*)(sql[i] + strlen(sql[i])), &elements);
-    ASSERT_NE(ret, 0);
+    int ret = smlParseTelnetString(info, (char*)sql[i], (char*)(sql[i] + strlen(sql[i])), &elements);
+//    printf("i:%d\n", i);
+    ASSERT_EQ(ret, 0);
   }
 
-  smlDestroyInfo(info);
-}
-
-TEST(testCase, smlParseTelnetLine_diff_json_type1_Test) {
-  SSmlHandle *info = smlBuildSmlInfo(NULL);
-  info->protocol = TSDB_SML_JSON_PROTOCOL;
-  info->dataFormat = false;
-  ASSERT_NE(info, nullptr);
-
-  const char *sql[] = {
-      "[\n"
-      "    {\n"
-      "        \"metric\": \"sys.cpu.nice\",\n"
-      "        \"timestamp\": 1346846400,\n"
-      "        \"value\": 18,\n"
-      "        \"tags\": {\n"
-      "           \"host\": \"lga\"\n"
-      "        }\n"
-      "    },\n"
-      "]",
-      "[\n"
-      "    {\n"
-      "        \"metric\": \"sys.cpu.nice\",\n"
-      "        \"timestamp\": 1346846400,\n"
-      "        \"value\": 18,\n"
-      "        \"tags\": {\n"
-      "           \"host\": 8\n"
-      "        }\n"
-      "    },\n"
-      "]",
-  };
-
-  int ret = TSDB_CODE_SUCCESS;
-  for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
-    SSmlLineInfo elements = {0};
-    ret = smlParseTelnetString(info, (char *)sql[i], (char*)(sql[i] + strlen(sql[i])), &elements);
-    if (ret != TSDB_CODE_SUCCESS) break;
-  }
-  ASSERT_NE(ret, 0);
   smlDestroyInfo(info);
 }
 
 TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
   SSmlHandle *info = smlBuildSmlInfo(NULL);
   info->protocol = TSDB_SML_JSON_PROTOCOL;
-  info->dataFormat = false;
   ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
-      "[\n"
-      "    {\n"
-      "        \"metric\": \"sys.cpu.nice\",\n"
-      "        \"timestamp\": 1346846400,\n"
-      "        \"value\": 18,\n"
-      "        \"tags\": {\n"
-      "           \"host\": \"lga\"\n"
-      "        }\n"
-      "    },\n"
-      "]",
-      "[\n"
-      "    {\n"
-      "        \"metric\": \"sys.cpu.nice\",\n"
-      "        \"timestamp\": 1346846400,\n"
-      "        \"value\": \"18\",\n"
-      "        \"tags\": {\n"
-      "           \"host\": \"fff\"\n"
-      "        }\n"
-      "    },\n"
-      "]",
+      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\": 1346846400,\"value\": 18,\"tags\": {\"host\": \"lga\"}},{\"metric\": \"sys.sdfa\",\"timestamp\": 1346846400,\"value\": \"18\",\"tags\": {\"host\": 8932}},]",
   };
-  int ret = TSDB_CODE_SUCCESS;
   for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
-    SSmlLineInfo elements = {0};
-    ret = smlParseTelnetString(info, (char *)sql[i], (char*)(sql[i] + strlen(sql[i])), &elements);
-    if (ret != TSDB_CODE_SUCCESS) break;
+    char *dataPointStart = (char *)sql[i];
+    int8_t offset[4] = {0};
+    while (1) {
+      SSmlLineInfo elements = {0};
+      if(offset[0] == 0){
+        smlJsonParseObjFirst(&dataPointStart, &elements, offset);
+      }else{
+        smlJsonParseObj(&dataPointStart, &elements, offset);
+      }
+      if(*dataPointStart == '\0') break;
+
+      SArray *tags = smlJsonParseTags(elements.tags, elements.tags + elements.tagsLen);
+      size_t num = taosArrayGetSize(tags);
+      ASSERT_EQ(num, 1);
+
+      taosArrayDestroy(tags);
+    }
   }
-  ASSERT_NE(ret, 0);
   smlDestroyInfo(info);
+}
+
+TEST(testCase, smlParseNumber_performance_Test) {
+  char       msg[256] = {0};
+  SSmlMsgBuf msgBuf;
+  SSmlKv kv;
+
+  char* str[3] = {"2893f64", "2323u32", "93u8"};
+  for (int i = 0; i < 3; ++i) {
+    int64_t t1 = taosGetTimestampUs();
+    for (int j = 0; j < 10000000; ++j) {
+      kv.value = str[i];
+      kv.length = strlen(str[i]);
+      smlParseNumber(&kv, &msgBuf);
+    }
+    printf("smlParseNumber:%s cost:%" PRId64, str[i], taosGetTimestampUs() - t1);
+    printf("\n");
+    int64_t t2 = taosGetTimestampUs();
+    for (int j = 0; j < 10000000; ++j) {
+      kv.value = str[i];
+      kv.length = strlen(str[i]);
+      smlParseNumberOld(&kv, &msgBuf);
+    }
+    printf("smlParseNumberOld:%s cost:%" PRId64, str[i], taosGetTimestampUs() - t2);
+    printf("\n\n");
+  }
 }

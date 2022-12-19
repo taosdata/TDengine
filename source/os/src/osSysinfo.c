@@ -354,6 +354,10 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
     code = 0;
     done |= 1;
   }
+  int endPos = strlen(cpuModel)-1;
+  if (cpuModel[endPos] == '\n') {
+    cpuModel[endPos] = '\0';
+  }
   taosCloseCmd(&pCmd);
 
   pCmd = taosOpenCmd("sysctl -n machdep.cpu.core_count");
@@ -485,11 +489,11 @@ int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma) {
 #ifdef _TD_X86_
   // Since the compiler is not support avx/avx2 instructions, the global variables always need to be
   // set to be false
-#if __AVX__ || __AVX2__
-  tsSIMDEnable = true;
-#else
-  tsSIMDEnable = false;
-#endif
+//#if __AVX__ || __AVX2__
+//  tsSIMDBuiltins = true;
+//#else
+//  tsSIMDBuiltins = false;
+//#endif
 
   uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
 

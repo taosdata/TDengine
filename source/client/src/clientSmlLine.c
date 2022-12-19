@@ -120,34 +120,58 @@ static int64_t smlParseInfluxTime(SSmlHandle *info, const char *data, int32_t le
   return ts;
 }
 
-static int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
-  // binary
-  if (smlIsBinary(pVal->value, pVal->length)) {
-    pVal->type = TSDB_DATA_TYPE_BINARY;
-    pVal->length -= BINARY_ADD_LEN;
-    if (pVal->length > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
-      return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
+  if (pVal->value[0] == '"'){  // binary
+    if (pVal->length >= 2 && pVal->value[pVal->length - 1] == '"') {
+      pVal->type = TSDB_DATA_TYPE_BINARY;
+      pVal->length -= BINARY_ADD_LEN;
+      if (pVal->length > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
+        return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+      }
+      pVal->value += (BINARY_ADD_LEN - 1);
+      return TSDB_CODE_SUCCESS;
     }
-    pVal->value += (BINARY_ADD_LEN - 1);
-    return TSDB_CODE_SUCCESS;
-  }
-  // nchar
-  if (smlIsNchar(pVal->value, pVal->length)) {
-    pVal->type = TSDB_DATA_TYPE_NCHAR;
-    pVal->length -= NCHAR_ADD_LEN;
-    if (pVal->length > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-      return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
-    }
-    pVal->value += (NCHAR_ADD_LEN - 1);
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  // bool
-  if (smlParseBool(pVal)) {
-    pVal->type = TSDB_DATA_TYPE_BOOL;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    return TSDB_CODE_SUCCESS;
+  if(pVal->value[0] == 'l' || pVal->value[0] == 'L'){  // nchar
+    if (pVal->value[1] == '"' && pVal->value[pVal->length - 1] == '"' && pVal->length >= 3){
+      pVal->type = TSDB_DATA_TYPE_NCHAR;
+      pVal->length -= NCHAR_ADD_LEN;
+      if (pVal->length > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
+        return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+      }
+      pVal->value += (NCHAR_ADD_LEN - 1);
+      return TSDB_CODE_SUCCESS;
+    }
+    return TSDB_CODE_TSC_INVALID_VALUE;
   }
+
+  if (pVal->value[0] == 't' || pVal->value[0] == 'T'){
+    if(pVal->length == 1 || (pVal->length == 4 && (pVal->value[1] == 'r' || pVal->value[1] == 'R')
+                              && (pVal->value[2] == 'u' || pVal->value[2] == 'U')
+                              && (pVal->value[3] == 'e' || pVal->value[3] == 'E'))){
+      pVal->i = TSDB_TRUE;
+      pVal->type = TSDB_DATA_TYPE_BOOL;
+      pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+      return TSDB_CODE_SUCCESS;
+    }
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  if (pVal->value[0] == 'f' || pVal->value[0] == 'F'){
+    if(pVal->length == 1 || (pVal->length == 5 && (pVal->value[1] == 'a' || pVal->value[1] == 'A')
+                             && (pVal->value[2] == 'l' || pVal->value[2] == 'L')
+                             && (pVal->value[3] == 's' || pVal->value[3] == 'S')
+                             && (pVal->value[4] == 'e' || pVal->value[4] == 'E'))){
+      pVal->i = TSDB_FALSE;
+      pVal->type = TSDB_DATA_TYPE_BOOL;
+      pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+      return TSDB_CODE_SUCCESS;
+    }
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
   // number
   if (smlParseNumber(pVal, msg)) {
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
@@ -432,7 +456,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd,
     bool        isInQuote = false;
     while (*sql < sqlEnd) {
       // parse value
-      if (IS_QUOTE(*sql)) {
+      if (unlikely(IS_QUOTE(*sql))) {
         isInQuote = !isInQuote;
         (*sql)++;
         continue;
@@ -468,6 +492,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd,
     SSmlKv kv = {.key = key, .keyLen = keyLen, .value = value, .length = valueLen};
     int32_t ret = smlParseValue(&kv, &info->msgBuf);
     if (ret != TSDB_CODE_SUCCESS) {
+      smlBuildInvalidDataMsg(&info->msgBuf, "smlParseValue error", value);
       return ret;
     }
 

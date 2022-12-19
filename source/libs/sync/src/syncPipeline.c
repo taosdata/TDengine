@@ -594,6 +594,7 @@ int32_t syncLogReplMgrRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
   int      count = 0;
   int64_t  firstIndex = -1;
   SyncTerm term = -1;
+  int64_t  batchSize = TMAX(1, pMgr->size >> (4 + pMgr->retryBackoff));
 
   for (SyncIndex index = pMgr->startIndex; index < pMgr->endIndex; index++) {
     int64_t pos = index % pMgr->size;
@@ -620,7 +621,10 @@ int32_t syncLogReplMgrRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
 
     retried = true;
     if (firstIndex == -1) firstIndex = index;
-    count++;
+
+    if (batchSize <= count++) {
+      break;
+    }
   }
 
   ret = 0;
@@ -800,8 +804,9 @@ int32_t syncLogReplMgrReplicateProbeOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode
 
 int32_t syncLogReplMgrReplicateAttemptedOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
   ASSERT(pMgr->restored);
+
   SRaftId* pDestId = &pNode->replicasId[pMgr->peerId];
-  int32_t  batchSize = TMAX(1, pMgr->size / 20);
+  int32_t  batchSize = TMAX(1, pMgr->size >> (4 + pMgr->retryBackoff));
   int32_t  count = 0;
   int64_t  nowMs = taosGetMonoTimestampMs();
   int64_t  limit = pMgr->size >> 1;

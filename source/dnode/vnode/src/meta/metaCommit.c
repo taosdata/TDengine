@@ -19,19 +19,21 @@ static FORCE_INLINE void *metaMalloc(void *pPool, size_t size) { return vnodeBuf
 static FORCE_INLINE void  metaFree(void *pPool, void *p) { vnodeBufPoolFree((SVBufPool *)pPool, p); }
 
 // begin a meta txn
-int metaBegin(SMeta *pMeta, int8_t fromSys) {
-  void *(*xMalloc)(void *, size_t);
-  void (*xFree)(void *, void *);
+int metaBegin(SMeta *pMeta, int8_t heap) {
+  void *(*xMalloc)(void *, size_t) = NULL;
+  void (*xFree)(void *, void *) = NULL;
   void *xArg = NULL;
 
-  if (fromSys) {
+  // default heap to META_BEGIN_HEAP_NIL
+  if (heap == META_BEGIN_HEAP_OS) {
     xMalloc = tdbDefaultMalloc;
     xFree = tdbDefaultFree;
-  } else {
+  } else if (heap == META_BEGIN_HEAP_BUFFERPOOL) {
     xMalloc = metaMalloc;
     xFree = metaFree;
     xArg = pMeta->pVnode->inUse;
   }
+
   if (tdbBegin(pMeta->pEnv, &pMeta->txn, xMalloc, xFree, xArg, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
