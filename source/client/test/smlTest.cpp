@@ -487,6 +487,25 @@ TEST(testCase, smlParseTelnetLine_error_Test) {
   smlDestroyInfo(info);
 }
 
+TEST(testCase, smlParseTelnetLine_Test) {
+  SSmlHandle *info = smlBuildSmlInfo(NULL);
+  info->dataFormat = false;
+  info->protocol = TSDB_SML_TELNET_PROTOCOL;
+  ASSERT_NE(info, nullptr);
+
+  const char *sql[] = {
+      "twudyr 1626006833641 \"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal\" id=twudyr_17102_17825 t0=t t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7=\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal\" t8=L\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal\"",
+  };
+  for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
+    SSmlLineInfo elements = {0};
+    int ret = smlParseTelnetString(info, (char*)sql[i], (char*)(sql[i] + strlen(sql[i])), &elements);
+//    printf("i:%d\n", i);
+    ASSERT_EQ(ret, 0);
+  }
+
+  smlDestroyInfo(info);
+}
+
 TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
   SSmlHandle *info = smlBuildSmlInfo(NULL);
   info->protocol = TSDB_SML_JSON_PROTOCOL;
