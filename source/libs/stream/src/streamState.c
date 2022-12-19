@@ -179,8 +179,8 @@ _err:
 }
 
 void streamStateClose(SStreamState* pState) {
-  tdbCommit(pState->pTdbState->db, &pState->pTdbState->txn);
-  tdbPostCommit(pState->pTdbState->db, &pState->pTdbState->txn);
+  tdbCommit(pState->pTdbState->db, pState->pTdbState->txn);
+  tdbPostCommit(pState->pTdbState->db, pState->pTdbState->txn);
   tdbTbClose(pState->pTdbState->pStateDb);
   tdbTbClose(pState->pTdbState->pFuncStateDb);
   tdbTbClose(pState->pTdbState->pFillStateDb);
@@ -192,71 +192,61 @@ void streamStateClose(SStreamState* pState) {
 }
 
 int32_t streamStateBegin(SStreamState* pState) {
-  if (tdbTxnOpen(&pState->pTdbState->txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL,
-                 TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
-    return -1;
-  }
-
-  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn) < 0) {
-    tdbTxnClose(&pState->pTdbState->txn);
+  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+               TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+    tdbAbort(pState->pTdbState->db, pState->pTdbState->txn);
     return -1;
   }
   return 0;
 }
 
 int32_t streamStateCommit(SStreamState* pState) {
-  if (tdbCommit(pState->pTdbState->db, &pState->pTdbState->txn) < 0) {
+  if (tdbCommit(pState->pTdbState->db, pState->pTdbState->txn) < 0) {
     return -1;
   }
-  if (tdbPostCommit(pState->pTdbState->db, &pState->pTdbState->txn) < 0) {
+  if (tdbPostCommit(pState->pTdbState->db, pState->pTdbState->txn) < 0) {
     return -1;
   }
-  memset(&pState->pTdbState->txn, 0, sizeof(TXN));
-  if (tdbTxnOpen(&pState->pTdbState->txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL,
-                 TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
-    return -1;
-  }
-  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn) < 0) {
+
+  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+               TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
   return 0;
 }
 
 int32_t streamStateAbort(SStreamState* pState) {
-  if (tdbAbort(pState->pTdbState->db, &pState->pTdbState->txn) < 0) {
+  if (tdbAbort(pState->pTdbState->db, pState->pTdbState->txn) < 0) {
     return -1;
   }
-  memset(&pState->pTdbState->txn, 0, sizeof(TXN));
-  if (tdbTxnOpen(&pState->pTdbState->txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL,
-                 TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
-    return -1;
-  }
-  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn) < 0) {
+
+  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+               TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
   return 0;
 }
 
 int32_t streamStateFuncPut(SStreamState* pState, const STupleKey* key, const void* value, int32_t vLen) {
-  return tdbTbUpsert(pState->pTdbState->pFuncStateDb, key, sizeof(STupleKey), value, vLen, &pState->pTdbState->txn);
+  return tdbTbUpsert(pState->pTdbState->pFuncStateDb, key, sizeof(STupleKey), value, vLen, pState->pTdbState->txn);
 }
 int32_t streamStateFuncGet(SStreamState* pState, const STupleKey* key, void** pVal, int32_t* pVLen) {
   return tdbTbGet(pState->pTdbState->pFuncStateDb, key, sizeof(STupleKey), pVal, pVLen);
 }
 
 int32_t streamStateFuncDel(SStreamState* pState, const STupleKey* key) {
-  return tdbTbDelete(pState->pTdbState->pFuncStateDb, key, sizeof(STupleKey), &pState->pTdbState->txn);
+  return tdbTbDelete(pState->pTdbState->pFuncStateDb, key, sizeof(STupleKey), pState->pTdbState->txn);
 }
 
 // todo refactor
 int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
   SStateKey sKey = {.key = *key, .opNum = pState->number};
-  return tdbTbUpsert(pState->pTdbState->pStateDb, &sKey, sizeof(SStateKey), value, vLen, &pState->pTdbState->txn);
+  return tdbTbUpsert(pState->pTdbState->pStateDb, &sKey, sizeof(SStateKey), value, vLen, pState->pTdbState->txn);
 }
 
 // todo refactor
 int32_t streamStateFillPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
-  return tdbTbUpsert(pState->pTdbState->pFillStateDb, key, sizeof(SWinKey), value, vLen, &pState->pTdbState->txn);
+  return tdbTbUpsert(pState->pTdbState->pFillStateDb, key, sizeof(SWinKey), value, vLen, pState->pTdbState->txn);
 }
 
 // todo refactor
@@ -273,7 +263,7 @@ int32_t streamStateFillGet(SStreamState* pState, const SWinKey* key, void** pVal
 // todo refactor
 int32_t streamStateDel(SStreamState* pState, const SWinKey* key) {
   SStateKey sKey = {.key = *key, .opNum = pState->number};
-  return tdbTbDelete(pState->pTdbState->pStateDb, &sKey, sizeof(SStateKey), &pState->pTdbState->txn);
+  return tdbTbDelete(pState->pTdbState->pStateDb, &sKey, sizeof(SStateKey), pState->pTdbState->txn);
 }
 
 int32_t streamStateClear(SStreamState* pState) {
@@ -297,7 +287,7 @@ void streamStateSetNumber(SStreamState* pState, int32_t number) { pState->number
 
 // todo refactor
 int32_t streamStateFillDel(SStreamState* pState, const SWinKey* key) {
-  return tdbTbDelete(pState->pTdbState->pFillStateDb, key, sizeof(SWinKey), &pState->pTdbState->txn);
+  return tdbTbDelete(pState->pTdbState->pFillStateDb, key, sizeof(SWinKey), pState->pTdbState->txn);
 }
 
 int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
@@ -531,7 +521,7 @@ void streamFreeVal(void* val) { tdbFree(val); }
 int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, const void* value, int32_t vLen) {
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
   return tdbTbUpsert(pState->pTdbState->pSessionStateDb, &sKey, sizeof(SStateSessionKey), value, vLen,
-                     &pState->pTdbState->txn);
+                     pState->pTdbState->txn);
 }
 
 int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen) {
@@ -554,7 +544,7 @@ int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVa
 
 int32_t streamStateSessionDel(SStreamState* pState, const SSessionKey* key) {
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
-  return tdbTbDelete(pState->pTdbState->pSessionStateDb, &sKey, sizeof(SStateSessionKey), &pState->pTdbState->txn);
+  return tdbTbDelete(pState->pTdbState->pSessionStateDb, &sKey, sizeof(SStateSessionKey), pState->pTdbState->txn);
 }
 
 SStreamStateCur* streamStateSessionSeekKeyCurrentPrev(SStreamState* pState, const SSessionKey* key) {
@@ -833,7 +823,7 @@ _end:
 
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
   tdbTbUpsert(pState->pTdbState->pParNameDb, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN,
-              &pState->pTdbState->txn);
+              pState->pTdbState->txn);
   return 0;
 }
 

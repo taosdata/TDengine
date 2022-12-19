@@ -101,6 +101,30 @@ void tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t 
   tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem);
 }
 
+int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItemFn)(uint8_t *, void *),
+                        SArray **ppArray) {
+  int32_t code = 0;
+
+  SArray *pArray = taosArrayInit(pMapData->nItem, itemSize);
+  if (pArray == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < pMapData->nItem; i++) {
+    tMapDataGetItemByIdx(pMapData, i, taosArrayReserve(pArray, 1), tGetItemFn);
+  }
+
+_exit:
+  if (code) {
+    *ppArray = NULL;
+    if (pArray) taosArrayDestroy(pArray);
+  } else {
+    *ppArray = pArray;
+  }
+  return code;
+}
+
 int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
   int32_t n = 0;
 
@@ -704,7 +728,7 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else {
-      ASSERT(0);
+      ASSERT(0 && "dup versions not allowed");
     }
   }
 
@@ -878,7 +902,6 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _clear;
     }
-
     midx = (sidx + eidx) / 2;
 
     code = tsdbBuildDeleteSkyline(aDelData, sidx, midx, aSkyline1);

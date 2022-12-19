@@ -34,10 +34,38 @@ TEST_F(ParserExplainToSyncdbTest, explain) {
 TEST_F(ParserExplainToSyncdbTest, grant) {
   useDb("root", "test");
 
+  SAlterUserReq expect = {0};
+
+  auto setAlterUserReq = [&](int8_t alterType, const string& user, const string& obj) {
+    expect.alterType = alterType;
+    snprintf(expect.user, sizeof(expect.user), "%s", user.c_str());
+    snprintf(expect.objname, sizeof(expect.objname), "%s", obj.c_str());
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_GRANT_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_ALTER_USER);
+    SAlterUserReq req = {0};
+    ASSERT_EQ(tDeserializeSAlterUserReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(req.alterType, expect.alterType);
+    ASSERT_EQ(string(req.user), string(expect.user));
+    ASSERT_EQ(string(req.objname), string(expect.objname));
+  });
+
+  setAlterUserReq(TSDB_ALTER_USER_ADD_ALL_DB, "wxy", "0.test");
   run("GRANT ALL ON test.* TO wxy");
+
+  setAlterUserReq(TSDB_ALTER_USER_ADD_READ_DB, "wxy", "0.test");
   run("GRANT READ ON test.* TO wxy");
+
+  setAlterUserReq(TSDB_ALTER_USER_ADD_WRITE_DB, "wxy", "0.test");
   run("GRANT WRITE ON test.* TO wxy");
+
+  setAlterUserReq(TSDB_ALTER_USER_ADD_ALL_DB, "wxy", "0.test");
   run("GRANT READ, WRITE ON test.* TO wxy");
+
+  setAlterUserReq(TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC, "wxy", "0.tp1");
+  run("GRANT SUBSCRIBE ON tp1 TO wxy");
 }
 
 TEST_F(ParserExplainToSyncdbTest, insert) {

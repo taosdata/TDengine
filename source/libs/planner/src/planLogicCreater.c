@@ -250,11 +250,12 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
   }
 
   if (NULL == pScanCols) {
-    return NULL == pScanPseudoCols
-               ? SCAN_TYPE_TABLE
-               : ((FUNCTION_TYPE_BLOCK_DIST_INFO == ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType)
-                      ? SCAN_TYPE_BLOCK_INFO
-                      : SCAN_TYPE_TABLE);
+    if (NULL == pScanPseudoCols) {
+      return SCAN_TYPE_TABLE;
+    }
+    return FUNCTION_TYPE_BLOCK_DIST_INFO == ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType
+               ? SCAN_TYPE_BLOCK_INFO
+               : SCAN_TYPE_TABLE;
   }
 
   return SCAN_TYPE_TABLE;
@@ -333,6 +334,8 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
   return TSDB_CODE_SUCCESS;
 }
 
+static bool needScanDefaultCol(EScanType scanType) { return SCAN_TYPE_TABLE_COUNT != scanType; }
+
 static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
                                    SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = NULL;
@@ -367,7 +370,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     pScan->hasNormalCols = true;
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && needScanDefaultCol(pScan->scanType)) {
     code = addDefaultScanCol(pRealTable->pMeta, &pScan->pScanCols);
   }
 
@@ -580,14 +583,18 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   }
 
   // set the output
-  if (TSDB_CODE_SUCCESS == code && NULL != pOutputGroupKeys) {
-    code = createColumnByRewriteExprs(pOutputGroupKeys, &pAgg->node.pTargets);
-  }
-  nodesDestroyList(pOutputGroupKeys);
-
   if (TSDB_CODE_SUCCESS == code && NULL != pAgg->pAggFuncs) {
     code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pAgg->node.pTargets);
   }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pOutputGroupKeys) {
+      code = createColumnByRewriteExprs(pOutputGroupKeys, &pAgg->node.pTargets);
+    } else if (NULL == pAgg->node.pTargets && NULL != pAgg->pGroupKeys) {
+      code = createColumnByRewriteExprs(pAgg->pGroupKeys, &pAgg->node.pTargets);
+    }
+  }
+  nodesDestroyList(pOutputGroupKeys);
 
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pAgg;
@@ -695,6 +702,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
   if (pCxt->pPlanCxt->streamQuery) {
     pWindow->triggerType = pCxt->pPlanCxt->triggerType;
     pWindow->watermark = pCxt->pPlanCxt->watermark;
+    pWindow->deleteMark = pCxt->pPlanCxt->deleteMark;
     pWindow->igExpired = pCxt->pPlanCxt->igExpired;
   }
   pWindow->inputTsOrder = ORDER_ASC;
@@ -918,6 +926,10 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pFill->pWStartTs = nodesCloneNode(pFillNode->pWStartTs);
   if ((NULL != pFillNode->pValues && NULL == pFill->pValues) || NULL == pFill->pWStartTs) {
     code = TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (TSDB_CODE_SUCCESS == code && 0 == LIST_LENGTH(pFill->node.pTargets)) {
+    code = createColumnByRewriteExpr(pFill->pWStartTs, &pFill->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

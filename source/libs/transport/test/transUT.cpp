@@ -20,6 +20,8 @@
 #include "tlog.h"
 #include "transLog.h"
 #include "trpc.h"
+#include "tmisce.h"
+
 using namespace std;
 
 const char *label = "APP";

@@ -78,7 +78,7 @@ void sifAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *sl
     blockDataEnsureCapacity(res, rows);
 
     *dataBlockId = taosArrayGetSize(pBlockList) - 1;
-    res->info.blockId = *dataBlockId;
+    res->info.id.blockId = *dataBlockId;
     *slotId = 0;
   } else {
     SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(pBlockList);

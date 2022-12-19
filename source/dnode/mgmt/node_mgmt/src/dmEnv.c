@@ -152,7 +152,19 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper != NULL) {
     dmReleaseWrapper(pWrapper);
-    terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+    switch (ntype) {
+      case MNODE:
+        terrno = TSDB_CODE_MNODE_ALREADY_DEPLOYED;
+        break;
+      case QNODE:
+        terrno = TSDB_CODE_QNODE_ALREADY_DEPLOYED;
+        break;
+      case SNODE:
+        terrno = TSDB_CODE_SNODE_ALREADY_DEPLOYED;
+        break;
+      default:
+        terrno = TSDB_CODE_APP_ERROR;
+    }
     dError("failed to create node since %s", terrstr());
     return -1;
   }
@@ -191,7 +203,20 @@ static int32_t dmProcessDropNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    switch (ntype) {
+      case MNODE:
+        terrno = TSDB_CODE_MNODE_NOT_DEPLOYED;
+        break;
+      case QNODE:
+        terrno = TSDB_CODE_QNODE_NOT_DEPLOYED;
+        break;
+      case SNODE:
+        terrno = TSDB_CODE_SNODE_NOT_DEPLOYED;
+        break;
+      default:
+        terrno = TSDB_CODE_APP_ERROR;
+    }
+
     dError("failed to drop node since %s", terrstr());
     return -1;
   }

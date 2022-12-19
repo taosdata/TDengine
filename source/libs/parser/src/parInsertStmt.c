@@ -50,7 +50,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
   int32_t  code = TSDB_CODE_SUCCESS;
   SParsedDataColInfo* tags = (SParsedDataColInfo*)boundTags;
   if (NULL == tags) {
-    return TSDB_CODE_QRY_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
 
   SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
@@ -137,7 +137,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
   }
 
   SVCreateTbReq tbReq = {0};
-  insBuildCreateTbReq(&tbReq, tName, pTag, suid, sTableName, tagName, pDataBlock->pTableMeta->tableInfo.numOfTags);
+  insBuildCreateTbReq(&tbReq, tName, pTag, suid, sTableName, tagName, pDataBlock->pTableMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
   code = insBuildCreateTbMsg(pDataBlock, &tbReq);
   tdDestroySVCreateTbReq(&tbReq);
 
@@ -339,7 +339,7 @@ int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TA
   STableDataBlocks*   pDataBlock = (STableDataBlocks*)pBlock;
   SParsedDataColInfo* tags = (SParsedDataColInfo*)boundTags;
   if (NULL == tags) {
-    return TSDB_CODE_QRY_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
 
   if (pDataBlock->pTableMeta->tableType != TSDB_SUPER_TABLE && pDataBlock->pTableMeta->tableType != TSDB_CHILD_TABLE) {

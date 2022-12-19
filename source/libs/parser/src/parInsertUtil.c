@@ -198,7 +198,7 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
                                STableDataBlocks** dataBlocks) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)taosMemoryCalloc(1, sizeof(STableDataBlocks));
   if (dataBuf == NULL) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   dataBuf->nAllocSize = (uint32_t)defaultSize;
@@ -212,7 +212,7 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
   dataBuf->pData = taosMemoryMalloc(dataBuf->nAllocSize);
   if (dataBuf->pData == NULL) {
     taosMemoryFreeClear(dataBuf);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   memset(dataBuf->pData, 0, sizeof(SSubmitBlk));
 
@@ -249,7 +249,7 @@ int32_t insBuildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbR
       memset(pBlocks->pData + pBlocks->size, 0, pBlocks->nAllocSize - pBlocks->size);
     } else {
       pBlocks->nAllocSize -= len + pBlocks->rowSize;
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
@@ -350,7 +350,7 @@ static int sortRemoveDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* 
   if (pBlkKeyInfo->pKeyTuple == NULL || pBlkKeyInfo->maxBytesAlloc < nAlloc) {
     char* tmp = taosMemoryRealloc(pBlkKeyInfo->pKeyTuple, nAlloc);
     if (tmp == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     pBlkKeyInfo->pKeyTuple = (SBlockKeyTuple*)tmp;
     pBlkKeyInfo->maxBytesAlloc = (int32_t)nAlloc;
@@ -518,7 +518,7 @@ static int sortMergeDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* p
   if (pBlkKeyInfo->pKeyTuple == NULL || pBlkKeyInfo->maxBytesAlloc < nAlloc) {
     char* tmp = taosMemoryRealloc(pBlkKeyInfo->pKeyTuple, nAlloc);
     if (tmp == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     pBlkKeyInfo->pKeyTuple = (SBlockKeyTuple*)tmp;
     pBlkKeyInfo->maxBytesAlloc = (int32_t)nAlloc;
@@ -668,7 +668,7 @@ int32_t insMergeTableDataBlocks(SHashObj* pHashObj, SArray** pVgDataBlocks) {
           insDestroyBlockArrayList(pVnodeDataBlockList);
           taosMemoryFreeClear(dataBuf->pData);
           taosMemoryFreeClear(blkKeyInfo.pKeyTuple);
-          return TSDB_CODE_TSC_OUT_OF_MEMORY;
+          return TSDB_CODE_OUT_OF_MEMORY;
         }
       }
 
@@ -721,7 +721,7 @@ int32_t insAllocateMemForSize(STableDataBlocks* pDataBlock, int32_t allSize) {
     } else {
       // do nothing, if allocate more memory failed
       pDataBlock->nAllocSize = nAllocSizeOld;
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
@@ -850,15 +850,15 @@ int32_t insFindCol(SToken* pColname, int32_t start, int32_t end, SSchema* pSchem
 }
 
 void insBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, int64_t suid, const char* sname,
-                         SArray* tagName, uint8_t tagNum) {
+                         SArray* tagName, uint8_t tagNum, int32_t ttl) {
   pTbReq->type = TD_CHILD_TABLE;
   pTbReq->name = strdup(tname);
   pTbReq->ctb.suid = suid;
   pTbReq->ctb.tagNum = tagNum;
   if (sname) pTbReq->ctb.stbName = strdup(sname);
   pTbReq->ctb.pTag = (uint8_t*)pTag;
-  pTbReq->ctb.tagName = taosArrayDup(tagName);
-  pTbReq->ttl = TSDB_DEFAULT_TABLE_TTL;
+  pTbReq->ctb.tagName = taosArrayDup(tagName, NULL);
+  pTbReq->ttl = ttl;
   pTbReq->commentLen = -1;
 
   return;
@@ -938,13 +938,13 @@ int32_t insBuildOutput(SHashObj* pVgroupsHashObj, SArray* pVgDataBlocks, SArray*
   size_t numOfVg = taosArrayGetSize(pVgDataBlocks);
   *pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
   if (NULL == *pDataBlocks) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   for (size_t i = 0; i < numOfVg; ++i) {
     STableDataBlocks* src = taosArrayGetP(pVgDataBlocks, i);
     SVgDataBlocks*    dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
     if (NULL == dst) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     taosHashGetDup(pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
     dst->numOfTables = src->numOfTables;

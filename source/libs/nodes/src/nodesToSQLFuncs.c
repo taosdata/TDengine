@@ -132,7 +132,7 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
       char       *t = nodesGetStrValueFromNode(colNode);
       if (NULL == t) {
         nodesError("fail to get str value from valueNode");
-        NODES_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+        NODES_ERR_RET(TSDB_CODE_APP_ERROR);
       }
 
       int32_t tlen = strlen(t);
@@ -229,5 +229,5 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
   }
 
   nodesError("nodesNodeToSQL unknown node = %s", nodesNodeName(pNode->type));
-  NODES_RET(TSDB_CODE_QRY_APP_ERROR);
+  NODES_RET(TSDB_CODE_APP_ERROR);
 }

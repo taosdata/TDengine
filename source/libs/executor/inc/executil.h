@@ -38,16 +38,7 @@
     memcpy((_k) + sizeof(uint64_t), (_ori), (_len)); \
   } while (0)
 
-#define SET_RES_EXT_WINDOW_KEY(_k, _ori, _len, _uid, _buf)           \
-  do {                                                               \
-    assert(sizeof(_uid) == sizeof(uint64_t));                        \
-    *(void**)(_k) = (_buf);                                          \
-    *(uint64_t*)((_k) + POINTER_BYTES) = (_uid);                     \
-    memcpy((_k) + POINTER_BYTES + sizeof(uint64_t), (_ori), (_len)); \
-  } while (0)
-
 #define GET_RES_WINDOW_KEY_LEN(_l)     ((_l) + sizeof(uint64_t))
-#define GET_RES_EXT_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t) + POINTER_BYTES)
 
 #define GET_TASKID(_t) (((SExecTaskInfo*)(_t))->id.str)
 
@@ -104,16 +95,17 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, SExecTaskInfo* pTaskInfo);
 
 STableListInfo* tableListCreate();
-void*          tableListDestroy(STableListInfo* pTableListInfo);
-void           tableListClear(STableListInfo* pTableListInfo);
-int32_t        tableListGetOutputGroups(const STableListInfo* pTableList);
-bool           oneTableForEachGroup(const STableListInfo* pTableList);
-uint64_t       getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
-int32_t        tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
-int32_t        tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo, int32_t* num);
-uint64_t       tableListGetSize(const STableListInfo* pTableList);
-uint64_t       tableListGetSuid(const STableListInfo* pTableList);
-STableKeyInfo* tableListGetInfo(const STableListInfo* pTableList, int32_t index);
+void*           tableListDestroy(STableListInfo* pTableListInfo);
+void            tableListClear(STableListInfo* pTableListInfo);
+int32_t         tableListGetOutputGroups(const STableListInfo* pTableList);
+bool            oneTableForEachGroup(const STableListInfo* pTableList);
+uint64_t        getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
+int32_t         tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
+int32_t         tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo,
+                                      int32_t* num);
+uint64_t        tableListGetSize(const STableListInfo* pTableList);
+uint64_t        tableListGetSuid(const STableListInfo* pTableList);
+STableKeyInfo*  tableListGetInfo(const STableListInfo* pTableList, int32_t index);
 
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
@@ -140,7 +132,7 @@ bool hasRemainResults(SGroupResInfo* pGroupResInfo);
 
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
-SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
+SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode);
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
 int32_t  getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId);
@@ -168,5 +160,7 @@ void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 int32_t convertFillType(int32_t mode);
 int32_t resultrowComparAsc(const void* p1, const void* p2);
 int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified);
+
+void printDataBlock(SSDataBlock* pBlock, const char* flag);
 
 #endif  // TDENGINE_QUERYUTIL_H

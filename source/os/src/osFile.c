@@ -313,7 +313,7 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     assert(!(tdFileOptions & TD_FILE_EXCL));
     fp = fopen(path, mode);
     if (fp == NULL) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      // terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
     }
   } else {
@@ -336,14 +336,14 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     fd = open(path, access, S_IRWXU | S_IRWXG | S_IRWXO);
 #endif
     if (fd == -1) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      // terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
     }
   }
 
   TdFilePtr pFile = (TdFilePtr)taosMemoryMalloc(sizeof(TdFile));
   if (pFile == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    // terrno = TSDB_CODE_OUT_OF_MEMORY;
     if (fd >= 0) close(fd);
     if (fp != NULL) fclose(fp);
     return NULL;
@@ -464,7 +464,9 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
 #if FILE_WITH_LOCK
   taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
+  if (pFile->fd < 0) {
+    return 0;
+  }
 
   int64_t nleft = count;
   int64_t nwritten = 0;
@@ -489,6 +491,28 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
   taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
   return count;
+}
+
+int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t offset) {
+  if (pFile == NULL) {
+    return 0;
+  }
+#if FILE_WITH_LOCK
+  taosThreadRwlockWrlock(&(pFile->rwlock));
+#endif
+  assert(pFile->fd >= 0);  // Please check if you have closed the file.
+#ifdef WINDOWS
+  size_t pos = _lseeki64(pFile->fd, 0, SEEK_CUR);
+  _lseeki64(pFile->fd, offset, SEEK_SET);
+  int64_t ret = _write(pFile->fd, buf, count);
+  _lseeki64(pFile->fd, pos, SEEK_SET);
+#else
+  int64_t ret = pwrite(pFile->fd, buf, count, offset);
+#endif
+#if FILE_WITH_LOCK
+  taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+  return ret;
 }
 
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
@@ -774,6 +798,7 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
   return getline(ptrBuf, &len, pFile->fp);
 #endif
 }
+
 int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf) {
   if (pFile == NULL || buf == NULL) {
     return -1;
@@ -784,6 +809,7 @@ int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf) {
   }
   return strlen(buf);
 }
+
 int32_t taosEOFFile(TdFilePtr pFile) {
   if (pFile == NULL) {
     return 0;

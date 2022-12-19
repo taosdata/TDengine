@@ -162,6 +162,8 @@ _OVER:
 
 static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SSdbRow *pRow = NULL;
+  SStbObj *pStb = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -171,10 +173,10 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SStbObj));
+  pRow = sdbAllocRow(sizeof(SStbObj));
   if (pRow == NULL) goto _OVER;
 
-  SStbObj *pStb = sdbGetRowObj(pRow);
+  pStb = sdbGetRowObj(pRow);
   if (pStb == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -254,10 +256,12 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("stb:%s, failed to decode from raw:%p since %s", pStb->name, pRaw, terrstr());
-    taosMemoryFreeClear(pStb->pColumns);
-    taosMemoryFreeClear(pStb->pTags);
-    taosMemoryFreeClear(pStb->comment);
+    mError("stb:%s, failed to decode from raw:%p since %s", pStb == NULL ? "null" : pStb->name, pRaw, terrstr());
+    if (pStb != NULL) {
+      taosMemoryFreeClear(pStb->pColumns);
+      taosMemoryFreeClear(pStb->pTags);
+      taosMemoryFreeClear(pStb->comment);
+    }
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -446,13 +450,15 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
     req.rsmaParam.watermark[1] = pStb->watermark[1];
     if (pStb->ast1Len > 0) {
       if (mndConvertRsmaTask(&req.rsmaParam.qmsg[0], &req.rsmaParam.qmsgLen[0], pStb->pAst1, pStb->uid,
-                             STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[0]) < 0) {
+                             STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[0],
+                             req.rsmaParam.deleteMark[0]) < 0) {
         goto _err;
       }
     }
     if (pStb->ast2Len > 0) {
       if (mndConvertRsmaTask(&req.rsmaParam.qmsg[1], &req.rsmaParam.qmsgLen[1], pStb->pAst2, pStb->uid,
-                             STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[1]) < 0) {
+                             STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[1],
+                             req.rsmaParam.deleteMark[1]) < 0) {
         goto _err;
       }
     }
@@ -1684,7 +1690,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   }
 
   if (pStb->numOfFuncs > 0) {
-    pRsp->pFuncs = taosArrayDup(pStb->pFuncs);
+    pRsp->pFuncs = taosArrayDup(pStb->pFuncs, NULL);
   }
 
   taosRUnLockLatch(&pStb->lock);

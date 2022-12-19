@@ -201,6 +201,7 @@ def pre_test_win(){
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%
+        git clean -fxd
         git reset --hard
         git remote prune origin
         git fetch

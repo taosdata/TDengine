@@ -280,7 +280,8 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_ROLE_MGMT  1
 #define TSDB_DNODE_ROLE_VNODE 2
 
-#define TSDB_MAX_REPLICA 5
+#define TSDB_MAX_REPLICA          5
+#define TSDB_SYNC_LOG_BUFFER_SIZE 4096
 
 #define TSDB_TBNAME_COLUMN_INDEX     (-1)
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
@@ -306,8 +307,9 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_DURATION_PER_FILE      60  // unit minute
 #define TSDB_MAX_DURATION_PER_FILE      (3650 * 1440)
 #define TSDB_DEFAULT_DURATION_PER_FILE  (10 * 1440)
-#define TSDB_MIN_KEEP                   (1 * 1440)       // data in db to be reserved. unit minute
-#define TSDB_MAX_KEEP                   (365000 * 1440)  // data in db to be reserved.
+#define TSDB_MIN_KEEP                   (1 * 1440)          // data in db to be reserved. unit minute
+#define TSDB_MAX_KEEP                   (365000 * 1440)     // data in db to be reserved.
+#define TSDB_MAX_KEEP_NS                (365 * 292 * 1440)  // data in db to be reserved.
 #define TSDB_DEFAULT_KEEP               (3650 * 1440)    // ten years
 #define TSDB_MIN_MINROWS_FBLOCK         10
 #define TSDB_MAX_MINROWS_FBLOCK         1000
@@ -335,7 +337,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_STRICT_ON_STR           "on"
 #define TSDB_DB_STRICT_OFF              0
 #define TSDB_DB_STRICT_ON               1
-#define TSDB_DEFAULT_DB_STRICT          TSDB_DB_STRICT_OFF
+#define TSDB_DEFAULT_DB_STRICT          TSDB_DB_STRICT_ON
 #define TSDB_CACHE_MODEL_STR_LEN        sizeof(TSDB_CACHE_MODEL_LAST_VALUE_STR)
 #define TSDB_CACHE_MODEL_NONE_STR       "none"
 #define TSDB_CACHE_MODEL_LAST_ROW_STR   "last_row"
@@ -380,13 +382,16 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_MIN_WAL_SEGMENT_SIZE     0
 #define TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE 0
 
-#define TSDB_MIN_ROLLUP_MAX_DELAY     1  // unit millisecond
-#define TSDB_MAX_ROLLUP_MAX_DELAY     (15 * 60 * 1000)
-#define TSDB_MIN_ROLLUP_WATERMARK     0  // unit millisecond
-#define TSDB_MAX_ROLLUP_WATERMARK     (15 * 60 * 1000)
-#define TSDB_DEFAULT_ROLLUP_WATERMARK 5000
-#define TSDB_MIN_TABLE_TTL            0
-#define TSDB_DEFAULT_TABLE_TTL        0
+#define TSDB_MIN_ROLLUP_MAX_DELAY       1  // unit millisecond
+#define TSDB_MAX_ROLLUP_MAX_DELAY       (15 * 60 * 1000)
+#define TSDB_MIN_ROLLUP_WATERMARK       0  // unit millisecond
+#define TSDB_MAX_ROLLUP_WATERMARK       (15 * 60 * 1000)
+#define TSDB_DEFAULT_ROLLUP_WATERMARK   5000
+#define TSDB_MIN_ROLLUP_DELETE_MARK     0  // unit millisecond
+#define TSDB_MAX_ROLLUP_DELETE_MARK     INT64_MAX
+#define TSDB_DEFAULT_ROLLUP_DELETE_MARK 900000  // 900s
+#define TSDB_MIN_TABLE_TTL              0
+#define TSDB_DEFAULT_TABLE_TTL          0
 
 #define TSDB_MIN_EXPLAIN_RATIO     0
 #define TSDB_MAX_EXPLAIN_RATIO     1
@@ -406,7 +411,7 @@ typedef enum ELogicConditionType {
 #ifdef WINDOWS
 #define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
 #else
-#define TSDB_MAX_RPC_THREADS 10
+#define TSDB_MAX_RPC_THREADS 20
 #endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE 0x00u  // none type
@@ -491,6 +496,9 @@ enum {
 
 // sort page size by default
 #define DEFAULT_PAGESIZE 4096
+
+#define VNODE_TIMEOUT_SEC 60
+#define MNODE_TIMEOUT_SEC 10
 
 #ifdef __cplusplus
 }

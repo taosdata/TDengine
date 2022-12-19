@@ -530,9 +530,10 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
 
   tInitSubmitBlkIter(&pReader->msgIter, pReader->pBlock, &pReader->blkIter);
 
-  pBlock->info.uid = pReader->msgIter.uid;
+  pBlock->info.id.uid = pReader->msgIter.uid;
   pBlock->info.rows = pReader->msgIter.numOfRows;
   pBlock->info.version = pReader->pMsg->version;
+  pBlock->info.dataLoad = 1;
 
   while ((row = tGetSubmitBlkNext(&pReader->blkIter)) != NULL) {
     tdSTSRowIterReset(&iter, row);
@@ -649,7 +650,7 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
     }
 
     SSDataBlock* pBlock = taosArrayGetLast(blocks);
-    pBlock->info.uid = pReader->msgIter.uid;
+    pBlock->info.id.uid = pReader->msgIter.uid;
     pBlock->info.rows = 0;
     pBlock->info.version = pReader->pMsg->version;
 
@@ -766,7 +767,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
         for (int32_t i = 0; i < taosArrayGetSize(tbUidList); ++i) {
           uint64_t* id = (uint64_t*)taosArrayGet(tbUidList, i);
 
-          int32_t code = metaGetTableEntryByUid(&mr, *id);
+          int32_t code = metaGetTableEntryByUidCache(&mr, *id);
           if (code != TSDB_CODE_SUCCESS) {
             qError("failed to get table meta, uid:%" PRIu64 " code:%s", *id, tstrerror(terrno));
             continue;

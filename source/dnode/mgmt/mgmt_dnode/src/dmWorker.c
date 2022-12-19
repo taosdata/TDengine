@@ -20,7 +20,9 @@ static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-status");
-  
+
+  const static int16_t TRIM_FREQ = 30;
+  int32_t              trimCount = 0;
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
@@ -28,9 +30,13 @@ static void *dmStatusThreadFp(void *param) {
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsStatusInterval) {
-      taosMemoryTrim(0); 
       dmSendStatusReq(pMgmt);
       lastTime = curTime;
+
+      trimCount = (trimCount + 1) % TRIM_FREQ;
+      if (trimCount == 0) {
+        taosMemoryTrim(0);
+      }
     }
   }
 
@@ -144,6 +150,7 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      dGError("msg:%p, not processed in mgmt queue", pMsg);
       break;
   }
 

@@ -1094,6 +1094,9 @@ _return:
     ctgReleaseVgInfoToCache(pCtg, dbCache);
   }
 
+  if (code) {
+    ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname, tstrerror(code));
+  }
   if (pTask->res || code) {
     ctgHandleTaskEnd(pTask, code);
   }
@@ -1124,7 +1127,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
       SVgroupInfo vgInfo = {0};
       CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, pOut->dbVgroup, pName, &vgInfo));
 
-      ctgDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(pName), flag);
+      ctgTaskDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(pName), flag);
 
       *vgId = vgInfo.vgId;
       CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
@@ -1144,7 +1147,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
             SVgroupInfo vgInfo = {0};
             CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, dbCache->vgCache.vgInfo, pName, &vgInfo));
 
-            ctgDebug("will refresh tbmeta, supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(pName), flag);
+            ctgTaskDebug("will refresh tbmeta, supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(pName), flag);
 
             *vgId = vgInfo.vgId;
             CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
@@ -1162,7 +1165,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
           return TSDB_CODE_SUCCESS;
         }
 
-        ctgError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
+        ctgTaskError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
         ctgRemoveTbMetaFromCache(pCtg, pName, false);
 
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
@@ -1180,7 +1183,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
       STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
 
       if (CTG_IS_META_NULL(pOut->metaType)) {
-        ctgError("no tbmeta got, tbNmae:%s", tNameGetTableName(pName));
+        ctgTaskError("no tbmeta got, tbNmae:%s", tNameGetTableName(pName));
         ctgRemoveTbMetaFromCache(pCtg, pName, false);
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
@@ -1190,7 +1193,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
       }
 
       if (CTG_IS_META_TABLE(pOut->metaType) && TSDB_SUPER_TABLE == pOut->tbMeta->tableType) {
-        ctgDebug("will continue to refresh tbmeta since got stb, tbName:%s", tNameGetTableName(pName));
+        ctgTaskDebug("will continue to refresh tbmeta since got stb, tbName:%s", tNameGetTableName(pName));
 
         taosMemoryFreeClear(pOut->tbMeta);
 
@@ -1205,13 +1208,13 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
           stbCtx.pName = &stbName;
 
           STableMeta* stbMeta = NULL;
-          ctgReadTbMetaFromCache(pCtg, &stbCtx, &stbMeta);
+          (void)ctgReadTbMetaFromCache(pCtg, &stbCtx, &stbMeta);
           if (stbMeta && stbMeta->sversion >= pOut->tbMeta->sversion) {
-            ctgDebug("use cached stb meta, tbName:%s", tNameGetTableName(pName));
+            ctgTaskDebug("use cached stb meta, tbName:%s", tNameGetTableName(pName));
             exist = 1;
             taosMemoryFreeClear(stbMeta);
           } else {
-            ctgDebug("need to get/update stb meta, tbName:%s", tNameGetTableName(pName));
+            ctgTaskDebug("need to get/update stb meta, tbName:%s", tNameGetTableName(pName));
             taosMemoryFreeClear(pOut->tbMeta);
             taosMemoryFreeClear(stbMeta);
           }
@@ -1225,7 +1228,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
       break;
     }
     default:
-      ctgError("invalid reqType %d", reqType);
+      ctgTaskError("invalid reqType %d", reqType);
       CTG_ERR_JRET(TSDB_CODE_INVALID_MSG);
   }
 
@@ -1280,6 +1283,7 @@ _return:
       TSWAP(pTask->res, ctx->pResList);
       taskDone = true;
     }
+    ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname, tstrerror(code));
   }
 
   if (pTask->res && taskDone) {

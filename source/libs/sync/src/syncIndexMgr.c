@@ -81,6 +81,15 @@ void syncIndexMgrSetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, 
          index);
 }
 
+SSyncLogReplMgr *syncNodeGetLogReplMgr(SSyncNode *pNode, SRaftId *pDestId) {
+  for (int i = 0; i < pNode->replicaNum; i++) {
+    if (syncUtilSameId(&(pNode->replicasId[i]), pDestId)) {
+      return pNode->logReplMgrs[i];
+    }
+  }
+  return NULL;
+}
+
 SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId) {
   if (pSyncIndexMgr == NULL) {
     return SYNC_INDEX_INVALID;

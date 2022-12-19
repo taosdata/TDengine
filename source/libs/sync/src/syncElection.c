@@ -61,7 +61,8 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
 }
 
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
-  sNTrace(pSyncNode, "begin election");
+  sNInfo(pSyncNode, "begin election");
+  pSyncNode->electNum++;
 
   int32_t ret = 0;
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
@@ -86,7 +87,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
     syncNodeCandidate2Leader(pSyncNode);
     pSyncNode->pVotesGranted->toLeader = true;
     return ret;
-  } 
+  }
 
   if (pSyncNode->replicaNum == 1) {
     // only myself, to leader
@@ -98,7 +99,6 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
     syncNodeCandidate2Leader(pSyncNode);
     pSyncNode->pVotesGranted->toLeader = true;
     return ret;
-
   }
 
   ret = syncNodeRequestVotePeers(pSyncNode);

@@ -75,7 +75,7 @@ static void tqPushEntryFree(void* data) {
 STQ* tqOpen(const char* path, SVnode* pVnode) {
   STQ* pTq = taosMemoryCalloc(1, sizeof(STQ));
   if (pTq == NULL) {
-    terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   pTq->path = strdup(path);
@@ -379,7 +379,6 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t m
     STqHandle* pHandle = taosHashGet(pTq->pHandle, offset.subKey, strlen(offset.subKey));
     if (pHandle) {
       if (walRefVer(pHandle->pRef, offset.val.version) < 0) {
-        ASSERT(0);
         return -1;
       }
     }
@@ -726,18 +725,24 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
   }
   taosWUnLockLatch(&pTq->pushLock);
 
-  code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
-  if (code != 0) {
-    tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
+  STqHandle* pHandle = taosHashGet(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
+  if (pHandle) {
+    if (pHandle->pRef) {
+      walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
+    }
+    code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
+    if (code != 0) {
+      tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
+    }
   }
 
   code = tqOffsetDelete(pTq->pOffsetStore, pReq->subKey);
   if (code != 0) {
-    tqError("cannot process tq delete req %s, since no such offset", pReq->subKey);
+    tqError("cannot process tq delete req %s, since no such offset in cache", pReq->subKey);
   }
 
   if (tqMetaDeleteHandle(pTq, pReq->subKey) < 0) {
-    ASSERT(0);
+    tqError("cannot process tq delete req %s, since no such offset in tdb", pReq->subKey);
   }
   return 0;
 }
@@ -1128,7 +1133,7 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   SRpcMsg rpcMsg = {
       .code = 0,
       .contLen = len,
-      .msgType = TDMT_VND_STREAM_RECOVER_STEP2,
+      .msgType = TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE,
       .pCont = serializedReq,
   };
 
@@ -1266,7 +1271,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
     qDebug("delete req enqueue stream task: %d, ver: %" PRId64, pTask->taskId, ver);
 
     if (!failed) {
-      SStreamRefDataBlock* pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM);
+      SStreamRefDataBlock* pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
       pRefBlock->type = STREAM_INPUT__REF_DATA_BLOCK;
       pRefBlock->pBlock = pDelBlock;
       pRefBlock->dataRef = pRef;
@@ -1298,7 +1303,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   }
 
 #if 0
-    SStreamDataBlock* pStreamBlock = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+    SStreamDataBlock* pStreamBlock = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
     pStreamBlock->type = STREAM_INPUT__DATA_BLOCK;
     pStreamBlock->blocks = taosArrayInit(0, sizeof(SSDataBlock));
     SSDataBlock block = {0};
@@ -1426,7 +1431,7 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
 
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
-  streamMetaRemoveTask1(pTq->pStreamMeta, pReq->taskId);
+  streamMetaRemoveTask(pTq->pStreamMeta, pReq->taskId);
   return 0;
 }
 

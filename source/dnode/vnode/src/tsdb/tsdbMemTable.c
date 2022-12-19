@@ -104,7 +104,7 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgI
   tb_uid_t   uid = pMsgIter->uid;
 
   SMetaInfo info;
-  code = metaGetInfo(pTsdb->pVnode->pMeta, uid, &info);
+  code = metaGetInfo(pTsdb->pVnode->pMeta, uid, &info, NULL);
   if (code) {
     code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
     goto _err;
@@ -114,7 +114,7 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgI
     goto _err;
   }
   if (info.suid) {
-    metaGetInfo(pTsdb->pVnode->pMeta, info.suid, &info);
+    metaGetInfo(pTsdb->pVnode->pMeta, info.suid, &info, NULL);
   }
   if (pMsgIter->sversion != info.skmVer) {
     tsdbError("vgId:%d, req sver:%d, skmVer:%d suid:%" PRId64 " uid:%" PRId64, TD_VID(pTsdb->pVnode),
@@ -153,7 +153,7 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
 
   // check if table exists
   SMetaInfo info;
-  code = metaGetInfo(pTsdb->pVnode->pMeta, uid, &info);
+  code = metaGetInfo(pTsdb->pVnode->pMeta, uid, &info, NULL);
   if (code) {
     code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
     goto _err;

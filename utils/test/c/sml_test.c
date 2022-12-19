@@ -20,6 +20,7 @@
 #include <time.h>
 #include "taos.h"
 #include "types.h"
+#include "tlog.h"
 
 int smlProcess_influx_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -1084,20 +1085,22 @@ int sml_19221_Test() {
   return code;
 }
 
-int sml_time_Test() {
+int sml_ts2164_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "CREATE DATABASE IF NOT EXISTS line_test  BUFFER 384  MINROWS 1000  PAGES 256 PRECISION 'ns'");
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "meters,location=California.LosAngeles,groupid=2 current=11.8,voltage=221,phase='2022-02-02 10:22:22' 1626006833639000000",
+      "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
+      "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
+      "meters,location=la,groupid=cb current=11.8,voltage=221,phase=0.27",
   };
 
-  pRes = taos_query(taos, "use sml_db");
+  pRes = taos_query(taos, "use line_test");
   taos_free_result(pRes);
 
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
 
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
@@ -1107,8 +1110,43 @@ int sml_time_Test() {
   return code;
 }
 
+int sml_ttl_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "meters,location=California.LosAngeles,groupid=2 current=11.8,voltage=221,phase=\"2022-02-0210:22:22\" 1626006833739000000",
+  };
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert_ttl(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, 20);
+
+  printf("%s result1:%s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select `ttl` from information_schema.ins_tables where table_name='t_be97833a0e1f523fcdaeb6291d6fdf27'");
+  printf("%s result2:%s\n", __FUNCTION__, taos_errstr(pRes));
+  TAOS_ROW row = taos_fetch_row(pRes);
+  int32_t ttl = *(int32_t*)row[0];
+  ASSERT(ttl == 20);
+
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  return code;
+}
+
 int main(int argc, char *argv[]) {
   int ret = 0;
+  ret = sml_ttl_Test();
+  ASSERT(!ret);
+  ret = sml_ts2164_Test();
+  ASSERT(!ret);
   ret = smlProcess_influx_Test();
   ASSERT(!ret);
   ret = smlProcess_telnet_Test();

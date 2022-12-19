@@ -36,7 +36,7 @@ void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
 
 int32_t monGetLogs(SMonLogs *logs) {
   taosThreadMutexLock(&tsMonitor.lock);
-  logs->logs = taosArrayDup(tsMonitor.logs);
+  logs->logs = taosArrayDup(tsMonitor.logs, NULL);
   logs->numOfInfoLogs = tsNumOfInfoLogs;
   logs->numOfErrorLogs = tsNumOfErrorLogs;
   logs->numOfDebugLogs = tsNumOfDebugLogs;

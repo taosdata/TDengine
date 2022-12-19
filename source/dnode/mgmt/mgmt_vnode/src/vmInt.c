@@ -334,6 +334,62 @@ static void vmCleanup(SVnodeMgmt *pMgmt) {
   taosMemoryFree(pMgmt);
 }
 
+static void vmCheckSyncTimeout(SVnodeMgmt *pMgmt) {
+  int32_t     numOfVnodes = 0;
+  SVnodeObj **ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
+
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
+    SVnodeObj *pVnode = ppVnodes[i];
+    vnodeSyncCheckTimeout(pVnode->pImpl);
+    vmReleaseVnode(pMgmt, pVnode);
+  }
+
+  if (ppVnodes != NULL) {
+    taosMemoryFree(ppVnodes);
+  }
+}
+
+static void *vmThreadFp(void *param) {
+  SVnodeMgmt *pMgmt = param;
+  int64_t     lastTime = 0;
+  setThreadName("vnode-timer");
+
+  while (1) {
+    lastTime++;
+    taosMsleep(100);
+    if (pMgmt->stop) break;
+    if (lastTime % 10 != 0) continue;
+
+    int64_t sec = lastTime / 10;
+    if (sec % (VNODE_TIMEOUT_SEC / 2) == 0) {
+      vmCheckSyncTimeout(pMgmt);
+    }
+  }
+
+  return NULL;
+}
+
+static int32_t vmInitTimer(SVnodeMgmt *pMgmt) {
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->thread, &thAttr, vmThreadFp, pMgmt) != 0) {
+    dError("failed to create vnode timer thread since %s", strerror(errno));
+    return -1;
+  }
+
+  taosThreadAttrDestroy(&thAttr);
+  return 0;
+}
+
+static void vmCleanupTimer(SVnodeMgmt *pMgmt) {
+  pMgmt->stop = true;
+  if (taosCheckPthreadValid(pMgmt->thread)) {
+    taosThreadJoin(pMgmt->thread, NULL);
+    taosThreadClear(&pMgmt->thread);
+  }
+}
+
 static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   int32_t code = -1;
 
@@ -510,12 +566,10 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
     taosMemoryFree(ppVnodes);
   }
 
-  return 0;
+  return vmInitTimer(pMgmt);
 }
 
-static void vmStop(SVnodeMgmt *pMgmt) {
-  // process inside the vnode
-}
+static void vmStop(SVnodeMgmt *pMgmt) { vmCleanupTimer(pMgmt); }
 
 SMgmtFunc vmGetMgmtFunc() {
   SMgmtFunc mgmtFunc = {0};
