@@ -205,6 +205,7 @@ int  tdbPagerRollback(SPager *pPager);
   u8           isAnchor;   \
   u8           isLocal;    \
   u8           isDirty;    \
+  u8           isFree;     \
   volatile i32 nRef;       \
   i32          id;         \
   SPage       *pFreeNext;  \
@@ -222,6 +223,7 @@ int    tdbPCacheClose(SPCache *pCache);
 int    tdbPCacheAlter(SPCache *pCache, int32_t nPage);
 SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn);
 void   tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn);
+void   tdbPCacheMarkFree(SPCache *pCache, SPage *pPage);
 int    tdbPCacheGetPageSize(SPCache *pCache);
 
 // tdbPage.c ====================================
