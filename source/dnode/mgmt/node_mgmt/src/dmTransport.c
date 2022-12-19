@@ -141,11 +141,11 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   pRpc->info.wrapper = pWrapper;
-  pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
+  pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
   if (pMsg == NULL) goto _OVER;
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
-  dGTrace("msg:%p, is created, type:%s handle:%p", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle);
+  dGTrace("msg:%p, is created, type:%s handle:%p len:%d", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle, pRpc->contLen);
 
   code = dmProcessNodeMsg(pWrapper, pMsg);
 

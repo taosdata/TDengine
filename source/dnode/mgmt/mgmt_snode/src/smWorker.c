@@ -130,7 +130,7 @@ void smStopWorker(SSnodeMgmt *pMgmt) {
 }
 
 int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
-  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
+  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
   if (pMsg == NULL) {
     rpcFreeCont(pRpc->pCont);
     pRpc->pCont = NULL;
@@ -139,8 +139,8 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
 
   SSnode *pSnode = pMgmt->pSnode;
   if (pSnode == NULL) {
-    dError("msg:%p failed to put into snode queue since %s, type:%s qtype:%d", pMsg, terrstr(),
-           TMSG_INFO(pMsg->msgType), qtype);
+    dError("msg:%p failed to put into snode queue since %s, type:%s qtype:%d len:%d", pMsg, terrstr(),
+           TMSG_INFO(pMsg->msgType), qtype, pRpc->contLen);
     taosFreeQitem(pMsg);
     rpcFreeCont(pRpc->pCont);
     pRpc->pCont = NULL;
