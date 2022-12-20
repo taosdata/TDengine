@@ -2285,13 +2285,14 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
             ASSERT(pColInfoData->info.type == pCol->type);
             if (!isStartKey) {
               isStartKey = true;
-              SColVal cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, pCol->type, (SValue){.val = *(TSKEY*)var});
+              ASSERT(PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId);
+              SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, (SValue){.val = *(TSKEY*)var});
               taosArrayPush(pVals, &cv);
             } else if (colDataIsNull_s(pColInfoData, j)) {
-              SColVal cv = COL_VAL_NULL(PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type);
+              SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
               taosArrayPush(pVals, &cv);
             } else {
-              SColVal cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type, (SValue){.val = *(int64_t*)var});
+              SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, (SValue){.val = *(int64_t*)var});
               taosArrayPush(pVals, &cv);
             }
             break;
@@ -2299,12 +2300,12 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
           case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
             ASSERT(pColInfoData->info.type == pCol->type);
             if (colDataIsNull_s(pColInfoData, j)) {
-              SColVal cv = COL_VAL_NULL(PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type);
+              SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
               taosArrayPush(pVals, &cv);
             } else {
               void*   data = colDataGetVarData(pColInfoData, j);
               SValue  sv = (SValue){.nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
-              SColVal cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, pCol->type, sv);
+              SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, sv);
               taosArrayPush(pVals, &cv);
             }
             break;
@@ -2320,7 +2321,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
           default:
             if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
               if (colDataIsNull_s(pColInfoData, j)) {
-                SColVal cv = COL_VAL_NULL(PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type);  // should use pCol->type
+                SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);  // should use pCol->type
                 taosArrayPush(pVals, &cv);
               } else {
                 SValue sv;
@@ -2351,7 +2352,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
                   }
                   memcpy(&sv.val, tv, tDataTypes[pCol->type].bytes);
                 }
-                SColVal cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID + k, pColInfoData->info.type, sv);
+                SColVal cv = COL_VAL_VALUE(pCol->colId, pColInfoData->info.type, sv);
                 taosArrayPush(pVals, &cv);
               }
             } else {
