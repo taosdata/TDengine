@@ -2226,22 +2226,24 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
 }
 #endif
 
-int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDataBlock, STSchema* pTSchema,
-                                    int32_t vgId, tb_uid_t suid) {
-  SSubmitReq2* pReq = NULL;
+int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDataBlock, const STSchema* pTSchema,
+                                    int64_t uid, int32_t vgId, tb_uid_t suid) {
+  SSubmitReq2* pReq = *ppReq;
   SArray*      pVals = NULL;
   int32_t      numOfBlks = 0;
   int32_t      sz = 1;
 
   terrno = TSDB_CODE_SUCCESS;
 
-  if (!(pReq = taosMemoryMalloc(sizeof(SSubmitReq2)))) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _end;
-  }
+  if (NULL == pReq) {
+    if (!(pReq = taosMemoryMalloc(sizeof(SSubmitReq2)))) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _end;
+    }
 
-  if (!(pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData)))) {
-    goto _end;
+    if (!(pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData)))) {
+      goto _end;
+    }
   }
 
   for (int32_t i = 0; i < sz; ++i) {
@@ -2261,7 +2263,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
       goto _end;
     }
     tbData.suid = suid;
-    tbData.uid = pDataBlock->info.id.groupId;
+    tbData.uid = uid;
     tbData.sver = pTSchema->version;
 
     if (!pVals && !(pVals = taosArrayInit(colNum, sizeof(SColVal)))) {
@@ -2277,7 +2279,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
       int32_t offset = 0;
       for (int32_t k = 0; k < colNum; ++k) {  // iterate by column
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
-        STColumn*        pCol = &pTSchema->columns[k];
+        const STColumn*  pCol = &pTSchema->columns[k];
         void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
 
         switch (pColInfoData->info.type) {

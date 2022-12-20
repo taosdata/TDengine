@@ -97,7 +97,7 @@ typedef struct {
     }                                             \
   } while (0)
 
-int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
+int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
   int32_t code = 0;
 
   ASSERT(TARRAY_SIZE(aColVal) > 0);
@@ -112,7 +112,7 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SRow **ppRow) {
   const int32_t nColVal = TARRAY_SIZE(aColVal);
   SColVal      *pColVal = (iColVal < nColVal) ? &colVals[iColVal] : NULL;
   int32_t       iTColumn = 1;
-  STColumn     *pTColumn = pTSchema->columns + iTColumn;
+  const STColumn *pTColumn = pTSchema->columns + iTColumn;
   int32_t       ntp = 0;
   int32_t       nkv = 0;
   int32_t       maxIdx = 0;
