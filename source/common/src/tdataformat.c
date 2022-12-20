@@ -309,6 +309,14 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
         break;
     }
 
+    if (pb) {
+      if (flag == (HAS_VALUE | HAS_NULL | HAS_NONE)) {
+        memset(pb, 0, BIT2_SIZE(pTSchema->numOfCols - 1));
+      } else {
+        memset(pb, 0, BIT1_SIZE(pTSchema->numOfCols - 1));
+      }
+    }
+
     // build impl
     while (pTColumn) {
       if (pColVal) {
