@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// clang-format off
+
 #include "os.h"
 #include "tsocket.h"
 #include "tutil.h"
@@ -22,22 +24,24 @@
 #include "rpcHead.h"
 #include "rpcTcp.h"
 
+// clang-format on
+
 typedef struct SFdObj {
   void              *signature;
-  SOCKET             fd;          // TCP socket FD
-  void              *thandle;     // handle from upper layer, like TAOS
+  SOCKET             fd;       // TCP socket FD
+  void              *thandle;  // handle from upper layer, like TAOS
   uint32_t           ip;
   uint16_t           port;
-  int16_t            closedByApp; // 1: already closed by App
+  int16_t            closedByApp;  // 1: already closed by App
   struct SThreadObj *pThreadObj;
   struct SFdObj     *prev;
   struct SFdObj     *next;
-  uint64_t          ctime;  // create time
+  uint64_t           ctime;  // create time
 } SFdObj;
 
 typedef struct SThreadObj {
   pthread_t       thread;
-  SFdObj *        pHead;
+  SFdObj         *pHead;
   pthread_mutex_t mutex;
   uint32_t        ip;
   bool            stop;
@@ -46,27 +50,27 @@ typedef struct SThreadObj {
   int             threadId;
   char            label[TSDB_LABEL_LEN];
   void           *shandle;  // handle passed by upper layer during server initialization
-  void           *(*processData)(SRecvInfo *pPacket);
+  void *(*processData)(SRecvInfo *pPacket);
 } SThreadObj;
 
 typedef struct {
-  char    label[TSDB_LABEL_LEN];
-  int32_t index;
-  int numOfThreads;
+  char         label[TSDB_LABEL_LEN];
+  int32_t      index;
+  int          numOfThreads;
   SThreadObj **pThreadObj;
 } SClientObj;
 
 typedef struct {
-  SOCKET      fd;
-  uint32_t    ip;
-  uint16_t    port;
-  int8_t      stop;
-  int8_t      reserve;
-  char        label[TSDB_LABEL_LEN];
-  int         numOfThreads;
-  void *      shandle;
+  SOCKET       fd;
+  uint32_t     ip;
+  uint16_t     port;
+  int8_t       stop;
+  int8_t       reserve;
+  char         label[TSDB_LABEL_LEN];
+  int          numOfThreads;
+  void        *shandle;
   SThreadObj **pThreadObj;
-  pthread_t   thread;
+  pthread_t    thread;
 } SServerObj;
 
 static void   *taosProcessTcpData(void *param);
@@ -101,7 +105,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
     return NULL;
   }
 
-  int code = 0;
+  int            code = 0;
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
@@ -112,7 +116,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
     if (pThreadObj == NULL) {
       tError("TCP:%s no enough memory", label);
       terrno = TAOS_SYSTEM_ERROR(errno);
-      for (int j=0; j<i; ++j) free(pServerObj->pThreadObj[j]);
+      for (int j = 0; j < i; ++j) free(pServerObj->pThreadObj[j]);
       free(pServerObj->pThreadObj);
       free(pServerObj);
       return NULL;
@@ -174,8 +178,10 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
   return (void *)pServerObj;
 }
 
-static void taosStopTcpThread(SThreadObj* pThreadObj) {
-  if (pThreadObj == NULL)  { return;}
+static void taosStopTcpThread(SThreadObj *pThreadObj) {
+  if (pThreadObj == NULL) {
+    return;
+  }
   // save thread into local variable and signal thread to stop
   pthread_t thread = pThreadObj->thread;
   if (!taosCheckPthreadValid(thread)) {
@@ -199,7 +205,7 @@ void taosStopTcpServer(void *handle) {
 #ifdef WINDOWS
     closesocket(pServerObj->fd);
 #elif defined(__APPLE__)
-    if (pServerObj->fd!=-1) {
+    if (pServerObj->fd != -1) {
       close(pServerObj->fd);
       pServerObj->fd = -1;
     }
@@ -264,15 +270,14 @@ static void *taosAcceptTcpConnection(void *arg) {
     }
 
     taosKeepTcpAlive(connFd);
-    struct timeval to={5, 0};
-    int32_t ret = taosSetSockOpt(connFd, SOL_SOCKET, SO_RCVTIMEO, &to, sizeof(to));
+    struct timeval to = {5, 0};
+    int32_t        ret = taosSetSockOpt(connFd, SOL_SOCKET, SO_RCVTIMEO, &to, sizeof(to));
     if (ret != 0) {
       taosCloseSocket(connFd);
       tError("%s failed to set recv timeout fd(%s)for connection from:%s:%hu", pServerObj->label, strerror(errno),
              taosInetNtoa(caddr.sin_addr), htons(caddr.sin_port));
       continue;
     }
-
 
     // pick up the thread to handle this connection
     pThreadObj = pServerObj->pThreadObj[threadId];
@@ -283,7 +288,7 @@ static void *taosAcceptTcpConnection(void *arg) {
       pFdObj->port = htons(caddr.sin_port);
       pFdObj->ctime = taosGetTimestampMs();
       tDebug("%s new TCP connection from %s:%hu, fd:%d FD:%p numOfFds:%d", pServerObj->label,
-              taosInetNtoa(caddr.sin_addr), pFdObj->port, connFd, pFdObj, pThreadObj->numOfFds);
+             taosInetNtoa(caddr.sin_addr), pFdObj->port, connFd, pFdObj, pThreadObj->numOfFds);
     } else {
       taosCloseSocket(connFd);
       tError("%s failed to malloc FdObj(%s) for connection from:%s:%hu", pServerObj->label, strerror(errno),
@@ -309,14 +314,14 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int numOfThread
 
   tstrncpy(pClientObj->label, label, sizeof(pClientObj->label));
   pClientObj->numOfThreads = numOfThreads;
-  pClientObj->pThreadObj = (SThreadObj **)calloc(numOfThreads, sizeof(SThreadObj*));
+  pClientObj->pThreadObj = (SThreadObj **)calloc(numOfThreads, sizeof(SThreadObj *));
   if (pClientObj->pThreadObj == NULL) {
     tError("TCP:%s no enough memory", label);
     tfree(pClientObj);
     terrno = TAOS_SYSTEM_ERROR(errno);
   }
 
-  int code = 0;
+  int            code = 0;
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
@@ -326,15 +331,15 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int numOfThread
     if (pThreadObj == NULL) {
       tError("TCP:%s no enough memory", label);
       terrno = TAOS_SYSTEM_ERROR(errno);
-      for (int j=0; j<i; ++j) free(pClientObj->pThreadObj[j]);
+      for (int j = 0; j < i; ++j) free(pClientObj->pThreadObj[j]);
       free(pClientObj);
       pthread_attr_destroy(&thattr);
       return NULL;
     }
     pClientObj->pThreadObj[i] = pThreadObj;
     taosResetPthread(&pThreadObj->thread);
-    pThreadObj->ip      = ip;
-    pThreadObj->stop    = false;
+    pThreadObj->ip = ip;
+    pThreadObj->stop = false;
     tstrncpy(pThreadObj->label, label, sizeof(pThreadObj->label));
     pThreadObj->shandle = shandle;
     pThreadObj->processData = fp;
@@ -376,14 +381,14 @@ void taosStopTcpClient(void *chandle) {
 
   if (pClientObj == NULL) return;
 
-  tDebug ("%s TCP client is stopped", pClientObj->label);
+  tDebug("%s TCP client is stopped", pClientObj->label);
 }
 
 void taosCleanUpTcpClient(void *chandle) {
   SClientObj *pClientObj = chandle;
   if (pClientObj == NULL) return;
   for (int i = 0; i < pClientObj->numOfThreads; ++i) {
-    SThreadObj *pThreadObj= pClientObj->pThreadObj[i];
+    SThreadObj *pThreadObj = pClientObj->pThreadObj[i];
     taosStopTcpThread(pThreadObj);
   }
 
@@ -393,9 +398,9 @@ void taosCleanUpTcpClient(void *chandle) {
 }
 
 void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uint16_t port) {
-  SClientObj *    pClientObj = shandle;
-  int32_t idx = atomic_load_32(&pClientObj->index) % pClientObj->numOfThreads;
-    atomic_store_32(&pClientObj->index, idx + 1);
+  SClientObj *pClientObj = shandle;
+  int32_t     idx = atomic_load_32(&pClientObj->index) % pClientObj->numOfThreads;
+  atomic_store_32(&pClientObj->index, idx + 1);
   SThreadObj *pThreadObj = pClientObj->pThreadObj[idx];
 
   SOCKET fd = taosOpenTcpClientSocket(ip, port, pThreadObj->ip);
@@ -406,10 +411,10 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
 #endif
 
   struct sockaddr_in sockin;
-  uint16_t localPort = 0;
-  unsigned int addrlen = sizeof(sockin);
-  if (getsockname(fd, (struct sockaddr *)&sockin, &addrlen) == 0 &&
-      sockin.sin_family == AF_INET && addrlen == sizeof(sockin)) {
+  uint16_t           localPort = 0;
+  unsigned int       addrlen = sizeof(sockin);
+  if (getsockname(fd, (struct sockaddr *)&sockin, &addrlen) == 0 && sockin.sin_family == AF_INET &&
+      addrlen == sizeof(sockin)) {
     localPort = (uint16_t)ntohs(sockin.sin_port);
   }
 
@@ -420,8 +425,8 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
     pFdObj->port = port;
     pFdObj->ip = ip;
     pFdObj->ctime = taosGetTimestampMs();
-    tDebug("%s %p TCP connection to 0x%x:%hu is created, localPort:%hu FD:%p numOfFds:%d",
-            pThreadObj->label, thandle, ip, port, localPort, pFdObj, pThreadObj->numOfFds);
+    tDebug("%s %p TCP connection to 0x%x:%hu is created, localPort:%hu FD:%p numOfFds:%d", pThreadObj->label, thandle,
+           ip, port, localPort, pFdObj, pThreadObj->numOfFds);
   } else {
     tError("%s failed to malloc client FdObj(%s)", pThreadObj->label, strerror(errno));
     taosCloseSocket(fd);
@@ -435,7 +440,8 @@ void taosCloseTcpConnection(void *chandle) {
   if (pFdObj == NULL || pFdObj->signature != pFdObj) return;
 
   SThreadObj *pThreadObj = pFdObj->pThreadObj;
-  tDebug("DEEP %s shutdown3 fd=%d ip=0x%x port=%d ctime=%" PRId64, pThreadObj->label, pFdObj->fd, pFdObj->ip, pFdObj->port, pFdObj->ctime);
+  tDebug("DEEP %s shutdown3 fd=%d ip=0x%x port=%d ctime=%" PRId64, pThreadObj->label, pFdObj->fd, pFdObj->ip,
+         pFdObj->port, pFdObj->ctime);
 
   // pFdObj->thandle = NULL;
   pFdObj->closedByApp = 1;
@@ -448,8 +454,9 @@ int taosSendTcpData(uint32_t ip, uint16_t port, void *data, int len, void *chand
     tError("DEEP TCP send data failed(chandle null). data=0x%p len=%d ip=0x%0x port=%d", data, len, ip, port);
     return -1;
   }
-  if(pFdObj->signature != pFdObj) {
-    tError("DEEP TCP send data failed(sig diff). pFdObj=0x%p sig=0x%p data=%p len=%d ip=0x%x port=%d", pFdObj, pFdObj->signature, data, len, ip, port);
+  if (pFdObj->signature != pFdObj) {
+    tError("DEEP TCP send data failed(sig diff). pFdObj=0x%p sig=0x%p data=%p len=%d ip=0x%x port=%d", pFdObj,
+           pFdObj->signature, data, len, ip, port);
     return -2;
   }
 
@@ -457,27 +464,31 @@ int taosSendTcpData(uint32_t ip, uint16_t port, void *data, int len, void *chand
 
   int ret = taosWriteMsg(pFdObj->fd, data, len);
   tTrace("%s %p TCP data is sent, FD:%p fd:%d bytes:%d", pThreadObj->label, pFdObj->thandle, pFdObj, pFdObj->fd, ret);
-  if(ret < 0) {
-    tError("DEEP %s %p TCP data sent failed and try again, FD:%p fd:%d ctime=%" PRId64 " ret=%d le=%d ip=0x%x port=%d threadid=%d numofFds=%d",
-        pThreadObj->label, pFdObj->thandle, pFdObj, pFdObj->fd, pFdObj->ctime, ret, len, ip, port, pThreadObj->threadId, pThreadObj->numOfFds);
+  if (ret < 0) {
+    tError("DEEP %s %p TCP data sent failed and try again, FD:%p fd:%d ctime=%" PRId64
+           " ret=%d le=%d ip=0x%x port=%d threadid=%d numofFds=%d",
+           pThreadObj->label, pFdObj->thandle, pFdObj, pFdObj->fd, pFdObj->ctime, ret, len, ip, port,
+           pThreadObj->threadId, pThreadObj->numOfFds);
     ret = taosWriteMsg(pFdObj->fd, data, len);
-    if(ret < 0) {
-      tError("DEEP %s %p Second TCP data sent failed, FD:%p fd:%d ctime=%" PRId64 " ret=%d le=%d ip=0x%x port=%d threadid=%d numofFds=%d",
-          pThreadObj->label, pFdObj->thandle, pFdObj, pFdObj->fd, pFdObj->ctime, ret, len, ip, port, pThreadObj->threadId, pThreadObj->numOfFds);
-    } 
+    if (ret < 0) {
+      tError("DEEP %s %p Second TCP data sent failed, FD:%p fd:%d ctime=%" PRId64
+             " ret=%d le=%d ip=0x%x port=%d threadid=%d numofFds=%d",
+             pThreadObj->label, pFdObj->thandle, pFdObj, pFdObj->fd, pFdObj->ctime, ret, len, ip, port,
+             pThreadObj->threadId, pThreadObj->numOfFds);
+    }
   }
 
   return ret;
 }
 
 static void taosReportBrokenLink(SFdObj *pFdObj) {
-
   SThreadObj *pThreadObj = pFdObj->pThreadObj;
 
   // notify the upper layer, so it will clean the associated context
   if (pFdObj->closedByApp == 0) {
     shutdown(pFdObj->fd, SHUT_WR);
-    tDebug("DEEP %s shutdown2 fd=%d ip=0x%x port=%d ctime=%" PRId64, pThreadObj->label, pFdObj->fd, pFdObj->ip, pFdObj->port, pFdObj->ctime);
+    tDebug("DEEP %s shutdown2 fd=%d ip=0x%x port=%d ctime=%" PRId64, pThreadObj->label, pFdObj->fd, pFdObj->ip,
+           pFdObj->port, pFdObj->ctime);
 
     SRecvInfo recvInfo;
     recvInfo.msg = NULL;
@@ -495,9 +506,9 @@ static void taosReportBrokenLink(SFdObj *pFdObj) {
 }
 
 static int taosReadTcpData(SFdObj *pFdObj, SRecvInfo *pInfo) {
-  SRpcHead    rpcHead;
-  int32_t     msgLen, leftLen, retLen, headLen;
-  char       *buffer, *msg;
+  SRpcHead rpcHead;
+  int32_t  msgLen, leftLen, retLen, headLen;
+  char    *buffer, *msg;
 
   SThreadObj *pThreadObj = pFdObj->pThreadObj;
 
@@ -520,7 +531,8 @@ static int taosReadTcpData(SFdObj *pFdObj, SRecvInfo *pInfo) {
     tError("%s %p TCP malloc(size:%d) fail", pThreadObj->label, pFdObj->thandle, msgLen);
     return -1;
   } else {
-    tTrace("%s %p read data, FD:%p fd:%d TCP malloc mem:%p", pThreadObj->label, pFdObj->thandle, pFdObj, pFdObj->fd, buffer);
+    tTrace("%s %p read data, FD:%p fd:%d TCP malloc mem:%p", pThreadObj->label, pFdObj->thandle, pFdObj, pFdObj->fd,
+           buffer);
   }
 
   msg = buffer + tsRpcOverhead;
@@ -528,8 +540,7 @@ static int taosReadTcpData(SFdObj *pFdObj, SRecvInfo *pInfo) {
   retLen = taosReadMsg(pFdObj->fd, msg + headLen, leftLen);
 
   if (leftLen != retLen) {
-    tError("%s %p read error, leftLen:%d retLen:%d FD:%p",
-            pThreadObj->label, pFdObj->thandle, leftLen, retLen, pFdObj);
+    tError("%s %p read error, leftLen:%d retLen:%d FD:%p", pThreadObj->label, pFdObj->thandle, leftLen, retLen, pFdObj);
     free(buffer);
     return -1;
   }
@@ -595,7 +606,8 @@ static void *taosProcessTcpData(void *param) {
       }
 
       if (taosReadTcpData(pFdObj, &recvInfo) < 0) {
-        tDebug("DEEP %s shutdown1 fd=%d ip=0x%x port=%d ctime=%" PRId64, pThreadObj->label, pFdObj->fd, pFdObj->ip, pFdObj->port, pFdObj->ctime);
+        tDebug("DEEP %s shutdown1 fd=%d ip=0x%x port=%d ctime=%" PRId64, pThreadObj->label, pFdObj->fd, pFdObj->ip,
+               pFdObj->port, pFdObj->ctime);
         shutdown(pFdObj->fd, SHUT_WR);
         continue;
       }
@@ -607,7 +619,7 @@ static void *taosProcessTcpData(void *param) {
     if (pThreadObj->stop) break;
   }
 
-  if (pThreadObj->pollFd >=0) {
+  if (pThreadObj->pollFd >= 0) {
     EpollClose(pThreadObj->pollFd);
     pThreadObj->pollFd = -1;
   }
@@ -658,7 +670,6 @@ static SFdObj *taosMallocFdObj(SThreadObj *pThreadObj, SOCKET fd) {
 }
 
 static void taosFreeFdObj(SFdObj *pFdObj) {
-
   if (pFdObj == NULL) return;
   if (pFdObj->signature != pFdObj) return;
 
@@ -672,15 +683,14 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
 
   pFdObj->signature = NULL;
   epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_DEL, pFdObj->fd, NULL);
-  tDebug("DEEP %s close1 fd=%d pFdObj=%p ip=0x%x port=%d ctime=%" PRId64 " thandle=%p",
-           pThreadObj->label, pFdObj->fd, pFdObj, pFdObj->ip, pFdObj->port, pFdObj->ctime, pFdObj->thandle);
+  tDebug("DEEP %s close1 fd=%d pFdObj=%p ip=0x%x port=%d ctime=%" PRId64 " thandle=%p", pThreadObj->label, pFdObj->fd,
+         pFdObj, pFdObj->ip, pFdObj->port, pFdObj->ctime, pFdObj->thandle);
   taosCloseSocket(pFdObj->fd);
-  
 
   pThreadObj->numOfFds--;
   if (pThreadObj->numOfFds < 0)
-    tError("%s %p TCP thread:%d, number of FDs is negative!!!",
-            pThreadObj->label, pFdObj->thandle, pThreadObj->threadId);
+    tError("%s %p TCP thread:%d, number of FDs is negative!!!", pThreadObj->label, pFdObj->thandle,
+           pThreadObj->threadId);
 
   if (pFdObj->prev) {
     (pFdObj->prev)->next = pFdObj->next;
@@ -694,17 +704,15 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
 
   pthread_mutex_unlock(&pThreadObj->mutex);
 
-  tDebug("%s %p TCP connection is closed, FD:%p fd:%d numOfFds:%d",
-          pThreadObj->label, pFdObj->thandle, pFdObj, pFdObj->fd, pThreadObj->numOfFds);
+  tDebug("%s %p TCP connection is closed, FD:%p fd:%d numOfFds:%d", pThreadObj->label, pFdObj->thandle, pFdObj,
+         pFdObj->fd, pThreadObj->numOfFds);
 
   tfree(pFdObj);
 }
 
 SOCKET taosGetFdID(void *chandle) {
-  SFdObj * pFdObj = chandle;
-  if(pFdObj == NULL)
-    return -1;
-  if (pFdObj->signature != pFdObj) 
-    return -1;
+  SFdObj *pFdObj = chandle;
+  if (pFdObj == NULL) return -1;
+  if (pFdObj->signature != pFdObj) return -1;
   return pFdObj->fd;
 }
