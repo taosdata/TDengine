@@ -1189,7 +1189,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t version, void 
     SSingleDeleteReq *pOneReq = taosArrayGet(deleteReq.deleteReqs, i);
     char             *name = pOneReq->tbname;
     if (metaGetTableEntryByName(&mr, name) < 0) {
-      vDebug("stream delete msg, skip vgId:%d since no table: %s", pVnode->config.vgId, name);
+      vDebug("vgId:%d, stream delete msg, skip since no table: %s", pVnode->config.vgId, name);
       continue;
     }
 
