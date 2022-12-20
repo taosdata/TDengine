@@ -87,16 +87,23 @@ typedef struct SCommitInfo        SCommitInfo;
 #define VNODE_RSMA1_DIR "rsma1"
 #define VNODE_RSMA2_DIR "rsma2"
 
+#define VND_INFO_FNAME "vnode.json"
+
 // vnd.h
 void* vnodeBufPoolMalloc(SVBufPool* pPool, int32_t size);
 void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
 void  vnodeBufPoolRef(SVBufPool* pPool);
 void  vnodeBufPoolUnRef(SVBufPool* pPool);
+int   vnodeDecodeInfo(uint8_t* pData, SVnodeInfo* pInfo);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;
 typedef struct SMStbCursor SMStbCursor;
 typedef struct STbUidStore STbUidStore;
+
+#define META_BEGIN_HEAP_BUFFERPOOL 0
+#define META_BEGIN_HEAP_OS         1
+#define META_BEGIN_HEAP_NIL        2
 
 int             metaOpen(SVnode* pVnode, SMeta** ppMeta, int8_t rollback);
 int             metaClose(SMeta* pMeta);
@@ -105,6 +112,7 @@ TXN*            metaGetTxn(SMeta* pMeta);
 int             metaCommit(SMeta* pMeta, TXN* txn);
 int             metaFinishCommit(SMeta* pMeta, TXN* txn);
 int             metaPrepareAsyncCommit(SMeta* pMeta);
+int             metaAbort(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq, SArray* tbUidList);
@@ -237,6 +245,7 @@ int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData);
 // STsdbSnapWriter ========================================
 int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWriter** ppWriter);
 int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* pWriter);
 int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback);
 // STqSnapshotReader ==
 int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapReader** ppReader);
@@ -343,7 +352,12 @@ struct SVnode {
   bool          blocked;
   bool          restored;
   tsem_t        syncSem;
+  int32_t       blockSec;
+  int64_t       blockSeq;
   SQHandle*     pQuery;
+#if 0
+  SRpcHandleInfo blockInfo;
+#endif
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)

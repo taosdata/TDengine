@@ -1355,6 +1355,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt,
   (*pNumOfRows) = 0;
   char*   pLine = NULL;
   int64_t readLen = 0;
+  bool    firstLine = (pStmt->fileProcessing == false);
   pStmt->fileProcessing = false;
   while (TSDB_CODE_SUCCESS == code && (readLen = taosGetLineFile(pStmt->fp, &pLine)) != -1) {
     if (('\r' == pLine[readLen - 1]) || ('\n' == pLine[readLen - 1])) {
@@ -1362,6 +1363,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt,
     }
 
     if (readLen == 0) {
+      firstLine = false;
       continue;
     }
 
@@ -1370,7 +1372,13 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt,
       SToken token;
       strtolower(pLine, pLine);
       const char* pRow = pLine;
+
       code = parseOneRow(pCxt, (const char**)&pRow, pTableCxt, &gotRow, &token);
+      if (code && firstLine) {
+        firstLine = false;
+        code = 0;
+        continue;
+      }
     }
 
     if (TSDB_CODE_SUCCESS == code && gotRow) {
@@ -1381,6 +1389,8 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt,
       pStmt->fileProcessing = true;
       break;
     }
+
+    firstLine = false;
   }
   taosMemoryFree(pLine);
 

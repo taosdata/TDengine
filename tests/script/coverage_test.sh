@@ -122,6 +122,9 @@ function runSimCases() {
 
 function runPythonCases() {
 	echo "=== Run python cases ==="
+
+	cd $TDENGINE_DIR/tests/parallel_test
+	sed -i '/compatibility.py/d' cases.task
 		
 	cd $TDENGINE_DIR/tests/system-test
 	runCasesOneByOne ../parallel_test/cases.task system-test

@@ -698,6 +698,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
   pInfo->pageIndex += 1;
   releaseBufPage(pInfo->pBuf, page);
 
+  pInfo->binfo.pRes->info.dataLoad = 1;
   blockDataUpdateTsWindow(pInfo->binfo.pRes, 0);
   pInfo->binfo.pRes->info.id.groupId = pGroupInfo->groupId;
 
@@ -960,6 +961,8 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   }
   taosArrayDestroy(pParInfo->rowIds);
   pParInfo->rowIds = NULL;
+  pDest->info.dataLoad = 1;
+
   blockDataUpdateTsWindow(pDest, pInfo->tsColIndex);
   pDest->info.id.groupId = pParInfo->groupId;
   pOperator->resultInfo.totalRows += pDest->info.rows;
