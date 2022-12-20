@@ -161,7 +161,10 @@ int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback) {
   SMetaSnapWriter* pWriter = *ppWriter;
 
   if (rollback) {
+    metaInfo("vgId:%d, meta snapshot writer close and rollback start ", TD_VID(pWriter->pMeta->pVnode));
     code = metaAbort(pWriter->pMeta);
+    metaInfo("vgId:%d, meta snapshot writer close and rollback finished, code:0x%x", TD_VID(pWriter->pMeta->pVnode),
+             code);
     if (code) goto _err;
   } else {
     code = metaCommit(pWriter->pMeta, pWriter->pMeta->txn);
