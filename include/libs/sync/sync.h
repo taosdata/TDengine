@@ -156,7 +156,7 @@ typedef struct SSyncFSM {
   void (*FpGetSnapshotInfo)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
   int32_t (*FpSnapshotStartRead)(const struct SSyncFSM* pFsm, void* pReaderParam, void** ppReader);
-  int32_t (*FpSnapshotStopRead)(const struct SSyncFSM* pFsm, void* pReader);
+  void (*FpSnapshotStopRead)(const struct SSyncFSM* pFsm, void* pReader);
   int32_t (*FpSnapshotDoRead)(const struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len);
 
   int32_t (*FpSnapshotStartWrite)(const struct SSyncFSM* pFsm, void* pWriterParam, void** ppWriter);

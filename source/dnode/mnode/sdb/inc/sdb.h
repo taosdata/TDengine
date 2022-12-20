@@ -392,7 +392,7 @@ void    *sdbGetRowObj(SSdbRow *pRow);
 void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc);
 
 int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *term, int64_t *config);
-int32_t sdbStopRead(SSdb *pSdb, SSdbIter *pIter);
+void    sdbStopRead(SSdb *pSdb, SSdbIter *pIter);
 int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len);
 
 int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter);

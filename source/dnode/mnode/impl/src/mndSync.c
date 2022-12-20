@@ -169,10 +169,10 @@ int32_t mndSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader
   return sdbStartRead(pMnode->pSdb, (SSdbIter **)ppReader, NULL, NULL, NULL);
 }
 
-int32_t mndSnapshotStopRead(const SSyncFSM *pFsm, void *pReader) {
+static void mndSnapshotStopRead(const SSyncFSM *pFsm, void *pReader) {
   mInfo("stop to read snapshot from sdb");
   SMnode *pMnode = pFsm->data;
-  return sdbStopRead(pMnode->pSdb, pReader);
+  sdbStopRead(pMnode->pSdb, pReader);
 }
 
 int32_t mndSnapshotDoRead(const SSyncFSM *pFsm, void *pReader, void **ppBuf, int32_t *len) {

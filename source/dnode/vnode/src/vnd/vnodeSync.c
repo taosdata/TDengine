@@ -423,10 +423,9 @@ static int32_t vnodeSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void *
   return code;
 }
 
-static int32_t vnodeSnapshotStopRead(const SSyncFSM *pFsm, void *pReader) {
+static void vnodeSnapshotStopRead(const SSyncFSM *pFsm, void *pReader) {
   SVnode *pVnode = pFsm->data;
-  int32_t code = vnodeSnapReaderClose(pReader);
-  return code;
+  vnodeSnapReaderClose(pReader);
 }
 
 static int32_t vnodeSnapshotDoRead(const SSyncFSM *pFsm, void *pReader, void **ppBuf, int32_t *len) {
