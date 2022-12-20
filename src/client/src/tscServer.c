@@ -509,6 +509,7 @@ bool shouldRewTableMeta(SSqlObj* pSql, SRpcMsg* rpcMsg) {
       rpcMsg->code != TSDB_CODE_VND_INVALID_VGROUP_ID &&
       rpcMsg->code != TSDB_CODE_QRY_INVALID_SCHEMA_VERSION &&
       rpcMsg->code != TSDB_CODE_RPC_NETWORK_UNAVAIL &&
+      rpcMsg->code != TSDB_CODE_RPC_VGROUP_NOT_CONNECTED &&
       rpcMsg->code != TSDB_CODE_APP_NOT_READY ) {
     return false;
   }
@@ -1290,7 +1291,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       *(int8_t*) pMsg = pUdfInfo->resType;
       pMsg += sizeof(pUdfInfo->resType);
 
-      *(int16_t*) pMsg = htons(pUdfInfo->resBytes);
+      *(uint16_t *)pMsg = htons(pUdfInfo->resBytes);
       pMsg += sizeof(pUdfInfo->resBytes);
 
       STR_TO_VARSTR(pMsg, pUdfInfo->name);
@@ -2594,9 +2595,9 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
       STableMetaVgroupInfo p = {.pTableMeta = pTableMeta,};
       size_t keyLen = strnlen(pMetaMsg->tableFname, TSDB_TABLE_FNAME_LEN);
       void* t = taosHashGet(pParentCmd->pTableMetaMap, pMetaMsg->tableFname, keyLen);
-      assert(t == NULL);
-
-      taosHashPut(pParentCmd->pTableMetaMap, pMetaMsg->tableFname, keyLen, &p, sizeof(STableMetaVgroupInfo));
+      if(t == NULL) {
+        taosHashPut(pParentCmd->pTableMetaMap, pMetaMsg->tableFname, keyLen, &p, sizeof(STableMetaVgroupInfo));
+      }
     } else {
       freeMeta = true;
     }
@@ -2953,6 +2954,13 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
 
   SQueryTableRsp *pQueryAttr = (SQueryTableRsp *)pRes->pRsp;
+
+  if (pQueryAttr == NULL) {
+    tscError("0x%"PRIx64" invalid NULL query rsp received", pSql->self);
+    pRes->code = TSDB_CODE_QRY_APP_ERROR;
+    return pRes->code;
+  }
+  
   pQueryAttr->qId = htobe64(pQueryAttr->qId);
 
   pRes->qId  = pQueryAttr->qId;
@@ -3056,7 +3064,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
 
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
-    int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
+    int32_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
 
     char* p = pRes->data + (pField->bytes + offset) * pRes->numOfRows;
 

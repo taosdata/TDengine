@@ -13,16 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+
 #include "os.h"
+#include "osAtomic.h"
+#include "tarray.h"
 #include "tutil.h"
 
+#include "qTableMeta.h"
 #include "tnote.h"
 #include "trpc.h"
+#include "tscBatchWrite.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
 #include "tscUtil.h"
-#include "tsched.h"
-#include "qTableMeta.h"
 #include "tsclient.h"
 
 static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
@@ -334,6 +337,26 @@ bool appendTagsFilter(SSqlObj* pSql) {
     return false;
   }
 
+  // check tags is blank or ''
+  char* p1 = pTscObj->tags;
+  if (strcmp(p1, "\'\'") == 0) {
+    tscDebug("TAGS 0x%" PRIx64 " tags is empty. user=%s", pSql->self, pTscObj->user);
+    return false;
+  }
+  bool blank = true;
+  while(*p1 != 0) {
+    if(*p1 != ' ') {
+      blank = false;
+      break;
+    }
+    ++p1;
+  }
+  // result
+  if(blank) {
+    tscDebug("TAGS 0x%" PRIx64 " tags is all blank. user=%s", pSql->self, pTscObj->user);
+    return false;
+  }
+
   char * p = insertTags(pSql->sqlstr, pTscObj->tags);
   if(p == NULL) {
     return false;
@@ -378,7 +401,6 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   pCmd->resColumnId = TSDB_RES_COL_ID;
 
   taosAcquireRef(tscObjRef, pSql->self);
-
   int32_t code = tsParseSql(pSql, true);
 
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -392,18 +414,27 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
     taosReleaseRef(tscObjRef, pSql->self);
     return;
   }
-
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+  
+  if (pObj->dispatcherManager != NULL) {
+    SAsyncBatchWriteDispatcher * dispatcher = dispatcherAcquire(pObj->dispatcherManager);
+    if (dispatcherTryDispatch(dispatcher, pSql)) {
+      taosReleaseRef(tscObjRef, pSql->self);
+      tscDebug("sql obj %p has been buffer in insert buffer", pSql);
+      return;
+    }
+  }
+  
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
   executeQuery(pSql, pQueryInfo);
   taosReleaseRef(tscObjRef, pSql->self);
 }
 
 // TODO return the correct error code to client in tscQueueAsyncError
 void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param) {
-  taos_query_ra(taos, sqlstr, fp, param);
+  taos_query_ra(taos, sqlstr, fp, param, tsWriteBatchSize > 0);
 }
 
-TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param) {
+TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param, bool enableBatch) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
     tscError("pObj:%p is NULL or freed", pObj);
@@ -428,6 +459,8 @@ TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, v
     tscQueueAsyncError(fp, param, TSDB_CODE_TSC_OUT_OF_MEMORY);
     return NULL;
   }
+  
+  pSql->enableBatch = enableBatch;
   
   doAsyncQuery(pObj, pSql, fp, param, sqlstr, sqlLen);
 

@@ -57,7 +57,7 @@ typedef struct SDnodeObj {
   int8_t     alternativeRole;  // from dnode status msg, 0-any, 1-mgmt, 2-dnode
   int8_t     status;           // set in balance function
   int8_t     isMgmt;
-  int8_t     reserve1[11];  
+  int8_t     reserve1[11];
   int8_t     updateEnd[4];
   int32_t    refCount;
   uint32_t   moduleStatus;
@@ -90,7 +90,7 @@ typedef struct STableObj {
 } STableObj;
 
 typedef struct SSTableObj {
-  STableObj  info; 
+  STableObj  info;
   int8_t     reserved0[9]; // for fill struct STableObj to 4byte align
   int16_t    nextColId;
   int32_t    sversion;
@@ -107,10 +107,10 @@ typedef struct SSTableObj {
 } SSTableObj;
 
 typedef struct {
-  STableObj  info;  
+  STableObj  info;
   int8_t     reserved0[9]; // for fill struct STableObj to 4byte align
   int16_t    nextColId;    //used by normal table
-  int32_t    sversion;     //used by normal table  
+  int32_t    sversion;     //used by normal table
   uint64_t   uid;
   uint64_t   suid;
   int64_t    createdTime;
@@ -195,7 +195,7 @@ typedef struct SDbObj {
   int32_t numOfVgroups;
   int32_t numOfTables;
   int32_t numOfSuperTables;
-  int32_t vgListSize; 
+  int32_t vgListSize;
   int32_t vgListIndex;
   SVgObj **vgList;
   struct SAcctObj *pAcct;
@@ -239,7 +239,7 @@ typedef struct SFuncObj {
   int32_t           bufSize;
   int64_t           createdTime;
   uint8_t           resType;
-  int16_t           resBytes;
+  uint16_t          resBytes;
   int64_t           sig;         // partial md5 sign
   int16_t           type;        // [lua script|so|js]
   int8_t            reserved[64];
@@ -288,10 +288,10 @@ typedef struct {
   int32_t  index;
   int32_t  rowSize;
   int32_t  numOfRows;
-  void *   pIter;
-  void *   pVgIter;
-  void **  ppShow;
-  int16_t  offset[TSDB_MAX_COLUMNS];
+  void    *pIter;
+  void    *pVgIter;
+  void   **ppShow;
+  uint16_t offset[TSDB_MAX_COLUMNS];
   int32_t  bytes[TSDB_MAX_COLUMNS];
   int32_t  numOfReads;
   int8_t   maxReplica;

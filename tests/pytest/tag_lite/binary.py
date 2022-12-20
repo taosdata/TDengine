@@ -583,13 +583,13 @@ class TDTestCase:
             "create table if not exists st (ts timestamp, tagtype int) tags(dev binary(5))")
         tdSql.error(
             'CREATE TABLE if not exists dev_001 using st tags("dev_001")')
-        
+
         tdSql.execute(
             'CREATE TABLE if not exists dev_002 using st tags("dev")')
 
-        print("==============step2")    
+        print("==============step2")
         tdSql.query("show tables")
-        tdSql.checkRows(1)        
+        tdSql.checkRows(1)
 
     def stop(self):
         tdSql.close()

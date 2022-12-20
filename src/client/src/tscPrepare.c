@@ -922,7 +922,7 @@ static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MU
         tscError("binary length too long, ignore it, max:%d, actual:%d", param->bytes, (int32_t)pBind->length[i]);
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
-      int16_t bsize = (short)pBind->length[i];
+      uint16_t bsize = (uint16_t)pBind->length[i];
       STR_WITH_SIZE_TO_VARSTR(data + param->offset, (char *)pBind->buffer + pBind->buffer_length * i, bsize);
     } else if (param->type == TSDB_DATA_TYPE_NCHAR) {
       if (pBind->length[i] > (uintptr_t)param->bytes) {

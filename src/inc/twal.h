@@ -19,6 +19,9 @@
 extern "C" {
 #endif
 
+#define WAL_SIGNATURE  ((uint32_t)(0xFAFBFDFE))
+#define WAL_MAX_SIZE   (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + 16)
+
 typedef enum {
   TAOS_WAL_NOLOG = 0,
   TAOS_WAL_WRITE = 1,

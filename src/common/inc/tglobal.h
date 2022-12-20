@@ -69,6 +69,7 @@ extern char     tsTempDir[];
 extern int32_t  tsShortcutFlag;
 extern int32_t  tsMaxSqlGroups;
 extern int8_t   tsSortWhenGroupBy;
+extern int32_t  tsQueryRssThreshold;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
@@ -92,6 +93,9 @@ extern int32_t tsRetryStreamCompDelay;
 extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the whole time window
 extern int32_t tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
+extern bool    tsWriteBatchThreadLocal;
+extern int32_t tsWriteBatchSize;
+extern int32_t tsWriteBatchTimeout;
 
 // db parameters in client
 extern int32_t tsCacheBlockSize;
@@ -150,6 +154,10 @@ extern int8_t  tsMonitorReplica;
 extern char    tsMonitorDbName[];
 extern char    tsInternalPass[];
 extern int32_t tsMonitorInterval;
+
+// audit
+extern int8_t  tsEnableAudit;
+extern char    tsAuditDbName[];
 
 // stream
 extern int8_t tsEnableStream;

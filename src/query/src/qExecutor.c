@@ -206,7 +206,7 @@ static void getNextTimeWindow(SQueryAttr* pQueryAttr, STimeWindow* tw) {
   tw->ekey -= 1;
 }
 
-static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type, int16_t bytes);
+static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type, uint16_t bytes);
 static void setResultOutputBuf(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pResult, SQLFunctionCtx* pCtx,
                                int32_t numOfCols, int32_t* rowCellInfoOffset);
 
@@ -255,7 +255,7 @@ static int32_t doCopyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* 
 
 static int32_t getGroupbyColumnIndex(SGroupbyExpr* pGroupbyExpr, SSDataBlock* pDataBlock);
 static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv* pRuntimeEnv, SOptrBasicInfo* binf, int32_t numOfCols,
-                                       char* pData, int16_t type, int16_t bytes, int32_t groupIndex);
+                                       char* pData, int16_t type, uint16_t bytes, int32_t groupIndex);
 
 static void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size);
 static void getAlignQueryTimeWindow(SQueryAttr* pQueryAttr, int64_t key, int64_t keyFirst, int64_t keyLast,
@@ -318,10 +318,10 @@ static int32_t getColDataFromGroupRes(SGroupResInfo* pGroupResInfo, SQueryRuntim
   for (int32_t i = 0; i < numRows; ++i) {
     SResultRow* row = taosArrayGetP(pGroupResInfo->pRows, i);
     row->groupIndex = i;
-    tFilePage*  page = getResBufPage(pRuntimeEnv->pResultBuf, row->pageId);
-    int32_t     rowsToCopy = 1;
-    char*       out = colData + numOfResult * colBytes;
-    char*       in = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, row->offset, colDataOffset);
+    tFilePage* page = getResBufPage(pRuntimeEnv->pResultBuf, row->pageId);
+    int32_t    rowsToCopy = 1;
+    char*      out = colData + numOfResult * colBytes;
+    char*      in = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, row->offset, colDataOffset);
     memcpy(out, in, colBytes * rowsToCopy);
     numOfResult += rowsToCopy;
   }
@@ -338,9 +338,9 @@ static void sortGroupResByOrderList(SGroupResInfo* pGroupResInfo, SQueryRuntimeE
   }
 
   // get dataOffset and index on pRuntimeEnv->pQueryAttr->pExpr1
-  int16_t dataOffset = 0;
-  int16_t type = 0;
-  int32_t bytes = 0;
+  uint16_t dataOffset = 0;
+  int16_t  type = 0;
+  int32_t  bytes = 0;
   for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
     SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pDataBlock->pDataBlock, j);
     if (pCtx[j].colId == pFirstGroupCol->colId) {
@@ -552,7 +552,7 @@ static void prepareResultListBuffer(SResultRowInfo* pResultRowInfo, SQueryRuntim
 }
 
 static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResultRowInfo* pResultRowInfo, int64_t tid,
-                                          char* pData, int16_t bytes, bool masterscan, uint64_t tableGroupId) {
+                                          char* pData, uint16_t bytes, bool masterscan, uint64_t tableGroupId) {
   bool existed = false;
   SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, pData, bytes, tableGroupId);
 
@@ -2066,7 +2066,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
 }
 
 static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv* pRuntimeEnv, SOptrBasicInfo* binfo, int32_t numOfCols,
-                                       char* pData, int16_t type, int16_t bytes, int32_t groupIndex) {
+                                       char* pData, int16_t type, uint16_t bytes, int32_t groupIndex) {
   SDiskbasedResultBuf* pResultBuf = pRuntimeEnv->pResultBuf;
 
   int32_t*        rowCellInfoOffset = binfo->rowCellInfoOffset;
@@ -2074,8 +2074,8 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv* pRuntimeEnv, SOptrBasic
   SQLFunctionCtx* pCtx = binfo->pCtx;
 
   // not assign result buffer yet, add new result buffer, TODO remove it
-  char*   d = pData;
-  int16_t len = bytes;
+  char*    d = pData;
+  uint16_t len = bytes;
 
   int64_t     tid = 0;
   SResultRow* pResultRow = doSetResultOutBufByKey(pRuntimeEnv, pResultRowInfo, tid, d, len, true, groupIndex);
@@ -2283,7 +2283,7 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     pCtx->numOfParams = pSqlExpr->numOfParams;
     for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
       int16_t type = pSqlExpr->param[j].nType;
-      int16_t bytes = pSqlExpr->param[j].nLen;
+      int32_t bytes = pSqlExpr->param[j].nLen;
       if (pSqlExpr->functionId == TSDB_FUNC_STDDEV_DST || pSqlExpr->functionId == TSDB_FUNC_TS_COMP) {
         continue;
       }
@@ -2837,6 +2837,10 @@ static bool isCachedLastQuery(SQueryAttr* pQueryAttr) {
     return false;
   }
 
+  if (pQueryAttr->pFilters != NULL || pQueryAttr->pFilterInfo != NULL) {
+    return false;
+  }
+
   return true;
 }
 
@@ -3165,7 +3169,7 @@ static bool overlapWithTimeWindow(SQueryAttr* pQueryAttr, SDataBlockInfo* pBlock
       return true;
     }
 
-    while(w.skey < pBlockInfo->window.ekey) {
+    while (w.skey < pBlockInfo->window.ekey) {
       // add one slding
       if (pQueryAttr->interval.slidingUnit == 'n' || pQueryAttr->interval.slidingUnit == 'y')
         ekey = taosTimeAdd(ekey, pQueryAttr->interval.sliding, pQueryAttr->interval.slidingUnit, pQueryAttr->precision);
@@ -3180,7 +3184,7 @@ static bool overlapWithTimeWindow(SQueryAttr* pQueryAttr, SDataBlockInfo* pBlock
       getAlignQueryTimeWindow(pQueryAttr, ekey, sk, ek, &w);
     }
 
-    while(1) {
+    while (1) {
       if (w.ekey < pBlockInfo->window.skey) {
         break;
       }
@@ -3293,7 +3297,7 @@ void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p) {
         for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
           SColumnInfoData* pColumnInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
-          int16_t bytes = pColumnInfoData->info.bytes;
+          int32_t bytes = pColumnInfoData->info.bytes;
           memmove(((char*)pColumnInfoData->pData) + start * bytes, pColumnInfoData->pData + cstart * bytes,
                   len * bytes);
         }
@@ -3309,7 +3313,7 @@ void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p) {
     for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
       SColumnInfoData* pColumnInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
-      int16_t bytes = pColumnInfoData->info.bytes;
+      int32_t bytes = pColumnInfoData->info.bytes;
       memmove(pColumnInfoData->pData + start * bytes, pColumnInfoData->pData + cstart * bytes, len * bytes);
     }
 
@@ -3446,7 +3450,7 @@ void filterColRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock
 
 static SColumnInfo* doGetTagColumnInfoById(SColumnInfo* pTagColList, int32_t numOfTags, int16_t colId);
 static void         doSetTagValueInParam(void* pTable, char* param, int32_t paraLen, int32_t tagColId, tVariant* tag,
-                                         int16_t type, int16_t bytes);
+                                         int16_t type, uint16_t bytes);
 
 static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock) {
   SQLFunctionCtx* pCtx = pTableScanInfo->pCtx;
@@ -3732,7 +3736,7 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
  * e.g.,tag information into input buffer
  */
 static void doSetTagValueInParam(void* pTable, char* param, int32_t paramLen, int32_t tagColId, tVariant* tag,
-                                 int16_t type, int16_t bytes) {
+                                 int16_t type, uint16_t bytes) {
   tVariantDestroy(tag);
 
   char* val = NULL;
@@ -6307,7 +6311,13 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
 
   __compar_fn_t comp = getKeyComparFunc(pSchema[pInfo->colIndex].type, pInfo->order);
   if (pInfo->pDataBlock->info.rows) {
-    taoscQSort(pCols, pSchema, numOfCols, pInfo->pDataBlock->info.rows, pInfo->colIndex, comp);
+    int32_t code = taoscQSort(pCols, pSchema, numOfCols, pInfo->pDataBlock->info.rows, pInfo->colIndex, comp);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("QInfo:0x%"PRIx64 " can not sort since %s", GET_QID(pOperator->pRuntimeEnv), tstrerror(code));
+      tfree(pCols);
+      tfree(pSchema);
+      longjmp(pOperator->pRuntimeEnv->env, code);
+    }
   }
 
   tfree(pCols);
@@ -6339,7 +6349,7 @@ SOperatorInfo* createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
       SColumnInfoData col = {{0}};
       col.info.colId = pExpr[i].base.colInfo.colId;
       col.info.bytes = pExpr[i].base.resBytes;
-      col.info.type  = pExpr[i].base.resType;
+      col.info.type = pExpr[i].base.resType;
       taosArrayPush(pDataBlock->pDataBlock, &col);
 
       if (!found && col.info.colId == pOrderVal->orderColId) {
@@ -6677,7 +6687,7 @@ static SSDataBlock* doLimit(void* param, bool* newgroup) {
       for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
         SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
-        int16_t bytes = pColInfoData->info.bytes;
+        int32_t bytes = pColInfoData->info.bytes;
         memmove(pColInfoData->pData, pColInfoData->pData + skip * bytes, remain * bytes);
       }
 
@@ -6874,18 +6884,18 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
       break;
     }
   }
-  
+
   if (pCtx == NULL) {
     goto group_finished_exit;
   }
-  
+
   TSKEY* tsCols = NULL;
   if (pBlock && pBlock->pDataBlock != NULL) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, 0);
     tsCols = (int64_t*)pColDataInfo->pData;
     assert(tsCols[0] == pBlock->info.window.skey && tsCols[pBlock->info.rows - 1] == pBlock->info.window.ekey);
   }
-  
+
   if (pCtx->startTs == INT64_MIN) {
     if (pQueryAttr->range.skey == INT64_MIN) {
       if (NULL == tsCols) {
@@ -6984,7 +6994,7 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
     return false;
   }
   int32_t nRows = pBlock ? pBlock->info.rows : 0;
-  int32_t startPos = binarySearchForKey((char*) tsCols, nRows, pCtx->startTs, pQueryAttr->order.order);
+  int32_t startPos = binarySearchForKey((char*)tsCols, nRows, pCtx->startTs, pQueryAttr->order.order);
 
   if (ascQuery && pQueryAttr->fillType != TSDB_FILL_NEXT && pCtx->start.key == INT64_MIN) {
     if (startPos < 0) {
@@ -7380,7 +7390,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   SOptrBasicInfo* pBInfo = &pInfo->binfo;
 
   bool    masterScan = IS_MASTER_SCAN(pRuntimeEnv);
-  int16_t bytes = pColInfoData->info.bytes;
+  int32_t bytes = pColInfoData->info.bytes;
   //  int16_t     type = pColInfoData->info.type;
 
   SColumnInfoData* pTsColInfoData = taosArrayGet(pSDataBlock->pDataBlock, 0);
@@ -8522,18 +8532,18 @@ SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
     SColIndex* idx = taosArrayGet(pInfo->orderColumnList, i);
     offset += pExpr[idx->colIndex].base.resBytes;
   }
-  
+
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL) {
     goto _clean;
   }
-  
+
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
   if (pInfo->pRes == NULL) {
     tfree(pOperator);
     goto _clean;
   }
-  
+
   pOperator->name = "SLimitOperator";
   pOperator->operatorType = OP_SLimit;
   pOperator->blockingOptr = false;
@@ -8580,7 +8590,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
 
     count = 0;
 
-    int16_t bytes = pExprInfo->base.resBytes;
+    int32_t bytes = pExprInfo->base.resBytes;
     int16_t type = pExprInfo->base.resType;
 
     for (int32_t i = 0; i < pQueryAttr->numOfTags; ++i) {
@@ -8654,7 +8664,8 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
       STableQueryInfo* item = taosArrayGetP(pa, i);
 
       char *  data = NULL, *dst = NULL;
-      int16_t type = 0, bytes = 0;
+      int16_t type = 0;
+      int32_t bytes = 0;
       for (int32_t j = 0; j < pOperator->numOfOutput; ++j) {
         // not assign value in case of user defined constant output column
         if (TSDB_COL_IS_UD_COL(pExprInfo[j].base.colInfo.flag)) {
@@ -9359,7 +9370,7 @@ int32_t convertQueryMsg(SQueryTableMsg* pQueryMsg, SQueryParam* param) {
     param->pUdfInfo->resType = *(int8_t*)pMsg;
     pMsg += sizeof(int8_t);
 
-    param->pUdfInfo->resBytes = htons(*(int16_t*)pMsg);
+    param->pUdfInfo->resBytes = htons(*(uint16_t*)pMsg);
     pMsg += sizeof(int16_t);
 
     tstr* name = (tstr*)(pMsg);
@@ -9685,8 +9696,8 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
       tVariantAssign(&pExprs[i].base.param[j], &pExprMsg[i]->param[j]);
     }
 
-    int16_t type = 0;
-    int16_t bytes = 0;
+    int16_t  type = 0;
+    uint16_t bytes = 0;
 
     // parse the arithmetic expression
     if (pExprs[i].base.functionId == TSDB_FUNC_SCALAR_EXPR) {
@@ -9829,7 +9840,7 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t nu
     pExprs[i].base.resType = 0;
 
     int16_t type = 0;
-    int16_t bytes = 0;
+    int32_t bytes = 0;
 
     // parse the arithmetic expression
     if (pExprs[i].base.functionId == TSDB_FUNC_SCALAR_EXPR) {
@@ -10171,7 +10182,8 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
     pTableqinfo->pGroupList = taosArrayInit(numOfGroups, POINTER_BYTES);
     pTableqinfo->numOfTables = pTableGroupInfo->numOfTables;
 
-    pTableqinfo->map = taosHashInit(pTableGroupInfo->numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    pTableqinfo->map = taosHashInit(pTableGroupInfo->numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true,
+                                    HASH_ENTRY_LOCK);
   }
 
   pQInfo->pBuf = calloc(pTableGroupInfo->numOfTables, sizeof(STableQueryInfo));
@@ -10373,7 +10385,7 @@ static void doDestroyTableQueryInfo(STableGroupInfo* pTableqinfoGroupInfo) {
 
   taosArrayDestroy(&pTableqinfoGroupInfo->pGroupList);
 
-  SHashObj *pmap = pTableqinfoGroupInfo->map;
+  SHashObj* pmap = pTableqinfoGroupInfo->map;
   if (pmap == atomic_val_compare_exchange_ptr(&pTableqinfoGroupInfo->map, pmap, NULL)) {
     taosHashCleanup(pmap);
   }
@@ -10530,7 +10542,7 @@ bool doBuildResCheck(SQInfo* pQInfo) {
   return buildRes;
 }
 
-static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type, int16_t bytes) {
+static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type, uint16_t bytes) {
   if (val == NULL) {
     setNull(output, type, bytes);
     return;

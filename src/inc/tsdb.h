@@ -432,8 +432,8 @@ bool tsdbNoProblem(STsdbRepo* pRepo);
 int tsdbCheckWal(STsdbRepo *pRepo, uint32_t walSize);
 
 // for json tag
-void* getJsonTagValueElment(void* data, char* key, int32_t keyLen, char* out, int16_t bytes);
-void getJsonTagValueAll(void* data, void* dst, int16_t bytes);
+void* getJsonTagValueElment(void* data, char* key, int32_t keyLen, char* out, uint16_t bytes);
+void getJsonTagValueAll(void* data, void* dst, uint16_t bytes);
 char* parseTagDatatoJson(void *p);
 
 //

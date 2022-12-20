@@ -110,6 +110,8 @@ static char *mnodeGetShowType(int32_t showType) {
     case TSDB_MGMT_TABLE_CLUSTER: return "show clusters";
     case TSDB_MGMT_TABLE_STREAMTABLES : return "show streamtables";
     case TSDB_MGMT_TABLE_TP:      return "show topics";
+    case TSDB_MGMT_ALIVE_DB:     return "show database status";
+    case TSDB_MGMT_ALIVE_CLUSTER: return "show cluster status";
     default:                      return "undefined";
   }
 }

@@ -580,15 +580,15 @@ class TDTestCase:
             'CREATE TABLE if not exists dev_001 using st tags(%d)' % pow(2, 31))
         tdSql.error(
             'CREATE TABLE if not exists dev_001 using st tags(%d)' % (-1 * pow(2, 31)))
-        
+
         tdSql.execute(
             'CREATE TABLE if not exists dev_001 using st tags(%d)' % (pow(2, 31) - 1))
         tdSql.execute(
             'CREATE TABLE if not exists dev_002 using st tags(%d)' % (-1 * pow(2, 31) + 1))
 
-        print("==============step2")    
+        print("==============step2")
         tdSql.query("show tables")
-        tdSql.checkRows(2)   
+        tdSql.checkRows(2)
 
     def stop(self):
         tdSql.close()

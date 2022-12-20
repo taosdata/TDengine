@@ -47,16 +47,16 @@ class TDTestCase:
         print("==============step1 tag format =======")
         tdLog.info("create database   ")
         tdSql.execute("create database db_json")
-        tdSql.execute("use db_json")    
-        # test  tag format 
+        tdSql.execute("use db_json")
+        # test  tag format
         tdSql.execute("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json)")
         tdSql.error("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(10000000))")
         tdSql.error("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json,jtag1 json)")
         tdSql.error("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json,dataBool bool)")
-        
+
         tdSql.execute("CREATE TABLE if not exists  jsons1_1 using  jsons1 tags('{\"loc\":\"fff\",\"id\":5}')")
 
-        # two stables: jsons1 jsons2 ,test  tag's value  and  key  
+        # two stables: jsons1 jsons2 ,test  tag's value  and  key
         tdSql.execute("insert into  jsons1_1(ts,dataInt)  using  jsons1 tags('{\"loc+\":\"fff\",\"id\":5}') values (now,12)")
 
         tdSql.error("CREATE TABLE if not exists  jsons1_1 using  jsons1 tags('{oc:\"fff\",\"id\":5}')")

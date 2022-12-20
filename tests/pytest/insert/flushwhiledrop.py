@@ -50,7 +50,7 @@ class TDTestCase:
             for i in range(finish, self.numberOfRecords):
                 sql += "(%d, 1019774612, 29931, 1442173978, 165092.468750, 1128.643179, 'MOCq1pTu', 18405, 82, 0, 'g0A6S0Fu')" % (currts + i)
                 finish = i + 1
-                if (1048576 - len(sql)) < 16384:
+                if (1048576 - len(sql)) < 65519:
                     break
             tdSql.execute(sql)
         

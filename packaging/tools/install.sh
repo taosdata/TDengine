@@ -105,6 +105,10 @@ elif echo $osinfo | grep -qwi "debian"; then
 elif echo $osinfo | grep -qwi "Kylin"; then
   #  echo "This is Kylin system"
   os_type=1
+elif echo $osinfo | grep -qwi "KylinSec"; then 
+  # echo "This is KylinSec system" 
+  os_type=2 
+  csudo="" 
 elif echo $osinfo | grep -qwi "Red"; then
   #  echo "This is Red Hat system"
   os_type=1

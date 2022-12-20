@@ -279,7 +279,8 @@ void verify_schema_less(TAOS* taos) {
   int code = 0, affected_rows = 0;
 
   char* lines[] = {
-      "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
+      // test support \n \t \r 
+      "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"aaa\tbbb\nccc\\\\tddd\\\\neee\\nfff\\rggg\\thhh\",c2=false,c4=4f64 1626006833639000000",
       "st,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000",
       "ste,t2=5f64,t3=L\"ste\" c1=true,c2=4i64,c3=\"iam\" 1626056811823316532",
       "st,t1=4i64,t2=5f64,t3=\"t4\" c1=3i64,c3=L\"passitagain\",c2=true,c4=5f64 1626006833642000000",

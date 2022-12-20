@@ -55,7 +55,8 @@ typedef struct SSqlExpr {
   int32_t   interBytes;     // inter result buffer size
 
   int16_t   colType;        // table column type
-  int16_t   colBytes;       // table column bytes,it should be int32_t, because it is too small for globale merge stage, pQueryAttr->interBytesForGlobal
+  uint16_t  colBytes;       // table column bytes,it should be int32_t, because it is too small for globale merge stage,
+                            // pQueryAttr->interBytesForGlobal
 
   int16_t   numOfParams;    // argument value of each function
   tVariant  param[3];       // parameters are not more than 3

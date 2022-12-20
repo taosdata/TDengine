@@ -282,7 +282,7 @@
 22,,script,./test.sh -f general/parser/limit.sim
 22,,script,./test.sh -f general/insert/tcp.sim
 22,,script,./test.sh -f general/cache/restart_table.sim
-22,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertShell.py
+#22,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertShell.py
 22,,pytest,python3 test.py -f tag_lite/datatype.py
 22,,pytest,python3 test.py -f import_merge/importDataLastH.py
 22,,pytest,python3 test.py -f import_merge/importDataHO2.py
@@ -426,7 +426,7 @@
 14,,script,./test.sh -f general/field/2.sim
 14,,script,./test.sh -f general/compute/avg.sim
 14,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonSml.py
-14,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-chinese.py
+#14,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-chinese.py
 14,,pytest,python3 test.py -f query/queryWithTaosdKilled.py
 14,,pytest,python3 test.py -f query/queryStddevWithGroupby.py
 14,,pytest,python3 test.py -f query/queryJoin10tables.py
@@ -816,6 +816,7 @@
 3,,pytest,python3 test.py -f table/tbNameCaseSensitive.py
 3,,pytest,python3 test.py -f functions/function_max_row.py
 3,,pytest,python3 test.py -f functions/function_min_row.py
+3,,pytest,python3 test.py -f insert/long_string.py
 3,,develop-test,python3 ./test.py -f 2-query/ts_hidden_column.py
 3,,develop-test,python3 ./test.py -f 2-query/ts_shortcut.py
 3,,develop-test,python3 ./test.py -f 2-query/nchar_funcs.py

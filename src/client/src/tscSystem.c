@@ -14,18 +14,19 @@
  */
 
 #include "os.h"
+#include "qScript.h"
 #include "taosmsg.h"
+#include "tconfig.h"
+#include "tglobal.h"
+#include "tnote.h"
 #include "tref.h"
 #include "trpc.h"
-#include "tnote.h"
-#include "ttimer.h"
-#include "tsched.h"
+#include "tscBatchWrite.h"
 #include "tscLog.h"
+#include "tsched.h"
 #include "tsclient.h"
-#include "tglobal.h"
-#include "tconfig.h"
+#include "ttimer.h"
 #include "ttimezone.h"
-#include "qScript.h"
 
 // global, not configurable
 #define TSC_VAR_NOT_RELEASE 1
@@ -319,6 +320,49 @@ void taos_cleanup(void) {
   taosTmrCleanUp(p);
 }
 
+/**
+ * Set the option value (int32, uint16, int16, int8).
+ * @param cfg   the config.
+ * @param str   the value string.
+ * @return      whether is set or not.
+ */
+static bool taos_set_option_int(SGlobalCfg * cfg, const char* str) {
+  if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
+    char* p = NULL;
+    errno = 0;
+    long value = strtol(str, &p, 10);
+    
+    if (errno != 0 || p == str) {
+      tscError("failed to parse option: %s, value: %s", cfg->option, str);
+      return false;
+    }
+    
+    if ((float) value < cfg->minValue || (float) value > cfg->maxValue) {
+      tscError("failed to set option: %s, setValue: %ld, minValue: %f, maxValue: %f", cfg->option, value, cfg->minValue, cfg->maxValue);
+      return false;
+    }
+    
+    if (cfg->valType == TAOS_CFG_VTYPE_INT32) {
+      *((int32_t*) cfg->ptr) = (int32_t) value;
+    } else if (cfg->valType == TAOS_CFG_VTYPE_UINT16) {
+      *((uint16_t*) cfg->ptr) = (uint16_t) value;
+    } else if (cfg->valType == TAOS_CFG_VTYPE_INT16) {
+      *((int16_t*) cfg->ptr) = (int16_t) value;
+    } else if (cfg->valType == TAOS_CFG_VTYPE_INT8) {
+      *((int8_t*) cfg->ptr) = (int8_t) value;
+    } else {
+      tscError("failed to set option: %s, type expected %d", cfg->option, cfg->valType);
+      return false;
+    }
+    
+    cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
+    tscDebug("config option: %s has set to %s", cfg->option, str);
+    return true;
+  }
+  tscWarn("config option: %s, is configured by %s", cfg->option, tsCfgStatusStr[cfg->cfgStatus]);
+  return false;
+}
+
 static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
   SGlobalCfg *cfg = NULL;
 
@@ -473,6 +517,27 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
                 tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
       }
       break;
+      
+    case TSDB_WRITE_BATCH_SIZE: {
+      cfg = taosGetConfigOption("writeBatchSize");
+      assert(cfg != NULL);
+      taos_set_option_int(cfg, pStr);
+      break;
+    }
+      
+    case TSDB_WRITE_BATCH_TIMEOUT: {
+      cfg = taosGetConfigOption("writeBatchTimeout");
+      assert(cfg != NULL);
+      taos_set_option_int(cfg, pStr);
+      break;
+    }  
+      
+    case TSDB_WRITE_BATCH_THREAD_LOCAL: {
+      cfg = taosGetConfigOption("writeBatchThreadLocal");
+      assert(cfg != NULL);
+      taos_set_option_int(cfg, pStr);
+      break;
+    }
 
     default:
       // TODO return the correct error code to client in the format for taos_errstr()

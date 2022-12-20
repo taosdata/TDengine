@@ -55,7 +55,7 @@ extern "C" {
 typedef struct {
   int8_t   type;    // Column type
   int16_t  colId;   // column ID
-  int16_t  bytes;   // column bytes (restore to int16_t in case of misuse)
+  uint16_t bytes;   // column bytes
   uint16_t offset;  // point offset in SDataRow after the header part.
 } STColumn;
 
@@ -121,7 +121,7 @@ typedef struct {
 int       tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
 void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
 void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
-int       tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int16_t bytes);
+int       tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, uint16_t bytes);
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 
 // ----------------- Semantic timestamp key definition
@@ -262,9 +262,9 @@ static FORCE_INLINE bool tdIsColOfRowNullBySchema(SDataRow row, STSchema *pSchem
 }
 
 static FORCE_INLINE void tdSetColOfRowNullBySchema(SDataRow row, STSchema *pSchema, int idx) {
-  int16_t offset = TD_DATA_ROW_HEAD_SIZE + pSchema->columns[idx].offset;
-  int8_t type = pSchema->columns[idx].type;
-  int16_t bytes = pSchema->columns[idx].bytes;
+  uint16_t offset = TD_DATA_ROW_HEAD_SIZE + pSchema->columns[idx].offset;
+  int8_t   type = pSchema->columns[idx].type;
+  uint16_t bytes = pSchema->columns[idx].bytes;
 
   setNull(tdGetRowDataOfCol(row, type, offset), type, bytes);
 }

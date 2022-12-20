@@ -31,7 +31,7 @@
 
 
 // extern function
-void insertChar(Command *cmd, char *c, int size);
+void insertStr(Command *cmd, char *str, int size);
 
 
 typedef struct SAutoPtr {
@@ -105,11 +105,13 @@ SWords shellCommands[] = {
   {"select current_user();", 0, 0, NULL},
   {"select database;", 0, 0, NULL},
   {"select server_version();", 0, 0, NULL},
+  {"select server_status();", 0, 0, NULL},
   {"set max_binary_display_width ", 0, 0, NULL},
   {"show create database <db_name> \\G;", 0, 0, NULL},
   {"show create stable <stb_name> \\G;", 0, 0, NULL},
   {"show create table <tb_name> \\G;", 0, 0, NULL},
   {"show connections;", 0, 0, NULL},
+  {"show cluster alive;", 0, 0, NULL},
   {"show databases;", 0, 0, NULL},
   {"show dnodes;", 0, 0, NULL},
   {"show functions;", 0, 0, NULL},
@@ -125,6 +127,7 @@ SWords shellCommands[] = {
   {"show users;", 0, 0, NULL},
   {"show variables;", 0, 0, NULL},
   {"show vgroups;", 0, 0, NULL},
+  {"show <db_name> .alive;", 0, 0, NULL},
   {"insert into <tb_name> values(", 0, 0, NULL},
   {"insert into <tb_name> using <stb_name> tags( <anyword> ) values(", 0, 0, NULL},
   {"insert into <tb_name> using <stb_name> <anyword> values(", 0, 0, NULL},
@@ -401,7 +404,9 @@ void showHelp() {
     select current_user();\n\
     select database;\n\
     select server_version();\n\
+    select server_status();\n\
     set max_binary_display_width <width>;  \n\
+    show cluster alive;\n\
     show create database <db_name>;\n\
     show create stable <stb_name>;\n\
     show create table <tb_name>;\n\
@@ -421,6 +426,7 @@ void showHelp() {
     show users;\n\
     show variables;\n\
     show vgroups;\n\
+    show <db_name>.alive;\n\
   ----- I ----- \n\
     insert into <tb_name> values(...) ;\n\
   ----- U ----- \n\
@@ -938,39 +944,43 @@ bool matchVarWord(SWord* word1, SWord* word2) {
 //
 
 
-// compare command cmd1 come from shellCommands , cmd2 come from user input
-int32_t compareCommand(SWords * cmd1, SWords * cmd2) {
-  SWord * word1 = cmd1->head;
-  SWord * word2 = cmd2->head;
+// compare command cmdPattern come from shellCommands , cmdInput come from user input
+int32_t compareCommand(SWords* cmdPattern, SWords* cmdInput) {
+  SWord* wordPattern = cmdPattern->head;
+  SWord* wordInput = cmdInput->head;
 
-  if (word1 == NULL || word2 == NULL) {
+  if (wordPattern == NULL || wordInput == NULL) {
     return -1;
   }
 
-  for (int32_t i = 0; i < cmd1->count; i++) {
-    if (word1->type == WT_TEXT) {
+  for (int32_t i = 0; i < cmdPattern->count; i++) {
+    if (wordPattern->type == WT_TEXT) {
       // WT_TEXT match
-      if (word1->len == word2->len) {
-        if (strncasecmp(word1->word, word2->word, word1->len) != 0)
-          return -1; 
-      } else if (word1->len < word2->len) {
+      if (wordPattern->len == wordInput->len) {
+        if (strncasecmp(wordPattern->word, wordInput->word, wordPattern->len) != 0) return -1;
+      } else if (wordPattern->len < wordInput->len) {
         return -1;
       } else {
-        // word1->len > word2->len
-        if (strncasecmp(word1->word, word2->word, word2->len) == 0) {
-          cmd1->matchIndex = i;
-          cmd1->matchLen = word2->len;
-          return i;
+        // wordPattern->len > wordInput->len
+        if (strncasecmp(wordPattern->word, wordInput->word, wordInput->len) == 0) {
+          if (i + 1 == cmdInput->count) {
+            // last word return match
+            cmdPattern->matchIndex = i;
+            cmdPattern->matchLen = wordInput->len;
+            return i;
+          } else {
+            return -1;
+          }
         } else {
           return -1;
         }
       }
     } else {
       // WT_VAR auto match any one word
-      if (word2->next == NULL) { // input words last one
-        if (matchVarWord(word1, word2)) {
-          cmd1->matchIndex = i;
-          cmd1->matchLen = word2->len;
+      if (wordInput->next == NULL) {  // input words last one
+        if (matchVarWord(wordPattern, wordInput)) {
+          cmdPattern->matchIndex = i;
+          cmdPattern->matchLen = wordInput->len;
           varMode = true;
           return i;
         }
@@ -979,9 +989,9 @@ int32_t compareCommand(SWords * cmd1, SWords * cmd2) {
     }
 
     // move next
-    word1 = word1->next;
-    word2 = word2->next;
-    if (word1 == NULL || word2 == NULL) {
+    wordPattern = wordPattern->next;
+    wordInput = wordInput->next;
+    if (wordPattern == NULL || wordInput == NULL) {
       return -1;
     }
   }
@@ -1077,7 +1087,7 @@ void printScreen(TAOS * con, Command * cmd, SWords * match) {
   }
   
   // insert new
-  insertChar(cmd, (char *)str, strLen);
+  insertStr(cmd, (char *)str, strLen);
 }
 
 
@@ -1192,7 +1202,7 @@ bool fillWithType(TAOS * con, Command * cmd, char* pre, int type) {
 
   // show
   int count = strlen(part);
-  insertChar(cmd, part, count);
+  insertStr(cmd, part, count);
   cntDel = count; // next press tab delete current append count
 
   free(str);
@@ -1220,7 +1230,7 @@ bool fillTableName(TAOS * con, Command * cmd, char* pre) {
 
   // show
   int count = strlen(part);
-  insertChar(cmd, part, count);
+  insertStr(cmd, part, count);
   cntDel = count; // next press tab delete current append count
   
   free(str);
@@ -1344,7 +1354,7 @@ bool appendAfterSelect(TAOS * con, Command * cmd, char* sql, int32_t len) {
     bool fieldEnd = fieldsInputEnd(p);
     // cheeck fields input end then insert from keyword
     if (fieldEnd && p[len-1] == ' ') {
-      insertChar(cmd, "from", 4);
+      insertStr(cmd, "from", 4);
       free(p);
       return true;
     }
@@ -1438,25 +1448,37 @@ bool matchSelectQuery(TAOS * con, Command * cmd) {
 }
 
 // if is input create fields or tags area, return true
-bool isCreateFieldsArea(char * p) {
-  char * left  = strrchr(p, '(');
-  if (left == NULL) {
-    // like 'create table st'
-    return false;
-  }
+bool isCreateFieldsArea(char* p) {
+  // put to while, support like create table st(ts timestamp, bin1 binary(16), bin2 + blank + TAB
+  char* p1 = strdup(p);
+  bool  ret = false;
+  while (1) {
+    char* left = strrchr(p1, '(');
+    if (left == NULL) {
+      // like 'create table st'
+      ret = false;
+      break;
+    }
 
-  char * right = strrchr(p, ')');
-  if(right == NULL) {
-    // like 'create table st( '
-    return true;
-  }
+    char* right = strrchr(p1, ')');
+    if (right == NULL) {
+      // like 'create table st( '
+      ret = true;
+      break;
+    }
 
-  if (left > right) {
-    // like 'create table st( ts timestamp, age int) tags(area '
-    return true;
-  }
+    if (left > right) {
+      // like 'create table st( ts timestamp, age int) tags(area '
+      ret = true;
+      break;
+    }
 
-  return false;
+    // set string end by small for next strrchr search
+    *left = 0;
+  }
+  free(p1);
+
+  return ret;
 }
 
 bool matchCreateTable(TAOS * con, Command * cmd) {
@@ -1527,7 +1549,7 @@ bool matchOther(TAOS * con, Command * cmd) {
   if (p[len - 1] == '\\') {
     // append '\G'
     char a[] = "G;";
-    insertChar(cmd, a, 2);
+    insertStr(cmd, a, 2);
     return true;
   }
 

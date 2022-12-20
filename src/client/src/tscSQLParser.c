@@ -81,7 +81,7 @@ static void getColumnName(tSqlExprItem* pItem, char* resultFieldName, char* rawN
 
 static int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t colIndex, tSqlExprItem* pItem,
     bool finalResult, SUdfInfo* pUdfInfo);
-static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pColList, int16_t bytes,
+static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pColList, uint16_t bytes,
                           int8_t type, char* fieldName, SExprInfo* pSqlExpr);
 
 static uint8_t convertRelationalOperator(SStrToken *pToken);
@@ -862,7 +862,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg3 = "name too long";
       const char* msg5 = "invalid user rights";
       const char* msg7 = "not support options";
-      const char* msg8 = "tags filter length must over 3 bytes.";
+      const char* msg8 = "tags filter string length must less than 255 bytes.";
 
       pCmd->command = pInfo->type;
 
@@ -903,15 +903,14 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           }
         } else if (pUser->type == TSDB_ALTER_USER_TAGS) {
           SStrToken* pTags = &pUser->tags;
-          if(pTags->n < 4)
-            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
-       } else {
+          if (pTags->n > TSDB_TAGS_LEN - 1 ) return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
+        } else {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
         }
       }
 
-      break;
-    }
+    break;
+  }
 
     case TSDB_SQL_CFG_LOCAL: {
       SMiscInfo  *pMiscInfo = pInfo->pMiscInfo;
@@ -1643,6 +1642,10 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
     }
 
     nLen += pField->bytes;
+
+    if (IS_VAR_DATA_TYPE(pField->type)) {
+      nLen += sizeof(VarDataOffsetT);
+    }
   }
 
   // max row length must be less than TSDB_MAX_BYTES_PER_ROW
@@ -1685,8 +1688,8 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
       return false;
     }
 
-    if ((p->type == TSDB_DATA_TYPE_BINARY && p->bytes <= 0) ||
-        (p->type == TSDB_DATA_TYPE_NCHAR && p->bytes <= 0)) {
+    if ((p->type == TSDB_DATA_TYPE_BINARY && (p->bytes <= 0 || p->bytes > TSDB_MAX_BINARY_LEN)) ||
+        (p->type == TSDB_DATA_TYPE_NCHAR && (p->bytes <= 0 || p->bytes > TSDB_MAX_NCHAR_LEN))) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
       return false;
     }
@@ -1800,7 +1803,8 @@ int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   }
 
   // binary(val), val can not be equalled to or less than 0
-  if ((pTagField->type == TSDB_DATA_TYPE_BINARY || pTagField->type == TSDB_DATA_TYPE_NCHAR) && pTagField->bytes <= 0) {
+  if ((pTagField->type == TSDB_DATA_TYPE_BINARY || pTagField->type == TSDB_DATA_TYPE_NCHAR) &&
+      (pTagField->bytes <= 0 || pTagField->bytes > TSDB_MAX_TAGS_LEN)) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
   }
 
@@ -1849,6 +1853,9 @@ int32_t validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     nLen += pSchema[i].bytes;
+    if (IS_VAR_DATA_TYPE(pSchema[i].type)) {
+      nLen += sizeof(VarDataOffsetT);
+    }
   }
 
   if (pColField->bytes <= 0) {
@@ -1856,7 +1863,8 @@ int32_t validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   }
 
   // length less than TSDB_MAX_BYTES_PER_ROW
-  if (nLen + pColField->bytes > TSDB_MAX_BYTES_PER_ROW) {
+  if (nLen + pColField->bytes + (IS_VAR_DATA_TYPE(pColField->type) ? sizeof(VarDataOffsetT) : 0) >
+      TSDB_MAX_BYTES_PER_ROW) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
 
@@ -2368,7 +2376,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pColList, int16_t bytes,
+int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pColList, uint16_t bytes,
                           int8_t type, char* fieldName, SExprInfo* pSqlExpr) {
   for (int32_t i = 0; i < pColList->num; ++i) {
     int32_t tableIndex = pColList->ids[i].tableIndex;
@@ -4099,7 +4107,8 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
    */
   SShowInfo* pShowInfo = &pInfo->pMiscInfo->showOpt;
   int16_t    showType = pShowInfo->showType;
-  if (showType == TSDB_MGMT_TABLE_TABLE || showType == TSDB_MGMT_TABLE_METRIC || showType == TSDB_MGMT_TABLE_VGROUP) {
+  if (showType == TSDB_MGMT_TABLE_TABLE || showType == TSDB_MGMT_TABLE_METRIC || showType == TSDB_MGMT_TABLE_VGROUP ||
+      showType == TSDB_MGMT_ALIVE_DB) {
     // db prefix in tagCond, show table conds in payload
     SStrToken* pDbPrefixToken = &pShowInfo->prefix;
     if (pDbPrefixToken->type != 0) {
@@ -5311,7 +5320,7 @@ static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
     pList->ids[pList->num++] = idx;
     *type = SQLEXPR_TYPE_SCALAR;
   } else if (pExpr->type == SQL_NODE_DATA_TYPE) {
-    if (pExpr->dataType.type < 0 || pExpr->dataType.bytes <= 0) {
+    if (pExpr->dataType.type < 0 || pExpr->dataType.bytes <= 0 || pExpr->dataType.bytes > TSDB_MAX_FIELD_LEN) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
     *type = SQLEXPR_TYPE_VALUE;
@@ -7340,18 +7349,19 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   bool dbIncluded = false;
 
   SStrToken tmpToken = pAlterSQL->name;
-  tmpToken.z= strndup(pAlterSQL->name.z, pAlterSQL->name.n);
+  char* z0 = strndup(pAlterSQL->name.z, pAlterSQL->name.n);
+  tmpToken.z = z0;
   if (tscValidateName(&tmpToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
-    free(tmpToken.z);
+    free(z0);
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
   code = tscSetTableFullName(&pTableMetaInfo->name, &tmpToken, pSql, dbIncluded);
   if (code != TSDB_CODE_SUCCESS) {
-    free(tmpToken.z);
+    free(z0);
     return code;
   }
-  free(tmpToken.z);
+  free(z0);
 
   code = tscGetTableMeta(pSql, pTableMetaInfo);
   if (code != TSDB_CODE_SUCCESS) {
@@ -7691,8 +7701,11 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     uint32_t nLen = 0;
     for (i = 0; i < numOfColumns; ++i) {
       nLen += (i != columnIndex.columnIndex) ? pSchema[i].bytes : pItem->bytes;
+      if(IS_VAR_DATA_TYPE(pSchema[i].type)) {
+        nLen += sizeof(VarDataOffsetT);
+      }
     }
-    if (nLen >= TSDB_MAX_BYTES_PER_ROW) {
+    if (nLen > TSDB_MAX_BYTES_PER_ROW) {
       return invalidOperationMsg(pMsg, msg24);
     }
 
@@ -8276,9 +8289,9 @@ void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClau
       int16_t colIndex = tscGetTagColIndexById(pTableMetaInfo->pTableMeta, colId);
       SColumnIndex idx = {.tableIndex = 0, .columnIndex = colIndex};
 
-      char*   name = pTagSchema->name;
-      int16_t type = pTagSchema->type;
-      int16_t bytes = pTagSchema->bytes;
+      char*    name = pTagSchema->name;
+      int16_t  type = pTagSchema->type;
+      uint16_t bytes = pTagSchema->bytes;
 
       pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TAG, &idx, type, bytes, getNewResColId(&pSql->cmd), bytes, true);
       pExpr->base.colInfo.flag = TSDB_COL_TAG;
@@ -8353,7 +8366,7 @@ static void doUpdateSqlFunctionForColTagPrj(SQueryInfo* pQueryInfo) {
       SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
       if (pExpr->base.functionId == TSDB_FUNC_MIN_ROW || pExpr->base.functionId == TSDB_FUNC_MAX_ROW) {
         continue;
-      } else if (pExpr->base.functionId == TSDB_FUNC_PRJ) {
+      } else if (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.numOfParams == 0) {
         pExpr->base.functionId = TSDB_FUNC_COL_DUMMY;
         tagLength += pExpr->base.resBytes;
       }
@@ -9350,7 +9363,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
             // check again after the convert since it may be converted from binary to nchar.
             if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
-              int16_t len = varDataTLen(tagVal);
+              uint16_t len = varDataTLen(tagVal);
               if (len > pSchema->bytes) {
                 tdDestroyKVRowBuilder(&kvRowBuilder);
                 return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
@@ -9404,7 +9417,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
         // check again after the convert since it may be converted from binary to nchar.
         if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
-          int16_t len = varDataTLen(tagVal);
+          uint16_t len = varDataTLen(tagVal);
           if (len > pSchema->bytes) {
             tdDestroyKVRowBuilder(&kvRowBuilder);
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);

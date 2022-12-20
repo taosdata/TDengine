@@ -1533,8 +1533,14 @@ static void rpcProcessConnError(void *param, void *id) {
     rpcMsg.pCont = NULL;
     rpcMsg.contLen = 0;
 
-    tWarn("%s %p, connection error. notify client query over. numOfTry=%d msgType=%d", pRpc->label, pContext->ahandle,
-          pContext->numOfTry, pContext->msgType);
+    if( pContext->numOfTry >= pContext->epSet.numOfEps && rpcMsg.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+      if(pContext->msgType == TSDB_MSG_TYPE_SUBMIT || pContext->msgType == TSDB_MSG_TYPE_QUERY) {
+        rpcMsg.code = TSDB_CODE_RPC_VGROUP_NOT_CONNECTED;
+      }
+    }
+
+    tWarn("%s %p, connection error. notify client query over. numOfTry=%d msgType=%d", pRpc->label, pContext->ahandle, pContext->numOfTry, pContext->msgType);
+
     rpcNotifyClient(pContext, &rpcMsg);
   } else {
     // move to next IP

@@ -45,6 +45,7 @@ typedef enum {
 
 // forward declaration
 struct SSqlInfo;
+typedef struct SDispatcherManager SDispatcherManager;
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
 typedef void (*_freeSqlSupporter)(void **);
@@ -86,7 +87,7 @@ typedef struct SParamInfo {
   int32_t  idx;
   uint8_t  type;
   uint8_t  timePrec;
-  int16_t  bytes;
+  uint16_t bytes;
   uint32_t offset;
 } SParamInfo;
 
@@ -256,7 +257,7 @@ typedef struct SInsertStatementParam {
 
   int32_t      batchSize;               // for parameter ('?') binding and batch processing
   int32_t      numOfParams;
-
+  int32_t      numOfRows;
   int32_t      numOfFiles;
 
   char         msg[512];                // error message
@@ -352,7 +353,8 @@ typedef struct STscObj {
   SRpcCorEpSet      *tscCorMgmtEpSet;
   pthread_mutex_t    mutex;
   int32_t            numOfObj; // number of sqlObj from this tscObj
-      
+  
+  SDispatcherManager*dispatcherManager;
   SReqOrigin         from;
 } STscObj;
 
@@ -400,9 +402,10 @@ typedef struct SSqlObj {
   struct SSqlObj  *prev, *next;
   int64_t          self;
   
-  // connect alive
+
   int64_t          lastAlive;
   void *           pPrevContext;
+  bool             enableBatch;
 } SSqlObj;
 
 typedef struct SSqlStream {
@@ -503,7 +506,7 @@ void tscCloseTscObj(void *pObj);
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, TAOS **taos);
 TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, int64_t* res);
-TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param);
+TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param, bool enableBatch);
 // get taos connection unused session number
 int32_t taos_unused_session(TAOS* taos);
 

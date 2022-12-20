@@ -211,7 +211,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 本节所列参数适用于所有功能模式。
 
 - **filetype** : 要测试的功能，可选值为 `insert`, `query` 和 `subscribe`。分别对应插入、查询和订阅功能。每个配置文件中只能指定其中之一。
-- **cfgdir** : TDengine 集群配置文件所在的目录，默认路径是 /etc/taos 。
+- **cfgdir** : TDengine 客户端配置文件所在的目录，默认路径是 /etc/taos 。
 
 - **host** : 指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost。
 
