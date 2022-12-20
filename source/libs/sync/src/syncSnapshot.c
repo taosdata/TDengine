@@ -47,7 +47,7 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
     pSender->term = pSyncNode->pRaftStore->currentTerm;
     pSender->startTime = 0;
     pSender->endTime = 0;
-    pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &(pSender->snapshot));
+    pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &pSender->snapshot);
     pSender->finish = false;
   } else {
     sError("vgId:%d, cannot create snapshot sender", pSyncNode->vgId);
@@ -66,10 +66,7 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
 
     // close reader
     if (pSender->pReader != NULL) {
-      int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
-      if (ret != 0) {
-        sNError(pSender->pSyncNode, "stop reader error");
-      }
+      pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
       pSender->pReader = NULL;
     }
 
@@ -139,8 +136,7 @@ int32_t snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
 
   // close reader
   if (pSender->pReader != NULL) {
-    int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
-    ASSERT(ret == 0);
+    pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
     pSender->pReader = NULL;
   }
 

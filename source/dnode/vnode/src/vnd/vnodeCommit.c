@@ -234,10 +234,10 @@ int vnodeAsyncCommit(SVnode *pVnode) {
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code),
+    vError("vgId:%d, %s failed since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code),
            pVnode->state.commitID);
   } else {
-    vDebug("vgId:%d %s done", TD_VID(pVnode), __func__);
+    vDebug("vgId:%d, %s done", TD_VID(pVnode), __func__);
   }
   return code;
 }
