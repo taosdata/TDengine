@@ -416,6 +416,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/cachemodel.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/sysinfo.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_control.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_manage.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
