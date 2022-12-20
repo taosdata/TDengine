@@ -1665,7 +1665,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   if (pCtx->retryCode != TSDB_CODE_SUCCESS) {
     int32_t code = pResp->code;
     // return internal code app
-    if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK) {
+    if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED) {
       pResp->code = pCtx->retryCode;
     }
   }
