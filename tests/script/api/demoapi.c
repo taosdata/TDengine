@@ -21,7 +21,6 @@
 #ifndef WINDOWS
 #include <argp.h>
 #endif
-#include "osSleep.h"
 #include "taos.h"
 
 #define debugPrint(fmt, ...) \
@@ -81,11 +80,9 @@ static void prepare_data(TAOS* taos) {
     TAOS_RES *res;
     res = taos_query(taos, "drop database if exists test;");
     taos_free_result(res);
-    taosMsleep(100);
 
     res = taos_query(taos, "create database test;");
     taos_free_result(res);
-    taosMsleep(100);
     if (taos_select_db(taos, "test")) {
         errorPrint("%s() LN%d: taos_select_db() failed\n",
                 __func__, __LINE__);

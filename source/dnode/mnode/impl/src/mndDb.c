@@ -776,6 +776,8 @@ static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *p
 
   int32_t code = -1;
   mndTransSetDbName(pTrans, pOld->name, NULL);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) return -1;
+
   if (mndSetAlterDbRedoLogs(pMnode, pTrans, pOld, pNew) != 0) goto _OVER;
   if (mndSetAlterDbCommitLogs(pMnode, pTrans, pOld, pNew) != 0) goto _OVER;
   if (mndSetAlterDbRedoActions(pMnode, pTrans, pOld, pNew) != 0) goto _OVER;
@@ -835,12 +837,14 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    if (terrno != 0) code = terrno;
     mError("db:%s, failed to alter since %s", alterReq.db, terrstr());
   }
 
   mndReleaseDb(pMnode, pDb);
   taosArrayDestroy(dbObj.cfg.pRetensions);
 
+  terrno = code;
   return code;
 }
 
@@ -1183,7 +1187,8 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
 
   int32_t numOfTable = mndGetDBTableNum(pDb, pMnode);
 
-  if (pReq == NULL || pReq->vgVersion < pDb->vgVersion || pReq->dbId != pDb->uid || numOfTable != pReq->numOfTable || pReq->stateTs < pDb->stateTs) {
+  if (pReq == NULL || pReq->vgVersion < pDb->vgVersion || pReq->dbId != pDb->uid || numOfTable != pReq->numOfTable ||
+      pReq->stateTs < pDb->stateTs) {
     mndBuildDBVgroupInfo(pDb, pMnode, pRsp->pVgroupInfos);
   }
 
@@ -1298,21 +1303,22 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
 
     SUseDbRsp usedbRsp = {0};
 
-    if ((0 == strcasecmp(pDbVgVersion->dbFName, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcasecmp(pDbVgVersion->dbFName, TSDB_PERFORMANCE_SCHEMA_DB)))) {
+    if ((0 == strcasecmp(pDbVgVersion->dbFName, TSDB_INFORMATION_SCHEMA_DB) ||
+         (0 == strcasecmp(pDbVgVersion->dbFName, TSDB_PERFORMANCE_SCHEMA_DB)))) {
       memcpy(usedbRsp.db, pDbVgVersion->dbFName, TSDB_DB_FNAME_LEN);
       int32_t vgVersion = mndGetGlobalVgroupVersion(pMnode);
       if (pDbVgVersion->vgVersion < vgVersion) {
         usedbRsp.pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
-    
+
         mndBuildDBVgroupInfo(NULL, pMnode, usedbRsp.pVgroupInfos);
         usedbRsp.vgVersion = vgVersion++;
       } else {
         usedbRsp.vgVersion = pDbVgVersion->vgVersion;
       }
       usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);
-      
+
       taosArrayPush(batchUseRsp.pArray, &usedbRsp);
-      
+
       continue;
     }
 
@@ -1328,7 +1334,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
 
     int32_t numOfTable = mndGetDBTableNum(pDb, pMnode);
 
-    if (pDbVgVersion->vgVersion >= pDb->vgVersion && numOfTable == pDbVgVersion->numOfTable  &&
+    if (pDbVgVersion->vgVersion >= pDb->vgVersion && numOfTable == pDbVgVersion->numOfTable &&
         pDbVgVersion->stateTs == pDb->stateTs) {
       mTrace("db:%s, valid dbinfo, vgVersion:%d stateTs:%" PRId64
              " numOfTables:%d, not changed vgVersion:%d stateTs:%" PRId64 " numOfTables:%d",

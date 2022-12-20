@@ -151,7 +151,7 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
     }
 
     syncNodeStartHeartbeatTimer(pSyncNode);
-    //syncNodeReplicate(pSyncNode);
+    // syncNodeReplicate(pSyncNode);
   }
 
   syncNodeRelease(pSyncNode);
@@ -216,6 +216,26 @@ int32_t syncLeaderTransfer(int64_t rid) {
   int32_t ret = syncNodeLeaderTransfer(pSyncNode);
   syncNodeRelease(pSyncNode);
   return ret;
+}
+
+int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq) {
+  SSyncNode* pNode = syncNodeAcquire(rid);
+  if (pNode == NULL) return -1;
+
+  SRpcMsg rpcMsg = {0};
+  int32_t ret = syncRespMgrGetAndDel(pNode->pSyncRespMgr, seq, &rpcMsg.info);
+  rpcMsg.code = TSDB_CODE_SYN_TIMEOUT;
+
+  syncNodeRelease(pNode);
+  if (ret == 1) {
+    sInfo("send timeout response, seq:%" PRId64 " handle:%p ahandle:%p", seq, rpcMsg.info.handle,
+          rpcMsg.info.ahandle);
+    rpcSendResponse(&rpcMsg);
+    return 0;
+  } else {
+    sError("no message handle to send timeout response, seq:%" PRId64, seq);
+    return -1;
+  }
 }
 
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
@@ -538,7 +558,7 @@ int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   pMsg->newLeaderId.vgId = pSyncNode->vgId;
   pMsg->newNodeInfo = newLeader;
 
-  int32_t ret = syncNodePropose(pSyncNode, &rpcMsg, false);
+  int32_t ret = syncNodePropose(pSyncNode, &rpcMsg, false, NULL);
   rpcFreeCont(rpcMsg.pCont);
   return ret;
 }
@@ -670,19 +690,19 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
   syncNodeRelease(pSyncNode);
 }
 
-int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
+int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak, int64_t* seq) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
     sError("sync propose error");
     return -1;
   }
 
-  int32_t ret = syncNodePropose(pSyncNode, pMsg, isWeak);
+  int32_t ret = syncNodePropose(pSyncNode, pMsg, isWeak, seq);
   syncNodeRelease(pSyncNode);
   return ret;
 }
 
-int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
+int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t* seq) {
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
     terrno = TSDB_CODE_SYN_NOT_LEADER;
     sNError(pSyncNode, "sync propose not leader, %s, type:%s", syncStr(pSyncNode->state), TMSG_INFO(pMsg->msgType));
@@ -739,6 +759,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
       (void)syncRespMgrDel(pSyncNode->pSyncRespMgr, seqNum);
     }
 
+    if (seq != NULL) *seq = seqNum;
     return code;
   }
 }

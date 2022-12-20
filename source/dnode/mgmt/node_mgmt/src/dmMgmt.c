@@ -214,6 +214,9 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
       case SNODE:
         terrno = TSDB_CODE_SNODE_NOT_FOUND;
         break;
+      case VNODE:
+        terrno = TSDB_CODE_VND_STOPPED;
+        break;
       default:
         terrno = TSDB_CODE_APP_IS_STOPPING;
         break;

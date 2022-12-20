@@ -533,6 +533,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
   pBlock->info.id.uid = pReader->msgIter.uid;
   pBlock->info.rows = pReader->msgIter.numOfRows;
   pBlock->info.version = pReader->pMsg->version;
+  pBlock->info.dataLoad = 1;
 
   while ((row = tGetSubmitBlkNext(&pReader->blkIter)) != NULL) {
     tdSTSRowIterReset(&iter, row);

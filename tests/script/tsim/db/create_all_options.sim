@@ -89,7 +89,7 @@ if $data4_db != 1 then  # replica
   print expect 1, actual: $data4_db
   return -1
 endi
-if $data5_db != off then  # strict
+if $data5_db != on then  # strict
   return -1
 endi
 if $data6_db != 14400m then  # duration

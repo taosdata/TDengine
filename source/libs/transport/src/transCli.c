@@ -599,11 +599,16 @@ static int32_t allocConnRef(SCliConn* conn, bool update) {
   exh->pThrd = conn->hostThrd;
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
   conn->refId = exh->refId;
+
+  if (conn->refId == -1) {
+    taosMemoryFree(exh);
+  }
   return 0;
 }
 
 static int32_t specifyConnRef(SCliConn* conn, bool update, int64_t handle) {
   if (update) {
+    transReleaseExHandle(transGetRefMgt(), conn->refId);
     transRemoveExHandle(transGetRefMgt(), conn->refId);
     conn->refId = -1;
   }
@@ -956,7 +961,6 @@ static void cliHandleRelease(SCliMsg* pMsg, SCliThrd* pThrd) {
 
   SCliConn* conn = exh->handle;
   transReleaseExHandle(transGetRefMgt(), refId);
-
   tDebug("%s conn %p start to release to inst", CONN_GET_INST_LABEL(conn), conn);
 
   if (T_REF_VAL_GET(conn) == 2) {
@@ -1574,6 +1578,9 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pCtx->retryStep = 0;
     pCtx->retryInit = true;
     pCtx->retryCode = TSDB_CODE_SUCCESS;
+
+    // already retry, not use handle specified by app;
+    pMsg->msg.info.handle = 0;
   }
 
   if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
@@ -1595,7 +1602,7 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   } else if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_INTERNAL_ERROR ||
              code == TSDB_CODE_SYN_PROPOSE_NOT_READY || code == TSDB_CODE_VND_STOPPED ||
              code == TSDB_CODE_MNODE_NOT_FOUND || code == TSDB_CODE_APP_IS_STARTING ||
-             code == TSDB_CODE_APP_IS_STOPPING) {
+             code == TSDB_CODE_APP_IS_STOPPING || code == TSDB_CODE_VND_STOPPED) {
     tTrace("code str %s, contlen:%d 1", tstrerror(code), pResp->contLen);
     noDelay = cliResetEpset(pCtx, pResp, true);
     transFreeMsg(pResp->pCont);

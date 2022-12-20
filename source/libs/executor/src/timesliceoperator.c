@@ -91,11 +91,15 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
     SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pSliceInfo->tsCol.slotId);
     SFillLinearInfo* pLinearInfo = taosArrayGet(pSliceInfo->pLinearInfo, i);
 
+
+    if (!IS_MATHABLE_TYPE(pColInfoData->info.type)) {
+      continue;
+    }
+
     // null value is represented by using key = INT64_MIN for now.
     // TODO: optimize to ignore null values for linear interpolation.
     if (!pLinearInfo->isStartSet) {
       if (!colDataIsNull_s(pColInfoData, rowIndex)) {
-        ASSERT(IS_MATHABLE_TYPE(pColInfoData->info.type));
 
         pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
         char* p = colDataGetData(pColInfoData, rowIndex);
@@ -158,6 +162,10 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
     if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
       colDataAppend(pDst, rows, (char*)&pSliceInfo->current, false);
+      continue;
+    } else if (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type)) {
+      bool isFilled = true;
+      colDataAppend(pDst, pResBlock->info.rows, (char*)&isFilled, false);
       continue;
     }
 
@@ -270,6 +278,9 @@ static void addCurrentRowToResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp*
 
     if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
       colDataAppend(pDst, pResBlock->info.rows, (char*)&pSliceInfo->current, false);
+    } else if (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type)) {
+      bool isFilled = false;
+      colDataAppend(pDst, pResBlock->info.rows, (char*)&isFilled, false);
     } else {
       int32_t          srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
       SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, srcSlot);

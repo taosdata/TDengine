@@ -875,18 +875,9 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifOpStmt
   }
 
   int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache);
-#if 0
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
-    code = getTableMeta(pCxt, &pStmt->targetTableName, false, &pStmt->pTableMeta, &pCxt->missCache);
-  }
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
-    code = getTableVgroup(pCxt->pComCxt, pStmt, false, &pCxt->missCache);
-  }
-#else
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
   }
-#endif
   if (TSDB_CODE_SUCCESS == code && !pCxt->pComCxt->async) {
     code = collectUseDatabase(&pStmt->targetTableName, pStmt->pDbFNameHashObj);
     if (TSDB_CODE_SUCCESS == code) {
@@ -1411,6 +1402,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt,
   (*pNumOfRows) = 0;
   char*   pLine = NULL;
   int64_t readLen = 0;
+  bool    firstLine = (pStmt->fileProcessing == false);
   pStmt->fileProcessing = false;
   while (TSDB_CODE_SUCCESS == code && (readLen = taosGetLineFile(pStmt->fp, &pLine)) != -1) {
     if (('\r' == pLine[readLen - 1]) || ('\n' == pLine[readLen - 1])) {
@@ -1418,6 +1410,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt,
     }
 
     if (readLen == 0) {
+      firstLine = false;
       continue;
     }
 
@@ -1431,6 +1424,11 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt,
       strtolower(pLine, pLine);
       const char* pRow = pLine;
       code = parseOneRow(pCxt, (const char**)&pRow, pDataBuf, &gotRow, &token);
+      if (code && firstLine) {
+        firstLine = false;
+        code = 0;
+        continue;
+      }
     }
 
     if (TSDB_CODE_SUCCESS == code && gotRow) {
@@ -1442,6 +1440,8 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt,
       pStmt->fileProcessing = true;
       break;
     }
+
+    firstLine = false;
   }
   taosMemoryFree(pLine);
 
@@ -1494,6 +1494,10 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SVnodeModifOpStmt* p
 
 static int32_t parseFileClause(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt, STableDataBlocks* pDataBuf,
                                SToken* pToken) {
+  if (tsUseAdapter) {
+    return buildInvalidOperationMsg(&pCxt->msg, "proxy mode does not support csv loading");
+  }
+
   NEXT_TOKEN(pStmt->pSql, *pToken);
   if (0 == pToken->n || (TK_NK_STRING != pToken->type && TK_NK_ID != pToken->type)) {
     return buildSyntaxErrMsg(&pCxt->msg, "file path is required following keyword FILE", pToken->z);
@@ -1717,6 +1721,8 @@ static int32_t getTableMetaFromMetaData(const SArray* pTables, STableMeta** pMet
   if (1 != taosArrayGetSize(pTables)) {
     return TSDB_CODE_FAILED;
   }
+
+  taosMemoryFreeClear(*pMeta);
   SMetaRes* pRes = taosArrayGet(pTables, 0);
   if (TSDB_CODE_SUCCESS == pRes->code) {
     *pMeta = tableMetaDup((const STableMeta*)pRes->pRes);

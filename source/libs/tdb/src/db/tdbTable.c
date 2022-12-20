@@ -107,21 +107,21 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
 
   ASSERT(pPager != NULL);
 
+  if (rollback) {
+    tdbPagerRollback(pPager);
+  } else {
+    ret = tdbPagerRestoreJournals(pPager);
+    if (ret < 0) {
+      tdbOsFree(pTb);
+      return -1;
+    }
+  }
+
   // pTb->pBt
   ret = tdbBtreeOpen(keyLen, valLen, pPager, tbname, pgno, keyCmprFn, pEnv, &(pTb->pBt));
   if (ret < 0) {
     tdbOsFree(pTb);
     return -1;
-  }
-
-  if (rollback) {
-    tdbPagerRollback(pPager);
-  } else {
-    ret = tdbPagerRestoreJournals(pPager, pTb->pBt);
-    if (ret < 0) {
-      tdbOsFree(pTb);
-      return -1;
-    }
   }
 
   *ppTb = pTb;

@@ -64,7 +64,7 @@ class ClusterComCheck:
         dbNumbers=int(dbNumbers)
         count=0
         while count < 5:
-            tdSql.query("select * from information_schema.ins_databases;")
+            tdSql.query("select * from information_schema.ins_databases where name!='collectd' ;")
             count+=1
             if tdSql.checkRows(dbNumbers+2):
                 tdLog.success("we find %d databases and expect %d in clusters! " %(tdSql.queryRows,dbNumbers+2))
