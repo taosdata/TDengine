@@ -1033,11 +1033,11 @@ bool sclContainsAggFuncNode(SNode *pNode) {
 int32_t sclConvertOpValueNodeTs(SOperatorNode *node, SScalarCtx *ctx) {
   int32_t code = 0;
   
-  if (SCL_IS_VAR_VALUE_NODE(node->pLeft)) {
+  if (node->pLeft && SCL_IS_VAR_VALUE_NODE(node->pLeft)) {
     if (node->pRight && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pRight)->resType.type)) {
       SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pRight)->resType.precision, (SValueNode*)node->pLeft));
     }
-  } else if (SCL_IS_NOTNULL_CONST_NODE(node->pRight)) {
+  } else if (node->pRight && SCL_IS_NOTNULL_CONST_NODE(node->pRight)) {
     if (node->pLeft && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pLeft)->resType.type)) {
       if (SCL_IS_VAR_VALUE_NODE(node->pRight)) {
         SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pLeft)->resType.precision, (SValueNode*)node->pRight));
