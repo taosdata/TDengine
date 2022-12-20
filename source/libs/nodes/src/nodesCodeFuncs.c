@@ -99,6 +99,10 @@ const char* nodesNodeName(ENodeType type) {
       return "DropDatabaseStmt";
     case QUERY_NODE_ALTER_DATABASE_STMT:
       return "AlterDatabaseStmt";
+    case QUERY_NODE_FLUSH_DATABASE_STMT:
+      return "FlushDatabaseStmt";
+    case QUERY_NODE_TRIM_DATABASE_STMT:
+      return "TrimDatabaseStmt";
     case QUERY_NODE_CREATE_TABLE_STMT:
       return "CreateTableStmt";
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
@@ -143,6 +147,8 @@ const char* nodesNodeName(ENodeType type) {
       return "DropTopicStmt";
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return "AlterLocalStmt";
+    case QUERY_NODE_SPLIT_VGROUP_STMT:
+      return "SplitVgroupStmt";
     case QUERY_NODE_SHOW_DNODES_STMT:
       return "ShowDnodesStmt";
     case QUERY_NODE_SHOW_MNODES_STMT:
@@ -181,8 +187,14 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowConsumersStmt";
     case QUERY_NODE_SHOW_QUERIES_STMT:
       return "ShowQueriesStmt";
+    case QUERY_NODE_SHOW_VARIABLES_STMT:
+      return "ShowVariablesStmt";
     case QUERY_NODE_SHOW_VNODES_STMT:
       return "ShowVnodeStmt";
+    case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
+      return "ShowUserPrivilegesStmt";
+    case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
+      return "ShowTableTagsStmt";
     case QUERY_NODE_DELETE_STMT:
       return "DeleteStmt";
     case QUERY_NODE_INSERT_STMT:
@@ -4423,6 +4435,31 @@ static int32_t jsonToAlterDatabaseStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkTrimDatabaseStmtDbName = "DbName";
+static const char* jkTrimDatabaseStmtMaxSpeed = "MaxSpeed";
+
+static int32_t trimDatabaseStmtToJson(const void* pObj, SJson* pJson) {
+  const STrimDatabaseStmt* pNode = (const STrimDatabaseStmt*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkTrimDatabaseStmtDbName, pNode->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTrimDatabaseStmtMaxSpeed, pNode->maxSpeed);
+  }
+
+  return code;
+}
+
+static int32_t jsonToTrimDatabaseStmt(const SJson* pJson, void* pObj) {
+  STrimDatabaseStmt* pNode = (STrimDatabaseStmt*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkTrimDatabaseStmtDbName, pNode->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkTrimDatabaseStmtMaxSpeed, &pNode->maxSpeed);
+  }
+
+  return code;
+}
+
 static const char* jkAlterTableStmtDbName = "DbName";
 static const char* jkAlterTableStmtTableName = "TableName";
 static const char* jkAlterTableStmtAlterType = "AlterType";
@@ -4488,6 +4525,18 @@ static int32_t jsonToAlterTableStmt(const SJson* pJson, void* pObj) {
   }
 
   return code;
+}
+
+static const char* jkUseDatabaseStmtDbName = "DbName";
+
+static int32_t useDatabaseStmtToJson(const void* pObj, SJson* pJson) {
+  const SUseDatabaseStmt* pNode = (const SUseDatabaseStmt*)pObj;
+  return tjsonAddStringToObject(pJson, jkUseDatabaseStmtDbName, pNode->dbName);
+}
+
+static int32_t jsonToUseDatabaseStmt(const SJson* pJson, void* pObj) {
+  SUseDatabaseStmt* pNode = (SUseDatabaseStmt*)pObj;
+  return tjsonGetStringValue(pJson, jkUseDatabaseStmtDbName, pNode->dbName);
 }
 
 static const char* jkAlterDnodeStmtDnodeId = "DnodeId";
@@ -4556,6 +4605,135 @@ static int32_t jsonToCreateTopicStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkCreateTopicStmtQuery, &pNode->pQuery);
+  }
+
+  return code;
+}
+
+static const char* jkSplitVgroupStmtVgroupId = "VgroupId";
+
+static int32_t splitVgroupStmtToJson(const void* pObj, SJson* pJson) {
+  const SSplitVgroupStmt* pNode = (const SSplitVgroupStmt*)pObj;
+  return tjsonAddIntegerToObject(pJson, jkSplitVgroupStmtVgroupId, pNode->vgId);
+}
+
+static int32_t jsonToSplitVgroupStmt(const SJson* pJson, void* pObj) {
+  SSplitVgroupStmt* pNode = (SSplitVgroupStmt*)pObj;
+  return tjsonGetIntValue(pJson, jkSplitVgroupStmtVgroupId, &pNode->vgId);
+}
+
+static const char* jkShowStmtDbName = "DbName";
+static const char* jkShowStmtTbName = "TbName";
+static const char* jkShowStmtTableCondType = "TableCondType";
+
+static int32_t showStmtToJson(const void* pObj, SJson* pJson) {
+  const SShowStmt* pNode = (const SShowStmt*)pObj;
+
+  int32_t code = tjsonAddObject(pJson, jkShowStmtDbName, nodeToJson, pNode->pDbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkShowStmtTbName, nodeToJson, pNode->pTbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkShowStmtTableCondType, pNode->tableCondType);
+  }
+
+  return code;
+}
+
+static int32_t jsonToShowStmt(const SJson* pJson, void* pObj) {
+  SShowStmt* pNode = (SShowStmt*)pObj;
+
+  int32_t code = jsonToNodeObject(pJson, jkShowStmtDbName, &pNode->pDbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkShowStmtTbName, &pNode->pTbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkShowStmtTableCondType, pNode->tableCondType, code);
+  }
+
+  return code;
+}
+
+static int32_t showDatabasesStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowDatabasesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
+static int32_t showTablesStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowTablesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
+static int32_t showTagsStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowTagsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
+static int32_t showUsersStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowUsersStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
+static int32_t showVgroupsStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowVgroupsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
+static int32_t showVariablesStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowVariablesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
+static const char* jkShowVnodesStmtDnodeId = "DnodeId";
+static const char* jkShowVnodesStmtDnodeEndpoint = "DnodeEndpoint";
+
+static int32_t showVnodesStmtToJson(const void* pObj, SJson* pJson) {
+  const SShowVnodesStmt* pNode = (const SShowVnodesStmt*)pObj;
+
+  int32_t code = tjsonAddObject(pJson, jkShowVnodesStmtDnodeId, nodeToJson, pNode->pDnodeId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkShowVnodesStmtDnodeEndpoint, nodeToJson, pNode->pDnodeEndpoint);
+  }
+
+  return code;
+}
+
+static int32_t jsonToShowVnodesStmt(const SJson* pJson, void* pObj) {
+  SShowVnodesStmt* pNode = (SShowVnodesStmt*)pObj;
+
+  int32_t code = jsonToNodeObject(pJson, jkShowVnodesStmtDnodeId, &pNode->pDnodeId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkShowVnodesStmtDnodeEndpoint, &pNode->pDnodeEndpoint);
+  }
+
+  return code;
+}
+
+static int32_t showUserPrivilegesStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowUserPrivilegesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
+static const char* jkShowTableTagsStmtDbName = "DbName";
+static const char* jkShowTableTagsStmtTbName = "TbName";
+static const char* jkShowTableTagsStmtTags = "Tags";
+
+static int32_t showTableTagsStmtToJson(const void* pObj, SJson* pJson) {
+  const SShowTableTagsStmt* pNode = (const SShowTableTagsStmt*)pObj;
+
+  int32_t code = tjsonAddObject(pJson, jkShowTableTagsStmtDbName, nodeToJson, pNode->pDbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkShowTableTagsStmtTbName, nodeToJson, pNode->pTbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkShowTableTagsStmtTags, pNode->pTags);
+  }
+
+  return code;
+}
+
+static int32_t jsonToShowTableTagsStmt(const SJson* pJson, void* pObj) {
+  SShowTableTagsStmt* pNode = (SShowTableTagsStmt*)pObj;
+
+  int32_t code = jsonToNodeObject(pJson, jkShowTableTagsStmtDbName, &pNode->pDbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkShowTableTagsStmtTbName, &pNode->pTbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkShowTableTagsStmtTags, &pNode->pTags);
   }
 
   return code;
@@ -4693,20 +4871,38 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       break;
     case QUERY_NODE_ALTER_DATABASE_STMT:
       return alterDatabaseStmtToJson(pObj, pJson);
+    case QUERY_NODE_TRIM_DATABASE_STMT:
+      return trimDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_TABLE_STMT:
       break;
     case QUERY_NODE_ALTER_TABLE_STMT:
       return alterTableStmtToJson(pObj, pJson);
     case QUERY_NODE_USE_DATABASE_STMT:
-      break;
+      return useDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_ALTER_DNODE_STMT:
       return alterDnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_DATABASES_STMT:
-    case QUERY_NODE_SHOW_TABLES_STMT:
-    case QUERY_NODE_SHOW_TAGS_STMT:
-      break;
     case QUERY_NODE_CREATE_TOPIC_STMT:
       return createTopicStmtToJson(pObj, pJson);
+    case QUERY_NODE_SPLIT_VGROUP_STMT:
+      return splitVgroupStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_DATABASES_STMT:
+      return showDatabasesStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_TABLES_STMT:
+      return showTablesStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_TAGS_STMT:
+      return showTagsStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_USERS_STMT:
+      return showUsersStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_VGROUPS_STMT:
+      return showVgroupsStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_VARIABLES_STMT:
+      return showVariablesStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_VNODES_STMT:
+      return showVnodesStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
+      return showUserPrivilegesStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
+      return showTableTagsStmtToJson(pObj, pJson);
     case QUERY_NODE_DELETE_STMT:
       return deleteStmtToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_SCAN:
@@ -4867,12 +5063,36 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToSelectStmt(pJson, pObj);
     case QUERY_NODE_ALTER_DATABASE_STMT:
       return jsonToAlterDatabaseStmt(pJson, pObj);
+    case QUERY_NODE_TRIM_DATABASE_STMT:
+      return jsonToTrimDatabaseStmt(pJson, pObj);
     case QUERY_NODE_ALTER_TABLE_STMT:
       return jsonToAlterTableStmt(pJson, pObj);
+    case QUERY_NODE_USE_DATABASE_STMT:
+      return jsonToUseDatabaseStmt(pJson, pObj);
     case QUERY_NODE_ALTER_DNODE_STMT:
       return jsonToAlterDnodeStmt(pJson, pObj);
     case QUERY_NODE_CREATE_TOPIC_STMT:
       return jsonToCreateTopicStmt(pJson, pObj);
+    case QUERY_NODE_SPLIT_VGROUP_STMT:
+      return jsonToSplitVgroupStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_DATABASES_STMT:
+      return jsonToShowDatabasesStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_TABLES_STMT:
+      return jsonToShowTablesStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_TAGS_STMT:
+      return jsonToShowTagsStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_USERS_STMT:
+      return jsonToShowUsersStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_VGROUPS_STMT:
+      return jsonToShowVgroupsStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_VARIABLES_STMT:
+      return jsonToShowVariablesStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_VNODES_STMT:
+      return jsonToShowVnodesStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
+      return jsonToShowUserPrivilegesStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
+      return jsonToShowTableTagsStmt(pJson, pObj);
     case QUERY_NODE_DELETE_STMT:
       return jsonToDeleteStmt(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_SCAN:
