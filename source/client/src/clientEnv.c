@@ -76,7 +76,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
            "current:%d, app current:%d",
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
-  if (QUERY_NODE_VNODE_MODIF_STMT == pRequest->stmtType) {
+  if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType) {
     //    tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
     //            "us, exec:%" PRId64 "us",
     //            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,

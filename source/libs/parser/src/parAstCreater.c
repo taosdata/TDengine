@@ -1474,7 +1474,7 @@ SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName) {
   }
   SDropUserStmt* pStmt = (SDropUserStmt*)nodesMakeNode(QUERY_NODE_DROP_USER_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->useName, pUserName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   return (SNode*)pStmt;
 }
 

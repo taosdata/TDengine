@@ -78,7 +78,7 @@ static int32_t authSetOperator(SAuthCxt* pCxt, SSetOperator* pSetOper) {
 }
 
 static int32_t authDropUser(SAuthCxt* pCxt, SDropUserStmt* pStmt) {
-  if (!pCxt->pParseCxt->isSuperUser || 0 == strcmp(pStmt->useName, TSDB_DEFAULT_USER)) {
+  if (!pCxt->pParseCxt->isSuperUser || 0 == strcmp(pStmt->userName, TSDB_DEFAULT_USER)) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
   return TSDB_CODE_SUCCESS;
