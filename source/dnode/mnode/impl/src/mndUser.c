@@ -838,9 +838,9 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
     if (pUser->superUser) {
       cols = 0;
-      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      char             userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+      char userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)userName, false);
 
       char privilege[20] = {0};
@@ -859,9 +859,9 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     char *db = taosHashIterate(pUser->readDbs, NULL);
     while (db != NULL) {
       cols = 0;
-      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      char             userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+      char userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)userName, false);
 
       char privilege[20] = {0};
