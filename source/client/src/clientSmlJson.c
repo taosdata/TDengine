@@ -27,7 +27,7 @@ while(*(start)){\
     (start)++;\
   }
 
-static SArray *smlJsonParseTags(char *start, char *end){
+SArray *smlJsonParseTags(char *start, char *end){
   SArray *tags = taosArrayInit(4, sizeof(SSmlKv));
   while(start < end){
     SSmlKv kv = {0};
@@ -233,7 +233,7 @@ static char* smlJsonGetObj(char *payload){
   return NULL;
 }
 
-static inline void smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
+void smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
   int index = 0;
   while(*(*start)){
     if((*start)[0] != '"'){
@@ -335,7 +335,7 @@ static inline void smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int
   }
 }
 
-static inline void smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
+void smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
   int index = 0;
   while(*(*start)){
     if((*start)[0] != '"'){
