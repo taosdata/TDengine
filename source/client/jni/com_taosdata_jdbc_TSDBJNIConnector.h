@@ -260,6 +260,14 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(JN
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertImp(JNIEnv *, jobject, jobjectArray,
                                                                                     jlong, jint, jint);
 
+/**
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    getTableVgID
+ * Signature: (Ljava/lang/String;Ljava/lang/String)Lcom/taosdata/jdbc/VGroupIDResp
+ */
+JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getTableVgID(JNIEnv *, jobject, jlong, jstring,
+                                                                               jstring, jobject);
+
 #ifdef __cplusplus
 }
 #endif
