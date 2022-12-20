@@ -145,7 +145,7 @@ int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWr
   pWriter->sver = sver;
   pWriter->ever = ever;
 
-  metaBegin(pMeta, 1);
+  metaBegin(pMeta, META_BEGIN_HEAP_NIL);
 
   *ppWriter = pWriter;
   return code;
@@ -161,7 +161,8 @@ int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback) {
   SMetaSnapWriter* pWriter = *ppWriter;
 
   if (rollback) {
-    ASSERT(0);
+    code = metaAbort(pWriter->pMeta);
+    if (code) goto _err;
   } else {
     code = metaCommit(pWriter->pMeta, pWriter->pMeta->txn);
     if (code) goto _err;

@@ -1376,27 +1376,34 @@ _exit:
   return code;
 }
 
+int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* pWriter) {
+  int32_t code = 0;
+  if (pWriter->dWriter.pWriter) {
+    code = tsdbSnapWriteCloseFile(pWriter);
+    if (code) goto _exit;
+  }
+
+  code = tsdbSnapWriteDelEnd(pWriter);
+  if (code) goto _exit;
+
+  code = tsdbFSPrepareCommit(pWriter->pTsdb, &pWriter->fs);
+  if (code) goto _exit;
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, tstrerror(code));
+  }
+  return code;
+}
+
 int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
   int32_t          code = 0;
   STsdbSnapWriter* pWriter = *ppWriter;
   STsdb*           pTsdb = pWriter->pTsdb;
 
   if (rollback) {
-    ASSERT(0);
-    // code = tsdbFSRollback(pWriter->pTsdb->pFS);
-    // if (code) goto _err;
+    tsdbRollbackCommit(pWriter->pTsdb);
   } else {
-    if (pWriter->dWriter.pWriter) {
-      code = tsdbSnapWriteCloseFile(pWriter);
-      if (code) goto _err;
-    }
-
-    code = tsdbSnapWriteDelEnd(pWriter);
-    if (code) goto _err;
-
-    code = tsdbFSPrepareCommit(pWriter->pTsdb, &pWriter->fs);
-    if (code) goto _err;
-
     // lock
     taosThreadRwlockWrlock(&pTsdb->rwLock);
 

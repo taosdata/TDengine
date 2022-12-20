@@ -13,25 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_SYNC_H_
-#define _TD_MND_SYNC_H_
+#include "planTestUtil.h"
+#include "planner.h"
 
-#include "mndInt.h"
+using namespace std;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+class PlanEventTest : public PlannerTestBase {};
 
-int32_t mndInitSync(SMnode *pMnode);
-void    mndCleanupSync(SMnode *pMnode);
-bool    mndIsLeader(SMnode *pMnode);
-int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId);
-void    mndSyncCheckTimeout(SMnode *pMnode);
-void    mndSyncStart(SMnode *pMnode);
-void    mndSyncStop(SMnode *pMnode);
+TEST_F(PlanEventTest, basic) {
+  useDb("root", "test");
 
-#ifdef __cplusplus
+  run("SELECT COUNT(*) FROM t1 EVENT_WINDOW START WITH c1 > 10 END WITH c2 = 'abc'");
 }
-#endif
 
-#endif /*_TD_MND_SYNC_H_*/
+TEST_F(PlanEventTest, stable) {
+  useDb("root", "test");
+
+  run("SELECT COUNT(*) FROM st1 EVENT_WINDOW START WITH c1 > 10 END WITH c2 = 'abc'");
+}

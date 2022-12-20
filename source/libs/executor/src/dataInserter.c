@@ -63,7 +63,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
     tDecoderInit(&coder, pMsg->pData, pMsg->len);
     code = tDecodeSSubmitRsp2(&coder, pInserter->submitRes.pRsp);
     if (code) {
-//      tFreeSSubmitRsp(pInserter->submitRes.pRsp);
+      taosMemoryFree(pInserter->submitRes.pRsp);
       pInserter->submitRes.code = code;
       goto _return;
     }
@@ -76,7 +76,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
         SVCreateTbRsp* pRsp = taosArrayGet(pCreateTbList, i);
         if (TSDB_CODE_SUCCESS != pRsp->code) {
           code = pRsp->code;
-//          tFreeSSubmitRsp(pInserter->submitRes.pRsp);
+          taosMemoryFree(pInserter->submitRes.pRsp);
           pInserter->submitRes.code = code;
           goto _return;
         }
@@ -87,8 +87,8 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
 //    pInserter->submitRes.affectedRows += pInserter->submitRes.
     qDebug("submit rsp received, affectedRows:%d, total:%"PRId64, pInserter->submitRes.pRsp->affectedRows,
            pInserter->submitRes.affectedRows);
-
-//    tFreeSSubmitRsp(pInserter->submitRes.pRsp);
+    tDecoderClear(&coder);
+    taosMemoryFree(pInserter->submitRes.pRsp);
   }
 
 _return:

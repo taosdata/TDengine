@@ -153,8 +153,7 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.dfp = destroyAhandle;
-  rpcInit.retryLimit = tsRpcRetryLimit;
-  rpcInit.retryInterval = tsRpcRetryInterval;
+
   rpcInit.retryMinInterval = tsRedirectPeriod;
   rpcInit.retryStepFactor = tsRedirectFactor;
   rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
@@ -239,7 +238,7 @@ void destroyTscObj(void *pObj) {
            pTscObj->pAppInfo->numOfConns);
 
   // In any cases, we should not free app inst here. Or an race condition rises.
-  /*int64_t connNum = */atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
+  /*int64_t connNum = */ atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
   taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFree(pTscObj);
