@@ -47,7 +47,7 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
     pSender->term = pSyncNode->pRaftStore->currentTerm;
     pSender->startTime = 0;
     pSender->endTime = 0;
-    pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &(pSender->snapshot));
+    pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &pSender->snapshot);
     pSender->finish = false;
   } else {
     sError("vgId:%d, cannot create snapshot sender", pSyncNode->vgId);
