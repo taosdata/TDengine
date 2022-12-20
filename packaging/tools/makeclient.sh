@@ -2,7 +2,7 @@
 #
 # Generate tar.gz package for linux client in all os system
 set -e
-#set -x
+# set -x
 
 curr_dir=$(pwd)
 compile_dir=$1
@@ -249,9 +249,9 @@ if [ "$osType" != "Darwin" ]; then
   tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files || :
 else
   tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) || :
-  mv "$(basename ${pkg_name}).tar.gz" ..
-  rm -rf ./*
-  mv ../"$(basename ${pkg_name}).tar.gz" .
+#  mv "$(basename ${pkg_name}).tar.gz" ..
+  rm -rf ${install_dir} ||:
+#  mv ../"$(basename ${pkg_name}).tar.gz" .
 fi
 
 cd ${curr_dir}
