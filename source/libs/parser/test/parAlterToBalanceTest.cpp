@@ -504,8 +504,8 @@ TEST_F(ParserInitialATest, alterTable) {
   };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_VNODE_MODIF_STMT);
-    SVnodeModifOpStmt* pStmt = (SVnodeModifOpStmt*)pQuery->pRoot;
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_VNODE_MODIFY_STMT);
+    SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
 
     ASSERT_EQ(pStmt->sqlNodeType, QUERY_NODE_ALTER_TABLE_STMT);
     ASSERT_NE(pStmt->pDataBlocks, nullptr);

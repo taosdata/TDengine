@@ -163,9 +163,9 @@ typedef struct {
 
   SMLProtocolType protocol;
   int8_t          precision;
-  bool            dataFormat;  // true means that the name and order of keys in each line are the same(only for influx protocol)
-  bool            isRawLine;
-  int32_t         ttl;
+  bool    dataFormat;  // true means that the name and order of keys in each line are the same(only for influx protocol)
+  bool    isRawLine;
+  int32_t ttl;
 
   SHashObj *childTables;
   SHashObj *superTables;
@@ -183,20 +183,20 @@ typedef struct {
   SHashObj    *dumplicateKey;  // for dumplicate key
   SArray      *colsContainer;  // for cols parse, if dataFormat == false
 
-  cJSON       *root;  // for parse json
+  cJSON *root;  // for parse json
 } SSmlHandle;
 //=================================================================================================
 
 //=================================================================================================
 static volatile int64_t linesSmlHandleId = 0;
 static int64_t          smlGenId() {
-           int64_t id;
+  int64_t id;
 
-           do {
-             id = atomic_add_fetch_64(&linesSmlHandleId, 1);
+  do {
+    id = atomic_add_fetch_64(&linesSmlHandleId, 1);
   } while (id == 0);
 
-           return id;
+  return id;
 }
 
 static inline bool smlDoubleToInt64OverFlow(double num) {
@@ -606,7 +606,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
 end:
   taosHashCleanup(hashTmp);
   taosMemoryFreeClear(pTableMeta);
-//  catalogRefreshTableMeta(info->pCatalog, &conn, &pName, 1);
+  //  catalogRefreshTableMeta(info->pCatalog, &conn, &pName, 1);
   return code;
 }
 
@@ -1534,7 +1534,7 @@ static SSmlHandle *smlBuildSmlInfo(STscObj *pTscObj, SRequestObj *request, SMLPr
   info->pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   info->pQuery->haveResultSet = false;
   info->pQuery->msgType = TDMT_VND_SUBMIT;
-  info->pQuery->pRoot = (SNode *)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
+  info->pQuery->pRoot = (SNode *)nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT);
   if (NULL == info->pQuery->pRoot) {
     uError("SML:0x%" PRIx64 " create info->pQuery->pRoot error", info->id);
     goto cleanup;
@@ -2079,7 +2079,8 @@ static int32_t smlParseJSONString(SSmlHandle *info, cJSON *root, SSmlTableInfo *
 
 static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql, const int len) {
   SSmlLineInfo elements = {0};
-  uDebug("SML:0x%" PRIx64 " smlParseInfluxLine raw:%d, len:%d, sql:%s", info->id, info->isRawLine, len, (info->isRawLine ? "rawdata" : sql));
+  uDebug("SML:0x%" PRIx64 " smlParseInfluxLine raw:%d, len:%d, sql:%s", info->id, info->isRawLine, len,
+         (info->isRawLine ? "rawdata" : sql));
 
   int ret = smlParseInfluxString(sql, sql + len, &elements, &info->msgBuf);
   if (ret != TSDB_CODE_SUCCESS) {
@@ -2371,15 +2372,16 @@ static int32_t smlInsertData(SSmlHandle *info) {
 }
 
 static void smlPrintStatisticInfo(SSmlHandle *info) {
-  uError("SML:0x%" PRIx64
-         " smlInsertLines result, code:%d,lineNum:%d,stable num:%d,ctable num:%d,create stable num:%d,alter stable tag num:%d,alter stable col num:%d \
+  uError(
+      "SML:0x%" PRIx64
+      " smlInsertLines result, code:%d,lineNum:%d,stable num:%d,ctable num:%d,create stable num:%d,alter stable tag num:%d,alter stable col num:%d \
         parse cost:%" PRId64 ",schema cost:%" PRId64 ",bind cost:%" PRId64 ",rpc cost:%" PRId64 ",total cost:%" PRId64
-         "",
-         info->id, info->cost.code, info->cost.lineNum, info->cost.numOfSTables, info->cost.numOfCTables,
-         info->cost.numOfCreateSTables, info->cost.numOfAlterTagSTables, info->cost.numOfAlterColSTables,
-         info->cost.schemaTime - info->cost.parseTime,
-         info->cost.insertBindTime - info->cost.schemaTime, info->cost.insertRpcTime - info->cost.insertBindTime,
-         info->cost.endTime - info->cost.insertRpcTime, info->cost.endTime - info->cost.parseTime);
+      "",
+      info->id, info->cost.code, info->cost.lineNum, info->cost.numOfSTables, info->cost.numOfCTables,
+      info->cost.numOfCreateSTables, info->cost.numOfAlterTagSTables, info->cost.numOfAlterColSTables,
+      info->cost.schemaTime - info->cost.parseTime, info->cost.insertBindTime - info->cost.schemaTime,
+      info->cost.insertRpcTime - info->cost.insertBindTime, info->cost.endTime - info->cost.insertRpcTime,
+      info->cost.endTime - info->cost.parseTime);
 }
 
 static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char *rawLineEnd, int numLines) {
@@ -2593,7 +2595,7 @@ TAOS_RES *taos_schemaless_insert_inner(SRequestObj *request, char *lines[], char
     }
 
     info->isRawLine = (rawLine == NULL);
-    info->ttl       = ttl;
+    info->ttl = ttl;
 
     int32_t perBatch = tsSmlBatchSize;
 
@@ -2684,16 +2686,19 @@ TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int pr
   return taos_schemaless_insert_ttl_with_reqid(taos, lines, numLines, protocol, precision, TSDB_DEFAULT_TABLE_TTL, 0);
 }
 
-TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl) {
+TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
+                                     int32_t ttl) {
   return taos_schemaless_insert_ttl_with_reqid(taos, lines, numLines, protocol, precision, ttl, 0);
 }
 
-TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int64_t reqid) {
-  return taos_schemaless_insert_ttl_with_reqid(taos, lines, numLines, protocol, precision, TSDB_DEFAULT_TABLE_TTL, reqid);
+TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
+                                            int64_t reqid) {
+  return taos_schemaless_insert_ttl_with_reqid(taos, lines, numLines, protocol, precision, TSDB_DEFAULT_TABLE_TTL,
+                                               reqid);
 }
 
 TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
-                                                int precision, int32_t ttl, int64_t reqid) {
+                                                    int precision, int32_t ttl, int64_t reqid) {
   if (NULL == taos) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
@@ -2727,13 +2732,18 @@ TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int
   return taos_schemaless_insert_inner(request, NULL, lines, lines + len, numLines, protocol, precision, ttl);
 }
 
-TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int64_t reqid) {
-  return taos_schemaless_insert_raw_ttl_with_reqid(taos, lines, len, totalRows, protocol, precision, TSDB_DEFAULT_TABLE_TTL, reqid);
+TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
+                                                int precision, int64_t reqid) {
+  return taos_schemaless_insert_raw_ttl_with_reqid(taos, lines, len, totalRows, protocol, precision,
+                                                   TSDB_DEFAULT_TABLE_TTL, reqid);
 }
-TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl) {
+TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
+                                         int precision, int32_t ttl) {
   return taos_schemaless_insert_raw_ttl_with_reqid(taos, lines, len, totalRows, protocol, precision, ttl, 0);
 }
 
-TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision) {
-  return taos_schemaless_insert_raw_ttl_with_reqid(taos, lines, len, totalRows, protocol, precision, TSDB_DEFAULT_TABLE_TTL, 0);
+TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
+                                     int precision) {
+  return taos_schemaless_insert_raw_ttl_with_reqid(taos, lines, len, totalRows, protocol, precision,
+                                                   TSDB_DEFAULT_TABLE_TTL, 0);
 }

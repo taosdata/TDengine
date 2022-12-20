@@ -225,7 +225,7 @@ typedef struct SAlterUserStmt {
 
 typedef struct SDropUserStmt {
   ENodeType type;
-  char      useName[TSDB_USER_LEN];
+  char      userName[TSDB_USER_LEN];
 } SDropUserStmt;
 
 typedef struct SCreateDnodeStmt {

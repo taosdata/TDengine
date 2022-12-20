@@ -1400,7 +1400,7 @@ static int32_t getMsgType(ENodeType sqlType) {
   return TDMT_VND_SUBMIT;
 }
 
-static int32_t createVnodeModifLogicNode(SLogicPlanContext* pCxt, SVnodeModifOpStmt* pStmt, SLogicNode** pLogicNode) {
+static int32_t createVnodeModifLogicNode(SLogicPlanContext* pCxt, SVnodeModifyOpStmt* pStmt, SLogicNode** pLogicNode) {
   SVnodeModifyLogicNode* pModif = (SVnodeModifyLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY);
   if (NULL == pModif) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -1584,8 +1584,8 @@ static int32_t createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt, SLogi
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SELECT_STMT:
       return createSelectLogicNode(pCxt, (SSelectStmt*)pStmt, pLogicNode);
-    case QUERY_NODE_VNODE_MODIF_STMT:
-      return createVnodeModifLogicNode(pCxt, (SVnodeModifOpStmt*)pStmt, pLogicNode);
+    case QUERY_NODE_VNODE_MODIFY_STMT:
+      return createVnodeModifLogicNode(pCxt, (SVnodeModifyOpStmt*)pStmt, pLogicNode);
     case QUERY_NODE_EXPLAIN_STMT:
       return createQueryLogicNode(pCxt, ((SExplainStmt*)pStmt)->pQuery, pLogicNode);
     case QUERY_NODE_SET_OPERATOR:

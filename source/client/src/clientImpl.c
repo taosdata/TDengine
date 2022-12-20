@@ -876,7 +876,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
 }
 
 static bool incompletaFileParsing(SNode* pStmt) {
-  return QUERY_NODE_VNODE_MODIF_STMT != nodeType(pStmt) ? false : ((SVnodeModifOpStmt*)pStmt)->fileProcessing;
+  return QUERY_NODE_VNODE_MODIFY_STMT != nodeType(pStmt) ? false : ((SVnodeModifyOpStmt*)pStmt)->fileProcessing;
 }
 
 // todo refacto the error code  mgmt
@@ -955,7 +955,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   if (pQuery->pRoot && !pRequest->inRetry) {
     STscObj*            pTscObj = pRequest->pTscObj;
     SAppClusterSummary* pActivity = &pTscObj->pAppInfo->summary;
-    if (QUERY_NODE_VNODE_MODIF_STMT == pQuery->pRoot->type) {
+    if (QUERY_NODE_VNODE_MODIFY_STMT == pQuery->pRoot->type) {
       atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertsReq, 1);
     } else if (QUERY_NODE_SELECT_STMT == pQuery->pRoot->type) {
       atomic_add_fetch_64((int64_t*)&pActivity->numOfQueryReq, 1);
@@ -1060,7 +1060,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   }
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
     SArray* pNodeList = NULL;
-    if (QUERY_NODE_VNODE_MODIF_STMT != nodeType(pQuery->pRoot)) {
+    if (QUERY_NODE_VNODE_MODIFY_STMT != nodeType(pQuery->pRoot)) {
       buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
     }
 
