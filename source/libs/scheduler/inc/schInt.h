@@ -375,7 +375,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_JOB_NEED_WAIT(_job)  (!SCH_IS_QUERY_JOB(_job))
 #define SCH_JOB_NEED_DROP(_job)  (SCH_IS_QUERY_JOB(_job))
 #define SCH_IS_EXPLAIN_JOB(_job) (EXPLAIN_MODE_ANALYZE == (_job)->attr.explainMode)
-#define SCH_NETWORK_ERR(_code)   ((_code) == TSDB_CODE_RPC_BROKEN_LINK || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || (code) == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED)
+#define SCH_NETWORK_ERR(_code)   ((_code) == TSDB_CODE_RPC_BROKEN_LINK || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || (_code) == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED)
 #define SCH_MERGE_TASK_NETWORK_ERR(_task, _code, _len) \
   (SCH_NETWORK_ERR(_code) && (((_len) > 0) || (!SCH_IS_DATA_BIND_TASK(_task)) || (_task)->redirectCtx.inRedirect))
 #define SCH_REDIRECT_MSGTYPE(_msgType)                                                                         \
