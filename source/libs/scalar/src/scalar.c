@@ -1041,7 +1041,7 @@ int32_t sclConvertOpValueNodeTs(SOperatorNode *node, SScalarCtx *ctx) {
     if (node->pLeft && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pLeft)->resType.type)) {
       if (SCL_IS_VAR_VALUE_NODE(node->pRight)) {
         SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pLeft)->resType.precision, (SValueNode*)node->pRight));
-      } else {
+      } else if (QUERY_NODE_NODE_LIST == node->pRight->type) {
         SNode* pNode;
         FOREACH(pNode, ((SNodeListNode*)node->pRight)->pNodeList) {
           if (SCL_IS_VAR_VALUE_NODE(pNode)) {
