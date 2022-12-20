@@ -2017,7 +2017,6 @@ static void firstlastSaveTupleData(const SSDataBlock* pSrcBlock, int32_t rowInde
     return;
   }
 
-  prepareBuf(pCtx);
   if (!pInfo->hasResult) {
     pInfo->pos = saveTupleData(pCtx, rowIndex, pSrcBlock, NULL);
   } else {
@@ -2975,6 +2974,8 @@ static STuplePos doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf
 }
 
 STuplePos saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, const STupleKey* pKey) {
+  prepareBuf(pCtx);
+
   char* buf = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf);
   return doSaveTupleData(&pCtx->saveHandle, buf, pCtx->subsidiaries.rowLen, pKey);
 }
@@ -2993,6 +2994,8 @@ static int32_t doUpdateTupleData(SSerializeDataHandle* pHandle, const void* pBuf
 }
 
 int32_t updateTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
+  prepareBuf(pCtx);
+
   char* buf = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf);
   doUpdateTupleData(&pCtx->saveHandle, buf, pCtx->subsidiaries.rowLen, pPos);
   return TSDB_CODE_SUCCESS;
