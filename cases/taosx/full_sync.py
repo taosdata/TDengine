@@ -45,7 +45,7 @@ class StaticFullSync(TDCase):
         
         self.stbname = [self.tdCom.get_long_name(3),self.tdCom.get_long_name(3)]
         self.tbname_m = [self.tdCom.get_long_name(1),self.tdCom.get_long_name(1)]
-        self.tb_num = 1000
+        self.tb_num = 100
         self.row_num = 10000
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'yes'

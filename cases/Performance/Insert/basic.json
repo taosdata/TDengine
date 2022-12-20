@@ -1,24 +1,24 @@
 {
     "filetype": "insert",
     "cfgdir": "/root/data/taosd",
-    "host": "u1-42",
+    "host": "u1-41",
     "port": 6030,
     "user": "root",
     "password": "taosdata",
     "connection_pool_size": 8,
-    "thread_count": 8,
-    "create_table_thread_count": 8,
+    "thread_count": 40,
+    "create_table_thread_count": 40,
     "result_file": "./insert_res.txt",
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
     "interlace_rows": 100,
-    "num_of_records_per_req": 100,
+    "num_of_records_per_req": 1000,
     "prepared_rand": 10000,
     "chinese": "no",
     "databases": [
         {
             "dbinfo": {
-                "name": "db",
+                "name": "db_settag",
                 "drop": "yes",
                 "replica": 3,
                 "precision": "ms",
@@ -28,13 +28,13 @@
                 "comp": 2,
                 "table_prefix": 1,
                 "table_suffix": 1,
-                "vgroups": 10
+                "vgroups": 20
             },
             "super_tables": [
                 {
                     "name": "stb",
                     "child_table_exists": "no",
-                    "childtable_count": 1000,
+                    "childtable_count": 100000,
                     "childtable_prefix": "t",
                     "escape_character": "yes",
                     "auto_create_table": "no",
@@ -43,7 +43,7 @@
                     "insert_mode": "taosc",
                     "non_stop_mode": "no",
                     "line_protocol": "line",
-                    "insert_rows": 0,
+                    "insert_rows": 1000,
                     "interlace_rows": 0,
                     "insert_interval": 0,
                     "partial_col_num": 0,
@@ -86,7 +86,7 @@
                         {
                             "name": "location",
                             "type": "BINARY",
-                            "len": 16,
+                            "len": 20,
                             "values": [
                                 "San Francisco",
                                 "Los Angles",
