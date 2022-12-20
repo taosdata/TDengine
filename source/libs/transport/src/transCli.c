@@ -1670,6 +1670,15 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     }
   }
 
+  // check whole vnodes is offline on this vgroup
+  if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pResp->code == TSDB_CODE_RPC_BROKEN_LINK) {
+    if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps || pCtx->retryStep > 0) {
+      if (pMsg->msg.msgType == TDMT_VND_SUBMIT || pMsg->msg.msgType == TDMT_SCH_QUERY) {
+        pResp->code = TSDB_CODE_RPC_VGROUP_NOT_CONNECTED;
+      }
+    }
+  }
+
   STraceId* trace = &pResp->info.traceId;
   bool      hasEpSet = cliTryExtractEpSet(pResp, &pCtx->epSet);
   if (hasEpSet) {
