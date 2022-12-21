@@ -1424,11 +1424,12 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     memcpy((void*)tEpSet, (void*)pEpSet, sizeof(SEpSet));
   }
 
+  // pMsg is response msg
   switch (pMsg->msgType) {
-    case TDMT_VND_BATCH_META:
-    case TDMT_VND_SUBMIT:
-    case TDMT_SCH_QUERY:
-    case TDMT_SCH_MERGE_QUERY:
+    case TDMT_VND_BATCH_META + 1:
+    case TDMT_VND_SUBMIT + 1:
+    case TDMT_SCH_QUERY + 1:
+    case TDMT_SCH_MERGE_QUERY + 1:
       // uniform to one error code: TSDB_CODE_RPC_VGROUP_NOT_CONNECTED
       if (pMsg->code == TSDB_CODE_RPC_VGROUP_BROKEN_LINK) {
         pMsg->code = TSDB_CODE_RPC_VGROUP_NOT_CONNECTED;
