@@ -1294,10 +1294,6 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   syncNodeStopElectTimer(pSyncNode);
   syncNodeStopHeartbeatTimer(pSyncNode);
 
-  if (pSyncNode->pFsm != NULL) {
-    taosMemoryFree(pSyncNode->pFsm);
-  }
-
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     if ((pSyncNode->senders)[i] != NULL) {
       sSTrace((pSyncNode->senders)[i], "snapshot sender destroy while close, data:%p", (pSyncNode->senders)[i]);
@@ -1318,6 +1314,10 @@ void syncNodeClose(SSyncNode* pSyncNode) {
 
     snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
     pSyncNode->pNewNodeReceiver = NULL;
+  }
+
+  if (pSyncNode->pFsm != NULL) {
+    taosMemoryFree(pSyncNode->pFsm);
   }
 
   taosMemoryFree(pSyncNode);
