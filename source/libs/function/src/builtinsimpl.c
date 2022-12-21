@@ -5299,7 +5299,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   int32_t len = sprintf(st + VARSTR_HEADER_SIZE,
                         "Total_Blocks=[%d] Total_Size=[%.2f Kb] Average_size=[%.2f Kb] Compression_Ratio=[%.2f %c]",
-                        pData->numOfBlocks, pData->totalSize / 1024.0, averageSize, compRatio, '%');
+                        pData->numOfBlocks, pData->totalSize / 1024.0, averageSize/1024.0, compRatio, '%');
 
   varDataSetLen(st, len);
   colDataAppend(pColInfo, row++, st, false);
