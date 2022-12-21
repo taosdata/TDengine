@@ -102,7 +102,7 @@ class TDTestQuery(TDCase):
                 stable_where = tdWhere.regular_where() 
                 n1,n2 = random.randrange(-9223372036854775807,9223372036854775807)  , random.randrange(-9223372036854775807,9223372036854775807) 
                 func = func.replace("start_val","%f" %n1).replace("step_val","%d" %n2)
-                sql1 = 'select %s from %s group by tbname;'  % (func,self.table)
+                sql1 = 'select %s from %s group by tbname order by tbname;'  % (func,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -111,13 +111,13 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where  %s %s %s group by tbname" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from %s where  %s %s %s group by tbname order by tbname" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         cur1.execute(sql2)   
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where %s %s %s group by tbname)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (select %s from %s where %s %s %s group by tbname order by tbname)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         cur1.execute(sql2)   
                         self.tdCreateData.explain_sql(sql2)
