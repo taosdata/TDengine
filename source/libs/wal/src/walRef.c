@@ -80,6 +80,7 @@ void walUnrefVer(SWalRef *pRef) {
 SWalRef *walRefCommittedVer(SWal *pWal) {
   SWalRef *pRef = walOpenRef(pWal);
   if (pRef == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   taosThreadMutexLock(&pWal->mutex);

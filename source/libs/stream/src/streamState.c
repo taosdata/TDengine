@@ -159,6 +159,11 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     goto _err;
   }
 
+  if (tdbTbOpen("partag.state.db", sizeof(int64_t), -1, NULL, pState->pTdbState->db, &pState->pTdbState->pParTagDb, 0) <
+      0) {
+    goto _err;
+  }
+
   if (streamStateBegin(pState) < 0) {
     goto _err;
   }
@@ -173,6 +178,7 @@ _err:
   tdbTbClose(pState->pTdbState->pFillStateDb);
   tdbTbClose(pState->pTdbState->pSessionStateDb);
   tdbTbClose(pState->pTdbState->pParNameDb);
+  tdbTbClose(pState->pTdbState->pParTagDb);
   tdbClose(pState->pTdbState->db);
   streamStateDestroy(pState);
   return NULL;
@@ -186,6 +192,7 @@ void streamStateClose(SStreamState* pState) {
   tdbTbClose(pState->pTdbState->pFillStateDb);
   tdbTbClose(pState->pTdbState->pSessionStateDb);
   tdbTbClose(pState->pTdbState->pParNameDb);
+  tdbTbClose(pState->pTdbState->pParTagDb);
   tdbClose(pState->pTdbState->db);
 
   streamStateDestroy(pState);
@@ -821,10 +828,17 @@ _end:
   return res;
 }
 
+int32_t streamStatePutParTag(SStreamState* pState, int64_t groupId, const void* tag, int32_t tagLen) {
+  return tdbTbUpsert(pState->pTdbState->pParTagDb, &groupId, sizeof(int64_t), tag, tagLen, pState->pTdbState->txn);
+}
+
+int32_t streamStateGetParTag(SStreamState* pState, int64_t groupId, void** tagVal, int32_t* tagLen) {
+  return tdbTbGet(pState->pTdbState->pParTagDb, &groupId, sizeof(int64_t), tagVal, tagLen);
+}
+
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
-  tdbTbUpsert(pState->pTdbState->pParNameDb, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN,
-              pState->pTdbState->txn);
-  return 0;
+  return tdbTbUpsert(pState->pTdbState->pParNameDb, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN,
+                     pState->pTdbState->txn);
 }
 
 int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal) {
