@@ -1211,7 +1211,8 @@ static void destroyVgHash(void* data) {
   taosMemoryFreeClear(vgData->data);
 }
 
-int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const char* tbname, TAOS_FIELD *fields, int numFields){
+int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const char* tbname, TAOS_FIELD* fields,
+                                     int numFields) {
   int32_t     code = TSDB_CODE_SUCCESS;
   STableMeta* pTableMeta = NULL;
   SQuery*     pQuery = NULL;
@@ -1267,14 +1268,14 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   uint16_t fLen = 0;
   int32_t  rowSize = 0;
   int16_t  nVar = 0;
-    for (int i = 0; i < pTableMeta->tableInfo.numOfColumns; i++) {
-      SSchema* schema = pTableMeta->schema + i;
-      fLen += TYPE_BYTES[schema->type];
-      rowSize += schema->bytes;
-      if (IS_VAR_DATA_TYPE(schema->type)) {
-        nVar++;
-      }
+  for (int i = 0; i < pTableMeta->tableInfo.numOfColumns; i++) {
+    SSchema* schema = pTableMeta->schema + i;
+    fLen += TYPE_BYTES[schema->type];
+    rowSize += schema->bytes;
+    if (IS_VAR_DATA_TYPE(schema->type)) {
+      nVar++;
     }
+  }
 
   fLen -= sizeof(TSKEY);
 
@@ -1294,7 +1295,8 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   tdSRowSetTpInfo(&rb, numOfCols, fLen);
   int32_t dataLen = 0;
 
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column length |
+  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
+  // length |
   char*    pStart = pData + getVersion1BlockMetaSize(pData, numFields);
   int32_t* colLength = (int32_t*)pStart;
   pStart += sizeof(int32_t) * numFields;
@@ -1326,9 +1328,9 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
     for (int32_t k = 0; k < numOfCols; k++) {
       const SSchema* pColumn = &pTableMeta->schema[k];
       int32_t*       index = taosHashGet(schemaHash, pColumn->name, strlen(pColumn->name));
-      if (!index) {   // add none
+      if (!index) {  // add none
         tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NONE, NULL, false, offset, k);
-      }else{
+      } else {
         if (IS_VAR_DATA_TYPE(pColumn->type)) {
           if (pCol[*index].offset[j] != -1) {
             char* data = pCol[*index].pData + pCol[*index].offset[j];
@@ -1377,13 +1379,13 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->haveResultSet = false;
   pQuery->msgType = TDMT_VND_SUBMIT;
-  pQuery->pRoot = (SNode*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
+  pQuery->pRoot = (SNode*)nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT);
   if (NULL == pQuery->pRoot) {
     uError("create pQuery->pRoot error");
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
-  SVnodeModifOpStmt* nodeStmt = (SVnodeModifOpStmt*)(pQuery->pRoot);
+  SVnodeModifyOpStmt* nodeStmt = (SVnodeModifyOpStmt*)(pQuery->pRoot);
   nodeStmt->pDataBlocks = taosArrayInit(1, POINTER_BYTES);
 
   SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
@@ -1406,7 +1408,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
-  end:
+end:
   taosMemoryFreeClear(pTableMeta);
   qDestroyQuery(pQuery);
   taosMemoryFree(subReq);
@@ -1495,7 +1497,8 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   tdSRowSetTpInfo(&rb, numOfCols, fLen);
   int32_t dataLen = 0;
 
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column length |
+  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
+  // length |
   char*    pStart = pData + getVersion1BlockMetaSize(pData, numOfCols);
   int32_t* colLength = (int32_t*)pStart;
   pStart += sizeof(int32_t) * numOfCols;
@@ -1568,13 +1571,13 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->haveResultSet = false;
   pQuery->msgType = TDMT_VND_SUBMIT;
-  pQuery->pRoot = (SNode*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
+  pQuery->pRoot = (SNode*)nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT);
   if (NULL == pQuery->pRoot) {
     uError("create pQuery->pRoot error");
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
-  SVnodeModifOpStmt* nodeStmt = (SVnodeModifOpStmt*)(pQuery->pRoot);
+  SVnodeModifyOpStmt* nodeStmt = (SVnodeModifyOpStmt*)(pQuery->pRoot);
   nodeStmt->pDataBlocks = taosArrayInit(1, POINTER_BYTES);
 
   SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
@@ -1825,13 +1828,13 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->haveResultSet = false;
   pQuery->msgType = TDMT_VND_SUBMIT;
-  pQuery->pRoot = (SNode*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
+  pQuery->pRoot = (SNode*)nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT);
   if (NULL == pQuery->pRoot) {
     uError("create pQuery->pRoot error");
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
-  SVnodeModifOpStmt* nodeStmt = (SVnodeModifOpStmt*)(pQuery->pRoot);
+  SVnodeModifyOpStmt* nodeStmt = (SVnodeModifyOpStmt*)(pQuery->pRoot);
 
   int32_t numOfVg = taosHashGetSize(pVgHash);
   nodeStmt->pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
@@ -1872,7 +1875,6 @@ end:
   taosMemoryFreeClear(pTableMeta);
   return code;
 }
-
 
 static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -2131,13 +2133,13 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->haveResultSet = false;
   pQuery->msgType = TDMT_VND_SUBMIT;
-  pQuery->pRoot = (SNode*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
+  pQuery->pRoot = (SNode*)nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT);
   if (NULL == pQuery->pRoot) {
     uError("create pQuery->pRoot error");
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
-  SVnodeModifOpStmt* nodeStmt = (SVnodeModifOpStmt*)(pQuery->pRoot);
+  SVnodeModifyOpStmt* nodeStmt = (SVnodeModifyOpStmt*)(pQuery->pRoot);
 
   int32_t numOfVg = taosHashGetSize(pVgHash);
   nodeStmt->pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
@@ -2167,7 +2169,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
-  end:
+end:
   tDeleteSTaosxRsp(&rspObj.rsp);
   rspObj.resInfo.pRspMsg = NULL;
   doFreeReqResultInfo(&rspObj.resInfo);
