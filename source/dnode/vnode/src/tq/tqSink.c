@@ -253,8 +253,6 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
 
     int32_t rows = pDataBlock->info.rows;
 
-    tqDebug("tq sink, convert block1 %d, rows: %d", i, rows);
-
     int32_t dataLen = 0;
     int32_t schemaLen = 0;
     void*   blkSchema = POINTER_SHIFT(blkHead, sizeof(SSubmitBlk));
@@ -417,8 +415,6 @@ int32_t tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* p
     pTbData->suid = suid;
     pTbData->uid = 0;  // uid is assigned by vnode
     pTbData->sver = pTSchema->version;
-
-    tqDebug("tq sink, convert block1 %d, rows: %d", i, rows);
 
     if (createTb) {
       pTbData->pCreateTbReq = taosArrayGetP(createTbArray, i);
@@ -691,7 +687,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       blkHead->uid = 0;
       blkHead->schemaLen = 0;
 
-      tqDebug("tq sink, convert block2 %d, rows: %d", i, rows);
+      tqDebug("tq sink pipe1, convert block2 %d, rows: %d", i, rows);
 
       int32_t dataLen = 0;
       void*   blkSchema = POINTER_SHIFT(blkHead, sizeof(SSubmitBlk));
@@ -720,7 +716,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
           } else {
             void* colData = colDataGetData(pColData, j);
             if (k == 0) {
-              tqDebug("tq sink, row %d ts %" PRId64, j, *(int64_t*)colData);
+              tqDebug("tq sink pipe1, row %d ts %" PRId64, j, *(int64_t*)colData);
             }
             tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, colData, true, pColumn->offset, k);
           }
@@ -819,7 +815,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
     } else {
       SSubmitTbData tbData = {0};
       int32_t       rows = pDataBlock->info.rows;
-      tqDebug("tq sink, convert block1 %d, rows: %d", i, rows);
+      tqDebug("tq sink pipe2, convert block1 %d, rows: %d", i, rows);
 
       if (!(tbData.aRowP = taosArrayInit(rows, sizeof(SRow*)))) {
         goto _end;
@@ -922,6 +918,10 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         for (int32_t k = 0; k < pTSchema->numOfCols; k++) {
           const STColumn*  pCol = &pTSchema->columns[k];
           SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, k);
+          if (k == 0) {
+            void* colData = colDataGetData(pColData, j);
+            tqDebug("tq sink pipe2, row %d, col %d ts %" PRId64, j, k, *(int64_t*)colData);
+          }
           if (colDataIsNull_s(pColData, j)) {
             SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
             taosArrayPush(pVals, &cv);
