@@ -17,9 +17,7 @@
 
 extern void vnodePrepareCommit(SVnode *pVnode);
 
-#define vnodePrepareCompact vnodePrepareCommit
-
-static int32_t vnodeCompactImpl(SCompactInfo *pInfo) {
+static int32_t vnodeCompactImpl(SCommitInfo *pInfo) {
   int32_t code = 0;
 
   // TODO
@@ -30,7 +28,7 @@ static int32_t vnodeCompactImpl(SCompactInfo *pInfo) {
 static int32_t vnodeCompactTask(void *param) {
   int32_t code = 0;
 
-  SCompactInfo *pInfo = (SCompactInfo *)param;
+  SCommitInfo *pInfo = (SCommitInfo *)param;
 
   // compact
   vnodeCompactImpl(pInfo);
@@ -46,10 +44,10 @@ int32_t vnodeAsyncCompact(SVnode *pVnode) {
   int32_t code = 0;
 
   // prepare
-  vnodePrepareCompact(pVnode);
+  vnodePrepareCommit(pVnode);
 
   // schedule compact task
-  SCompactInfo *pInfo = taosMemoryCalloc(1, sizeof(*pInfo));
+  SCommitInfo *pInfo = taosMemoryCalloc(1, sizeof(*pInfo));
   if (NULL == pInfo) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;

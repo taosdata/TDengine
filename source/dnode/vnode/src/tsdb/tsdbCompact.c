@@ -15,23 +15,26 @@
 
 #include "tsdb.h"
 
-// typedef struct {
-// } SMemDIter;
+typedef struct {
+} SMemDIter;
 
 typedef struct {
-  SArray    *aBlockIdx;  // SArray<SBlockIdx>
-  SMapData   mDataBlk;   // SMapData<SDataBlk>
-  SBlockData bData;
-  int32_t    iBlockIdx;
-  int32_t    iDataBlk;
-  int32_t    iRow;
+  SDataFReader *pReader;
+  SArray       *aBlockIdx;  // SArray<SBlockIdx>
+  SMapData      mDataBlk;   // SMapData<SDataBlk>
+  SBlockData    bData;
+  int32_t       iBlockIdx;
+  int32_t       iDataBlk;
+  int32_t       iRow;
 } SDataDIter;
 
 typedef struct {
-  SArray    *aSttBlk;  // SArray<SSttBlk>
-  SBlockData bData;
-  int32_t    iSttBlk;
-  int32_t    iRow;
+  SDataFReader *pReader;
+  int32_t       iStt;
+  SArray       *aSttBlk;  // SArray<SSttBlk>
+  SBlockData    bData;
+  int32_t       iSttBlk;
+  int32_t       iRow;
 } SSttDIter;
 
 typedef struct {
@@ -53,11 +56,66 @@ typedef struct {
 #define TSDB_FLG_DEEP_COMPACT 0x1
 
 // ITER =========================
-static int32_t tsdbDataIterOpen(STsdbDataIter *pIter) {
+static int32_t tsdbMemDIterOpen(STsdbDataIter **ppIter) {
   int32_t code = 0;
   int32_t lino = 0;
+
+  STsdbDataIter *pIter = (STsdbDataIter *)taosMemoryCalloc(1, sizeof(*pIter) + sizeof(SMemDIter));
+  if (pIter == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
   // TODO
+
 _exit:
+  if (code) {
+    *ppIter = NULL;
+  } else {
+    *ppIter = pIter;
+  }
+  return code;
+}
+
+static int32_t tsdbDataDIterOpen(SDataFReader *pReader, STsdbDataIter **ppIter) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  STsdbDataIter *pIter = (STsdbDataIter *)taosMemoryCalloc(1, sizeof(*pIter) + sizeof(SDataDIter));
+  if (NULL == pIter) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  // TODO
+
+_exit:
+  if (code) {
+    *ppIter = NULL;
+  } else {
+    *ppIter = pIter;
+  }
+  return code;
+}
+
+static int32_t tsdbSttDIterOpen(SDataFReader *pReader, STsdbDataIter **ppIter) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  STsdbDataIter *pIter = (STsdbDataIter *)taosMemoryCalloc(1, sizeof(*pIter) + sizeof(SSttDIter));
+  if (pIter == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  // TODO
+
+_exit:
+  if (code) {
+    *ppIter = NULL;
+  } else {
+    *ppIter = pIter;
+  }
   return code;
 }
 
