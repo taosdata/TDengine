@@ -190,7 +190,7 @@ static int32_t  doMergeRowsInLastBlock(SLastBlockReader* pLastBlockReader, STabl
 static int32_t  doMergeRowsInBuf(SIterInfo* pIter, uint64_t uid, int64_t ts, SArray* pDelList, SRowMerger* pMerger,
                                  STsdbReader* pReader);
 static int32_t  doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, STSRow* pTSRow,
-                                     STableBlockScanInfo* pInfo);
+                                     STableBlockScanInfo* pScanInfo);
 static int32_t  doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, SBlockData* pBlockData,
                                          int32_t rowIndex);
 static void     setComposedBlockFlag(STsdbReader* pReader, bool composed);
@@ -2482,6 +2482,8 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
           int32_t nextIndex = -1;
           SBlockIndex bIndex = {0};
+          pBlockInfo = getCurrentBlockInfo(&pReader->status.blockIter);
+
           bool hasNeighbor = getNeighborBlockOfSameTable(pBlockInfo, pBlockScanInfo, &nextIndex, pReader->order, &bIndex);
           if (!hasNeighbor) {  // do nothing
             setBlockAllDumped(pDumpInfo, pBlock->maxKey.ts, pReader->order);
