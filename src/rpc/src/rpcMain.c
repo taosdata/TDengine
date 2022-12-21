@@ -1533,13 +1533,14 @@ static void rpcProcessConnError(void *param, void *id) {
     rpcMsg.pCont = NULL;
     rpcMsg.contLen = 0;
 
-    if( pContext->numOfTry >= pContext->epSet.numOfEps && rpcMsg.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-      if(pContext->msgType == TSDB_MSG_TYPE_SUBMIT || pContext->msgType == TSDB_MSG_TYPE_QUERY) {
+    if (pContext->numOfTry >= pContext->epSet.numOfEps && rpcMsg.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+      if (pContext->msgType == TSDB_MSG_TYPE_SUBMIT || pContext->msgType == TSDB_MSG_TYPE_QUERY) {
         rpcMsg.code = TSDB_CODE_RPC_VGROUP_NOT_CONNECTED;
       }
     }
 
-    tWarn("%s %p, connection error. notify client query over. numOfTry=%d msgType=%d", pRpc->label, pContext->ahandle, pContext->numOfTry, pContext->msgType);
+    tWarn("%s %p, connection error. notify client query over. numOfTry=%d msgType=%d", pRpc->label, pContext->ahandle,
+          pContext->numOfTry, pContext->msgType);
 
     rpcNotifyClient(pContext, &rpcMsg);
   } else {
@@ -1936,7 +1937,6 @@ bool rpcSaveSendInfo(int64_t rpcRid, void **ppContext) {
   }
 
   if (ppContext) *ppContext = pContext;
-
   taosReleaseRef(tsRpcRefId, rpcRid);
   return true;
 }
