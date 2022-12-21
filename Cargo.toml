@@ -62,7 +62,7 @@ git = "https://github.com/taosdata/taos-connector-rust.git"
 features = ["ws", "r2d2"]
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
-jemallocator = "0.5.0"
+jemallocator = { version = "0.5.0", optional = true }
 
 [build-dependencies]
 sqlx = { version = "0.6", features = ["sqlite", "chrono"] }

@@ -5,9 +5,11 @@ use log::Level;
 use pretty_env_logger::env_logger::fmt::{Color, StyledValue};
 use shadow_rs::shadow;
 
+#[cfg(feature = "jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 use jemallocator::Jemalloc;
 
+#[cfg(feature = "jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
