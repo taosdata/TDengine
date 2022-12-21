@@ -4349,9 +4349,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
         pTableBlockInfo->numOfSmallBlocks += 1;
       }
 
-      for (int32_t i = 0; i < pBlock->nSubBlock; i++) {
-        pTableBlockInfo->totalSize += pBlock->aSubBlock[i].szBlock;
-      }
+      pTableBlockInfo->totalSize = pBlock->aSubBlock[0].szBlock;
 
       int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows);
       pTableBlockInfo->blockRowsHisto[bucketIndex]++;
