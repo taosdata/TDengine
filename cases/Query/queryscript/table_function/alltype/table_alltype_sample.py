@@ -146,7 +146,9 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
-        self.logger.info("sqlnum1 %d" % num1) 
+        self.logger.info("sqlnum1 %d" % num1)
+        cur1.close()
+        conn1.close()  
 
     def right_case_1_tbname(self):
         self.logger.info("\n==========================right case 1_tbname==========================\n")
@@ -203,6 +205,8 @@ class TDTestQuery(TDCase):
         
         num1 = sql.count('where')
         self.logger.info("sqlnum1_tbname %d" % num1)
+        cur1.close()
+        conn1.close() 
  
     def right_case_1_interval(self):
         self.logger.info("\n==========================right case 1==========================\n")
@@ -378,6 +382,8 @@ class TDTestQuery(TDCase):
         
         num1 = sql.count('where')
         self.logger.info("sqlnum1_interval %d" % num1) 
+        cur1.close()
+        conn1.close() 
 
     def right_case_1_tbname_interval(self):
         self.logger.info("\n==========================right case 1_tbname==========================\n")
@@ -450,6 +456,8 @@ class TDTestQuery(TDCase):
         
         num1 = sql.count('where')
         self.logger.info("sqlnum1_tbname_interval %d" % num1)
+        cur1.close()
+        conn1.close() 
                                
     def right_case_2(self):
         self.logger.info("\n==========================right case 2==========================\n")
@@ -576,6 +584,8 @@ class TDTestQuery(TDCase):
         
         num2 = sql.count('where')
         self.logger.info("sqlnum2 %d" % num2) 
+        cur1.close()
+        conn1.close() 
         
     def right_case_2_tbname(self):
         self.logger.info("\n==========================right case 2_tbname==========================\n")
@@ -673,6 +683,8 @@ class TDTestQuery(TDCase):
         
         num2 = sql.count('where')
         self.logger.info("sqlnum2_tbname %d" % num2) 
+        cur1.close()
+        conn1.close() 
                         
     def right_case_2_interval(self):
         self.logger.info("\n==========================right case 2==========================\n")
@@ -822,6 +834,8 @@ class TDTestQuery(TDCase):
         
         num2 = sql.count('where')
         self.logger.info("sqlnum2_interval %d" % num2) 
+        cur1.close()
+        conn1.close() 
         
     def right_case_2_tbname_interval(self):
         self.logger.info("\n==========================right case 2_tbname==========================\n")
@@ -992,6 +1006,8 @@ class TDTestQuery(TDCase):
         
         num2 = sql.count('where')
         self.logger.info("sqlnum2_tbname_interval %d" % num2) 
+        cur1.close()
+        conn1.close() 
                                                                                        
     def right_case_3(self):
         self.logger.info("\n==========================right case 3==========================\n")
@@ -1152,6 +1168,8 @@ class TDTestQuery(TDCase):
         
         num3 = sql.count('where')
         self.logger.info("sqlnum3 %d" % num3) 
+        cur1.close()
+        conn1.close() 
  
  
     def right_case_3_tbname(self):
@@ -1208,7 +1226,9 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        self.logger.info("sqlnum3_tbname %d" % num3)         
+        self.logger.info("sqlnum3_tbname %d" % num3) 
+        cur1.close()
+        conn1.close()         
                         
     def right_case_3_interval(self):
         self.logger.info("\n==========================right case 3==========================\n")
@@ -1276,7 +1296,9 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        self.logger.info("sqlnum3_interval %d" % num3) 
+        self.logger.info("sqlnum3_interval %d" % num3)
+        cur1.close()
+        conn1.close()  
  
  
     def right_case_3_tbname_interval(self):
@@ -1350,7 +1372,9 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        self.logger.info("sqlnum3_tbname_interval %d" % num3)    
+        self.logger.info("sqlnum3_tbname_interval %d" % num3)  
+        cur1.close()
+        conn1.close()   
         
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
