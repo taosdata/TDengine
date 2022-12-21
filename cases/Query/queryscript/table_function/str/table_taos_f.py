@@ -90,6 +90,10 @@ class TDTestQuery(TDCase):
 
             except Exception as e:
                 raise e   
+            
+            
+        cur1.close()
+        conn1.close() 
 
 
     def rm_sql(self):
