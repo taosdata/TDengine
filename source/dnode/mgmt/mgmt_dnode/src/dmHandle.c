@@ -42,7 +42,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       pMgmt->pData->dropped = 1;
       dmWriteEps(pMgmt->pData);
       dInfo("dnode will exit since it is in the dropped state");
-      exit(0);
+      raise(SIGINT);
     }
   } else {
     SStatusRsp statusRsp = {0};
