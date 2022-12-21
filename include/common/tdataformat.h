@@ -59,9 +59,23 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define BIT1_SIZE(n)      (DIV_8((n)-1) + 1)
 #define BIT2_SIZE(n)      (DIV_4((n)-1) + 1)
 #define SET_BIT1(p, i, v) ((p)[DIV_8(i)] = (p)[DIV_8(i)] & BIT1_MAP[MOD_8(i)] | ((v) << MOD_8(i)))
+#define SET_BIT1_EX(p, i, v) \
+  do {                       \
+    if (MOD_8(i) == 0) {     \
+      (p)[DIV_8(i)] = 0;     \
+    }                        \
+    SET_BIT1(p, i, v);       \
+  } while (0)
 #define GET_BIT1(p, i)    (((p)[DIV_8(i)] >> MOD_8(i)) & ONE)
 #define SET_BIT2(p, i, v) ((p)[DIV_4(i)] = (p)[DIV_4(i)] & BIT2_MAP[MOD_4(i)] | ((v) << MOD_4_TIME_2(i)))
-#define GET_BIT2(p, i)    (((p)[DIV_4(i)] >> MOD_4_TIME_2(i)) & THREE)
+#define SET_BIT2_EX(p, i, v) \
+  do {                       \
+    if (MOD_4(i) == 0) {     \
+      (p)[DIV_4(i)] = 0;     \
+    }                        \
+    SET_BIT2(p, i, v);       \
+  } while (0)
+#define GET_BIT2(p, i) (((p)[DIV_4(i)] >> MOD_4_TIME_2(i)) & THREE)
 
 // SBuffer ================================
 struct SBuffer {
