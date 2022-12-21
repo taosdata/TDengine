@@ -186,6 +186,8 @@ class TDTestQuery(TDCase):
         
         num1 = sql.count('where')
         self.logger.info("sqlnum1 %d" % num1) 
+        cur1.close()
+        conn1.close() 
 
     def error_case_2(self):
         self.logger.info("\n======================error case 2======================\n")
@@ -470,6 +472,8 @@ class TDTestQuery(TDCase):
         
         num2 = sql.count('where')
         self.logger.info("sqlnum2 %d" % num2) 
+        cur1.close()
+        conn1.close() 
         
     def error_case_3(self):
         self.logger.info("\n======================error case 3======================\n")
@@ -596,6 +600,8 @@ class TDTestQuery(TDCase):
         
         num3 = sql.count('where')
         self.logger.info("sqlnum3 %d" % num3) 
+        cur1.close()
+        conn1.close() 
     
     def error_case_4(self):
         self.logger.info("\n======================error case 4======================\n")
@@ -689,7 +695,9 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num4 = sql.count('where')
-        self.logger.info("sqlnum4 %d" % num4)  
+        self.logger.info("sqlnum4 %d" % num4) 
+        cur1.close()
+        conn1.close()  
 
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
