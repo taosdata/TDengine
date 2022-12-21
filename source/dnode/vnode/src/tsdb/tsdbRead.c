@@ -2482,7 +2482,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
           int32_t nextIndex = -1;
           SBlockIndex bIndex = {0};
-          pBlockInfo = getCurrentBlockInfo(&pReader->status.blockIter);
+          pBlockInfo = getCurrentBlockInfo(&pReader->status.blockIter);  // NOTE: get the new block info
 
           bool hasNeighbor = getNeighborBlockOfSameTable(pBlockInfo, pBlockScanInfo, &nextIndex, pReader->order, &bIndex);
           if (!hasNeighbor) {  // do nothing
