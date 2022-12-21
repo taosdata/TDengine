@@ -61,7 +61,7 @@ int32_t walRefVer(SWalRef *pRef, int64_t ver) {
     SWalFileInfo tmpInfo;
     tmpInfo.firstVer = ver;
     SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
-    ASSERT(pRet != NULL);
+    /*A(pRet != NULL);*/
     pRef->refFile = pRet->firstVer;
 
     taosThreadMutexUnlock(&pWal->mutex);
@@ -92,7 +92,7 @@ SWalRef *walRefCommittedVer(SWal *pWal) {
   SWalFileInfo tmpInfo;
   tmpInfo.firstVer = ver;
   SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
-  ASSERT(pRet != NULL);
+  /*A(pRet != NULL);*/
   pRef->refFile = pRet->firstVer;
 
   taosThreadMutexUnlock(&pWal->mutex);
