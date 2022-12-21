@@ -813,7 +813,7 @@ int walSaveMeta(SWal* pWal) {
 
   // flush to a tmpfile
   n = walBuildTmpMetaName(pWal, tmpFnameStr);
-  if (n < sizeof(tmpFnameStr)) {
+  if (n >= sizeof(tmpFnameStr)) {
     return -1;
   }
 
@@ -846,7 +846,7 @@ int walSaveMeta(SWal* pWal) {
 
   // rename it
   n = walBuildMetaName(pWal, metaVer + 1, fnameStr);
-  if (n < sizeof(fnameStr)) {
+  if (n >= sizeof(fnameStr)) {
     goto _err;
   }
 
