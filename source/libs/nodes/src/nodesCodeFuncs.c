@@ -3712,7 +3712,7 @@ static const char* jkNodeListNodeList = "NodeList";
 static int32_t nodeListNodeToJson(const void* pObj, SJson* pJson) {
   const SNodeListNode* pNode = (const SNodeListNode*)pObj;
 
-  int32_t code = tjsonAddObject(pJson, jkNodeListDataType, dataTypeToJson, &pNode->dataType);
+  int32_t code = tjsonAddObject(pJson, jkNodeListDataType, dataTypeToJson, &pNode->node.resType);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkNodeListNodeList, pNode->pNodeList);
   }
@@ -3723,7 +3723,7 @@ static int32_t nodeListNodeToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToNodeListNode(const SJson* pJson, void* pObj) {
   SNodeListNode* pNode = (SNodeListNode*)pObj;
 
-  int32_t code = tjsonToObject(pJson, jkNodeListDataType, jsonToDataType, &pNode->dataType);
+  int32_t code = tjsonToObject(pJson, jkNodeListDataType, jsonToDataType, &pNode->node.resType);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkNodeListNodeList, &pNode->pNodeList);
   }
