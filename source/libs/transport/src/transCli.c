@@ -1671,16 +1671,11 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   }
 
   // check whole vnodes is offline on this vgroup
-  if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pResp->code == TSDB_CODE_RPC_BROKEN_LINK) {
-    if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps || pCtx->retryStep > 0) {
-      switch (pMsg->msg.msgType) {
-        case TDMT_VND_BATCH_META:
-        case TDMT_VND_SUBMIT:
-        case TDMT_SCH_QUERY:
-        case TDMT_SCH_MERGE_QUERY:
-          pResp->code = TSDB_CODE_RPC_VGROUP_NOT_CONNECTED;
-          break;
-      }
+  if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps || pCtx->retryStep > 0) {
+    if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+      pResp->code = TSDB_CODE_RPC_VGROUP_NOT_CONNECTED;
+    } else if (pResp->code == TSDB_CODE_RPC_BROKEN_LINK) {
+      pResp->code = TSDB_CODE_RPC_VGROUP_BROKEN_LINK;
     }
   }
 

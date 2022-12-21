@@ -1424,6 +1424,26 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     memcpy((void*)tEpSet, (void*)pEpSet, sizeof(SEpSet));
   }
 
+  switch (pMsg->msg.msgType) {
+    case TDMT_VND_BATCH_META:
+    case TDMT_VND_SUBMIT:
+    case TDMT_SCH_QUERY:
+    case TDMT_SCH_MERGE_QUERY:
+      // uniform to one error code: TSDB_CODE_RPC_VGROUP_NOT_CONNECTED
+      if (pMsg->code == TSDB_CODE_RPC_VGROUP_BROKEN_LINK) {
+        pMsg->code = TSDB_CODE_RPC_VGROUP_NOT_CONNECTED;
+      }
+      break;
+    default:
+      // restore origin code
+      if (pMsg->code == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED) {
+        pMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+      } else if (pMsg->code == TSDB_CODE_RPC_VGROUP_BROKEN_LINK) {
+        pMsg->code = TSDB_CODE_RPC_BROKEN_LINK;
+      }
+      break;
+  }
+
   AsyncArg* arg = taosMemoryCalloc(1, sizeof(AsyncArg));
   arg->msg = *pMsg;
   arg->pEpset = tEpSet;
