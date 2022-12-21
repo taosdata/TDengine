@@ -633,6 +633,7 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     const char *status = "ready";
     if (objStatus == SDB_STATUS_CREATING) status = "creating";
     if (objStatus == SDB_STATUS_DROPPING) status = "dropping";
+    if (!mndIsDnodeOnline(pObj->pDnode, curMs)) status = "offline";
     char b3[9 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, status, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

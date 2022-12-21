@@ -283,7 +283,7 @@ class TDTestCase:
                 use.error(f"insert into {DBNAME}.{CTBNAME} (ts) values (now())")
             elif check_priv == PRIVILEGES_WRITE:
                 use.query(f"use {DBNAME}")
-                use.error(f"show {DBNAME}.tables")
+                use.query(f"show {DBNAME}.tables")
                 use.error(f"select * from {DBNAME}.{CTBNAME}")
                 use.query(f"insert into {DBNAME}.{CTBNAME} (ts) values (now())")
             elif check_priv is None:
