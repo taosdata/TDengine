@@ -1424,7 +1424,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     memcpy((void*)tEpSet, (void*)pEpSet, sizeof(SEpSet));
   }
 
-  switch (pMsg->msg.msgType) {
+  switch (pMsg->msgType) {
     case TDMT_VND_BATCH_META:
     case TDMT_VND_SUBMIT:
     case TDMT_SCH_QUERY:
