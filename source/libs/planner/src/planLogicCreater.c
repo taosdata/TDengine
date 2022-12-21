@@ -953,6 +953,10 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  if (TSDB_CODE_SUCCESS == code && 0 == LIST_LENGTH(pFill->node.pTargets)) {
+    code = createColumnByRewriteExpr(pFill->pWStartTs, &pFill->node.pTargets);
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pFill;
   } else {

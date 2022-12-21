@@ -466,10 +466,18 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     return -1;
   }
 
+  if (tdbOsLSeek(jfd, 0L, SEEK_SET) < 0) {
+    tdbError("failed to lseek jfd due to %s. file:%s, offset:0", strerror(errno), pPager->dbFileName);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
   u8 *pageBuf = tdbOsCalloc(1, pPager->pageSize);
   if (pageBuf == NULL) {
     return -1;
   }
+
+  tdbDebug("tdb/abort: pager:%p,", pPager);
 
   for (int pgIndex = 0; pgIndex < journalSize; ++pgIndex) {
     // read pgno & the page from journal
@@ -480,6 +488,8 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
       tdbOsFree(pageBuf);
       return -1;
     }
+
+    tdbTrace("tdb/abort: pgno:%d,", pgno);
 
     ret = tdbOsRead(jfd, pageBuf, pPager->pageSize);
     if (ret < 0) {
@@ -578,12 +588,12 @@ int tdbPagerFlushPage(SPager *pPager, TXN *pTxn) {
       return -1;
     }
 
-    tdbTrace("tdb/flush:%p, %d/%d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize, maxPgno);
+    tdbTrace("tdb/flush:%p, pgno:%d, %d/%d/%d", pPager, pgno, pPager->dbOrigSize, pPager->dbFileSize, maxPgno);
     pPager->dbOrigSize = maxPgno;
 
     pPage->isDirty = 0;
 
-    tdbTrace("pager/flush drop page: %p %d from dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
+    tdbTrace("pager/flush drop page: %p, pgno:%d, from dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
 
@@ -830,7 +840,7 @@ static int tdbPagerPWritePageToDB(SPager *pPager, SPage *pPage) {
   return 0;
 }
 
-static int tdbPagerRestore(SPager *pPager, SBTree *pBt, const char *jFileName) {
+static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
   int   ret = 0;
   SPgno journalSize = 0;
   u8   *pageBuf = NULL;
@@ -908,7 +918,7 @@ static int tdbPagerRestore(SPager *pPager, SBTree *pBt, const char *jFileName) {
   return 0;
 }
 
-int tdbPagerRestoreJournals(SPager *pPager, SBTree *pBt) {
+int tdbPagerRestoreJournals(SPager *pPager) {
   tdbDirEntryPtr pDirEntry;
   tdbDirPtr      pDir = taosOpenDir(pPager->pEnv->dbName);
   if (pDir == NULL) {
@@ -919,7 +929,7 @@ int tdbPagerRestoreJournals(SPager *pPager, SBTree *pBt) {
   while ((pDirEntry = tdbReadDir(pDir)) != NULL) {
     char *name = tdbDirEntryBaseName(tdbGetDirEntryName(pDirEntry));
     if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
-      if (tdbPagerRestore(pPager, pBt, name) < 0) {
+      if (tdbPagerRestore(pPager, name) < 0) {
         tdbCloseDir(&pDir);
 
         tdbError("failed to restore file due to %s. jFileName:%s", strerror(errno), name);

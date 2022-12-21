@@ -875,18 +875,9 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
   }
 
   int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache);
-#if 0
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
-    code = getTableMeta(pCxt, &pStmt->targetTableName, false, &pStmt->pTableMeta, &pCxt->missCache);
-  }
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
-    code = getTableVgroup(pCxt->pComCxt, pStmt, false, &pCxt->missCache);
-  }
-#else
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
   }
-#endif
   if (TSDB_CODE_SUCCESS == code && !pCxt->pComCxt->async) {
     code = collectUseDatabase(&pStmt->targetTableName, pStmt->pDbFNameHashObj);
     if (TSDB_CODE_SUCCESS == code) {
@@ -1503,6 +1494,10 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
 
 static int32_t parseFileClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, STableDataBlocks* pDataBuf,
                                SToken* pToken) {
+  if (tsUseAdapter) {
+    return buildInvalidOperationMsg(&pCxt->msg, "proxy mode does not support csv loading");
+  }
+
   NEXT_TOKEN(pStmt->pSql, *pToken);
   if (0 == pToken->n || (TK_NK_STRING != pToken->type && TK_NK_ID != pToken->type)) {
     return buildSyntaxErrMsg(&pCxt->msg, "file path is required following keyword FILE", pToken->z);
@@ -1726,6 +1721,8 @@ static int32_t getTableMetaFromMetaData(const SArray* pTables, STableMeta** pMet
   if (1 != taosArrayGetSize(pTables)) {
     return TSDB_CODE_FAILED;
   }
+
+  taosMemoryFreeClear(*pMeta);
   SMetaRes* pRes = taosArrayGet(pTables, 0);
   if (TSDB_CODE_SUCCESS == pRes->code) {
     *pMeta = tableMetaDup((const STableMeta*)pRes->pRes);

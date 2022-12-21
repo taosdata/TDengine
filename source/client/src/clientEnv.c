@@ -469,6 +469,9 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
     case TSDB_OPTION_TIMEZONE:
       pItem = cfgGetItem(pCfg, "timezone");
       break;
+    case TSDB_OPTION_USE_ADAPTER:
+      pItem = cfgGetItem(pCfg, "useAdapter");
+      break;
     default:
       break;
   }

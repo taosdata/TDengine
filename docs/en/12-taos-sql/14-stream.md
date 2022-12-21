@@ -108,7 +108,7 @@ SHOW STREAMS;
 
 When you create a stream, you can use the TRIGGER parameter to specify triggering conditions for it.
 
-For non-windowed processing, triggering occurs in real time. For windowed processing, there are three methods of triggering:
+For non-windowed processing, triggering occurs in real time. For windowed processing, there are three methods of triggering，the default value is AT_ONCE:
 
 1. AT_ONCE: triggers on write
 
