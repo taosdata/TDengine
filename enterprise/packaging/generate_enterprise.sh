@@ -1,5 +1,5 @@
 #!/bin/bash
-#set -x
+# set -x
 scriptDir=$(dirname $(realpath $0 || readlink -f $0))
 #
 version=$1
@@ -12,7 +12,14 @@ topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
 archiveDir=/nas/TDengine/v$version/enterprise  # version’package directory
 enterpriseDir=$topDir/enterprise
-allocator=jemalloc              # glibc  or  jemalloc, default is jemalloc
+
+ostype=$(uname)
+
+if [ "${ostype}" == "Darwin" ]; then
+    allocator=glibc
+else
+    allocator=jemalloc              # glibc  or  jemalloc, default is jemalloc
+fi
 
 if [ ! -d $archiveDir ]; then
   mkdir -p $archiveDir || echo -e "failed to create $archiveDir"
@@ -79,14 +86,15 @@ elif [ "$cpuType" = "arm64" ] || [ "$cpuType" = "aarch64" ]; then
 else
   arch=$cpuType
 fi
-taoskeeper_binary=`$scriptDir/build_taoskeeper.sh --arch $arch --repo taoskeeperinternal`
+
+taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeperinternal`
 
 set -e
 # unpack server package and repack with taoskeeper binary and service file.
 prefix=$(echo $server_tar |grep -Eo ".*-enterprise-server-[^\-]+")
-tar axf $server_tar
+tar xf $server_tar
 [ -d "$prefix/taos" ] || mkdir $prefix/taos
-tar axf $prefix/taos.tar.gz -C $prefix/taos/
+tar xf $prefix/taos.tar.gz -C $prefix/taos/
 cp -f $taoskeeper_binary $prefix/taos/bin/
 cp -f $(dirname $taoskeeper_binary)/taoskeeper.service $prefix/taos/cfg/
 cp -f $(dirname $taoskeeper_binary)/config/keeper.toml $prefix/taos/cfg/

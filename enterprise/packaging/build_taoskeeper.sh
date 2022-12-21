@@ -2,7 +2,7 @@
 
 # set -x
 
-options=$(getopt -l "help,os:,arch:,repo:,force" -o "ho:r:e:f" -a -- "$@")
+# OPTIONS=`getopt  --options 'ho:r:e:f' --longoptions 'help,os:,arch:,repo:,force' -- "$@"`
 FORCE=0
 
 usage() {
@@ -59,36 +59,30 @@ build_binary() {
   readlink -f taoskeeper
 }
 
-eval set -- "$options"
-
-while true; do
-  case $1 in
-  -h | --help)
+# eval set -- "$OPTIONS"
+while getopts "ho:r:e:f" arg
+do
+  case $arg in
+  h)
     usage
     exit 0
     ;;
-  -o | --os)
-    shift
-    export GOOS=$1
+  o)
+    export GOOS=$OPTARG
     ;;
-  -r | --arch)
-    shift
-    export GOARCH=$1
+  r)
+    export GOARCH=$OPTARG
     ;;
-  -e | --repo)
-    shift
-    export REPO=$1
+  e)
+    export REPO=$OPTARG
     ;;
-  -f | --force)
-    shift
+  f)
     export FORCE=1
     ;;
-  --)
-    shift
+  ?)
     break
     ;;
   esac
-  shift
 done
 
 set -e
