@@ -53,6 +53,15 @@ static bool dmFailFastFp(tmsg_t msgType) {
   return msgType == TDMT_SYNC_HEARTBEAT || msgType == TDMT_SYNC_APPEND_ENTRIES;
 }
 
+static void dmConvertErrCode(tmsg_t msgType) {
+  if (terrno != TSDB_CODE_APP_IS_STOPPING) {
+    return;
+  }
+  if ((msgType > TDMT_VND_MSG && msgType < TDMT_VND_MAX_MSG) ||
+      (msgType > TDMT_SCH_MSG && msgType < TDMT_SCH_MAX_MSG)) {
+    terrno = TSDB_CODE_VND_STOPPED;
+  }
+}
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
@@ -152,6 +161,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
 _OVER:
   if (code != 0) {
+    dmConvertErrCode(pRpc->msgType);
     if (terrno != 0) code = terrno;
     if (pMsg) {
       dGTrace("msg:%p, failed to process %s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
