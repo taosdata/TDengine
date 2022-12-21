@@ -208,6 +208,8 @@ class TDTestQuery(TDCase):
         
         num1 = sql.count('where')
         self.logger.info("sqlnum1 %d" % num1) 
+        cur1.close()
+        conn1.close() 
 
     def right_case2(self):
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_2)
@@ -316,6 +318,8 @@ class TDTestQuery(TDCase):
         
         num2 = sql.count('where')
         self.logger.info("sqlnum2 %d" % num2) 
+        cur1.close()
+        conn1.close() 
         
     def right_case2_2(self):
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_2_2)
@@ -429,6 +433,8 @@ class TDTestQuery(TDCase):
         
         num2 = sql.count('where')
         self.logger.info("sqlnum2_2 %d" % num2) 
+        cur1.close()
+        conn1.close() 
         
     def right_case3(self):        
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_3)
@@ -546,6 +552,8 @@ class TDTestQuery(TDCase):
         
         num3 = sql.count('where')
         self.logger.info("sqlnum3 %d" % num3) 
+        cur1.close()
+        conn1.close() 
 
     def right_case4(self):      
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_4)
@@ -654,6 +662,8 @@ class TDTestQuery(TDCase):
 
         num4 = sql.count('where')
         self.logger.info("sqlnum4 %d" % num4) 
+        cur1.close()
+        conn1.close() 
 
     def false_case1(self):
         self.logger.info("\n\n\n=======================================error case=======================================\n\n\n")
@@ -696,6 +706,8 @@ class TDTestQuery(TDCase):
                 raise e 
 
         #self.tdSql.execute('''drop database if exists %s ;''' %self.db)
+        cur1.close()
+        conn1.close() 
 
 
     def rm_sql(self):
