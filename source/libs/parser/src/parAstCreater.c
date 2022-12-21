@@ -1208,7 +1208,7 @@ SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SN
 
 SNode* createCreateMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pSubTables) {
   CHECK_PARSER_STATUS(pCxt);
-  SCreateMultiTableStmt* pStmt = (SCreateMultiTableStmt*)nodesMakeNode(QUERY_NODE_CREATE_MULTI_TABLE_STMT);
+  SCreateMultiTablesStmt* pStmt = (SCreateMultiTablesStmt*)nodesMakeNode(QUERY_NODE_CREATE_MULTI_TABLES_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->pSubTables = pSubTables;
   return (SNode*)pStmt;
@@ -1430,7 +1430,7 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const ST
   }
   SCreateUserStmt* pStmt = (SCreateUserStmt*)nodesMakeNode(QUERY_NODE_CREATE_USER_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->useName, pUserName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   strcpy(pStmt->password, password);
   pStmt->sysinfo = sysinfo;
   return (SNode*)pStmt;
@@ -1443,7 +1443,7 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
   }
   SAlterUserStmt* pStmt = (SAlterUserStmt*)nodesMakeNode(QUERY_NODE_ALTER_USER_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->useName, pUserName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   pStmt->alterType = alterType;
   switch (alterType) {
     case TSDB_ALTER_USER_PASSWD: {
