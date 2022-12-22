@@ -880,6 +880,8 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
     return -1;
   }
 
+  tdbDebug("pager/restore: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
+
   for (int pgIndex = 0; pgIndex < journalSize; ++pgIndex) {
     // read pgno & the page from journal
     SPgno pgno;
@@ -889,6 +891,8 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
       tdbOsFree(pageBuf);
       return -1;
     }
+
+    tdbTrace("pager/restore: restore pgno:%d,", pgno);
 
     ret = tdbOsRead(jfd, pageBuf, pPager->pageSize);
     if (ret < 0) {
