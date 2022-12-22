@@ -84,7 +84,7 @@ typedef struct time_wheel_t {
 } time_wheel_t;
 
 int32_t tmrDebugFlag = 131;
-uint32_t tsMaxTmrCtrl = 512;
+uint32_t tsMaxTmrCtrl = 20480;
 
 static pthread_once_t  tmrModuleInit = PTHREAD_ONCE_INIT;
 static pthread_mutex_t tmrCtrlMutex;
