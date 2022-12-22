@@ -20,6 +20,7 @@
 #include "parUtil.h"
 #include "querynodes.h"
 #include "tRealloc.h"
+#include "tdatablock.h"
 
 typedef struct SBlockKeyTuple {
   TSKEY   skey;
@@ -295,7 +296,7 @@ int32_t insGetDataBlockFromList(SHashObj* pHashList, void* id, int32_t idLen, in
   }
 
   if (*dataBlocks == NULL) {
-    int32_t ret = createDataBlock((size_t)size, rowSize, startOffset, pTableMeta, dataBlocks);
+    int32_t ret = createTableDataBlock((size_t)size, rowSize, startOffset, pTableMeta, dataBlocks);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -1370,4 +1371,78 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
   }
 
   return code;
+}
+
+int rawBlockBindData(SQuery *query, STableMeta* pTableMeta, SRetrieveTableRsp* pRsp, SVCreateTbReq *pCreateTb){
+  STableDataCxt* pTableCxt = NULL;
+  int ret = insGetTableDataCxt(((SVnodeModifOpStmt *)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid, sizeof(pTableMeta->uid),
+                           pTableMeta, &pCreateTb, &pTableCxt, true);
+  if (ret != TSDB_CODE_SUCCESS) {
+    uError("insGetTableDataCxt error");
+    goto end;
+  }
+
+  // no need to bind, because select * get all fields
+  ret = initTableColSubmitData(pTableCxt);
+  if (ret != TSDB_CODE_SUCCESS) {
+    uError( "initTableColSubmitData error");
+    goto end;
+  }
+
+  char* p = (char*)pRsp->data;
+  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column length |
+  p += sizeof(int32_t);
+  p += sizeof(int32_t);
+
+  int32_t numOfRows = *(int32_t*)p;
+  p += sizeof(int32_t);
+
+  int32_t numOfCols = *(int32_t*)p;
+  p += sizeof(int32_t);
+
+  p += sizeof(int32_t);
+  p += sizeof(uint64_t);
+
+  int8_t *fields = p;
+  p += numOfCols * (sizeof(int8_t) + sizeof(int32_t));
+
+  int32_t* colLength = (int32_t*)p;
+  p += sizeof(int32_t) * numOfCols;
+
+  char* pStart = p;
+
+  SSchema*            pSchema = getTableColumnSchema(pTableCxt->pMeta);
+  SBoundColInfo*      boundInfo = &pTableCxt->boundColsInfo;
+
+  if(boundInfo->numOfBound != numOfCols){
+    uError("boundInfo->numOfBound:%d != numOfCols:%d", boundInfo->numOfBound, numOfCols);
+    ret = TSDB_CODE_INVALID_PARA;
+    goto end;
+  }
+  for (int c = 0; c < boundInfo->numOfBound; ++c) {
+    SSchema* pColSchema = &pSchema[boundInfo->pColIndex[c]];
+    SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, c);
+
+    if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
+      uError( "type or bytes not equal");
+      ret = TSDB_CODE_INVALID_PARA;
+      goto end;
+    }
+
+    colLength[c] = htonl(colLength[c]);
+    int8_t* offset = pStart;
+    if (IS_VAR_DATA_TYPE(pColSchema->type)) {
+      pStart += numOfRows * sizeof(int32_t);
+    } else {
+      pStart += BitmapLen(numOfRows);
+    }
+    char *pData = pStart;
+
+    tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
+    fields += sizeof(int8_t) + sizeof(int32_t);
+    pStart += colLength[c];
+  }
+
+end:
+  return ret;
 }

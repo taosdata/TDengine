@@ -2091,6 +2091,61 @@ _exit:
   return code;
 }
 
+int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes,
+                                    int32_t nRows, char* lengthOrbitmap, char *data) {
+  int32_t code = 0;
+
+  if (IS_VAR_DATA_TYPE(type)) {  // var-length data type
+    for (int32_t i = 0; i < nRows; ++i) {
+      int32_t offset = *((int32_t*)lengthOrbitmap + i);
+      if (offset == -1) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+        if (code) goto _exit;
+      } else {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
+            pColData, (uint8_t *)varDataVal(data + offset), varDataLen(data + offset));
+      }
+    }
+  } else {  // fixed-length data type
+    bool allValue = true;
+    bool allNull  = true;
+    for (int32_t i = 0; i < nRows; ++i) {
+      if(!colDataIsNull_f(lengthOrbitmap, i)){
+        allNull = false;
+      }else{
+        allValue = false;
+      }
+    }
+
+    if (allValue) {
+      // optimize (todo)
+      for (int32_t i = 0; i < nRows; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
+            pColData, (uint8_t *)data + bytes * i, bytes);
+      }
+    } else if (allNull) {
+      // optimize (todo)
+      for (int32_t i = 0; i < nRows; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+        if (code) goto _exit;
+      }
+    } else {
+      for (int32_t i = 0; i < nRows; ++i) {
+        if (colDataIsNull_f(lengthOrbitmap, i)) {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+          if (code) goto _exit;
+        } else {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
+              pColData, (uint8_t *)data + bytes * i, bytes);
+        }
+      }
+    }
+  }
+
+  _exit:
+  return code;
+}
+
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind) {
   int32_t code = 0;
 
