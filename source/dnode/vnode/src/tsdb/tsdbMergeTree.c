@@ -501,7 +501,10 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
 
     if (iBlockL != pIter->iSttBlk) {
       pBlockData = loadLastBlock(pIter, idStr);
-      pIter->iRow += step;
+      if (pBlockData == NULL) {
+        goto _exit;
+      }
+      pIter->iRow = pIter->backward? pBlockData->nRow-1:0;
     }
   }
 
