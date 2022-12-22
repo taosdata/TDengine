@@ -15,13 +15,26 @@
 
 #include "vnd.h"
 
+extern int32_t tsdbCompact(STsdb *pTsdb, int32_t flag);
+
 extern void vnodePrepareCommit(SVnode *pVnode);
 
 static int32_t vnodeCompactImpl(SCommitInfo *pInfo) {
   int32_t code = 0;
+  int32_t lino = 0;
 
   // TODO
+  SVnode *pVnode = pInfo->pVnode;
 
+  code = tsdbCompact(pVnode->pTsdb, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    vError("vgId:%d %s failed since %s", TD_VID(pInfo->pVnode), __func__, tstrerror(code));
+  } else {
+    vDebug("vgId:%d %s done", TD_VID(pInfo->pVnode), __func__);
+  }
   return code;
 }
 

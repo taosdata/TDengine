@@ -801,6 +801,8 @@ static FORCE_INLINE TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
   return pIter->pRow;
 }
 
+int32_t tRowInfoCmprFn(const void *p1, const void *p2);
+
 #ifdef __cplusplus
 }
 #endif
