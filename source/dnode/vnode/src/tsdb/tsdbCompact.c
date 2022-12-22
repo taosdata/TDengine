@@ -280,6 +280,14 @@ _exit:
   return code;
 }
 
+static int32_t tsdbCompactNextRow(STsdbCompactor *pCompactor, TSDBROW **ppRow) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  // TODO
+_exit:
+  return code;
+}
+
 int32_t tsdbCompact(STsdb *pTsdb, int32_t flag) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -318,15 +326,14 @@ int32_t tsdbCompact(STsdb *pTsdb, int32_t flag) {
       if (pIter) tRBTreePut(&compactor.rtree, &pIter->n);
     }
 
-#if 0
-    if (flag & TSDB_FLG_DEEP_COMPACT) {
-      code = tsdbDeepCompact(&compactor);
+    // loop to merge row by row
+    TSDBROW *pRow = NULL;
+    for (;;) {
+      code = tsdbCompactNextRow(&compactor, &pRow);
       TSDB_CHECK_CODE(code, lino, _exit);
-    } else {
-      code = tsdbShallowCompact(&compactor);
-      TSDB_CHECK_CODE(code, lino, _exit);
+
+      if (pRow == NULL) break;
     }
-#endif
   }
 
 _exit:
