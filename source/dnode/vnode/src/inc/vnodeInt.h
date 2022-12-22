@@ -91,6 +91,7 @@ typedef struct SCommitInfo        SCommitInfo;
 
 // vnd.h
 void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
+void* vnodeBufPoolMallocAligned(SVBufPool* pPool, int size);
 void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
 void  vnodeBufPoolRef(SVBufPool* pPool);
 void  vnodeBufPoolUnRef(SVBufPool* pPool);
