@@ -657,7 +657,6 @@ typedef struct SStreamFillOperatorInfo {
   SSDataBlock*          pRes;
   SSDataBlock*          pSrcBlock;
   int32_t               srcRowIndex;
-  SSDataBlock*          pPrevSrcBlock;
   SSDataBlock*          pSrcDelBlock;
   int32_t               srcDelRowIndex;
   SSDataBlock*          pDelRes;
