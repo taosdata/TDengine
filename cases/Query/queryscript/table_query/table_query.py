@@ -140,6 +140,8 @@ class TDTestQuery(TDCase):
         
         num1 = sql.count('where')
         self.logger.info("sqlnum1 %d" % num1) 
+        cur1.close()
+        conn1.close() 
 
     def right_case2(self):
         self.logger.info("case2:select * from regular_table where condition order by ts asc | desc && select * from ( select front )")
@@ -264,6 +266,8 @@ class TDTestQuery(TDCase):
         
         num2 = sql.count('where')
         self.logger.info("sqlnum2 %d" % num2) 
+        cur1.close()
+        conn1.close() 
 
     def right_case3(self):
         self.logger.info("case3:select * from regular_table where condition order by ts limit && select * from ( select front )")
@@ -349,6 +353,8 @@ class TDTestQuery(TDCase):
         
         num3 = sql.count('where')
         self.logger.info("sqlnum3 %d" % num3) 
+        cur1.close()
+        conn1.close() 
 
     def right_case4(self):
         self.logger.info("case4:select * from regular_table where condition order by ts limit offset && select * from ( select front )")
@@ -416,6 +422,8 @@ class TDTestQuery(TDCase):
 
         num4 = sql.count('where')
         self.logger.info("sqlnum4 %d" % num4) 
+        cur1.close()
+        conn1.close() 
 
     def false_case1(self):
         self.logger.info("\n\n\n=======================================error case=======================================\n\n\n")
@@ -457,6 +465,8 @@ class TDTestQuery(TDCase):
                 raise e 
 
         #self.tdSql.execute('''drop database if exists %s ;''' %self.db)
+        cur1.close()
+        conn1.close() 
 
 
     def rm_sql(self):

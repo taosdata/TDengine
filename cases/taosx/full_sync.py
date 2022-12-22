@@ -46,7 +46,7 @@ class StaticFullSync(TDCase):
         self.stbname = [self.tdCom.get_long_name(3),self.tdCom.get_long_name(3)]
         self.tbname_m = [self.tdCom.get_long_name(1),self.tdCom.get_long_name(1)]
         self.tb_num = 100
-        self.row_num = 1000
+        self.row_num = 10000
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'
@@ -57,7 +57,7 @@ class StaticFullSync(TDCase):
         self.ntb_row_num = 100
         # param for taosx
         self.timeout = '10s'
-        self.replica = [1,3]
+        self.replica = [3]
     def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num):
         taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         thread_list = []
@@ -73,8 +73,8 @@ class StaticFullSync(TDCase):
         # for source_task in ['']:
         #     for target_task in ['']:
         for source_task in ['','+ws']:
-            for target_task in ['+ws']:
-            # for target_task in ['', '+ws']:
+            # for target_task in ['+ws']:
+            for target_task in ['', '+ws']:
                 thread_list = []
                 master_count_rows = []
                 master_sum = []
@@ -224,7 +224,7 @@ class StaticFullSync(TDCase):
             self.target_dbname = self.tdCom.get_long_name(5)
             self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica=replica)
             self.full_sync_db_stb('db')
-            self.full_sync_db_stb('stable')
+            # self.full_sync_db_stb('stable')
             # self.full_sync_ctb()
             # self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
             # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)

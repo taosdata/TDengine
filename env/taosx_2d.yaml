@@ -1,12 +1,12 @@
 settings:
   - name: taosd
-    fqdn: [vm85]
+    fqdn: [u1-40]
     spec:
       version: 3.0.1.0  # 默认最新版
       config: # common config for all dnodes
-        firstEP: vm85:6030
+        firstEP: u1-40:6030
       dnodes:
-        - endpoint: vm85:6030
+        - endpoint: u1-40:6030
           config_dir: /data/cyjia/data/taosd/cluster1
           config: # will write into taos.cfg
             serverPort: '6030'
@@ -14,14 +14,14 @@ settings:
             logDir: /data/cyjia/data/taosd/cluster1
             debugFlag: 135
             supportVnodes: 1024
-        - endpoint: vm85:6050
+        - endpoint: u1-40:6050
           config_dir: /data/cyjia/data/taosd/cluster2
           config: # will write into taos.cfg
             dataDir: /data/cyjia/data/taosd/cluster2
             logDir: /data/cyjia/data/taosd/cluster2
             debugFlag: 135
             supportVnodes: 1024
-        - endpoint: vm85:6070
+        - endpoint: u1-40:6070
           config_dir: /data/cyjia/data/taosd/cluster3
           config: # will write into taos.cfg
             dataDir: /data/cyjia/data/taosd/cluster3
@@ -29,28 +29,28 @@ settings:
             debugFlag: 135
             supportVnodes: 1024    
   - name: taosd
-    fqdn: [vm85]
+    fqdn: [u1-41]
     spec:
       version: 3.0.1.0  # 默认最新版
       config: # common config for all dnodes
-        firstEP: vm85:6130
+        firstEP: u1-41:6030
       dnodes:
-        - endpoint: vm85:6130
+        - endpoint: u1-41:6030
           config_dir: /data/cyjia/data/taosd_1/cluster1
           config: # will write into taos.cfg
-            serverPort: '6130'
+            serverPort: '6030'
             dataDir: /data/cyjia/data/taosd_1/cluster1
             logDir: /data/cyjia/data/taosd_1/cluster1
             debugFlag: 135
             supportVnodes: 1024
-        - endpoint: vm85:6150
+        - endpoint: u1-41:6050
           config_dir: /data/cyjia/data/taosd_1/cluster2
           config: # will write into taos.cfg
             dataDir: /data/cyjia/data/taosd_1/cluster2
             logDir: /data/cyjia/data/taosd_1/cluster2
             debugFlag: 135
             supportVnodes: 1024
-        - endpoint: vm85:6170
+        - endpoint: u1-41:6070
           config_dir: /data/cyjia/data/taosd_1/cluster3
           config: # will write into taos.cfg
             dataDir: /data/cyjia/data/taosd_1/cluster3
@@ -58,25 +58,25 @@ settings:
             debugFlag: 135
             supportVnodes: 1024
   - name: taospy
-    fqdn: [vm85]
+    fqdn: [u1-40]
     spec:
       version: 2.2.0
       client_version: 3.0.1.0
       config:
-        firstEP: vm85:6030
+        firstEP: u1-40:6030
         logDir: /data/cyjia/data/taosd
         debugFlag: 143
   - name: taospy
-    fqdn: [vm85]
+    fqdn: [u1-41]
     spec:
       version: 2.2.0
       client_version: 3.0.1.0
       config:
-        firstEP: vm85:6130
+        firstEP: u1-41:6030
         logDir: /data/cyjia/data/taosd_1
         debugFlag: 143
   - name: taosAdapter
-    fqdn: [vm85]
+    fqdn: [u1-40]
     spec:
       version: 3.0.1.0
       config_file: /data/cyjia/data/taosd/taosadaper.toml
@@ -99,17 +99,17 @@ settings:
         statsd:
           enable: false
       taos_config:
-        firstEP: vm85:6030
+        firstEP: u1-40:6030
         logDir: /data/cyjia/data/taosd
         debugFlag: 143
   - name: taosAdapter
-    fqdn: [vm85]
+    fqdn: [u1-41]
     spec:
       version: 3.0.1.0
       config_file: /data/cyjia/data/taosd_1/taosadaper.toml
       adapter_config:
         logLevel: info
-        port: 6141
+        port: 6041
         taosConfigDir: /data/cyjia/data/taosd_1
         log:
           path: /data/cyjia/data/taosd_1
@@ -126,26 +126,26 @@ settings:
         statsd:
           enable: false
       taos_config:
-        firstEP: vm85:6130
+        firstEP: u1-40:6130
         logDir: /data/cyjia/data/taosd_1
         debugFlag: 143
   - name: taosBenchmark
-    fqdn: [vm85]
+    fqdn: [u1-40]
     spec:
       version: 3.0.0.1
       taos_version: 3.0.0.1
       config_dir: /data/cyjia/data/taosd
       taos_config:
-        firstEP: vm85:6030
+        firstEP: u1-40:6030
         logDir: /data/cyjia/data/taosd
         debugFlag: 143
   - name: taosx
-    fqdn: [vm85]
+    fqdn: [u1-40]
     spec:
       version: 0.0.0.0
       taos_version: 3.0.0.1
       config_dir: /data/cyjia/data/taosd
       taos_config:
-        firstEP: vm85:6030
+        firstEP: u1-40:6030
         logDir: /data/cyjia/data/taosd
         debugFlag: 143
