@@ -352,7 +352,7 @@ static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STa
       code = catalogGetTableMeta(pParCxt->pCatalog, &conn, pName, pMeta);
     }
   }
-  if (TSDB_CODE_SUCCESS != code) {
+  if (TSDB_CODE_SUCCESS != code && TSDB_CODE_TSC_INVALID_TABLE_NAME != code) {
     parserError("0x%" PRIx64 " catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
                 tstrerror(code), pName->dbname, pName->tname);
   }
@@ -2837,7 +2837,7 @@ static int32_t rewriteProjectAlias(SNodeList* pProjectionList) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkProjectAlias(STranslateContext* pCxt, SNodeList* pProjectionList) {
+static int32_t checkProjectAlias(STranslateContext* pCxt, SNodeList* pProjectionList, SHashObj** pOutput) {
   SHashObj* pUserAliasSet = taosHashInit(LIST_LENGTH(pProjectionList),
                                          taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   SNode*    pProject = NULL;
@@ -2849,13 +2849,17 @@ static int32_t checkProjectAlias(STranslateContext* pCxt, SNodeList* pProjection
     }
     taosHashPut(pUserAliasSet, pExpr->userAlias, strlen(pExpr->userAlias), &pExpr, POINTER_BYTES);
   }
-  taosHashCleanup(pUserAliasSet);
+  if (NULL == pOutput) {
+    taosHashCleanup(pUserAliasSet);
+  } else {
+    *pOutput = pUserAliasSet;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateProjectionList(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pSelect->isSubquery) {
-    return checkProjectAlias(pCxt, pSelect->pProjectionList);
+    return checkProjectAlias(pCxt, pSelect->pProjectionList, NULL);
   }
   return rewriteProjectAlias(pSelect->pProjectionList);
 }
@@ -3899,8 +3903,7 @@ static int32_t checkDbKeepOption(STranslateContext* pCxt, SDatabaseOptions* pOpt
       pOptions->keep[0] > tsdbMaxKeep || pOptions->keep[1] > tsdbMaxKeep || pOptions->keep[2] > tsdbMaxKeep) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                    "Invalid option keep: %" PRId64 ", %" PRId64 ", %" PRId64 " valid range: [%dm, %dm]",
-                                   pOptions->keep[0], pOptions->keep[1], pOptions->keep[2], TSDB_MIN_KEEP,
-                                   tsdbMaxKeep);
+                                   pOptions->keep[0], pOptions->keep[1], pOptions->keep[2], TSDB_MIN_KEEP, tsdbMaxKeep);
   }
 
   if (!((pOptions->keep[0] <= pOptions->keep[1]) && (pOptions->keep[1] <= pOptions->keep[2]))) {
@@ -4055,7 +4058,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbPrecisionOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbKeepOption(pCxt, pOptions); // use precision
+    code = checkDbKeepOption(pCxt, pOptions);  // use precision
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "pages", pOptions->pages, TSDB_MIN_PAGES_PER_VNODE, TSDB_MAX_PAGES_PER_VNODE);
@@ -5080,7 +5083,7 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
 
 static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pStmt) {
   SCreateUserReq createReq = {0};
-  strcpy(createReq.user, pStmt->useName);
+  strcpy(createReq.user, pStmt->userName);
   createReq.createType = 0;
   createReq.superUser = 0;
   createReq.sysInfo = pStmt->sysinfo;
@@ -5092,7 +5095,7 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
 
 static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
   SAlterUserReq alterReq = {0};
-  strcpy(alterReq.user, pStmt->useName);
+  strcpy(alterReq.user, pStmt->userName);
   alterReq.alterType = pStmt->alterType;
   alterReq.superUser = 0;
   alterReq.enable = pStmt->enable;
@@ -5107,7 +5110,7 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
 
 static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) {
   SDropUserReq dropReq = {0};
-  strcpy(dropReq.user, pStmt->useName);
+  strcpy(dropReq.user, pStmt->userName);
 
   return buildCmdMsg(pCxt, TDMT_MND_DROP_USER, (FSerializeFunc)tSerializeSDropUserReq, &dropReq);
 }
@@ -5515,9 +5518,24 @@ static void getSourceDatabase(SNode* pStmt, int32_t acctId, char* pDbFName) {
   tNameGetFullDbName(&name, pDbFName);
 }
 
-static int32_t addWstartTsToCreateStreamQuery(SNode* pStmt) {
-  SSelectStmt* pSelect = (SSelectStmt*)pStmt;
-  SNode*       pProj = nodesListGetNode(pSelect->pProjectionList, 0);
+static void getStreamQueryFirstProjectAliasName(SHashObj* pUserAliasSet, char* aliasName, int32_t len) {
+  if (NULL == taosHashGet(pUserAliasSet, "_wstart", strlen("_wstart"))) {
+    snprintf(aliasName, len, "%s", "_wstart");
+    return;
+  }
+  if (NULL == taosHashGet(pUserAliasSet, "ts", strlen("ts"))) {
+    snprintf(aliasName, len, "%s", "ts");
+    return;
+  }
+  do {
+    taosRandStr(aliasName, len - 1);
+    aliasName[len - 1] = '\0';
+  } while (NULL != taosHashGet(pUserAliasSet, aliasName, strlen(aliasName)));
+  return;
+}
+
+static int32_t addWstartTsToCreateStreamQueryImpl(SSelectStmt* pSelect, SHashObj* pUserAliasSet) {
+  SNode* pProj = nodesListGetNode(pSelect->pProjectionList, 0);
   if (NULL == pSelect->pWindow ||
       (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp("_wstart", ((SFunctionNode*)pProj)->functionName))) {
     return TSDB_CODE_SUCCESS;
@@ -5527,11 +5545,22 @@ static int32_t addWstartTsToCreateStreamQuery(SNode* pStmt) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   strcpy(pFunc->functionName, "_wstart");
-  strcpy(pFunc->node.aliasName, pFunc->functionName);
+  getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName));
   int32_t code = nodesListPushFront(pSelect->pProjectionList, (SNode*)pFunc);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pFunc);
   }
+  return code;
+}
+
+static int32_t addWstartTsToCreateStreamQuery(STranslateContext* pCxt, SNode* pStmt) {
+  SSelectStmt* pSelect = (SSelectStmt*)pStmt;
+  SHashObj*    pUserAliasSet = NULL;
+  int32_t      code = checkProjectAlias(pCxt, pSelect->pProjectionList, &pUserAliasSet);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addWstartTsToCreateStreamQueryImpl(pSelect, pUserAliasSet);
+  }
+  taosHashCleanup(pUserAliasSet);
   return code;
 }
 
@@ -5637,7 +5666,7 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SSelectStmt* pSelect) {
 
 static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
   pCxt->createStream = true;
-  int32_t code = addWstartTsToCreateStreamQuery(pStmt->pQuery);
+  int32_t code = addWstartTsToCreateStreamQuery(pCxt, pStmt->pQuery);
   if (TSDB_CODE_SUCCESS == code) {
     code = addSubtableInfoToCreateStreamQuery(pCxt, pStmt);
   }
@@ -6616,7 +6645,7 @@ static void destroyCreateTbReqBatch(void* data) {
 }
 
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray) {
-  SVnodeModifOpStmt* pNewStmt = (SVnodeModifOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
+  SVnodeModifyOpStmt* pNewStmt = (SVnodeModifyOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT);
   if (pNewStmt == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -7000,7 +7029,7 @@ SArray* serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap) {
 }
 
 static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) {
-  SCreateMultiTableStmt* pStmt = (SCreateMultiTableStmt*)pQuery->pRoot;
+  SCreateMultiTablesStmt* pStmt = (SCreateMultiTablesStmt*)pQuery->pRoot;
 
   SHashObj* pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (NULL == pVgroupHashmap) {
@@ -7608,7 +7637,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
         code = rewriteCreateTable(pCxt, pQuery);
       }
       break;
-    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       code = rewriteCreateMultiTable(pCxt, pQuery);
       break;
     case QUERY_NODE_DROP_TABLE_STMT:
@@ -7705,9 +7734,9 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
       pQuery->msgType = TDMT_VND_SUBMIT;
       break;
-    case QUERY_NODE_VNODE_MODIF_STMT:
+    case QUERY_NODE_VNODE_MODIFY_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
-      pQuery->msgType = toMsgType(((SVnodeModifOpStmt*)pQuery->pRoot)->sqlNodeType);
+      pQuery->msgType = toMsgType(((SVnodeModifyOpStmt*)pQuery->pRoot)->sqlNodeType);
       break;
     case QUERY_NODE_DESCRIBE_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:

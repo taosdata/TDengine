@@ -164,7 +164,8 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
 STREAM_DECODE_OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("stream:%s, failed to decode from raw:%p since %s", pStream == NULL ? "null" : pStream->name, pRaw, terrstr());
+    mError("stream:%s, failed to decode from raw:%p since %s", pStream == NULL ? "null" : pStream->name, pRaw,
+           terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -325,13 +326,11 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
   // deserialize ast
   if (nodesStringToNode(pObj->ast, &pAst) < 0) {
-    /*ASSERT(0);*/
     goto FAIL;
   }
 
   // extract output schema from ast
   if (qExtractResultSchema(pAst, (int32_t *)&pObj->outputSchema.nCols, &pObj->outputSchema.pSchema) != 0) {
-    /*ASSERT(0);*/
     goto FAIL;
   }
 
@@ -346,13 +345,11 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
   // using ast and param to build physical plan
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
-    /*ASSERT(0);*/
     goto FAIL;
   }
 
   // save physcial plan
   if (nodesNodeToString((SNode *)pPlan, false, &pObj->physicalPlan, NULL) != 0) {
-    /*ASSERT(0);*/
     goto FAIL;
   }
 
@@ -360,7 +357,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   if (pCreate->numOfTags) {
     pObj->tagSchema.pSchema = taosMemoryCalloc(pCreate->numOfTags, sizeof(SSchema));
   }
-  ASSERT(pCreate->numOfTags == taosArrayGetSize(pCreate->pTags));
+  /*A(pCreate->numOfTags == taosArrayGetSize(pCreate->pTags));*/
   for (int32_t i = 0; i < pCreate->numOfTags; i++) {
     SField *pField = taosArrayGet(pCreate->pTags, i);
     pObj->tagSchema.pSchema[i].colId = pObj->outputSchema.nCols + i + 1;
@@ -377,9 +374,6 @@ FAIL:
 }
 
 int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
-  if (pTask->taskLevel == TASK_LEVEL__AGG) {
-    ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
-  }
   SEncoder encoder;
   tEncoderInit(&encoder, NULL, 0);
   tEncodeSStreamTask(&encoder, pTask);
@@ -544,8 +538,6 @@ _OVER:
 }
 
 static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
-  ASSERT(pTask->nodeId != 0);
-
   // vnode
   /*if (pTask->nodeId > 0) {*/
   SVDropStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVDropStreamTaskReq));
@@ -624,6 +616,16 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  pDb = mndAcquireDb(pMnode, streamObj.sourceDb);
+  if (pDb->cfg.replications != 1) {
+    mError("stream source db must have only 1 replica, but %s has %d", pDb->name, pDb->cfg.replications);
+    terrno = TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB;
+    mndReleaseDb(pMnode, pDb);
+    pDb = NULL;
+    goto _OVER;
+  }
+  mndReleaseDb(pMnode, pDb);
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream");
   if (pTrans == NULL) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
@@ -680,7 +682,6 @@ _OVER:
   }
 
   mndReleaseStream(pMnode, pStream);
-  mndReleaseDb(pMnode, pDb);
 
   tFreeSCMCreateStreamReq(&createStreamReq);
   tFreeStreamObj(&streamObj);
@@ -790,10 +791,9 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
       int32_t sz = taosArrayGetSize(pLevel);
       for (int32_t j = 0; j < sz; j++) {
         SStreamTask *pTask = taosArrayGetP(pLevel, j);
-        ASSERT(pTask->nodeId > 0);
+        /*A(pTask->nodeId > 0);*/
         SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->nodeId);
         if (pVgObj == NULL) {
-          ASSERT(0);
           taosRUnLockLatch(&pStream->lock);
           mndReleaseStream(pMnode, pStream);
           mndTransDrop(pTrans);
@@ -853,7 +853,6 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   SMDropStreamReq dropReq = {0};
   if (tDeserializeSMDropStreamReq(pReq->pCont, pReq->contLen, &dropReq) < 0) {
-    ASSERT(0);
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }

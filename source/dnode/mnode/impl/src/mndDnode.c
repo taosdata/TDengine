@@ -672,6 +672,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   snprintf(ep, TSDB_EP_LEN, "%s:%d", createReq.fqdn, createReq.port);
   pDnode = mndAcquireDnodeByEp(pMnode, ep);
   if (pDnode != NULL) {
+    terrno = TSDB_CODE_MND_DNODE_ALREADY_EXIST;
     goto _OVER;
   }
 

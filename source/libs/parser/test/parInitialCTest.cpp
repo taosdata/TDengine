@@ -48,7 +48,7 @@ TEST_F(ParserInitialCTest, createAccount) {
  *   | PRECISION {'ms' | 'us' | 'ns'}
  *   | REPLICA value
  *   | RETENTIONS ingestion_duration:keep_duration ...
- *   | STRICT {'off' | 'on'}
+ *   | STRICT {'off' | 'on'}  // not support
  *   | WAL_LEVEL value
  *   | VGROUPS value
  *   | SINGLE_STABLE {0 | 1}
@@ -216,7 +216,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   addDbRetentionFunc(15 * MILLISECOND_PER_SECOND, 7 * MILLISECOND_PER_DAY, TIME_UNIT_SECOND, TIME_UNIT_DAY);
   addDbRetentionFunc(1 * MILLISECOND_PER_MINUTE, 21 * MILLISECOND_PER_DAY, TIME_UNIT_MINUTE, TIME_UNIT_DAY);
   addDbRetentionFunc(15 * MILLISECOND_PER_MINUTE, 500 * MILLISECOND_PER_DAY, TIME_UNIT_MINUTE, TIME_UNIT_DAY);
-  setDbStrictaFunc(1);
+  // setDbStrictaFunc(1);
   setDbWalLevelFunc(2);
   setDbVgroupsFunc(100);
   setDbSingleStableFunc(1);
@@ -244,7 +244,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "PRECISION 'ns' "
       "REPLICA 3 "
       "RETENTIONS 15s:7d,1m:21d,15m:500d "
-      "STRICT 'on' "
+      //      "STRICT 'on' "
       "WAL_LEVEL 2 "
       "VGROUPS 100 "
       "SINGLE_STABLE 1 "
