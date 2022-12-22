@@ -98,6 +98,9 @@ LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 #include <errno.h>
 #include <libproc.h>
 #include <sys/sysctl.h>
+#include <SystemConfiguration/SCDynamicStoreCopySpecific.h>
+#include <CoreFoundation/CFString.h>
+#include <stdio.h>
 
 #else
 
@@ -1048,20 +1051,44 @@ bool taosCheckCurrentInDll() {
 #endif
 }
 
-int taosGetlocalhostname(char *hostname, size_t maxLen) {
 #ifdef _TD_DARWIN_64
+int taosGetMaclocalhostnameByCommand(char *hostname, size_t maxLen) {
   TdCmdPtr pCmd = taosOpenCmd("scutil --get LocalHostName");
   if (pCmd != NULL) {
-    if (taosGetsCmd(pCmd, maxLen-1, hostname) > 0) {
+    if (taosGetsCmd(pCmd, maxLen - 1, hostname) > 0) {
       int len = strlen(hostname);
-      if (hostname[len-1] == '\n') {
-        hostname[len-1] = '\0';
+      if (hostname[len - 1] == '\n') {
+        hostname[len - 1] = '\0';
       }
       return 0;
     }
     taosCloseCmd(&pCmd);
   }
   return -1;
+}
+
+int getMacLocalHostNameBySCD(char *hostname, size_t maxLen) {
+  SCDynamicStoreRef store = SCDynamicStoreCreate(NULL, CFSTR(""), NULL, NULL);
+  CFStringRef       hostname_cfstr = SCDynamicStoreCopyLocalHostName(store);
+  if (hostname_cfstr != NULL) {
+    CFStringGetCString(hostname_cfstr, hostname, maxLen - 1, kCFStringEncodingMacRoman);
+    CFRelease(hostname_cfstr);
+  } else {
+    return -1;
+  }
+  CFRelease(store);
+  return 0;
+}
+#endif
+
+int taosGetlocalhostname(char *hostname, size_t maxLen) {
+#ifdef _TD_DARWIN_64
+  int res = getMacLocalHostNameBySCD(hostname, maxLen);
+  if (res != 0) {
+    return taosGetMaclocalhostnameByCommand(hostname, maxLen);
+  } else {
+    return 0;
+  }
 #else
   return gethostname(hostname, maxLen);
 #endif
