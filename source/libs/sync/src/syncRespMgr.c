@@ -107,7 +107,7 @@ int32_t syncRespMgrGetAndDel(SSyncRespMgr *pObj, uint64_t seq, SRpcHandleInfo *p
     taosThreadMutexUnlock(&pObj->mutex);
     return 1;  // get one object
   } else {
-    sNError(pObj->data, "get-and-del message handle, no object of seq:%" PRIu64, seq);
+    sNTrace(pObj->data, "get-and-del message handle, no object of seq:%" PRIu64, seq);
   }
 
   taosThreadMutexUnlock(&pObj->mutex);
