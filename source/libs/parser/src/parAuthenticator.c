@@ -108,7 +108,7 @@ static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
   return checkAuth(pCxt, pStmt->dbName, AUTH_TYPE_WRITE);
 }
 
-static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTableStmt* pStmt) {
+static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
   FOREACH(pNode, pStmt->pSubTables) {
@@ -134,8 +134,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authInsert(pCxt, (SInsertStmt*)pStmt);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return authCreateTable(pCxt, (SCreateTableStmt*)pStmt);
-    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
-      return authCreateMultiTable(pCxt, (SCreateMultiTableStmt*)pStmt);
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+      return authCreateMultiTable(pCxt, (SCreateMultiTablesStmt*)pStmt);
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
