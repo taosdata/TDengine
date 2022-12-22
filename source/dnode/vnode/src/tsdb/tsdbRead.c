@@ -3484,7 +3484,7 @@ int32_t doMergeMemTableMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, 
     tsdbRowMerge(&merge, pNextRow);
   }
 
-  code = doMergeRowsInBuf(pIter, uid, current.pTSRow->ts, pDelList, &merge, pReader);
+  code = doMergeRowsInBuf(pIter, uid, TSDBROW_TS(&current), pDelList, &merge, pReader);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -3494,7 +3494,7 @@ int32_t doMergeMemTableMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, 
     return code;
   }
 
-  pResRow->type = current.type;
+  pResRow->type = TSDBROW_ROW_FMT;
   tsdbRowMergerClear(&merge);
   *freeTSRow = true;
 
