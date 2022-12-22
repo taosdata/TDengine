@@ -104,6 +104,7 @@ extern const int32_t TYPE_BYTES[16];
 
 #define TSDB_INDEX_TYPE_SMA      "SMA"
 #define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"
+#define TSDB_INDEX_TYPE_NORMAL   "NORMAL"
 
 #define TSDB_INS_USER_STABLES_DBNAME_COLID 2
 
@@ -310,7 +311,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_KEEP                   (1 * 1440)          // data in db to be reserved. unit minute
 #define TSDB_MAX_KEEP                   (365000 * 1440)     // data in db to be reserved.
 #define TSDB_MAX_KEEP_NS                (365 * 292 * 1440)  // data in db to be reserved.
-#define TSDB_DEFAULT_KEEP               (3650 * 1440)    // ten years
+#define TSDB_DEFAULT_KEEP               (3650 * 1440)       // ten years
 #define TSDB_MIN_MINROWS_FBLOCK         10
 #define TSDB_MAX_MINROWS_FBLOCK         1000
 #define TSDB_DEFAULT_MINROWS_FBLOCK     100

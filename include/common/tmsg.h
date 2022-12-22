@@ -2765,6 +2765,23 @@ int32_t tSerializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 
 typedef struct {
+  char   dbFName[TSDB_DB_FNAME_LEN];
+  char   stbName[TSDB_TABLE_NAME_LEN];
+  char   colName[TSDB_COL_NAME_LEN];
+  char   idxName[TSDB_COL_NAME_LEN];
+  int8_t idxType;
+} SCreateTagIndexReq;
+
+int32_t tSerializeSCreateTagIdxReq(void* buf, int32_t bufLen, SCreateTagIndexReq* pReq);
+int32_t tDeserializeSCreateTagIdxReq(void* buf, int32_t bufLen, SCreateTagIndexReq* pReq);
+
+typedef struct {
+  char   dbFName[TSDB_DB_FNAME_LEN];
+  char   stb[TSDB_TABLE_FNAME_LEN];
+  int8_t indexType;
+} SDropTagIndexReq;
+
+typedef struct {
   int8_t         version;       // for compatibility(default 0)
   int8_t         intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t         slidingUnit;   // MACRO: TIME_UNIT_XXX
