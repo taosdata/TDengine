@@ -1430,16 +1430,16 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     case TDMT_VND_SUBMIT + 1:
     case TDMT_SCH_QUERY + 1:
     case TDMT_SCH_MERGE_QUERY + 1:
-      // uniform to one error code: TSDB_CODE_RPC_VGROUP_NOT_CONNECTED
-      if (pMsg->code == TSDB_CODE_RPC_VGROUP_BROKEN_LINK) {
-        pMsg->code = TSDB_CODE_RPC_VGROUP_NOT_CONNECTED;
+      // uniform to one error code: TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED
+      if (pMsg->code == TSDB_CODE_RPC_SOMENODE_BROKEN_LINK) {
+        pMsg->code = TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED;
       }
       break;
     default:
       // restore origin code
-      if (pMsg->code == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED) {
+      if (pMsg->code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED) {
         pMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-      } else if (pMsg->code == TSDB_CODE_RPC_VGROUP_BROKEN_LINK) {
+      } else if (pMsg->code == TSDB_CODE_RPC_SOMENODE_BROKEN_LINK) {
         pMsg->code = TSDB_CODE_RPC_BROKEN_LINK;
       }
       break;
