@@ -1378,7 +1378,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
 
   SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
   if (NULL == dst) {
-    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
   dst->vg = vgData;
@@ -1569,7 +1569,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
 
   SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
   if (NULL == dst) {
-    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
   dst->vg = vgData;
@@ -1696,7 +1696,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
       goto end;
     }
   }
-
+  
   code = smlBuildOutput(pQuery, pVgHash);
   if (code != TSDB_CODE_SUCCESS) {
     uError("smlBuildOutput failed");

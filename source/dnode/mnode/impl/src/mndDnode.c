@@ -383,9 +383,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
               pGid->syncCanRead != pVload->syncCanRead) {
             mInfo(
                 "vgId:%d, state changed by status msg, old state:%s restored:%d canRead:%d new state:%s restored:%d "
-                "canRead:%d",
+                "canRead:%d, dnode:%d",
                 pVgroup->vgId, syncStr(pGid->syncState), pGid->syncRestore, pGid->syncCanRead,
-                syncStr(pVload->syncState), pVload->syncRestore, pVload->syncCanRead);
+                syncStr(pVload->syncState), pVload->syncRestore, pVload->syncCanRead, pDnode->id);
             pGid->syncState = pVload->syncState;
             pGid->syncRestore = pVload->syncRestore;
             pGid->syncCanRead = pVload->syncCanRead;
@@ -672,6 +672,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   snprintf(ep, TSDB_EP_LEN, "%s:%d", createReq.fqdn, createReq.port);
   pDnode = mndAcquireDnodeByEp(pMnode, ep);
   if (pDnode != NULL) {
+    terrno = TSDB_CODE_MND_DNODE_ALREADY_EXIST;
     goto _OVER;
   }
 
@@ -787,7 +788,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   int32_t numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
   if ((numOfVnodes > 0 || pMObj != NULL || pSObj != NULL || pQObj != NULL) && !dropReq.force) {
     if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
-      terrno = TSDB_CODE_NODE_OFFLINE;
+      terrno = TSDB_CODE_DNODE_OFFLINE;
       mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
              numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
       goto _OVER;

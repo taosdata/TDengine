@@ -22,6 +22,36 @@
 #include "ttime.h"
 #include "ttypes.h"
 
+typedef struct SKvParam {
+  int16_t  pos;
+  SArray*  pTagVals;
+  SSchema* schema;
+  char     buf[TSDB_MAX_TAGS_LEN];
+} SKvParam;
+
+int32_t qCloneCurrentTbData(STableDataCxt*       pDataBlock, SSubmitTbData **pData) {
+  *pData = taosMemoryCalloc(1, sizeof(SSubmitTbData));
+  if (NULL == *pData) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SSubmitTbData *pNew = *pData;
+  
+  *pNew = *pDataBlock->pData;
+  
+  cloneSVreateTbReq(pDataBlock->pData->pCreateTbReq, &pNew->pCreateTbReq);
+  pNew->aCol = taosArrayDup(pDataBlock->pData->aCol, NULL);
+
+  int32_t colNum = taosArrayGetSize(pNew->aCol);
+  for (int32_t i = 0; i < colNum; ++i) {
+    SColData *pCol = (SColData*)taosArrayGet(pNew->aCol, i);
+    tColDataDeepClear(pCol);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash) {
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* pVgDataBlocks = NULL;
@@ -48,7 +78,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
   int32_t  code = TSDB_CODE_SUCCESS;
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
   if (NULL == tags) {
-    return TSDB_CODE_QRY_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
 
   SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
@@ -134,6 +164,14 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
     goto end;
   }
 
+  if (NULL == pDataBlock->pData->pCreateTbReq) {
+    pDataBlock->pData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+    if (NULL == pDataBlock->pData->pCreateTbReq) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto end;
+    }
+  }
+
   insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName, pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
 
 end:
@@ -174,7 +212,7 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
       continue;
     }
     
-    if (!taosMbsToUcs4(src->buffer + src->buffer_length * i, src->length[i], (TdUcs4*)(dst->buffer + dst->buffer_length * i), dst->buffer_length, &output)) {
+    if (!taosMbsToUcs4(((char*)src->buffer) + src->buffer_length * i, src->length[i], (TdUcs4*)(((char*)dst->buffer) + dst->buffer_length * i), dst->buffer_length, &output)) {
       if (errno == E2BIG) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
@@ -285,7 +323,7 @@ _return:
 int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_E** fields,
                          uint8_t timePrec) {
   if (fields) {
-    *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD));
+    *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD_E));
     if (NULL == *fields) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -312,7 +350,7 @@ int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TA
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
   if (NULL == tags) {
-    return TSDB_CODE_QRY_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
 
   if (pDataBlock->pMeta->tableType != TSDB_SUPER_TABLE && pDataBlock->pMeta->tableType != TSDB_CHILD_TABLE) {
@@ -350,7 +388,7 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fiel
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qResetStmtDataBlock(void* block, bool deepClear) {
+int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
   STableDataCxt* pBlock = (STableDataCxt*)block;
   int32_t colNum = taosArrayGetSize(pBlock->pData->aCol);
 
@@ -366,7 +404,7 @@ int32_t qResetStmtDataBlock(void* block, bool deepClear) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qCloneStmtDataBlock(void** pDst, void* pSrc, bool reset) {
+int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool reset) {
   int32_t code = 0;
   
   *pDst = taosMemoryCalloc(1, sizeof(STableDataCxt));
@@ -429,7 +467,7 @@ int32_t qCloneStmtDataBlock(void** pDst, void* pSrc, bool reset) {
   return code;
 }
 
-int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc, uint64_t uid, int32_t vgId) {
+int32_t qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_t uid, uint64_t suid, int32_t vgId, bool rebuildCreateTb) {
   int32_t code = qCloneStmtDataBlock(pDst, pSrc, false);
   if (code) {
     return code;
@@ -439,14 +477,25 @@ int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc, uint64_t uid, int32_t vgI
   if (pBlock->pMeta) {
     pBlock->pMeta->uid = uid;
     pBlock->pMeta->vgId = vgId;
+    pBlock->pMeta->suid = suid;
+  }
+
+  pBlock->pData->suid = suid;
+  pBlock->pData->uid = uid;
+
+  if (rebuildCreateTb && NULL == pBlock->pData->pCreateTbReq) {
+    pBlock->pData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+    if (NULL == pBlock->pData->pCreateTbReq) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-STableMeta* qGetTableMetaInDataBlock(void* pDataBlock) { return ((STableDataCxt*)pDataBlock)->pMeta; }
+STableMeta* qGetTableMetaInDataBlock(STableDataCxt* pDataBlock) { return ((STableDataCxt*)pDataBlock)->pMeta; }
 
-void qDestroyStmtDataBlock(void* pBlock) {
+void qDestroyStmtDataBlock(STableDataCxt* pBlock) {
   if (pBlock == NULL) {
     return;
   }

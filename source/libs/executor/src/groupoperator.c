@@ -310,11 +310,12 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
                                           len, pBlock->info.id.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
-      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_APP_ERROR);
+      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
     }
 
     int32_t rowIndex = j - num;
-    applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows, pOperator->exprSupp.numOfExprs);
+    applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows,
+                                    pOperator->exprSupp.numOfExprs);
 
     // assign the group keys or user input constant values if required
     doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
@@ -327,11 +328,12 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
                                           len, pBlock->info.id.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {
-      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_APP_ERROR);
+      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
     }
 
     int32_t rowIndex = pBlock->info.rows - num;
-    applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows, pOperator->exprSupp.numOfExprs);
+    applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows,
+                                    pOperator->exprSupp.numOfExprs);
     doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
   }
 }
@@ -469,8 +471,8 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode*
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   setOperatorInfo(pOperator, "GroupbyAggOperator", 0, true, OP_NOT_OPENED, pInfo, pTaskInfo);
 
-  pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, hashGroupbyAggregate, NULL, destroyGroupOperatorInfo, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashGroupbyAggregate, NULL, destroyGroupOperatorInfo,
+                                         optrDefaultBufFn, NULL);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -696,6 +698,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
   pInfo->pageIndex += 1;
   releaseBufPage(pInfo->pBuf, page);
 
+  pInfo->binfo.pRes->info.dataLoad = 1;
   blockDataUpdateTsWindow(pInfo->binfo.pRes, 0);
   pInfo->binfo.pRes->info.id.groupId = pGroupInfo->groupId;
 
@@ -776,6 +779,12 @@ static void destroyPartitionOperatorInfo(void* param) {
 
   taosArrayDestroy(pInfo->pGroupColVals);
   taosMemoryFree(pInfo->keyBuf);
+
+  int32_t size = taosArrayGetSize(pInfo->sortedGroupArray);
+  for (int32_t i = 0; i < size; i++) {
+    SDataGroupInfo* pGp = taosArrayGet(pInfo->sortedGroupArray, i);
+    taosArrayDestroy(pGp->pPageList);
+  }
   taosArrayDestroy(pInfo->sortedGroupArray);
 
   void* pGroupIter = taosHashIterate(pInfo->pGroupSet, NULL);
@@ -850,7 +859,8 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
   pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->exprSupp.pExprInfo = pExprInfo;
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, hashPartition, NULL, destroyPartitionOperatorInfo, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(optrDummyOpenFn, hashPartition, NULL, destroyPartitionOperatorInfo, optrDefaultBufFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
@@ -951,6 +961,8 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   }
   taosArrayDestroy(pParInfo->rowIds);
   pParInfo->rowIds = NULL;
+  pDest->info.dataLoad = 1;
+
   blockDataUpdateTsWindow(pDest, pInfo->tsColIndex);
   pDest->info.id.groupId = pParInfo->groupId;
   pOperator->resultInfo.totalRows += pDest->info.rows;
@@ -1141,8 +1153,8 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->exprSupp.pExprInfo = pExprInfo;
-  pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doStreamHashPartition, NULL, destroyStreamPartitionOperatorInfo, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamHashPartition, NULL,
+                                         destroyStreamPartitionOperatorInfo, optrDefaultBufFn, NULL);
 
   initParDownStream(downstream, &pInfo->partitionSup, &pInfo->scalarSup);
   code = appendDownstream(pOperator, &downstream, 1);

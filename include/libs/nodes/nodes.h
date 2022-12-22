@@ -60,6 +60,12 @@ extern "C" {
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
        (NULL != cell ? (node = &(cell->pNode), true) : (node = NULL, false)); cell = cell->pNext)
 
+#define NODES_DESTORY_NODE(node) \
+  do {                           \
+    nodesDestroyNode((node));    \
+    (node) = NULL;               \
+  } while (0)
+
 #define NODES_DESTORY_LIST(list) \
   do {                           \
     nodesDestroyList((list));    \
@@ -106,6 +112,7 @@ typedef enum ENodeType {
   QUERY_NODE_COLUMN_REF,
   QUERY_NODE_WHEN_THEN,
   QUERY_NODE_CASE_WHEN,
+  QUERY_NODE_EVENT_WINDOW,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -258,7 +265,10 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT,
   QUERY_NODE_PHYSICAL_PLAN_DELETE,
   QUERY_NODE_PHYSICAL_SUBPLAN,
-  QUERY_NODE_PHYSICAL_PLAN
+  QUERY_NODE_PHYSICAL_PLAN,
+  QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT
 } ENodeType;
 
 /**

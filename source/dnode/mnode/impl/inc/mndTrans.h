@@ -75,6 +75,7 @@ void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, voi
 void    mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname);
 void    mndTransSetSerial(STrans *pTrans);
 void    mndTransSetOper(STrans *pTrans, EOperType oper);
+int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 int32_t mndTransProcessRsp(SRpcMsg *pRsp);

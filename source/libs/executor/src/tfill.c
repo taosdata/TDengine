@@ -45,8 +45,18 @@ static void setNullRow(SSDataBlock* pBlock, SFillInfo* pFillInfo, int32_t rowInd
     if (pCol->notFillCol) {
       bool filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDstColInfo, rowIndex);
       if (!filled) {
-        SArray*     p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->prev.pRowVal : pFillInfo->next.pRowVal;
-        SGroupKeys* pKey = taosArrayGet(p, i);
+        SRowVal* p = NULL;
+        if (FILL_IS_ASC_FILL(pFillInfo)) {
+          if (pFillInfo->prev.key != 0) {
+            p = &pFillInfo->prev;  // prev has been set value
+          } else { // otherwise, use the value in the next row
+            p = &pFillInfo->next;
+          }
+        } else {
+          p = &pFillInfo->next;
+        }
+
+        SGroupKeys* pKey = taosArrayGet(p->pRowVal, i);
         doSetVal(pDstColInfo, rowIndex, pKey);
       }
     } else {
@@ -246,7 +256,10 @@ static void initBeforeAfterDataBuf(SFillInfo* pFillInfo) {
 
 static void saveColData(SArray* rowBuf, int32_t columnIndex, const char* src, bool isNull);
 
-static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SArray* pRow) {
+static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SRowVal* pRowVal) {
+  SColumnInfoData* pTsCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, pFillInfo->srcTsSlotId);
+  pRowVal->key = ((int64_t*)pTsCol->pData)[rowIndex];
+
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     int32_t type = pFillInfo->pFillCol[i].pExpr->pExpr->nodeType;
     if (type == QUERY_NODE_COLUMN || type == QUERY_NODE_OPERATOR || type == QUERY_NODE_FUNCTION) {
@@ -257,7 +270,7 @@ static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SArray
       bool  isNull = colDataIsNull_s(pSrcCol, rowIndex);
       char* p = colDataGetData(pSrcCol, rowIndex);
 
-      saveColData(pRow, i, p, isNull);
+      saveColData(pRowVal->pRowVal, i, p, isNull);
     } else {
       ASSERT(0);
     }
@@ -281,7 +294,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
 
     // set the next value for interpolation
     if ((pFillInfo->currentKey < ts && ascFill) || (pFillInfo->currentKey > ts && !ascFill)) {
-      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pFillInfo->next.pRowVal);
+      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, &pFillInfo->next);
     }
 
     if (((pFillInfo->currentKey < ts && ascFill) || (pFillInfo->currentKey > ts && !ascFill)) &&
@@ -303,7 +316,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
 
       if (pFillInfo->type == TSDB_FILL_NEXT && (pFillInfo->index + 1) < pFillInfo->numOfRows) {
         int32_t nextRowIndex = pFillInfo->index + 1;
-        copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, pFillInfo->next.pRowVal);
+        copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, &pFillInfo->next);
       }
 
       // copy rows to dst buffer
@@ -319,6 +332,9 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
         if (!colDataIsNull_s(pSrc, pFillInfo->index)) {
           colDataAppend(pDst, index, src, false);
           saveColData(pFillInfo->prev.pRowVal, i, src, false);
+          if (pFillInfo->srcTsSlotId == dstSlotId) {
+            pFillInfo->prev.key = *(int64_t*)src;
+          }
         } else {  // the value is null
           if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
             colDataAppend(pDst, index, (const char*)&pFillInfo->currentKey, false);

@@ -28,6 +28,8 @@
 #undef TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
 
+#include "tlog.h"
+
 int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
   if (pMsg == NULL) {
     terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
@@ -551,6 +553,8 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
   if (pReq->ast2Len > 0) {
     if (tEncodeBinary(&encoder, pReq->pAst2, pReq->ast2Len) < 0) return -1;
   }
+  if (tEncodeI64(&encoder, pReq->deleteMark1) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->deleteMark2) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -643,6 +647,9 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
     if (pReq->pAst2 == NULL) return -1;
     if (tDecodeCStrTo(&decoder, pReq->pAst2) < 0) return -1;
   }
+
+  if (tDecodeI64(&decoder, &pReq->deleteMark1) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->deleteMark2) < 0) return -1;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
@@ -822,6 +829,7 @@ int32_t tSerializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pReq
   if (pReq->astLen > 0) {
     if (tEncodeBinary(&encoder, pReq->ast, pReq->astLen) < 0) return -1;
   }
+  if (tEncodeI64(&encoder, pReq->deleteMark) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -870,7 +878,7 @@ int32_t tDeserializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pR
     if (pReq->ast == NULL) return -1;
     if (tDecodeCStrTo(&decoder, pReq->ast) < 0) return -1;
   }
-
+  if (tDecodeI64(&decoder, &pReq->deleteMark) < 0) return -1;
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
@@ -992,7 +1000,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tEncodeI32(&encoder, vlen) < 0) return -1;
   for (int32_t i = 0; i < vlen; ++i) {
     SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
-    int64_t reserved = 0;
+    int64_t     reserved = 0;
     if (tEncodeI32(&encoder, pload->vgId) < 0) return -1;
     if (tEncodeI8(&encoder, pload->syncState) < 0) return -1;
     if (tEncodeI8(&encoder, pload->syncRestore) < 0) return -1;
@@ -5696,6 +5704,25 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
   return 0;
 }
 
+void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
+  if (pReq == NULL) return;
+
+  if (flags & TSDB_MSG_FLG_ENCODE) {
+    // TODO
+  } else if (flags & TSDB_MSG_FLG_DECODE) {
+    if (pReq->comment) {
+      pReq->comment = NULL;
+      taosMemoryFree(pReq->comment);
+    }
+
+    if (pReq->type == TSDB_CHILD_TABLE) {
+      if (pReq->ctb.tagName) taosArrayDestroy(pReq->ctb.tagName);
+    } else if (pReq->type == TSDB_NORMAL_TABLE) {
+      if (pReq->ntb.schemaRow.pSchema) taosMemoryFree(pReq->ntb.schemaRow.pSchema);
+    }
+  }
+}
+
 int tEncodeSVCreateTbBatchReq(SEncoder *pCoder, const SVCreateTbBatchReq *pReq) {
   int32_t nReq = taosArrayGetSize(pReq->pArray);
 
@@ -6867,11 +6894,16 @@ _exit:
 }
 
 void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
-  if (pTbData->pCreateTbReq) {
-    taosMemoryFree(pTbData->pCreateTbReq);
+  if (NULL == pTbData) {
+    return;
   }
 
   if (flag == TSDB_MSG_FLG_ENCODE) {
+    if (pTbData->pCreateTbReq) {
+      tdDestroySVCreateTbReq(pTbData->pCreateTbReq);
+      taosMemoryFree(pTbData->pCreateTbReq);
+    }
+
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       int32_t   nColData = TARRAY_SIZE(pTbData->aCol);
       SColData *aColData = (SColData *)TARRAY_DATA(pTbData->aCol);
@@ -6890,6 +6922,11 @@ void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
       taosArrayDestroy(pTbData->aRowP);
     }
   } else if (flag == TSDB_MSG_FLG_DECODE) {
+    if (pTbData->pCreateTbReq) {
+      tDestroySVCreateTbReq(pTbData->pCreateTbReq, TSDB_MSG_FLG_DECODE);
+      taosMemoryFree(pTbData->pCreateTbReq);
+    }
+
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       taosArrayDestroy(pTbData->aCol);
     } else {
@@ -6975,7 +7012,7 @@ void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
   if (NULL == pRsp) {
     return;
   }
-  
+
   if (flag & TSDB_MSG_FLG_ENCODE) {
     if (pRsp->aCreateTbRsp) {
       int32_t        nCreateTbRsp = TARRAY_SIZE(pRsp->aCreateTbRsp);

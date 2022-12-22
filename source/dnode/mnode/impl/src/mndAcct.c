@@ -220,7 +220,7 @@ static int32_t mndProcessCreateAcctReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
@@ -230,7 +230,7 @@ static int32_t mndProcessAlterAcctReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
@@ -240,7 +240,7 @@ static int32_t mndProcessDropAcctReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }

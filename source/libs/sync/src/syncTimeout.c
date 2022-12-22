@@ -19,6 +19,8 @@
 #include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncReplication.h"
+#include "syncRespMgr.h"
+#include "syncSnapshot.h"
 #include "syncUtil.h"
 
 static void syncNodeCleanConfigIndex(SSyncNode* ths) {
@@ -69,6 +71,20 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   }
 
   int64_t timeNow = taosGetTimestampMs();
+
+  for (int i = 0; i < ths->peersNum; ++i) {
+    SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(ths->peersId[i]));
+    if (pSender != NULL) {
+      if (ths->isStart && ths->state == TAOS_SYNC_STATE_LEADER && pSender->start &&
+          timeNow - pSender->lastSendTime > SYNC_SNAP_RESEND_MS) {
+        snapshotReSend(pSender);
+      } else {
+        sTrace("vgId:%d, do not resend: nstart%d, now:%" PRId64 ", lstsend:%" PRId64 ", diff:%" PRId64, ths->vgId,
+               ths->isStart, timeNow, pSender->lastSendTime, timeNow - pSender->lastSendTime);
+      }
+    }
+  }
+
   if (atomic_load_64(&ths->snapshottingIndex) != SYNC_INDEX_INVALID) {
     // end timeout wal snapshot
     if (timeNow - ths->snapshottingTime > SYNC_DEL_WAL_MS &&
@@ -85,11 +101,9 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
     }
   }
 
-#if 0
   if (!syncNodeIsMnode(ths)) {
     syncRespClean(ths->pSyncRespMgr);
   }
-#endif
 
   return 0;
 }

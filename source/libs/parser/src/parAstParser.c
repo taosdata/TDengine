@@ -140,7 +140,7 @@ static int32_t collectMetaKeyFromInsTagsImpl(SCollectMetaKeyCxt* pCxt, SName* pN
 static int32_t collectMetaKeyFromInsTags(SCollectMetaKeyCxt* pCxt) {
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pStmt;
   SName        name = {0};
-  int32_t      code = getInsTagsTableTargetName(pCxt->pParseCxt->acctId, pSelect->pWhere, &name);
+  int32_t      code = getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pSelect->pWhere, &name);
   if (TSDB_CODE_SUCCESS == code) {
     code = collectMetaKeyFromInsTagsImpl(pCxt, &name);
   }
@@ -165,7 +165,8 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
   if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES))) {
     code = reserveDnodeRequiredInCache(pCxt->pMetaCache);
   }
-  if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)) &&
+  if (TSDB_CODE_SUCCESS == code &&
+      (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS) || 0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) &&
       QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
     code = collectMetaKeyFromInsTags(pCxt);
   }

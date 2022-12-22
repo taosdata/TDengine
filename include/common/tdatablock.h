@@ -41,9 +41,9 @@ typedef struct SBlockOrderInfo {
     BMCharPos(bm_, r_) |= (1u << (7u - BitPos(r_))); \
   } while (0)
 
-#define colDataSetNotNull_f(bm_, r_)                  \
-  do {                                                \
-    BMCharPos(bm_, r_) &= ~(1u << (7u - BitPos(r_))); \
+#define colDataClearNull_f(bm_, r_)                             \
+  do {                                                          \
+    BMCharPos(bm_, r_) &= ((char)(~(1u << (7u - BitPos(r_))))); \
   } while (0)
 
 #define colDataIsNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] == -1)
@@ -151,9 +151,6 @@ static FORCE_INLINE void colDataAppendNNULL(SColumnInfoData* pColumnInfoData, ui
     for (int32_t i = start; i < start + nRows; ++i) {
       colDataSetNull_f(pColumnInfoData->nullbitmap, i);
     }
-
-    int32_t bytes = pColumnInfoData->info.bytes;
-    memset(pColumnInfoData->pData + start * bytes, 0, nRows * bytes);
   }
 
   pColumnInfoData->hasNull = true;
@@ -234,9 +231,11 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
 
 int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, bool clearPayload);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
+int32_t blockDataEnsureCapacityNoClear(SSDataBlock* pDataBlock, uint32_t numOfRows);
 
 void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
 void blockDataCleanup(SSDataBlock* pDataBlock);
+void blockDataEmpty(SSDataBlock* pDataBlock);
 
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 
@@ -266,7 +265,7 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag);
 // for debug
 char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf);
 
-int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataBlocks, STSchema* pTSchema, int32_t vgId,
+int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pDataBlocks, const STSchema* pTSchema, int64_t uid, int32_t vgId,
                                     tb_uid_t suid);
 
 char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);

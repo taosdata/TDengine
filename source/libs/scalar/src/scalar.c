@@ -83,7 +83,7 @@ int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockL
   SScalarParam *pLeft = taosMemoryCalloc(1, sizeof(SScalarParam));
   if (NULL == pLeft) {
     sclError("calloc %d failed", (int32_t)sizeof(SScalarParam));
-    SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   pLeft->numOfRows = pb->info.rows;
@@ -104,7 +104,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
   SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
   if (NULL == pObj) {
     sclError("taosHashInit failed, size:%d", 256);
-    SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(type));
@@ -162,13 +162,10 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
 
     if (taosHashPut(pObj, buf, (size_t)len, NULL, 0)) {
       sclError("taosHashPut to set failed");
-      SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    colDataDestroy(out.columnData);
-    taosMemoryFreeClear(out.columnData);
-    out.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
-
+    colInfoDataCleanup(out.columnData, out.numOfRows);
     cell = cell->pNext;
   }
 
@@ -224,7 +221,7 @@ int32_t sclCopyValueNodeValue(SValueNode *pNode, void **res) {
   *res = taosMemoryMalloc(pNode->node.resType.bytes);
   if (NULL == (*res)) {
     sclError("malloc %d failed", pNode->node.resType.bytes);
-    SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   memcpy(*res, nodesGetValueFromNode(pNode), pNode->node.resType.bytes);
@@ -362,7 +359,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         taosHashCleanup(param->pHashFilter);
         param->pHashFilter = NULL;
         sclError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));
-        return TSDB_CODE_QRY_OUT_OF_MEMORY;
+        return TSDB_CODE_OUT_OF_MEMORY;
       }
       param->colAlloced = false;
       break;
@@ -370,7 +367,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     case QUERY_NODE_COLUMN: {
       if (NULL == ctx->pBlockList) {
         sclError("invalid node type for constant calculating, type:%d, src:%p", nodeType(node), ctx->pBlockList);
-        SCL_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+        SCL_ERR_RET(TSDB_CODE_APP_ERROR);
       }
 
       SColumnNode *ref = (SColumnNode *)node;
@@ -417,7 +414,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, &node, POINTER_BYTES);
       if (NULL == res) {
         sclError("no result for node, type:%d, node:%p", nodeType(node), node);
-        SCL_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+        SCL_ERR_RET(TSDB_CODE_APP_ERROR);
       }
       *param = *res;
       param->colAlloced = false;
@@ -459,7 +456,7 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarC
   SScalarParam *paramList = taosMemoryCalloc(*paramNum, sizeof(SScalarParam));
   if (NULL == paramList) {
     sclError("calloc %d failed", (int32_t)((*paramNum) * sizeof(SScalarParam)));
-    SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   if (pParamList) {
@@ -548,7 +545,7 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
   SScalarParam *paramList = taosMemoryCalloc(paramNum, sizeof(SScalarParam));
   if (NULL == paramList) {
     sclError("calloc %d failed", (int32_t)(paramNum * sizeof(SScalarParam)));
-    SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   sclSetOperatorValueType(node, ctx);
@@ -987,7 +984,7 @@ EDealRes sclRewriteNullInOptr(SNode **pNode, SScalarCtx *ctx, EOperatorType opTy
     SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
     if (NULL == res) {
       sclError("make value node failed");
-      ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      ctx->code = TSDB_CODE_OUT_OF_MEMORY;
       return DEAL_RES_ERROR;
     }
 
@@ -999,7 +996,7 @@ EDealRes sclRewriteNullInOptr(SNode **pNode, SScalarCtx *ctx, EOperatorType opTy
     SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
     if (NULL == res) {
       sclError("make value node failed");
-      ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      ctx->code = TSDB_CODE_OUT_OF_MEMORY;
       return DEAL_RES_ERROR;
     }
 
@@ -1126,7 +1123,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   if (NULL == res) {
     sclError("make value node failed");
     sclFreeParam(&output);
-    ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
 
@@ -1178,7 +1175,7 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
   if (NULL == res) {
     sclError("make value node failed");
     sclFreeParam(&output);
-    ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
 
@@ -1218,7 +1215,7 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
   if (NULL == res) {
     sclError("make value node failed");
     sclFreeParam(&output);
-    ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
 
@@ -1270,7 +1267,7 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
   if (NULL == res) {
     sclError("make value node failed");
     sclFreeParam(&output);
-    ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
 
@@ -1329,7 +1326,7 @@ EDealRes sclWalkFunction(SNode *pNode, SScalarCtx *ctx) {
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
-    ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
 
@@ -1346,7 +1343,7 @@ EDealRes sclWalkLogic(SNode *pNode, SScalarCtx *ctx) {
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
-    ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
 
@@ -1364,7 +1361,7 @@ EDealRes sclWalkOperator(SNode *pNode, SScalarCtx *ctx) {
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
-    ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
 
@@ -1412,7 +1409,7 @@ EDealRes sclWalkTarget(SNode *pNode, SScalarCtx *ctx) {
   SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, (void *)&target->pExpr, POINTER_BYTES);
   if (NULL == res) {
     sclError("no valid res in hash, node:%p, type:%d", target->pExpr, nodeType(target->pExpr));
-    ctx->code = TSDB_CODE_QRY_APP_ERROR;
+    ctx->code = TSDB_CODE_APP_ERROR;
     return DEAL_RES_ERROR;
   }
 
@@ -1434,7 +1431,7 @@ EDealRes sclWalkCaseWhen(SNode *pNode, SScalarCtx *ctx) {
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
-    ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
 
@@ -1485,7 +1482,7 @@ int32_t sclCalcConstants(SNode *pNode, bool dual, SNode **pRes) {
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {
     sclError("taosHashInit failed, num:%d", SCL_DEFAULT_OP_NUM);
-    SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   nodesRewriteExprPostOrder(&pNode, sclConstantsRewriter, (void *)&ctx);
@@ -1603,7 +1600,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {
     sclError("taosHashInit failed, num:%d", SCL_DEFAULT_OP_NUM);
-    SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   nodesWalkExprPostOrder(pNode, sclCalcWalker, (void *)&ctx);
@@ -1613,7 +1610,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
     SScalarParam *res = (SScalarParam *)taosHashGet(ctx.pRes, (void *)&pNode, POINTER_BYTES);
     if (NULL == res) {
       sclError("no valid res in hash, node:%p, type:%d", pNode, nodeType(pNode));
-      SCL_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+      SCL_ERR_JRET(TSDB_CODE_APP_ERROR);
     }
 
     if (1 == res->numOfRows) {

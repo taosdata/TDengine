@@ -108,7 +108,7 @@ class TDTestCase:
 
         
         # create stream
-        tdSql.execute('''create stream current_stream into stream_max_stable_1 as select _wstart as start, _wend as wend, max(q_int) as max_int, min(q_bigint) as min_int from stable_1 where ts is not null interval (5s);''')
+        tdSql.execute('''create stream current_stream into stream_max_stable_1 as select _wstart as startts, _wend as wend, max(q_int) as max_int, min(q_bigint) as min_int from stable_1 where ts is not null interval (5s);''')
         
         # insert data
         for i in range(num_random*n):        
@@ -187,20 +187,20 @@ class TDTestCase:
         
         sleep(5)
         # stream data check
-        tdSql.query("select start,wend,max_int from stream_max_stable_1 ;")
+        tdSql.query("select startts,wend,max_int from stream_max_stable_1 ;")
         tdSql.checkRows(20)
         tdSql.query("select sum(max_int) from stream_max_stable_1 ;")
         stream_data_1 = tdSql.queryResult[0][0]
         tdSql.query("select sum(min_int) from stream_max_stable_1 ;")
         stream_data_2 = tdSql.queryResult[0][0]
-        tdSql.query("select sum(max_int),sum(min_int) from (select _wstart as start, _wend as wend, max(q_int) as max_int, min(q_bigint) as min_int from stable_1 where ts is not null interval (5s));")
+        tdSql.query("select sum(max_int),sum(min_int) from (select _wstart as startts, _wend as wend, max(q_int) as max_int, min(q_bigint) as min_int from stable_1 where ts is not null interval (5s));")
         sql_data_1 = tdSql.queryResult[0][0]
         sql_data_2 = tdSql.queryResult[0][1]
         
         self.stream_value_check(stream_data_1,sql_data_1)       
         self.stream_value_check(stream_data_2,sql_data_2)
         
-        tdSql.query("select sum(max_int),sum(min_int) from (select _wstart as start, _wend as wend, max(q_int) as max_int, min(q_bigint) as min_int from stable_1 interval (5s));")
+        tdSql.query("select sum(max_int),sum(min_int) from (select _wstart as startts, _wend as wend, max(q_int) as max_int, min(q_bigint) as min_int from stable_1 interval (5s));")
         sql_data_1 = tdSql.queryResult[0][0]
         sql_data_2 = tdSql.queryResult[0][1]
         

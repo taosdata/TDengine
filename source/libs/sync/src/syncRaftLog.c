@@ -41,7 +41,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pLogStore->pCache = taosLRUCacheInit(30 * 1024 * 1024, 1, .5);
   if (pLogStore->pCache == NULL) {
     taosMemoryFree(pLogStore);
-    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -234,17 +234,16 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
 
   *ppEntry = NULL;
 
-  // SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
+  int64_t ts1 = taosGetTimestampNs();
+  taosThreadMutexLock(&(pData->mutex));
+
   SWalReader* pWalHandle = pData->pWalHandle;
   if (pWalHandle == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     sError("vgId:%d, wal handle is NULL", pData->pSyncNode->vgId);
-
+    taosThreadMutexUnlock(&(pData->mutex));
     return -1;
   }
-
-  int64_t ts1 = taosGetTimestampNs();
-  taosThreadMutexLock(&(pData->mutex));
 
   int64_t ts2 = taosGetTimestampNs();
   code = walReadVer(pWalHandle, index);

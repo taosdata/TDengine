@@ -223,6 +223,13 @@ typedef struct SIntervalWindowNode {
   SNode*    pFill;
 } SIntervalWindowNode;
 
+typedef struct SEventWindowNode {
+  ENodeType type;  // QUERY_NODE_EVENT_WINDOW
+  SNode*    pCol;  // timestamp primary key
+  SNode*    pStartCond;
+  SNode*    pEndCond;
+} SEventWindowNode;
+
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
   FILL_MODE_VALUE,

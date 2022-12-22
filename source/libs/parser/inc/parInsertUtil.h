@@ -141,23 +141,6 @@ int32_t insCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start);
 int32_t insBuildOutput(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks);
 void    insDestroyDataBlock(STableDataBlocks *pDataBlock);
 
-typedef struct SBoundColInfo {
-  int16_t *pColIndex;  // bound index => schema index
-  int32_t  numOfCols;
-  int32_t  numOfBound;
-} SBoundColInfo;
-
-typedef struct STableDataCxt {
-  STableMeta    *pMeta;
-  STSchema      *pSchema;
-  SBoundColInfo  boundColsInfo;
-  SArray        *pValues;
-  SSubmitTbData *pData;
-  TSKEY          lastTs;
-  bool           ordered;
-  bool           duplicateTs;
-} STableDataCxt;
-
 typedef struct SVgroupDataCxt {
   int32_t      vgId;
   SSubmitReq2 *pData;

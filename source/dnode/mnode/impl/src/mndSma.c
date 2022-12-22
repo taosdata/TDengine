@@ -463,7 +463,7 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_CREATE_VNODE;
-  action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_VND_ALREADY_EXIST;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
@@ -534,6 +534,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.sql = strdup(pCreate->sql);
   streamObj.smaId = smaObj.uid;
   streamObj.watermark = pCreate->watermark;
+  streamObj.deleteMark = pCreate->deleteMark;
   streamObj.fillHistory = STREAM_FILL_HISTORY_ON;
   streamObj.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
   streamObj.triggerParam = pCreate->maxDelay;
@@ -574,6 +575,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
       .streamQuery = true,
       .triggerType = streamObj.trigger,
       .watermark = streamObj.watermark,
+      .deleteMark = streamObj.deleteMark,
   };
 
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
@@ -780,7 +782,7 @@ static int32_t mndSetDropSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, SD
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_VNODE;
-  action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_VND_NOT_EXIST;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);

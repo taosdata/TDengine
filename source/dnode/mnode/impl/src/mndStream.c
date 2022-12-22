@@ -164,7 +164,8 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
 STREAM_DECODE_OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("stream:%s, failed to decode from raw:%p since %s", pStream == NULL ? "null" : pStream->name, pRaw, terrstr());
+    mError("stream:%s, failed to decode from raw:%p since %s", pStream == NULL ? "null" : pStream->name, pRaw,
+           terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -624,6 +625,16 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  pDb = mndAcquireDb(pMnode, streamObj.sourceDb);
+  if (pDb->cfg.replications != 1) {
+    mError("stream source db must have only 1 replica, but %s has %d", pDb->name, pDb->cfg.replications);
+    terrno = TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB;
+    mndReleaseDb(pMnode, pDb);
+    pDb = NULL;
+    goto _OVER;
+  }
+  mndReleaseDb(pMnode, pDb);
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream");
   if (pTrans == NULL) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
@@ -680,7 +691,6 @@ _OVER:
   }
 
   mndReleaseStream(pMnode, pStream);
-  mndReleaseDb(pMnode, pDb);
 
   tFreeSCMCreateStreamReq(&createStreamReq);
   tFreeStreamObj(&streamObj);

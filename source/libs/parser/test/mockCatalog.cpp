@@ -65,9 +65,10 @@ void generateInformationSchema(MockCatalogService* mcs) {
       .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
       .addColumn("stable_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
       .done();
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TABLES, TSDB_SYSTEM_TABLE, 2)
-      .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TABLES, TSDB_SYSTEM_TABLE, 3)
       .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+      .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+      .addColumn("stable_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
       .done();
   mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TABLE_DISTRIBUTED, TSDB_SYSTEM_TABLE, 2)
       .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
@@ -140,7 +141,7 @@ void generatePerformanceSchema(MockCatalogService* mcs) {
 void generateTestTables(MockCatalogService* mcs, const std::string& db) {
   mcs->createTableBuilder(db, "t1", TSDB_NORMAL_TABLE, 6)
       .setPrecision(TSDB_TIME_PRECISION_MILLI)
-      .setVgid(1)
+      .setVgid(2)
       .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
       .addColumn("c1", TSDB_DATA_TYPE_INT)
       .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
@@ -182,9 +183,9 @@ void generateTestStables(MockCatalogService* mcs, const std::string& db) {
                                  .addTag("tag2", TSDB_DATA_TYPE_BINARY, 20)
                                  .addTag("tag3", TSDB_DATA_TYPE_TIMESTAMP);
     builder.done();
-    mcs->createSubTable(db, "st1", "st1s1", 1);
-    mcs->createSubTable(db, "st1", "st1s2", 2);
-    mcs->createSubTable(db, "st1", "st1s3", 1);
+    mcs->createSubTable(db, "st1", "st1s1", 2);
+    mcs->createSubTable(db, "st1", "st1s2", 3);
+    mcs->createSubTable(db, "st1", "st1s3", 2);
   }
   {
     ITableBuilder& builder = mcs->createTableBuilder(db, "st2", TSDB_SUPER_TABLE, 3, 1)
@@ -194,8 +195,8 @@ void generateTestStables(MockCatalogService* mcs, const std::string& db) {
                                  .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
                                  .addTag("jtag", TSDB_DATA_TYPE_JSON);
     builder.done();
-    mcs->createSubTable(db, "st2", "st2s1", 1);
-    mcs->createSubTable(db, "st2", "st2s2", 2);
+    mcs->createSubTable(db, "st2", "st2s1", 2);
+    mcs->createSubTable(db, "st2", "st2s2", 3);
   }
 }
 
@@ -244,6 +245,13 @@ int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, SRequestConnInfo*
 int32_t __catalogGetCachedTableHashVgroup(SCatalog* pCtg, const SName* pTableName, SVgroupInfo* pVgroup, bool* exists) {
   int32_t code = g_mockCatalogService->catalogGetTableHashVgroup(pTableName, pVgroup, true);
   *exists = 0 != pVgroup->vgId;
+  return code;
+}
+
+int32_t __catalogGetCachedTableVgMeta(SCatalog* pCtg, const SName* pTableName,          SVgroupInfo* pVgroup, STableMeta** pTableMeta) {
+  int32_t code = g_mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta, true);
+  if (code) return code;
+  code = g_mockCatalogService->catalogGetTableHashVgroup(pTableName, pVgroup, true);
   return code;
 }
 
@@ -315,6 +323,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetCachedSTableMeta, __catalogGetCachedTableMeta);
   stub.set(catalogGetTableHashVgroup, __catalogGetTableHashVgroup);
   stub.set(catalogGetCachedTableHashVgroup, __catalogGetCachedTableHashVgroup);
+  stub.set(catalogGetCachedTableVgMeta, __catalogGetCachedTableVgMeta);
   stub.set(catalogGetTableDistVgInfo, __catalogGetTableDistVgInfo);
   stub.set(catalogGetDBVgVersion, __catalogGetDBVgVersion);
   stub.set(catalogGetDBVgList, __catalogGetDBVgList);

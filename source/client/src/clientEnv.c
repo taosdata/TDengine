@@ -76,13 +76,20 @@ static void deregisterRequest(SRequestObj *pRequest) {
            "current:%d, app current:%d",
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
+  tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
+              "us, exec:%" PRId64 "us, stmtType:%d",
+          duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
+          pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd -
+                                                               pRequest->metric.ctgEnd, pRequest->metric.execEnd - pRequest->metric.semanticEnd,
+          pRequest->stmtType);
+
   if (QUERY_NODE_VNODE_MODIF_STMT == pRequest->stmtType) {
-    //    tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
-    //            "us, exec:%" PRId64 "us",
-    //            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
-    //            pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd -
-    //            pRequest->metric.ctgEnd, pRequest->metric.execEnd - pRequest->metric.semanticEnd);
-    atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
+//        tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
+//                "us, exec:%" PRId64 "us",
+//                duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
+//                pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd -
+//                pRequest->metric.ctgEnd, pRequest->metric.execEnd - pRequest->metric.semanticEnd);
+//    atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
   } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
     //    tscPerf("select duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
     //            "us, planner:%" PRId64 "us, exec:%" PRId64 "us, reqId:0x%" PRIx64,
@@ -146,8 +153,7 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.dfp = destroyAhandle;
-  rpcInit.retryLimit = tsRpcRetryLimit;
-  rpcInit.retryInterval = tsRpcRetryInterval;
+
   rpcInit.retryMinInterval = tsRedirectPeriod;
   rpcInit.retryStepFactor = tsRedirectFactor;
   rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
@@ -231,10 +237,9 @@ void destroyTscObj(void *pObj) {
   tscDebug("connObj 0x%" PRIx64 " p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj,
            pTscObj->pAppInfo->numOfConns);
 
-  int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
-  if (0 == connNum) {
-    destroyAppInst(pTscObj->pAppInfo);
-  }
+  // In any cases, we should not free app inst here. Or an race condition rises.
+  /*int64_t connNum = */ atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
+
   taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFree(pTscObj);
 
@@ -244,14 +249,14 @@ void destroyTscObj(void *pObj) {
 void *createTscObj(const char *user, const char *auth, const char *db, int32_t connType, SAppInstInfo *pAppInfo) {
   STscObj *pObj = (STscObj *)taosMemoryCalloc(1, sizeof(STscObj));
   if (NULL == pObj) {
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   pObj->pRequests = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   if (NULL == pObj->pRequests) {
     taosMemoryFree(pObj);
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -266,7 +271,6 @@ void *createTscObj(const char *user, const char *auth, const char *db, int32_t c
 
   taosThreadMutexInit(&pObj->mutex, NULL);
   pObj->id = taosAddRef(clientConnRefPool, pObj);
-  pObj->schemalessType = 1;
 
   atomic_add_fetch_64(&pObj->pAppInfo->numOfConns, 1);
 
@@ -281,7 +285,7 @@ int32_t releaseTscObj(int64_t rid) { return taosReleaseRef(clientConnRefPool, ri
 void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
   SRequestObj *pRequest = (SRequestObj *)taosMemoryCalloc(1, sizeof(SRequestObj));
   if (NULL == pRequest) {
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -397,8 +401,8 @@ void taos_init_imp(void) {
   deltaToUtcInitOnce();
 
   if (taosCreateLog("taoslog", 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
-    tscInitRes = -1;
-    return;
+    // ignore create log failed, only print
+    printf(" WARING: Create taoslog failed. configDir=%s\n", configDir);
   }
 
   if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1) != 0) {
@@ -408,7 +412,9 @@ void taos_init_imp(void) {
 
   initQueryModuleMsgHandle();
 
-  taosConvInit();
+  if (taosConvInit() != 0) {
+    ASSERTS(0, "failed to init conv");
+  }
 
   rpcInit();
 

@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "trow.h"
+#include "tlog.h"
 
 const uint8_t tdVTypeByte[2][3] = {{
                                        // 2 bits

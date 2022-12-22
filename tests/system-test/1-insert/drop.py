@@ -132,7 +132,7 @@ class TDTestCase:
         tdSql.execute(f'drop database {self.dbname}')
 
     def drop_stream_check(self):
-        tdSql.execute(f'create database {self.dbname} replica {self.replicaVar}')
+        tdSql.execute(f'create database {self.dbname} replica 1')
         tdSql.execute(f'use {self.dbname}')
         stbname = tdCom.getLongName(5,"letters")
         stream_name = tdCom.getLongName(5,"letters")

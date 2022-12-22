@@ -461,7 +461,7 @@ sql insert into t2 values(1648791213004,4,10,10,4.1);
 $loop_count = 0
 
 loop2:
-sleep 100
+sleep 200
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -519,7 +519,7 @@ print step 6
 $loop_count = 0
 
 loop3:
-# sleep 300
+sleep 300
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -616,6 +616,60 @@ endi
 if $data41 != 2 then
   print =====data41=$data41
   goto loop4
+endi
+
+sql insert into t1 values(1648791343003,4,4,4,3.1);
+sql insert into t1 values(1648791213004,4,5,5,4.1);
+
+loop5:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt3;
+
+# row 0
+if $rows != 7 then
+  print =====rows=$rows
+  goto loop5
+endi
+
+if $data01 != 4 then
+  print =====data01=$data01
+  goto loop5
+endi
+
+if $data11 != 6 then
+  print =====data11=$data11
+  goto loop5
+endi
+
+if $data21 != 4 then
+  print =====data21=$data21
+  goto loop5
+endi
+
+if $data31 != 4 then
+  print =====data31=$data31
+  goto loop5
+endi
+
+if $data41 != 2 then
+  print =====data41=$data41
+  goto loop5
+endi
+
+if $data51 != 1 then
+  print =====data51=$data51
+  goto loop5
+endi
+
+if $data61 != 1 then
+  print =====data61=$data61
+  goto loop5
 endi
 
 $loop_all = $loop_all + 1

@@ -514,7 +514,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
     numOfElem = pInput->numOfRows;
     pAvgRes->count += pInput->numOfRows;
 
-    bool simdAvailable = tsAVXEnable && tsSIMDEnable && (numOfRows > THRESHOLD_SIZE);
+    bool simdAvailable = tsAVXEnable && tsSIMDBuiltins && (numOfRows > THRESHOLD_SIZE);
 
     switch(type) {
       case TSDB_DATA_TYPE_UTINYINT:
@@ -586,7 +586,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
             if (type == TSDB_DATA_TYPE_BIGINT) {
               pAvgRes->sum.isum += plist[i];
             } else {
-              pAvgRes->sum.isum += (uint64_t)plist[i];
+              pAvgRes->sum.usum += (uint64_t)plist[i];
             }
           }
         }

@@ -838,7 +838,7 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
   return conflict;
 }
 
-int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
+int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans) {
   if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
     if (strlen(pTrans->dbname) == 0 && strlen(pTrans->stbname) == 0) {
       terrno = TSDB_CODE_MND_TRANS_CONFLICT;
@@ -850,6 +850,14 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   if (mndCheckTransConflict(pMnode, pTrans)) {
     terrno = TSDB_CODE_MND_TRANS_CONFLICT;
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
     return -1;
   }
 
@@ -918,10 +926,14 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       sendRsp = true;
     }
   } else {
-    if (pTrans->stage == TRN_STAGE_REDO_ACTION && ((code == TSDB_CODE_APP_NOT_READY && pTrans->failedTimes > 60) ||
-                                                   (code != TSDB_CODE_APP_NOT_READY && pTrans->failedTimes > 6))) {
+    if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
+      if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_APP_IS_STARTING ||
+          code == TSDB_CODE_SYN_PROPOSE_NOT_READY) {
+        if (pTrans->failedTimes > 60) sendRsp = true;
+      } else {
+        if (pTrans->failedTimes > 6) sendRsp = true;
+      }
       if (code == 0) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
-      sendRsp = true;
     }
   }
 
@@ -942,7 +954,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         code = TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL;
       }
       if (i != 0 && code == 0) {
-        code = TSDB_CODE_RPC_REDIRECT;
+        code = TSDB_CODE_MNODE_NOT_FOUND;
       }
       mInfo("trans:%d, client:%d send rsp, code:0x%x stage:%s app:%p", pTrans->id, i, code, mndTransStr(pTrans->stage),
             pInfo->ahandle);
@@ -1024,6 +1036,7 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
   if (pAction != NULL) {
     pAction->msgReceived = 1;
     pAction->errCode = pRsp->code;
+    pTrans->lastErrorNo = pRsp->code;
   }
 
   mInfo("trans:%d, %s:%d response is received, code:0x%x, accept:0x%x retry:0x%x", transId, mndTransStr(pAction->stage),
@@ -1039,8 +1052,8 @@ static void mndTransResetAction(SMnode *pMnode, STrans *pTrans, STransAction *pA
   pAction->rawWritten = 0;
   pAction->msgSent = 0;
   pAction->msgReceived = 0;
-  if (pAction->errCode == TSDB_CODE_RPC_REDIRECT || pAction->errCode == TSDB_CODE_SYN_NEW_CONFIG_ERROR ||
-      pAction->errCode == TSDB_CODE_SYN_INTERNAL_ERROR || pAction->errCode == TSDB_CODE_SYN_NOT_LEADER) {
+  if (pAction->errCode == TSDB_CODE_SYN_NEW_CONFIG_ERROR || pAction->errCode == TSDB_CODE_SYN_INTERNAL_ERROR ||
+      pAction->errCode == TSDB_CODE_SYN_NOT_LEADER) {
     pAction->epSet.inUse = (pAction->epSet.inUse + 1) % pAction->epSet.numOfEps;
     mInfo("trans:%d, %s:%d execute status is reset and set epset inuse:%d", pTrans->id, mndTransStr(pAction->stage),
           pAction->id, pAction->epSet.inUse);
@@ -1235,7 +1248,7 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
   if (numOfActions == 0) return code;
   if (pTrans->redoActionPos >= numOfActions) return code;
 
-  mInfo("trans:%d, execute %d actions serial", pTrans->id, numOfActions);
+  mInfo("trans:%d, execute %d actions serial, current redoAction:%d", pTrans->id, numOfActions, pTrans->redoActionPos);
 
   for (int32_t action = pTrans->redoActionPos; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pTrans->redoActions, pTrans->redoActionPos);
@@ -1286,13 +1299,16 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
     } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
       mInfo("trans:%d, %s:%d is in progress and wait it finish", pTrans->id, mndTransStr(pAction->stage), pAction->id);
       break;
-    } else if (code == pAction->retryCode) {
+    } else if (code == pAction->retryCode || code == TSDB_CODE_SYN_PROPOSE_NOT_READY ||
+               code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_SYN_NOT_LEADER) {
       mInfo("trans:%d, %s:%d receive code:0x%x and retry", pTrans->id, mndTransStr(pAction->stage), pAction->id, code);
+      pTrans->lastErrorNo = code;
       taosMsleep(300);
       action--;
       continue;
     } else {
       terrno = code;
+      pTrans->lastErrorNo = code;
       pTrans->code = code;
       mInfo("trans:%d, %s:%d receive code:0x%x and wait another schedule, failedTimes:%d", pTrans->id,
             mndTransStr(pAction->stage), pAction->id, code, pTrans->failedTimes);
@@ -1321,6 +1337,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
   }
 
   if (mndCannotExecuteTransAction(pMnode)) return false;
+  terrno = code;
 
   if (code == 0) {
     pTrans->code = 0;

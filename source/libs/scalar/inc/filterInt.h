@@ -101,6 +101,11 @@ typedef int32_t (*filter_desc_compare_func)(const void *, const void *);
 typedef bool (*filter_exec_func)(void *, int32_t, SColumnInfoData *, SColumnDataAgg *, int16_t, int32_t *);
 typedef int32_t (*filer_get_col_from_name)(void *, int32_t, char *, void **);
 
+typedef struct SFilterDataInfo {
+  int32_t idx;
+  void*   addr;
+} SFilterDataInfo;
+
 typedef struct SFilterRangeCompare {
   int64_t       s;
   int64_t       e;
@@ -294,9 +299,9 @@ struct SFilterInfo {
 #define CHK_OR_OPTR(ctx)  ((ctx)->isnull == true && (ctx)->notnull == true)
 #define CHK_AND_OPTR(ctx) ((ctx)->isnull == true && (((ctx)->notnull == true) || ((ctx)->isrange == true)))
 
-#define FILTER_GET_FLAG(st, f) (st & f)
-#define FILTER_SET_FLAG(st, f) st |= (f)
-#define FILTER_CLR_FLAG(st, f) st &= (~f)
+#define FILTER_GET_FLAG(st, f) ((st) & (f))
+#define FILTER_SET_FLAG(st, f) (st) |= (f)
+#define FILTER_CLR_FLAG(st, f) (st) &= (~f)
 
 #define SIMPLE_COPY_VALUES(dst, src) *((int64_t *)dst) = *((int64_t *)src)
 #define FLT_PACKAGE_UNIT_HASH_KEY(v, op1, op2, lidx, ridx, ridx2) \

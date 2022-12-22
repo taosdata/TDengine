@@ -25,7 +25,7 @@ extern "C" {
 #include "tlrucache.h"
 #include "tmsgcb.h"
 
-#define SYNC_RESP_TTL_MS             10000000
+#define SYNC_RESP_TTL_MS             30000
 #define SYNC_SPEED_UP_HB_TIMER       400
 #define SYNC_SPEED_UP_AFTER_MS       (1000 * 20)
 #define SYNC_SLOW_DOWN_RANGE         100
@@ -43,10 +43,11 @@ extern "C" {
 #define SYNC_MAX_RETRY_BACKOFF         5
 #define SYNC_LOG_REPL_RETRY_WAIT_MS    100
 #define SYNC_APPEND_ENTRIES_TIMEOUT_MS 10000
-#define SYNC_HEART_TIMEOUT_MS          1000 * 8
+#define SYNC_HEART_TIMEOUT_MS          1000 * 15
 
 #define SYNC_HEARTBEAT_SLOW_MS       1500
 #define SYNC_HEARTBEAT_REPLY_SLOW_MS 1500
+#define SYNC_SNAP_RESEND_MS          1000 * 60
 
 #define SYNC_MAX_BATCH_SIZE 1
 #define SYNC_INDEX_BEGIN    0
@@ -138,8 +139,8 @@ typedef struct SSnapshotMeta {
 typedef struct SSyncFSM {
   void* data;
 
-  void (*FpCommitCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
-  void (*FpPreCommitCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
+  int32_t (*FpCommitCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
+  int32_t (*FpPreCommitCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
   void (*FpRollBackCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
 
   void (*FpRestoreFinishCb)(const struct SSyncFSM* pFsm);
@@ -229,7 +230,7 @@ int64_t syncOpen(SSyncInfo* pSyncInfo);
 int32_t syncStart(int64_t rid);
 void    syncStop(int64_t rid);
 void    syncPreStop(int64_t rid);
-int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
+int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak, int64_t* seq);
 int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg);
 int32_t syncReconfig(int64_t rid, SSyncCfg* pCfg);
 int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex);
@@ -239,6 +240,7 @@ int32_t syncStepDown(int64_t rid, SyncTerm newTerm);
 bool    syncIsReadyForRead(int64_t rid);
 bool    syncSnapshotSending(int64_t rid);
 bool    syncSnapshotRecving(int64_t rid);
+int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq);
 
 SSyncState  syncGetState(int64_t rid);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);

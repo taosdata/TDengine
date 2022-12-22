@@ -195,6 +195,7 @@ typedef struct SDataBlockInfo {
   uint32_t    capacity;
   SBlockID    id;
   int16_t     hasVarCol;
+  int16_t     dataLoad;   // denote if the data is loaded or not
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
@@ -249,10 +250,11 @@ typedef struct SColumnInfoData {
 
 typedef struct SQueryTableDataCond {
   uint64_t     suid;
-  int32_t      order;  // desc|asc order to iterate the data block
+  int32_t      order;    // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo* colList;
-  int32_t      type;  // data block load type:
+  int32_t*     pSlotList; // the column output destation slot, and it may be null
+  int32_t      type;     // data block load type:
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;
@@ -338,7 +340,7 @@ typedef struct SExprInfo {
 
 typedef struct {
   const char* key;
-  int32_t     keyLen;
+  size_t     keyLen;
   uint8_t     type;
   union {
     const char* value;
@@ -347,7 +349,7 @@ typedef struct {
     double      d;
     float       f;
   };
-  int32_t length;
+  size_t length;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1

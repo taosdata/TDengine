@@ -542,7 +542,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       }
       default:
         mError("invalid kv key:%d", kv->key);
-        hbRsp.status = TSDB_CODE_MND_APP_ERROR;
+        hbRsp.status = TSDB_CODE_APP_ERROR;
         break;
     }
 
@@ -769,7 +769,7 @@ static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     }
 
     int32_t numOfQueries = taosArrayGetSize(pConn->pQueries);
-    for (int32_t i = 0; i < numOfQueries; ++i) {
+    for (int32_t i = 0; i < numOfQueries && numOfRows < rows; ++i) {
       SQueryDesc *pQuery = taosArrayGet(pConn->pQueries, i);
       cols = 0;
 

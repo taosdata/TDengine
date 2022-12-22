@@ -75,7 +75,7 @@ static void tqPushEntryFree(void* data) {
 STQ* tqOpen(const char* path, SVnode* pVnode) {
   STQ* pTq = taosMemoryCalloc(1, sizeof(STQ));
   if (pTq == NULL) {
-    terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   pTq->path = strdup(path);
@@ -673,9 +673,12 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
               req.epoch, TD_VID(pTq->pVnode), fetchVer, pHead->msgType);
 
       if (pHead->msgType == TDMT_VND_SUBMIT) {
-        SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
-
-        if (tqTaosxScanLog(pTq, pHandle, pCont, &taosxRsp) < 0) {
+        SPackedData submit = {
+            .msgStr = POINTER_SHIFT(pHead->body, sizeof(SMsgHead)),
+            .msgLen = pHead->bodyLen - sizeof(SMsgHead),
+            .ver = pHead->version,
+        };
+        if (tqTaosxScanLog(pTq, pHandle, submit, &taosxRsp) < 0) {
         }
         if (taosxRsp.blockNum > 0 /* threshold */) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
@@ -725,18 +728,25 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
   }
   taosWUnLockLatch(&pTq->pushLock);
 
-  code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
-  if (code != 0) {
-    tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
+  STqHandle* pHandle = taosHashGet(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
+  if (pHandle) {
+    //walCloseRef(pHandle->pWalReader->pWal, pHandle->pRef->refId);
+    if (pHandle->pRef) {
+      walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
+    }
+    code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
+    if (code != 0) {
+      tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
+    }
   }
 
   code = tqOffsetDelete(pTq->pOffsetStore, pReq->subKey);
   if (code != 0) {
-    tqError("cannot process tq delete req %s, since no such offset", pReq->subKey);
+    tqError("cannot process tq delete req %s, since no such offset in cache", pReq->subKey);
   }
 
   if (tqMetaDeleteHandle(pTq, pReq->subKey) < 0) {
-    ASSERT(0);
+    tqError("cannot process tq delete req %s, since no such offset in tdb", pReq->subKey);
   }
   return 0;
 }
@@ -944,7 +954,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     pTask->smaSink.smaSink = smaHandleRes;
   } else if (pTask->outputType == TASK_OUTPUT__TABLE) {
     pTask->tbSink.vnode = pTq->pVnode;
-    pTask->tbSink.tbSinkFunc = tqSinkToTablePipeline;
+    pTask->tbSink.tbSinkFunc = tqSinkToTablePipeline2;
 
     ASSERT(pTask->tbSink.pSchemaWrapper);
     ASSERT(pTask->tbSink.pSchemaWrapper->pSchema);
@@ -1265,7 +1275,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
     qDebug("delete req enqueue stream task: %d, ver: %" PRId64, pTask->taskId, ver);
 
     if (!failed) {
-      SStreamRefDataBlock* pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM);
+      SStreamRefDataBlock* pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
       pRefBlock->type = STREAM_INPUT__REF_DATA_BLOCK;
       pRefBlock->pBlock = pDelBlock;
       pRefBlock->dataRef = pRef;
@@ -1297,7 +1307,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   }
 
 #if 0
-    SStreamDataBlock* pStreamBlock = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+    SStreamDataBlock* pStreamBlock = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
     pStreamBlock->type = STREAM_INPUT__DATA_BLOCK;
     pStreamBlock->blocks = taosArrayInit(0, sizeof(SSDataBlock));
     SSDataBlock block = {0};
@@ -1325,12 +1335,12 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   return 0;
 }
 
-int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
-  void*              pIter = NULL;
-  bool               failed = false;
-  SStreamDataSubmit* pSubmit = NULL;
+int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
+  void*               pIter = NULL;
+  bool                failed = false;
+  SStreamDataSubmit2* pSubmit = NULL;
 
-  pSubmit = streamDataSubmitNew(pReq);
+  pSubmit = streamDataSubmitNew(submit);
   if (pSubmit == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tqError("failed to create data submit for stream since out of memory");
@@ -1347,7 +1357,7 @@ int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
       continue;
     }
 
-    tqDebug("data submit enqueue stream task: %d, ver: %" PRId64, pTask->taskId, ver);
+    tqDebug("data submit enqueue stream task: %d, ver: %" PRId64, pTask->taskId, submit.ver);
 
     if (!failed) {
       if (streamTaskInput(pTask, (SStreamQueueItem*)pSubmit) < 0) {

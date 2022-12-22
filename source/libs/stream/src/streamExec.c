@@ -26,17 +26,18 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
     qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
-    const SStreamDataSubmit* pSubmit = (const SStreamDataSubmit*)data;
-    qDebug("task %d %p set submit input %p %p %d 1", pTask->taskId, pTask, pSubmit, pSubmit->data, *pSubmit->dataRef);
-    qSetMultiStreamInput(exec, pSubmit->data, 1, STREAM_INPUT__DATA_SUBMIT);
+    const SStreamDataSubmit2* pSubmit = (const SStreamDataSubmit2*)data;
+    qDebug("task %d %p set submit input %p %p %d %" PRId64, pTask->taskId, pTask, pSubmit, pSubmit->submit.msgStr,
+           pSubmit->submit.msgLen, pSubmit->submit.ver);
+    qSetMultiStreamInput(exec, &pSubmit->submit, 1, STREAM_INPUT__DATA_SUBMIT);
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
     const SStreamDataBlock* pBlock = (const SStreamDataBlock*)data;
     SArray*                 blocks = pBlock->blocks;
     qDebug("task %d %p set ssdata input", pTask->taskId, pTask);
     qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__DATA_BLOCK);
   } else if (pItem->type == STREAM_INPUT__MERGED_SUBMIT) {
-    const SStreamMergedSubmit* pMerged = (const SStreamMergedSubmit*)data;
-    SArray*                    blocks = pMerged->reqs;
+    const SStreamMergedSubmit2* pMerged = (const SStreamMergedSubmit2*)data;
+    SArray*                     blocks = pMerged->submits;
     qDebug("task %d %p set submit input (merged), batch num: %d", pTask->taskId, pTask, (int32_t)blocks->size);
     qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__MERGED_SUBMIT);
   } else if (pItem->type == STREAM_INPUT__REF_DATA_BLOCK) {
@@ -54,6 +55,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
       /*ASSERT(false);*/
       qError("unexpected stream execution, stream %" PRId64 " task: %d,  since %s", pTask->streamId, pTask->taskId,
              terrstr());
+      continue;
     }
     if (output == NULL) {
       if (pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
@@ -126,7 +128,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       taosArrayDestroy(pRes);
       break;
     }
-    SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+    SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
     if (qRes == NULL) {
       taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -234,7 +236,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     qDebug("stream task %d exec end", pTask->taskId);
 
     if (taosArrayGetSize(pRes) != 0) {
-      SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+      SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
       if (qRes == NULL) {
         taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
         streamFreeQitem(input);
@@ -244,11 +246,11 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       qRes->blocks = pRes;
 
       if (((SStreamQueueItem*)input)->type == STREAM_INPUT__DATA_SUBMIT) {
-        SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)input;
+        SStreamDataSubmit2* pSubmit = (SStreamDataSubmit2*)input;
         qRes->childId = pTask->selfChildId;
         qRes->sourceVer = pSubmit->ver;
       } else if (((SStreamQueueItem*)input)->type == STREAM_INPUT__MERGED_SUBMIT) {
-        SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)input;
+        SStreamMergedSubmit2* pMerged = (SStreamMergedSubmit2*)input;
         qRes->childId = pTask->selfChildId;
         qRes->sourceVer = pMerged->ver;
       }

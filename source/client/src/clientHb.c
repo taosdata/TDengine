@@ -69,7 +69,7 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
     } else {
       SDBVgInfo *vgInfo = taosMemoryCalloc(1, sizeof(SDBVgInfo));
       if (NULL == vgInfo) {
-        code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         goto _return;
       }
 
@@ -82,7 +82,7 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
       if (NULL == vgInfo->vgHash) {
         taosMemoryFree(vgInfo);
         tscError("hash init[%d] failed", rsp->vgNum);
-        code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         goto _return;
       }
 
@@ -92,7 +92,7 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
           tscError("hash push failed, errno:%d", errno);
           taosHashCleanup(vgInfo->vgHash);
           taosMemoryFree(vgInfo);
-          code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+          code = TSDB_CODE_OUT_OF_MEMORY;
           goto _return;
         }
       }
@@ -366,7 +366,7 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
       desc.subDesc = taosArrayInit(desc.subPlanNum, sizeof(SQuerySubDesc));
       if (NULL == desc.subDesc) {
         releaseRequest(*rid);
-        return TSDB_CODE_QRY_OUT_OF_MEMORY;
+        return TSDB_CODE_OUT_OF_MEMORY;
       }
 
       code = schedulerGetTasksStatus(pRequest->body.queryJob, desc.subDesc);
@@ -394,14 +394,14 @@ int32_t hbGetQueryBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
   STscObj *pTscObj = (STscObj *)acquireTscObj(connKey->tscRid);
   if (NULL == pTscObj) {
     tscWarn("tscObj rid %" PRIx64 " not exist", connKey->tscRid);
-    return TSDB_CODE_QRY_APP_ERROR;
+    return TSDB_CODE_APP_ERROR;
   }
 
   SQueryHbReqBasic *hbBasic = (SQueryHbReqBasic *)taosMemoryCalloc(1, sizeof(SQueryHbReqBasic));
   if (NULL == hbBasic) {
     tscError("calloc %d failed", (int32_t)sizeof(SQueryHbReqBasic));
     releaseTscObj(connKey->tscRid);
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   hbBasic->connId = pTscObj->connId;
@@ -419,7 +419,7 @@ int32_t hbGetQueryBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
     tscWarn("taosArrayInit %d queryDesc failed", numOfQueries);
     releaseTscObj(connKey->tscRid);
     taosMemoryFree(hbBasic);
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int32_t code = hbBuildQueryDesc(hbBasic, pTscObj);
@@ -613,7 +613,7 @@ static FORCE_INLINE void hbMgrInitHandle() {
 SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
   SClientHbBatchReq *pBatchReq = taosMemoryCalloc(1, sizeof(SClientHbBatchReq));
   if (pBatchReq == NULL) {
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   int32_t connKeyCnt = atomic_load_32(&pAppHbMgr->connKeyCnt);
@@ -737,7 +737,7 @@ static void *hbThreadFunc(void *param) {
       int   tlen = tSerializeSClientHbBatchReq(NULL, 0, pReq);
       void *buf = taosMemoryMalloc(tlen);
       if (buf == NULL) {
-        terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
         tFreeClientHbBatchReq(pReq);
         // hbClearReqInfo(pAppHbMgr);
         taosArrayPush(mgr, &pAppHbMgr);
@@ -748,7 +748,7 @@ static void *hbThreadFunc(void *param) {
       SMsgSendInfo *pInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
 
       if (pInfo == NULL) {
-        terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
         tFreeClientHbBatchReq(pReq);
         // hbClearReqInfo(pAppHbMgr);
         taosMemoryFree(buf);

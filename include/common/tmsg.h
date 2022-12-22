@@ -66,6 +66,15 @@ extern int32_t tMsgDict[];
 
 typedef uint16_t tmsg_t;
 
+static inline bool vnodeIsMsgBlock(tmsg_t type) {
+  return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
+         (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_CONFIRM);
+}
+
+static inline bool syncUtilUserCommit(tmsg_t msgType) {
+  return msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER;
+}
+
 /* ------------------------ OTHER DEFINITIONS ------------------------ */
 // IE type
 #define TSDB_IE_TYPE_SEC         1
@@ -498,6 +507,8 @@ typedef struct {
   char*    pComment;
   char*    pAst1;
   char*    pAst2;
+  int64_t  deleteMark1;
+  int64_t  deleteMark2;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -1401,8 +1412,8 @@ typedef struct {
   int8_t  streamBlockType;
   int32_t compLen;
   int32_t numOfBlocks;
-  int32_t numOfRows;
-  int32_t numOfCols;
+  int64_t numOfRows;  // from int32_t change to int64_t
+  int64_t numOfCols;
   int64_t skey;
   int64_t ekey;
   int64_t version;                         // for stream
@@ -2013,6 +2024,7 @@ typedef struct {
 typedef struct {
   int64_t maxdelay[2];
   int64_t watermark[2];
+  int64_t deleteMark[2];
   int32_t qmsgLen[2];
   char*   qmsg[2];  // pAst:qmsg:SRetention => trigger aggr task1/2
 } SRSmaParam;
@@ -2069,8 +2081,9 @@ typedef struct SVCreateTbReq {
   };
 } SVCreateTbReq;
 
-int tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
-int tDecodeSVCreateTbReq(SDecoder* pCoder, SVCreateTbReq* pReq);
+int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
+int  tDecodeSVCreateTbReq(SDecoder* pCoder, SVCreateTbReq* pReq);
+void tDestroySVCreateTbReq(SVCreateTbReq* pReq, int32_t flags);
 
 static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   if (NULL == req) {
@@ -2738,6 +2751,7 @@ typedef struct {
   char*   tagsFilter;
   char*   sql;
   char*   ast;
+  int64_t deleteMark;
 } SMCreateSmaReq;
 
 int32_t tSerializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);
@@ -3263,6 +3277,17 @@ void    tDestroySSubmitRsp2(SSubmitRsp2* pRsp, int32_t flag);
 
 #define TSDB_MSG_FLG_ENCODE 0x1
 #define TSDB_MSG_FLG_DECODE 0x2
+
+typedef struct {
+  union {
+    struct {
+      void*   msgStr;
+      int32_t msgLen;
+      int64_t ver;
+    };
+    void* pDataBlock;
+  };
+} SPackedData;
 
 #pragma pack(pop)
 
