@@ -880,6 +880,8 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
     return -1;
   }
 
+  tdbDebug("pager/restore: %p, %d/%d, txnId:%s", pPager, pPager->dbOrigSize, pPager->dbFileSize, jFileName);
+
   for (int pgIndex = 0; pgIndex < journalSize; ++pgIndex) {
     // read pgno & the page from journal
     SPgno pgno;
@@ -889,6 +891,8 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
       tdbOsFree(pageBuf);
       return -1;
     }
+
+    tdbTrace("pager/restore: restore pgno:%d,", pgno);
 
     ret = tdbOsRead(jfd, pageBuf, pPager->pageSize);
     if (ret < 0) {
@@ -949,7 +953,12 @@ int tdbPagerRestoreJournals(SPager *pPager) {
   while ((pDirEntry = tdbReadDir(pDir)) != NULL) {
     char *name = tdbDirEntryBaseName(tdbGetDirEntryName(pDirEntry));
     if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
-      if (tdbPagerRestore(pPager, name) < 0) {
+      char jname[TD_PATH_MAX] = {0};
+      int dirLen = strlen(pPager->pEnv->dbName);
+      memcpy(jname, pPager->pEnv->dbName, dirLen);
+      jname[dirLen] = '/';
+      memcpy(jname + dirLen + 1, name, strlen(name));
+      if (tdbPagerRestore(pPager, jname) < 0) {
         tdbCloseDir(&pDir);
 
         tdbError("failed to restore file due to %s. jFileName:%s", strerror(errno), name);
