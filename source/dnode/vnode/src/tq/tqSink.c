@@ -19,7 +19,6 @@
 
 int32_t tqBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBlock* pDataBlock,
                          SBatchDeleteReq* deleteReq) {
-  ASSERT(pDataBlock->info.type == STREAM_DELETE_RESULT);
   int32_t          totRow = pDataBlock->info.rows;
   SColumnInfoData* pStartTsCol = taosArrayGet(pDataBlock->pDataBlock, START_TS_COLUMN_INDEX);
   SColumnInfoData* pEndTsCol = taosArrayGet(pDataBlock->pDataBlock, END_TS_COLUMN_INDEX);
@@ -334,8 +333,8 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       int32_t code;
       tEncodeSize(tEncodeSBatchDeleteReq, &deleteReq, len, code);
       if (code < 0) {
-        //
-        ASSERT(0);
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return;
       }
       SEncoder encoder;
       void*    serializedDeleteReq = rpcMallocCont(len + sizeof(SMsgHead));
@@ -559,7 +558,6 @@ void tqSinkToTableMerge(SStreamTask* pTask, void* vnode, int64_t ver, void* data
 
   tqDebug("vgId:%d, task %d write into table, block num: %d", TD_VID(pVnode), pTask->taskId, (int32_t)pRes->size);
 
-  ASSERT(pTask->tbSink.pTSchema);
   deleteReq.deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
   SSubmitReq* submitReq = tqBlockToSubmit(pVnode, pRes, pTask->tbSink.pTSchema, pTask->tbSink.pSchemaWrapper, true,
                                           pTask->tbSink.stbUid, pTask->tbSink.stbFullName, &deleteReq);
@@ -570,10 +568,6 @@ void tqSinkToTableMerge(SStreamTask* pTask, void* vnode, int64_t ver, void* data
     int32_t code;
     int32_t len;
     tEncodeSize(tEncodeSBatchDeleteReq, &deleteReq, len, code);
-    if (code < 0) {
-      //
-      ASSERT(0);
-    }
     SEncoder encoder;
     void*    serializedDeleteReq = rpcMallocCont(len + sizeof(SMsgHead));
     void*    abuf = POINTER_SHIFT(serializedDeleteReq, sizeof(SMsgHead));
