@@ -553,6 +553,45 @@ static char* processDropSTable(SMqMetaRsp* metaRsp) {
   tDecoderClear(&decoder);
   return string;
 }
+static char* processDeleteTable(SMqMetaRsp* metaRsp){
+  SDeleteRes req = {0};
+  SDecoder   coder = {0};
+  int32_t    code = TSDB_CODE_SUCCESS;
+  cJSON*     json = NULL;
+  char*      string = NULL;
+
+  // decode and process req
+  void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
+  int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
+
+  tDecoderInit(&coder, data, len);
+  if (tDecodeDeleteRes(&coder, &req) < 0) {
+    code = TSDB_CODE_INVALID_PARA;
+    goto _exit;
+  }
+
+  //  getTbName(req.tableFName);
+  char sql[256] = {0};
+  snprintf(sql, sizeof(sql), "delete from `%s` where `%s` >= %" PRId64 " and `%s` <= %" PRId64, req.tableFName,
+           req.tsColName, req.skey, req.tsColName, req.ekey);
+  uDebug("delete sql:%s\n", sql);
+
+  json = cJSON_CreateObject();
+  if (json == NULL) {
+    goto _exit;
+  }
+  cJSON* type = cJSON_CreateString("delete");
+  cJSON_AddItemToObject(json, "type", type);
+  cJSON* sqlJson = cJSON_CreateString(sql);
+  cJSON_AddItemToObject(json, "sql", sqlJson);
+
+  string = cJSON_PrintUnformatted(json);
+
+  _exit:
+  cJSON_Delete(json);
+  tDecoderClear(&coder);
+  return string;
+}
 
 static char* processDropTable(SMqMetaRsp* metaRsp) {
   SDecoder         decoder = {0};
@@ -2202,7 +2241,12 @@ char* tmq_get_json_meta(TAOS_RES* res) {
     return processAlterTable(&pMetaRspObj->metaRsp);
   } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DROP_TABLE) {
     return processDropTable(&pMetaRspObj->metaRsp);
+  } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DROP_TABLE) {
+    return processDropTable(&pMetaRspObj->metaRsp);
+  } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DELETE) {
+    return processDeleteTable(&pMetaRspObj->metaRsp);
   }
+
   return NULL;
 }
 
