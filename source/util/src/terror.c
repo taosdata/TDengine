@@ -259,7 +259,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CONFLICT,           "Conflict transaction 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CLOG_IS_NULL,       "Transaction commitlog is null")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL,   "Unable to establish connection While execute transaction and will continue in the background")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_LAST_TRANS_NOT_FINISHED,  "Last Transaction not finished")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRNAS_EXEC_IN_BACKGROUND, "Sync timeout While execute transaction and will continue in the background")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRNAS_SYNC_TIMEOUT,       "Sync timeout While execute transaction and will continue in the background")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_UNKNOW_ERROR,       "Unknown transaction error")
 
 // mnode-mq

@@ -961,7 +961,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         code = TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL;
       }
       if (code == TSDB_CODE_SYN_TIMEOUT) {
-        code = TSDB_CODE_MND_TRNAS_EXEC_IN_BACKGROUND;
+        code = TSDB_CODE_MND_TRNAS_SYNC_TIMEOUT;
       }
 
       if (i != 0 && code == 0) {
