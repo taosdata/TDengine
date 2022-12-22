@@ -21,6 +21,7 @@ taosAdapter 提供以下功能：
 - 无缝连接到 collectd
 - 无缝连接到 StatsD
 - 支持 Prometheus remote_read 和 remote_write
+- 获取 table 所在的虚拟节点组（VGroup）的 VGroup ID
 
 ## taosAdapter 架构图
 
@@ -178,6 +179,7 @@ AllowWebSockets
   node_export 是一个机器指标的导出器。请访问 [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) 了解更多信息。
 - 支持 Prometheus remote_read 和 remote_write
   remote_read 和 remote_write 是 Prometheus 数据读写分离的集群方案。请访问[https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) 了解更多信息。
+- 获取 table 所在的虚拟节点组（VGroup）的 VGroup ID。关于虚拟节点组（VGroup）的更多信息，请访问[整体架构文档](/tdinternal/arch/#主要逻辑单元) 。
 
 ## 接口
 
@@ -239,6 +241,10 @@ Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输�
 ### prometheus
 
 <Prometheus />
+
+### 获取 table 的 VGroup ID
+
+可以访问 http 接口 `http://<fqdn>:6041/rest/vgid?db=<db>&table=<table>` 获取 table 的 VGroup ID。关于虚拟节点组（VGroup）的更多信息，请访问[整体架构文档](/tdinternal/arch/#主要逻辑单元) 。
 
 ## 内存使用优化方法
 

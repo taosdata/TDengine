@@ -21,6 +21,7 @@ taosAdapter provides the following features.
 - Seamless connection to collectd
 - Seamless connection to StatsD
 - Supports Prometheus remote_read and remote_write
+- Get table's VGroup ID
 
 ## taosAdapter architecture diagram
 
@@ -178,6 +179,7 @@ See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/bl
   node_export is an exporter for machine metrics. Please visit [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) for more information.
 - Support for Prometheus remote_read and remote_write
   remote_read and remote_write are interfaces for Prometheus data read and write from/to other data storage solution. Please visit [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) for more information.
+- Get table's VGroup ID. For more information about VGroup, please refer to [primary-logic-unit](/tdinternal/arch/#primary-logic-unit).
 
 ## Interfaces
 
@@ -240,6 +242,10 @@ node_export is an exporter of hardware and OS metrics exposed by the \*NIX kerne
 ### Prometheus
 
 <Prometheus />
+
+### Get table's VGroup ID
+
+You can call `http://<fqdn>:6041/rest/vgid?db=<db>&table=<table>` to get table's VGroup ID. For more information about VGroup, please refer to [primary-logic-unit](/tdinternal/arch/#primary-logic-unit).
 
 ## Memory usage optimization methods
 
