@@ -293,10 +293,12 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
     int64_t ts = ((int64_t*)pTsCol->pData)[pFillInfo->index];
 
     // set the next value for interpolation
-    if (pFillInfo->currentKey < ts && ascFill) {
-      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, &pFillInfo->prev);
-    } else if (pFillInfo->currentKey > ts && !ascFill) {
+    if ((pFillInfo->currentKey < ts && ascFill) || (pFillInfo->currentKey > ts && !ascFill)) {
       copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, &pFillInfo->next);
+    }
+
+    if (pFillInfo->currentKey < ts && ascFill && 0 == pFillInfo->index) {
+      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, &pFillInfo->prev);
     }
 
     if (((pFillInfo->currentKey < ts && ascFill) || (pFillInfo->currentKey > ts && !ascFill)) &&
