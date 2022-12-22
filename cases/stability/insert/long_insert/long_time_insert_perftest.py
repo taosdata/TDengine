@@ -235,6 +235,7 @@ class LongTimeInsert(TDCase):
 
         jfile = InsertFile()
         Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
+        self.tdSql.execute(f'drop database if exists perf_test')
         for cases in cfg:
             db_list = list()
             i = 0
@@ -246,6 +247,7 @@ class LongTimeInsert(TDCase):
             for json_file in cfg[cases]:
                 self.tdSql.query('select * from information_schema.ins_databases;')
                 self.streams = None
+                self.tdSql.execute(f'create database if not exists {cfg[cases][json_file]["db_info"]["db_name"]} replica {cfg[cases][json_file]["db_info"]["replica"]} vgroups {cfg[cases][json_file]["db_info"]["vgroups"]} stt_trigger {cfg[cases][json_file]["db_info"]["stt_trigger"]}')
                 if cfg[cases][json_file]["stb_info"]["line_protocol"] == "telnet" or cfg[cases][json_file]["stb_info"]["line_protocol"] == "json":
                     col = jfile.schemacfg(doublecount=cfg[cases][json_file]["stb_info"]["col_double_count"])
                 else:
@@ -308,7 +310,6 @@ class LongTimeInsert(TDCase):
                                      vgroups=cfg[cases][json_file]["db_info"]["vgroups"],
                                      duration=cfg[cases][json_file]["db_info"]["duration"],
                                      keep=cfg[cases][json_file]["db_info"]["keep"],
-                                     cachemodel=cfg[cases][json_file]["db_info"]["cachemodel"],
                                      stt_trigger=cfg[cases][json_file]["db_info"]["stt_trigger"]
                                      )
                 if "retentions" in cfg[cases][json_file]["db_info"]:
