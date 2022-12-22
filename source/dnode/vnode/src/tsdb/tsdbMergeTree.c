@@ -158,9 +158,9 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
             idStr);
 
   pInfo->blockIndex[pInfo->currentLoadBlockIndex] = pIter->iSttBlk;
-  tsdbDebug("last block index list:%d, %d, %s", pInfo->blockIndex[0], pInfo->blockIndex[1], idStr);
-
   pIter->iRow = (pIter->backward) ? pInfo->blockData[pInfo->currentLoadBlockIndex].nRow : -1;
+
+  tsdbDebug("last block index list:%d, %d, rowIndex:%d %s", pInfo->blockIndex[0], pInfo->blockIndex[1], pIter->iRow, idStr);
   return &pInfo->blockData[pInfo->currentLoadBlockIndex];
 
 _exit:
@@ -419,6 +419,7 @@ static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
       pBlockData->aUid != NULL) {
     i = binarySearchForStartRowIndex((uint64_t *)pBlockData->aUid, pBlockData->nRow, pIter->uid, pIter->backward);
     if (i == -1) {
+      tsdbDebug("failed to find the data in pBlockData, uid:%"PRIu64" , %s", pIter->uid, idStr);
       pIter->iRow = -1;
       return;
     }
