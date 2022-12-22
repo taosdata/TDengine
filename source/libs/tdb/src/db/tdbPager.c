@@ -869,6 +869,12 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
     return -1;
   }
 
+  if (tdbOsLSeek(jfd, 0L, SEEK_SET) < 0) {
+    tdbError("failed to lseek jfd due to %s. file:%s, offset:0", strerror(errno), pPager->dbFileName);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
   pageBuf = tdbOsCalloc(1, pPager->pageSize);
   if (pageBuf == NULL) {
     return -1;
