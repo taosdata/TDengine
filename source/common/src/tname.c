@@ -316,6 +316,7 @@ static int compareKv(const void* p1, const void* p2) {
 void buildChildTableName(RandTableName* rName) {
   SStringBuilder sb = {0};
   taosStringBuilderAppendStringLen(&sb, rName->stbFullName, rName->stbFullNameLen);
+  if(sb.buf == NULL) return;
   taosArraySort(rName->tags, compareKv);
   for (int j = 0; j < taosArrayGetSize(rName->tags); ++j) {
     taosStringBuilderAppendChar(&sb, ',');

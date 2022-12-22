@@ -51,7 +51,7 @@ Source: taos.bat; DestDir: "{app}\include"; Flags: igNoreversion;
 ;Source: taosdemo.png; DestDir: "{app}\include"; Flags: igNoreversion;
 ;Source: taosShell.png; DestDir: "{app}\include"; Flags: igNoreversion;
 Source: favicon.ico; DestDir: "{app}\include"; Flags: igNoreversion;
-Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{win}\System32"; Flags: 64bit;Check:IsWin64;
+Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{win}\System32"; Flags: igNoreversion recursesubdirs createallsubdirs 64bit;Check:IsWin64;
 Source: {#MyAppSourceDir}{#MyAppCfgName}; DestDir: "{app}\cfg"; Flags: igNoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
 Source: {#MyAppSourceDir}{#MyAppDriverName}; DestDir: "{app}\driver"; Flags: igNoreversion recursesubdirs createallsubdirs
 ;Source: {#MyAppSourceDir}{#MyAppConnectorName}; DestDir: "{app}\connector"; Flags: igNoreversion recursesubdirs createallsubdirs

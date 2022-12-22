@@ -4,11 +4,11 @@ system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
 system sh/deploy.sh -n dnode5 -i 5
-system sh/cfg.sh -n dnode1 -c supportVnodes -v 4
-system sh/cfg.sh -n dnode2 -c supportVnodes -v 4
-system sh/cfg.sh -n dnode3 -c supportVnodes -v 4
-system sh/cfg.sh -n dnode4 -c supportVnodes -v 4
-system sh/cfg.sh -n dnode5 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 5
+system sh/cfg.sh -n dnode2 -c supportVnodes -v 5
+system sh/cfg.sh -n dnode3 -c supportVnodes -v 5
+system sh/cfg.sh -n dnode4 -c supportVnodes -v 5
+system sh/cfg.sh -n dnode5 -c supportVnodes -v 5
 
 print ========== step1
 system sh/exec.sh -n dnode1 -s start

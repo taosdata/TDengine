@@ -84,6 +84,7 @@ void syncOneReplicaAdvance(SSyncNode* pSyncNode) {
 }
 
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
+  ASSERTS(false, "deprecated");
   if (pSyncNode == NULL) {
     sError("pSyncNode is NULL");
     return;
@@ -117,9 +118,11 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       if (h) {
         pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
 
+        pSyncNode->pLogStore->cacheHit++;
         sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", index, pEntry->bytes, pEntry);
 
       } else {
+        pSyncNode->pLogStore->cacheMiss++;
         sNTrace(pSyncNode, "miss cache index:%" PRId64, index);
 
         int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index, &pEntry);
@@ -136,7 +139,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         if (h) {
           taosLRUCacheRelease(pCache, h, false);
         } else {
-          syncEntryDestory(pEntry);
+          syncEntryDestroy(pEntry);
         }
 
         break;
@@ -148,7 +151,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       if (h) {
         taosLRUCacheRelease(pCache, h, false);
       } else {
-        syncEntryDestory(pEntry);
+        syncEntryDestroy(pEntry);
       }
     }
   }
@@ -284,15 +287,48 @@ bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
 }
 */
 
-bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
+bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index) {
+  int            count = 0;
+  SSyncIndexMgr* pMatches = pNode->pMatchIndex;
+  ASSERT(pNode->replicaNum == pMatches->replicaNum);
+
+  for (int i = 0; i < pNode->replicaNum; i++) {
+    SyncIndex matchIndex = pMatches->index[i];
+    if (matchIndex >= index) {
+      count++;
+    }
+  }
+
+  return count >= pNode->quorum;
+}
+
+bool syncAgree(SSyncNode* pNode, SyncIndex index) {
   int agreeCount = 0;
-  for (int i = 0; i < pSyncNode->replicaNum; ++i) {
-    if (syncAgreeIndex(pSyncNode, &(pSyncNode->replicasId[i]), index)) {
+  for (int i = 0; i < pNode->replicaNum; ++i) {
+    if (syncAgreeIndex(pNode, &(pNode->replicasId[i]), index)) {
       ++agreeCount;
     }
-    if (agreeCount >= pSyncNode->quorum) {
+    if (agreeCount >= pNode->quorum) {
       return true;
     }
   }
   return false;
+}
+
+int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex) {
+  SyncIndex lastVer = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+  commitIndex = TMAX(commitIndex, ths->commitIndex);
+  ths->commitIndex = TMIN(commitIndex, lastVer);
+  ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->commitIndex);
+  return ths->commitIndex;
+}
+
+int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
+  if (indexLikely > ths->commitIndex && syncNodeAgreedUpon(ths, indexLikely)) {
+    SyncIndex commitIndex = indexLikely;
+    syncNodeUpdateCommitIndex(ths, commitIndex);
+    sTrace("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index: %" PRId64 "", ths->vgId, ths->state,
+           ths->pRaftStore->currentTerm, commitIndex);
+  }
+  return ths->commitIndex;
 }

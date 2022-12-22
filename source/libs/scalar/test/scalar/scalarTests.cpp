@@ -98,7 +98,7 @@ void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *s
 
     taosArrayPush(pBlockList, &res);
     *dataBlockId = taosArrayGetSize(pBlockList) - 1;
-    res->info.blockId = *dataBlockId;
+    res->info.id.blockId = *dataBlockId;
     *slotId = 0;
   } else {
     SSDataBlock    *res = *(SSDataBlock **)taosArrayGetLast(pBlockList);

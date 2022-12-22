@@ -269,7 +269,7 @@ static int32_t tfSearchPrefix(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
     if (ret != 0) {
       taosArrayDestroy(offsets);
       indexError("failed to find target tablelist");
-      return TSDB_CODE_TDB_FILE_CORRUPTED;
+      return TSDB_CODE_FILE_CORRUPTED;
     }
   }
   taosArrayDestroy(offsets);

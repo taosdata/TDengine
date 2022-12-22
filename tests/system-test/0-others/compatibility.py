@@ -4,7 +4,7 @@ import sys
 import os
 import time
 
-
+from pathlib import Path
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -13,12 +13,12 @@ from util.dnodes import TDDnodes
 from util.dnodes import TDDnode
 from util.cluster import *
 
-
+BASEVERSION = "3.0.1.8"
 class TDTestCase:
     def caseDescription(self):
         '''
         3.0 data compatibility test 
-        case1: basedata version is 3.0.1.0
+        case1: basedata version is 3.0.1.8
         '''
         return
 
@@ -60,25 +60,33 @@ class TDTestCase:
         # os.system(f" mv {bPath}/build  {bPath}/build_bak ")
         # os.system(f"mv {self.getBuildPath()}/build/lib/libtaos.so  {self.getBuildPath()}/build/lib/libtaos.so_bak ")
         # os.system(f"mv {self.getBuildPath()}/build/lib/libtaos.so.1  {self.getBuildPath()}/build/lib/libtaos.so.1_bak ")
-
-        packagePath="/usr/local/src/"
-        packageName="TDengine-server-3.0.1.0-Linux-x64.tar.gz"
-        os.system(f"cd {packagePath} &&  tar xvf  TDengine-server-3.0.1.0-Linux-x64.tar.gz && cd TDengine-server-3.0.1.0 && ./install.sh  -e no  " )
-        tdDnodes.stop(1)
-        print(f"start taosd: nohup taosd -c {cPath} & ")
-        os.system(f" nohup taosd -c {cPath} & " )
-        sleep(1)
-
-
         
+        packagePath = "/usr/local/src/"
+        dataPath = cPath + "/../data/"
+        packageName = "TDengine-server-"+  BASEVERSION + "-Linux-x64.tar.gz"
+        packageTPath = packageName.split("-Linux-")[0]
+        my_file = Path(f"{packagePath}/{packageName}")
+        if not  my_file.exists():
+            print(f"{packageName} is not exists")
+            tdLog.info(f"cd {packagePath} &&  wget https://www.tdengine.com/assets-download/3.0/{packageName}")
+            os.system(f"cd {packagePath} &&  wget https://www.tdengine.com/assets-download/3.0/{packageName}")
+        else: 
+            print(f"{packageName} has been exists")
+        os.system(f" cd {packagePath} &&  tar xvf  {packageName} && cd {packageTPath} &&  ./install.sh  -e no  " )
+        tdDnodes.stop(1)
+        print(f"start taosd: rm -rf {dataPath}/*  && nohup taosd -c {cPath} & ")
+        os.system(f"rm -rf {dataPath}/*  && nohup taosd -c {cPath} & " )
+        sleep(5)
+
+
     def buildTaosd(self,bPath):
         # os.system(f"mv {bPath}/build_bak  {bPath}/build ")
         os.system(f" cd {bPath}  &&  make install ")
 
 
     def run(self):
-        bPath=self.getBuildPath()
-        cPath=self.getCfgPath()
+        bPath = self.getBuildPath()
+        cPath = self.getCfgPath()
         dbname = "test"
         stb = f"{dbname}.meters"
         self.installTaosd(bPath,cPath)
@@ -86,19 +94,20 @@ class TDTestCase:
         tableNumbers=100
         recordNumbers1=100
         recordNumbers2=1000
-        tdsqlF=tdCom.newTdSql()
-        print(tdsqlF)
-        tdsqlF.query(f"SELECT SERVER_VERSION();")
-        print(tdsqlF.query(f"SELECT SERVER_VERSION();"))
-        oldServerVersion=tdsqlF.queryResult[0][0]
-        tdLog.info(f"Base server version is {oldServerVersion}")
-        tdsqlF.query(f"SELECT CLIENT_VERSION();")
-        
-        # the oldClientVersion can't be updated in the same python process,so the version is new compiled verison
-        oldClientVersion=tdsqlF.queryResult[0][0]
-        tdLog.info(f"Base client version is {oldClientVersion}")
 
-        tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{oldServerVersion}")
+        # tdsqlF=tdCom.newTdSql()
+        # print(tdsqlF)
+        # tdsqlF.query(f"SELECT SERVER_VERSION();")
+        # print(tdsqlF.query(f"SELECT SERVER_VERSION();"))
+        # oldServerVersion=tdsqlF.queryResult[0][0]
+        # tdLog.info(f"Base server version is {oldServerVersion}")
+        # tdsqlF.query(f"SELECT CLIENT_VERSION();")
+        # # the oldClientVersion can't be updated in the same python process,so the version is new compiled verison
+        # oldClientVersion=tdsqlF.queryResult[0][0]
+        # tdLog.info(f"Base client version is {oldClientVersion}")
+        # baseVersion = "3.0.1.8"
+
+        tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{BASEVERSION}")
         tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
         os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
         sleep(3)
@@ -138,6 +147,8 @@ class TDTestCase:
         os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
+        tdsql.query(f"select count(*) from db4096.stb0")
+        tdsql.checkData(0,0,50000)
 
         tdsql=tdCom.newTdSql()
         tdLog.printNoPrefix(f"==========step4:verify backticks in taos Sql-TD18542")
@@ -164,6 +175,7 @@ class TDTestCase:
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
+
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())

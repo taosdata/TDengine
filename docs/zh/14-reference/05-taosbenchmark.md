@@ -204,6 +204,10 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-a/--replica <replicaNum\>** :
   创建数据库时指定其副本数，默认值为 1 。
 
+- ** -k/--keep-trying <NUMBER\>** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
+
+- ** -z/--trying-interval <NUMBER\>** : 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本。
+
 - **-V/--version** :
   显示版本信息并退出。不能与其它参数混用。
 
@@ -230,6 +234,10 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 ### 插入场景配置参数
 
 插入场景下 `filetype` 必须设置为 `insert`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
+
+- ** keep_trying ** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
+
+- ** trying_interval ** : 失败重试间隔时间，单位为毫秒，仅在 keep_trying 指定重试后有效。需使用 v3.0.9 以上版本。
 
 #### 数据库相关配置参数
 

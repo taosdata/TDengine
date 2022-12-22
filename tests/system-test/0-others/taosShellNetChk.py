@@ -231,7 +231,7 @@ class TDTestCase:
         finally:
             if platform.system().lower() == 'windows':
                 tdLog.info("ps -a | grep taos | awk \'{print $2}\' | xargs kill -9")
-                # os.system('ps -a | grep taos | awk \'{print $2}\' | xargs kill -9')
+                os.system('ps -a | grep taos | awk \'{print $2}\' | xargs kill -9')
             else:
                 tdLog.info("pkill -9 taos")
                 # os.system('pkill -9 taos')

@@ -228,7 +228,7 @@ static FORCE_INLINE int32_t udfColDataSet(SUdfColumn *pColumn, uint32_t currentR
           newSize = 8;
         }
 
-        while (newSize < data->varLenCol.payloadLen + dataLen) {
+        while (newSize < (uint32_t)(data->varLenCol.payloadLen + dataLen)) {
           newSize = newSize * UDF_MEMORY_EXP_GROWTH;
         }
 
@@ -248,7 +248,7 @@ static FORCE_INLINE int32_t udfColDataSet(SUdfColumn *pColumn, uint32_t currentR
       data->varLenCol.payloadLen += dataLen;
     }
   }
-  data->numOfRows = (currentRow + 1 > data->numOfRows) ? (currentRow + 1) : data->numOfRows;
+  data->numOfRows = ((int32_t)(currentRow + 1) > data->numOfRows) ? (int32_t)(currentRow + 1) : data->numOfRows;
   return 0;
 }
 

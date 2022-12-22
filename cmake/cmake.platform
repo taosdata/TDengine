@@ -1,20 +1,17 @@
 cmake_minimum_required(VERSION 3.0)
 
-MESSAGE("Current system is ${CMAKE_SYSTEM_NAME}")
-
 # init
 SET(TD_LINUX FALSE)
 SET(TD_WINDOWS FALSE)
 SET(TD_DARWIN FALSE)
 
-MESSAGE("Compiler ID: ${CMAKE_CXX_COMPILER_ID}")
 if(CMAKE_COMPILER_IS_GNUCXX MATCHES 1)
     set(CXX_COMPILER_IS_GNU TRUE)
 else()
     set(CXX_COMPILER_IS_GNU FALSE)
 endif()
 
-MESSAGE("Current system name is ${CMAKE_SYSTEM_NAME}.")
+MESSAGE("Current system: ${CMAKE_SYSTEM_NAME}")
 
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
@@ -25,6 +22,8 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
         set(CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS "${CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS} -undefined dynamic_lookup")
         set(CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS "${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS} -undefined dynamic_lookup")
     ENDIF ()
+
+    MESSAGE("Current system processor: ${CMAKE_SYSTEM_PROCESSOR}")
 
     IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 
@@ -44,7 +43,6 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
         SET(OSTYPE "macOS")
         ADD_DEFINITIONS("-DDARWIN -Wno-tautological-pointer-compare")
 
-        MESSAGE("Current system processor is ${CMAKE_SYSTEM_PROCESSOR}.")
         IF (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
             MESSAGE("Current system arch is arm64")
             SET(TD_DARWIN_64 TRUE)
@@ -80,24 +78,24 @@ ELSEIF (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ENDIF()
 
 IF ("${CPUTYPE}" STREQUAL "")
-  MESSAGE(STATUS "The current platform " ${CMAKE_SYSTEM_PROCESSOR} " is detected")
-
   IF (CMAKE_SYSTEM_PROCESSOR MATCHES "(amd64)|(AMD64)")
-    MESSAGE(STATUS "The current platform is amd64")
+    MESSAGE(STATUS "Current platform is amd64")
     SET(PLATFORM_ARCH_STR "amd64")
     SET(TD_INTEL_64 TRUE)
+    ADD_DEFINITIONS("-D_TD_X86_")
   ELSEIF (CMAKE_SYSTEM_PROCESSOR MATCHES "(x86)|(X86)")
-    MESSAGE(STATUS "The current platform is x86")
+    MESSAGE(STATUS "Current platform is x86")
     SET(PLATFORM_ARCH_STR "i386")
     SET(TD_INTEL_32 TRUE)
+    ADD_DEFINITIONS("-D_TD_X86_")
   ELSEIF (CMAKE_SYSTEM_PROCESSOR MATCHES "armv7l")
-    MESSAGE(STATUS "The current platform is aarch32")
+    MESSAGE(STATUS "Current platform is aarch32")
     SET(PLATFORM_ARCH_STR "arm")
     SET(TD_ARM_32 TRUE)
     ADD_DEFINITIONS("-D_TD_ARM_")
     ADD_DEFINITIONS("-D_TD_ARM_32")
   ELSEIF (CMAKE_SYSTEM_PROCESSOR MATCHES "(aarch64)|(arm64)")
-    MESSAGE(STATUS "The current platform is aarch64")
+    MESSAGE(STATUS "Current platform is aarch64")
     SET(PLATFORM_ARCH_STR "arm64")
     SET(TD_ARM_64 TRUE)
     ADD_DEFINITIONS("-D_TD_ARM_")
@@ -149,7 +147,7 @@ ELSE ()
   ENDIF ()
 ENDIF ()
 
-MESSAGE(STATUS "platform arch:" ${PLATFORM_ARCH_STR})
+MESSAGE(STATUS "Platform arch:" ${PLATFORM_ARCH_STR})
 
-MESSAGE("C Compiler ID: ${CMAKE_C_COMPILER_ID}")
-MESSAGE("CXX Compiler ID: ${CMAKE_CXX_COMPILER_ID}")
+MESSAGE("C Compiler: ${CMAKE_C_COMPILER} (${CMAKE_C_COMPILER_ID}, ${CMAKE_C_COMPILER_VERSION})")
+MESSAGE("CXX Compiler: ${CMAKE_CXX_COMPILER} (${CMAKE_C_COMPILER_ID}, ${CMAKE_CXX_COMPILER_VERSION})")

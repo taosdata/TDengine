@@ -464,6 +464,7 @@ if __name__ == "__main__":
             tdDnodes.init(deployPath, masterIp)
             tdDnodes.setTestCluster(testCluster)
             tdDnodes.setValgrind(valgrind)
+            tdDnodes.setAsan(asan)
             tdDnodes.stopAll()
             for dnode in tdDnodes.dnodes:
                 tdDnodes.deploy(dnode.index,{})

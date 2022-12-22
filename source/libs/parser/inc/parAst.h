@@ -72,7 +72,8 @@ typedef enum ETableOptionType {
   TABLE_OPTION_WATERMARK,
   TABLE_OPTION_ROLLUP,
   TABLE_OPTION_TTL,
-  TABLE_OPTION_SMA
+  TABLE_OPTION_SMA,
+  TABLE_OPTION_DELETE_MARK
 } ETableOptionType;
 
 typedef struct SAlterOption {
@@ -115,6 +116,7 @@ SNode* createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const STok
 SNode* createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order, ENullOrder nullOrder);
 SNode* createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap);
 SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr);
+SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond);
 SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding,
                                 SNode* pFill);
 SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues);

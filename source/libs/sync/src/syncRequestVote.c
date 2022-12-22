@@ -94,7 +94,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
-    syncLogRecvRequestVote(ths, pMsg, "not in my config");
+    syncLogRecvRequestVote(ths, pMsg, -1, "not in my config");
     return -1;
   }
 
@@ -124,7 +124,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   // send msg
   SRpcMsg rpcMsg = {0};
   ret = syncBuildRequestVoteReply(&rpcMsg, ths->vgId);
-  ASSERT(ret == 0 );
+  ASSERT(ret == 0);
 
   SyncRequestVoteReply* pReply = rpcMsg.pCont;
   pReply->srcId = ths->myRaftId;
@@ -133,13 +133,8 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pReply->voteGranted = grant;
 
   // trace log
-  do {
-    char logBuf[32];
-    snprintf(logBuf, sizeof(logBuf), "grant:%d", pReply->voteGranted);
-    syncLogRecvRequestVote(ths, pMsg, logBuf);
-    syncLogSendRequestVoteReply(ths, pReply, "");
-  } while (0);
-
+  syncLogRecvRequestVote(ths, pMsg, pReply->voteGranted, "");
+  syncLogSendRequestVoteReply(ths, pReply, "");
   syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
   return 0;
 }

@@ -108,7 +108,7 @@ static SHashObj *sdbGetHash(SSdb *pSdb, int32_t type) {
 
   SHashObj *hash = pSdb->hashObjs[type];
   if (hash == NULL) {
-    terrno = TSDB_CODE_SDB_APP_ERROR;
+    terrno = TSDB_CODE_APP_ERROR;
     return NULL;
   }
 
@@ -302,7 +302,7 @@ void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey) {
       terrno = TSDB_CODE_SDB_OBJ_DROPPING;
       break;
     default:
-      terrno = TSDB_CODE_SDB_APP_ERROR;
+      terrno = TSDB_CODE_APP_ERROR;
       break;
   }
 

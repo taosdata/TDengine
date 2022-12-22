@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "syncTest.h"
 #include "syncBatch.h"
+#include "syncTest.h"
 
 // ---- message process SyncClientRequestBatch----
 

@@ -100,7 +100,9 @@ SSyncNode *syncNodeAcquire(int64_t rid) {
   return pNode;
 }
 
-void syncNodeRelease(SSyncNode *pNode) { taosReleaseRef(gNodeRefId, pNode->rid); }
+void syncNodeRelease(SSyncNode *pNode) {
+  if (pNode) taosReleaseRef(gNodeRefId, pNode->rid);
+}
 
 int64_t syncHbTimerDataAdd(SSyncHbTimerData *pData) {
   pData->rid = taosAddRef(gHbDataRefId, pData);

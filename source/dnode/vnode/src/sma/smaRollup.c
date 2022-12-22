@@ -660,6 +660,13 @@ _end:
   return code;
 }
 
+static void tdBlockDataDestroy(SArray *pBlockArr) {
+  for (int32_t i = 0; i < taosArrayGetSize(pBlockArr); ++i) {
+    blockDataDestroy(taosArrayGetP(pBlockArr, i));
+  }
+  taosArrayDestroy(pBlockArr);
+}
+
 static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSmaInfoItem *pItem, STSchema *pTSchema,
                                          int64_t suid) {
   SArray *pResList = taosArrayInit(1, POINTER_BYTES);
@@ -701,38 +708,44 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
 #endif
     for (int32_t i = 0; i < taosArrayGetSize(pResList); ++i) {
       SSDataBlock *output = taosArrayGetP(pResList, i);
-      smaDebug("result block, uid:%"PRIu64", groupid:%"PRIu64", rows:%d", output->info.uid, output->info.groupId,
-              output->info.rows);
+      smaDebug("result block, uid:%" PRIu64 ", groupid:%" PRIu64 ", rows:%d", output->info.id.uid, output->info.id.groupId,
+               output->info.rows);
 
-      STsdb       *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb[0] : pSma->pRSmaTsdb[1]);
-      SSubmitReq  *pReq = NULL;
+      STsdb      *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb[0] : pSma->pRSmaTsdb[1]);
+      SSubmitReq *pReq = NULL;
 
       // TODO: the schema update should be handled later(TD-17965)
       if (buildSubmitReqFromDataBlock(&pReq, output, pTSchema, SMA_VID(pSma), suid) < 0) {
-        smaError("vgId:%d, build submit req for rsma table suid:%" PRIu64 ", uid:%"PRIu64", level %" PRIi8 " failed since %s", SMA_VID(pSma),
-                 suid, output->info.groupId, pItem->level, terrstr());
+        smaError("vgId:%d, build submit req for rsma table suid:%" PRIu64 ", uid:%" PRIu64 ", level %" PRIi8
+                 " failed since %s",
+                 SMA_VID(pSma), suid, output->info.id.groupId, pItem->level, terrstr());
         goto _err;
       }
 
       if (pReq && tdProcessSubmitReq(sinkTsdb, output->info.version, pReq) < 0) {
         taosMemoryFreeClear(pReq);
-        smaError("vgId:%d, process submit req for rsma suid:%"PRIu64", uid:%" PRIu64 " level %" PRIi8 " failed since %s",
-                 SMA_VID(pSma), suid, output->info.groupId, pItem->level, terrstr());
+        smaError("vgId:%d, process submit req for rsma suid:%" PRIu64 ", uid:%" PRIu64 " level %" PRIi8
+                 " failed since %s",
+                 SMA_VID(pSma), suid, output->info.id.groupId, pItem->level, terrstr());
         goto _err;
       }
 
-      smaDebug("vgId:%d, process submit req for rsma suid:%" PRIu64 ",uid:%"PRIu64", level %" PRIi8 " ver %" PRIi64 " len %" PRIu32,
-               SMA_VID(pSma), suid, output->info.groupId, pItem->level, output->info.version, htonl(pReq->header.contLen));
+      smaDebug("vgId:%d, process submit req for rsma suid:%" PRIu64 ",uid:%" PRIu64 ", level %" PRIi8 " ver %" PRIi64
+               " len %" PRIu32,
+               SMA_VID(pSma), suid, output->info.id.groupId, pItem->level, output->info.version,
+               htonl(pReq->header.contLen));
 
       taosMemoryFreeClear(pReq);
     }
   }
 
   taosArrayDestroy(pResList);
+  qCleanExecTaskBlockBuf(taskInfo);
   return TSDB_CODE_SUCCESS;
 
 _err:
   taosArrayDestroy(pResList);
+  qCleanExecTaskBlockBuf(taskInfo);
   return TSDB_CODE_FAILED;
 }
 
@@ -750,7 +763,7 @@ static int32_t tdExecuteRSmaImplAsync(SSma *pSma, const void *pMsg, int32_t inpu
                                       tb_uid_t suid) {
   const SSubmitReq *pReq = (const SSubmitReq *)pMsg;
 
-  void *qItem = taosAllocateQitem(pReq->header.contLen, DEF_QITEM);
+  void *qItem = taosAllocateQitem(pReq->header.contLen, DEF_QITEM, 0);
   if (!qItem) {
     return TSDB_CODE_FAILED;
   }
@@ -820,8 +833,7 @@ static int32_t tdRsmaPrintSubmitReq(SSma *pSma, SSubmitReq *pReq) {
 static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, int32_t inputType, SRSmaInfo *pInfo,
                                  ERsmaExecType type, int8_t level) {
   int32_t idx = level - 1;
-
-  void *qTaskInfo = (type == RSMA_EXEC_COMMIT) ? RSMA_INFO_IQTASK(pInfo, idx) : RSMA_INFO_QTASK(pInfo, idx);
+  void   *qTaskInfo = (type == RSMA_EXEC_COMMIT) ? RSMA_INFO_IQTASK(pInfo, idx) : RSMA_INFO_QTASK(pInfo, idx);
   if (!qTaskInfo) {
     smaDebug("vgId:%d, no qTaskInfo to execute rsma %" PRIi8 " task for suid:%" PRIu64, SMA_VID(pSma), level,
              pInfo->suid);
@@ -911,7 +923,7 @@ static int32_t tdRSmaInfoClone(SSma *pSma, SRSmaInfo *pInfo) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, SMA_META(pSma), 0);
   smaDebug("vgId:%d, rsma clone qTaskInfo for suid:%" PRIi64, SMA_VID(pSma), pInfo->suid);
-  if (metaGetTableEntryByUid(&mr, pInfo->suid) < 0) {
+  if (metaGetTableEntryByUidCache(&mr, pInfo->suid) < 0) {
     smaError("vgId:%d, rsma clone, failed to get table meta for %" PRIi64 " since %s", SMA_VID(pSma), pInfo->suid,
              terrstr());
     goto _err;
@@ -1115,7 +1127,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
   for (int64_t i = 0; i < arrSize; ++i) {
     tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
     smaDebug("vgId:%d, rsma restore, suid is %" PRIi64, TD_VID(pVnode), suid);
-    if (metaGetTableEntryByUid(&mr, suid) < 0) {
+    if (metaGetTableEntryByUidCache(&mr, suid) < 0) {
       smaError("vgId:%d, rsma restore, failed to get table meta for %" PRIi64 " since %s", TD_VID(pVnode), suid,
                terrstr());
       goto _err;

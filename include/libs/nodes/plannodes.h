@@ -62,7 +62,8 @@ typedef enum EScanType {
   SCAN_TYPE_STREAM,
   SCAN_TYPE_TABLE_MERGE,
   SCAN_TYPE_BLOCK_INFO,
-  SCAN_TYPE_LAST_ROW
+  SCAN_TYPE_LAST_ROW,
+  SCAN_TYPE_TABLE_COUNT
 } EScanType;
 
 typedef struct SScanLogicNode {
@@ -90,6 +91,7 @@ typedef struct SScanLogicNode {
   SNode*        pTagIndexCond;
   int8_t        triggerType;
   int64_t       watermark;
+  int64_t       deleteMark;
   int8_t        igExpired;
   SArray*       pSmaIndexes;
   SNodeList*    pGroupTags;
@@ -171,6 +173,7 @@ typedef struct SExchangeLogicNode {
   SLogicNode node;
   int32_t    srcStartGroupId;
   int32_t    srcEndGroupId;
+  bool       seqRecvData;
 } SExchangeLogicNode;
 
 typedef struct SMergeLogicNode {
@@ -182,7 +185,12 @@ typedef struct SMergeLogicNode {
   bool       groupSort;
 } SMergeLogicNode;
 
-typedef enum EWindowType { WINDOW_TYPE_INTERVAL = 1, WINDOW_TYPE_SESSION, WINDOW_TYPE_STATE } EWindowType;
+typedef enum EWindowType {
+  WINDOW_TYPE_INTERVAL = 1,
+  WINDOW_TYPE_SESSION,
+  WINDOW_TYPE_STATE,
+  WINDOW_TYPE_EVENT
+} EWindowType;
 
 typedef enum EWindowAlgorithm {
   INTERVAL_ALGO_HASH = 1,
@@ -209,8 +217,11 @@ typedef struct SWindowLogicNode {
   SNode*           pTspk;
   SNode*           pTsEnd;
   SNode*           pStateExpr;
+  SNode*           pStartCond;
+  SNode*           pEndCond;
   int8_t           triggerType;
   int64_t          watermark;
+  int64_t          deleteMark;
   int8_t           igExpired;
   EWindowAlgorithm windowAlgo;
   EOrder           inputTsOrder;
@@ -322,6 +333,8 @@ typedef struct SLastRowScanPhysiNode {
   bool           ignoreNull;
 } SLastRowScanPhysiNode;
 
+typedef SLastRowScanPhysiNode STableCountScanPhysiNode;
+
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
   SEpSet         mgmtEpSet;
@@ -416,6 +429,7 @@ typedef struct SExchangePhysiNode {
   int32_t    srcEndGroupId;
   bool       singleChannel;
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
+  bool       seqRecvData;
 } SExchangePhysiNode;
 
 typedef struct SMergePhysiNode {
@@ -435,6 +449,7 @@ typedef struct SWinodwPhysiNode {
   SNode*     pTsEnd;  // window end timestamp
   int8_t     triggerType;
   int64_t    watermark;
+  int64_t    deleteMark;
   int8_t     igExpired;
   EOrder     inputTsOrder;
   EOrder     outputTsOrder;
@@ -489,6 +504,14 @@ typedef struct SStateWinodwPhysiNode {
 } SStateWinodwPhysiNode;
 
 typedef SStateWinodwPhysiNode SStreamStateWinodwPhysiNode;
+
+typedef struct SEventWinodwPhysiNode {
+  SWinodwPhysiNode window;
+  SNode*           pStartCond;
+  SNode*           pEndCond;
+} SEventWinodwPhysiNode;
+
+typedef SEventWinodwPhysiNode SStreamEventWinodwPhysiNode;
 
 typedef struct SSortPhysiNode {
   SPhysiNode node;

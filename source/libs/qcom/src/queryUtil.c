@@ -159,7 +159,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   if (NULL == pMsg) {
     qError("0x%" PRIx64 " msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
     destroySendMsgInfo(pInfo);
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -441,11 +441,24 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
   *pDst = taosMemoryMalloc(metaSize);
   if (NULL == *pDst) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(*pDst, pSrc, metaSize);
   return TSDB_CODE_SUCCESS;
 }
+
+
+void freeVgInfo(SDBVgInfo* vgInfo) {
+  if (NULL == vgInfo) {
+    return;
+  }
+
+  taosHashCleanup(vgInfo->vgHash);
+  taosArrayDestroy(vgInfo->vgArray);
+
+  taosMemoryFreeClear(vgInfo);
+}
+
 
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
   if (NULL == pSrc) {
@@ -455,7 +468,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
 
   *pDst = taosMemoryMalloc(sizeof(*pSrc));
   if (NULL == *pDst) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(*pDst, pSrc, sizeof(*pSrc));
   if (pSrc->vgHash) {
@@ -463,7 +476,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
                                    HASH_ENTRY_LOCK);
     if (NULL == (*pDst)->vgHash) {
       taosMemoryFreeClear(*pDst);
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     SVgroupInfo* vgInfo = NULL;
@@ -475,8 +488,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
       if (0 != taosHashPut((*pDst)->vgHash, vgId, sizeof(*vgId), vgInfo, sizeof(*vgInfo))) {
         qError("taosHashPut failed, vgId:%d", vgInfo->vgId);
         taosHashCancelIterate(pSrc->vgHash, pIter);
-        taosHashCleanup((*pDst)->vgHash);
-        taosMemoryFreeClear(*pDst);
+        freeVgInfo(*pDst);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 

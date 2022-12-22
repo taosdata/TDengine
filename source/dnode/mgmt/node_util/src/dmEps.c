@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmUtil.h"
+#include "tmisce.h"
 
 static void dmPrintEps(SDnodeData *pData);
 static bool dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep);
@@ -247,7 +248,7 @@ void dmUpdateEps(SDnodeData *pData, SArray *eps) {
 static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
   if (pData->dnodeEps != dnodeEps) {
     SArray *tmp = pData->dnodeEps;
-    pData->dnodeEps = taosArrayDup(dnodeEps);
+    pData->dnodeEps = taosArrayDup(dnodeEps, NULL);
     taosArrayDestroy(tmp);
   }
 

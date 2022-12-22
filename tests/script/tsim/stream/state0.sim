@@ -552,7 +552,7 @@ sql use test4;
 sql create table st (ts timestamp, c1 tinyint, c2 smallint) tags (t1 tinyint) ;
 sql create table t1 using st tags (-81) ;
 sql create table t2 using st tags (-81) ;
-sql create stream if not exists streams4 trigger window_close into streamt4 as select _wstart AS start, min(c1),count(c1) from t1 state_window(c1);
+sql create stream if not exists streams4 trigger window_close into streamt4 as select _wstart AS startts, min(c1),count(c1) from t1 state_window(c1);
 
 sql insert into t1 (ts, c1) values (1668073288209, 11);
 sql insert into t1 (ts, c1) values (1668073288210, 11);
@@ -567,7 +567,7 @@ loop7:
 
 sleep 200
 
-sql select * from streamt4 order by start;
+sql select * from streamt4 order by startts;
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -606,7 +606,7 @@ loop8:
 
 sleep 200
 
-sql select * from streamt4 order by start;
+sql select * from streamt4 order by startts;
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -640,7 +640,7 @@ loop8:
 
 sleep 200
 
-sql select * from streamt4 order by start;
+sql select * from streamt4 order by startts;
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -679,7 +679,7 @@ loop9:
 
 sleep 200
 
-sql select * from streamt4 order by start;
+sql select * from streamt4 order by startts;
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -731,5 +731,65 @@ if $data32 != 1 then
   goto loop9
 endi
 
+sql drop stream if exists streams5;
+sql drop database if exists test5;
+sql create database test5;
+sql use test5;
+sql create table tb (ts timestamp, a int);
+sql insert into tb values (now + 1m , 1 );
+sql create table b (c timestamp, d int, e int , f int, g double);
+sql create stream streams0 trigger at_once into streamt as select _wstart c1, count(*) c2, max(a) c3 from tb state_window(a);
+sql insert into b values(1648791213000,NULL,NULL,NULL,NULL);
+sql select * from streamt order by c1, c2, c3;
+
+print data00:$data00
+print data01:$data01
+
+sql insert into b values(1648791213000,NULL,NULL,NULL,NULL);
+sql select * from streamt order by c1, c2, c3;
+
+print data00:$data00
+print data01:$data01
+
+sql insert into b values(1648791213001,1,2,2,2.0);
+sql insert into b values(1648791213002,1,3,3,3.0);
+sql insert into tb values(1648791213003,1);
+
+sql select * from streamt;
+print data00:$data00
+print data01:$data01
+
+sql delete from b where c >= 1648791213001 and c <= 1648791213002;
+sql insert into b values(1648791223003,2,2,3,1.0); insert into b values(1648791223002,2,3,3,3.0);
+sql insert into tb values (now + 1m , 1 );
+
+sql select * from streamt;
+print data00:$data00
+print data01:$data01
+
+sql insert into b(c,d) values (now + 6m , 6 );
+sql delete from b where c >= 1648791213001 and c <= 1648791233005;;
+
+$loop_count = 0
+loop10:
+
+sleep 200
+
+sql select c2 from streamt;
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop10
+endi
+
+if $data00 != 2 then
+  print =====data00=$data00
+  goto loop10
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

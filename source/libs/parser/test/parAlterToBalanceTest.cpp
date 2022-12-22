@@ -504,8 +504,8 @@ TEST_F(ParserInitialATest, alterTable) {
   };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_VNODE_MODIF_STMT);
-    SVnodeModifOpStmt* pStmt = (SVnodeModifOpStmt*)pQuery->pRoot;
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_VNODE_MODIFY_STMT);
+    SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
 
     ASSERT_EQ(pStmt->sqlNodeType, QUERY_NODE_ALTER_TABLE_STMT);
     ASSERT_NE(pStmt->pDataBlocks, nullptr);
@@ -613,7 +613,7 @@ TEST_F(ParserInitialATest, alterUser) {
     if (nullptr != pPass) {
       strcpy(expect.pass, pPass);
     }
-    strcpy(expect.dbname, "test");
+    strcpy(expect.objname, "test");
   };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
@@ -627,7 +627,7 @@ TEST_F(ParserInitialATest, alterUser) {
     ASSERT_EQ(req.enable, expect.enable);
     ASSERT_EQ(std::string(req.user), std::string(expect.user));
     ASSERT_EQ(std::string(req.pass), std::string(expect.pass));
-    ASSERT_EQ(std::string(req.dbname), std::string(expect.dbname));
+    ASSERT_EQ(std::string(req.objname), std::string(expect.objname));
   });
 
   setAlterUserReq("wxy", TSDB_ALTER_USER_PASSWD, "123456");

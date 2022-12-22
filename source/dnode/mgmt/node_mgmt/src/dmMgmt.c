@@ -189,7 +189,6 @@ SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
     // dTrace("node:%s, is acquired, ref:%d", pWrapper->name, refCount);
   } else {
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
     pRetWrapper = NULL;
   }
   taosThreadRwlockUnlock(&pWrapper->lock);
@@ -205,7 +204,23 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
     // dTrace("node:%s, is marked, ref:%d", pWrapper->name, refCount);
   } else {
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    switch (pWrapper->ntype) {
+      case MNODE:
+        terrno = TSDB_CODE_MNODE_NOT_FOUND;
+        break;
+      case QNODE:
+        terrno = TSDB_CODE_QNODE_NOT_FOUND;
+        break;
+      case SNODE:
+        terrno = TSDB_CODE_SNODE_NOT_FOUND;
+        break;
+      case VNODE:
+        terrno = TSDB_CODE_VND_STOPPED;
+        break;
+      default:
+        terrno = TSDB_CODE_APP_IS_STOPPING;
+        break;
+    }
     code = -1;
   }
   taosThreadRwlockUnlock(&pWrapper->lock);

@@ -114,7 +114,7 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
   if (!isOrdered) {
     pColList->colIdxInfo = taosMemoryCalloc(pColList->numOfBound, sizeof(SBoundIdxInfo));
     if (NULL == pColList->colIdxInfo) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     SBoundIdxInfo* pColIdx = pColList->colIdxInfo;
     for (col_id_t i = 0; i < pColList->numOfBound; ++i) {
@@ -150,11 +150,11 @@ static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* p
                               SMsgBuf* msg) {
   SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
   if (!pTagArray) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   *tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
   if (!*tagName) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -208,7 +208,7 @@ end:
 }
 
 int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols, bool format, STableMeta* pTableMeta,
-                    char* tableName, const char* sTableName, int32_t sTableNameLen, char* msgBuf, int16_t msgBufLen) {
+                    char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl, char* msgBuf, int16_t msgBufLen) {
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
 
   SSmlExecHandle* smlHandle = (SSmlExecHandle*)handle;
@@ -229,7 +229,7 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
   }
 
   insBuildCreateTbReq(&smlHandle->tableExecHandle.createTblReq, tableName, pTag, pTableMeta->suid, NULL, tagName,
-                      pTableMeta->tableInfo.numOfTags);
+                      pTableMeta->tableInfo.numOfTags, ttl);
   taosArrayDestroy(tagName);
 
   smlHandle->tableExecHandle.createTblReq.ctb.stbName = taosMemoryMalloc(sTableNameLen + 1);
@@ -303,9 +303,9 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
       if (kv) {
         int32_t colLen = kv->length;
         if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
-          //          uError("SML:data before:%" PRId64 ", precision:%d", kv->i, pTableMeta->tableInfo.precision);
+          uDebug("SML:data before:%" PRId64 ", precision:%d", kv->i, pTableMeta->tableInfo.precision);
           kv->i = convertTimePrecision(kv->i, TSDB_TIME_PRECISION_NANO, pTableMeta->tableInfo.precision);
-          //          uError("SML:data after:%" PRId64 ", precision:%d", kv->i, pTableMeta->tableInfo.precision);
+          uDebug("SML:data after:%" PRId64 ", precision:%d", kv->i, pTableMeta->tableInfo.precision);
         }
 
         if (IS_VAR_DATA_TYPE(kv->type)) {

@@ -24,25 +24,12 @@
 extern "C" {
 #endif
 
-typedef struct SCorEpSet {
-  int32_t version;
-  SEpSet  epSet;
-} SCorEpSet;
-
 typedef struct SBlockOrderInfo {
   bool             nullFirst;
   int32_t          order;
   int32_t          slotId;
   SColumnInfoData* pColData;
 } SBlockOrderInfo;
-
-int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp);
-void    addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port);
-
-bool isEpsetEqual(const SEpSet* s1, const SEpSet* s2);
-
-void   updateEpSet_s(SCorEpSet* pEpSet, SEpSet* pNewEpSet);
-SEpSet getEpSet_s(SCorEpSet* pEpSet);
 
 #define NBIT                     (3u)
 #define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
@@ -54,9 +41,9 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet);
     BMCharPos(bm_, r_) |= (1u << (7u - BitPos(r_))); \
   } while (0)
 
-#define colDataSetNotNull_f(bm_, r_)                  \
-  do {                                                \
-    BMCharPos(bm_, r_) &= ~(1u << (7u - BitPos(r_))); \
+#define colDataClearNull_f(bm_, r_)                             \
+  do {                                                          \
+    BMCharPos(bm_, r_) &= ((char)(~(1u << (7u - BitPos(r_))))); \
   } while (0)
 
 #define colDataIsNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] == -1)
@@ -88,6 +75,33 @@ static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData,
 
     return colDataIsNull_f(pColumnInfoData->nullbitmap, row);
   }
+}
+
+static FORCE_INLINE bool colDataIsNNull_s(const SColumnInfoData* pColumnInfoData, int32_t startIndex,
+                                          uint32_t nRows) {
+  if (!pColumnInfoData->hasNull) {
+    return false;
+  }
+
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    for (int32_t i = startIndex; i < nRows; ++i) {
+      if (!colDataIsNull_var(pColumnInfoData, i)) {
+        return false;
+      }
+    }
+  } else {
+    if (pColumnInfoData->nullbitmap == NULL) {
+      return false;
+    }
+
+    for (int32_t i = startIndex; i < nRows; ++i) {
+      if (!colDataIsNull_f(pColumnInfoData->nullbitmap, i)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, uint32_t totalRows, uint32_t row,
@@ -137,9 +151,6 @@ static FORCE_INLINE void colDataAppendNNULL(SColumnInfoData* pColumnInfoData, ui
     for (int32_t i = start; i < start + nRows; ++i) {
       colDataSetNull_f(pColumnInfoData->nullbitmap, i);
     }
-
-    int32_t bytes = pColumnInfoData->info.bytes;
-    memset(pColumnInfoData->pData + start * bytes, 0, nRows * bytes);
   }
 
   pColumnInfoData->hasNull = true;
@@ -220,9 +231,11 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
 
 int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, bool clearPayload);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
+int32_t blockDataEnsureCapacityNoClear(SSDataBlock* pDataBlock, uint32_t numOfRows);
 
 void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
 void blockDataCleanup(SSDataBlock* pDataBlock);
+void blockDataEmpty(SSDataBlock* pDataBlock);
 
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 

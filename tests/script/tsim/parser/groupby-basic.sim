@@ -78,8 +78,8 @@ $ts2 = $tb2 . .ts
 
 print ===============================groupby_operation
 print
-print ==== select count(*), c1 from group_tb0 group by c1
-sql select count(*), c1 from group_tb0 group by c1
+print ==== select count(*), c1 from group_tb0 group by c1 order by c1
+sql select count(*), c1 from group_tb0 group by c1 order by c1
 print rows: $rows
 print $data00 $data01 $data02 $data03
 print $data10 $data11 $data12 $data13
@@ -98,18 +98,18 @@ endi
 if $data90 != 10 then
   return -1
 endi
-if $data01 != 7 then
+if $data01 != 0 then
   return -1
 endi
-if $data11 != 6 then
+if $data11 != 1 then
   return -1
 endi
-if $data91 != 3 then
+if $data91 != 9 then
   return -1
 endi
 
-print ==== select first(ts),c1 from group_tb0 group by c1;
-sql select first(ts),c1 from group_tb0 group by c1;
+print ==== select first(ts),c1 from group_tb0 group by c1 order by c1;
+sql select first(ts),c1 from group_tb0 group by c1 order by c1;
 print rows: $rows
 print $data00 $data01 $data02 $data03
 print $data10 $data11 $data12 $data13
@@ -120,16 +120,16 @@ if $row != 10 then
   return -1
 endi
 
-if $data00 != @22-01-01 00:00:00.007@ then
+if $data00 != @22-01-01 00:00:00.000@ then
   return -1
 endi
-if $data01 != 7 then
+if $data01 != 0 then
   return -1
 endi
-if $data90 != @22-01-01 00:00:00.003@ then
+if $data90 != @22-01-01 00:00:00.009@ then
   return -1
 endi
-if $data91 != 3 then
+if $data91 != 9 then
   return -1
 endi
 

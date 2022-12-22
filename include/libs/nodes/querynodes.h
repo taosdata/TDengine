@@ -106,7 +106,7 @@ typedef struct SValueNode {
     char*    p;
   } datum;
   int64_t typeData;
-  char    unit;
+  int8_t  unit;
 } SValueNode;
 
 typedef struct SLeftValueNode {
@@ -222,6 +222,13 @@ typedef struct SIntervalWindowNode {
   SNode*    pSliding;   // SValueNode
   SNode*    pFill;
 } SIntervalWindowNode;
+
+typedef struct SEventWindowNode {
+  ENodeType type;  // QUERY_NODE_EVENT_WINDOW
+  SNode*    pCol;  // timestamp primary key
+  SNode*    pStartCond;
+  SNode*    pEndCond;
+} SEventWindowNode;
 
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
@@ -357,7 +364,7 @@ typedef struct SVgDataBlocks {
 typedef void (*FFreeDataBlockHash)(SHashObj*);
 typedef void (*FFreeDataBlockArray)(SArray*);
 
-typedef struct SVnodeModifOpStmt {
+typedef struct SVnodeModifyOpStmt {
   ENodeType           nodeType;
   ENodeType           sqlNodeType;
   SArray*             pDataBlocks;  // data block for each vgroup, SArray<SVgDataBlocks*>.
@@ -381,7 +388,7 @@ typedef struct SVnodeModifOpStmt {
   FFreeDataBlockArray freeArrayFunc;
   bool                usingTableProcessing;
   bool                fileProcessing;
-} SVnodeModifOpStmt;
+} SVnodeModifyOpStmt;
 
 typedef struct SExplainOptions {
   ENodeType type;

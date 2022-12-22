@@ -37,6 +37,12 @@ float           tsNumOfCores = 0;
 int64_t         tsTotalMemoryKB = 0;
 char           *tsProcPath = NULL;
 
+char            tsSIMDBuiltins = 0;
+char            tsSSE42Enable = 0;
+char            tsAVXEnable = 0;
+char            tsAVX2Enable = 0;
+char            tsFMAEnable = 0;
+
 void osDefaultInit() {
   taosSeedRand(taosSafeRand());
   taosGetSystemLocale(tsLocale, tsCharset);
@@ -99,7 +105,7 @@ bool osDataSpaceSufficient() { return tsDataSpace.size.avail > tsDataSpace.reser
 
 bool osTempSpaceSufficient() { return tsTempSpace.size.avail > tsTempSpace.reserved; }
 
-void osSetTimezone(const char *timezone) { taosSetSystemTimezone(timezone, tsTimezoneStr, &tsDaylight, &tsTimezone); }
+void osSetTimezone(const char *tz) { taosSetSystemTimezone(tz, tsTimezoneStr, &tsDaylight, &tsTimezone); }
 
 void osSetSystemLocale(const char *inLocale, const char *inCharSet) {
   memcpy(tsLocale, inLocale, strlen(inLocale) + 1);

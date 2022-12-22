@@ -50,9 +50,10 @@ void syncIndexMgrClear(SSyncIndexMgr *pSyncIndexMgr) {
   memset(pSyncIndexMgr->privateTerm, 0, sizeof(pSyncIndexMgr->privateTerm));
 
   // int64_t timeNow = taosGetMonotonicMs();
+  int64_t timeNow = taosGetTimestampMs();
   for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
     pSyncIndexMgr->startTimeArr[i] = 0;
-    pSyncIndexMgr->recvTimeArr[i] = 0;
+    pSyncIndexMgr->recvTimeArr[i] = timeNow;
   }
 
   /*
@@ -78,6 +79,15 @@ void syncIndexMgrSetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, 
   syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
   sError("vgId:%d, index mgr set for %s:%d, index:%" PRId64 " error", pSyncIndexMgr->pSyncNode->vgId, host, port,
          index);
+}
+
+SSyncLogReplMgr *syncNodeGetLogReplMgr(SSyncNode *pNode, SRaftId *pDestId) {
+  for (int i = 0; i < pNode->replicaNum; i++) {
+    if (syncUtilSameId(&(pNode->replicasId[i]), pDestId)) {
+      return pNode->logReplMgrs[i];
+    }
+  }
+  return NULL;
 }
 
 SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId) {
@@ -147,7 +157,7 @@ int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRa
       return recvTime;
     }
   }
-  ASSERT(0);
+
   return -1;
 }
 

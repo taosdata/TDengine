@@ -266,6 +266,7 @@ typedef struct {
 #define IS_FLOAT_TYPE(_t)            ((_t) == TSDB_DATA_TYPE_FLOAT || (_t) == TSDB_DATA_TYPE_DOUBLE)
 #define IS_INTEGER_TYPE(_t)          ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)))
 #define IS_TIMESTAMP_TYPE(_t)        ((_t) == TSDB_DATA_TYPE_TIMESTAMP)
+#define IS_BOOLEAN_TYPE(_t)          ((_t) == TSDB_DATA_TYPE_BOOL)
 
 #define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)))
 #define IS_MATHABLE_TYPE(_t) \
@@ -278,11 +279,9 @@ typedef struct {
 #define IS_VALID_TINYINT(_t)   ((_t) >= INT8_MIN && (_t) <= INT8_MAX)
 #define IS_VALID_SMALLINT(_t)  ((_t) >= INT16_MIN && (_t) <= INT16_MAX)
 #define IS_VALID_INT(_t)       ((_t) >= INT32_MIN && (_t) <= INT32_MAX)
-#define IS_VALID_BIGINT(_t)    ((_t) >= INT64_MIN && (_t) <= INT64_MAX)
 #define IS_VALID_UTINYINT(_t)  ((_t) >= 0 && (_t) <= UINT8_MAX)
 #define IS_VALID_USMALLINT(_t) ((_t) >= 0 && (_t) <= UINT16_MAX)
 #define IS_VALID_UINT(_t)      ((_t) >= 0 && (_t) <= UINT32_MAX)
-#define IS_VALID_UBIGINT(_t)   ((_t) >= 0 && (_t) <= UINT64_MAX)
 #define IS_VALID_FLOAT(_t)     ((_t) >= -FLT_MAX && (_t) <= FLT_MAX)
 #define IS_VALID_DOUBLE(_t)    ((_t) >= -DBL_MAX && (_t) <= DBL_MAX)
 

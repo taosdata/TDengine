@@ -42,9 +42,10 @@ extern "C" {
 
 #define PRIVILEGE_TYPE_MASK(n) (1 << n)
 
-#define PRIVILEGE_TYPE_ALL   PRIVILEGE_TYPE_MASK(0)
-#define PRIVILEGE_TYPE_READ  PRIVILEGE_TYPE_MASK(1)
-#define PRIVILEGE_TYPE_WRITE PRIVILEGE_TYPE_MASK(2)
+#define PRIVILEGE_TYPE_ALL       PRIVILEGE_TYPE_MASK(0)
+#define PRIVILEGE_TYPE_READ      PRIVILEGE_TYPE_MASK(1)
+#define PRIVILEGE_TYPE_WRITE     PRIVILEGE_TYPE_MASK(2)
+#define PRIVILEGE_TYPE_SUBSCRIBE PRIVILEGE_TYPE_MASK(3)
 
 #define PRIVILEGE_TYPE_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
@@ -132,6 +133,9 @@ typedef struct STableOptions {
   SNodeList* pWatermark;
   int64_t    watermark1;
   int64_t    watermark2;
+  SNodeList* pDeleteMark;
+  int64_t    deleteMark1;
+  int64_t    deleteMark2;
   SNodeList* pRollupFuncs;
   int32_t    ttl;
   SNodeList* pSma;
@@ -167,10 +171,10 @@ typedef struct SCreateSubTableClause {
   STableOptions* pOptions;
 } SCreateSubTableClause;
 
-typedef struct SCreateMultiTableStmt {
+typedef struct SCreateMultiTablesStmt {
   ENodeType  type;
   SNodeList* pSubTables;
-} SCreateMultiTableStmt;
+} SCreateMultiTablesStmt;
 
 typedef struct SDropTableClause {
   ENodeType type;
@@ -205,14 +209,14 @@ typedef struct SAlterTableStmt {
 
 typedef struct SCreateUserStmt {
   ENodeType type;
-  char      useName[TSDB_USER_LEN];
+  char      userName[TSDB_USER_LEN];
   char      password[TSDB_USET_PASSWORD_LEN];
   int8_t    sysinfo;
 } SCreateUserStmt;
 
 typedef struct SAlterUserStmt {
   ENodeType type;
-  char      useName[TSDB_USER_LEN];
+  char      userName[TSDB_USER_LEN];
   int8_t    alterType;
   char      password[TSDB_USET_PASSWORD_LEN];
   int8_t    enable;
@@ -221,7 +225,7 @@ typedef struct SAlterUserStmt {
 
 typedef struct SDropUserStmt {
   ENodeType type;
-  char      useName[TSDB_USER_LEN];
+  char      userName[TSDB_USER_LEN];
 } SDropUserStmt;
 
 typedef struct SCreateDnodeStmt {
@@ -382,6 +386,7 @@ typedef struct SStreamOptions {
   int8_t    triggerType;
   SNode*    pDelay;
   SNode*    pWatermark;
+  SNode*    pDeleteMark;
   int8_t    fillHistory;
   int8_t    ignoreExpired;
 } SStreamOptions;
@@ -423,7 +428,7 @@ typedef struct SDropFunctionStmt {
 typedef struct SGrantStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
-  char      dbName[TSDB_DB_NAME_LEN];
+  char      objName[TSDB_DB_NAME_LEN];  // db or topic
   int64_t   privileges;
 } SGrantStmt;
 

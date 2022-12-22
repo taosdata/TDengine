@@ -147,19 +147,20 @@ class TDTestCase:
     def __current_cfg(self):
         cfg_list = []
         current_case1 = [
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {PRIMARY_DIR}",
+            #f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {PRIMARY_DIR}",
             f"dataDir {self.taos_data_dir}/{DATA_PRE0}1 {L0} {NON_PRIMARY_DIR}",
             f"dataDir {self.taos_data_dir}/{DATA_PRE1}1 {L1} {NON_PRIMARY_DIR}",
             f"dataDir {self.taos_data_dir}/{DATA_PRE2}2 {L2} {NON_PRIMARY_DIR}"
         ]
 
-        current_case2 = [f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {PRIMARY_DIR}"]
+        #current_case2 = [f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {PRIMARY_DIR}"]
+        current_case2 = []
         for i in range(9):
             current_case2.append(f"dataDir {self.taos_data_dir}/{DATA_PRE0}{i+1} {L0} {NON_PRIMARY_DIR}")
 
         # TD-17773bug
         current_case3 = [
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 ",
+            #f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 ",
             f"dataDir {self.taos_data_dir}/{DATA_PRE0}1 {L0} {NON_PRIMARY_DIR}",
             f"dataDir {self.taos_data_dir}/{DATA_PRE1}0 {L1} {NON_PRIMARY_DIR}",
             f"dataDir {self.taos_data_dir}/{DATA_PRE2}0 {L2} {NON_PRIMARY_DIR}",

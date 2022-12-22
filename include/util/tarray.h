@@ -105,6 +105,15 @@ static FORCE_INLINE void* taosArrayPush(SArray* pArray, const void* pData) {
 }
 
 /**
+ * @brief reserve the capacity of the array
+ *
+ * @param pArray
+ * @param num
+ * @return void* the start position of the reserved memory
+ */
+void* taosArrayReserve(SArray* pArray, int32_t num);
+
+/**
  *
  * @param pArray
  */
@@ -196,13 +205,7 @@ SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize);
  * clone a new array
  * @param pSrc
  */
-SArray* taosArrayDup(const SArray* pSrc);
-
-/**
- * deep copy a new array
- * @param pSrc
- */
-SArray* taosArrayDeepCopy(const SArray* pSrc, FCopy deepCopy);
+SArray* taosArrayDup(const SArray* pSrc, __array_item_dup_fn_t fn);
 
 /**
  * clear the array (remove all element)
@@ -217,15 +220,10 @@ void taosArrayClear(SArray* pArray);
  */
 void taosArrayClearEx(SArray* pArray, void (*fp)(void*));
 
-/**
- * clear the array (remove all element)
- * @param pArray
- * @param fp
- */
-void taosArrayClearP(SArray* pArray, FDelete fp);
-
 void* taosArrayDestroy(SArray* pArray);
+
 void  taosArrayDestroyP(SArray* pArray, FDelete fp);
+
 void  taosArrayDestroyEx(SArray* pArray, FDelete fp);
 
 /**
@@ -234,12 +232,6 @@ void  taosArrayDestroyEx(SArray* pArray, FDelete fp);
  * @param compar
  */
 void taosArraySort(SArray* pArray, __compar_fn_t comparFn);
-
-/**
- * sort string array
- * @param pArray
- */
-void taosArraySortString(SArray* pArray, __compar_fn_t comparFn);
 
 /**
  * search the array

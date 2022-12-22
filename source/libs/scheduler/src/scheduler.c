@@ -39,13 +39,19 @@ int32_t schedulerInit() {
   schMgmt.jobRef = taosOpenRef(schMgmt.cfg.maxJobNum, schFreeJobImpl);
   if (schMgmt.jobRef < 0) {
     qError("init schduler jobRef failed, num:%u", schMgmt.cfg.maxJobNum);
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   schMgmt.hbConnections = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == schMgmt.hbConnections) {
     qError("taosHashInit hb connections failed");
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  schMgmt.timer = taosTmrInit(0, 0, 0, "scheduler");
+  if (NULL == schMgmt.timer) {
+    qError("init timer failed, error:%s", tstrerror(terrno));
+    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   if (taosGetSystemUUID((char *)&schMgmt.sId, sizeof(schMgmt.sId))) {
@@ -151,7 +157,7 @@ void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
 
   SSchJob *pJob = schAcquireJob(*jobId);
   if (NULL == pJob) {
-    qWarn("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
+    qDebug("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
     return;
   }
 

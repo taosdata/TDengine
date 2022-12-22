@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "talgo.h"
+#include "tlog.h"
 
 #define doswap(__left, __right, __size, __buf) \
   do {                                         \

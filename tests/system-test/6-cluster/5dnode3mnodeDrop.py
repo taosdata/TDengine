@@ -8,6 +8,7 @@ import os
 from util.log import *
 from util.sql import *
 from util.cases import *
+from util.dnodes import *
 from util.dnodes import TDDnodes
 from util.dnodes import TDDnode
 import time
@@ -94,6 +95,8 @@ class TDTestCase:
         self.TDDnodes.init("")
         self.TDDnodes.setTestCluster(testCluster)
         self.TDDnodes.setValgrind(valgrind)
+
+        self.TDDnodes.setAsan(tdDnodes.getAsan())
         self.TDDnodes.stopAll()
         for dnode in self.TDDnodes.dnodes:
             self.TDDnodes.deploy(dnode.index,{})
@@ -249,6 +252,9 @@ class TDTestCase:
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
+        tdSql.checkData(1,4,'ready')
+        tdSql.checkData(2,4,'ready')
+        tdSql.checkData(3,4,'ready')
         tdSql.checkData(4,4,'ready')
         tdSql.query("select * from information_schema.ins_mnodes;")
         tdSql.checkRows(1)

@@ -136,7 +136,7 @@ class TDTestCase:
         tdSql.query("use source_db")
         tdSql.query("create table if not exists source_db.stb (ts timestamp, k int) tags (a int);")
         tdSql.query("create table source_db.ct1 using source_db.stb tags(1000);create table source_db.ct2 using source_db.stb tags(2000);create table source_db.ct3 using source_db.stb tags(3000);")
-        tdSql.query("create stream s1 into source_db.output_stb as select _wstart AS start, min(k), max(k), sum(k) from source_db.stb interval(10m);")
+        tdSql.query("create stream s1 into source_db.output_stb as select _wstart AS startts, min(k), max(k), sum(k) from source_db.stb interval(10m);")
 
 
         #TD-19944 -Q=3 
@@ -166,7 +166,7 @@ class TDTestCase:
         # keyDict['c'] = cfgPath
         # keyDict['P'] = self.serverPort
         tdDnodes=cluster.dnodes
-        for i in range(5):
+        for i in range(len(tdDnodes)):
             tdDnodes[i].stoptaosd()  
         
         

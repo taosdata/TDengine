@@ -22,13 +22,12 @@ extern "C" {
 
 #include "syncInt.h"
 
-#define TIMER_MAX_MS         0x7FFFFFFF
-#define ENV_TICK_TIMER_MS    1000
-#define PING_TIMER_MS        5000
-#define ELECT_TIMER_MS_MIN   2500
-#define ELECT_TIMER_MS_MAX   (ELECT_TIMER_MS_MIN * 2)
-#define ELECT_TIMER_MS_RANGE (ELECT_TIMER_MS_MAX - ELECT_TIMER_MS_MIN)
-#define HEARTBEAT_TIMER_MS   1000
+#define TIMER_MAX_MS       0x7FFFFFFF
+#define ENV_TICK_TIMER_MS  1000
+#define PING_TIMER_MS      5000
+#define ELECT_TIMER_MS_MIN 2500
+#define HEARTBEAT_TIMER_MS 1000
+#define HEARTBEAT_TICK_NUM 20
 
 typedef struct SSyncEnv {
   uint8_t isStart;

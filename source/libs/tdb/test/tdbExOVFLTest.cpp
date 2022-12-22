@@ -8,6 +8,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include "tlog.h"
 
 typedef struct SPoolMem {
   int64_t          size;
@@ -170,11 +171,9 @@ static void insertOfp(void) {
   SPoolMem *pPool = openPool();
 
   // start a transaction
-  TXN     txn;
-  int64_t txnid = 0;
-  ++txnid;
-  tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
-  tdbBegin(pEnv, &txn);
+  TXN *txn = NULL;
+
+  tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
 
   // generate value payload
   // char val[((4083 - 4 - 3 - 2) + 1) * 100];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
@@ -185,12 +184,12 @@ static void insertOfp(void) {
   // insert the generated big data
   // char const *key = "key1";
   char const *key = "key123456789";
-  ret = tdbTbInsert(pDb, key, strlen(key), val, valLen, &txn);
+  ret = tdbTbInsert(pDb, key, strlen(key), val, valLen, txn);
   GTEST_ASSERT_EQ(ret, 0);
 
   // commit current transaction
-  tdbCommit(pEnv, &txn);
-  tdbTxnClose(&txn);
+  tdbCommit(pEnv, txn);
+  tdbPostCommit(pEnv, txn);
 }
 
 // TEST(TdbOVFLPagesTest, DISABLED_TbInsertTest) {
@@ -258,11 +257,9 @@ TEST(TdbOVFLPagesTest, TbDeleteTest) {
   SPoolMem *pPool = openPool();
 
   // start a transaction
-  TXN     txn;
-  int64_t txnid = 0;
-  ++txnid;
-  tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
-  tdbBegin(pEnv, &txn);
+  TXN *txn;
+
+  tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
 
   // generate value payload
   // char val[((4083 - 4 - 3 - 2) + 1) * 100];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
@@ -271,7 +268,7 @@ TEST(TdbOVFLPagesTest, TbDeleteTest) {
   generateBigVal(val, valLen);
 
   {  // insert the generated big data
-    ret = tdbTbInsert(pDb, "key1", strlen("key1"), val, valLen, &txn);
+    ret = tdbTbInsert(pDb, "key1", strlen("key1"), val, valLen, txn);
     GTEST_ASSERT_EQ(ret, 0);
   }
 
@@ -297,7 +294,7 @@ tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_REA
 tdbBegin(pEnv, &txn);
   */
   {  // upsert the data
-    ret = tdbTbUpsert(pDb, "key1", strlen("key1"), "value1", strlen("value1"), &txn);
+    ret = tdbTbUpsert(pDb, "key1", strlen("key1"), "value1", strlen("value1"), txn);
     GTEST_ASSERT_EQ(ret, 0);
   }
 
@@ -316,7 +313,7 @@ tdbBegin(pEnv, &txn);
   }
 
   {  // delete the data
-    ret = tdbTbDelete(pDb, "key1", strlen("key1"), &txn);
+    ret = tdbTbDelete(pDb, "key1", strlen("key1"), txn);
     GTEST_ASSERT_EQ(ret, 0);
   }
 
@@ -335,8 +332,8 @@ tdbBegin(pEnv, &txn);
   }
 
   // commit current transaction
-  tdbCommit(pEnv, &txn);
-  tdbTxnClose(&txn);
+  tdbCommit(pEnv, txn);
+  tdbPostCommit(pEnv, txn);
 }
 
 // TEST(tdb_test, DISABLED_simple_insert1) {
@@ -346,7 +343,7 @@ TEST(tdb_test, simple_insert1) {
   TTB          *pDb;
   tdb_cmpr_fn_t compFunc;
   int           nData = 1;
-  TXN           txn;
+  TXN          *txn;
   int const     pageSize = 4096;
 
   taosRemoveDir("tdb");
@@ -365,16 +362,13 @@ TEST(tdb_test, simple_insert1) {
     // char      val[(4083 - 4 - 3 - 2)]; // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
     char      val[(4083 - 4 - 3 - 2) + 1];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
     int64_t   poolLimit = 4096;             // 1M pool limit
-    int64_t   txnid = 0;
     SPoolMem *pPool;
 
     // open the pool
     pPool = openPool();
 
     // start a transaction
-    txnid++;
-    tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
-    tdbBegin(pEnv, &txn);
+    tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
 
     for (int iData = 1; iData <= nData; iData++) {
       sprintf(key, "key0");
@@ -393,26 +387,25 @@ TEST(tdb_test, simple_insert1) {
         val[i] = c;
       }
 
-      ret = tdbTbInsert(pDb, "key1", strlen("key1"), val, valLen, &txn);
+      ret = tdbTbInsert(pDb, "key1", strlen("key1"), val, valLen, txn);
       GTEST_ASSERT_EQ(ret, 0);
 
       // if pool is full, commit the transaction and start a new one
       if (pPool->size >= poolLimit) {
         // commit current transaction
-        tdbCommit(pEnv, &txn);
-        tdbTxnClose(&txn);
+        tdbCommit(pEnv, txn);
+        tdbPostCommit(pEnv, txn);
 
         // start a new transaction
         clearPool(pPool);
-        txnid++;
-        tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
-        tdbBegin(pEnv, &txn);
+
+        tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
       }
     }
 
     // commit the transaction
-    tdbCommit(pEnv, &txn);
-    tdbTxnClose(&txn);
+    tdbCommit(pEnv, txn);
+    tdbPostCommit(pEnv, txn);
 
     {  // Query the data
       void *pVal = NULL;

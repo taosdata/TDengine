@@ -21,7 +21,7 @@
 
 #define LOG_MAX_LINE_SIZE             (1024)
 #define LOG_MAX_LINE_BUFFER_SIZE      (LOG_MAX_LINE_SIZE + 3)
-#define LOG_MAX_LINE_DUMP_SIZE        (65 * 1024)
+#define LOG_MAX_LINE_DUMP_SIZE        (1024 * 1024)
 #define LOG_MAX_LINE_DUMP_BUFFER_SIZE (LOG_MAX_LINE_DUMP_SIZE + 3)
 
 #define LOG_FILE_NAME_LEN    300
@@ -72,6 +72,7 @@ static int32_t  tsDaylightActive; /* Currently in daylight saving time. */
 
 bool    tsLogEmbedded = 0;
 bool    tsAsyncLog = true;
+bool    tsAssert = true;
 int32_t tsNumOfLogLines = 10000000;
 int32_t tsLogKeepDays = 0;
 LogFp   tsLogFp = NULL;
@@ -444,6 +445,9 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
   if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceAvailable()) {
     taosUpdateLogNums(level);
+#if 0 
+    // DEBUG_FATAL and DEBUG_ERROR are duplicated
+    // fsync will cause thread blocking and may also generate log misalignment in case of asyncLog
     if (tsAsyncLog && level != DEBUG_FATAL) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
@@ -452,6 +456,13 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
         taosFsyncFile(tsLogObj.logHandle->pFile);
       }
     }
+#else
+    if (tsAsyncLog) {
+      taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
+    } else {
+      taosWriteFile(tsLogObj.logHandle->pFile, buffer, len);
+    }
+#endif
 
     if (tsLogObj.maxLines > 0) {
       atomic_add_fetch_32(&tsLogObj.lines, 1);
@@ -496,7 +507,7 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
   if (!osLogSpaceAvailable()) return;
   if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
 
-  char    buffer[LOG_MAX_LINE_DUMP_BUFFER_SIZE];
+  char   *buffer = taosMemoryMalloc(LOG_MAX_LINE_DUMP_BUFFER_SIZE);
   int32_t len = taosBuildLogHead(buffer, flags);
 
   va_list argpointer;
@@ -509,6 +520,7 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
   buffer[len] = 0;
 
   taosPrintLogImp(level, dflag, buffer, len);
+  taosMemoryFree(buffer);
 }
 
 void taosDumpData(unsigned char *msg, int32_t len) {
@@ -776,4 +788,38 @@ cmp_end:
   taosMemoryFree(data);
 
   return ret;
+}
+
+bool taosAssert(bool condition, const char *file, int32_t line, const char *format, ...) {
+  if (condition) return false;
+
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;  // tsLogEmbedded ? 255 : uDebugFlag
+  char        buffer[LOG_MAX_LINE_BUFFER_SIZE];
+  int32_t     len = taosBuildLogHead(buffer, flags);
+
+  va_list argpointer;
+  va_start(argpointer, format);
+  len = len + vsnprintf(buffer + len, LOG_MAX_LINE_BUFFER_SIZE - len, format, argpointer);
+  va_end(argpointer);
+  buffer[len++] = '\n';
+  buffer[len] = 0;
+  taosPrintLogImp(1, 255, buffer, len);
+
+  taosPrintLog(flags, level, dflag, "tAssert at file %s:%d exit:%d", file, line, tsAssert);
+  taosPrintTrace(flags, level, dflag);
+
+  if (tsAssert) {
+    // taosCloseLog();
+    taosMsleep(300);
+
+#ifdef NDEBUG
+    abort();
+#else
+    assert(0);
+#endif
+  }
+
+  return true;
 }
