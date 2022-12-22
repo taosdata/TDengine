@@ -22,7 +22,9 @@ async fn write_data(
     metrics
         .messages_of_data
         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let mut has_blocks = false;
     while let Some(mut raw) = data.fetch_raw_block().await? {
+        has_blocks = true;
         if let Some(name) = table {
             if actions.is_empty() {
                 raw.with_table_name(name);
@@ -120,6 +122,31 @@ async fn write_data(
             raw.nrows() as u64 * raw.ncols() as u64,
             std::sync::atomic::Ordering::SeqCst,
         );
+    }
+    if !has_blocks {
+        if actions.is_empty() {
+            if target_is_v3 {
+                if let Err(err) = taos
+                    .write_raw_meta(unsafe { std::mem::transmute(data.as_raw_data().await?) })
+                    .await
+                {
+                    let errstr = err.to_string();
+                    if errstr.contains("[0x032C]") {
+                        log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
+                        // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                    } else if errstr.contains("[0x03C7]") {
+                        log::warn!("write raw meta error with stable, but we'll continue");
+                        // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                    } else {
+                        bail!("write raw meta error: {err}");
+                    }
+                }
+            } else {
+                log::warn!("v2 target does not support delete data");
+            }
+        } else {
+            log::warn!("there's older version delete message, you must delete data manually");
+        }
     }
     Ok(0)
 }
