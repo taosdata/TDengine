@@ -636,7 +636,7 @@ void dBufPrintStatis(const SDiskbasedBuf* pBuf) {
         ps->getPages, ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f,
         ps->loadPages, ps->loadBytes / (1024.0 * ps->loadPages));
   } else {
-    printf("no page loaded\n");
+    //printf("no page loaded\n");
   }
 }
 
