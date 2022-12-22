@@ -621,11 +621,13 @@ void dBufPrintStatis(const SDiskbasedBuf* pBuf) {
 
   const SDiskbasedBufStatis* ps = &pBuf->statis;
 
+#if 0
   printf(
       "Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page size:%.2f "
       "Kb, %s\n",
       pBuf->totalBufSize / 1024.0, pBuf->numOfPages, listNEles(pBuf->lruList) * pBuf->pageSize / 1024.0,
       listNEles(pBuf->lruList), pBuf->fileSize / 1024.0, pBuf->pageSize / 1024.0f, pBuf->id);
+#endif
 
   if (ps->loadPages > 0) {
     printf(
