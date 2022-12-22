@@ -818,7 +818,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, value="true")
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_list = self.tdCom.gen_sql_list(stb_name=stb_name, tb_name=tb_name)[1]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_list))
@@ -837,7 +837,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, value="true")
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_a_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name, tb_name=tb_name)[2]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_a_tag_list))
@@ -856,7 +856,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, value="true")
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_m_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name, tb_name=tb_name)[3]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_m_tag_list))
@@ -874,7 +874,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(value="T")
+        input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_list = self.tdCom.gen_sql_list(stb_name=stb_name)[4]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_list))
@@ -904,7 +904,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(value="T")
+        input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_a_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name)[6]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_a_tag_list))
@@ -983,7 +983,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(value="T")
+        input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_d_ts_list = self.tdCom.gen_sql_list(stb_name=stb_name)[10]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_list))
