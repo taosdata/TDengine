@@ -1201,7 +1201,8 @@ end:
   return code;
 }
 
-int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const char* tbname, TAOS_FIELD *fields, int numFields){
+int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const char* tbname, TAOS_FIELD* fields,
+                                     int numFields) {
   int32_t     code = TSDB_CODE_SUCCESS;
   STableMeta* pTableMeta = NULL;
   SQuery*     pQuery = NULL;
@@ -1251,7 +1252,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
     goto end;
   }
   pQuery = smlInitHandle();
-  if(pQuery == NULL){
+  if (pQuery == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
@@ -1273,7 +1274,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
-  end:
+end:
   taosMemoryFreeClear(pTableMeta);
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
@@ -1331,7 +1332,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
     goto end;
   }
   pQuery = smlInitHandle();
-  if(pQuery == NULL){
+  if (pQuery == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
@@ -1408,7 +1409,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   conn.mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
 
   pQuery = smlInitHandle();
-  if(pQuery == NULL){
+  if (pQuery == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
@@ -1454,7 +1455,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
 
     void* hData = taosHashGet(pVgHash, &vg.vgId, sizeof(vg.vgId));
     if (hData == NULL) {
-      taosHashPut(pVgHash, (const char *)&vg.vgId, sizeof(vg.vgId), (char *)&vg, sizeof(vg));
+      taosHashPut(pVgHash, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg));
     }
 
     code = rawBlockBindData(pQuery, pTableMeta, pRetrieve->data, NULL, NULL, 0);
@@ -1463,7 +1464,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
       goto end;
     }
   }
-  
+
   code = smlBuildOutput(pQuery, pVgHash);
   if (code != TSDB_CODE_SUCCESS) {
     uError("smlBuildOutput failed");
@@ -1482,7 +1483,6 @@ end:
   taosMemoryFreeClear(pTableMeta);
   return code;
 }
-
 
 static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -1531,7 +1531,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   conn.mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
 
   pQuery = smlInitHandle();
-  if(pQuery == NULL){
+  if (pQuery == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
@@ -1564,7 +1564,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       void**   dataTmp = taosArrayGet(rspObj.rsp.createTableReq, j);
       int32_t* lenTmp = taosArrayGet(rspObj.rsp.createTableLen, j);
 
-      SDecoder      decoderTmp = {0};
+      SDecoder decoderTmp = {0};
       tDecoderInit(&decoderTmp, *dataTmp, *lenTmp);
       memset(&pCreateReq, 0, sizeof(SVCreateTbReq));
       if (tDecodeSVCreateTbReq(&decoderTmp, &pCreateReq) < 0) {
@@ -1601,7 +1601,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
 
     void* hData = taosHashGet(pVgHash, &vg.vgId, sizeof(vg.vgId));
     if (hData == NULL) {
-      taosHashPut(pVgHash, (const char *)&vg.vgId, sizeof(vg.vgId), (char *)&vg, sizeof(vg));
+      taosHashPut(pVgHash, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg));
     }
 
     code = rawBlockBindData(pQuery, pTableMeta, pRetrieve->data, &pCreateReq, NULL, 0);
@@ -1614,7 +1614,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
-  end:
+end:
   tDeleteSTaosxRsp(&rspObj.rsp);
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);

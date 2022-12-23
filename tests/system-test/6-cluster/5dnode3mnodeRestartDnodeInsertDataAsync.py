@@ -67,29 +67,11 @@ class TDTestCase:
         self._async_raise(thread.ident, SystemExit)
 
 
-    def insertData(self,countstart,countstop):
-        # fisrt add data : db\stable\childtable\general table
-
-        for couti in range(countstart,countstop):
-            tdLog.debug("drop database if exists db%d" %couti)
-            tdSql.execute("drop database if exists db%d" %couti)
-            print("create database if not exists db%d replica 1 duration 300" %couti)
-            tdSql.execute("create database if not exists db%d replica 1 duration 300" %couti)
-            tdSql.execute("use db%d" %couti)
-            tdSql.execute(
-            '''create table stb1
-            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-            tags (t1 int)
-            '''
-            )
-            tdSql.execute(
-                '''
-                create table t1
-                (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-                '''
-            )
-            for i in range(4):
-                tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+    def reCreateUser(self, tdsql, count, user, passwd):
+        clusterComCreate.createUser(tdsql,f"{user}{count}",f"{passwd}{count}")
+        userTdSql=tdCom.newTdSql(user=f"{user}{count}",password=f"{passwd}{count}")
+        clusterComCreate.alterUser(userTdSql,f"{user}{count}",f"{passwd}{count+1}")
+        clusterComCreate.deleteUser(tdsql,f"{user}{count}")
 
 
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
@@ -161,6 +143,8 @@ class TDTestCase:
             stableName= '%s_%d'%(paraDict['stbName'],i)
             newTdSql=tdCom.newTdSql()
             threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
+            threads.append(threading.Thread(target=self.reCreateUser,args=(newTdSql,i,"user","passwd")))
+
         for tr in threads:
             tr.start()
 

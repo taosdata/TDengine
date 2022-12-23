@@ -710,6 +710,9 @@ int metaUpdateCtimeIdx(SMeta *pMeta, const SMetaEntry *pME) {
   if (metaBuildCtimeIdxKey(&ctimeKey, pME) < 0) {
     return 0;
   }
+  metaDebug("vgId:%d, start to save ctime:%" PRId64 " uid:%" PRId64 " ct:%" PRId64, TD_VID(pMeta->pVnode), pME->version,
+            pME->uid, ctimeKey.ctime);
+
   return tdbTbInsert(pMeta->pCtimeIdx, &ctimeKey, sizeof(ctimeKey), NULL, 0, pMeta->txn);
 }
 

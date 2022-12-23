@@ -1109,7 +1109,7 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
 
     if (pWriter->dWriter.pWriter == NULL || pWriter->fid != fid) {
       if (pWriter->dWriter.pWriter) {
-        ASSERT(fid > pWriter->fid);
+        // ASSERT(fid > pWriter->fid);
 
         code = tsdbSnapWriteCloseFile(pWriter);
         if (code) goto _err;

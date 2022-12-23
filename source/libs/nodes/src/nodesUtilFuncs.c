@@ -305,8 +305,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
       return makeNode(type, sizeof(SSelectStmt));
-    case QUERY_NODE_VNODE_MODIF_STMT:
-      return makeNode(type, sizeof(SVnodeModifOpStmt));
+    case QUERY_NODE_VNODE_MODIFY_STMT:
+      return makeNode(type, sizeof(SVnodeModifyOpStmt));
     case QUERY_NODE_CREATE_DATABASE_STMT:
       return makeNode(type, sizeof(SCreateDatabaseStmt));
     case QUERY_NODE_DROP_DATABASE_STMT:
@@ -321,8 +321,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateTableStmt));
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
       return makeNode(type, sizeof(SCreateSubTableClause));
-    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
-      return makeNode(type, sizeof(SCreateMultiTableStmt));
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+      return makeNode(type, sizeof(SCreateMultiTablesStmt));
     case QUERY_NODE_DROP_TABLE_CLAUSE:
       return makeNode(type, sizeof(SDropTableClause));
     case QUERY_NODE_DROP_TABLE_STMT:
@@ -818,8 +818,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->pSlimit);
       break;
     }
-    case QUERY_NODE_VNODE_MODIF_STMT: {
-      SVnodeModifOpStmt* pStmt = (SVnodeModifOpStmt*)pNode;
+    case QUERY_NODE_VNODE_MODIFY_STMT: {
+      SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pNode;
       destroyVgDataBlockArray(pStmt->pDataBlocks);
       taosMemoryFreeClear(pStmt->pTableMeta);
       taosHashCleanup(pStmt->pVgroupsHashObj);
@@ -862,8 +862,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->pOptions);
       break;
     }
-    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
-      nodesDestroyList(((SCreateMultiTableStmt*)pNode)->pSubTables);
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+      nodesDestroyList(((SCreateMultiTablesStmt*)pNode)->pSubTables);
       break;
     case QUERY_NODE_DROP_TABLE_CLAUSE:  // no pointer field
       break;

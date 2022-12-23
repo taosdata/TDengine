@@ -352,7 +352,7 @@ static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STa
       code = catalogGetTableMeta(pParCxt->pCatalog, &conn, pName, pMeta);
     }
   }
-  if (TSDB_CODE_SUCCESS != code) {
+  if (TSDB_CODE_SUCCESS != code && TSDB_CODE_TSC_INVALID_TABLE_NAME != code) {
     parserError("0x%" PRIx64 " catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
                 tstrerror(code), pName->dbname, pName->tname);
   }
@@ -5083,7 +5083,7 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
 
 static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pStmt) {
   SCreateUserReq createReq = {0};
-  strcpy(createReq.user, pStmt->useName);
+  strcpy(createReq.user, pStmt->userName);
   createReq.createType = 0;
   createReq.superUser = 0;
   createReq.sysInfo = pStmt->sysinfo;
@@ -5095,7 +5095,7 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
 
 static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
   SAlterUserReq alterReq = {0};
-  strcpy(alterReq.user, pStmt->useName);
+  strcpy(alterReq.user, pStmt->userName);
   alterReq.alterType = pStmt->alterType;
   alterReq.superUser = 0;
   alterReq.enable = pStmt->enable;
@@ -5110,7 +5110,7 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
 
 static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) {
   SDropUserReq dropReq = {0};
-  strcpy(dropReq.user, pStmt->useName);
+  strcpy(dropReq.user, pStmt->userName);
 
   return buildCmdMsg(pCxt, TDMT_MND_DROP_USER, (FSerializeFunc)tSerializeSDropUserReq, &dropReq);
 }
@@ -6645,7 +6645,7 @@ static void destroyCreateTbReqBatch(void* data) {
 }
 
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray) {
-  SVnodeModifOpStmt* pNewStmt = (SVnodeModifOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
+  SVnodeModifyOpStmt* pNewStmt = (SVnodeModifyOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT);
   if (pNewStmt == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -7029,7 +7029,7 @@ SArray* serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap) {
 }
 
 static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) {
-  SCreateMultiTableStmt* pStmt = (SCreateMultiTableStmt*)pQuery->pRoot;
+  SCreateMultiTablesStmt* pStmt = (SCreateMultiTablesStmt*)pQuery->pRoot;
 
   SHashObj* pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (NULL == pVgroupHashmap) {
@@ -7637,7 +7637,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
         code = rewriteCreateTable(pCxt, pQuery);
       }
       break;
-    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       code = rewriteCreateMultiTable(pCxt, pQuery);
       break;
     case QUERY_NODE_DROP_TABLE_STMT:
@@ -7734,9 +7734,9 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
       pQuery->msgType = TDMT_VND_SUBMIT;
       break;
-    case QUERY_NODE_VNODE_MODIF_STMT:
+    case QUERY_NODE_VNODE_MODIFY_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
-      pQuery->msgType = toMsgType(((SVnodeModifOpStmt*)pQuery->pRoot)->sqlNodeType);
+      pQuery->msgType = toMsgType(((SVnodeModifyOpStmt*)pQuery->pRoot)->sqlNodeType);
       break;
     case QUERY_NODE_DESCRIBE_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
