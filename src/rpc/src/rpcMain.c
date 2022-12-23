@@ -270,7 +270,8 @@ void *rpcOpen(const SRpcInit *pInit) {
   if (pInit->label) tstrncpy(pRpc->label, pInit->label, sizeof(pRpc->label));
   pRpc->connType = pInit->connType;
   if (pRpc->connType == TAOS_CONN_CLIENT) {
-    pRpc->numOfThreads = pInit->numOfThreads;
+    pRpc->numOfThreads =
+        pInit->numOfThreads > TSDB_MAX_RPC_THREADS * 2 ? TSDB_MAX_RPC_THREADS * 2 : pInit->numOfThreads;
   } else {
     pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
   }
