@@ -249,15 +249,18 @@ void vnodePreClose(SVnode *pVnode) {
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
-    vnodeSyncCommit(pVnode);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
+
+    tsem_wait(&pVnode->canCommit);
     walClose(pVnode->pWal);
     tqClose(pVnode->pTq);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
     smaClose(pVnode->pSma);
     metaClose(pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
+    tsem_post(&pVnode->canCommit);
+
     // destroy handle
     tsem_destroy(&(pVnode->canCommit));
     tsem_destroy(&pVnode->syncSem);

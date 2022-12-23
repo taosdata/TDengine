@@ -326,6 +326,8 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   }
 
   // update
+  ASSERT(pBuf->startIndex < index);
+  ASSERT(index - pBuf->startIndex < pBuf->size);
   ASSERT(pBuf->entries[index % pBuf->size].pItem == NULL);
   SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = prevIndex, .prevLogTerm = prevTerm};
   pEntry = NULL;
@@ -452,6 +454,11 @@ int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, Syn
   if (pNode->vgId != 1 && vnodeIsMsgBlock(pEntry->originalRpcType)) {
     sTrace("vgId:%d, blocking msg ready to execute. index:%" PRId64 ", term: %" PRId64 ", type: %s", pNode->vgId,
            pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType));
+  }
+
+  if (pEntry->originalRpcType == TDMT_VND_COMMIT) {
+    sInfo("vgId:%d, fsm execute vnode commit. index: %" PRId64 ", term: %" PRId64 "", pNode->vgId, pEntry->index,
+          pEntry->term);
   }
 
   SRpcMsg rpcMsg = {0};

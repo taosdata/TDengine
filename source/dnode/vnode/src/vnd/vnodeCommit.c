@@ -59,6 +59,17 @@ int vnodeBegin(SVnode *pVnode) {
 }
 
 int vnodeShouldCommit(SVnode *pVnode) {
+  if (!pVnode->inUse || !osDataSpaceAvailable()) {
+    return false;
+  }
+
+  int64_t nowMs = taosGetMonoTimestampMs();
+
+  return (((pVnode->inUse->size > pVnode->inUse->node.size) && (pVnode->commitMs + SYNC_VND_COMMIT_MIN_MS < nowMs)) ||
+          (pVnode->inUse->size > 0 && pVnode->commitMs + SYNC_VND_COMMIT_MAX_MS < nowMs));
+}
+
+int vnodeShouldCommitOld(SVnode *pVnode) {
   if (pVnode->inUse) {
     return osDataSpaceAvailable() && (pVnode->inUse->size > pVnode->inUse->node.size);
   }
@@ -194,6 +205,7 @@ static void vnodePrepareCommit(SVnode *pVnode) {
   vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;
 }
+
 static int32_t vnodeCommitTask(void *arg) {
   int32_t code = 0;
 
@@ -210,6 +222,7 @@ _exit:
   taosMemoryFree(pInfo);
   return code;
 }
+
 int vnodeAsyncCommit(SVnode *pVnode) {
   int32_t code = 0;
 
@@ -257,7 +270,9 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   SVnode *pVnode = pInfo->pVnode;
 
   vInfo("vgId:%d, start to commit, commit ID:%" PRId64 " version:%" PRId64 " term: %" PRId64, TD_VID(pVnode),
-        pVnode->state.commitID, pVnode->state.applied, pVnode->state.applyTerm);
+        pInfo->info.state.commitID, pInfo->info.state.committed, pInfo->info.state.commitTerm);
+
+  pVnode->commitMs = taosGetMonoTimestampMs();
 
   // persist wal before starting
   if (walPersist(pVnode->pWal) < 0) {
