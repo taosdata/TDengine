@@ -984,7 +984,12 @@ int tdbPagerRollback(SPager *pPager) {
     char *name = tdbDirEntryBaseName(tdbGetDirEntryName(pDirEntry));
 
     if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
-      if (tdbOsRemove(name) < 0 && errno != ENOENT) {
+      char jname[TD_PATH_MAX] = {0};
+      int  dirLen = strlen(pPager->pEnv->dbName);
+      memcpy(jname, pPager->pEnv->dbName, dirLen);
+      jname[dirLen] = '/';
+      memcpy(jname + dirLen + 1, name, strlen(name));
+      if (tdbOsRemove(jname) < 0 && errno != ENOENT) {
         tdbCloseDir(&pDir);
 
         tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), name);
