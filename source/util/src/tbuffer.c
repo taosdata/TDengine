@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tbuffer.h"
 #include "texception.h"
+#include "tlog.h"
 
 typedef union Un4B {
   uint32_t ui;

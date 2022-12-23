@@ -243,7 +243,7 @@ int32_t compareJsonVal(const void *pLeft, const void *pRight) {
   } else if (leftType == TSDB_DATA_TYPE_NULL) {
     return 0;
   } else {
-    assert(0);
+    ASSERTS(0, "data type unexpected");
     return 0;
   }
 }
@@ -1176,7 +1176,7 @@ int32_t taosArrayCompareString(const void *a, const void *b) {
 int32_t compareStrPatternMatch(const void *pLeft, const void *pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
 
-  assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN);
+  ASSERTS(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN, "variant data len over TSDB_MAX_FIELD_LEN");
   char *pattern = taosMemoryCalloc(varDataLen(pRight) + 1, sizeof(char));
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
 
@@ -1198,7 +1198,7 @@ int32_t compareStrPatternNotMatch(const void *pLeft, const void *pRight) {
 int32_t compareWStrPatternMatch(const void *pLeft, const void *pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
 
-  assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
+  ASSERTS(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE, "variant data len over TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE");
 
   char *pattern = taosMemoryCalloc(varDataLen(pRight) + TSDB_NCHAR_SIZE, 1);
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
@@ -1235,7 +1235,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_TIMESTAMP:
         return setChkInBytes8;
       default:
-        assert(0);
+        ASSERTS(0, "data type unexpected");
     }
   }
 
@@ -1258,7 +1258,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_TIMESTAMP:
         return setChkNotInBytes8;
       default:
-        assert(0);
+        ASSERTS(0, "data type unexpected");
     }
   }
 
