@@ -1425,17 +1425,17 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   }
 
   // pMsg is response msg
-  if (pMsg->msgType != TDMT_MND_CONNECT + 1) {
-    // uniform to one error code: TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED
-    if (pMsg->code == TSDB_CODE_RPC_SOMENODE_BROKEN_LINK) {
-      pMsg->code = TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED;
-    }
-  } else {
+  if (pMsg->msgType == TDMT_MND_CONNECT + 1) {
     // restore origin code
     if (pMsg->code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED) {
       pMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     } else if (pMsg->code == TSDB_CODE_RPC_SOMENODE_BROKEN_LINK) {
       pMsg->code = TSDB_CODE_RPC_BROKEN_LINK;
+    }
+  } else {
+    // uniform to one error code: TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED
+    if (pMsg->code == TSDB_CODE_RPC_SOMENODE_BROKEN_LINK) {
+      pMsg->code = TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED;
     }
   }
 
