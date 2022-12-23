@@ -8,7 +8,7 @@ description: 流式计算的相关 SQL 的详细语法
 ## 创建流式计算
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name AS subquery
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name SUBTABLE(expression) AS subquery
 stream_options: {
  TRIGGER    [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
  WATERMARK   time
@@ -27,6 +27,9 @@ subquery: SELECT select_list
 ```
 
 支持会话窗口、状态窗口与滑动窗口，其中，会话窗口与状态窗口搭配超级表时必须与partition by tbname一起使用
+
+
+subtable 子句定义了流式计算中创建的子表的命名规则，详见 流式计算的 partition 部分。
 
 ```sql
 window_clause: {
@@ -49,11 +52,43 @@ SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(
 
 ## 流式计算的 partition
 
-可以使用 PARTITION BY TBNAME 或 PARTITION BY tag，对一个流进行多分区的计算，每个分区的时间线与时间窗口是独立的，会各自聚合，并写入到目的表中的不同子表。
+可以使用 PARTITION BY TBNAME，tag，普通列或者表达式，对一个流进行多分区的计算，每个分区的时间线与时间窗口是独立的，会各自聚合，并写入到目的表中的不同子表。
 
-不带 PARTITION BY 选项时，所有的数据将写入到一张子表。
+不带 PARTITION BY 子句时，所有的数据将写入到一张子表。
 
-流式计算创建的超级表有唯一的 tag 列 groupId，每个 partition 会被分配唯一 groupId。与 schemaless 写入一致，我们通过 MD5 计算子表名，并自动创建它。
+在创建流时不使用 SUBTABLE 子句时，流式计算创建的超级表有唯一的 tag 列 groupId，每个 partition 会被分配唯一 groupId。与 schemaless 写入一致，我们通过 MD5 计算子表名，并自动创建它。
+
+若创建流的语句中包含 SUBTABLE 子句，用户可以为每个 partition 对应的子表生成自定义的表名，例如：
+
+```sql
+CREATE STREAM avg_vol_s INTO avg_vol SUBTABLE(CONCAT('new-', tname)) AS SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname tname INTERVAL(1m);
+```
+
+PARTITION 子句中，为 tbname 定义了一个别名 tname, 在PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表将以前缀 'new-' 连接原表名作为表名。
+
+注意，子表名的长度若超过 TDengine 的限制，将被截断。若要生成的子表名已经存在于另一超级表，由于 TDengine 的子表名是唯一的，因此对应新子表的创建以及数据的写入将会失败。
+
+## 流式计算读取历史数据
+
+正常情况下，流式计算不会处理创建前已经写入源表中的数据，若要处理已经写入的数据，可以在创建流时设置 fill_history 1 选项，这样创建的流式计算会自动处理创建前、创建中、创建后写入的数据。例如：
+
+```sql
+create stream if not exists s1 fill_history 1 into st1  as select count(*) from t1 interval(10s)
+```
+
+结合 fill_history 1 选项，可以实现只处理特定历史时间范围的数据，例如：只处理某历史时刻（2020年1月30日）之后的数据
+
+```sql
+create stream if not exists s1 fill_history 1 into st1  as select count(*) from t1 where ts > '2020-01-30' interval(10s)
+```
+
+再如，仅处理某时间段内的数据，结束时间可以是未来时间
+
+```sql
+create stream if not exists s1 fill_history 1 into st1  as select count(*) from t1 where ts > '2020-01-30' and ts < '2023-01-01' interval(10s)
+```
+
+如果该流任务已经彻底过期，并且您不再想让它检测或处理数据，您可以手动删除它，被计算出的数据仍会被保留。
 
 ## 删除流式计算
 
@@ -79,7 +114,7 @@ SELECT * from information_schema.`ins_streams`;
 
 在创建流时，可以通过 TRIGGER 指令指定流式计算的触发模式。
 
-对于非窗口计算，流式计算的触发是实时的；对于窗口计算，目前提供 3 种触发模式：
+对于非窗口计算，流式计算的触发是实时的；对于窗口计算，目前提供 3 种触发模式，默认为 AT_ONCE：
 
 1. AT_ONCE：写入立即触发
 

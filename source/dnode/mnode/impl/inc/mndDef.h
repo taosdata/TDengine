@@ -174,6 +174,7 @@ typedef struct {
   void*       param;
   char        opername[TSDB_TRANS_OPER_LEN];
   SArray*     pRpcArray;
+  SRWLatch    lockRpcArray;
 } STrans;
 
 typedef struct {

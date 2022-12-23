@@ -195,6 +195,7 @@ typedef struct SDataBlockInfo {
   uint32_t    capacity;
   SBlockID    id;
   int16_t     hasVarCol;
+  int16_t     dataLoad;  // denote if the data is loaded or not
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
@@ -203,8 +204,9 @@ typedef struct SDataBlockInfo {
   STimeWindow calWin;     // used for stream, do not serialize
   TSKEY       watermark;  // used for stream
 
-  char        parTbName[TSDB_TABLE_NAME_LEN];  // used for stream partition
-  STag*       pTag;                            // used for stream partition
+  char    parTbName[TSDB_TABLE_NAME_LEN];  // used for stream partition
+  int32_t tagLen;
+  void*   pTag;  // used for stream partition
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -238,22 +240,22 @@ typedef struct SVarColAttr {
 // pBlockAgg->numOfNull == info.rows, all data are null
 // pBlockAgg->numOfNull == 0, no data are null.
 typedef struct SColumnInfoData {
-  char*         pData;       // the corresponding block data in memory
+  char* pData;  // the corresponding block data in memory
   union {
     char*       nullbitmap;  // bitmap, one bit for each item in the list
     SVarColAttr varmeta;
   };
-  SColumnInfo   info;        // column info
-  bool          hasNull;     // if current column data has null value.
+  SColumnInfo info;     // column info
+  bool        hasNull;  // if current column data has null value.
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {
   uint64_t     suid;
-  int32_t      order;    // desc|asc order to iterate the data block
+  int32_t      order;  // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo* colList;
-  int32_t*     pSlotList; // the column output destation slot, and it may be null
-  int32_t      type;     // data block load type:
+  int32_t*     pSlotList;  // the column output destation slot, and it may be null
+  int32_t      type;       // data block load type:
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;

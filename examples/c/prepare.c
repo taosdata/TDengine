@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../../../include/client/taos.h"
+#include "taos.h"
 
 void taosMsleep(int mseconds);
 
@@ -70,70 +70,89 @@ int main(int argc, char *argv[])
       char blob[80];
   } v = {0};
 
+  int32_t boolLen = sizeof(int8_t);
+  int32_t sintLen = sizeof(int16_t);
+  int32_t intLen = sizeof(int32_t);
+  int32_t bintLen = sizeof(int64_t);
+  int32_t floatLen = sizeof(float);
+  int32_t doubleLen = sizeof(double);
+  int32_t binLen = sizeof(v.bin);
+  int32_t ncharLen = 30;
+
   stmt = taos_stmt_init(taos);
-  TAOS_BIND params[10];
+  TAOS_MULTI_BIND params[10];
   params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
   params[0].buffer_length = sizeof(v.ts);
   params[0].buffer = &v.ts;
-  params[0].length = &params[0].buffer_length;
+  params[0].length = &bintLen;
   params[0].is_null = NULL;
+  params[0].num = 1;
 
   params[1].buffer_type = TSDB_DATA_TYPE_BOOL;
   params[1].buffer_length = sizeof(v.b);
   params[1].buffer = &v.b;
-  params[1].length = &params[1].buffer_length;
+  params[1].length = &boolLen;
   params[1].is_null = NULL;
+  params[1].num = 1;
 
   params[2].buffer_type = TSDB_DATA_TYPE_TINYINT;
   params[2].buffer_length = sizeof(v.v1);
   params[2].buffer = &v.v1;
-  params[2].length = &params[2].buffer_length;
+  params[2].length = &boolLen;
   params[2].is_null = NULL;
+  params[2].num = 1;
 
   params[3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
   params[3].buffer_length = sizeof(v.v2);
   params[3].buffer = &v.v2;
-  params[3].length = &params[3].buffer_length;
+  params[3].length = &sintLen;
   params[3].is_null = NULL;
+  params[3].num = 1;
 
   params[4].buffer_type = TSDB_DATA_TYPE_INT;
   params[4].buffer_length = sizeof(v.v4);
   params[4].buffer = &v.v4;
-  params[4].length = &params[4].buffer_length;
+  params[4].length = &intLen;
   params[4].is_null = NULL;
+  params[4].num = 1;
 
   params[5].buffer_type = TSDB_DATA_TYPE_BIGINT;
   params[5].buffer_length = sizeof(v.v8);
   params[5].buffer = &v.v8;
-  params[5].length = &params[5].buffer_length;
+  params[5].length = &bintLen;
   params[5].is_null = NULL;
+  params[5].num = 1;
 
   params[6].buffer_type = TSDB_DATA_TYPE_FLOAT;
   params[6].buffer_length = sizeof(v.f4);
   params[6].buffer = &v.f4;
-  params[6].length = &params[6].buffer_length;
+  params[6].length = &floatLen;
   params[6].is_null = NULL;
+  params[6].num = 1;
 
   params[7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
   params[7].buffer_length = sizeof(v.f8);
   params[7].buffer = &v.f8;
-  params[7].length = &params[7].buffer_length;
+  params[7].length = &doubleLen;
   params[7].is_null = NULL;
+  params[7].num = 1;
 
   params[8].buffer_type = TSDB_DATA_TYPE_BINARY;
   params[8].buffer_length = sizeof(v.bin);
   params[8].buffer = v.bin;
-  params[8].length = &params[8].buffer_length;
+  params[8].length = &binLen;
   params[8].is_null = NULL;
+  params[8].num = 1;
 
   strcpy(v.blob, "一二三四五六七八九十");
   params[9].buffer_type = TSDB_DATA_TYPE_NCHAR;
-  params[9].buffer_length = strlen(v.blob);
+  params[9].buffer_length = sizeof(v.blob);
   params[9].buffer = v.blob;
-  params[9].length = &params[9].buffer_length;
+  params[9].length = &ncharLen;
   params[9].is_null = NULL;
+  params[9].num = 1;
 
-  int is_null = 1;
+  char is_null = 1;
 
   sql = "insert into m1 values(?,?,?,?,?,?,?,?,?,?)";
   code = taos_stmt_prepare(stmt, sql, 0);
@@ -153,7 +172,7 @@ int main(int argc, char *argv[])
     v.v8 = (int64_t)(i * 8);
     v.f4 = (float)(i * 40);
     v.f8 = (double)(i * 80);
-    for (int j = 0; j < sizeof(v.bin) - 1; ++j) {
+    for (int j = 0; j < sizeof(v.bin); ++j) {
       v.bin[j] = (char)(i + '0');
     }
 

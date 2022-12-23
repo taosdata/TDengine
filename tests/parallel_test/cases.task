@@ -174,6 +174,7 @@
 ,,y,script,./test.sh -f tsim/query/scalarNull.sim
 ,,y,script,./test.sh -f tsim/query/session.sim
 ,,y,script,./test.sh -f tsim/query/udf.sim
+,,y,script,./test.sh -f tsim/query/udf_with_const.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim
@@ -479,8 +480,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py 
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py -N 3 -n 3 -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py
@@ -647,6 +648,9 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 6 -M 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py -N 6 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py -N 6 -M 3 -n 3
+
+,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeModifyMeta.py  -N 6 -M 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeModifyMeta.py  -N 6 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 6 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 6 -M 3 -n 3 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py -N 6 -M 3
@@ -657,6 +661,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
+
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
@@ -1017,6 +1022,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
 
 #develop test

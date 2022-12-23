@@ -101,6 +101,7 @@ extern int32_t tsRedirectPeriod;
 extern int32_t tsRedirectFactor;
 extern int32_t tsRedirectMaxPeriod;
 extern int32_t tsMaxRetryWaitTime;
+extern bool    tsUseAdapter;
 
 // client
 extern int32_t tsMinSlidingTime;

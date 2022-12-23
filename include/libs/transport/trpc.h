@@ -77,14 +77,12 @@ typedef void (*RpcDfp)(void *ahandle);
 
 typedef struct SRpcInit {
   char     localFqdn[TSDB_FQDN_LEN];
-  uint16_t localPort;      // local port
-  char    *label;          // for debug purpose
-  int32_t  numOfThreads;   // number of threads to handle connections
-  int32_t  sessions;       // number of sessions allowed
-  int8_t   connType;       // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
-  int32_t  idleTime;       // milliseconds, 0 means idle timer is disabled
-  int32_t  retryLimit;     // retry limit
-  int32_t  retryInterval;  // retry interval ms
+  uint16_t localPort;     // local port
+  char    *label;         // for debug purpose
+  int32_t  numOfThreads;  // number of threads to handle connections
+  int32_t  sessions;      // number of sessions allowed
+  int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
+  int32_t  idleTime;      // milliseconds, 0 means idle timer is disabled
 
   int32_t retryMinInterval;  // retry init interval
   int32_t retryStepFactor;   // retry interval factor

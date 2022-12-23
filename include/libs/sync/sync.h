@@ -230,7 +230,7 @@ int64_t syncOpen(SSyncInfo* pSyncInfo);
 int32_t syncStart(int64_t rid);
 void    syncStop(int64_t rid);
 void    syncPreStop(int64_t rid);
-int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
+int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak, int64_t* seq);
 int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg);
 int32_t syncReconfig(int64_t rid, SSyncCfg* pCfg);
 int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex);
@@ -240,6 +240,7 @@ int32_t syncStepDown(int64_t rid, SyncTerm newTerm);
 bool    syncIsReadyForRead(int64_t rid);
 bool    syncSnapshotSending(int64_t rid);
 bool    syncSnapshotRecving(int64_t rid);
+int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq);
 
 SSyncState  syncGetState(int64_t rid);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);

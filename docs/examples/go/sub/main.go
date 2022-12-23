@@ -24,7 +24,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	_, err = db.Exec("create topic if not exists example_tmq_topic with meta as DATABASE example_tmq")
+	_, err = db.Exec("create topic if not exists example_tmq_topic as DATABASE example_tmq")
 	if err != nil {
 		panic(err)
 	}
