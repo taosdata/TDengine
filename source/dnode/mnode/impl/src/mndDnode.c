@@ -558,6 +558,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_GLOBAL, pReq, "create-dnode");
   if (pTrans == NULL) goto _OVER;
   mInfo("trans:%d, used to create dnode:%s", pTrans->id, dnodeObj.ep);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   pRaw = mndDnodeActionEncode(&dnodeObj);
   if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
@@ -739,6 +740,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to drop dnode:%d, force:%d", pTrans->id, pDnode->id, force);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   pRaw = mndDnodeActionEncode(pDnode);
   if (pRaw == NULL) goto _OVER;
@@ -803,11 +805,12 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   pDnode = mndAcquireDnode(pMnode, dropReq.dnodeId);
   if (pDnode == NULL) {
-    char ep[TSDB_EP_LEN + 1] = {0};
+    int32_t err = terrno;
+    char    ep[TSDB_EP_LEN + 1] = {0};
     snprintf(ep, sizeof(ep), dropReq.fqdn, dropReq.port);
     pDnode = mndAcquireDnodeByEp(pMnode, ep);
     if (pDnode == NULL) {
-      terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+      terrno = err;
       goto _OVER;
     }
   }
