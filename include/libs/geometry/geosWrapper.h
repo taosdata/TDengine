@@ -41,16 +41,16 @@ void destroyThreadLocalGeosCtx();
 
 void geosFreeBuffer(void *buffer);
 
-int32_t prepareGeomFromText();
+int32_t initCtxGeomFromText();
 int32_t doGeomFromText(const char *inputWKT, unsigned char **outputGeom, size_t *size);
 
-int32_t prepareAsText();
+int32_t initCtxAsText();
 int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT);
 
-int32_t prepareMakePoint();
+int32_t initCtxMakePoint();
 int32_t doMakePoint(double x, double y, unsigned char **outputGeom, size_t *size);
 
-int32_t prepareIntersects();
+int32_t initCtxIntersects();
 int32_t doIntersects(const unsigned char *inputGeom1, size_t size1,
                      const unsigned char *inputGeom2, size_t size2,
                      char *res);

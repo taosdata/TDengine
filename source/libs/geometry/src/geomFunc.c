@@ -21,12 +21,12 @@
 #include "sclInt.h"
 #include "sclvector.h"
 
-typedef int32_t (*_geomPrepareFunc_t)();
+typedef int32_t (*_geomInitCtxFunc_t)();
 typedef int32_t (*_geomExecuteOneParamFunc_t)(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData);
 typedef int32_t (*_geomExecuteTwoParamsFunc_t)(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
                                                SColumnInfoData *pOutputData);
-typedef int32_t (*_geomExecuteTwoParamsPreparedFunc_t)(const GEOSPreparedGeometry *preparedGeom1, SColumnInfoData *pInputData2, int32_t i2,
-                                                       SColumnInfoData *pOutputData);
+typedef int32_t (*_geomExecutePreparedFunc_t)(const GEOSPreparedGeometry *preparedGeom1, SColumnInfoData *pInputData2, int32_t i2,
+                                              SColumnInfoData *pOutputData);
 
 // both input and output are with VARSTR format
 // need to call taosMemoryFree(*output) later
@@ -38,7 +38,7 @@ int32_t doGeomFromTextFunc(const char *input, unsigned char **output) {
     return TSDB_CODE_SUCCESS;
   }
 
-  //make input as a zero ending string
+  // make input as a zero ending string
   char *end = varDataVal(input) + varDataLen(input);
   char endValue = *end;
   *end = 0; 
@@ -243,13 +243,13 @@ int32_t executePreparedIntersectsFunc(const GEOSPreparedGeometry *preparedGeom1,
 }
 
 int32_t geomOneParamFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput,
-                             _geomPrepareFunc_t prepareFn, _geomExecuteOneParamFunc_t executeOneParamFn) {
+                             _geomInitCtxFunc_t initCtxFn, _geomExecuteOneParamFunc_t executeOneParamFn) {
   int32_t code = TSDB_CODE_FAILED;
 
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  code = prepareFn();
+  code = initCtxFn();
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -273,7 +273,7 @@ int32_t geomOneParamFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 }
 
 int32_t geomTwoParamsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput,
-                              _geomPrepareFunc_t prepareFn, _geomExecuteTwoParamsFunc_t executeTwoParamsFn) {
+                              _geomInitCtxFunc_t initCtxFn, _geomExecuteTwoParamsFunc_t executeTwoParamsFn) {
   int32_t code = TSDB_CODE_FAILED;
 
   SColumnInfoData *pInputData[inputNum];
@@ -282,7 +282,7 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     pInputData[i] = pInput[i].columnData;
   }
 
-  code = prepareFn();
+  code = initCtxFn();
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -325,10 +325,10 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   return code;
 }
 
-int32_t geomTwoParamsSwappableFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput,
-                                       _geomPrepareFunc_t prepareFn,
-                                       _geomExecuteTwoParamsFunc_t executeTwoParamsFn,
-                                       _geomExecuteTwoParamsPreparedFunc_t executeTwoParamsPreparedFn) {
+int32_t geomPreparedSwappableFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput,
+                                      _geomInitCtxFunc_t initCtxFn,
+                                      _geomExecuteTwoParamsFunc_t executeTwoParamsFn,
+                                      _geomExecutePreparedFunc_t executePreparedFn) {
   int32_t code = TSDB_CODE_FAILED;
 
   SColumnInfoData *pInputData[inputNum];
@@ -337,7 +337,7 @@ int32_t geomTwoParamsSwappableFunction(SScalarParam *pInput, int32_t inputNum, S
     pInputData[i] = pInput[i].columnData;
   }
 
-  code = prepareFn();
+  code = initCtxFn();
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -359,15 +359,15 @@ int32_t geomTwoParamsSwappableFunction(SScalarParam *pInput, int32_t inputNum, S
     code = TSDB_CODE_SUCCESS;
   }
   else {
-    // only if two params are from 1 to X, make PreparedGeometry for the one param and call executeTwoParamsPreparedFn()
-    if (isConstant1 && !isConstant2) { //make first param constant to be PreparedGeometry as input1
+    // only if two params are from 1 to X, make PreparedGeometry for the one param and call executePreparedFn()
+    if (isConstant1 && !isConstant2) { // make first param constant to be PreparedGeometry as input1
       code = makePreparedGeometry(colDataGetData(pInputData[0], 0), &geom1, &preparedGeom1);
       if (code != TSDB_CODE_SUCCESS) {
         goto _exit;
       }
       pInputData2 = pInputData[1];
     }
-    else if (isConstant2 && !isConstant1) { //make second param constant to be PreparedGeometry as input1 since the two params are swappable
+    else if (isConstant2 && !isConstant1) { // make second param constant to be PreparedGeometry as input1 since the two params are swappable
       code = makePreparedGeometry(colDataGetData(pInputData[1], 0), &geom1, &preparedGeom1);
       if (code != TSDB_CODE_SUCCESS) {
         goto _exit;
@@ -389,7 +389,7 @@ int32_t geomTwoParamsSwappableFunction(SScalarParam *pInput, int32_t inputNum, S
       }
 
       if (preparedGeom1) {
-        code = executeTwoParamsPreparedFn(preparedGeom1, pInputData2, i, pOutputData);
+        code = executePreparedFn(preparedGeom1, pInputData2, i, pOutputData);
       }
       else {
         code = executeTwoParamsFn(pInputData, i1, i2, pOutputData);
@@ -409,18 +409,18 @@ _exit:
 }
 
 int32_t geomFromTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomOneParamFunction(pInput, inputNum, pOutput, prepareGeomFromText, executeGeomFromTextFunc);
+  return geomOneParamFunction(pInput, inputNum, pOutput, initCtxGeomFromText, executeGeomFromTextFunc);
 }
 
 int32_t asTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomOneParamFunction(pInput, inputNum, pOutput, prepareAsText, executeAsTextFunc);
+  return geomOneParamFunction(pInput, inputNum, pOutput, initCtxAsText, executeAsTextFunc);
 }
 
 int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomTwoParamsFunction(pInput, inputNum, pOutput, prepareMakePoint, executeMakePointFunc);
+  return geomTwoParamsFunction(pInput, inputNum, pOutput, initCtxMakePoint, executeMakePointFunc);
 }
 
 int32_t intersectsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomTwoParamsSwappableFunction(pInput, inputNum, pOutput,
-                                        prepareIntersects, executeIntersectsFunc, executePreparedIntersectsFunc);
+  return geomPreparedSwappableFunction(pInput, inputNum, pOutput,
+                                       initCtxIntersects, executeIntersectsFunc, executePreparedIntersectsFunc);
 }

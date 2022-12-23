@@ -506,7 +506,7 @@ void shellPrintGeometry(const unsigned char *val, int32_t length, int32_t width)
 
   int32_t code = TSDB_CODE_FAILED;
 
-  code = prepareAsText();
+  code = initCtxAsText();
   if (code != TSDB_CODE_SUCCESS) {
     shellPrintString(getThreadLocalGeosCtx()->errMsg, width);
     return;

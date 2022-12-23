@@ -446,7 +446,7 @@ static int parseGeometry(SToken *pToken, unsigned char **output, size_t *size) {
 
   //[ToDo] support to parse WKB as well as WKT
   if (pToken->type == TK_NK_STRING) {
-    code = prepareGeomFromText();
+    code = initCtxGeomFromText();
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

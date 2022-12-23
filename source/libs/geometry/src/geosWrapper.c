@@ -61,7 +61,7 @@ void geosErrMsgeHandler(const char *errMsg, void *userData) {
   snprintf(targetErrMsg, 512, errMsg);
 }
 
-int32_t prepareGeomFromText() {
+int32_t initCtxGeomFromText() {
   int32_t code = TSDB_CODE_FAILED;
 
   if (tlGeosCtx.handle == NULL) {
@@ -121,7 +121,7 @@ _exit:
   return code;
 }
 
-int32_t prepareAsText() {
+int32_t initCtxAsText() {
   int32_t code = TSDB_CODE_FAILED;
 
   if (tlGeosCtx.handle == NULL) {
@@ -184,7 +184,7 @@ _exit:
   return code;
 }
 
-int32_t prepareMakePoint() {
+int32_t initCtxMakePoint() {
   int32_t code = TSDB_CODE_FAILED;
 
   if (tlGeosCtx.handle == NULL) {
@@ -237,7 +237,7 @@ _exit:
   return code;
 }
 
-int32_t prepareIntersects() {
+int32_t initCtxIntersects() {
   int32_t code = TSDB_CODE_FAILED;
 
   if (tlGeosCtx.handle == NULL) {
