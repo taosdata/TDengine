@@ -5316,8 +5316,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   varDataSetLen(st, len);
   colDataAppend(pColInfo, row++, st, false);
 
-  len = sprintf(st + VARSTR_HEADER_SIZE, "Total_Tables=[%d] Total_Files=[%d] Total_Vgroups=[%d]", pData->numOfTables,
-                pData->numOfFiles, 0);
+  len = sprintf(st + VARSTR_HEADER_SIZE, "Total_Tables=[%d] Total_Files=[%d]", pData->numOfTables, pData->numOfFiles);
 
   varDataSetLen(st, len);
   colDataAppend(pColInfo, row++, st, false);
