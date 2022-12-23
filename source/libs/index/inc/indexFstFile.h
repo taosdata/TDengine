@@ -45,8 +45,9 @@ typedef struct IFileCtx {
       char      buf[256];
       int64_t   size;
 
-      char    wBuf[4096];
+      char*   wBuf;
       int32_t wBufOffset;
+      int32_t wBufCap;
 
 #ifdef USE_MMAP
       char* ptr;

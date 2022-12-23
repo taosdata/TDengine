@@ -40,7 +40,7 @@ static FORCE_INLINE void idxGenLRUKey(char* buf, const char* path, int32_t block
 static FORCE_INLINE int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) {
   int tlen = len;
   if (ctx->type == TFILE) {
-    int32_t cap = sizeof(ctx->file.wBuf);
+    int32_t cap = ctx->file.wBufCap;
     if (len + ctx->file.wBufOffset >= cap) {
       int32_t nw = cap - ctx->file.wBufOffset;
       memcpy(ctx->file.wBuf + ctx->file.wBufOffset, buf, nw);
@@ -193,8 +193,9 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
       taosFtruncateFile(ctx->file.pFile, 0);
       taosStatFile(path, &ctx->file.size, NULL);
 
-      memset(ctx->file.wBuf, 0, sizeof(ctx->file.wBuf));
       ctx->file.wBufOffset = 0;
+      ctx->file.wBufCap = kBlockSize * 4;
+      ctx->file.wBuf = taosMemoryCalloc(1, ctx->file.wBufCap);
     } else {
       ctx->file.pFile = taosOpenFile(path, TD_FILE_READ);
       taosFStatFile(ctx->file.pFile, &ctx->file.size, NULL);
@@ -239,6 +240,7 @@ void idxFileCtxDestroy(IFileCtx* ctx, bool remove) {
       ctx->file.wBufOffset = 0;
     }
     ctx->flush(ctx);
+    taosMemoryFreeClear(ctx->file.wBuf);
     taosCloseFile(&ctx->file.pFile);
     if (ctx->file.readOnly) {
 #ifdef USE_MMAP
