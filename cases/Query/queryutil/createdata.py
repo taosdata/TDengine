@@ -1027,10 +1027,10 @@ class TDCreateData():
         cur1 = case_common[1]
         
         try:
-            self.tdSql.query(sql1,queryTimes=1)
-            self.tdSql.query(sql2,queryTimes=1)            
-            rows = self.tdSql.query(sql1).row_count   
-            if rows>=0:
+            (self.tdSql.query(sql1,queryTimes=1)) and (self.tdSql.query(sql2,queryTimes=1))           
+            rows = self.tdSql.query(sql1).row_count 
+            rows2 = self.tdSql.query(sql2).row_count  
+            if rows>=0 and rows2>=0:
                 rows_1 = rows 
                 rows_2 = self.tdSql.query(sql2).row_count 
                 if (rows_1 == 0) and (rows_2 == 0):
@@ -1053,8 +1053,8 @@ class TDCreateData():
                     self.explain_sql(sql2)
                     cur1.execute(sql2)
         except:
-            self.tdSql.error(sql1)
-            self.tdSql.error(sql2)
+            # (self.tdSql.error(sql1)) or (self.tdSql.query(sql1,queryTimes=1))
+            # (self.tdSql.error(sql2)) or (self.tdSql.query(sql2,queryTimes=1))
             self.logger.info("sql1 is not support :=====%s; sql2 is not support :=====%s; " %(sql1,sql2))
 
     def check_one_row_one_col_value(self, sql, row, col, oper, value, throw=True) -> bool:

@@ -438,6 +438,16 @@ class TDFunction():
         
         return int_pow_log
 
+    def int_pow_log_interval(self):   
+        hanshu = ['POW','LOG']        
+        column = ['(q_bigint,num)','(q_smallint,num)','(q_tinyint,num)','(q_int,num)','(q_float,num)','(q_double,num)',
+        '(q_bigint_null,num)','(q_smallint_null,num)','(q_tinyint_null,num)','(q_int_null,num)','(q_float_null,num)','(q_double_null,num)'] 
+        num = random.randrange(2,100) 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        int_pow_log = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("num","%d" %num)
+        
+        return int_pow_log
+    
     def int_abs(self):   
         #因为要校验值》0，所以和sqrt分开
         hanshu = ['ABS']        
@@ -498,6 +508,16 @@ class TDFunction():
         
         return int_percentile
 
+    def int_percentile_interval(self):   
+        #不能用在超级表,num值取值范围0≤num≤100，为0的时候等同于MIN，为100的时候等同于MAX。
+        hanshu = ['PERCENTILE']        
+        column = ['(q_bigint,num)','(q_smallint,num)','(q_tinyint,num)','(q_int,num)','(q_float,num)','(q_double,num)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        num = random.randrange(0,100) 
+        int_percentile = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("num","%d" %num)
+        
+        return int_percentile
+    
     def int_apercentile(self):  
         #APERCENTILE(field_name, P[, algo_type])  P值有效取值范围0≤P≤100，为 0 的时候等同于 MIN，为 100 的时候等同于MAX；
         #algo_type的有效输入：default 和 t-digest。 不提供第三个参数的输入，此时将使用 default 的算法进行计算，即 apercentile(column_name, 50, "default") 与 apercentile(column_name, 50) 等价。
@@ -516,7 +536,26 @@ class TDFunction():
         
         return int_apercentile
         
-
+    
+    def int_apercentile_interval(self):  
+        #APERCENTILE(field_name, P[, algo_type])  P值有效取值范围0≤P≤100，为 0 的时候等同于 MIN，为 100 的时候等同于MAX；
+        #algo_type的有效输入：default 和 t-digest。 不提供第三个参数的输入，此时将使用 default 的算法进行计算，即 apercentile(column_name, 50, "default") 与 apercentile(column_name, 50) 等价。
+        hanshu = ['APERCENTILE']        
+        column = ['(q_bigint,num)','(q_smallint,num)','(q_tinyint,num)','(q_int,num)','(q_float,num)','(q_double,num)',
+        '(q_bigint,num,algo_type)','(q_smallint,num,algo_type)','(q_tinyint,num,algo_type)','(q_int,num,algo_type)','(q_float,num,algo_type)','(q_double,num,algo_type)'] 
+        num = random.randrange(0,100) 
+        for i in range(3):
+            if i == 1:
+                algo_type = 'default'                
+                hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+                int_apercentile = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("algo_type",'"%s"'%algo_type).replace("num","%d" %num)
+            elif i == 2:
+                algo_type = 't-digest'                
+                hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+                int_apercentile = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("algo_type",'"%s"'%algo_type).replace("num","%d" %num)                
+        
+        return int_apercentile
+        
     def int_leastsquares(self):   
         #不能用在超级表,统计表中某列的值是主键（时间戳）的拟合直线方程。start_val是自变量初始值，step_val是自变量的步长值。
         hanshu = ['LEASTSQUARES']        
@@ -540,7 +579,22 @@ class TDFunction():
         int_derivative = int_cloumn_state.replace("time_interval","%s" %time_interval).replace("num","%d" %time_num)   
                     
         return int_derivative
-                                 
+
+    def int_derivative_interval(self):   
+        hanshu = ['DERIVATIVE']                
+        column = ['(q_bigint,time_interval)','(q_smallint,time_interval)','(q_tinyint,time_interval)','(q_int,time_interval)','(q_float,time_interval)','(q_double,time_interval)'] 
+        hanshu_column = random.sample(hanshu,1) + random.sample(column,1)
+        int_cloumn_state = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        
+        #time_intervals = ['1s', '1m' ,'1h', '1d']         # derivative duration should be greater than 1 Second  
+        time_units = ['nums','numm','numh','numd']      
+        time_interval = str(random.sample(time_units,1)).replace("[","").replace("]","").replace("'","")  
+        
+        time_num = random.randint(0, 1000)  
+        int_derivative = int_cloumn_state.replace("time_interval","%s" %time_interval).replace("num","%d" %time_num)   
+                    
+        return int_derivative
+                                     
     def func_stable_math(self,i):   
         #后期可以结合numpy去验证数据
         func_stable_math = ''
@@ -548,6 +602,8 @@ class TDFunction():
             func_stable_math = self.int_sin_cos_tan()
         elif i == 2:
             func_stable_math = self.int_pow_log() 
+        elif i == 21:
+            func_stable_math = self.int_pow_log_interval() 
         elif i == 3:
             func_stable_math = self.int_abs() 
         elif i == 4:
@@ -556,12 +612,18 @@ class TDFunction():
             func_stable_math = self.int_histogram() 
         elif i == 6:
             func_stable_math = self.int_percentile() 
+        elif i == 61:
+            func_stable_math = self.int_percentile_interval() 
         elif i == 7:
             func_stable_math = self.int_apercentile() 
+        elif i == 71:
+            func_stable_math = self.int_apercentile_interval() 
         elif i == 8:
             func_stable_math = self.int_leastsquares() 
         elif i == 9:
             func_stable_math = self.int_derivative() 
+        elif i == 91:
+            func_stable_math = self.int_derivative_interval() 
                                                                          
         return func_stable_math 
 
