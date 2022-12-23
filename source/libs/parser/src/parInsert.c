@@ -440,7 +440,7 @@ static int parseTime(char** end, SToken* pToken, int16_t timePrec, int64_t* time
   return TSDB_CODE_SUCCESS;
 }
 
-// need to call geosFreeBuffer(output) later
+// need to call geosFreeBuffer(*output) later
 static int parseGeometry(SToken *pToken, unsigned char **output, size_t *size) {
   int32_t code = TSDB_CODE_FAILED;
 
@@ -687,10 +687,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
         code = func(pMsgBuf, output, size, param);
       }
 
-      if (output) {
-        geosFreeBuffer(output);
-        output = NULL;
-      }
+      geosFreeBuffer(output);
 
       return code;
     }

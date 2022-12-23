@@ -55,6 +55,13 @@ int32_t doIntersects(const unsigned char *inputGeom1, size_t size1,
                      const unsigned char *inputGeom2, size_t size2,
                      char *res);
 
+int32_t makePreparedGeometry(unsigned char *input, GEOSGeometry **outputGeom, const GEOSPreparedGeometry **outputPreparedGeom);
+void destroyPreparedGeometry(const GEOSPreparedGeometry **preparedGeom, GEOSGeometry **geom);
+
+int32_t doPreparedIntersects(const GEOSPreparedGeometry *preparedGeom1,
+                             const unsigned char *inputGeom2, size_t size2,
+                             char *res);
+
 #ifdef __cplusplus
 }
 #endif
