@@ -3,7 +3,7 @@
 # Generate the deb package for ubuntu, or rpm package for centos, or tar.gz package for other linux os
 
 set -e
-#set -x
+# set -x
 
 # release.sh  -v [cluster | edge]
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64...]
@@ -95,6 +95,8 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:" arg; do
     ;;
   esac
 done
+
+osType=$(uname)
 
 echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} allocator=${allocator} verNumber=${verNumber} verNumberComp=${verNumberComp} httpdBuild=${httpdBuild}"
 
@@ -233,7 +235,12 @@ else
   exit 1
 fi
 
-CORES=$(grep -c ^processor /proc/cpuinfo)
+ostype=`uname`
+if [ "${ostype}" == "Darwin" ]; then
+    CORES=$(sysctl -n hw.ncpu)
+else
+    CORES=$(grep -c ^processor /proc/cpuinfo)
+fi
 
 if [[ "$allocator" == "jemalloc" ]]; then
   # jemalloc need compile first, so disable parallel build
@@ -306,7 +313,7 @@ if [ "$osType" != "Darwin" ]; then
   ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
 
 else
-  # only make client for Darwin
   cd ${script_dir}/tools
+  ./makepkg.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName}
   ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
 fi

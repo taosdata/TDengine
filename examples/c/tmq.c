@@ -20,7 +20,7 @@
 #include <time.h>
 #include "taos.h"
 
-static int  running = 1;
+static int running = 1;
 
 static int32_t msg_process(TAOS_RES* msg) {
   char    buf[1024];
@@ -40,8 +40,8 @@ static int32_t msg_process(TAOS_RES* msg) {
 
     TAOS_FIELD* fields = taos_fetch_fields(msg);
     int32_t     numOfFields = taos_field_count(msg);
-    //int32_t*    length = taos_fetch_lengths(msg);
-    int32_t     precision = taos_result_precision(msg);
+    // int32_t*    length = taos_fetch_lengths(msg);
+    int32_t precision = taos_result_precision(msg);
     rows++;
     taos_print_row(buf, row, fields, numOfFields);
     printf("precision: %d, row content: %s\n", precision, buf);
@@ -62,14 +62,12 @@ static int32_t init_env() {
   pRes = taos_query(pConn, "drop topic topicname");
   if (taos_errno(pRes) != 0) {
     printf("error in drop tmqdb, reason:%s\n", taos_errstr(pRes));
-    return -1;
   }
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "drop database if exists tmqdb");
   if (taos_errno(pRes) != 0) {
     printf("error in drop tmqdb, reason:%s\n", taos_errstr(pRes));
-    return -1;
   }
   taos_free_result(pRes);
 
@@ -77,7 +75,7 @@ static int32_t init_env() {
   pRes = taos_query(pConn, "create database tmqdb precision 'ns'");
   if (taos_errno(pRes) != 0) {
     printf("error in create tmqdb, reason:%s\n", taos_errstr(pRes));
-    return -1;
+    goto END;
   }
   taos_free_result(pRes);
 
@@ -87,7 +85,7 @@ static int32_t init_env() {
       pConn, "create table tmqdb.stb (ts timestamp, c1 int, c2 float, c3 varchar(16)) tags(t1 int, t3 varchar(16))");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table stb, reason:%s\n", taos_errstr(pRes));
-    return -1;
+    goto END;
   }
   taos_free_result(pRes);
 
@@ -96,28 +94,28 @@ static int32_t init_env() {
   pRes = taos_query(pConn, "create table tmqdb.ctb0 using tmqdb.stb tags(0, 'subtable0')");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table ctb0, reason:%s\n", taos_errstr(pRes));
-    return -1;
+    goto END;
   }
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create table tmqdb.ctb1 using tmqdb.stb tags(1, 'subtable1')");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table ctb1, reason:%s\n", taos_errstr(pRes));
-    return -1;
+    goto END;
   }
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create table tmqdb.ctb2 using tmqdb.stb tags(2, 'subtable2')");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table ctb2, reason:%s\n", taos_errstr(pRes));
-    return -1;
+    goto END;
   }
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create table tmqdb.ctb3 using tmqdb.stb tags(3, 'subtable3')");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table ctb3, reason:%s\n", taos_errstr(pRes));
-    return -1;
+    goto END;
   }
   taos_free_result(pRes);
 
@@ -126,33 +124,37 @@ static int32_t init_env() {
   pRes = taos_query(pConn, "insert into tmqdb.ctb0 values(now, 0, 0, 'a0')(now+1s, 0, 0, 'a00')");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ctb0, reason:%s\n", taos_errstr(pRes));
-    return -1;
+    goto END;
   }
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "insert into tmqdb.ctb1 values(now, 1, 1, 'a1')(now+1s, 11, 11, 'a11')");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ctb0, reason:%s\n", taos_errstr(pRes));
-    return -1;
+    goto END;
   }
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "insert into tmqdb.ctb2 values(now, 2, 2, 'a1')(now+1s, 22, 22, 'a22')");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ctb0, reason:%s\n", taos_errstr(pRes));
-    return -1;
+    goto END;
   }
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "insert into tmqdb.ctb3 values(now, 3, 3, 'a1')(now+1s, 33, 33, 'a33')");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ctb0, reason:%s\n", taos_errstr(pRes));
-    return -1;
+    goto END;
   }
   taos_free_result(pRes);
-
   taos_close(pConn);
   return 0;
+
+END:
+  taos_free_result(pRes);
+  taos_close(pConn);
+  return -1;
 }
 
 int32_t create_topic() {

@@ -1347,6 +1347,36 @@ static int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock,
   return code;
 }
 
+#if 0
+void calBlockTag(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
+  SExprSupp*    pTagCalSup = &pInfo->tagCalSup;
+  SStreamState* pState = pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState;
+  if (pTagCalSup == NULL || pTagCalSup->numOfExprs == 0) return;
+  if (pBlock == NULL || pBlock->info.rows == 0) return;
+
+  void*   tag = NULL;
+  int32_t tagLen = 0;
+  if (streamStateGetParTag(pState, pBlock->info.id.groupId, &tag, &tagLen) == 0) {
+    pBlock->info.tagLen = tagLen;
+    void* pTag = taosMemoryRealloc(pBlock->info.pTag, tagLen);
+    if (pTag == NULL) {
+      tdbFree(tag);
+      taosMemoryFree(pBlock->info.pTag);
+      pBlock->info.pTag = NULL;
+      pBlock->info.tagLen = 0;
+      return;
+    }
+    pBlock->info.pTag = pTag;
+    memcpy(pBlock->info.pTag, tag, tagLen);
+    tdbFree(tag);
+    return;
+  } else {
+    pBlock->info.pTag = NULL;
+  }
+  tdbFree(tag);
+}
+#endif
+
 void calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
   SExprSupp*    pTbNameCalSup = &pInfo->tbnameCalSup;
   SStreamState* pState = pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState;
@@ -1354,10 +1384,12 @@ void calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
   if (pBlock == NULL || pBlock->info.rows == 0) return;
 
   void* tbname = NULL;
-  if (streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, &tbname) < 0) {
-    pBlock->info.parTbName[0] = 0;
-  } else {
+  if (streamStateGetParName(pState, pBlock->info.id.groupId, &tbname) == 0) {
     memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
+    tdbFree(tbname);
+    return;
+  } else {
+    pBlock->info.parTbName[0] = 0;
   }
   tdbFree(tbname);
 

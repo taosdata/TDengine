@@ -260,6 +260,7 @@ static SKeyword keywordTable[] = {
     {"WRITE",                TK_WRITE},
     {"_C0",                  TK_ROWTS},
     {"_IROWTS",              TK_IROWTS},
+    {"_ISFILLED",            TK_ISFILLED},
     {"_QDURATION",           TK_QDURATION},
     {"_QEND",                TK_QEND},
     {"_QSTART",              TK_QSTART},

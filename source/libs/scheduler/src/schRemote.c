@@ -461,6 +461,7 @@ int32_t schHandleLinkBrokenCallback(void *param, SDataBuf *pMsg, int32_t code) {
 
   if (head->isHbParam) {
     taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
 
     SSchHbCallbackParam *hbParam = (SSchHbCallbackParam *)param;
     SSchTrans            trans = {.pTrans = hbParam->pTrans, .pHandle = NULL};

@@ -31,6 +31,7 @@ class TDTestCase:
         self.TDDnodes = None
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
+        self.replicaVar =  int(replicaVar)
 
 
     def getBuildPath(self):
@@ -97,7 +98,7 @@ class TDTestCase:
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    4,
-                    'replica':    3,
+                    'replica':    1,
                     'stbName':    'stb',
                     'stbNumbers': 2,
                     'colPrefix':  'c',
@@ -105,9 +106,9 @@ class TDTestCase:
                     'colSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
-                    'ctbNum':     100,
+                    'ctbNum':     200,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    "rowsPerTbl": 100000,
+                    "rowsPerTbl": 100,
                     "batchNum": 5000
                     }
 
@@ -118,6 +119,7 @@ class TDTestCase:
         rowsPerStb=paraDict["ctbNum"]*paraDict["rowsPerTbl"]
         rowsall=rowsPerStb*paraDict['stbNumbers']
         dbNumbers = 1
+        paraDict['replica'] = self.replicaVar
 
         tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")
@@ -128,6 +130,7 @@ class TDTestCase:
         #check mnode status
         tdLog.info("check mnode status")
         clusterComCheck.checkMnodeStatus(mnodeNums)
+        
 
         # add some error operations and
         tdLog.info("Confirm the status of the dnode again")
@@ -153,13 +156,16 @@ class TDTestCase:
             stableName= '%s_%d'%(paraDict['stbName'],i)
             newTdSql=tdCom.newTdSql()
             clusterComCreate.create_ctable(newTdSql, paraDict["dbName"],stableName,stableName, paraDict['ctbNum'])
-        #insert date
+        #insert data
         for i in range(paraDict['stbNumbers']):
             stableName= '%s_%d'%(paraDict['stbName'],i)
             newTdSql=tdCom.newTdSql()
             threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
         for tr in threads:
             tr.start()
+        for tr in threads:
+            tr.join()
+
         while stopcount < restartNumbers:
             tdLog.info(" restart loop: %d"%stopcount )
             if stopRole == "mnode":
@@ -183,31 +189,32 @@ class TDTestCase:
 
             # dnodeNumbers don't include database of schema
             if clusterComCheck.checkDnodes(dnodeNumbers):
-                tdLog.info("123")
+                tdLog.info("dnode is ready")
             else:
-                print("456")
-
+                print("dnodes is not  ready")
                 self.stopThread(threads)
                 tdLog.exit("one or more of dnodes failed to start ")
                 # self.check3mnode()
             stopcount+=1
 
-        for tr in threads:
-            tr.join()
+
         clusterComCheck.checkDnodes(dnodeNumbers)
         clusterComCheck.checkDbRows(dbNumbers)
         # clusterComCheck.checkDb(dbNumbers,1,paraDict["dbName"])
 
-        # tdSql.execute("use %s" %(paraDict["dbName"]))
-        tdSql.query("show %s.stables"%(paraDict["dbName"]))
-        tdSql.checkRows(paraDict["stbNumbers"])
+        newTdSql=tdCom.newTdSql()
+        newTdSql.execute("reset query cache")
+        newTdSql.execute("use %s" %(paraDict["dbName"]))
+        newTdSql.query("show %s.stables"%(paraDict["dbName"]))
+        newTdSql.checkRows(paraDict["stbNumbers"])
         for i in range(paraDict['stbNumbers']):
-            stableName= '%s.%s_%d'%(paraDict["dbName"],paraDict['stbName'],i)
-            tdSql.query("select count(*) from %s"%stableName)
-            tdSql.checkData(0,0,rowsPerStb)
+            stableName= '%s_%d'%(paraDict['stbName'],i)
+            newTdSql.query("select * from %s"%stableName)
+            newTdSql.checkRows(rowsPerStb)
+
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=1,stopRole='dnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=2,stopRole='dnode')
 
     def stop(self):
         tdSql.close()

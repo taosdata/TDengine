@@ -153,6 +153,8 @@ class TDTestCase:
         tdSql.query("select count(*) from db.`stb4-2`")
         tdSql.checkData(0, 0, 160)
 
+        tAdapter.stop()
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
