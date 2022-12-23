@@ -3222,7 +3222,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "geomfromtext",
+    .name = "st_geomfromtext",
     .type = FUNCTION_TYPE_GEOM_FROM_TEXT,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
     .translateFunc = translateInStrOutGeom,
@@ -3232,7 +3232,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "astext",
+    .name = "st_astext",
     .type = FUNCTION_TYPE_AS_TEXT,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
     .translateFunc = translateInGeomOutStr,
@@ -3242,7 +3242,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "makepoint",
+    .name = "st_makepoint",
     .type = FUNCTION_TYPE_MAKE_POINT,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
     .translateFunc = translateIn2NumOutGeom,
@@ -3252,7 +3252,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "intersects",
+    .name = "st_intersects",
     .type = FUNCTION_TYPE_INTERSECTS,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
     .translateFunc = translateIn2GeomOutBool,
