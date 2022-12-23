@@ -933,7 +933,7 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
     return -1;
   }
 
-  if (tdbOsRemove(pPager->jFileName) < 0 && errno != ENOENT) {
+  if (tdbOsRemove(jFileName) < 0 && errno != ENOENT) {
     tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -954,7 +954,7 @@ int tdbPagerRestoreJournals(SPager *pPager) {
     char *name = tdbDirEntryBaseName(tdbGetDirEntryName(pDirEntry));
     if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
       char jname[TD_PATH_MAX] = {0};
-      int dirLen = strlen(pPager->pEnv->dbName);
+      int  dirLen = strlen(pPager->pEnv->dbName);
       memcpy(jname, pPager->pEnv->dbName, dirLen);
       jname[dirLen] = '/';
       memcpy(jname + dirLen + 1, name, strlen(name));
