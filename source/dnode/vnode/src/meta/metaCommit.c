@@ -15,8 +15,10 @@
 
 #include "meta.h"
 
-static FORCE_INLINE void *metaMalloc(void *pPool, size_t size) { return vnodeBufPoolMalloc((SVBufPool *)pPool, size); }
-static FORCE_INLINE void  metaFree(void *pPool, void *p) { vnodeBufPoolFree((SVBufPool *)pPool, p); }
+static FORCE_INLINE void *metaMalloc(void *pPool, size_t size) {
+  return vnodeBufPoolMallocAligned((SVBufPool *)pPool, size);
+}
+static FORCE_INLINE void metaFree(void *pPool, void *p) { vnodeBufPoolFree((SVBufPool *)pPool, p); }
 
 // begin a meta txn
 int metaBegin(SMeta *pMeta, int8_t heap) {

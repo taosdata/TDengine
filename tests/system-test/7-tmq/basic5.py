@@ -251,28 +251,44 @@ class TDTestCase:
         # wait db ready
         while 1:
             tdSql.query("select * from information_schema.ins_databases")
-            if tdSql.getRows() == 4:
-                print ('==================================================')
-                print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0))
-                index = 0
-                if tdSql.getData(0,0) == parameterDict['dbName']:
-                    index = 0
-                elif tdSql.getData(1,0) == parameterDict['dbName']:
-                    index = 1
-                elif tdSql.getData(2,0) == parameterDict['dbName']:
-                    index = 2
-                elif tdSql.getData(3,0) == parameterDict['dbName']:
-                    index = 3
-                else:
-                    continue
-
-                if tdSql.getData(index,15) == 'ready':
-                    print("******************** index: %d"%index)
+            nrows = tdSql.getRows()
+            index = -1
+            for i in range(nrows):
+                if tdSql.getData(i, 0) == parameterDict['dbName']:
+                    index = i
                     break
-
+            
+            if index == -1:
                 continue
-            else:
-                time.sleep(1)
+            
+            if tdSql.getData(index,15) == 'ready':
+                print("******************** index: %d"%index)
+                break
+            
+            time.sleep(1)
+                
+            # if tdSql.getRows() == 4:
+            #     print ('==================================================')
+            #     print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0))
+            #     index = 0
+            #     if tdSql.getData(0,0) == parameterDict['dbName']:
+            #         index = 0
+            #     elif tdSql.getData(1,0) == parameterDict['dbName']:
+            #         index = 1
+            #     elif tdSql.getData(2,0) == parameterDict['dbName']:
+            #         index = 2
+            #     elif tdSql.getData(3,0) == parameterDict['dbName']:
+            #         index = 3
+            #     else:
+            #         continue
+
+            #     if tdSql.getData(index,15) == 'ready':
+            #         print("******************** index: %d"%index)
+            #         break
+
+            #     continue
+            # else:
+            #     time.sleep(1)
 
         tdSql.query("use %s"%parameterDict['dbName'])
         # wait stb ready
@@ -395,30 +411,46 @@ class TDTestCase:
         # wait db ready
         while 1:
             tdSql.query("select * from information_schema.ins_databases")
-            if tdSql.getRows() == 5:
-                print ('==================================================dbname: %s'%parameterDict['dbName'])
-                print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),tdSql.getData(3,0),tdSql.getData(4,0))
-                index = 0
-                if tdSql.getData(0,0) == parameterDict['dbName']:
-                    index = 0
-                elif tdSql.getData(1,0) == parameterDict['dbName']:
-                    index = 1
-                elif tdSql.getData(2,0) == parameterDict['dbName']:
-                    index = 2
-                elif tdSql.getData(3,0) == parameterDict['dbName']:
-                    index = 3
-                elif tdSql.getData(4,0) == parameterDict['dbName']:
-                    index = 4
-                else:
-                    continue
-
-                if tdSql.getData(index,15) == 'ready':
-                    print("******************** index: %d"%index)
+            nrows = tdSql.getRows()
+            index = -1
+            for i in range(nrows):
+                if tdSql.getData(i, 0) == parameterDict['dbName']:
+                    index = i
                     break
-
+                        
+            if index == -1:
                 continue
-            else:
-                time.sleep(1)
+            
+            if tdSql.getData(index,15) == 'ready':
+                print("******************** index: %d"%index)
+                break
+            
+            time.sleep(1)            
+            
+            # if tdSql.getRows() == 5:
+            #     print ('==================================================dbname: %s'%parameterDict['dbName'])
+            #     print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),tdSql.getData(3,0),tdSql.getData(4,0))
+            #     index = 0
+            #     if tdSql.getData(0,0) == parameterDict['dbName']:
+            #         index = 0
+            #     elif tdSql.getData(1,0) == parameterDict['dbName']:
+            #         index = 1
+            #     elif tdSql.getData(2,0) == parameterDict['dbName']:
+            #         index = 2
+            #     elif tdSql.getData(3,0) == parameterDict['dbName']:
+            #         index = 3
+            #     elif tdSql.getData(4,0) == parameterDict['dbName']:
+            #         index = 4
+            #     else:
+            #         continue
+
+            #     if tdSql.getData(index,15) == 'ready':
+            #         print("******************** index: %d"%index)
+            #         break
+
+            #     continue
+            # else:
+            #     time.sleep(1)
 
         tdSql.query("use %s"%parameterDict['dbName'])
         # wait stb ready

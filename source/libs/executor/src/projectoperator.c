@@ -351,6 +351,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   SSDataBlock* p = pProjectInfo->mergeDataBlocks ? pFinalRes : pRes;
   pOperator->resultInfo.totalRows += p->info.rows;
+  p->info.dataLoad = 1;
 
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;

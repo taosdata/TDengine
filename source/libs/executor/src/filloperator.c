@@ -470,7 +470,6 @@ static void destroyStreamFillOperatorInfo(void* param) {
   pInfo->pFillSup = destroyStreamFillSupporter(pInfo->pFillSup);
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
   pInfo->pSrcBlock = blockDataDestroy(pInfo->pSrcBlock);
-  pInfo->pPrevSrcBlock = blockDataDestroy(pInfo->pPrevSrcBlock);
   pInfo->pDelRes = blockDataDestroy(pInfo->pDelRes);
   pInfo->matchInfo.pList = taosArrayDestroy(pInfo->matchInfo.pList);
   taosMemoryFree(pInfo);
@@ -992,12 +991,6 @@ static void doStreamFillImpl(SOperatorInfo* pOperator) {
 
   if (pInfo->srcRowIndex == 0) {
     keepBlockRowInDiscBuf(pOperator, pFillInfo, pBlock, tsCol, pInfo->srcRowIndex, groupId, pFillSup->rowSize);
-    SSDataBlock* preBlock = pInfo->pPrevSrcBlock;
-    if (preBlock->info.rows > 0) {
-      int              preRowId = preBlock->info.rows - 1;
-      SColumnInfoData* pPreTsCol = taosArrayGet(preBlock->pDataBlock, pInfo->primaryTsCol);
-      doFillResults(pOperator, pFillSup, pFillInfo, preBlock, (TSKEY*)pPreTsCol->pData, preRowId, pRes);
-    }
     pInfo->srcRowIndex++;
   }
 
@@ -1011,9 +1004,8 @@ static void doStreamFillImpl(SOperatorInfo* pOperator) {
     }
     pInfo->srcRowIndex++;
   }
+  doFillResults(pOperator, pFillSup, pFillInfo, pBlock, tsCol, pInfo->srcRowIndex - 1, pRes);
   blockDataUpdateTsWindow(pRes, pInfo->primaryTsCol);
-  blockDataCleanup(pInfo->pPrevSrcBlock);
-  copyDataBlock(pInfo->pPrevSrcBlock, pInfo->pSrcBlock);
   blockDataCleanup(pInfo->pSrcBlock);
 }
 
@@ -1173,7 +1165,6 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
 }
 
 static void resetStreamFillInfo(SStreamFillOperatorInfo* pInfo) {
-  blockDataCleanup(pInfo->pPrevSrcBlock);
   tSimpleHashClear(pInfo->pFillSup->pResMap);
   pInfo->pFillSup->hasDelete = false;
   taosArrayClear(pInfo->pFillInfo->delRanges);
@@ -1231,13 +1222,6 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
       SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
       if (pBlock == NULL) {
         pOperator->status = OP_RES_TO_RETURN;
-        SSDataBlock* preBlock = pInfo->pPrevSrcBlock;
-        if (preBlock->info.rows > 0) {
-          int              preRowId = preBlock->info.rows - 1;
-          SColumnInfoData* pPreTsCol = taosArrayGet(preBlock->pDataBlock, pInfo->primaryTsCol);
-          doFillResults(pOperator, pInfo->pFillSup, pInfo->pFillInfo, preBlock, (TSKEY*)pPreTsCol->pData, preRowId,
-                        pInfo->pRes);
-        }
         pInfo->pFillInfo->preRowKey = INT64_MIN;
         if (pInfo->pRes->info.rows > 0) {
           printDataBlock(pInfo->pRes, "stream fill");
@@ -1411,10 +1395,8 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pRes = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
   pInfo->pSrcBlock = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
-  pInfo->pPrevSrcBlock = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   blockDataEnsureCapacity(pInfo->pSrcBlock, pOperator->resultInfo.capacity);
-  blockDataEnsureCapacity(pInfo->pPrevSrcBlock, pOperator->resultInfo.capacity);
 
   pInfo->pFillInfo = initStreamFillInfo(pInfo->pFillSup, pInfo->pRes);
   if (!pInfo->pFillInfo) {

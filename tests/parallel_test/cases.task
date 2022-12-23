@@ -628,6 +628,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py
@@ -793,6 +794,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 2
@@ -886,6 +888,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 3
@@ -979,6 +982,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4
