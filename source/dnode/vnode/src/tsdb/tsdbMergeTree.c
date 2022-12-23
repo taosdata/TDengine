@@ -504,6 +504,8 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
       if (pBlockData == NULL) {
         goto _exit;
       }
+
+      // set start row index
       pIter->iRow = pIter->backward? pBlockData->nRow-1:0;
     }
   }
