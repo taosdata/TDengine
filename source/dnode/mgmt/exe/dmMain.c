@@ -73,12 +73,16 @@ static void dmSetSignalHandle() {
   taosSetSignal(SIGTERM, dmStopDnode);
   taosSetSignal(SIGHUP, dmStopDnode);
   taosSetSignal(SIGINT, dmStopDnode);
-  taosSetSignal(SIGABRT, dmStopDnode);
   taosSetSignal(SIGBREAK, dmStopDnode);
 #ifndef WINDOWS
   taosSetSignal(SIGTSTP, dmStopDnode);
   taosSetSignal(SIGQUIT, dmStopDnode);
 #endif
+
+  taosSetSignal(SIGBUS, taosCrash);
+  taosSetSignal(SIGABRT, taosCrash);
+  taosSetSignal(SIGFPE, taosCrash);
+  taosSetSignal(SIGSEGV, taosCrash);
 }
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {

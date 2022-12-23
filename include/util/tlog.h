@@ -87,6 +87,8 @@ bool taosAssert(bool condition, const char *file, int32_t line, const char *form
 #define ASSERTS(condition, ...) taosAssert(condition, __FILE__, __LINE__, __VA_ARGS__)
 #define ASSERT(condition)       ASSERTS(condition, "assert info not provided")
 
+void taosCrash(int signum, void *sigInfo, void *context);
+
 // clang-format off
 #define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", DEBUG_FATAL, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
 #define uError(...) { if (uDebugFlag & DEBUG_ERROR) { taosPrintLog("UTL ERROR ", DEBUG_ERROR, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}

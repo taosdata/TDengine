@@ -823,3 +823,31 @@ bool taosAssert(bool condition, const char *file, int32_t line, const char *form
 
   return true;
 }
+
+void taosCrash(int signum, void *sigInfo, void *context) {
+  taosIgnSignal(SIGTERM);
+  taosIgnSignal(SIGHUP);
+  taosIgnSignal(SIGINT);
+  taosIgnSignal(SIGBREAK);
+  
+  taosIgnSignal(SIGBUS);
+  taosIgnSignal(SIGABRT);
+  taosIgnSignal(SIGFPE);
+  taosIgnSignal(SIGSEGV);
+  
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;
+  
+  taosPrintLog(flags, level, dflag, "crash signal is %d", signum);
+  
+#ifndef WINDOWS
+  taosPrintLog(flags, level, dflag, "sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
+        taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
+#endif
+
+
+  taosPrintTrace(flags, level, dflag);
+
+}
+
