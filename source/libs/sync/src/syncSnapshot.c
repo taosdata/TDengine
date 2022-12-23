@@ -49,7 +49,6 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
   pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &pSender->snapshot);
   pSender->finish = false;
 
-  sDebug("vgId:%d, snapshot sender create", pSender->pSyncNode->vgId);
   return pSender;
 }
 
