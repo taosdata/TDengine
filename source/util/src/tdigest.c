@@ -135,24 +135,24 @@ void tdigestCompress(TDigest *t) {
 
     if (a->mean <= b->mean) {
       mergeCentroid(&args, a);
-      assert(args.idx < t->size);
+      ASSERTS(args.idx < t->size, "idx over size");
       i++;
     } else {
       mergeCentroid(&args, b);
-      assert(args.idx < t->size);
+      ASSERTS(args.idx < t->size, "idx over size");
       j++;
     }
   }
 
   while (i < num_unmerged) {
     mergeCentroid(&args, &unmerged_centroids[i++]);
-    assert(args.idx < t->size);
+    ASSERTS(args.idx < t->size, "idx over size");
   }
   taosMemoryFree((void *)unmerged_centroids);
 
   while (j < t->num_centroids) {
     mergeCentroid(&args, &t->centroids[j++]);
-    assert(args.idx < t->size);
+    ASSERTS(args.idx < t->size, "idx over size");
   }
 
   if (t->total_weight > 0) {
