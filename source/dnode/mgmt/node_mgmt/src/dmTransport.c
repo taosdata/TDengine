@@ -111,6 +111,11 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     dGError("msg:%p, type:%s pCont is NULL", pRpc, TMSG_INFO(pRpc->msgType));
     terrno = TSDB_CODE_INVALID_MSG_LEN;
     goto _OVER;
+  } else if ((pRpc->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRpc->code == TSDB_CODE_RPC_BROKEN_LINK) &&
+             (!IsReq(pRpc)) && (pRpc->pCont == NULL)) {
+    dGError("msg:%p, type:%s pCont is NULL, err: %s", pRpc, TMSG_INFO(pRpc->msgType), tstrerror(pRpc->code));
+    terrno = pRpc->code;
+    goto _OVER;
   }
 
   if (pHandle->defaultNtype == NODE_END) {
