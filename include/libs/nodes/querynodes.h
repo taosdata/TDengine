@@ -51,6 +51,7 @@ typedef struct SExprNode {
   char      userAlias[TSDB_COL_NAME_LEN];
   SArray*   pAssociation;
   bool      orderAlias;
+  bool      asAlias;
 } SExprNode;
 
 typedef enum EColumnType {
