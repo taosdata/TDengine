@@ -803,11 +803,12 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   pDnode = mndAcquireDnode(pMnode, dropReq.dnodeId);
   if (pDnode == NULL) {
-    char ep[TSDB_EP_LEN + 1] = {0};
+    int32_t err = terrno;
+    char    ep[TSDB_EP_LEN + 1] = {0};
     snprintf(ep, sizeof(ep), dropReq.fqdn, dropReq.port);
     pDnode = mndAcquireDnodeByEp(pMnode, ep);
     if (pDnode == NULL) {
-      terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+      terrno = err;
       goto _OVER;
     }
   }
