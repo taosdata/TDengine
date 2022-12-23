@@ -54,7 +54,7 @@ const char* tbufRead(SBufferReader* buf, size_t size) {
 }
 
 void tbufReadToBuffer(SBufferReader* buf, void* dst, size_t size) {
-  assert(dst != NULL);
+  ASSERT(dst != NULL);
   // always using memcpy, leave optimization to compiler
   memcpy(dst, tbufRead(buf, size), size);
 }
@@ -103,7 +103,7 @@ const char* tbufReadBinary(SBufferReader* buf, size_t* len) {
 }
 
 size_t tbufReadToBinary(SBufferReader* buf, void* dst, size_t size) {
-  assert(dst != NULL);
+  ASSERTS(dst != NULL, "dst != NULL");
   size_t      len;
   const char* data = tbufReadBinary(buf, &len);
   if (len >= size) {
@@ -252,17 +252,17 @@ char* tbufGetData(SBufferWriter* buf, bool takeOver) {
 }
 
 void tbufWrite(SBufferWriter* buf, const void* data, size_t size) {
-  assert(data != NULL);
+  ASSERTS(data != NULL, "data != NULL");
   tbufEnsureCapacity(buf, size);
   memcpy(buf->data + buf->pos, data, size);
   buf->pos += size;
 }
 
 void tbufWriteAt(SBufferWriter* buf, size_t pos, const void* data, size_t size) {
-  assert(data != NULL);
+  ASSERTS(data != NULL, "data != NULL");
   // this function can only be called to fill the gap on previous writes,
   // so 'pos + size <= buf->pos' must be true
-  assert(pos + size <= buf->pos);
+  ASSERTS(pos + size <= buf->pos, "pos + size <= buf->pos");
   memcpy(buf->data + pos, data, size);
 }
 
@@ -270,7 +270,7 @@ static void tbufWriteLength(SBufferWriter* buf, size_t len) {
   // maximum length is 65535, if larger length is required
   // this function and the corresponding read function need to be
   // revised.
-  assert(len <= 0xffff);
+  ASSERTS(len <= 0xffff, "len <= 0xffff");
   tbufWriteUint16(buf, (uint16_t)len);
 }
 
