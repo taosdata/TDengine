@@ -480,8 +480,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py 
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py -N 3 -n 3 -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py
