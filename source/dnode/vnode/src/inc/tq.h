@@ -121,6 +121,7 @@ typedef struct {
 struct STQ {
   SVnode* pVnode;
   char*   path;
+  int64_t walLogLastVer;
 
   SRWLatch pushLock;
 
