@@ -27,6 +27,7 @@
 #include "tdigest.h"
 #include "os.h"
 #include "osMath.h"
+#include "tlog.h"
 
 #define INTERPOLATE(x, x0, x1) (((x) - (x0)) / ((x1) - (x0)))
 //#define INTEGRATED_LOCATION(compression, q)   ((compression) * (asin(2 * (q) - 1) + M_PI / 2) / M_PI)
