@@ -27,6 +27,7 @@ static FORCE_INLINE int32_t tPutQTaskF(uint8_t *p, SQTaskFile *pFile) {
   n += tPutI64v(p ? p + n : p, pFile->size);
   n += tPutI64v(p ? p + n : p, pFile->suid);
   n += tPutI64v(p ? p + n : p, pFile->version);
+  n += tPutI64v(p ? p + n : p, pFile->mtime);
 
   return n;
 }
@@ -54,6 +55,7 @@ int32_t tdRSmaGetQTaskF(uint8_t *p, SQTaskFile *pFile) {
   n += tGetI64v(p + n, &pFile->size);
   n += tGetI64v(p + n, &pFile->suid);
   n += tGetI64v(p + n, &pFile->version);
+  n += tGetI64v(p + n, &pFile->mtime);
 
   return n;
 }
@@ -157,7 +159,7 @@ static void tdRSmaGetCurrentFName(SSma *pSma, char *current, char *current_t) {
                TD_DIRSEP, TD_DIRSEP, TD_VID(pVnode), TD_DIRSEP, TD_DIRSEP);
     }
     if (current_t) {
-      snprintf(current, TSDB_FILENAME_LEN - 1, "%s%svnode%svnode%d%srsma%sPRESENT.t", tfsGetPrimaryPath(pVnode->pTfs),
+      snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%svnode%svnode%d%srsma%sPRESENT.t", tfsGetPrimaryPath(pVnode->pTfs),
                TD_DIRSEP, TD_DIRSEP, TD_VID(pVnode), TD_DIRSEP, TD_DIRSEP);
     }
   } else {
@@ -249,7 +251,7 @@ static int32_t tdQTaskInfCmprFn1(const void *p1, const void *p2) {
   return 0;
 }
 
-static int32_t tdRSmaFSApplyChange(SSma *pSma, SRSmaFS *pFS) {
+static int32_t tdRSmaFSApplyChange(SSma *pSma, SRSmaFS *pFSNew) {
   int32_t    code = 0;
   int32_t    lino = 0;
   SVnode    *pVnode = pSma->pVnode;
@@ -260,10 +262,10 @@ static int32_t tdRSmaFSApplyChange(SSma *pSma, SRSmaFS *pFS) {
   char       fname[TSDB_FILENAME_LEN] = {0};
 
   // SQTaskFile
-  int32_t   nNew = taosArrayGetSize(pFS->aQTaskInf);
+  int32_t nNew = taosArrayGetSize(pFSNew->aQTaskInf);
   int32_t iNew = 0;
   while (iNew < nNew) {
-    SQTaskFile *pQTaskFNew =  TARRAY_GET_ELEM(pFS->aQTaskInf, iNew);
+    SQTaskFile *pQTaskFNew = TARRAY_GET_ELEM(pFSNew->aQTaskInf, iNew++);
 
     int32_t idx = taosArraySearchIdx(pFSOld->aQTaskInf, pQTaskFNew, tdQTaskInfCmprFn1, TD_GE);
 
@@ -272,22 +274,22 @@ static int32_t tdRSmaFSApplyChange(SSma *pSma, SRSmaFS *pFS) {
       pQTaskFNew->nRef = 1;
     } else {
       SQTaskFile *pTaskF = (SQTaskFile *)taosArrayGet(pFSOld->aQTaskInf, idx);
-      int32_t     c = tdQTaskInfCmprFn1(pTaskF, pQTaskFNew);
-      if (c < 0) {
-        l
-      } else if(c == 0) {
-        ++iNew;
+      int32_t     c = tdQTaskInfCmprFn1(pQTaskFNew, pTaskF);
+      if (c == 0) {
+        // utilize the item in pFSOld->qQTaskInf, instead of pFSNew
         continue;
+      } else if (c < 0) {
+        // NOTHING TODO
       } else {
         ASSERT(0);
+        continue;
       }
     }
 
-    if (taosArrayInsert(pFS->aQTaskInf, idx, qTaskF) == NULL) {
+    if (taosArrayInsert(pFSOld->aQTaskInf, idx, pQTaskFNew) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
-
   }
 
 _exit:
@@ -500,7 +502,7 @@ int32_t tdRSmaFSPrepareCommit(SSma *pSma, SRSmaFS *pFSNew) {
 
   tdRSmaGetCurrentFName(pSma, NULL, tfname);
 
-  // gnrt PRESENT.t
+  // generate PRESENT.t
   code = tdRSmaSaveFSToFile(pFSNew, tfname);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -600,13 +602,12 @@ int32_t tdRSmaFSUpsertQTaskFile(SRSmaFS *pFS, SQTaskFile *qTaskFile, int32_t siz
       SQTaskFile *pTaskF = (SQTaskFile *)taosArrayGet(pFS->aQTaskInf, idx);
       int32_t     c = tdQTaskInfCmprFn1(pTaskF, qTaskF);
       if (c == 0) {
-        ASSERT(pTaskF->size == qTaskF->size);
         ASSERT(0);
-        goto _exit;
+        continue;
       }
     }
 
-    if (taosArrayInsert(pFS->aQTaskInf, idx, qTaskF) == NULL) {
+    if (!taosArrayInsert(pFS->aQTaskInf, idx, qTaskF)) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
@@ -705,10 +706,10 @@ int32_t tdRSmaFSTakeSnapshot(SSma *pSma, SRSmaFS *pFSOut) {
   taosRLockLatch(RSMA_FS_LOCK(pStat));
   code = tdRSmaFSCopy(pSma, pFSOut);
   TSDB_CHECK_CODE(code, lino, _exit);
-  taosWUnLockLatch(RSMA_FS_LOCK(pStat));
+  taosRUnLockLatch(RSMA_FS_LOCK(pStat));
 _exit:
   if (code) {
-    taosWUnLockLatch(RSMA_FS_LOCK(pStat));
+    taosRUnLockLatch(RSMA_FS_LOCK(pStat));
     smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pSma->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
@@ -720,13 +721,13 @@ int32_t tdRSmaFSCopy(SSma *pSma, SRSmaFS *pFSOut) {
   SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
   SRSmaStat *pStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
   SRSmaFS   *pFS = RSMA_FS(pStat);
-  int32_t    size = 0;
+  int32_t    size = taosArrayGetSize(pFS->aQTaskInf);
 
   code = tdRSmaFSCreate(pFSOut, size);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   taosArraySetSize(pFSOut->aQTaskInf, size);
-  memcpy(TARRAY_GET_ELEM(pFSOut->aQTaskInf, 0), TARRAY_GET_ELEM(pFS->aQTaskInf, 0), size * sizeof(SQTaskFile));
+  memcpy(pFSOut->aQTaskInf->pData, pFS->aQTaskInf->pData, size * sizeof(SQTaskFile));
 
 _exit:
   if (code) {

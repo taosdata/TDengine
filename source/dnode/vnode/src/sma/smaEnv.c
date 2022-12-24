@@ -247,6 +247,8 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return TSDB_CODE_FAILED;
       }
+      
+      taosInitRWLatch(RSMA_FS_LOCK(pRSmaStat));
     } else if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
       // TODO
     } else {

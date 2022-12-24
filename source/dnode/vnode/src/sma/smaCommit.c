@@ -187,9 +187,11 @@ static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pStat) {
  * @return int32_t
  */
 static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
+  int32_t  code = 0;
+
   SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
   if (!pEnv) {
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
 
   SSmaStat  *pStat = SMA_ENV_STAT(pEnv);
@@ -240,8 +242,8 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
     }
   }
   smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
-  if (tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat)) < 0) {
-    return TSDB_CODE_FAILED;
+  if ((code = tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat))) != 0) {
+    return code;
   }
   smaInfo("vgId:%d, rsma commit, operator state committed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
@@ -272,7 +274,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   if ((pTsdb = VND_RSMA1(pSma->pVnode))) tsdbPrepareCommit(pTsdb);
   if ((pTsdb = VND_RSMA2(pSma->pVnode))) tsdbPrepareCommit(pTsdb);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 /**

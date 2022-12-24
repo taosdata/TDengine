@@ -15,7 +15,7 @@
 
 #include "sma.h"
 
-#define TD_QTASKINFO_FNAME_PREFIX "main.db"
+#define TD_QTASKINFO_FNAME_PREFIX "main.tdb"
 
 void tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t suid, int8_t level, int64_t version, char *outputName) {
   tdRSmaGetFileName(vgId, NULL, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, suid, level, version, outputName);

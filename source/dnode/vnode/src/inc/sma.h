@@ -89,6 +89,7 @@ struct SQTaskFile {
   int64_t          suid;
   int64_t          version;
   int64_t          size;
+  int64_t          mtime;
 };
 
 struct SQTaskFReader {
@@ -245,57 +246,6 @@ static FORCE_INLINE void tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
   int32_t ref = T_REF_DEC(pRSmaInfo);
   smaTrace("vgId:%d, unref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
 }
-
-// smaFileUtil ================
-
-#define TD_FILE_HEAD_SIZE 512
-
-typedef struct STFInfo STFInfo;
-typedef struct STFile  STFile;
-
-struct STFInfo {
-  // common fields
-  uint32_t magic;
-  uint32_t ftype;
-  uint32_t fver;
-  int64_t  fsize;
-};
-
-enum {
-  TD_FTYPE_RSMA_QTASKINFO = 0,
-};
-
-#if 0
-struct STFile {
-  uint8_t   state;
-  STFInfo   info;
-  char     *fname;
-  TdFilePtr pFile;
-};
-
-#define TD_TFILE_PFILE(tf)        ((tf)->pFile)
-#define TD_TFILE_OPENED(tf)       (TD_TFILE_PFILE(tf) != NULL)
-#define TD_TFILE_FULL_NAME(tf)    ((tf)->fname)
-#define TD_TFILE_OPENED(tf)       (TD_TFILE_PFILE(tf) != NULL)
-#define TD_TFILE_CLOSED(tf)       (!TD_TFILE_OPENED(tf))
-#define TD_TFILE_SET_CLOSED(f)    (TD_TFILE_PFILE(f) = NULL)
-#define TD_TFILE_SET_STATE(tf, s) ((tf)->state = (s))
-
-int32_t tdInitTFile(STFile *pTFile, const char *dname, const char *fname);
-int32_t tdCreateTFile(STFile *pTFile, bool updateHeader, int8_t fType);
-int32_t tdOpenTFile(STFile *pTFile, int flags);
-int64_t tdReadTFile(STFile *pTFile, void *buf, int64_t nbyte);
-int64_t tdSeekTFile(STFile *pTFile, int64_t offset, int whence);
-int64_t tdWriteTFile(STFile *pTFile, void *buf, int64_t nbyte);
-int64_t tdAppendTFile(STFile *pTFile, void *buf, int64_t nbyte, int64_t *offset);
-int64_t tdGetTFileSize(STFile *pTFile, int64_t *size);
-int32_t tdRemoveTFile(STFile *pTFile);
-int32_t tdLoadTFileHeader(STFile *pTFile, STFInfo *pInfo);
-int32_t tdUpdateTFileHeader(STFile *pTFile);
-void    tdUpdateTFileMagic(STFile *pTFile, void *pCksm);
-void    tdCloseTFile(STFile *pTFile);
-void    tdDestroyTFile(STFile *pTFile);
-#endif
 
 void tdRSmaGetFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t suid,
                        int8_t level, int64_t version, char *outputName);

@@ -344,13 +344,8 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
 
   pRSmaInfo = taosHashGet(RSMA_INFO_HASH(pStat), &suid, sizeof(tb_uid_t));
   if (pRSmaInfo) {
-    // TODO: free original pRSmaInfo if exists abnormally
-    tdFreeRSmaInfo(pSma, *(SRSmaInfo **)pRSmaInfo, true);
-    if (taosHashRemove(RSMA_INFO_HASH(pStat), &suid, sizeof(tb_uid_t)) < 0) {
-      terrno = TSDB_CODE_RSMA_REMOVE_EXISTS;
-      goto _err;
-    }
-    smaWarn("vgId:%d, remove the rsma info already exists for table %s, %" PRIi64, SMA_VID(pSma), tbName, suid);
+    smaInfo("vgId:%d, rsma info already exists for table %s, %" PRIi64, SMA_VID(pSma), tbName, suid);
+    return TSDB_CODE_SUCCESS;
   }
 
   // from write queue: single thead
@@ -1228,7 +1223,7 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
           code = TSDB_CODE_RSMA_STREAM_STATE_COMMIT;
           TSDB_CHECK_CODE(code, lino, _exit);
         }
-        smaDebug("vgId:%d, rsma persist, stream state commit success, table %" PRIi64 " level %d", TD_VID(pVnode),
+        smaDebug("vgId:%d, rsma persist, stream state commit success, table %" PRIi64 ", level %d", TD_VID(pVnode),
                  pRSmaInfo->suid, i + 1);
 
         // qTaskInfo file
@@ -1250,22 +1245,27 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
           TSDB_CHECK_CODE(code, lino, _exit);
         }
 
-        int64_t size = 0;
-        if (taosFStatFile(pInFD, &size, NULL) < 0) {
+        int64_t  size = 0;
+        uint32_t mtime = 0;
+        if (taosFStatFile(pInFD, &size, &mtime) < 0) {
           code = TAOS_SYSTEM_ERROR(errno);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
+        ASSERT(size > 0);
 
         int64_t offset = 0;
         if (taosFSendFile(pOutFD, pInFD, &offset, size) < 0) {
           code = TAOS_SYSTEM_ERROR(errno);
-          smaError("vgId:%d, rsma persist, send qtaskinfo file %s failed since %s", TD_VID(pVnode), fname, tstrerror(code));
+          smaError("vgId:%d, rsma persist, send qtaskinfo file %s to %s failed since %s", TD_VID(pVnode), fname,
+                   fnameVer, tstrerror(code));
           TSDB_CHECK_CODE(code, lino, _exit);
         }
         taosCloseFile(&pOutFD);
         taosCloseFile(&pInFD);
 
-        SQTaskFile qTaskF = {.nRef = 1, .level = i + 1, .suid = pRSmaInfo->suid, .version = version, .size = size};
+        SQTaskFile qTaskF = {
+            .nRef = 1, .level = i + 1, .suid = pRSmaInfo->suid, .version = version, .size = size, .mtime = mtime};
+
         taosArrayPush(qTaskFArray, &qTaskF);
       }
     }
@@ -1274,8 +1274,10 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
   // prepare
   code = tdRSmaFSTakeSnapshot(pSma, &fs);
   TSDB_CHECK_CODE(code, lino, _exit);
+
   code = tdRSmaFSUpsertQTaskFile(&fs, qTaskFArray->pData, taosArrayGetSize(qTaskFArray));
   TSDB_CHECK_CODE(code, lino, _exit);
+
   code = tdRSmaFSPrepareCommit(pSma, &fs);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1283,11 +1285,13 @@ _exit:
 
   taosArrayDestroy(fs.aQTaskInf);
   taosArrayDestroy(qTaskFArray);
+
   if (code) {
     if (pOutFD) taosCloseFile(&pOutFD);
     if (pInFD) taosCloseFile(&pInFD);
     smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
+
   terrno = code;
   return code;
 }
