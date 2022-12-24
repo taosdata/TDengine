@@ -184,6 +184,20 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pShowCols = {"*"}
   },
   {
+    .showType = QUERY_NODE_SHOW_DB_ALIVE_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_VGROUPS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_VGROUPS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
     .showType = QUERY_NODE_SHOW_TOPICS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_TOPICS,
@@ -6404,6 +6418,22 @@ static int32_t rewriteShowVgroups(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
+static int32_t rewriteShowDbAlive(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t code = checkShowVgroups(pCxt, (SShowStmt*)pQuery->pRoot);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteShow(pCxt, pQuery);
+  }
+  return code;
+}
+
+static int32_t rewriteShowClusterAlive(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t code = checkShowVgroups(pCxt, (SShowStmt*)pQuery->pRoot);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteShow(pCxt, pQuery);
+  }
+  return code;
+}
+
 static SNode* createTagsFunction() {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pFunc) {
@@ -7608,6 +7638,12 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_VGROUPS_STMT:
       code = rewriteShowVgroups(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+      code = rewriteShowDbAlive(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
+      code = rewriteShowClusterAlive(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
       code = rewriteShowStableTags(pCxt, pQuery);

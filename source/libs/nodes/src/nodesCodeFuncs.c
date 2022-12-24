@@ -173,6 +173,10 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowGrantsStmt";
     case QUERY_NODE_SHOW_VGROUPS_STMT:
       return "ShowVgroupsStmt";
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+      return "ShowDbAliveStmt";
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
+      return "ShowClusterAliveStmt";
     case QUERY_NODE_SHOW_TOPICS_STMT:
       return "ShowTopicsStmt";
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
