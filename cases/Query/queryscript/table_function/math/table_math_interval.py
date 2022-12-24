@@ -132,27 +132,27 @@ class TDTestQuery(TDCase):
                             sql1 = "select %s from %s %s; " %(func,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s group by tbname;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s %s %s %s group by tbname);" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s group by tbname;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
                             sql= sql + sql2
                             
                             sql2 = "select %s from %s where tbname in ('%s') and %s %s %s %s group by tbname;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where tbname in ('%s') and %s %s %s %s group by tbname);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s %s group by tbname;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from %s where tbname in ('%s') and %s %s %s %s; " %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -164,19 +164,19 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s %s; " %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from %s where  %s %s %s %s ;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
                             sql= sql + sql2
                                                     
             except Exception as e:
