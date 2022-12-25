@@ -320,106 +320,9 @@ _exit:
   return code;
 }
 
-/**
- * @brief Fetch qtaskfiles LE than version
- *
- * @param pSma
- * @param version
- * @param output
- * @return int32_t
- */
-#if 0
-static int32_t tdFetchQTaskInfoFiles(SSma *pSma, int64_t version, SArray **output) {
-  SVnode       *pVnode = pSma->pVnode;
-  TdDirPtr      pDir = NULL;
-  TdDirEntryPtr pDirEntry = NULL;
-  char          dir[TSDB_FILENAME_LEN];
-  const char   *pattern = "v[0-9]+qinf\\.v([0-9]+)?$";
-  regex_t       regex;
-  int           code = 0;
-
-  terrno = TSDB_CODE_SUCCESS;
-
-  tdRSmaGetDirName(TD_VID(pVnode), tfsGetPrimaryPath(pVnode->pTfs), VNODE_RSMA_DIR, true, dir);
-
-  if (!taosCheckExistFile(dir)) {
-    smaDebug("vgId:%d, fetch qtask files, no need as dir %s not exist", TD_VID(pVnode), dir);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  // Resource allocation and init
-  if ((code = regcomp(&regex, pattern, REG_EXTENDED)) != 0) {
-    terrno = TSDB_CODE_RSMA_REGEX_MATCH;
-    char errbuf[128];
-    regerror(code, &regex, errbuf, sizeof(errbuf));
-    smaWarn("vgId:%d, fetch qtask files, regcomp for %s failed since %s", TD_VID(pVnode), dir, errbuf);
-    return TSDB_CODE_FAILED;
-  }
-
-  if (!(pDir = taosOpenDir(dir))) {
-    regfree(&regex);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    smaError("vgId:%d, fetch qtask files, open dir %s failed since %s", TD_VID(pVnode), dir, terrstr());
-    return TSDB_CODE_FAILED;
-  }
-
-  int32_t    dirLen = strlen(dir);
-  char      *dirEnd = POINTER_SHIFT(dir, dirLen);
-  regmatch_t regMatch[2];
-  while ((pDirEntry = taosReadDir(pDir))) {
-    char *entryName = taosGetDirEntryName(pDirEntry);
-    if (!entryName) {
-      continue;
-    }
-
-    code = regexec(&regex, entryName, 2, regMatch, 0);
-
-    if (code == 0) {
-      // match
-      smaInfo("vgId:%d, fetch qtask files, max ver:%" PRIi64 ", %s found", TD_VID(pVnode), version, entryName);
-
-      int64_t ver = -1;
-      sscanf((const char *)POINTER_SHIFT(entryName, regMatch[1].rm_so), "%" PRIi64, &ver);
-      if ((ver <= version) && (ver > -1)) {
-        if (!(*output)) {
-          if (!(*output = taosArrayInit(1, POINTER_BYTES))) {
-            terrno = TSDB_CODE_OUT_OF_MEMORY;
-            goto _end;
-          }
-        }
-        char *entryDup = strdup(entryName);
-        if (!entryDup) {
-          terrno = TSDB_CODE_OUT_OF_MEMORY;
-          goto _end;
-        }
-        if (!taosArrayPush(*output, &entryDup)) {
-          terrno = TSDB_CODE_OUT_OF_MEMORY;
-          goto _end;
-        }
-      } else {
-      }
-    } else if (code == REG_NOMATCH) {
-      // not match
-      smaTrace("vgId:%d, fetch qtask files, not match %s", TD_VID(pVnode), entryName);
-      continue;
-    } else {
-      // has other error
-      char errbuf[128];
-      regerror(code, &regex, errbuf, sizeof(errbuf));
-      smaWarn("vgId:%d, fetch qtask files, regexec failed since %s", TD_VID(pVnode), errbuf);
-      terrno = TSDB_CODE_RSMA_REGEX_MATCH;
-      goto _end;
-    }
-  }
-_end:
-  taosCloseDir(&pDir);
-  regfree(&regex);
-  return terrno == 0 ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
-}
-#endif
-
 static int32_t tdRSmaFSScanAndTryFix(SSma *pSma) {
   int32_t    code = 0;
+#if 0
   int32_t    lino = 0;
   SVnode    *pVnode = pSma->pVnode;
   SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
@@ -462,6 +365,7 @@ _exit:
   if (code) {
     smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
+#endif
   return code;
 }
 
@@ -497,10 +401,9 @@ int32_t tdRSmaFSOpen(SSma *pSma, int64_t version, int8_t rollback) {
       }
     }
   } else {
-    // 1st open with empty current/qTaskInfoFile
+    // 1st time open with empty current/qTaskInfoFile
     code = tdRSmaSaveFSToFile(RSMA_FS(pStat), current);
     TSDB_CHECK_CODE(code, lino, _exit);
-    ASSERT(!rollback);
   }
 
   // scan and try fix(remove main.db/main.db.xxx and use the one with version)
