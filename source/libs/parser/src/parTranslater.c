@@ -6427,11 +6427,7 @@ static int32_t rewriteShowDbAlive(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static int32_t rewriteShowClusterAlive(STranslateContext* pCxt, SQuery* pQuery) {
-  int32_t code = checkShowVgroups(pCxt, (SShowStmt*)pQuery->pRoot);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteShow(pCxt, pQuery);
-  }
-  return code;
+  return rewriteShow(pCxt, pQuery);
 }
 
 static SNode* createTagsFunction() {
