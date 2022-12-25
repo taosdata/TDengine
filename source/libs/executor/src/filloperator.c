@@ -147,6 +147,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
 
       taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
     } else {
+      pBlock->info.dataLoad = 1;
       blockDataUpdateTsWindow(pBlock, pInfo->primarySrcSlotId);
 
       blockDataCleanup(pInfo->pRes);
