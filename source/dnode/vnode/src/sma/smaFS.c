@@ -417,7 +417,7 @@ _exit:
   return code;
 }
 
-void tdRSmaFSClose(SRSmaFS *pFS) { taosArrayDestroy(pFS->aQTaskInf); }
+void tdRSmaFSClose(SRSmaFS *pFS) { pFS->aQTaskInf = taosArrayDestroy(pFS->aQTaskInf); }
 
 int32_t tdRSmaFSPrepareCommit(SSma *pSma, SRSmaFS *pFSNew) {
   int32_t code = 0;

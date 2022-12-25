@@ -208,7 +208,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
     }
   }
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
-  ASSERT(pRSmaStat->commitAppliedVer > 0);
+  // ASSERT(pRSmaStat->commitAppliedVer > 0);
 
   // step 2: wait for all triggered fetch tasks to finish
   nLoops = 0;

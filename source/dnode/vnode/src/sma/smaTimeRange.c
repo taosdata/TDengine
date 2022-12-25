@@ -114,6 +114,7 @@ static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *
   int32_t        code = 0;
   int32_t        lino = 0;
   SSmaCfg       *pCfg = (SSmaCfg *)pMsg;
+  SName          stbFullName = {0};
   SVCreateStbReq pReq = {0};
 
   if (TD_VID(pSma->pVnode) == pCfg->dstVgId) {
@@ -124,7 +125,6 @@ static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *
     }
 
     // create stable to save tsma result in dstVgId
-    SName stbFullName = {0};
     tNameFromString(&stbFullName, pCfg->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     pReq.name = (char *)tNameGetTableName(&stbFullName);
     pReq.suid = pCfg->dstTbUid;
