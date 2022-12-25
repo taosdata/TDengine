@@ -44,7 +44,6 @@ typedef struct SRSmaInfoItem SRSmaInfoItem;
 typedef struct SRSmaFS       SRSmaFS;
 typedef struct SQTaskFile    SQTaskFile;
 typedef struct SQTaskFReader SQTaskFReader;
-typedef struct SQTaskFWriter SQTaskFWriter;
 
 struct SSmaEnv {
   SRWLatch  lock;
@@ -94,14 +93,10 @@ struct SQTaskFile {
 
 struct SQTaskFReader {
   SSma     *pSma;
+  int8_t    level;
+  int64_t   suid;
   int64_t   version;
   TdFilePtr pReadH;
-};
-struct SQTaskFWriter {
-  SSma     *pSma;
-  int64_t   version;
-  TdFilePtr pWriteH;
-  char     *fname;
 };
 
 struct SRSmaFS {
@@ -221,11 +216,11 @@ void    tdRSmaFSClose(SRSmaFS *fs);
 int32_t tdRSmaFSPrepareCommit(SSma *pSma, SRSmaFS *pFSNew);
 int32_t tdRSmaFSCommit(SSma *pSma);
 int32_t tdRSmaFSFinishCommit(SSma *pSma);
-int32_t tdRSmaFSCopy(SSma *pSma, SRSmaFS *pFSOut);
-int32_t tdRSmaFSTakeSnapshot(SSma *pSma, SRSmaFS *pFSOut);
-int32_t tdRSmaFSRef(SSma *pSma, SRSmaStat *pStat, int64_t suid, int8_t level, int64_t version);
-void    tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t suid, int8_t level, int64_t version);
-int32_t tdRSmaFSUpsertQTaskFile(SRSmaFS *pFS, SQTaskFile *qTaskFile, int32_t size);
+int32_t tdRSmaFSCopy(SSma *pSma, SRSmaFS *pFS);
+int32_t tdRSmaFSTakeSnapshot(SSma *pSma, SRSmaFS *pFS);
+int32_t tdRSmaFSRef(SSma *pSma, SRSmaFS *pFS);
+void    tdRSmaFSUnRef(SSma *pSma, SRSmaFS *pFS);
+int32_t tdRSmaFSUpsertQTaskFile(SSma *pSma, SRSmaFS *pFS, SQTaskFile *qTaskFile, int32_t nSize);
 int32_t tdRSmaFSRollback(SSma *pSma);
 int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer, int8_t rollback);
 int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);

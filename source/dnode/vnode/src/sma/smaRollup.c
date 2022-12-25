@@ -1272,10 +1272,10 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
   }
 
   // prepare
-  code = tdRSmaFSTakeSnapshot(pSma, &fs);
+  code = tdRSmaFSCopy(pSma, &fs);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tdRSmaFSUpsertQTaskFile(&fs, qTaskFArray->pData, taosArrayGetSize(qTaskFArray));
+  code = tdRSmaFSUpsertQTaskFile(pSma, &fs, qTaskFArray->pData, taosArrayGetSize(qTaskFArray));
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tdRSmaFSPrepareCommit(pSma, &fs);
