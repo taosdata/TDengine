@@ -317,7 +317,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
     if (pProjectInfo->mergeDataBlocks) {
       if (pRes->info.rows > 0) {
-        pFinalRes->info.id.groupId = pRes->info.id.groupId;
+        pFinalRes->info.id.groupId = 0;  //clear groupId
         pFinalRes->info.version = pRes->info.version;
 
         // continue merge data, ignore the group id
