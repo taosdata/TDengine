@@ -23,7 +23,7 @@ import time
 from taostest.util.remote import Remote
 
 
-class StreamComputingPerfTest(TDCase):
+class BsmaPerfTest(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.stb_name = "stb"
