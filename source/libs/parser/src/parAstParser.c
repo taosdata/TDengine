@@ -679,7 +679,7 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
       return collectMetaKeyFromShowVgroups(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
-      return collectMetaKeyFromShowVgroups(pCxt, (SShowStmt*)pStmt);
+      return collectMetaKeyFromShowClusterAlive(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TOPICS_STMT:
       return collectMetaKeyFromShowTopics(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
