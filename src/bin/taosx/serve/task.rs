@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::Display,
     time::{Duration, Instant},
 };
 
@@ -133,7 +134,7 @@ pub(super) enum Schedule {
     Repeated(String),
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Copy)]
 #[serde(rename_all = "snake_case")]
 #[derive(sqlx::Type)]
 pub(super) enum StreamType {
@@ -148,6 +149,18 @@ pub(super) enum StreamType {
 impl Default for StreamType {
     fn default() -> Self {
         StreamType::Auto
+    }
+}
+impl Display for StreamType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StreamType::Auto => f.write_str("Auto"),
+            StreamType::Replicate => f.write_str("Replicate"),
+            StreamType::Backup => f.write_str("Backup"),
+            StreamType::Restore => f.write_str("Restore"),
+            StreamType::Subscribe => f.write_str("Subscribe"),
+            StreamType::Export => f.write_str("Export"),
+        }
     }
 }
 
@@ -896,6 +909,7 @@ pub(super) struct Failed {
 #[derive(Serialize, Deserialize, Default, Clone, IntoParams)]
 #[serde(default)]
 pub(super) struct TaskFilter {
+    stream_type: Option<StreamType>,
     from_cluster: Option<String>,
     to_cluster: Option<String>,
     status: Option<String>,
@@ -912,6 +926,9 @@ impl TaskFilter {
             write!(sql, "`deleted` = FALSE")?;
         } else {
             write!(sql, "1 = 1")?;
+        }
+        if let Some(val) = self.stream_type {
+            write!(sql, " AND `stream_type` = '{val}'")?;
         }
         if let Some(val) = self.status.as_ref() {
             write!(sql, " AND `status` = '{val}'")?;
