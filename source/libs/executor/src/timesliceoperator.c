@@ -147,9 +147,23 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
 }
 
+
+static FORCE_INLINE int32_t timeSliceEnsureBlockCapacity(STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBlock) {
+  if (pBlock->info.rows < pBlock->info.capacity) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  uint32_t winNum = (pSliceInfo->win.ekey - pSliceInfo->win.skey) / pSliceInfo->interval.interval;
+  uint32_t newRowsNum = pBlock->info.rows + TMIN(winNum / 4 + 1, 1048576);
+  blockDataEnsureCapacity(pBlock, newRowsNum);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock, bool beforeTs) {
   int32_t rows = pResBlock->info.rows;
-  blockDataEnsureCapacity(pResBlock, rows + 1);
+  timeSliceEnsureBlockCapacity(pSliceInfo, pResBlock);
   // todo set the correct primary timestamp column
 
   // output the result
@@ -265,7 +279,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
 static void addCurrentRowToResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock,
                                   SSDataBlock* pSrcBlock, int32_t index) {
-  blockDataEnsureCapacity(pResBlock, pResBlock->info.rows + 1);
+  timeSliceEnsureBlockCapacity(pSliceInfo, pResBlock);
   for (int32_t j = 0; j < pExprSup->numOfExprs; ++j) {
     SExprInfo* pExprInfo = &pExprSup->pExprInfo[j];
 

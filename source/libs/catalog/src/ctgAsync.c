@@ -1549,10 +1549,10 @@ int32_t ctgHandleGetUserRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* 
     goto _return;
   }
 
-  if (ctx->user.type == AUTH_TYPE_READ && pOut->readDbs &&
+  if (CTG_AUTH_READ(ctx->user.type) && pOut->readDbs &&
       taosHashGet(pOut->readDbs, ctx->user.dbFName, strlen(ctx->user.dbFName))) {
     pass = true;
-  } else if (ctx->user.type == AUTH_TYPE_WRITE && pOut->writeDbs &&
+  } else if (CTG_AUTH_WRITE(ctx->user.type) && pOut->writeDbs &&
              taosHashGet(pOut->writeDbs, ctx->user.dbFName, strlen(ctx->user.dbFName))) {
     pass = true;
   }

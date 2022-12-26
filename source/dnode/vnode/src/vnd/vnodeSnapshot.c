@@ -67,9 +67,8 @@ _err:
   return code;
 }
 
-int32_t vnodeSnapReaderClose(SVSnapReader *pReader) {
-  int32_t code = 0;
-
+void vnodeSnapReaderClose(SVSnapReader *pReader) {
+  vInfo("vgId:%d, close vnode snapshot reader", TD_VID(pReader->pVnode));
   if (pReader->pRsmaReader) {
     rsmaSnapReaderClose(&pReader->pRsmaReader);
   }
@@ -82,9 +81,7 @@ int32_t vnodeSnapReaderClose(SVSnapReader *pReader) {
     metaSnapReaderClose(&pReader->pMetaReader);
   }
 
-  vInfo("vgId:%d, vnode snapshot reader closed", TD_VID(pReader->pVnode));
   taosMemoryFree(pReader);
-  return code;
 }
 
 int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) {
@@ -426,8 +423,8 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   ASSERT(pHdr->index == pWriter->index + 1);
   pWriter->index = pHdr->index;
 
-  vInfo("vgId:%d, vnode snapshot write data, index:%" PRId64 " type:%d nData:%d", TD_VID(pVnode), pHdr->index,
-        pHdr->type, nData);
+  vDebug("vgId:%d, vnode snapshot write data, index:%" PRId64 " type:%d blockLen:%d", TD_VID(pVnode), pHdr->index,
+         pHdr->type, nData);
 
   switch (pHdr->type) {
     case SNAP_DATA_CFG: {
