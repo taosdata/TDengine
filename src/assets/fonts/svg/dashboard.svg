@@ -1,0 +1,17 @@
+<svg id="图层_1" data-name="图层 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 155.91 155.91">
+    <defs>
+        <style>
+            .cls-1 {
+                fill: none;
+                stroke: currentColor;
+                stroke-miterlimit: 10;
+                stroke-width: 7px;
+            }
+        </style>
+    </defs>
+    <title>云服务菜单</title>
+    <rect class="cls-1" x="7.22" y="8.79" width="60.42" height="80.11" rx="9.47" />
+    <rect class="cls-1" x="88.27" y="67" width="60.42" height="80.11" rx="9.47" />
+    <rect class="cls-1" x="7.22" y="110.83" width="60.42" height="36.28" rx="9.47" />
+    <rect class="cls-1" x="88.27" y="8.79" width="60.42" height="36.28" rx="9.47" />
+</svg>

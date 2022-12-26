@@ -1,0 +1,111 @@
+import { handleDataKey } from "./dbs";
+import { sendSQLReq, getPaginationData } from "@/api/gateway/console";
+import { Message } from "element-ui";
+import { handleBinaryType } from "./stables";
+import { VariableTableColumnType } from "@/const";
+// 获取超级表下属子表
+export async function getTableListReq(params) {
+  let { currentPage, pageSize, selected_stb, selected_db } = params;
+  const parent = `${selected_db}.${selected_stb}`;
+  const where = `where db_name='${selected_db}' and stable_name='${selected_stb}'`;
+  const countSql = `select count(*) from information_schema.ins_tables ${where}`;
+  const dataSql = `select * from information_schema.ins_tables ${where}`;
+  return getPaginationData(countSql, dataSql, currentPage, pageSize, data => handleDataKey(data, "table", parent));
+}
+
+export function searchTable(prefix, dbname) {
+  return sendSQLReq(
+    `select * from information_schema.ins_tables where db_name='${dbname}' and stable_name is NOT NULL and table_name LIKE '${prefix}%' limit 100`,
+    true
+  );
+}
+
+export function deleteTableReq(payload) {
+  let { selected_db, tableName } = payload;
+  return sendSQLReq(`DROP TABLE ${selected_db}.${tableName};`).catch(err => {
+    err.desc && Message.error(err.desc);
+    return Promise.reject(err);
+  });
+}
+
+export function createTableReq(payload) {
+  let { selected_db, table_form } = payload;
+  let { name, stbTmpl, tags } = table_form;
+  // 以超级表为模版创建表
+  return sendSQLReq(
+    `CREATE TABLE ${selected_db}.${name} USING ${selected_db}.${stbTmpl} (${tags.map(item => `\`${item.field}\``).join(",")}) TAGS (${tags
+      .map(item => handleStringTagValue(item))
+      .join(",")});`
+  ).catch(err => {
+    err.desc && Message.error(err.desc);
+    return Promise.reject(err);
+  });
+  // return sendSQLReq(`CREATE TABLE ${selected_db}.${name} (${columns.map(item => `${item.field} ${item.type}`).join(",")});`).catch(err => {
+  //   err.desc && Message.error(err.desc);
+  //   return Promise.reject(err);
+  // });
+}
+
+// 修改表结构
+export function changeTableStruct(data, tableName) {
+  let { operation, first_field = "", second_field = "" } = data;
+  let sql = "";
+  sql = `ALTER TABLE  ${tableName} ${operation} ${first_field} ${second_field};`;
+  return sendSQLReq(sql).catch(err => {
+    err.desc && Message.error(err.desc);
+    return Promise.reject(err);
+  });
+}
+
+// 获取表的tag value
+export function getTagValue(tags, database, stable_name, table_name) {
+  if (!tags.length) return Promise.resolve({});
+  return sendSQLReq(
+    `SELECT DISTINCT tbname,${tags.map(item => `\`${item.field}\``).join(",")} from ${database}.${stable_name} where tbname='${table_name}';`,
+    true
+  )
+    .then(data => {
+      let result = data?.[0] || {};
+      Object.keys(result).forEach(key => {
+        result[key] = result[key] + "";
+      });
+      return result;
+    })
+    .catch(err => {
+      err.desc && Message.error(err.desc);
+      return {};
+    });
+}
+
+export function getMatrixStructReq(payload) {
+  let { selected_db, selected_tb } = payload;
+  return sendSQLReq(`DESCRIBE ${selected_db}.${selected_tb};`, true)
+    .then(res => handleColumnData(res, "tag"))
+    .catch(() => []);
+}
+export function handleColumnData(data) {
+  let res = [];
+  data.map(item => {
+    let result = {};
+    result.name = item.field;
+    // 此处不展示标签，在表格详细信息中进行展示
+    if (item.note) {
+      result.typeName = "tag";
+    } else {
+      result.typeName = "column";
+    }
+    result.dataType = handleBinaryType(item.type, item.length);
+    result["node-key"] = result.name + result.dataType;
+    result.leaf = true;
+    res.push(result);
+  });
+  return res;
+}
+
+function handleStringTagValue(tag) {
+  if (VariableTableColumnType.some(item => tag?.type?.startsWith(item))) {
+    return `'${tag.value}'`;
+  } else {
+    return tag.value;
+  }
+}

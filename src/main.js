@@ -1,0 +1,35 @@
+import Vue from "vue";
+import App from "./App.vue";
+import store from "./store";
+import router from "./router";
+import i18n from "./lang";
+import "@/styles/reset.css"; // CSS resets
+import ELEMENT from "element-ui";
+
+import MainContentHeader from "@/components/MainContentHeader";
+import Icon from "@/components/Icon";
+import CopyText from "@/components/CopyText";
+import "@/styles/element-variables.scss";
+import "@/assets/fonts/index"; //svgs
+import "@/styles/index.scss"; //global css
+import directive, { LazyLoad } from "./directive";
+import computed from "@/common/computed";
+import { $bus } from "./const";
+import { BusOnAndAutoOff } from "@/utils";
+import "./permission";
+Vue.use(directive);
+Vue.use(LazyLoad);
+Vue.component("MainContentHeader", MainContentHeader);
+Vue.component("Icon", Icon);
+Vue.component("CopyText", CopyText);
+Vue.config.productionTip = false;
+Vue.use(ELEMENT);
+Vue.prototype.$bus = $bus;
+Vue.prototype.$BusOnAndAutoOff = BusOnAndAutoOff;
+new Vue({
+  router,
+  store,
+  i18n,
+  computed,
+  render: h => h(App),
+}).$mount("#app");

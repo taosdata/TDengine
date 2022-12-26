@@ -1,0 +1,18 @@
+<svg id="图层_1" data-name="图层 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 155.91 155.91">
+    <defs>
+        <style>
+            .cls-1 {
+                fill: none;
+                stroke: currentColor;
+                stroke-linecap: round;
+                stroke-miterlimit: 10;
+                stroke-width: 7px;
+            }
+        </style>
+    </defs>
+    <title>云服务菜单</title>
+    <line class="cls-1" x1="28.6" y1="7.85" x2="28.6" y2="148.06" />
+    <line class="cls-1" x1="7.32" y1="147.41" x2="90.68" y2="147.41" />
+    <path class="cls-1"
+        d="M43.42,10.49V88.92s39.23-8.83,56.52,0,48.64,0,48.64,0V16.86s-27.37,4.9-48.64-2.45S57,6.08,43.42,10.49Z" />
+</svg>

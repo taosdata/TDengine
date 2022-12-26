@@ -1,0 +1,114 @@
+import axios from "axios";
+import { Message } from "element-ui";
+import store from "../store";
+import { refreshTokenExpire } from "./token";
+import { ReLoginCode, SuccessCode, RequestCommonConfig } from "@/const";
+const request = axios.create({
+  ...RequestCommonConfig,
+  baseURL: process.env.VUE_APP_BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+let msg = "";
+let setTokenTimer = null;
+request.interceptors.request.use(
+  config => {
+    if (store.getters.token) {
+      // 让每个请求都携带token
+      config.headers["Authorization"] = store.getters.token;
+      if (!config.noRefreshToken) {
+        //token延期
+        if (setTokenTimer) {
+          clearTimeout(setTokenTimer);
+        }
+        setTokenTimer = setTimeout(() => {
+          setTokenTimer = null;
+          refreshTokenExpire();
+        }, 5000);
+      }
+    }
+    config.headers["Accept-Language"] = "q=0.8, " + store?.state?.language;
+    return config;
+  },
+  error => {
+    // do something with request error
+    return Promise.reject(error);
+  }
+);
+
+request.interceptors.response.use(
+  /**
+   * If you want to get http information such as headers or status
+   * Please return response => response
+   */
+  // Determine the request status by custom code
+  response => {
+    const res = response.data;
+    if (res.type) return Promise.resolve(res);
+    res.code += "";
+    if (checkRegion(res.code)) {
+      // token过期, 让用户重新登录
+      store.dispatch("app/logout", false);
+      return Promise.reject(null);
+    }
+    if (checkStatus(res.code)) {
+      return Promise.resolve(res.data);
+    }
+    let curmsg = res.data?.message || res.msg || res.message || "Unknown Error";
+    // 相同的提示没有必要显示多次
+    if (curmsg && curmsg != msg) {
+      msg = curmsg;
+      Message.closeAll();
+      Message({
+        message: msg,
+        type: "error",
+        duration: response.config.messageDur ?? 3000,
+        showClose: response.config.messageDur === 0,
+      });
+      setTimeout(() => {
+        msg = "";
+      }, 1000);
+    }
+
+    return Promise.reject(res);
+  },
+  error => {
+    Message.closeAll();
+    Message({
+      message: error.message || "Unknown Error",
+      type: "error",
+      duration: 3000,
+      showClose: true,
+    });
+    return Promise.reject(error);
+  }
+);
+function checkStatus(code) {
+  return SuccessCode.some(item => code.includes(item));
+}
+function checkRegion(code) {
+  return ReLoginCode.some(item => code.includes(item));
+}
+const requestOffical = axios.create({
+  baseURL: process.env.VUE_APP_OFFICIAL_SITE,
+  ...RequestCommonConfig,
+  headers: {
+    "Content-Type": "form-data",
+  },
+});
+requestOffical.interceptors.response.use(
+  response => {
+    return response.data;
+  },
+  error => {
+    // 网络或者服务器错误
+    // Message({
+    //   message: error.message,
+    //   type: "error",
+    //   duration: 3000,
+    // });
+    return Promise.reject(error);
+  }
+);
+export { request, requestOffical };

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="<%= BASE_URL %>favicon.ico">
+  <!-- <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css"> -->
+  <!-- 3. 引入组件库 -->
+  <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.2.0/styles/atom-one-dark.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.41.0/lib/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.41.0/theme/eclipse.css"> -->
+  <title>
+    TDengine Cloud
+  </title>
+</head>
+
+<body>
+  <noscript>
+    <strong>We're sorry but TDengine Cloud doesn't work properly without JavaScript enabled.
+      Please enable it to continue.</strong>
+  </noscript>
+  <div id="app">
+    <style>
+      @-webkit-keyframes gradient {
+        50% {
+          background-position: 100% 0
+        }
+      }
+
+      @keyframes gradient {
+        50% {
+          background-position: 100% 0
+        }
+      }
+
+      @-webkit-keyframes img {
+        0% {
+          -webkit-transform: rotate(0deg);
+        }
+
+        100% {
+          -webkit-transform: rotate(-360deg);
+        }
+      }
+
+      @keyframes img {
+        0% {
+          -webkit-transform: rotate(0deg);
+          transform: rotate(0deg);
+        }
+
+        100% {
+          -webkit-transform: rotate(-360deg);
+          transform: rotate(-360deg);
+        }
+      }
+
+      @-webkit-keyframes spin {
+        0% {
+          -webkit-transform: rotate(0deg);
+        }
+
+        100% {
+          -webkit-transform: rotate(360deg);
+        }
+      }
+
+      @keyframes spin {
+        0% {
+          -webkit-transform: rotate(0deg);
+          transform: rotate(0deg);
+        }
+
+        100% {
+          -webkit-transform: rotate(360deg);
+          transform: rotate(360deg);
+        }
+      }
+
+      @-webkit-keyframes spin-reverse {
+        0% {
+          -webkit-transform: rotate(0deg);
+        }
+
+        100% {
+          -webkit-transform: rotate(-360deg);
+        }
+      }
+
+      @keyframes spin-reverse {
+        0% {
+          -webkit-transform: rotate(0deg);
+          transform: rotate(0deg);
+        }
+
+        100% {
+          -webkit-transform: rotate(-360deg);
+          transform: rotate(-360deg);
+        }
+      }
+
+      #loader-wrapper {
+        /* background-image: linear-gradient(45deg, rgb(19, 189, 206) 33%, rgb(19, 189, 206) 66%, rgb(0, 148, 217) 100%); */
+        background-size: 400%;
+        background-position: 0% 100%;
+        -webkit-animation: gradient 7.5s ease-in-out infinite;
+        animation: gradient 7.5s ease-in-out infinite;
+      }
+
+      #loader-wrapper {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 10;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      #loader {
+        display: flex;
+        padding: 20px;
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        border-top-color: rgb(19, 189, 206);
+        animation: spin 1.7s linear infinite;
+        z-index: 11;
+      }
+
+      #loader:before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        border-top-color: rgb(19, 189, 206);
+        animation: spin-reverse .6s linear infinite;
+      }
+
+      #loader:after {
+        content: "";
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        right: 15px;
+        bottom: 15px;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        border-top-color: rgb(19, 189, 206);
+        animation: spin 1s linear infinite;
+      }
+
+      #loader img {
+        margin: auto;
+        align-items: center;
+        display: table-cell;
+        vertical-align: middle;
+        text-align: center;
+        animation: img 1.7s linear infinite;
+      }
+    </style>
+    <div id="loader-wrapper">
+      <div id="loader"><img src="/static/logo.svg"></div>
+    </div>
+  </div>
+  <!-- built files will be auto injected -->
+  <!-- 
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.12/dist/vue.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue-router@3.5.3/dist/vue-router.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue-i18n@8.24.5/dist/vue-i18n.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuex@3.6.2/dist/vuex.min.js"></script>
+  <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios@0.21.0/dist/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.3.2/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.10/dist/clipboard.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.41.0/lib/codemirror.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue-codemirror@4.0.6/dist/vue-codemirror.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.3/mode/sql/sql.js"></script> -->
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-TQY5FW868G"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+
+    gtag('config', 'G-TQY5FW868G', { 'debug_mode': true });
+  </script>
+</body>
+
+</html>

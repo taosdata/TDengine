@@ -1,0 +1,160 @@
+<template>
+  <div class="chart">
+    <el-form size="mini" :model="chartForm" inline ref="ruleForm">
+      <el-form-item :label="$t('console.chartType')" prop="chartType">
+        <el-select v-model="chartForm.chartType">
+          <el-option
+            v-for="item in chartTypes"
+            :key="item.value"
+            :label="item.value"
+            :value="item.value"
+          >
+          </el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item :label="$t('console.xAxis')" required prop="label">
+        <el-select v-model="chartForm.label">
+          <el-option
+            v-for="item in field"
+            :key="item"
+            :label="item"
+            :value="item"
+          >
+          </el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item :label="$t('console.series')" required prop="series">
+        <el-select
+          size="mini"
+          collapse-tags
+          v-model="chartForm.series"
+          multiple
+        >
+          <el-option
+            v-for="item in field"
+            :key="item"
+            :label="item"
+            :value="item"
+            :disabled="item === chartForm.label"
+          >
+          </el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label=" ">
+        <el-button size="mini" plain :disabled="drawing" @click="drawChart">{{
+          $t("console.draw")
+        }}</el-button>
+      </el-form-item>
+    </el-form>
+    <div class="chart-right" id="chart" ref="chart">
+      <Echart
+        width="100%"
+        :notMerge="true"
+        @finished="drawing = false"
+        :chartOption="chartOption"
+      ></Echart>
+    </div>
+    <!-- 列表 -->
+  </div>
+</template>
+<script>
+import Echart from "@/components/EChart.vue";
+import { mapState } from "vuex";
+export default {
+  name: "chart",
+  data() {
+    return {
+      chartTypes: [
+        {
+          value: "bar"
+        },
+        {
+          value: "line"
+        },
+        {
+          value: "area"
+        }
+      ],
+      chartForm: {
+        chartType: "bar",
+        label: "",
+        series: []
+      },
+      chartOption: {},
+      xAxisData: [],
+      drawing: false
+    };
+  },
+  components: { Echart },
+  computed: {
+    ...mapState({
+      data: state => state.console.result,
+      field: state => state.console.head
+    })
+  },
+  watch: {
+    field(newval) {
+      this.chartForm.series = [newval[1]];
+      this.chartForm.label = newval[0];
+      this.chartOption = {};
+    }
+  },
+  mounted() {},
+  methods: {
+    drawChart() {
+      this.$refs.ruleForm.validate(valid => {
+        if (valid) {
+          this.chartOption = {
+            // title: {
+            //   text: 'Chart Show'
+            // },
+            grid: { right: 30 },
+            legend: {},
+            tooltip: {
+              trigger: "axis"
+            },
+            xAxis: {
+              type: "category"
+            },
+            yAxis: {
+              type: "value"
+            },
+            series: this.handleSeriesChange()
+          };
+          this.drawing = true;
+          console.log(this.chartOption);
+        }
+      });
+    },
+    handleSeriesChange() {
+      return this.chartForm.series.map(item => {
+        let op = {
+          type: this.chartForm.chartType,
+          name: item,
+          data: this.data.map(ite => [ite[this.chartForm.label], ite[item]])
+        };
+        if (this.chartForm.chartType === "area") {
+          op.type = "line";
+          op.areaStyle = {};
+        }
+        return op;
+      });
+    }
+  }
+};
+</script>
+<style lang="scss" scoped>
+.chart {
+  width: 100%;
+  height: 100%;
+
+  .chart-right {
+    height: 450px;
+  }
+}
+.chart::v-deep .el-form-item__label {
+  font-size: 14px !important;
+  font-weight: normal;
+  color: #909399;
+}
+</style>

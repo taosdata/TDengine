@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 23.1.1, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px"
+	y="0px" viewBox="0 0 155.9 155.9" style="enable-background:new 0 0 155.9 155.9;" xml:space="preserve">
+	<style type="text/css">
+		.st0 {
+			fill: none;
+			stroke: currentColor;
+			stroke-width: 7;
+			stroke-linecap: round;
+			stroke-linejoin: round;
+			stroke-miterlimit: 10;
+		}
+	</style>
+	<g>
+		<polyline class="st0" points="102.3,62.4 77.7,86.7 53.2,62.4 	" />
+		<line class="st0" x1="77.7" y1="4.9" x2="77.7" y2="85.6" />
+		<g>
+			<path class="st0" d="M32.7,73.1C17.7,68.5,8.1,61.6,8.1,54c0-11,19.6-20.4,47-23.8" />
+			<path class="st0" d="M100,30.2c27.5,3.4,47.3,12.7,47.3,23.8c0,7.7-9.7,14.6-24.9,19.2" />
+		</g>
+		<path class="st0" d="M147.3,86.7c0,13.9-31.2,25.1-69.6,25.1S8.1,100.6,8.1,86.7" />
+		<path class="st0" d="M147.3,125.9c0,13.9-31.2,25.1-69.6,25.1S8.1,139.8,8.1,125.9" />
+		<line class="st0" x1="8.1" y1="52.6" x2="8.1" y2="126.1" />
+		<line class="st0" x1="147.3" y1="52.4" x2="147.3" y2="125.9" />
+	</g>
+</svg>

@@ -1,0 +1,291 @@
+import Vue from "vue";
+import Router from "vue-router";
+
+Vue.use(Router);
+const layoutCommonChildren = [
+  {
+    path: "",
+    redirect: "explorer",
+  },
+  {
+    path: "dataIn",
+    component: () => import("@/views/3_dataIn"),
+    children: [
+      {
+        path: "",
+        component: () => import("@/views/3_dataIn/views/main.vue"),
+      },
+      {
+        path: "docs/:category/:lang",
+        props: true,
+        component: () => import("@/views/docs/index.vue"),
+      },
+    ],
+  },
+  {
+    path: "docs/:category/:lang",
+    props: true,
+    component: () => import("@/views/docs/index.vue"),
+  },
+  {
+    path: "explorer",
+    component: () => import("@/views/2_explorer"),
+  },
+  {
+    path: "instances",
+    component: () => import("@/views/7_cluster"),
+    children: [
+      {
+        path: "",
+        name: "ClusterList",
+        component: () => import("@/views/7_cluster/views/list.vue"),
+      },
+      {
+        path: "create",
+        props: true,
+        component: () => import("@/views/7_cluster/views/create.vue"),
+      },
+    ],
+  },
+
+  {
+    path: "support",
+    component: () => import("@/views/support"),
+    children: [
+      {
+        path: "",
+        name: "supportList",
+        component: () => import("@/views/support/views/list.vue"),
+      },
+      {
+        path: "detail/:id",
+        name: "supportDetail",
+        props: true,
+        component: () => import("@/views/support/views/detail.vue"),
+      },
+    ],
+  },
+
+  {
+    path: "dataOut",
+    component: () => import("@/views/6_dataOut"),
+    children: [
+      {
+        path: "",
+        component: () => import("@/views/6_dataOut/views/main.vue"),
+      },
+      {
+        path: "docs/:category/:lang",
+        props: true,
+        component: () => import("@/views/docs/index.vue"),
+      },
+    ],
+  },
+  {
+    path: "visualize",
+    component: () => import("@/views/visualize"),
+    children: [
+      {
+        path: "",
+        component: () => import("@/views/visualize/views/main.vue"),
+      },
+      {
+        path: "docs/:category/:lang",
+        props: true,
+        component: () => import("@/views/docs/index.vue"),
+      },
+    ],
+  },
+  {
+    path: "profile",
+    component: () => import("@/views/profile"),
+  },
+  {
+    path: "landing",
+    component: () => import("@/views/landing"),
+  },
+];
+const adminRoute = [
+  {
+    path: "dashboard",
+    component: () => import("@/views/1_dashboard"),
+  },
+  {
+    path: "replication",
+    meta: {
+      role: ["1"],
+    },
+    component: () => import("@/views/4_replication"),
+  },
+  {
+    path: "stream",
+    meta: {
+      role: ["1"],
+    },
+    component: () => import("@/views/10_stream"),
+  },
+  {
+    path: "topic",
+    meta: {
+      role: ["1"],
+    },
+    component: () => import("@/views/11_topic"),
+  },
+  {
+    path: "tools",
+    meta: {
+      role: ["1"],
+    },
+    component: () => import("@/views/12_tools"),
+    children: [
+      {
+        path: "",
+        component: () => import("@/views/12_tools/views/main.vue"),
+      },
+      {
+        path: "docs/:category/:lang",
+        props: true,
+        component: () => import("@/views/docs/index.vue"),
+      },
+    ],
+  },
+  {
+    path: "user",
+    component: () => import("@/views/9_user"),
+    children: [
+      {
+        path: "",
+        name: "userList",
+        meta: {
+          role: ["1"],
+        },
+        component: () => import("@/views/9_user/views/list"),
+      },
+      {
+        path: "detail/:id",
+        meta: {
+          role: ["1"],
+        },
+        props: true,
+        component: () => import("@/views/9_user/views/detail"),
+      },
+    ],
+  },
+  {
+    path: "billing",
+    component: () => import("@/views/8_billing"),
+    children: [
+      {
+        path: "",
+        component: () => import("@/views/8_billing/views/postpaid.vue"),
+        meta: {
+          role: ["1"],
+        },
+      },
+    ],
+  },
+  {
+    path: "calculator",
+    component: () => import("@/views/calculator"),
+  },
+  {
+    path: "network",
+    component: () => import("@/views/5_VPC"),
+    meta: {
+      role: ["1"],
+    },
+  },
+  {
+    path: "activity",
+    component: () => import("@/views/activity"),
+    meta: {
+      role: ["1"],
+    },
+  },
+  {
+    path: "alert",
+    component: () => import("@/views/alert"),
+    children: [
+      {
+        path: "",
+        name: "alertList",
+        component: () => import("@/views/alert/views/list"),
+        meta: {
+          role: ["1"],
+        },
+      },
+    ],
+  },
+];
+const costantRoutes = [
+  {
+    path: "/instanceStatus/:appId?",
+    name: "instanceStatus",
+    props: true,
+    component: () => import("@/views/instanceStatus/index.vue"),
+  },
+  {
+    path: "/createFirstInstance",
+    name: "createFirstInstance",
+    props: true,
+    component: () => import("@/views/createFirstInstance/index.vue"),
+  },
+  {
+    path: "/",
+    name: "layout",
+    component: () => import("@/layout"),
+    children: layoutCommonChildren,
+  },
+  {
+    path: "*",
+    name: "404",
+    component: () => import("@/views/404"),
+  },
+];
+
+function createRouter(routes) {
+  return new Router({
+    mode: "history",
+    routes,
+  });
+}
+const router = createRouter(costantRoutes);
+const RouterPush = Router.prototype.push;
+Router.prototype.push = function (to) {
+  return RouterPush.call(this, to).catch(err => err);
+};
+router.onError(error => {
+  const jsPattern = /Loading chunk (\S)+ failed/g;
+  const cssPattern = /Loading CSS chunk (\S)+ failed/g;
+  const isChunkLoadFailed = error.message.match(jsPattern || cssPattern);
+
+
+  console.log(router,'哈哈哈',isChunkLoadFailed)
+  const targetPath =  router.history.pending.fullPath;
+  if (isChunkLoadFailed) {
+    localStorage.setItem("targetPath", targetPath);
+    // window.location.reload();
+  }
+});
+router.onReady(() => {
+  const targetPath = localStorage.getItem("targetPath");
+  const tryReload = localStorage.getItem("tryReload");
+  if (targetPath) {
+    localStorage.removeItem("targetPath");
+    if (!tryReload) {
+      router.replace(targetPath);
+      localStorage.setItem("tryReload", true);
+    } else {
+      localStorage.removeItem("tryReload");
+    }
+  }
+});
+// 添加主账户路由
+export function addRoutes(role) {
+  if (role != "1") return;
+  adminRoute.forEach(item => {
+    router.addRoute("layout", item);
+  });
+}
+console.log(router,'----')
+export default router;

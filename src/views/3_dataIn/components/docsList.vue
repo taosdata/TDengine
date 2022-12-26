@@ -1,0 +1,99 @@
+<template>
+  <div class="connector">
+    <ul class="client-list">
+      <li v-for="(item, index) in docsList" :title="item.name" :key="index">
+        <router-link class="client-item" :to="getUrl(item.name, item.icon)">
+          <h2 class="title">
+            <img class="image" :src="getImg(item.name, item.icon)" alt="" />
+            <span>{{ item.name }}</span>
+          </h2>
+          <p class="desc nowrap">
+            {{ item.desc }}
+          </p>
+        </router-link>
+      </li>
+    </ul>
+  </div>
+</template>
+
+<script>
+  export default {
+    props: {
+      parentUrl: {
+        type: String,
+        default: "",
+      },
+      docsList: {
+        type: Array,
+        default: () => [],
+      },
+      urlPre: {
+        type: String,
+        default: "",
+      },
+    },
+    computed: {},
+    methods: {
+      getUrl(name) {
+        return this.parentUrl + this.urlPre + encodeURIComponent(name);
+      },
+      getImg(name, icon) {
+        let result = "";
+
+        try {
+          result = require(`@/assets/images/${icon ? icon : name + ".svg"}`);
+        } catch (err) {
+          result = require(`@/assets/logo.svg`);
+        }
+        return encodeURIComponent(result);
+      },
+    },
+  };
+</script>
+<style lang="scss" scoped>
+  .connector {
+    $item-width: 150px;
+    $margin-size: 20px;
+    .client-list {
+      display: flex;
+      flex-wrap: wrap;
+      margin-bottom: 30px;
+      li {
+        width: calc((100% - #{$margin-size} * 3) / 3);
+
+        .client-item {
+          padding: 30px;
+          display: block;
+        }
+        border: 1px solid $item-border-color;
+        margin-right: $margin-size;
+        margin-top: $margin-size;
+        border-radius: 15px;
+        $img-size: 30px;
+        color: rgb(96, 103, 112);
+        h2 {
+          font-size: 20px;
+          font-weight: bold;
+          line-height: $img-size;
+          span {
+            margin-left: 10px;
+          }
+        }
+        .image {
+          width: $img-size;
+          height: $img-size;
+          object-fit: contain;
+          vertical-align: middle;
+        }
+        .desc {
+          font-size: 13px;
+          line-height: 22px;
+        }
+        &:hover {
+          border: 1px solid $color-primary;
+          box-shadow: 0 3px 6px 0 rgb(0 0 0 / 20%);
+        }
+      }
+    }
+  }
+</style>

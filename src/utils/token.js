@@ -1,0 +1,62 @@
+import Cookies from "js-cookie";
+import { TokenKey, AppIDKey, TokenExpire, RedirectKey } from "@/const";
+import { jsonToObj } from "./index";
+import { isIPUrl } from "./validate";
+
+const Domain = isIPUrl(document.domain) ? document.domain : document.domain.split(".").slice(-2).join(".");
+const currentDomain = document.domain;
+export function getToken() {
+  return Cookies.get(TokenKey);
+}
+
+export function setToken(token) {
+  return Cookies.set(TokenKey, token, {
+    domain: Domain,
+    expires: TokenExpire,
+    path: "/",
+  });
+}
+
+export function refreshTokenExpire() {
+  let token = getToken();
+  if (token) {
+    setToken(token);
+  } else {
+    removeToken();
+  }
+}
+export function removeToken() {
+  return Cookies.remove(TokenKey, {
+    domain: Domain,
+  });
+}
+
+/**
+ * 每个域名保存不同的id
+ */
+export function getAppID() {
+  return jsonToObj(Cookies.get(AppIDKey))[currentDomain] || "";
+}
+
+export function setAppId(appID, domain = currentDomain) {
+  // 先获取id列表
+  let idMap = jsonToObj(Cookies.get(AppIDKey));
+  idMap[domain] = appID;
+  return Cookies.set(AppIDKey, JSON.stringify(idMap), {
+    domain: Domain,
+  });
+}
+
+export function removeAppID() {
+  let idMap = jsonToObj(Cookies.get(AppIDKey));
+  delete idMap[currentDomain];
+  return Cookies.set(AppIDKey, JSON.stringify(idMap), {
+    domain: Domain,
+  });
+}
+
+export function setRedirect(url) {
+  return Cookies.set(RedirectKey, url, {
+    domain: Domain,
+  });
+}
