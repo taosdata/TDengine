@@ -238,7 +238,7 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
-int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode);
+void    syncNodeResetElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode);

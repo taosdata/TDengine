@@ -61,7 +61,7 @@ typedef struct SSyncLogBuffer {
 // SSyncLogRepMgr
 SSyncLogReplMgr* syncLogReplMgrCreate();
 void             syncLogReplMgrDestroy(SSyncLogReplMgr* pMgr);
-int32_t          syncLogReplMgrReset(SSyncLogReplMgr* pMgr);
+void             syncLogReplMgrReset(SSyncLogReplMgr* pMgr);
 
 int32_t          syncNodeLogReplMgrInit(SSyncNode* pNode);
 void             syncNodeLogReplMgrDestroy(SSyncNode* pNode);

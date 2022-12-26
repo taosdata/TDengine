@@ -566,7 +566,9 @@ _out:
   return ret;
 }
 
-int32_t syncLogReplMgrReset(SSyncLogReplMgr* pMgr) {
+void syncLogReplMgrReset(SSyncLogReplMgr* pMgr) {
+  if (pMgr == NULL) return;
+
   ASSERT(pMgr->startIndex >= 0);
   for (SyncIndex index = pMgr->startIndex; index < pMgr->endIndex; index++) {
     memset(&pMgr->states[index % pMgr->size], 0, sizeof(pMgr->states[0]));
@@ -576,7 +578,6 @@ int32_t syncLogReplMgrReset(SSyncLogReplMgr* pMgr) {
   pMgr->endIndex = 0;
   pMgr->restored = false;
   pMgr->retryBackoff = 0;
-  return 0;
 }
 
 int32_t syncLogReplMgrRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
