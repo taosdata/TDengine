@@ -1359,18 +1359,31 @@ SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
 
 SNode* createShowAliveStmt(SAstCreateContext* pCxt, SNode* pDbName, ENodeType type) {
   CHECK_PARSER_STATUS(pCxt);
-  /*
-  if (pDbName && !checkDbName(pCxt, pDbName, true)) {
-    return NULL;
+  SToken  dbToken = {0};
+  SToken* pDbToken = NULL;
+
+  if (pDbName) {
+    SValueNode* pDbValue = (SValueNode*)pDbName;
+    if (pDbValue->literal) {
+      dbToken.z = pDbName->literal;
+      dbToken.n = strlen(pDbName->literal);
+      pDbToken = &dbToken;
+    }
   }
-  */
+
+  if (pDbToken && !checkDbName(pCxt, pDbToken, true)) {
+    nodesDestroyNode(pDbName) return NULL;
+  }
+
   SShowAliveStmt* pStmt = (SShowAliveStmt*)nodesMakeNode(type);
   CHECK_OUT_OF_MEM(pStmt);
-  /*
-  if (pDbName) {
-    COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+
+  if (pDbToken) {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbToken);
   }
-  */
+  if (pDbName) {
+    nodesDestroyNode(pDbName);
+  }
 
   return (SNode*)pStmt;
 }
