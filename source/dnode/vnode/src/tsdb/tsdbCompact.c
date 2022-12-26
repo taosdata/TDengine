@@ -52,6 +52,7 @@ typedef struct {
   SDataFReader *pReader;
   SDFileSet    *pDFileSet;
   SRBTree       rtree;
+  SBlockData    bData;
 } STsdbCompactor;
 
 #define TSDB_FLG_DEEP_COMPACT 0x1
@@ -333,6 +334,14 @@ int32_t tsdbCompact(STsdb *pTsdb, int32_t flag) {
       TSDB_CHECK_CODE(code, lino, _exit);
 
       if (pRow == NULL) break;
+
+      // code = tBlockDataAppendRow(&compactor.bData, pRow, pRow, NULL, 0);
+      // TSDB_CHECK_CODE(code, lino, _exit);
+
+      // if (compactor.bData.nRows >= TSDB_MAX_ROWS_PER_BLOCK) {
+      //   code = tsdbFlushBlock(&compactor);
+      //   TSDB_CHECK_CODE(code, lino, _exit);
+      // }
     }
   }
 

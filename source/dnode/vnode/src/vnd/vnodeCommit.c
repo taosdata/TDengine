@@ -184,7 +184,7 @@ _err:
   return -1;
 }
 
-static int32_t vnodePrepareCommit(SVnode *pVnode) {
+int32_t vnodePrepareCommit(SVnode *pVnode) {
   int32_t code = 0;
   tsem_wait(&pVnode->canCommit);
 
