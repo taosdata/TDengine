@@ -3541,8 +3541,8 @@ int32_t doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* p
     }
   }
 
-  int32_t code = tRowMergerGetRow(&merge, pTSRow);
-  tRowMergerClear(&merge);
+  int32_t code = tsdbRowMergerGetRow(&merge, pTSRow);
+  tsdbRowMergerClear(&merge);
   return code;
 }
 
