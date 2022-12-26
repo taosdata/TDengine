@@ -77,7 +77,7 @@ static int32_t tsdbBinaryToFS(uint8_t *pData, int64_t nData, SRSmaFS *pFS) {
 
     int32_t nt = tdRSmaGetQTaskF(pData + n, &qTaskF);
     if (nt < 0) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = TSDB_CODE_FILE_CORRUPTED;
       goto _exit;
     }
 
@@ -88,7 +88,10 @@ static int32_t tsdbBinaryToFS(uint8_t *pData, int64_t nData, SRSmaFS *pFS) {
     }
   }
 
-  ASSERT(n + sizeof(TSCKSUM) == nData);
+  if(n + sizeof(TSCKSUM) != nData) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _exit;
+  }
 
 _exit:
   return code;
@@ -545,87 +548,6 @@ int32_t tdRSmaFSUpsertQTaskFile(SSma *pSma, SRSmaFS *pFS, SQTaskFile *qTaskFile,
 _exit:
   return code;
 }
-#if 0
-int32_t tdRSmaFSRef(SSma *pSma, SRSmaStat *pStat, int64_t suid, int8_t level, int64_t version) {
-  SArray     *aQTaskInf = RSMA_FS(pStat)->aQTaskInf;
-  SQTaskFile  qTaskF = {.level = level, .suid = suid, .version = version};
-  SQTaskFile *pTaskF = NULL;
-  int32_t     oldVal = 0;
-
-  taosRLockLatch(RSMA_FS_LOCK(pStat));
-  if (suid > 0 && level > 0) {
-    ASSERT(version > 0);
-    if ((pTaskF = taosArraySearch(aQTaskInf, &qTaskF, tdQTaskInfCmprFn1, TD_EQ))) {
-      oldVal = atomic_fetch_add_32(&pTaskF->nRef, 1);
-      ASSERT(oldVal > 0);
-    }
-  } else {
-    // ref all
-    int32_t size = taosArrayGetSize(aQTaskInf);
-    for (int32_t i = 0; i < size; ++i) {
-      pTaskF = TARRAY_GET_ELEM(aQTaskInf, i);
-      oldVal = atomic_fetch_add_32(&pTaskF->nRef, 1);
-      ASSERT(oldVal > 0);
-    }
-  }
-  taosRUnLockLatch(RSMA_FS_LOCK(pStat));
-  return oldVal;
-}
-
-void tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t suid, int8_t level, int64_t version) {
-  SVnode     *pVnode = pSma->pVnode;
-  SArray     *aQTaskInf = RSMA_FS(pStat)->aQTaskInf;
-  char        qTaskFullName[TSDB_FILENAME_LEN];
-  SQTaskFile  qTaskF = {.level = level, .suid = suid, .version = version};
-  SQTaskFile *pTaskF = NULL;
-  int32_t     idx = -1;
-
-  taosWLockLatch(RSMA_FS_LOCK(pStat));
-  if (suid > 0 && level > 0) {
-    ASSERT(version > 0);
-    if ((idx = taosArraySearchIdx(aQTaskInf, &qTaskF, tdQTaskInfCmprFn1, TD_EQ)) >= 0) {
-      ASSERT(idx < taosArrayGetSize(aQTaskInf));
-      pTaskF = taosArrayGet(aQTaskInf, idx);
-      if (atomic_sub_fetch_32(&pTaskF->nRef, 1) <= 0) {
-        tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->suid, level, pTaskF->version,
-                                   tfsGetPrimaryPath(pVnode->pTfs), qTaskFullName);
-        if (taosRemoveFile(qTaskFullName) < 0) {
-          smaWarn("vgId:%d, failed to remove %s since %s", TD_VID(pVnode), qTaskFullName,
-                  tstrerror(TAOS_SYSTEM_ERROR(errno)));
-        } else {
-          smaDebug("vgId:%d, success to remove %s", TD_VID(pVnode), qTaskFullName);
-        }
-        taosArrayRemove(aQTaskInf, idx);
-      }
-    }
-  } else {
-    for (int32_t i = 0; i < taosArrayGetSize(aQTaskInf);) {
-      pTaskF = TARRAY_GET_ELEM(aQTaskInf, i);
-      int32_t nRef = INT32_MAX;
-      if (pTaskF->version == version) {
-        nRef = atomic_sub_fetch_32(&pTaskF->nRef, 1);
-      } else if (pTaskF->version < version) {
-        nRef = atomic_load_32(&pTaskF->nRef);
-      }
-      if (nRef <= 0) {
-        tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->suid, pTaskF->level, pTaskF->version,
-                                   tfsGetPrimaryPath(pVnode->pTfs), qTaskFullName);
-        if (taosRemoveFile(qTaskFullName) < 0) {
-          smaWarn("vgId:%d, failed to remove %s since %s", TD_VID(pVnode), qTaskFullName,
-                  tstrerror(TAOS_SYSTEM_ERROR(errno)));
-        } else {
-          smaDebug("vgId:%d, success to remove %s", TD_VID(pVnode), qTaskFullName);
-        }
-        taosArrayRemove(aQTaskInf, i);
-        continue;
-      }
-      ++i;
-    }
-  }
-
-  taosWUnLockLatch(RSMA_FS_LOCK(pStat));
-}
-#endif
 
 int32_t tdRSmaFSRef(SSma *pSma, SRSmaFS *pFS) {
   int32_t    code = 0;
