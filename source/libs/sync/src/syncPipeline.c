@@ -26,6 +26,11 @@
 #include "syncSnapshot.h"
 #include "syncUtil.h"
 
+static bool syncIsMsgBlock(tmsg_t type) {
+  return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
+         (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_CONFIRM);
+}
+
 int64_t syncLogBufferGetEndIndex(SSyncLogBuffer* pBuf) {
   taosThreadMutexLock(&pBuf->mutex);
   int64_t index = pBuf->endIndex;
@@ -441,26 +446,25 @@ _out:
   return matchIndex;
 }
 
-int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry) {
-  ASSERTS(pFsm->FpCommitCb != NULL, "No commit cb registered for the FSM");
-
+int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry,
+                          int32_t applyCode) {
   if ((pNode->replicaNum == 1) && pNode->restoreFinish && pNode->vgId != 1) {
     return 0;
   }
 
-  if (pNode->vgId != 1 && vnodeIsMsgBlock(pEntry->originalRpcType)) {
-    sTrace("vgId:%d, blocking msg ready to execute. index:%" PRId64 ", term: %" PRId64 ", type: %s", pNode->vgId,
-           pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType));
+  if (pNode->vgId != 1 && syncIsMsgBlock(pEntry->originalRpcType)) {
+    sTrace("vgId:%d, blocking msg ready to execute, index:%" PRId64 ", term:%" PRId64 ", type:%s code:0x%x",
+           pNode->vgId, pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType), applyCode);
   }
 
-  SRpcMsg rpcMsg = {0};
+  SRpcMsg rpcMsg = {.code = applyCode};
   syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
   SFsmCbMeta cbMeta = {0};
   cbMeta.index = pEntry->index;
   cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(pNode, pEntry->index);
   cbMeta.isWeak = pEntry->isWeak;
-  cbMeta.code = 0;
+  cbMeta.code = applyCode;
   cbMeta.state = role;
   cbMeta.seqNum = pEntry->seqNum;
   cbMeta.term = pEntry->term;
@@ -469,7 +473,6 @@ int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, Syn
 
   (void)syncRespMgrGetAndDel(pNode->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info);
   int32_t code = pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
-  ASSERT(rpcMsg.pCont == NULL);
   return code;
 }
 
@@ -520,7 +523,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
             pEntry->term, TMSG_INFO(pEntry->originalRpcType));
     }
 
-    if (syncLogFsmExecute(pNode, pFsm, role, term, pEntry) != 0) {
+    if (syncLogFsmExecute(pNode, pFsm, role, term, pEntry, 0) != 0) {
       sError("vgId:%d, failed to execute sync log entry. index:%" PRId64 ", term:%" PRId64
              ", role: %d, current term: %" PRId64,
              vgId, pEntry->index, pEntry->term, role, term);

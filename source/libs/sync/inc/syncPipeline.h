@@ -109,6 +109,8 @@ SSyncRaftEntry* syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode,
 int32_t         syncLogBufferValidate(SSyncLogBuffer* pBuf);
 int32_t         syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex toIndex);
 
+int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry,
+                          int32_t applyCode);
 #ifdef __cplusplus
 }
 #endif
