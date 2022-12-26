@@ -2091,28 +2091,28 @@ _exit:
   return code;
 }
 
-int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes,
-                                    int32_t nRows, char* lengthOrbitmap, char *data) {
+int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
+                                    char *data) {
   int32_t code = 0;
 
   if (IS_VAR_DATA_TYPE(type)) {  // var-length data type
     for (int32_t i = 0; i < nRows; ++i) {
-      int32_t offset = *((int32_t*)lengthOrbitmap + i);
+      int32_t offset = *((int32_t *)lengthOrbitmap + i);
       if (offset == -1) {
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
         if (code) goto _exit;
       } else {
-        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
-            pColData, (uint8_t *)varDataVal(data + offset), varDataLen(data + offset));
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)varDataVal(data + offset),
+                                                                      varDataLen(data + offset));
       }
     }
   } else {  // fixed-length data type
     bool allValue = true;
-    bool allNull  = true;
+    bool allNull = true;
     for (int32_t i = 0; i < nRows; ++i) {
-      if(!colDataIsNull_f(lengthOrbitmap, i)){
+      if (!colDataIsNull_f(lengthOrbitmap, i)) {
         allNull = false;
-      }else{
+      } else {
         allValue = false;
       }
     }
@@ -2120,8 +2120,7 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
     if (allValue) {
       // optimize (todo)
       for (int32_t i = 0; i < nRows; ++i) {
-        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
-            pColData, (uint8_t *)data + bytes * i, bytes);
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)data + bytes * i, bytes);
       }
     } else if (allNull) {
       // optimize (todo)
@@ -2135,14 +2134,13 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
           code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
           if (code) goto _exit;
         } else {
-          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
-              pColData, (uint8_t *)data + bytes * i, bytes);
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)data + bytes * i, bytes);
         }
       }
     }
   }
 
-  _exit:
+_exit:
   return code;
 }
 
@@ -2278,6 +2276,7 @@ static void tColDataSwap(SColData *pColData, int32_t i, int32_t j) {
       break;
   }
 }
+
 static void tColDataSort(SColData *aColData, int32_t nColData) {
   if (aColData[0].nVal == 0) return;
   // TODO
