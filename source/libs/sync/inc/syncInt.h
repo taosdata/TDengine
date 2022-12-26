@@ -227,7 +227,7 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnAppendEntries(SSyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnSnapshot(SSyncNode* ths, const SRpcMsg* pMsg);
-int32_t syncNodeOnSnapshotReply(SSyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnSnapshotRsp(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pMsg);

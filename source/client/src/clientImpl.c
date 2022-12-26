@@ -122,6 +122,12 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
 
   char* key = getClusterKey(user, secretEncrypt, ip, port);
 
+  tscInfo("connecting to server, numOfEps:%d inUse:%d user:%s db:%s key:%s", epSet.epSet.numOfEps, epSet.epSet.inUse,
+          user, db, key);
+  for (int32_t i = 0; i < epSet.epSet.numOfEps; ++i) {
+    tscInfo("ep:%d, %s:%u", i, epSet.epSet.eps[i].fqdn, epSet.epSet.eps[i].port);
+  }
+
   SAppInstInfo** pInst = NULL;
   taosThreadMutexLock(&appInfo.mutex);
 
@@ -142,7 +148,7 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
     p->instKey = key;
     key = NULL;
-    tscDebug("new app inst mgr %p, user:%s, ip:%s, port:%d", p, user, ip, port);
+    tscDebug("new app inst mgr %p, user:%s, ip:%s, port:%d", p, user, epSet.epSet.eps[0].fqdn, epSet.epSet.eps[0].port);
 
     pInst = &p;
   }

@@ -255,7 +255,7 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
         indexError("invalid length for node:%p, length: %d", node, LIST_LENGTH(nl->pNodeList));
         SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
-      SIF_ERR_RET(scalarGenerateSetFromList((void **)&param->pFilter, node, nl->dataType.type));
+      SIF_ERR_RET(scalarGenerateSetFromList((void **)&param->pFilter, node, nl->node.resType.type));
       if (taosHashPut(ctx->pRes, &node, POINTER_BYTES, param, sizeof(*param))) {
         taosHashCleanup(param->pFilter);
         indexError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));

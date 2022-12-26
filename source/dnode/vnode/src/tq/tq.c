@@ -80,6 +80,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   }
   pTq->path = strdup(path);
   pTq->pVnode = pVnode;
+  pTq->walLogLastVer = pVnode->pWal->vers.lastVer;
 
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   taosHashSetFreeFp(pTq->pHandle, destroySTqHandle);
@@ -1542,3 +1543,5 @@ FAIL:
   taosFreeQitem(pMsg);
   return -1;
 }
+
+int32_t tqCheckLogInWal(STQ* pTq, int64_t version) { return version <= pTq->walLogLastVer; }

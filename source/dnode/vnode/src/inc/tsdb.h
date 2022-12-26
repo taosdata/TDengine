@@ -726,21 +726,21 @@ void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 
 // tsdbCache ==============================================================================================
 typedef struct SCacheRowsReader {
-  SVnode   *pVnode;
-  STSchema *pSchema;
-  uint64_t  uid;
-  uint64_t  suid;
-  char    **transferBuf;  // todo remove it soon
-  int32_t   numOfCols;
-  int32_t   type;
-  int32_t   tableIndex;  // currently returned result tables
-
+  SVnode            *pVnode;
+  STSchema          *pSchema;
+  uint64_t           uid;
+  uint64_t           suid;
+  char             **transferBuf;  // todo remove it soon
+  int32_t            numOfCols;
+  int32_t            type;
+  int32_t            tableIndex;  // currently returned result tables
   STableKeyInfo     *pTableList;  // table id list
   int32_t            numOfTables;
   SSttBlockLoadInfo *pLoadInfo;
   STsdbReadSnap     *pReadSnap;
   SDataFReader      *pDataFReader;
   SDataFReader      *pDataFReaderLast;
+  const char        *idstr;
 } SCacheRowsReader;
 
 typedef struct {
