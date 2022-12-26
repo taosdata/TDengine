@@ -213,6 +213,7 @@ int32_t qStreamSourceRecoverStep1(qTaskInfo_t tinfo, int64_t ver);
 int32_t qStreamSourceRecoverStep2(qTaskInfo_t tinfo, int64_t ver);
 int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
 int32_t qStreamRestoreParam(qTaskInfo_t tinfo);
+bool    qStreamRecoverScanFinished(qTaskInfo_t tinfo);
 
 #ifdef __cplusplus
 }

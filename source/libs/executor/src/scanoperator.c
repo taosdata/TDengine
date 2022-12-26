@@ -1785,11 +1785,18 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     pTSInfo->scanTimes = 0;
     pTSInfo->currentGroupId = -1;
     pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__SCAN;
+    pTaskInfo->streamInfo.recoverScanFinished = false;
   }
 
   if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__SCAN) {
+    if (pInfo->blockRecoverContiCnt > 100) {
+      pInfo->blockRecoverTotCnt += pInfo->blockRecoverContiCnt;
+      pInfo->blockRecoverContiCnt = 0;
+      return NULL;
+    }
     SSDataBlock* pBlock = doTableScan(pInfo->pTableScanOp);
     if (pBlock != NULL) {
+      pInfo->blockRecoverContiCnt++;
       calBlockTbName(pInfo, pBlock);
       if (pInfo->pUpdateInfo) {
         TSKEY maxTs = updateInfoFillBlockData(pInfo->pUpdateInfo, pBlock, pInfo->primaryTsIndex);
@@ -1807,6 +1814,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     pTSInfo->base.cond.startVersion = -1;
     pTSInfo->base.cond.endVersion = -1;
 
+    pTaskInfo->streamInfo.recoverScanFinished = true;
     return NULL;
   }
 
