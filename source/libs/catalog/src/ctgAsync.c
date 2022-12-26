@@ -484,7 +484,7 @@ int32_t ctgInitTask(SCtgJob* pJob, CTG_TASK_TYPE type, void* param, int32_t* tas
 _return:
   CTG_UNLOCK(CTG_WRITE, &pJob->taskLock);
   
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const SCatalogReq* pReq, catalogCallback fp,
