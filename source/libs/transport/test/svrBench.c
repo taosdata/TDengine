@@ -128,7 +128,7 @@ void *processShellMsg(void *arg) {
 void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SRpcMsg *pTemp;
 
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
   int32_t idx = balance % multiQ->numOfThread;

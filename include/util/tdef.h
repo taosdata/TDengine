@@ -254,7 +254,7 @@ typedef enum ELogicConditionType {
 #define TSDB_EP_LEN             (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN       16
 #define TSDB_FILENAME_LEN       128
-#define TSDB_SHOW_SQL_LEN       1024
+#define TSDB_SHOW_SQL_LEN       2048
 #define TSDB_SLOW_QUERY_SQL_LEN 512
 #define TSDB_SHOW_SUBQUERY_LEN  1000
 
@@ -307,8 +307,9 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_DURATION_PER_FILE      60  // unit minute
 #define TSDB_MAX_DURATION_PER_FILE      (3650 * 1440)
 #define TSDB_DEFAULT_DURATION_PER_FILE  (10 * 1440)
-#define TSDB_MIN_KEEP                   (1 * 1440)       // data in db to be reserved. unit minute
-#define TSDB_MAX_KEEP                   (365000 * 1440)  // data in db to be reserved.
+#define TSDB_MIN_KEEP                   (1 * 1440)          // data in db to be reserved. unit minute
+#define TSDB_MAX_KEEP                   (365000 * 1440)     // data in db to be reserved.
+#define TSDB_MAX_KEEP_NS                (365 * 292 * 1440)  // data in db to be reserved.
 #define TSDB_DEFAULT_KEEP               (3650 * 1440)    // ten years
 #define TSDB_MIN_MINROWS_FBLOCK         10
 #define TSDB_MAX_MINROWS_FBLOCK         1000
@@ -336,7 +337,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_STRICT_ON_STR           "on"
 #define TSDB_DB_STRICT_OFF              0
 #define TSDB_DB_STRICT_ON               1
-#define TSDB_DEFAULT_DB_STRICT          TSDB_DB_STRICT_OFF
+#define TSDB_DEFAULT_DB_STRICT          TSDB_DB_STRICT_ON
 #define TSDB_CACHE_MODEL_STR_LEN        sizeof(TSDB_CACHE_MODEL_LAST_VALUE_STR)
 #define TSDB_CACHE_MODEL_NONE_STR       "none"
 #define TSDB_CACHE_MODEL_LAST_ROW_STR   "last_row"
@@ -495,6 +496,9 @@ enum {
 
 // sort page size by default
 #define DEFAULT_PAGESIZE 4096
+
+#define VNODE_TIMEOUT_SEC 60
+#define MNODE_TIMEOUT_SEC 10
 
 #ifdef __cplusplus
 }

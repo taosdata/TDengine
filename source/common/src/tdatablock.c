@@ -358,7 +358,11 @@ size_t blockDataGetNumOfCols(const SSDataBlock* pBlock) { return taosArrayGetSiz
 size_t blockDataGetNumOfRows(const SSDataBlock* pBlock) { return pBlock->info.rows; }
 
 int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex) {
-  if (pDataBlock == NULL || pDataBlock->info.rows <= 0) {
+  if (pDataBlock->info.rows > 0) {
+//    ASSERT(pDataBlock->info.dataLoad == 1);
+  }
+
+  if (pDataBlock == NULL || pDataBlock->info.rows <= 0 || pDataBlock->info.dataLoad == 0) {
     return 0;
   }
 
@@ -1157,13 +1161,14 @@ void blockDataEmpty(SSDataBlock* pDataBlock) {
   }
 
   pInfo->rows = 0;
+  pInfo->dataLoad = 0;
   pInfo->window.ekey = 0;
   pInfo->window.skey = 0;
 }
 
 // todo temporarily disable it
 static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows, bool clearPayload) {
-  ASSERT(numOfRows > 0 /*&& pBlockInfo->capacity >= pBlockInfo->rows*/);
+  ASSERT(numOfRows > 0);
   if (numOfRows <= pBlockInfo->capacity) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1220,7 +1225,7 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
   return TSDB_CODE_SUCCESS;
 }
 
-void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
+void  colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
   pColumn->hasNull = false;
 
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
@@ -1946,9 +1951,9 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
   int32_t len = 0;
   len += snprintf(dumpBuf + len, size - len,
                   "===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%" PRId64
-                  "|rows:%d|version:%" PRIu64 "\n",
+                  "|rows:%d|version:%" PRIu64 "|cal start:%" PRIu64 "|cal end:%" PRIu64 "\n",
                   flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.id.groupId,
-                  pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version);
+                  pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version, pDataBlock->info.calWin.skey, pDataBlock->info.calWin.ekey);
   if (len >= size - 1) return dumpBuf;
 
   for (int32_t j = 0; j < rows; j++) {
@@ -2427,6 +2432,7 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
     pStart += colLen[i];
   }
 
+  pBlock->info.dataLoad = 1;
   pBlock->info.rows = numOfRows;
   ASSERT(pStart - pData == dataLen);
   return pStart;

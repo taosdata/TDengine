@@ -53,7 +53,7 @@ class TDTestCase:
 
     def run(self):
         binPath = self.getPath()
-        cmd = "%s -F abc -P abc -I abc -T abc -H abc -i abc -S abc -B abc -r abc -t abc -n abc -l abc -w abc -w 16385 -R abc -O abc -a abc -n 2 -t 2 -r 1 -y" %binPath
+        cmd = "%s -F abc -P abc -I abc -T abc -i abc -S abc -B abc -r abc -t abc -n abc -l abc -w abc -w 16385 -R abc -O abc -a abc -n 2 -t 2 -r 1 -y" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(*) from test.meters")

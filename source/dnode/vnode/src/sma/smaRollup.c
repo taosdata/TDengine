@@ -763,7 +763,7 @@ static int32_t tdExecuteRSmaImplAsync(SSma *pSma, const void *pMsg, int32_t inpu
                                       tb_uid_t suid) {
   const SSubmitReq *pReq = (const SSubmitReq *)pMsg;
 
-  void *qItem = taosAllocateQitem(pReq->header.contLen, DEF_QITEM);
+  void *qItem = taosAllocateQitem(pReq->header.contLen, DEF_QITEM, 0);
   if (!qItem) {
     return TSDB_CODE_FAILED;
   }

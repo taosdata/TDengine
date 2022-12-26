@@ -190,8 +190,16 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
          version);
 
   ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
+  ASSERT(pVnode->state.applied + 1 == version);
+
   pVnode->state.applied = version;
   pVnode->state.applyTerm = pMsg->info.conn.applyTerm;
+
+  if (!syncUtilUserCommit(pMsg->msgType)) goto _exit;
+
+  if (pMsg->msgType == TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE) {
+    if (tqCheckLogInWal(pVnode->pTq, version)) return 0;
+  }
 
   // skip header
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
@@ -313,11 +321,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   // commit if need
   if (vnodeShouldCommit(pVnode)) {
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), version);
-#if 0
-    vnodeSyncCommit(pVnode);
-#else
     vnodeAsyncCommit(pVnode);
-#endif
 
     // start a new one
     if (vnodeBegin(pVnode) < 0) {
@@ -1189,7 +1193,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t version, void 
     SSingleDeleteReq *pOneReq = taosArrayGet(deleteReq.deleteReqs, i);
     char             *name = pOneReq->tbname;
     if (metaGetTableEntryByName(&mr, name) < 0) {
-      vDebug("stream delete msg, skip vgId:%d since no table: %s", pVnode->config.vgId, name);
+      vDebug("vgId:%d, stream delete msg, skip since no table: %s", pVnode->config.vgId, name);
       continue;
     }
 

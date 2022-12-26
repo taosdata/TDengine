@@ -126,7 +126,7 @@ static int32_t getStatus(SDataDispatchHandle* pDispatcher) {
 
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
-  SDataDispatchBuf*    pBuf = taosAllocateQitem(sizeof(SDataDispatchBuf), DEF_QITEM);
+  SDataDispatchBuf*    pBuf = taosAllocateQitem(sizeof(SDataDispatchBuf), DEF_QITEM, 0);
   if (NULL == pBuf) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }

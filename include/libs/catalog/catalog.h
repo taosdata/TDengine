@@ -44,6 +44,7 @@ typedef enum {
   AUTH_TYPE_READ = 1,
   AUTH_TYPE_WRITE,
   AUTH_TYPE_OTHER,
+  AUTH_TYPE_READ_OR_WRITE,
 } AUTH_TYPE;
 
 typedef struct SUserAuthInfo {
@@ -210,6 +211,8 @@ int32_t catalogGetCachedTableMeta(SCatalog* pCtg, const SName* pTableName, STabl
 int32_t catalogGetCachedSTableMeta(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta);
 
 int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, const SName* pTableName, SVgroupInfo* pVgroup, bool* exists);
+
+int32_t catalogGetCachedTableVgMeta(SCatalog* pCtg, const SName* pTableName,          SVgroupInfo* pVgroup, STableMeta** pTableMeta);
 
 /**
  * Force refresh DB's local cached vgroup info.

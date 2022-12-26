@@ -164,7 +164,8 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
 STREAM_DECODE_OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("stream:%s, failed to decode from raw:%p since %s", pStream == NULL ? "null" : pStream->name, pRaw, terrstr());
+    mError("stream:%s, failed to decode from raw:%p since %s", pStream == NULL ? "null" : pStream->name, pRaw,
+           terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -624,13 +625,25 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  pDb = mndAcquireDb(pMnode, streamObj.sourceDb);
+  if (pDb->cfg.replications != 1) {
+    mError("stream source db must have only 1 replica, but %s has %d", pDb->name, pDb->cfg.replications);
+    terrno = TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB;
+    mndReleaseDb(pMnode, pDb);
+    pDb = NULL;
+    goto _OVER;
+  }
+  mndReleaseDb(pMnode, pDb);
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream");
   if (pTrans == NULL) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
   mInfo("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
+
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   // create stb for stream
   if (mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
@@ -680,7 +693,6 @@ _OVER:
   }
 
   mndReleaseStream(pMnode, pStream);
-  mndReleaseDb(pMnode, pDb);
 
   tFreeSCMCreateStreamReq(&createStreamReq);
   tFreeStreamObj(&streamObj);
@@ -780,6 +792,12 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "stream-checkpoint");
   if (pTrans == NULL) return -1;
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    mndReleaseStream(pMnode, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
   taosRLockLatch(&pStream->lock);
   // 1. redo action: broadcast checkpoint source msg for all source vg
   int32_t totLevel = taosArrayGetSize(pStream->tasks);
@@ -872,17 +890,24 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   }
 
   if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "drop-stream");
-  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
   if (pTrans == NULL) {
     mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
   mInfo("trans:%d, used to drop stream:%s", pTrans->id, dropReq.name);
+
+  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
 
   // drop all tasks
   if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {

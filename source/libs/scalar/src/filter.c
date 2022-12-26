@@ -3762,6 +3762,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       return DEAL_RES_CONTINUE;
     }
 
+/*
     if (!FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP)) {
       return DEAL_RES_CONTINUE;
     }
@@ -3785,7 +3786,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       stat->code = code;
       return DEAL_RES_ERROR;
     }
-
+*/
     return DEAL_RES_CONTINUE;
   }
 
@@ -3931,7 +3932,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
           stat->scalarMode = true;
           return DEAL_RES_CONTINUE;
         }
-        int32_t        type = vectorGetConvertType(refNode->node.resType.type, listNode->dataType.type);
+        int32_t        type = vectorGetConvertType(refNode->node.resType.type, listNode->node.resType.type);
         if (0 != type && type != refNode->node.resType.type) {
           stat->scalarMode = true;
           return DEAL_RES_CONTINUE;
@@ -3955,12 +3956,14 @@ int32_t fltReviseNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
 
   FLT_ERR_JRET(pStat->code);
 
+/*
   int32_t nodeNum = taosArrayGetSize(pStat->nodeList);
   for (int32_t i = 0; i < nodeNum; ++i) {
     SValueNode *valueNode = *(SValueNode **)taosArrayGet(pStat->nodeList, i);
 
     FLT_ERR_JRET(sclConvertToTsValueNode(pStat->precision, valueNode));
   }
+*/
 
 _return:
 

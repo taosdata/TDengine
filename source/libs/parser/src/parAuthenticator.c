@@ -97,11 +97,27 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
 }
 
 static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
-  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, AUTH_TYPE_READ);
+  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, AUTH_TYPE_READ_OR_WRITE);
 }
 
 static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) {
   return checkAuth(pCxt, pStmt->dbName, AUTH_TYPE_READ);
+}
+
+static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
+  return checkAuth(pCxt, pStmt->dbName, AUTH_TYPE_WRITE);
+}
+
+static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTableStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pStmt->pSubTables) {
+    code = checkAuth(pCxt, ((SCreateSubTableClause*)pNode)->dbName, AUTH_TYPE_WRITE);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  return code;
 }
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
@@ -116,6 +132,10 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authDelete(pCxt, (SDeleteStmt*)pStmt);
     case QUERY_NODE_INSERT_STMT:
       return authInsert(pCxt, (SInsertStmt*)pStmt);
+    case QUERY_NODE_CREATE_TABLE_STMT:
+      return authCreateTable(pCxt, (SCreateTableStmt*)pStmt);
+    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
+      return authCreateMultiTable(pCxt, (SCreateMultiTableStmt*)pStmt);
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:

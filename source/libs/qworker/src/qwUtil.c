@@ -74,6 +74,8 @@ int32_t qwAddSchedulerImpl(SQWorker *mgmt, uint64_t sId, int32_t rwType) {
   SQWSchStatus newSch = {0};
   newSch.tasksHash =
       taosHashInit(mgmt->cfg.maxSchTaskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  newSch.hbBrokenTs = taosGetTimestampMs();
+
   if (NULL == newSch.tasksHash) {
     QW_SCH_ELOG("taosHashInit %d failed", mgmt->cfg.maxSchTaskNum);
     QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
@@ -281,7 +283,7 @@ void qwFreeTaskHandle(qTaskInfo_t *taskHandle) {
 
 int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode) {
   int32_t code = 0;
-  
+
   // Note: free/kill may in RC
   qTaskInfo_t taskHandle = atomic_load_ptr(&ctx->taskHandle);
   if (taskHandle && atomic_val_compare_exchange_ptr(&ctx->taskHandle, taskHandle, NULL)) {
@@ -463,6 +465,8 @@ void qwDestroyImpl(void *pMgmt) {
   int8_t    nodeType = mgmt->nodeType;
   int32_t   nodeId = mgmt->nodeId;
 
+  int32_t taskCount = 0;
+  int32_t schStatusCount = 0;
   qDebug("start to destroy qworker, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);
 
   taosTmrStop(mgmt->hbTimer);
@@ -472,6 +476,7 @@ void qwDestroyImpl(void *pMgmt) {
   uint64_t qId, tId;
   int32_t  eId;
   void    *pIter = taosHashIterate(mgmt->ctxHash, NULL);
+
   while (pIter) {
     SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
     void       *key = taosHashGetKey(pIter, NULL);
@@ -480,6 +485,7 @@ void qwDestroyImpl(void *pMgmt) {
     qwFreeTaskCtx(ctx);
     QW_TASK_DLOG_E("task ctx freed");
     pIter = taosHashIterate(mgmt->ctxHash, pIter);
+    taskCount++;
   }
   taosHashCleanup(mgmt->ctxHash);
 
@@ -487,7 +493,9 @@ void qwDestroyImpl(void *pMgmt) {
   while (pIter) {
     SQWSchStatus *sch = (SQWSchStatus *)pIter;
     qwDestroySchStatus(sch);
+
     pIter = taosHashIterate(mgmt->schHash, pIter);
+    schStatusCount++;
   }
   taosHashCleanup(mgmt->schHash);
 
@@ -499,7 +507,8 @@ void qwDestroyImpl(void *pMgmt) {
 
   qwCloseRef();
 
-  qDebug("qworker destroyed, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);
+  qDebug("qworker destroyed, type:%d, id:%d, handle:%p, taskCount:%d, schStatusCount: %d", nodeType, nodeId, mgmt,
+         taskCount, schStatusCount);
 }
 
 int32_t qwOpenRef(void) {

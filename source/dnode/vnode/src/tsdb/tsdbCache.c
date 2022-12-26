@@ -952,12 +952,17 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
     SArray *pDelIdxArray = taosArrayInit(32, sizeof(SDelIdx));
 
     code = tsdbReadDelIdx(pDelFReader, pDelIdxArray);
-    if (code) goto _err;
+    if (code) {
+      taosArrayDestroy(pDelIdxArray);
+      tsdbDelFReaderClose(&pDelFReader);
+      goto _err;
+    }
 
     SDelIdx *delIdx = taosArraySearch(pDelIdxArray, &(SDelIdx){.suid = suid, .uid = uid}, tCmprDelIdx, TD_EQ);
 
     code = getTableDelSkyline(pMem, pIMem, pDelFReader, delIdx, pIter->pSkyline);
     if (code) {
+      taosArrayDestroy(pDelIdxArray);
       tsdbDelFReaderClose(&pDelFReader);
       goto _err;
     }
@@ -1397,30 +1402,6 @@ int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *
   }
 
   *handle = h;
-
-  return code;
-}
-
-int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pTSchema) {
-  int32_t code = 0;
-  int16_t nCol = taosArrayGetSize(pLastArray);
-  SArray *pColArray = taosArrayInit(nCol, sizeof(SColVal));
-
-  for (int16_t iCol = 0; iCol < nCol; ++iCol) {
-    SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLastArray, iCol);
-    SColVal  *tColVal = &tTsVal->colVal;
-    taosArrayPush(pColArray, tColVal);
-  }
-
-  code = tdSTSRowNew(pColArray, pTSchema, ppRow);
-  if (code) goto _err;
-
-  taosArrayDestroy(pColArray);
-
-  return code;
-
-_err:
-  taosArrayDestroy(pColArray);
 
   return code;
 }
