@@ -4095,13 +4095,10 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, 
   // update the number of NULL data rows
   size_t numOfCols = pSup->numOfCols;
 
-  int32_t i = 0, j = 0;
-  size_t  size = taosArrayGetSize(pSup->pColAgg);
-
   // ensure capacity
-  if(pDataBlock->pDataBlock) {
-     size_t colsNum = taosArrayGetSize(pDataBlock->pDataBlock);
-     taosArrayEnsureCap(pSup->pColAgg, colsNum);
+  if (pDataBlock->pDataBlock) {
+    size_t colsNum = taosArrayGetSize(pDataBlock->pDataBlock);
+    taosArrayEnsureCap(pSup->pColAgg, colsNum);
   }
 
   SSDataBlock* pResBlock = pReader->pResBlock;
@@ -4112,8 +4109,9 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, 
 
   // do fill all null column value SMA info
   doFillNullColSMA(pSup, pBlock->nRow, numOfCols, pTsAgg);
+  size_t size = taosArrayGetSize(pSup->pColAgg);
 
-  i = 0, j = 0;
+  int32_t i = 0, j = 0;
   while (j < numOfCols && i < size) {
     SColumnDataAgg* pAgg = taosArrayGet(pSup->pColAgg, i);
     if (pAgg->colId == pSup->colId[j]) {

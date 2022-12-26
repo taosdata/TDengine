@@ -1573,8 +1573,7 @@ void destroyOperatorInfo(SOperatorInfo* pOperator) {
 // each operator should be set their own function to return total cost buffer
 int32_t optrDefaultBufFn(SOperatorInfo* pOperator) {
   if (pOperator->blocking) {
-    ASSERT(0);
-    return 0;
+    return -1;
   } else {
     return 0;
   }
@@ -2201,7 +2200,6 @@ static int32_t extractTbscanInStreamOpTree(SOperatorInfo* pOperator, STableScanI
     return extractTbscanInStreamOpTree(pOperator->pDownstream[0], ppInfo);
   } else {
     SStreamScanInfo* pInfo = pOperator->info;
-    ASSERT(pInfo->pTableScanOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
     *ppInfo = pInfo->pTableScanOp->info;
     return 0;
   }

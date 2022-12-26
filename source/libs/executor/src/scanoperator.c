@@ -232,30 +232,6 @@ static bool doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBlock, 
   if (!allColumnsHaveAgg) {
     return false;
   }
-
-#if 0
-  //  if (allColumnsHaveAgg == true) {
-  int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-
-  // todo create this buffer during creating operator
-  if (pBlock->pBlockAgg == NULL) {
-    pBlock->pBlockAgg = taosMemoryCalloc(numOfCols, POINTER_BYTES);
-    if (pBlock->pBlockAgg == NULL) {
-      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
-    }
-  }
-
-  size_t num = taosArrayGetSize(pTableScanInfo->matchInfo.pList);
-  for (int32_t i = 0; i < num; ++i) {
-    SColMatchItem* pColMatchInfo = taosArrayGet(pTableScanInfo->matchInfo.pList, i);
-    if (!pColMatchInfo->needOutput) {
-      continue;
-    }
-
-    pBlock->pBlockAgg[pColMatchInfo->dstSlotId] = pColAgg[i];
-  }
-#endif
-
   return true;
 }
 
