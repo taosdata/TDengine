@@ -1013,11 +1013,20 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
       // pDumpInfo->rowIndex = 0;
     } else if (!asc && pReader->window.ekey >= pBlock->maxKey.ts) {
       // pDumpInfo->rowIndex = pBlock->nRow - 1;
-    } else {
+    } else {  // find the appropriate the start position in current block, and set it to be the current rowIndex
       int32_t pos = asc ? pBlock->nRow - 1 : 0;
       int32_t order = asc ? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
       int64_t key = asc ? pReader->window.skey : pReader->window.ekey;
       pDumpInfo->rowIndex = doBinarySearchKey(pBlockData->aTSKEY, pBlock->nRow, pos, key, order);
+
+      if (pDumpInfo->rowIndex < 0) {
+        tsdbError(
+            "%p failed to locate the start position in current block, global index:%d, table index:%d, brange:%" PRId64
+            "-%" PRId64 ", minVer:%" PRId64 ", maxVer:%" PRId64 " %s",
+            pReader, pBlockIter->index, pBlockInfo->tbBlockIdx, pBlock->minKey.ts, pBlock->maxKey.ts, pBlock->minVer,
+            pBlock->maxVer, pReader->idStr);
+        return TSDB_CODE_INVALID_PARA;
+      }
     }
   }
 
