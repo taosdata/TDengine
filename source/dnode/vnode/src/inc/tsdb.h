@@ -715,21 +715,21 @@ void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 
 // tsdbCache ==============================================================================================
 typedef struct SCacheRowsReader {
-  SVnode   *pVnode;
-  STSchema *pSchema;
-  uint64_t  uid;
-  uint64_t  suid;
-  char    **transferBuf;  // todo remove it soon
-  int32_t   numOfCols;
-  int32_t   type;
-  int32_t   tableIndex;  // currently returned result tables
-
+  SVnode            *pVnode;
+  STSchema          *pSchema;
+  uint64_t           uid;
+  uint64_t           suid;
+  char             **transferBuf;  // todo remove it soon
+  int32_t            numOfCols;
+  int32_t            type;
+  int32_t            tableIndex;  // currently returned result tables
   STableKeyInfo     *pTableList;  // table id list
   int32_t            numOfTables;
   SSttBlockLoadInfo *pLoadInfo;
   STsdbReadSnap     *pReadSnap;
   SDataFReader      *pDataFReader;
   SDataFReader      *pDataFReaderLast;
+  const char        *idstr;
 } SCacheRowsReader;
 
 typedef struct {
@@ -751,8 +751,6 @@ int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 
 void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
 size_t tsdbCacheGetCapacity(SVnode *pVnode);
-
-int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {

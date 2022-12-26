@@ -354,7 +354,6 @@ typedef struct STableMergeScanInfo {
   SLimitInfo             limitInfo;
   int64_t                numOfRows;
   SScanInfo              scanInfo;
-  int32_t                scanTimes;
   SSDataBlock*           pResBlock;
   SSampleExecInfo        sample;  // sample execution info
   SSortExecInfo          sortExecInfo;
