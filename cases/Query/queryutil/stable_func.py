@@ -693,7 +693,7 @@ class TDFunction():
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         
         pos_list = (-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,1,2,3,4,5,6,7,8,9,10);
-        substr_pos,substr_len = random.choice(self.pos_list) , random.randrange(0,5) 
+        substr_pos,substr_len = random.choice(pos_list) , random.randrange(0,5) 
         str_substr = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", (","(").replace("pos","%d" %substr_pos).replace("len","%d" %substr_len)
             
         return str_substr
