@@ -337,7 +337,10 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   // commit if need
   if (vnodeShouldCommit(pVnode)) {
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), version);
-    vnodeAsyncCommit(pVnode);
+    if (vnodeAsyncCommit(pVnode) < 0) {
+      vError("vgId:%d, failed to vnode async commit since %s.", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
 
     // start a new one
     if (vnodeBegin(pVnode) < 0) {
