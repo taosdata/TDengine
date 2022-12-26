@@ -122,7 +122,7 @@ class TDTestCase:
         sleep(10)
         tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
         os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
-        os.system("pkill -9 taosd")
+        os.system("pkill taosd")   # make sure all the data are saved in disk.
 
 
 
