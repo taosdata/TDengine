@@ -339,7 +339,7 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead) {
   int64_t contLen;
   bool    seeked = false;
 
-  wDebug("vgId:%d try to fetch ver %" PRId64 ", first ver:%" PRId64 ", commit ver:%" PRId64 ", last ver:%" PRId64
+  wDebug("vgId:%d, try to fetch ver %" PRId64 ", first ver:%" PRId64 ", commit ver:%" PRId64 ", last ver:%" PRId64
          ", applied ver:%" PRId64,
          pRead->pWal->cfg.vgId, ver, pRead->pWal->vers.firstVer, pRead->pWal->vers.commitVer, pRead->pWal->vers.lastVer,
          pRead->pWal->vers.appliedVer);
@@ -393,7 +393,7 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead) {
 int32_t walSkipFetchBody(SWalReader *pRead, const SWalCkHead *pHead) {
   int64_t code;
 
-  wDebug("vgId:%d skip fetch body %" PRId64 ", first ver:%" PRId64 ", commit ver:%" PRId64 ", last ver:%" PRId64
+  wDebug("vgId:%d, skip fetch body %" PRId64 ", first ver:%" PRId64 ", commit ver:%" PRId64 ", last ver:%" PRId64
          ", applied ver:%" PRId64,
          pRead->pWal->cfg.vgId, pHead->head.version, pRead->pWal->vers.firstVer, pRead->pWal->vers.commitVer,
          pRead->pWal->vers.lastVer, pRead->pWal->vers.appliedVer);
@@ -414,7 +414,7 @@ int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead) {
   SWalCont *pReadHead = &((*ppHead)->head);
   int64_t   ver = pReadHead->version;
 
-  wDebug("vgId:%d fetch body %" PRId64 ", first ver:%" PRId64 ", commit ver:%" PRId64 ", last ver:%" PRId64
+  wDebug("vgId:%d, fetch body %" PRId64 ", first ver:%" PRId64 ", commit ver:%" PRId64 ", last ver:%" PRId64
          ", applied ver:%" PRId64,
          pRead->pWal->cfg.vgId, ver, pRead->pWal->vers.firstVer, pRead->pWal->vers.commitVer, pRead->pWal->vers.lastVer,
          pRead->pWal->vers.appliedVer);

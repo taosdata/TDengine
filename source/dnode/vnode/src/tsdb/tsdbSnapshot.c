@@ -1369,7 +1369,7 @@ _exit:
       taosMemoryFree(pWriter);
     }
   } else {
-    tsdbInfo("vgId:%d %s done", TD_VID(pTsdb->pVnode), __func__);
+    tsdbInfo("vgId:%d, %s done", TD_VID(pTsdb->pVnode), __func__);
     *ppWriter = pWriter;
   }
   return code;
@@ -1390,7 +1390,7 @@ int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* pWriter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, tstrerror(code));
+    tsdbError("vgId:%d, %s failed since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, tstrerror(code));
   }
   return code;
 }
@@ -1441,7 +1441,7 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
   for (int32_t iBuf = 0; iBuf < sizeof(pWriter->aBuf) / sizeof(uint8_t*); iBuf++) {
     tFree(pWriter->aBuf[iBuf]);
   }
-  tsdbInfo("vgId:%d %s done", TD_VID(pWriter->pTsdb->pVnode), __func__);
+  tsdbInfo("vgId:%d, %s done", TD_VID(pWriter->pTsdb->pVnode), __func__);
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
   return code;

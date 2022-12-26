@@ -184,16 +184,21 @@ _err:
   return -1;
 }
 
-void vnodePrepareCommit(SVnode *pVnode) {
+static int32_t vnodePrepareCommit(SVnode *pVnode) {
+  int32_t code = 0;
   tsem_wait(&pVnode->canCommit);
 
   tsdbPrepareCommit(pVnode->pTsdb);
   metaPrepareAsyncCommit(pVnode->pMeta);
-  smaPrepareAsyncCommit(pVnode->pSma);
+  code = smaPrepareAsyncCommit(pVnode->pSma);
+  if (code) goto _exit;
 
+_exit:
   vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;
+  return code;
 }
+
 static int32_t vnodeCommitTask(void *arg) {
   int32_t code = 0;
 
@@ -203,10 +208,9 @@ static int32_t vnodeCommitTask(void *arg) {
   code = vnodeCommitImpl(pInfo);
   if (code) goto _exit;
 
+_exit:
   // end commit
   tsem_post(&pInfo->pVnode->canCommit);
-
-_exit:
   taosMemoryFree(pInfo);
   return code;
 }
@@ -214,7 +218,8 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   int32_t code = 0;
 
   // prepare to commit
-  vnodePrepareCommit(pVnode);
+  code = vnodePrepareCommit(pVnode);
+  if (code) goto _exit;
 
   // schedule the task
   pVnode->state.commitTerm = pVnode->state.applyTerm;
@@ -230,14 +235,15 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   pInfo->info.state.commitID = pVnode->state.commitID;
   pInfo->pVnode = pVnode;
   pInfo->txn = metaGetTxn(pVnode->pMeta);
-  vnodeScheduleTask(vnodeCommitTask, pInfo);
+  code = vnodeScheduleTask(vnodeCommitTask, pInfo);
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code),
+    tsem_post(&pVnode->canCommit);
+    vError("vgId:%d, %s failed since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code),
            pVnode->state.commitID);
   } else {
-    vDebug("vgId:%d %s done", TD_VID(pVnode), __func__);
+    vDebug("vgId:%d, %s done", TD_VID(pVnode), __func__);
   }
   return code;
 }

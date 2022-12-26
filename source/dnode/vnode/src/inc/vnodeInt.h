@@ -211,9 +211,6 @@ void    smaCleanUp();
 int32_t smaOpen(SVnode* pVnode, int8_t rollback);
 int32_t smaClose(SSma* pSma);
 int32_t smaBegin(SSma* pSma);
-int32_t smaSyncPreCommit(SSma* pSma);
-int32_t smaSyncCommit(SSma* pSma);
-int32_t smaSyncPostCommit(SSma* pSma);
 int32_t smaPrepareAsyncCommit(SSma* pSma);
 int32_t smaCommit(SSma* pSma, SCommitInfo* pInfo);
 int32_t smaFinishCommit(SSma* pSma);
@@ -228,7 +225,6 @@ int32_t tdProcessRSmaSubmit(SSma* pSma, void* pMsg, int32_t inputType);
 int32_t tdProcessRSmaDrop(SSma* pSma, SVDropStbReq* pReq);
 int32_t tdFetchTbUidList(SSma* pSma, STbUidStore** ppStore, tb_uid_t suid, tb_uid_t uid);
 int32_t tdUpdateTbUidList(SSma* pSma, STbUidStore* pUidStore, bool isAdd);
-void    tdUidStoreDestory(STbUidStore* pStore);
 void*   tdUidStoreFree(STbUidStore* pStore);
 
 // SMetaSnapReader ========================================
@@ -275,6 +271,7 @@ int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData);
 // SRSmaSnapWriter ========================================
 int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWriter** ppWriter);
 int32_t rsmaSnapWrite(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter);
 int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback);
 
 typedef struct {
@@ -418,6 +415,7 @@ enum {
 
 struct SSnapDataHdr {
   int8_t  type;
+  int8_t  flag;
   int64_t index;
   int64_t size;
   uint8_t data[];
