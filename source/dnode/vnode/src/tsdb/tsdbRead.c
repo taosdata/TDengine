@@ -3777,9 +3777,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
   STsdbReader* p = (pReader->innerReader[0] != NULL) ? pReader->innerReader[0] : pReader;
   pReader->status.pTableMap = createDataBlockScanInfo(p, &pReader->blockInfoBuf, pTableList, numOfTables);
   if (pReader->status.pTableMap == NULL) {
-    tsdbReaderClose(p);
     *ppReader = NULL;
-
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }

@@ -2182,6 +2182,7 @@ static void destroyStreamScanOperatorInfo(void* param) {
 
 SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
                                             SExecTaskInfo* pTaskInfo) {
+  SArray*          pColIds = NULL;
   SStreamScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamScanInfo));
   SOperatorInfo*   pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
@@ -2204,7 +2205,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   }
 
   int32_t numOfOutput = taosArrayGetSize(pInfo->matchInfo.pList);
-  SArray* pColIds = taosArrayInit(numOfOutput, sizeof(int16_t));
+  pColIds = taosArrayInit(numOfOutput, sizeof(int16_t));
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SColMatchItem* id = taosArrayGet(pInfo->matchInfo.pList, i);
 
@@ -2300,6 +2301,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     memcpy(&pTaskInfo->streamInfo.tableCond, &pTSInfo->base.cond, sizeof(SQueryTableDataCond));
   } else {
     taosArrayDestroy(pColIds);
+    pColIds = NULL;
   }
 
   // create the pseduo columns info
