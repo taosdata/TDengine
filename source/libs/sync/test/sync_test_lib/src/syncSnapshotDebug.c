@@ -132,7 +132,7 @@ char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) {
 }
 
 int32_t syncNodeOnPreSnapshot(SSyncNode *ths, SyncPreSnapshot *pMsg) {
-  syncLogRecvSyncPreSnapshot(ths, pMsg, "");
+  // syncLogRecvSyncPreSnapshot(ths, pMsg, "");
 
   SyncPreSnapshotReply *pMsgReply = syncPreSnapshotReplyBuild(ths->vgId);
   pMsgReply->srcId = ths->myRaftId;
@@ -181,7 +181,7 @@ _IGNORE:
 }
 
 int32_t syncNodeOnPreSnapshotReply(SSyncNode *ths, SyncPreSnapshotReply *pMsg) {
-  syncLogRecvSyncPreSnapshotReply(ths, pMsg, "");
+  // syncLogRecvSyncPreSnapshotReply(ths, pMsg, "");
 
   // start snapshot
 

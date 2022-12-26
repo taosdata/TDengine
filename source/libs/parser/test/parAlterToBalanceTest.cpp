@@ -21,6 +21,25 @@ namespace ParserTest {
 
 class ParserInitialATest : public ParserDdlTest {};
 
+/*
+ * ALTER ACCOUNT account_name alter_account_options
+ *
+ * alter_account_options:
+ *     alter_account_option ...
+ *
+ * alter_account_option: {
+ *     PASS value
+ *   | PPS value
+ *   | TSERIES value
+ *   | STORAGE value
+ *   | STREAMS value
+ *   | QTIME value
+ *   | DBS value
+ *   | USERS value
+ *   | CONNS value
+ *   | STATE value
+ * }
+ */
 TEST_F(ParserInitialATest, alterAccount) {
   useDb("root", "test");
 
@@ -48,6 +67,7 @@ TEST_F(ParserInitialATest, alterDnode) {
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_ALTER_DNODE_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_CONFIG_DNODE);
     SMCfgDnodeReq req = {0};
     ASSERT_EQ(tDeserializeSMCfgDnodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(req.dnodeId, expect.dnodeId);
@@ -86,9 +106,8 @@ TEST_F(ParserInitialATest, alterDnode) {
  *   | KEEP {int_value | duration_value}                         -- rang [1, 365000], default 3650, unit day
  *   | PAGES int_value                                           -- rang [64, INT32_MAX], default 256, unit page
  *   | REPLICA int_value                                         -- todo: enum 1, 3, default 1, unit replica
- *   | STRICT {'off' | 'on'}                                     -- todo: default 'off'
  *   | WAL_LEVEL int_value                                       -- enum 1, 2, default 1
- *   | SST_TRIGGER int_value                                     -- rang [1, 16], default 8
+ *   | STT_TRIGGER int_value                                     -- rang [1, 16], default 8
  * }
  */
 TEST_F(ParserInitialATest, alterDatabase) {
@@ -130,10 +149,11 @@ TEST_F(ParserInitialATest, alterDatabase) {
   auto setAlterDbStrict = [&](int8_t strict) { expect.strict = strict; };
   auto setAlterDbCacheModel = [&](int8_t cacheModel) { expect.cacheLast = cacheModel; };
   auto setAlterDbReplica = [&](int8_t replications) { expect.replications = replications; };
-  auto setAlterDbSstTrigger = [&](int8_t sstTrigger) { expect.sstTrigger = sstTrigger; };
+  auto setAlterDbSttTrigger = [&](int8_t sstTrigger) { expect.sstTrigger = sstTrigger; };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_ALTER_DATABASE_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_ALTER_DB);
     SAlterDbReq req = {0};
     ASSERT_EQ(tDeserializeSAlterDbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(std::string(req.db), std::string(expect.db));
@@ -161,11 +181,12 @@ TEST_F(ParserInitialATest, alterDatabase) {
   setAlterDbFsync(200);
   setAlterDbWal(1);
   setAlterDbCacheModel(TSDB_CACHE_MODEL_LAST_ROW);
-  setAlterDbSstTrigger(16);
+  setAlterDbSttTrigger(16);
   setAlterDbBuffer(16);
   setAlterDbPages(128);
+  setAlterDbReplica(3);
   run("ALTER DATABASE test BUFFER 16 CACHEMODEL 'last_row' CACHESIZE 32 WAL_FSYNC_PERIOD 200 KEEP 10 PAGES 128 "
-      "WAL_LEVEL 1 STT_TRIGGER 16");
+      "REPLICA 3 WAL_LEVEL 1 STT_TRIGGER 16");
   clearAlterDbReq();
 
   initAlterDb("test");
@@ -240,6 +261,22 @@ TEST_F(ParserInitialATest, alterDatabase) {
   setAlterDbWal(2);
   run("ALTER DATABASE test WAL_LEVEL 2");
   clearAlterDbReq();
+
+  initAlterDb("test");
+  setAlterDbReplica(1);
+  run("ALTER DATABASE test REPLICA 1");
+  setAlterDbReplica(3);
+  run("ALTER DATABASE test REPLICA 3");
+  clearAlterDbReq();
+
+  initAlterDb("test");
+  setAlterDbSttTrigger(1);
+  run("ALTER DATABASE test STT_TRIGGER 1");
+  setAlterDbSttTrigger(4);
+  run("ALTER DATABASE test STT_TRIGGER 4");
+  setAlterDbSttTrigger(16);
+  run("ALTER DATABASE test STT_TRIGGER 16");
+  clearAlterDbReq();
 }
 
 TEST_F(ParserInitialATest, alterDatabaseSemanticCheck) {
@@ -260,6 +297,7 @@ TEST_F(ParserInitialATest, alterDatabaseSemanticCheck) {
   run("ALTER DATABASE test PAGES 63", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test WAL_LEVEL 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test WAL_LEVEL 3", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("ALTER DATABASE test REPLICA 2", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test STT_TRIGGER 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test STT_TRIGGER 17", TSDB_CODE_PAR_INVALID_DB_OPTION);
   // Regardless of the specific sentence
@@ -267,7 +305,7 @@ TEST_F(ParserInitialATest, alterDatabaseSemanticCheck) {
 }
 
 /*
- * ALTER LOCAL dnode_id 'config' ['value']
+ * ALTER LOCAL 'config' ['value']
  */
 TEST_F(ParserInitialATest, alterLocal) {
   useDb("root", "test");
@@ -311,19 +349,19 @@ TEST_F(ParserInitialATest, alterLocal) {
  *   | ADD COLUMN col_name column_type
  *   | DROP COLUMN col_name
  *   | MODIFY COLUMN col_name column_type
- *   | RENAME COLUMN old_col_name new_col_name  -- normal table
- *   | ADD TAG tag_name tag_type                -- super table
- *   | DROP TAG tag_name                        -- super table
- *   | MODIFY TAG tag_name tag_type             -- super table
- *   | RENAME TAG old_tag_name new_tag_name     -- super table
- *   | SET TAG tag_name = new_tag_value         -- child table
+ *   | RENAME COLUMN old_col_name new_col_name  -- only normal table
+ *   | ADD TAG tag_name tag_type                -- only super table
+ *   | DROP TAG tag_name                        -- only super table
+ *   | MODIFY TAG tag_name tag_type             -- only super table
+ *   | RENAME TAG old_tag_name new_tag_name     -- only super table
+ *   | SET TAG tag_name = new_tag_value         -- only child table
  * }
  *
  * alter_table_options:
  *     alter_table_option ...
  *
  * alter_table_option: {
- *    TTL int_value                             -- child/normal table
+ *    TTL int_value                             -- only child/normal table
  *  | COMMENT 'string_value'
  * }
  */
@@ -379,6 +417,7 @@ TEST_F(ParserInitialATest, alterSTable) {
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_ALTER_SUPER_TABLE_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_ALTER_STB);
     SMAlterStbReq req = {0};
     ASSERT_EQ(tDeserializeSMAlterStbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(std::string(req.name), std::string(expect.name));
@@ -444,136 +483,255 @@ TEST_F(ParserInitialATest, alterSTableSemanticCheck) {
   run("ALTER STABLE st1 TTL 10", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
 }
 
+/*
+ * ALTER TABLE [db_name.]tb_name alter_table_clause
+ *
+ * alter_table_clause: {
+ *     alter_table_options
+ *   | ADD COLUMN col_name column_type
+ *   | DROP COLUMN col_name
+ *   | MODIFY COLUMN col_name column_type
+ *   | RENAME COLUMN old_col_name new_col_name  -- only normal table
+ *   | ADD TAG tag_name tag_type                -- only super table
+ *   | DROP TAG tag_name                        -- only super table
+ *   | MODIFY TAG tag_name tag_type             -- only super table
+ *   | RENAME TAG old_tag_name new_tag_name     -- only super table
+ *   | SET TAG tag_name = new_tag_value         -- only child table
+ * }
+ *
+ * alter_table_options:
+ *     alter_table_option ...
+ *
+ * alter_table_option: {
+ *    TTL int_value                             -- only child/normal table
+ *  | COMMENT 'string_value'
+ * }
+ */
 TEST_F(ParserInitialATest, alterTable) {
   useDb("root", "test");
 
-  SVAlterTbReq expect = {0};
+  // normal/child table
+  {
+    SVAlterTbReq expect = {0};
 
-  auto clearAlterTbReq = [&]() {
-    free(expect.tbName);
-    free(expect.colName);
-    free(expect.colNewName);
-    free(expect.tagName);
-    memset(&expect, 0, sizeof(SVAlterTbReq));
-  };
+    auto clearAlterTbReq = [&]() {
+      free(expect.tbName);
+      free(expect.colName);
+      free(expect.colNewName);
+      free(expect.tagName);
+      memset(&expect, 0, sizeof(SVAlterTbReq));
+    };
 
-  auto setAlterTableCol = [&](const char* pTbname, int8_t alterType, const char* pColName, int8_t dataType = 0,
-                              int32_t dataBytes = 0, const char* pNewColName = nullptr) {
-    expect.tbName = strdup(pTbname);
-    expect.action = alterType;
-    expect.colName = strdup(pColName);
+    auto setAlterTableCol = [&](const char* pTbname, int8_t alterType, const char* pColName, int8_t dataType = 0,
+                                int32_t dataBytes = 0, const char* pNewColName = nullptr) {
+      expect.tbName = strdup(pTbname);
+      expect.action = alterType;
+      expect.colName = strdup(pColName);
 
-    switch (alterType) {
-      case TSDB_ALTER_TABLE_ADD_COLUMN:
-        expect.type = dataType;
-        expect.flags = COL_SMA_ON;
-        expect.bytes = dataBytes > 0 ? dataBytes : (dataType > 0 ? tDataTypes[dataType].bytes : 0);
-        break;
-      case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
-        expect.colModBytes = dataBytes;
-        break;
-      case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
-        expect.colNewName = strdup(pNewColName);
-        break;
-      default:
-        break;
-    }
-  };
+      switch (alterType) {
+        case TSDB_ALTER_TABLE_ADD_COLUMN:
+          expect.type = dataType;
+          expect.flags = COL_SMA_ON;
+          expect.bytes = dataBytes > 0 ? dataBytes : (dataType > 0 ? tDataTypes[dataType].bytes : 0);
+          break;
+        case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+          expect.colModBytes = dataBytes;
+          break;
+        case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+          expect.colNewName = strdup(pNewColName);
+          break;
+        default:
+          break;
+      }
+    };
 
-  auto setAlterTableTag = [&](const char* pTbname, const char* pTagName, uint8_t* pNewVal, uint32_t bytes) {
-    expect.tbName = strdup(pTbname);
-    expect.action = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
-    expect.tagName = strdup(pTagName);
+    auto setAlterTableTag = [&](const char* pTbname, const char* pTagName, uint8_t* pNewVal, uint32_t bytes) {
+      expect.tbName = strdup(pTbname);
+      expect.action = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
+      expect.tagName = strdup(pTagName);
 
-    expect.isNull = (nullptr == pNewVal);
-    expect.nTagVal = bytes;
-    expect.pTagVal = pNewVal;
-  };
+      expect.isNull = (nullptr == pNewVal);
+      expect.nTagVal = bytes;
+      expect.pTagVal = pNewVal;
+    };
 
-  auto setAlterTableOptions = [&](const char* pTbname, int32_t ttl, char* pComment = nullptr) {
-    expect.tbName = strdup(pTbname);
-    expect.action = TSDB_ALTER_TABLE_UPDATE_OPTIONS;
-    if (-1 != ttl) {
-      expect.updateTTL = true;
-      expect.newTTL = ttl;
-    }
-    if (nullptr != pComment) {
-      expect.newCommentLen = strlen(pComment);
-      expect.newComment = pComment;
-    }
-  };
+    auto setAlterTableOptions = [&](const char* pTbname, int32_t ttl, char* pComment = nullptr) {
+      expect.tbName = strdup(pTbname);
+      expect.action = TSDB_ALTER_TABLE_UPDATE_OPTIONS;
+      if (-1 != ttl) {
+        expect.updateTTL = true;
+        expect.newTTL = ttl;
+      }
+      if (nullptr != pComment) {
+        expect.newCommentLen = strlen(pComment);
+        expect.newComment = pComment;
+      }
+    };
 
-  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_VNODE_MODIFY_STMT);
-    SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
+    setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+      ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_VNODE_MODIFY_STMT);
+      SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
 
-    ASSERT_EQ(pStmt->sqlNodeType, QUERY_NODE_ALTER_TABLE_STMT);
-    ASSERT_NE(pStmt->pDataBlocks, nullptr);
-    ASSERT_EQ(taosArrayGetSize(pStmt->pDataBlocks), 1);
-    SVgDataBlocks* pVgData = (SVgDataBlocks*)taosArrayGetP(pStmt->pDataBlocks, 0);
-    void*          pBuf = POINTER_SHIFT(pVgData->pData, sizeof(SMsgHead));
-    SVAlterTbReq   req = {0};
-    SDecoder       coder = {0};
-    tDecoderInit(&coder, (uint8_t*)pBuf, pVgData->size);
-    ASSERT_EQ(tDecodeSVAlterTbReq(&coder, &req), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(pStmt->sqlNodeType, QUERY_NODE_ALTER_TABLE_STMT);
+      ASSERT_NE(pStmt->pDataBlocks, nullptr);
+      ASSERT_EQ(taosArrayGetSize(pStmt->pDataBlocks), 1);
+      SVgDataBlocks* pVgData = (SVgDataBlocks*)taosArrayGetP(pStmt->pDataBlocks, 0);
+      void*          pBuf = POINTER_SHIFT(pVgData->pData, sizeof(SMsgHead));
+      SVAlterTbReq   req = {0};
+      SDecoder       coder = {0};
+      tDecoderInit(&coder, (uint8_t*)pBuf, pVgData->size);
+      ASSERT_EQ(tDecodeSVAlterTbReq(&coder, &req), TSDB_CODE_SUCCESS);
 
-    ASSERT_EQ(std::string(req.tbName), std::string(expect.tbName));
-    ASSERT_EQ(req.action, expect.action);
-    if (nullptr != expect.colName) {
-      ASSERT_EQ(std::string(req.colName), std::string(expect.colName));
-    }
-    ASSERT_EQ(req.type, expect.type);
-    ASSERT_EQ(req.flags, expect.flags);
-    ASSERT_EQ(req.bytes, expect.bytes);
-    ASSERT_EQ(req.colModBytes, expect.colModBytes);
-    if (nullptr != expect.colNewName) {
-      ASSERT_EQ(std::string(req.colNewName), std::string(expect.colNewName));
-    }
-    if (nullptr != expect.tagName) {
-      ASSERT_EQ(std::string(req.tagName), std::string(expect.tagName));
-    }
-    ASSERT_EQ(req.isNull, expect.isNull);
-    ASSERT_EQ(req.nTagVal, expect.nTagVal);
-    ASSERT_EQ(memcmp(req.pTagVal, expect.pTagVal, expect.nTagVal), 0);
-    ASSERT_EQ(req.updateTTL, expect.updateTTL);
-    ASSERT_EQ(req.newTTL, expect.newTTL);
-    if (nullptr != expect.newComment) {
-      ASSERT_EQ(std::string(req.newComment), std::string(expect.newComment));
-      ASSERT_EQ(req.newCommentLen, strlen(req.newComment));
-      ASSERT_EQ(expect.newCommentLen, strlen(expect.newComment));
-    }
+      ASSERT_EQ(std::string(req.tbName), std::string(expect.tbName));
+      ASSERT_EQ(req.action, expect.action);
+      if (nullptr != expect.colName) {
+        ASSERT_EQ(std::string(req.colName), std::string(expect.colName));
+      }
+      ASSERT_EQ(req.type, expect.type);
+      ASSERT_EQ(req.flags, expect.flags);
+      ASSERT_EQ(req.bytes, expect.bytes);
+      ASSERT_EQ(req.colModBytes, expect.colModBytes);
+      if (nullptr != expect.colNewName) {
+        ASSERT_EQ(std::string(req.colNewName), std::string(expect.colNewName));
+      }
+      if (nullptr != expect.tagName) {
+        ASSERT_EQ(std::string(req.tagName), std::string(expect.tagName));
+      }
+      ASSERT_EQ(req.isNull, expect.isNull);
+      ASSERT_EQ(req.nTagVal, expect.nTagVal);
+      ASSERT_EQ(memcmp(req.pTagVal, expect.pTagVal, expect.nTagVal), 0);
+      ASSERT_EQ(req.updateTTL, expect.updateTTL);
+      ASSERT_EQ(req.newTTL, expect.newTTL);
+      if (nullptr != expect.newComment) {
+        ASSERT_EQ(std::string(req.newComment), std::string(expect.newComment));
+        ASSERT_EQ(req.newCommentLen, strlen(req.newComment));
+        ASSERT_EQ(expect.newCommentLen, strlen(expect.newComment));
+      }
 
-    tDecoderClear(&coder);
-  });
+      tDecoderClear(&coder);
+    });
 
-  setAlterTableOptions("t1", 10, nullptr);
-  run("ALTER TABLE t1 TTL 10");
-  clearAlterTbReq();
+    setAlterTableOptions("t1", 10, nullptr);
+    run("ALTER TABLE t1 TTL 10");
+    clearAlterTbReq();
 
-  setAlterTableOptions("t1", -1, (char*)"test");
-  run("ALTER TABLE t1 COMMENT 'test'");
-  clearAlterTbReq();
+    setAlterTableOptions("t1", -1, (char*)"test");
+    run("ALTER TABLE t1 COMMENT 'test'");
+    clearAlterTbReq();
 
-  setAlterTableCol("t1", TSDB_ALTER_TABLE_ADD_COLUMN, "cc1", TSDB_DATA_TYPE_BIGINT);
-  run("ALTER TABLE t1 ADD COLUMN cc1 BIGINT");
-  clearAlterTbReq();
+    setAlterTableCol("t1", TSDB_ALTER_TABLE_ADD_COLUMN, "cc1", TSDB_DATA_TYPE_BIGINT);
+    run("ALTER TABLE t1 ADD COLUMN cc1 BIGINT");
+    clearAlterTbReq();
 
-  setAlterTableCol("t1", TSDB_ALTER_TABLE_DROP_COLUMN, "c1");
-  run("ALTER TABLE t1 DROP COLUMN c1");
-  clearAlterTbReq();
+    setAlterTableCol("t1", TSDB_ALTER_TABLE_DROP_COLUMN, "c1");
+    run("ALTER TABLE t1 DROP COLUMN c1");
+    clearAlterTbReq();
 
-  setAlterTableCol("t1", TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, "c2", TSDB_DATA_TYPE_VARCHAR, 30 + VARSTR_HEADER_SIZE);
-  run("ALTER TABLE t1 MODIFY COLUMN c2 VARCHAR(30)");
-  clearAlterTbReq();
+    setAlterTableCol("t1", TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, "c2", TSDB_DATA_TYPE_VARCHAR, 30 + VARSTR_HEADER_SIZE);
+    run("ALTER TABLE t1 MODIFY COLUMN c2 VARCHAR(30)");
+    clearAlterTbReq();
 
-  setAlterTableCol("t1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, "c1", 0, 0, "cc1");
-  run("ALTER TABLE t1 RENAME COLUMN c1 cc1");
-  clearAlterTbReq();
+    setAlterTableCol("t1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, "c1", 0, 0, "cc1");
+    run("ALTER TABLE t1 RENAME COLUMN c1 cc1");
+    clearAlterTbReq();
 
-  int32_t val = 10;
-  setAlterTableTag("st1s1", "tag1", (uint8_t*)&val, sizeof(val));
-  run("ALTER TABLE st1s1 SET TAG tag1=10");
-  clearAlterTbReq();
+    int32_t val = 10;
+    setAlterTableTag("st1s1", "tag1", (uint8_t*)&val, sizeof(val));
+    run("ALTER TABLE st1s1 SET TAG tag1=10");
+    clearAlterTbReq();
+  }
+
+  // super table
+  {
+    SMAlterStbReq expect = {0};
+
+    auto clearAlterStbReq = [&]() {
+      tFreeSMAltertbReq(&expect);
+      memset(&expect, 0, sizeof(SMAlterStbReq));
+    };
+
+    auto setAlterStbReq = [&](const char* pTbname, int8_t alterType, int32_t numOfFields = 0,
+                              const char* pField1Name = nullptr, int8_t field1Type = 0, int32_t field1Bytes = 0,
+                              const char* pField2Name = nullptr, const char* pComment = nullptr) {
+      int32_t len = snprintf(expect.name, sizeof(expect.name), "0.test.%s", pTbname);
+      expect.name[len] = '\0';
+      expect.alterType = alterType;
+      if (nullptr != pComment) {
+        expect.comment = strdup(pComment);
+        expect.commentLen = strlen(pComment);
+      }
+
+      expect.numOfFields = numOfFields;
+      if (NULL == expect.pFields) {
+        expect.pFields = taosArrayInit(2, sizeof(TAOS_FIELD));
+        TAOS_FIELD field = {0};
+        taosArrayPush(expect.pFields, &field);
+        taosArrayPush(expect.pFields, &field);
+      }
+
+      TAOS_FIELD* pField = (TAOS_FIELD*)taosArrayGet(expect.pFields, 0);
+      if (NULL != pField1Name) {
+        strcpy(pField->name, pField1Name);
+        pField->name[strlen(pField1Name)] = '\0';
+      } else {
+        memset(pField, 0, sizeof(TAOS_FIELD));
+      }
+      pField->type = field1Type;
+      pField->bytes = field1Bytes > 0 ? field1Bytes : (field1Type > 0 ? tDataTypes[field1Type].bytes : 0);
+
+      pField = (TAOS_FIELD*)taosArrayGet(expect.pFields, 1);
+      if (NULL != pField2Name) {
+        strcpy(pField->name, pField2Name);
+        pField->name[strlen(pField2Name)] = '\0';
+      } else {
+        memset(pField, 0, sizeof(TAOS_FIELD));
+      }
+      pField->type = 0;
+      pField->bytes = 0;
+    };
+
+    setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+      ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_ALTER_TABLE_STMT);
+      ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_ALTER_STB);
+      SMAlterStbReq req = {0};
+      ASSERT_EQ(tDeserializeSMAlterStbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(std::string(req.name), std::string(expect.name));
+      ASSERT_EQ(req.alterType, expect.alterType);
+      ASSERT_EQ(req.numOfFields, expect.numOfFields);
+      if (expect.numOfFields > 0) {
+        TAOS_FIELD* pField = (TAOS_FIELD*)taosArrayGet(req.pFields, 0);
+        TAOS_FIELD* pExpectField = (TAOS_FIELD*)taosArrayGet(expect.pFields, 0);
+        ASSERT_EQ(std::string(pField->name), std::string(pExpectField->name));
+        ASSERT_EQ(pField->type, pExpectField->type);
+        ASSERT_EQ(pField->bytes, pExpectField->bytes);
+      }
+      if (expect.numOfFields > 1) {
+        TAOS_FIELD* pField = (TAOS_FIELD*)taosArrayGet(req.pFields, 1);
+        TAOS_FIELD* pExpectField = (TAOS_FIELD*)taosArrayGet(expect.pFields, 1);
+        ASSERT_EQ(std::string(pField->name), std::string(pExpectField->name));
+        ASSERT_EQ(pField->type, pExpectField->type);
+        ASSERT_EQ(pField->bytes, pExpectField->bytes);
+      }
+      tFreeSMAltertbReq(&req);
+    });
+
+    setAlterStbReq("st1", TSDB_ALTER_TABLE_ADD_TAG, 1, "tag11", TSDB_DATA_TYPE_BIGINT);
+    run("ALTER TABLE st1 ADD TAG tag11 BIGINT");
+    clearAlterStbReq();
+
+    setAlterStbReq("st1", TSDB_ALTER_TABLE_DROP_TAG, 1, "tag1");
+    run("ALTER TABLE st1 DROP TAG tag1");
+    clearAlterStbReq();
+
+    setAlterStbReq("st1", TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, 1, "tag2", TSDB_DATA_TYPE_VARCHAR,
+                   30 + VARSTR_HEADER_SIZE);
+    run("ALTER TABLE st1 MODIFY TAG tag2 VARCHAR(30)");
+    clearAlterStbReq();
+
+    setAlterStbReq("st1", TSDB_ALTER_TABLE_UPDATE_TAG_NAME, 2, "tag1", 0, 0, "tag11");
+    run("ALTER TABLE st1 RENAME TAG tag1 tag11");
+    clearAlterStbReq();
+  }
 }
 
 TEST_F(ParserInitialATest, alterTableSemanticCheck) {
@@ -588,7 +746,7 @@ TEST_F(ParserInitialATest, alterTableSemanticCheck) {
 }
 
 /*
- * ALTER USER user_name PASS str_value
+ * ALTER USER user_name alter_user_clause
  *
  * alter_user_clause: {
  *    PASS str_value
@@ -618,6 +776,7 @@ TEST_F(ParserInitialATest, alterUser) {
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_ALTER_USER_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_ALTER_USER);
     SAlterUserReq req = {0};
     ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSAlterUserReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
 
