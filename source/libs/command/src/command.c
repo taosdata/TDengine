@@ -305,7 +305,7 @@ static void setAliveResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName) {
 
   SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
   int32_t status = 1;
-  colDataAppend(pCol1, 0, &status, false);
+  colDataAppend(pCol1, 0, (const char*)&status, false);
 }
 
 static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveTableRsp** pRsp) {
