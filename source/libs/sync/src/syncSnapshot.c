@@ -49,7 +49,6 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
   pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &pSender->snapshot);
   pSender->finish = false;
 
-  sDebug("vgId:%d, snapshot sender create", pSender->pSyncNode->vgId);
   return pSender;
 }
 
@@ -294,7 +293,7 @@ int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
   }
 
   if (snapshotSenderIsStart(pSender)) {
-    sSError(pSender, "snapshot sender already start, ignore");
+    sSInfo(pSender, "snapshot sender already start, ignore");
     return 0;
   }
 
@@ -523,7 +522,7 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
 static int32_t snapshotReceiverGotData(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg) {
   if (pMsg->seq != pReceiver->ack + 1) {
     sRError(pReceiver, "snapshot receiver invalid seq, ack:%d seq:%d", pReceiver->ack, pMsg->seq);
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    terrno = TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG;
     return -1;
   }
 
@@ -721,8 +720,12 @@ static int32_t syncNodeOnSnapshotTransfering(SSyncNode *pSyncNode, SyncSnapshotS
     timeNow = taosGetTimestampMs();
   }
 
+  int32_t code = 0;
   if (snapshotReceiverGotData(pReceiver, pMsg) != 0) {
-    return -1;
+    code = terrno;
+    if (code >= SYNC_SNAPSHOT_SEQ_INVALID) {
+      code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    }
   }
 
   // build msg
@@ -740,11 +743,11 @@ static int32_t syncNodeOnSnapshotTransfering(SSyncNode *pSyncNode, SyncSnapshotS
   pRspMsg->lastTerm = pMsg->lastTerm;
   pRspMsg->startTime = pReceiver->startTime;
   pRspMsg->ack = pReceiver->ack;  // receiver maybe already closed
-  pRspMsg->code = 0;
+  pRspMsg->code = code;
   pRspMsg->snapBeginIndex = pReceiver->snapshotParam.start;
 
   // send msg
-  syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "snapshot receiver receiving");
+  syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "snapshot receiver received");
   if (syncNodeSendMsgById(&pRspMsg->destId, pSyncNode, &rpcMsg) != 0) {
     sRError(pReceiver, "snapshot receiver send resp failed since %s", terrstr());
     return -1;
@@ -861,7 +864,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
         syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process force stop");
         snapshotReceiverForceStop(pReceiver);
       } else if (pMsg->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->seq < SYNC_SNAPSHOT_SEQ_END) {
-        syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process seq");
+        syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process seq data");
         syncNodeOnSnapshotTransfering(pSyncNode, pMsg);
       } else {
         // error log
@@ -976,76 +979,102 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     return -1;
   }
 
-  if (pMsg->startTime != pSender->startTime) {
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "sender:% " PRId64 " receiver:%" PRId64 " time not match");
-    return -1;
+  // state, term, seq/ack
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "snapshot sender not leader");
+    sSError(pSender, "snapshot sender not leader");
+    goto _ERROR;
   }
 
-  // state, term, seq/ack
-  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-    if (pMsg->term == pSyncNode->pRaftStore->currentTerm) {
-      // prepare <begin, end>, send begin msg
-      if (pMsg->ack == SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT) {
-        syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq pre-snapshot");
-        syncNodeOnSnapshotReplyPre(pSyncNode, pMsg);
-        return 0;
-      }
+  if (pMsg->startTime != pSender->startTime) {
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "snapshot sender and receiver time not match");
+    sSError(pSender, "sender:%" PRId64 " receiver:%" PRId64 " time not match, code:0x%x", pMsg->startTime,
+            pSender->startTime, pMsg->code);
+    goto _ERROR;
+  }
 
-      if (pMsg->ack == SYNC_SNAPSHOT_SEQ_BEGIN) {
-        syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq begin");
-        if (snapshotSenderUpdateProgress(pSender, pMsg) != 0) {
-          return -1;
-        }
+  if (pMsg->term != pSyncNode->pRaftStore->currentTerm) {
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "snapshot sender and receiver term not match");
+    sSError(pSender, "snapshot sender term not equal, msg term:%" PRId64 " currentTerm:%" PRId64, pMsg->term,
+            pSyncNode->pRaftStore->currentTerm);
+    goto _ERROR;
+  }
 
-        if (snapshotSend(pSender) != 0) {
-          return -1;
-        }
-        return 0;
-      }
+  if (pMsg->code != 0) {
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "receive error code");
+    sSError(pSender, "snapshot sender receive error code:0x%x and stop sender", pMsg->code);
+    goto _ERROR;
+  }
 
-      // receive ack is finish, close sender
-      if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
-        syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq end");
-        snapshotSenderStop(pSender, true);
-        SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
-        if (pMgr) {
-          syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "reset repl mgr");
-          syncLogReplMgrReset(pMgr);
-        }
-        return 0;
-      }
+  // prepare <begin, end>, send begin msg
+  if (pMsg->ack == SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT) {
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq pre-snapshot");
+    syncNodeOnSnapshotReplyPre(pSyncNode, pMsg);
+    return 0;
+  }
 
-      // send next msg
-      if (pMsg->ack == pSender->seq) {
-        syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq");
-        // update sender ack
-        if (snapshotSenderUpdateProgress(pSender, pMsg) != 0) {
-          return -1;
-        }
-        if (snapshotSend(pSender) != 0) {
-          return -1;
-        }
-
-      } else if (pMsg->ack == pSender->seq - 1) {
-        // maybe resend
-        syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq and resend");
-        snapshotReSend(pSender);
-
-      } else {
-        // error log
-        sSError(pSender, "snapshot sender recv error ack:%d, my seq:%d", pMsg->ack, pSender->seq);
-        return -1;
-      }
-    } else {
-      // error log
-      sSError(pSender, "snapshot sender term not equal");
+  if (pMsg->ack == SYNC_SNAPSHOT_SEQ_BEGIN) {
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq begin");
+    if (snapshotSenderUpdateProgress(pSender, pMsg) != 0) {
       return -1;
     }
+
+    if (snapshotSend(pSender) != 0) {
+      return -1;
+    }
+    return 0;
+  }
+
+  // receive ack is finish, close sender
+  if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq end");
+    snapshotSenderStop(pSender, true);
+    SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
+    if (pMgr) {
+      syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "reset repl mgr");
+      syncLogReplMgrReset(pMgr);
+    }
+    return 0;
+  }
+
+  // send next msg
+  if (pMsg->ack == pSender->seq) {
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq data");
+    // update sender ack
+    if (snapshotSenderUpdateProgress(pSender, pMsg) != 0) {
+      return -1;
+    }
+    if (snapshotSend(pSender) != 0) {
+      return -1;
+    }
+
+  } else if (pMsg->ack == pSender->seq - 1) {
+    // maybe resend
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq and resend");
+    snapshotReSend(pSender);
+
   } else {
     // error log
-    sSError(pSender, "snapshot sender not leader");
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "receive error ack");
+    sSError(pSender, "snapshot sender receive error ack:%d, my seq:%d", pMsg->ack, pSender->seq);
+    snapshotSenderStop(pSender, true);
+    SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
+    if (pMgr) {
+      syncLogReplMgrReset(pMgr);
+    }
+
     return -1;
   }
 
   return 0;
+
+_ERROR:
+  snapshotSenderStop(pSender, true);
+  SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
+  if (pMgr) {
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "reset repl mgr");
+    syncLogReplMgrReset(pMgr);
+  }
+
+  return -1;
 }
