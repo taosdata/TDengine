@@ -6936,6 +6936,8 @@ void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
 }
 
 void tDestroySSubmitReq2(SSubmitReq2 *pReq, int32_t flag) {
+  if (pReq->aSubmitTbData == NULL) return;
+
   int32_t        nSubmitTbData = TARRAY_SIZE(pReq->aSubmitTbData);
   SSubmitTbData *aSubmitTbData = (SSubmitTbData *)TARRAY_DATA(pReq->aSubmitTbData);
 
