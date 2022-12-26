@@ -268,7 +268,7 @@ typedef struct SShowCreateDatabaseStmt {
 typedef struct SShowAliveStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
-} SShowCreateDatabaseStmt;
+} SShowAliveStmt;
 
 typedef struct SShowCreateTableStmt {
   ENodeType type;
