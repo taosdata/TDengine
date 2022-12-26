@@ -950,6 +950,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
     }
   }
 
+  vDebug("vgId:%d, submit block size %d", TD_VID(pVnode), (int32_t)taosArrayGetSize(pSubmitReq->aSubmitTbData));
+
   // loop to handle
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
     SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
@@ -1040,13 +1042,13 @@ _exit:
 
 #else
   SSubmitReq *pSubmitReq = (SSubmitReq *)pReq;
-  SSubmitRsp submitRsp = {0};
-  int32_t nRows = 0;
-  int32_t tsize, ret;
-  SEncoder encoder = {0};
-  SArray *newTbUids = NULL;
-  SVStatis statis = {0};
-  bool tbCreated = false;
+  SSubmitRsp  submitRsp = {0};
+  int32_t     nRows = 0;
+  int32_t     tsize, ret;
+  SEncoder    encoder = {0};
+  SArray     *newTbUids = NULL;
+  SVStatis    statis = {0};
+  bool        tbCreated = false;
   terrno = TSDB_CODE_SUCCESS;
 
   pRsp->code = 0;

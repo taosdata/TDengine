@@ -948,6 +948,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         taosArrayPush(tbData.aRowP, &pRow);
       }
 
+      taosArrayClear(pReq->aSubmitTbData);
       taosArrayPush(pReq->aSubmitTbData, &tbData);
 
       // encode

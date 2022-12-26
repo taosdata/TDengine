@@ -360,7 +360,7 @@ size_t blockDataGetNumOfRows(const SSDataBlock* pBlock) { return pBlock->info.ro
 
 int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex) {
   if (pDataBlock->info.rows > 0) {
-//    ASSERT(pDataBlock->info.dataLoad == 1);
+    //    ASSERT(pDataBlock->info.dataLoad == 1);
   }
 
   if (pDataBlock == NULL || pDataBlock->info.rows <= 0 || pDataBlock->info.dataLoad == 0) {
@@ -1169,7 +1169,8 @@ void blockDataEmpty(SSDataBlock* pDataBlock) {
 
 // todo temporarily disable it
 
-static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows, bool clearPayload) {
+static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows,
+                                bool clearPayload) {
   ASSERT(numOfRows > 0);
 
   if (numOfRows <= pBlockInfo->capacity) {
@@ -1228,7 +1229,7 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
   return TSDB_CODE_SUCCESS;
 }
 
-void  colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
+void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
   pColumn->hasNull = false;
 
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
@@ -1956,7 +1957,8 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
                   "===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%" PRId64
                   "|rows:%d|version:%" PRIu64 "|cal start:%" PRIu64 "|cal end:%" PRIu64 "\n",
                   flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.id.groupId,
-                  pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version, pDataBlock->info.calWin.skey, pDataBlock->info.calWin.ekey);
+                  pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version,
+                  pDataBlock->info.calWin.skey, pDataBlock->info.calWin.ekey);
   if (len >= size - 1) return dumpBuf;
 
   for (int32_t j = 0; j < rows; j++) {
@@ -2388,7 +2390,7 @@ _end:
 
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
   ASSERT(stbFullName[0] != 0);
-  SArray* tags = taosArrayInit(0, sizeof(void*));
+  SArray* tags = taosArrayInit(0, sizeof(SSmlKv));
   if (tags == NULL) {
     return NULL;
   }
@@ -2399,8 +2401,10 @@ char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
     return NULL;
   }
 
-  SSmlKv pTag = {.key = "group_id", .keyLen = sizeof("group_id") - 1,
-                 .type = TSDB_DATA_TYPE_UBIGINT, .u = groupId,
+  SSmlKv pTag = {.key = "group_id",
+                 .keyLen = sizeof("group_id") - 1,
+                 .type = TSDB_DATA_TYPE_UBIGINT,
+                 .u = groupId,
                  .length = sizeof(uint64_t)};
   taosArrayPush(tags, &pTag);
 
