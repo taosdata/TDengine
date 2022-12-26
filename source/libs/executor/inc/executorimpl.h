@@ -354,7 +354,6 @@ typedef struct STableMergeScanInfo {
   SLimitInfo             limitInfo;
   int64_t                numOfRows;
   SScanInfo              scanInfo;
-  int32_t                scanTimes;
   SSDataBlock*           pResBlock;
   SSampleExecInfo        sample;  // sample execution info
   SSortExecInfo          sortExecInfo;
@@ -657,7 +656,6 @@ typedef struct SStreamFillOperatorInfo {
   SSDataBlock*          pRes;
   SSDataBlock*          pSrcBlock;
   int32_t               srcRowIndex;
-  SSDataBlock*          pPrevSrcBlock;
   SSDataBlock*          pSrcDelBlock;
   int32_t               srcDelRowIndex;
   SSDataBlock*          pDelRes;

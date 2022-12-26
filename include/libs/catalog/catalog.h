@@ -44,6 +44,7 @@ typedef enum {
   AUTH_TYPE_READ = 1,
   AUTH_TYPE_WRITE,
   AUTH_TYPE_OTHER,
+  AUTH_TYPE_READ_OR_WRITE,
 } AUTH_TYPE;
 
 typedef struct SUserAuthInfo {
