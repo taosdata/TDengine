@@ -507,6 +507,10 @@ impl Action {
                         }
                     }
                 },
+                JsonMeta::Delete(delete) => {
+                    // todo: renamed table should be deleted.
+                    todo!()
+                }
             },
             Action::RenameChildTable(action) => match meta {
                 JsonMeta::Create(create) => match create {
@@ -533,6 +537,9 @@ impl Action {
                         }
                     }
                 },
+                JsonMeta::Delete(delete) => {
+                    todo!()
+                }
             },
             Action::RenameSuperTable(action) => match meta {
                 JsonMeta::Create(create) => match create {
@@ -578,6 +585,9 @@ impl Action {
                     }
                     _ => (),
                 },
+                JsonMeta::Delete(delete) => {
+                    todo!()
+                }
             },
         }
         Ok(())
