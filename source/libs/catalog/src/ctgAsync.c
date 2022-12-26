@@ -471,16 +471,19 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
 }
 
 int32_t ctgInitTask(SCtgJob* pJob, CTG_TASK_TYPE type, void* param, int32_t* taskId) {
+  int32_t code = 0;
   int32_t tid = atomic_fetch_add_32(&pJob->taskIdx, 1);
 
   CTG_LOCK(CTG_WRITE, &pJob->taskLock);
-  CTG_ERR_RET((*gCtgAsyncFps[type].initFp)(pJob, tid, param));
-  CTG_UNLOCK(CTG_WRITE, &pJob->taskLock);
+  CTG_ERR_JRET((*gCtgAsyncFps[type].initFp)(pJob, tid, param));
 
   if (taskId) {
     *taskId = tid;
   }
 
+_return:
+  CTG_UNLOCK(CTG_WRITE, &pJob->taskLock);
+  
   return TSDB_CODE_SUCCESS;
 }
 
