@@ -4957,10 +4957,10 @@ static YYACTIONTYPE yy_reduce(
 { pCxt->pRootNode = createShowVnodesStmt(pCxt, NULL, createValueNode(pCxt, TSDB_DATA_TYPE_VARCHAR, &yymsp[0].minor.yy0)); }
         break;
       case 245: /* cmd ::= SHOW db_name_cond_opt ALIVE */
-{ pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_DB_ALIVE_STMT, yymsp[-1].minor.yy464, NULL, OP_TYPE_LIKE); }
+{ pCxt->pRootNode = createShowAliveStmt(pCxt, yymsp[-1].minor.yy464,    QUERY_NODE_SHOW_DB_ALIVE_STMT); }
         break;
       case 246: /* cmd ::= SHOW CLUSTER ALIVE */
-{ pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT); }
+{ pCxt->pRootNode = createShowAliveStmt(pCxt, NULL, QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT); }
         break;
       case 247: /* db_name_cond_opt ::= */
       case 252: /* from_db_opt ::= */ yytestcase(yyruleno==252);
