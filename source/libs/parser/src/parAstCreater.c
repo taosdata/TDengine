@@ -1357,14 +1357,14 @@ SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   return (SNode*)pStmt;
 }
 
-SNode* createShowAliveStmt(SAstCreateContext* pCxt, SNode* pDbName, ENodeType type) {
+SNode* createShowAliveStmt(SAstCreateContext* pCxt, SNode* pNode, ENodeType type) {
   CHECK_PARSER_STATUS(pCxt);
   SToken  dbToken = {0};
   SToken* pDbToken = NULL;
 
-  if (pDbName) {
-    SValueNode* pDbValue = (SValueNode*)pDbName;
-    if (pDbValue->literal) {
+  if (pNode) {
+    SValueNode* pDbName = (SValueNode*)pNode;
+    if (pDbName->literal) {
       dbToken.z = pDbName->literal;
       dbToken.n = strlen(pDbName->literal);
       pDbToken = &dbToken;
@@ -1372,7 +1372,7 @@ SNode* createShowAliveStmt(SAstCreateContext* pCxt, SNode* pDbName, ENodeType ty
   }
 
   if (pDbToken && !checkDbName(pCxt, pDbToken, true)) {
-    nodesDestroyNode(pDbName);
+    nodesDestroyNode(pNode);
     return NULL;
   }
 
@@ -1382,8 +1382,8 @@ SNode* createShowAliveStmt(SAstCreateContext* pCxt, SNode* pDbName, ENodeType ty
   if (pDbToken) {
     COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbToken);
   }
-  if (pDbName) {
-    nodesDestroyNode(pDbName);
+  if (pNode) {
+    nodesDestroyNode(pNode);
   }
 
   return (SNode*)pStmt;
