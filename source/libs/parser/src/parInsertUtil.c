@@ -20,6 +20,7 @@
 #include "parUtil.h"
 #include "querynodes.h"
 #include "tRealloc.h"
+#include "tdatablock.h"
 
 typedef struct SBlockKeyTuple {
   TSKEY   skey;
@@ -204,8 +205,8 @@ void qDestroyBoundColInfo(void* pInfo) {
   taosMemoryFreeClear(pBoundInfo->pColIndex);
 }
 
-static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset, STableMeta* pTableMeta,
-                               STableDataBlocks** dataBlocks) {
+static int32_t createTableDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset, STableMeta* pTableMeta,
+                                    STableDataBlocks** dataBlocks) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)taosMemoryCalloc(1, sizeof(STableDataBlocks));
   if (dataBuf == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -295,7 +296,7 @@ int32_t insGetDataBlockFromList(SHashObj* pHashList, void* id, int32_t idLen, in
   }
 
   if (*dataBlocks == NULL) {
-    int32_t ret = createDataBlock((size_t)size, rowSize, startOffset, pTableMeta, dataBlocks);
+    int32_t ret = createTableDataBlock((size_t)size, rowSize, startOffset, pTableMeta, dataBlocks);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -1370,4 +1371,131 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
   }
 
   return code;
+}
+
+static int bindFileds(SBoundColInfo* pBoundInfo, SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
+  bool* pUseCols = taosMemoryCalloc(pBoundInfo->numOfCols, sizeof(bool));
+  if (NULL == pUseCols) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pBoundInfo->numOfBound = 0;
+
+  int16_t lastColIdx = -1;  // last column found
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int i = 0; i < numFields; i++) {
+    SToken token;
+    token.z = fields[i].name;
+    token.n = strlen(fields[i].name);
+
+    int16_t t = lastColIdx + 1;
+    int16_t index = insFindCol(&token, t, pBoundInfo->numOfCols, pSchema);
+    if (index < 0 && t > 0) {
+      index = insFindCol(&token, 0, t, pSchema);
+    }
+    if (index < 0) {
+      uError("can not find column name:%s", token.z);
+      code = TSDB_CODE_PAR_INVALID_COLUMN;
+      break;
+    } else if (pUseCols[index]) {
+      code = TSDB_CODE_PAR_INVALID_COLUMN;
+      uError("duplicated column name:%s", token.z);
+      break;
+    } else {
+      lastColIdx = index;
+      pUseCols[index] = true;
+      pBoundInfo->pColIndex[pBoundInfo->numOfBound] = index;
+      ++pBoundInfo->numOfBound;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && !pUseCols[0]) {
+    uError("primary timestamp column can not be null:");
+    code = TSDB_CODE_PAR_INVALID_COLUMN;
+  }
+
+  taosMemoryFree(pUseCols);
+  return code;
+}
+
+int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, TAOS_FIELD* tFields,
+                     int numFields) {
+  STableDataCxt* pTableCxt = NULL;
+  int            ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
+                                          sizeof(pTableMeta->uid), pTableMeta, &pCreateTb, &pTableCxt, true);
+  if (ret != TSDB_CODE_SUCCESS) {
+    uError("insGetTableDataCxt error");
+    goto end;
+  }
+  if (tFields != NULL) {
+    ret = bindFileds(&pTableCxt->boundColsInfo, getTableColumnSchema(pTableMeta), tFields, numFields);
+    if (ret != TSDB_CODE_SUCCESS) {
+      uError("bindFileds error");
+      goto end;
+    }
+  }
+  // no need to bind, because select * get all fields
+  ret = initTableColSubmitData(pTableCxt);
+  if (ret != TSDB_CODE_SUCCESS) {
+    uError("initTableColSubmitData error");
+    goto end;
+  }
+
+  char* p = (char*)data;
+  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
+  // length |
+  p += sizeof(int32_t);
+  p += sizeof(int32_t);
+
+  int32_t numOfRows = *(int32_t*)p;
+  p += sizeof(int32_t);
+
+  int32_t numOfCols = *(int32_t*)p;
+  p += sizeof(int32_t);
+
+  p += sizeof(int32_t);
+  p += sizeof(uint64_t);
+
+  int8_t* fields = p;
+  p += numOfCols * (sizeof(int8_t) + sizeof(int32_t));
+
+  int32_t* colLength = (int32_t*)p;
+  p += sizeof(int32_t) * numOfCols;
+
+  char* pStart = p;
+
+  SSchema*       pSchema = getTableColumnSchema(pTableCxt->pMeta);
+  SBoundColInfo* boundInfo = &pTableCxt->boundColsInfo;
+
+  if (boundInfo->numOfBound != numOfCols) {
+    uError("boundInfo->numOfBound:%d != numOfCols:%d", boundInfo->numOfBound, numOfCols);
+    ret = TSDB_CODE_INVALID_PARA;
+    goto end;
+  }
+  for (int c = 0; c < boundInfo->numOfBound; ++c) {
+    SSchema*  pColSchema = &pSchema[boundInfo->pColIndex[c]];
+    SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, c);
+
+    if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
+      uError("type or bytes not equal");
+      ret = TSDB_CODE_INVALID_PARA;
+      goto end;
+    }
+
+    colLength[c] = htonl(colLength[c]);
+    int8_t* offset = pStart;
+    if (IS_VAR_DATA_TYPE(pColSchema->type)) {
+      pStart += numOfRows * sizeof(int32_t);
+    } else {
+      pStart += BitmapLen(numOfRows);
+    }
+    char* pData = pStart;
+
+    tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
+    fields += sizeof(int8_t) + sizeof(int32_t);
+    pStart += colLength[c];
+  }
+
+end:
+  return ret;
 }

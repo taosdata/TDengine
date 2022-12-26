@@ -360,7 +360,7 @@ size_t blockDataGetNumOfRows(const SSDataBlock* pBlock) { return pBlock->info.ro
 
 int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex) {
   if (pDataBlock->info.rows > 0) {
-//    ASSERT(pDataBlock->info.dataLoad == 1);
+    //    ASSERT(pDataBlock->info.dataLoad == 1);
   }
 
   if (pDataBlock == NULL || pDataBlock->info.rows <= 0 || pDataBlock->info.dataLoad == 0) {
@@ -1169,7 +1169,8 @@ void blockDataEmpty(SSDataBlock* pDataBlock) {
 
 // todo temporarily disable it
 
-static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows, bool clearPayload) {
+static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows,
+                                bool clearPayload) {
   ASSERT(numOfRows > 0);
 
   if (numOfRows <= pBlockInfo->capacity) {
@@ -1228,7 +1229,7 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
   return TSDB_CODE_SUCCESS;
 }
 
-void  colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
+void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
   pColumn->hasNull = false;
 
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
@@ -1956,7 +1957,8 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
                   "===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%" PRId64
                   "|rows:%d|version:%" PRIu64 "|cal start:%" PRIu64 "|cal end:%" PRIu64 "\n",
                   flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.id.groupId,
-                  pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version, pDataBlock->info.calWin.skey, pDataBlock->info.calWin.ekey);
+                  pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version,
+                  pDataBlock->info.calWin.skey, pDataBlock->info.calWin.ekey);
   if (len >= size - 1) return dumpBuf;
 
   for (int32_t j = 0; j < rows; j++) {
@@ -2226,22 +2228,24 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
 }
 #endif
 
-int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDataBlock, STSchema* pTSchema,
-                                    int32_t vgId, tb_uid_t suid) {
-  SSubmitReq2* pReq = NULL;
+int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDataBlock, const STSchema* pTSchema,
+                                    int64_t uid, int32_t vgId, tb_uid_t suid) {
+  SSubmitReq2* pReq = *ppReq;
   SArray*      pVals = NULL;
   int32_t      numOfBlks = 0;
   int32_t      sz = 1;
 
   terrno = TSDB_CODE_SUCCESS;
 
-  if (!(pReq = taosMemoryMalloc(sizeof(SSubmitReq2)))) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _end;
-  }
+  if (NULL == pReq) {
+    if (!(pReq = taosMemoryMalloc(sizeof(SSubmitReq2)))) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _end;
+    }
 
-  if (!(pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData)))) {
-    goto _end;
+    if (!(pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData)))) {
+      goto _end;
+    }
   }
 
   for (int32_t i = 0; i < sz; ++i) {
@@ -2261,7 +2265,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
       goto _end;
     }
     tbData.suid = suid;
-    tbData.uid = pDataBlock->info.id.groupId;
+    tbData.uid = uid;
     tbData.sver = pTSchema->version;
 
     if (!pVals && !(pVals = taosArrayInit(colNum, sizeof(SColVal)))) {
@@ -2277,7 +2281,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
       int32_t offset = 0;
       for (int32_t k = 0; k < colNum; ++k) {  // iterate by column
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
-        STColumn*        pCol = &pTSchema->columns[k];
+        const STColumn*  pCol = &pTSchema->columns[k];
         void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
 
         switch (pColInfoData->info.type) {
@@ -2285,13 +2289,14 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
             ASSERT(pColInfoData->info.type == pCol->type);
             if (!isStartKey) {
               isStartKey = true;
-              SColVal cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, pCol->type, (SValue){.val = *(TSKEY*)var});
+              ASSERT(PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId);
+              SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, (SValue){.val = *(TSKEY*)var});
               taosArrayPush(pVals, &cv);
             } else if (colDataIsNull_s(pColInfoData, j)) {
-              SColVal cv = COL_VAL_NULL(PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type);
+              SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
               taosArrayPush(pVals, &cv);
             } else {
-              SColVal cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type, (SValue){.val = *(int64_t*)var});
+              SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, (SValue){.val = *(int64_t*)var});
               taosArrayPush(pVals, &cv);
             }
             break;
@@ -2299,12 +2304,12 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
           case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
             ASSERT(pColInfoData->info.type == pCol->type);
             if (colDataIsNull_s(pColInfoData, j)) {
-              SColVal cv = COL_VAL_NULL(PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type);
+              SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
               taosArrayPush(pVals, &cv);
             } else {
               void*   data = colDataGetVarData(pColInfoData, j);
               SValue  sv = (SValue){.nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
-              SColVal cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, pCol->type, sv);
+              SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, sv);
               taosArrayPush(pVals, &cv);
             }
             break;
@@ -2320,7 +2325,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
           default:
             if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
               if (colDataIsNull_s(pColInfoData, j)) {
-                SColVal cv = COL_VAL_NULL(PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type);  // should use pCol->type
+                SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);  // should use pCol->type
                 taosArrayPush(pVals, &cv);
               } else {
                 SValue sv;
@@ -2351,7 +2356,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
                   }
                   memcpy(&sv.val, tv, tDataTypes[pCol->type].bytes);
                 }
-                SColVal cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID + k, pColInfoData->info.type, sv);
+                SColVal cv = COL_VAL_VALUE(pCol->colId, pColInfoData->info.type, sv);
                 taosArrayPush(pVals, &cv);
               }
             } else {
@@ -2385,7 +2390,7 @@ _end:
 
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
   ASSERT(stbFullName[0] != 0);
-  SArray* tags = taosArrayInit(0, sizeof(void*));
+  SArray* tags = taosArrayInit(0, sizeof(SSmlKv));
   if (tags == NULL) {
     return NULL;
   }
@@ -2396,8 +2401,10 @@ char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
     return NULL;
   }
 
-  SSmlKv pTag = {.key = "group_id", .keyLen = sizeof("group_id") - 1,
-                 .type = TSDB_DATA_TYPE_UBIGINT, .u = groupId,
+  SSmlKv pTag = {.key = "group_id",
+                 .keyLen = sizeof("group_id") - 1,
+                 .type = TSDB_DATA_TYPE_UBIGINT,
+                 .u = groupId,
                  .length = sizeof(uint64_t)};
   taosArrayPush(tags, &pTag);
 

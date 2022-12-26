@@ -364,7 +364,7 @@ typedef struct SVgDataBlocks {
 typedef void (*FFreeTableBlockHash)(SHashObj*);
 typedef void (*FFreeVgourpBlockArray)(SArray*);
 
-typedef struct SVnodeModifOpStmt {
+typedef struct SVnodeModifyOpStmt {
   ENodeType             nodeType;
   ENodeType             sqlNodeType;
   SArray*               pDataBlocks;  // data block for each vgroup, SArray<SVgDataBlocks*>.
@@ -388,7 +388,7 @@ typedef struct SVnodeModifOpStmt {
   FFreeVgourpBlockArray freeArrayFunc;
   bool                  usingTableProcessing;
   bool                  fileProcessing;
-} SVnodeModifOpStmt;
+} SVnodeModifyOpStmt;
 
 typedef struct SExplainOptions {
   ENodeType type;

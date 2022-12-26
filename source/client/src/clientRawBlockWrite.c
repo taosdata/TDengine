@@ -1073,7 +1073,7 @@ static int32_t taosDeleteData(TAOS* taos, void* meta, int32_t metaLen) {
   char sql[256] = {0};
   snprintf(sql, sizeof(sql), "delete from `%s` where `%s` >= %" PRId64 " and `%s` <= %" PRId64, req.tableFName,
            req.tsColName, req.skey, req.tsColName, req.ekey);
-  printf("delete sql:%s\n", sql);
+  uDebug("delete sql:%s\n", sql);
 
   TAOS_RES*    res = taos_query(taos, sql);
   SRequestObj* pRequest = (SRequestObj*)res;
@@ -1201,21 +1201,12 @@ end:
   return code;
 }
 
-typedef struct {
-  SVgroupInfo vg;
-  void*       data;
-} VgData;
-
-static void destroyVgHash(void* data) {
-  VgData* vgData = (VgData*)data;
-  taosMemoryFreeClear(vgData->data);
-}
-
-int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const char* tbname, TAOS_FIELD *fields, int numFields){
+int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const char* tbname, TAOS_FIELD* fields,
+                                     int numFields) {
   int32_t     code = TSDB_CODE_SUCCESS;
   STableMeta* pTableMeta = NULL;
   SQuery*     pQuery = NULL;
-  SSubmitReq* subReq = NULL;
+  SHashObj*   pVgHash = NULL;
 
   SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
   if (!pRequest) {
@@ -1260,339 +1251,25 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
     uError("WriteRaw:catalogGetTableMeta failed. table name: %s", tbname);
     goto end;
   }
-  uint64_t suid = (TSDB_NORMAL_TABLE == pTableMeta->tableType ? 0 : pTableMeta->suid);
-  uint64_t uid = pTableMeta->uid;
-  int32_t  numOfCols = pTableMeta->tableInfo.numOfColumns;
-
-  uint16_t fLen = 0;
-  int32_t  rowSize = 0;
-  int16_t  nVar = 0;
-    for (int i = 0; i < pTableMeta->tableInfo.numOfColumns; i++) {
-      SSchema* schema = pTableMeta->schema + i;
-      fLen += TYPE_BYTES[schema->type];
-      rowSize += schema->bytes;
-      if (IS_VAR_DATA_TYPE(schema->type)) {
-        nVar++;
-      }
-    }
-
-  fLen -= sizeof(TSKEY);
-
-  int32_t extendedRowSize = rowSize + TD_ROW_HEAD_LEN - sizeof(TSKEY) + nVar * sizeof(VarDataOffsetT) +
-                            (int32_t)TD_BITMAP_BYTES(numOfCols - 1);
-  int32_t schemaLen = 0;
-  int32_t submitLen = sizeof(SSubmitBlk) + schemaLen + rows * extendedRowSize;
-
-  int32_t totalLen = sizeof(SSubmitReq) + submitLen;
-  subReq = taosMemoryCalloc(1, totalLen);
-  SSubmitBlk* blk = POINTER_SHIFT(subReq, sizeof(SSubmitReq));
-  void*       blkSchema = POINTER_SHIFT(blk, sizeof(SSubmitBlk));
-  STSRow*     rowData = POINTER_SHIFT(blkSchema, schemaLen);
-
-  SRowBuilder rb = {0};
-  tdSRowInit(&rb, pTableMeta->sversion);
-  tdSRowSetTpInfo(&rb, numOfCols, fLen);
-  int32_t dataLen = 0;
-
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column length |
-  char*    pStart = pData + getVersion1BlockMetaSize(pData, numFields);
-  int32_t* colLength = (int32_t*)pStart;
-  pStart += sizeof(int32_t) * numFields;
-
-  SResultColumn* pCol = taosMemoryCalloc(numFields, sizeof(SResultColumn));
-
-  for (int32_t i = 0; i < numFields; ++i) {
-    if (IS_VAR_DATA_TYPE(fields[i].type)) {
-      pCol[i].offset = (int32_t*)pStart;
-      pStart += rows * sizeof(int32_t);
-    } else {
-      pCol[i].nullbitmap = pStart;
-      pStart += BitmapLen(rows);
-    }
-
-    pCol[i].pData = pStart;
-    pStart += colLength[i];
-  }
-
-  SHashObj* schemaHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-  for (int i = 0; i < numFields; i++) {
-    TAOS_FIELD* schema = &fields[i];
-    taosHashPut(schemaHash, schema->name, strlen(schema->name), &i, sizeof(int32_t));
-  }
-
-  for (int32_t j = 0; j < rows; j++) {
-    tdSRowResetBuf(&rb, rowData);
-    int32_t offset = 0;
-    for (int32_t k = 0; k < numOfCols; k++) {
-      const SSchema* pColumn = &pTableMeta->schema[k];
-      int32_t*       index = taosHashGet(schemaHash, pColumn->name, strlen(pColumn->name));
-      if (!index) {   // add none
-        tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NONE, NULL, false, offset, k);
-      }else{
-        if (IS_VAR_DATA_TYPE(pColumn->type)) {
-          if (pCol[*index].offset[j] != -1) {
-            char* data = pCol[*index].pData + pCol[*index].offset[j];
-            tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, offset, k);
-          } else {
-            tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, offset, k);
-          }
-        } else {
-          if (!colDataIsNull_f(pCol[*index].nullbitmap, j)) {
-            char* data = pCol[*index].pData + pColumn->bytes * j;
-            tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, offset, k);
-          } else {
-            tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, offset, k);
-          }
-        }
-      }
-
-      if (pColumn->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
-        offset += TYPE_BYTES[pColumn->type];
-      }
-    }
-    tdSRowEnd(&rb);
-    int32_t rowLen = TD_ROW_LEN(rowData);
-    rowData = POINTER_SHIFT(rowData, rowLen);
-    dataLen += rowLen;
-  }
-
-  taosHashCleanup(schemaHash);
-  taosMemoryFree(pCol);
-
-  blk->uid = htobe64(uid);
-  blk->suid = htobe64(suid);
-  blk->sversion = htonl(pTableMeta->sversion);
-  blk->schemaLen = htonl(schemaLen);
-  blk->numOfRows = htonl(rows);
-  blk->dataLen = htonl(dataLen);
-  subReq->length = sizeof(SSubmitReq) + sizeof(SSubmitBlk) + schemaLen + dataLen;
-  subReq->numOfBlocks = 1;
-
-  pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
-  if (NULL == pQuery) {
-    uError("create SQuery error");
+  pQuery = smlInitHandle();
+  if (pQuery == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
-  pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
-  pQuery->haveResultSet = false;
-  pQuery->msgType = TDMT_VND_SUBMIT;
-  pQuery->pRoot = (SNode*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
-  if (NULL == pQuery->pRoot) {
-    uError("create pQuery->pRoot error");
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto end;
-  }
-  SVnodeModifOpStmt* nodeStmt = (SVnodeModifOpStmt*)(pQuery->pRoot);
-  nodeStmt->pDataBlocks = taosArrayInit(1, POINTER_BYTES);
+  pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  taosHashPut(pVgHash, (const char*)&vgData.vgId, sizeof(vgData.vgId), (char*)&vgData, sizeof(vgData));
 
-  SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
-  if (NULL == dst) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto end;
-  }
-  dst->vg = vgData;
-  dst->numOfTables = subReq->numOfBlocks;
-  dst->size = subReq->length;
-  dst->pData = (char*)subReq;
-  subReq->header.vgId = htonl(dst->vg.vgId);
-  subReq->version = htonl(1);
-  subReq->header.contLen = htonl(subReq->length);
-  subReq->length = htonl(subReq->length);
-  subReq->numOfBlocks = htonl(subReq->numOfBlocks);
-  subReq = NULL;  // no need free
-  taosArrayPush(nodeStmt->pDataBlocks, &dst);
-
-  launchQueryImpl(pRequest, pQuery, true, NULL);
-  code = pRequest->code;
-
-  end:
-  taosMemoryFreeClear(pTableMeta);
-  qDestroyQuery(pQuery);
-  taosMemoryFree(subReq);
-  return code;
-}
-
-int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) {
-  int32_t     code = TSDB_CODE_SUCCESS;
-  STableMeta* pTableMeta = NULL;
-  SQuery*     pQuery = NULL;
-  SSubmitReq* subReq = NULL;
-
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
-  if (!pRequest) {
-    uError("WriteRaw:createRequest error request is null");
-    code = terrno;
-    goto end;
-  }
-
-  pRequest->syncQuery = true;
-  if (!pRequest->pDb) {
-    uError("WriteRaw:not use db");
-    code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
-    goto end;
-  }
-
-  SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
-  tstrncpy(pName.dbname, pRequest->pDb, sizeof(pName.dbname));
-  tstrncpy(pName.tname, tbname, sizeof(pName.tname));
-
-  struct SCatalog* pCatalog = NULL;
-  code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+  code = rawBlockBindData(pQuery, pTableMeta, pData, NULL, fields, numFields);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("WriteRaw: get gatlog error");
+    uError("WriteRaw:rawBlockBindData failed");
     goto end;
   }
 
-  SRequestConnInfo conn = {0};
-  conn.pTrans = pRequest->pTscObj->pAppInfo->pTransporter;
-  conn.requestId = pRequest->requestId;
-  conn.requestObjRefId = pRequest->self;
-  conn.mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
-
-  SVgroupInfo vgData = {0};
-  code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vgData);
+  code = smlBuildOutput(pQuery, pVgHash);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("WriteRaw:catalogGetTableHashVgroup failed. table name: %s", tbname);
-    goto end;
+    uError("smlBuildOutput failed");
+    return code;
   }
-
-  code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
-  if (code != TSDB_CODE_SUCCESS) {
-    uError("WriteRaw:catalogGetTableMeta failed. table name: %s", tbname);
-    goto end;
-  }
-  uint64_t suid = (TSDB_NORMAL_TABLE == pTableMeta->tableType ? 0 : pTableMeta->suid);
-  uint64_t uid = pTableMeta->uid;
-  int32_t  numOfCols = pTableMeta->tableInfo.numOfColumns;
-
-  uint16_t fLen = 0;
-  int32_t  rowSize = 0;
-  int16_t  nVar = 0;
-  for (int i = 0; i < numOfCols; i++) {
-    SSchema* schema = pTableMeta->schema + i;
-    fLen += TYPE_BYTES[schema->type];
-    rowSize += schema->bytes;
-    if (IS_VAR_DATA_TYPE(schema->type)) {
-      nVar++;
-    }
-  }
-  fLen -= sizeof(TSKEY);
-
-  int32_t extendedRowSize = rowSize + TD_ROW_HEAD_LEN - sizeof(TSKEY) + nVar * sizeof(VarDataOffsetT) +
-                            (int32_t)TD_BITMAP_BYTES(numOfCols - 1);
-  int32_t schemaLen = 0;
-  int32_t submitLen = sizeof(SSubmitBlk) + schemaLen + rows * extendedRowSize;
-
-  int32_t totalLen = sizeof(SSubmitReq) + submitLen;
-  subReq = taosMemoryCalloc(1, totalLen);
-  SSubmitBlk* blk = POINTER_SHIFT(subReq, sizeof(SSubmitReq));
-  void*       blkSchema = POINTER_SHIFT(blk, sizeof(SSubmitBlk));
-  STSRow*     rowData = POINTER_SHIFT(blkSchema, schemaLen);
-
-  SRowBuilder rb = {0};
-  tdSRowInit(&rb, pTableMeta->sversion);
-  tdSRowSetTpInfo(&rb, numOfCols, fLen);
-  int32_t dataLen = 0;
-
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column length |
-  char*    pStart = pData + getVersion1BlockMetaSize(pData, numOfCols);
-  int32_t* colLength = (int32_t*)pStart;
-  pStart += sizeof(int32_t) * numOfCols;
-
-  SResultColumn* pCol = taosMemoryCalloc(numOfCols, sizeof(SResultColumn));
-
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    if (IS_VAR_DATA_TYPE(pTableMeta->schema[i].type)) {
-      pCol[i].offset = (int32_t*)pStart;
-      pStart += rows * sizeof(int32_t);
-    } else {
-      pCol[i].nullbitmap = pStart;
-      pStart += BitmapLen(rows);
-    }
-
-    pCol[i].pData = pStart;
-    pStart += colLength[i];
-  }
-
-  for (int32_t j = 0; j < rows; j++) {
-    tdSRowResetBuf(&rb, rowData);
-    int32_t offset = 0;
-    for (int32_t k = 0; k < numOfCols; k++) {
-      const SSchema* pColumn = &pTableMeta->schema[k];
-
-      if (IS_VAR_DATA_TYPE(pColumn->type)) {
-        if (pCol[k].offset[j] != -1) {
-          char* data = pCol[k].pData + pCol[k].offset[j];
-          tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, offset, k);
-        } else {
-          tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, offset, k);
-        }
-      } else {
-        if (!colDataIsNull_f(pCol[k].nullbitmap, j)) {
-          char* data = pCol[k].pData + pColumn->bytes * j;
-          tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, offset, k);
-        } else {
-          tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, offset, k);
-        }
-      }
-
-      if (pColumn->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
-        offset += TYPE_BYTES[pColumn->type];
-      }
-    }
-    tdSRowEnd(&rb);
-    int32_t rowLen = TD_ROW_LEN(rowData);
-    rowData = POINTER_SHIFT(rowData, rowLen);
-    dataLen += rowLen;
-  }
-
-  taosMemoryFree(pCol);
-
-  blk->uid = htobe64(uid);
-  blk->suid = htobe64(suid);
-  blk->sversion = htonl(pTableMeta->sversion);
-  blk->schemaLen = htonl(schemaLen);
-  blk->numOfRows = htonl(rows);
-  blk->dataLen = htonl(dataLen);
-  subReq->length = sizeof(SSubmitReq) + sizeof(SSubmitBlk) + schemaLen + dataLen;
-  subReq->numOfBlocks = 1;
-
-  pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
-  if (NULL == pQuery) {
-    uError("create SQuery error");
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    taosMemoryFree(subReq);
-    goto end;
-  }
-  pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
-  pQuery->haveResultSet = false;
-  pQuery->msgType = TDMT_VND_SUBMIT;
-  pQuery->pRoot = (SNode*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
-  if (NULL == pQuery->pRoot) {
-    uError("create pQuery->pRoot error");
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto end;
-  }
-  SVnodeModifOpStmt* nodeStmt = (SVnodeModifOpStmt*)(pQuery->pRoot);
-  nodeStmt->pDataBlocks = taosArrayInit(1, POINTER_BYTES);
-
-  SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
-  if (NULL == dst) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto end;
-  }
-  dst->vg = vgData;
-  dst->numOfTables = subReq->numOfBlocks;
-  dst->size = subReq->length;
-  dst->pData = (char*)subReq;
-  subReq->header.vgId = htonl(dst->vg.vgId);
-  subReq->version = htonl(1);
-  subReq->header.contLen = htonl(subReq->length);
-  subReq->length = htonl(subReq->length);
-  subReq->numOfBlocks = htonl(subReq->numOfBlocks);
-  subReq = NULL;  // no need free
-  taosArrayPush(nodeStmt->pDataBlocks, &dst);
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
@@ -1600,7 +1277,88 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
 end:
   taosMemoryFreeClear(pTableMeta);
   qDestroyQuery(pQuery);
-  taosMemoryFree(subReq);
+  destroyRequest(pRequest);
+  taosHashCleanup(pVgHash);
+  return code;
+}
+
+int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  STableMeta* pTableMeta = NULL;
+  SQuery*     pQuery = NULL;
+  SHashObj*   pVgHash = NULL;
+
+  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
+  if (!pRequest) {
+    uError("WriteRaw:createRequest error request is null");
+    code = terrno;
+    goto end;
+  }
+
+  pRequest->syncQuery = true;
+  if (!pRequest->pDb) {
+    uError("WriteRaw:not use db");
+    code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
+    goto end;
+  }
+
+  SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
+  tstrncpy(pName.dbname, pRequest->pDb, sizeof(pName.dbname));
+  tstrncpy(pName.tname, tbname, sizeof(pName.tname));
+
+  struct SCatalog* pCatalog = NULL;
+  code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("WriteRaw: get gatlog error");
+    goto end;
+  }
+
+  SRequestConnInfo conn = {0};
+  conn.pTrans = pRequest->pTscObj->pAppInfo->pTransporter;
+  conn.requestId = pRequest->requestId;
+  conn.requestObjRefId = pRequest->self;
+  conn.mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
+
+  SVgroupInfo vgData = {0};
+  code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vgData);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("WriteRaw:catalogGetTableHashVgroup failed. table name: %s", tbname);
+    goto end;
+  }
+
+  code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("WriteRaw:catalogGetTableMeta failed. table name: %s", tbname);
+    goto end;
+  }
+  pQuery = smlInitHandle();
+  if (pQuery == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
+  pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  taosHashPut(pVgHash, (const char*)&vgData.vgId, sizeof(vgData.vgId), (char*)&vgData, sizeof(vgData));
+
+  code = rawBlockBindData(pQuery, pTableMeta, pData, NULL, NULL, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("WriteRaw:rawBlockBindData failed");
+    goto end;
+  }
+
+  code = smlBuildOutput(pQuery, pVgHash);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("smlBuildOutput failed");
+    return code;
+  }
+
+  launchQueryImpl(pRequest, pQuery, true, NULL);
+  code = pRequest->code;
+
+end:
+  taosMemoryFreeClear(pTableMeta);
+  qDestroyQuery(pQuery);
+  destroyRequest(pRequest);
+  taosHashCleanup(pVgHash);
   return code;
 }
 
@@ -1637,8 +1395,6 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     goto end;
   }
 
-  pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
-  taosHashSetFreeFp(pVgHash, destroyVgHash);
   struct SCatalog* pCatalog = NULL;
   code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1652,19 +1408,18 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   conn.requestObjRefId = pRequest->self;
   conn.mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
 
-  printf("raw data block num:%d\n", rspObj.rsp.blockNum);
+  pQuery = smlInitHandle();
+  if (pQuery == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
+  pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+
+  uDebug("raw data block num:%d\n", rspObj.rsp.blockNum);
   while (++rspObj.resIter < rspObj.rsp.blockNum) {
     SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(rspObj.rsp.blockData, rspObj.resIter);
     if (!rspObj.rsp.withSchema) {
       uError("WriteRaw:no schema, iter:%d", rspObj.resIter);
-      goto end;
-    }
-    SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.rsp.blockSchema, rspObj.resIter);
-    setResSchemaInfo(&rspObj.resInfo, pSW->pSchema, pSW->nCols);
-
-    code = setQueryResultFromRsp(&rspObj.resInfo, pRetrieve, false, false);
-    if (code != TSDB_CODE_SUCCESS) {
-      uError("WriteRaw: setQueryResultFromRsp error");
       goto end;
     }
 
@@ -1675,17 +1430,10 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
       goto end;
     }
 
-    printf("raw data tbname:%s\n", tbName);
+    uDebug("raw data tbname:%s\n", tbName);
     SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
     strcpy(pName.dbname, pRequest->pDb);
     strcpy(pName.tname, tbName);
-
-    VgData vgData = {0};
-    code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &(vgData.vg));
-    if (code != TSDB_CODE_SUCCESS) {
-      uError("WriteRaw:catalogGetTableHashVgroup failed. table name: %s", tbName);
-      goto end;
-    }
 
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
@@ -1698,164 +1446,29 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
       goto end;
     }
 
-    uint16_t fLen = 0;
-    int32_t  rowSize = 0;
-    int16_t  nVar = 0;
-    for (int i = 0; i < pTableMeta->tableInfo.numOfColumns; i++) {
-      SSchema* schema = &pTableMeta->schema[i];
-      fLen += TYPE_BYTES[schema->type];
-      rowSize += schema->bytes;
-      if (IS_VAR_DATA_TYPE(schema->type)) {
-        nVar++;
-      }
-    }
-    fLen -= sizeof(TSKEY);
-
-    int32_t rows = rspObj.resInfo.numOfRows;
-    int32_t extendedRowSize = rowSize + TD_ROW_HEAD_LEN - sizeof(TSKEY) + nVar * sizeof(VarDataOffsetT) +
-                              (int32_t)TD_BITMAP_BYTES(pTableMeta->tableInfo.numOfColumns - 1);
-    int32_t schemaLen = 0;
-    int32_t submitLen = sizeof(SSubmitBlk) + schemaLen + rows * extendedRowSize;
-
-    SSubmitReq* subReq = NULL;
-    SSubmitBlk* blk = NULL;
-    void*       hData = taosHashGet(pVgHash, &vgData.vg.vgId, sizeof(vgData.vg.vgId));
-    if (hData) {
-      vgData = *(VgData*)hData;
-
-      int32_t totalLen = ((SSubmitReq*)(vgData.data))->length + submitLen;
-      void*   tmp = taosMemoryRealloc(vgData.data, totalLen);
-      if (tmp == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto end;
-      }
-      vgData.data = tmp;
-      ((VgData*)hData)->data = tmp;
-      subReq = (SSubmitReq*)(vgData.data);
-      blk = POINTER_SHIFT(vgData.data, subReq->length);
-    } else {
-      int32_t totalLen = sizeof(SSubmitReq) + submitLen;
-      void*   tmp = taosMemoryCalloc(1, totalLen);
-      if (tmp == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto end;
-      }
-      vgData.data = tmp;
-      taosHashPut(pVgHash, (const char*)&vgData.vg.vgId, sizeof(vgData.vg.vgId), (char*)&vgData, sizeof(vgData));
-      subReq = (SSubmitReq*)(vgData.data);
-      subReq->length = sizeof(SSubmitReq);
-      subReq->numOfBlocks = 0;
-
-      blk = POINTER_SHIFT(vgData.data, sizeof(SSubmitReq));
-    }
-
-    // pSW->pSchema should be same as pTableMeta->schema
-    //    ASSERT(pSW->nCols == pTableMeta->tableInfo.numOfColumns);
-    uint64_t suid = (TSDB_NORMAL_TABLE == pTableMeta->tableType ? 0 : pTableMeta->suid);
-    uint64_t uid = pTableMeta->uid;
-    int16_t  sver = pTableMeta->sversion;
-
-    void*   blkSchema = POINTER_SHIFT(blk, sizeof(SSubmitBlk));
-    STSRow* rowData = POINTER_SHIFT(blkSchema, schemaLen);
-
-    SRowBuilder rb = {0};
-    tdSRowInit(&rb, sver);
-    tdSRowSetTpInfo(&rb, pTableMeta->tableInfo.numOfColumns, fLen);
-    int32_t totalLen = 0;
-
-    SHashObj* schemaHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-    for (int i = 0; i < pSW->nCols; i++) {
-      SSchema* schema = &pSW->pSchema[i];
-      taosHashPut(schemaHash, schema->name, strlen(schema->name), &i, sizeof(int32_t));
-    }
-
-    for (int32_t j = 0; j < rows; j++) {
-      tdSRowResetBuf(&rb, rowData);
-
-      doSetOneRowPtr(&rspObj.resInfo);
-      rspObj.resInfo.current += 1;
-
-      int32_t offset = 0;
-      for (int32_t k = 0; k < pTableMeta->tableInfo.numOfColumns; k++) {
-        const SSchema* pColumn = &pTableMeta->schema[k];
-        int32_t*       index = taosHashGet(schemaHash, pColumn->name, strlen(pColumn->name));
-        if (!index) {
-          tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NONE, NULL, false, offset, k);
-        } else {
-          char* colData = rspObj.resInfo.row[*index];
-          if (!colData) {
-            tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, offset, k);
-          } else {
-            if (IS_VAR_DATA_TYPE(pColumn->type)) {
-              colData -= VARSTR_HEADER_SIZE;
-            }
-            tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, colData, true, offset, k);
-          }
-        }
-        if (pColumn->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
-          offset += TYPE_BYTES[pColumn->type];
-        }
-      }
-      tdSRowEnd(&rb);
-      int32_t rowLen = TD_ROW_LEN(rowData);
-      rowData = POINTER_SHIFT(rowData, rowLen);
-      totalLen += rowLen;
-    }
-
-    taosHashCleanup(schemaHash);
-    blk->uid = htobe64(uid);
-    blk->suid = htobe64(suid);
-    blk->sversion = htonl(sver);
-    blk->schemaLen = htonl(schemaLen);
-    blk->numOfRows = htonl(rows);
-    blk->dataLen = htonl(totalLen);
-    subReq->length += sizeof(SSubmitBlk) + schemaLen + totalLen;
-    subReq->numOfBlocks++;
-    taosMemoryFreeClear(pTableMeta);
-    rspObj.resInfo.pRspMsg = NULL;
-    doFreeReqResultInfo(&rspObj.resInfo);
-  }
-
-  pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
-  if (NULL == pQuery) {
-    uError("create SQuery error");
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto end;
-  }
-  pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
-  pQuery->haveResultSet = false;
-  pQuery->msgType = TDMT_VND_SUBMIT;
-  pQuery->pRoot = (SNode*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
-  if (NULL == pQuery->pRoot) {
-    uError("create pQuery->pRoot error");
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto end;
-  }
-  SVnodeModifOpStmt* nodeStmt = (SVnodeModifOpStmt*)(pQuery->pRoot);
-
-  int32_t numOfVg = taosHashGetSize(pVgHash);
-  nodeStmt->pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
-
-  VgData* vData = (VgData*)taosHashIterate(pVgHash, NULL);
-  while (vData) {
-    SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
-    if (NULL == dst) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+    SVgroupInfo vg;
+    code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vg);
+    if (code != TSDB_CODE_SUCCESS) {
+      uError("WriteRaw:catalogGetTableHashVgroup failed. table name: %s", tbName);
       goto end;
     }
-    dst->vg = vData->vg;
-    SSubmitReq* subReq = (SSubmitReq*)(vData->data);
-    dst->numOfTables = subReq->numOfBlocks;
-    dst->size = subReq->length;
-    dst->pData = (char*)subReq;
-    vData->data = NULL;  // no need free
-    subReq->header.vgId = htonl(dst->vg.vgId);
-    subReq->version = htonl(1);
-    subReq->header.contLen = htonl(subReq->length);
-    subReq->length = htonl(subReq->length);
-    subReq->numOfBlocks = htonl(subReq->numOfBlocks);
-    taosArrayPush(nodeStmt->pDataBlocks, &dst);
-    vData = (VgData*)taosHashIterate(pVgHash, vData);
+
+    void* hData = taosHashGet(pVgHash, &vg.vgId, sizeof(vg.vgId));
+    if (hData == NULL) {
+      taosHashPut(pVgHash, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg));
+    }
+
+    code = rawBlockBindData(pQuery, pTableMeta, pRetrieve->data, NULL, NULL, 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      uError("WriteRaw:rawBlockBindData failed");
+      goto end;
+    }
+  }
+
+  code = smlBuildOutput(pQuery, pVgHash);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("smlBuildOutput failed");
+    return code;
   }
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
@@ -1863,8 +1476,6 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
 
 end:
   tDeleteSMqDataRsp(&rspObj.rsp);
-  rspObj.resInfo.pRspMsg = NULL;
-  doFreeReqResultInfo(&rspObj.resInfo);
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
@@ -1872,7 +1483,6 @@ end:
   taosMemoryFreeClear(pTableMeta);
   return code;
 }
-
 
 static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -1907,8 +1517,6 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     goto end;
   }
 
-  pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
-  taosHashSetFreeFp(pVgHash, destroyVgHash);
   struct SCatalog* pCatalog = NULL;
   code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1922,19 +1530,18 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   conn.requestObjRefId = pRequest->self;
   conn.mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
 
-  printf("raw data block num:%d\n", rspObj.rsp.blockNum);
+  pQuery = smlInitHandle();
+  if (pQuery == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
+  pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+
+  uDebug("raw data block num:%d\n", rspObj.rsp.blockNum);
   while (++rspObj.resIter < rspObj.rsp.blockNum) {
     SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(rspObj.rsp.blockData, rspObj.resIter);
     if (!rspObj.rsp.withSchema) {
       uError("WriteRaw:no schema, iter:%d", rspObj.resIter);
-      goto end;
-    }
-    SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.rsp.blockSchema, rspObj.resIter);
-    setResSchemaInfo(&rspObj.resInfo, pSW->pSchema, pSW->nCols);
-
-    code = setQueryResultFromRsp(&rspObj.resInfo, pRetrieve, false, false);
-    if (code != TSDB_CODE_SUCCESS) {
-      uError("WriteRaw: setQueryResultFromRsp error");
       goto end;
     }
 
@@ -1945,49 +1552,33 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       goto end;
     }
 
-    printf("raw data tbname:%s\n", tbName);
+    uDebug("raw data tbname:%s\n", tbName);
     SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
     strcpy(pName.dbname, pRequest->pDb);
     strcpy(pName.tname, tbName);
 
-    VgData vgData = {0};
-    code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &(vgData.vg));
-    if (code != TSDB_CODE_SUCCESS) {
-      uError("WriteRaw:catalogGetTableHashVgroup failed. table name: %s", tbName);
-      goto end;
-    }
-
     // find schema data info
-    int32_t schemaLen = 0;
-    void*   schemaData = NULL;
+    SVCreateTbReq pCreateReq = {0};
+
     for (int j = 0; j < rspObj.rsp.createTableNum; j++) {
       void**   dataTmp = taosArrayGet(rspObj.rsp.createTableReq, j);
       int32_t* lenTmp = taosArrayGet(rspObj.rsp.createTableLen, j);
 
-      SDecoder      decoderTmp = {0};
-      SVCreateTbReq pCreateReq = {0};
-
+      SDecoder decoderTmp = {0};
       tDecoderInit(&decoderTmp, *dataTmp, *lenTmp);
+      memset(&pCreateReq, 0, sizeof(SVCreateTbReq));
       if (tDecodeSVCreateTbReq(&decoderTmp, &pCreateReq) < 0) {
         tDecoderClear(&decoderTmp);
-        taosMemoryFreeClear(pCreateReq.comment);
-        taosArrayDestroy(pCreateReq.ctb.tagName);
         goto end;
       }
 
       ASSERT(pCreateReq.type == TSDB_CHILD_TABLE);
       if (strcmp(tbName, pCreateReq.name) == 0) {
-        schemaLen = *lenTmp;
-        schemaData = *dataTmp;
         strcpy(pName.tname, pCreateReq.ctb.stbName);
         tDecoderClear(&decoderTmp);
-        taosMemoryFreeClear(pCreateReq.comment);
-        taosArrayDestroy(pCreateReq.ctb.tagName);
         break;
       }
       tDecoderClear(&decoderTmp);
-      taosMemoryFreeClear(pCreateReq.comment);
-      taosArrayDestroy(pCreateReq.ctb.tagName);
     }
 
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
@@ -2001,176 +1592,30 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       goto end;
     }
 
-    uint16_t fLen = 0;
-    int32_t  rowSize = 0;
-    int16_t  nVar = 0;
-    for (int i = 0; i < pTableMeta->tableInfo.numOfColumns; i++) {
-      SSchema* schema = &pTableMeta->schema[i];
-      fLen += TYPE_BYTES[schema->type];
-      rowSize += schema->bytes;
-      if (IS_VAR_DATA_TYPE(schema->type)) {
-        nVar++;
-      }
-    }
-    fLen -= sizeof(TSKEY);
-
-    int32_t rows = rspObj.resInfo.numOfRows;
-    int32_t extendedRowSize = rowSize + TD_ROW_HEAD_LEN - sizeof(TSKEY) + nVar * sizeof(VarDataOffsetT) +
-                              (int32_t)TD_BITMAP_BYTES(pTableMeta->tableInfo.numOfColumns - 1);
-
-    int32_t submitLen = sizeof(SSubmitBlk) + schemaLen + rows * extendedRowSize;
-
-    SSubmitReq* subReq = NULL;
-    SSubmitBlk* blk = NULL;
-    void*       hData = taosHashGet(pVgHash, &vgData.vg.vgId, sizeof(vgData.vg.vgId));
-    if (hData) {
-      vgData = *(VgData*)hData;
-
-      int32_t totalLen = ((SSubmitReq*)(vgData.data))->length + submitLen;
-      void*   tmp = taosMemoryRealloc(vgData.data, totalLen);
-      if (tmp == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto end;
-      }
-      vgData.data = tmp;
-      ((VgData*)hData)->data = tmp;
-      subReq = (SSubmitReq*)(vgData.data);
-      blk = POINTER_SHIFT(vgData.data, subReq->length);
-    } else {
-      int32_t totalLen = sizeof(SSubmitReq) + submitLen;
-      void*   tmp = taosMemoryCalloc(1, totalLen);
-      if (tmp == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto end;
-      }
-      vgData.data = tmp;
-      taosHashPut(pVgHash, (const char*)&vgData.vg.vgId, sizeof(vgData.vg.vgId), (char*)&vgData, sizeof(vgData));
-      subReq = (SSubmitReq*)(vgData.data);
-      subReq->length = sizeof(SSubmitReq);
-      subReq->numOfBlocks = 0;
-
-      blk = POINTER_SHIFT(vgData.data, sizeof(SSubmitReq));
-    }
-
-    // pSW->pSchema should be same as pTableMeta->schema
-    //    ASSERT(pSW->nCols == pTableMeta->tableInfo.numOfColumns);
-    uint64_t suid = (TSDB_NORMAL_TABLE == pTableMeta->tableType ? 0 : pTableMeta->suid);
-    uint64_t uid = pTableMeta->uid;
-    int16_t  sver = pTableMeta->sversion;
-
-    void* blkSchema = POINTER_SHIFT(blk, sizeof(SSubmitBlk));
-    if (schemaData) {
-      memcpy(blkSchema, schemaData, schemaLen);
-    }
-    STSRow* rowData = POINTER_SHIFT(blkSchema, schemaLen);
-
-    SRowBuilder rb = {0};
-    tdSRowInit(&rb, sver);
-    tdSRowSetTpInfo(&rb, pTableMeta->tableInfo.numOfColumns, fLen);
-    int32_t totalLen = 0;
-
-    SHashObj* schemaHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-    for (int i = 0; i < pSW->nCols; i++) {
-      SSchema* schema = &pSW->pSchema[i];
-      taosHashPut(schemaHash, schema->name, strlen(schema->name), &i, sizeof(int32_t));
-    }
-
-    for (int32_t j = 0; j < rows; j++) {
-      tdSRowResetBuf(&rb, rowData);
-
-      doSetOneRowPtr(&rspObj.resInfo);
-      rspObj.resInfo.current += 1;
-
-      int32_t offset = 0;
-      for (int32_t k = 0; k < pTableMeta->tableInfo.numOfColumns; k++) {
-        const SSchema* pColumn = &pTableMeta->schema[k];
-        int32_t*       index = taosHashGet(schemaHash, pColumn->name, strlen(pColumn->name));
-        if (!index) {
-          tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NONE, NULL, false, offset, k);
-        } else {
-          char* colData = rspObj.resInfo.row[*index];
-          if (!colData) {
-            tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, offset, k);
-          } else {
-            if (IS_VAR_DATA_TYPE(pColumn->type)) {
-              colData -= VARSTR_HEADER_SIZE;
-            }
-            tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, colData, true, offset, k);
-          }
-        }
-        if (pColumn->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
-          offset += TYPE_BYTES[pColumn->type];
-        }
-      }
-      tdSRowEnd(&rb);
-      int32_t rowLen = TD_ROW_LEN(rowData);
-      rowData = POINTER_SHIFT(rowData, rowLen);
-      totalLen += rowLen;
-    }
-
-    taosHashCleanup(schemaHash);
-    blk->uid = htobe64(uid);
-    blk->suid = htobe64(suid);
-    blk->sversion = htonl(sver);
-    blk->schemaLen = htonl(schemaLen);
-    blk->numOfRows = htonl(rows);
-    blk->dataLen = htonl(totalLen);
-    subReq->length += sizeof(SSubmitBlk) + schemaLen + totalLen;
-    subReq->numOfBlocks++;
-    taosMemoryFreeClear(pTableMeta);
-    rspObj.resInfo.pRspMsg = NULL;
-    doFreeReqResultInfo(&rspObj.resInfo);
-  }
-
-  pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
-  if (NULL == pQuery) {
-    uError("create SQuery error");
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto end;
-  }
-  pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
-  pQuery->haveResultSet = false;
-  pQuery->msgType = TDMT_VND_SUBMIT;
-  pQuery->pRoot = (SNode*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
-  if (NULL == pQuery->pRoot) {
-    uError("create pQuery->pRoot error");
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto end;
-  }
-  SVnodeModifOpStmt* nodeStmt = (SVnodeModifOpStmt*)(pQuery->pRoot);
-
-  int32_t numOfVg = taosHashGetSize(pVgHash);
-  nodeStmt->pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
-
-  VgData* vData = (VgData*)taosHashIterate(pVgHash, NULL);
-  while (vData) {
-    SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
-    if (NULL == dst) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+    SVgroupInfo vg;
+    code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vg);
+    if (code != TSDB_CODE_SUCCESS) {
+      uError("WriteRaw:catalogGetTableHashVgroup failed. table name: %s", tbName);
       goto end;
     }
-    dst->vg = vData->vg;
-    SSubmitReq* subReq = (SSubmitReq*)(vData->data);
-    dst->numOfTables = subReq->numOfBlocks;
-    dst->size = subReq->length;
-    dst->pData = (char*)subReq;
-    vData->data = NULL;  // no need free
-    subReq->header.vgId = htonl(dst->vg.vgId);
-    subReq->version = htonl(1);
-    subReq->header.contLen = htonl(subReq->length);
-    subReq->length = htonl(subReq->length);
-    subReq->numOfBlocks = htonl(subReq->numOfBlocks);
-    taosArrayPush(nodeStmt->pDataBlocks, &dst);
-    vData = (VgData*)taosHashIterate(pVgHash, vData);
+
+    void* hData = taosHashGet(pVgHash, &vg.vgId, sizeof(vg.vgId));
+    if (hData == NULL) {
+      taosHashPut(pVgHash, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg));
+    }
+
+    code = rawBlockBindData(pQuery, pTableMeta, pRetrieve->data, &pCreateReq, NULL, 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      uError("WriteRaw:rawBlockBindData failed");
+      goto end;
+    }
   }
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
-  end:
+end:
   tDeleteSTaosxRsp(&rspObj.rsp);
-  rspObj.resInfo.pRspMsg = NULL;
-  doFreeReqResultInfo(&rspObj.resInfo);
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);

@@ -337,7 +337,10 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   // commit if need
   if (vnodeShouldCommit(pVnode)) {
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), version);
-    vnodeAsyncCommit(pVnode);
+    if (vnodeAsyncCommit(pVnode) < 0) {
+      vError("vgId:%d, failed to vnode async commit since %s.", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
 
     // start a new one
     if (vnodeBegin(pVnode) < 0) {
@@ -950,6 +953,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
     }
   }
 
+  vDebug("vgId:%d, submit block size %d", TD_VID(pVnode), (int32_t)taosArrayGetSize(pSubmitReq->aSubmitTbData));
+
   // loop to handle
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
     SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
@@ -1040,13 +1045,13 @@ _exit:
 
 #else
   SSubmitReq *pSubmitReq = (SSubmitReq *)pReq;
-  SSubmitRsp submitRsp = {0};
-  int32_t nRows = 0;
-  int32_t tsize, ret;
-  SEncoder encoder = {0};
-  SArray *newTbUids = NULL;
-  SVStatis statis = {0};
-  bool tbCreated = false;
+  SSubmitRsp  submitRsp = {0};
+  int32_t     nRows = 0;
+  int32_t     tsize, ret;
+  SEncoder    encoder = {0};
+  SArray     *newTbUids = NULL;
+  SVStatis    statis = {0};
+  bool        tbCreated = false;
   terrno = TSDB_CODE_SUCCESS;
 
   pRsp->code = 0;
