@@ -1372,7 +1372,8 @@ SNode* createShowAliveStmt(SAstCreateContext* pCxt, SNode* pDbName, ENodeType ty
   }
 
   if (pDbToken && !checkDbName(pCxt, pDbToken, true)) {
-    nodesDestroyNode(pDbName) return NULL;
+    nodesDestroyNode(pDbName);
+    return NULL;
   }
 
   SShowAliveStmt* pStmt = (SShowAliveStmt*)nodesMakeNode(type);
