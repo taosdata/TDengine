@@ -193,7 +193,7 @@ void flttMakeLogicNodeFromList(SNode **pNode, ELogicConditionType opType, SNodeL
 void flttMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
   SNode         *node = (SNode *)nodesMakeNode(QUERY_NODE_NODE_LIST);
   SNodeListNode *lnode = (SNodeListNode *)node;
-  lnode->dataType.type = resType;
+  lnode->node.resType.type = resType;
   lnode->pNodeList = list;
 
   *pNode = (SNode *)lnode;

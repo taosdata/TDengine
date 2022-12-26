@@ -235,7 +235,7 @@ class TAdapter:
             return
 
         toBeKilled = "taosadapter"
-
+        
         if self.running != 0:
             psCmd = f"ps -ef|grep -w {toBeKilled}| grep -v grep | awk '{{print $2}}'"
             # psCmd = f"pgrep {toBeKilled}"            

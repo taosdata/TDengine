@@ -718,11 +718,11 @@ int32_t ctgChkAuthFromCache(SCatalog *pCtg, char *user, char *dbFName, AUTH_TYPE
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pUser->readDbs && taosHashGet(pUser->readDbs, dbFName, strlen(dbFName)) && type == AUTH_TYPE_READ) {
+  if (pUser->readDbs && taosHashGet(pUser->readDbs, dbFName, strlen(dbFName)) && CTG_AUTH_READ(type)) {
     *pass = true;
   }
 
-  if (pUser->writeDbs && taosHashGet(pUser->writeDbs, dbFName, strlen(dbFName)) && type == AUTH_TYPE_WRITE) {
+  if (pUser->writeDbs && taosHashGet(pUser->writeDbs, dbFName, strlen(dbFName)) && CTG_AUTH_WRITE(type)) {
     *pass = true;
   }
 

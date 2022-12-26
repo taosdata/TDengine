@@ -960,6 +960,10 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
         code = TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL;
       }
+      if (code == TSDB_CODE_SYN_TIMEOUT) {
+        code = TSDB_CODE_MND_TRNAS_SYNC_TIMEOUT;
+      }
+
       if (i != 0 && code == 0) {
         code = TSDB_CODE_MNODE_NOT_FOUND;
       }
