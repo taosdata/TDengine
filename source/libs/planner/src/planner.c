@@ -20,12 +20,10 @@
 #include "tglobal.h"
 
 static void dumpQueryPlan(SQueryPlan* pPlan) {
-  if (!tsQueryPlannerTrace) {
-    return;
-  }
   char* pStr = NULL;
   nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
   planDebugL("QID:0x%" PRIx64 " Query Plan: %s", pPlan->queryId, pStr);
+  printf("QueryPlan\n%s\n\n", pStr);
   taosMemoryFree(pStr);
 }
 
