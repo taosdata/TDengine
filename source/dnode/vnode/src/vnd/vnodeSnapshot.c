@@ -257,8 +257,8 @@ _exit:
     pReader->index++;
     *nData = sizeof(SSnapDataHdr) + pHdr->size;
     pHdr->index = pReader->index;
-    vInfo("vgId:%d, vnode snapshot read data,index:%" PRId64 " type:%d nData:%d ", TD_VID(pReader->pVnode),
-          pReader->index, pHdr->type, *nData);
+    vDebug("vgId:%d, vnode snapshot read data, index:%" PRId64 " type:%d blockLen:%d ", TD_VID(pReader->pVnode),
+           pReader->index, pHdr->type, *nData);
   } else {
     vInfo("vgId:%d, vnode snapshot read data end, index:%" PRId64, TD_VID(pReader->pVnode), pReader->index);
   }
