@@ -76,9 +76,9 @@ class TDTestQuery(TDCase):
     # list_maths代表遍历时候选择的math函数。 
     # 同理，list_intervals是20种interval的组合，在queryutil.where.time_window_new中说明
     list_maths = [1,21,3,4,61,71,91]
-    list_math = random.sample(list_maths,4) 
+    list_math = random.sample(list_maths,5) 
     list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
-    list_interval = random.sample(list_intervals,3) 
+    list_interval = random.sample(list_intervals,5) 
     
 
     # def case_common(self):
