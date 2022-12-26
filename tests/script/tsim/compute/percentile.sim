@@ -120,6 +120,17 @@ if $data00 != 5.000000000 then
   return -1
 endi
 
+sql select _wstart, percentile(tbcol, 10) as c from $tb interval(1d)
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.000@ then
+  return -1
+endi
+if $data01 != @1.900000000@ then
+  return -1
+endi
+
 print =============== clear
 sql drop database $db
 sql select * from information_schema.ins_databases

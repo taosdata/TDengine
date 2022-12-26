@@ -121,8 +121,6 @@ int smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int ty
 int32_t smaOpen(SVnode *pVnode, int8_t rollback) {
   STsdbCfg *pCfg = &pVnode->config.tsdbCfg;
 
-  ASSERT(!pVnode->pSma);
-
   SSma *pSma = taosMemoryCalloc(1, sizeof(SSma));
   if (!pSma) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -137,7 +135,7 @@ int32_t smaOpen(SVnode *pVnode, int8_t rollback) {
 
   if (VND_IS_RSMA(pVnode)) {
     STsdbKeepCfg keepCfg = {0};
-    for (int i = 0; i < TSDB_RETENTION_MAX; ++i) {
+    for (int32_t i = 0; i < TSDB_RETENTION_MAX; ++i) {
       if (i == TSDB_RETENTION_L0) {
         SMA_OPEN_RSMA_IMPL(pVnode, 0);
       } else if (i == TSDB_RETENTION_L1) {
@@ -145,12 +143,14 @@ int32_t smaOpen(SVnode *pVnode, int8_t rollback) {
       } else if (i == TSDB_RETENTION_L2) {
         SMA_OPEN_RSMA_IMPL(pVnode, 2);
       } else {
-        ASSERT(0);
+        terrno = TSDB_CODE_APP_ERROR;
+        smaError("vgId:%d, sma open failed since %s, level:%d", TD_VID(pVnode), terrstr(), i);
+        goto _err;
       }
     }
 
     // restore the rsma
-    if (tdRSmaRestore(pSma, RSMA_RESTORE_REBOOT, pVnode->state.committed) < 0) {
+    if (tdRSmaRestore(pSma, RSMA_RESTORE_REBOOT, pVnode->state.committed, rollback) < 0) {
       goto _err;
     }
   }
@@ -181,8 +181,11 @@ int32_t smaClose(SSma *pSma) {
  * @param committedVer
  * @return int32_t
  */
-int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer) {
-  ASSERT(VND_IS_RSMA(pSma->pVnode));
+int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer, int8_t rollback) {
+  if (!VND_IS_RSMA(pSma->pVnode)) {
+    terrno = TSDB_CODE_RSMA_INVALID_ENV;
+    return TSDB_CODE_FAILED;
+  }
 
-  return tdRSmaProcessRestoreImpl(pSma, type, committedVer);
+  return tdRSmaProcessRestoreImpl(pSma, type, committedVer, rollback);
 }

@@ -25,9 +25,7 @@ void tqTmrRspFunc(void* param, void* tmrId) {
 static int32_t tqLoopExecFromQueue(STQ* pTq, STqHandle* pHandle, SStreamDataSubmit** ppSubmit, SMqDataRsp* pRsp) {
   SStreamDataSubmit* pSubmit = *ppSubmit;
   while (pSubmit != NULL) {
-    ASSERT(pSubmit->ver == pHandle->pushHandle.processedVer + 1);
     if (tqLogScanExec(pTq, &pHandle->execHandle, pSubmit->data, pRsp, 0) < 0) {
-      /*ASSERT(0);*/
     }
     // update processed
     atomic_store_64(&pHandle->pushHandle.processedVer, pSubmit->ver);
@@ -160,17 +158,13 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
     if (msgType == TDMT_VND_SUBMIT) {
       tqLogScanExec(pTq, &pHandle->execHandle, pReq, &rsp, workerId);
     } else {
-      // TODO
-      ASSERT(0);
+      tqError("tq push unexpected msg type %d", msgType);
     }
 
     if (rsp.blockNum == 0) {
       taosWUnLockLatch(&pHandle->pushHandle.lock);
       continue;
     }
-
-    ASSERT(taosArrayGetSize(rsp.blockData) == rsp.blockNum);
-    ASSERT(taosArrayGetSize(rsp.blockDataLen) == rsp.blockNum);
 
     rsp.rspOffset = fetchOffset;
 
@@ -263,7 +257,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
           SSDataBlock* pDataBlock = NULL;
           uint64_t     ts = 0;
           if (qExecTask(task, &pDataBlock, &ts) < 0) {
-            ASSERT(0);
+            tqDebug("vgId:%d, tq exec error since %s", pTq->pVnode->config.vgId, terrstr());
           }
 
           if (pDataBlock == NULL) {
@@ -282,7 +276,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
           // remove from hash
           size_t kLen;
           void*  key = taosHashGetKey(pIter, &kLen);
-          void*  keyCopy = taosMemoryMalloc(kLen);
+          void*  keyCopy = taosMemoryCalloc(1, kLen + 1);
           memcpy(keyCopy, key, kLen);
 
           taosArrayPush(cachedKeys, &keyCopy);
@@ -296,7 +290,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
         void*  key = taosArrayGetP(cachedKeys, i);
         size_t kLen = *(size_t*)taosArrayGet(cachedKeyLens, i);
         if (taosHashRemove(pTq->pPushMgr, key, kLen) != 0) {
-          ASSERT(0);
+          tqError("vgId:%d, tq push hash remove key error, key: %s", pTq->pVnode->config.vgId, (char*)key);
         }
       }
       taosArrayDestroyP(cachedKeys, (FDelete)taosMemoryFree);

@@ -299,6 +299,9 @@ int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
   pTxn->jPageSet = hashset_create();
 
   pPager->pActiveTxn = pTxn;
+
+  tdbDebug("pager/begin: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
+
   // TODO: write the size of the file
   /*
   pPager->inTran = 1;
@@ -332,7 +335,8 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
     }
   }
 
-  tdbTrace("tdbttl commit:%p, %d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize);
+  tdbDebug("pager/commit: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
+
   pPager->dbOrigSize = pPager->dbFileSize;
 
   // release the page
@@ -380,6 +384,8 @@ int tdbPagerPostCommit(SPager *pPager, TXN *pTxn) {
   }
 
   // pPager->inTran = 0;
+
+  tdbDebug("pager/post-commit:%p, %d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize);
 
   return 0;
 }
@@ -477,7 +483,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     return -1;
   }
 
-  tdbDebug("tdb/abort: pager:%p,", pPager);
+  tdbDebug("pager/abort: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
 
   for (int pgIndex = 0; pgIndex < journalSize; ++pgIndex) {
     // read pgno & the page from journal
@@ -489,7 +495,9 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
       return -1;
     }
 
-    tdbTrace("tdb/abort: pgno:%d,", pgno);
+    tdbTrace("pager/abort: restore pgno:%d,", pgno);
+
+    tdbPCacheInvalidatePage(pPager->pCache, pPager, pgno);
 
     ret = tdbOsRead(jfd, pageBuf, pPager->pageSize);
     if (ret < 0) {
@@ -529,6 +537,9 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
   SRBTreeNode *pNode = NULL;
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
+    SPgno pgno = TDB_PAGE_PGNO(pPage);
+
+    tdbTrace("pager/abort: drop dirty pgno:%d,", pgno);
 
     pPage->isDirty = 0;
 
@@ -538,7 +549,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
-  tdbTrace("reset dirty tree: %p", &pPager->rbt);
+  tdbTrace("pager/abort: reset dirty tree: %p", &pPager->rbt);
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
 
   // 4, remove the journal file
@@ -599,6 +610,9 @@ int tdbPagerFlushPage(SPager *pPager, TXN *pTxn) {
 
     break;
   }
+
+  tdbDebug("pager/flush: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
+
   /*
   tdbTrace("tdb/flush:%p, %d/%d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize, maxPgno);
   pPager->dbOrigSize = maxPgno;
