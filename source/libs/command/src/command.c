@@ -328,7 +328,7 @@ static int32_t execShowAliveStatus(SShowAliveStmt* pStmt, SRetrieveTableRsp** pR
     setAliveResultIntoDataBlock(pBlock, pStmt->dbName);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_DB_RESULT_COLS, pRsp);
+    code = buildRetrieveTableRsp(pBlock, SHOW_ALIVE_RESULT_COLS, pRsp);
   }
   blockDataDestroy(pBlock);
   return code;
