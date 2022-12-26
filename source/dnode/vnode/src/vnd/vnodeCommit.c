@@ -268,10 +268,11 @@ _exit:
     if (NULL != pInfo) {
       taosMemoryFree(pInfo);
     }
-    vError("vgId:%d, %s failed since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code),
+    vError("vgId:%d, vnode async commit failed since %s, commitId:%" PRId64, TD_VID(pVnode), tstrerror(code),
            pVnode->state.commitID);
   } else {
-    vDebug("vgId:%d, %s done", TD_VID(pVnode), __func__);
+    vInfo("vgId:%d, vnode async commit done, commitId:%" PRId64 " term:%" PRId64 " applied:%" PRId64, TD_VID(pVnode),
+          pVnode->state.commitID, pVnode->state.applyTerm, pVnode->state.applied);
   }
   return code;
 }
@@ -290,7 +291,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   char    dir[TSDB_FILENAME_LEN] = {0};
   SVnode *pVnode = pInfo->pVnode;
 
-  vInfo("vgId:%d, start to commit, commit ID:%" PRId64 " version:%" PRId64 " term: %" PRId64, TD_VID(pVnode),
+  vInfo("vgId:%d, start to commit, commitId:%" PRId64 " version:%" PRId64 " term: %" PRId64, TD_VID(pVnode),
         pVnode->state.commitID, pVnode->state.applied, pVnode->state.applyTerm);
 
   // persist wal before starting

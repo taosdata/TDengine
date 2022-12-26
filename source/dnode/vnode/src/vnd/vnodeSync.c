@@ -465,9 +465,9 @@ static int32_t vnodeSnapshotStopWrite(const SSyncFSM *pFsm, void *pWriter, bool 
 
 static int32_t vnodeSnapshotDoWrite(const SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) {
   SVnode *pVnode = pFsm->data;
-  vDebug("vgId:%d, continue write vnode snapshot, len:%d", pVnode->config.vgId, len);
+  vDebug("vgId:%d, continue write vnode snapshot, blockLen:%d", pVnode->config.vgId, len);
   int32_t code = vnodeSnapWrite(pWriter, pBuf, len);
-  vDebug("vgId:%d, continue write vnode snapshot finished, len:%d", pVnode->config.vgId, len);
+  vDebug("vgId:%d, continue write vnode snapshot finished, blockLen:%d", pVnode->config.vgId, len);
   return code;
 }
 

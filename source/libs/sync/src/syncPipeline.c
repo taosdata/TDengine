@@ -112,7 +112,7 @@ SyncTerm syncLogReplMgrGetPrevLogTerm(SSyncLogReplMgr* pMgr, SSyncNode* pNode, S
     return prevLogTerm;
   }
 
-  sError("vgId:%d, failed to get log term since %s. index: %" PRId64 "", pNode->vgId, terrstr(), prevIndex);
+  sInfo("vgId:%d, failed to get log term since %s. index:%" PRId64, pNode->vgId, terrstr(), prevIndex);
   terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
   return -1;
 }
