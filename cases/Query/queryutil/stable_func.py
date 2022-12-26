@@ -685,7 +685,19 @@ class TDFunction():
         str_substr = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", (","(")
             
         return str_substr
-    
+ 
+    def str_substr_interval(self):   
+        hanshu = ['SUBSTR']      
+        column = ['(q_nchar, pos)','(q_binary, pos)','(q_nchar_null, pos)','(q_binary_null, pos)',
+        '(q_nchar, pos, len)','(q_binary, pos, len)','(q_nchar_null, pos, len)','(q_binary_null, pos, len)']
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        
+        pos_list = (-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,1,2,3,4,5,6,7,8,9,10);
+        substr_pos,substr_len = random.choice(self.pos_list) , random.randrange(0,5) 
+        str_substr = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", (","(").replace("pos","%d" %substr_pos).replace("len","%d" %substr_len)
+            
+        return str_substr
+        
     def str_concat_nchar(self):   
         hanshu = ['CONCAT']  
         i = random.randint(2,8)
@@ -781,7 +793,9 @@ class TDFunction():
         elif i == 6:
             func_stable_str = self.str_length()  
         elif i == 7:
-            func_stable_str = self.str_substr()   
+            func_stable_str = self.str_substr()  
+        elif i == 71:
+            func_stable_str = self.str_substr_interval()   
         elif i == 8:
             func_stable_str = self.str_concat_nchar()   
         elif i == 9:

@@ -70,7 +70,7 @@ class TDTestQuery(TDCase):
     # elif i == 4:str_ltrim() 
     # elif i == 5:str_rtrim()    
     # elif i == 6:str_length()  
-    # elif i == 7:str_substr()   
+    # elif i == 7:str_substr()   71:str_substr_interval() 
     # elif i == 8:str_concat_nchar()   
     # elif i == 9:str_concat_binary()  
     # elif i == 10:str_concat_ws_nchar()   
@@ -78,10 +78,10 @@ class TDTestQuery(TDCase):
     # elif i == 12:str_cast()  
     # list_strs代表遍历时候选择的字符串函数。
     # 同理，list_intervals是20种interval的组合，在queryutil.where.time_window_new中说明
-    list_strs = [1,2,3,4,5,6,7,8,9,10,11,12]
-    list_str = random.sample(list_strs,3) 
+    list_strs = [1,2,3,4,5,6,71,8,9,10,11,12]
+    list_str = random.sample(list_strs,5) 
     list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
-    list_interval = random.sample(list_intervals,3) 
+    list_interval = random.sample(list_intervals,5) 
     
 
     # def case_common(self):
@@ -102,7 +102,7 @@ class TDTestQuery(TDCase):
     def data_create(self,db):
         #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
         os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
-        self.tdCreateData.dropandcreateDB_random("%s" % db, 1)  
+        self.tdCreateData.dropandcreateDB_random_concat("%s" % db, 1)  
   
  
     def right_case_1_interval(self):
