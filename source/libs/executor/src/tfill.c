@@ -37,6 +37,22 @@
 
 static void doSetVal(SColumnInfoData* pDstColInfoData, int32_t rowIndex, const SGroupKeys* pKey);
 
+static void setNotFillColumn(SFillInfo* pFillInfo, SColumnInfoData* pDstColInfo, int32_t rowIndex, int32_t colIdx) {
+  SRowVal* p = NULL;
+  if (FILL_IS_ASC_FILL(pFillInfo)) {
+    if (pFillInfo->prev.key != 0) {
+      p = &pFillInfo->prev;  // prev has been set value
+    } else { // otherwise, use the value in the next row
+      p = &pFillInfo->next;
+    }
+  } else {
+    p = &pFillInfo->next;
+  }
+  
+  SGroupKeys* pKey = taosArrayGet(p->pRowVal, colIdx);
+  doSetVal(pDstColInfo, rowIndex, pKey);
+}
+
 static void setNullRow(SSDataBlock* pBlock, SFillInfo* pFillInfo, int32_t rowIndex) {
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     SFillColInfo*    pCol = &pFillInfo->pFillCol[i];
@@ -45,19 +61,7 @@ static void setNullRow(SSDataBlock* pBlock, SFillInfo* pFillInfo, int32_t rowInd
     if (pCol->notFillCol) {
       bool filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDstColInfo, rowIndex);
       if (!filled) {
-        SRowVal* p = NULL;
-        if (FILL_IS_ASC_FILL(pFillInfo)) {
-          if (pFillInfo->prev.key != 0) {
-            p = &pFillInfo->prev;  // prev has been set value
-          } else { // otherwise, use the value in the next row
-            p = &pFillInfo->next;
-          }
-        } else {
-          p = &pFillInfo->next;
-        }
-
-        SGroupKeys* pKey = taosArrayGet(p->pRowVal, i);
-        doSetVal(pDstColInfo, rowIndex, pKey);
+        setNotFillColumn(pFillInfo, pDstColInfo, rowIndex, i);
       }
     } else {
       colDataAppendNULL(pDstColInfo, rowIndex);
@@ -124,28 +128,23 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
 
   // set the other values
   if (pFillInfo->type == TSDB_FILL_PREV) {
-    SArray* p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->prev.pRowVal : pFillInfo->next.pRowVal;
-
     for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
       SFillColInfo* pCol = &pFillInfo->pFillCol[i];
 
       SColumnInfoData* pDstColInfoData = taosArrayGet(pBlock->pDataBlock, GET_DEST_SLOT_ID(pCol));
       bool             filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDstColInfoData, index);
       if (!filled) {
-        SGroupKeys* pKey = taosArrayGet(p, i);
-        doSetVal(pDstColInfoData, index, pKey);
+        setNotFillColumn(pFillInfo, pDstColInfoData, index, i);
       }
     }
   } else if (pFillInfo->type == TSDB_FILL_NEXT) {
-    SArray* p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->next.pRowVal : pFillInfo->prev.pRowVal;
     // todo  refactor: start from 0 not 1
     for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
       SFillColInfo*    pCol = &pFillInfo->pFillCol[i];
       SColumnInfoData* pDstColInfoData = taosArrayGet(pBlock->pDataBlock, GET_DEST_SLOT_ID(pCol));
       bool             filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDstColInfoData, index);
       if (!filled) {
-        SGroupKeys* pKey = taosArrayGet(p, i);
-        doSetVal(pDstColInfoData, index, pKey);
+        setNotFillColumn(pFillInfo, pDstColInfoData, index, i);
       }
     }
   } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
@@ -163,9 +162,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
         if (pCol->notFillCol) {
           bool filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDstCol, index);
           if (!filled) {
-            SArray*     p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->prev.pRowVal : pFillInfo->next.pRowVal;
-            SGroupKeys* pKey = taosArrayGet(p, i);
-            doSetVal(pDstCol, index, pKey);
+            setNotFillColumn(pFillInfo, pDstCol, index, i);
           }
         } else {
           SGroupKeys* pKey = taosArrayGet(pFillInfo->prev.pRowVal, i);
@@ -205,9 +202,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
       if (pCol->notFillCol) {
         bool filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDst, index);
         if (!filled) {
-          SArray*     p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->prev.pRowVal : pFillInfo->next.pRowVal;
-          SGroupKeys* pKey = taosArrayGet(p, i);
-          doSetVal(pDst, index, pKey);
+          setNotFillColumn(pFillInfo, pDst, index, i);
         }
       } else {
         SVariant* pVar = &pFillInfo->pFillCol[i].fillVal;

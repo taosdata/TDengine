@@ -317,7 +317,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
     if (pProjectInfo->mergeDataBlocks) {
       if (pRes->info.rows > 0) {
-        pFinalRes->info.id.groupId = pRes->info.id.groupId;
+        pFinalRes->info.id.groupId = 0;  //clear groupId
         pFinalRes->info.version = pRes->info.version;
 
         // continue merge data, ignore the group id
@@ -351,6 +351,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   SSDataBlock* p = pProjectInfo->mergeDataBlocks ? pFinalRes : pRes;
   pOperator->resultInfo.totalRows += p->info.rows;
+  p->info.dataLoad = 1;
 
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;

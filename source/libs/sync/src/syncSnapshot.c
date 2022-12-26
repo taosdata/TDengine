@@ -122,15 +122,16 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   pMsg->startTime = pSender->startTime;
   pMsg->seq = SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT;
 
+  // event log
+  sSDebug(pSender, "snapshot sender start");
+  syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "snapshot sender start");
+
   // send msg
   if (syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
     sSError(pSender, "snapshot sender send msg failed since %s", terrstr());
     return -1;
   }
 
-  // event log
-  sSDebug(pSender, "snapshot sender start");
-  syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "snapshot sender start");
   return 0;
 }
 
@@ -208,14 +209,6 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
     memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
   }
 
-  // send msg
-  if (syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
-    sSError(pSender, "snapshot sender send msg failed since %s", terrstr());
-    return -1;
-  }
-
-  pSender->lastSendTime = taosGetTimestampMs();
-
   // event log
   if (pSender->seq == SYNC_SNAPSHOT_SEQ_END) {
     sSDebug(pSender, "snapshot sender finish, seq:%d", pSender->seq);
@@ -224,6 +217,14 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
     sSDebug(pSender, "snapshot sender sending, seq:%d", pSender->seq);
     syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "snapshot sender sending");
   }
+
+  // send msg
+  if (syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
+    sSError(pSender, "snapshot sender send msg failed since %s", terrstr());
+    return -1;
+  }
+
+  pSender->lastSendTime = taosGetTimestampMs();
   return 0;
 }
 
@@ -252,6 +253,10 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
     memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
   }
 
+  // event log
+  sSDebug(pSender, "snapshot sender resend, seq:%d", pSender->seq);
+  syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "snapshot sender resend");
+
   // send msg
   if (syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
     sSError(pSender, "snapshot sender resend msg failed since %s", terrstr());
@@ -259,10 +264,6 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   }
 
   pSender->lastSendTime = taosGetTimestampMs();
-
-  // event log
-  sSDebug(pSender, "snapshot sender resend, seq:%d", pSender->seq);
-  syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "snapshot sender resend");
   return 0;
 }
 
@@ -748,6 +749,7 @@ static int32_t syncNodeOnSnapshotTransfering(SSyncNode *pSyncNode, SyncSnapshotS
     sRError(pReceiver, "snapshot receiver send resp failed since %s", terrstr());
     return -1;
   }
+
   return 0;
 }
 

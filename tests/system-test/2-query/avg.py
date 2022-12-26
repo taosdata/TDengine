@@ -409,7 +409,7 @@ class TDTestCase:
         tdSql.query(f"select avg(c1) ,avg(c2) , avg(c3) , avg(c4), avg(c5), avg(c6) from {dbname}.sub1_bound ")
         tdSql.checkRows(1)
         tdSql.checkData(0,0,920350133.571428537)
-        tdSql.checkData(0,1,1.3176245766935393e+18)
+        tdSql.checkData(0,1,3.952873730080618e+18)
         tdSql.checkData(0,2,14042.142857143)
         tdSql.checkData(0,3,53.571428571)
         tdSql.checkData(0,4,5.828571332045761e+37)
@@ -419,13 +419,56 @@ class TDTestCase:
         # check  + - * / in functions
         tdSql.query(f" select avg(c1+1) ,avg(c2) , avg(c3*1) , avg(c4/2), avg(c5)/2, avg(c6) from {dbname}.sub1_bound ")
         tdSql.checkData(0,0,920350134.5714285)
-        tdSql.checkData(0,1,1.3176245766935393e+18)
+        tdSql.checkData(0,1,3.952873730080618e+18)
         tdSql.checkData(0,2,14042.142857143)
         tdSql.checkData(0,3,26.785714286)
         tdSql.checkData(0,4,2.9142856660228804e+37)
         tdSql.checkData(0,5,None)
 
+    #
+    # test bigint to check overflow
+    #
+    def avg_check_overflow(self):
+        # create db
+        tdSql.execute(f"drop database if exists db")
+        tdSql.execute(f"create database if not exists db")
+        time.sleep(3)
+        tdSql.execute(f"use db")
+        tdSql.execute(f"create table db.st(ts timestamp, ibv bigint, ubv bigint unsigned) tags(area int)")
+        # insert t1 data
+        tdSql.execute(f"insert into db.t1 using db.st tags(1) values(now,9223372036854775801,18446744073709551611)")
+        tdSql.execute(f"insert into db.t1 using db.st tags(1) values(now,8223372036854775801,17446744073709551611)")
+        tdSql.execute(f"insert into db.t1 using db.st tags(1) values(now,7223372036854775801,16446744073709551611)")
+        # insert t2 data
+        tdSql.execute(f"insert into db.t2 using db.st tags(2) values(now,9223372036854775801,18446744073709551611)")
+        tdSql.execute(f"insert into db.t2 using db.st tags(2) values(now,8223372036854775801,17446744073709551611)")
+        tdSql.execute(f"insert into db.t2 using db.st tags(2) values(now,7223372036854775801,16446744073709551611)")
+        
+        # check single table answer
+        tdSql.query(f"select avg(ibv), avg(ubv) from db.t1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0,8.223372036854776e+18)
+        tdSql.checkData(0, 1,1.744674407370955e+19)
 
+        # check super table
+        tdSql.query(f"select avg(ibv), avg(ubv) from db.st")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0,8.223372036854776e+18)
+        tdSql.checkData(0, 1,1.744674407370955e+19)
+
+        # check child query
+        tdSql.query(f"select avg(ibv), avg(ubv) from (select * from db.st)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0,8.223372036854776e+18)
+        tdSql.checkData(0, 1,1.744674407370955e+19)
+
+        # check group by
+        tdSql.query(f"select avg(ibv), avg(ubv) from db.st group by tbname")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0,8.223372036854776e+18)
+        tdSql.checkData(0, 1,1.744674407370955e+19)
+        tdSql.checkData(1, 0,8.223372036854776e+18)
+        tdSql.checkData(1, 1,1.744674407370955e+19)
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
@@ -455,6 +498,8 @@ class TDTestCase:
         self.avg_func_filter()
         self.avg_check_unsigned()
 
+        # check avg overflow
+        self.avg_check_overflow()
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

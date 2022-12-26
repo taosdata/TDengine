@@ -1579,7 +1579,7 @@ static int32_t translateMultiResFunc(STranslateContext* pCxt, SFunctionNode* pFu
                                      "%s(*) is only supported in SELECTed list", pFunc->functionName);
     }
   }
-  if (tsKeepColumnName && 1 == LIST_LENGTH(pFunc->pParameterList)) {
+  if (tsKeepColumnName && 1 == LIST_LENGTH(pFunc->pParameterList) && !pFunc->node.asAlias) {
     strcpy(pFunc->node.userAlias, ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->userAlias);
   }
   return TSDB_CODE_SUCCESS;

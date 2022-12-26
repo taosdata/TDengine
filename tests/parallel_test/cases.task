@@ -175,6 +175,7 @@
 ,,y,script,./test.sh -f tsim/query/session.sim
 ,,y,script,./test.sh -f tsim/query/udf.sim
 ,,y,script,./test.sh -f tsim/query/udf_with_const.sim
+,,y,script,./test.sh -f tsim/query/groupby.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim
@@ -482,8 +483,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py 
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py -N 3 -n 3 -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py
@@ -628,6 +629,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py
@@ -793,6 +795,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 2
@@ -886,6 +889,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 3
@@ -979,6 +983,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4
