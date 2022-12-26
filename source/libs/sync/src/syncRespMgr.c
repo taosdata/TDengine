@@ -36,21 +36,21 @@ SSyncRespMgr *syncRespMgrCreate(void *data, int64_t ttl) {
   taosThreadMutexInit(&(pObj->mutex), NULL);
 
   SSyncNode *pNode = pObj->data;
-  sTrace("vgId:%d, create resp manager", pNode->vgId);
+  sDebug("vgId:%d, resp manager create", pNode->vgId);
   return pObj;
 }
 
 void syncRespMgrDestroy(SSyncRespMgr *pObj) {
-  if (pObj != NULL) {
-    SSyncNode *pNode = pObj->data;
-    sTrace("vgId:%d, destroy resp manager", pNode->vgId);
+  if (pObj == NULL) return;
 
-    taosThreadMutexLock(&pObj->mutex);
-    taosHashCleanup(pObj->pRespHash);
-    taosThreadMutexUnlock(&pObj->mutex);
-    taosThreadMutexDestroy(&(pObj->mutex));
-    taosMemoryFree(pObj);
-  }
+  SSyncNode *pNode = pObj->data;
+  sDebug("vgId:%d, resp manager destroy", pNode->vgId);
+
+  taosThreadMutexLock(&pObj->mutex);
+  taosHashCleanup(pObj->pRespHash);
+  taosThreadMutexUnlock(&pObj->mutex);
+  taosThreadMutexDestroy(&(pObj->mutex));
+  taosMemoryFree(pObj);
 }
 
 uint64_t syncRespMgrAdd(SSyncRespMgr *pObj, const SRespStub *pStub) {
@@ -107,7 +107,7 @@ int32_t syncRespMgrGetAndDel(SSyncRespMgr *pObj, uint64_t seq, SRpcHandleInfo *p
     taosThreadMutexUnlock(&pObj->mutex);
     return 1;  // get one object
   } else {
-    sNError(pObj->data, "get-and-del message handle, no object of seq:%" PRIu64, seq);
+    sNTrace(pObj->data, "get-and-del message handle, no object of seq:%" PRIu64, seq);
   }
 
   taosThreadMutexUnlock(&pObj->mutex);
@@ -174,7 +174,7 @@ static void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
 
 void syncRespCleanRsp(SSyncRespMgr *pObj) {
   SSyncNode *pNode = pObj->data;
-  sTrace("vgId:%d, clean all rsp", pNode->vgId);
+  sTrace("vgId:%d, clean all resp", pNode->vgId);
 
   taosThreadMutexLock(&pObj->mutex);
   syncRespCleanByTTL(pObj, -1, true);
@@ -183,7 +183,7 @@ void syncRespCleanRsp(SSyncRespMgr *pObj) {
 
 void syncRespClean(SSyncRespMgr *pObj) {
   SSyncNode *pNode = pObj->data;
-  sTrace("vgId:%d, clean rsp by ttl", pNode->vgId);
+  sTrace("vgId:%d, clean resp by ttl", pNode->vgId);
 
   taosThreadMutexLock(&pObj->mutex);
   syncRespCleanByTTL(pObj, pObj->ttl, false);

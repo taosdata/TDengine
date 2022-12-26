@@ -1406,30 +1406,6 @@ int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *
   return code;
 }
 
-int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pTSchema) {
-  int32_t code = 0;
-  int16_t nCol = taosArrayGetSize(pLastArray);
-  SArray *pColArray = taosArrayInit(nCol, sizeof(SColVal));
-
-  for (int16_t iCol = 0; iCol < nCol; ++iCol) {
-    SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLastArray, iCol);
-    SColVal  *tColVal = &tTsVal->colVal;
-    taosArrayPush(pColArray, tColVal);
-  }
-
-  code = tdSTSRowNew(pColArray, pTSchema, ppRow);
-  if (code) goto _err;
-
-  taosArrayDestroy(pColArray);
-
-  return code;
-
-_err:
-  taosArrayDestroy(pColArray);
-
-  return code;
-}
-
 int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **handle) {
   int32_t code = 0;
   char    key[32] = {0};

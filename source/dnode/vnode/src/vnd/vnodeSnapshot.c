@@ -67,9 +67,8 @@ _err:
   return code;
 }
 
-int32_t vnodeSnapReaderClose(SVSnapReader *pReader) {
-  int32_t code = 0;
-
+void vnodeSnapReaderClose(SVSnapReader *pReader) {
+  vInfo("vgId:%d, close vnode snapshot reader", TD_VID(pReader->pVnode));
   if (pReader->pRsmaReader) {
     rsmaSnapReaderClose(&pReader->pRsmaReader);
   }
@@ -82,9 +81,7 @@ int32_t vnodeSnapReaderClose(SVSnapReader *pReader) {
     metaSnapReaderClose(&pReader->pMetaReader);
   }
 
-  vInfo("vgId:%d, vnode snapshot reader closed", TD_VID(pReader->pVnode));
   taosMemoryFree(pReader);
-  return code;
 }
 
 int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) {

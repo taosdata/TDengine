@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "filter.h"
 #include "executorimpl.h"
+#include "filter.h"
 #include "functionMgt.h"
 
 typedef struct SProjectOperatorInfo {
@@ -90,7 +90,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
 
   pInfo->binfo.pRes = pResBlock;
   pInfo->pFinalRes = createOneDataBlock(pResBlock, false);
-  pInfo->mergeDataBlocks = (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM)? false:pProjPhyNode->mergeDataBlock;
+  pInfo->mergeDataBlocks = (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) ? false : pProjPhyNode->mergeDataBlock;
 
   int32_t numOfRows = 4096;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
@@ -117,9 +117,10 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
 
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfCols);
 
-  setOperatorInfo(pOperator, "ProjectOperator", QUERY_NODE_PHYSICAL_PLAN_PROJECT, false, OP_NOT_OPENED, pInfo, pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doProjectOperation, NULL,
-                                         destroyProjectOperatorInfo, optrDefaultBufFn, NULL);
+  setOperatorInfo(pOperator, "ProjectOperator", QUERY_NODE_PHYSICAL_PLAN_PROJECT, false, OP_NOT_OPENED, pInfo,
+                  pTaskInfo);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doProjectOperation, NULL, destroyProjectOperatorInfo,
+                                         optrDefaultBufFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -316,7 +317,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
     if (pProjectInfo->mergeDataBlocks) {
       if (pRes->info.rows > 0) {
-        pFinalRes->info.id.groupId = pRes->info.id.groupId;
+        pFinalRes->info.id.groupId = 0;  //clear groupId
         pFinalRes->info.version = pRes->info.version;
 
         // continue merge data, ignore the group id
@@ -350,6 +351,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   SSDataBlock* p = pProjectInfo->mergeDataBlocks ? pFinalRes : pRes;
   pOperator->resultInfo.totalRows += p->info.rows;
+  p->info.dataLoad = 1;
 
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
@@ -414,8 +416,10 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   pInfo->binfo.pRes = pResBlock;
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr);
 
-  setOperatorInfo(pOperator, "IndefinitOperator", QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC, false, OP_NOT_OPENED, pInfo, pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doApplyIndefinitFunction, NULL, destroyIndefinitOperatorInfo, optrDefaultBufFn, NULL);
+  setOperatorInfo(pOperator, "IndefinitOperator", QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC, false, OP_NOT_OPENED, pInfo,
+                  pTaskInfo);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doApplyIndefinitFunction, NULL, destroyIndefinitOperatorInfo,
+                                         optrDefaultBufFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -697,13 +701,30 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     if (pExpr[k].pExpr->nodeType == QUERY_NODE_COLUMN) {  // it is a project query
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
       if (pResult->info.rows > 0 && !createNewColModel) {
-        colDataMergeCol(pColInfoData, pResult->info.rows, (int32_t*)&pResult->info.capacity, pInputData->pData[0],
-                        pInputData->numOfRows);
-      } else {
-        colDataAssign(pColInfoData, pInputData->pData[0], pInputData->numOfRows, &pResult->info);
-      }
+        if (pInputData->pData[0] == NULL) {
+          int32_t slotId = pfCtx->param[0].pCol->slotId;
 
-      numOfRows = pInputData->numOfRows;
+          SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
+
+          colDataMergeCol(pColInfoData, pResult->info.rows, (int32_t*)&pResult->info.capacity, pInput,
+                          pSrcBlock->info.rows);
+        } else {
+          colDataMergeCol(pColInfoData, pResult->info.rows, (int32_t*)&pResult->info.capacity, pInputData->pData[0],
+                          pInputData->numOfRows);
+        }
+      } else {
+        if (pInputData->pData[0] == NULL) {
+          int32_t slotId = pfCtx->param[0].pCol->slotId;
+
+          SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
+          colDataAssign(pColInfoData, pInput, pSrcBlock->info.rows, &pResult->info);
+
+          numOfRows = pSrcBlock->info.rows;
+        } else {
+          colDataAssign(pColInfoData, pInputData->pData[0], pInputData->numOfRows, &pResult->info);
+          numOfRows = pInputData->numOfRows;
+        }
+      }
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE) {
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
 

@@ -339,26 +339,25 @@ typedef struct STableScanInfo {
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
-  int32_t         tableStartIndex;
-  int32_t         tableEndIndex;
-  bool            hasGroupId;
-  uint64_t        groupId;
-  SArray*         queryConds;  // array of queryTableDataCond
-  STableScanBase  base;
-  int32_t         bufPageSize;
-  uint32_t        sortBufSize;  // max buffer size for in-memory sort
-  SArray*         pSortInfo;
-  SSortHandle*    pSortHandle;
-  SSDataBlock*    pSortInputBlock;
-  int64_t         startTs;  // sort start time
-  SArray*         sortSourceParams;
-  SLimitInfo      limitInfo;
-  int64_t         numOfRows;
-  SScanInfo       scanInfo;
-  int32_t         scanTimes;
-  SSDataBlock*    pResBlock;
-  SSampleExecInfo sample;  // sample execution info
-  SSortExecInfo   sortExecInfo;
+  int32_t                tableStartIndex;
+  int32_t                tableEndIndex;
+  bool                   hasGroupId;
+  uint64_t               groupId;
+  SArray*                queryConds;  // array of queryTableDataCond
+  STableScanBase         base;
+  int32_t                bufPageSize;
+  uint32_t               sortBufSize;  // max buffer size for in-memory sort
+  SArray*                pSortInfo;
+  SSortHandle*           pSortHandle;
+  SSDataBlock*           pSortInputBlock;
+  int64_t                startTs;  // sort start time
+  SArray*                sortSourceParams;
+  SLimitInfo             limitInfo;
+  int64_t                numOfRows;
+  SScanInfo              scanInfo;
+  SSDataBlock*           pResBlock;
+  SSampleExecInfo        sample;  // sample execution info
+  SSortExecInfo          sortExecInfo;
 } STableMergeScanInfo;
 
 typedef struct STagScanInfo {
@@ -663,7 +662,6 @@ typedef struct SStreamFillOperatorInfo {
   SSDataBlock*          pRes;
   SSDataBlock*          pSrcBlock;
   int32_t               srcRowIndex;
-  SSDataBlock*          pPrevSrcBlock;
   SSDataBlock*          pSrcDelBlock;
   int32_t               srcDelRowIndex;
   SSDataBlock*          pDelRes;
