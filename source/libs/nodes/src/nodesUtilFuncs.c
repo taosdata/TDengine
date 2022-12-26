@@ -412,8 +412,6 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
-    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
@@ -434,6 +432,9 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SShowDnodeVariablesStmt));
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return makeNode(type, sizeof(SShowCreateDatabaseStmt));
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
+      return makeNode(type, sizeof(SShowAliveStmt));
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return makeNode(type, sizeof(SShowCreateTableStmt));

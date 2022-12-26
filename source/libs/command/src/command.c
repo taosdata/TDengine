@@ -154,6 +154,24 @@ static int32_t buildCreateDBResultDataBlock(SSDataBlock** pOutput) {
   return code;
 }
 
+static int32_t buildAliveResultDataBlock(SSDataBlock** pOutput) {
+  SSDataBlock* pBlock = createDataBlock();
+  if (NULL == pBlock) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pBlock;
+  } else {
+    blockDataDestroy(pBlock);
+  }
+  return code;
+}
+
+
 int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   int64_t v = 0;
   switch (unit) {
@@ -281,11 +299,33 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
   colDataAppend(pCol2, 0, buf2, false);
 }
 
+static void setAliveResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName) {
+  blockDataEnsureCapacity(pBlock, 1);
+  pBlock->info.rows = 1;
+
+  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+  int32_t status = 1;
+  colDataAppend(pCol1, 0, &status, false);
+}
+
 static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildCreateDBResultDataBlock(&pBlock);
   if (TSDB_CODE_SUCCESS == code) {
     setCreateDBResultIntoDataBlock(pBlock, pStmt->dbName, pStmt->pCfg);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_DB_RESULT_COLS, pRsp);
+  }
+  blockDataDestroy(pBlock);
+  return code;
+}
+
+static int32_t execShowAliveStatus(SShowAliveStmt* pStmt, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildAliveResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    setAliveResultIntoDataBlock(pBlock, pStmt->dbName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_DB_RESULT_COLS, pRsp);
@@ -754,6 +794,9 @@ int32_t qExecCommand(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp) {
       return execShowLocalVariables(pRsp);
     case QUERY_NODE_SELECT_STMT:
       return execSelectWithoutFrom((SSelectStmt*)pStmt, pRsp);
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
+      return execShowAliveStatus((SShowAliveStmt*)pStmt, pRsp); 
     default:
       break;
   }

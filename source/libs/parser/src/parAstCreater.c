@@ -1357,6 +1357,20 @@ SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   return (SNode*)pStmt;
 }
 
+SNode* createShowAliveStmt(SAstCreateContext* pCxt, SToken* pDbName, ENodeType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (pDbName && !checkDbName(pCxt, pDbName, true)) {
+    return NULL;
+  }
+  SShowAliveStmt* pStmt = (SShowAliveStmt*)nodesMakeNode(type);
+  CHECK_OUT_OF_MEM(pStmt);
+  if (pDbName) {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  }
+
+  return (SNode*)pStmt;
+}
+
 SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
   CHECK_PARSER_STATUS(pCxt);
   SShowCreateTableStmt* pStmt = (SShowCreateTableStmt*)nodesMakeNode(type);

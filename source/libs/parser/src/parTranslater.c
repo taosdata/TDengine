@@ -184,20 +184,6 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pShowCols = {"*"}
   },
   {
-    .showType = QUERY_NODE_SHOW_DB_ALIVE_STMT,
-    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
-    .pTableName = TSDB_INS_TABLE_VGROUPS,
-    .numOfShowCols = 1,
-    .pShowCols = {"*"}
-  },
-  {
-    .showType = QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT,
-    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
-    .pTableName = TSDB_INS_TABLE_VGROUPS,
-    .numOfShowCols = 1,
-    .pShowCols = {"*"}
-  },
-  {
     .showType = QUERY_NODE_SHOW_TOPICS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_TOPICS,
@@ -5907,6 +5893,11 @@ static int32_t translateShowCreateDatabase(STranslateContext* pCxt, SShowCreateD
   return getDBCfg(pCxt, pStmt->dbName, (SDbCfgInfo*)pStmt->pCfg);
 }
 
+static int32_t translateShowAlive(STranslateContext* pCxt, SShowAliveStmt* pStmt) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateShowCreateTable(STranslateContext* pCxt, SShowCreateTableStmt* pStmt) {
   pStmt->pDbCfg = taosMemoryCalloc(1, sizeof(SDbCfgInfo));
   if (NULL == pStmt->pDbCfg) {
@@ -6063,6 +6054,10 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       code = translateShowCreateDatabase(pCxt, (SShowCreateDatabaseStmt*)pNode);
       break;
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
+      code = translateShowAlive(pCxt, (SShowAliveStmt*)pNode);
+      break;
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       code = translateShowCreateTable(pCxt, (SShowCreateTableStmt*)pNode);
@@ -6173,6 +6168,20 @@ static int32_t extractShowCreateDatabaseResultSchema(int32_t* numOfCols, SSchema
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractShowAliveResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = 1;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pSchema)[0].type = TSDB_DATA_TYPE_INT;
+  (*pSchema)[0].bytes = sizeof(int32_t);
+  strcpy((*pSchema)[0].name, "status");
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 2;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
@@ -6224,6 +6233,9 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
       return extractDescribeResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return extractShowCreateDatabaseResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
+      return extractShowAliveResultSchema(numOfCols, pSchema);  
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return extractShowCreateTableResultSchema(numOfCols, pSchema);
@@ -7761,6 +7773,8 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_DESCRIBE_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
