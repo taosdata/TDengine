@@ -351,7 +351,7 @@ static int32_t optSysMergeRslt(SArray* mRslt, SArray* rslt);
 static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableScanInfo* pInfo, const char* name,
                                           SExecTaskInfo* pTaskInfo);
 void                extractTbnameSlotId(SSysTableScanInfo* pInfo, const SScanPhysiNode* pScanNode);
-static SSDataBlock* sysTableScanHandleFillTbName(SOperatorInfo* pOperator, const SSysTableScanInfo* pInfo,
+static SSDataBlock* sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScanInfo* pInfo,
                                                  const char* name, SSDataBlock* pBlock);
 __optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse) {
   if (ctype == OP_TYPE_LOWER_EQUAL || ctype == OP_TYPE_LOWER_THAN) {
@@ -1328,10 +1328,10 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
     pBlock = sysTableScanFromMNode(pOperator, pInfo, name, pTaskInfo);
   }
 
-  return sysTableScanHandleFillTbName(pOperator, pInfo, name, pBlock);
+  return sysTableScanFillTbName(pOperator, pInfo, name, pBlock);
 }
 
-static SSDataBlock* sysTableScanHandleFillTbName(SOperatorInfo* pOperator, const SSysTableScanInfo* pInfo,
+static SSDataBlock* sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScanInfo* pInfo,
                                                  const char* name, SSDataBlock* pBlock) {
   if (pBlock != NULL) {
     if (pInfo->tbnameSlotId != -1) {
