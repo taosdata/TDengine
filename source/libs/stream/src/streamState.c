@@ -656,8 +656,7 @@ int32_t streamStateSessionClear(SStreamState* pState) {
     void*       buf = NULL;
     int32_t     size = 0;
     int32_t     code = streamStateSessionGetKVByCur(pCur, &delKey, &buf, &size);
-    if (code == 0) {
-      ASSERT(size > 0);
+    if (code == 0 && size > 0) {
       memset(buf, 0, size);
       streamStateSessionPut(pState, &delKey, buf, size);
     } else {
