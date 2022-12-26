@@ -58,11 +58,10 @@ class TDTestCase:
         tdSql.checkRows(21)
 
         tdSql.query("show dnode 1 variables like '____debugFlag'")
-        tdSql.checkRows(2)        
+        tdSql.checkRows(2)
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare(replica = self.replicaVar)
-        
 
         tdLog.printNoPrefix("==========start case1 run ...............")
         self.case1()

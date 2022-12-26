@@ -97,7 +97,7 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
 }
 
 static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
-  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, AUTH_TYPE_READ);
+  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, AUTH_TYPE_READ_OR_WRITE);
 }
 
 static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) {
