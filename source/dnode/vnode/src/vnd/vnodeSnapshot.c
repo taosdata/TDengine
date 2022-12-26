@@ -423,8 +423,8 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   ASSERT(pHdr->index == pWriter->index + 1);
   pWriter->index = pHdr->index;
 
-  vInfo("vgId:%d, vnode snapshot write data, index:%" PRId64 " type:%d nData:%d", TD_VID(pVnode), pHdr->index,
-        pHdr->type, nData);
+  vDebug("vgId:%d, vnode snapshot write data, index:%" PRId64 " type:%d blockLen:%d", TD_VID(pVnode), pHdr->index,
+         pHdr->type, nData);
 
   switch (pHdr->type) {
     case SNAP_DATA_CFG: {
