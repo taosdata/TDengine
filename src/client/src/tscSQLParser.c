@@ -3986,9 +3986,7 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
   const char* msg1 = "invalid column name";
 
   int16_t tsWinColumnIndex;
-  if (isTablenameToken(pToken)) {
-    pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
-  } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n &&
+  if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n &&
             strncmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
   } else if (isTimeWindowToken(pToken, &tsWinColumnIndex)) {
@@ -4018,6 +4016,11 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
     if (pIndex->columnIndex == COLUMN_INDEX_INITIAL_VAL) {
       return invalidOperationMsg(msg, msg1);
     }
+  }
+
+  // check
+  if(pIndex->columnIndex == COLUMN_INDEX_INITIAL_VAL && isTablenameToken(pToken)) {
+    pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
   }
 
   if (COLUMN_INDEX_VALID(*pIndex)) {
