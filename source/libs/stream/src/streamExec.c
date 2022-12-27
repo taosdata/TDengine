@@ -48,6 +48,10 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
 
   // exec
   while (1) {
+    if (pTask->taskStatus == TASK_STATUS__DROPPING) {
+      return 0;
+    }
+
     SSDataBlock* output = NULL;
     uint64_t     ts = 0;
     if ((code = qExecTask(exec, &output, &ts)) < 0) {
