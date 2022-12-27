@@ -20,14 +20,12 @@ clap-verbosity-flag = "2.0.0"
 config = "0.13.2"
 convert_case = "0.6.0"
 csv-async = { version = "1.2.4", features = ["tokio"] }
-# scc = "0.12.0"
 dashmap = "5.4.0"
 futures = "0.3"
 itertools = "0.10.4"
 lazy_static = "1.4"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = "0.4"
-num_cpus = "1"
 parquet = "29.0.0"
 parse_duration = "2.1"
 pretty_env_logger = "0.4"
@@ -38,11 +36,11 @@ thiserror = "1"
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7" }
 toml = "0.5.9"
-zstd = "0.12.1+zstd.1.5.2"
+zstd = "0.12.1"
 
 actix-web = "4"
 serde_json = "1.0"
-sqlx = { version = "0.6", features = [ "sqlite", "chrono"] }
+sqlx = { version = "0.6", features = ["sqlite", "chrono"] }
 utoipa = { version = "2.0.0", features = ["actix_extras", "chrono"] }
 utoipa-swagger-ui = { version = "3.0.1", features = ["actix-web"] }
 
@@ -50,9 +48,8 @@ utoipa-swagger-ui = { version = "3.0.1", features = ["actix-web"] }
 const_format = "0.2.30"
 metrics = "0.20.1"
 metrics-exporter-prometheus = { version = "0.11.0", default-features = false, features = ["push-gateway"] }
+sysinfo = "0.27.1"
 palaver = "0.2.8"
-procfs = "0.14.0"
-psutil = { version = "3.2.0", default-features = false, features = ["cpu", "process"] }
 shadow-rs = "0.19.0"
 
 [dependencies.taos]
@@ -61,7 +58,7 @@ default-features = false
 git = "https://github.com/taosdata/taos-connector-rust.git"
 features = ["ws", "r2d2"]
 
-[target.'cfg(not(target_env = "msvc"))'.dependencies]
+[target.'cfg(not(target_os = "windows"))'.dependencies]
 jemallocator = { version = "0.5.0", optional = true }
 
 [build-dependencies]

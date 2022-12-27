@@ -1,7 +1,7 @@
 use actix_web::{get, Responder};
 use metrics::{describe_gauge, gauge, register_gauge};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
-use std::{collections::HashSet, time::Duration};
+use std::time::Duration;
 
 #[derive(Debug, Default)]
 pub struct Metrics {
@@ -11,83 +11,58 @@ pub struct Metrics {
 }
 
 pub fn process_metrics_init() {
-    register_gauge!("taosx_process_cpu_percent");
+    register_gauge!("taosx_sys_cpus");
+    describe_gauge!("taosx_sys_cpus", "number of cpus");
 
+    register_gauge!("taosx_process_cpu_percent");
     describe_gauge!("taosx_process_cpu_percent", "CPU percent of the process");
+
+    register_gauge!("taosx_process_io_read_bytes");
+    describe_gauge!(
+        "taosx_process_io_read_bytes",
+        "IO read in bytes of the process"
+    );
+    register_gauge!("taosx_process_io_written_bytes");
+    describe_gauge!(
+        "taosx_process_io_written_bytes",
+        "IO written in bytes of the process"
+    );
 }
 
-pub fn process_metrics() -> anyhow::Result<()> {
-    let ps = procfs::process::Process::myself()?;
-    let stat = &ps.stat()?;
-    let ticks = procfs::ticks_per_second()?;
-    let mut proc = psutil::process::Process::current()?;
+pub fn process_metrics(sys: &mut sysinfo::System) -> anyhow::Result<()> {
+    use sysinfo::*;
+    sys.refresh_all();
 
-    let cpu = proc.cpu_percent()?;
-    gauge!("taosx_process_cpu_percent", cpu as f64);
+    gauge!("taosx_sys_cpus", sys.cpus().len() as f64);
+    gauge!("taosx_sys_cpus", sys.cpus().len() as f64);
+    gauge!("taosx_sys_total_memory", sys.total_memory() as f64);
+    gauge!("taosx_sys_used_memory", sys.used_memory() as f64);
+    gauge!("taosx_sys_free_memory", sys.free_memory() as f64);
+    gauge!("taosx_sys_available_memory", sys.available_memory() as f64);
+    gauge!("taosx_sys_uptime_in_seconds", sys.uptime() as f64);
 
-    let mem = proc.memory_percent()?;
-    gauge!(
-        "taosx_process_mem_percent",
-        (mem * 10000.0) as u64 as f64 / 100.0
-    );
-
-    let threads = ps.tasks()?.count();
-    gauge!("taosx_process_threads", threads as f64);
-
-    let open_files = proc.open_files()?.len();
-    gauge!("taosx_process_open_files", open_files as f64);
-
-    let uptime = (stat.utime + stat.stime) as f64 / ticks as f64;
-    gauge!("taosx_process_uptime", uptime as f64);
-
-    let io = ps.io()?;
-    gauge!("taosx_process_io_read_bytes", io.read_bytes as f64);
-    gauge!("taosx_process_io_write_bytes", io.write_bytes as f64);
-
-    let fd = ps.fd()?;
-    let mut inodes = HashSet::new();
-    for fd in fd {
-        let fd = fd?;
-        use procfs::process::FDTarget;
-        match fd.target {
-            FDTarget::Net(inode) => {
-                inodes.insert(inode);
-            }
-            FDTarget::Socket(inode) => {
-                inodes.insert(inode);
-            }
-            _ => {}
-        }
+    let pid = get_current_pid();
+    if pid.is_err() {
+        let err = pid.unwrap_err();
+        log::warn!("process metrics does not supported on current platform: {err}");
+        return Ok(());
     }
+    let pid = pid.unwrap();
+    if let Some(ps) = sys.process(pid) {
+        let cpu = ps.cpu_usage();
+        gauge!("taosx_process_cpu_percent", cpu as f64);
 
-    let (mut rx, mut tx) = (0, 0);
+        let mem = ps.memory() as f64 / sys.total_memory() as f64 * 100.0;
+        gauge!("taosx_process_mem_percent", mem);
 
-    let tcp = procfs::net::tcp().unwrap();
-    let tcp6 = procfs::net::tcp6().unwrap();
-    for entry in tcp.into_iter().chain(tcp6) {
-        // find the process (if any) that has an open FD to this entry's inode
-        // let local_address = format!("{}", entry.local_address);
-        // let remote_addr = format!("{}", entry.remote_address);
-        // let state = format!("{:?}", entry.state);
-        if inodes.contains(&entry.inode) {
-            // log::debug!(
-            //     "{:<26} {:<26} {:<15} {:<12} {}/{} {}/{}",
-            //     local_address,
-            //     remote_addr,
-            //     state,
-            //     entry.inode,
-            //     stat.pid,
-            //     stat.comm,
-            //     entry.rx_queue,
-            //     entry.tx_queue
-            // );
-            rx += entry.rx_queue;
-            tx += entry.tx_queue;
-        }
+        gauge!("taosx_process_tasks", ps.tasks.len() as f64);
+
+        let disk = ps.disk_usage();
+        gauge!("taosx_process_io_read_bytes", disk.read_bytes as f64);
+        gauge!("taosx_process_io_written_bytes", disk.written_bytes as f64);
+
+        gauge!("taosx_process_uptime", ps.run_time() as f64);
     }
-
-    gauge!("taosx_process_net_rx", rx as f64);
-    gauge!("taosx_process_net_tx", tx as f64);
     Ok(())
 }
 
@@ -113,9 +88,13 @@ impl Metrics {
 
         // let recorder = exporter.build_recorder();
         process_metrics_init();
-        std::thread::spawn(move || loop {
-            let _ = process_metrics();
-            std::thread::sleep(dur);
+        std::thread::spawn(move || {
+            use sysinfo::SystemExt;
+            let mut sys = sysinfo::System::new_all();
+            loop {
+                let _ = process_metrics(&mut sys);
+                std::thread::sleep(dur);
+            }
         });
         Ok(recorder)
     }
