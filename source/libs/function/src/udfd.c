@@ -400,7 +400,6 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
 void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SUdfdRpcSendRecvInfo *msgInfo = (SUdfdRpcSendRecvInfo *)pMsg->info.ahandle;
-  ASSERT(pMsg->info.ahandle != NULL);
 
   if (pEpSet) {
     if (!isEpsetEqual(&global.mgmtEp.epSet, pEpSet)) {

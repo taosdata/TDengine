@@ -1224,7 +1224,6 @@ int32_t udfcGetUdfTaskResultFromUvTask(SClientUdfTask *task, SClientUvTaskNode *
     if (uvTask->rspBuf.base != NULL) {
       SUdfResponse rsp = {0};
       void        *buf = decodeUdfResponse(uvTask->rspBuf.base, &rsp);
-      assert(uvTask->rspBuf.len == POINTER_DISTANCE(buf, uvTask->rspBuf.base));
       task->errCode = rsp.code;
 
       switch (task->type) {
