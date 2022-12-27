@@ -1004,8 +1004,10 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t  len;
   tEncodeSize(tEncodeSStreamTaskCheckRsp, &rsp, len, code);
   if (code < 0) {
-    ASSERT(0);
+    tqDebug("tq encode stream check rsp error");
+    return -1;
   }
+
   void* buf = rpcMallocCont(sizeof(SMsgHead) + len);
   ((SMsgHead*)buf)->vgId = htonl(req.upstreamNodeId);
 
