@@ -4013,14 +4013,14 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
       }
     }
 
+    // check tbname
+    if(pIndex->columnIndex == COLUMN_INDEX_INITIAL_VAL && isTablenameToken(pToken)) {
+      pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
+    }
+
     if (pIndex->columnIndex == COLUMN_INDEX_INITIAL_VAL) {
       return invalidOperationMsg(msg, msg1);
     }
-  }
-
-  // check
-  if(pIndex->columnIndex == COLUMN_INDEX_INITIAL_VAL && isTablenameToken(pToken)) {
-    pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
   }
 
   if (COLUMN_INDEX_VALID(*pIndex)) {
