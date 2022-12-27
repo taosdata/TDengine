@@ -348,7 +348,8 @@ cd ${release_dir}
 #  install_dir has been distinguishes  cluster from  edege, so comments this code
 pkg_name=${install_dir}-${osType}-${cpuType}
 
-taostools_pkg_name=${taostools_install_dir}-${osType}-${cpuType}
+versionCompFirst=$(echo ${versionComp} | awk -F '.' '{print $1}')
+taostools_pkg_name=${taostools_install_dir}-${osType}-${cpuType}-comp${versionCompFirst}
 
 # if [ "$verMode" == "cluster" ]; then
 #   pkg_name=${install_dir}-${osType}-${cpuType}

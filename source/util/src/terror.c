@@ -51,6 +51,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               "Unable to resolve FQD
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_PORT_EADDRINUSE,          "Port already in use")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_BROKEN_LINK,              "Conn is broken")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_TIMEOUT,                  "Conn read timeout")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED,   "some vnode/qnode/mnode(s) out of service")
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_TIME_UNSYNCED,                "Client and server's time is not synchronized")
@@ -406,6 +407,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_STANDBY_NOT_READY,        "Sync not ready for st
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_BATCH_ERROR,              "Sync batch error")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_RESTORING,                "Sync is restoring")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG,     "Sync invalid snapshot msg")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_BUFFER_FULL,              "Sync buffer is full")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INTERNAL_ERROR,           "Sync internal error")
 
 //tq
