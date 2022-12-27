@@ -288,7 +288,7 @@ http 返回内容：
 
 ## taosAdapter 监控指标
 
-taosAdapter 采集 http 相关指标、cpu 百分比和内存百分比。
+taosAdapter 采集 http 相关指标、CPU 百分比和内存百分比。
 
 ### http 接口
 
@@ -300,13 +300,13 @@ http://<fqdn>:6041/metrics
 
 ### 写入 TDengine
 
-taosAdapter 支持将 http 监控、cpu 百分比和内存百分比写入 TDengine。
+taosAdapter 支持将 http 监控、CPU 百分比和内存百分比写入 TDengine。
 
 有关配置参数
 
 | **配置项**                 | **描述**                                     | **默认值**  |
 |-------------------------|--------------------------------------------|----------|
-| monitor.collectDuration | cpu 和内存采集间隔                                | 3s       |
+| monitor.collectDuration | CPU 和内存采集间隔                                | 3s       |
 | monitor.identity        | 当前taosadapter 的标识符如果不设置将使用 'hostname:port' |          |
 | monitor.incgroup        | 是否是 cgroup 中运行(容器中运行设置为 true)              | false    |
 | monitor.writeToTD       | 是否写入到 TDengine                             | false    |
