@@ -142,6 +142,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->path = (char *)&pVnode[1];
   strcpy(pVnode->path, path);
   pVnode->config = info.config;
+  pVnode->commitMs = taosGetMonoTimestampMs();
   pVnode->state.committed = info.state.committed;
   pVnode->state.commitTerm = info.state.commitTerm;
   pVnode->state.commitID = info.state.commitID;
