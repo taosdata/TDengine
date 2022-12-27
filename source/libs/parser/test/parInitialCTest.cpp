@@ -22,6 +22,26 @@ namespace ParserTest {
 class ParserInitialCTest : public ParserDdlTest {};
 
 /*
+ * COMPACT DATABASE db_name
+ */
+TEST_F(ParserInitialCTest, compact) {
+  SCompactDbReq expect = {0};
+
+  auto setCompactDbReq = [&](const char* pDb) { snprintf(expect.db, sizeof(expect.db), "0.%s", pDb); };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_COMPACT_DATABASE_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_COMPACT_DB);
+    SCompactDbReq req = {0};
+    ASSERT_EQ(tDeserializeSCompactDbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(std::string(req.db), std::string(expect.db));
+  });
+
+  setCompactDbReq("wxy_db");
+  run("COMPACT DATABASE wxy_db");
+}
+
+/*
  * CREATE ACCOUNT account_name PASS value [create_account_options]
  *
  * create_account_options:

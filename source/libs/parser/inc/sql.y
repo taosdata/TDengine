@@ -167,6 +167,7 @@ cmd ::= USE db_name(A).                                                         
 cmd ::= ALTER DATABASE db_name(A) alter_db_options(B).                            { pCxt->pRootNode = createAlterDatabaseStmt(pCxt, &A, B); }
 cmd ::= FLUSH DATABASE db_name(A).                                                { pCxt->pRootNode = createFlushDatabaseStmt(pCxt, &A); }
 cmd ::= TRIM DATABASE db_name(A) speed_opt(B).                                    { pCxt->pRootNode = createTrimDatabaseStmt(pCxt, &A, B); }
+cmd ::= COMPACT DATABASE db_name(A).                                              { pCxt->pRootNode = createCompactStmt(pCxt, &A); }
 
 %type not_exists_opt                                                              { bool }
 %destructor not_exists_opt                                                        { }
@@ -518,9 +519,6 @@ analyze_opt(A) ::= ANALYZE.                                                     
 explain_options(A) ::= .                                                          { A = createDefaultExplainOptions(pCxt); }
 explain_options(A) ::= explain_options(B) VERBOSE NK_BOOL(C).                     { A = setExplainVerbose(pCxt, B, &C); }
 explain_options(A) ::= explain_options(B) RATIO NK_FLOAT(C).                      { A = setExplainRatio(pCxt, B, &C); }
-
-/************************************************ compact *************************************************************/
-//cmd ::= COMPACT VNODES IN NK_LP integer_list NK_RP.                               { pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
 
 /************************************************ create/drop function ************************************************/
 cmd ::= CREATE agg_func_opt(A) FUNCTION not_exists_opt(F) function_name(B) 
@@ -1077,6 +1075,6 @@ null_ordering_opt(A) ::= .                                                      
 null_ordering_opt(A) ::= NULLS FIRST.                                             { A = NULL_ORDER_FIRST; }
 null_ordering_opt(A) ::= NULLS LAST.                                              { A = NULL_ORDER_LAST; }
 
-%fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA COMPACT CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL 
+%fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL 
   FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE REPLACE RESTRICT ROW SEMI STAR STATEMENT
   STRICT STRING TIMES UPDATE VALUES VARIABLE VIEW WAL.

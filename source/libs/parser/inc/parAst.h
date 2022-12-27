@@ -151,6 +151,7 @@ SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, STo
 SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pOptions);
 SNode* createFlushDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, int32_t maxSpeed);
+SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt);
 SNode* createAlterTableOptions(SAstCreateContext* pCxt);
 SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal);
@@ -210,7 +211,6 @@ SNode* setExplainRatio(SAstCreateContext* pCxt, SNode* pOptions, const SToken* p
 SNode* createExplainStmt(SAstCreateContext* pCxt, bool analyze, SNode* pOptions, SNode* pQuery);
 SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable);
 SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt);
-SNode* createCompactStmt(SAstCreateContext* pCxt, SNodeList* pVgroups);
 SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool aggFunc, const SToken* pFuncName,
                                 const SToken* pLibPath, SDataType dataType, int32_t bufSize);
 SNode* createDropFunctionStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pFuncName);
