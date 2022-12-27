@@ -1338,7 +1338,6 @@ void taosSetAllDebugFlag(int32_t flag, bool rewrite) {
   taosSetDebugFlag(&wDebugFlag, "wDebugFlag", flag, rewrite);
   taosSetDebugFlag(&sDebugFlag, "sDebugFlag", flag, rewrite);
   taosSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag, rewrite);
   taosSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag, rewrite);
   taosSetDebugFlag(&fsDebugFlag, "fsDebugFlag", flag, rewrite);
   taosSetDebugFlag(&udfDebugFlag, "udfDebugFlag", flag, rewrite);
