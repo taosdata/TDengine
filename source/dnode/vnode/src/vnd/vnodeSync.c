@@ -154,7 +154,7 @@ void vnodeProposeCommitOnNeed(SVnode *pVnode) {
   vInfo("vgId:%d, proposed vnode commit", pVnode->config.vgId);
 
 _out:
-  pVnode->commitMs = taosGetMonoTimestampMs();
+  vnodeUpdCommitSched(pVnode);
   rpcFreeCont(rpcMsg.pCont);
   rpcMsg.pCont = NULL;
 }

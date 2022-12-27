@@ -332,6 +332,11 @@ struct STsdbKeepCfg {
   int32_t keep2;
 };
 
+typedef struct SVCommitSched {
+  int64_t commitMs;
+  int64_t maxWaitMs;
+} SVCommitSched;
+
 struct SVnode {
   char*         path;
   SVnodeCfg     config;
@@ -350,7 +355,7 @@ struct SVnode {
   STQ*          pTq;
   SSink*        pSink;
   tsem_t        canCommit;
-  int64_t       commitMs;
+  SVCommitSched commitSched;
   int64_t       sync;
   TdThreadMutex lock;
   bool          blocked;

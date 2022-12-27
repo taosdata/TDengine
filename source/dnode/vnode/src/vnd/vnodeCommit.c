@@ -58,15 +58,22 @@ int vnodeBegin(SVnode *pVnode) {
   return 0;
 }
 
+void vnodeUpdCommitSched(SVnode *pVnode) {
+  int64_t randNum = taosRand();
+  pVnode->commitSched.commitMs = taosGetMonoTimestampMs();
+  pVnode->commitSched.maxWaitMs = SYNC_VND_COMMIT_MAX_MS + (randNum % SYNC_VND_COMMIT_MAX_MS);
+}
+
 int vnodeShouldCommit(SVnode *pVnode) {
   if (!pVnode->inUse || !osDataSpaceAvailable()) {
     return false;
   }
 
+  SVCommitSched *pSched = &pVnode->commitSched;
   int64_t nowMs = taosGetMonoTimestampMs();
 
-  return (((pVnode->inUse->size > pVnode->inUse->node.size) && (pVnode->commitMs + SYNC_VND_COMMIT_MIN_MS < nowMs)) ||
-          (pVnode->inUse->size > 0 && pVnode->commitMs + SYNC_VND_COMMIT_MAX_MS < nowMs));
+  return (((pVnode->inUse->size > pVnode->inUse->node.size) && (pSched->commitMs + SYNC_VND_COMMIT_MIN_MS < nowMs)) ||
+          (pVnode->inUse->size > 0 && pSched->commitMs + pSched->maxWaitMs < nowMs));
 }
 
 int vnodeShouldCommitOld(SVnode *pVnode) {
@@ -306,7 +313,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   vInfo("vgId:%d, start to commit, commitId:%" PRId64 " version:%" PRId64 " term: %" PRId64, TD_VID(pVnode),
         pInfo->info.state.commitID, pInfo->info.state.committed, pInfo->info.state.commitTerm);
 
-  pVnode->commitMs = taosGetMonoTimestampMs();
+  vnodeUpdCommitSched(pVnode);
 
   // persist wal before starting
   if (walPersist(pVnode->pWal) < 0) {
