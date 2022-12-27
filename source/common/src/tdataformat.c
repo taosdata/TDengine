@@ -2699,6 +2699,15 @@ void tColDataSortMerge(SArray *colDataArr) {
     tColDataSort(aColData, nColData);
   }
 
+  if (doMerge != 1) {
+    for (int32_t iVal = 1; iVal < aColData[0].nVal; ++iVal) {
+      if (aKey[iVal] == aKey[iVal - 1]) {
+        doMerge = 1;
+        break;
+      }
+    }
+  }
+
   // merge -------
   if (doMerge) {
     tColDataMerge(aColData, nColData);
