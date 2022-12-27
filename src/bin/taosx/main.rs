@@ -168,7 +168,12 @@ fn main() -> Result<()> {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .max_blocking_threads(1024)
             .thread_name("taosx")
-            .worker_threads(num_cpus::get() * 2)
+            .worker_threads(
+                std::thread::available_parallelism()
+                    .map(|v| v.get())
+                    .unwrap_or(8)
+                    * 2,
+            )
             .enable_all()
             .build()?;
         runtime.block_on(serve::Cli::default().run_with(args.globals, rt))?;
