@@ -18,6 +18,7 @@ fn main() {
     if let Ok(dsn) = std::env::var("DATABASE_URL") {
         let file = dsn.replacen("sqlite:", "", 1);
         println!("cargo:rerun-if-changed={file}");
+
         sqlx::test_block_on(init_sqlx(&dsn)).unwrap();
     } else {
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -30,7 +31,7 @@ fn main() {
         let file = db.display();
         println!("cargo:rerun-if-changed={file}");
 
-        let dsn = format!("sqlite:{}", file);
+        let dsn = format!("sqlite:{}", file.to_string().escape_default());
         std::env::set_var("DATABASE_URL", &dsn);
 
         let dotenv = root.join(".env");

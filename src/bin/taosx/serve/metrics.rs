@@ -55,6 +55,7 @@ pub fn process_metrics(sys: &mut sysinfo::System) -> anyhow::Result<()> {
         let mem = ps.memory() as f64 / sys.total_memory() as f64 * 100.0;
         gauge!("taosx_process_mem_percent", mem);
 
+        #[cfg(not(target_os = "windows"))]
         gauge!("taosx_process_tasks", ps.tasks.len() as f64);
 
         let disk = ps.disk_usage();
