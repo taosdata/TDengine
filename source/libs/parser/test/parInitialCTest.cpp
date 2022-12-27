@@ -21,6 +21,9 @@ namespace ParserTest {
 
 class ParserInitialCTest : public ParserDdlTest {};
 
+/*
+ * COMPACT DATABASE db_name
+ */
 TEST_F(ParserInitialCTest, compact) {
   SCompactDbReq expect = {0};
 
@@ -38,11 +41,34 @@ TEST_F(ParserInitialCTest, compact) {
   run("COMPACT DATABASE wxy_db");
 }
 
+/*
+ * CREATE ACCOUNT account_name PASS value [create_account_options]
+ *
+ * create_account_options:
+ *     create_account_option ...
+ *
+ * create_account_option: {
+ *     PPS value
+ *   | TSERIES value
+ *   | STORAGE value
+ *   | STREAMS value
+ *   | QTIME value
+ *   | DBS value
+ *   | USERS value
+ *   | CONNS value
+ *   | STATE value
+ * }
+ */
 TEST_F(ParserInitialCTest, createAccount) {
   useDb("root", "test");
 
   run("CREATE ACCOUNT ac_wxy PASS '123456'", TSDB_CODE_PAR_EXPRIE_STATEMENT, PARSER_STAGE_PARSE);
 }
+
+/*
+ * CREATE BNODE ON DNODE dnode_id
+ * the server does not support it temporarily
+ */
 
 /*
  * CREATE DATABASE [IF NOT EXISTS] db_name [database_options]
@@ -85,7 +111,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
     memset(&expect, 0, sizeof(SCreateDbReq));
   };
 
-  auto setCreateDbReqFunc = [&](const char* pDbname, int8_t igExists = 0) {
+  auto setCreateDbReq = [&](const char* pDbname, int8_t igExists = 0) {
     int32_t len = snprintf(expect.db, sizeof(expect.db), "0.%s", pDbname);
     expect.db[len] = '\0';
     expect.ignoreExist = igExists;
@@ -119,28 +145,28 @@ TEST_F(ParserInitialCTest, createDatabase) {
     expect.tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE;
   };
 
-  auto setDbBufferFunc = [&](int32_t buffer) { expect.buffer = buffer; };
-  auto setDbCachelastFunc = [&](int8_t cachelast) { expect.cacheLast = cachelast; };
+  auto setDbBuffer = [&](int32_t buffer) { expect.buffer = buffer; };
+  auto setDbCachelast = [&](int8_t cachelast) { expect.cacheLast = cachelast; };
   auto setDbCachelastSize = [&](int8_t cachelastSize) { expect.cacheLastSize = cachelastSize; };
-  auto setDbCompressionFunc = [&](int8_t compressionLevel) { expect.compression = compressionLevel; };
-  auto setDbDaysFunc = [&](int32_t daysPerFile) { expect.daysPerFile = daysPerFile; };
-  auto setDbFsyncFunc = [&](int32_t fsyncPeriod) { expect.walFsyncPeriod = fsyncPeriod; };
-  auto setDbMaxRowsFunc = [&](int32_t maxRowsPerBlock) { expect.maxRows = maxRowsPerBlock; };
-  auto setDbMinRowsFunc = [&](int32_t minRowsPerBlock) { expect.minRows = minRowsPerBlock; };
-  auto setDbKeepFunc = [&](int32_t keep0, int32_t keep1 = 0, int32_t keep2 = 0) {
+  auto setDbCompression = [&](int8_t compressionLevel) { expect.compression = compressionLevel; };
+  auto setDbDays = [&](int32_t daysPerFile) { expect.daysPerFile = daysPerFile; };
+  auto setDbFsync = [&](int32_t fsyncPeriod) { expect.walFsyncPeriod = fsyncPeriod; };
+  auto setDbMaxRows = [&](int32_t maxRowsPerBlock) { expect.maxRows = maxRowsPerBlock; };
+  auto setDbMinRows = [&](int32_t minRowsPerBlock) { expect.minRows = minRowsPerBlock; };
+  auto setDbKeep = [&](int32_t keep0, int32_t keep1 = 0, int32_t keep2 = 0) {
     expect.daysToKeep0 = keep0;
     expect.daysToKeep1 = 0 == keep1 ? expect.daysToKeep0 : keep1;
     expect.daysToKeep2 = 0 == keep2 ? expect.daysToKeep1 : keep2;
   };
-  auto setDbPagesFunc = [&](int32_t pages) { expect.pages = pages; };
-  auto setDbPageSizeFunc = [&](int32_t pagesize) { expect.pageSize = pagesize; };
-  auto setDbPrecisionFunc = [&](int8_t precision) { expect.precision = precision; };
-  auto setDbReplicaFunc = [&](int8_t replica) { expect.replications = replica; };
-  auto setDbStrictaFunc = [&](int8_t strict) { expect.strict = strict; };
-  auto setDbWalLevelFunc = [&](int8_t walLevel) { expect.walLevel = walLevel; };
-  auto setDbVgroupsFunc = [&](int32_t numOfVgroups) { expect.numOfVgroups = numOfVgroups; };
-  auto setDbSingleStableFunc = [&](int8_t singleStable) { expect.numOfStables = singleStable; };
-  auto addDbRetentionFunc = [&](int64_t freq, int64_t keep, int8_t freqUnit, int8_t keepUnit) {
+  auto setDbPages = [&](int32_t pages) { expect.pages = pages; };
+  auto setDbPageSize = [&](int32_t pagesize) { expect.pageSize = pagesize; };
+  auto setDbPrecision = [&](int8_t precision) { expect.precision = precision; };
+  auto setDbReplica = [&](int8_t replica) { expect.replications = replica; };
+  auto setDbStricta = [&](int8_t strict) { expect.strict = strict; };
+  auto setDbWalLevel = [&](int8_t walLevel) { expect.walLevel = walLevel; };
+  auto setDbVgroups = [&](int32_t numOfVgroups) { expect.numOfVgroups = numOfVgroups; };
+  auto setDbSingleStable = [&](int8_t singleStable) { expect.numOfStables = singleStable; };
+  auto addDbRetention = [&](int64_t freq, int64_t keep, int8_t freqUnit, int8_t keepUnit) {
     SRetention retention = {0};
     retention.freq = freq;
     retention.keep = keep;
@@ -152,7 +178,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
     taosArrayPush(expect.pRetensions, &retention);
     ++expect.numOfRetensions;
   };
-  auto setDbSchemalessFunc = [&](int8_t schemaless) { expect.schemaless = schemaless; };
+  auto setDbSchemaless = [&](int8_t schemaless) { expect.schemaless = schemaless; };
   auto setDbWalRetentionPeriod = [&](int32_t walRetentionPeriod) { expect.walRetentionPeriod = walRetentionPeriod; };
   auto setDbWalRetentionSize = [&](int32_t walRetentionSize) { expect.walRetentionSize = walRetentionSize; };
   auto setDbWalRollPeriod = [&](int32_t walRollPeriod) { expect.walRollPeriod = walRollPeriod; };
@@ -164,6 +190,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_DATABASE_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_CREATE_DB);
     SCreateDbReq req = {0};
     ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSCreateDbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
 
@@ -212,32 +239,32 @@ TEST_F(ParserInitialCTest, createDatabase) {
     tFreeSCreateDbReq(&req);
   });
 
-  setCreateDbReqFunc("wxy_db");
+  setCreateDbReq("wxy_db");
   run("CREATE DATABASE wxy_db");
   clearCreateDbReq();
 
-  setCreateDbReqFunc("wxy_db", 1);
-  setDbBufferFunc(64);
-  setDbCachelastFunc(2);
+  setCreateDbReq("wxy_db", 1);
+  setDbBuffer(64);
+  setDbCachelast(2);
   setDbCachelastSize(20);
-  setDbCompressionFunc(1);
-  setDbDaysFunc(100 * 1440);
-  setDbFsyncFunc(100);
-  setDbMaxRowsFunc(1000);
-  setDbMinRowsFunc(100);
-  setDbKeepFunc(1440 * 1440);
-  setDbPagesFunc(96);
-  setDbPageSizeFunc(8);
-  setDbPrecisionFunc(TSDB_TIME_PRECISION_NANO);
-  setDbReplicaFunc(3);
-  addDbRetentionFunc(15 * MILLISECOND_PER_SECOND, 7 * MILLISECOND_PER_DAY, TIME_UNIT_SECOND, TIME_UNIT_DAY);
-  addDbRetentionFunc(1 * MILLISECOND_PER_MINUTE, 21 * MILLISECOND_PER_DAY, TIME_UNIT_MINUTE, TIME_UNIT_DAY);
-  addDbRetentionFunc(15 * MILLISECOND_PER_MINUTE, 500 * MILLISECOND_PER_DAY, TIME_UNIT_MINUTE, TIME_UNIT_DAY);
-  // setDbStrictaFunc(1);
-  setDbWalLevelFunc(2);
-  setDbVgroupsFunc(100);
-  setDbSingleStableFunc(1);
-  setDbSchemalessFunc(1);
+  setDbCompression(1);
+  setDbDays(100 * 1440);
+  setDbFsync(100);
+  setDbMaxRows(1000);
+  setDbMinRows(100);
+  setDbKeep(1440 * 1440);
+  setDbPages(96);
+  setDbPageSize(8);
+  setDbPrecision(TSDB_TIME_PRECISION_NANO);
+  setDbReplica(3);
+  addDbRetention(15 * MILLISECOND_PER_SECOND, 7 * MILLISECOND_PER_DAY, TIME_UNIT_SECOND, TIME_UNIT_DAY);
+  addDbRetention(1 * MILLISECOND_PER_MINUTE, 21 * MILLISECOND_PER_DAY, TIME_UNIT_MINUTE, TIME_UNIT_DAY);
+  addDbRetention(15 * MILLISECOND_PER_MINUTE, 500 * MILLISECOND_PER_DAY, TIME_UNIT_MINUTE, TIME_UNIT_DAY);
+  // setDbStricta(1);
+  setDbWalLevel(2);
+  setDbVgroups(100);
+  setDbSingleStable(1);
+  setDbSchemaless(1);
   setDbWalRetentionPeriod(-1);
   setDbWalRetentionSize(-1);
   setDbWalRollPeriod(10);
@@ -276,16 +303,16 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "TSDB_PAGESIZE 32");
   clearCreateDbReq();
 
-  setCreateDbReqFunc("wxy_db", 1);
-  setDbDaysFunc(100);
-  setDbKeepFunc(1440, 300 * 60, 400 * 1440);
+  setCreateDbReq("wxy_db", 1);
+  setDbDays(100);
+  setDbKeep(1440, 300 * 60, 400 * 1440);
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "DURATION 100m "
       "KEEP 1440m,300h,400d ");
   clearCreateDbReq();
 
-  setCreateDbReqFunc("wxy_db", 1);
-  setDbReplicaFunc(3);
+  setCreateDbReq("wxy_db", 1);
+  setDbReplica(3);
   setDbWalRetentionPeriod(TSDB_REPS_DEF_DB_WAL_RET_PERIOD);
   setDbWalRetentionSize(TSDB_REPS_DEF_DB_WAL_RET_SIZE);
   setDbWalRollPeriod(TSDB_REPS_DEF_DB_WAL_ROLL_PERIOD);
@@ -304,6 +331,9 @@ TEST_F(ParserInitialCTest, createDatabaseSemanticCheck) {
   run("create database db2 retentions 15s:7d,5m:21d,10m:10d", TSDB_CODE_PAR_INVALID_DB_OPTION);
 }
 
+/*
+ * CREATE DNODE {dnode_endpoint | dnode_host_name PORT port_val}
+ */
 TEST_F(ParserInitialCTest, createDnode) {
   useDb("root", "test");
 
@@ -311,7 +341,7 @@ TEST_F(ParserInitialCTest, createDnode) {
 
   auto clearCreateDnodeReq = [&]() { memset(&expect, 0, sizeof(SCreateDnodeReq)); };
 
-  auto setCreateDnodeReqFunc = [&](const char* pFqdn, int32_t port = tsServerPort) {
+  auto setCreateDnodeReq = [&](const char* pFqdn, int32_t port = tsServerPort) {
     strcpy(expect.fqdn, pFqdn);
     expect.port = port;
   };
@@ -325,39 +355,41 @@ TEST_F(ParserInitialCTest, createDnode) {
     ASSERT_EQ(req.port, expect.port);
   });
 
-  setCreateDnodeReqFunc("abc1", 7030);
+  setCreateDnodeReq("abc1", 7030);
   run("CREATE DNODE 'abc1' PORT 7030");
   clearCreateDnodeReq();
 
-  setCreateDnodeReqFunc("1.1.1.1", 8030);
+  setCreateDnodeReq("1.1.1.1", 8030);
   run("CREATE DNODE 1.1.1.1 PORT 8030");
   clearCreateDnodeReq();
 
-  setCreateDnodeReqFunc("host1", 9030);
+  setCreateDnodeReq("host1", 9030);
   run("CREATE DNODE host1 PORT 9030");
   clearCreateDnodeReq();
 
-  setCreateDnodeReqFunc("abc2", 7040);
+  setCreateDnodeReq("abc2", 7040);
   run("CREATE DNODE 'abc2:7040'");
   clearCreateDnodeReq();
 
-  setCreateDnodeReqFunc("1.1.1.2");
+  setCreateDnodeReq("1.1.1.2");
   run("CREATE DNODE 1.1.1.2");
   clearCreateDnodeReq();
 
-  setCreateDnodeReqFunc("host2");
+  setCreateDnodeReq("host2");
   run("CREATE DNODE host2");
   clearCreateDnodeReq();
 }
 
-// CREATE [AGGREGATE] FUNCTION [IF NOT EXISTS] func_name AS library_path OUTPUTTYPE type_name [BUFSIZE value]
+/*
+ * CREATE [AGGREGATE] FUNCTION [IF NOT EXISTS] func_name AS library_path OUTPUTTYPE type_name [BUFSIZE value]
+ */
 TEST_F(ParserInitialCTest, createFunction) {
   useDb("root", "test");
 
   SCreateFuncReq expect = {0};
 
-  auto setCreateFuncReqFunc = [&](const char* pUdfName, int8_t outputType, int32_t outputBytes = 0,
-                                  int8_t funcType = TSDB_FUNC_TYPE_SCALAR, int8_t igExists = 0, int32_t bufSize = 0) {
+  auto setCreateFuncReq = [&](const char* pUdfName, int8_t outputType, int32_t outputBytes = 0,
+                              int8_t funcType = TSDB_FUNC_TYPE_SCALAR, int8_t igExists = 0, int32_t bufSize = 0) {
     memset(&expect, 0, sizeof(SCreateFuncReq));
     strcpy(expect.name, pUdfName);
     expect.igExists = igExists;
@@ -382,13 +414,69 @@ TEST_F(ParserInitialCTest, createFunction) {
     ASSERT_EQ(req.bufSize, expect.bufSize);
   });
 
-  setCreateFuncReqFunc("udf1", TSDB_DATA_TYPE_INT);
+  setCreateFuncReq("udf1", TSDB_DATA_TYPE_INT);
   // run("CREATE FUNCTION udf1 AS './build/lib/libudf1.so' OUTPUTTYPE INT");
 
-  setCreateFuncReqFunc("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8);
+  setCreateFuncReq("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8);
   // run("CREATE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS './build/lib/libudf2.so' OUTPUTTYPE DOUBLE BUFSIZE 8");
 }
 
+/*
+ * CREATE MNODE ON DNODE dnode_id
+ */
+TEST_F(ParserInitialCTest, createMnode) {
+  useDb("root", "test");
+
+  SMCreateMnodeReq expect = {0};
+
+  auto setCreateMnodeReq = [&](int32_t dnodeId) { expect.dnodeId = dnodeId; };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_MNODE_STMT);
+    SMCreateMnodeReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS ==
+                tDeserializeSCreateDropMQSNodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(req.dnodeId, expect.dnodeId);
+  });
+
+  setCreateMnodeReq(1);
+  run("CREATE MNODE ON DNODE 1");
+}
+
+/*
+ * CREATE QNODE ON DNODE dnode_id
+ */
+TEST_F(ParserInitialCTest, createQnode) {
+  useDb("root", "test");
+
+  SMCreateQnodeReq expect = {0};
+
+  auto setCreateQnodeReq = [&](int32_t dnodeId) { expect.dnodeId = dnodeId; };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_QNODE_STMT);
+    SMCreateQnodeReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS ==
+                tDeserializeSCreateDropMQSNodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(req.dnodeId, expect.dnodeId);
+  });
+
+  setCreateQnodeReq(1);
+  run("CREATE QNODE ON DNODE 1");
+}
+
+/*
+ * CREATE SMA INDEX index_name ON tb_name index_option
+ *
+ * index_option:
+ *     FUNCTION(functions) INTERVAL(interval_val [, interval_offset]) [SLIDING(sliding_val)]
+ *         [WATERMARK(watermark_val)] [MAX_DELAY(max_delay_val)]
+ *
+ * functions:
+ *     function [, function] ...
+ */
 TEST_F(ParserInitialCTest, createSmaIndex) {
   useDb("root", "test");
 
@@ -456,24 +544,39 @@ TEST_F(ParserInitialCTest, createSmaIndex) {
       "DELETE_MARK 1000s");
 }
 
-TEST_F(ParserInitialCTest, createMnode) {
-  useDb("root", "test");
-
-  run("CREATE MNODE ON DNODE 1");
-}
-
-TEST_F(ParserInitialCTest, createQnode) {
-  useDb("root", "test");
-
-  run("CREATE QNODE ON DNODE 1");
-}
-
+/*
+ * CREATE SNODE ON DNODE dnode_id
+ */
 TEST_F(ParserInitialCTest, createSnode) {
   useDb("root", "test");
 
+  SMCreateSnodeReq expect = {0};
+
+  auto setCreateSnodeReq = [&](int32_t dnodeId) { expect.dnodeId = dnodeId; };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_SNODE_STMT);
+    SMCreateSnodeReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS ==
+                tDeserializeSCreateDropMQSNodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(req.dnodeId, expect.dnodeId);
+  });
+
+  setCreateSnodeReq(1);
   run("CREATE SNODE ON DNODE 1");
 }
 
+/*
+ * CREATE STABLE [IF NOT EXISTS] stb_name (create_definition [, create_definitionn] ...)
+ *     TAGS (create_definition [, create_definition] ...) [table_options]
+ *
+ * create_definition:
+ *     col_name column_definition
+ *
+ * column_definition:
+ *     type_name [COMMENT 'string_value']
+ */
 TEST_F(ParserInitialCTest, createStable) {
   useDb("root", "test");
 
@@ -484,7 +587,7 @@ TEST_F(ParserInitialCTest, createStable) {
     memset(&expect, 0, sizeof(SMCreateStbReq));
   };
 
-  auto setCreateStbReqFunc =
+  auto setCreateStbReq =
       [&](const char* pDbName, const char* pTbName, int8_t igExists = 0, int64_t delay1 = -1, int64_t delay2 = -1,
           int64_t watermark1 = TSDB_DEFAULT_ROLLUP_WATERMARK, int64_t watermark2 = TSDB_DEFAULT_ROLLUP_WATERMARK,
           int64_t deleteMark1 = TSDB_DEFAULT_ROLLUP_DELETE_MARK, int64_t deleteMark2 = TSDB_DEFAULT_ROLLUP_DELETE_MARK,
@@ -505,8 +608,8 @@ TEST_F(ParserInitialCTest, createStable) {
         }
       };
 
-  auto addFieldToCreateStbReqFunc = [&](bool col, const char* pFieldName, uint8_t type, int32_t bytes = 0,
-                                        int8_t flags = COL_SMA_ON) {
+  auto addFieldToCreateStbReq = [&](bool col, const char* pFieldName, uint8_t type, int32_t bytes = 0,
+                                    int8_t flags = COL_SMA_ON) {
     SField field = {0};
     strcpy(field.name, pFieldName);
     field.type = type;
@@ -582,46 +685,46 @@ TEST_F(ParserInitialCTest, createStable) {
     tFreeSMCreateStbReq(&req);
   });
 
-  setCreateStbReqFunc("test", "t1");
-  addFieldToCreateStbReqFunc(true, "ts", TSDB_DATA_TYPE_TIMESTAMP);
-  addFieldToCreateStbReqFunc(true, "c1", TSDB_DATA_TYPE_INT);
-  addFieldToCreateStbReqFunc(false, "id", TSDB_DATA_TYPE_INT);
+  setCreateStbReq("test", "t1");
+  addFieldToCreateStbReq(true, "ts", TSDB_DATA_TYPE_TIMESTAMP);
+  addFieldToCreateStbReq(true, "c1", TSDB_DATA_TYPE_INT);
+  addFieldToCreateStbReq(false, "id", TSDB_DATA_TYPE_INT);
   run("CREATE STABLE t1(ts TIMESTAMP, c1 INT) TAGS(id INT)");
   clearCreateStbReq();
 
-  setCreateStbReqFunc("rollup_db", "t1", 1, 100 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_MINUTE, 10,
-                      1 * MILLISECOND_PER_MINUTE, 1000 * MILLISECOND_PER_SECOND, 200 * MILLISECOND_PER_MINUTE, 100,
-                      "test create table");
-  addFieldToCreateStbReqFunc(true, "ts", TSDB_DATA_TYPE_TIMESTAMP, 0, 0);
-  addFieldToCreateStbReqFunc(true, "c1", TSDB_DATA_TYPE_INT);
-  addFieldToCreateStbReqFunc(true, "c2", TSDB_DATA_TYPE_UINT);
-  addFieldToCreateStbReqFunc(true, "c3", TSDB_DATA_TYPE_BIGINT);
-  addFieldToCreateStbReqFunc(true, "c4", TSDB_DATA_TYPE_UBIGINT, 0, 0);
-  addFieldToCreateStbReqFunc(true, "c5", TSDB_DATA_TYPE_FLOAT, 0, 0);
-  addFieldToCreateStbReqFunc(true, "c6", TSDB_DATA_TYPE_DOUBLE, 0, 0);
-  addFieldToCreateStbReqFunc(true, "c7", TSDB_DATA_TYPE_BINARY, 20 + VARSTR_HEADER_SIZE, 0);
-  addFieldToCreateStbReqFunc(true, "c8", TSDB_DATA_TYPE_SMALLINT, 0, 0);
-  addFieldToCreateStbReqFunc(true, "c9", TSDB_DATA_TYPE_USMALLINT, 0, 0);
-  addFieldToCreateStbReqFunc(true, "c10", TSDB_DATA_TYPE_TINYINT, 0, 0);
-  addFieldToCreateStbReqFunc(true, "c11", TSDB_DATA_TYPE_UTINYINT, 0, 0);
-  addFieldToCreateStbReqFunc(true, "c12", TSDB_DATA_TYPE_BOOL, 0, 0);
-  addFieldToCreateStbReqFunc(true, "c13", TSDB_DATA_TYPE_NCHAR, 30 * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 0);
-  addFieldToCreateStbReqFunc(true, "c14", TSDB_DATA_TYPE_VARCHAR, 50 + VARSTR_HEADER_SIZE, 0);
-  addFieldToCreateStbReqFunc(false, "a1", TSDB_DATA_TYPE_TIMESTAMP);
-  addFieldToCreateStbReqFunc(false, "a2", TSDB_DATA_TYPE_INT);
-  addFieldToCreateStbReqFunc(false, "a3", TSDB_DATA_TYPE_UINT);
-  addFieldToCreateStbReqFunc(false, "a4", TSDB_DATA_TYPE_BIGINT);
-  addFieldToCreateStbReqFunc(false, "a5", TSDB_DATA_TYPE_UBIGINT);
-  addFieldToCreateStbReqFunc(false, "a6", TSDB_DATA_TYPE_FLOAT);
-  addFieldToCreateStbReqFunc(false, "a7", TSDB_DATA_TYPE_DOUBLE);
-  addFieldToCreateStbReqFunc(false, "a8", TSDB_DATA_TYPE_BINARY, 20 + VARSTR_HEADER_SIZE);
-  addFieldToCreateStbReqFunc(false, "a9", TSDB_DATA_TYPE_SMALLINT);
-  addFieldToCreateStbReqFunc(false, "a10", TSDB_DATA_TYPE_USMALLINT);
-  addFieldToCreateStbReqFunc(false, "a11", TSDB_DATA_TYPE_TINYINT);
-  addFieldToCreateStbReqFunc(false, "a12", TSDB_DATA_TYPE_UTINYINT);
-  addFieldToCreateStbReqFunc(false, "a13", TSDB_DATA_TYPE_BOOL);
-  addFieldToCreateStbReqFunc(false, "a14", TSDB_DATA_TYPE_NCHAR, 30 * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
-  addFieldToCreateStbReqFunc(false, "a15", TSDB_DATA_TYPE_VARCHAR, 50 + VARSTR_HEADER_SIZE);
+  setCreateStbReq("rollup_db", "t1", 1, 100 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_MINUTE, 10,
+                  1 * MILLISECOND_PER_MINUTE, 1000 * MILLISECOND_PER_SECOND, 200 * MILLISECOND_PER_MINUTE, 100,
+                  "test create table");
+  addFieldToCreateStbReq(true, "ts", TSDB_DATA_TYPE_TIMESTAMP, 0, 0);
+  addFieldToCreateStbReq(true, "c1", TSDB_DATA_TYPE_INT);
+  addFieldToCreateStbReq(true, "c2", TSDB_DATA_TYPE_UINT);
+  addFieldToCreateStbReq(true, "c3", TSDB_DATA_TYPE_BIGINT);
+  addFieldToCreateStbReq(true, "c4", TSDB_DATA_TYPE_UBIGINT, 0, 0);
+  addFieldToCreateStbReq(true, "c5", TSDB_DATA_TYPE_FLOAT, 0, 0);
+  addFieldToCreateStbReq(true, "c6", TSDB_DATA_TYPE_DOUBLE, 0, 0);
+  addFieldToCreateStbReq(true, "c7", TSDB_DATA_TYPE_BINARY, 20 + VARSTR_HEADER_SIZE, 0);
+  addFieldToCreateStbReq(true, "c8", TSDB_DATA_TYPE_SMALLINT, 0, 0);
+  addFieldToCreateStbReq(true, "c9", TSDB_DATA_TYPE_USMALLINT, 0, 0);
+  addFieldToCreateStbReq(true, "c10", TSDB_DATA_TYPE_TINYINT, 0, 0);
+  addFieldToCreateStbReq(true, "c11", TSDB_DATA_TYPE_UTINYINT, 0, 0);
+  addFieldToCreateStbReq(true, "c12", TSDB_DATA_TYPE_BOOL, 0, 0);
+  addFieldToCreateStbReq(true, "c13", TSDB_DATA_TYPE_NCHAR, 30 * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 0);
+  addFieldToCreateStbReq(true, "c14", TSDB_DATA_TYPE_VARCHAR, 50 + VARSTR_HEADER_SIZE, 0);
+  addFieldToCreateStbReq(false, "a1", TSDB_DATA_TYPE_TIMESTAMP);
+  addFieldToCreateStbReq(false, "a2", TSDB_DATA_TYPE_INT);
+  addFieldToCreateStbReq(false, "a3", TSDB_DATA_TYPE_UINT);
+  addFieldToCreateStbReq(false, "a4", TSDB_DATA_TYPE_BIGINT);
+  addFieldToCreateStbReq(false, "a5", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(false, "a6", TSDB_DATA_TYPE_FLOAT);
+  addFieldToCreateStbReq(false, "a7", TSDB_DATA_TYPE_DOUBLE);
+  addFieldToCreateStbReq(false, "a8", TSDB_DATA_TYPE_BINARY, 20 + VARSTR_HEADER_SIZE);
+  addFieldToCreateStbReq(false, "a9", TSDB_DATA_TYPE_SMALLINT);
+  addFieldToCreateStbReq(false, "a10", TSDB_DATA_TYPE_USMALLINT);
+  addFieldToCreateStbReq(false, "a11", TSDB_DATA_TYPE_TINYINT);
+  addFieldToCreateStbReq(false, "a12", TSDB_DATA_TYPE_UTINYINT);
+  addFieldToCreateStbReq(false, "a13", TSDB_DATA_TYPE_BOOL);
+  addFieldToCreateStbReq(false, "a14", TSDB_DATA_TYPE_NCHAR, 30 * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+  addFieldToCreateStbReq(false, "a15", TSDB_DATA_TYPE_VARCHAR, 50 + VARSTR_HEADER_SIZE);
   run("CREATE STABLE IF NOT EXISTS rollup_db.t1("
       "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), "
       "c8 SMALLINT, c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
@@ -647,6 +750,20 @@ TEST_F(ParserInitialCTest, createStableSemanticCheck) {
       TSDB_CODE_PAR_INVALID_TABLE_OPTION);
 }
 
+/*
+ * CREATE STREAM [IF NOT EXISTS] stream_name [stream_options]
+ *     INTO stb_name [TAGS (create_definition [, create_definition] ...)] [SUBTABLE (expr)] AS subquery
+ *
+ * stream_options:
+ *     stream_option ...
+ *
+ * stream_option: {
+ *     TRIGGER    [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
+ *   | WATERMARK   time
+ *   | IGNORE EXPIRED value
+ *   | FILL_HISTORY value
+ * }
+ */
 TEST_F(ParserInitialCTest, createStream) {
   useDb("root", "test");
 
@@ -751,8 +868,102 @@ TEST_F(ParserInitialCTest, createStreamSemanticCheck) {
       TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC);
 }
 
+/*
+ * CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definitionn] ...) [table_options]
+ *
+ * CREATE TABLE create_subtable_clause
+ *
+ * CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definitionn] ...)
+ *     [TAGS (create_definition [, create_definitionn] ...)]
+ *     [table_options]
+ *
+ * create_subtable_clause: {
+ *     create_subtable_clause [create_subtable_clause] ...
+ *   | [IF NOT EXISTS] [db_name.]tb_name USING [db_name.]stb_name [(tag_name [, tag_name] ...)]
+ *         TAGS (tag_value [, tag_value] ...)
+ * }
+ *
+ * create_definition:
+ *     col_name column_definition
+ *
+ * column_definition:
+ *     type_name [comment 'string_value']
+ *
+ * table_options:
+ *     table_option ...
+ *
+ * table_option: {
+ *     COMMENT 'string_value'
+ *   | WATERMARK duration[,duration]
+ *   | MAX_DELAY duration[,duration]
+ *   | ROLLUP(func_name [, func_name] ...)
+ *   | SMA(col_name [, col_name] ...)
+ *   | TTL value
+ * }
+ */
 TEST_F(ParserInitialCTest, createTable) {
   useDb("root", "test");
+
+  SVCreateTbBatchReq expect = {0};
+
+  auto addCreateTbReq = [&](const char* pName, bool ignoreExists = false, int32_t ttl = TSDB_DEFAULT_TABLE_TTL,
+                            const char* pComment = nullptr) {
+    SVCreateTbReq req = {0};
+    req.name = strdup(pName);
+    if (ignoreExists) {
+      req.flags |= TD_CREATE_IF_NOT_EXISTS;
+    }
+    req.ttl = ttl;
+    if (nullptr != pComment) {
+      req.comment = strdup(pComment);
+      req.commentLen = strlen(pComment);
+    }
+    ++expect.nReqs;
+    if (nullptr == expect.pArray) {
+      expect.pArray = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SVCreateTbReq));
+    }
+    taosArrayPush(expect.pArray, &req);
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    return;  // todo
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_VNODE_MODIFY_STMT);
+    SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
+
+    ASSERT_EQ(pStmt->sqlNodeType, QUERY_NODE_CREATE_TABLE_STMT);
+    ASSERT_NE(pStmt->pDataBlocks, nullptr);
+    int32_t numOfBlocks = taosArrayGetSize(pStmt->pDataBlocks);
+    for (int32_t i = 0; i < numOfBlocks; ++i) {
+      SVgDataBlocks*     pVgData = (SVgDataBlocks*)taosArrayGetP(pStmt->pDataBlocks, i);
+      void*              pBuf = POINTER_SHIFT(pVgData->pData, sizeof(SMsgHead));
+      SVCreateTbBatchReq req = {0};
+      SDecoder           coder = {0};
+      tDecoderInit(&coder, (uint8_t*)pBuf, pVgData->size);
+      ASSERT_EQ(tDecodeSVCreateTbBatchReq(&coder, &req), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(req.nReqs, expect.nReqs);
+      for (int32_t j = 0; j < req.nReqs; ++j) {
+        SVCreateTbReq* pReq = req.pReqs + j;
+        SVCreateTbReq* pExpect = (SVCreateTbReq*)taosArrayGet(expect.pArray, j);
+        ASSERT_EQ(pReq->flags, pExpect->flags);
+        ASSERT_EQ(std::string(pReq->name), std::string(pExpect->name));
+        ASSERT_EQ(pReq->uid, pExpect->uid);
+        ASSERT_EQ(pReq->ctime, pExpect->ctime);
+        ASSERT_EQ(pReq->ttl, pExpect->ttl);
+        ASSERT_EQ(pReq->commentLen, pExpect->commentLen);
+        ASSERT_EQ(std::string(pReq->comment), std::string(pExpect->comment));
+        ASSERT_EQ(pReq->type, pExpect->type);
+        if (TD_NORMAL_TABLE == pExpect->type) {
+          ASSERT_EQ(pReq->ntb.schemaRow.version, pExpect->ntb.schemaRow.version);
+          ASSERT_EQ(pReq->ntb.schemaRow.nCols, pExpect->ntb.schemaRow.nCols);
+        } else if (TD_CHILD_TABLE == pExpect->type) {
+          ASSERT_EQ(std::string(pReq->ctb.stbName), std::string(pExpect->ctb.stbName));
+          ASSERT_EQ(pReq->ctb.tagNum, pExpect->ctb.tagNum);
+          ASSERT_EQ(pReq->ctb.suid, pExpect->ctb.suid);
+        }
+      }
+      tDecoderClear(&coder);
+    }
+  });
 
   run("CREATE TABLE t1(ts TIMESTAMP, c1 INT)");
 
@@ -778,7 +989,7 @@ TEST_F(ParserInitialCTest, createTable) {
       "IF NOT EXISTS test.t2 USING test.st1 (tag1, tag2) TAGS(2, 'abc') "
       "IF NOT EXISTS test.t3 USING test.st1 (tag1, tag2) TAGS(3, 'abc') ");
 
-  // run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', NOW + 1S)");
+  run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', NOW + 1S)");
 }
 
 TEST_F(ParserInitialCTest, createTableSemanticCheck) {
@@ -796,6 +1007,11 @@ TEST_F(ParserInitialCTest, createTableSemanticCheck) {
   run(sql, TSDB_CODE_PAR_TOO_MANY_COLUMNS);
 }
 
+/*
+ * CREATE TOPIC [IF NOT EXISTS] topic_name AS subquery
+ *
+ * CREATE TOPIC [IF NOT EXISTS] topic_name [WITH META] AS {DATABASE db_name | STABLE stb_name }
+ */
 TEST_F(ParserInitialCTest, createTopic) {
   useDb("root", "test");
 
@@ -803,8 +1019,8 @@ TEST_F(ParserInitialCTest, createTopic) {
 
   auto clearCreateTopicReq = [&]() { memset(&expect, 0, sizeof(SCMCreateTopicReq)); };
 
-  auto setCreateTopicReqFunc = [&](const char* pTopicName, int8_t igExists, const char* pSql, const char* pAst,
-                                   const char* pDbName = nullptr, const char* pTbname = nullptr, int8_t withMeta = 0) {
+  auto setCreateTopicReq = [&](const char* pTopicName, int8_t igExists, const char* pSql, const char* pAst,
+                               const char* pDbName = nullptr, const char* pTbname = nullptr, int8_t withMeta = 0) {
     snprintf(expect.name, sizeof(expect.name), "0.%s", pTopicName);
     expect.igExists = igExists;
     expect.sql = (char*)pSql;
@@ -848,31 +1064,34 @@ TEST_F(ParserInitialCTest, createTopic) {
     tFreeSCMCreateTopicReq(&req);
   });
 
-  setCreateTopicReqFunc("tp1", 0, "create topic tp1 as select * from t1", "ast");
+  setCreateTopicReq("tp1", 0, "create topic tp1 as select * from t1", "ast");
   run("CREATE TOPIC tp1 AS SELECT * FROM t1");
   clearCreateTopicReq();
 
-  setCreateTopicReqFunc("tp1", 1, "create topic if not exists tp1 as select ts, ceil(c1) from t1", "ast");
+  setCreateTopicReq("tp1", 1, "create topic if not exists tp1 as select ts, ceil(c1) from t1", "ast");
   run("CREATE TOPIC IF NOT EXISTS tp1 AS SELECT ts, CEIL(c1) FROM t1");
   clearCreateTopicReq();
 
-  setCreateTopicReqFunc("tp1", 0, "create topic tp1 as database test", nullptr, "test");
+  setCreateTopicReq("tp1", 0, "create topic tp1 as database test", nullptr, "test");
   run("CREATE TOPIC tp1 AS DATABASE test");
   clearCreateTopicReq();
 
-  setCreateTopicReqFunc("tp1", 0, "create topic tp1 with meta as database test", nullptr, "test", nullptr, 1);
+  setCreateTopicReq("tp1", 0, "create topic tp1 with meta as database test", nullptr, "test", nullptr, 1);
   run("CREATE TOPIC tp1 WITH META AS DATABASE test");
   clearCreateTopicReq();
 
-  setCreateTopicReqFunc("tp1", 1, "create topic if not exists tp1 as stable st1", nullptr, "test", "st1");
+  setCreateTopicReq("tp1", 1, "create topic if not exists tp1 as stable st1", nullptr, "test", "st1");
   run("CREATE TOPIC IF NOT EXISTS tp1 AS STABLE st1");
   clearCreateTopicReq();
 
-  setCreateTopicReqFunc("tp1", 1, "create topic if not exists tp1 with meta as stable st1", nullptr, "test", "st1", 1);
+  setCreateTopicReq("tp1", 1, "create topic if not exists tp1 with meta as stable st1", nullptr, "test", "st1", 1);
   run("CREATE TOPIC IF NOT EXISTS tp1 WITH META AS STABLE st1");
   clearCreateTopicReq();
 }
 
+/*
+ * CREATE USER use_name PASS password [SYSINFO value]
+ */
 TEST_F(ParserInitialCTest, createUser) {
   useDb("root", "test");
 

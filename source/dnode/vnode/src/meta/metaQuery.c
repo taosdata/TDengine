@@ -19,7 +19,7 @@ void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
   memset(pReader, 0, sizeof(*pReader));
   pReader->flags = flags;
   pReader->pMeta = pMeta;
-  if (!(flags & META_READER_NOLOCK)) {
+  if (pReader->pMeta && !(flags & META_READER_NOLOCK)) {
     metaRLock(pMeta);
   }
 }
@@ -152,7 +152,7 @@ bool metaIsTableExist(SMeta *pMeta, tb_uid_t uid) {
 }
 
 int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
-  SMeta *pMeta = pReader->pMeta;
+  SMeta  *pMeta = pReader->pMeta;
   int64_t version1;
 
   // query uid.idx
@@ -238,7 +238,6 @@ int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
 
   return 0;
 }
-
 
 int metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid) {
   int         code = 0;
@@ -756,9 +755,7 @@ int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
   return pMeta->pVnode->config.vndStats.numOfTimeSeries + pMeta->pVnode->config.vndStats.numOfNTimeSeries;
 }
 
-int64_t metaGetNtbNum(SMeta *pMeta) {
-  return pMeta->pVnode->config.vndStats.numOfNTables;
-}
+int64_t metaGetNtbNum(SMeta *pMeta) { return pMeta->pVnode->config.vndStats.numOfNTables; }
 
 typedef struct {
   SMeta   *pMeta;
