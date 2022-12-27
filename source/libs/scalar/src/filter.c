@@ -4082,7 +4082,7 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SC
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     taosArrayPush(pList, &pSrc);
 
-    int32_t code = scalarCalculate(info->sclCtx.node, pList, &output);
+    code = scalarCalculate(info->sclCtx.node, pList, &output);
     taosArrayDestroy(pList);
 
     FLT_ERR_RET(code);
