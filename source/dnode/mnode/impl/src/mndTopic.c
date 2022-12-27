@@ -706,10 +706,16 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 #endif
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "drop-topic");
-  mndTransSetDbName(pTrans, pTopic->db, NULL);
   if (pTrans == NULL) {
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
     mndReleaseTopic(pMnode, pTopic);
+    return -1;
+  }
+
+  mndTransSetDbName(pTrans, pTopic->db, NULL);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    mndReleaseTopic(pMnode, pTopic);
+    mndTransDrop(pTrans);
     return -1;
   }
 

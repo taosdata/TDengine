@@ -197,7 +197,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 
   // in case of repeat scan/reverse scan, no new time window added.
   if (isIntervalQuery) {
-    if (masterscan && p1 != NULL) {  // the *p1 may be NULL in case of sliding+offset exists.
+    if (p1 != NULL) {  // the *p1 may be NULL in case of sliding+offset exists.
       pResult = getResultRowByPos(pResultBuf, p1, true);
       ASSERT(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
     }

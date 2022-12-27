@@ -628,6 +628,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   pTrans->undoActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
   pTrans->commitActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
   pTrans->pRpcArray = taosArrayInit(1, sizeof(SRpcHandleInfo));
+  taosInitRWLatch(&pTrans->lockRpcArray);
 
   if (pTrans->redoActions == NULL || pTrans->undoActions == NULL || pTrans->commitActions == NULL ||
       pTrans->pRpcArray == NULL) {
@@ -737,12 +738,14 @@ int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, c
     if (pTrans->oper == oper) {
       if (strcasecmp(dbname, pTrans->dbname) == 0) {
         mInfo("trans:%d, db:%s oper:%d matched with input", pTrans->id, dbname, oper);
+        taosWLockLatch(&pTrans->lockRpcArray);
         if (pTrans->pRpcArray == NULL) {
-          pTrans->pRpcArray = taosArrayInit(1, sizeof(SRpcHandleInfo));
+          pTrans->pRpcArray = taosArrayInit(4, sizeof(SRpcHandleInfo));
         }
         if (pTrans->pRpcArray != NULL && taosArrayPush(pTrans->pRpcArray, &pMsg->info) != NULL) {
           code = 0;
         }
+        taosWUnLockLatch(&pTrans->lockRpcArray);
 
         sdbRelease(pMnode->pSdb, pTrans);
         break;
@@ -944,15 +947,23 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
           pTrans->failedTimes, code);
   }
 
+  taosWLockLatch(&pTrans->lockRpcArray);
   int32_t size = taosArrayGetSize(pTrans->pRpcArray);
-  if (size <= 0) return;
+  if (size <= 0) {
+    taosWUnLockLatch(&pTrans->lockRpcArray);
+    return;
+  }
 
   for (int32_t i = 0; i < size; ++i) {
     SRpcHandleInfo *pInfo = taosArrayGet(pTrans->pRpcArray, i);
     if (pInfo->handle != NULL) {
-      if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+      if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED) {
         code = TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL;
       }
+      if (code == TSDB_CODE_SYN_TIMEOUT) {
+        code = TSDB_CODE_MND_TRNAS_SYNC_TIMEOUT;
+      }
+
       if (i != 0 && code == 0) {
         code = TSDB_CODE_MNODE_NOT_FOUND;
       }
@@ -997,6 +1008,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
     }
   }
   taosArrayClear(pTrans->pRpcArray);
+  taosWUnLockLatch(&pTrans->lockRpcArray);
 }
 
 int32_t mndTransProcessRsp(SRpcMsg *pRsp) {

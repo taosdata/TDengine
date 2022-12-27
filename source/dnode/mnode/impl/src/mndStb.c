@@ -823,6 +823,7 @@ _OVER:
 
 int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
   mndTransSetDbName(pTrans, pDb->name, pStb->name);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) return -1;
   if (mndSetCreateStbRedoLogs(pMnode, pTrans, pDb, pStb) != 0) return -1;
   if (mndSetCreateStbUndoLogs(pMnode, pTrans, pDb, pStb) != 0) return -1;
   if (mndSetCreateStbCommitLogs(pMnode, pTrans, pDb, pStb) != 0) return -1;
@@ -1856,6 +1857,7 @@ static int32_t mndAlterStbImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbOb
 
   mInfo("trans:%d, used to alter stb:%s", pTrans->id, pStb->name);
   mndTransSetDbName(pTrans, pDb->name, pStb->name);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   if (needRsp) {
     void   *pCont = NULL;
@@ -2055,6 +2057,7 @@ static int32_t mndDropStb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *p
 
   mInfo("trans:%d, used to drop stb:%s", pTrans->id, pStb->name);
   mndTransSetDbName(pTrans, pDb->name, pStb->name);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   if (mndSetDropStbRedoLogs(pMnode, pTrans, pStb) != 0) goto _OVER;
   if (mndSetDropStbCommitLogs(pMnode, pTrans, pStb) != 0) goto _OVER;

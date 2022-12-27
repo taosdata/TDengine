@@ -32,13 +32,13 @@ struct SLDataIter {
 };
 
 SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols) {
-  SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(TSDB_DEFAULT_STT_FILE, sizeof(SSttBlockLoadInfo));
+  SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(TSDB_MAX_STT_TRIGGER, sizeof(SSttBlockLoadInfo));
   if (pLoadInfo == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  for (int32_t i = 0; i < TSDB_DEFAULT_STT_FILE; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_STT_TRIGGER; ++i) {
     pLoadInfo[i].blockIndex[0] = -1;
     pLoadInfo[i].blockIndex[1] = -1;
     pLoadInfo[i].currentLoadBlockIndex = 1;
@@ -63,7 +63,7 @@ SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList,
 }
 
 void resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
-  for (int32_t i = 0; i < TSDB_DEFAULT_STT_FILE; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_STT_TRIGGER; ++i) {
     pLoadInfo[i].currentLoadBlockIndex = 1;
     pLoadInfo[i].blockIndex[0] = -1;
     pLoadInfo[i].blockIndex[1] = -1;
@@ -77,14 +77,14 @@ void resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
 }
 
 void getLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, int64_t *blocks, double *el) {
-  for (int32_t i = 0; i < TSDB_DEFAULT_STT_FILE; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_STT_TRIGGER; ++i) {
     *el += pLoadInfo[i].elapsedTime;
     *blocks += pLoadInfo[i].loadBlocks;
   }
 }
 
 void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
-  for (int32_t i = 0; i < TSDB_DEFAULT_STT_FILE; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_STT_TRIGGER; ++i) {
     pLoadInfo[i].currentLoadBlockIndex = 1;
     pLoadInfo[i].blockIndex[0] = -1;
     pLoadInfo[i].blockIndex[1] = -1;
@@ -154,8 +154,8 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
 
   tsdbDebug("read last block, total load:%d, trigger by uid:%" PRIu64
             ", last file index:%d, last block index:%d, entry:%d, rows:%d, %p, elapsed time:%.2f ms, %s",
-            pInfo->loadBlocks, pIter->uid, pIter->iStt, pIter->iSttBlk, pInfo->currentLoadBlockIndex, pBlock->nRow, pBlock, el,
-            idStr);
+            pInfo->loadBlocks, pIter->uid, pIter->iStt, pIter->iSttBlk, pInfo->currentLoadBlockIndex, pBlock->nRow,
+            pBlock, el, idStr);
 
   pInfo->blockIndex[pInfo->currentLoadBlockIndex] = pIter->iSttBlk;
   pIter->iRow = (pIter->backward) ? pInfo->blockData[pInfo->currentLoadBlockIndex].nRow : -1;
@@ -558,9 +558,9 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
   }
 
   pMTree->idStr = idStr;
-  if (!pMTree->backward) { // asc
+  if (!pMTree->backward) {  // asc
     tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
-  } else { // desc
+  } else {  // desc
     tRBTreeCreate(&pMTree->rbt, tLDataIterDescCmprFn);
   }
   int32_t code = TSDB_CODE_SUCCESS;

@@ -96,6 +96,7 @@ int32_t tsRedirectPeriod = 10;
 int32_t tsRedirectFactor = 2;
 int32_t tsRedirectMaxPeriod = 1000;
 int32_t tsMaxRetryWaitTime = 10000;
+bool    tsUseAdapter = false;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -201,9 +202,7 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
 int32_t taosSetTfsCfg(SConfig *pCfg);
 #endif
 
-struct SConfig *taosGetCfg() {
-  return tsCfg;
-}
+struct SConfig *taosGetCfg() { return tsCfg; }
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -314,6 +313,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "smlBatchSize", tsSmlBatchSize, 1, INT32_MAX, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxMemUsedByInsert", tsMaxMemUsedByInsert, 1, INT32_MAX, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 0, 86400000, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, true) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
@@ -668,6 +668,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsQueryNodeChunkSize = cfgGetItem(pCfg, "queryNodeChunkSize")->i32;
   tsQueryUseNodeAllocator = cfgGetItem(pCfg, "queryUseNodeAllocator")->bval;
   tsKeepColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
+  tsUseAdapter = cfgGetItem(pCfg, "useAdapter")->bval;
 
   tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
   return 0;
@@ -1315,12 +1316,17 @@ void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, 
   if (pItem != NULL && (rewrite || pItem->i32 == 0)) {
     pItem->i32 = flagVal;
   }
-  *pFlagPtr = flagVal;
+  if (pFlagPtr != NULL) {
+    *pFlagPtr = flagVal;
+  }
 }
 
 void taosSetAllDebugFlag(int32_t flag, bool rewrite) {
   if (flag <= 0) return;
 
+  taosSetDebugFlag(NULL, "debugFlag", flag, rewrite);
+  taosSetDebugFlag(NULL, "simDebugFlag", flag, rewrite);
+  taosSetDebugFlag(NULL, "tmrDebugFlag", flag, rewrite);
   taosSetDebugFlag(&uDebugFlag, "uDebugFlag", flag, rewrite);
   taosSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag, rewrite);
   taosSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag, rewrite);
@@ -1339,6 +1345,5 @@ void taosSetAllDebugFlag(int32_t flag, bool rewrite) {
   taosSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag, rewrite);
   taosSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag, rewrite);
   taosSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&metaDebugFlag, "tmrDebugFlag", flag, rewrite);
   uInfo("all debug flag are set to %d", flag);
 }

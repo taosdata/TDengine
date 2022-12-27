@@ -539,7 +539,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
       taosArrayPush(pTaskInfo->pResultBlockList, &p1);
       p = p1;
     } else {
-      p = *(SSDataBlock**) taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);
+      p = *(SSDataBlock**)taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);
       copyDataBlock(p, pRes);
     }
 
@@ -574,9 +574,9 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
 
 void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  SArray* pList = pTaskInfo->pResultBlockList;
-  size_t num = taosArrayGetSize(pList);
-  for(int32_t i = 0; i < num; ++i) {
+  SArray*        pList = pTaskInfo->pResultBlockList;
+  size_t         num = taosArrayGetSize(pList);
+  for (int32_t i = 0; i < num; ++i) {
     SSDataBlock** p = taosArrayGet(pTaskInfo->pResultBlockList, i);
     blockDataDestroy(*p);
   }
@@ -747,11 +747,11 @@ int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len) {
   }
 
   int32_t nOptrWithVal = 0;
-//  int32_t code = encodeOperator(pTaskInfo->pRoot, pOutput, len, &nOptrWithVal);
-//  if ((code == TSDB_CODE_SUCCESS) && (nOptrWithVal == 0)) {
-//    taosMemoryFreeClear(*pOutput);
-//    *len = 0;
-//  }
+  //  int32_t code = encodeOperator(pTaskInfo->pRoot, pOutput, len, &nOptrWithVal);
+  //  if ((code == TSDB_CODE_SUCCESS) && (nOptrWithVal == 0)) {
+  //    taosMemoryFreeClear(*pOutput);
+  //    *len = 0;
+  //  }
   return 0;
 }
 
@@ -763,7 +763,7 @@ int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t le
   }
 
   return 0;
-//  return decodeOperator(pTaskInfo->pRoot, pInput, len);
+  //  return decodeOperator(pTaskInfo->pRoot, pInput, len);
 }
 
 int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {
@@ -890,35 +890,35 @@ int32_t qStreamRestoreParam(qTaskInfo_t tinfo) {
         pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL ||
         pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL) {
       SStreamIntervalOperatorInfo* pInfo = pOperator->info;
-      ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE);
-      ASSERT(pInfo->twAggSup.deleteMark == INT64_MAX);
+      /*ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE);*/
+      /*ASSERT(pInfo->twAggSup.deleteMark == INT64_MAX);*/
 
       pInfo->twAggSup.calTrigger = pInfo->twAggSup.calTriggerSaved;
       pInfo->twAggSup.deleteMark = pInfo->twAggSup.deleteMarkSaved;
-      ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
-             pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
+      /*ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||*/
+      /*pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);*/
       qInfo("restore stream param for interval: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
     } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
                pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
                pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
       SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
-      ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE);
-      ASSERT(pInfo->twAggSup.deleteMark == INT64_MAX);
+      /*ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE);*/
+      /*ASSERT(pInfo->twAggSup.deleteMark == INT64_MAX);*/
 
       pInfo->twAggSup.calTrigger = pInfo->twAggSup.calTriggerSaved;
       pInfo->twAggSup.deleteMark = pInfo->twAggSup.deleteMarkSaved;
-      ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
-             pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
+      /*ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||*/
+      /*pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);*/
       qInfo("restore stream param for session: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
     } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) {
       SStreamStateAggOperatorInfo* pInfo = pOperator->info;
-      ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE);
-      ASSERT(pInfo->twAggSup.deleteMark == INT64_MAX);
+      /*ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE);*/
+      /*ASSERT(pInfo->twAggSup.deleteMark == INT64_MAX);*/
 
       pInfo->twAggSup.calTrigger = pInfo->twAggSup.calTriggerSaved;
       pInfo->twAggSup.deleteMark = pInfo->twAggSup.deleteMarkSaved;
-      ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
-             pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
+      /*ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||*/
+      /*pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);*/
       qInfo("restore stream param for state: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
     }
 
@@ -926,7 +926,7 @@ int32_t qStreamRestoreParam(qTaskInfo_t tinfo) {
     if (pOperator->numOfDownstream != 1 || pOperator->pDownstream[0] == NULL) {
       if (pOperator->numOfDownstream > 1) {
         qError("unexpected stream, multiple downstream");
-        ASSERT(0);
+        /*ASSERT(0);*/
         return -1;
       }
       return 0;
@@ -935,6 +935,10 @@ int32_t qStreamRestoreParam(qTaskInfo_t tinfo) {
     }
   }
   return 0;
+}
+bool qStreamRecoverScanFinished(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  return pTaskInfo->streamInfo.recoverScanFinished;
 }
 
 void* qExtractReaderFromStreamScanner(void* scanner) {

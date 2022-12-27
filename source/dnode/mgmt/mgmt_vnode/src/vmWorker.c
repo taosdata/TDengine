@@ -140,6 +140,12 @@ static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOf
 
 static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtype) {
   const STraceId *trace = &pMsg->info.traceId;
+  if (pMsg->contLen < sizeof(SMsgHead)) {
+    dGError("invalid rpc msg with no msg head at pCont. pMsg:%p, type:%s, contLen:%d", pMsg, TMSG_INFO(pMsg->msgType),
+            pMsg->contLen);
+    return -1;
+  }
+
   SMsgHead       *pHead = pMsg->pCont;
   int32_t         code = 0;
 
@@ -233,6 +239,14 @@ int32_t vmPutMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
+  if (pRpc->contLen < sizeof(SMsgHead)) {
+    dError("invalid rpc msg with no msg head at pCont. pRpc:%p, type:%s, len:%d", pRpc, TMSG_INFO(pRpc->msgType),
+           pRpc->contLen);
+    rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
+    return -1;
+  }
+
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
   if (pMsg == NULL) {
     rpcFreeCont(pRpc->pCont);

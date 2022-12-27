@@ -111,6 +111,9 @@ void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell
 void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt)) {
   tdbTrace("page/init: %p %" PRIu8 " %p", pPage, szAmHdr, xCellSize);
   pPage->pPageHdr = pPage->pData + szAmHdr;
+  if (TDB_PAGE_NCELLS(pPage) == 0) {
+    return tdbPageZero(pPage, szAmHdr, xCellSize);
+  }
   pPage->pCellIdx = pPage->pPageHdr + TDB_PAGE_HDR_SIZE(pPage);
   pPage->pFreeStart = pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * TDB_PAGE_NCELLS(pPage);
   pPage->pFreeEnd = pPage->pData + TDB_PAGE_CCELLS(pPage);

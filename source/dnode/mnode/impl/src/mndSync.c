@@ -142,10 +142,9 @@ int32_t mndSyncGetSnapshot(const SSyncFSM *pFsm, SSnapshot *pSnapshot, void *pRe
   return 0;
 }
 
-int32_t mndSyncGetSnapshotInfo(const SSyncFSM *pFsm, SSnapshot *pSnapshot) {
+static void mndSyncGetSnapshotInfo(const SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   SMnode *pMnode = pFsm->data;
   sdbGetCommitInfo(pMnode->pSdb, &pSnapshot->lastApplyIndex, &pSnapshot->lastApplyTerm, &pSnapshot->lastConfigIndex);
-  return 0;
 }
 
 void mndRestoreFinish(const SSyncFSM *pFsm) {
@@ -170,10 +169,10 @@ int32_t mndSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader
   return sdbStartRead(pMnode->pSdb, (SSdbIter **)ppReader, NULL, NULL, NULL);
 }
 
-int32_t mndSnapshotStopRead(const SSyncFSM *pFsm, void *pReader) {
+static void mndSnapshotStopRead(const SSyncFSM *pFsm, void *pReader) {
   mInfo("stop to read snapshot from sdb");
   SMnode *pMnode = pFsm->data;
-  return sdbStopRead(pMnode->pSdb, pReader);
+  sdbStopRead(pMnode->pSdb, pReader);
 }
 
 int32_t mndSnapshotDoRead(const SSyncFSM *pFsm, void *pReader, void **ppBuf, int32_t *len) {

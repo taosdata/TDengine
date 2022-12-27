@@ -53,6 +53,15 @@ static bool dmFailFastFp(tmsg_t msgType) {
   return msgType == TDMT_SYNC_HEARTBEAT || msgType == TDMT_SYNC_APPEND_ENTRIES;
 }
 
+static void dmConvertErrCode(tmsg_t msgType) {
+  if (terrno != TSDB_CODE_APP_IS_STOPPING) {
+    return;
+  }
+  if ((msgType > TDMT_VND_MSG && msgType < TDMT_VND_MAX_MSG) ||
+      (msgType > TDMT_SCH_MSG && msgType < TDMT_SCH_MAX_MSG)) {
+    terrno = TSDB_CODE_VND_STOPPED;
+  }
+}
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
@@ -102,7 +111,12 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     dGError("msg:%p, type:%s pCont is NULL", pRpc, TMSG_INFO(pRpc->msgType));
     terrno = TSDB_CODE_INVALID_MSG_LEN;
     goto _OVER;
-  }
+  } /* else if ((pRpc->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRpc->code == TSDB_CODE_RPC_BROKEN_LINK) &&
+              (!IsReq(pRpc)) && (pRpc->pCont == NULL)) {
+     dGError("msg:%p, type:%s pCont is NULL, err: %s", pRpc, TMSG_INFO(pRpc->msgType), tstrerror(pRpc->code));
+     terrno = pRpc->code;
+     goto _OVER;
+   }*/
 
   if (pHandle->defaultNtype == NODE_END) {
     dGError("msg:%p, type:%s not processed since no handle", pRpc, TMSG_INFO(pRpc->msgType));
@@ -152,6 +166,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
 _OVER:
   if (code != 0) {
+    dmConvertErrCode(pRpc->msgType);
     if (terrno != 0) code = terrno;
     if (pMsg) {
       dGTrace("msg:%p, failed to process %s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
@@ -233,6 +248,7 @@ static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) { rpcRe
 
 static bool rpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_MNODE_NOT_FOUND ||
+      code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED ||
       code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_VND_STOPPED ||
       code == TSDB_CODE_APP_IS_STARTING || code == TSDB_CODE_APP_IS_STOPPING) {
     if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH ||

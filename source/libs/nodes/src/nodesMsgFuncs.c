@@ -1298,7 +1298,7 @@ enum { NODE_LIST_CODE_DATA_TYPE = 1, NODE_LIST_CODE_NODE_LIST };
 static int32_t nodeListNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SNodeListNode* pNode = (const SNodeListNode*)pObj;
 
-  int32_t code = tlvEncodeObj(pEncoder, NODE_LIST_CODE_DATA_TYPE, dataTypeInlineToMsg, &pNode->dataType);
+  int32_t code = tlvEncodeObj(pEncoder, NODE_LIST_CODE_DATA_TYPE, dataTypeInlineToMsg, &pNode->node.resType);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, NODE_LIST_CODE_NODE_LIST, nodeListToMsg, pNode->pNodeList);
   }
@@ -1314,7 +1314,7 @@ static int32_t msgToNodeListNode(STlvDecoder* pDecoder, void* pObj) {
   tlvForEach(pDecoder, pTlv, code) {
     switch (pTlv->type) {
       case NODE_LIST_CODE_DATA_TYPE:
-        code = tlvDecodeObjFromTlv(pTlv, msgToDataTypeInline, &pNode->dataType);
+        code = tlvDecodeObjFromTlv(pTlv, msgToDataTypeInline, &pNode->node.resType);
         break;
       case NODE_LIST_CODE_NODE_LIST:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pNodeList);

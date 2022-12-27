@@ -299,6 +299,9 @@ int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
   pTxn->jPageSet = hashset_create();
 
   pPager->pActiveTxn = pTxn;
+
+  tdbDebug("pager/begin: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
+
   // TODO: write the size of the file
   /*
   pPager->inTran = 1;
@@ -332,7 +335,8 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
     }
   }
 
-  tdbTrace("tdbttl commit:%p, %d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize);
+  tdbDebug("pager/commit: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
+
   pPager->dbOrigSize = pPager->dbFileSize;
 
   // release the page
@@ -380,6 +384,8 @@ int tdbPagerPostCommit(SPager *pPager, TXN *pTxn) {
   }
 
   // pPager->inTran = 0;
+
+  tdbDebug("pager/post-commit:%p, %d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize);
 
   return 0;
 }
@@ -466,10 +472,18 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     return -1;
   }
 
+  if (tdbOsLSeek(jfd, 0L, SEEK_SET) < 0) {
+    tdbError("failed to lseek jfd due to %s. file:%s, offset:0", strerror(errno), pPager->dbFileName);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
   u8 *pageBuf = tdbOsCalloc(1, pPager->pageSize);
   if (pageBuf == NULL) {
     return -1;
   }
+
+  tdbDebug("pager/abort: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
 
   for (int pgIndex = 0; pgIndex < journalSize; ++pgIndex) {
     // read pgno & the page from journal
@@ -480,6 +494,10 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
       tdbOsFree(pageBuf);
       return -1;
     }
+
+    tdbTrace("pager/abort: restore pgno:%d,", pgno);
+
+    tdbPCacheInvalidatePage(pPager->pCache, pPager, pgno);
 
     ret = tdbOsRead(jfd, pageBuf, pPager->pageSize);
     if (ret < 0) {
@@ -519,15 +537,19 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
   SRBTreeNode *pNode = NULL;
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
+    SPgno pgno = TDB_PAGE_PGNO(pPage);
+
+    tdbTrace("pager/abort: drop dirty pgno:%d,", pgno);
 
     pPage->isDirty = 0;
 
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
+    tdbPCacheMarkFree(pPager->pCache, pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
-  tdbTrace("reset dirty tree: %p", &pPager->rbt);
+  tdbTrace("pager/abort: reset dirty tree: %p", &pPager->rbt);
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
 
   // 4, remove the journal file
@@ -577,17 +599,20 @@ int tdbPagerFlushPage(SPager *pPager, TXN *pTxn) {
       return -1;
     }
 
-    tdbTrace("tdb/flush:%p, %d/%d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize, maxPgno);
+    tdbTrace("tdb/flush:%p, pgno:%d, %d/%d/%d", pPager, pgno, pPager->dbOrigSize, pPager->dbFileSize, maxPgno);
     pPager->dbOrigSize = maxPgno;
 
     pPage->isDirty = 0;
 
-    tdbTrace("pager/flush drop page: %p %d from dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
+    tdbTrace("pager/flush drop page: %p, pgno:%d, from dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
 
     break;
   }
+
+  tdbDebug("pager/flush: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
+
   /*
   tdbTrace("tdb/flush:%p, %d/%d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize, maxPgno);
   pPager->dbOrigSize = maxPgno;
@@ -829,7 +854,7 @@ static int tdbPagerPWritePageToDB(SPager *pPager, SPage *pPage) {
   return 0;
 }
 
-static int tdbPagerRestore(SPager *pPager, SBTree *pBt, const char *jFileName) {
+static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
   int   ret = 0;
   SPgno journalSize = 0;
   u8   *pageBuf = NULL;
@@ -844,10 +869,18 @@ static int tdbPagerRestore(SPager *pPager, SBTree *pBt, const char *jFileName) {
     return -1;
   }
 
+  if (tdbOsLSeek(jfd, 0L, SEEK_SET) < 0) {
+    tdbError("failed to lseek jfd due to %s. file:%s, offset:0", strerror(errno), pPager->dbFileName);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
   pageBuf = tdbOsCalloc(1, pPager->pageSize);
   if (pageBuf == NULL) {
     return -1;
   }
+
+  tdbDebug("pager/restore: %p, %d/%d, txnId:%s", pPager, pPager->dbOrigSize, pPager->dbFileSize, jFileName);
 
   for (int pgIndex = 0; pgIndex < journalSize; ++pgIndex) {
     // read pgno & the page from journal
@@ -858,6 +891,8 @@ static int tdbPagerRestore(SPager *pPager, SBTree *pBt, const char *jFileName) {
       tdbOsFree(pageBuf);
       return -1;
     }
+
+    tdbTrace("pager/restore: restore pgno:%d,", pgno);
 
     ret = tdbOsRead(jfd, pageBuf, pPager->pageSize);
     if (ret < 0) {
@@ -898,7 +933,7 @@ static int tdbPagerRestore(SPager *pPager, SBTree *pBt, const char *jFileName) {
     return -1;
   }
 
-  if (tdbOsRemove(pPager->jFileName) < 0 && errno != ENOENT) {
+  if (tdbOsRemove(jFileName) < 0 && errno != ENOENT) {
     tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -907,7 +942,7 @@ static int tdbPagerRestore(SPager *pPager, SBTree *pBt, const char *jFileName) {
   return 0;
 }
 
-int tdbPagerRestoreJournals(SPager *pPager, SBTree *pBt) {
+int tdbPagerRestoreJournals(SPager *pPager) {
   tdbDirEntryPtr pDirEntry;
   tdbDirPtr      pDir = taosOpenDir(pPager->pEnv->dbName);
   if (pDir == NULL) {
@@ -918,7 +953,12 @@ int tdbPagerRestoreJournals(SPager *pPager, SBTree *pBt) {
   while ((pDirEntry = tdbReadDir(pDir)) != NULL) {
     char *name = tdbDirEntryBaseName(tdbGetDirEntryName(pDirEntry));
     if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
-      if (tdbPagerRestore(pPager, pBt, name) < 0) {
+      char jname[TD_PATH_MAX] = {0};
+      int  dirLen = strlen(pPager->pEnv->dbName);
+      memcpy(jname, pPager->pEnv->dbName, dirLen);
+      jname[dirLen] = '/';
+      memcpy(jname + dirLen + 1, name, strlen(name));
+      if (tdbPagerRestore(pPager, jname) < 0) {
         tdbCloseDir(&pDir);
 
         tdbError("failed to restore file due to %s. jFileName:%s", strerror(errno), name);
@@ -944,7 +984,12 @@ int tdbPagerRollback(SPager *pPager) {
     char *name = tdbDirEntryBaseName(tdbGetDirEntryName(pDirEntry));
 
     if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
-      if (tdbOsRemove(name) < 0 && errno != ENOENT) {
+      char jname[TD_PATH_MAX] = {0};
+      int  dirLen = strlen(pPager->pEnv->dbName);
+      memcpy(jname, pPager->pEnv->dbName, dirLen);
+      jname[dirLen] = '/';
+      memcpy(jname + dirLen + 1, name, strlen(name));
+      if (tdbOsRemove(jname) < 0 && errno != ENOENT) {
         tdbCloseDir(&pDir);
 
         tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), name);

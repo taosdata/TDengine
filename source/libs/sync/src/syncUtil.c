@@ -277,14 +277,12 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
 
   if (pNode != NULL && pNode->pRaftCfg != NULL) {
     taosPrintLog(flags, level, dflag,
-                 "vgId:%d, sync %s "
-                 "%s"
-                 ", term:%" PRIu64 ", commit-index:%" PRId64 ", first-ver:%" PRId64 ", last-ver:%" PRId64
-                 ", min:%" PRId64 ", snap:%" PRId64 ", snap-term:%" PRIu64
+                 "vgId:%d, %s, sync:%s, term:%" PRIu64 ", commit-index:%" PRId64 ", first-ver:%" PRId64
+                 ", last-ver:%" PRId64 ", min:%" PRId64 ", snap:%" PRId64 ", snap-term:%" PRIu64
                  ", elect-times:%d, as-leader-times:%d, cfg-ch-times:%d, hit:%d, mis:%d, hb-slow:%d, hbr-slow:%d, "
                  "aq-items:%d, snaping:%" PRId64 ", replicas:%d, last-cfg:%" PRId64
                  ", chging:%d, restore:%d, quorum:%d, elect-lc-timer:%" PRId64 ", hb:%" PRId64 ", %s, %s, %s, %s",
-                 pNode->vgId, syncStr(pNode->state), eventLog, currentTerm, pNode->commitIndex, logBeginIndex,
+                 pNode->vgId, eventLog, syncStr(pNode->state), currentTerm, pNode->commitIndex, logBeginIndex,
                  logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm, pNode->electNum,
                  pNode->becomeLeaderNum, pNode->configChangeNum, cacheHit, cacheMiss, pNode->hbSlowNum,
                  pNode->hbrSlowNum, aqItems, pNode->snapshottingIndex, pNode->replicaNum,
@@ -330,13 +328,13 @@ void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dfla
   va_end(argpointer);
 
   taosPrintLog(flags, level, dflag,
-               "vgId:%d, sync %s "
-               "%s {%p s-param:%" PRId64 " e-param:%" PRId64 " laindex:%" PRId64 " laterm:%" PRIu64 " lcindex:%" PRId64
+               "vgId:%d, %s, sync:%s, {%p s-param:%" PRId64 " e-param:%" PRId64 " laindex:%" PRId64 " laterm:%" PRIu64
+               " lcindex:%" PRId64
                " seq:%d ack:%d finish:%d replica-index:%d %s:%d}"
                ", tm:%" PRIu64 ", cmt:%" PRId64 ", fst:%" PRId64 ", lst:%" PRId64 ", min:%" PRId64 ", snap:%" PRId64
                ", snap-tm:%" PRIu64 ", sby:%d, stgy:%d, bch:%d, r-num:%d, lcfg:%" PRId64
                ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s, %s",
-               pNode->vgId, syncStr(pNode->state), eventLog, pSender, pSender->snapshotParam.start,
+               pNode->vgId, eventLog, syncStr(pNode->state), pSender, pSender->snapshotParam.start,
                pSender->snapshotParam.end, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
                pSender->snapshot.lastConfigIndex, pSender->seq, pSender->ack, pSender->finish, pSender->replicaIndex,
                host, port, pNode->pRaftStore->currentTerm, pNode->commitIndex, logBeginIndex, logLastIndex,
@@ -382,14 +380,14 @@ void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t df
   va_end(argpointer);
 
   taosPrintLog(flags, level, dflag,
-               "vgId:%d, sync %s "
-               "%s {%p start:%d ack:%d term:%" PRIu64 " start-time:%" PRId64 " from:%s:%d s-param:%" PRId64
+               "vgId:%d, %s, sync:%s,"
+               " {%p start:%d ack:%d term:%" PRIu64 " start-time:%" PRId64 " from:%s:%d s-param:%" PRId64
                " e-param:%" PRId64 " laindex:%" PRId64 " laterm:%" PRIu64 " lcindex:%" PRId64
                "}"
                ", tm:%" PRIu64 ", cmt:%" PRId64 ", fst:%" PRId64 ", lst:%" PRId64 ", min:%" PRId64 ", snap:%" PRId64
                ", snap-tm:%" PRIu64 ", sby:%d, stgy:%d, bch:%d, r-num:%d, lcfg:%" PRId64
                ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s, %s",
-               pNode->vgId, syncStr(pNode->state), eventLog, pReceiver, pReceiver->start, pReceiver->ack,
+               pNode->vgId, eventLog, syncStr(pNode->state), pReceiver, pReceiver->start, pReceiver->ack,
                pReceiver->term, pReceiver->startTime, host, port, pReceiver->snapshotParam.start,
                pReceiver->snapshotParam.end, pReceiver->snapshot.lastApplyIndex, pReceiver->snapshot.lastApplyTerm,
                pReceiver->snapshot.lastConfigIndex, pNode->pRaftStore->currentTerm, pNode->commitIndex, logBeginIndex,
@@ -520,95 +518,56 @@ void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
           port, pMsg->term, pMsg->timeStamp, s, timeDiff);
 }
 
-void syncLogSendSyncPreSnapshot(SSyncNode* pSyncNode, const SyncPreSnapshot* pMsg, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
-
-  char     host[64];
-  uint16_t port;
-  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "send sync-pre-snapshot to %s:%d {term:%" PRId64 "}, %s", host, port, pMsg->term, s);
-}
-
-void syncLogRecvSyncPreSnapshot(SSyncNode* pSyncNode, const SyncPreSnapshot* pMsg, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
-
-  char     host[64];
-  uint16_t port;
-  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "recv sync-pre-snapshot from %s:%d {term:%" PRId64 "}, %s", host, port, pMsg->term, s);
-}
-
-void syncLogSendSyncPreSnapshotReply(SSyncNode* pSyncNode, const SyncPreSnapshotReply* pMsg, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
-
-  char     host[64];
-  uint16_t port;
-  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "send sync-pre-snapshot-reply to %s:%d {term:%" PRId64 ", snap-start:%" PRId64 "}, %s", host, port,
-          pMsg->term, pMsg->snapStart, s);
-}
-
-void syncLogRecvSyncPreSnapshotReply(SSyncNode* pSyncNode, const SyncPreSnapshotReply* pMsg, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
-
-  char     host[64];
-  uint16_t port;
-  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-  sNTrace(pSyncNode, "recv sync-pre-snapshot-reply from %s:%d {term:%" PRId64 ", snap-start:%" PRId64 "}, %s", host,
-          port, pMsg->term, pMsg->snapStart, s);
-}
-
 void syncLogSendSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
+  if (!(sDebugFlag & DEBUG_DEBUG)) return;
 
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
 
-  sNTrace(pSyncNode,
-          "send sync-snapshot-send to %s:%d {term:%" PRId64 ", begin:%" PRId64 ", end:%" PRId64 ", lterm:%" PRId64
-          ", stime:%" PRId64 ", seq:%d}, %s",
-          host, port, pMsg->term, pMsg->beginIndex, pMsg->lastIndex, pMsg->lastTerm, pMsg->startTime, pMsg->seq, s);
+  sNDebug(pSyncNode,
+          "send sync-snapshot-send to %s:%u, %s, seq:%d, term:%" PRId64 ", begin:%" PRId64 ", end:%" PRId64
+          ", lterm:%" PRId64 ", stime:%" PRId64,
+          host, port, s, pMsg->seq, pMsg->term, pMsg->beginIndex, pMsg->lastIndex, pMsg->lastTerm, pMsg->startTime);
 }
 
 void syncLogRecvSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
+  if (!(sDebugFlag & DEBUG_DEBUG)) return;
 
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
 
-  sNTrace(pSyncNode,
-          "recv sync-snapshot-send from %s:%d {term:%" PRId64 ", begin:%" PRId64 ", lst:%" PRId64 ", lterm:%" PRId64
-          ", stime:%" PRId64 ", seq:%d, len:%u}, %s",
-          host, port, pMsg->term, pMsg->beginIndex, pMsg->lastIndex, pMsg->lastTerm, pMsg->startTime, pMsg->seq,
-          pMsg->dataLen, s);
+  sNDebug(pSyncNode,
+          "recv sync-snapshot-send from %s:%u, %s, seq:%d, term:%" PRId64 ", begin:%" PRId64 ", lst:%" PRId64
+          ", lterm:%" PRId64 ", stime:%" PRId64 ", len:%u",
+          host, port, s, pMsg->seq, pMsg->term, pMsg->beginIndex, pMsg->lastIndex, pMsg->lastTerm, pMsg->startTime,
+          pMsg->dataLen);
 }
 
 void syncLogSendSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
-
+  if (!(sDebugFlag & DEBUG_DEBUG)) return;
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
 
-  sNTrace(pSyncNode,
-          "send sync-snapshot-rsp to %s:%d {term:%" PRId64 ", begin:%" PRId64 ", lst:%" PRId64 ", lterm:%" PRId64
-          ", stime:%" PRId64 ", ack:%d}, %s",
-          host, port, pMsg->term, pMsg->snapBeginIndex, pMsg->lastIndex, pMsg->lastTerm, pMsg->startTime, pMsg->ack, s);
+  sNDebug(pSyncNode,
+          "send sync-snapshot-rsp to %s:%u, %s, ack:%d, term:%" PRId64 ", begin:%" PRId64 ", lst:%" PRId64
+          ", lterm:%" PRId64 ", stime:%" PRId64,
+          host, port, s, pMsg->ack, pMsg->term, pMsg->snapBeginIndex, pMsg->lastIndex, pMsg->lastTerm, pMsg->startTime);
 }
 
 void syncLogRecvSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s) {
-  if (!(sDebugFlag & DEBUG_TRACE)) return;
+  if (!(sDebugFlag & DEBUG_DEBUG)) return;
 
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
 
-  sNTrace(pSyncNode,
-          "recv sync-snapshot-rsp from %s:%d {term:%" PRId64 ", begin:%" PRId64 ", lst:%" PRId64 ", lterm:%" PRId64
-          ", stime:%" PRId64 ", ack:%d}, %s",
-          host, port, pMsg->term, pMsg->snapBeginIndex, pMsg->lastIndex, pMsg->lastTerm, pMsg->startTime, pMsg->ack, s);
+  sNDebug(pSyncNode,
+          "recv sync-snapshot-rsp from %s:%u, %s, ack:%d, term:%" PRId64 ", begin:%" PRId64 ", lst:%" PRId64
+          ", lterm:%" PRId64 ", stime:%" PRId64,
+          host, port, s, pMsg->ack, pMsg->term, pMsg->snapBeginIndex, pMsg->lastIndex, pMsg->lastTerm, pMsg->startTime);
 }
 
 void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s) {
