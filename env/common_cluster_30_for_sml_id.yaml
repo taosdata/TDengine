@@ -44,6 +44,8 @@ settings:
         debugFlag: 135
         asynclog: 0
         numOfLogLines: 200000000
+        smlChildTableName: "id"
+
   - name: taosAdapter
     fqdn: [ceph01]
     spec:

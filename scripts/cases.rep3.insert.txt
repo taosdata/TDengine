@@ -21,7 +21,7 @@ taostest --use=common_cluster_30.yaml --case=taosc_insert/db_param_pagesize.py -
 taostest --use=common_cluster_30.yaml --case=taosc_insert/db_param_precision.py --keep --containers
 #taostest --use=common_cluster_30.yaml --case=taosc_insert/db_param_replica.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=taosc_insert/db_param_single_stable.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=taosc_insert/db_param_strict.py --keep --containers
+#taostest --use=common_cluster_30.yaml --case=taosc_insert/db_param_strict.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=taosc_insert/db_param_vgroups.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=taosc_insert/db_param_wal.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=taosc_insert/disorder_insert.py --keep --containers
@@ -36,7 +36,6 @@ taostest --use=common_cluster_30.yaml --case=taosc_insert/stb_check.py --keep --
 taostest --use=common_cluster_30.yaml --case=taosc_insert/tag_col_limit_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=taosc_insert/tb_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=taosc_insert/timestamp_check.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=taosc_insert/timestamp_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=taosc_insert/null_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=taosc_insert/numeric_type_boundary_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=taosc_insert/str_type_boundary_check.py --keep --containers
@@ -48,9 +47,9 @@ taostest --use=common_cluster_30.yaml --case=schemaless_insert/opentsdb_json_pro
 taostest --use=common_cluster_30.yaml --case=schemaless_insert/influxdb_line_protocol_restful_insert.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=schemaless_insert/opentsdb_telnet_protocol_restful_insert.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=schemaless_insert/opentsdb_json_protocol_restful_insert.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py --keep --containers
+taostest --use=common_cluster_30_for_sml_id.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep --containers
+taostest --use=common_cluster_30_for_sml_id.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep --containers
+taostest --use=common_cluster_30_for_sml_id.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py --keep --containers
 
 
 # commented out cases
@@ -68,7 +67,7 @@ taostest --setup=common_cluster_30.yaml --case=restful_insert/alter_insert.py --
 taostest --use=common_cluster_30.yaml --case=restful_insert/auto_create_table.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/batch_insert.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/bool_check.py --keep --containers
-#taostest --use=common_cluster_30.yaml --case=restful_insert/child_tb_check.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=restful_insert/child_tb_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/db_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/db_param_buffer.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/db_param_cachelast.py --keep --containers
@@ -86,19 +85,20 @@ taostest --use=common_cluster_30.yaml --case=restful_insert/db_param_single_stab
 taostest --use=common_cluster_30.yaml --case=restful_insert/db_param_wal.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/disorder_insert.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/double_boundary_check.py --keep --containers
-#taostest --use=common_cluster_30.yaml --case=restful_insert/error_insert_check.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=restful_insert/error_insert_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/float_boundary_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/illegal_type_check.py --keep --containers
-#taostest --use=common_cluster_30.yaml --case=restful_insert/multi_table_insert.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=restful_insert/multi_table_insert.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/specified_column_insert.py --keep --containers
-#taostest --use=common_cluster_30.yaml --case=restful_insert/stable_param_comment.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=restful_insert/stable_param_comment.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/stb_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/tag_col_limit_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/tb_check.py --keep --containers
-#taostest --use=common_cluster_30.yaml --case=restful_insert/timestamp_check.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=restful_insert/timestamp_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/null_check.py --keep --containers
 
-#taostest --use=common_cluster_30.yaml --case=restful_insert/numeric_type_boundary_check.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=restful_insert/numeric_type_boundary_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=restful_insert/str_type_boundary_check.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=stream_computing/stream_computing_test.py --keep --containers
+
+#taostest --use=common_cluster_30.yaml --case=stream_computing/stream_computing_test.py --keep --containers
 
