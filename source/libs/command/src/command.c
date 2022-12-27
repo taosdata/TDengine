@@ -299,12 +299,52 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
   colDataAppend(pCol2, 0, buf2, false);
 }
 
-static void setAliveResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName) {
+// get db alive status, return 1 is alive else return 0
+int32_t getAliveStatusFromApi(int64_t* pConnId, char* dbName) {
+  char  sql[256] = "select * from information_schema.ins_vgroups";
+  
+  // filter with db name
+  if(dbName && dbName[0] !=0) {
+    char  filter[64] = "";
+    sprintf(filter, " where db_name='%s' ;", dbName);
+    strcat(sql, filter);
+  }
+
+  TAOS_RES* res = taos_query(pConnId, sql);
+  if (taos_errno(res) != 0) {
+    taos_free_result(res);
+    return 0;
+  }
+
+  res = taos_query(pConnId, sql);
+  if (taos_errno(res) != 0) {
+    //printf("failed to select from table, reason:%s\n", taos_errstr(res));
+    taos_free_result(res);
+    return 0;
+  }
+
+  TAOS_ROW    pRow = NULL;
+  TAOS_FIELD* pFields = taos_fetch_fields(res);
+  int32_t     numOfFields = taos_num_fields(res);
+  int32_t     status = 0;
+
+  char str[512] = {0};
+  while ((pRow = taos_fetch_row(res)) != NULL) {
+    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+    printf("%s\n", str);
+  }
+
+  taos_free_result(res);
+  return status;
+}
+
+
+static void setAliveResultIntoDataBlock(int64_t* pConnId, SSDataBlock* pBlock, char* dbName) {
   blockDataEnsureCapacity(pBlock, 1);
   pBlock->info.rows = 1;
 
   SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
-  int32_t status = 1;
+  int32_t status = getAliveStatusFromApi(pConnId, dbName);
   colDataAppend(pCol1, 0, (const char*)&status, false);
 }
 
@@ -321,11 +361,11 @@ static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveT
   return code;
 }
 
-static int32_t execShowAliveStatus(SShowAliveStmt* pStmt, SRetrieveTableRsp** pRsp) {
+static int32_t execShowAliveStatus(int64_t* pConnId, SShowAliveStmt* pStmt, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildAliveResultDataBlock(&pBlock);
   if (TSDB_CODE_SUCCESS == code) {
-    setAliveResultIntoDataBlock(pBlock, pStmt->dbName);
+    setAliveResultIntoDataBlock(pConnId, pBlock, pStmt->dbName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_ALIVE_RESULT_COLS, pRsp);
@@ -776,7 +816,7 @@ static int32_t execSelectWithoutFrom(SSelectStmt* pSelect, SRetrieveTableRsp** p
   return code;
 }
 
-int32_t qExecCommand(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp) {
+int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_DESCRIBE_STMT:
       return execDescribe(sysInfoUser, pStmt, pRsp);
@@ -796,7 +836,7 @@ int32_t qExecCommand(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp) {
       return execSelectWithoutFrom((SSelectStmt*)pStmt, pRsp);
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
-      return execShowAliveStatus((SShowAliveStmt*)pStmt, pRsp); 
+      return execShowAliveStatus(pConnId, (SShowAliveStmt*)pStmt, pRsp); 
     default:
       break;
   }
