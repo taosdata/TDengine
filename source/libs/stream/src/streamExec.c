@@ -116,7 +116,11 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
         ASSERT(0);
       }
       if (output == NULL) {
-        finished = true;
+        if (qStreamRecoverScanFinished(exec)) {
+          finished = true;
+        } else {
+          qSetStreamOpOpen(exec);
+        }
         break;
       }
 
