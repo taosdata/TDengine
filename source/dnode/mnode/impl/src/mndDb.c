@@ -30,7 +30,7 @@
 #include "systable.h"
 
 #define DB_VER_NUMBER   1
-#define DB_RESERVE_SIZE 54
+#define DB_RESERVE_SIZE 46
 
 static SSdbRaw *mndDbActionEncode(SDbObj *pDb);
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
@@ -128,6 +128,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashPrefix, _OVER)
   SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashSuffix, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.tsdbPageSize, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pDb->compactStartTime, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -217,6 +218,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashPrefix, _OVER)
   SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashSuffix, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.tsdbPageSize, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->compactStartTime, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -275,6 +277,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.replications = pNew->cfg.replications;
   pOld->cfg.sstTrigger = pNew->cfg.sstTrigger;
   pOld->cfg.tsdbPageSize = pNew->cfg.tsdbPageSize;
+  pOld->compactStartTime = pNew->compactStartTime;
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -1388,7 +1391,63 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
   return 0;
 }
 
-static int32_t mndCompactDb(SMnode *pMnode, SDbObj *pDb) { return 0; }
+static int32_t mndSetCompactDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t compactTs) {
+  SDbObj dbObj = {0};
+  memcpy(&dbObj, pDb, sizeof(SDbObj));
+  dbObj.compactStartTime = compactTs;
+
+  SSdbRaw *pCommitRaw = mndDbActionEncode(&dbObj);
+  if (pCommitRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    sdbFreeRaw(pCommitRaw);
+    return -1;
+  }
+
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  return 0;
+}
+
+static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t compactTs) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    if (mndVgroupInDb(pVgroup, pDb->uid)) {
+      if (mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pVgroup);
+        return -1;
+      }
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return 0;
+}
+
+static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
+  int64_t compactTs = taosGetTimestampMs();
+  int32_t code = -1;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "compact-db");
+  if (pTrans == NULL) goto _OVER;
+
+  mInfo("trans:%d, used to compact db:%s", pTrans->id, pDb->name);
+  mndTransSetDbName(pTrans, pDb->name, NULL);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+  if (mndSetCompactDbCommitLogs(pMnode, pTrans, pDb, compactTs) != 0) goto _OVER;
+  if (mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs) != 0) goto _OVER;
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  code = 0;
+
+_OVER:
+  mndTransDrop(pTrans);
+  return code;
+}
 
 static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
@@ -1412,10 +1471,11 @@ static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndCompactDb(pMnode, pDb);
+  code = mndCompactDb(pMnode, pReq, pDb);
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  if (code != 0) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to process compact db req since %s", compactReq.db, terrstr());
   }
 
