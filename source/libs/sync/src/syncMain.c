@@ -2386,7 +2386,11 @@ int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHand
 int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   // append to log buffer
   if (syncLogBufferAppend(ths->pLogBuf, ths, pEntry) < 0) {
-    sError("vgId:%d, failed to enqueue sync log buffer. index:%" PRId64 "", ths->vgId, pEntry->index);
+    sError("vgId:%d, failed to enqueue sync log buffer, index:%" PRId64, ths->vgId, pEntry->index);
+    terrno = TSDB_CODE_SYN_BUFFER_FULL;
+    (void)syncLogFsmExecute(ths, ths->pFsm, ths->state, ths->pRaftStore->currentTerm, pEntry,
+                            TSDB_CODE_SYN_BUFFER_FULL);
+    syncEntryDestroy(pEntry);
     return -1;
   }
 
@@ -2685,8 +2689,8 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
     }
 
     int32_t code = syncNodeAppend(ths, pEntry);
-    if (code < 0 && ths->vgId != 1 && vnodeIsMsgBlock(pEntry->originalRpcType)) {
-      ASSERTS(false, "failed to append blocking msg");
+    if (code < 0) {
+      sNError(ths, "failed to append blocking msg");
     }
     return code;
   }
