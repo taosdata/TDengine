@@ -487,8 +487,6 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
       taosMemoryFree(pReqs);
     }
     return code;
-  } else {
-    ASSERT(0);
   }
   return 0;
 }
@@ -514,7 +512,6 @@ int32_t streamDispatch(SStreamTask* pTask) {
 
   int32_t code = 0;
   if (streamDispatchAllBlocks(pTask, pBlock) < 0) {
-    ASSERT(0);
     code = -1;
     streamQueueProcessFail(pTask->outputQueue);
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
