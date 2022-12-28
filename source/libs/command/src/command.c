@@ -299,6 +299,23 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
   colDataAppend(pCol2, 0, buf2, false);
 }
 
+#define CHECK_LEADER(n) (fields[n].type == TSDB_DATA_TYPE_VARCHAR && strcasecmp(fields[n].name, "leader") == 0)
+// on this row, if have leader return true else return false
+bool existLeaderRole(TAOS_ROW row, TAOS_FIELD* fields, int num_fields) {
+  // vgroup_id | db_name | tables | v1_dnode | v1_status | v2_dnode | v2_status | v3_dnode | v3_status | v4_dnode |
+  // v4_status |  cacheload  | tsma |
+  if (num_fields != 13) {
+    return false;
+  }
+
+  // check have leader on cloumn v*_status on 4 6 8 10
+  if (CHECK_LEADER(4) || CHECK_LEADER(6) || CHECK_LEADER(8) || CHECK_LEADER(10)) {
+    return true;
+  }
+
+  return false;
+}
+
 // get db alive status, return 1 is alive else return 0
 int32_t getAliveStatusFromApi(int64_t* pConnId, char* dbName) {
   char  sql[256] = "select * from information_schema.ins_vgroups";
@@ -316,22 +333,19 @@ int32_t getAliveStatusFromApi(int64_t* pConnId, char* dbName) {
     return 0;
   }
 
-  res = taos_query(pConnId, sql);
-  if (taos_errno(res) != 0) {
-    //printf("failed to select from table, reason:%s\n", taos_errstr(res));
-    taos_free_result(res);
-    return 0;
-  }
-
   TAOS_ROW    pRow = NULL;
   TAOS_FIELD* pFields = taos_fetch_fields(res);
   int32_t     numOfFields = taos_num_fields(res);
-  int32_t     status = 0;
+  int32_t     status = 1;
 
-  char str[512] = {0};
   while ((pRow = taos_fetch_row(res)) != NULL) {
+    char    str[512] = {0};
     int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
     printf("%s\n", str);
+    if (!existLeaderRole(pRow, pFields, numOfFields)) {
+      status = 0;
+      break;
+    }
   }
 
   taos_free_result(res);
