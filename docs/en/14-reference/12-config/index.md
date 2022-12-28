@@ -733,7 +733,7 @@ To prevent system resource from being exhausted by multiple concurrent streams, 
 | 42  | numOfCommitThreads | Yes | Yes |
 | 43  | numOfMnodeReadThreads | No | Yes |
 | 44  | numOfVnodeQueryThreads | No | Yes |
-| 45  | numOfVnodeStreamThreads | No | Yes |
+| 45  | ratioOfVnodeStreamThreads | No | Yes |
 | 46  | numOfVnodeFetchThreads | No | Yes |
 | 47  | numOfVnodeRsmaThreads | No | Yes | 
 | 48  | numOfQnodeQueryThreads | No | Yes |
