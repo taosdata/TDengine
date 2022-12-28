@@ -268,6 +268,11 @@ int mainWindows(int argc, char **argv) {
 
   if (dmInit() != 0) {
     dError("failed to init dnode since %s", terrstr());
+
+    taosCleanupCfg();
+    taosCloseLog();
+    taosCleanupArgs();
+    taosConvDestroy();
     return -1;
   }
 
