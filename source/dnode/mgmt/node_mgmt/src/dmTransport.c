@@ -62,6 +62,7 @@ static void dmConvertErrCode(tmsg_t msgType) {
     terrno = TSDB_CODE_VND_STOPPED;
   }
 }
+
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
@@ -175,7 +176,9 @@ _OVER:
     }
 
     if (IsReq(pRpc)) {
-      SRpcMsg rsp = {.code = code, .info = pRpc->info};
+      void *pCont = rpcMallocCont(sizeof(SMsgHead));
+      ((SMsgHead *)pCont)->vgId = ((SMsgHead *)pRpc->pCont)->vgId;
+      SRpcMsg rsp = {.code = code, .info = pRpc->info, .pCont = pCont, .contLen = sizeof(SMsgHead)};
       if (code == TSDB_CODE_MNODE_NOT_FOUND) {
         dmBuildMnodeRedirectRsp(pDnode, &rsp);
       }
@@ -248,9 +251,9 @@ static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) { rpcRe
 
 static bool rpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_MNODE_NOT_FOUND ||
-      code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED ||
-      code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_VND_STOPPED ||
-      code == TSDB_CODE_APP_IS_STARTING || code == TSDB_CODE_APP_IS_STOPPING) {
+      code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED || code == TSDB_CODE_SYN_NOT_LEADER ||
+      code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_VND_STOPPED || code == TSDB_CODE_APP_IS_STARTING ||
+      code == TSDB_CODE_APP_IS_STOPPING) {
     if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH ||
         msgType == TDMT_SCH_MERGE_FETCH) {
       return false;
