@@ -875,6 +875,8 @@ int32_t convertScalarParamToDataBlock(SScalarParam *input, int32_t numOfCols, SS
     }
   }
 
+  output->info.rows = numOfRows;
+
   return 0;
 }
 
