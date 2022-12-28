@@ -329,12 +329,13 @@ int32_t getAliveStatusFromApi(int64_t* pConnId, char* dbName, int32_t* pStatus) 
     char str[64 + TSDB_DB_NAME_LEN] = "";
     // test db name exist
     sprintf(str, " show show create database %s ;", dbName);
-    TAOS_RES* dbRes = taos_query(pConnId, sql);
+    TAOS_RES* dbRes = taos_query(pConnId, str);
     code = taos_errno(dbRes);
     if (code != TSDB_CODE_SUCCESS) {
       taos_free_result(dbRes);
       return code;
     }
+    taos_free_result(dbRes);
 
     sprintf(str, " where db_name='%s' ;", dbName);
     strcat(sql, str);
