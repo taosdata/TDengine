@@ -1316,12 +1316,17 @@ void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, 
   if (pItem != NULL && (rewrite || pItem->i32 == 0)) {
     pItem->i32 = flagVal;
   }
-  *pFlagPtr = flagVal;
+  if (pFlagPtr != NULL) {
+    *pFlagPtr = flagVal;
+  }
 }
 
 void taosSetAllDebugFlag(int32_t flag, bool rewrite) {
   if (flag <= 0) return;
 
+  taosSetDebugFlag(NULL, "debugFlag", flag, rewrite);
+  taosSetDebugFlag(NULL, "simDebugFlag", flag, rewrite);
+  taosSetDebugFlag(NULL, "tmrDebugFlag", flag, rewrite);
   taosSetDebugFlag(&uDebugFlag, "uDebugFlag", flag, rewrite);
   taosSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag, rewrite);
   taosSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag, rewrite);
@@ -1340,6 +1345,5 @@ void taosSetAllDebugFlag(int32_t flag, bool rewrite) {
   taosSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag, rewrite);
   taosSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag, rewrite);
   taosSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&metaDebugFlag, "tmrDebugFlag", flag, rewrite);
   uInfo("all debug flag are set to %d", flag);
 }

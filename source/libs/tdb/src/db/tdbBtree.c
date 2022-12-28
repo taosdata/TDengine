@@ -1171,7 +1171,10 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   // 1. Encode Header part
   /* Encode SPgno if interior page */
   if (!leaf) {
-    ASSERT(pPage->vLen == sizeof(SPgno));
+    if (pPage->vLen != sizeof(SPgno)) {
+      tdbError("tdb/btree-encode-cell: invalid cell.");
+      return -1;
+    }
 
     ((SPgno *)(pCell + nHeader))[0] = ((SPgno *)pVal)[0];
     nHeader = nHeader + sizeof(SPgno);
@@ -1214,7 +1217,10 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
   int vLen = pDecoder->vLen;
 
   if (pDecoder->pVal) {
-    ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pPage));
+    if (TDB_BTREE_PAGE_IS_LEAF(pPage)) {
+      tdbError("tdb/btree-decode-payload: leaf page with non-null pVal.");
+      return -1;
+    }
     nPayload = pDecoder->kLen;
   } else {
     nPayload = pDecoder->kLen + pDecoder->vLen;
@@ -1415,7 +1421,10 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
 
   // 1. Decode header part
   if (!leaf) {
-    ASSERT(pPage->vLen == sizeof(SPgno));
+    if (pPage->vLen != sizeof(SPgno)) {
+      tdbError("tdb/btree-decode-cell: invalid cell.");
+      return -1;
+    }
 
     pDecoder->pgno = ((SPgno *)(pCell + nHeader))[0];
     pDecoder->pVal = (u8 *)(&(pDecoder->pgno));
@@ -1429,7 +1438,10 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
   }
 
   if (pPage->vLen == TDB_VARIANT_LEN) {
-    ASSERT(leaf);
+    if (!leaf) {
+      tdbError("tdb/btree-decode-cell: not a leaf page.");
+      return -1;
+    }
     nHeader += tdbGetVarInt(pCell + nHeader, &(pDecoder->vLen));
   } else {
     pDecoder->vLen = pPage->vLen;
@@ -1461,7 +1473,10 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
   }
 
   if (pPage->vLen == TDB_VARIANT_LEN) {
-    ASSERT(leaf);
+    if (!leaf) {
+      tdbError("tdb/btree-cell-size: not a leaf page.");
+      return -1;
+    }
     nHeader += tdbGetVarInt(pCell + nHeader, &vLen);
   } else if (leaf) {
     vLen = pPage->vLen;
@@ -1561,25 +1576,38 @@ int tdbBtcMoveToFirst(SBTC *pBtc) {
       return -1;
     }
 
-    ASSERT(TDB_BTREE_PAGE_IS_ROOT(pBtc->pPage));
+    if (!TDB_BTREE_PAGE_IS_ROOT(pBtc->pPage)) {
+      tdbError("tdb/btc-move-tofirst: not a root page");
+      return -1;
+    }
 
     pBtc->iPage = 0;
     if (TDB_PAGE_TOTAL_CELLS(pBtc->pPage) > 0) {
       pBtc->idx = 0;
     } else {
       // no any data, point to an invalid position
-      ASSERT(TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage));
+      if (!TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage)) {
+        tdbError("tdb/btc-move-to-first: not a leaf page.");
+        return -1;
+      }
+
       pBtc->idx = -1;
       return 0;
     }
   } else {
-    ASSERT(0);
+    // TODO
+    tdbError("tdb/btc-move-to-first: move from a dirty cursor.");
+    return -1;
 #if 0
     // move from a position
     int iPage = 0;
 
     for (; iPage < pBtc->iPage; iPage++) {
-      ASSERT(pBtc->idxStack[iPage] >= 0);
+      if (pBtc->idxStack[iPage] < 0) {
+        tdbError("tdb/btc-move-to-first: invalid idx: %d.", pBtc->idxStack[iPage]);
+        return -1;
+      }
+
       if (pBtc->idxStack[iPage]) break;
     }
 
@@ -1636,18 +1664,28 @@ int tdbBtcMoveToLast(SBTC *pBtc) {
       pBtc->idx = TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage) ? nCells - 1 : nCells;
     } else {
       // no data at all, point to an invalid position
-      ASSERT(TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage));
+      if (!TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage)) {
+        tdbError("tdb/btc-move-to-last: not a leaf page.");
+        return -1;
+      }
+
       pBtc->idx = -1;
       return 0;
     }
   } else {
-    ASSERT(0);
+    // TODO
+    tdbError("tdb/btc-move-to-last: move from a dirty cursor.");
+    return -1;
 #if 0
     int iPage = 0;
 
     // downward search
     for (; iPage < pBtc->iPage; iPage++) {
-      ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pBtc->pgStack[iPage]));
+      if (TDB_BTREE_PAGE_IS_LEAF(pBtc->pgStack[iPage])) {
+        tdbError("tdb/btc-move-to-last: leaf page in cursor stack.");
+        return -1;
+      }
+
       nCells = TDB_PAGE_TOTAL_CELLS(pBtc->pgStack[iPage]);
       if (pBtc->idxStack[iPage] != nCells) break;
     }
@@ -1790,7 +1828,10 @@ int tdbBtcMoveToNext(SBTC *pBtc) {
   int    ret;
   SCell *pCell;
 
-  ASSERT(TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage));
+  if (!TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage)) {
+    tdbError("tdb/btc-move-to-next: not a leaf page.");
+    return -1;
+  }
 
   if (pBtc->idx < 0) return -1;
 
@@ -1809,7 +1850,10 @@ int tdbBtcMoveToNext(SBTC *pBtc) {
     tdbBtcMoveUpward(pBtc);
     pBtc->idx++;
 
-    ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage));
+    if (TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage)) {
+      tdbError("tdb/btree-decode-cell: should not be a leaf page here.");
+      return -1;
+    }
     if (pBtc->idx <= TDB_PAGE_TOTAL_CELLS(pBtc->pPage)) {
       break;
     }
@@ -1873,8 +1917,15 @@ static int tdbBtcMoveDownward(SBTC *pBtc) {
   SPgno  pgno;
   SCell *pCell;
 
-  ASSERT(pBtc->idx >= 0);
-  ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage));
+  if (pBtc->idx < 0) {
+    tdbError("tdb/btc-move-downward: invalid idx: %d.", pBtc->idx);
+    return -1;
+  }
+
+  if (TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage)) {
+    tdbError("tdb/btc-move-downward: should not be a leaf page here.");
+    return -1;
+  }
 
   if (pBtc->idx < TDB_PAGE_TOTAL_CELLS(pBtc->pPage)) {
     pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
@@ -1883,7 +1934,10 @@ static int tdbBtcMoveDownward(SBTC *pBtc) {
     pgno = ((SIntHdr *)pBtc->pPage->pData)->pgno;
   }
 
-  ASSERT(pgno);
+  if (!pgno) {
+    tdbError("tdb/btc-move-downward: invalid pgno.");
+    return -1;
+  }
 
   pBtc->pgStack[pBtc->iPage] = pBtc->pPage;
   pBtc->idxStack[pBtc->iPage] = pBtc->idx;
@@ -2001,7 +2055,10 @@ int tdbBtcDelete(SBTC *pBtc) {
       }
     } else {
       // delete the leaf page and do balance
-      ASSERT(TDB_PAGE_TOTAL_CELLS(pBtc->pPage) == 0);
+      if (TDB_PAGE_TOTAL_CELLS(pBtc->pPage) != 0) {
+        tdbError("tdb/btc-delete: page to be deleted should be empty.");
+        return -1;
+      }
 
       ret = tdbBtreeBalance(pBtc);
       if (ret < 0) {
@@ -2022,7 +2079,10 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
   void  *pBuf;
   int    ret;
 
-  ASSERT(pBtc->idx >= 0);
+  if (pBtc->idx < 0) {
+    tdbError("tdb/btc-upsert: invalid idx: %d.", pBtc->idx);
+    return -1;
+  }
 
   // alloc space
   szBuf = kLen + nData + 14;
@@ -2050,11 +2110,17 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
 
   // insert or update
   if (insert) {
-    ASSERT(pBtc->idx <= nCells);
+    if (pBtc->idx > nCells) {
+      tdbError("tdb/btc-upsert: invalid idx: %d, nCells: %d.", pBtc->idx, nCells);
+      return -1;
+    }
 
     ret = tdbPageInsertCell(pBtc->pPage, pBtc->idx, pCell, szCell, 0);
   } else {
-    ASSERT(pBtc->idx < nCells);
+    if (pBtc->idx >= nCells) {
+      tdbError("tdb/btc-upsert: invalid idx: %d, nCells: %d.", pBtc->idx, nCells);
+      return -1;
+    }
 
     ret = tdbPageUpdateCell(pBtc->pPage, pBtc->idx, pCell, szCell, pBtc->pTxn, pBtc->pBt);
   }
@@ -2092,8 +2158,8 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
                             &((SBtreeInitPageArg){.pBt = pBt, .flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF}), pBtc->pTxn);
     if (ret < 0) {
       // TODO
-      ASSERT(0);
-      return 0;
+      tdbError("tdb/btc-move-to: fetch page failed with ret: %d.", ret);
+      return -1;
     }
 
     pBtc->iPage = 0;
@@ -2101,7 +2167,9 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
     // for empty tree, just return with an invalid position
     if (TDB_PAGE_TOTAL_CELLS(pBtc->pPage) == 0) return 0;
   } else {
-    ASSERT(0);
+    // TODO
+    tdbError("tdb/btc-move-to: move from a dirty cursor.");
+    return -1;
 #if 0
     SPage *pPage;
     int    idx;
@@ -2113,7 +2181,10 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
       idx = pBtc->idxStack[iPage];
       nCells = TDB_PAGE_TOTAL_CELLS(pPage);
 
-      ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pPage));
+      if (TDB_BTREE_PAGE_IS_LEAF(pPage)) {
+        tdbError("tdb/btc-move-to: leaf page in cursor stack.");
+        return -1;
+      }
 
       // check if key <= current position
       if (idx < nCells) {

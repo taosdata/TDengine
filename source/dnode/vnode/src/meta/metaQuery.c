@@ -611,23 +611,14 @@ tb_uid_t metaStbCursorNext(SMStbCursor *pStbCur) {
 }
 
 STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
-  // SMetaReader     mr = {0};
   STSchema       *pTSchema = NULL;
   SSchemaWrapper *pSW = NULL;
-  STSchemaBuilder sb = {0};
-  SSchema        *pSchema;
+  SSchema        *pSchema = NULL;
 
   pSW = metaGetTableSchema(pMeta, uid, sver, lock);
   if (!pSW) return NULL;
 
-  tdInitTSchemaBuilder(&sb, pSW->version);
-  for (int i = 0; i < pSW->nCols; i++) {
-    pSchema = pSW->pSchema + i;
-    tdAddColToSchema(&sb, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes);
-  }
-  pTSchema = tdGetSchemaFromBuilder(&sb);
-
-  tdDestroyTSchemaBuilder(&sb);
+  pTSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version);
 
   taosMemoryFree(pSW->pSchema);
   taosMemoryFree(pSW);
@@ -716,20 +707,10 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   tdbFree(pData);
 
   // convert
-  STSchemaBuilder sb = {0};
-
-  tdInitTSchemaBuilder(&sb, pSchemaWrapper->version);
-  for (int i = 0; i < pSchemaWrapper->nCols; i++) {
-    SSchema *pSchema = pSchemaWrapper->pSchema + i;
-    tdAddColToSchema(&sb, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes);
-  }
-
-  STSchema *pTSchema = tdGetSchemaFromBuilder(&sb);
+  STSchema *pTSchema = tBuildTSchema(pSchemaWrapper->pSchema, pSchemaWrapper->nCols, pSchemaWrapper->version);
   if (pTSchema == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
-
-  tdDestroyTSchemaBuilder(&sb);
 
   *ppTSchema = pTSchema;
   taosMemoryFree(pSchemaWrapper->pSchema);

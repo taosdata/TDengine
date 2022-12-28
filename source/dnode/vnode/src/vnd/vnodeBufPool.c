@@ -123,6 +123,7 @@ void vnodeBufPoolReset(SVBufPool *pPool) {
   pPool->ptr = pPool->node.data;
 }
 
+
 void *vnodeBufPoolMallocAligned(SVBufPool *pPool, int size) {
   SVBufPoolNode *pNode;
   void          *p = NULL;
