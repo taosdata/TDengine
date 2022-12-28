@@ -299,7 +299,9 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
   colDataAppend(pCol2, 0, buf2, false);
 }
 
-#define CHECK_LEADER(n) (fields[n].type == TSDB_DATA_TYPE_VARCHAR && strcasecmp(fields[n].name, "leader") == 0)
+
+
+#define CHECK_LEADER(n) (fields[n].type == TSDB_DATA_TYPE_VARCHAR && strncasecmp(row[n], "leader", varDataLen((char *)row[i] - VARSTR_HEADER_SIZE)) == 0)
 // on this row, if have leader return true else return false
 bool existLeaderRole(TAOS_ROW row, TAOS_FIELD* fields, int num_fields) {
   // vgroup_id | db_name | tables | v1_dnode | v1_status | v2_dnode | v2_status | v3_dnode | v3_status | v4_dnode |
@@ -333,20 +335,15 @@ int32_t getAliveStatusFromApi(int64_t* pConnId, char* dbName) {
     return 0;
   }
 
-  TAOS_ROW    pRow = NULL;
+  TAOS_ROW    row = NULL;
   TAOS_FIELD* pFields = taos_fetch_fields(res);
   int32_t     numOfFields = taos_num_fields(res);
   int32_t     status = 1;
-  bool        titleRow = 1;
 
-  while ((pRow = taos_fetch_row(res)) != NULL) {
-    if (titleRow) {
-      titleRow = false;
-      continue;
-    }
+  while ((row = taos_fetch_row(res)) != NULL) {
     char    str[512] = {0};
-    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    if (!existLeaderRole(pRow, pFields, numOfFields)) {
+    int32_t code = taos_print_row(str, row, pFields, numOfFields);
+    if (!existLeaderRole(row, pFields, numOfFields)) {
       status = 0;
       break;
     }
