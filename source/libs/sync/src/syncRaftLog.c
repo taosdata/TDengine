@@ -316,29 +316,6 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
 
-  // need not truncate
-  SyncIndex wallastVer = walGetLastVer(pWal);
-  if (fromIndex > wallastVer) {
-    return 0;
-  }
-
-  // need not truncate
-  SyncIndex walCommitVer = walGetCommittedVer(pWal);
-  if (fromIndex <= walCommitVer) {
-    return 0;
-  }
-
-  // delete from cache
-  for (SyncIndex index = fromIndex; index <= wallastVer; ++index) {
-    SLRUCache* pCache = pData->pSyncNode->pLogStore->pCache;
-    LRUHandle* h = taosLRUCacheLookup(pCache, &index, sizeof(index));
-    if (h) {
-      sNTrace(pData->pSyncNode, "cache delete index:%" PRId64, index);
-
-      taosLRUCacheRelease(pData->pSyncNode->pLogStore->pCache, h, true);
-    }
-  }
-
   int32_t code = walRollback(pWal, fromIndex);
   if (code != 0) {
     int32_t     err = terrno;
