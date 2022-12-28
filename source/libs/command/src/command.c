@@ -337,11 +337,15 @@ int32_t getAliveStatusFromApi(int64_t* pConnId, char* dbName) {
   TAOS_FIELD* pFields = taos_fetch_fields(res);
   int32_t     numOfFields = taos_num_fields(res);
   int32_t     status = 1;
+  bool        titleRow = 1;
 
   while ((pRow = taos_fetch_row(res)) != NULL) {
+    if (titleRow) {
+      titleRow = false;
+      continue;
+    }
     char    str[512] = {0};
     int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    printf("%s\n", str);
     if (!existLeaderRole(pRow, pFields, numOfFields)) {
       status = 0;
       break;
