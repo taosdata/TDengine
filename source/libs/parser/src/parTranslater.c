@@ -4569,7 +4569,88 @@ typedef struct SSampleAstInfo {
   SNode*      pSliding;
   SNodeList*  pPartitionByList;
   STableMeta* pRollupTableMeta;
+  bool        createSmaIndex;
 } SSampleAstInfo;
+
+static int32_t buildTableForSampleAst(SSampleAstInfo* pInfo, SNode** pOutput) {
+  SRealTableNode* pTable = (SRealTableNode*)nodesMakeNode(QUERY_NODE_REAL_TABLE);
+  if (NULL == pTable) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  snprintf(pTable->table.dbName, sizeof(pTable->table.dbName), "%s", pInfo->pDbName);
+  snprintf(pTable->table.tableName, sizeof(pTable->table.tableName), "%s", pInfo->pTableName);
+  TSWAP(pTable->pMeta, pInfo->pRollupTableMeta);
+  *pOutput = (SNode*)pTable;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t addWstartToSampleProjects(SNodeList* pProjectionList) {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  strcpy(pFunc->functionName, "_wstart");
+  return nodesListPushFront(pProjectionList, (SNode*)pFunc);
+}
+
+static int32_t addWendToSampleProjects(SNodeList* pProjectionList) {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  strcpy(pFunc->functionName, "_wend");
+  return nodesListAppend(pProjectionList, (SNode*)pFunc);
+}
+
+static int32_t addWdurationToSampleProjects(SNodeList* pProjectionList) {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  strcpy(pFunc->functionName, "_wduration");
+  return nodesListAppend(pProjectionList, (SNode*)pFunc);
+}
+
+static int32_t buildProjectsForSampleAst(SSampleAstInfo* pInfo, SNodeList** pList) {
+  SNodeList* pProjectionList = pInfo->pFuncs;
+  pInfo->pFuncs = NULL;
+
+  int32_t code = addWstartToSampleProjects(pProjectionList);
+  if (TSDB_CODE_SUCCESS == code && pInfo->createSmaIndex) {
+    code = addWendToSampleProjects(pProjectionList);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = addWdurationToSampleProjects(pProjectionList);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pProject = NULL;
+    FOREACH(pProject, pProjectionList) { sprintf(((SExprNode*)pProject)->aliasName, "#%p", pProject); }
+    *pList = pProjectionList;
+  } else {
+    nodesDestroyList(pProjectionList);
+  }
+  return code;
+}
+
+static int32_t buildIntervalForSampleAst(SSampleAstInfo* pInfo, SNode** pOutput) {
+  SIntervalWindowNode* pInterval = (SIntervalWindowNode*)nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW);
+  if (NULL == pInterval) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  TSWAP(pInterval->pInterval, pInfo->pInterval);
+  TSWAP(pInterval->pOffset, pInfo->pOffset);
+  TSWAP(pInterval->pSliding, pInfo->pSliding);
+  pInterval->pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pInterval->pCol) {
+    nodesDestroyNode((SNode*)pInterval);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  ((SColumnNode*)pInterval->pCol)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  strcpy(((SColumnNode*)pInterval->pCol)->colName, ROWTS_PSEUDO_COLUMN_NAME);
+  *pOutput = (SNode*)pInterval;
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, char** pAst, int32_t* pLen, char** pExpr,
                               int32_t* pExprLen) {
@@ -4579,48 +4660,18 @@ static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, ch
   }
   sprintf(pSelect->stmtName, "%p", pSelect);
 
-  SRealTableNode* pTable = (SRealTableNode*)nodesMakeNode(QUERY_NODE_REAL_TABLE);
-  if (NULL == pTable) {
-    nodesDestroyNode((SNode*)pSelect);
-    return TSDB_CODE_OUT_OF_MEMORY;
+  int32_t code = buildTableForSampleAst(pInfo, &pSelect->pFromTable);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildProjectsForSampleAst(pInfo, &pSelect->pProjectionList);
   }
-  snprintf(pTable->table.dbName, sizeof(pTable->table.dbName), "%s", pInfo->pDbName);
-  snprintf(pTable->table.tableName, sizeof(pTable->table.tableName), "%s", pInfo->pTableName);
-  TSWAP(pTable->pMeta, pInfo->pRollupTableMeta);
-  pSelect->pFromTable = (SNode*)pTable;
-
-  TSWAP(pSelect->pProjectionList, pInfo->pFuncs);
-  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-  if (NULL == pSelect->pProjectionList || NULL == pFunc) {
-    nodesDestroyNode((SNode*)pSelect);
-    return TSDB_CODE_OUT_OF_MEMORY;
+  if (TSDB_CODE_SUCCESS == code) {
+    TSWAP(pSelect->pPartitionByList, pInfo->pPartitionByList);
+    code = buildIntervalForSampleAst(pInfo, &pSelect->pWindow);
   }
-  strcpy(pFunc->functionName, "_wstart");
-  nodesListPushFront(pSelect->pProjectionList, (SNode*)pFunc);
-  SNode* pProject = NULL;
-  FOREACH(pProject, pSelect->pProjectionList) { sprintf(((SExprNode*)pProject)->aliasName, "#%p", pProject); }
-
-  TSWAP(pSelect->pPartitionByList, pInfo->pPartitionByList);
-
-  SIntervalWindowNode* pInterval = (SIntervalWindowNode*)nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW);
-  if (NULL == pInterval) {
-    nodesDestroyNode((SNode*)pSelect);
-    return TSDB_CODE_OUT_OF_MEMORY;
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->createStream = true;
+    code = translateQuery(pCxt, (SNode*)pSelect);
   }
-  pSelect->pWindow = (SNode*)pInterval;
-  TSWAP(pInterval->pInterval, pInfo->pInterval);
-  TSWAP(pInterval->pOffset, pInfo->pOffset);
-  TSWAP(pInterval->pSliding, pInfo->pSliding);
-  pInterval->pCol = nodesMakeNode(QUERY_NODE_COLUMN);
-  if (NULL == pInterval->pCol) {
-    nodesDestroyNode((SNode*)pSelect);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  ((SColumnNode*)pInterval->pCol)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  strcpy(((SColumnNode*)pInterval->pCol)->colName, ROWTS_PSEUDO_COLUMN_NAME);
-
-  pCxt->createStream = true;
-  int32_t code = translateQuery(pCxt, (SNode*)pSelect);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesNodeToString((SNode*)pSelect, false, pAst, pLen);
   }
@@ -5162,6 +5213,7 @@ static int32_t getSmaIndexSql(STranslateContext* pCxt, char** pSql, int32_t* pLe
 }
 
 static int32_t buildSampleAstInfoByIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt, SSampleAstInfo* pInfo) {
+  pInfo->createSmaIndex = true;
   pInfo->pDbName = pStmt->dbName;
   pInfo->pTableName = pStmt->tableName;
   pInfo->pFuncs = nodesCloneList(pStmt->pOptions->pFuncs);
