@@ -415,7 +415,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
           break;
         }
       } else {
-        code = TSDB_CODE_SDB_APP_ERROR;
+        code = TSDB_CODE_APP_ERROR;
         taosHashCancelIterate(hash, ppRow);
         break;
       }
@@ -585,10 +585,7 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *ter
   return 0;
 }
 
-int32_t sdbStopRead(SSdb *pSdb, SSdbIter *pIter) {
-  sdbCloseIter(pIter);
-  return 0;
-}
+void sdbStopRead(SSdb *pSdb, SSdbIter *pIter) { sdbCloseIter(pIter); }
 
 int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len) {
   int32_t maxlen = 4096;

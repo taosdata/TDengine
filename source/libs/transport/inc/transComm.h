@@ -151,8 +151,8 @@ typedef struct {
   int64_t retryNextInterval;
   bool    retryInit;
   int32_t retryStep;
-
-  int8_t epsetRetryCnt;
+  int8_t  epsetRetryCnt;
+  int32_t retryCode;
 
   int hThrdIdx;
 } STransConnCtx;

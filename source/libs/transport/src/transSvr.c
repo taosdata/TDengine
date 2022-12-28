@@ -250,9 +250,9 @@ static bool uvHandleReq(SSvrConn* pConn) {
              transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp,
              transMsg.code, (int)(cost));
     } else {
-      tGWarn("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d, cost:%dus",
-             transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp,
-             transMsg.code, (int)(cost));
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d, cost:%dus",
+              transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp,
+              transMsg.code, (int)(cost));
     }
   }
 
@@ -1195,6 +1195,8 @@ void transCloseServer(void* arg) {
       sendQuitToWorkThrd(srv->pThreadObj[i]);
       destroyWorkThrd(srv->pThreadObj[i]);
     }
+  } else {
+    uv_loop_close(srv->loop);
   }
 
   taosMemoryFree(srv->pThreadObj);
@@ -1259,6 +1261,7 @@ _return2:
   tDebug("handle %p failed to send to release handle", exh);
   return -1;
 }
+
 int transSendResponse(const STransMsg* msg) {
   if (msg->info.noResp) {
     rpcFreeCont(msg->pCont);

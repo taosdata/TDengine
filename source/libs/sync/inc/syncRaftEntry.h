@@ -42,8 +42,12 @@ SSyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, S
 SSyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, SyncIndex index);
 SSyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg);
 SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId);
-void            syncEntryDestory(SSyncRaftEntry* pEntry);
+void            syncEntryDestroy(SSyncRaftEntry* pEntry);
 void            syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg);  // step 7
+
+static FORCE_INLINE bool syncLogIsReplicationBarrier(SSyncRaftEntry* pEntry) {
+  return pEntry->originalRpcType == TDMT_SYNC_NOOP;
+}
 
 typedef struct SRaftEntryHashCache {
   SHashObj*     pEntryHash;

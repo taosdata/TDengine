@@ -7,7 +7,7 @@ namespace Examples
 {
     public class WSStmtExample
     {
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
             const string DSN = "ws://root:taosdata@127.0.0.1:6041/test";
             const string table = "meters";
@@ -21,7 +21,8 @@ namespace Examples
             IntPtr wsConn = LibTaosWS.WSConnectWithDSN(DSN);
             if (wsConn == IntPtr.Zero)
             {
-                throw new Exception($"get WS connection failed");
+                Console.WriteLine($"get WS connection failed");
+                return -1;
             }
             else
             {
@@ -66,18 +67,20 @@ namespace Examples
             }
             else
             {
-                throw new Exception("Init STMT failed...");
+                Console.WriteLine("Init STMT failed...");
             }
 
             // close connection.
             LibTaosWS.WSClose(wsConn);
+
+            return 0;
         }
 
         static void ValidStmtStep(int code, IntPtr wsStmt, string desc)
         {
             if (code != 0)
             {
-                throw new Exception($"{desc} failed,reason: {LibTaosWS.WSErrorStr(wsStmt)}, code: {code}");
+                Console.WriteLine($"{desc} failed,reason: {LibTaosWS.WSErrorStr(wsStmt)}, code: {code}");
             }
             else
             {

@@ -66,6 +66,15 @@ extern int32_t tMsgDict[];
 
 typedef uint16_t tmsg_t;
 
+static inline bool vnodeIsMsgBlock(tmsg_t type) {
+  return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
+         (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_CONFIRM);
+}
+
+static inline bool syncUtilUserCommit(tmsg_t msgType) {
+  return msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER;
+}
+
 /* ------------------------ OTHER DEFINITIONS ------------------------ */
 // IE type
 #define TSDB_IE_TYPE_SEC         1
@@ -120,6 +129,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_APPS,
   TSDB_MGMT_TABLE_STREAM_TASKS,
+  TSDB_MGMT_TABLE_PRIVILEGES,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -141,16 +151,18 @@ typedef enum _mgmt_table {
 #define TSDB_FILL_PREV      4
 #define TSDB_FILL_NEXT      5
 
-#define TSDB_ALTER_USER_PASSWD          0x1
-#define TSDB_ALTER_USER_SUPERUSER       0x2
-#define TSDB_ALTER_USER_ADD_READ_DB     0x3
-#define TSDB_ALTER_USER_REMOVE_READ_DB  0x4
-#define TSDB_ALTER_USER_ADD_WRITE_DB    0x5
-#define TSDB_ALTER_USER_REMOVE_WRITE_DB 0x6
-#define TSDB_ALTER_USER_ADD_ALL_DB      0x7
-#define TSDB_ALTER_USER_REMOVE_ALL_DB   0x8
-#define TSDB_ALTER_USER_ENABLE          0x9
-#define TSDB_ALTER_USER_SYSINFO         0xA
+#define TSDB_ALTER_USER_PASSWD                 0x1
+#define TSDB_ALTER_USER_SUPERUSER              0x2
+#define TSDB_ALTER_USER_ADD_READ_DB            0x3
+#define TSDB_ALTER_USER_REMOVE_READ_DB         0x4
+#define TSDB_ALTER_USER_ADD_WRITE_DB           0x5
+#define TSDB_ALTER_USER_REMOVE_WRITE_DB        0x6
+#define TSDB_ALTER_USER_ADD_ALL_DB             0x7
+#define TSDB_ALTER_USER_REMOVE_ALL_DB          0x8
+#define TSDB_ALTER_USER_ENABLE                 0x9
+#define TSDB_ALTER_USER_SYSINFO                0xA
+#define TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC    0xB
+#define TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC 0xC
 
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
 
@@ -470,8 +482,6 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaW
   return 0;
 }
 
-STSchema* tdGetSTSChemaFromSSChema(SSchema* pSchema, int32_t nCols, int32_t sver);
-
 typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
   int8_t   igExists;
@@ -497,6 +507,8 @@ typedef struct {
   char*    pComment;
   char*    pAst1;
   char*    pAst2;
+  int64_t  deleteMark1;
+  int64_t  deleteMark2;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -620,7 +632,7 @@ typedef struct {
   int8_t enable;
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_USET_PASSWORD_LEN];
-  char   dbname[TSDB_DB_FNAME_LEN];
+  char   objname[TSDB_DB_FNAME_LEN];  // db or topic
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
@@ -1059,6 +1071,7 @@ typedef struct {
   int32_t vgId;
   int8_t  syncState;
   int8_t  syncRestore;
+  int8_t  syncCanRead;
   int64_t cacheUsage;
   int64_t numOfTables;
   int64_t numOfTimeSeries;
@@ -1143,6 +1156,13 @@ typedef struct {
 
 int32_t tSerializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
 int32_t tDeserializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
+
+typedef struct {
+  int64_t tick;
+} SMStreamTickReq;
+
+int32_t tSerializeSMStreamTickMsg(void* buf, int32_t bufLen, SMStreamTickReq* pReq);
+int32_t tDeserializeSMStreamTickMsg(void* buf, int32_t bufLen, SMStreamTickReq* pReq);
 
 typedef struct {
   int32_t  id;
@@ -1392,8 +1412,8 @@ typedef struct {
   int8_t  streamBlockType;
   int32_t compLen;
   int32_t numOfBlocks;
-  int32_t numOfRows;
-  int32_t numOfCols;
+  int64_t numOfRows;  // from int32_t change to int64_t
+  int64_t numOfCols;
   int64_t skey;
   int64_t ekey;
   int64_t version;                         // for stream
@@ -1714,6 +1734,8 @@ typedef struct {
 
 int32_t tSerializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
 int32_t tDeserializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
+int32_t tSerializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
+int32_t tDeserializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
 
 int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
 int32_t tDeserializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
@@ -1744,6 +1766,8 @@ typedef struct {
   int64_t watermark;
   int32_t numOfTags;
   SArray* pTags;  // array of SField
+  // 3.0.20
+  int64_t checkpointFreq;  // ms
 } SCMCreateStreamReq;
 
 typedef struct {
@@ -1944,6 +1968,12 @@ typedef struct {
 } SMqDoRebalanceMsg;
 
 typedef struct {
+  int64_t streamId;
+  int64_t checkpointId;
+  char    streamName[TSDB_STREAM_FNAME_LEN];
+} SMStreamDoCheckpointMsg;
+
+typedef struct {
   int64_t status;
 } SMVSubscribeRsp;
 
@@ -1994,6 +2024,7 @@ typedef struct {
 typedef struct {
   int64_t maxdelay[2];
   int64_t watermark[2];
+  int64_t deleteMark[2];
   int32_t qmsgLen[2];
   char*   qmsg[2];  // pAst:qmsg:SRetention => trigger aggr task1/2
 } SRSmaParam;
@@ -2050,10 +2081,15 @@ typedef struct SVCreateTbReq {
   };
 } SVCreateTbReq;
 
-int tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
-int tDecodeSVCreateTbReq(SDecoder* pCoder, SVCreateTbReq* pReq);
+int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
+int  tDecodeSVCreateTbReq(SDecoder* pCoder, SVCreateTbReq* pReq);
+void tDestroySVCreateTbReq(SVCreateTbReq* pReq, int32_t flags);
 
 static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
+  if (NULL == req) {
+    return;
+  }
+
   taosMemoryFreeClear(req->name);
   taosMemoryFreeClear(req->comment);
   if (req->type == TSDB_CHILD_TABLE) {
@@ -2715,6 +2751,7 @@ typedef struct {
   char*   tagsFilter;
   char*   sql;
   char*   ast;
+  int64_t deleteMark;
 } SMCreateSmaReq;
 
 int32_t tSerializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);
@@ -3200,6 +3237,57 @@ int32_t tSerializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
 int32_t tDeserializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
 int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
+int32_t tSerializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
+int32_t tDeserializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
+int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
+int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
+
+#define SUBMIT_REQ_AUTO_CREATE_TABLE  0x1
+#define SUBMIT_REQ_COLUMN_DATA_FORMAT 0x2
+
+typedef struct {
+  int32_t        flags;
+  SVCreateTbReq* pCreateTbReq;
+  int64_t        suid;
+  int64_t        uid;
+  int32_t        sver;
+  union {
+    SArray* aRowP;
+    SArray* aCol;
+  };
+} SSubmitTbData;
+
+typedef struct {
+  SArray* aSubmitTbData;  // SArray<SSubmitTbData>
+} SSubmitReq2;
+
+int32_t tEncodeSSubmitReq2(SEncoder* pCoder, const SSubmitReq2* pReq);
+int32_t tDecodeSSubmitReq2(SDecoder* pCoder, SSubmitReq2* pReq);
+void    tDestroySSubmitTbData(SSubmitTbData* pTbData, int32_t flag);
+void    tDestroySSubmitReq2(SSubmitReq2* pReq, int32_t flag);
+
+typedef struct {
+  int32_t affectedRows;
+  SArray* aCreateTbRsp;  // SArray<SVCreateTbRsp>
+} SSubmitRsp2;
+
+int32_t tEncodeSSubmitRsp2(SEncoder* pCoder, const SSubmitRsp2* pRsp);
+int32_t tDecodeSSubmitRsp2(SDecoder* pCoder, SSubmitRsp2* pRsp);
+void    tDestroySSubmitRsp2(SSubmitRsp2* pRsp, int32_t flag);
+
+#define TSDB_MSG_FLG_ENCODE 0x1
+#define TSDB_MSG_FLG_DECODE 0x2
+
+typedef struct {
+  union {
+    struct {
+      void*   msgStr;
+      int32_t msgLen;
+      int64_t ver;
+    };
+    void* pDataBlock;
+  };
+} SPackedData;
 
 #pragma pack(pop)
 

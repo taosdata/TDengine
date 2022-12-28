@@ -168,7 +168,7 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
 
 int32_t sndProcessTaskDropReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   SVDropStreamTaskReq *pReq = (SVDropStreamTaskReq *)msg;
-  streamMetaRemoveTask1(pSnode->pMeta, pReq->taskId);
+  streamMetaRemoveTask(pSnode->pMeta, pReq->taskId);
   return 0;
 }
 

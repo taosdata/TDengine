@@ -47,20 +47,26 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
 
   pRpc->compressSize = pInit->compressSize;
+  if (pRpc->compressSize < 0) {
+    pRpc->compressSize = -1;
+  }
+
   pRpc->encryption = pInit->encryption;
-  pRpc->retryLimit = pInit->retryLimit;
-  pRpc->retryInterval = pInit->retryInterval;
 
   pRpc->retryMinInterval = pInit->retryMinInterval;  // retry init interval
   pRpc->retryStepFactor = pInit->retryStepFactor;
   pRpc->retryMaxInterval = pInit->retryMaxInterval;
   pRpc->retryMaxTimouet = pInit->retryMaxTimouet;
 
+  pRpc->failFastThreshold = pInit->failFastThreshold;
+  pRpc->failFastInterval = pInit->failFastInterval;
+
   // register callback handle
   pRpc->cfp = pInit->cfp;
   pRpc->retry = pInit->rfp;
   pRpc->startTimer = pInit->tfp;
   pRpc->destroyFp = pInit->dfp;
+  pRpc->failFastFp = pInit->ffp;
 
   pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
   if (pRpc->numOfThreads <= 0) {

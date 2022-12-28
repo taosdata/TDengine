@@ -44,6 +44,7 @@ typedef struct SSyncSnapshotSender {
   SyncTerm       term;
   int64_t        startTime;
   int64_t        endTime;
+  int64_t        lastSendTime;
   bool           finish;
 
   // init when create
@@ -85,7 +86,9 @@ void                   snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceive
 
 // on message
 int32_t syncNodeOnSnapshot(SSyncNode *ths, const SRpcMsg *pMsg);
-int32_t syncNodeOnSnapshotReply(SSyncNode *ths, const SRpcMsg *pMsg);
+int32_t syncNodeOnSnapshotRsp(SSyncNode *ths, const SRpcMsg *pMsg);
+
+SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode *pSyncNode, SyncIndex snapshotLastApplyIndex);
 
 // start
 

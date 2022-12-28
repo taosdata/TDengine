@@ -33,36 +33,35 @@ static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   }
 }
 
-static inline void dmSendRedirectRsp(SRpcMsg *pMsg, const SEpSet *pNewEpSet) {
-  pMsg->info.hasEpSet = 1;
-  SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info, .msgType = pMsg->msgType};
-  int32_t contLen = tSerializeSEpSet(NULL, 0, pNewEpSet);
-
-  rsp.pCont = rpcMallocCont(contLen);
-  if (rsp.pCont == NULL) {
-    pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
-  } else {
-    tSerializeSEpSet(rsp.pCont, contLen, pNewEpSet);
-    rsp.contLen = contLen;
-  }
-  dmSendRsp(&rsp);
-  rpcFreeCont(pMsg->pCont);
-  pMsg->pCont = NULL;
-}
-
 int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
+  const STraceId *trace = &pMsg->info.traceId;
+
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pMsg->msgType)];
   if (msgFp == NULL) {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+    dGError("msg:%p, not processed since no handler", pMsg);
     return -1;
   }
 
-  const STraceId *trace = &pMsg->info.traceId;
   dGTrace("msg:%p, will be processed by %s", pMsg, pWrapper->name);
   pMsg->info.wrapper = pWrapper;
   return (*msgFp)(pWrapper->pMgmt, pMsg);
 }
 
+static bool dmFailFastFp(tmsg_t msgType) {
+  // add more msg type later
+  return msgType == TDMT_SYNC_HEARTBEAT || msgType == TDMT_SYNC_APPEND_ENTRIES;
+}
+
+static void dmConvertErrCode(tmsg_t msgType) {
+  if (terrno != TSDB_CODE_APP_IS_STOPPING) {
+    return;
+  }
+  if ((msgType > TDMT_VND_MSG && msgType < TDMT_VND_MAX_MSG) ||
+      (msgType > TDMT_SCH_MSG && msgType < TDMT_SCH_MAX_MSG)) {
+    terrno = TSDB_CODE_VND_STOPPED;
+  }
+}
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
@@ -99,18 +98,28 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       dmProcessServerStartupStatus(pDnode, pRpc);
       return;
     } else {
-      terrno = TSDB_CODE_APP_NOT_READY;
+      if (pDnode->status == DND_STAT_INIT) {
+        terrno = TSDB_CODE_APP_IS_STARTING;
+      } else {
+        terrno = TSDB_CODE_APP_IS_STOPPING;
+      }
       goto _OVER;
     }
   }
 
-  if (IsReq(pRpc) && pRpc->pCont == NULL) {
+  if (pRpc->pCont == NULL && (IsReq(pRpc) || pRpc->contLen != 0)) {
     dGError("msg:%p, type:%s pCont is NULL", pRpc, TMSG_INFO(pRpc->msgType));
     terrno = TSDB_CODE_INVALID_MSG_LEN;
     goto _OVER;
-  }
+  } /* else if ((pRpc->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRpc->code == TSDB_CODE_RPC_BROKEN_LINK) &&
+              (!IsReq(pRpc)) && (pRpc->pCont == NULL)) {
+     dGError("msg:%p, type:%s pCont is NULL, err: %s", pRpc, TMSG_INFO(pRpc->msgType), tstrerror(pRpc->code));
+     terrno = pRpc->code;
+     goto _OVER;
+   }*/
 
   if (pHandle->defaultNtype == NODE_END) {
+    dGError("msg:%p, type:%s not processed since no handle", pRpc, TMSG_INFO(pRpc->msgType));
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
     goto _OVER;
   }
@@ -146,16 +155,18 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   pRpc->info.wrapper = pWrapper;
-  pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
+  pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
   if (pMsg == NULL) goto _OVER;
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
-  dGTrace("msg:%p, is created, type:%s handle:%p", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle);
+  dGTrace("msg:%p, is created, type:%s handle:%p len:%d", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle,
+          pRpc->contLen);
 
   code = dmProcessNodeMsg(pWrapper, pMsg);
 
 _OVER:
   if (code != 0) {
+    dmConvertErrCode(pRpc->msgType);
     if (terrno != 0) code = terrno;
     if (pMsg) {
       dGTrace("msg:%p, failed to process %s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
@@ -165,8 +176,7 @@ _OVER:
 
     if (IsReq(pRpc)) {
       SRpcMsg rsp = {.code = code, .info = pRpc->info};
-      if ((code == TSDB_CODE_NODE_NOT_DEPLOYED || code == TSDB_CODE_APP_NOT_READY) && pRpc->msgType > TDMT_MND_MSG &&
-          pRpc->msgType < TDMT_VND_MSG) {
+      if (code == TSDB_CODE_MNODE_NOT_FOUND) {
         dmBuildMnodeRedirectRsp(pDnode, &rsp);
       }
 
@@ -219,7 +229,11 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   if (pDnode->status != DND_STAT_RUNNING && pMsg->msgType < TDMT_SYNC_MSG) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
-    terrno = TSDB_CODE_NODE_OFFLINE;
+    if (pDnode->status == DND_STAT_INIT) {
+      terrno = TSDB_CODE_APP_IS_STARTING;
+    } else {
+      terrno = TSDB_CODE_APP_IS_STOPPING;
+    }
     dError("failed to send rpc msg:%s since %s, handle:%p", TMSG_INFO(pMsg->msgType), terrstr(), pMsg->info.handle);
     return -1;
   } else {
@@ -233,8 +247,9 @@ static inline void dmRegisterBrokenLinkArg(SRpcMsg *pMsg) { rpcRegisterBrokenLin
 static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) { rpcReleaseHandle(pHandle, type); }
 
 static bool rpcRfp(int32_t code, tmsg_t msgType) {
-  if (code == TSDB_CODE_RPC_REDIRECT || code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_NODE_NOT_DEPLOYED ||
-      code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_BROKEN_LINK) {
+  if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_MNODE_NOT_FOUND ||
+      code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_VND_STOPPED ||
+      code == TSDB_CODE_APP_IS_STARTING || code == TSDB_CODE_APP_IS_STOPPING) {
     if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH ||
         msgType == TDMT_SCH_MERGE_FETCH) {
       return false;
@@ -259,12 +274,14 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.rfp = rpcRfp;
   rpcInit.compressSize = tsCompressMsgSize;
 
-  rpcInit.retryLimit = tsRpcRetryLimit;
-  rpcInit.retryInterval = tsRpcRetryInterval;
   rpcInit.retryMinInterval = tsRedirectPeriod;
   rpcInit.retryStepFactor = tsRedirectFactor;
   rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
   rpcInit.retryMaxTimouet = tsMaxRetryWaitTime;
+
+  rpcInit.failFastInterval = 1000;  // interval threshold(ms)
+  rpcInit.failFastThreshold = 3;    // failed threshold
+  rpcInit.ffp = dmFailFastFp;
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
@@ -298,6 +315,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
+  rpcInit.compressSize = tsCompressMsgSize;
 
   pTrans->serverRpc = rpcOpen(&rpcInit);
   if (pTrans->serverRpc == NULL) {
@@ -323,7 +341,6 @@ SMsgCb dmGetMsgcb(SDnode *pDnode) {
       .clientRpc = pDnode->trans.clientRpc,
       .sendReqFp = dmSendReq,
       .sendRspFp = dmSendRsp,
-      .sendRedirectRspFp = dmSendRedirectRsp,
       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
       .releaseHandleFp = dmReleaseHandle,
       .reportStartupFp = dmReportStartup,

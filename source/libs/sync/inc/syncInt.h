@@ -50,6 +50,8 @@ typedef struct SyncPreSnapshotReply   SyncPreSnapshotReply;
 typedef struct SyncHeartbeatReply     SyncHeartbeatReply;
 typedef struct SyncHeartbeat          SyncHeartbeat;
 typedef struct SyncPreSnapshot        SyncPreSnapshot;
+typedef struct SSyncLogBuffer         SSyncLogBuffer;
+typedef struct SSyncLogReplMgr        SSyncLogReplMgr;
 
 typedef struct SRaftId {
   SyncNodeId  addr;
@@ -97,6 +99,7 @@ typedef struct SSyncNode {
   char        configPath[TSDB_FILENAME_LEN * 2];
 
   // sync io
+  SSyncLogBuffer* pLogBuf;
   SWal*         pWal;
   const SMsgCb* msgcb;
   int32_t (*syncSendMSg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
@@ -179,6 +182,9 @@ typedef struct SSyncNode {
   SSyncSnapshotSender*   senders[TSDB_MAX_REPLICA];
   SSyncSnapshotReceiver* pNewNodeReceiver;
 
+  // log replication mgr
+  SSyncLogReplMgr* logReplMgrs[TSDB_MAX_REPLICA];
+
   SPeerState peerStates[TSDB_MAX_REPLICA];
 
   // is config changing
@@ -205,11 +211,12 @@ typedef struct SSyncNode {
 
 // open/close --------------
 SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo);
-void       syncNodeStart(SSyncNode* pSyncNode);
-void       syncNodeStartStandBy(SSyncNode* pSyncNode);
+int32_t    syncNodeStart(SSyncNode* pSyncNode);
+int32_t    syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
 void       syncNodePreClose(SSyncNode* pSyncNode);
-int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak);
+int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t *seq);
+int32_t    syncNodeRestore(SSyncNode* pSyncNode);
 void       syncHbTimerDataFree(SSyncHbTimerData* pData);
 
 // on message ---------------------
@@ -220,7 +227,7 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnAppendEntries(SSyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnSnapshot(SSyncNode* ths, const SRpcMsg* pMsg);
-int32_t syncNodeOnSnapshotReply(SSyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnSnapshotRsp(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pMsg);
@@ -244,6 +251,7 @@ int32_t   syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHa
 bool      syncNodeHeartbeatReplyTimeout(SSyncNode* pSyncNode);
 bool      syncNodeSnapshotSending(SSyncNode* pSyncNode);
 bool      syncNodeSnapshotRecving(SSyncNode* pSyncNode);
+bool      syncNodeIsReadyForRead(SSyncNode* pSyncNode);
 
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
@@ -259,6 +267,9 @@ void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
 // raft vote --------------
 void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
 void syncNodeVoteForSelf(SSyncNode* pSyncNode);
+
+// log replication
+SSyncLogReplMgr* syncNodeGetLogReplMgr(SSyncNode* pNode, SRaftId* pDestId);
 
 // snapshot --------------
 bool    syncNodeHasSnapshot(SSyncNode* pSyncNode);

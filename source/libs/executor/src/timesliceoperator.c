@@ -49,10 +49,10 @@ static void doKeepPrevRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
     if (!colDataIsNull_s(pColInfoData, rowIndex)) {
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
-      if (!IS_VAR_DATA_TYPE(pkey->type)) {
-        memcpy(pkey->pData, val, pkey->bytes);
-      } else {
+      if (IS_VAR_DATA_TYPE(pkey->type)) {
         memcpy(pkey->pData, val, varDataLen(val));
+      } else {
+        memcpy(pkey->pData, val, pkey->bytes);
       }
     } else {
       pkey->isNull = true;
@@ -91,18 +91,37 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
     SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pSliceInfo->tsCol.slotId);
     SFillLinearInfo* pLinearInfo = taosArrayGet(pSliceInfo->pLinearInfo, i);
 
+
+    if (!IS_MATHABLE_TYPE(pColInfoData->info.type)) {
+      continue;
+    }
+
     // null value is represented by using key = INT64_MIN for now.
     // TODO: optimize to ignore null values for linear interpolation.
     if (!pLinearInfo->isStartSet) {
       if (!colDataIsNull_s(pColInfoData, rowIndex)) {
+
         pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
-        memcpy(pLinearInfo->start.val, colDataGetData(pColInfoData, rowIndex), pLinearInfo->bytes);
+        char* p = colDataGetData(pColInfoData, rowIndex);
+        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
+          memcpy(pLinearInfo->start.val, p, varDataTLen(p));
+        } else {
+          memcpy(pLinearInfo->start.val, p, pLinearInfo->bytes);
+        }
       }
       pLinearInfo->isStartSet = true;
     } else if (!pLinearInfo->isEndSet) {
       if (!colDataIsNull_s(pColInfoData, rowIndex)) {
         pLinearInfo->end.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
-        memcpy(pLinearInfo->end.val, colDataGetData(pColInfoData, rowIndex), pLinearInfo->bytes);
+
+        char* p = colDataGetData(pColInfoData, rowIndex);
+        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
+          memcpy(pLinearInfo->end.val, p, varDataTLen(p));
+        } else {
+          memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
+        }
       }
       pLinearInfo->isEndSet = true;
     } else {
@@ -111,7 +130,15 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
       if (!colDataIsNull_s(pColInfoData, rowIndex)) {
         pLinearInfo->end.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
-        memcpy(pLinearInfo->end.val, colDataGetData(pColInfoData, rowIndex), pLinearInfo->bytes);
+
+        char* p = colDataGetData(pColInfoData, rowIndex);
+        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
+          memcpy(pLinearInfo->end.val, p, varDataTLen(p));
+        } else {
+          memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
+        }
+
       } else {
         pLinearInfo->end.key = INT64_MIN;
       }
@@ -120,9 +147,23 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
 }
 
+
+static FORCE_INLINE int32_t timeSliceEnsureBlockCapacity(STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBlock) {
+  if (pBlock->info.rows < pBlock->info.capacity) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  uint32_t winNum = (pSliceInfo->win.ekey - pSliceInfo->win.skey) / pSliceInfo->interval.interval;
+  uint32_t newRowsNum = pBlock->info.rows + TMIN(winNum / 4 + 1, 1048576);
+  blockDataEnsureCapacity(pBlock, newRowsNum);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock, bool beforeTs) {
   int32_t rows = pResBlock->info.rows;
-  blockDataEnsureCapacity(pResBlock, rows + 1);
+  timeSliceEnsureBlockCapacity(pSliceInfo, pResBlock);
   // todo set the correct primary timestamp column
 
   // output the result
@@ -135,6 +176,10 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
     if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
       colDataAppend(pDst, rows, (char*)&pSliceInfo->current, false);
+      continue;
+    } else if (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type)) {
+      bool isFilled = true;
+      colDataAppend(pDst, pResBlock->info.rows, (char*)&isFilled, false);
       continue;
     }
 
@@ -238,7 +283,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
 static void addCurrentRowToResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock,
                                   SSDataBlock* pSrcBlock, int32_t index) {
-  blockDataEnsureCapacity(pResBlock, pResBlock->info.rows + 1);
+  timeSliceEnsureBlockCapacity(pSliceInfo, pResBlock);
   for (int32_t j = 0; j < pExprSup->numOfExprs; ++j) {
     SExprInfo* pExprInfo = &pExprSup->pExprInfo[j];
 
@@ -247,6 +292,9 @@ static void addCurrentRowToResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp*
 
     if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
       colDataAppend(pDst, pResBlock->info.rows, (char*)&pSliceInfo->current, false);
+    } else if (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type)) {
+      bool isFilled = false;
+      colDataAppend(pDst, pResBlock->info.rows, (char*)&isFilled, false);
     } else {
       int32_t          srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
       SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, srcSlot);
@@ -467,11 +515,11 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         // add current row if timestamp match
         if (ts == pSliceInfo->current && pSliceInfo->current <= pSliceInfo->win.ekey) {
           addCurrentRowToResult(pSliceInfo, &pOperator->exprSupp, pResBlock, pBlock, i);
-          doKeepPrevRows(pSliceInfo, pBlock, i);
 
           pSliceInfo->current =
               taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
         }
+        doKeepPrevRows(pSliceInfo, pBlock, i);
 
         if (pSliceInfo->current > pSliceInfo->win.ekey) {
           setOperatorCompleted(pOperator);
@@ -544,7 +592,7 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
 
   setOperatorInfo(pOperator, "TimeSliceOperator", QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTimeslice, NULL, destroyTimeSliceOperatorInfo, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimeslice, NULL, destroyTimeSliceOperatorInfo, optrDefaultBufFn, NULL);
 
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 

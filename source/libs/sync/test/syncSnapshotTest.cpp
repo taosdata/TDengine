@@ -76,7 +76,6 @@ void initFsm() {
   pFsm->FpRollBackCb = RollBackCb;
   pFsm->FpGetSnapshotInfo = GetSnapshotCb;
 #endif
-
 }
 
 SSyncNode *syncNodeInit() {

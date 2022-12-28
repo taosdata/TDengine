@@ -28,7 +28,7 @@
 #include "parser.h"
 #include "tname.h"
 
-#define MND_STREAM_VER_NUMBER   1
+#define MND_STREAM_VER_NUMBER   2
 #define MND_STREAM_RESERVE_SIZE 64
 
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
@@ -36,6 +36,8 @@ static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pStream, SStreamObj *pNewStream);
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq);
+static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq);
+static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq);
 /*static int32_t mndProcessRecoverStreamReq(SRpcMsg *pReq);*/
 static int32_t mndProcessStreamMetaReq(SRpcMsg *pReq);
 static int32_t mndGetStreamMeta(SRpcMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
@@ -61,6 +63,10 @@ int32_t mndInitStream(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DEPLOY_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DROP_RSP, mndTransProcessRsp);
+
+  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
+  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamDoCheckpoint);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_REPORT_CHECKPOINT, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStream);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndCancelGetNextStream);
@@ -120,21 +126,22 @@ STREAM_ENCODE_OVER:
 
 SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  void *buf = NULL;
+  SSdbRow    *pRow = NULL;
+  SStreamObj *pStream = NULL;
+  void       *buf = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto STREAM_DECODE_OVER;
 
-  if (sver != MND_STREAM_VER_NUMBER) {
+  if (sver != 1 && sver != 2) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto STREAM_DECODE_OVER;
   }
 
-  int32_t  size = sizeof(SStreamObj);
-  SSdbRow *pRow = sdbAllocRow(size);
+  pRow = sdbAllocRow(sizeof(SStreamObj));
   if (pRow == NULL) goto STREAM_DECODE_OVER;
 
-  SStreamObj *pStream = sdbGetRowObj(pRow);
+  pStream = sdbGetRowObj(pRow);
   if (pStream == NULL) goto STREAM_DECODE_OVER;
 
   int32_t tlen;
@@ -146,7 +153,7 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
 
   SDecoder decoder;
   tDecoderInit(&decoder, buf, tlen + 1);
-  if (tDecodeSStreamObj(&decoder, pStream) < 0) {
+  if (tDecodeSStreamObj(&decoder, pStream, sver) < 0) {
     tDecoderClear(&decoder);
     goto STREAM_DECODE_OVER;
   }
@@ -157,7 +164,8 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
 STREAM_DECODE_OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("stream:%s, failed to decode from raw:%p since %s", pStream->name, pRaw, terrstr());
+    mError("stream:%s, failed to decode from raw:%p since %s", pStream == NULL ? "null" : pStream->name, pRaw,
+           terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -318,13 +326,11 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
   // deserialize ast
   if (nodesStringToNode(pObj->ast, &pAst) < 0) {
-    /*ASSERT(0);*/
     goto FAIL;
   }
 
   // extract output schema from ast
   if (qExtractResultSchema(pAst, (int32_t *)&pObj->outputSchema.nCols, &pObj->outputSchema.pSchema) != 0) {
-    /*ASSERT(0);*/
     goto FAIL;
   }
 
@@ -339,13 +345,11 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
   // using ast and param to build physical plan
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
-    /*ASSERT(0);*/
     goto FAIL;
   }
 
   // save physcial plan
   if (nodesNodeToString((SNode *)pPlan, false, &pObj->physicalPlan, NULL) != 0) {
-    /*ASSERT(0);*/
     goto FAIL;
   }
 
@@ -353,7 +357,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   if (pCreate->numOfTags) {
     pObj->tagSchema.pSchema = taosMemoryCalloc(pCreate->numOfTags, sizeof(SSchema));
   }
-  ASSERT(pCreate->numOfTags == taosArrayGetSize(pCreate->pTags));
+  /*A(pCreate->numOfTags == taosArrayGetSize(pCreate->pTags));*/
   for (int32_t i = 0; i < pCreate->numOfTags; i++) {
     SField *pField = taosArrayGet(pCreate->pTags, i);
     pObj->tagSchema.pSchema[i].colId = pObj->outputSchema.nCols + i + 1;
@@ -370,9 +374,6 @@ FAIL:
 }
 
 int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
-  if (pTask->taskLevel == TASK_LEVEL__AGG) {
-    ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
-  }
   SEncoder encoder;
   tEncoderInit(&encoder, NULL, 0);
   tEncodeSStreamTask(&encoder, pTask);
@@ -537,8 +538,6 @@ _OVER:
 }
 
 static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
-  ASSERT(pTask->nodeId != 0);
-
   // vnode
   /*if (pTask->nodeId > 0) {*/
   SVDropStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVDropStreamTaskReq));
@@ -617,13 +616,25 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  pDb = mndAcquireDb(pMnode, streamObj.sourceDb);
+  if (pDb->cfg.replications != 1) {
+    mError("stream source db must have only 1 replica, but %s has %d", pDb->name, pDb->cfg.replications);
+    terrno = TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB;
+    mndReleaseDb(pMnode, pDb);
+    pDb = NULL;
+    goto _OVER;
+  }
+  mndReleaseDb(pMnode, pDb);
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream");
   if (pTrans == NULL) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
   mInfo("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
+
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   // create stb for stream
   if (mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
@@ -673,11 +684,173 @@ _OVER:
   }
 
   mndReleaseStream(pMnode, pStream);
-  mndReleaseDb(pMnode, pDb);
 
   tFreeSCMCreateStreamReq(&createStreamReq);
   tFreeStreamObj(&streamObj);
   return code;
+}
+static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
+  SSdb       *pSdb = pMnode->pSdb;
+  void       *pIter = NULL;
+  SStreamObj *pStream = NULL;
+
+  // iterate all stream obj
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) break;
+    // incr tick
+    int64_t currentTick = atomic_add_fetch_64(&pStream->currentTick, 1);
+    // if >= checkpointFreq, build msg TDMT_MND_STREAM_BEGIN_CHECKPOINT, put into write q
+    if (currentTick >= pStream->checkpointFreq) {
+      atomic_store_64(&pStream->currentTick, 0);
+      SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
+
+      pMsg->streamId = pStream->uid;
+      pMsg->checkpointId = tGenIdPI64();
+      memcpy(pMsg->streamName, pStream->name, TSDB_STREAM_FNAME_LEN);
+
+      SRpcMsg rpcMsg = {
+          .msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT,
+          .pCont = pMsg,
+          .contLen = sizeof(SMStreamDoCheckpointMsg),
+      };
+
+      tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    }
+  }
+
+  return 0;
+}
+
+static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, const SStreamTask *pTask,
+                                                 SMStreamDoCheckpointMsg *pMsg) {
+  SStreamCheckpointSourceReq req = {0};
+  req.checkpointId = pMsg->checkpointId;
+  req.nodeId = pTask->nodeId;
+  req.expireTime = -1;
+  req.streamId = pTask->streamId;
+  req.taskId = pTask->taskId;
+
+  int32_t code;
+  int32_t blen;
+
+  tEncodeSize(tEncodeSStreamCheckpointSourceReq, &req, blen, code);
+  if (code < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  int32_t tlen = sizeof(SMsgHead) + blen;
+
+  void *buf = taosMemoryMalloc(tlen);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  SEncoder encoder;
+  tEncoderInit(&encoder, abuf, tlen);
+  tEncodeSStreamCheckpointSourceReq(&encoder, &req);
+
+  SMsgHead *pMsgHead = (SMsgHead *)buf;
+  pMsgHead->contLen = htonl(tlen);
+  pMsgHead->vgId = htonl(pTask->nodeId);
+
+  tEncoderClear(&encoder);
+
+  *pBuf = buf;
+  *pLen = tlen;
+
+  return 0;
+}
+
+static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  SMStreamDoCheckpointMsg *pMsg = (SMStreamDoCheckpointMsg *)pReq->pCont;
+
+  SStreamObj *pStream = mndAcquireStream(pMnode, pMsg->streamName);
+
+  if (pStream == NULL || pStream->uid != pMsg->streamId) {
+    mError("start checkpointing failed since stream %s not found", pMsg->streamName);
+    return -1;
+  }
+
+  // build new transaction:
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "stream-checkpoint");
+  if (pTrans == NULL) return -1;
+  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    mndReleaseStream(pMnode, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  taosRLockLatch(&pStream->lock);
+  // 1. redo action: broadcast checkpoint source msg for all source vg
+  int32_t totLevel = taosArrayGetSize(pStream->tasks);
+  for (int32_t i = 0; i < totLevel; i++) {
+    SArray      *pLevel = taosArrayGetP(pStream->tasks, i);
+    SStreamTask *pTask = taosArrayGetP(pLevel, 0);
+    if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+      int32_t sz = taosArrayGetSize(pLevel);
+      for (int32_t j = 0; j < sz; j++) {
+        SStreamTask *pTask = taosArrayGetP(pLevel, j);
+        /*A(pTask->nodeId > 0);*/
+        SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->nodeId);
+        if (pVgObj == NULL) {
+          taosRUnLockLatch(&pStream->lock);
+          mndReleaseStream(pMnode, pStream);
+          mndTransDrop(pTrans);
+          return -1;
+        }
+
+        void   *buf;
+        int32_t tlen;
+        if (mndBuildStreamCheckpointSourceReq(&buf, &tlen, pTask, pMsg) < 0) {
+          taosRUnLockLatch(&pStream->lock);
+          mndReleaseStream(pMnode, pStream);
+          mndTransDrop(pTrans);
+          return -1;
+        }
+
+        STransAction action = {0};
+        action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
+        action.pCont = buf;
+        action.contLen = tlen;
+        action.msgType = TDMT_VND_STREAM_CHECK_POINT_SOURCE;
+
+        mndReleaseVgroup(pMnode, pVgObj);
+
+        if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+          taosMemoryFree(buf);
+          taosRUnLockLatch(&pStream->lock);
+          mndReleaseStream(pMnode, pStream);
+          mndTransDrop(pTrans);
+          return -1;
+        }
+      }
+    }
+  }
+  // 2. reset tick
+  atomic_store_64(&pStream->currentTick, 0);
+  // 3. commit log: stream checkpoint info
+  taosRUnLockLatch(&pStream->lock);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("failed to prepare trans rebalance since %s", terrstr());
+    mndTransDrop(pTrans);
+    mndReleaseStream(pMnode, pStream);
+    return -1;
+  }
+
+  mndReleaseStream(pMnode, pStream);
+  mndTransDrop(pTrans);
+
+  return 0;
 }
 
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
@@ -688,7 +861,6 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   SMDropStreamReq dropReq = {0};
   if (tDeserializeSMDropStreamReq(pReq->pCont, pReq->contLen, &dropReq) < 0) {
-    ASSERT(0);
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -707,17 +879,24 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   }
 
   if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "drop-stream");
-  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
   if (pTrans == NULL) {
     mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
   mInfo("trans:%d, used to drop stream:%s", pTrans->id, dropReq.name);
+
+  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
 
   // drop all tasks
   if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
@@ -746,71 +925,6 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
-
-#if 0
-static int32_t mndProcessRecoverStreamReq(SRpcMsg *pReq) {
-  SMnode     *pMnode = pReq->info.node;
-  SStreamObj *pStream = NULL;
-  /*SDbObj     *pDb = NULL;*/
-  /*SUserObj   *pUser = NULL;*/
-
-  SMRecoverStreamReq recoverReq = {0};
-  if (tDeserializeSMRecoverStreamReq(pReq->pCont, pReq->contLen, &recoverReq) < 0) {
-    ASSERT(0);
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  pStream = mndAcquireStream(pMnode, recoverReq.name);
-
-  if (pStream == NULL) {
-    if (recoverReq.igNotExists) {
-      mInfo("stream:%s, not exist, ignore not exist is set", recoverReq.name);
-      sdbRelease(pMnode->pSdb, pStream);
-      return 0;
-    } else {
-      terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
-      return -1;
-    }
-  }
-
-  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
-    return -1;
-  }
-
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq);
-  if (pTrans == NULL) {
-    mError("stream:%s, failed to recover since %s", recoverReq.name, terrstr());
-    sdbRelease(pMnode->pSdb, pStream);
-    return -1;
-  }
-  mInfo("trans:%d, used to drop stream:%s", pTrans->id, recoverReq.name);
-
-  // broadcast to recover all tasks
-  if (mndRecoverStreamTasks(pMnode, pTrans, pStream) < 0) {
-    mError("stream:%s, failed to recover task since %s", recoverReq.name, terrstr());
-    sdbRelease(pMnode->pSdb, pStream);
-    return -1;
-  }
-
-  // update stream status
-  if (mndSetStreamRecover(pMnode, pTrans, pStream) < 0) {
-    sdbRelease(pMnode->pSdb, pStream);
-    return -1;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare recover stream trans since %s", pTrans->id, terrstr());
-    sdbRelease(pMnode->pSdb, pStream);
-    mndTransDrop(pTrans);
-    return -1;
-  }
-
-  sdbRelease(pMnode->pSdb, pStream);
-
-  return TSDB_CODE_ACTION_IN_PROGRESS;
-}
-#endif
 
 int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   SSdb *pSdb = pMnode->pSdb;
@@ -845,13 +959,6 @@ int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
         }
       }
     }
-
-#if 0
-    if (mndSetDropOffsetStreamLogs(pMnode, pTrans, pStream) < 0) {
-      sdbRelease(pSdb, pStream);
-      goto END;
-    }
-#endif
 
     sdbRelease(pSdb, pStream);
   }

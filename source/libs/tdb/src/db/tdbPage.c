@@ -69,18 +69,19 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
 
   *ppPage = pPage;
 
-  tdbDebug("page/create: %p %p", pPage, xMalloc);
+  tdbTrace("page/create: %p/%d %p", pPage, pPage->id, xMalloc);
   return 0;
 }
 
 int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg) {
   u8 *ptr;
 
-  tdbDebug("page/destroy: %p %p", pPage, xFree);
+  tdbTrace("page/destroy: %p/%d %p", pPage, pPage->id, xFree);
+  ASSERT(!pPage->isDirty);
   ASSERT(xFree);
 
   for (int iOvfl = 0; iOvfl < pPage->nOverflow; iOvfl++) {
-    tdbDebug("tdbPage/destroy/free ovfl cell: %p/%p", pPage->apOvfl[iOvfl], pPage);
+    tdbTrace("tdbPage/destroy/free ovfl cell: %p/%p", pPage->apOvfl[iOvfl], pPage);
     tdbOsFree(pPage->apOvfl[iOvfl]);
   }
 
@@ -91,7 +92,7 @@ int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg)
 }
 
 void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt)) {
-  tdbDebug("page/zero: %p %" PRIu8 " %p", pPage, szAmHdr, xCellSize);
+  tdbTrace("page/zero: %p %" PRIu8 " %p", pPage, szAmHdr, xCellSize);
   pPage->pPageHdr = pPage->pData + szAmHdr;
   TDB_PAGE_NCELLS_SET(pPage, 0);
   TDB_PAGE_CCELLS_SET(pPage, pPage->pageSize - sizeof(SPageFtr));
@@ -108,8 +109,11 @@ void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell
 }
 
 void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt)) {
-  tdbDebug("page/init: %p %" PRIu8 " %p", pPage, szAmHdr, xCellSize);
+  tdbTrace("page/init: %p %" PRIu8 " %p", pPage, szAmHdr, xCellSize);
   pPage->pPageHdr = pPage->pData + szAmHdr;
+  if (TDB_PAGE_NCELLS(pPage) == 0) {
+    return tdbPageZero(pPage, szAmHdr, xCellSize);
+  }
   pPage->pCellIdx = pPage->pPageHdr + TDB_PAGE_HDR_SIZE(pPage);
   pPage->pFreeStart = pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * TDB_PAGE_NCELLS(pPage);
   pPage->pFreeEnd = pPage->pData + TDB_PAGE_CCELLS(pPage);
@@ -153,7 +157,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
     pNewCell = (SCell *)tdbOsMalloc(szCell);
     memcpy(pNewCell, pCell, szCell);
 
-    tdbDebug("tdbPage/insert/new ovfl cell: %p/%p", pNewCell, pPage);
+    tdbTrace("tdbPage/insert/new ovfl cell: %p/%p", pNewCell, pPage);
 
     pPage->apOvfl[iOvfl] = pNewCell;
     pPage->aiOvfl[iOvfl] = idx;
@@ -203,7 +207,7 @@ int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
     if (pPage->aiOvfl[iOvfl] == idx) {
       // remove the over flow cell
       tdbOsFree(pPage->apOvfl[iOvfl]);
-      tdbDebug("tdbPage/drop/free ovfl cell: %p", pPage->apOvfl[iOvfl]);
+      tdbTrace("tdbPage/drop/free ovfl cell: %p", pPage->apOvfl[iOvfl]);
       for (; (++iOvfl) < pPage->nOverflow;) {
         pPage->aiOvfl[iOvfl - 1] = pPage->aiOvfl[iOvfl] - 1;
         pPage->apOvfl[iOvfl - 1] = pPage->apOvfl[iOvfl];
@@ -256,7 +260,7 @@ void tdbPageCopy(SPage *pFromPage, SPage *pToPage, int deepCopyOvfl) {
       int szCell = (*pFromPage->xCellSize)(pFromPage, pFromPage->apOvfl[iOvfl], 0, NULL, NULL);
       pNewCell = (SCell *)tdbOsMalloc(szCell);
       memcpy(pNewCell, pFromPage->apOvfl[iOvfl], szCell);
-      tdbDebug("tdbPage/copy/new ovfl cell: %p/%p/%p", pNewCell, pToPage, pFromPage);
+      tdbTrace("tdbPage/copy/new ovfl cell: %p/%p/%p", pNewCell, pToPage, pFromPage);
     }
 
     pToPage->apOvfl[iOvfl] = pNewCell;

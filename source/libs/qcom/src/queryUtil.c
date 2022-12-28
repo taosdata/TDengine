@@ -159,7 +159,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   if (NULL == pMsg) {
     qError("0x%" PRIx64 " msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
     destroySendMsgInfo(pInfo);
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -243,7 +243,8 @@ void destroyQueryExecRes(SExecResult* pRes) {
       break;
     }
     case TDMT_VND_SUBMIT: {
-      tFreeSSubmitRsp((SSubmitRsp*)pRes->res);
+      tDestroySSubmitRsp2((SSubmitRsp2*)pRes->res, TSDB_MSG_FLG_DECODE);
+      taosMemoryFreeClear(pRes->res);
       break;
     }
     case TDMT_SCH_QUERY: 
@@ -441,10 +442,21 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
   *pDst = taosMemoryMalloc(metaSize);
   if (NULL == *pDst) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(*pDst, pSrc, metaSize);
   return TSDB_CODE_SUCCESS;
+}
+
+void freeVgInfo(SDBVgInfo* vgInfo) {
+  if (NULL == vgInfo) {
+    return;
+  }
+
+  taosHashCleanup(vgInfo->vgHash);
+  taosArrayDestroy(vgInfo->vgArray);
+
+  taosMemoryFreeClear(vgInfo);
 }
 
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
@@ -455,7 +467,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
 
   *pDst = taosMemoryMalloc(sizeof(*pSrc));
   if (NULL == *pDst) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(*pDst, pSrc, sizeof(*pSrc));
   if (pSrc->vgHash) {
@@ -463,7 +475,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
                                    HASH_ENTRY_LOCK);
     if (NULL == (*pDst)->vgHash) {
       taosMemoryFreeClear(*pDst);
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     SVgroupInfo* vgInfo = NULL;
@@ -475,12 +487,61 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
       if (0 != taosHashPut((*pDst)->vgHash, vgId, sizeof(*vgId), vgInfo, sizeof(*vgInfo))) {
         qError("taosHashPut failed, vgId:%d", vgInfo->vgId);
         taosHashCancelIterate(pSrc->vgHash, pIter);
-        taosHashCleanup((*pDst)->vgHash);
-        taosMemoryFreeClear(*pDst);
+        freeVgInfo(*pDst);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
       pIter = taosHashIterate(pSrc->vgHash, pIter);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
+  if (NULL == pSrc) {
+    *pDst = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *pDst = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+  if (NULL == *pDst) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pDst)->flags = pSrc->flags;
+  if (pSrc->name) {
+    (*pDst)->name = strdup(pSrc->name);
+  }
+  (*pDst)->uid = pSrc->uid;
+  (*pDst)->ctime = pSrc->ctime;
+  (*pDst)->ttl = pSrc->ttl;
+  (*pDst)->commentLen = pSrc->commentLen;
+  if (pSrc->comment) {
+    (*pDst)->comment = strdup(pSrc->comment);
+  }
+  (*pDst)->type = pSrc->type;
+
+  if (pSrc->type == TSDB_CHILD_TABLE) {
+    if (pSrc->ctb.stbName) {
+      (*pDst)->ctb.stbName = strdup(pSrc->ctb.stbName);
+    }
+    (*pDst)->ctb.tagNum = pSrc->ctb.tagNum;
+    (*pDst)->ctb.suid = pSrc->ctb.suid;
+    if (pSrc->ctb.tagName) {
+      (*pDst)->ctb.tagName = taosArrayDup(pSrc->ctb.tagName, NULL);
+    }
+    STag* pTag = (STag*)pSrc->ctb.pTag;
+    if (pTag) {
+      (*pDst)->ctb.pTag = taosMemoryMalloc(pTag->len);
+      memcpy((*pDst)->ctb.pTag, pTag, pTag->len);
+    }
+  } else {
+    (*pDst)->ntb.schemaRow.nCols = pSrc->ntb.schemaRow.nCols;
+    (*pDst)->ntb.schemaRow.version = pSrc->ntb.schemaRow.nCols;
+    if (pSrc->ntb.schemaRow.nCols > 0 && pSrc->ntb.schemaRow.pSchema) {
+      (*pDst)->ntb.schemaRow.pSchema = taosMemoryMalloc(pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
+      memcpy((*pDst)->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
     }
   }
 

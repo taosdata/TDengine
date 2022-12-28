@@ -429,10 +429,10 @@ class TDTestCase:
         tdSql.checkRows(2)
 
         # nest query
-        tdSql.query(f"select  unique(c1) from (select _rowts , t1 ,c1 , tbname from  {dbname}.stb1 ) ")
+        tdSql.query(f"select  unique(c1) v from (select _rowts , t1 ,c1 , tbname from  {dbname}.stb1 ) order by v")
         tdSql.checkRows(11)
-        tdSql.checkData(0,0,6)
-        tdSql.checkData(10,0,3)
+        tdSql.checkData(1,0,0)
+        tdSql.checkData(10,0,9)
         tdSql.query(f"select  unique(t1) from (select _rowts , t1 , tbname from  {dbname}.stb1 )")
         tdSql.checkRows(2)
         tdSql.checkData(0,0,4)

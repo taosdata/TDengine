@@ -97,6 +97,7 @@ LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 
 #include <errno.h>
 #include <libproc.h>
+#include <sys/sysctl.h>
 
 #else
 
@@ -275,34 +276,34 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 #endif
 }
 
+
+
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
 #ifdef WINDOWS
   snprintf(releaseName, maxLen, "Windows");
   return 0;
 #elif defined(_TD_DARWIN_64)
-  char    line[1024];
-  size_t  size = 0;
-  int32_t code = -1;
+  char osversion[32];
+  size_t osversion_len = sizeof(osversion) - 1;
+  int osversion_name[] = { CTL_KERN, KERN_OSRELEASE };
 
-  TdFilePtr pFile = taosOpenFile("/etc/os-release", TD_FILE_READ | TD_FILE_STREAM);
-  if (pFile == NULL) return false;
-
-  while ((size = taosGetsFile(pFile, sizeof(line), line)) != -1) {
-    line[size - 1] = '\0';
-    if (strncmp(line, "PRETTY_NAME", 11) == 0) {
-      const char *p = strchr(line, '=') + 1;
-      if (*p == '"') {
-        p++;
-        line[size - 2] = 0;
-      }
-      tstrncpy(releaseName, p, maxLen);
-      code = 0;
-      break;
-    }
+  if (sysctl(osversion_name, 2, osversion, &osversion_len, NULL, 0) == -1) {
+    return -1;
   }
 
-  taosCloseFile(&pFile);
-  return code;
+  uint32_t major, minor;
+  if (sscanf(osversion, "%u.%u", &major, &minor) != 2) {
+      return -1;
+  }
+  if (major >= 20) {
+      major -= 9; // macOS 11 and newer
+      sprintf(releaseName, "macOS %u.%u", major, minor);
+  } else {
+      major -= 4; // macOS 10.1.1 and newer
+      sprintf(releaseName, "macOS 10.%d.%d", major, minor);
+  }
+
+  return 0;
 #else
   char    line[1024];
   size_t  size = 0;
@@ -352,6 +353,10 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   if (taosGetsCmd(pCmd, maxLen, cpuModel) > 0) {
     code = 0;
     done |= 1;
+  }
+  int endPos = strlen(cpuModel)-1;
+  if (cpuModel[endPos] == '\n') {
+    cpuModel[endPos] = '\0';
   }
   taosCloseCmd(&pCmd);
 
@@ -484,11 +489,11 @@ int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma) {
 #ifdef _TD_X86_
   // Since the compiler is not support avx/avx2 instructions, the global variables always need to be
   // set to be false
-#if __AVX__ || __AVX2__
-  tsSIMDEnable = true;
-#else
-  tsSIMDEnable = false;
-#endif
+//#if __AVX__ || __AVX2__
+//  tsSIMDBuiltins = true;
+//#else
+//  tsSIMDBuiltins = false;
+//#endif
 
   uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
 
@@ -617,14 +622,14 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
     return 0;
   } else {
     // printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    // terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 #elif defined(_TD_DARWIN_64)
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
     // printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    // terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   } else {
     diskSize->total = info.f_blocks * info.f_frsize;
@@ -635,7 +640,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
 #else
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    // terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   } else {
     diskSize->total = info.f_blocks * info.f_frsize;

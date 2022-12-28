@@ -533,7 +533,12 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 #### TIMETRUNCATE
 
 ```sql
-TIMETRUNCATE(expr, time_unit)
+TIMETRUNCATE(expr, time_unit [, ignore_timezone])
+
+ignore_timezone: {
+    0
+  | 1
+}
 ```
 
 **功能说明**：将时间戳按照指定时间单位 time_unit 进行截断。
@@ -549,6 +554,11 @@ TIMETRUNCATE(expr, time_unit)
           1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 - 输入包含不符合时间日期格式的字符串则返回 NULL。
+- 当使用 1d 作为时间单位对时间戳进行截断时， 可通过设置 ignore_timezone 参数指定返回结果的显示是否忽略客户端时区的影响。
+  例如客户端所配置时区为 UTC+0800, 则 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) 返回结果为 '2020-01-01 08:00:00'。
+  而使用 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) 设置忽略时区时，返回结果为 '2020-01-01 00:00:00'
+  ignore_timezone 如果忽略的话，则默认值为 1 。
+
 
 
 #### TIMEZONE
@@ -870,6 +880,7 @@ INTERP(expr)
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。
 - INTERP 只能在一个时间序列内进行插值，因此当作用于超级表时必须跟 partition by tbname 一起使用。
 - INTERP 可以与伪列 _irowts 一起使用，返回插值点所对应的时间戳(3.0.1.4版本以后支持)。
+- INTERP 可以与伪列 _isfilled 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(3.0.2.1版本以后支持)。
 
 ### LAST
 
@@ -1085,7 +1096,7 @@ ignore_negative: {
 
 ```sql
 DIFF(expr [, ignore_negative])
- 
+
 ignore_negative: {
     0
   | 1

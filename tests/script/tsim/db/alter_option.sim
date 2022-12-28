@@ -69,7 +69,7 @@ endi
 if $data4_db != 3 then  # replica
   return -1
 endi
-if $data5_db != off then  # strict
+if $data5_db != on then  # strict
   return -1
 endi
 if $data6_db != 345600m then  # duration

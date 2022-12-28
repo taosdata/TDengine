@@ -121,6 +121,7 @@ typedef struct {
 struct STQ {
   SVnode* pVnode;
   char*   path;
+  int64_t walLogLastVer;
 
   SRWLatch pushLock;
 
@@ -153,7 +154,8 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
 int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum);
 
 // tqExec
-int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp* pRsp);
+int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp);
+// int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp* pRsp);
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
 int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp);
 int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry);
@@ -181,7 +183,8 @@ int32_t         tqOffsetCommitFile(STqOffsetStore* pStore);
 
 // tqSink
 // void tqSinkToTableMerge(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
-void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
+// void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
+void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
 
 // tqOffset
 char*   tqOffsetBuildFName(const char* path, int32_t fVer);

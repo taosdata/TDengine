@@ -68,7 +68,7 @@ int32_t mndPerfsInitMeta(SHashObj *hash) {
 
 int32_t mndBuildPerfsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp) {
   if (NULL == pMnode->perfsMeta) {
-    terrno = TSDB_CODE_APP_NOT_READY;
+    terrno = TSDB_CODE_APP_ERROR;
     return -1;
   }
 
@@ -94,7 +94,7 @@ int32_t mndBuildPerfsTableSchema(SMnode *pMnode, const char *dbFName, const char
 
 int32_t mndBuildPerfsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp) {
   if (NULL == pMnode->perfsMeta) {
-    terrno = TSDB_CODE_APP_NOT_READY;
+    terrno = TSDB_CODE_APP_ERROR;
     return -1;
   }
 

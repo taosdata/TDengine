@@ -59,6 +59,7 @@ typedef enum {
   TSDB_OPTION_TIMEZONE,
   TSDB_OPTION_CONFIGDIR,
   TSDB_OPTION_SHELL_ACTIVITY_TIMER,
+  TSDB_OPTION_USE_ADAPTER,
   TSDB_MAX_OPTIONS
 } TSDB_OPTION;
 
@@ -149,7 +150,7 @@ DLL_EXPORT TAOS      *taos_connect(const char *ip, const char *user, const char 
 DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
 DLL_EXPORT void  taos_close(TAOS *taos);
 
-const char *taos_data_type(int type);
+DLL_EXPORT const char *taos_data_type(int type);
 
 DLL_EXPORT TAOS_STMT *taos_stmt_init(TAOS *taos);
 DLL_EXPORT TAOS_STMT *taos_stmt_init_with_reqid(TAOS *taos, int64_t reqid);
@@ -185,6 +186,7 @@ DLL_EXPORT void     taos_kill_query(TAOS *taos);
 DLL_EXPORT int      taos_field_count(TAOS_RES *res);
 DLL_EXPORT int      taos_num_fields(TAOS_RES *res);
 DLL_EXPORT int      taos_affected_rows(TAOS_RES *res);
+DLL_EXPORT int64_t  taos_affected_rows64(TAOS_RES *res);
 
 DLL_EXPORT TAOS_FIELD *taos_fetch_fields(TAOS_RES *res);
 DLL_EXPORT int         taos_select_db(TAOS *taos, const char *db);
@@ -217,7 +219,7 @@ DLL_EXPORT const void *taos_get_raw_block(TAOS_RES *res);
 DLL_EXPORT int taos_get_db_route_info(TAOS *taos, const char *db, TAOS_DB_ROUTE_INFO *dbInfo);
 DLL_EXPORT int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId);
 
-DLL_EXPORT int       taos_load_table_info(TAOS *taos, const char *tableNameList);
+DLL_EXPORT int taos_load_table_info(TAOS *taos, const char *tableNameList);
 
 /*  --------------------------schemaless INTERFACE------------------------------- */
 
@@ -228,13 +230,14 @@ DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len
                                                 int precision);
 DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows,
                                                            int protocol, int precision, int64_t reqid);
-DLL_EXPORT TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl);
+DLL_EXPORT TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
+                                                int32_t ttl);
 DLL_EXPORT TAOS_RES *taos_schemaless_insert_ttl_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol,
-                                                       int precision, int32_t ttl, int64_t reqid);
+                                                           int precision, int32_t ttl, int64_t reqid);
 DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
-                                                int precision, int32_t ttl);
+                                                    int precision, int32_t ttl);
 DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows,
-                                                           int protocol, int precision, int32_t ttl, int64_t reqid);
+                                                               int protocol, int precision, int32_t ttl, int64_t reqid);
 
 /* --------------------------TMQ INTERFACE------------------------------- */
 
@@ -307,7 +310,8 @@ DLL_EXPORT tmq_res_t   tmq_get_res_type(TAOS_RES *res);
 DLL_EXPORT int32_t     tmq_get_raw(TAOS_RES *res, tmq_raw_data *raw);
 DLL_EXPORT int32_t     tmq_write_raw(TAOS *taos, tmq_raw_data raw);
 DLL_EXPORT int         taos_write_raw_block(TAOS *taos, int numOfRows, char *pData, const char *tbname);
-DLL_EXPORT int         taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const char* tbname, TAOS_FIELD *fields, int numFields);
+DLL_EXPORT int         taos_write_raw_block_with_fields(TAOS *taos, int rows, char *pData, const char *tbname,
+                                                        TAOS_FIELD *fields, int numFields);
 DLL_EXPORT void        tmq_free_raw(tmq_raw_data raw);
 // Returning null means error. Returned result need to be freed by tmq_free_json_meta
 DLL_EXPORT char *tmq_get_json_meta(TAOS_RES *res);

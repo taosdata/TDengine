@@ -423,6 +423,8 @@ typedef struct SGroupKeyInfo {
     (_p).val = (_v);                \
   } while (0)
 
+static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst);
+
 bool functionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
   if (pResultInfo->initialized) {
     return false;
@@ -457,11 +459,12 @@ int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || pDBuf->ts > pSBuf->ts)) {
-    memcpy(pDBuf->buf, pSBuf->buf, bytes);
-    pDBuf->ts = pSBuf->ts;
-    pDResInfo->numOfRes = 1;
+  if (TSDB_CODE_SUCCESS == firstLastTransferInfoImpl(pSBuf, pDBuf, true)) {
+    pDBuf->hasResult = true;
   }
+
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
+  pDResInfo->isNullRes &= pSResInfo->isNullRes;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -501,7 +504,7 @@ static int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
    */
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
-  if (pInput->colDataSMAIsSet && pInput->totalRows == pInput->numOfRows) {
+  if (pInput->colDataSMAIsSet && pInput->totalRows == pInput->numOfRows && !IS_VAR_DATA_TYPE(pInputCol->info.type)) {
     numOfElem = pInput->numOfRows - pInput->pColumnDataAgg[0]->numOfNull;
     ASSERT(numOfElem >= 0);
   } else {
@@ -1274,17 +1277,8 @@ int32_t stddevCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SStddevRes*          pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
   int16_t              type = pDBuf->type == TSDB_DATA_TYPE_NULL ? pSBuf->type : pDBuf->type;
 
-  if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    pDBuf->isum += pSBuf->isum;
-    pDBuf->quadraticISum += pSBuf->quadraticISum;
-  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    pDBuf->usum += pSBuf->usum;
-    pDBuf->quadraticUSum += pSBuf->quadraticUSum;
-  } else {
-    pDBuf->dsum += pSBuf->dsum;
-    pDBuf->quadraticDSum += pSBuf->quadraticDSum;
-  }
-  pDBuf->count += pSBuf->count;
+  stddevTransferInfo(pSBuf, pDBuf);
+
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   pDResInfo->isNullRes &= pSResInfo->isNullRes;
   return TSDB_CODE_SUCCESS;
@@ -2001,6 +1995,22 @@ static FORCE_INLINE TSKEY getRowPTs(SColumnInfoData* pTsColInfo, int32_t rowInde
   return *(TSKEY*)colDataGetData(pTsColInfo, rowIndex);
 }
 
+static void prepareBuf(SqlFunctionCtx* pCtx) {
+  if (pCtx->subsidiaries.rowLen == 0) {
+    int32_t rowLen = 0;
+    for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
+      SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
+      rowLen += pc->pExpr->base.resSchema.bytes;
+    }
+
+    pCtx->subsidiaries.rowLen = rowLen + pCtx->subsidiaries.num * sizeof(bool);
+    pCtx->subsidiaries.buf = taosMemoryMalloc(pCtx->subsidiaries.rowLen);
+  }
+
+  ASSERT(pCtx->subsidiaries.buf != NULL);
+  ASSERT(pCtx->subsidiaries.rowLen > 0);
+}
+
 static void firstlastSaveTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SqlFunctionCtx* pCtx,
                                    SFirstLastRes* pInfo) {
   if (pCtx->subsidiaries.num <= 0) {
@@ -2009,8 +2019,6 @@ static void firstlastSaveTupleData(const SSDataBlock* pSrcBlock, int32_t rowInde
 
   if (!pInfo->hasResult) {
     pInfo->pos = saveTupleData(pCtx, rowIndex, pSrcBlock, NULL);
-    ASSERT(pCtx->subsidiaries.buf != NULL);
-    ASSERT(pCtx->subsidiaries.rowLen > 0);
   } else {
     updateTupleData(pCtx, rowIndex, pSrcBlock, &pInfo->pos);
   }
@@ -2289,16 +2297,15 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
-                                  int32_t rowIndex) {
+static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst) {
   if (pOutput->hasResult) {
     if (isFirst) {
       if (pInput->ts > pOutput->ts) {
-        return;
+        return TSDB_CODE_FAILED;
       }
     } else {
       if (pInput->ts < pOutput->ts) {
-        return;
+        return TSDB_CODE_FAILED;
       }
     }
   }
@@ -2308,9 +2315,15 @@ static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, S
   pOutput->bytes = pInput->bytes;
 
   memcpy(pOutput->buf, pInput->buf, pOutput->bytes);
-  firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pOutput);
+  return TSDB_CODE_SUCCESS;
+}
 
-  pOutput->hasResult = true;
+static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
+                                  int32_t rowIndex) {
+  if (TSDB_CODE_SUCCESS == firstLastTransferInfoImpl(pInput, pOutput, isFirst)) {
+    firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pOutput);
+    pOutput->hasResult = true;
+  }
 }
 
 static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuery) {
@@ -2378,7 +2391,6 @@ int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return 1;
 }
 
-// todo rewrite:
 int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   SFirstLastRes*       pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
@@ -2387,11 +2399,12 @@ int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || pDBuf->ts < pSBuf->ts)) {
-    memcpy(pDBuf->buf, pSBuf->buf, bytes);
-    pDBuf->ts = pSBuf->ts;
-    pDResInfo->numOfRes = 1;
+  if (TSDB_CODE_SUCCESS == firstLastTransferInfoImpl(pSBuf, pDBuf, false)) {
+    pDBuf->hasResult = true;
   }
+
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
+  pDResInfo->isNullRes &= pSResInfo->isNullRes;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2961,16 +2974,7 @@ static STuplePos doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf
 }
 
 STuplePos saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, const STupleKey* pKey) {
-  if (pCtx->subsidiaries.rowLen == 0) {
-    int32_t rowLen = 0;
-    for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
-      SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
-      rowLen += pc->pExpr->base.resSchema.bytes;
-    }
-
-    pCtx->subsidiaries.rowLen = rowLen + pCtx->subsidiaries.num * sizeof(bool);
-    pCtx->subsidiaries.buf = taosMemoryMalloc(pCtx->subsidiaries.rowLen);
-  }
+  prepareBuf(pCtx);
 
   char* buf = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf);
   return doSaveTupleData(&pCtx->saveHandle, buf, pCtx->subsidiaries.rowLen, pKey);
@@ -2990,6 +2994,8 @@ static int32_t doUpdateTupleData(SSerializeDataHandle* pHandle, const void* pBuf
 }
 
 int32_t updateTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
+  prepareBuf(pCtx);
+
   char* buf = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf);
   doUpdateTupleData(&pCtx->saveHandle, buf, pCtx->subsidiaries.rowLen, pPos);
   return TSDB_CODE_SUCCESS;
@@ -5293,7 +5299,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   int32_t len = sprintf(st + VARSTR_HEADER_SIZE,
                         "Total_Blocks=[%d] Total_Size=[%.2f Kb] Average_size=[%.2f Kb] Compression_Ratio=[%.2f %c]",
-                        pData->numOfBlocks, pData->totalSize / 1024.0, averageSize, compRatio, '%');
+                        pData->numOfBlocks, pData->totalSize / 1024.0, averageSize/1024.0, compRatio, '%');
 
   varDataSetLen(st, len);
   colDataAppend(pColInfo, row++, st, false);

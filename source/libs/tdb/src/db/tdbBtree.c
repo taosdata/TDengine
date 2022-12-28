@@ -69,7 +69,7 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
 static int tdbBtcMoveDownward(SBTC *pBtc);
 static int tdbBtcMoveUpward(SBTC *pBtc);
 
-int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr,
+int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr, TDB *pEnv,
                  SBTree **ppBt) {
   SBTree *pBt;
   int     ret;
@@ -106,22 +106,29 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
   if (pgno == 0) {
     // fetch page & insert into main db
     SPage *pPage;
-    TXN    txn;
-    tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+    TXN   *txn;
 
-    pPager->inTran = 1;
+    ret = tdbBegin(pEnv, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+    if (ret < 0) {
+      tdbOsFree(pBt);
+      return -1;
+    }
 
     SBtreeInitPageArg zArg;
     zArg.flags = 0x1 | 0x2;  // root leaf node;
     zArg.pBt = pBt;
-    ret = tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &zArg, &txn);
+    ret = tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &zArg, txn);
     if (ret < 0) {
+      tdbAbort(pEnv, txn);
+      tdbOsFree(pBt);
       return -1;
     }
 
     ret = tdbPagerWrite(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page since %s", terrstr());
+      tdbAbort(pEnv, txn);
+      tdbOsFree(pBt);
       return -1;
     }
 
@@ -130,18 +137,19 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
       pBt->info.nLevel = 1;
       pBt->info.nData = 0;
       pBt->tbname = (char *)tbname;
-      // ret = tdbTbInsert(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pgno, sizeof(SPgno), &txn);
-      ret = tdbTbInsert(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pBt->info, sizeof(pBt->info), &txn);
+
+      ret = tdbTbInsert(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pBt->info, sizeof(pBt->info), txn);
       if (ret < 0) {
+        tdbAbort(pEnv, txn);
+        tdbOsFree(pBt);
         return -1;
       }
     }
 
-    // tdbUnrefPage(pPage);
-    tdbPCacheRelease(pPager->pCache, pPage, &txn);
-    tdbCommit(pPager->pEnv, &txn);
-    tdbPostCommit(pPager->pEnv, &txn);
-    tdbTxnClose(&txn);
+    tdbPCacheRelease(pPager->pCache, pPage, txn);
+
+    tdbCommit(pPager->pEnv, txn);
+    tdbPostCommit(pPager->pEnv, txn);
   }
 
   ASSERT(pgno != 0);
@@ -195,7 +203,8 @@ int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, in
       btc.idx++;
     } else if (c == 0) {
       // dup key not allowed
-      ASSERT(0);
+      tdbError("unable to insert dup key. pKey: %p, kLen: %d, btc: %p, pTxn: %p", pKey, kLen, &btc, pTxn);
+      // ASSERT(0);
       return -1;
     }
   }
@@ -1533,10 +1542,21 @@ int tdbBtcOpen(SBTC *pBtc, SBTree *pBt, TXN *pTxn) {
   memset(&pBtc->coder, 0, sizeof(SCellDecoder));
 
   if (pTxn == NULL) {
-    pBtc->pTxn = &pBtc->txn;
-    tdbTxnOpen(pBtc->pTxn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0);
+    TXN *pTxn = tdbOsCalloc(1, sizeof(*pTxn));
+    if (!pTxn) {
+      return -1;
+    }
+
+    if (tdbTxnOpen(pTxn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
+      tdbOsFree(pTxn);
+      return -1;
+    }
+
+    pBtc->pTxn = pTxn;
+    pBtc->freeTxn = 1;
   } else {
     pBtc->pTxn = pTxn;
+    pBtc->freeTxn = 0;
   }
 
   return 0;
@@ -2228,6 +2248,10 @@ int tdbBtcClose(SBTC *pBtc) {
     tdbDebug("tdb btc/close decoder: %p pVal free: %p", &pBtc->coder, pBtc->coder.pVal);
 
     tdbFree(pBtc->coder.pVal);
+  }
+
+  if (pBtc->freeTxn) {
+    tdbTxnClose(pBtc->pTxn);
   }
 
   return 0;

@@ -1,5 +1,5 @@
-#include "syncTest.h"
 #include "syncBatch.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
