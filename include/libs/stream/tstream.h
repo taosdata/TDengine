@@ -392,21 +392,6 @@ static FORCE_INLINE void streamTaskInputFail(SStreamTask* pTask) {
   atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
 }
 
-static FORCE_INLINE int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock) {
-  if (pTask->outputType == TASK_OUTPUT__TABLE) {
-    pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
-    taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
-    taosFreeQitem(pBlock);
-  } else if (pTask->outputType == TASK_OUTPUT__SMA) {
-    pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
-    taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
-    taosFreeQitem(pBlock);
-  } else {
-    taosWriteQitem(pTask->outputQueue->queue, pBlock);
-  }
-  return 0;
-}
-
 typedef struct {
   SMsgHead head;
   int64_t  streamId;
@@ -584,6 +569,7 @@ int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
 
 int32_t streamTryExec(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
+int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock);
 
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 

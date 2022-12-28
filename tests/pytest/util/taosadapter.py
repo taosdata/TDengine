@@ -227,7 +227,7 @@ class TAdapter:
             time.sleep(0.1)
 
     def stop(self, force_kill=False):
-        signal = "-SIGKILL" if force_kill else "-SIGTERM"
+        signal = "-9" if force_kill else "-15"
 
         if  self.remoteIP:
             self.remote_exec(self.taosadapter_cfg_dict, "tAdapter.running=1\ntAdapter.stop()")
@@ -235,19 +235,16 @@ class TAdapter:
             return
 
         toBeKilled = "taosadapter"
-
+        
         if self.running != 0:
             psCmd = f"ps -ef|grep -w {toBeKilled}| grep -v grep | awk '{{print $2}}'"
-            # psCmd = f"pgrep {toBeKilled}"
-            processID = subprocess.check_output(
-                psCmd, shell=True)
-
-            while(processID):
-                killCmd = f"pkill {signal} {processID} > /dev/null "
+            # psCmd = f"pgrep {toBeKilled}"            
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            while(processID):                
+                killCmd = "kill %s %s > /dev/null 2>&1" % (signal, processID)                
                 os.system(killCmd)
                 time.sleep(1)
-                processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8")
+                processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()                
             if not platform.system().lower() == 'windows':
                 port = 6041
                 fuserCmd = f"fuser -k -n tcp {port} > /dev/null"

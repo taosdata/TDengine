@@ -112,7 +112,11 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
         ASSERT(0);
       }
       if (output == NULL) {
-        finished = true;
+        if (qStreamRecoverScanFinished(exec)) {
+          finished = true;
+        } else {
+          qSetStreamOpOpen(exec);
+        }
         break;
       }
 
@@ -121,7 +125,11 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       block.info.childId = pTask->selfChildId;
       taosArrayPush(pRes, &block);
 
-      if (++batchCnt >= batchSz) break;
+      batchCnt++;
+
+      qDebug("task %d scan exec block num %d, block limit %d", pTask->taskId, batchCnt, batchSz);
+
+      if (batchCnt >= batchSz) break;
     }
     if (taosArrayGetSize(pRes) == 0) {
       taosArrayDestroy(pRes);
@@ -139,6 +147,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
     streamTaskOutput(pTask, qRes);
 
     if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+      qDebug("task %d scan exec dispatch block num %d", pTask->taskId, batchCnt);
       streamDispatch(pTask);
     }
     if (finished) break;

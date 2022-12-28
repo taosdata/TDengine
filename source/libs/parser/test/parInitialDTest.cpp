@@ -99,7 +99,7 @@ TEST_F(ParserInitialDTest, dropDnode) {
     expect.force = force;
   };
 
-  auto setDropDnodeReqByEndpoint = [&](const char* pFqdn, int32_t port, bool force = false) {
+  auto setDropDnodeReqByEndpoint = [&](const char* pFqdn, int32_t port = tsServerPort, bool force = false) {
     strcpy(expect.fqdn, pFqdn);
     expect.port = port;
     expect.force = force;
@@ -130,6 +130,14 @@ TEST_F(ParserInitialDTest, dropDnode) {
 
   setDropDnodeReqByEndpoint("host2", 8030, true);
   run("DROP DNODE 'host2:8030' FORCE");
+  clearDropDnodeReq();
+
+  setDropDnodeReqByEndpoint("host1");
+  run("DROP DNODE host1");
+  clearDropDnodeReq();
+
+  setDropDnodeReqByEndpoint("host2", tsServerPort, true);
+  run("DROP DNODE host2 FORCE");
   clearDropDnodeReq();
 }
 
@@ -174,7 +182,21 @@ TEST_F(ParserInitialDTest, dropMnode) {
 TEST_F(ParserInitialDTest, dropQnode) {
   useDb("root", "test");
 
-  run("DROP qnode on dnode 1");
+  SMDropQnodeReq expect = {0};
+
+  auto setDropQnodeReq = [&](int32_t dnodeId) { expect.dnodeId = dnodeId; };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_DROP_QNODE_STMT);
+    SMDropQnodeReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS ==
+                tDeserializeSCreateDropMQSNodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(req.dnodeId, expect.dnodeId);
+  });
+
+  setDropQnodeReq(1);
+  run("DROP QNODE ON DNODE 1");
 }
 
 TEST_F(ParserInitialDTest, dropSnode) {
@@ -237,7 +259,20 @@ TEST_F(ParserInitialDTest, dropUser) {
   login("root");
   useDb("root", "test");
 
-  run("DROP user wxy");
+  SDropUserReq expect = {0};
+
+  auto setDropUserReq = [&](const char* pUser) { sprintf(expect.user, "%s", pUser); };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_DROP_USER_STMT);
+    SDropUserReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSDropUserReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(std::string(req.user), std::string(expect.user));
+  });
+
+  setDropUserReq("wxy");
+  run("DROP USER wxy");
 }
 
 }  // namespace ParserTest

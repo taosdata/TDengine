@@ -44,7 +44,6 @@ typedef struct SRSmaInfoItem SRSmaInfoItem;
 typedef struct SRSmaFS       SRSmaFS;
 typedef struct SQTaskFile    SQTaskFile;
 typedef struct SQTaskFReader SQTaskFReader;
-typedef struct SQTaskFWriter SQTaskFWriter;
 
 struct SSmaEnv {
   SRWLatch  lock;
@@ -85,21 +84,19 @@ struct STSmaStat {
 
 struct SQTaskFile {
   volatile int32_t nRef;
-  int32_t          padding;
+  int8_t           level;
+  int64_t          suid;
   int64_t          version;
   int64_t          size;
+  int64_t          mtime;
 };
 
 struct SQTaskFReader {
   SSma     *pSma;
+  int8_t    level;
+  int64_t   suid;
   int64_t   version;
   TdFilePtr pReadH;
-};
-struct SQTaskFWriter {
-  SSma     *pSma;
-  int64_t   version;
-  TdFilePtr pWriteH;
-  char     *fname;
 };
 
 struct SRSmaFS {
@@ -214,85 +211,40 @@ static FORCE_INLINE void tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
 
 // rsma
 void   *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
-int32_t tdRSmaFSOpen(SSma *pSma, int64_t version);
+int32_t tdRSmaFSOpen(SSma *pSma, int64_t version, int8_t rollback);
 void    tdRSmaFSClose(SRSmaFS *fs);
-int32_t tdRSmaFSRef(SSma *pSma, SRSmaStat *pStat, int64_t version);
-void    tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t version);
-int64_t tdRSmaFSMaxVer(SSma *pSma, SRSmaStat *pStat);
-int32_t tdRSmaFSUpsertQTaskFile(SRSmaFS *pFS, SQTaskFile *qTaskFile);
-int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer);
+int32_t tdRSmaFSPrepareCommit(SSma *pSma, SRSmaFS *pFSNew);
+int32_t tdRSmaFSCommit(SSma *pSma);
+int32_t tdRSmaFSFinishCommit(SSma *pSma);
+int32_t tdRSmaFSCopy(SSma *pSma, SRSmaFS *pFS);
+int32_t tdRSmaFSTakeSnapshot(SSma *pSma, SRSmaFS *pFS);
+int32_t tdRSmaFSRef(SSma *pSma, SRSmaFS *pFS);
+void    tdRSmaFSUnRef(SSma *pSma, SRSmaFS *pFS);
+int32_t tdRSmaFSUpsertQTaskFile(SSma *pSma, SRSmaFS *pFS, SQTaskFile *qTaskFile, int32_t nSize);
+int32_t tdRSmaFSRollback(SSma *pSma);
+int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer, int8_t rollback);
 int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
 int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type);
 int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
-int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer);
-void    tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t version, char *outputName);
-void    tdRSmaQTaskInfoGetFullName(int32_t vgId, int64_t version, const char *path, char *outputName);
+int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer, int8_t rollback);
+void    tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t suid, int8_t level, int64_t version, char *outputName);
+void    tdRSmaQTaskInfoGetFullName(int32_t vgId, int64_t suid, int8_t level, int64_t version, const char *path,
+                                   char *outputName);
 void    tdRSmaQTaskInfoGetFullPath(int32_t vgId, int8_t level, const char *path, char *outputName);
 void    tdRSmaQTaskInfoGetFullPathEx(int32_t vgId, tb_uid_t suid, int8_t level, const char *path, char *outputName);
 
 static FORCE_INLINE void tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
   int32_t ref = T_REF_INC(pRSmaInfo);
-  smaDebug("vgId:%d, ref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
+  smaTrace("vgId:%d, ref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
 }
 static FORCE_INLINE void tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
   int32_t ref = T_REF_DEC(pRSmaInfo);
-  smaDebug("vgId:%d, unref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
+  smaTrace("vgId:%d, unref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
 }
 
-// smaFileUtil ================
-
-#define TD_FILE_HEAD_SIZE 512
-
-typedef struct STFInfo STFInfo;
-typedef struct STFile  STFile;
-
-struct STFInfo {
-  // common fields
-  uint32_t magic;
-  uint32_t ftype;
-  uint32_t fver;
-  int64_t  fsize;
-};
-
-enum {
-  TD_FTYPE_RSMA_QTASKINFO = 0,
-};
-
-#if 0
-struct STFile {
-  uint8_t   state;
-  STFInfo   info;
-  char     *fname;
-  TdFilePtr pFile;
-};
-
-#define TD_TFILE_PFILE(tf)        ((tf)->pFile)
-#define TD_TFILE_OPENED(tf)       (TD_TFILE_PFILE(tf) != NULL)
-#define TD_TFILE_FULL_NAME(tf)    ((tf)->fname)
-#define TD_TFILE_OPENED(tf)       (TD_TFILE_PFILE(tf) != NULL)
-#define TD_TFILE_CLOSED(tf)       (!TD_TFILE_OPENED(tf))
-#define TD_TFILE_SET_CLOSED(f)    (TD_TFILE_PFILE(f) = NULL)
-#define TD_TFILE_SET_STATE(tf, s) ((tf)->state = (s))
-
-int32_t tdInitTFile(STFile *pTFile, const char *dname, const char *fname);
-int32_t tdCreateTFile(STFile *pTFile, bool updateHeader, int8_t fType);
-int32_t tdOpenTFile(STFile *pTFile, int flags);
-int64_t tdReadTFile(STFile *pTFile, void *buf, int64_t nbyte);
-int64_t tdSeekTFile(STFile *pTFile, int64_t offset, int whence);
-int64_t tdWriteTFile(STFile *pTFile, void *buf, int64_t nbyte);
-int64_t tdAppendTFile(STFile *pTFile, void *buf, int64_t nbyte, int64_t *offset);
-int64_t tdGetTFileSize(STFile *pTFile, int64_t *size);
-int32_t tdRemoveTFile(STFile *pTFile);
-int32_t tdLoadTFileHeader(STFile *pTFile, STFInfo *pInfo);
-int32_t tdUpdateTFileHeader(STFile *pTFile);
-void    tdUpdateTFileMagic(STFile *pTFile, void *pCksm);
-void    tdCloseTFile(STFile *pTFile);
-void    tdDestroyTFile(STFile *pTFile);
-#endif
-
-void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t version,
-                      char *outputName);
-void tdGetVndDirName(int32_t vgId, const char *pdname, const char *dname, bool endWithSep, char *outputName);
+void tdRSmaGetFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t suid,
+                       int8_t level, int64_t version, char *outputName);
+void tdRSmaGetDirName(int32_t vgId, const char *pdname, const char *dname, bool endWithSep, char *outputName);
 
 #ifdef __cplusplus
 }
