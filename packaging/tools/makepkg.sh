@@ -3,7 +3,7 @@
 # Generate tar.gz package for all os system
 
 set -e
-#set -x
+# set -x
 
 curr_dir=$(pwd)
 compile_dir=$1
@@ -74,14 +74,16 @@ else
   tdinsight_caches=""
   cd ${build_dir}/bin/ && \
     chmod +x TDinsight.sh
-  tdinsight_caches=$(./TDinsight.sh --download-only | xargs -i printf "${build_dir}/bin/{} ")
+  ./TDinsight.sh --download-only ||:
+#  tdinsight_caches=$(./TDinsight.sh --download-only | xargs -I printf "${build_dir}/bin/{} ")
   cd $orig_pwd
   echo "TDinsight caches: $tdinsight_caches"
 
   taostools_bin_files=" ${build_dir}/bin/taosdump \
       ${build_dir}/bin/taosBenchmark \
       ${build_dir}/bin/TDinsight.sh \
-      $tdinsight_caches"
+      ${build_dir}/bin/tdengine-datasource.zip \
+      ${build_dir}/bin/tdengine-datasource.zip.md5sum"
   [ -f ${build_dir}/bin/taosx ] && taosx_bin="${build_dir}/bin/taosx"
 
   bin_files="${build_dir}/bin/${serverName} \
@@ -96,8 +98,13 @@ else
       ${script_dir}/taosd-dump-cfg.gdb"
 fi
 
-lib_files="${build_dir}/lib/libtaos.so.${version}"
-wslib_files="${build_dir}/lib/libtaosws.so"
+if [ "$osType" == "Darwin" ]; then
+    lib_files="${build_dir}/lib/libtaos.${version}.dylib"
+    wslib_files="${build_dir}/lib/libtaosws.dylib"
+else
+    lib_files="${build_dir}/lib/libtaos.so.${version}"
+    wslib_files="${build_dir}/lib/libtaosws.so"
+fi
 header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/libs/function/taosudf.h"
 
 wsheader_files="${build_dir}/include/taosws.h"
@@ -226,7 +233,12 @@ if [ "$verMode" == "cloud" ]; then
 fi
 
 cd ${install_dir}
-tar -zcv -f ${tarName} * --remove-files || :
+if [ "$osType" != "Darwin" ]; then
+    tar -zcv -f ${tarName} * --remove-files || :
+else
+    tar -zcv -f ${tarName} * || :
+fi
+
 exitcode=$?
 if [ "$exitcode" != "0" ]; then
   echo "tar ${tarName} error !!!"
@@ -288,7 +300,7 @@ if [[ $dbName == "taos" ]]; then
   if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
     if [ -d "${web_dir}/admin" ] ; then
       mkdir -p ${install_dir}/share/
-      cp ${web_dir}/admin ${install_dir}/share/ -r
+      cp -Rfap ${web_dir}/admin ${install_dir}/share/
       cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
     else
       echo "directory not found for enterprise release: ${web_dir}/admin"
@@ -336,7 +348,8 @@ cd ${release_dir}
 #  install_dir has been distinguishes  cluster from  edege, so comments this code
 pkg_name=${install_dir}-${osType}-${cpuType}
 
-taostools_pkg_name=${taostools_install_dir}-${osType}-${cpuType}
+versionCompFirst=$(echo ${versionComp} | awk -F '.' '{print $1}')
+taostools_pkg_name=${taostools_install_dir}-${osType}-${cpuType}-comp${versionCompFirst}
 
 # if [ "$verMode" == "cluster" ]; then
 #   pkg_name=${install_dir}-${osType}-${cpuType}
@@ -362,7 +375,15 @@ if [ "$pagMode" == "lite" ]; then
   pkg_name=${pkg_name}-Lite
 fi
 
-tar -zcv -f "$(basename ${pkg_name}).tar.gz" "$(basename ${install_dir})" --remove-files || :
+
+if [ "$osType" != "Darwin" ]; then
+    tar -zcv -f "$(basename ${pkg_name}).tar.gz" "$(basename ${install_dir})" --remove-files || :
+else
+    tar -zcv -f "$(basename ${pkg_name}).tar.gz" "$(basename ${install_dir})" || :
+    rm -rf ${install_dir} ||:
+    ([ -d build-taoskeeper ] && rm -rf build-taoskeeper ) ||:
+fi
+
 exitcode=$?
 if [ "$exitcode" != "0" ]; then
   echo "tar ${pkg_name}.tar.gz error !!!"
@@ -371,7 +392,12 @@ fi
 
 if [ -n "${taostools_bin_files}" ]; then
     wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${taostools_install_dir}/bin/TDinsight.sh && echo "TDinsight.sh downloaded!"|| echo "failed to download TDinsight.sh"
-    tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" --remove-files || :
+    if [ "$osType" != "Darwin" ]; then
+        tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" --remove-files || :
+    else
+        tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" || :
+        rm -rf ${taostools_install_dir} ||:
+    fi
     exitcode=$?
     if [ "$exitcode" != "0" ]; then
         echo "tar ${taostools_pkg_name}.tar.gz error !!!"

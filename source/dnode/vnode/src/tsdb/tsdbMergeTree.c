@@ -32,13 +32,13 @@ struct SLDataIter {
 };
 
 SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols) {
-  SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(TSDB_DEFAULT_STT_FILE, sizeof(SSttBlockLoadInfo));
+  SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(TSDB_MAX_STT_TRIGGER, sizeof(SSttBlockLoadInfo));
   if (pLoadInfo == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  for (int32_t i = 0; i < TSDB_DEFAULT_STT_FILE; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_STT_TRIGGER; ++i) {
     pLoadInfo[i].blockIndex[0] = -1;
     pLoadInfo[i].blockIndex[1] = -1;
     pLoadInfo[i].currentLoadBlockIndex = 1;
@@ -63,7 +63,7 @@ SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList,
 }
 
 void resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
-  for (int32_t i = 0; i < TSDB_DEFAULT_STT_FILE; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_STT_TRIGGER; ++i) {
     pLoadInfo[i].currentLoadBlockIndex = 1;
     pLoadInfo[i].blockIndex[0] = -1;
     pLoadInfo[i].blockIndex[1] = -1;
@@ -77,14 +77,14 @@ void resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
 }
 
 void getLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, int64_t *blocks, double *el) {
-  for (int32_t i = 0; i < TSDB_DEFAULT_STT_FILE; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_STT_TRIGGER; ++i) {
     *el += pLoadInfo[i].elapsedTime;
     *blocks += pLoadInfo[i].loadBlocks;
   }
 }
 
 void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
-  for (int32_t i = 0; i < TSDB_DEFAULT_STT_FILE; ++i) {
+  for (int32_t i = 0; i < TSDB_MAX_STT_TRIGGER; ++i) {
     pLoadInfo[i].currentLoadBlockIndex = 1;
     pLoadInfo[i].blockIndex[0] = -1;
     pLoadInfo[i].blockIndex[1] = -1;
@@ -154,13 +154,13 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
 
   tsdbDebug("read last block, total load:%d, trigger by uid:%" PRIu64
             ", last file index:%d, last block index:%d, entry:%d, rows:%d, %p, elapsed time:%.2f ms, %s",
-            pInfo->loadBlocks, pIter->uid, pIter->iStt, pIter->iSttBlk, pInfo->currentLoadBlockIndex, pBlock->nRow, pBlock, el,
-            idStr);
+            pInfo->loadBlocks, pIter->uid, pIter->iStt, pIter->iSttBlk, pInfo->currentLoadBlockIndex, pBlock->nRow,
+            pBlock, el, idStr);
 
   pInfo->blockIndex[pInfo->currentLoadBlockIndex] = pIter->iSttBlk;
-  tsdbDebug("last block index list:%d, %d, %s", pInfo->blockIndex[0], pInfo->blockIndex[1], idStr);
-
   pIter->iRow = (pIter->backward) ? pInfo->blockData[pInfo->currentLoadBlockIndex].nRow : -1;
+
+  tsdbDebug("last block index list:%d, %d, rowIndex:%d %s", pInfo->blockIndex[0], pInfo->blockIndex[1], pIter->iRow, idStr);
   return &pInfo->blockData[pInfo->currentLoadBlockIndex];
 
 _exit:
@@ -419,6 +419,7 @@ static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
       pBlockData->aUid != NULL) {
     i = binarySearchForStartRowIndex((uint64_t *)pBlockData->aUid, pBlockData->nRow, pIter->uid, pIter->backward);
     if (i == -1) {
+      tsdbDebug("failed to find the data in pBlockData, uid:%"PRIu64" , %s", pIter->uid, idStr);
       pIter->iRow = -1;
       return;
     }
@@ -500,7 +501,12 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
 
     if (iBlockL != pIter->iSttBlk) {
       pBlockData = loadLastBlock(pIter, idStr);
-      pIter->iRow += step;
+      if (pBlockData == NULL) {
+        goto _exit;
+      }
+
+      // set start row index
+      pIter->iRow = pIter->backward? pBlockData->nRow-1:0;
     }
   }
 
@@ -552,16 +558,15 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
   }
 
   pMTree->idStr = idStr;
-  if (!pMTree->backward) { // asc
+  if (!pMTree->backward) {  // asc
     tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
-  } else { // desc
+  } else {  // desc
     tRBTreeCreate(&pMTree->rbt, tLDataIterDescCmprFn);
   }
   int32_t code = TSDB_CODE_SUCCESS;
 
   pMTree->pLoadInfo = pBlockLoadInfo;
   pMTree->destroyLoadInfo = destroyLoadInfo;
-  ASSERT(pMTree->pLoadInfo != NULL);
 
   for (int32_t i = 0; i < pFReader->pSet->nSttF; ++i) {  // open all last file
     struct SLDataIter *pIter = NULL;
