@@ -614,32 +614,52 @@ int32_t tsdbCompact(STsdb *pTsdb, int32_t flag) {
 
       nRow++;
 
-      // write block data if schema changed
-      // if ((pCompactor->bData.suid || pCompactor->bData.uid) &&
-      //     !TABLE_SAME_SCHEMA(pCompactor->bData.suid, pCompactor->bData.uid, pRowInfo->suid, pRowInfo->uid)) {
-      //   // TODO: write block data
-      //   ASSERT(0);
+      if (pCompactor->bData.suid == 0 && pCompactor->bData.uid == 0) {  // init the block data if not initialized yet
+        code = tBlockDataInit(&pCompactor->bData, &(TABLEID){.suid = pRowInfo->suid, .uid = pRowInfo->uid}, pTSchema,
+                              NULL, 0);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      } else {
+        if (pCompactor->bData.suid != pRowInfo->suid) {  // not same super table
+          if (pCompactor->bData.nRow < pCompactor->minRows) {
+            // TODO: write block data to .stt file, need to check if nRow is 0
+            tBlockDataClear(&pCompactor->bData);
+          } else {
+            // TODO: write block data to .data file, need to check if nRow is 0
+            tBlockDataClear(&pCompactor->bData);
+          }
 
-      //   // set block data not initialized
-      //   tBlockDataReset(&pCompactor->bData);
-      // }
+          code = tBlockDataInit(&pCompactor->bData, &(TABLEID){.suid = pRowInfo->suid, .uid = pRowInfo->uid}, pTSchema,
+                                NULL, 0);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        } else if (pCompactor->bData.uid != pRowInfo->uid) {
+          if (pRowInfo->suid) {  // different child table
+            if (pCompactor->bData.nRow > pCompactor->minRows) {
+              // TODO
+            }
+          } else {  // different normal table
+            if (pCompactor->bData.nRow < pCompactor->minRows) {
+              // TODO: write data to .stt file, need to check if nRow is 0
+              tBlockDataClear(&pCompactor->bData);
+            } else {
+              // TODO: write data to .data file, need to check if nRow is 0
+              tBlockDataClear(&pCompactor->bData);
+            }
 
-      // // init the block data if not initialized yet
-      // if (pCompactor->bData.suid == 0 && pCompactor->bData.uid == 0) {
-      //   code = tBlockDataInit(&pCompactor->bData, &(TABLEID){.suid = pRowInfo->suid, .uid = pRowInfo->uid}, pTSchema,
-      //                         NULL, 0);
-      //   TSDB_CHECK_CODE(code, lino, _exit);
-      // }
+            code = tBlockDataInit(&pCompactor->bData, &(TABLEID){.suid = pRowInfo->suid, .uid = pRowInfo->uid},
+                                  pTSchema, NULL, 0);
+            TSDB_CHECK_CODE(code, lino, _exit);
+          }
+        }
+      }
 
-      // // append row to block data
-      // code = tBlockDataAppendRow(&pCompactor->bData, &pRowInfo->row, pTSchema, pRowInfo->uid);
-      // TSDB_CHECK_CODE(code, lino, _exit);
+      // append row to block data
+      code = tBlockDataAppendRow(&pCompactor->bData, &pRowInfo->row, pTSchema, pRowInfo->uid);
+      TSDB_CHECK_CODE(code, lino, _exit);
 
-      // // check if block data is full
-      // if (pCompactor->bData.nRow >= pCompactor->maxRows) {
-      //   // TODO: write block data
-      //   ASSERT(0);
-      // }
+      // check if block data is full
+      if (pCompactor->bData.nRow >= pCompactor->maxRows) {
+        tBlockDataClear(&pCompactor->bData);
+      }
 
       // iterate to next row
       code = tsdbCompactNextRow(pCompactor);

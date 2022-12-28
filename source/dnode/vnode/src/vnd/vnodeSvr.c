@@ -301,11 +301,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       vnodeProcessAlterConfigReq(pVnode, version, pReq, len, pRsp);
       break;
     case TDMT_VND_COMMIT:
-#if 0
       vnodeSyncCommit(pVnode);
-#else
-      vnodeAsyncCompact(pVnode);
-#endif
       vnodeBegin(pVnode);
       goto _exit;
     case TDMT_VND_COMPACT:
@@ -1276,10 +1272,8 @@ static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t version, void
   vInfo("vgId:%d, compact msg will be processed, db:%s dbUid:%" PRId64 " compactStartTime:%" PRId64, TD_VID(pVnode),
         req.db, req.dbUid, req.compactStartTime);
 
-#if 0
   vnodeAsyncCompact(pVnode);
   vnodeBegin(pVnode);
-#endif
 
   return 0;
 }
