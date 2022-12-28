@@ -1830,8 +1830,8 @@ int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t 
     convertDataBlockToScalarParm(&resultBlock, output);
     taosArrayDestroy(resultBlock.pDataBlock);
   }
-
-  blockDataCleanup(&inputBlock);
+  
+  blockDataFreeRes(&inputBlock);
   return err;
 }
 
