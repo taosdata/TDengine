@@ -301,7 +301,7 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
 
 
 
-#define CHECK_LEADER(n) (fields[n].type == TSDB_DATA_TYPE_VARCHAR && strncasecmp(row[n], "leader", varDataLen((char *)row[i] - VARSTR_HEADER_SIZE)) == 0)
+#define CHECK_LEADER(n) (row[n] && (fields[n].type == TSDB_DATA_TYPE_VARCHAR && strncasecmp(row[n], "leader", varDataLen((char *)row[n] - VARSTR_HEADER_SIZE)) == 0))
 // on this row, if have leader return true else return false
 bool existLeaderRole(TAOS_ROW row, TAOS_FIELD* fields, int num_fields) {
   // vgroup_id | db_name | tables | v1_dnode | v1_status | v2_dnode | v2_status | v3_dnode | v3_status | v4_dnode |
