@@ -113,8 +113,8 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
   pHdr->size = nData;
   memcpy(pHdr->data, pData, nData);
 
-  metaInfo("vgId:%d, vnode snapshot meta read data, version:%" PRId64 " uid:%" PRId64 " nData:%d",
-           TD_VID(pReader->pMeta->pVnode), key.version, key.uid, nData);
+  metaDebug("vgId:%d, vnode snapshot meta read data, version:%" PRId64 " uid:%" PRId64 " blockLen:%d",
+            TD_VID(pReader->pMeta->pVnode), key.version, key.uid, nData);
 
 _exit:
   return code;
