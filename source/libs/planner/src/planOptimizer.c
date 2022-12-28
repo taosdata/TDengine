@@ -1570,6 +1570,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       }
     }
     NODES_DESTORY_LIST(pAgg->pGroupKeys);
+    pAgg->hasGroupKeyOptimized = true;
     if (TSDB_CODE_SUCCESS == code && start >= 0) {
       code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, start, pAgg);
     }
