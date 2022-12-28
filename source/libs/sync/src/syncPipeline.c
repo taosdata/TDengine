@@ -45,7 +45,7 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
 
   if (index - pBuf->startIndex >= pBuf->size) {
     sError("vgId:%d, failed to append due to sync log buffer full. index:%" PRId64 "", pNode->vgId, index);
-    goto _out;
+    goto _err;
   }
 
   ASSERT(index == pBuf->endIndex);
@@ -66,9 +66,8 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   taosThreadMutexUnlock(&pBuf->mutex);
   return 0;
 
-_out:
+_err:
   syncLogBufferValidate(pBuf);
-  syncEntryDestroy(pEntry);
   taosThreadMutexUnlock(&pBuf->mutex);
   return -1;
 }
