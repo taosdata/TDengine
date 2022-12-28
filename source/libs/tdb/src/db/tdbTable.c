@@ -105,8 +105,6 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
 
 #endif
 
-  ASSERT(pPager != NULL);
-
   if (rollback) {
     tdbPagerRollback(pPager);
   } else {
