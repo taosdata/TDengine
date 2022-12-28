@@ -1829,7 +1829,7 @@ int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t 
     taosArrayDestroy(resultBlock.pDataBlock);
   }
 
-  taosArrayDestroy(inputBlock.pDataBlock);
+  blockDataCleanup(&inputBlock);
   return err;
 }
 
