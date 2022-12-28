@@ -16,6 +16,11 @@
 #ifndef _TD_OS_SYSTEM_H_
 #define _TD_OS_SYSTEM_H_
 
+#ifdef _ALPINE
+#define UNW_LOCAL_ONLY
+#include <libunwind.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -46,7 +51,30 @@ void    taosSetTerminalMode();
 int32_t taosGetOldTerminalMode();
 void    taosResetTerminalMode();
 
-#if !defined(WINDOWS) && !defined(_ALPINE)
+#if defined(_ALPINE)
+
+#define taosPrintTrace(flags, level, dflag)                                                                       \
+  {                                                                                                               \
+    unw_cursor_t  cursor;                                                                                         \
+    unw_context_t context;                                                                                        \
+                                                                                                                  \
+    unw_getcontext(&context);                                                                                     \
+    unw_init_local(&cursor, &context);                                                                            \
+                                                                                                                  \
+    while (unw_step(&cursor) > 0) {                                                                               \
+      unw_word_t offset, pc;                                                                                      \
+      char       fname[64];                                                                                       \
+                                                                                                                  \
+      unw_get_reg(&cursor, UNW_REG_IP, &pc);                                                                      \
+                                                                                                                  \
+      fname[0] = '\0';                                                                                            \
+      (void)unw_get_proc_name(&cursor, fname, sizeof(fname), &offset);                                            \
+                                                                                                                  \
+      taosPrintLog(flags, level, dflag, "0x%lx : (%s+0x%lx) [0x%lx]\n", (long)pc, fname, (long)offset, (long)pc); \
+    }                                                                                                             \
+  }
+
+#elif !defined(WINDOWS)
 #define taosPrintTrace(flags, level, dflag)                                \
   {                                                                        \
     void*   array[100];                                                    \
