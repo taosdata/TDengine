@@ -841,36 +841,40 @@ int32_t convertScalarParamToDataBlock(SScalarParam *input, int32_t numOfCols, SS
   for (int32_t i = 0; i < numOfCols; ++i) {
     numOfRows = (input[i].numOfRows > numOfRows) ? input[i].numOfRows : numOfRows;
   }
-  output->info.rows = numOfRows;
-  output->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    if ((input+i)->numOfRows < numOfRows) {
-      SColumnInfoData* pColInfoData = (input+i)->columnData;
-      int32_t startRow = (input+i)->numOfRows;
-      int32_t expandRows = numOfRows - startRow;
-      colInfoDataEnsureCapacity(pColInfoData, numOfRows, false);
+
+  // create the basic block info structure
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pInfo = input[i].columnData;
+    SColumnInfoData d = {0};
+    d.info = pInfo->info;
+
+    blockDataAppendColInfo(output, &d);
+  }
+
+  blockDataEnsureCapacity(output, numOfRows);
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pDest = taosArrayGet(output->pDataBlock, i);
+
+    SColumnInfoData* pColInfoData = input[i].columnData;
+    colDataAssign(pDest, pColInfoData, input[i].numOfRows, &output->info);
+
+    if (input[i].numOfRows < numOfRows) {
+      int32_t startRow = input[i].numOfRows;
+      int expandRows = numOfRows - startRow;
       bool isNull = colDataIsNull_s(pColInfoData, (input+i)->numOfRows - 1);
       if (isNull) {
-        colDataAppendNNULL(pColInfoData, startRow, expandRows);
+        colDataAppendNNULL(pDest, startRow, expandRows);
       } else {
         char* src = colDataGetData(pColInfoData, (input + i)->numOfRows - 1);
-        int32_t bytes = pColInfoData->info.bytes;
-        char* data = taosMemoryMalloc(bytes);
-        memcpy(data, src, bytes);
         for (int j = 0; j < expandRows; ++j) {
-          colDataAppend(pColInfoData, startRow+j, data, false);
+          colDataAppend(pDest, startRow+j, src, false);
         }
         //colDataAppendNItems(pColInfoData, startRow, data, expandRows);
-        taosMemoryFree(data);
       }
     }
-
-    taosArrayPush(output->pDataBlock, (input + i)->columnData);
-
-    if (IS_VAR_DATA_TYPE((input + i)->columnData->info.type)) {
-      output->info.hasVarCol = true;
-    }
   }
+
   return 0;
 }
 
