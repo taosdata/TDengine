@@ -90,6 +90,7 @@
 //
 
 int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
+  ASSERT(false && "deprecated");
   if (ths->state != TAOS_SYNC_STATE_FOLLOWER) {
     sNTrace(ths, "can not do follower commit");
     return -1;

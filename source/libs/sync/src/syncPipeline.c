@@ -265,11 +265,18 @@ int32_t syncLogBufferReInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   return ret;
 }
 
-FORCE_INLINE SyncTerm syncLogBufferGetLastMatchTerm(SSyncLogBuffer* pBuf) {
+FORCE_INLINE SyncTerm syncLogBufferGetLastMatchTermWithoutLock(SSyncLogBuffer* pBuf) {
   SyncIndex       index = pBuf->matchIndex;
   SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
   ASSERT(pEntry != NULL);
   return pEntry->term;
+}
+
+SyncTerm syncLogBufferGetLastMatchTerm(SSyncLogBuffer* pBuf) {
+  taosThreadMutexLock(&pBuf->mutex);
+  SyncTerm term = syncLogBufferGetLastMatchTermWithoutLock(pBuf);
+  taosThreadMutexUnlock(&pBuf->mutex);
+  return term;
 }
 
 int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevTerm) {
@@ -278,7 +285,7 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   int32_t   ret = -1;
   SyncIndex index = pEntry->index;
   SyncIndex prevIndex = pEntry->index - 1;
-  SyncTerm  lastMatchTerm = syncLogBufferGetLastMatchTerm(pBuf);
+  SyncTerm        lastMatchTerm = syncLogBufferGetLastMatchTermWithoutLock(pBuf);
   SSyncRaftEntry* pExist = NULL;
   bool            inBuf = true;
 

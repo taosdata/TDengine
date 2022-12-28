@@ -295,6 +295,7 @@ void walAlignVersions(SWal* pWal) {
   // reset commitVer and appliedVer
   pWal->vers.commitVer = pWal->vers.snapshotVer;
   pWal->vers.appliedVer = pWal->vers.snapshotVer;
+  wInfo("vgId:%d, reset commitVer to %" PRId64, pWal->cfg.vgId, pWal->vers.commitVer);
 }
 
 bool walLogEntriesComplete(const SWal* pWal) {
