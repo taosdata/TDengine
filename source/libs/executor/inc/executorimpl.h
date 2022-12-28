@@ -126,12 +126,14 @@ enum {
 
 typedef struct {
   // TODO remove prepareStatus
-  STqOffsetVal      prepareStatus;  // for tmq
-  STqOffsetVal      lastStatus;     // for tmq
-  SMqMetaRsp        metaRsp;        // for tmq fetching meta
-  int8_t            returned;
-  int64_t           snapshotVer;
-  const SSubmitReq* pReq;
+  STqOffsetVal prepareStatus;  // for tmq
+  STqOffsetVal lastStatus;     // for tmq
+  SMqMetaRsp   metaRsp;        // for tmq fetching meta
+  int8_t       returned;
+  int64_t      snapshotVer;
+  // const SSubmitReq* pReq;
+
+  SPackedData submit;
 
   SSchemaWrapper*     schema;
   char                tbName[TSDB_TABLE_NAME_LEN];
@@ -355,6 +357,7 @@ typedef struct STableMergeScanInfo {
   SLimitInfo      limitInfo;
   int64_t         numOfRows;
   SScanInfo       scanInfo;
+  int32_t         scanTimes;
   SSDataBlock*    pResBlock;
   SSampleExecInfo sample;  // sample execution info
   SSortExecInfo   sortExecInfo;

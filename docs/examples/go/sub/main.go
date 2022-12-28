@@ -24,7 +24,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	_, err = db.Exec("create topic if not exists example_tmq_topic with meta as DATABASE example_tmq")
+	_, err = db.Exec("create topic if not exists example_tmq_topic as DATABASE example_tmq")
 	if err != nil {
 		panic(err)
 	}
@@ -83,20 +83,6 @@ func main() {
 	_, err = db.Exec("create table example_tmq.t1 (ts timestamp,v int)")
 	if err != nil {
 		panic(err)
-	}
-	for {
-		result, err := consumer.Poll(time.Second)
-		if err != nil {
-			panic(err)
-		}
-		if result.Type != common.TMQ_RES_TABLE_META {
-			panic("want message type 2 got " + strconv.Itoa(int(result.Type)))
-		}
-		data, _ := json.Marshal(result.Meta)
-		fmt.Println(string(data))
-		consumer.Commit(context.Background(), result.Message)
-		consumer.FreeMessage(result.Message)
-		break
 	}
 	_, err = db.Exec("insert into example_tmq.t1 values(now,1)")
 	if err != nil {

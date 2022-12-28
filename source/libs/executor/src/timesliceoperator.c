@@ -177,6 +177,10 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
     if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
       colDataAppend(pDst, rows, (char*)&pSliceInfo->current, false);
       continue;
+    } else if (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type)) {
+      bool isFilled = true;
+      colDataAppend(pDst, pResBlock->info.rows, (char*)&isFilled, false);
+      continue;
     }
 
     int32_t srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
@@ -288,6 +292,9 @@ static void addCurrentRowToResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp*
 
     if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
       colDataAppend(pDst, pResBlock->info.rows, (char*)&pSliceInfo->current, false);
+    } else if (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type)) {
+      bool isFilled = false;
+      colDataAppend(pDst, pResBlock->info.rows, (char*)&isFilled, false);
     } else {
       int32_t          srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
       SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, srcSlot);
