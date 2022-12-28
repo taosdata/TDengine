@@ -523,7 +523,7 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
         dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints, rowOffset);
       } else if (rowOffset == -1) { 
         // for update 2
-        if (!isNull(value, pDataCol->type)) {
+        if (value && !isNull(value, pDataCol->type)) {
           dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints, rowOffset);
         }
       } else {
