@@ -1466,7 +1466,7 @@ static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeMod
 }
 
 static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  destroyBoundColInfo(&pCxt->tags);
+  insDestroyBoundColInfo(&pCxt->tags);
   taosMemoryFreeClear(pStmt->pTableMeta);
   tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
   taosMemoryFreeClear(pStmt->pCreateTblReq);
@@ -1527,7 +1527,7 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
 }
 
 static int32_t setStmtInfo(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  SParsedDataColInfo* tags = taosMemoryMalloc(sizeof(pCxt->tags));
+  SBoundColInfo* tags = taosMemoryMalloc(sizeof(pCxt->tags));
   if (NULL == tags) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -1937,6 +1937,6 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
       QUERY_EXEC_STAGE_SCHEDULE == (*pQuery)->execStage) {
     code = setRefreshMate(*pQuery);
   }
-  destroyBoundColInfo(&context.tags);
+  insDestroyBoundColInfo(&context.tags);
   return code;
 }
