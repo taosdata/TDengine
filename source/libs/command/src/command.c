@@ -21,6 +21,7 @@
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tgrant.h"
+#include "taosdef.h"
 
 extern SConfig* tsCfg;
 
@@ -303,10 +304,10 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
 
 #define CHECK_LEADER(n) (row[n] && (fields[n].type == TSDB_DATA_TYPE_VARCHAR && strncasecmp(row[n], "leader", varDataLen((char *)row[n] - VARSTR_HEADER_SIZE)) == 0))
 // on this row, if have leader return true else return false
-bool existLeaderRole(TAOS_ROW row, TAOS_FIELD* fields, int num_fields) {
+bool existLeaderRole(TAOS_ROW row, TAOS_FIELD* fields, int nFields) {
   // vgroup_id | db_name | tables | v1_dnode | v1_status | v2_dnode | v2_status | v3_dnode | v3_status | v4_dnode |
   // v4_status |  cacheload  | tsma |
-  if (num_fields != 13) {
+  if (nFields != 13) {
     return false;
   }
 
@@ -320,11 +321,11 @@ bool existLeaderRole(TAOS_ROW row, TAOS_FIELD* fields, int num_fields) {
 
 // get db alive status, return 1 is alive else return 0
 int32_t getAliveStatusFromApi(int64_t* pConnId, char* dbName) {
-  char  sql[256] = "select * from information_schema.ins_vgroups";
-  
+  char sql[128 + TSDB_DB_NAME_LEN] = "select * from information_schema.ins_vgroups";
+
   // filter with db name
-  if(dbName && dbName[0] !=0) {
-    char  filter[64] = "";
+  if (dbName && dbName[0] != 0) {
+    char filter[64 + TSDB_DB_NAME_LEN] = "";
     sprintf(filter, " where db_name='%s' ;", dbName);
     strcat(sql, filter);
   }
@@ -336,23 +337,28 @@ int32_t getAliveStatusFromApi(int64_t* pConnId, char* dbName) {
   }
 
   TAOS_ROW    row = NULL;
-  TAOS_FIELD* pFields = taos_fetch_fields(res);
-  int32_t     numOfFields = taos_num_fields(res);
-  int32_t     status = 1;
+  TAOS_FIELD* fields = taos_fetch_fields(res);
+  int32_t     nFields = taos_num_fields(res);
+  int32_t     nAvailble = 0;
+  int32_t     nUnAvailble = 0;
 
   while ((row = taos_fetch_row(res)) != NULL) {
-    char    str[512] = {0};
-    int32_t code = taos_print_row(str, row, pFields, numOfFields);
-    if (!existLeaderRole(row, pFields, numOfFields)) {
-      status = 0;
-      break;
+    if (existLeaderRole(row, fields, nFields)) {
+      nAvailble++;
+    } else {
+      nUnAvailble++;
     }
   }
-
   taos_free_result(res);
-  return status;
-}
 
+  if (nAvailble + nUnAvailble == 0 || nUnAvailble == 0) {
+    return SHOW_STATUS_AVAILABLE;
+  } else if (nAvailble > 0 && nUnAvailble > 0) {
+    return SHOW_STATUS_HALF_AVAILABLE;
+  } else {
+    return SHOW_STATUS_NOT_AVAILABLE;
+  }
+}
 
 static void setAliveResultIntoDataBlock(int64_t* pConnId, SSDataBlock* pBlock, char* dbName) {
   blockDataEnsureCapacity(pBlock, 1);
