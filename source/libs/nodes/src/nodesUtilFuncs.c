@@ -832,7 +832,8 @@ void nodesDestroyNode(SNode* pNode) {
       if (pStmt->freeArrayFunc) {
         pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
       }
-      tdDestroySVCreateTbReq(&pStmt->createTblReq);
+      tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
+      taosMemoryFreeClear(pStmt->pCreateTblReq);
       taosCloseFile(&pStmt->fp);
       break;
     }
