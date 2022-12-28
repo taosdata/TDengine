@@ -113,8 +113,8 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
   pHdr->size = nData;
   memcpy(pHdr->data, pData, nData);
 
-  metaInfo("vgId:%d, vnode snapshot meta read data, version:%" PRId64 " uid:%" PRId64 " nData:%d",
-           TD_VID(pReader->pMeta->pVnode), key.version, key.uid, nData);
+  metaDebug("vgId:%d, vnode snapshot meta read data, version:%" PRId64 " uid:%" PRId64 " blockLen:%d",
+            TD_VID(pReader->pMeta->pVnode), key.version, key.uid, nData);
 
 _exit:
   return code;
@@ -145,7 +145,7 @@ int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWr
   pWriter->sver = sver;
   pWriter->ever = ever;
 
-  metaBegin(pMeta, 1);
+  metaBegin(pMeta, META_BEGIN_HEAP_NIL);
 
   *ppWriter = pWriter;
   return code;
@@ -161,7 +161,11 @@ int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback) {
   SMetaSnapWriter* pWriter = *ppWriter;
 
   if (rollback) {
-    ASSERT(0);
+    metaInfo("vgId:%d, meta snapshot writer close and rollback start ", TD_VID(pWriter->pMeta->pVnode));
+    code = metaAbort(pWriter->pMeta);
+    metaInfo("vgId:%d, meta snapshot writer close and rollback finished, code:0x%x", TD_VID(pWriter->pMeta->pVnode),
+             code);
+    if (code) goto _err;
   } else {
     code = metaCommit(pWriter->pMeta, pWriter->pMeta->txn);
     if (code) goto _err;

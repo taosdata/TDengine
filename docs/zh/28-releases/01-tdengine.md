@@ -10,6 +10,14 @@ TDengine 2.x 各版本安装包请访问[这里](https://www.taosdata.com/all-do
 
 import Release from "/components/ReleaseV3";
 
+## 3.0.2.2
+
+<Release type="tdengine" version="3.0.2.2" />
+
+## 3.0.2.1
+
+<Release type="tdengine" version="3.0.2.1" />
+
 ## 3.0.2.0
 
 <Release type="tdengine" version="3.0.2.0" />

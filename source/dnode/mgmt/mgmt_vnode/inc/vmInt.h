@@ -38,6 +38,8 @@ typedef struct SVnodeMgmt {
   TdThreadRwlock lock;
   SVnodesStat    state;
   STfs          *pTfs;
+  TdThread       thread;
+  bool           stop;
 } SVnodeMgmt;
 
 typedef struct {

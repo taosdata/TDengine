@@ -189,12 +189,13 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_COLUMNS 4096
 #define TSDB_MIN_COLUMNS 2  // PRIMARY COLUMN(timestamp) + other columns
 
-#define TSDB_NODE_NAME_LEN  64
-#define TSDB_TABLE_NAME_LEN 193  // it is a null-terminated string
-#define TSDB_TOPIC_NAME_LEN 193  // it is a null-terminated string
-#define TSDB_CGROUP_LEN     193  // it is a null-terminated string
-#define TSDB_DB_NAME_LEN    65
-#define TSDB_DB_FNAME_LEN   (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_NODE_NAME_LEN   64
+#define TSDB_TABLE_NAME_LEN  193                                // it is a null-terminated string
+#define TSDB_TOPIC_NAME_LEN  193                                // it is a null-terminated string
+#define TSDB_CGROUP_LEN      193                                // it is a null-terminated string
+#define TSDB_USER_CGROUP_LEN (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
+#define TSDB_DB_NAME_LEN     65
+#define TSDB_DB_FNAME_LEN    (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 
 #define TSDB_FUNC_NAME_LEN       65
 #define TSDB_FUNC_COMMENT_LEN    1024 * 1024
@@ -254,7 +255,7 @@ typedef enum ELogicConditionType {
 #define TSDB_EP_LEN             (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN       16
 #define TSDB_FILENAME_LEN       128
-#define TSDB_SHOW_SQL_LEN       1024
+#define TSDB_SHOW_SQL_LEN       2048
 #define TSDB_SLOW_QUERY_SQL_LEN 512
 #define TSDB_SHOW_SUBQUERY_LEN  1000
 
@@ -337,7 +338,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_STRICT_ON_STR           "on"
 #define TSDB_DB_STRICT_OFF              0
 #define TSDB_DB_STRICT_ON               1
-#define TSDB_DEFAULT_DB_STRICT          TSDB_DB_STRICT_OFF
+#define TSDB_DEFAULT_DB_STRICT          TSDB_DB_STRICT_ON
 #define TSDB_CACHE_MODEL_STR_LEN        sizeof(TSDB_CACHE_MODEL_LAST_VALUE_STR)
 #define TSDB_CACHE_MODEL_NONE_STR       "none"
 #define TSDB_CACHE_MODEL_LAST_ROW_STR   "last_row"
@@ -496,6 +497,9 @@ enum {
 
 // sort page size by default
 #define DEFAULT_PAGESIZE 4096
+
+#define VNODE_TIMEOUT_SEC 60
+#define MNODE_TIMEOUT_SEC 10
 
 #ifdef __cplusplus
 }

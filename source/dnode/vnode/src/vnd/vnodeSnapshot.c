@@ -21,6 +21,8 @@ struct SVSnapReader {
   int64_t sver;
   int64_t ever;
   int64_t index;
+  // config
+  int8_t cfgDone;
   // meta
   int8_t           metaDone;
   SMetaSnapReader *pMetaReader;
@@ -65,9 +67,8 @@ _err:
   return code;
 }
 
-int32_t vnodeSnapReaderClose(SVSnapReader *pReader) {
-  int32_t code = 0;
-
+void vnodeSnapReaderClose(SVSnapReader *pReader) {
+  vInfo("vgId:%d, close vnode snapshot reader", TD_VID(pReader->pVnode));
   if (pReader->pRsmaReader) {
     rsmaSnapReaderClose(&pReader->pRsmaReader);
   }
@@ -80,13 +81,58 @@ int32_t vnodeSnapReaderClose(SVSnapReader *pReader) {
     metaSnapReaderClose(&pReader->pMetaReader);
   }
 
-  vInfo("vgId:%d, vnode snapshot reader closed", TD_VID(pReader->pVnode));
   taosMemoryFree(pReader);
-  return code;
 }
 
 int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) {
   int32_t code = 0;
+
+  // CONFIG ==============
+  // FIXME: if commit multiple times and the config changed?
+  if (!pReader->cfgDone) {
+    char fName[TSDB_FILENAME_LEN];
+    if (pReader->pVnode->pTfs) {
+      snprintf(fName, TSDB_FILENAME_LEN, "%s%s%s%s%s", tfsGetPrimaryPath(pReader->pVnode->pTfs), TD_DIRSEP,
+               pReader->pVnode->path, TD_DIRSEP, VND_INFO_FNAME);
+    } else {
+      snprintf(fName, TSDB_FILENAME_LEN, "%s%s%s", pReader->pVnode->path, TD_DIRSEP, VND_INFO_FNAME);
+    }
+
+    TdFilePtr pFile = taosOpenFile(fName, TD_FILE_READ);
+    if (NULL == pFile) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    int64_t size;
+    if (taosFStatFile(pFile, &size, NULL) < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      taosCloseFile(&pFile);
+      goto _err;
+    }
+
+    *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + size + 1);
+    if (*ppData == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      taosCloseFile(&pFile);
+      goto _err;
+    }
+    ((SSnapDataHdr *)(*ppData))->type = SNAP_DATA_CFG;
+    ((SSnapDataHdr *)(*ppData))->size = size + 1;
+    ((SSnapDataHdr *)(*ppData))->data[size] = '\0';
+
+    if (taosReadFile(pFile, ((SSnapDataHdr *)(*ppData))->data, size) < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      taosMemoryFree(*ppData);
+      taosCloseFile(&pFile);
+      goto _err;
+    }
+
+    taosCloseFile(&pFile);
+
+    pReader->cfgDone = 1;
+    goto _exit;
+  }
 
   // META ==============
   if (!pReader->metaDone) {
@@ -211,8 +257,8 @@ _exit:
     pReader->index++;
     *nData = sizeof(SSnapDataHdr) + pHdr->size;
     pHdr->index = pReader->index;
-    vInfo("vgId:%d, vnode snapshot read data,index:%" PRId64 " type:%d nData:%d ", TD_VID(pReader->pVnode),
-          pReader->index, pHdr->type, *nData);
+    vDebug("vgId:%d, vnode snapshot read data, index:%" PRId64 " type:%d blockLen:%d ", TD_VID(pReader->pVnode),
+           pReader->index, pHdr->type, *nData);
   } else {
     vInfo("vgId:%d, vnode snapshot read data end, index:%" PRId64, TD_VID(pReader->pVnode), pReader->index);
   }
@@ -230,6 +276,8 @@ struct SVSnapWriter {
   int64_t ever;
   int64_t commitID;
   int64_t index;
+  // config
+  SVnodeInfo info;
   // meta
   SMetaSnapWriter *pMetaSnapWriter;
   // tsdb
@@ -248,6 +296,10 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
   int32_t       code = 0;
   SVSnapWriter *pWriter = NULL;
 
+  // commit memory data
+  vnodeAsyncCommit(pVnode);
+  tsem_wait(&pVnode->canCommit);
+
   // alloc
   pWriter = (SVSnapWriter *)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
@@ -258,16 +310,8 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
   pWriter->sver = sver;
   pWriter->ever = ever;
 
-  // commit it
-  code = vnodeSyncCommit(pVnode);
-  if (code) {
-    taosMemoryFree(pWriter);
-    goto _err;
-  }
-
   // inc commit ID
-  pVnode->state.commitID++;
-  pWriter->commitID = pVnode->state.commitID;
+  pWriter->commitID = ++pVnode->state.commitID;
 
   vInfo("vgId:%d, vnode snapshot writer opened, sver:%" PRId64 " ever:%" PRId64 " commit id:%" PRId64, TD_VID(pVnode),
         sver, ever, pWriter->commitID);
@@ -284,53 +328,89 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   int32_t code = 0;
   SVnode *pVnode = pWriter->pVnode;
 
+  // prepare
+  if (pWriter->pTsdbSnapWriter) {
+    tsdbSnapWriterPrepareClose(pWriter->pTsdbSnapWriter);
+  }
+
+  // commit json
+  if (!rollback) {
+    pVnode->config = pWriter->info.config;
+    pVnode->state = (SVState){.committed = pWriter->info.state.committed,
+                              .applied = pWriter->info.state.committed,
+                              .commitID = pWriter->commitID,
+                              .commitTerm = pWriter->info.state.commitTerm,
+                              .applyTerm = pWriter->info.state.commitTerm};
+    pVnode->statis = pWriter->info.statis;
+    char dir[TSDB_FILENAME_LEN] = {0};
+    if (pWriter->pVnode->pTfs) {
+      snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
+    } else {
+      snprintf(dir, TSDB_FILENAME_LEN, "%s", pWriter->pVnode->path);
+    }
+
+    vnodeCommitInfo(dir, &pWriter->info);
+  } else {
+    vnodeRollback(pWriter->pVnode);
+  }
+
+  // commit/rollback sub-system
   if (pWriter->pMetaSnapWriter) {
     code = metaSnapWriterClose(&pWriter->pMetaSnapWriter, rollback);
-    if (code) goto _err;
+    if (code) goto _exit;
   }
 
   if (pWriter->pTsdbSnapWriter) {
     code = tsdbSnapWriterClose(&pWriter->pTsdbSnapWriter, rollback);
-    if (code) goto _err;
+    if (code) goto _exit;
   }
 
   if (pWriter->pRsmaSnapWriter) {
     code = rsmaSnapWriterClose(&pWriter->pRsmaSnapWriter, rollback);
-    if (code) goto _err;
+    if (code) goto _exit;
   }
 
-  if (!rollback) {
-    SVnodeInfo info = {0};
-    char       dir[TSDB_FILENAME_LEN];
+  vnodeBegin(pVnode);
 
-    pVnode->state.committed = pWriter->ever;
-    pVnode->state.applied = pWriter->ever;
-    pVnode->state.applyTerm = pSnapshot->lastApplyTerm;
-    pVnode->state.commitTerm = pSnapshot->lastApplyTerm;
-
-    info.config = pVnode->config;
-    info.state.committed = pVnode->state.applied;
-    info.state.commitTerm = pVnode->state.applyTerm;
-    info.state.commitID = pVnode->state.commitID;
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
-    code = vnodeSaveInfo(dir, &info);
-    if (code) goto _err;
-
-    code = vnodeCommitInfo(dir, &info);
-    if (code) goto _err;
-
-    vnodeBegin(pVnode);
+_exit:
+  if (code) {
+    vError("vgId:%d, vnode snapshot writer close failed since %s", TD_VID(pWriter->pVnode), tstrerror(code));
   } else {
-    ASSERT(0);
+    vInfo("vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
+    taosMemoryFree(pWriter);
+  }
+  tsem_post(&pVnode->canCommit);
+  return code;
+}
+
+static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  SSnapDataHdr *pHdr = (SSnapDataHdr *)pData;
+
+  // decode info
+  if (vnodeDecodeInfo(pHdr->data, &pWriter->info) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  // change some value
+  pWriter->info.state.commitID = pWriter->commitID;
+
+  // modify info as needed
+  char dir[TSDB_FILENAME_LEN] = {0};
+  if (pWriter->pVnode->pTfs) {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pWriter->pVnode->pTfs), TD_DIRSEP,
+             pWriter->pVnode->path);
+  } else {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s", pWriter->pVnode->path);
+  }
+  if (vnodeSaveInfo(dir, &pWriter->info) < 0) {
+    code = terrno;
+    goto _exit;
   }
 
 _exit:
-  vInfo("vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
-  taosMemoryFree(pWriter);
-  return code;
-
-_err:
-  vError("vgId:%d, vnode snapshot writer close failed since %s", TD_VID(pWriter->pVnode), tstrerror(code));
   return code;
 }
 
@@ -343,10 +423,14 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   ASSERT(pHdr->index == pWriter->index + 1);
   pWriter->index = pHdr->index;
 
-  vInfo("vgId:%d, vnode snapshot write data, index:%" PRId64 " type:%d nData:%d", TD_VID(pVnode), pHdr->index,
-        pHdr->type, nData);
+  vDebug("vgId:%d, vnode snapshot write data, index:%" PRId64 " type:%d blockLen:%d", TD_VID(pVnode), pHdr->index,
+         pHdr->type, nData);
 
   switch (pHdr->type) {
+    case SNAP_DATA_CFG: {
+      code = vnodeSnapWriteInfo(pWriter, pData, nData);
+      if (code) goto _err;
+    } break;
     case SNAP_DATA_META: {
       // meta
       if (pWriter->pMetaSnapWriter == NULL) {

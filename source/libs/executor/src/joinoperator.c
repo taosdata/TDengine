@@ -42,38 +42,40 @@ typedef struct SJoinOperatorInfo {
 static void         setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
 static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator);
 static void         destroyMergeJoinOperator(void* param);
-static void         extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t numOfDownstream,
-                                         SSortMergeJoinPhysiNode* pJoinNode);
+static void         extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t num,
+                                         SSortMergeJoinPhysiNode* pJoinNode, const char* idStr);
 
-static void extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t numOfDownstream,
-                                 SSortMergeJoinPhysiNode* pJoinNode) {
+static void extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream,  int32_t num,
+                                 SSortMergeJoinPhysiNode* pJoinNode, const char* idStr) {
   SNode* pMergeCondition = pJoinNode->pMergeCondition;
-  if (nodeType(pMergeCondition) == QUERY_NODE_OPERATOR) {
-    SOperatorNode* pNode = (SOperatorNode*)pMergeCondition;
-    SColumnNode*   col1 = (SColumnNode*)pNode->pLeft;
-    SColumnNode*   col2 = (SColumnNode*)pNode->pRight;
-    SColumnNode*   leftTsCol = NULL;
-    SColumnNode*   rightTsCol = NULL;
-    if (col1->dataBlockId == col2->dataBlockId ) {
+  if (nodeType(pMergeCondition) != QUERY_NODE_OPERATOR) {
+    qError("not support this in join operator, %s", idStr);
+    return;  // do not handle this
+  }
+
+  SOperatorNode* pNode = (SOperatorNode*)pMergeCondition;
+  SColumnNode*   col1 = (SColumnNode*)pNode->pLeft;
+  SColumnNode*   col2 = (SColumnNode*)pNode->pRight;
+  SColumnNode*   leftTsCol = NULL;
+  SColumnNode*   rightTsCol = NULL;
+  if (col1->dataBlockId == col2->dataBlockId) {
+    leftTsCol = col1;
+    rightTsCol = col2;
+  } else {
+    if (col1->dataBlockId == pDownstream[0]->resultDataBlockId) {
+      ASSERT(col2->dataBlockId == pDownstream[1]->resultDataBlockId);
       leftTsCol = col1;
       rightTsCol = col2;
     } else {
-      if (col1->dataBlockId == pDownstream[0]->resultDataBlockId) {
-        ASSERT(col2->dataBlockId == pDownstream[1]->resultDataBlockId);
-        leftTsCol = col1;
-        rightTsCol = col2;
-      } else {
-        ASSERT(col1->dataBlockId == pDownstream[1]->resultDataBlockId);
-        ASSERT(col2->dataBlockId == pDownstream[0]->resultDataBlockId);
-        leftTsCol = col2;
-        rightTsCol = col1;
-      }
+      ASSERT(col1->dataBlockId == pDownstream[1]->resultDataBlockId);
+      ASSERT(col2->dataBlockId == pDownstream[0]->resultDataBlockId);
+      leftTsCol = col2;
+      rightTsCol = col1;
     }
-    setJoinColumnInfo(&pInfo->leftCol, leftTsCol);
-    setJoinColumnInfo(&pInfo->rightCol, rightTsCol);
-  } else {
-    ASSERT(false);
-  }}
+  }
+  setJoinColumnInfo(&pInfo->leftCol, leftTsCol);
+  setJoinColumnInfo(&pInfo->rightCol, rightTsCol);
+}
 
 SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
@@ -87,17 +89,17 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   }
 
   int32_t      numOfCols = 0;
-  SSDataBlock* pResBlock = createDataBlockFromDescNode(pJoinNode->node.pOutputDataBlockDesc);
+  pInfo->pRes = createDataBlockFromDescNode(pJoinNode->node.pOutputDataBlockDesc);
+
   SExprInfo*   pExprInfo = createExprInfo(pJoinNode->pTargets, NULL, &numOfCols);
   initResultSizeInfo(&pOperator->resultInfo, 4096);
-
-  pInfo->pRes = pResBlock;
+  blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 
   setOperatorInfo(pOperator, "MergeJoinOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.pExprInfo = pExprInfo;
   pOperator->exprSupp.numOfExprs = numOfCols;
 
-  extractTimeCondition(pInfo, pDownstream, numOfDownstream, pJoinNode);
+  extractTimeCondition(pInfo, pDownstream, numOfDownstream, pJoinNode, GET_TASKID(pTaskInfo));
 
   if (pJoinNode->pOnConditions != NULL && pJoinNode->node.pConditions != NULL) {
     pInfo->pCondAfterMerge = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
@@ -364,8 +366,6 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
   char*            pRightVal = colDataGetData(pRightCol, pJoinInfo->rightPos);
   *pRightTs = *(int64_t*)pRightVal;
 
-  ASSERT(pLeftCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
-  ASSERT(pRightCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   return true;
 }
 
@@ -401,6 +401,7 @@ static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) 
 
     // the pDataBlock are always the same one, no need to call this again
     pRes->info.rows = nrows;
+    pRes->info.dataLoad = 1;
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       break;
     }
@@ -412,7 +413,7 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
 
   SSDataBlock* pRes = pJoinInfo->pRes;
   blockDataCleanup(pRes);
-  blockDataEnsureCapacity(pRes, 4096);
+
   while (true) {
     int32_t numOfRowsBefore = pRes->info.rows;
     doMergeJoinImpl(pOperator, pRes);

@@ -22,23 +22,9 @@ static inline bool vnodeIsMsgWeak(tmsg_t type) { return false; }
 
 static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
-  vGTrace("vgId:%d, msg:%p wait block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
+  vGTrace("vgId:%d, msg:%p wait block, type:%s sec:%d seq:%" PRId64, pVnode->config.vgId, pMsg,
+          TMSG_INFO(pMsg->msgType), pVnode->blockSec, pVnode->blockSeq);
   tsem_wait(&pVnode->syncSem);
-}
-
-static inline void vnodeWaitBlockMsgOld(SVnode *pVnode, const SRpcMsg *pMsg) {
-  if (vnodeIsMsgBlock(pMsg->msgType)) {
-    const STraceId *trace = &pMsg->info.traceId;
-    taosThreadMutexLock(&pVnode->lock);
-    if (!pVnode->blocked) {
-      vGTrace("vgId:%d, msg:%p wait block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
-      pVnode->blocked = true;
-      taosThreadMutexUnlock(&pVnode->lock);
-      tsem_wait(&pVnode->syncSem);
-    } else {
-      taosThreadMutexUnlock(&pVnode->lock);
-    }
-  }
 }
 
 static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
@@ -46,8 +32,11 @@ static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
     const STraceId *trace = &pMsg->info.traceId;
     taosThreadMutexLock(&pVnode->lock);
     if (pVnode->blocked) {
-      vGTrace("vgId:%d, msg:%p post block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
+      vGTrace("vgId:%d, msg:%p post block, type:%s sec:%d seq:%" PRId64, pVnode->config.vgId, pMsg,
+              TMSG_INFO(pMsg->msgType), pVnode->blockSec, pVnode->blockSeq);
       pVnode->blocked = false;
+      pVnode->blockSec = 0;
+      pVnode->blockSeq = 0;
       tsem_post(&pVnode->syncSem);
     }
     taosThreadMutexUnlock(&pVnode->lock);
@@ -217,12 +206,19 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
 #else
 
 static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak) {
+  int64_t seq = 0;
+
   taosThreadMutexLock(&pVnode->lock);
-  int32_t code = syncPropose(pVnode->sync, pMsg, isWeak);
+  int32_t code = syncPropose(pVnode->sync, pMsg, isWeak, &seq);
   bool    wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
   if (wait) {
     ASSERT(!pVnode->blocked);
     pVnode->blocked = true;
+    pVnode->blockSec = taosGetTimestampSec();
+    pVnode->blockSeq = seq;
+#if 0
+    pVnode->blockInfo = pMsg->info;
+#endif
   }
   taosThreadMutexUnlock(&pVnode->lock);
 
@@ -289,12 +285,15 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
     const STraceId *trace = &pMsg->info.traceId;
-    vGTrace("vgId:%d, msg:%p get from vnode-apply queue, type:%s handle:%p index:%" PRId64, vgId, pMsg,
-            TMSG_INFO(pMsg->msgType), pMsg->info.handle, pMsg->info.conn.applyIndex);
 
     if (vnodeIsMsgBlock(pMsg->msgType)) {
-      vTrace("vgId:%d, blocking msg obtained from apply-queue. index:%" PRId64 ", term: %" PRId64 ", type: %s", vgId,
-             pMsg->info.conn.applyIndex, pMsg->info.conn.applyTerm, TMSG_INFO(pMsg->msgType));
+      vGTrace("vgId:%d, msg:%p get from vnode-apply queue, type:%s handle:%p index:%" PRId64
+              ", blocking msg obtained sec:%d seq:%" PRId64,
+              vgId, pMsg, TMSG_INFO(pMsg->msgType), pMsg->info.handle, pMsg->info.conn.applyIndex, pVnode->blockSec,
+              pVnode->blockSeq);
+    } else {
+      vGTrace("vgId:%d, msg:%p get from vnode-apply queue, type:%s handle:%p index:%" PRId64, vgId, pMsg,
+              TMSG_INFO(pMsg->msgType), pMsg->info.handle, pMsg->info.conn.applyIndex);
     }
 
     SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
@@ -381,9 +380,8 @@ static int32_t vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   return code;
 }
 
-static int32_t vnodeSyncGetSnapshot(const SSyncFSM *pFsm, SSnapshot *pSnapshot) {
+static void vnodeSyncGetSnapshotInfo(const SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   vnodeGetSnapshot(pFsm->data, pSnapshot);
-  return 0;
 }
 
 static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
@@ -393,9 +391,9 @@ static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsm
 
   const STraceId *trace = &pMsg->info.traceId;
   vGTrace("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
-          ", weak:%d, code:%d, state:%d %s, type:%s",
+          ", weak:%d, code:%d, state:%d %s, type:%s code:0x%x",
           pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, pMsg->info.conn.applyIndex, pMeta->isWeak, pMeta->code,
-          pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType));
+          pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType), pMsg->code);
 
   return tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
 }
@@ -425,10 +423,9 @@ static int32_t vnodeSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void *
   return code;
 }
 
-static int32_t vnodeSnapshotStopRead(const SSyncFSM *pFsm, void *pReader) {
+static void vnodeSnapshotStopRead(const SSyncFSM *pFsm, void *pReader) {
   SVnode *pVnode = pFsm->data;
-  int32_t code = vnodeSnapReaderClose(pReader);
-  return code;
+  vnodeSnapReaderClose(pReader);
 }
 
 static int32_t vnodeSnapshotDoRead(const SSyncFSM *pFsm, void *pReader, void **ppBuf, int32_t *len) {
@@ -468,9 +465,9 @@ static int32_t vnodeSnapshotStopWrite(const SSyncFSM *pFsm, void *pWriter, bool 
 
 static int32_t vnodeSnapshotDoWrite(const SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) {
   SVnode *pVnode = pFsm->data;
-  vDebug("vgId:%d, continue write vnode snapshot, len:%d", pVnode->config.vgId, len);
+  vDebug("vgId:%d, continue write vnode snapshot, blockLen:%d", pVnode->config.vgId, len);
   int32_t code = vnodeSnapWrite(pWriter, pBuf, len);
-  vDebug("vgId:%d, continue write vnode snapshot finished, len:%d", pVnode->config.vgId, len);
+  vDebug("vgId:%d, continue write vnode snapshot finished, blockLen:%d", pVnode->config.vgId, len);
   return code;
 }
 
@@ -540,7 +537,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpCommitCb = vnodeSyncCommitMsg;
   pFsm->FpPreCommitCb = vnodeSyncPreCommitMsg;
   pFsm->FpRollBackCb = vnodeSyncRollBackMsg;
-  pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshot;
+  pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshotInfo;
   pFsm->FpRestoreFinishCb = vnodeRestoreFinish;
   pFsm->FpLeaderTransferCb = NULL;
   pFsm->FpApplyQueueEmptyCb = vnodeApplyQueueEmpty;
@@ -619,6 +616,32 @@ void vnodeSyncPreClose(SVnode *pVnode) {
 void vnodeSyncClose(SVnode *pVnode) {
   vInfo("vgId:%d, close sync", pVnode->config.vgId);
   syncStop(pVnode->sync);
+}
+
+void vnodeSyncCheckTimeout(SVnode *pVnode) {
+  vTrace("vgId:%d, check sync timeout msg", pVnode->config.vgId);
+  taosThreadMutexLock(&pVnode->lock);
+  if (pVnode->blocked) {
+    int32_t curSec = taosGetTimestampSec();
+    int32_t delta = curSec - pVnode->blockSec;
+    if (delta > VNODE_TIMEOUT_SEC) {
+      vError("vgId:%d, failed to propose since timeout and post block, start:%d cur:%d delta:%d seq:%" PRId64,
+             pVnode->config.vgId, pVnode->blockSec, curSec, delta, pVnode->blockSeq);
+      if (syncSendTimeoutRsp(pVnode->sync, pVnode->blockSeq) != 0) {
+#if 0  
+        SRpcMsg rpcMsg = {.code = TSDB_CODE_SYN_TIMEOUT, .info = pVnode->blockInfo};
+        vError("send timeout response since its applyed, seq:%" PRId64 " handle:%p ahandle:%p", pVnode->blockSeq,
+              rpcMsg.info.handle, rpcMsg.info.ahandle);
+        rpcSendResponse(&rpcMsg);
+#endif
+      }
+      pVnode->blocked = false;
+      pVnode->blockSec = 0;
+      pVnode->blockSeq = 0;
+      tsem_post(&pVnode->syncSem);
+    }
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
 }
 
 bool vnodeIsRoleLeader(SVnode *pVnode) {

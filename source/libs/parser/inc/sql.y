@@ -194,7 +194,7 @@ db_options(A) ::= db_options(B) PAGESIZE NK_INTEGER(C).                         
 db_options(A) ::= db_options(B) TSDB_PAGESIZE NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_TSDB_PAGESIZE, &C); }
 db_options(A) ::= db_options(B) PRECISION NK_STRING(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_PRECISION, &C); }
 db_options(A) ::= db_options(B) REPLICA NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_REPLICA, &C); }
-db_options(A) ::= db_options(B) STRICT NK_STRING(C).                              { A = setDatabaseOption(pCxt, B, DB_OPTION_STRICT, &C); }
+//db_options(A) ::= db_options(B) STRICT NK_STRING(C).                              { A = setDatabaseOption(pCxt, B, DB_OPTION_STRICT, &C); }
 db_options(A) ::= db_options(B) VGROUPS NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_VGROUPS, &C); }
 db_options(A) ::= db_options(B) SINGLE_STABLE NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_SINGLE_STABLE, &C); }
 db_options(A) ::= db_options(B) RETENTIONS retention_list(C).                     { A = setDatabaseOption(pCxt, B, DB_OPTION_RETENTIONS, C); }
@@ -458,14 +458,16 @@ tag_item(A) ::= column_name(B) column_alias(C).                                 
 tag_item(A) ::= column_name(B) AS column_alias(C).                                { A = setProjectionAlias(pCxt, createColumnNode(pCxt, NULL, &B), &C); }
 
 /************************************************ create index ********************************************************/
-cmd ::= CREATE SMA INDEX not_exists_opt(D) 
+cmd ::= CREATE SMA INDEX not_exists_opt(D)
   full_table_name(A) ON full_table_name(B) index_options(C).                      { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, A, B, NULL, C); }
+cmd ::= CREATE INDEX not_exists_opt(D)
+  full_table_name(A) ON full_table_name(B) NK_LP col_name_list(C) NK_RP.          { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_NORMAL, D, A, B, C, NULL); }
 cmd ::= DROP INDEX exists_opt(B) full_table_name(A).                              { pCxt->pRootNode = createDropIndexStmt(pCxt, B, A); }
 
-index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL 
+index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL
   NK_LP duration_literal(C) NK_RP sliding_opt(D) sma_stream_opt(E).               { A = createIndexOption(pCxt, B, releaseRawExprNode(pCxt, C), NULL, D, E); }
-index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL 
-  NK_LP duration_literal(C) NK_COMMA duration_literal(D) NK_RP sliding_opt(E) 
+index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL
+  NK_LP duration_literal(C) NK_COMMA duration_literal(D) NK_RP sliding_opt(E)
   sma_stream_opt(F).                                                              { A = createIndexOption(pCxt, B, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D), E, F); }
 
 %type func_list                                                                   { SNodeList* }
@@ -473,7 +475,15 @@ index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL
 func_list(A) ::= func(B).                                                         { A = createNodeList(pCxt, B); }
 func_list(A) ::= func_list(B) NK_COMMA func(C).                                   { A = addNodeToList(pCxt, B, C); }
 
-func(A) ::= function_name(B) NK_LP expression_list(C) NK_RP.                      { A = createFunctionNode(pCxt, &B, C); }
+func(A) ::= sma_func_name(B) NK_LP expression_list(C) NK_RP.                      { A = createFunctionNode(pCxt, &B, C); }
+
+%type sma_func_name                                                               { SToken }
+%destructor sma_func_name                                                         { }
+sma_func_name(A) ::= function_name(B).                                            { A = B; }
+sma_func_name(A) ::= COUNT(B).                                                    { A = B; }
+sma_func_name(A) ::= FIRST(B).                                                    { A = B; }
+sma_func_name(A) ::= LAST(B).                                                     { A = B; }
+sma_func_name(A) ::= LAST_ROW(B).                                                 { A = B; }
 
 sma_stream_opt(A) ::= .                                                           { A = createStreamOptions(pCxt); }
 sma_stream_opt(A) ::= sma_stream_opt(B) WATERMARK duration_literal(C).            { ((SStreamOptions*)B)->pWatermark = releaseRawExprNode(pCxt, C); A = B; }
@@ -733,6 +743,7 @@ pseudo_column(A) ::= WSTART(B).                                                 
 pseudo_column(A) ::= WEND(B).                                                     { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= WDURATION(B).                                                { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= IROWTS(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= ISFILLED(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= QTAGS(B).                                                    { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 
 function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).    { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
@@ -1069,5 +1080,5 @@ null_ordering_opt(A) ::= NULLS FIRST.                                           
 null_ordering_opt(A) ::= NULLS LAST.                                              { A = NULL_ORDER_LAST; }
 
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA COMPACT CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL 
-  FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE REPLACE RESTRICT ROW SEMI STAR STATEMENT STRING 
-  TIMES UPDATE VALUES VARIABLE VIEW WAL.
+  FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE REPLACE RESTRICT ROW SEMI STAR STATEMENT
+  STRICT STRING TIMES UPDATE VALUES VARIABLE VIEW WAL.

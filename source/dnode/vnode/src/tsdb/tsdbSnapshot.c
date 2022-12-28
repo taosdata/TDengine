@@ -538,7 +538,7 @@ _exit:
     if (pReader) {
       taosArrayDestroy(pReader->aDelData);
       taosArrayDestroy(pReader->aDelIdx);
-      tBlockDataDestroy(&pReader->bData, 1);
+      tBlockDataDestroy(&pReader->bData);
       tsdbFSDestroy(&pReader->fs);
       taosMemoryFree(pReader);
     }
@@ -565,10 +565,10 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
       taosArrayDestroy(pIter->aSttBlk);
     }
 
-    tBlockDataDestroy(&pIter->bData, 1);
+    tBlockDataDestroy(&pIter->bData);
   }
 
-  tBlockDataDestroy(&pReader->bData, 1);
+  tBlockDataDestroy(&pReader->bData);
   tDestroyTSchema(pReader->skmTable.pTSchema);
 
   // del
@@ -1109,7 +1109,7 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
 
     if (pWriter->dWriter.pWriter == NULL || pWriter->fid != fid) {
       if (pWriter->dWriter.pWriter) {
-        ASSERT(fid > pWriter->fid);
+        // ASSERT(fid > pWriter->fid);
 
         code = tsdbSnapWriteCloseFile(pWriter);
         if (code) goto _err;
@@ -1359,19 +1359,39 @@ _exit:
       if (pWriter->aDelIdxW) taosArrayDestroy(pWriter->aDelIdxW);
       if (pWriter->aDelData) taosArrayDestroy(pWriter->aDelData);
       if (pWriter->aDelIdxR) taosArrayDestroy(pWriter->aDelIdxR);
-      tBlockDataDestroy(&pWriter->dWriter.sData, 1);
-      tBlockDataDestroy(&pWriter->dWriter.bData, 1);
+      tBlockDataDestroy(&pWriter->dWriter.sData);
+      tBlockDataDestroy(&pWriter->dWriter.bData);
       if (pWriter->dWriter.aSttBlk) taosArrayDestroy(pWriter->dWriter.aSttBlk);
       if (pWriter->dWriter.aBlockIdx) taosArrayDestroy(pWriter->dWriter.aBlockIdx);
-      tBlockDataDestroy(&pWriter->dReader.bData, 1);
+      tBlockDataDestroy(&pWriter->dReader.bData);
       if (pWriter->dReader.aBlockIdx) taosArrayDestroy(pWriter->dReader.aBlockIdx);
-      tBlockDataDestroy(&pWriter->bData, 1);
+      tBlockDataDestroy(&pWriter->bData);
       tsdbFSDestroy(&pWriter->fs);
       taosMemoryFree(pWriter);
     }
   } else {
-    tsdbInfo("vgId:%d %s done", TD_VID(pTsdb->pVnode), __func__);
+    tsdbInfo("vgId:%d, %s done", TD_VID(pTsdb->pVnode), __func__);
     *ppWriter = pWriter;
+  }
+  return code;
+}
+
+int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* pWriter) {
+  int32_t code = 0;
+  if (pWriter->dWriter.pWriter) {
+    code = tsdbSnapWriteCloseFile(pWriter);
+    if (code) goto _exit;
+  }
+
+  code = tsdbSnapWriteDelEnd(pWriter);
+  if (code) goto _exit;
+
+  code = tsdbFSPrepareCommit(pWriter->pTsdb, &pWriter->fs);
+  if (code) goto _exit;
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d, %s failed since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, tstrerror(code));
   }
   return code;
 }
@@ -1382,21 +1402,8 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
   STsdb*           pTsdb = pWriter->pTsdb;
 
   if (rollback) {
-    ASSERT(0);
-    // code = tsdbFSRollback(pWriter->pTsdb->pFS);
-    // if (code) goto _err;
+    tsdbRollbackCommit(pWriter->pTsdb);
   } else {
-    if (pWriter->dWriter.pWriter) {
-      code = tsdbSnapWriteCloseFile(pWriter);
-      if (code) goto _err;
-    }
-
-    code = tsdbSnapWriteDelEnd(pWriter);
-    if (code) goto _err;
-
-    code = tsdbFSPrepareCommit(pWriter->pTsdb, &pWriter->fs);
-    if (code) goto _err;
-
     // lock
     taosThreadRwlockWrlock(&pTsdb->rwLock);
 
@@ -1418,24 +1425,24 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
   // SNAP_DATA_TSDB
 
   // Writer
-  tBlockDataDestroy(&pWriter->dWriter.sData, 1);
-  tBlockDataDestroy(&pWriter->dWriter.bData, 1);
+  tBlockDataDestroy(&pWriter->dWriter.sData);
+  tBlockDataDestroy(&pWriter->dWriter.bData);
   taosArrayDestroy(pWriter->dWriter.aSttBlk);
   tMapDataClear(&pWriter->dWriter.mDataBlk);
   taosArrayDestroy(pWriter->dWriter.aBlockIdx);
 
   // Reader
-  tBlockDataDestroy(&pWriter->dReader.bData, 1);
+  tBlockDataDestroy(&pWriter->dReader.bData);
   tMapDataClear(&pWriter->dReader.mDataBlk);
   taosArrayDestroy(pWriter->dReader.aBlockIdx);
 
-  tBlockDataDestroy(&pWriter->bData, 1);
+  tBlockDataDestroy(&pWriter->bData);
   tDestroyTSchema(pWriter->skmTable.pTSchema);
 
   for (int32_t iBuf = 0; iBuf < sizeof(pWriter->aBuf) / sizeof(uint8_t*); iBuf++) {
     tFree(pWriter->aBuf[iBuf]);
   }
-  tsdbInfo("vgId:%d %s done", TD_VID(pWriter->pTsdb->pVnode), __func__);
+  tsdbInfo("vgId:%d, %s done", TD_VID(pWriter->pTsdb->pVnode), __func__);
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
   return code;

@@ -373,7 +373,6 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     pRsp->useconds = htobe64(pRsp->useconds);
     pRsp->numOfBlocks = htonl(pRsp->numOfBlocks);
 
-    ASSERT(pRsp != NULL);
     qDebug("%s fetch rsp received, index:%d, blocks:%d, rows:%" PRId64 ", %p", pSourceDataInfo->taskId, index, pRsp->numOfBlocks,
            pRsp->numOfRows, pExchangeInfo);
   } else {
@@ -510,6 +509,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
     blockDataEnsureCapacity(pRes, pBlock->info.rows);
 
     // data from mnode
+    pRes->info.dataLoad = 1;
     pRes->info.rows = pBlock->info.rows;
     relocateColumnData(pRes, pColList, pBlock->pDataBlock, false);
     blockDataDestroy(pBlock);

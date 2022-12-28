@@ -54,6 +54,7 @@ int32_t vnodeAlter(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs);
 void    vnodeDestroy(const char *path, STfs *pTfs);
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
 void    vnodePreClose(SVnode *pVnode);
+void    vnodeSyncCheckTimeout(SVnode* pVnode);
 void    vnodeClose(SVnode *pVnode);
 
 int32_t vnodeStart(SVnode *pVnode);
@@ -184,7 +185,7 @@ void        *tsdbGetIvtIdx(SMeta *pMeta);
 uint64_t     getReaderMaxVersion(STsdbReader *pReader);
 
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
-                                uint64_t suid, void **pReader);
+                                uint64_t suid, void **pReader, const char* idstr);
 int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, SArray *pTableUids);
 void   *tsdbCacherowsReaderClose(void *pReader);
 int32_t tsdbGetTableSchema(SVnode *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);
@@ -221,11 +222,19 @@ typedef struct SSnapContext {
 } SSnapContext;
 
 typedef struct STqReader {
-  int64_t           ver;
-  const SSubmitReq *pMsg;
-  SSubmitBlk       *pBlock;
-  SSubmitMsgIter    msgIter;
-  SSubmitBlkIter    blkIter;
+  // const SSubmitReq *pMsg;
+  //   SSubmitBlk       *pBlock;
+  //   SSubmitMsgIter    msgIter;
+  //   SSubmitBlkIter    blkIter;
+
+  int64_t     ver;
+  SPackedData msg2;
+
+  int8_t      setMsg;
+  SSubmitReq2 submit;
+  int32_t     nextBlk;
+
+  int64_t lastBlkUid;
 
   SWalReader *pWalReader;
 
@@ -250,11 +259,14 @@ int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 int32_t tqSeekVer(STqReader *pReader, int64_t ver);
 int32_t tqNextBlock(STqReader *pReader, SFetchRet *ret);
 
-int32_t tqReaderSetDataMsg(STqReader *pReader, const SSubmitReq *pMsg, int64_t ver);
-bool    tqNextDataBlock(STqReader *pReader);
-bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
-int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas);
+int32_t tqReaderSetSubmitReq2(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);
+// int32_t tqReaderSetDataMsg(STqReader *pReader, const SSubmitReq *pMsg, int64_t ver);
+bool    tqNextDataBlock2(STqReader *pReader);
+bool    tqNextDataBlockFilterOut2(STqReader *pReader, SHashObj *filterOutUids);
+int32_t tqRetrieveDataBlock2(SSDataBlock *pBlock, STqReader *pReader);
+int32_t tqRetrieveTaosxBlock2(STqReader *pReader, SArray *blocks, SArray *schemas);
+// int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
+// int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas);
 
 int32_t vnodeEnqueueStreamMsg(SVnode *pVnode, SRpcMsg *pMsg);
 
@@ -263,7 +275,7 @@ int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *
 
 // SVSnapReader
 int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapReader **ppReader);
-int32_t vnodeSnapReaderClose(SVSnapReader *pReader);
+void    vnodeSnapReaderClose(SVSnapReader *pReader);
 int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData);
 // SVSnapWriter
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter);

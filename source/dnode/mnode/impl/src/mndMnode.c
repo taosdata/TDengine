@@ -390,6 +390,7 @@ static int32_t mndCreateMnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to create mnode:%d", pTrans->id, pCreate->dnodeId);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   if (mndSetCreateMnodeRedoActions(pMnode, pTrans, pDnode, &mnodeObj) != 0) goto _OVER;
   if (mndSetCreateMnodeRedoLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
@@ -526,6 +527,7 @@ static int32_t mndDropMnode(SMnode *pMnode, SRpcMsg *pReq, SMnodeObj *pObj) {
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pObj, false) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
@@ -633,6 +635,7 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     const char *status = "ready";
     if (objStatus == SDB_STATUS_CREATING) status = "creating";
     if (objStatus == SDB_STATUS_DROPPING) status = "dropping";
+    if (!mndIsDnodeOnline(pObj->pDnode, curMs)) status = "offline";
     char b3[9 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, status, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
