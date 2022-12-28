@@ -1941,7 +1941,9 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
   size_t numOfNode = taosArrayGetSize(colList);
   for(int32_t k = 0; k < numOfNode; ++k) {
     SColIndex* pIndex = taosArrayGet(colList, k);
-    if (TSDB_COL_IS_TAG(pIndex->flag)) {
+
+    if (TSDB_COL_IS_TAG(pIndex->flag) || (strcasecmp(pIndex->name, TSQL_TBNAME_L) == 0 && pQueryInfo->pUpstream &&
+                                          taosArrayGetSize(pQueryInfo->pUpstream) == 0)) {
       tExprTreeDestroy(pNode, NULL);
       taosArrayDestroy(&colList);
 
