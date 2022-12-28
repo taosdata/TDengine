@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # This file is used to install TAOS time-series database on linux systems. The operating system
 # is required to use systemd to manage services at boot
@@ -340,7 +340,7 @@ function install_lib() {
   #install_avro lib64
 
   if [ "$osType" != "Darwin" ]; then
-    ${csudo}ldconfig
+    ${csudo}ldconfig /etc/ld.so.conf.d
   fi
 }
 

@@ -15,6 +15,7 @@ import sys
 import os
 import os.path
 import platform
+import distro
 import subprocess
 from time import sleep
 import base64
@@ -22,6 +23,7 @@ import json
 import copy
 from fabric2 import Connection
 from util.log import *
+from shutil import which
 
 
 class TDSimClient:
@@ -775,24 +777,41 @@ class TDDnodes:
         for i in range(len(self.dnodes)):
             self.dnodes[i].stop()
 
-        psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-        if processID:
-            cmd = "sudo systemctl stop taosd"
-            os.system(cmd)
-        # if os.system(cmd) != 0 :
-        # tdLog.exit(cmd)
-        psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-        while(processID):
-            if platform.system().lower() == 'windows':
-                killCmd = "kill -9 %s > nul 2>&1" % processID
-            else:
-                killCmd = "kill -9 %s > /dev/null 2>&1" % processID
-            os.system(killCmd)
-            time.sleep(1)
-            processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8").strip()
+        distro_id = distro.id()
+        if (distro_id == "alpine"):
+            print(distro_id)
+            psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v [taosd]| awk '{print $1}' | xargs"
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            while(processID):
+                print(processID)
+                if platform.system().lower() == 'windows':
+                    killCmd = "kill -9 %s > nul 2>&1" % processID
+                else:
+                    killCmd = "kill -9 %s > /dev/null 2>&1" % processID
+                os.system(killCmd)
+                time.sleep(1)
+                processID = subprocess.check_output(
+                    psCmd, shell=True).decode("utf-8").strip()
+
+        else:
+            psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            if processID:
+                cmd = "sudo systemctl stop taosd"
+                os.system(cmd)
+            # if os.system(cmd) != 0 :
+            # tdLog.exit(cmd)
+            psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            while(processID):
+                if platform.system().lower() == 'windows':
+                    killCmd = "kill -9 %s > nul 2>&1" % processID
+                else:
+                    killCmd = "kill -9 %s > /dev/null 2>&1" % processID
+                os.system(killCmd)
+                time.sleep(1)
+                processID = subprocess.check_output(
+                    psCmd, shell=True).decode("utf-8").strip()
 
         if self.killValgrind == 1:
             psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}' | xargs"
