@@ -83,6 +83,7 @@ typedef struct SAggOperatorInfo {
   uint64_t         groupId;
   SGroupResInfo    groupResInfo;
   SExprSupp        scalarExprSup;
+  bool             groupKeyOptimized;
 } SAggOperatorInfo;
 
 static void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pBlock);
@@ -1360,6 +1361,11 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
     return TSDB_CODE_SUCCESS;
   }
 
+  SAggOperatorInfo* pAggInfo = pOperator->info;
+  if (pAggInfo->groupKeyOptimized) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_PARTITION ||
       (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
@@ -1762,6 +1768,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
   }
 
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
+  pInfo->groupKeyOptimized = pAggNode->groupKeyOptimized;
   pInfo->groupId = UINT64_MAX;
 
   setOperatorInfo(pOperator, "TableAggregate", QUERY_NODE_PHYSICAL_PLAN_HASH_AGG, true, OP_NOT_OPENED, pInfo,

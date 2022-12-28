@@ -540,7 +540,7 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
   if (IS_NULL_TYPE(type)) {
     // select count(NULL) returns 0
     numOfElem = 1;
-    *((int64_t*)buf) = 0;
+    *((int64_t*)buf) += 0;
   } else {
     numOfElem = getNumOfElems(pCtx);
     *((int64_t*)buf) += numOfElem;
