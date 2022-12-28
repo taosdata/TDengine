@@ -1560,14 +1560,18 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
 
   qDebug("queue scan called");
 
-  if (pTaskInfo->streamInfo.pReq != NULL) {
-    if (pInfo->tqReader->pMsg == NULL) {
-      pInfo->tqReader->pMsg = pTaskInfo->streamInfo.pReq;
-      const SSubmitReq* pSubmit = pInfo->tqReader->pMsg;
-      if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {
-        qError("submit msg messed up when initing stream submit block %p", pSubmit);
-        pInfo->tqReader->pMsg = NULL;
-        pTaskInfo->streamInfo.pReq = NULL;
+  if (pTaskInfo->streamInfo.submit.msgStr != NULL) {
+    if (pInfo->tqReader->msg2.msgStr == NULL) {
+      /*pInfo->tqReader->pMsg = pTaskInfo->streamInfo.pReq;*/
+
+      /*const SSubmitReq* pSubmit = pInfo->tqReader->pMsg;*/
+      /*if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {*/
+      /*void* msgStr = pTaskInfo->streamInfo.*/
+      SPackedData submit = pTaskInfo->streamInfo.submit;
+      if (tqReaderSetSubmitReq2(pInfo->tqReader, submit.msgStr, submit.msgLen, submit.ver) < 0) {
+        qError("submit msg messed up when initing stream submit block %p", submit.msgStr);
+        pInfo->tqReader->msg2 = (SPackedData){0};
+        pInfo->tqReader->setMsg = 0;
         ASSERT(0);
       }
     }
@@ -1575,10 +1579,10 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     blockDataCleanup(pInfo->pRes);
     SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
 
-    while (tqNextDataBlock(pInfo->tqReader)) {
+    while (tqNextDataBlock2(pInfo->tqReader)) {
       SSDataBlock block = {0};
 
-      int32_t code = tqRetrieveDataBlock(&block, pInfo->tqReader);
+      int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader);
 
       if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
         continue;
@@ -1591,8 +1595,9 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       }
     }
 
-    pInfo->tqReader->pMsg = NULL;
-    pTaskInfo->streamInfo.pReq = NULL;
+    pInfo->tqReader->msg2 = (SPackedData){0};
+    pInfo->tqReader->setMsg = 0;
+    pTaskInfo->streamInfo.submit = (SPackedData){0};
     return NULL;
   }
 
@@ -1829,7 +1834,8 @@ FETCH_NEXT_BLOCK:
     }
 
     int32_t      current = pInfo->validBlockIndex++;
-    SSDataBlock* pBlock = taosArrayGetP(pInfo->pBlockLists, current);
+    SPackedData* pPacked = taosArrayGet(pInfo->pBlockLists, current);
+    SSDataBlock* pBlock = pPacked->pDataBlock;
     if (pBlock->info.id.groupId && pBlock->info.parTbName[0]) {
       streamStatePutParName(pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, pBlock->info.parTbName);
     }
@@ -1959,7 +1965,7 @@ FETCH_NEXT_BLOCK:
 
   NEXT_SUBMIT_BLK:
     while (1) {
-      if (pInfo->tqReader->pMsg == NULL) {
+      if (pInfo->tqReader->msg2.msgStr == NULL) {
         if (pInfo->validBlockIndex >= totBlockNum) {
           updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
           doClearBufferedBlocks(pInfo);
@@ -1967,22 +1973,22 @@ FETCH_NEXT_BLOCK:
           return NULL;
         }
 
-        int32_t     current = pInfo->validBlockIndex++;
-        SSubmitReq* pSubmit = taosArrayGetP(pInfo->pBlockLists, current);
-        if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {
+        int32_t      current = pInfo->validBlockIndex++;
+        SPackedData* pSubmit = taosArrayGet(pInfo->pBlockLists, current);
+        /*if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {*/
+        if (tqReaderSetSubmitReq2(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver) < 0) {
           qError("submit msg messed up when initing stream submit block %p, current %d, total %d", pSubmit, current,
                  totBlockNum);
-          pInfo->tqReader->pMsg = NULL;
           continue;
         }
       }
 
       blockDataCleanup(pInfo->pRes);
 
-      while (tqNextDataBlock(pInfo->tqReader)) {
+      while (tqNextDataBlock2(pInfo->tqReader)) {
         SSDataBlock block = {0};
 
-        int32_t code = tqRetrieveDataBlock(&block, pInfo->tqReader);
+        int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader);
 
         if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
           continue;
@@ -2024,7 +2030,6 @@ FETCH_NEXT_BLOCK:
       if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
         break;
       } else {
-        pInfo->tqReader->pMsg = NULL;
         continue;
       }
       /*blockDataCleanup(pInfo->pRes);*/
@@ -2305,7 +2310,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     }
   }
 
-  pInfo->pBlockLists = taosArrayInit(4, POINTER_BYTES);
+  pInfo->pBlockLists = taosArrayInit(4, sizeof(SPackedData));
   if (pInfo->pBlockLists == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
