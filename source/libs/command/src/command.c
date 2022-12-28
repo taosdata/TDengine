@@ -328,7 +328,7 @@ int32_t getAliveStatusFromApi(int64_t* pConnId, char* dbName, int32_t* pStatus) 
   if (dbName && dbName[0] != 0) {
     char str[64 + TSDB_DB_NAME_LEN] = "";
     // test db name exist
-    sprintf(str, " show show create database %s ;", dbName);
+    sprintf(str, "show create database %s ;", dbName);
     TAOS_RES* dbRes = taos_query(pConnId, str);
     code = taos_errno(dbRes);
     if (code != TSDB_CODE_SUCCESS) {
