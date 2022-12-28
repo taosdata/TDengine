@@ -320,20 +320,31 @@ bool existLeaderRole(TAOS_ROW row, TAOS_FIELD* fields, int nFields) {
 }
 
 // get db alive status, return 1 is alive else return 0
-int32_t getAliveStatusFromApi(int64_t* pConnId, char* dbName) {
-  char sql[128 + TSDB_DB_NAME_LEN] = "select * from information_schema.ins_vgroups";
+int32_t getAliveStatusFromApi(int64_t* pConnId, char* dbName, int32_t* pStatus) {
+  char    sql[128 + TSDB_DB_NAME_LEN] = "select * from information_schema.ins_vgroups";
+  int32_t code;
 
   // filter with db name
   if (dbName && dbName[0] != 0) {
-    char filter[64 + TSDB_DB_NAME_LEN] = "";
-    sprintf(filter, " where db_name='%s' ;", dbName);
-    strcat(sql, filter);
+    char str[64 + TSDB_DB_NAME_LEN] = "";
+    // test db name exist
+    sprintf(str, " show show create database %s ;", dbName);
+    TAOS_RES* dbRes = taos_query(pConnId, sql);
+    code = taos_errno(dbRes);
+    if (code != TSDB_CODE_SUCCESS) {
+      taos_free_result(dbRes);
+      return code;
+    }
+
+    sprintf(str, " where db_name='%s' ;", dbName);
+    strcat(sql, str);
   }
 
   TAOS_RES* res = taos_query(pConnId, sql);
-  if (taos_errno(res) != 0) {
+  code = taos_errno(res);
+  if (code != TSDB_CODE_SUCCESS) {
     taos_free_result(res);
-    return 0;
+    return code;
   }
 
   TAOS_ROW    row = NULL;
@@ -351,22 +362,32 @@ int32_t getAliveStatusFromApi(int64_t* pConnId, char* dbName) {
   }
   taos_free_result(res);
 
+  int32_t status = 0;
   if (nAvailble + nUnAvailble == 0 || nUnAvailble == 0) {
-    return SHOW_STATUS_AVAILABLE;
+    status = SHOW_STATUS_AVAILABLE;
   } else if (nAvailble > 0 && nUnAvailble > 0) {
-    return SHOW_STATUS_HALF_AVAILABLE;
+    status = SHOW_STATUS_HALF_AVAILABLE;
   } else {
-    return SHOW_STATUS_NOT_AVAILABLE;
+    status = SHOW_STATUS_NOT_AVAILABLE;
   }
+
+  if (pStatus) {
+    *pStatus = status;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
-static void setAliveResultIntoDataBlock(int64_t* pConnId, SSDataBlock* pBlock, char* dbName) {
+static int32_t setAliveResultIntoDataBlock(int64_t* pConnId, SSDataBlock* pBlock, char* dbName) {
   blockDataEnsureCapacity(pBlock, 1);
   pBlock->info.rows = 1;
 
   SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
-  int32_t status = getAliveStatusFromApi(pConnId, dbName);
-  colDataAppend(pCol1, 0, (const char*)&status, false);
+  int32_t          status = 0;
+  int32_t          code = getAliveStatusFromApi(pConnId, dbName, &status);
+  if (code == TSDB_CODE_SUCCESS) {
+    colDataAppend(pCol1, 0, (const char*)&status, false);
+  }
+  return code;
 }
 
 static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveTableRsp** pRsp) {
@@ -386,7 +407,7 @@ static int32_t execShowAliveStatus(int64_t* pConnId, SShowAliveStmt* pStmt, SRet
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildAliveResultDataBlock(&pBlock);
   if (TSDB_CODE_SUCCESS == code) {
-    setAliveResultIntoDataBlock(pConnId, pBlock, pStmt->dbName);
+    code = setAliveResultIntoDataBlock(pConnId, pBlock, pStmt->dbName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_ALIVE_RESULT_COLS, pRsp);

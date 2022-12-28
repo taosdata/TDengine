@@ -2246,7 +2246,7 @@ static int32_t getVnodeSysTableVgroupListImpl(STranslateContext* pCxt, SName* pT
     } else {
       taosArrayPush(*pVgroupList, &vgInfo);
     }
-  } else if (TSDB_CODE_MND_DB_NOT_EXIST == code || TSDB_CODE_MND_DB_IN_CREATING == code ||
+} else if (TSDB_CODE_MND_DB_NOT_EXIST == code || TSDB_CODE_MND_DB_IN_CREATING == code ||
              TSDB_CODE_MND_DB_IN_DROPPING == code) {
     // system table query should not report errors
     code = TSDB_CODE_SUCCESS;
