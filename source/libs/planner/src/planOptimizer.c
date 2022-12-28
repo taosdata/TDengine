@@ -1546,6 +1546,10 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     if (TSDB_CODE_SUCCESS == code) {
       NODES_CLEAR_LIST(pNode->pChildren);
       nodesDestroyNode((SNode*)pNode);
+      if (QUERY_NODE_LOGIC_PLAN_AGG == pNode->pParent->type) {
+        SAggLogicNode* pParent = (SAggLogicNode*)(pNode->pParent);
+        pParent->hasGroupKeyOptimized = true;
+      }
     }
   } else {
     SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
@@ -1578,6 +1582,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   if (TSDB_CODE_SUCCESS == code) {
     code = partTagsOptRebuildTbanme(pScan->pGroupTags);
   }
+
   pCxt->optimized = true;
   return code;
 }
