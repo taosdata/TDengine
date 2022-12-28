@@ -211,7 +211,7 @@ _SEND_RESPONSE:
   if (accepted && matched) {
     pReply->success = true;
     // update commit index only after matching
-    (void)syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
+    (void)syncNodeUpdateCommitIndex(ths, TMIN(pMsg->commitIndex, pEntry->index));
   }
 
   // ack, i.e. send response
