@@ -292,19 +292,9 @@ void walAlignVersions(SWal* pWal) {
     }
     pWal->vers.lastVer = pWal->vers.snapshotVer;
   }
-  if (pWal->vers.commitVer < pWal->vers.snapshotVer) {
-    wWarn("vgId:%d, commitVer:%" PRId64 " is less than snapshotVer:%" PRId64 ". align with it.", pWal->cfg.vgId,
-          pWal->vers.commitVer, pWal->vers.snapshotVer);
-    pWal->vers.commitVer = pWal->vers.snapshotVer;
-  }
-  if (pWal->vers.appliedVer < pWal->vers.snapshotVer) {
-    wWarn("vgId:%d, appliedVer:%" PRId64 " is less than snapshotVer:%" PRId64 ". align with it.", pWal->cfg.vgId,
-          pWal->vers.appliedVer, pWal->vers.snapshotVer);
-    pWal->vers.appliedVer = pWal->vers.snapshotVer;
-  }
-
-  pWal->vers.commitVer = TMIN(pWal->vers.lastVer, pWal->vers.commitVer);
-  pWal->vers.appliedVer = TMIN(pWal->vers.commitVer, pWal->vers.appliedVer);
+  // reset commitVer and appliedVer
+  pWal->vers.commitVer = pWal->vers.snapshotVer;
+  pWal->vers.appliedVer = pWal->vers.snapshotVer;
 }
 
 bool walLogEntriesComplete(const SWal* pWal) {
