@@ -338,7 +338,7 @@ int64_t taosMemorySize(void *ptr) {
 }
 
 void taosMemoryTrim(int32_t size) {
-#if defined(WINDOWS) || defined(DARWIN)
+#if defined(WINDOWS) || defined(DARWIN) || defined(_ALPINE)
   // do nothing
   return;
 #else
