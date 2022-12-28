@@ -251,10 +251,9 @@ void vnodePreClose(SVnode *pVnode) {
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
+    tsem_wait(&pVnode->canCommit);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
-
-    tsem_wait(&pVnode->canCommit);
     walClose(pVnode->pWal);
     tqClose(pVnode->pTq);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);

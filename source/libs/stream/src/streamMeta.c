@@ -69,8 +69,7 @@ _err:
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
-  tdbCommit(pMeta->db, pMeta->txn);
-  tdbPostCommit(pMeta->db, pMeta->txn);
+  tdbTxnClose(pMeta->txn);
   tdbTbClose(pMeta->pTaskDb);
   tdbTbClose(pMeta->pCheckpointDb);
   tdbClose(pMeta->db);
@@ -88,6 +87,7 @@ void streamMetaClose(SStreamMeta* pMeta) {
     /*streamMetaReleaseTask(pMeta, pTask);*/
   }
   taosHashCleanup(pMeta->pTasks);
+  taosHashCleanup(pMeta->pRecoverStatus);
   taosMemoryFree(pMeta->path);
   taosMemoryFree(pMeta);
 }
