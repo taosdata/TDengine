@@ -307,7 +307,9 @@ Query OK, 24 row(s) in set (0.002444s)
 </code></pre>
 </details>
 
-  The above show the block distribution percentage according to the number of rows in each block. In the above example, `_block_dist: 3483 |||||||||||||||||  1 (20.00%)` means there is one block whose rows is between 3,483 and 3,681. `_block_dist: 3881 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||  4 (80.00%)` means there are 4 blocks whose rows is between 3,881 and 4,096. The number of blocks whose rows fall in other range is zero.
+  The above show the block distribution percentage according to the number of rows in each block. In the above example, we can get below information:
+  - `_block_dist: 3483 |||||||||||||||||  1 (20.00%)` means there is one block whose rows is between 3,483 and 3,681.
+  -  `_block_dist: 3881 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||  4 (80.00%)` means there are 4 blocks whose rows is between 3,881 and 4,096.   - The number of blocks whose rows fall in other range is zero.
 
 ## SHOW TAGS
 
