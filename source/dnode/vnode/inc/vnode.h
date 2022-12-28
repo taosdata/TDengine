@@ -222,11 +222,19 @@ typedef struct SSnapContext {
 } SSnapContext;
 
 typedef struct STqReader {
-  int64_t           ver;
-  const SSubmitReq *pMsg;
-  SSubmitBlk       *pBlock;
-  SSubmitMsgIter    msgIter;
-  SSubmitBlkIter    blkIter;
+  // const SSubmitReq *pMsg;
+  //   SSubmitBlk       *pBlock;
+  //   SSubmitMsgIter    msgIter;
+  //   SSubmitBlkIter    blkIter;
+
+  int64_t     ver;
+  SPackedData msg2;
+
+  int8_t      setMsg;
+  SSubmitReq2 submit;
+  int32_t     nextBlk;
+
+  int64_t lastBlkUid;
 
   SWalReader *pWalReader;
 
@@ -251,11 +259,14 @@ int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 int32_t tqSeekVer(STqReader *pReader, int64_t ver);
 int32_t tqNextBlock(STqReader *pReader, SFetchRet *ret);
 
-int32_t tqReaderSetDataMsg(STqReader *pReader, const SSubmitReq *pMsg, int64_t ver);
-bool    tqNextDataBlock(STqReader *pReader);
-bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
-int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas);
+int32_t tqReaderSetSubmitReq2(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);
+// int32_t tqReaderSetDataMsg(STqReader *pReader, const SSubmitReq *pMsg, int64_t ver);
+bool    tqNextDataBlock2(STqReader *pReader);
+bool    tqNextDataBlockFilterOut2(STqReader *pReader, SHashObj *filterOutUids);
+int32_t tqRetrieveDataBlock2(SSDataBlock *pBlock, STqReader *pReader);
+int32_t tqRetrieveTaosxBlock2(STqReader *pReader, SArray *blocks, SArray *schemas);
+// int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
+// int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas);
 
 int32_t vnodeEnqueueStreamMsg(SVnode *pVnode, SRpcMsg *pMsg);
 

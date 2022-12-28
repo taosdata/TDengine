@@ -30,6 +30,8 @@ database_option: {
   | WAL_LEVEL {1 | 2}
   | VGROUPS value
   | SINGLE_STABLE {0 | 1}
+  | TABLE_PREFIX value
+  | TABLE_SUFFIX value
   | WAL_RETENTION_PERIOD value
   | WAL_ROLL_PERIOD value
   | WAL_RETENTION_SIZE value
@@ -67,6 +69,8 @@ database_option: {
 - SINGLE_STABLE：表示此数据库中是否只可以创建一个超级表，用于超级表列非常多的情况。
   - 0：表示可以创建多张超级表。
   - 1：表示只可以创建一张超级表。
+- TABLE_PREFIX：内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。
+- TABLE_SUFFIX：内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度。
 - WAL_RETENTION_PERIOD：wal 文件的额外保留策略，用于数据订阅。wal 的保存时长，单位为 s。单副本默认为 0，即落盘后立即删除。-1 表示不删除。多副本默认为 4 天。
 - WAL_RETENTION_SIZE：wal 文件的额外保留策略，用于数据订阅。wal 的保存的最大上限，单位为 KB。单副本默认为 0，即落盘后立即删除。多副本默认为-1，表示不删除。
 - WAL_ROLL_PERIOD：wal 文件切换时长，单位为 s。当 wal 文件创建并写入后，经过该时间，会自动创建一个新的 wal 文件。单副本默认为 0，即仅在落盘时创建新文件。多副本默认为 1 天。

@@ -298,8 +298,8 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
 }
 
 static int compareKv(const void* p1, const void* p2) {
-  SSmlKv* kv1 = *(SSmlKv**)p1;
-  SSmlKv* kv2 = *(SSmlKv**)p2;
+  SSmlKv* kv1 = (SSmlKv*)p1;
+  SSmlKv* kv2 = (SSmlKv*)p2;
   int32_t kvLen1 = kv1->keyLen;
   int32_t kvLen2 = kv2->keyLen;
   int32_t res = strncasecmp(kv1->key, kv2->key, TMIN(kvLen1, kvLen2));
@@ -320,7 +320,7 @@ void buildChildTableName(RandTableName* rName) {
   taosArraySort(rName->tags, compareKv);
   for (int j = 0; j < taosArrayGetSize(rName->tags); ++j) {
     taosStringBuilderAppendChar(&sb, ',');
-    SSmlKv* tagKv = taosArrayGetP(rName->tags, j);
+    SSmlKv* tagKv = taosArrayGet(rName->tags, j);
     taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);
     taosStringBuilderAppendChar(&sb, '=');
     if (IS_VAR_DATA_TYPE(tagKv->type)) {

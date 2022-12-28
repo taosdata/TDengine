@@ -113,14 +113,8 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     return -1;
   }
 
-  if (pRsp->withTbName) {
-    if (pRsp->rspOffset.type == TMQ_OFFSET__LOG) {
-      int64_t uid = pExec->pExecReader->msgIter.uid;
-      tqAddTbNameToRsp(pTq, uid, pRsp, 1);
-    } else {
-      pRsp->withTbName = false;
-    }
-  }
+  ASSERT(pRsp->withTbName == false);
+  ASSERT(pRsp->withSchema == false);
 
   return 0;
 }
@@ -157,9 +151,8 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
 
     if (pDataBlock != NULL) {
       if (pRsp->withTbName) {
-        int64_t uid = 0;
         if (pOffset->type == TMQ_OFFSET__LOG) {
-          uid = pExec->pExecReader->msgIter.uid;
+          int64_t uid = pExec->pExecReader->lastBlkUid;
           if (tqAddTbNameToRsp(pTq, uid, (SMqDataRsp*)pRsp, 1) < 0) {
             continue;
           }
@@ -229,7 +222,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
   return 0;
 }
 
-int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp* pRsp) {
+int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp) {
   STqExecHandle* pExec = &pHandle->execHandle;
   /*A(pExec->subType != TOPIC_SUB_TYPE__COLUMN);*/
 
@@ -238,8 +231,9 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
 
   if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
     STqReader* pReader = pExec->pExecReader;
-    tqReaderSetDataMsg(pReader, pReq, 0);
-    while (tqNextDataBlock(pReader)) {
+    /*tqReaderSetDataMsg(pReader, pReq, 0);*/
+    tqReaderSetSubmitReq2(pReader, submit.msgStr, submit.msgLen, submit.ver);
+    while (tqNextDataBlock2(pReader)) {
       /*SSDataBlock block = {0};*/
       /*if (tqRetrieveDataBlock(&block, pReader) < 0) {*/
       /*if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;*/
@@ -247,11 +241,12 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
 
       taosArrayClear(pBlocks);
       taosArrayClear(pSchemas);
-      if (tqRetrieveTaosxBlock(pReader, pBlocks, pSchemas) < 0) {
+      if (tqRetrieveTaosxBlock2(pReader, pBlocks, pSchemas) < 0) {
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
       }
       if (pRsp->withTbName) {
-        int64_t uid = pExec->pExecReader->msgIter.uid;
+        /*int64_t uid = pExec->pExecReader->msgIter.uid;*/
+        int64_t uid = pExec->pExecReader->lastBlkUid;
         if (tqAddTbNameToRsp(pTq, uid, (SMqDataRsp*)pRsp, taosArrayGetSize(pBlocks)) < 0) {
           taosArrayDestroyEx(pBlocks, (FDelete)blockDataFreeRes);
           taosArrayDestroyP(pSchemas, (FDelete)tDeleteSSchemaWrapper);
@@ -261,7 +256,9 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
         }
       }
       if (pHandle->fetchMeta) {
+#if 0
         SSubmitBlk* pBlk = pReader->pBlock;
+        int64_t uid = pExec->pExecReader->lastBlkUid;
         int32_t     schemaLen = htonl(pBlk->schemaLen);
         if (schemaLen > 0) {
           if (pRsp->createTableNum == 0) {
@@ -274,6 +271,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
           taosArrayPush(pRsp->createTableReq, &createReq);
           pRsp->createTableNum++;
         }
+#endif
       }
       for (int32_t i = 0; i < taosArrayGetSize(pBlocks); i++) {
         SSDataBlock* pBlock = taosArrayGet(pBlocks, i);
@@ -287,19 +285,20 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
     }
   } else if (pExec->subType == TOPIC_SUB_TYPE__DB) {
     STqReader* pReader = pExec->pExecReader;
-    tqReaderSetDataMsg(pReader, pReq, 0);
-    while (tqNextDataBlockFilterOut(pReader, pExec->execDb.pFilterOutTbUid)) {
+    /*tqReaderSetDataMsg(pReader, pReq, 0);*/
+    tqReaderSetSubmitReq2(pReader, submit.msgStr, submit.msgLen, submit.ver);
+    while (tqNextDataBlockFilterOut2(pReader, pExec->execDb.pFilterOutTbUid)) {
       /*SSDataBlock block = {0};*/
       /*if (tqRetrieveDataBlock(&block, pReader) < 0) {*/
       /*if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;*/
       /*}*/
       taosArrayClear(pBlocks);
       taosArrayClear(pSchemas);
-      if (tqRetrieveTaosxBlock(pReader, pBlocks, pSchemas) < 0) {
+      if (tqRetrieveTaosxBlock2(pReader, pBlocks, pSchemas) < 0) {
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
       }
       if (pRsp->withTbName) {
-        int64_t uid = pExec->pExecReader->msgIter.uid;
+        int64_t uid = pExec->pExecReader->lastBlkUid;
         if (tqAddTbNameToRsp(pTq, uid, (SMqDataRsp*)pRsp, taosArrayGetSize(pBlocks)) < 0) {
           taosArrayDestroyEx(pBlocks, (FDelete)blockDataFreeRes);
           taosArrayDestroyP(pSchemas, (FDelete)tDeleteSSchemaWrapper);
@@ -309,6 +308,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
         }
       }
       if (pHandle->fetchMeta) {
+#if 0
         SSubmitBlk* pBlk = pReader->pBlock;
         int32_t     schemaLen = htonl(pBlk->schemaLen);
         if (schemaLen > 0) {
@@ -322,6 +322,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
           taosArrayPush(pRsp->createTableReq, &createReq);
           pRsp->createTableNum++;
         }
+#endif
       }
       /*tqAddBlockDataToRsp(&block, (SMqDataRsp*)pRsp, taosArrayGetSize(block.pDataBlock),*/
       /*pTq->pVnode->config.tsdbCfg.precision);*/
