@@ -217,19 +217,18 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
   }
 
   SBatchDeleteReq deleteReq = {0};
-  SSubmitReq     *pSubmitReq =
-      tqBlockToSubmit(pSma->pVnode, (const SArray *)msg, pTsmaStat->pTSchema, &pTsmaStat->pTSma->schemaTag, true,
-                      pTsmaStat->pTSma->dstTbUid, pTsmaStat->pTSma->dstTbName, &deleteReq);
-  // TODO deleteReq
-  taosArrayDestroy(deleteReq.deleteReqs);
-  
+  void           *pSubmitReq = NULL;
+  int32_t         contLen = 0;
 
-  if (!pSubmitReq) {
-    smaError("vgId:%d, failed to gen submit blk while tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),
+  if (tqBlockToSubmit(pSma->pVnode, (const SArray *)msg, pTsmaStat->pTSchema, &pTsmaStat->pTSma->schemaTag, true,
+                      pTsmaStat->pTSma->dstTbUid, pTsmaStat->pTSma->dstTbName, &deleteReq, &pSubmitReq, &contLen) < 0) {
+    smaError("vgId:%d, failed to gen submit msg while tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),
              indexUid, tstrerror(terrno));
     goto _err;
   }
-  
+
+  // TODO deleteReq
+  taosArrayDestroy(deleteReq.deleteReqs);
 #if 0
   if (!strncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14)) {
     terrno = TSDB_CODE_APP_ERROR;
@@ -242,7 +241,7 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
   SRpcMsg submitReqMsg = {
       .msgType = TDMT_VND_SUBMIT,
       .pCont = pSubmitReq,
-      .contLen = ntohl(pSubmitReq->length),
+      .contLen = ntohl(contLen),
   };
 
   if (tmsgPutToQueue(&pSma->pVnode->msgCb, WRITE_QUEUE, &submitReqMsg) < 0) {

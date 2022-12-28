@@ -21,6 +21,7 @@ taosAdapter 提供以下功能：
 - 无缝连接到 collectd
 - 无缝连接到 StatsD
 - 支持 Prometheus remote_read 和 remote_write
+- 获取 table 所在的虚拟节点组（VGroup）的 VGroup ID
 
 ## taosAdapter 架构图
 
@@ -178,6 +179,7 @@ AllowWebSockets
   node_export 是一个机器指标的导出器。请访问 [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) 了解更多信息。
 - 支持 Prometheus remote_read 和 remote_write
   remote_read 和 remote_write 是 Prometheus 数据读写分离的集群方案。请访问[https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) 了解更多信息。
+- 获取 table 所在的虚拟节点组（VGroup）的 VGroup ID。关于虚拟节点组（VGroup）的更多信息，请访问[整体架构文档](/tdinternal/arch/#主要逻辑单元) 。
 
 ## 接口
 
@@ -240,6 +242,10 @@ Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输�
 
 <Prometheus />
 
+### 获取 table 的 VGroup ID
+
+可以访问 http 接口 `http://<fqdn>:6041/rest/vgid?db=<db>&table=<table>` 获取 table 的 VGroup ID。关于虚拟节点组（VGroup）的更多信息，请访问[整体架构文档](/tdinternal/arch/#主要逻辑单元) 。
+
 ## 内存使用优化方法
 
 taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值进行调节。有效值范围为 -1 到 100 的整数，单位为系统物理内存的百分比。
@@ -282,7 +288,7 @@ http 返回内容：
 
 ## taosAdapter 监控指标
 
-taosAdapter 采集 http 相关指标、cpu 百分比和内存百分比。
+taosAdapter 采集 http 相关指标、CPU 百分比和内存百分比。
 
 ### http 接口
 
@@ -294,13 +300,13 @@ http://<fqdn>:6041/metrics
 
 ### 写入 TDengine
 
-taosAdapter 支持将 http 监控、cpu 百分比和内存百分比写入 TDengine。
+taosAdapter 支持将 http 监控、CPU 百分比和内存百分比写入 TDengine。
 
 有关配置参数
 
 | **配置项**                 | **描述**                                     | **默认值**  |
 |-------------------------|--------------------------------------------|----------|
-| monitor.collectDuration | cpu 和内存采集间隔                                | 3s       |
+| monitor.collectDuration | CPU 和内存采集间隔                                | 3s       |
 | monitor.identity        | 当前taosadapter 的标识符如果不设置将使用 'hostname:port' |          |
 | monitor.incgroup        | 是否是 cgroup 中运行(容器中运行设置为 true)              | false    |
 | monitor.writeToTD       | 是否写入到 TDengine                             | false    |

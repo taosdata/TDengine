@@ -12,6 +12,7 @@ from util.dnodes import *
 from util.dnodes import TDDnodes
 from util.dnodes import TDDnode
 from util.cluster import *
+import subprocess
 
 BASEVERSION = "3.0.1.8"
 class TDTestCase:
@@ -26,8 +27,21 @@ class TDTestCase:
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
+    
+    def checkProcessPid(self,processName):
+        i=0
+        while i<60:
+            print(f"wait stop {processName}")
+            processPid = subprocess.getstatusoutput(f'ps aux|grep {processName} |grep -v "grep"|awk \'{{print $2}}\'')[1]
+            print(f"times:{i},{processName}-pid:{processPid}")
+            if(processPid == ""):
+                break
+            i += 1
+            sleep(1)
+        else:
+            print(f'this processName is not stoped in 60s')
 
-
+            
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -115,15 +129,15 @@ class TDTestCase:
         # tdsqlF.query(f"select count(*) from {stb}")
         # tdsqlF.checkData(0,0,tableNumbers*recordNumbers1)
         os.system("pkill taosd")
-        sleep(2)
+        self.checkProcessPid("taosd")
 
         print(f"start taosd: nohup taosd -c {cPath} & ")
         os.system(f" nohup taosd -c {cPath} & " )
         sleep(10)
         tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
         os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
-        os.system("pkill -9 taosd")
-
+        os.system("pkill taosd")   # make sure all the data are saved in disk.
+        self.checkProcessPid("taosd")
 
 
         tdLog.printNoPrefix("==========step2:update new version ")
