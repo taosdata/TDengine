@@ -916,8 +916,10 @@ int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
 
 int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, int32_t startIndex,
                                int32_t numOfRows) {
-  SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
   output->numOfRows = input->numOfRows;
+
+  SDataType t = {.type = type};
+  t.bytes = IS_VAR_DATA_TYPE(t.type)? input->columnData->info.bytes:tDataTypes[type].bytes;
 
   int32_t code = sclCreateColumnInfoData(&t, input->numOfRows, output);
   if (code != TSDB_CODE_SUCCESS) {

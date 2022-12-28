@@ -130,9 +130,9 @@ __compar_fn_t gDataCompare[] = {compareInt32Val,
                                 compareFloatVal,
                                 compareDoubleVal,
                                 compareLenPrefixedStr,
-                                compareStrPatternMatch,
+                                comparestrPatternMatch,
                                 compareChkInString,
-                                compareWStrPatternMatch,
+                                comparewcsPatternMatch,
                                 compareLenPrefixedWStr,
                                 compareUint8Val,
                                 compareUint16Val,
@@ -142,15 +142,17 @@ __compar_fn_t gDataCompare[] = {compareInt32Val,
                                 setChkInBytes2,
                                 setChkInBytes4,
                                 setChkInBytes8,
-                                compareStrRegexCompMatch,
-                                compareStrRegexCompNMatch,
+                                comparestrRegexMatch,
+                                comparestrRegexNMatch,
                                 setChkNotInBytes1,
                                 setChkNotInBytes2,
                                 setChkNotInBytes4,
                                 setChkNotInBytes8,
                                 compareChkNotInString,
-                                compareStrPatternNotMatch,
-                                compareWStrPatternNotMatch};
+                                comparestrPatternNMatch,
+                                comparewcsPatternNMatch,
+                                comparewcsRegexMatch,
+                                comparewcsRegexNMatch,};
 
 __compar_fn_t gInt8SignCompare[] = {compareInt8Val,   compareInt8Int16, compareInt8Int32,
                                     compareInt8Int64, compareInt8Float, compareInt8Double};
@@ -295,9 +297,9 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
 
     case TSDB_DATA_TYPE_NCHAR: {
       if (optr == OP_TYPE_MATCH) {
-        comparFn = 19;
+        comparFn = 28;
       } else if (optr == OP_TYPE_NMATCH) {
-        comparFn = 20;
+        comparFn = 29;
       } else if (optr == OP_TYPE_LIKE) {
         comparFn = 9;
       } else if (optr == OP_TYPE_NOT_LIKE) {
