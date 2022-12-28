@@ -9,14 +9,13 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include/util"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
     PRIVATE "${TD_SOURCE_DIR}/include/common"
-    PRIVATE "${TD_SOURCE_DIR}/include/libs/geometry"
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
 )
 target_link_libraries(
     util
     PUBLIC os
     PUBLIC lz4_static
-    PUBLIC api cjson
+    PUBLIC api cjson geos_c
 )
 
 if(${BUILD_TEST})

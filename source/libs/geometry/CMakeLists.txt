@@ -9,9 +9,9 @@ target_include_directories(
 )
 
 target_link_libraries(geometry
-    PRIVATE os nodes function scalar qcom geos_c
+    PRIVATE os util nodes function scalar qcom
 )
 
 if(${BUILD_TEST})
-    ADD_SUBDIRECTORY(test)
+    #ADD_SUBDIRECTORY(test)
 endif(${BUILD_TEST})

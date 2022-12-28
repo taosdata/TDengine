@@ -16,10 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "tsched.h"
 #include "tdef.h"
+#include "tgeosctx.h"
 #include "tlog.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "geosWrapper.h"
 
 #define DUMP_SCHEDULER_TIME_WINDOW 30000  // every 30sec, take a snap shot of task queue.
 

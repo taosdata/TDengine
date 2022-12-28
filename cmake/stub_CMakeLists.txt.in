@@ -2,6 +2,7 @@
 # stub
 ExternalProject_Add(stub
         GIT_REPOSITORY https://github.com/coolxv/cpp-stub.git
+        GIT_TAG 5e903b8e
         GIT_SUBMODULES "src"
         SOURCE_DIR "${TD_CONTRIB_DIR}/cpp-stub"
         BINARY_DIR "${TD_CONTRIB_DIR}/cpp-stub/src"

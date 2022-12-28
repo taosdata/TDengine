@@ -15,9 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "tworker.h"
+#include "tgeosctx.h"
 #include "taoserror.h"
 #include "tlog.h"
-#include "geosWrapper.h"
 
 typedef void *(*ThreadFp)(void *param);
 

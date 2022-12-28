@@ -22,22 +22,7 @@ extern "C" {
 
 #include <stdint.h>
 
-#include <geos_c.h>
-
-typedef struct SGeosContext {
-  GEOSContextHandle_t handle;
-
-  GEOSWKTReader *WKTReader;
-  GEOSWKTWriter *WKTWriter;
-
-  GEOSWKBReader *WKBReader;
-  GEOSWKBWriter *WKBWriter;
-
-  char errMsg[512];
-} SGeosContext;
-
-SGeosContext* getThreadLocalGeosCtx();
-void destroyThreadLocalGeosCtx();
+#include "tgeosctx.h"
 
 void geosFreeBuffer(void *buffer);
 
