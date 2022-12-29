@@ -34,6 +34,8 @@ char   *strtolower(char *dst, const char *src);
 char   *strntolower(char *dst, const char *src, int32_t n);
 char   *strntolower_s(char *dst, const char *src, int32_t n);
 int64_t strnatoi(char *num, int32_t len);
+size_t  tstrncspn(const char *str, size_t ssize, const char *reject, size_t rsize);
+
 char   *strbetween(char *string, char *begin, char *end);
 char   *paGetToken(char *src, char **token, int32_t *tokenLen);
 

@@ -17,6 +17,7 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 #include "tcompare.h"
+#include "tutil.h"
 #include "regex.h"
 #include "tdef.h"
 #include "thash.h"
@@ -1014,16 +1015,12 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
   int32_t j = 0;
   int32_t nMatchChar = 0;
 
-  while ((c = pattern[i++]) != 0 && (i <= psize)) {
+  while ((i < psize) && ((c = pattern[i++]) != 0)) {
     if (c == pInfo->matchAll) { /* Match "*" */
 
-      while ((c = pattern[i++]) == pInfo->matchAll || c == pInfo->matchOne) {
-        if (i > psize) {  // overflow check
-          break;
-        }
-
+      while ((i <  psize) && ((c = pattern[i++]) == pInfo->matchAll || c == pInfo->matchOne)) {
         if (c == pInfo->matchOne) {
-          if (j > ssize || str[j++] == 0) { // empty string, return not match
+          if (j >= ssize || str[j++] == 0) { // empty string, return not match
             return TSDB_PATTERN_NOWILDCARDMATCH;
           } else {
             ++nMatchChar;
@@ -1031,21 +1028,21 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
         }
       }
 
-      if (c == 0 || i > psize) {
+      if (i >= psize && (c == pInfo->umatchOne || c == pInfo->umatchAll)) {
         return TSDB_PATTERN_MATCH; /* "*" at the end of the pattern matches */
       }
 
-      char acceptArray[3] = {toupper(c), tolower(c), 0};
+      char rejectList[2] = {toupper(c), tolower(c)};
 
       str += nMatchChar;
       int32_t remain = ssize - nMatchChar;
       while (1) {
-        size_t n = strcspn(str, acceptArray);
+        size_t n = tstrncspn(str, remain, rejectList, 2);
 
         str += n;
         remain -= n;
 
-        if (str[0] == 0 || (remain <= 0)) {
+        if ((remain <= 0) || str[0] == 0) {
           break;
         }
 
@@ -1075,7 +1072,7 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
     return TSDB_PATTERN_NOMATCH;
   }
 
-  return (str[j] == 0 || j >= ssize) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
+  return (j >= ssize || str[j] == 0) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
 int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize, const SPatternCompareInfo *pInfo) {
@@ -1085,14 +1082,10 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
   int32_t j = 0;
   int32_t nMatchChar = 0;
 
-  while ((c = pattern[i++]) != 0 && (i <= psize)) {
-    /* Match "%" */
-    if (c == pInfo->umatchAll) {
-      while ((c = pattern[i++]) == pInfo->umatchAll || c == pInfo->umatchOne) {
-        if (i > psize) {
-          break;
-        }
+  while ((i < psize) && ((c = pattern[i++]) != 0)) {
+    if (c == pInfo->umatchAll) { /* Match "%" */
 
+      while ((i < psize) && ((c = pattern[i++]) == pInfo->umatchAll || c == pInfo->umatchOne)) {
         if (c == pInfo->umatchOne) {
           if (j >= ssize || str[j++] == 0) {
             return TSDB_PATTERN_NOWILDCARDMATCH;
@@ -1102,7 +1095,7 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
         }
       }
 
-      if (c == 0 || i > psize) {
+      if (i >= psize && (c == pInfo->umatchOne || c == pInfo->umatchAll)) {
         return TSDB_PATTERN_MATCH;
       }
 
@@ -1116,11 +1109,11 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
         str += n;
         remain -= n;
 
-        if (str[0] == 0 || (remain <= 0)) {
+        if ((remain <= 0) || str[0] == 0) {
           break;
         }
 
-        int32_t ret = wcsPatternMatch(&pattern[i], psize-i, ++str, --remain, pInfo);
+        int32_t ret = wcsPatternMatch(&pattern[i], psize - i, ++str, --remain, pInfo);
         if (ret != TSDB_PATTERN_NOMATCH) {
           return ret;
         }
@@ -1146,7 +1139,7 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
     return TSDB_PATTERN_NOMATCH;
   }
 
-  return (str[j] == 0 || j >= ssize) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
+  return (j >= ssize || str[j] == 0) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
 int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight) {
@@ -1198,7 +1191,7 @@ int32_t comparestrRegexMatch(const void *pLeft, const void *pRight) {
 
 int32_t comparewcsRegexMatch(const void* pString, const void* pPattern) {
   size_t len = varDataLen(pPattern);
-  char  *pattern = taosMemoryMalloc(len + 1);
+  char  *pattern = taosMemoryMalloc(len + TSDB_NCHAR_SIZE);
 
   int convertLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(pPattern), len, pattern);
   if (convertLen < 0) {
@@ -1206,7 +1199,7 @@ int32_t comparewcsRegexMatch(const void* pString, const void* pPattern) {
     return TSDB_CODE_APP_ERROR;
   }
 
-  pattern[len] = 0;
+  pattern[convertLen] = 0;
 
   len = varDataLen(pString);
   char *str = taosMemoryMalloc(len + 1);
@@ -1218,7 +1211,7 @@ int32_t comparewcsRegexMatch(const void* pString, const void* pPattern) {
     return TSDB_CODE_APP_ERROR;
   }
 
-  str[len] = 0;
+  str[convertLen] = 0;
 
   int32_t ret = doExecRegexMatch(str, pattern);
 

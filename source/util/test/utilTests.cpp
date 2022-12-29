@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <stdlib.h>
+#include <tutil.h>
 #include <random>
 
 #include "tarray.h"
@@ -232,4 +233,35 @@ TEST(utilTest, char_pattern_match_no_terminated) {
   const char* str10 = "6_6";
   ret = patternMatch(pattern10, 1, str10, strlen(str10), &pInfo);
   ASSERT_EQ(ret, TSDB_PATTERN_MATCH);
+}
+
+TEST(utilTest, tstrncspn) {
+  const char* p1 = "abc";
+  const char* reject = "d";
+  size_t v = tstrncspn(p1, strlen(p1), reject, 1);
+  ASSERT_EQ(v, 3);
+
+  const char* reject1 = "a";
+  v = tstrncspn(p1, strlen(p1), reject1, 1);
+  ASSERT_EQ(v, 0);
+
+  const char* reject2 = "de";
+  v = tstrncspn(p1, strlen(p1), reject2, 2);
+  ASSERT_EQ(v, 3);
+
+  const char* p2 = "abcdefghijklmn";
+  v = tstrncspn(p2, strlen(p2), reject2, 2);
+  ASSERT_EQ(v, 3);
+
+  const char* reject3 = "12345n";
+  v = tstrncspn(p2, strlen(p2), reject3, 6);
+  ASSERT_EQ(v, 13);
+
+  const char* reject4 = "";
+  v = tstrncspn(p2, strlen(p2), reject4, 0);
+  ASSERT_EQ(v, 14);
+
+  const char* reject5 = "911";
+  v = tstrncspn(p2, strlen(p2), reject5, 0);
+  ASSERT_EQ(v, 14);
 }
