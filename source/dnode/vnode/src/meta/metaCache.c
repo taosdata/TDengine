@@ -210,7 +210,7 @@ _exit:
 int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
   int32_t code = 0;
 
-  // ASSERT(metaIsWLocked(pMeta));
+  // meta is wlocked for calling this func.
 
   // search
   SMetaCache*       pCache = pMeta->pCache;
@@ -221,7 +221,10 @@ int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
   }
 
   if (*ppEntry) {  // update
-    ASSERT(pInfo->suid == (*ppEntry)->info.suid);
+    if (pInfo->suid != (*ppEntry)->info.suid) {
+      metaError("meta/cache: suid should be same as the one in cache.");
+      return TSDB_CODE_FAILED;
+    }
     if (pInfo->version > (*ppEntry)->info.version) {
       (*ppEntry)->info.version = pInfo->version;
       (*ppEntry)->info.skmVer = pInfo->skmVer;
@@ -340,7 +343,7 @@ _exit:
 int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo) {
   int32_t code = 0;
 
-  // ASSERT(metaIsWLocked(pMeta));
+  // meta is wlocked for calling this func.
 
   // search
   SMetaCache*          pCache = pMeta->pCache;
@@ -449,7 +452,11 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
 
   // do some book mark work after acquiring the filter result from cache
   STagFilterResEntry** pEntry = taosHashGet(pTableMap, &suid, sizeof(uint64_t));
-  ASSERT(pEntry != NULL);
+  if (NULL == pEntry) {
+    metaError("meta/cache: pEntry should not be NULL.");
+    return TSDB_CODE_FAILED;
+  }
+
   *acquireRes = 1;
 
   const char* p = taosLRUCacheValue(pCache, pHandle);
@@ -494,7 +501,7 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
       taosMemoryFree(*p1);
     }
 
-    atomic_store_32(&(*pEntry)->qTimes, 0); // reset the query times
+    atomic_store_32(&(*pEntry)->qTimes, 0);  // reset the query times
     taosArrayDestroy(pInvalidRes);
 
     taosThreadMutexUnlock(pLock);
@@ -550,7 +557,10 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
   buf[0] = suid;
 
   memcpy(&buf[1], pKey, keyLen);
-  ASSERT(sizeof(uint64_t) + keyLen == 24);
+  if (sizeof(uint64_t) + keyLen != 24) {
+    metaError("meta/cache: incorrect keyLen:%" PRId32 " length.", keyLen);
+    return TSDB_CODE_FAILED;
+  }
 
   // add to cache.
   taosLRUCacheInsert(pCache, buf, sizeof(uint64_t) + keyLen, pPayload, payloadLen, freePayload, NULL,
