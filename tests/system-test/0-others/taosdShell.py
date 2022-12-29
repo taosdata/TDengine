@@ -2,6 +2,7 @@
 import taos
 import sys
 import time
+from datetime import datetime
 import socket
 import os
 import platform
@@ -45,6 +46,7 @@ class TDTestCase:
     # print ("===================: ", updatecfgDict)
 
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -90,7 +92,7 @@ class TDTestCase:
                 break
             else:
                 tdLog.info( "wait start taosd ,times: %d "%i)
-            sleep
+            time.sleep(1)
             i+= 1
         else :
             tdLog.exit("taosd %s is not running "%startAction)    
@@ -99,8 +101,11 @@ class TDTestCase:
         processName="taosd"
         taosdCmd = taosdCmdRun + startAction
         tdLog.printNoPrefix("%s"%taosdCmd)
-        os.system(f"nohup {taosdCmd}  & ")
+        logTime=datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+        os.system(f"nohup {taosdCmd}  >  {logTime}.log  2>&1 &  ")
         self.checkAndstopPro(processName,startAction)
+        os.system(f"rm -rf  {logTime}.log")
+
 
     def taosdCommandExe(self,startAction,taosdCmdRun):
         taosdCmd = taosdCmdRun + startAction
@@ -131,7 +136,7 @@ class TDTestCase:
         tdSql.query("use source_db")
         tdSql.query("create table if not exists source_db.stb (ts timestamp, k int) tags (a int);")
         tdSql.query("create table source_db.ct1 using source_db.stb tags(1000);create table source_db.ct2 using source_db.stb tags(2000);create table source_db.ct3 using source_db.stb tags(3000);")
-        tdSql.query("create stream s1 into source_db.output_stb as select _wstart AS start, min(k), max(k), sum(k) from source_db.stb interval(10m);")
+        tdSql.query("create stream s1 into source_db.output_stb as select _wstart AS startts, min(k), max(k), sum(k) from source_db.stb interval(10m);")
 
 
         #TD-19944 -Q=3 
@@ -161,7 +166,7 @@ class TDTestCase:
         # keyDict['c'] = cfgPath
         # keyDict['P'] = self.serverPort
         tdDnodes=cluster.dnodes
-        for i in range(5):
+        for i in range(len(tdDnodes)):
             tdDnodes[i].stoptaosd()  
         
         
@@ -206,7 +211,7 @@ class TDTestCase:
         os.system(" mkdir -p taosdCaseTmp ") 
         os.system("echo \'TAOS_QUERY_POLICY=3\' > taosdCaseTmp/.env ")
         self.taosdCommandStop(startAction,taosdCmdRun)
-        os.system(" rm -rf taosdCaseTmp/.env ") 
+        os.system(" rm -rf taosdCaseTmp ") 
 
         startAction = " -V"
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)

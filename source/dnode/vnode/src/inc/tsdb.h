@@ -56,7 +56,7 @@ typedef struct SDataFWriter     SDataFWriter;
 typedef struct SDataFReader     SDataFReader;
 typedef struct SDelFWriter      SDelFWriter;
 typedef struct SDelFReader      SDelFReader;
-typedef struct SRowIter         SRowIter;
+typedef struct STSDBRowIter     STSDBRowIter;
 typedef struct STsdbFS          STsdbFS;
 typedef struct SRowMerger       SRowMerger;
 typedef struct STsdbReadSnap    STsdbReadSnap;
@@ -70,6 +70,9 @@ typedef struct SDiskCol         SDiskCol;
 typedef struct SDiskData        SDiskData;
 typedef struct SDiskDataBuilder SDiskDataBuilder;
 typedef struct SBlkInfo         SBlkInfo;
+
+#define TSDBROW_ROW_FMT ((int8_t)0x0)
+#define TSDBROW_COL_FMT ((int8_t)0x1)
 
 #define TSDB_FILE_DLMT     ((uint32_t)0xF00AFA0F)
 #define TSDB_MAX_SUBBLOCKS 8
@@ -103,27 +106,29 @@ static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
 
 // tsdbUtil.c ==============================================================================================
 // TSDBROW
-#define TSDBROW_TS(ROW)                       (((ROW)->type == 0) ? (ROW)->pTSRow->ts : (ROW)->pBlockData->aTSKEY[(ROW)->iRow])
-#define TSDBROW_VERSION(ROW)                  (((ROW)->type == 0) ? (ROW)->version : (ROW)->pBlockData->aVersion[(ROW)->iRow])
-#define TSDBROW_SVERSION(ROW)                 TD_ROW_SVER((ROW)->pTSRow)
-#define TSDBROW_KEY(ROW)                      ((TSDBKEY){.version = TSDBROW_VERSION(ROW), .ts = TSDBROW_TS(ROW)})
-#define tsdbRowFromTSRow(VERSION, TSROW)      ((TSDBROW){.type = 0, .version = (VERSION), .pTSRow = (TSROW)})
-#define tsdbRowFromBlockData(BLOCKDATA, IROW) ((TSDBROW){.type = 1, .pBlockData = (BLOCKDATA), .iRow = (IROW)})
-void    tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
-int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow);
-int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow);
-int32_t tsdbRowCmprFn(const void *p1, const void *p2);
-// SRowIter
-void     tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
-SColVal *tRowIterNext(SRowIter *pIter);
-// SRowMerger
-int32_t tRowMergerInit2(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRow, STSchema *pTSchema);
-int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
+#define TSDBROW_TS(ROW) (((ROW)->type == TSDBROW_ROW_FMT) ? (ROW)->pTSRow->ts : (ROW)->pBlockData->aTSKEY[(ROW)->iRow])
+#define TSDBROW_VERSION(ROW) \
+  (((ROW)->type == TSDBROW_ROW_FMT) ? (ROW)->version : (ROW)->pBlockData->aVersion[(ROW)->iRow])
+#define TSDBROW_SVERSION(ROW)            ((ROW)->type == TSDBROW_ROW_FMT ? (ROW)->pTSRow->sver : -1)
+#define TSDBROW_KEY(ROW)                 ((TSDBKEY){.version = TSDBROW_VERSION(ROW), .ts = TSDBROW_TS(ROW)})
+#define tsdbRowFromTSRow(VERSION, TSROW) ((TSDBROW){.type = TSDBROW_ROW_FMT, .version = (VERSION), .pTSRow = (TSROW)})
+#define tsdbRowFromBlockData(BLOCKDATA, IROW) \
+  ((TSDBROW){.type = TSDBROW_COL_FMT, .pBlockData = (BLOCKDATA), .iRow = (IROW)})
 
-int32_t tRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
-void    tRowMergerClear(SRowMerger *pMerger);
-int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow);
-int32_t tRowMergerGetRow(SRowMerger *pMerger, STSRow **ppRow);
+void    tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
+int32_t tsdbRowCmprFn(const void *p1, const void *p2);
+// STSDBRowIter
+int32_t  tsdbRowIterOpen(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
+void     tsdbRowClose(STSDBRowIter *pIter);
+SColVal *tsdbRowIterNext(STSDBRowIter *pIter);
+// SRowMerger
+int32_t tsdbRowMergerInit2(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRow, STSchema *pTSchema);
+int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
+
+int32_t tsdbRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
+void    tsdbRowMergerClear(SRowMerger *pMerger);
+int32_t tsdbRowMerge(SRowMerger *pMerger, TSDBROW *pRow);
+int32_t tsdbRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow);
 // TABLEID
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 // TSDBKEY
@@ -148,26 +153,22 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph);
 int32_t tCmprBlockIdx(void const *lhs, void const *rhs);
 int32_t tCmprBlockL(void const *lhs, void const *rhs);
 // SBlockData
-#define tBlockDataFirstRow(PBLOCKDATA) tsdbRowFromBlockData(PBLOCKDATA, 0)
-#define tBlockDataLastRow(PBLOCKDATA)  tsdbRowFromBlockData(PBLOCKDATA, (PBLOCKDATA)->nRow - 1)
-#define tBlockDataFirstKey(PBLOCKDATA) TSDBROW_KEY(&tBlockDataFirstRow(PBLOCKDATA))
-#define tBlockDataLastKey(PBLOCKDATA)  TSDBROW_KEY(&tBlockDataLastRow(PBLOCKDATA))
+#define tBlockDataFirstRow(PBLOCKDATA)             tsdbRowFromBlockData(PBLOCKDATA, 0)
+#define tBlockDataLastRow(PBLOCKDATA)              tsdbRowFromBlockData(PBLOCKDATA, (PBLOCKDATA)->nRow - 1)
+#define tBlockDataFirstKey(PBLOCKDATA)             TSDBROW_KEY(&tBlockDataFirstRow(PBLOCKDATA))
+#define tBlockDataLastKey(PBLOCKDATA)              TSDBROW_KEY(&tBlockDataLastRow(PBLOCKDATA))
+#define tBlockDataGetColDataByIdx(PBLOCKDATA, IDX) (&(PBLOCKDATA)->aColData[IDX])
 
-int32_t   tBlockDataCreate(SBlockData *pBlockData);
-void      tBlockDataDestroy(SBlockData *pBlockData, int8_t deepClear);
-int32_t   tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid);
-int32_t   tBlockDataInitEx(SBlockData *pBlockData, SBlockData *pBlockDataFrom);
-void      tBlockDataReset(SBlockData *pBlockData);
-int32_t   tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
-void      tBlockDataClear(SBlockData *pBlockData);
-SColData *tBlockDataGetColDataByIdx(SBlockData *pBlockData, int32_t idx);
-void      tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
-int32_t   tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
-int32_t   tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
-int32_t   tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
-int32_t   tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut, uint8_t *aBuf[],
-                         int32_t aBufN[]);
-int32_t   tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uint8_t *aBuf[]);
+int32_t tBlockDataCreate(SBlockData *pBlockData);
+void    tBlockDataDestroy(SBlockData *pBlockData);
+int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid);
+void    tBlockDataReset(SBlockData *pBlockData);
+int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
+void    tBlockDataClear(SBlockData *pBlockData);
+void    tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
+int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut, uint8_t *aBuf[],
+                       int32_t aBufN[]);
+int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uint8_t *aBuf[]);
 // SDiskDataHdr
 int32_t tPutDiskDataHdr(uint8_t *p, const SDiskDataHdr *pHdr);
 int32_t tGetDiskDataHdr(uint8_t *p, void *ph);
@@ -189,12 +190,13 @@ int32_t tMapDataSearch(SMapData *pMapData, void *pSearchItem, int32_t (*tGetItem
                        int32_t (*tItemCmprFn)(const void *, const void *), void *pItem);
 int32_t tPutMapData(uint8_t *p, SMapData *pMapData);
 int32_t tGetMapData(uint8_t *p, SMapData *pMapData);
+int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItemFn)(uint8_t *, void *),
+                        SArray **ppArray);
 // other
 int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision);
 void    tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minKey, TSKEY *maxKey);
 int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now);
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline);
-void    tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg);
 int32_t tPutColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
 int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
 int32_t tsdbCmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t nOut,
@@ -216,11 +218,10 @@ int32_t  tsdbRefMemTable(SMemTable *pMemTable, void *pQHandle, _tsdb_reseek_func
 int32_t  tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode);
 SArray  *tsdbMemTableGetTbDataArray(SMemTable *pMemTable);
 // STbDataIter
-int32_t  tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
-void    *tsdbTbDataIterDestroy(STbDataIter *pIter);
-void     tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
-TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter);
-bool     tsdbTbDataIterNext(STbDataIter *pIter);
+int32_t tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
+void   *tsdbTbDataIterDestroy(STbDataIter *pIter);
+void    tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
+bool    tsdbTbDataIterNext(STbDataIter *pIter);
 // STbData
 int32_t tsdbGetNRowsInTbData(STbData *pTbData);
 // tsdbFile.c ==============================================================================================
@@ -341,8 +342,13 @@ struct SVersionRange {
 typedef struct SMemSkipListNode SMemSkipListNode;
 struct SMemSkipListNode {
   int8_t            level;
+  int8_t            flag;  // TSDBROW_ROW_FMT for row format, TSDBROW_COL_FMT for col format
+  int32_t           iRow;
+  int64_t           version;
+  void             *pData;
   SMemSkipListNode *forwards[0];
 };
+
 typedef struct SMemSkipList {
   int64_t           size;
   uint32_t          seed;
@@ -390,11 +396,11 @@ struct SMemTable {
 };
 
 struct TSDBROW {
-  int8_t type;  // 0 for row from tsRow, 1 for row from block data
+  int8_t type;  // TSDBROW_ROW_FMT for row from tsRow, TSDBROW_COL_FMT for row from block data
   union {
     struct {
       int64_t version;
-      STSRow *pTSRow;
+      SRow   *pTSRow;
     };
     struct {
       SBlockData *pBlockData;
@@ -480,14 +486,14 @@ struct SSttBlk {
 // (SBlockData){.suid = suid, .uid = 0}: block data for N child tables int .last file
 // (SBlockData){.suid = 0, .uid = uid}: block data for 1 normal table int .last/.data file
 struct SBlockData {
-  int64_t  suid;      // 0 means normal table block data, otherwise child table block data
-  int64_t  uid;       // 0 means block data in .last file, otherwise in .data file
-  int32_t  nRow;      // number of rows
-  int64_t *aUid;      // uids of each row, only exist in block data in .last file (uid == 0)
-  int64_t *aVersion;  // versions of each row
-  TSKEY   *aTSKEY;    // timestamp of each row
-  SArray  *aIdx;      // SArray<int32_t>
-  SArray  *aColData;  // SArray<SColData>
+  int64_t   suid;      // 0 means normal table block data, otherwise child table block data
+  int64_t   uid;       // 0 means block data in .last file, otherwise in .data file
+  int32_t   nRow;      // number of rows
+  int64_t  *aUid;      // uids of each row, only exist in block data in .last file (uid == 0)
+  int64_t  *aVersion;  // versions of each row
+  TSKEY    *aTSKEY;    // timestamp of each row
+  int32_t   nColData;
+  SColData *aColData;
 };
 
 struct TABLEID {
@@ -578,11 +584,15 @@ struct SDFileSet {
   SSttFile  *aSttF[TSDB_MAX_STT_TRIGGER];
 };
 
-struct SRowIter {
-  TSDBROW  *pRow;
-  STSchema *pTSchema;
-  SColVal   colVal;
-  int32_t   i;
+struct STSDBRowIter {
+  TSDBROW *pRow;
+  union {
+    SRowIter *pIter;
+    struct {
+      int32_t iColData;
+      SColVal cv;
+    };
+  };
 };
 struct SRowMerger {
   STSchema *pTSchema;
@@ -658,6 +668,14 @@ typedef struct SSttBlockLoadInfo {
   STSchema  *pSchema;
   int16_t   *colIds;
   int32_t    numOfCols;
+  bool       sttBlockLoaded;
+
+  // keep the last access position, this position may be used to reduce the binary times for
+  // starting last block data for a new table
+  struct {
+    int32_t blockIndex;
+    int32_t rowIndex;
+  } prevEndPos;
 } SSttBlockLoadInfo;
 
 typedef struct SMergeTree {
@@ -734,13 +752,13 @@ typedef struct SCacheRowsReader {
   int32_t            numOfCols;
   int32_t            type;
   int32_t            tableIndex;  // currently returned result tables
-
   STableKeyInfo     *pTableList;  // table id list
   int32_t            numOfTables;
   SSttBlockLoadInfo *pLoadInfo;
   STsdbReadSnap     *pReadSnap;
   SDataFReader      *pDataFReader;
   SDataFReader      *pDataFReaderLast;
+  const char        *idstr;
 } SCacheRowsReader;
 
 typedef struct {
@@ -750,8 +768,8 @@ typedef struct {
 
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
-int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb *pTsdb);
-int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, STSRow *row, bool dup);
+int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, TSDBROW *row, STsdb *pTsdb);
+int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, TSDBROW *row, bool dup);
 int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **h);
 int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **h);
 int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
@@ -763,7 +781,7 @@ int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
 size_t tsdbCacheGetCapacity(SVnode *pVnode);
 
-int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
+// int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
@@ -783,6 +801,38 @@ static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
   }
 
   return 0;
+}
+
+#define SL_NODE_FORWARD(n, l)  ((n)->forwards[l])
+#define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
+
+static FORCE_INLINE TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
+  if (pIter == NULL) return NULL;
+
+  if (pIter->pRow) {
+    return pIter->pRow;
+  }
+
+  if (pIter->backward) {
+    if (pIter->pNode == pIter->pTbData->sl.pHead) {
+      return NULL;
+    }
+  } else {
+    if (pIter->pNode == pIter->pTbData->sl.pTail) {
+      return NULL;
+    }
+  }
+
+  pIter->pRow = &pIter->row;
+  if (pIter->pNode->flag == TSDBROW_ROW_FMT) {
+    pIter->row = tsdbRowFromTSRow(pIter->pNode->version, pIter->pNode->pData);
+  } else if (pIter->pNode->flag == TSDBROW_COL_FMT) {
+    pIter->row = tsdbRowFromBlockData(pIter->pNode->pData, pIter->pNode->iRow);
+  } else {
+    ASSERT(0);
+  }
+
+  return pIter->pRow;
 }
 
 #ifdef __cplusplus

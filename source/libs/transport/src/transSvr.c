@@ -127,7 +127,7 @@ static void uvFreeCb(uv_handle_t* handle);
 
 static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg);
 
-static void uvPrepareSendData(SSvrMsg* msg, uv_buf_t* wb);
+static int  uvPrepareSendData(SSvrMsg* msg, uv_buf_t* wb);
 static void uvStartSendResp(SSvrMsg* msg);
 
 static void uvNotifyLinkBrokenToApp(SSvrConn* conn);
@@ -195,7 +195,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   }
 
   if (transDecompressMsg((char**)&pHead, msgLen) < 0) {
-    tDebug("%s conn %p recv invalid packet, failed to decompress", transLabel(pTransInst), pConn);
+    tError("%s conn %p recv invalid packet, failed to decompress", transLabel(pTransInst), pConn);
     return false;
   }
 
@@ -231,14 +231,29 @@ static bool uvHandleReq(SSvrConn* pConn) {
     }
   }
   STraceId* trace = &pHead->traceId;
+
+  int64_t        cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
+  static int64_t EXCEPTION_LIMIT_US = 100 * 1000;
+
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     transRefSrvHandle(pConn);
-
-    tGDebug("%s conn %p %s received from %s, local info:%s, len:%d", transLabel(pTransInst), pConn,
-            TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen);
+    if (cost >= EXCEPTION_LIMIT_US) {
+      tGWarn("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, recv exception", transLabel(pTransInst),
+             pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, (int)cost);
+    } else {
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus", transLabel(pTransInst), pConn,
+              TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, (int)cost);
+    }
   } else {
-    tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d", transLabel(pTransInst), pConn,
-            TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp, transMsg.code);
+    if (cost >= EXCEPTION_LIMIT_US) {
+      tGWarn("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d, cost:%dus, recv exception",
+             transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp,
+             transMsg.code, (int)(cost));
+    } else {
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d, cost:%dus",
+              transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp,
+              transMsg.code, (int)(cost));
+    }
   }
 
   // pHead->noResp = 1,
@@ -277,10 +292,8 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
     pBuf->len += nread;
-    tTrace("%s conn %p total read:%d, current read:%d", transLabel(pTransInst), conn, pBuf->len, (int)nread);
     if (pBuf->len <= TRANS_PACKET_LIMIT) {
       while (transReadComplete(pBuf)) {
-        tTrace("%s conn %p alread read complete packet", transLabel(pTransInst), conn);
         if (true == pBuf->invalid || false == uvHandleReq(conn)) {
           tError("%s conn %p read invalid packet, received from %s, local info:%s", transLabel(pTransInst), conn,
                  conn->dst, conn->src);
@@ -363,9 +376,11 @@ void uvOnSendCb(uv_write_t* req, int status) {
     }
     transUnrefSrvHandle(conn);
   } else {
-    tError("conn %p failed to write data, %s", conn, uv_err_name(status));
-    conn->broken = true;
-    transUnrefSrvHandle(conn);
+    if (!uv_is_closing((uv_handle_t*)(conn->pTcp))) {
+      tError("conn %p failed to write data, %s", conn, uv_err_name(status));
+      conn->broken = true;
+      transUnrefSrvHandle(conn);
+    }
   }
 }
 static void uvOnPipeWriteCb(uv_write_t* req, int status) {
@@ -382,7 +397,7 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
   taosMemoryFree(req);
 }
 
-static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
+static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   SSvrConn*  pConn = smsg->pConn;
   STransMsg* pMsg = &smsg->msg;
   if (pMsg->pCont == 0) {
@@ -394,6 +409,13 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
   pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+
+  // handle invalid drop_task resp, TD-20098
+  if (pConn->inType == TDMT_SCH_DROP_TASK && pMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+    transQueuePop(&pConn->srvMsgs);
+    destroySmsg(smsg);
+    return -1;
+  }
 
   if (pConn->status == ConnNormal) {
     pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
@@ -429,6 +451,7 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
 
   wb->base = (char*)pHead;
   wb->len = len;
+  return 0;
 }
 
 static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
@@ -438,7 +461,9 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
   }
 
   uv_buf_t wb;
-  uvPrepareSendData(smsg, &wb);
+  if (uvPrepareSendData(smsg, &wb) < 0) {
+    return;
+  }
 
   transRefSrvHandle(pConn);
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
@@ -449,8 +474,7 @@ static void uvStartSendResp(SSvrMsg* smsg) {
   SSvrConn* pConn = smsg->pConn;
   if (pConn->broken == true) {
     // persist by
-    transFreeMsg(smsg->msg.pCont);
-    taosMemoryFree(smsg);
+    destroySmsg(smsg);
     transUnrefSrvHandle(pConn);
     return;
   }
@@ -746,10 +770,11 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
     transSockInfo2Str(&sockname, pConn->src);
-    struct sockaddr_in addr = *(struct sockaddr_in*)&sockname;
 
+    struct sockaddr_in addr = *(struct sockaddr_in*)&peername;
     pConn->clientIp = addr.sin_addr.s_addr;
     pConn->port = ntohs(addr.sin_port);
+
     uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
 
   } else {
@@ -798,7 +823,7 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   // conn set
   QUEUE_INIT(&pThrd->conn);
 
-  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 5, pThrd, uvWorkerAsyncCb);
+  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 8, pThrd, uvWorkerAsyncCb);
 #if defined(WINDOWS) || defined(DARWIN)
   uv_pipe_connect(&pThrd->connect_req, pThrd->pipe, pipeName, uvOnPipeConnectionCb);
 #else
@@ -836,7 +861,7 @@ static bool addHandleToAcceptloop(void* arg) {
   return true;
 }
 void* transWorkerThread(void* arg) {
-  setThreadName("trans-worker");
+  setThreadName("trans-svr-work");
   SWorkThrd* pThrd = (SWorkThrd*)arg;
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
 
@@ -976,6 +1001,13 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   uv_loop_init(srv->loop);
 
   char pipeName[PATH_MAX];
+
+  if (false == taosValidIpAndPort(srv->ip, srv->port)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    tError("invalid ip/port, %d:%d, reason:%s", srv->ip, srv->port, terrstr());
+    goto End;
+  }
+
 #if defined(WINDOWS) || defined(DARWIN)
   int ret = uv_pipe_init(srv->loop, &srv->pipeListen, 0);
   if (ret != 0) {
@@ -1061,12 +1093,6 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     }
   }
 #endif
-
-  if (false == taosValidIpAndPort(srv->ip, srv->port)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    tError("invalid ip/port, %d:%d, reason:%s", srv->ip, srv->port, terrstr());
-    goto End;
-  }
 
   if (false == addHandleToAcceptloop(srv)) {
     goto End;
@@ -1160,8 +1186,8 @@ void transCloseServer(void* arg) {
   // impl later
   SServerObj* srv = arg;
 
-  tDebug("send quit msg to accept thread");
   if (srv->inited) {
+    tDebug("send quit msg to accept thread");
     uv_async_send(srv->pAcceptAsync);
     taosThreadJoin(srv->thread, NULL);
     SRV_RELEASE_UV(srv->loop);
@@ -1170,6 +1196,8 @@ void transCloseServer(void* arg) {
       sendQuitToWorkThrd(srv->pThreadObj[i]);
       destroyWorkThrd(srv->pThreadObj[i]);
     }
+  } else {
+    uv_loop_close(srv->loop);
   }
 
   taosMemoryFree(srv->pThreadObj);
@@ -1219,19 +1247,22 @@ int transReleaseSrvHandle(void* handle) {
   m->msg = tmsg;
   m->type = Release;
 
-  tTrace("%s conn %p start to release", transLabel(pThrd->pTransInst), exh->handle);
-  transAsyncSend(pThrd->asyncPool, &m->q);
+  tDebug("%s conn %p start to release", transLabel(pThrd->pTransInst), exh->handle);
+  if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
+    destroySmsg(m);
+  }
 
   transReleaseExHandle(transGetRefMgt(), refId);
   return 0;
 _return1:
-  tTrace("handle %p failed to send to release handle", exh);
+  tDebug("handle %p failed to send to release handle", exh);
   transReleaseExHandle(transGetRefMgt(), refId);
   return -1;
 _return2:
-  tTrace("handle %p failed to send to release handle", exh);
+  tDebug("handle %p failed to send to release handle", exh);
   return -1;
 }
+
 int transSendResponse(const STransMsg* msg) {
   if (msg->info.noResp) {
     rpcFreeCont(msg->pCont);
@@ -1254,19 +1285,21 @@ int transSendResponse(const STransMsg* msg) {
   m->type = Normal;
 
   STraceId* trace = (STraceId*)&msg->info.traceId;
-  tGTrace("conn %p start to send resp (1/2)", exh->handle);
-  transAsyncSend(pThrd->asyncPool, &m->q);
+  tGDebug("conn %p start to send resp (1/2)", exh->handle);
+  if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
+    destroySmsg(m);
+  }
 
   transReleaseExHandle(transGetRefMgt(), refId);
   return 0;
 
 _return1:
-  tTrace("handle %p failed to send resp", exh);
+  tDebug("handle %p failed to send resp", exh);
   rpcFreeCont(msg->pCont);
   transReleaseExHandle(transGetRefMgt(), refId);
   return -1;
 _return2:
-  tTrace("handle %p failed to send resp", exh);
+  tDebug("handle %p failed to send resp", exh);
   rpcFreeCont(msg->pCont);
   return -1;
 }
@@ -1288,19 +1321,21 @@ int transRegisterMsg(const STransMsg* msg) {
   m->type = Register;
 
   STrans* pTransInst = pThrd->pTransInst;
-  tTrace("%s conn %p start to register brokenlink callback", transLabel(pTransInst), exh->handle);
-  transAsyncSend(pThrd->asyncPool, &m->q);
+  tDebug("%s conn %p start to register brokenlink callback", transLabel(pTransInst), exh->handle);
+  if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
+    destroySmsg(m);
+  }
 
   transReleaseExHandle(transGetRefMgt(), refId);
   return 0;
 
 _return1:
-  tTrace("handle %p failed to register brokenlink", exh);
+  tDebug("handle %p failed to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
   transReleaseExHandle(transGetRefMgt(), refId);
   return -1;
 _return2:
-  tTrace("handle %p failed to register brokenlink", exh);
+  tDebug("handle %p failed to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
   return -1;
 }

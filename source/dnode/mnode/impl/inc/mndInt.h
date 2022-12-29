@@ -20,7 +20,6 @@
 
 #include "sdb.h"
 #include "sync.h"
-#include "syncTools.h"
 #include "tcache.h"
 #include "tdatablock.h"
 #include "tglobal.h"
@@ -85,15 +84,16 @@ typedef struct {
 } STelemMgmt;
 
 typedef struct {
-  tsem_t   syncSem;
-  int64_t  sync;
-  int32_t  errCode;
-  int32_t  transId;
-  SRWLatch lock;
-  int8_t   leaderTransferFinish;
-  int8_t   selfIndex;
-  int8_t   numOfReplicas;
-  SReplica replicas[TSDB_MAX_REPLICA];
+  tsem_t        syncSem;
+  int64_t       sync;
+  int32_t       errCode;
+  int32_t       transId;
+  int32_t       transSec;
+  int64_t       transSeq;
+  TdThreadMutex lock;
+  int8_t        selfIndex;
+  int8_t        numOfReplicas;
+  SReplica      replicas[TSDB_MAX_REPLICA];
 } SSyncMgmt;
 
 typedef struct {

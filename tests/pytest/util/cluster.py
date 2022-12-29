@@ -36,7 +36,7 @@ class ConfigureyCluster:
         self.portStep = 100
         self.mnodeNums = 0
 
-    def configure_cluster(self ,dnodeNums=5,mnodeNums=0,startPort=6030,portStep=100,hostname="%s"%hostname): 
+    def configure_cluster(self ,dnodeNums=5,mnodeNums=0,independentMnode=True,startPort=6030,portStep=100,hostname="%s"%hostname): 
         self.startPort=int(startPort)
         self.portStep=int(portStep)
         self.hostname=hostname
@@ -52,8 +52,8 @@ class ConfigureyCluster:
             dnode.addExtraCfg("secondEp", f"{hostname}:{startPort_sec}")
 
             # configure  dnoe of independent mnodes
-            if num <= self.mnodeNums and self.mnodeNums != 0 :
-                dnode.addExtraCfg("supportVnodes", 0)
+            if num <= self.mnodeNums and self.mnodeNums != 0 and independentMnode == True :
+                dnode.addExtraCfg("supportVnodes", 1024)
             # print(dnode)
             self.dnodes.append(dnode)
         return self.dnodes
@@ -67,6 +67,13 @@ class ConfigureyCluster:
             tdSql.execute(" create dnode '%s';"%dnode_id)
 
         
+    def create_mnode(self,conn,mnodeNums):
+        tdSql.init(conn.cursor())
+        mnodeNums=int(mnodeNums)
+        for i in range(2,mnodeNums+1):
+            tdSql.execute(" create mnode on  dnode %d;"%i)
+
+
         
     def check_dnode(self,conn):
         tdSql.init(conn.cursor())

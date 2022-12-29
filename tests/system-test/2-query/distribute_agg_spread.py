@@ -9,6 +9,7 @@ class TDTestCase:
     updatecfgDict = {"maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
 
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to execute {__file__}")
         tdSql.init(conn.cursor())
         self.vnode_disbutes = None

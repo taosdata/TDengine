@@ -73,8 +73,10 @@ if __name__ == "__main__":
     createDnodeNums = 1
     restful = False
     replicaVar = 1
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RD:n:', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','adaptercfgupdate','replicaVar'])
+    asan = False
+    independentMnode = True
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RD:n:i:a', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','adaptercfgupdate','replicaVar','independentMnode'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -97,6 +99,9 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-R restful realization form')
             tdLog.printNoPrefix('-D taosadapter update cfg dict ')
             tdLog.printNoPrefix('-n the number of replicas')
+            tdLog.printNoPrefix('-i independentMnode Mnode')
+            tdLog.printNoPrefix('-a address sanitizer mode')
+
             sys.exit(0)
 
         if key in ['-r', '--restart']:
@@ -158,8 +163,14 @@ if __name__ == "__main__":
         if key in ['-C', '--createDnodeNums']:
             createDnodeNums = value
 
+        if key in ['-i', '--independentMnode']:
+            independentMnode = value
+
         if key in ['-R', '--restful']:
             restful = True
+
+        if key in ['-a', '--asan']:
+            asan = True
 
         if key in ['-D', '--adaptercfgupdate']:
             try:
@@ -209,7 +220,7 @@ if __name__ == "__main__":
             time.sleep(2)
 
         if restful:
-            toBeKilled = "taosadapt"
+            toBeKilled = "taosadapter"
 
             # killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
             killCmd = f"pkill {toBeKilled}"
@@ -313,7 +324,7 @@ if __name__ == "__main__":
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
         else :
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
-            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums,mnodeNums=mnodeNums)
+            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode)
             tdDnodes = ClusterDnodes(dnodeslist)
             tdDnodes.init(deployPath, masterIp)
             tdDnodes.setTestCluster(testCluster)
@@ -339,6 +350,7 @@ if __name__ == "__main__":
             else:
                 createDnodeNums=createDnodeNums
             cluster.create_dnode(conn,createDnodeNums)
+            cluster.create_mnode(conn,mnodeNums)
             try:
                 if cluster.check_dnode(conn) :
                     print("check dnode ready")
@@ -380,6 +392,7 @@ if __name__ == "__main__":
         tdDnodes.init(deployPath, masterIp)
         tdDnodes.setTestCluster(testCluster)
         tdDnodes.setValgrind(valgrind)
+        tdDnodes.setAsan(asan)
         tdDnodes.stopAll()
         is_test_framework = 0
         key_word = 'tdCases.addLinux'
@@ -446,11 +459,12 @@ if __name__ == "__main__":
 
         else :
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
-            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums,mnodeNums=mnodeNums)
+            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode)
             tdDnodes = ClusterDnodes(dnodeslist)
             tdDnodes.init(deployPath, masterIp)
             tdDnodes.setTestCluster(testCluster)
             tdDnodes.setValgrind(valgrind)
+            tdDnodes.setAsan(asan)
             tdDnodes.stopAll()
             for dnode in tdDnodes.dnodes:
                 tdDnodes.deploy(dnode.index,{})
@@ -472,6 +486,8 @@ if __name__ == "__main__":
             else:
                 createDnodeNums=createDnodeNums
             cluster.create_dnode(conn,createDnodeNums)
+            cluster.create_mnode(conn,mnodeNums)
+
             try:
                 if cluster.check_dnode(conn) :
                     print("check dnode ready")
@@ -538,4 +554,7 @@ if __name__ == "__main__":
 
     if conn is not None:
         conn.close()
+    if asan:
+        tdDnodes.StopAllSigint()
+        tdLog.info("Address sanitizer mode finished")
     sys.exit(0)

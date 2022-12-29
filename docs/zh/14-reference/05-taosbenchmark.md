@@ -204,6 +204,10 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-a/--replica <replicaNum\>** :
   创建数据库时指定其副本数，默认值为 1 。
 
+- ** -k/--keep-trying <NUMBER\>** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
+
+- ** -z/--trying-interval <NUMBER\>** : 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本。
+
 - **-V/--version** :
   显示版本信息并退出。不能与其它参数混用。
 
@@ -217,7 +221,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 本节所列参数适用于所有功能模式。
 
 - **filetype** : 要测试的功能，可选值为 `insert`, `query` 和 `subscribe`。分别对应插入、查询和订阅功能。每个配置文件中只能指定其中之一。
-- **cfgdir** : TDengine 集群配置文件所在的目录，默认路径是 /etc/taos 。
+- **cfgdir** : TDengine 客户端配置文件所在的目录，默认路径是 /etc/taos 。
 
 - **host** : 指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost。
 
@@ -230,6 +234,10 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 ### 插入场景配置参数
 
 插入场景下 `filetype` 必须设置为 `insert`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
+
+- ** keep_trying ** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
+
+- ** trying_interval ** : 失败重试间隔时间，单位为毫秒，仅在 keep_trying 指定重试后有效。需使用 v3.0.9 以上版本。
 
 #### 数据库相关配置参数
 
@@ -374,7 +382,11 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 ### 查询场景配置参数
 
-查询场景下 `filetype` 必须设置为 `query`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
+查询场景下 `filetype` 必须设置为 `query`。
+
+查询场景可以通过设置 `kill_slow_query_threshold` 和 `kill_slow_query_interval` 参数来控制杀掉慢查询语句的执行，threshold 控制如果 exec_usec 超过指定时间的查询将被 taosBenchmark 杀掉，单位为秒；interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为秒。
+
+其它通用参数详见[通用配置参数](#通用配置参数)。
 
 #### 执行指定查询语句的配置参数
 

@@ -29,6 +29,7 @@ if platform.system().lower() == 'windows':
 
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), False)
         self._conn = conn
@@ -1415,8 +1416,8 @@ class TDTestCase:
         self.symbolsCheckCase()
         self.tsCheckCase()
         self.openTstbTelnetTsCheckCase()
-        self.idSeqCheckCase()
-        self.idLetterCheckCase()
+        #self.idSeqCheckCase()
+        #self.idLetterCheckCase()
         self.noIdCheckCase()
         self.maxColTagCheckCase()
         self.stbTbNameCheckCase()
@@ -1449,7 +1450,7 @@ class TDTestCase:
         self.spellCheckCase()
         self.pointTransCheckCase()
         self.defaultTypeCheckCase()
-        self.tbnameTagsColsNameCheckCase()
+        #self.tbnameTagsColsNameCheckCase()
         # # # MultiThreads
         # self.stbInsertMultiThreadCheckCase()
         # self.sStbStbDdataInsertMultiThreadCheckCase()

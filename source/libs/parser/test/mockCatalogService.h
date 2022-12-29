@@ -67,8 +67,8 @@ class MockCatalogService {
   void createDnode(int32_t dnodeId, const std::string& host, int16_t port);
   void createDatabase(const std::string& db, bool rollup = false, int8_t cacheLast = 0);
 
-  int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const;
-  int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const;
+  int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta, bool onlyCache = false) const;
+  int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo, bool onlyCache = false) const;
   int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const;
   int32_t catalogGetDBVgList(const char* pDbFName, SArray** pVgList) const;
   int32_t catalogGetDBCfg(const char* pDbFName, SDbCfgInfo* pDbCfg) const;

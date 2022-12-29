@@ -49,7 +49,9 @@ static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
 }
 
 SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn) {
-  ASSERT(fn != NULL);
+  if (fn == NULL) {
+    return NULL;
+  }
 
   if (capacity == 0) {
     capacity = 4;
@@ -66,7 +68,6 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn) {
 
   pHashObj->equalFp = memcmp;
   pHashObj->hashFp = fn;
-  ASSERT((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
 
   pHashObj->hashList = (SHNode **)taosMemoryCalloc(pHashObj->capacity, sizeof(void *));
   if (!pHashObj->hashList) {
@@ -93,7 +94,7 @@ static SHNode *doCreateHashNode(const void *key, size_t keyLen, const void *data
   pNewNode->keyLen = keyLen;
   pNewNode->dataLen = dataLen;
   pNewNode->next = NULL;
-  memcpy(GET_SHASH_NODE_DATA(pNewNode), data, dataLen);
+  if (data) memcpy(GET_SHASH_NODE_DATA(pNewNode), data, dataLen);
   memcpy(GET_SHASH_NODE_KEY(pNewNode, dataLen), key, keyLen);
   return pNewNode;
 }
@@ -189,7 +190,7 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
   }
 
   while (pNode) {
-    if ((*(pHashObj->equalFp))(GET_SHASH_NODE_KEY(pNode, pNode->dataLen), key, keyLen) == 0) {
+    if ((keyLen == pNode->keyLen) && (*(pHashObj->equalFp))(GET_SHASH_NODE_KEY(pNode, pNode->dataLen), key, keyLen) == 0) {
       break;
     }
     pNode = pNode->next;
@@ -203,7 +204,7 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
     pNewNode->next = pHashObj->hashList[slot];
     pHashObj->hashList[slot] = pNewNode;
     atomic_add_fetch_64(&pHashObj->size, 1);
-  } else {  // update data
+  } else if (data) {  // update data
     memcpy(GET_SHASH_NODE_DATA(pNode), data, dataLen);
   }
 
@@ -213,10 +214,12 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
 static FORCE_INLINE SHNode *doSearchInEntryList(SSHashObj *pHashObj, const void *key, size_t keyLen, int32_t index) {
   SHNode *pNode = pHashObj->hashList[index];
   while (pNode) {
-    if ((*(pHashObj->equalFp))(GET_SHASH_NODE_KEY(pNode, pNode->dataLen), key, keyLen) == 0) {
+    const char* p = GET_SHASH_NODE_KEY(pNode, pNode->dataLen);
+    ASSERT(keyLen > 0);
+
+    if (pNode->keyLen == keyLen && ((*(pHashObj->equalFp))(p, key, keyLen) == 0)) {
       break;
     }
-
     pNode = pNode->next;
   }
 

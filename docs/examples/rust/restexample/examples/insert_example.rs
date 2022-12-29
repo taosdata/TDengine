@@ -5,7 +5,6 @@ async fn main() -> anyhow::Result<()> {
     let dsn = "ws://";
     let taos = TaosBuilder::from_dsn(dsn)?.build()?;
 
-
     taos.exec_many([
         "DROP DATABASE IF EXISTS power",
         "CREATE DATABASE power",

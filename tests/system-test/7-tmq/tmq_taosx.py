@@ -16,6 +16,7 @@ from tmqCommon import *
 
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
@@ -122,6 +123,11 @@ class TDTestCase:
 
     def checkData(self):
         tdSql.execute('use db_taosx')
+        tdSql.query("select * from tb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 0)
+        tdSql.checkData(0, 2, 1)
+
         tdSql.query("select * from ct3 order by c1 desc")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 51)

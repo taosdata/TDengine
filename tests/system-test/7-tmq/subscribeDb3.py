@@ -21,6 +21,7 @@ class TDTestCase:
     #print ("===================: ", updatecfgDict)
 
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
@@ -237,7 +238,7 @@ class TDTestCase:
         if (platform.system().lower() == 'windows'):
             os.system("TASKKILL /F /IM tmq_sim.exe")
         else:
-            os.system('pkill tmq_sim')
+            os.system('unset LD_PRELOAD; pkill tmq_sim')
         expectRows = 0
         resultList = self.selectConsumeResult(expectRows)
 
@@ -315,7 +316,7 @@ class TDTestCase:
         if (platform.system().lower() == 'windows'):
             os.system("TASKKILL /F /IM tmq_sim.exe")
         else:
-            os.system('pkill tmq_sim')
+            os.system('unset LD_PRELOAD; pkill tmq_sim')
         # expectRows = 0
         # resultList = self.selectConsumeResult(expectRows)
 

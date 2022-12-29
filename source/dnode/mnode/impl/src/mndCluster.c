@@ -157,6 +157,8 @@ _OVER:
 
 static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SClusterObj *pCluster = NULL;
+  SSdbRow *pRow = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -166,10 +168,10 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SClusterObj));
+  pRow = sdbAllocRow(sizeof(SClusterObj));
   if (pRow == NULL) goto _OVER;
 
-  SClusterObj *pCluster = sdbGetRowObj(pRow);
+  pCluster = sdbGetRowObj(pRow);
   if (pCluster == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -184,7 +186,8 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("cluster:%" PRId64 ", failed to decode from raw:%p since %s", pCluster->id, pRaw, terrstr());
+    mError("cluster:%" PRId64 ", failed to decode from raw:%p since %s", pCluster == NULL ? 0 : pCluster->id, pRaw,
+           terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }

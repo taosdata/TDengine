@@ -113,6 +113,13 @@ int32_t shellRunSingleCommand(char *command) {
 }
 
 void shellRecordCommandToHistory(char *command) {
+  if (strncasecmp(command, "create user ", 12) == 0 || strncasecmp(command, "alter user ", 11) == 0) {
+    if (taosStrCaseStr(command, " pass ")) {
+      // have password command forbid record to history because security
+      return;
+    }
+  }
+
   SShellHistory *pHistory = &shell.history;
   if (pHistory->hstart == pHistory->hend ||
       pHistory->hist[(pHistory->hend + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE] == NULL ||
@@ -131,6 +138,12 @@ void shellRecordCommandToHistory(char *command) {
 
 int32_t shellRunCommand(char *command, bool recordHistory) {
   if (shellIsEmptyCommand(command)) {
+    return 0;
+  }
+
+  // add help or help; 
+  if(strncasecmp(command, "help;", 5) == 0) {
+    showHelp();
     return 0;
   }
 
@@ -208,6 +221,18 @@ void shellRunSingleCommandImp(char *command) {
     return;
   }
 
+  // pre string
+  char * pre = "Query OK";
+  if (shellRegexMatch(command, "^\\s*delete\\s*from\\s*.*", REG_EXTENDED | REG_ICASE)) {
+    pre = "Delete OK";
+  } else if(shellRegexMatch(command, "^\\s*insert\\s*into\\s*.*", REG_EXTENDED | REG_ICASE)) {
+    pre = "Insert OK";
+  } else if(shellRegexMatch(command, "^\\s*create\\s*.*", REG_EXTENDED | REG_ICASE)) {
+    pre = "Create OK";
+  } else if(shellRegexMatch(command, "^\\s*drop\\s*.*", REG_EXTENDED | REG_ICASE)) {
+    pre = "Drop OK";
+  }
+
   TAOS_FIELD *pFields = taos_fetch_fields(pSql);
   if (pFields != NULL) {  // select and show kinds of commands
     int32_t error_no = 0;
@@ -223,10 +248,10 @@ void shellRunSingleCommandImp(char *command) {
     }
     taos_free_result(pSql);
   } else {
-    int32_t num_rows_affacted = taos_affected_rows(pSql);
+    int64_t num_rows_affacted = taos_affected_rows64(pSql);
     taos_free_result(pSql);
     et = taosGetTimestampUs();
-    printf("Query OK, %d row(s) affected in set (%.6fs)\r\n", num_rows_affacted, (et - st) / 1E6);
+    printf("%s, %" PRId64 " row(s) affected (%.6fs)\r\n", pre, num_rows_affacted, (et - st) / 1E6);
 
     // call auto tab
     callbackAutoTab(command, NULL, false);
@@ -540,9 +565,18 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
   }
 }
 
-bool shellIsLimitQuery(const char *sql) {
-  // todo refactor
+// show whole result for this query return true, like limit or describe
+bool shellIsShowWhole(const char *sql) {
+  // limit
   if (taosStrCaseStr(sql, " limit ") != NULL) {
+    return true;
+  }
+  // describe
+  if (taosStrCaseStr(sql, "describe ") != NULL) {
+    return true;
+  }
+  // show
+  if (taosStrCaseStr(sql, "show ") != NULL) {
     return true;
   }
 
@@ -578,7 +612,7 @@ int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql)) {
+  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsShowWhole(sql)) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
@@ -723,7 +757,7 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql)) {
+  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsShowWhole(sql)) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
@@ -920,7 +954,7 @@ void shellGetGrantInfo() {
 
   int32_t code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
-    if (code != TSDB_CODE_OPS_NOT_SUPPORT && code != TSDB_CODE_MND_NO_RIGHTS) {
+    if (code != TSDB_CODE_OPS_NOT_SUPPORT && code != TSDB_CODE_MND_NO_RIGHTS && code != TSDB_CODE_PAR_PERMISSION_DENIED) {
       fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\r\n\r\n", code, taos_errstr(tres));
     }
     return;

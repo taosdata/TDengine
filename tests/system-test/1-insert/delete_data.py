@@ -1,3 +1,4 @@
+
 ###################################################################
 #           Copyright (c) 2016 by TAOS Technologies, Inc.
 #                     All rights reserved.
@@ -24,14 +25,15 @@ from util.sqlset import TDSetSql
 
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
         self.dbname = 'db_test'
         self.setsql = TDSetSql()
         self.stbname = 'stb'
         self.ntbname = 'ntb'
-        self.rowNum = 5
-        self.tbnum = 2
+        self.rowNum = 10
+        self.tbnum = 3
         self.ts = 1537146000000
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
@@ -110,13 +112,22 @@ class TDTestCase:
                 tdSql.execute(f'''insert into {tbname} values({self.ts+i},"{base_data['binary']}")''')
             elif 'nchar' in col_type.lower():
                 tdSql.execute(f'''insert into {tbname} values({self.ts+i},"{base_data['nchar']}")''')
-    def delete_all_data(self,tbname,col_type,row_num,base_data,dbname,tb_type,tb_num=1):
+    def delete_all_data(self,tbname,col_type,row_num,base_data,dbname,tb_type,tb_num=1,stbname=''):
+        tdSql.query(f'select count(*) from {tbname}')
         tdSql.execute(f'delete from {tbname}')
         tdSql.execute(f'flush database {dbname}')
         tdSql.execute('reset query cache')
         tdSql.query(f'select * from {tbname}')
         tdSql.checkRows(0)
         if tb_type == 'ntb' or tb_type == 'ctb':
+            if tb_type == 'ctb':
+                tdSql.query(f'select count(*) from {stbname}')
+                if tb_num <= 1:
+                    if len(tdSql.queryResult) != 0:
+                        tdLog.exit('delete case failure!')
+                else:
+                    tdSql.checkEqual(tdSql.queryResult[0][0],(tb_num-1)*row_num)
+
             self.insert_base_data(col_type,tbname,row_num,base_data)
         elif tb_type == 'stb':
             for i in range(tb_num):
@@ -265,7 +276,7 @@ class TDTestCase:
                 tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags(1)')
                 self.insert_base_data(col_type,f'{self.stbname}_{i}',self.rowNum,self.base_data)
                 self.delete_one_row(f'{self.stbname}_{i}',col_type,col_name,self.base_data,self.rowNum,self.dbname,'ctb')
-                self.delete_all_data(f'{self.stbname}_{i}',col_type,self.rowNum,self.base_data,self.dbname,'ctb')
+                self.delete_all_data(f'{self.stbname}_{i}',col_type,self.rowNum,self.base_data,self.dbname,'ctb',i+1,self.stbname)
                 self.delete_error(f'{self.stbname}_{i}',col_name,col_type,self.base_data)
                 self.delete_rows(self.dbname,f'{self.stbname}_{i}',col_name,col_type,self.base_data,self.rowNum,'ctb')
                 for func in ['first','last']:

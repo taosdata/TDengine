@@ -14,7 +14,6 @@ target_link_libraries(scalar
     PRIVATE nodes
     PRIVATE function
     PRIVATE qcom
-    PRIVATE vnode
 )
 
 if(${BUILD_TEST})

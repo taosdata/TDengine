@@ -120,6 +120,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_WEND,
   FUNCTION_TYPE_WDURATION,
   FUNCTION_TYPE_IROWTS,
+  FUNCTION_TYPE_ISFILLED,
   FUNCTION_TYPE_TAGS,
 
   // internal function
@@ -130,6 +131,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_GROUP_KEY,
   FUNCTION_TYPE_CACHE_LAST_ROW,
   FUNCTION_TYPE_CACHE_LAST,
+  FUNCTION_TYPE_TABLE_COUNT,
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
@@ -224,7 +226,7 @@ int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc
 
 typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_DATA_LOAD = 1,
-  FUNC_DATA_REQUIRED_STATIS_LOAD,
+  FUNC_DATA_REQUIRED_SMA_LOAD,
   FUNC_DATA_REQUIRED_NOT_LOAD,
   FUNC_DATA_REQUIRED_FILTEROUT,
 } EFuncDataRequired;

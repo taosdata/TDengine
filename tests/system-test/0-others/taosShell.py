@@ -62,8 +62,8 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
         print ('taos login success! Here can run sql, taos> ')
         if len(sqlString) != 0:
             child.sendline (sqlString)
-            w = child.expect(["Query OK", taosExpect.TIMEOUT, taosExpect.EOF], timeout=10)
-            if w == 0:
+            w = child.expect(["Query OK", "Create OK", "Insert OK", "Drop OK", taosExpect.TIMEOUT, taosExpect.EOF], timeout=10)
+            if w == 0 or w == 1 or w == 2:
                 return "TAOS_OK"
             else:
                 print(1)
@@ -109,6 +109,7 @@ class TDTestCase:
     print ("===================: ", updatecfgDict)
 
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -232,7 +233,7 @@ class TDTestCase:
         tdLog.printNoPrefix("================================ parameter: -s")
         newDbName="dbss"
         keyDict['s'] = "\"create database " + newDbName + "\""
-        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Create OK", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s fail")
 
@@ -245,17 +246,17 @@ class TDTestCase:
             tdLog.exit("create db fail after taos -s %s fail"%(keyDict['s']))
 
         keyDict['s'] = "\"create table " + newDbName + ".stb (ts timestamp, c int) tags (t int)\""
-        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Create OK", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s create table fail")
 
         keyDict['s'] = "\"create table " + newDbName + ".ctb0 using " + newDbName + ".stb tags (0) " + newDbName + ".ctb1 using " + newDbName + ".stb tags (1)\""
-        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Create OK", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s create table fail")
 
         keyDict['s'] = "\"insert into " + newDbName + ".ctb0 values('2021-04-01 08:00:00.000', 10)('2021-04-01 08:00:01.000', 20) " + newDbName + ".ctb1 values('2021-04-01 08:00:00.000', 11)('2021-04-01 08:00:01.000', 21)\""
-        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Insert OK", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s insert data fail")
 
@@ -400,27 +401,27 @@ class TDTestCase:
         tdLog.printNoPrefix("================================ parameter: -w")
         newDbName="dbw"
         keyDict['s'] = "\"create database " + newDbName + "\""
-        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Create OK", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -w fail")
 
         keyDict['s'] = "\"create table " + newDbName + ".ntb (ts timestamp, c binary(128))\""
-        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Create OK", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -w create table fail")
 
         keyDict['s'] = "\"insert into " + newDbName + ".ntb values('2021-04-01 08:00:00.001', 'abcd0123456789')('2021-04-01 08:00:00.002', 'abcd012345678901234567890123456789') \""
-        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Insert OK", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -w insert data fail")
 
         keyDict['s'] = "\"insert into " + newDbName + ".ntb values('2021-04-01 08:00:00.003', 'aaaaaaaaaaaaaaaaaaaa')('2021-04-01 08:00:01.004', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb') \""
-        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Insert OK", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -w insert data fail")
 
         keyDict['s'] = "\"insert into " + newDbName + ".ntb values('2021-04-01 08:00:00.005', 'cccccccccccccccccccc')('2021-04-01 08:00:01.006', 'dddddddddddddddddddddddddddddddddddddddd') \""
-        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Insert OK", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -w insert data fail")
 

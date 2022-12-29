@@ -114,7 +114,7 @@ void qwtBuildQueryReqMsg(SRpcMsg *queryRpc) {
   qwtqueryMsg.queryId = htobe64(atomic_add_fetch_64(&qwtTestQueryId, 1));
   qwtqueryMsg.sId = htobe64(1);
   qwtqueryMsg.taskId = htobe64(1);
-  qwtqueryMsg.phyLen = htonl(100);
+  qwtqueryMsg.msgLen = htonl(100);
   qwtqueryMsg.sqlLen = 0;
   queryRpc->msgType = TDMT_SCH_QUERY;
   queryRpc->pCont = &qwtqueryMsg;
@@ -131,12 +131,29 @@ void qwtBuildFetchReqMsg(SResFetchReq *fetchMsg, SRpcMsg *fetchRpc) {
 }
 
 void qwtBuildDropReqMsg(STaskDropReq *dropMsg, SRpcMsg *dropRpc) {
-  dropMsg->sId = htobe64(1);
-  dropMsg->queryId = htobe64(atomic_load_64(&qwtTestQueryId));
-  dropMsg->taskId = htobe64(1);
+  dropMsg->sId = 1;
+  dropMsg->queryId = atomic_load_64(&qwtTestQueryId);
+  dropMsg->taskId = 1;
+  
+  int32_t msgSize = tSerializeSTaskDropReq(NULL, 0, dropMsg);
+  if (msgSize < 0) {
+    return;
+  }
+  
+  char *msg = (char*)taosMemoryCalloc(1, msgSize);
+  if (NULL == msg) {
+    return;
+  }
+  
+  if (tSerializeSTaskDropReq(msg, msgSize, dropMsg) < 0) {
+    taosMemoryFree(msg);
+    return;
+  }
+
+
   dropRpc->msgType = TDMT_SCH_DROP_TASK;
-  dropRpc->pCont = dropMsg;
-  dropRpc->contLen = sizeof(STaskDropReq);
+  dropRpc->pCont = msg;
+  dropRpc->contLen = msgSize;
 }
 
 int32_t qwtStringToPlan(const char *str, SSubplan **subplan) {
@@ -285,7 +302,7 @@ int32_t qwtExecTask(qTaskInfo_t tinfo, SSDataBlock **pRes, uint64_t *useconds) {
   return 0;
 }
 
-int32_t qwtKillTask(qTaskInfo_t qinfo) { return 0; }
+int32_t qwtKillTask(qTaskInfo_t qinfo, int32_t rspCode) { return 0; }
 
 void qwtDestroyTask(qTaskInfo_t qHandle) {}
 

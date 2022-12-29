@@ -20,18 +20,11 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "cJSON.h"
 #include "syncInt.h"
-#include "taosdef.h"
 
-#define CONFIG_FILE_LEN 2048
-
+#define CONFIG_FILE_LEN        2048
 #define MAX_CONFIG_INDEX_COUNT 256
 
-// SRaftCfgIndex ------------------------------------------
 typedef struct SRaftCfgIndex {
   TdFilePtr pFile;
   char      path[TSDB_FILENAME_LEN * 2];
@@ -45,14 +38,11 @@ int32_t        raftCfgIndexClose(SRaftCfgIndex *pRaftCfgIndex);
 int32_t        raftCfgIndexPersist(SRaftCfgIndex *pRaftCfgIndex);
 int32_t        raftCfgIndexAddConfigIndex(SRaftCfgIndex *pRaftCfgIndex, SyncIndex configIndex);
 
-cJSON * raftCfgIndex2Json(SRaftCfgIndex *pRaftCfgIndex);
-char *  raftCfgIndex2Str(SRaftCfgIndex *pRaftCfgIndex);
+cJSON  *raftCfgIndex2Json(SRaftCfgIndex *pRaftCfgIndex);
+char   *raftCfgIndex2Str(SRaftCfgIndex *pRaftCfgIndex);
 int32_t raftCfgIndexFromJson(const cJSON *pRoot, SRaftCfgIndex *pRaftCfgIndex);
 int32_t raftCfgIndexFromStr(const char *s, SRaftCfgIndex *pRaftCfgIndex);
-
 int32_t raftCfgIndexCreateFile(const char *path);
-
-// ---------------------------------------------------------
 
 typedef struct SRaftCfg {
   SSyncCfg  cfg;
@@ -73,14 +63,12 @@ int32_t   raftCfgClose(SRaftCfg *pRaftCfg);
 int32_t   raftCfgPersist(SRaftCfg *pRaftCfg);
 int32_t   raftCfgAddConfigIndex(SRaftCfg *pRaftCfg, SyncIndex configIndex);
 
-cJSON * syncCfg2Json(SSyncCfg *pSyncCfg);
-char *  syncCfg2Str(SSyncCfg *pSyncCfg);
-char *  syncCfg2SimpleStr(SSyncCfg *pSyncCfg);
+void    syncCfg2SimpleStr(const SSyncCfg *pCfg, char *str, int32_t bufLen);
+cJSON  *syncCfg2Json(SSyncCfg *pSyncCfg);
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg);
-int32_t syncCfgFromStr(const char *s, SSyncCfg *pSyncCfg);
 
-cJSON * raftCfg2Json(SRaftCfg *pRaftCfg);
-char *  raftCfg2Str(SRaftCfg *pRaftCfg);
+cJSON  *raftCfg2Json(SRaftCfg *pRaftCfg);
+char   *raftCfg2Str(SRaftCfg *pRaftCfg);
 int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg);
 int32_t raftCfgFromStr(const char *s, SRaftCfg *pRaftCfg);
 
@@ -92,23 +80,6 @@ typedef struct SRaftCfgMeta {
 } SRaftCfgMeta;
 
 int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path);
-
-// for debug ----------------------
-void syncCfgPrint(SSyncCfg *pCfg);
-void syncCfgPrint2(char *s, SSyncCfg *pCfg);
-void syncCfgLog(SSyncCfg *pCfg);
-void syncCfgLog2(char *s, SSyncCfg *pCfg);
-void syncCfgLog3(char *s, SSyncCfg *pCfg);
-
-void raftCfgPrint(SRaftCfg *pCfg);
-void raftCfgPrint2(char *s, SRaftCfg *pCfg);
-void raftCfgLog(SRaftCfg *pCfg);
-void raftCfgLog2(char *s, SRaftCfg *pCfg);
-
-void raftCfgIndexPrint(SRaftCfgIndex *pCfg);
-void raftCfgIndexPrint2(char *s, SRaftCfgIndex *pCfg);
-void raftCfgIndexLog(SRaftCfgIndex *pCfg);
-void raftCfgIndexLog2(char *s, SRaftCfgIndex *pCfg);
 
 #ifdef __cplusplus
 }

@@ -345,3 +345,16 @@ void taosMemoryTrim(int32_t size) {
   malloc_trim(size);
 #endif
 }
+
+void* taosMemoryMallocAlign(uint32_t alignment, int64_t size) {
+#ifdef USE_TD_MEMORY
+  assert(0);
+#else
+#if defined(LINUX)
+  void* p = memalign(alignment, size);
+  return p;
+#else
+  return taosMemoryMalloc(size);
+#endif
+#endif
+}

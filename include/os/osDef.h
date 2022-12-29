@@ -120,12 +120,6 @@ void syslog(int unused, const char *format, ...);
 #define POINTER_SHIFT(p, b)      ((void *)((char *)(p) + (b)))
 #define POINTER_DISTANCE(p1, p2) ((char *)(p1) - (char *)(p2))
 
-#ifndef NDEBUG
-#define ASSERT(x) assert(x)
-#else
-#define ASSERT(x)
-#endif
-
 #ifndef UNUSED
 #define UNUSED(x) ((void)(x))
 #endif
@@ -168,22 +162,22 @@ void syslog(int unused, const char *format, ...);
     }                            \
   } while (0)
 
-#define DEFAULT_DOUBLE_COMP(x, y) \
-  do {                            \
-    if (isnan(x) && isnan(y)) {   \
-      return 0;                   \
-    }                             \
-    if (isnan(x)) {               \
-      return -1;                  \
-    }                             \
-    if (isnan(y)) {               \
-      return 1;                   \
-    }                             \
-    if ((x) == (y)) {             \
-      return 0;                   \
-    } else {                      \
-      return (x) < (y) ? -1 : 1;  \
-    }                             \
+#define DEFAULT_DOUBLE_COMP(x, y)         \
+  do {                                    \
+    if (isnan(x) && isnan(y)) {           \
+      return 0;                           \
+    }                                     \
+    if (isnan(x)) {                       \
+      return -1;                          \
+    }                                     \
+    if (isnan(y)) {                       \
+      return 1;                           \
+    }                                     \
+    if (fabs((x) - (y)) <= DBL_EPSILON) { \
+      return 0;                           \
+    } else {                              \
+      return (x) < (y) ? -1 : 1;          \
+    }                                     \
   } while (0)
 
 #define DEFAULT_FLOAT_COMP(x, y) DEFAULT_DOUBLE_COMP(x, y)
@@ -243,16 +237,6 @@ void syslog(int unused, const char *format, ...);
 #define TD_LOCALE_LEN   64
 #define TD_CHARSET_LEN  64
 #define TD_TIMEZONE_LEN 96
-
-#ifdef WINDOWS
-#define TD_PATH_MAX 260
-#elif defined(PATH_MAX)
-#define TD_PATH_MAX PATH_MAX
-#elif defined(_XOPEN_PATH_MAX)
-#define TD_PATH_MAX _XOPEN_PATH_MAX
-#else
-#define TD_PATH_MAX _POSIX_PATH_MAX
-#endif
 
 #ifdef __cplusplus
 }

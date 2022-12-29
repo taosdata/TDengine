@@ -19,7 +19,7 @@ void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
   memset(pReader, 0, sizeof(*pReader));
   pReader->flags = flags;
   pReader->pMeta = pMeta;
-  if (!(flags & META_READER_NOLOCK)) {
+  if (pReader->pMeta && !(flags & META_READER_NOLOCK)) {
     metaRLock(pMeta);
   }
 }
@@ -153,7 +153,7 @@ bool metaIsTableExist(SMeta *pMeta, tb_uid_t uid) {
 
 int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   SMeta  *pMeta = pReader->pMeta;
-  int64_t version;
+  int64_t version1;
 
   // query uid.idx
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
@@ -161,8 +161,20 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
     return -1;
   }
 
-  version = ((SUidIdxVal *)pReader->pBuf)[0].version;
-  return metaGetTableEntryByVersion(pReader, version, uid);
+  version1 = ((SUidIdxVal *)pReader->pBuf)[0].version;
+  return metaGetTableEntryByVersion(pReader, version1, uid);
+}
+
+int metaGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
+  SMeta *pMeta = pReader->pMeta;
+
+  SMetaInfo info;
+  if (metaGetInfo(pMeta, uid, &info, pReader) == TSDB_CODE_NOT_FOUND) {
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    return -1;
+  }
+
+  return metaGetTableEntryByVersion(pReader, info.version, uid);
 }
 
 int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
@@ -211,7 +223,23 @@ int metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName) {
 
   return 0;
 }
-int metaGetTableUidByName(void *meta, char *tbName, int64_t *uid) {
+
+int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
+  int         code = 0;
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, (SMeta *)meta, 0);
+  code = metaGetTableEntryByUid(&mr, uid);
+  if (code < 0) {
+    metaReaderClear(&mr);
+    return -1;
+  }
+  strncpy(tbName, mr.me.name, TSDB_TABLE_NAME_LEN);
+  metaReaderClear(&mr);
+
+  return 0;
+}
+
+int metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid) {
   int         code = 0;
   SMetaReader mr = {0};
   metaReaderInit(&mr, (SMeta *)meta, 0);
@@ -583,23 +611,14 @@ tb_uid_t metaStbCursorNext(SMStbCursor *pStbCur) {
 }
 
 STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
-  // SMetaReader     mr = {0};
   STSchema       *pTSchema = NULL;
   SSchemaWrapper *pSW = NULL;
-  STSchemaBuilder sb = {0};
-  SSchema        *pSchema;
+  SSchema        *pSchema = NULL;
 
   pSW = metaGetTableSchema(pMeta, uid, sver, lock);
   if (!pSW) return NULL;
 
-  tdInitTSchemaBuilder(&sb, pSW->version);
-  for (int i = 0; i < pSW->nCols; i++) {
-    pSchema = pSW->pSchema + i;
-    tdAddColToSchema(&sb, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes);
-  }
-  pTSchema = tdGetSchemaFromBuilder(&sb);
-
-  tdDestroyTSchemaBuilder(&sb);
+  pTSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version);
 
   taosMemoryFree(pSW->pSchema);
   taosMemoryFree(pSW);
@@ -614,7 +633,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   SSkmDbKey skmDbKey;
   if (sver <= 0) {
     SMetaInfo info;
-    if (metaGetInfo(pMeta, suid ? suid : uid, &info) == 0) {
+    if (metaGetInfo(pMeta, suid ? suid : uid, &info, NULL) == 0) {
       sver = info.skmVer;
     } else {
       TBC *pSkmDbC = NULL;
@@ -633,7 +652,11 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
         goto _exit;
       }
 
-      ASSERT(c);
+      if (c == 0) {
+        metaError("meta/query: incorrect c: %" PRId32 ".", c);
+        code = TSDB_CODE_FAILED;
+        goto _exit;
+      }
 
       if (c < 0) {
         tdbTbcMoveToPrev(pSkmDbC);
@@ -657,7 +680,11 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
     }
   }
 
-  ASSERT(sver > 0);
+  if (sver <= 0) {
+    metaError("meta/query: incorrect sver: %" PRId32 ".", sver);
+    code = TSDB_CODE_FAILED;
+    goto _exit;
+  }
 
   skmDbKey.uid = suid ? suid : uid;
   skmDbKey.sver = sver;
@@ -680,20 +707,10 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   tdbFree(pData);
 
   // convert
-  STSchemaBuilder sb = {0};
-
-  tdInitTSchemaBuilder(&sb, pSchemaWrapper->version);
-  for (int i = 0; i < pSchemaWrapper->nCols; i++) {
-    SSchema *pSchema = pSchemaWrapper->pSchema + i;
-    tdAddColToSchema(&sb, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes);
-  }
-
-  STSchema *pTSchema = tdGetSchemaFromBuilder(&sb);
+  STSchema *pTSchema = tBuildTSchema(pSchemaWrapper->pSchema, pSchemaWrapper->nCols, pSchemaWrapper->version);
   if (pTSchema == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
-
-  tdDestroyTSchemaBuilder(&sb);
 
   *ppTSchema = pTSchema;
   taosMemoryFree(pSchemaWrapper->pSchema);
@@ -726,6 +743,8 @@ int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
 
   return pMeta->pVnode->config.vndStats.numOfTimeSeries + pMeta->pVnode->config.vndStats.numOfNTimeSeries;
 }
+
+int64_t metaGetNtbNum(SMeta *pMeta) { return pMeta->pVnode->config.vndStats.numOfNTables; }
 
 typedef struct {
   SMeta   *pMeta;
@@ -1126,8 +1145,8 @@ int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     valid = tdbTbcGet(pCursor->pCur, (const void **)pEntryKey, &nEntryKey, (const void **)&pEntryVal, &nEntryVal);
     if (valid < 0) break;
 
-    char   *pTableKey = (char *)pEntryKey;
-    int32_t cmp = (*param->filterFunc)(pTableKey, pName, pCursor->type);
+    char *pTableKey = (char *)pEntryKey;
+    cmp = (*param->filterFunc)(pTableKey, pName, pCursor->type);
     if (cmp == 0) {
       tb_uid_t tuid = *(tb_uid_t *)pEntryVal;
       taosArrayPush(pUids, &tuid);
@@ -1379,10 +1398,11 @@ int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj 
 
 int32_t metaCacheGet(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo);
 
-int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo) {
+int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo, SMetaReader *pReader) {
   int32_t code = 0;
   void   *pData = NULL;
   int     nData = 0;
+  int     lock = 0;
 
   metaRLock(pMeta);
 
@@ -1407,10 +1427,21 @@ int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo) {
   pInfo->version = ((SUidIdxVal *)pData)->version;
   pInfo->skmVer = ((SUidIdxVal *)pData)->skmVer;
 
+  if (pReader != NULL) {
+    lock = !(pReader->flags & META_READER_NOLOCK);
+    if (lock) {
+      metaULock(pReader->pMeta);
+      // metaReaderReleaseLock(pReader);
+    }
+  }
   // upsert the cache
   metaWLock(pMeta);
   metaCacheUpsert(pMeta, pInfo);
   metaULock(pMeta);
+
+  if (lock) {
+    metaRLock(pReader->pMeta);
+  }
 
 _exit:
   tdbFree(pData);
@@ -1444,4 +1475,14 @@ int32_t metaGetStbStats(SMeta *pMeta, int64_t uid, SMetaStbStats *pInfo) {
 
 _exit:
   return code;
+}
+
+void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t delta) {
+  SMetaStbStats stats = {0};
+
+  if (metaStatsCacheGet(pMeta, uid, &stats) == TSDB_CODE_SUCCESS) {
+    stats.ctbNum += delta;
+
+    metaStatsCacheUpsert(pMeta, &stats);
+  }
 }

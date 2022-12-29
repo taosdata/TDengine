@@ -13,18 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncIndexMgr.h"
 #include "syncUtil.h"
 
-// SMatchIndex -----------------------------
-
 SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pSyncNode) {
-  SSyncIndexMgr *pSyncIndexMgr = taosMemoryMalloc(sizeof(SSyncIndexMgr));
+  SSyncIndexMgr *pSyncIndexMgr = taosMemoryCalloc(1, sizeof(SSyncIndexMgr));
   if (pSyncIndexMgr == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  memset(pSyncIndexMgr, 0, sizeof(SSyncIndexMgr));
 
   pSyncIndexMgr->replicas = &(pSyncNode->replicasId);
   pSyncIndexMgr->replicaNum = pSyncNode->replicaNum;
@@ -52,9 +50,10 @@ void syncIndexMgrClear(SSyncIndexMgr *pSyncIndexMgr) {
   memset(pSyncIndexMgr->privateTerm, 0, sizeof(pSyncIndexMgr->privateTerm));
 
   // int64_t timeNow = taosGetMonotonicMs();
+  int64_t timeNow = taosGetTimestampMs();
   for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
     pSyncIndexMgr->startTimeArr[i] = 0;
-    pSyncIndexMgr->recvTimeArr[i] = 0;
+    pSyncIndexMgr->recvTimeArr[i] = timeNow;
   }
 
   /*
@@ -82,6 +81,15 @@ void syncIndexMgrSetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, 
          index);
 }
 
+SSyncLogReplMgr *syncNodeGetLogReplMgr(SSyncNode *pNode, SRaftId *pDestId) {
+  for (int i = 0; i < pNode->replicaNum; i++) {
+    if (syncUtilSameId(&(pNode->replicasId[i]), pDestId)) {
+      return pNode->logReplMgrs[i];
+    }
+  }
+  return NULL;
+}
+
 SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId) {
   if (pSyncIndexMgr == NULL) {
     return SYNC_INDEX_INVALID;
@@ -95,54 +103,6 @@ SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaf
   }
 
   return SYNC_INDEX_INVALID;
-}
-
-cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
-  char   u64buf[128] = {0};
-  cJSON *pRoot = cJSON_CreateObject();
-
-  if (pSyncIndexMgr != NULL) {
-    cJSON_AddNumberToObject(pRoot, "replicaNum", pSyncIndexMgr->replicaNum);
-    cJSON *pReplicas = cJSON_CreateArray();
-    cJSON_AddItemToObject(pRoot, "replicas", pReplicas);
-    for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-      cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pSyncIndexMgr->replicas))[i]));
-    }
-
-    {
-      int *arr = (int *)taosMemoryMalloc(sizeof(int) * pSyncIndexMgr->replicaNum);
-      for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-        arr[i] = pSyncIndexMgr->index[i];
-      }
-      cJSON *pIndex = cJSON_CreateIntArray(arr, pSyncIndexMgr->replicaNum);
-      taosMemoryFree(arr);
-      cJSON_AddItemToObject(pRoot, "index", pIndex);
-    }
-
-    {
-      int *arr = (int *)taosMemoryMalloc(sizeof(int) * pSyncIndexMgr->replicaNum);
-      for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-        arr[i] = pSyncIndexMgr->privateTerm[i];
-      }
-      cJSON *pIndex = cJSON_CreateIntArray(arr, pSyncIndexMgr->replicaNum);
-      taosMemoryFree(arr);
-      cJSON_AddItemToObject(pRoot, "privateTerm", pIndex);
-    }
-
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncIndexMgr->pSyncNode);
-    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
-  }
-
-  cJSON *pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "pSyncIndexMgr", pRoot);
-  return pJson;
-}
-
-char *syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr) {
-  cJSON *pJson = syncIndexMgr2Json(pSyncIndexMgr);
-  char  *serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
 }
 
 void syncIndexMgrSetStartTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, int64_t startTime) {
@@ -197,37 +157,8 @@ int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRa
       return recvTime;
     }
   }
-  ASSERT(0);
+
   return -1;
-}
-
-// for debug -------------------
-void syncIndexMgrPrint(SSyncIndexMgr *pObj) {
-  char *serialized = syncIndexMgr2Str(pObj);
-  printf("syncIndexMgrPrint | len:%" PRIu64 " | %s \n", (uint64_t)strlen(serialized), serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncIndexMgrPrint2(char *s, SSyncIndexMgr *pObj) {
-  char *serialized = syncIndexMgr2Str(pObj);
-  printf("syncIndexMgrPrint2 | len:%" PRIu64 " | %s | %s \n", (uint64_t)strlen(serialized), s, serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncIndexMgrLog(SSyncIndexMgr *pObj) {
-  char *serialized = syncIndexMgr2Str(pObj);
-  sTrace("syncIndexMgrLog | len:%" PRIu64 " | %s", (uint64_t)strlen(serialized), serialized);
-  taosMemoryFree(serialized);
-}
-
-void syncIndexMgrLog2(char *s, SSyncIndexMgr *pObj) {
-  if (gRaftDetailLog) {
-    char *serialized = syncIndexMgr2Str(pObj);
-    sTrace("syncIndexMgrLog2 | len:%" PRIu64 " | %s | %s", (uint64_t)strlen(serialized), s, serialized);
-    taosMemoryFree(serialized);
-  }
 }
 
 void syncIndexMgrSetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, SyncTerm term) {

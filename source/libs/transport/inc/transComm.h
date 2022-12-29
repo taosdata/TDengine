@@ -94,11 +94,11 @@ typedef void* queue[2];
 /* Return the structure holding the given element. */
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
-#define TRANS_RETRY_COUNT_LIMIT 100   // retry count limit
-#define TRANS_RETRY_INTERVAL    15    // retry interval (ms)
-#define TRANS_CONN_TIMEOUT      3     // connect timeout (s)
-#define TRANS_READ_TIMEOUT      3000  // read timeout  (ms)
-#define TRANS_PACKET_LIMIT      1024 * 1024 * 512
+//#define TRANS_RETRY_COUNT_LIMIT 100   // retry count limit
+//#define TRANS_RETRY_INTERVAL    15    // retry interval (ms)
+#define TRANS_CONN_TIMEOUT 3000  // connect timeout (ms)
+#define TRANS_READ_TIMEOUT 3000  // read timeout  (ms)
+#define TRANS_PACKET_LIMIT 1024 * 1024 * 512
 
 #define TRANS_MAGIC_NUM 0x5f375a86
 
@@ -137,14 +137,22 @@ typedef struct {
   tmsg_t msgType;   // message type
   int8_t connType;  // connection type cli/srv
 
-  int8_t retryCnt;
-  int8_t retryLimit;
-
   STransCtx  appCtx;  //
   STransMsg* pRsp;    // for synchronous API
   tsem_t*    pSem;    // for synchronous API
   SCvtAddr   cvtAddr;
   bool       setMaxRetry;
+
+  int32_t retryMinInterval;
+  int32_t retryMaxInterval;
+  int32_t retryStepFactor;
+  int64_t retryMaxTimeout;
+  int64_t retryInitTimestamp;
+  int64_t retryNextInterval;
+  bool    retryInit;
+  int32_t retryStep;
+  int8_t  epsetRetryCnt;
+  int32_t retryCode;
 
   int hThrdIdx;
 } STransConnCtx;
@@ -161,6 +169,7 @@ typedef struct {
   char spi : 2;
   char hasEpSet : 2;  // contain epset or not, 0(default): no epset, 1: contain epset
 
+  uint64_t timestamp;
   char     user[TSDB_UNI_LEN];
   uint32_t magicNum;
   STraceId traceId;

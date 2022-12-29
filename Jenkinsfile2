@@ -173,8 +173,9 @@ def pre_test_build_mac() {
     '''
     sh '''
         cd ${WK}/debug
-        cmake .. -DBUILD_TEST=true -DBUILD_HTTPS=false
+        cmake .. -DBUILD_TEST=true -DBUILD_HTTPS=false  -DCMAKE_BUILD_TYPE=Release
         make -j10
+        ctest -j10 || exit 7
     '''
     sh '''
         date
@@ -200,6 +201,7 @@ def pre_test_win(){
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%
+        git clean -fxd
         git reset --hard
         git remote prune origin
         git fetch
@@ -302,7 +304,7 @@ def pre_test_build_win() {
         set CL=/MP8
         echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> cmake"
         time /t
-        cmake .. -G "NMake Makefiles JOM" -DBUILD_TEST=true || exit 7
+        cmake .. -G "NMake Makefiles JOM" -DBUILD_TEST=true -DBUILD_TOOLS=true || exit 7
         echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> jom -j 6"
         time /t
         jom -j 6 || exit 8
@@ -360,7 +362,7 @@ pipeline {
             }
             parallel {
                 stage('check docs') {
-                    agent{label " worker03 || slave215 || slave217 || slave219 || Mac_catalina "}
+                    agent{label " slave1_47 || slave1_48 || slave1_49 || slave1_52 || worker03 || slave215 || slave217 || slave219 || Mac_catalina "}
                     steps {
                         check_docs()
                     }
@@ -406,7 +408,7 @@ pipeline {
                     }
                 }
                 stage('linux test') {
-                    agent{label " worker03 || slave215 || slave217 || slave219 "}
+                    agent{label " slave1_47 || slave1_48 || slave1_49 || slave1_52 || worker03 || slave215 || slave217 || slave219 "}
                     options { skipDefaultCheckout() } 
                     when {
                         changeRequest()
@@ -429,8 +431,6 @@ pipeline {
                                         rm -rf ${WKC}/debug
                                         cd ${WKC}/tests/parallel_test
                                         time ./container_build.sh -w ${WKDIR} -t 10 -e
-                                        rm -f /tmp/cases.task
-                                        ./collect_cases.sh -e
                                     '''
                                     def extra_param = ""
                                     def log_server_file = "/home/log_server.json"
@@ -461,7 +461,7 @@ pipeline {
                                         cd ${WKC}/tests/parallel_test
                                         export DEFAULT_RETRY_TIME=2
                                         date
-                                        ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 480 ''' + extra_param + '''
+                                        ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 480 ''' + extra_param + '''
                                     '''
                                 }
                             }

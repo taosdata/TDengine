@@ -78,7 +78,7 @@ void ctgdUserCallback(SMetaData *pResult, void *param, int32_t code) {
     num = taosArrayGetSize(pResult->pDbInfo);
     for (int32_t i = 0; i < num; ++i) {
       SDbInfo *pDb = taosArrayGet(pResult->pDbInfo, i);
-      qDebug("db %d dbInfo: vgVer:%d, tbNum:%d, dbId:0x%" PRIx64, i, pDb->vgVer, pDb->tbNum, pDb->dbId);
+      qDebug("db %d dbInfo: vgVer:%d, tbNum:%d, stateTs:%" PRId64 " dbId:0x%" PRIx64, i, pDb->vgVer, pDb->tbNum, pDb->stateTs, pDb->dbId);
     }
   } else {
     qDebug("empty db info");
@@ -226,28 +226,45 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgdEnableDebug(char *option) {
+int32_t ctgdEnableDebug(char *option, bool enable) {
   if (0 == strcasecmp(option, "lock")) {
-    gCTGDebug.lockEnable = true;
-    qDebug("lock debug enabled");
+    gCTGDebug.lockEnable = enable;
+    qDebug("catalog lock debug set to %d", enable);
     return TSDB_CODE_SUCCESS;
   }
 
   if (0 == strcasecmp(option, "cache")) {
-    gCTGDebug.cacheEnable = true;
-    qDebug("cache debug enabled");
+    gCTGDebug.cacheEnable = enable;
+    qDebug("catalog cache debug set to %d", enable);
     return TSDB_CODE_SUCCESS;
   }
 
   if (0 == strcasecmp(option, "api")) {
-    gCTGDebug.apiEnable = true;
-    qDebug("api debug enabled");
+    gCTGDebug.apiEnable = enable;
+    qDebug("catalog api debug set to %d", enable);
     return TSDB_CODE_SUCCESS;
   }
 
   if (0 == strcasecmp(option, "meta")) {
-    gCTGDebug.metaEnable = true;
-    qDebug("api debug enabled");
+    gCTGDebug.metaEnable = enable;
+    qDebug("catalog meta debug set to %d", enable);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (0 == strcasecmp(option, "stopUpdate")) {
+    SCatalog *pCtg = NULL;
+    
+    void *pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
+    while (pIter) {
+      pCtg = *(SCatalog **)pIter;
+
+      pCtg->stopUpdate = enable;
+      
+      pIter = taosHashIterate(gCtgMgmt.pCluster, pIter);
+    }
+    
+    qDebug("catalog stopUpdate set to %d", enable);
+    
     return TSDB_CODE_SUCCESS;
   }
 
@@ -255,6 +272,77 @@ int32_t ctgdEnableDebug(char *option) {
 
   return TSDB_CODE_CTG_INTERNAL_ERROR;
 }
+
+int32_t ctgdHandleDbgCommand(char *command) {
+  if (NULL == command) {
+    CTG_RET(TSDB_CODE_INVALID_PARA);
+  }
+
+  if (strlen(command) > CTG_MAX_COMMAND_LEN) {
+    CTG_RET(TSDB_CODE_INVALID_PARA);
+  }
+
+  char *dup = strdup(command);
+  char *option = NULL;
+  char *param = NULL;
+  
+  int32_t i = 0;
+  bool newItem = true;
+  while (*(dup + i)) {
+    if (isspace(*(dup + i))) {
+      *(dup + i) = 0;
+      ++i;
+      newItem = true;
+      continue;
+    }
+
+    if (!newItem) {
+      ++i;
+      continue;
+    }
+    
+    newItem = false;
+    if (NULL == option) {
+      option = dup + i;
+      ++i;
+      continue;
+    }
+
+    if (NULL == param) {
+      param = dup + i;
+      ++i;
+      continue;
+    }
+
+    taosMemoryFree(dup);
+    CTG_RET(TSDB_CODE_INVALID_PARA);
+  }
+
+  bool enable = atoi(param);
+
+  int32_t code = ctgdEnableDebug(option, enable);
+
+  taosMemoryFree(dup);
+
+  CTG_RET(code);
+}
+
+int32_t ctgdGetOneHandle(SCatalog **pHandle) {
+  SCatalog *pCtg = NULL;
+
+  void *pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
+  while (pIter) {
+    pCtg = *(SCatalog **)pIter;
+
+    taosHashCancelIterate(gCtgMgmt.pCluster, pIter);
+    break;
+  }
+
+  *pHandle = pCtg;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t ctgdGetStatNum(char *option, void *res) {
   if (0 == strcasecmp(option, "runtime.numOfOpDequeue")) {
@@ -374,6 +462,7 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
     int32_t hashMethod = -1;
     int16_t hashPrefix = 0;
     int16_t hashSuffix = 0;
+    int64_t stateTs = 0;
     int32_t vgNum = 0;
 
     if (dbCache->vgCache.vgInfo) {
@@ -381,15 +470,34 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
       hashMethod = dbCache->vgCache.vgInfo->hashMethod;
       hashPrefix = dbCache->vgCache.vgInfo->hashPrefix;
       hashSuffix = dbCache->vgCache.vgInfo->hashSuffix;
+      stateTs = dbCache->vgCache.vgInfo->stateTs;
       if (dbCache->vgCache.vgInfo->vgHash) {
         vgNum = taosHashGetSize(dbCache->vgCache.vgInfo->vgHash);
       }
     }
 
     ctgDebug("[%d] db [%.*s][0x%" PRIx64
-             "] %s: metaNum:%d, stbNum:%d, vgVersion:%d, hashMethod:%d, prefix:%d, suffix:%d, vgNum:%d",
-             i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "", metaNum, stbNum, vgVersion,
+             "] %s: metaNum:%d, stbNum:%d, vgVersion:%d, stateTs:%" PRId64 ", hashMethod:%d, prefix:%d, suffix:%d, vgNum:%d",
+             i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "", metaNum, stbNum, vgVersion, stateTs, 
              hashMethod, hashPrefix, hashSuffix, vgNum);
+
+    if (dbCache->vgCache.vgInfo) {
+      int32_t i = 0;
+      void *pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, NULL);
+      while (pVgIter) {
+        SVgroupInfo * pVg = (SVgroupInfo *)pVgIter;
+
+        ctgDebug("The %04dth VG [id:%d, hashBegin:%u, hashEnd:%u, numOfTable:%d, epNum:%d, inUse:%d]",
+                 i++, pVg->vgId, pVg->hashBegin, pVg->hashEnd, pVg->numOfTable, pVg->epSet.numOfEps, pVg->epSet.inUse);
+
+        for (int32_t n = 0; n < pVg->epSet.numOfEps; ++n) {
+          SEp *pEp = &pVg->epSet.eps[n];
+          ctgDebug("\tEp %d [fqdn:%s, port:%d]", n, pEp->fqdn, pEp->port);
+        }
+        
+        pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, pVgIter);      
+      }
+    }
 
     pIter = taosHashIterate(dbHash, pIter);
   }

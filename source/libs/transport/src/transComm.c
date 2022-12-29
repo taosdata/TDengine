@@ -60,21 +60,20 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
   STransMsgHead* pHead = (STransMsgHead*)(*msg);
   if (pHead->comp == 0) return 0;
 
-  char*          pCont = transContFromHead(pHead);
+  char* pCont = transContFromHead(pHead);
+
   STransCompMsg* pComp = (STransCompMsg*)pCont;
   int32_t        oriLen = htonl(pComp->contLen);
 
   char*          buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
-
-  int32_t decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), pNewHead->content,
-                                          len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+  int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), pNewHead->content,
+                                                 len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
   memcpy((char*)pNewHead, (char*)pHead, sizeof(STransMsgHead));
 
   pNewHead->msgLen = htonl(oriLen + sizeof(STransMsgHead));
 
   taosMemoryFree(pHead);
-
   *msg = buf;
   if (decompLen != oriLen) {
     return -1;
@@ -203,9 +202,8 @@ bool transReadComplete(SConnBuffer* connBuf) {
 }
 
 int transSetConnOption(uv_tcp_t* stream) {
-  uv_tcp_nodelay(stream, 0);
-  int ret = uv_tcp_keepalive(stream, 5, 60);
-  return ret;
+  return uv_tcp_nodelay(stream, 1);
+  // int ret = uv_tcp_keepalive(stream, 5, 60);
 }
 
 SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
@@ -252,7 +250,7 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   int idx = pool->index % pool->nAsync;
 
   // no need mutex here
-  if (pool->index++ > pool->nAsync) {
+  if (pool->index++ > pool->nAsync * 2000) {
     pool->index = 0;
   }
   uv_async_t* async = &(pool->asyncs[idx]);
@@ -284,6 +282,9 @@ void transCtxCleanup(STransCtx* ctx) {
 }
 
 void transCtxMerge(STransCtx* dst, STransCtx* src) {
+  if (src->args == NULL || src->freeFunc == NULL) {
+    return;
+  }
   if (dst->args == NULL) {
     dst->args = src->args;
     dst->brokenVal = src->brokenVal;
@@ -497,7 +498,7 @@ void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg)) {
     SDelayTask* task = container_of(minNode, SDelayTask, node);
 
     STaskArg* arg = task->arg;
-    if (freeFunc) freeFunc(arg->param1);
+    if (freeFunc) freeFunc(arg);
     taosMemoryFree(arg);
 
     taosMemoryFree(task);

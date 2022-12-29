@@ -17,6 +17,7 @@
 #define _TD_TDB_H_
 
 #include "os.h"
+#include "tdbOs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,9 +34,11 @@ typedef struct STxn TXN;
 // TDB
 int32_t tdbOpen(const char *dbname, int szPage, int pages, TDB **ppDb, int8_t rollback);
 int32_t tdbClose(TDB *pDb);
-int32_t tdbBegin(TDB *pDb, TXN *pTxn);
+int32_t tdbBegin(TDB *pDb, TXN **pTxn, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *), void *xArg,
+                 int flags);
 int32_t tdbCommit(TDB *pDb, TXN *pTxn);
 int32_t tdbPostCommit(TDB *pDb, TXN *pTxn);
+int32_t tdbPrepareAsyncCommit(TDB *pDb, TXN *pTxn);
 int32_t tdbAbort(TDB *pDb, TXN *pTxn);
 int32_t tdbAlter(TDB *pDb, int pages);
 
@@ -76,12 +79,18 @@ int32_t tdbTxnClose(TXN *pTxn);
 // other
 void tdbFree(void *);
 
+typedef struct hashset_st *hashset_t;
+
+void hashset_destroy(hashset_t set);
+
 struct STxn {
   int     flags;
   int64_t txnId;
   void *(*xMalloc)(void *, size_t);
   void (*xFree)(void *, void *);
-  void *xArg;
+  void     *xArg;
+  tdb_fd_t  jfd;
+  hashset_t jPageSet;
 };
 
 // error code

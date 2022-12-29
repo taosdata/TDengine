@@ -132,6 +132,8 @@ _OVER:
 
 static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SSdbRow *pRow = NULL;
+  SSmaObj *pSma = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -141,10 +143,10 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SSmaObj));
+  pRow = sdbAllocRow(sizeof(SSmaObj));
   if (pRow == NULL) goto _OVER;
 
-  SSmaObj *pSma = sdbGetRowObj(pRow);
+  pSma = sdbGetRowObj(pRow);
   if (pSma == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -200,7 +202,7 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("sma:%s, failed to decode from raw:%p since %s", pSma->name, pRaw, terrstr());
+    mError("sma:%s, failed to decode from raw:%p since %s", pSma == NULL ? "null" : pSma->name, pRaw, terrstr());
     taosMemoryFreeClear(pSma->expr);
     taosMemoryFreeClear(pSma->tagsFilter);
     taosMemoryFreeClear(pSma->sql);
@@ -461,7 +463,7 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_CREATE_VNODE;
-  action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_VND_ALREADY_EXIST;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
@@ -532,6 +534,8 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.sql = strdup(pCreate->sql);
   streamObj.smaId = smaObj.uid;
   streamObj.watermark = pCreate->watermark;
+  streamObj.deleteMark = pCreate->deleteMark;
+  streamObj.fillHistory = STREAM_FILL_HISTORY_ON;
   streamObj.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
   streamObj.triggerParam = pCreate->maxDelay;
   streamObj.ast = strdup(smaObj.ast);
@@ -571,6 +575,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
       .streamQuery = true,
       .triggerType = streamObj.trigger,
       .watermark = streamObj.watermark,
+      .deleteMark = streamObj.deleteMark,
   };
 
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
@@ -590,6 +595,8 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-sma");
   if (pTrans == NULL) goto _OVER;
   mndTransSetDbName(pTrans, pDb->name, NULL);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to create sma:%s stream:%s", pTrans->id, pCreate->name, streamObj.name);
 
@@ -777,7 +784,7 @@ static int32_t mndSetDropSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, SD
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_VNODE;
-  action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_VND_NOT_EXIST;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
@@ -804,6 +811,8 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
 
   mInfo("trans:%d, used to drop sma:%s", pTrans->id, pSma->name);
   mndTransSetDbName(pTrans, pDb->name, NULL);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+
   mndTransSetSerial(pTrans);
 
   char streamName[TSDB_TABLE_FNAME_LEN] = {0};

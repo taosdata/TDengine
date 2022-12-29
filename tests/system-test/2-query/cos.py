@@ -13,6 +13,7 @@ class TDTestCase:
     # "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     # "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
     def init(self, conn,  logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -83,26 +84,10 @@ class TDTestCase:
                 row_check.append(elem)
             auto_result.append(row_check)
 
-        check_status = True
-        print("========",pow_query, origin_query )
-
+        tdSql.query(pow_query)
         for row_index , row in enumerate(pow_result):
             for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] == None  and elem:
-                    check_status = False
-                elif auto_result[row_index][col_index] != None  and ((auto_result[row_index][col_index] != elem) and (str(auto_result[row_index][col_index])[:6] != str(elem)[:6] )):
-                # elif auto_result[row_index][col_index] != None  and (abs(auto_result[row_index][col_index] - elem) > 0.000001):
-                    print("=====")
-                    print(row_index, col_index)
-                    print(auto_result[row_index][col_index], elem, origin_result[row_index][col_index])
-                    check_status = False
-                else:
-                    pass
-        if not check_status:
-            tdLog.notice("cos function value has not as expected , sql is \"%s\" "%pow_query )
-            sys.exit(1)
-        else:
-            tdLog.info("cos value check pass , it work as expected ,sql is \"%s\"   "%pow_query )
+                tdSql.checkData(row_index,col_index,auto_result[row_index][col_index])
 
     def test_errors(self, dbname="db"):
         error_sql_lists = [
@@ -412,16 +397,16 @@ class TDTestCase:
         )
         tdSql.execute(f'create table {dbname}.sub1_bound using {dbname}.stb_bound tags ( 1 )')
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()-1s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-10s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()-1s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-5s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
                 f"insert into {dbname}.sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now(), -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()+5s, -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         # self.check_result_auto_cos( f"select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from {dbname}.sub1_bound ", f"select cos(abs(c1)), cos(abs(c2)) ,cos(abs(c3)), cos(abs(c4)), cos(abs(c5)) from {dbname}.sub1_bound")
 

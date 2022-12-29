@@ -62,8 +62,8 @@ static void toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* pInp
   pEntry->numOfCols = taosArrayGetSize(pInput->pData->pDataBlock);
   pEntry->dataLen = sizeof(SDeleterRes);
 
-  ASSERT(1 == pEntry->numOfRows);
-  ASSERT(3 == pEntry->numOfCols);
+//  ASSERT(1 == pEntry->numOfRows);
+//  ASSERT(3 == pEntry->numOfCols);
 
   pBuf->useSize = sizeof(SDataCacheEntry);
 
@@ -133,14 +133,14 @@ static int32_t getStatus(SDataDeleterHandle* pDeleter) {
 
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataDeleterHandle* pDeleter = (SDataDeleterHandle*)pHandle;
-  SDataDeleterBuf*    pBuf = taosAllocateQitem(sizeof(SDataDeleterBuf), DEF_QITEM);
+  SDataDeleterBuf*    pBuf = taosAllocateQitem(sizeof(SDataDeleterBuf), DEF_QITEM, 0);
   if (NULL == pBuf) {
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   if (!allocBuf(pDeleter, pInput, pBuf)) {
     taosFreeQitem(pBuf);
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   
   toDataCacheEntry(pDeleter, pInput, pBuf);
@@ -167,7 +167,6 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryE
 
   SDataDeleterBuf* pBuf = NULL;
   taosReadQitem(pDeleter->pDataBlocks, (void**)&pBuf);
-  ASSERT(NULL != pBuf);
   memcpy(&pDeleter->nextOutput, pBuf, sizeof(SDataDeleterBuf));
   taosFreeQitem(pBuf);
 

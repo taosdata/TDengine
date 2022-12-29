@@ -13,130 +13,120 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncRespMgr.h"
 #include "syncRaftEntry.h"
 #include "syncRaftStore.h"
+#include "syncUtil.h"
 
 SSyncRespMgr *syncRespMgrCreate(void *data, int64_t ttl) {
-  SSyncRespMgr *pObj = (SSyncRespMgr *)taosMemoryMalloc(sizeof(SSyncRespMgr));
+  SSyncRespMgr *pObj = taosMemoryCalloc(1, sizeof(SSyncRespMgr));
   if (pObj == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  memset(pObj, 0, sizeof(SSyncRespMgr));
 
   pObj->pRespHash =
       taosHashInit(sizeof(uint64_t), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  ASSERT(pObj->pRespHash != NULL);
+  if (pObj->pRespHash == NULL) return NULL;
+
   pObj->ttl = ttl;
   pObj->data = data;
   pObj->seqNum = 0;
   taosThreadMutexInit(&(pObj->mutex), NULL);
 
+  SSyncNode *pNode = pObj->data;
+  sDebug("vgId:%d, resp manager create", pNode->vgId);
   return pObj;
 }
 
 void syncRespMgrDestroy(SSyncRespMgr *pObj) {
-  if (pObj != NULL) {
-    taosThreadMutexLock(&(pObj->mutex));
-    taosHashCleanup(pObj->pRespHash);
-    taosThreadMutexUnlock(&(pObj->mutex));
-    taosThreadMutexDestroy(&(pObj->mutex));
-    taosMemoryFree(pObj);
-  }
+  if (pObj == NULL) return;
+
+  SSyncNode *pNode = pObj->data;
+  sDebug("vgId:%d, resp manager destroy", pNode->vgId);
+
+  taosThreadMutexLock(&pObj->mutex);
+  taosHashCleanup(pObj->pRespHash);
+  taosThreadMutexUnlock(&pObj->mutex);
+  taosThreadMutexDestroy(&(pObj->mutex));
+  taosMemoryFree(pObj);
 }
 
-int64_t syncRespMgrAdd(SSyncRespMgr *pObj, SRespStub *pStub) {
-  taosThreadMutexLock(&(pObj->mutex));
+uint64_t syncRespMgrAdd(SSyncRespMgr *pObj, const SRespStub *pStub) {
+  taosThreadMutexLock(&pObj->mutex);
 
-  uint64_t keyCode = ++(pObj->seqNum);
-  taosHashPut(pObj->pRespHash, &keyCode, sizeof(keyCode), pStub, sizeof(SRespStub));
+  uint64_t seq = ++(pObj->seqNum);
+  int32_t  code = taosHashPut(pObj->pRespHash, &seq, sizeof(uint64_t), pStub, sizeof(SRespStub));
+  sNTrace(pObj->data, "save message handle:%p, type:%s seq:%" PRIu64 " code:0x%x", pStub->rpcMsg.info.handle,
+          TMSG_INFO(pStub->rpcMsg.msgType), seq, code);
 
-  SSyncNode *pSyncNode = pObj->data;
-  char       eventLog[128];
-  snprintf(eventLog, sizeof(eventLog), "save message handle, type:%s seq:%" PRIu64 " handle:%p",
-           TMSG_INFO(pStub->rpcMsg.msgType), keyCode, pStub->rpcMsg.info.handle);
-  syncNodeEventLog(pSyncNode, eventLog);
-
-  taosThreadMutexUnlock(&(pObj->mutex));
-  return keyCode;
+  taosThreadMutexUnlock(&pObj->mutex);
+  return seq;
 }
 
-int32_t syncRespMgrDel(SSyncRespMgr *pObj, uint64_t index) {
-  taosThreadMutexLock(&(pObj->mutex));
+int32_t syncRespMgrDel(SSyncRespMgr *pObj, uint64_t seq) {
+  taosThreadMutexLock(&pObj->mutex);
 
-  taosHashRemove(pObj->pRespHash, &index, sizeof(index));
+  int32_t code = taosHashRemove(pObj->pRespHash, &seq, sizeof(seq));
+  sNTrace(pObj->data, "remove message handle, seq:%" PRIu64 " code:%d", seq, code);
 
-  taosThreadMutexUnlock(&(pObj->mutex));
-  return 0;
+  taosThreadMutexUnlock(&pObj->mutex);
+  return code;
 }
 
-int32_t syncRespMgrGet(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStub) {
-  taosThreadMutexLock(&(pObj->mutex));
+int32_t syncRespMgrGet(SSyncRespMgr *pObj, uint64_t seq, SRespStub *pStub) {
+  taosThreadMutexLock(&pObj->mutex);
 
-  void *pTmp = taosHashGet(pObj->pRespHash, &index, sizeof(index));
+  SRespStub *pTmp = taosHashGet(pObj->pRespHash, &seq, sizeof(uint64_t));
   if (pTmp != NULL) {
     memcpy(pStub, pTmp, sizeof(SRespStub));
+    sNTrace(pObj->data, "get message handle, type:%s seq:%" PRIu64 " handle:%p", TMSG_INFO(pStub->rpcMsg.msgType), seq,
+            pStub->rpcMsg.info.handle);
 
-    SSyncNode *pSyncNode = pObj->data;
-    char       eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "get message handle, type:%s seq:%" PRIu64 " handle:%p",
-             TMSG_INFO(pStub->rpcMsg.msgType), index, pStub->rpcMsg.info.handle);
-    syncNodeEventLog(pSyncNode, eventLog);
-
-    taosThreadMutexUnlock(&(pObj->mutex));
+    taosThreadMutexUnlock(&pObj->mutex);
     return 1;  // get one object
+  } else {
+    sNError(pObj->data, "get message handle, no object of seq:%" PRIu64, seq);
   }
-  taosThreadMutexUnlock(&(pObj->mutex));
+
+  taosThreadMutexUnlock(&pObj->mutex);
   return 0;  // get none object
 }
 
-int32_t syncRespMgrGetAndDel(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStub) {
-  taosThreadMutexLock(&(pObj->mutex));
+int32_t syncRespMgrGetAndDel(SSyncRespMgr *pObj, uint64_t seq, SRpcHandleInfo *pInfo) {
+  taosThreadMutexLock(&pObj->mutex);
 
-  void *pTmp = taosHashGet(pObj->pRespHash, &index, sizeof(index));
-  if (pTmp != NULL) {
-    memcpy(pStub, pTmp, sizeof(SRespStub));
+  SRespStub *pStub = taosHashGet(pObj->pRespHash, &seq, sizeof(uint64_t));
+  if (pStub != NULL) {
+    *pInfo = pStub->rpcMsg.info;
+    sNTrace(pObj->data, "get-and-del message handle:%p, type:%s seq:%" PRIu64, pStub->rpcMsg.info.handle,
+            TMSG_INFO(pStub->rpcMsg.msgType), seq);
+    taosHashRemove(pObj->pRespHash, &seq, sizeof(uint64_t));
 
-    SSyncNode *pSyncNode = pObj->data;
-    char       eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "get-and-del message handle, type:%s seq:%" PRIu64 " handle:%p",
-             TMSG_INFO(pStub->rpcMsg.msgType), index, pStub->rpcMsg.info.handle);
-    syncNodeEventLog(pSyncNode, eventLog);
-
-    taosHashRemove(pObj->pRespHash, &index, sizeof(index));
-    taosThreadMutexUnlock(&(pObj->mutex));
+    taosThreadMutexUnlock(&pObj->mutex);
     return 1;  // get one object
+  } else {
+    sNTrace(pObj->data, "get-and-del message handle, no object of seq:%" PRIu64, seq);
   }
-  taosThreadMutexUnlock(&(pObj->mutex));
+
+  taosThreadMutexUnlock(&pObj->mutex);
   return 0;  // get none object
 }
 
-void syncRespCleanRsp(SSyncRespMgr *pObj) {
-  taosThreadMutexLock(&(pObj->mutex));
-  syncRespCleanByTTL(pObj, -1, true);
-  taosThreadMutexUnlock(&(pObj->mutex));
-}
-
-void syncRespClean(SSyncRespMgr *pObj) {
-  taosThreadMutexLock(&(pObj->mutex));
-  syncRespCleanByTTL(pObj, pObj->ttl, false);
-  taosThreadMutexUnlock(&(pObj->mutex));
-}
-
-void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
+static void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
   SRespStub *pStub = (SRespStub *)taosHashIterate(pObj->pRespHash, NULL);
   int        cnt = 0;
   int        sum = 0;
   SSyncNode *pSyncNode = pObj->data;
 
-  SArray *delIndexArray = taosArrayInit(0, sizeof(uint64_t));
-  ASSERT(delIndexArray != NULL);
-  sDebug("vgId:%d, resp mgr begin clean by ttl", pSyncNode->vgId);
+  SArray *delIndexArray = taosArrayInit(4, sizeof(uint64_t));
+  if (delIndexArray == NULL) return;
 
+  sDebug("vgId:%d, resp manager begin clean by ttl", pSyncNode->vgId);
   while (pStub) {
     size_t    len;
-    void *    key = taosHashGetKey(pStub, &len);
+    void     *key = taosHashGetKey(pStub, &len);
     uint64_t *pSeqNum = (uint64_t *)key;
     sum++;
 
@@ -145,39 +135,57 @@ void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
       taosArrayPush(delIndexArray, pSeqNum);
       cnt++;
 
-      SFsmCbMeta cbMeta = {0};
-      cbMeta.index = SYNC_INDEX_INVALID;
-      cbMeta.lastConfigIndex = SYNC_INDEX_INVALID;
-      cbMeta.isWeak = false;
-      cbMeta.code = TSDB_CODE_SYN_TIMEOUT;
-      cbMeta.state = pSyncNode->state;
-      cbMeta.seqNum = *pSeqNum;
-      cbMeta.term = SYNC_TERM_INVALID;
-      cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
-      cbMeta.flag = 0;
+      SFsmCbMeta cbMeta = {
+          .index = SYNC_INDEX_INVALID,
+          .lastConfigIndex = SYNC_INDEX_INVALID,
+          .isWeak = false,
+          .code = TSDB_CODE_SYN_TIMEOUT,
+          .state = pSyncNode->state,
+          .seqNum = *pSeqNum,
+          .term = SYNC_TERM_INVALID,
+          .currentTerm = pSyncNode->pRaftStore->currentTerm,
+          .flag = 0,
+      };
 
       pStub->rpcMsg.pCont = NULL;
       pStub->rpcMsg.contLen = 0;
 
       // TODO: and make rpcMsg body, call commit cb
-      // pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &(pStub->rpcMsg), cbMeta);
-
-      pStub->rpcMsg.code = TSDB_CODE_SYN_NOT_LEADER;
-      if (pStub->rpcMsg.info.handle != NULL) {
-        tmsgSendRsp(&(pStub->rpcMsg));
-      }
+      // pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &pStub->rpcMsg, cbMeta);
+      SRpcMsg rpcMsg = {.info = pStub->rpcMsg.info, .code = TSDB_CODE_SYN_TIMEOUT};
+      sInfo("vgId:%d, message handle:%p expired, type:%s ahandle:%p", pSyncNode->vgId, rpcMsg.info.handle,
+            TMSG_INFO(pStub->rpcMsg.msgType), rpcMsg.info.ahandle);
+      rpcSendResponse(&rpcMsg);
     }
 
-    pStub = (SRespStub *)taosHashIterate(pObj->pRespHash, pStub);
+    pStub = taosHashIterate(pObj->pRespHash, pStub);
   }
 
   int32_t arraySize = taosArrayGetSize(delIndexArray);
-  sDebug("vgId:%d, resp mgr end clean by ttl, sum:%d, cnt:%d, array-size:%d", pSyncNode->vgId, sum, cnt, arraySize);
+  sDebug("vgId:%d, resp manager end clean by ttl, sum:%d, cnt:%d, array-size:%d", pSyncNode->vgId, sum, cnt, arraySize);
 
   for (int32_t i = 0; i < arraySize; ++i) {
     uint64_t *pSeqNum = taosArrayGet(delIndexArray, i);
     taosHashRemove(pObj->pRespHash, pSeqNum, sizeof(uint64_t));
-    sDebug("vgId:%d, resp mgr clean by ttl, seq:%" PRId64 "", pSyncNode->vgId, *pSeqNum);
+    sDebug("vgId:%d, resp manager clean by ttl, seq:%" PRId64, pSyncNode->vgId, *pSeqNum);
   }
   taosArrayDestroy(delIndexArray);
+}
+
+void syncRespCleanRsp(SSyncRespMgr *pObj) {
+  SSyncNode *pNode = pObj->data;
+  sTrace("vgId:%d, clean all resp", pNode->vgId);
+
+  taosThreadMutexLock(&pObj->mutex);
+  syncRespCleanByTTL(pObj, -1, true);
+  taosThreadMutexUnlock(&pObj->mutex);
+}
+
+void syncRespClean(SSyncRespMgr *pObj) {
+  SSyncNode *pNode = pObj->data;
+  sTrace("vgId:%d, clean resp by ttl", pNode->vgId);
+
+  taosThreadMutexLock(&pObj->mutex);
+  syncRespCleanByTTL(pObj, pObj->ttl, false);
+  taosThreadMutexUnlock(&pObj->mutex);
 }

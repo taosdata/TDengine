@@ -34,6 +34,7 @@ extern "C" {
 #define EXPLAIN_SYSTBL_SCAN_FORMAT "System Table Scan on %s"
 #define EXPLAIN_DISTBLK_SCAN_FORMAT "Block Dist Scan on %s"
 #define EXPLAIN_LASTROW_SCAN_FORMAT "Last Row Scan on %s"
+#define EXPLAIN_TABLE_COUNT_SCAN_FORMAT "Table Count Row Scan on %s"
 #define EXPLAIN_PROJECTION_FORMAT "Projection"
 #define EXPLAIN_JOIN_FORMAT "%s"
 #define EXPLAIN_AGG_FORMAT "Aggragate"
@@ -96,6 +97,7 @@ extern "C" {
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"
 #define COMMAND_ENABLE_RESCHEDULE "enableReSchedule"
+#define COMMAND_CATALOG_DEBUG "catalogDebug"
 
 typedef struct SExplainGroup {
   int32_t   nodeNum;

@@ -30,7 +30,7 @@ class TDTestCase:
         self.TDDnodes = None
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
-
+        self.replicaVar=int(replicaVar)
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -93,7 +93,7 @@ class TDTestCase:
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'db',
-                    'dbNumbers':   8,
+                    'dbNumbers':   4,
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    4,
@@ -109,24 +109,23 @@ class TDTestCase:
                     }
 
         dnodeNumbers=int(dnodeNumbers)
+        dbNumbers=paraDict['dbNumbers']
         mnodeNums=int(mnodeNums)
+        repeatNumber = 2
         vnodeNumbers = int(dnodeNumbers-mnodeNums)
-        allDbNumbers=(paraDict['dbNumbers']*restartNumbers)
+        allDbNumbers=dbNumbers
         allStbNumbers=(paraDict['stbNumbers']*restartNumbers)
+        paraDict['replica'] = self.replicaVar
 
         tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
         clusterComCheck.checkDnodes(dnodeNumbers)
-        clusterComCheck.checkMnodeStatus(1)
-
-        # fisr add three mnodes;
-        tdLog.info("fisr add three mnodes and check mnode status")
-        tdSql.execute("create mnode on dnode 2")
-        clusterComCheck.checkMnodeStatus(2)
-        tdSql.execute("create mnode on dnode 3")
-        clusterComCheck.checkMnodeStatus(3)
+        
+        #check mnode status
+        tdLog.info("check mnode status")
+        clusterComCheck.checkMnodeStatus(mnodeNums)
 
         # add some error operations and
         tdLog.info("Confirm the status of the dnode again")
@@ -141,10 +140,15 @@ class TDTestCase:
         tdDnodes=cluster.dnodes
         stopcount =0
         threads=[]
-        for i in range(restartNumbers):
+        for i in range(dbNumbers):
             dbNameIndex = '%s%d'%(paraDict["dbName"],i)
             newTdSql=tdCom.newTdSql()
-            threads.append(threading.Thread(target=clusterComCreate.create_databases, args=(newTdSql, dbNameIndex,paraDict["dbNumbers"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
+            # a11111=paraDict["dbNumbers"]
+            # print(f"==================={dbNameIndex},{a11111}")
+            threads.append(threading.Thread(target=clusterComCreate.createDeltedatabases, args=(newTdSql, dbNameIndex,repeatNumber,paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
+
+            redbNameIndex = '%s%d'%(paraDict["dbName"],i+100)
+            threads.append(threading.Thread(target=clusterComCreate.createDeltedatabases, args=(newTdSql, redbNameIndex,1,paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
 
         for tr in threads:
             tr.start()
@@ -198,7 +202,7 @@ class TDTestCase:
 
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=10,stopRole='dnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=1,stopRole='dnode')
 
     def stop(self):
         tdSql.close()

@@ -25,7 +25,7 @@ extern "C" {
 int32_t mndInitTopic(SMnode *pMnode);
 void    mndCleanupTopic(SMnode *pMnode);
 
-SMqTopicObj *mndAcquireTopic(SMnode *pMnode, char *topicName);
+SMqTopicObj *mndAcquireTopic(SMnode *pMnode, const char *topicName);
 void         mndReleaseTopic(SMnode *pMnode, SMqTopicObj *pTopic);
 
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic);

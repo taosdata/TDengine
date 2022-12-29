@@ -27,10 +27,21 @@ static int vnodeBufPoolCreate(SVnode *pVnode, int64_t size, SVBufPool **ppPool) 
     return -1;
   }
 
-  if (taosThreadSpinInit(&pPool->lock, 0) != 0) {
-    taosMemoryFree(pPool);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+  if (VND_IS_RSMA(pVnode)) {
+    pPool->lock = taosMemoryMalloc(sizeof(TdThreadSpinlock));
+    if (!pPool->lock) {
+      taosMemoryFree(pPool);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+    if (taosThreadSpinInit(pPool->lock, 0) != 0) {
+      taosMemoryFree((void *)pPool->lock);
+      taosMemoryFree(pPool);
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
+  } else {
+    pPool->lock = NULL;
   }
 
   pPool->next = NULL;
@@ -49,7 +60,10 @@ static int vnodeBufPoolCreate(SVnode *pVnode, int64_t size, SVBufPool **ppPool) 
 
 static int vnodeBufPoolDestroy(SVBufPool *pPool) {
   vnodeBufPoolReset(pPool);
-  taosThreadSpinDestroy(&pPool->lock);
+  if (pPool->lock) {
+    taosThreadSpinDestroy(pPool->lock);
+    taosMemoryFree((void *)pPool->lock);
+  }
   taosMemoryFree(pPool);
   return 0;
 }
@@ -109,15 +123,23 @@ void vnodeBufPoolReset(SVBufPool *pPool) {
   pPool->ptr = pPool->node.data;
 }
 
-void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
+
+void *vnodeBufPoolMallocAligned(SVBufPool *pPool, int size) {
   SVBufPoolNode *pNode;
   void          *p = NULL;
+  uint8_t       *ptr = NULL;
+  int            paddingLen = 0;
   ASSERT(pPool != NULL);
 
-  taosThreadSpinLock(&pPool->lock);
-  if (pPool->node.size >= pPool->ptr - pPool->node.data + size) {
+  if (pPool->lock) taosThreadSpinLock(pPool->lock);
+
+  ptr = pPool->ptr;
+  paddingLen = (((long)ptr + 7) & ~7) - (long)ptr;
+
+  if (pPool->node.size >= pPool->ptr - pPool->node.data + size + paddingLen) {
     // allocate from the anchor node
-    p = pPool->ptr;
+    p = pPool->ptr + paddingLen;
+    size += paddingLen;
     pPool->ptr = pPool->ptr + size;
     pPool->size += size;
   } else {
@@ -125,7 +147,7 @@ void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
     pNode = taosMemoryMalloc(sizeof(*pNode) + size);
     if (pNode == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      taosThreadSpinUnlock(&pPool->lock);
+      if (pPool->lock) taosThreadSpinUnlock(pPool->lock);
       return NULL;
     }
 
@@ -138,7 +160,40 @@ void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
 
     pPool->size = pPool->size + sizeof(*pNode) + size;
   }
-  taosThreadSpinUnlock(&pPool->lock);
+  if (pPool->lock) taosThreadSpinUnlock(pPool->lock);
+  return p;
+}
+
+void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
+  SVBufPoolNode *pNode;
+  void          *p = NULL;
+  ASSERT(pPool != NULL);
+
+  if (pPool->lock) taosThreadSpinLock(pPool->lock);
+  if (pPool->node.size >= pPool->ptr - pPool->node.data + size) {
+    // allocate from the anchor node
+    p = pPool->ptr;
+    pPool->ptr = pPool->ptr + size;
+    pPool->size += size;
+  } else {
+    // allocate a new node
+    pNode = taosMemoryMalloc(sizeof(*pNode) + size);
+    if (pNode == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      if (pPool->lock) taosThreadSpinUnlock(pPool->lock);
+      return NULL;
+    }
+
+    p = pNode->data;
+    pNode->size = size;
+    pNode->prev = pPool->pTail;
+    pNode->pnext = &pPool->pTail;
+    pPool->pTail->pnext = &pNode->prev;
+    pPool->pTail = pNode;
+
+    pPool->size = pPool->size + sizeof(*pNode) + size;
+  }
+  if (pPool->lock) taosThreadSpinUnlock(pPool->lock);
   return p;
 }
 
@@ -162,6 +217,9 @@ void vnodeBufPoolRef(SVBufPool *pPool) {
 }
 
 void vnodeBufPoolUnRef(SVBufPool *pPool) {
+  if (pPool == NULL) {
+    return;
+  }
   int32_t nRef = atomic_sub_fetch_32(&pPool->nRef, 1);
   if (nRef == 0) {
     SVnode *pVnode = pPool->pVnode;

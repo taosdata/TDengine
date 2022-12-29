@@ -40,7 +40,7 @@ if not exist %work_dir%\debug\ver-%2-x86 (
 )
 cd %work_dir%\debug\ver-%2-x64
 call vcvarsall.bat x64
-cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_HTTP=false -DBUILD_TEST=false -DVERNUMBER=%2 -DCPUTYPE=x64
+cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DWEBSOCKET=true -DBUILD_HTTP=false -DBUILD_TEST=false -DVERNUMBER=%2 -DCPUTYPE=x64
 cmake --build .
 rd /s /Q C:\TDengine
 cmake --install .

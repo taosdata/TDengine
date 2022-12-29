@@ -2,6 +2,7 @@
 %define userlocalpath    /usr/local
 %define cfg_install_dir  /etc/taos
 %define __strip /bin/true
+%global __python /usr/bin/python3
 
 Name:		tdengine
 Version:	%{_version}

@@ -21,7 +21,7 @@
 
 #define LOG_MAX_LINE_SIZE             (1024)
 #define LOG_MAX_LINE_BUFFER_SIZE      (LOG_MAX_LINE_SIZE + 3)
-#define LOG_MAX_LINE_DUMP_SIZE        (65 * 1024)
+#define LOG_MAX_LINE_DUMP_SIZE        (1024 * 1024)
 #define LOG_MAX_LINE_DUMP_BUFFER_SIZE (LOG_MAX_LINE_DUMP_SIZE + 3)
 
 #define LOG_FILE_NAME_LEN    300
@@ -72,6 +72,7 @@ static int32_t  tsDaylightActive; /* Currently in daylight saving time. */
 
 bool    tsLogEmbedded = 0;
 bool    tsAsyncLog = true;
+bool    tsAssert = true;
 int32_t tsNumOfLogLines = 10000000;
 int32_t tsLogKeepDays = 0;
 LogFp   tsLogFp = NULL;
@@ -81,25 +82,25 @@ int64_t tsNumOfDebugLogs = 0;
 int64_t tsNumOfTraceLogs = 0;
 
 // log
-int32_t dDebugFlag = 135;
-int32_t vDebugFlag = 135;
-int32_t mDebugFlag = 135;
+int32_t dDebugFlag = 131;
+int32_t vDebugFlag = 131;
+int32_t mDebugFlag = 131;
 int32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t tmrDebugFlag = 131;
 int32_t uDebugFlag = 131;
 int32_t rpcDebugFlag = 131;
 int32_t qDebugFlag = 131;
-int32_t wDebugFlag = 135;
-int32_t sDebugFlag = 135;
+int32_t wDebugFlag = 131;
+int32_t sDebugFlag = 131;
 int32_t tsdbDebugFlag = 131;
 int32_t tdbDebugFlag = 131;
-int32_t tqDebugFlag = 135;
-int32_t fsDebugFlag = 135;
-int32_t metaDebugFlag = 135;
-int32_t udfDebugFlag = 135;
+int32_t tqDebugFlag = 131;
+int32_t fsDebugFlag = 131;
+int32_t metaDebugFlag = 131;
+int32_t udfDebugFlag = 131;
 int32_t smaDebugFlag = 131;
-int32_t idxDebugFlag = 135;
+int32_t idxDebugFlag = 131;
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
@@ -317,14 +318,14 @@ static void taosGetLogFileName(char *fn) {
     for (int32_t i = 0; i < tsLogObj.fileNum; i++) {
       char fileName[LOG_FILE_NAME_LEN];
 
-      sprintf(fileName, "%s%d.0", fn, i);
+      snprintf(fileName, LOG_FILE_NAME_LEN, "%s%d.0", fn, i);
       bool file1open = taosCheckFileIsOpen(fileName);
 
-      sprintf(fileName, "%s%d.1", fn, i);
+      snprintf(fileName, LOG_FILE_NAME_LEN, "%s%d.1", fn, i);
       bool file2open = taosCheckFileIsOpen(fileName);
 
       if (!file1open && !file2open) {
-        sprintf(tsLogObj.logName, "%s%d", fn, i);
+        snprintf(tsLogObj.logName, LOG_FILE_NAME_LEN, "%s%d", fn, i);
         return;
       }
     }
@@ -435,7 +436,7 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 
   taosGetTimeOfDay(&timeSecs);
   time_t curTime = timeSecs.tv_sec;
-  ptm = taosLocalTimeNolock(&Tm, &curTime, taosGetDaylight());
+  ptm = taosLocalTime(&curTime, &Tm);
 
   return sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                  ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(), flags);
@@ -444,6 +445,9 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
   if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceAvailable()) {
     taosUpdateLogNums(level);
+#if 0 
+    // DEBUG_FATAL and DEBUG_ERROR are duplicated
+    // fsync will cause thread blocking and may also generate log misalignment in case of asyncLog
     if (tsAsyncLog && level != DEBUG_FATAL) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
@@ -452,6 +456,13 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
         taosFsyncFile(tsLogObj.logHandle->pFile);
       }
     }
+#else
+    if (tsAsyncLog) {
+      taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
+    } else {
+      taosWriteFile(tsLogObj.logHandle->pFile, buffer, len);
+    }
+#endif
 
     if (tsLogObj.maxLines > 0) {
       atomic_add_fetch_32(&tsLogObj.lines, 1);
@@ -496,7 +507,7 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
   if (!osLogSpaceAvailable()) return;
   if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
 
-  char    buffer[LOG_MAX_LINE_DUMP_BUFFER_SIZE];
+  char   *buffer = taosMemoryMalloc(LOG_MAX_LINE_DUMP_BUFFER_SIZE);
   int32_t len = taosBuildLogHead(buffer, flags);
 
   va_list argpointer;
@@ -509,6 +520,7 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
   buffer[len] = 0;
 
   taosPrintLogImp(level, dflag, buffer, len);
+  taosMemoryFree(buffer);
 }
 
 void taosDumpData(unsigned char *msg, int32_t len) {
@@ -586,7 +598,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   int32_t        end = 0;
   int32_t        remainSize = 0;
   static int64_t lostLine = 0;
-  char           tmpBuf[40] = {0};
+  char           tmpBuf[128] = {0};
   int32_t        tmpBufLen = 0;
 
   if (pLogBuf == NULL || pLogBuf->stop) return -1;
@@ -598,7 +610,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   remainSize = (start > end) ? (start - end - 1) : (start + LOG_BUF_SIZE(pLogBuf) - end - 1);
 
   if (lostLine > 0) {
-    sprintf(tmpBuf, "...Lost %" PRId64 " lines here...\n", lostLine);
+    snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
     tmpBufLen = (int32_t)strlen(tmpBuf);
   }
 
@@ -776,4 +788,38 @@ cmp_end:
   taosMemoryFree(data);
 
   return ret;
+}
+
+bool taosAssert(bool condition, const char *file, int32_t line, const char *format, ...) {
+  if (condition) return false;
+
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;  // tsLogEmbedded ? 255 : uDebugFlag
+  char        buffer[LOG_MAX_LINE_BUFFER_SIZE];
+  int32_t     len = taosBuildLogHead(buffer, flags);
+
+  va_list argpointer;
+  va_start(argpointer, format);
+  len = len + vsnprintf(buffer + len, LOG_MAX_LINE_BUFFER_SIZE - len, format, argpointer);
+  va_end(argpointer);
+  buffer[len++] = '\n';
+  buffer[len] = 0;
+  taosPrintLogImp(1, 255, buffer, len);
+
+  taosPrintLog(flags, level, dflag, "tAssert at file %s:%d exit:%d", file, line, tsAssert);
+  taosPrintTrace(flags, level, dflag);
+
+  if (tsAssert) {
+    // taosCloseLog();
+    taosMsleep(300);
+
+#ifdef NDEBUG
+    abort();
+#else
+    assert(0);
+#endif
+  }
+
+  return true;
 }

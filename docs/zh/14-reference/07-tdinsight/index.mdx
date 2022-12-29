@@ -4,6 +4,9 @@ sidebar_label: TDinsight
 description: 基于Grafana的TDengine零依赖监控解决方案
 ---
 
+import Tabs from '@theme/Tabs'
+import TabItem from '@theme/TabItem'
+
 TDinsight 是使用监控数据库和 [Grafana] 对 TDengine 进行监控的解决方案。
 
 TDengine 通过 [taosKeeper](../taosKeeper) 将服务器的 CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入指定数据库，并对重要的系统操作（比如登录、创建、删除数据库等）以及各种错误报警信息进行记录。通过 [Grafana] 和 [TDengine 数据源插件](https://github.com/taosdata/grafanaplugin/releases)，TDinsight 将集群状态、节点信息、插入及查询请求、资源使用情况等进行可视化展示，同时还支持 vnode、dnode、mnode 节点状态异常告警，为开发者实时监控 TDengine 集群运行状态提供了便利。本文将指导用户安装 Grafana 服务器并通过 `TDinsight.sh` 安装脚本自动安装 TDengine 数据源插件及部署 TDinsight 可视化面板。
@@ -41,6 +44,7 @@ sudo apt-get install grafana
 ```
 
 ### 在 CentOS / RHEL 上安装 Grafana
+
 </TabItem>
 <TabItem label="redhat" value="基于 CentOS / RHEL 系统">
 
@@ -127,20 +131,20 @@ Install and configure TDinsight dashboard in Grafana on Ubuntu 18.04/20.04 syste
 
 大多数命令行选项都可以通过环境变量获得同样的效果。
 
-| 短选项 | 长选项                     | 环境变量                     | 说明                                                                        |
-| ------ | -------------------------- | ---------------------------- | --------------------------------------------------------------------------- |
-| -v     | --plugin-version           | TDENGINE_PLUGIN_VERSION      | TDengine 数据源插件版本，默认使用最新版。                                   |
-| -P     | --grafana-provisioning-dir | GF_PROVISIONING_DIR          | Grafana 配置目录，默认为`/etc/grafana/provisioning/`                        |
-| -G     | --grafana-plugins-dir      | GF_PLUGINS_DIR               | Grafana 插件目录，默认为`/var/lib/grafana/plugins`。                        |
-| -O     | --grafana-org-id           | GF_ORG_ID                    | Grafana 组织 ID，默认为 1。                                                 |
-| -n     | --tdengine-ds-name         | TDENGINE_DS_NAME             | TDengine 数据源名称，默认为 TDengine。                                      |
-| -a     | --tdengine-api             | TDENGINE_API                 | TDengine REST API 端点。默认为`http://127.0.0.1:6041`。                     |
-| -u     | --tdengine-user            | TDENGINE_USER                | TDengine 用户名。 [默认值：root]                                            |
-| -p     | --tdengine-密码            | TDENGINE_PASSWORD            | TDengine 密码。 [默认：taosdata]                                            |
-| -i     | --tdinsight-uid            | TDINSIGHT_DASHBOARD_UID      | TDinsight 仪表盘`uid`。 [默认值：tdinsight]                                 |
-| -t     | --tdinsight-title          | TDINSIGHT_DASHBOARD_TITLE    | TDinsight 仪表盘标题。 [默认：TDinsight]                                    |
-| -e     | --tdinsight-可编辑         | TDINSIGHT_DASHBOARD_EDITABLE | 如果配置仪表盘可以编辑。 [默认值：false]                                    |
-| -E     | --external-notifier        | EXTERNAL_NOTIFIER            | 将外部通知程序 uid 应用于 TDinsight 仪表盘。                                |
+| 短选项 | 长选项                     | 环境变量                     | 说明                                                    |
+| ------ | -------------------------- | ---------------------------- | ------------------------------------------------------- |
+| -v     | --plugin-version           | TDENGINE_PLUGIN_VERSION      | TDengine 数据源插件版本，默认使用最新版。               |
+| -P     | --grafana-provisioning-dir | GF_PROVISIONING_DIR          | Grafana 配置目录，默认为`/etc/grafana/provisioning/`    |
+| -G     | --grafana-plugins-dir      | GF_PLUGINS_DIR               | Grafana 插件目录，默认为`/var/lib/grafana/plugins`。    |
+| -O     | --grafana-org-id           | GF_ORG_ID                    | Grafana 组织 ID，默认为 1。                             |
+| -n     | --tdengine-ds-name         | TDENGINE_DS_NAME             | TDengine 数据源名称，默认为 TDengine。                  |
+| -a     | --tdengine-api             | TDENGINE_API                 | TDengine REST API 端点。默认为`http://127.0.0.1:6041`。 |
+| -u     | --tdengine-user            | TDENGINE_USER                | TDengine 用户名。 [默认值：root]                        |
+| -p     | --tdengine-密码            | TDENGINE_PASSWORD            | TDengine 密码。 [默认：taosdata]                        |
+| -i     | --tdinsight-uid            | TDINSIGHT_DASHBOARD_UID      | TDinsight 仪表盘`uid`。 [默认值：tdinsight]             |
+| -t     | --tdinsight-title          | TDINSIGHT_DASHBOARD_TITLE    | TDinsight 仪表盘标题。 [默认：TDinsight]                |
+| -e     | --tdinsight-可编辑         | TDINSIGHT_DASHBOARD_EDITABLE | 如果配置仪表盘可以编辑。 [默认值：false]                |
+| -E     | --external-notifier        | EXTERNAL_NOTIFIER            | 将外部通知程序 uid 应用于 TDinsight 仪表盘。            |
 
 假设您在主机 `tdengine` 上启动 TDengine 数据库，HTTP API 端口为 `6041`，用户为 `root1`，密码为 `pass5ord`。执行脚本：
 
@@ -196,6 +200,7 @@ sudo grafana-cli \
 [plugins]
 allow_loading_unsigned_plugins = tdengine-datasource
 ```
+
 :::
 
 ### 启动 Grafana 服务

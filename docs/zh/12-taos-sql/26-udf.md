@@ -63,7 +63,7 @@ SHOW FUNCTIONS;
 
 在 SQL 指令中，可以直接以在系统中创建 UDF 时赋予的函数名来调用用户定义函数。例如：
 ```sql
-SELECT X(c1,c2) FROM table/stable;
+SELECT bit_and(c1,c2) FROM table;
 ```
 
-表示对名为 c1, c2 的数据列调用名为 X 的用户定义函数。SQL 指令中用户定义函数可以配合 WHERE 等查询特性来使用。
+表示对表 table 上名为 c1, c2 的数据列调用名为 bit_and 的用户定义函数。SQL 指令中用户定义函数可以配合 WHERE 等查询特性来使用。

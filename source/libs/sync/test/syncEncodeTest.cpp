@@ -1,15 +1,7 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncEnv.h"
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncRaftEntry.h"
-#include "syncRaftLog.h"
-#include "syncRaftStore.h"
-#include "syncUtil.h"
-#include "wal.h"
+#include "syncTest.h"
 
+#if 0
 void logTest() {
   sTrace("--- sync log test: trace");
   sDebug("--- sync log test: debug");
@@ -32,8 +24,8 @@ SSyncNode *pSyncNode;
 SSyncNode *syncNodeInit() {
   syncInfo.vgId = 1234;
   syncInfo.msgcb = &gSyncIO->msgcb;
-  syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.FpEqMsg = syncIOEqMsg;
+  syncInfo.syncSendMSg = syncIOSendMsg;
+  syncInfo.syncEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
 
@@ -102,12 +94,12 @@ SRpcMsg *step0() {
 }
 
 SyncClientRequest *step1(const SRpcMsg *pMsg) {
-  SyncClientRequest *pRetMsg = syncClientRequestBuild2(pMsg, 123, true, 1000);
+  SyncClientRequest *pRetMsg = syncClientRequestBuild(pMsg, 123, true, 1000);
   return pRetMsg;
 }
 
 SRpcMsg *step2(const SyncClientRequest *pMsg) {
-  SRpcMsg *pRetMsg = (SRpcMsg *)taosMemoryMalloc(sizeof(SRpcMsg));
+  SRpcMsg *pRetMsg = (SRpcMsg *)taosMemoryCalloc(sizeof(SRpcMsg), 1);
   syncClientRequest2RpcMsg(pMsg, pRetMsg);
   return pRetMsg;
 }
@@ -118,17 +110,7 @@ SyncClientRequest *step3(const SRpcMsg *pMsg) {
 }
 
 SSyncRaftEntry *step4(const SyncClientRequest *pMsg) {
-  SSyncRaftEntry *pRetMsg = syncEntryBuild2((SyncClientRequest *)pMsg, 100, 0);
-  return pRetMsg;
-}
-
-char *step5(const SSyncRaftEntry *pMsg, uint32_t *len) {
-  char *pRetMsg = syncEntrySerialize(pMsg, len);
-  return pRetMsg;
-}
-
-SSyncRaftEntry *step6(const char *pMsg, uint32_t len) {
-  SSyncRaftEntry *pRetMsg = syncEntryDeserialize(pMsg, len);
+  SSyncRaftEntry *pRetMsg = syncEntryBuildFromClientRequest((SyncClientRequest *)pMsg, 100, 0);
   return pRetMsg;
 }
 
@@ -137,13 +119,14 @@ SRpcMsg *step7(const SSyncRaftEntry *pMsg) {
   syncEntry2OriginalRpc(pMsg, pRetMsg);
   return pRetMsg;
 }
-
+#endif
 int main(int argc, char **argv) {
   // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
   void logTest();
 
+#if 0
   myIndex = 0;
   if (argc >= 2) {
     myIndex = atoi(argv[1]);
@@ -188,20 +171,9 @@ int main(int argc, char **argv) {
 
   syncEntryLog2((char *)"==pEntry==", pEntry);
 
-  // step5
-  uint32_t len;
-  char    *pMsg5 = step5(pMsg4, &len);
-  char    *s = syncUtilprintBin(pMsg5, len);
-  printf("==step5== [%s] \n", s);
-  taosMemoryFree(s);
-
-  // step6
-  SSyncRaftEntry *pMsg6 = step6(pMsg5, len);
-  syncEntryLog2((char *)"==step6==", pMsg6);
-
   // step7
   SRpcMsg *pMsg7 = step7(pMsg6);
   syncRpcMsgLog2((char *)"==step7==", pMsg7);
-
+#endif
   return 0;
 }

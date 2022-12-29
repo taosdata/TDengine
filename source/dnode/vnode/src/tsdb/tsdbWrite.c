@@ -15,15 +15,27 @@
 
 #include "tsdb.h"
 
+/**
+ * @brief max key by precision
+ *  approximately calculation:
+ *  ms: 3600*1000*8765*1000         // 1970 + 1000 years
+ *  us: 3600*1000000*8765*1000      // 1970 + 1000 years
+ *  ns: 3600*1000000000*8765*292    // 1970 + 292 years
+ */
+static int64_t tsMaxKeyByPrecision[] = {31556995200000L, 31556995200000000L, 9214646400000000000L};
+
 // static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg);
 
-int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *pRsp) {
-  SSubmitMsgIter msgIter = {0};
-  SSubmitBlk    *pBlock = NULL;
-  int32_t        affectedrows = 0;
-  int32_t        numOfRows = 0;
+int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq2 *pMsg, SSubmitRsp2 *pRsp) {
+  int32_t arrSize = 0;
+  int32_t affectedrows = 0;
+  int32_t numOfRows = 0;
 
   ASSERT(pTsdb->mem != NULL);
+
+  if (pMsg) {
+    arrSize = taosArrayGetSize(pMsg->aSubmitTbData);
+  }
 
   // scan and convert
   if (tsdbScanAndConvertSubmitMsg(pTsdb, pMsg) < 0) {
@@ -34,18 +46,10 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *
   }
 
   // loop to insert
-  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) {
-    return -1;
-  }
-  while (true) {
-    SSubmitBlkRsp r = {0};
-    tGetSubmitMsgNext(&msgIter, &pBlock);
-    if (pBlock == NULL) break;
-    if ((terrno = tsdbInsertTableData(pTsdb, version, &msgIter, pBlock, &r)) < 0) {
+  for (int32_t i = 0; i < arrSize; ++i) {
+    if ((terrno = tsdbInsertTableData(pTsdb, version, taosArrayGet(pMsg->aSubmitTbData, i), &affectedrows)) < 0) {
       return -1;
     }
-
-    numOfRows += msgIter.numOfRows;
   }
 
   if (pRsp != NULL) {
@@ -73,9 +77,8 @@ static FORCE_INLINE int tsdbCheckRowRange(STsdb *pTsdb, STable *pTable, STSRow *
 }
 #endif
 
-static FORCE_INLINE int tsdbCheckRowRange(STsdb *pTsdb, tb_uid_t uid, STSRow *row, TSKEY minKey, TSKEY maxKey,
+static FORCE_INLINE int tsdbCheckRowRange(STsdb *pTsdb, tb_uid_t uid, TSKEY rowKey, TSKEY minKey, TSKEY maxKey,
                                           TSKEY now) {
-  TSKEY rowKey = TD_ROW_KEY(row);
   if (rowKey < minKey || rowKey > maxKey) {
     tsdbError("vgId:%d, table uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
               " maxKey %" PRId64 " row key %" PRId64,
@@ -87,6 +90,7 @@ static FORCE_INLINE int tsdbCheckRowRange(STsdb *pTsdb, tb_uid_t uid, STSRow *ro
   return 0;
 }
 
+#if 0
 int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
   ASSERT(pMsg != NULL);
   // STsdbMeta *    pMeta = pTsdb->tsdbMeta;
@@ -97,7 +101,7 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
   STsdbKeepCfg  *pCfg = &pTsdb->keepCfg;
   TSKEY          now = taosGetTimestamp(pCfg->precision);
   TSKEY          minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep2;
-  TSKEY          maxKey = now + tsTickPerMin[pCfg->precision] * pCfg->days;
+  TSKEY          maxKey = tsMaxKeyByPrecision[pCfg->precision];
 
   terrno = TSDB_CODE_SUCCESS;
   // pMsg->length = htonl(pMsg->length);
@@ -150,6 +154,46 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
     while ((row = tGetSubmitBlkNext(&blkIter)) != NULL) {
       if (tsdbCheckRowRange(pTsdb, msgIter.uid, row, minKey, maxKey, now) < 0) {
         return -1;
+      }
+    }
+  }
+
+  if (terrno != TSDB_CODE_SUCCESS) return -1;
+  return 0;
+}
+#endif
+
+int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq2 *pMsg) {
+  ASSERT(pMsg != NULL);
+  STsdbKeepCfg *pCfg = &pTsdb->keepCfg;
+  TSKEY         now = taosGetTimestamp(pCfg->precision);
+  TSKEY         minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep2;
+  TSKEY         maxKey = tsMaxKeyByPrecision[pCfg->precision];
+  int32_t       size = taosArrayGetSize(pMsg->aSubmitTbData);
+
+  terrno = TSDB_CODE_SUCCESS;
+
+  for (int32_t i = 0; i < size; ++i) {
+    SSubmitTbData *pData = TARRAY_GET_ELEM(pMsg->aSubmitTbData, i);
+    if (pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      uint64_t  nColData = TARRAY_SIZE(pData->aCol);
+      SColData *aColData = (SColData *)TARRAY_DATA(pData->aCol);
+      if (nColData > 0) {
+        int32_t nRows = aColData[0].nVal;
+        TSKEY  *aKey = (TSKEY *)aColData[0].pData;
+        for (int32_t r = 0; r < nRows; ++r) {
+          if (tsdbCheckRowRange(pTsdb, pData->uid, aKey[r], minKey, maxKey, now) < 0) {
+            return -1;
+          }
+        }
+      }
+    } else {
+      int32_t nRows = taosArrayGetSize(pData->aRowP);
+      for (int32_t r = 0; r < nRows; ++r) {
+        SRow *pRow = (SRow *)taosArrayGetP(pData->aRowP, r);
+        if (tsdbCheckRowRange(pTsdb, pData->uid, pRow->ts, minKey, maxKey, now) < 0) {
+          return -1;
+        }
       }
     }
   }

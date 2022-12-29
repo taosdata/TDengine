@@ -1,10 +1,4 @@
-#include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncEnv.h"
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncRaftStore.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -26,8 +20,8 @@ SSyncFSM* pFsm;
 SSyncNode* syncNodeInit() {
   syncInfo.vgId = 1234;
   syncInfo.msgcb = &gSyncIO->msgcb;
-  syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.FpEqMsg = syncIOEqMsg;
+  syncInfo.syncSendMSg = syncIOSendMsg;
+  syncInfo.syncEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./sync_init_test");
 
@@ -44,14 +38,14 @@ SSyncNode* syncNodeInit() {
   SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
   assert(pSyncNode != NULL);
 
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
-  gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
-  gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
-  gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
-  gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
-  gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
-  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
+  // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
+  // gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
+  // gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
+  // gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
+  // gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
+  // gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
+  // gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
+  // gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
   gSyncIO->pSyncNode = pSyncNode;
 
   return pSyncNode;
@@ -87,7 +81,7 @@ int main(int argc, char** argv) {
   SSyncNode* pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
 
-  syncNodeLog2((char*)"syncInitTest", pSyncNode);
+  sNTrace(pSyncNode, "syncInitTest");
   initRaftId(pSyncNode);
 
   syncNodeClose(pSyncNode);

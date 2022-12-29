@@ -13,10 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
-#include "syncInt.h"
-#include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
@@ -44,14 +43,55 @@
 //        IN commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
-void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
+void syncOneReplicaAdvance(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) {
     sError("pSyncNode is NULL");
     return;
   }
 
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
-    syncNodeErrorLog(pSyncNode, "not leader, can not advance commit index");
+    sNError(pSyncNode, "not leader, can not advance commit index");
+    return;
+  }
+
+  if (pSyncNode->replicaNum != 1) {
+    sNError(pSyncNode, "not one replica, can not advance commit index");
+    return;
+  }
+
+  // advance commit index to snapshot first
+  SSnapshot snapshot;
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+  if (snapshot.lastApplyIndex > 0 && snapshot.lastApplyIndex > pSyncNode->commitIndex) {
+    SyncIndex commitBegin = pSyncNode->commitIndex;
+    SyncIndex commitEnd = snapshot.lastApplyIndex;
+    pSyncNode->commitIndex = snapshot.lastApplyIndex;
+    sNTrace(pSyncNode, "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin, commitEnd);
+  }
+
+  // advance commit index as large as possible
+  SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
+  if (lastIndex > pSyncNode->commitIndex) {
+    sNTrace(pSyncNode, "commit by wal from index:%" PRId64 " to index:%" PRId64, pSyncNode->commitIndex + 1, lastIndex);
+    pSyncNode->commitIndex = lastIndex;
+  }
+
+  // call back Wal
+  SyncIndex walCommitVer = logStoreWalCommitVer(pSyncNode->pLogStore);
+  if (pSyncNode->commitIndex > walCommitVer) {
+    pSyncNode->pLogStore->syncLogUpdateCommitIndex(pSyncNode->pLogStore, pSyncNode->commitIndex);
+  }
+}
+
+void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
+  ASSERTS(false, "deprecated");
+  if (pSyncNode == NULL) {
+    sError("pSyncNode is NULL");
+    return;
+  }
+
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    sNError(pSyncNode, "not leader, can not advance commit index");
     return;
   }
 
@@ -62,11 +102,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     SyncIndex commitBegin = pSyncNode->commitIndex;
     SyncIndex commitEnd = snapshot.lastApplyIndex;
     pSyncNode->commitIndex = snapshot.lastApplyIndex;
-
-    char eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin,
-             commitEnd);
-    syncNodeEventLog(pSyncNode, eventLog);
+    sNTrace(pSyncNode, "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin, commitEnd);
   }
 
   // update commit index
@@ -81,12 +117,17 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       LRUHandle*      h = taosLRUCacheLookup(pCache, &index, sizeof(index));
       if (h) {
         pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+
+        pSyncNode->pLogStore->cacheHit++;
+        sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", index, pEntry->bytes, pEntry);
+
       } else {
+        pSyncNode->pLogStore->cacheMiss++;
+        sNTrace(pSyncNode, "miss cache index:%" PRId64, index);
+
         int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index, &pEntry);
         if (code != 0) {
-          char logBuf[128];
-          snprintf(logBuf, sizeof(logBuf), "advance commit index error, read wal index:%" PRId64, index);
-          syncNodeErrorLog(pSyncNode, logBuf);
+          sNError(pSyncNode, "advance commit index error, read wal index:%" PRId64, index);
           return;
         }
       }
@@ -98,23 +139,19 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         if (h) {
           taosLRUCacheRelease(pCache, h, false);
         } else {
-          syncEntryDestory(pEntry);
+          syncEntryDestroy(pEntry);
         }
 
         break;
       } else {
-        do {
-          char logBuf[128];
-          snprintf(logBuf, sizeof(logBuf), "can not commit due to term not equal, index:%" PRId64 ", term:%" PRIu64,
-                   pEntry->index, pEntry->term);
-          syncNodeEventLog(pSyncNode, logBuf);
-        } while (0);
+        sNTrace(pSyncNode, "can not commit due to term not equal, index:%" PRId64 ", term:%" PRIu64, pEntry->index,
+                pEntry->term);
       }
 
       if (h) {
         taosLRUCacheRelease(pCache, h, false);
       } else {
-        syncEntryDestory(pEntry);
+        syncEntryDestroy(pEntry);
       }
     }
   }
@@ -137,13 +174,11 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     pSyncNode->pLogStore->syncLogUpdateCommitIndex(pSyncNode->pLogStore, pSyncNode->commitIndex);
 
     // execute fsm
-    if (pSyncNode->pFsm != NULL) {
+    if (pSyncNode != NULL && pSyncNode->pFsm != NULL) {
       int32_t code = syncNodeDoCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
       if (code != 0) {
-        char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "advance commit index error, do commit begin:%" PRId64 ", end:%" PRId64,
-                 beginIndex, endIndex);
-        syncNodeErrorLog(pSyncNode, logBuf);
+        sNError(pSyncNode, "advance commit index error, do commit begin:%" PRId64 ", end:%" PRId64, beginIndex,
+                endIndex);
         return;
       }
     }
@@ -252,15 +287,48 @@ bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
 }
 */
 
-bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
+bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index) {
+  int            count = 0;
+  SSyncIndexMgr* pMatches = pNode->pMatchIndex;
+  ASSERT(pNode->replicaNum == pMatches->replicaNum);
+
+  for (int i = 0; i < pNode->replicaNum; i++) {
+    SyncIndex matchIndex = pMatches->index[i];
+    if (matchIndex >= index) {
+      count++;
+    }
+  }
+
+  return count >= pNode->quorum;
+}
+
+bool syncAgree(SSyncNode* pNode, SyncIndex index) {
   int agreeCount = 0;
-  for (int i = 0; i < pSyncNode->replicaNum; ++i) {
-    if (syncAgreeIndex(pSyncNode, &(pSyncNode->replicasId[i]), index)) {
+  for (int i = 0; i < pNode->replicaNum; ++i) {
+    if (syncAgreeIndex(pNode, &(pNode->replicasId[i]), index)) {
       ++agreeCount;
     }
-    if (agreeCount >= pSyncNode->quorum) {
+    if (agreeCount >= pNode->quorum) {
       return true;
     }
   }
   return false;
+}
+
+int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex) {
+  SyncIndex lastVer = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+  commitIndex = TMAX(commitIndex, ths->commitIndex);
+  ths->commitIndex = TMIN(commitIndex, lastVer);
+  ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->commitIndex);
+  return ths->commitIndex;
+}
+
+int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
+  if (indexLikely > ths->commitIndex && syncNodeAgreedUpon(ths, indexLikely)) {
+    SyncIndex commitIndex = indexLikely;
+    syncNodeUpdateCommitIndex(ths, commitIndex);
+    sTrace("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index: %" PRId64 "", ths->vgId, ths->state,
+           ths->pRaftStore->currentTerm, commitIndex);
+  }
+  return ths->commitIndex;
 }

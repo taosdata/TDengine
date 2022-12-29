@@ -88,11 +88,13 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   }
 #ifdef WINDOWS
   if (strlen(path) == 0) {
-    strcat(path, "udfd.exe");
-  } else {
-    strcat(path, "\\udfd.exe");
+    strcat(path, "C:\\TDengine");
   }
+  strcat(path, "\\udfd.exe");
 #else
+  if (strlen(path) == 0) {
+    strcat(path, "/usr/bin");
+  }
   strcat(path, "/udfd");
 #endif
   char *argsUdfd[] = {path, "-c", configDir, NULL};
@@ -122,15 +124,19 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   taosGetCpuCores(&numCpuCores);
   snprintf(thrdPoolSizeEnvItem, 32, "%s=%d", "UV_THREADPOOL_SIZE", (int)numCpuCores * 2);
 
-  char pathTaosdLdLib[512] = {0};
+  char   pathTaosdLdLib[512] = {0};
   size_t taosdLdLibPathLen = sizeof(pathTaosdLdLib);
-  uv_os_getenv("LD_LIBRARY_PATH", pathTaosdLdLib, &taosdLdLibPathLen);
+  int ret = uv_os_getenv("LD_LIBRARY_PATH", pathTaosdLdLib, &taosdLdLibPathLen);
+  if (ret != UV_ENOBUFS) {
+    taosdLdLibPathLen = strlen(pathTaosdLdLib);
+  }
 
-  char udfdPathLdLib[1024] = {0};
+  char   udfdPathLdLib[1024] = {0};
   size_t udfdLdLibPathLen = strlen(tsUdfdLdLibPath);
-  strncpy(udfdPathLdLib, tsUdfdLdLibPath, udfdLdLibPathLen);
+  strncpy(udfdPathLdLib, tsUdfdLdLibPath, tListLen(udfdPathLdLib));
+
   udfdPathLdLib[udfdLdLibPathLen] = ':';
-  strncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen);
+  strncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen - 1);
   if (udfdLdLibPathLen + taosdLdLibPathLen < 1024) {
     fnInfo("udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
   } else {
@@ -359,7 +365,7 @@ typedef struct SUdfcProxy {
   SArray    *udfStubs;  // SUdfcFuncStub
 
   uv_mutex_t udfcUvMutex;
-  int8_t initialized;
+  int8_t     initialized;
 } SUdfcProxy;
 
 SUdfcProxy gUdfcProxy = {0};
@@ -831,15 +837,46 @@ int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
 }
 
 int32_t convertScalarParamToDataBlock(SScalarParam *input, int32_t numOfCols, SSDataBlock *output) {
-  output->info.rows = input->numOfRows;
-  output->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+  int32_t numOfRows = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    taosArrayPush(output->pDataBlock, (input + i)->columnData);
+    numOfRows = (input[i].numOfRows > numOfRows) ? input[i].numOfRows : numOfRows;
+  }
 
-    if (IS_VAR_DATA_TYPE((input + i)->columnData->info.type)) {
-      output->info.hasVarCol = true;
+  // create the basic block info structure
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pInfo = input[i].columnData;
+    SColumnInfoData d = {0};
+    d.info = pInfo->info;
+
+    blockDataAppendColInfo(output, &d);
+  }
+
+  blockDataEnsureCapacity(output, numOfRows);
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pDest = taosArrayGet(output->pDataBlock, i);
+
+    SColumnInfoData* pColInfoData = input[i].columnData;
+    colDataAssign(pDest, pColInfoData, input[i].numOfRows, &output->info);
+
+    if (input[i].numOfRows < numOfRows) {
+      int32_t startRow = input[i].numOfRows;
+      int expandRows = numOfRows - startRow;
+      bool isNull = colDataIsNull_s(pColInfoData, (input+i)->numOfRows - 1);
+      if (isNull) {
+        colDataAppendNNULL(pDest, startRow, expandRows);
+      } else {
+        char* src = colDataGetData(pColInfoData, (input + i)->numOfRows - 1);
+        for (int j = 0; j < expandRows; ++j) {
+          colDataAppend(pDest, startRow+j, src, false);
+        }
+        //colDataAppendNItems(pColInfoData, startRow, data, expandRows);
+      }
     }
   }
+
+  output->info.rows = numOfRows;
+
   return 0;
 }
 
@@ -1092,7 +1129,7 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
 
   SSDataBlock *pTempBlock = createDataBlock();
   pTempBlock->info.rows = pInput->totalRows;
-  pTempBlock->info.uid = pInput->uid;
+  pTempBlock->info.id.uid = pInput->uid;
   for (int32_t i = 0; i < numOfCols; ++i) {
     blockDataAppendColInfo(pTempBlock, pInput->pData[i]);
   }
@@ -1793,8 +1830,8 @@ int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t 
     convertDataBlockToScalarParm(&resultBlock, output);
     taosArrayDestroy(resultBlock.pDataBlock);
   }
-
-  taosArrayDestroy(inputBlock.pDataBlock);
+  
+  blockDataFreeRes(&inputBlock);
   return err;
 }
 

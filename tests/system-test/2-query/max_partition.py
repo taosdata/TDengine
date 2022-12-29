@@ -5,8 +5,9 @@ from util.cases import *
 
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), True)
 
         self.row_nums = 10
         self.tb_nums = 10
@@ -19,15 +20,15 @@ class TDTestCase:
 
         for i in range(tb_nums):
             tbname = f"{dbname}.sub_{stb_name}_{i}"
-            ts = self.ts + i*10000
+            ts = self.ts + i*1000*120
             tdSql.execute(f"create table {tbname} using {dbname}.{stb_name} tags ({ts} , {i} , {i}*10 ,{i}*1.0,{i}*1.0 , 1 , 2, 'true', 'binary_{i}' ,'nchar_{i}',{i},{i},10,20 )")
 
             for row in range(row_nums):
-                ts = self.ts + row*1000
+                ts = ts + row*1000
                 tdSql.execute(f"insert into {tbname} values({ts} , {row} , {row} , {row} , {row} , 1 , 2 , 'true' , 'binary_{row}' , 'nchar_{row}' , {row} , {row} , 1 ,2 )")
 
             for null in range(5):
-                ts =  self.ts + row_nums*1000 + null*1000
+                ts = ts + row_nums*1000 + null*1000
                 tdSql.execute(f"insert into {tbname} values({ts} , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL )")
 
     def basic_query(self, dbname="db"):
@@ -159,13 +160,13 @@ class TDTestCase:
         tdSql.query(f"select tbname , count(c1) from {dbname}.stb partition by tbname interval(10s) slimit 5 soffset 1 ")
 
         tdSql.query(f"select tbname , max(c1) from {dbname}.stb partition by tbname interval(10s)")
-        tdSql.checkRows(self.row_nums*2)
+        tdSql.checkRows(self.row_nums*10)
 
         tdSql.query(f"select unique(c1) from {dbname}.stb partition  by tbname order by tbname")
 
         tdSql.query(f"select tbname , count(c1) from {dbname}.sub_stb_1 partition by tbname interval(10s)")
         tdSql.checkData(0,0,'sub_stb_1')
-        tdSql.checkData(0,1,self.row_nums)
+        tdSql.checkData(0,1, 4)
 
         tdSql.query(f"select c1 , mavg(c1 ,2 ) from {dbname}.stb partition by c1")
         tdSql.checkRows(90)
@@ -192,7 +193,7 @@ class TDTestCase:
         tdSql.query(f"select c1 , DERIVATIVE(c1,2,1) from {dbname}.stb partition by c1 order by c1")
         tdSql.checkRows(90)
         # bug need fix
-        tdSql.checkData(0,1,None)
+        tdSql.checkData(0,1,0.0)
 
 
         tdSql.query(f"select tbname , max(c1) from {dbname}.stb partition by tbname order by tbname slimit 5 soffset 0 ")

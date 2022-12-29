@@ -15,18 +15,20 @@
 
 #include "vnd.h"
 
-#define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType, tags)                                                   \
-  do {                                                                                                       \
-    int##vType##_t newVal = atomic_sub_fetch_##vType(&(pVar), (oVal));                                       \
-    ASSERT(newVal >= 0);                                                                                     \
-    if (newVal < 0) {                                                                                        \
-      vWarn("vgId:%d %s, abnormal val:%" PRIi64 ", old val:%" PRIi64, TD_VID(pVnode), tags, newVal, (oVal)); \
-    }                                                                                                        \
+#define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType, tags)                                                    \
+  do {                                                                                                        \
+    int##vType##_t newVal = atomic_sub_fetch_##vType(&(pVar), (oVal));                                        \
+    ASSERT(newVal >= 0);                                                                                      \
+    if (newVal < 0) {                                                                                         \
+      vWarn("vgId:%d, %s, abnormal val:%" PRIi64 ", old val:%" PRIi64, TD_VID(pVnode), tags, newVal, (oVal)); \
+    }                                                                                                         \
   } while (0)
 
 int vnodeQueryOpen(SVnode *pVnode) {
   return qWorkerInit(NODE_TYPE_VNODE, TD_VID(pVnode), (void **)&pVnode->pQuery, &pVnode->msgCb);
 }
+
+void vnodeQueryPreClose(SVnode *pVnode) { qWorkerStopAllTasks((void *)pVnode->pQuery); }
 
 void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery); }
 
@@ -262,77 +264,55 @@ _exit:
   return TSDB_CODE_SUCCESS;
 }
 
+static FORCE_INLINE void vnodeFreeSBatchRspMsg(void* p) {
+  if (NULL == p) {
+    return;
+  }
+
+  SBatchRspMsg* pRsp = (SBatchRspMsg*)p;
+  rpcFreeCont(pRsp->msg);
+}
+
+
 int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t    code = 0;
-  int32_t    offset = 0;
   int32_t    rspSize = 0;
-  SBatchReq *batchReq = (SBatchReq *)pMsg->pCont;
-  int32_t    msgNum = ntohl(batchReq->msgNum);
-  offset += sizeof(SBatchReq);
-  SBatchMsg req = {0};
-  SBatchRsp rsp = {0};
+  SBatchReq  batchReq = {0};
+  SBatchMsg *req = NULL;
+  SBatchRspMsg rsp = {0};
+  SBatchRsp batchRsp = {0};
   SRpcMsg   reqMsg = *pMsg;
   SRpcMsg   rspMsg = {0};
   void     *pRsp = NULL;
 
+  if (tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq)) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    qError("tDeserializeSBatchReq failed");
+    goto _exit;
+  }
+
+  int32_t    msgNum = taosArrayGetSize(batchReq.pMsgs);
   if (msgNum >= MAX_META_MSG_IN_BATCH) {
     code = TSDB_CODE_INVALID_MSG;
     qError("too many msgs %d in vnode batch meta req", msgNum);
     goto _exit;
   }
 
-  SArray *batchRsp = taosArrayInit(msgNum, sizeof(SBatchRsp));
-  if (NULL == batchRsp) {
+  batchRsp.pRsps = taosArrayInit(msgNum, sizeof(SBatchRspMsg));
+  if (NULL == batchRsp.pRsps) {
     code = TSDB_CODE_OUT_OF_MEMORY;
+    qError("taosArrayInit %d SBatchRspMsg failed", msgNum);
     goto _exit;
   }
 
   for (int32_t i = 0; i < msgNum; ++i) {
-    if (offset >= pMsg->contLen) {
-      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-      taosArrayDestroy(batchRsp);
-      return -1;
-    }    
+    req = taosArrayGet(batchReq.pMsgs, i);
 
-    req.msgIdx = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
-    offset += sizeof(req.msgIdx);
+    reqMsg.msgType = req->msgType;
+    reqMsg.pCont = req->msg;
+    reqMsg.contLen = req->msgLen;
 
-    if (offset >= pMsg->contLen) {
-      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-      taosArrayDestroy(batchRsp);
-      return -1;
-    } 
-
-    req.msgType = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
-    offset += sizeof(req.msgType);
-
-    if (offset >= pMsg->contLen) {
-      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-      taosArrayDestroy(batchRsp);
-      return -1;
-    } 
-
-    req.msgLen = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
-    offset += sizeof(req.msgLen);
-
-    if (offset >= pMsg->contLen) {
-      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-      taosArrayDestroy(batchRsp);
-      return -1;
-    } 
-
-    req.msg = (char *)pMsg->pCont + offset;
-    offset += req.msgLen;
-
-    reqMsg.msgType = req.msgType;
-    reqMsg.pCont = req.msg;
-    reqMsg.contLen = req.msgLen;
-
-    switch (req.msgType) {
+    switch (req->msgType) {
       case TDMT_VND_TABLE_META:
         vnodeGetTableMeta(pVnode, &reqMsg, false);
         break;
@@ -340,59 +320,39 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
         vnodeGetTableCfg(pVnode, &reqMsg, false);
         break;
       default:
-        qError("invalid req msgType %d", req.msgType);
+        qError("invalid req msgType %d", req->msgType);
         reqMsg.code = TSDB_CODE_INVALID_MSG;
         reqMsg.pCont = NULL;
         reqMsg.contLen = 0;
         break;
     }
 
-    rsp.msgIdx = req.msgIdx;
+    rsp.msgIdx = req->msgIdx;
     rsp.reqType = reqMsg.msgType;
     rsp.msgLen = reqMsg.contLen;
     rsp.rspCode = reqMsg.code;
     rsp.msg = reqMsg.pCont;
 
-    taosArrayPush(batchRsp, &rsp);
-
-    rspSize += sizeof(rsp) + rsp.msgLen - POINTER_BYTES;
+    taosArrayPush(batchRsp.pRsps, &rsp);
   }
 
-  rspSize += sizeof(int32_t);
-  offset = 0;
-
-  if (rspSize > MAX_META_BATCH_RSP_SIZE) {
-    code = TSDB_CODE_INVALID_MSG_LEN;
-    goto _exit;
-  }
-  
-  pRsp = rpcMallocCont(rspSize);
-  if (pRsp == NULL) {
+  rspSize = tSerializeSBatchRsp(NULL, 0, &batchRsp);
+  if (rspSize < 0) {
+    qError("tSerializeSBatchRsp failed");
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-
-  *(int32_t *)((char *)pRsp + offset) = htonl(msgNum);
-  offset += sizeof(msgNum);
-  for (int32_t i = 0; i < msgNum; ++i) {
-    SBatchRsp *p = taosArrayGet(batchRsp, i);
-
-    *(int32_t *)((char *)pRsp + offset) = htonl(p->reqType);
-    offset += sizeof(p->reqType);
-    *(int32_t *)((char *)pRsp + offset) = htonl(p->msgIdx);
-    offset += sizeof(p->msgIdx);
-    *(int32_t *)((char *)pRsp + offset) = htonl(p->msgLen);
-    offset += sizeof(p->msgLen);
-    *(int32_t *)((char *)pRsp + offset) = htonl(p->rspCode);
-    offset += sizeof(p->rspCode);
-    memcpy((char *)pRsp + offset, p->msg, p->msgLen);
-    offset += p->msgLen;
-
-    taosMemoryFreeClear(p->msg);
+  pRsp = rpcMallocCont(rspSize);
+  if (pRsp == NULL) {
+    qError("rpcMallocCont %d failed", rspSize);
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
   }
-
-  taosArrayDestroy(batchRsp);
-  batchRsp = NULL;
+  if (tSerializeSBatchRsp(pRsp, rspSize, &batchRsp) < 0) {
+    qError("tSerializeSBatchRsp %d failed", rspSize);
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
 
 _exit:
 
@@ -406,7 +366,8 @@ _exit:
     qError("vnd get batch meta failed cause of %s", tstrerror(code));
   }
 
-  taosArrayDestroyEx(batchRsp, tFreeSBatchRsp);
+  taosArrayDestroyEx(batchReq.pMsgs, tFreeSBatchReqMsg);
+  taosArrayDestroyEx(batchRsp.pRsps, tFreeSBatchRspMsg);
 
   tmsgSendRsp(&rspMsg);
 
@@ -414,9 +375,12 @@ _exit:
 }
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
+  SSyncState state = syncGetState(pVnode->sync);
+
   pLoad->vgId = TD_VID(pVnode);
-  pLoad->syncState = syncGetMyRole(pVnode->sync);
-  pLoad->syncRestore = pVnode->restored;
+  pLoad->syncState = state.state;
+  pLoad->syncRestore = state.restored;
+  pLoad->syncCanRead = state.canRead;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
   pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta);

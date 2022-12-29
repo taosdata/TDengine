@@ -30,6 +30,7 @@ typedef struct SVariant {
     int64_t  i;
     uint64_t u;
     double   d;
+    float    f;
     char    *pz;
     TdUcs4  *ucs4;
     SArray  *arr;  // only for 'in' query to hold value list, not value for a field
@@ -47,7 +48,7 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc);
 
 int32_t taosVariantCompare(const SVariant *p1, const SVariant *p2);
 
-char   *taosVariantGet(SVariant *pVar, int32_t type);
+char *taosVariantGet(SVariant *pVar, int32_t type);
 
 #ifdef __cplusplus
 }

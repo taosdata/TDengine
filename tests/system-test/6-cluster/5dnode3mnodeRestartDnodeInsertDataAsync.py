@@ -31,6 +31,7 @@ class TDTestCase:
         self.TDDnodes = None
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
+        self.replicaVar = int(replicaVar)
 
 
     def getBuildPath(self):
@@ -66,29 +67,11 @@ class TDTestCase:
         self._async_raise(thread.ident, SystemExit)
 
 
-    def insertData(self,countstart,countstop):
-        # fisrt add data : db\stable\childtable\general table
-
-        for couti in range(countstart,countstop):
-            tdLog.debug("drop database if exists db%d" %couti)
-            tdSql.execute("drop database if exists db%d" %couti)
-            print("create database if not exists db%d replica 1 duration 300" %couti)
-            tdSql.execute("create database if not exists db%d replica 1 duration 300" %couti)
-            tdSql.execute("use db%d" %couti)
-            tdSql.execute(
-            '''create table stb1
-            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-            tags (t1 int)
-            '''
-            )
-            tdSql.execute(
-                '''
-                create table t1
-                (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-                '''
-            )
-            for i in range(4):
-                tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+    def reCreateUser(self, tdsql, count, user, passwd):
+        clusterComCreate.createUser(tdsql,f"{user}{count}",f"{passwd}{count}")
+        userTdSql=tdCom.newTdSql(user=f"{user}{count}",password=f"{passwd}{count}")
+        clusterComCreate.alterUser(userTdSql,f"{user}{count}",f"{passwd}{count+1}")
+        clusterComCreate.deleteUser(tdsql,f"{user}{count}")
 
 
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
@@ -118,20 +101,18 @@ class TDTestCase:
         rowsPerStb=paraDict["ctbNum"]*paraDict["rowsPerTbl"]
         rowsall=rowsPerStb*paraDict['stbNumbers']
         dbNumbers = 1
+        paraDict['replica'] = self.replicaVar
 
         tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
         clusterComCheck.checkDnodes(dnodeNumbers)
-        clusterComCheck.checkMnodeStatus(1)
-
-        # fisr add three mnodes;
-        tdLog.info("fisr add three mnodes and check mnode status")
-        tdSql.execute("create mnode on dnode 2")
-        clusterComCheck.checkMnodeStatus(2)
-        tdSql.execute("create mnode on dnode 3")
-        clusterComCheck.checkMnodeStatus(3)
+        
+        #check mnode status
+        tdLog.info("check mnode status")
+        clusterComCheck.checkMnodeStatus(mnodeNums)
+        
 
         # add some error operations and
         tdLog.info("Confirm the status of the dnode again")
@@ -162,6 +143,8 @@ class TDTestCase:
             stableName= '%s_%d'%(paraDict['stbName'],i)
             newTdSql=tdCom.newTdSql()
             threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
+            threads.append(threading.Thread(target=self.reCreateUser,args=(newTdSql,i,"user","passwd")))
+
         for tr in threads:
             tr.start()
 
@@ -214,7 +197,7 @@ class TDTestCase:
 
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=1,stopRole='dnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=1,stopRole='dnode')
 
     def stop(self):
         tdSql.close()

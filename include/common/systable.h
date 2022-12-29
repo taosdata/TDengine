@@ -46,6 +46,8 @@ extern "C" {
 #define TSDB_INS_TABLE_SUBSCRIPTIONS     "ins_subscriptions"
 #define TSDB_INS_TABLE_TOPICS            "ins_topics"
 #define TSDB_INS_TABLE_STREAMS           "ins_streams"
+#define TSDB_INS_TABLE_STREAM_TASKS      "ins_stream_tasks"
+#define TSDB_INS_TABLE_USER_PRIVILEGES   "ins_user_privileges"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB   "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS        "perf_smas"

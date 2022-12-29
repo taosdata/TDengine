@@ -34,15 +34,16 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
 
   pOut->dbVgroup = taosMemoryCalloc(1, sizeof(SDBVgInfo));
   if (NULL == pOut->dbVgroup) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pOut->dbVgroup->vgVersion = usedbRsp->vgVersion;
   pOut->dbVgroup->hashMethod = usedbRsp->hashMethod;
   pOut->dbVgroup->hashPrefix = usedbRsp->hashPrefix;
   pOut->dbVgroup->hashSuffix = usedbRsp->hashSuffix;
+  pOut->dbVgroup->stateTs = usedbRsp->stateTs;
 
-  qDebug("Got %d vgroup for db %s", usedbRsp->vgNum, usedbRsp->db);
+  qDebug("Got %d vgroup for db %s, vgVersion:%d, stateTs:%" PRId64, usedbRsp->vgNum, usedbRsp->db, usedbRsp->vgVersion, usedbRsp->stateTs);
 
   if (usedbRsp->vgNum <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -51,7 +52,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   pOut->dbVgroup->vgHash =
       taosHashInit(usedbRsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (NULL == pOut->dbVgroup->vgHash) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   for (int32_t i = 0; i < usedbRsp->vgNum; ++i) {
@@ -60,7 +61,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
     qDebug("the %dth vgroup, id %d, epNum %d, current %s port %d", i, pVgInfo->vgId, pVgInfo->epSet.numOfEps,
            pVgInfo->epSet.eps[pVgInfo->epSet.inUse].fqdn, pVgInfo->epSet.eps[pVgInfo->epSet.inUse].port);
     if (0 != taosHashPut(pOut->dbVgroup->vgHash, &pVgInfo->vgId, sizeof(int32_t), pVgInfo, sizeof(SVgroupInfo))) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
@@ -103,6 +104,7 @@ int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *ms
   usedbReq.vgVersion = pInput->vgVersion;
   usedbReq.dbId = pInput->dbId;
   usedbReq.numOfTable = pInput->numOfTable;
+  usedbReq.stateTs = pInput->stateTs;
 
   int32_t bufLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -306,6 +308,15 @@ int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
     goto PROCESS_USEDB_OVER;
   }
 
+  qTrace("db:%s, usedbRsp received, numOfVgroups:%d", usedbRsp.db, usedbRsp.vgNum);
+  for (int32_t i = 0; i < usedbRsp.vgNum; ++i) {
+    SVgroupInfo *pInfo = taosArrayGet(usedbRsp.pVgroupInfos, i);
+    qTrace("vgId:%d, numOfEps:%d inUse:%d ", pInfo->vgId, pInfo->epSet.numOfEps, pInfo->epSet.inUse);
+    for (int32_t j = 0; j < pInfo->epSet.numOfEps; ++j) {
+      qTrace("vgId:%d, index:%d epset:%s:%u", pInfo->vgId, j, pInfo->epSet.eps[j].fqdn, pInfo->epSet.eps[j].port);
+    }
+  }
+
   code = queryBuildUseDbOutput(pOut, &usedbRsp);
 
 PROCESS_USEDB_OVER:
@@ -376,7 +387,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pTableMeta->vgId = isStb ? 0 : msg->vgId;

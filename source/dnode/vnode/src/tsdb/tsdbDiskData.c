@@ -427,13 +427,13 @@ static int32_t (*tDiskColAddValImpl[8][3])(SDiskColBuilder *pBuilder, SColVal *p
     {tDiskColAddVal60, tDiskColAddVal61, tDiskColAddVal62},  // HAS_VALUE|HAS_NULL
     {tDiskColAddVal70, tDiskColAddVal71, tDiskColAddVal72}   // HAS_VALUE|HAS_NULL|HAS_NONE
 };
-extern void (*tSmaUpdateImpl[])(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet);
+// extern void (*tSmaUpdateImpl[])(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet);
 static int32_t tDiskColAddVal(SDiskColBuilder *pBuilder, SColVal *pColVal) {
   int32_t code = 0;
 
   if (pBuilder->calcSma) {
     if (COL_VAL_IS_VALUE(pColVal)) {
-      tSmaUpdateImpl[pBuilder->type](&pBuilder->sma, pColVal, &pBuilder->minSet, &pBuilder->maxSet);
+      // tSmaUpdateImpl[pBuilder->type](&pBuilder->sma, pColVal, &pBuilder->minSet, &pBuilder->maxSet);
     } else {
       pBuilder->sma.numOfNull++;
     }
@@ -595,21 +595,21 @@ int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTS
   if (pBuilder->bi.minKey > kRow.ts) pBuilder->bi.minKey = kRow.ts;
   if (pBuilder->bi.maxKey < kRow.ts) pBuilder->bi.maxKey = kRow.ts;
 
-  SRowIter iter = {0};
-  tRowIterInit(&iter, pRow, pTSchema);
+  STSDBRowIter iter = {0};
+  tsdbRowIterOpen(&iter, pRow, pTSchema);
 
-  SColVal *pColVal = tRowIterNext(&iter);
+  SColVal *pColVal = tsdbRowIterNext(&iter);
   for (int32_t iBuilder = 0; iBuilder < pBuilder->nBuilder; iBuilder++) {
     SDiskColBuilder *pDCBuilder = (SDiskColBuilder *)taosArrayGet(pBuilder->aBuilder, iBuilder);
 
     while (pColVal && pColVal->cid < pDCBuilder->cid) {
-      pColVal = tRowIterNext(&iter);
+      pColVal = tsdbRowIterNext(&iter);
     }
 
     if (pColVal && pColVal->cid == pDCBuilder->cid) {
       code = tDiskColAddVal(pDCBuilder, pColVal);
       if (code) return code;
-      pColVal = tRowIterNext(&iter);
+      pColVal = tsdbRowIterNext(&iter);
     } else {
       code = tDiskColAddVal(pDCBuilder, &COL_VAL_NONE(pDCBuilder->cid, pDCBuilder->type));
       if (code) return code;

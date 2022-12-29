@@ -33,17 +33,16 @@ extern "C" {
 #define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL ",       DEBUG_TRACE, wDebugFlag, __VA_ARGS__); }}
 // clang-format on
 
-#define WAL_PROTO_VER        0
-#define WAL_NOSUFFIX_LEN     20
-#define WAL_SUFFIX_AT        (WAL_NOSUFFIX_LEN + 1)
-#define WAL_LOG_SUFFIX       "log"
-#define WAL_INDEX_SUFFIX     "idx"
-#define WAL_REFRESH_MS       1000
-#define WAL_PATH_LEN         (TSDB_FILENAME_LEN + 12)
-#define WAL_FILE_LEN         (WAL_PATH_LEN + 32)
-#define WAL_MAGIC            0xFAFBFCFDF4F3F2F1ULL
-#define WAL_SCAN_BUF_SIZE    (1024 * 1024 * 3)
-#define WAL_RECOV_SIZE_LIMIT (100 * WAL_SCAN_BUF_SIZE)
+#define WAL_PROTO_VER     0
+#define WAL_NOSUFFIX_LEN  20
+#define WAL_SUFFIX_AT     (WAL_NOSUFFIX_LEN + 1)
+#define WAL_LOG_SUFFIX    "log"
+#define WAL_INDEX_SUFFIX  "idx"
+#define WAL_REFRESH_MS    1000
+#define WAL_PATH_LEN      (TSDB_FILENAME_LEN + 12)
+#define WAL_FILE_LEN      (WAL_PATH_LEN + 32)
+#define WAL_MAGIC         0xFAFBFCFDF4F3F2F1ULL
+#define WAL_SCAN_BUF_SIZE (1024 * 1024 * 3)
 
 typedef enum {
   TAOS_WAL_WRITE = 1,
@@ -108,6 +107,8 @@ typedef struct SWal {
   TdFilePtr pIdxFile;
   int32_t   writeCur;
   SArray   *fileInfoSet;  // SArray<SWalFileInfo>
+  // gc
+  SArray *toDeleteFiles;  // SArray<SWalFileInfo>
   // status
   int64_t totSize;
   int64_t lastRollSeq;
@@ -159,6 +160,7 @@ void    walCleanUp();
 // handle open and ctl
 SWal   *walOpen(const char *path, SWalCfg *pCfg);
 int32_t walAlter(SWal *, SWalCfg *pCfg);
+int32_t walPersist(SWal *);
 void    walClose(SWal *);
 
 // write interfaces
@@ -170,7 +172,7 @@ int32_t walWriteWithSyncInfo(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo
 
 // Assign version automatically and return to caller,
 // -1 will be returned for failed writes
-int64_t walAppendLog(SWal *, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen);
+int64_t walAppendLog(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen);
 
 void walFsync(SWal *, bool force);
 

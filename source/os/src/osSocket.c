@@ -988,7 +988,7 @@ int32_t taosGetFqdn(char *fqdn) {
 #endif
   char hostname[1024];
   hostname[1023] = '\0';
-  if (gethostname(hostname, 1023) == -1) {
+  if (taosGetlocalhostname(hostname, 1023) == -1) {
 #ifdef WINDOWS
     printf("failed to get hostname, reason:%s\n", strerror(WSAGetLastError()));
 #else
@@ -998,30 +998,28 @@ int32_t taosGetFqdn(char *fqdn) {
     return -1;
   }
 
-  struct addrinfo  hints = {0};
-  struct addrinfo *result = NULL;
 #ifdef __APPLE__
   // on macosx, hostname -f has the form of xxx.local
   // which will block getaddrinfo for a few seconds if AI_CANONNAME is set
   // thus, we choose AF_INET (ipv4 for the moment) to make getaddrinfo return
   // immediately
-  hints.ai_family = AF_INET;
+  // hints.ai_family = AF_INET;
+  strcpy(fqdn, hostname);
+  strcpy(fqdn+strlen(hostname), ".local");
 #else   // __APPLE__
+  struct addrinfo  hints = {0};
+  struct addrinfo *result = NULL;
   hints.ai_flags = AI_CANONNAME;
-#endif  // __APPLE__
+
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
     fprintf(stderr, "failed to get fqdn, code:%d, reason:%s\n", ret, gai_strerror(ret));
     return -1;
   }
-
-#ifdef __APPLE__
-  // refer to comments above
-  strcpy(fqdn, hostname);
-#else   // __APPLE__
   strcpy(fqdn, result->ai_canonname);
-#endif  // __APPLE__
   freeaddrinfo(result);
+#endif  // __APPLE__
+
   return 0;
 }
 
@@ -1101,5 +1099,32 @@ void taosWinSocketInit() {
     }
   }
 #else
+#endif
+}
+
+uint64_t taosHton64(uint64_t val) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return ((val & 0x00000000000000ff) << 7 * 8) | ((val & 0x000000000000ff00) << 5 * 8) |
+         ((val & 0x0000000000ff0000) << 3 * 8) | ((val & 0x00000000ff000000) << 1 * 8) |
+         ((val & 0x000000ff00000000) >> 1 * 8) | ((val & 0x0000ff0000000000) >> 3 * 8) |
+         ((val & 0x00ff000000000000) >> 5 * 8) | ((val & 0xff00000000000000) >> 7 * 8);
+#else
+  if (__BYTE_ORDER == __LITTLE_ENDIAN) {
+    return (((uint64_t)htonl((int)((val << 32) >> 32))) << 32) | (unsigned int)htonl((int)(val >> 32));
+  } else if (__BYTE_ORDER == __BIG_ENDIAN) {
+    return val;
+  }
+#endif
+}
+
+uint64_t taosNtoh64(uint64_t val) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return taosHton64(val);
+#else
+  if (__BYTE_ORDER == __LITTLE_ENDIAN) {
+    return (((uint64_t)htonl((int)((val << 32) >> 32))) << 32) | (unsigned int)htonl((int)(val >> 32));
+  } else if (__BYTE_ORDER == __BIG_ENDIAN) {
+    return val;
+  }
 #endif
 }

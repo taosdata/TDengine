@@ -106,6 +106,10 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_STREAMS;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_APPS, len) == 0) {
     type = TSDB_MGMT_TABLE_APPS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_STREAM_TASKS, len) == 0) {
+    type = TSDB_MGMT_TABLE_STREAM_TASKS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_PRIVILEGES, len) == 0) {
+    type = TSDB_MGMT_TABLE_PRIVILEGES;
   } else {
     //    ASSERT(0);
   }
@@ -194,9 +198,9 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
 
   if (retrieveReq.showId == 0) {
-    STableMetaRsp *pMeta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
+    STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
     if (pMeta == NULL) {
-      pMeta = (STableMetaRsp *)taosHashGet(pMnode->perfsMeta, retrieveReq.tb, strlen(retrieveReq.tb));
+      pMeta = taosHashGet(pMnode->perfsMeta, retrieveReq.tb, strlen(retrieveReq.tb));
       if (pMeta == NULL) {
         terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
         mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
@@ -240,25 +244,22 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  int32_t      numOfCols = pShow->pMeta->numOfColumns;
-  SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+  int32_t numOfCols = pShow->pMeta->numOfColumns;
 
+  SSDataBlock *pBlock = createDataBlock();
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {0};
-    SSchema        *p = &pShow->pMeta->pSchemas[i];
+
+    SSchema *p = &pShow->pMeta->pSchemas[i];
 
     idata.info.bytes = p->bytes;
     idata.info.type = p->type;
     idata.info.colId = p->colId;
-
-    taosArrayPush(pBlock->pDataBlock, &idata);
-    if (IS_VAR_DATA_TYPE(p->type)) {
-      pBlock->info.hasVarCol = true;
-    }
+    blockDataAppendColInfo(pBlock, &idata);
   }
 
   blockDataEnsureCapacity(pBlock, rowsToRead);
+
   if (mndCheckRetrieveFinished(pShow)) {
     mDebug("show:0x%" PRIx64 ", read finished, numOfRows:%d", pShow->id, pShow->numOfRows);
     rowsRead = 0;
@@ -306,8 +307,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
       pStart += sizeof(SSysTableSchema);
     }
 
-    int32_t len = 0;
-    blockEncode(pBlock, pStart, &len, pShow->pMeta->numOfColumns, false);
+    int32_t len = blockEncode(pBlock, pStart, pShow->pMeta->numOfColumns);
   }
 
   pRsp->numOfRows = htonl(rowsRead);

@@ -109,7 +109,7 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
     }
     case TSDB_DATA_TYPE_FLOAT: {
       pVar->nLen = tDataTypes[type].bytes;
-      pVar->d = GET_FLOAT_VAL(pz);
+      pVar->f = GET_FLOAT_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_NCHAR: {  // here we get the nchar length from raw binary bits length
@@ -223,11 +223,17 @@ int32_t taosVariantCompare(const SVariant *p1, const SVariant *p2) {
     } else {
       return p1->nLen > p2->nLen ? 1 : -1;
     }
-  } else if (p1->nType == TSDB_DATA_TYPE_FLOAT || p1->nType == TSDB_DATA_TYPE_DOUBLE) {
+  } else if (p1->nType == TSDB_DATA_TYPE_DOUBLE) {
     if (p1->d == p2->d) {
       return 0;
     } else {
       return p1->d > p2->d ? 1 : -1;
+    }
+  } else if (p1->nType == TSDB_DATA_TYPE_FLOAT) {
+    if (p1->f == p2->f) {
+      return 0;
+    } else {
+      return p1->f > p2->f ? 1 : -1;
     }
   } else if (IS_UNSIGNED_NUMERIC_TYPE(p1->nType)) {
     if (p1->u == p2->u) {
@@ -259,8 +265,9 @@ char *taosVariantGet(SVariant *pVar, int32_t type) {
     case TSDB_DATA_TYPE_UBIGINT:
       return (char *)&pVar->u;
     case TSDB_DATA_TYPE_DOUBLE:
-    case TSDB_DATA_TYPE_FLOAT:
       return (char *)&pVar->d;
+    case TSDB_DATA_TYPE_FLOAT:
+      return (char *)&pVar->f;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_JSON:
       return (char *)pVar->pz;

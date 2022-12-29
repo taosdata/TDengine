@@ -16,6 +16,7 @@
 #include "cJSON.h"
 #include "os.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "tutil.h"
 #include "walInt.h"
 
@@ -23,7 +24,9 @@ bool FORCE_INLINE walLogExist(SWal* pWal, int64_t ver) {
   return !walIsEmpty(pWal) && walGetFirstVer(pWal) <= ver && walGetLastVer(pWal) >= ver;
 }
 
-bool FORCE_INLINE walIsEmpty(SWal* pWal) { return pWal->vers.firstVer == -1; }
+bool FORCE_INLINE walIsEmpty(SWal* pWal) {
+  return (pWal->vers.firstVer == -1 || pWal->vers.lastVer < pWal->vers.firstVer);  // [firstVer, lastVer + 1)
+}
 
 int64_t FORCE_INLINE walGetFirstVer(SWal* pWal) { return pWal->vers.firstVer; }
 
@@ -46,7 +49,6 @@ static FORCE_INLINE int walBuildTmpMetaName(SWal* pWal, char* buf) {
 static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
   int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
   terrno = TSDB_CODE_SUCCESS;
-  ASSERT(fileIdx >= 0 && fileIdx < sz);
 
   SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
   char          fnameStr[WAL_FILE_LEN];
@@ -65,35 +67,45 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
   // ensure size as non-negative
   pFileInfo->fileSize = TMAX(0, pFileInfo->fileSize);
 
+  int64_t  stepSize = WAL_SCAN_BUF_SIZE;
   uint64_t magic = WAL_MAGIC;
   int64_t  walCkHeadSz = sizeof(SWalCkHead);
   int64_t  end = fileSize;
-  int64_t  offset = 0;
   int64_t  capacity = 0;
   int64_t  readSize = 0;
   char*    buf = NULL;
-  int64_t  found = -1;
   bool     firstTrial = pFileInfo->fileSize < fileSize;
+  int64_t  offset = TMIN(pFileInfo->fileSize, fileSize);
+  int64_t  offsetForward = offset - stepSize + walCkHeadSz - 1;
+  int64_t  offsetBackward = offset;
+  int64_t  retVer = -1;
+  int64_t  lastEntryBeginOffset = 0;
+  int64_t  lastEntryEndOffset = 0;
+
+  // check recover size
+  if (2 * tsWalFsyncDataSizeLimit + offset < end) {
+    wWarn("vgId:%d, possibly corrupted WAL range exceeds size limit (i.e. %" PRId64 " bytes). offset:%" PRId64
+          ", end:%" PRId64 ", file:%s",
+          pWal->cfg.vgId, 2 * tsWalFsyncDataSizeLimit, offset, end, fnameStr);
+  }
 
   // search for the valid last WAL entry, e.g. block by block
   while (1) {
-    offset = (firstTrial) ? pFileInfo->fileSize : TMAX(0, end - WAL_SCAN_BUF_SIZE);
-    ASSERT(offset <= end);
+    offset = (firstTrial) ? TMIN(fileSize, offsetForward + stepSize - walCkHeadSz + 1)
+                          : TMAX(0, offsetBackward - stepSize + walCkHeadSz - 1);
+    end = TMIN(offset + stepSize, fileSize);
+    if (firstTrial) {
+      offsetForward = offset;
+    } else {
+      offsetBackward = offset;
+    }
+
     readSize = end - offset;
     capacity = readSize + sizeof(magic);
 
-    int64_t limit = WAL_RECOV_SIZE_LIMIT;
-    if (limit < readSize) {
-      wError("vgId:%d, possibly corrupted WAL range exceeds size limit (i.e. %" PRId64 " bytes). offset:%" PRId64
-             ", end:%" PRId64 ", file:%s",
-             pWal->cfg.vgId, limit, offset, end, fnameStr);
-      terrno = TSDB_CODE_WAL_SIZE_LIMIT;
-      goto _err;
-    }
-
     void* ptr = taosMemoryRealloc(buf, capacity);
     if (ptr == NULL) {
-      terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }
     buf = ptr;
@@ -112,8 +124,8 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       goto _err;
     }
 
-    char* candidate = NULL;
-    char* haystack = buf;
+    char*       candidate = NULL;
+    char*       haystack = buf;
     int64_t     pos = 0;
     SWalCkHead* logContent = NULL;
 
@@ -127,6 +139,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       }
       logContent = (SWalCkHead*)(buf + pos);
       if (walValidHeadCksum(logContent) != 0) {
+        terrno = TSDB_CODE_WAL_CHKSUM_MISMATCH;
         wWarn("vgId:%d, failed to validate checksum of wal entry header. offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
               offset + pos, fnameStr);
         haystack = buf + pos + 1;
@@ -179,46 +192,47 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       }
 
       // found one
-      found = pos;
+      retVer = logContent->head.version;
+      lastEntryBeginOffset = offset + pos;
+      lastEntryEndOffset = offset + pos + sizeof(SWalCkHead) + logContent->head.bodyLen;
+
+      // try next
       haystack = buf + pos + 1;
     }
 
-    if (found >= 0 || offset == 0) break;
-
-    // go backwards, e.g. by at most one WAL scan buf size
-    end = TMIN(offset + walCkHeadSz - 1, fileSize);
-    firstTrial = false;
+    if (end == fileSize) firstTrial = false;
+    if (firstTrial) {
+      if (terrno == TSDB_CODE_SUCCESS) {
+        continue;
+      } else {
+        firstTrial = false;
+      }
+    }
+    if (retVer >= 0 || offset == 0) break;
   }
 
-  // determine end of last entry
-  SWalCkHead* lastEntry = (found >= 0) ? (SWalCkHead*)(buf + found) : NULL;
-  int64_t     retVer = -1;
-  int64_t     lastEntryBeginOffset = 0;
-  int64_t     lastEntryEndOffset = 0;
-
-  if (lastEntry == NULL) {
+  if (retVer < 0) {
     terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
-  } else {
-    retVer = lastEntry->head.version;
-    lastEntryBeginOffset = offset + (int64_t)((char*)lastEntry - (char*)buf);
-    lastEntryEndOffset = lastEntryBeginOffset + sizeof(SWalCkHead) + lastEntry->head.bodyLen;
   }
 
   // truncate file
   if (lastEntryEndOffset != fileSize) {
     wWarn("vgId:%d, repair meta truncate file %s to %" PRId64 ", orig size %" PRId64, pWal->cfg.vgId, fnameStr,
           lastEntryEndOffset, fileSize);
+
     if (taosFtruncateFile(pFile, lastEntryEndOffset) < 0) {
       wError("failed to truncate file due to %s. file:%s", strerror(errno), fnameStr);
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
+
     if (taosFsyncFile(pFile) < 0) {
       wError("failed to fsync file due to %s. file:%s", strerror(errno), fnameStr);
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
   }
+
   pFileInfo->fileSize = lastEntryEndOffset;
 
   taosCloseFile(&pFile);
@@ -241,7 +255,6 @@ static void walRebuildFileInfoSet(SArray* metaLogList, SArray* actualLogList) {
     SWalFileInfo* pLogInfo = taosArrayGet(actualLogList, i);
     while (j < metaFileNum) {
       SWalFileInfo* pMetaInfo = taosArrayGet(metaLogList, j);
-      ASSERT(pMetaInfo != NULL);
       if (pMetaInfo->firstVer < pLogInfo->firstVer) {
         j++;
       } else if (pMetaInfo->firstVer == pLogInfo->firstVer) {
@@ -271,6 +284,9 @@ void walAlignVersions(SWal* pWal) {
   if (pWal->vers.lastVer < pWal->vers.snapshotVer) {
     wWarn("vgId:%d, lastVer:%" PRId64 " is less than snapshotVer:%" PRId64 ". align with it.", pWal->cfg.vgId,
           pWal->vers.lastVer, pWal->vers.snapshotVer);
+    if (pWal->vers.lastVer < pWal->vers.firstVer) {
+      pWal->vers.firstVer = pWal->vers.snapshotVer + 1;
+    }
     pWal->vers.lastVer = pWal->vers.snapshotVer;
   }
   if (pWal->vers.commitVer < pWal->vers.snapshotVer) {
@@ -366,7 +382,6 @@ int walCheckAndRepairMeta(SWal* pWal) {
   taosArrayDestroy(actualLog);
 
   int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
-  ASSERT(sz == actualFileNum);
 
   // scan and determine the lastVer
   int32_t fileIdx = sz;
@@ -384,8 +399,6 @@ int walCheckAndRepairMeta(SWal* pWal) {
       return -1;
     }
 
-    ASSERT(pFileInfo->firstVer >= 0);
-
     if (pFileInfo->lastVer >= pFileInfo->firstVer && fileSize == pFileInfo->fileSize) {
       totSize += pFileInfo->fileSize;
       continue;
@@ -398,10 +411,11 @@ int walCheckAndRepairMeta(SWal* pWal) {
         wError("failed to scan wal last ver since %s", terrstr());
         return -1;
       }
-      ASSERT(pFileInfo->fileSize == 0);
       // remove the empty wal log, and its idx
+      wInfo("vgId:%d, wal remove empty file %s", pWal->cfg.vgId, fnameStr);
       taosRemoveFile(fnameStr);
       walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
+      wInfo("vgId:%d, wal remove empty file %s", pWal->cfg.vgId, fnameStr);
       taosRemoveFile(fnameStr);
       // remove its meta entry
       taosArrayRemove(pWal->fileInfoSet, fileIdx);
@@ -456,8 +470,7 @@ int walReadLogHead(TdFilePtr pLogFile, int64_t offset, SWalCkHead* pCkHead) {
 }
 
 int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
-  int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
-  ASSERT(fileIdx >= 0 && fileIdx < sz);
+  int32_t       sz = taosArrayGetSize(pWal->fileInfoSet);
   SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
   char          fnameStr[WAL_FILE_LEN];
   walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
@@ -471,7 +484,6 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
     return -1;
   }
 
-  ASSERT(pFileInfo->fileSize > 0 && pFileInfo->firstVer >= 0 && pFileInfo->lastVer >= pFileInfo->firstVer);
   if (fileSize == (pFileInfo->lastVer - pFileInfo->firstVer + 1) * sizeof(SWalIdxEntry)) {
     return 0;
   }
@@ -535,7 +547,7 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
   }
   offset += sizeof(SWalIdxEntry);
 
-  ASSERT(offset == (idxEntry.ver - pFileInfo->firstVer + 1) * sizeof(SWalIdxEntry));
+  /*A(offset == (idxEntry.ver - pFileInfo->firstVer + 1) * sizeof(SWalIdxEntry));*/
 
   // ftruncate idx file
   if (offset < fileSize) {
@@ -556,7 +568,7 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
   }
 
   while (idxEntry.ver < pFileInfo->lastVer) {
-    ASSERT(idxEntry.ver == ckHead.head.version);
+    /*A(idxEntry.ver == ckHead.head.version);*/
 
     idxEntry.ver += 1;
     idxEntry.offset += sizeof(SWalCkHead) + ckHead.head.bodyLen;
@@ -613,7 +625,7 @@ int walRollFileInfo(SWal* pWal) {
   // TODO: change to emplace back
   SWalFileInfo* pNewInfo = taosMemoryMalloc(sizeof(SWalFileInfo));
   if (pNewInfo == NULL) {
-    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
   pNewInfo->firstVer = pWal->vers.lastVer + 1;
@@ -621,14 +633,14 @@ int walRollFileInfo(SWal* pWal) {
   pNewInfo->createTs = ts;
   pNewInfo->closeTs = -1;
   pNewInfo->fileSize = 0;
+  pNewInfo->syncedOffset = 0;
   taosArrayPush(pArray, pNewInfo);
   taosMemoryFree(pNewInfo);
   return 0;
 }
 
 char* walMetaSerialize(SWal* pWal) {
-  char buf[30];
-  ASSERT(pWal->fileInfoSet);
+  char   buf[30];
   int    sz = taosArrayGetSize(pWal->fileInfoSet);
   cJSON* pRoot = cJSON_CreateObject();
   cJSON* pMeta = cJSON_CreateObject();
@@ -644,7 +656,7 @@ char* walMetaSerialize(SWal* pWal) {
     if (pFiles) {
       cJSON_Delete(pFiles);
     }
-    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   cJSON_AddItemToObject(pRoot, "meta", pMeta);
@@ -685,7 +697,7 @@ char* walMetaSerialize(SWal* pWal) {
 }
 
 int walMetaDeserialize(SWal* pWal, const char* bytes) {
-  ASSERT(taosArrayGetSize(pWal->fileInfoSet) == 0);
+  /*A(taosArrayGetSize(pWal->fileInfoSet) == 0);*/
   cJSON *pRoot, *pMeta, *pFiles, *pInfoJson, *pField;
   pRoot = cJSON_Parse(bytes);
   if (!pRoot) goto _err;
@@ -771,6 +783,12 @@ static int walFindCurMetaVer(SWal* pWal) {
   return metaVer;
 }
 
+void walUpdateSyncedOffset(SWal* pWal) {
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+  if (pFileInfo == NULL) return;
+  pFileInfo->syncedOffset = pFileInfo->fileSize;
+}
+
 int walSaveMeta(SWal* pWal) {
   int  metaVer = walFindCurMetaVer(pWal);
   char fnameStr[WAL_FILE_LEN];
@@ -790,9 +808,14 @@ int walSaveMeta(SWal* pWal) {
     return -1;
   }
 
+  // update synced offset
+  (void)walUpdateSyncedOffset(pWal);
+
   // flush to a tmpfile
   n = walBuildTmpMetaName(pWal, tmpFnameStr);
-  ASSERT(n < sizeof(tmpFnameStr) && "Buffer overflow of file name");
+  if (n >= sizeof(tmpFnameStr)) {
+    return -1;
+  }
 
   TdFilePtr pMetaFile = taosOpenFile(tmpFnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pMetaFile == NULL) {
@@ -823,7 +846,9 @@ int walSaveMeta(SWal* pWal) {
 
   // rename it
   n = walBuildMetaName(pWal, metaVer + 1, fnameStr);
-  ASSERT(n < sizeof(fnameStr) && "Buffer overflow of file name");
+  if (n >= sizeof(fnameStr)) {
+    goto _err;
+  }
 
   if (taosRenameFile(tmpFnameStr, fnameStr) < 0) {
     wError("failed to rename file due to %s. dest:%s", strerror(errno), fnameStr);
@@ -846,7 +871,6 @@ _err:
 }
 
 int walLoadMeta(SWal* pWal) {
-  ASSERT(pWal->fileInfoSet->size == 0);
   // find existing meta file
   int metaVer = walFindCurMetaVer(pWal);
   if (metaVer == -1) {
@@ -866,7 +890,7 @@ int walLoadMeta(SWal* pWal) {
   int   size = (int)fileSize;
   char* buf = taosMemoryMalloc(size + 5);
   if (buf == NULL) {
-    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
   memset(buf, 0, size + 5);

@@ -338,13 +338,13 @@ if $data03 != @20-09-15 00:00:00.000@ then
   return -1
 endi
 
-sql select diff(val) from (select c1 val from nest_tb0);
-if $rows != 9999 then
-  return -1
-endi
-if $data00 != 1 then
-  return -1
-endi
+#sql select diff(val) from (select c1 val from nest_tb0);
+#if $rows != 9999 then
+#  return -1
+#endi
+#if $data00 != 1 then
+#  return -1
+#endi
 
 sql_error select last_row(*) from (select * from nest_tb0) having c1 > 0
 

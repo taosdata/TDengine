@@ -12,6 +12,7 @@ import random
 class TDTestCase:
 
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
 
@@ -41,15 +42,34 @@ class TDTestCase:
 
         tdSql.query("select count(c1) from dbns.ntb interval(1b)")
         tdSql.checkRows(2)
+    
+    def case2(self):
+        tdSql.query("show variables")        
+        tdSql.checkRows(4)
+
+        for i in range(self.replicaVar):
+            tdSql.query("show dnode %d variables like 'debugFlag'" % (i + 1))
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, i + 1)
+            tdSql.checkData(0, 1, 'debugFlag')
+            tdSql.checkData(0, 2, 0)
+
+        tdSql.query("show dnode 1 variables like '%debugFlag'")
+        tdSql.checkRows(21)
+
+        tdSql.query("show dnode 1 variables like '____debugFlag'")
+        tdSql.checkRows(2)
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
-        tdSql.prepare()
+        tdSql.prepare(replica = self.replicaVar)
 
         tdLog.printNoPrefix("==========start case1 run ...............")
-
         self.case1()
-
         tdLog.printNoPrefix("==========end case1 run ...............")
+
+        tdLog.printNoPrefix("==========start case2 run ...............")
+        self.case2()
+        tdLog.printNoPrefix("==========end case2 run ...............")
 
     def stop(self):
         tdSql.close()

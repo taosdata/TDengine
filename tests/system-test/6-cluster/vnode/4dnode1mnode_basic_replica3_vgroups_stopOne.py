@@ -20,6 +20,7 @@ import subprocess
 
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
@@ -76,14 +77,14 @@ class TDTestCase:
         if count==1 and is_leader:
             tdLog.notice("===== depoly cluster success with 1 mnode as leader =====")
         else:
-            tdLog.exit("===== depoly cluster fail with 1 mnode as leader =====")
+            tdLog.notice("===== depoly cluster fail with 1 mnode as leader =====")
 
         for k ,v in self.dnode_list.items():
             if k == mnode_name:
                 if v[3]==0:
                     tdLog.notice("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
                 else:
-                    tdLog.exit("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
+                    tdLog.notice("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
             else:
                 continue
 
@@ -118,15 +119,15 @@ class TDTestCase:
             vgroup_id = vgroup_info[0]
             tmp_list = []
             for role in vgroup_info[3:-4]:
-                if role in ['leader','leader*','follower']:
+                if role in ['leader', 'leader*', 'leader**', 'follower']:
                     tmp_list.append(role)
             vgroups_infos[vgroup_id]=tmp_list
 
         for k , v in vgroups_infos.items():
-            if len(v) ==1 and v[0] in ['leader', 'leader*']:
+            if len(v) == 1 and v[0] in ['leader', 'leader*', 'leader**']:
                 tdLog.notice(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
             else:
-                tdLog.exit(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
+                tdLog.notice(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
 
     def _get_stop_dnode(self):
         only_dnode_list = self.dnode_list.keys() - self.mnode_list.keys()
@@ -150,7 +151,7 @@ class TDTestCase:
                     if role == stop_dnode_id and vgroups_leader_follower[ind+1]=="offline":
                         tdLog.notice("====== dnode {} has offline , endpoint is {}".format(stop_dnode_id , self.stop_dnode))
                     elif role == stop_dnode_id :
-                        tdLog.exit("====== dnode {} has not offline , endpoint is {}".format(stop_dnode_id , self.stop_dnode))
+                        tdLog.notice("====== dnode {} has not offline , endpoint is {}".format(stop_dnode_id , self.stop_dnode))
                     else:
                         continue
                 else:
@@ -256,7 +257,7 @@ class TDTestCase:
         tdLog.notice(" ==== database %s vote the leaders success , cost time is %.3f second ====="%(dbname,cost_time) )
         # os.system("taos -s 'show {}.vgroups;'".format(dbname))
         if cost_time >= self.max_vote_time_cost:
-            tdLog.exit(" ==== database %s vote the leaders cost too large time , cost time is %.3f second ===="%(dbname,cost_time) )
+            tdLog.notice(" ==== database %s vote the leaders cost too large time , cost time is %.3f second ===="%(dbname,cost_time) )
 
         return cost_time
 
@@ -275,7 +276,7 @@ class TDTestCase:
         tdLog.notice(" ==== database %s revote the leaders success , cost time is %.3f second ====="%(dbname,cost_time) )
         # os.system("taos -s 'show {}.vgroups;'".format(dbname))
         if cost_time >= self.max_vote_time_cost:
-            tdLog.exit(" ==== database %s revote the leaders cost too large time , cost time is %.3f second ===="%(dbname,cost_time) )
+            tdLog.notice(" ==== database %s revote the leaders cost too large time , cost time is %.3f second ===="%(dbname,cost_time) )
 
 
         return cost_time
@@ -299,7 +300,7 @@ class TDTestCase:
 
         vote_act = set(set(after_vgroups)-set(before_vgroups))
         if not vote_act:
-            tdLog.exit(" ===maybe revote not occured , there is no dnode offline ====")
+            tdLog.notice(" ===maybe revote not occured , there is no dnode offline ====")
         else:
             for vgroup_info in vote_act:
                 for ind , role in enumerate(vgroup_info):
@@ -308,7 +309,7 @@ class TDTestCase:
                         if vgroup_info[ind+1] =="offline" and "leader" in vgroup_info:
                             tdLog.notice(" === revote leader ok , leader is {} now   ====".format(list(vgroup_info).index("leader")-1))
                         elif vgroup_info[ind+1] !="offline":
-                            tdLog.exit(" === dnode {} should be offline ".format(self.stop_dnode))
+                            tdLog.notice(" === dnode {} should be offline ".format(self.stop_dnode))
                         else:
                             continue
                         break

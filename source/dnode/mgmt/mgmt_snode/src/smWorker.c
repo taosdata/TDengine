@@ -58,7 +58,11 @@ static void smProcessStreamQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dTrace("msg:%p, get from snode-stream queue", pMsg);
   int32_t code = sndProcessStreamMsg(pMgmt->pSnode, pMsg);
   if (code < 0) {
-    dGError("snd, msg:%p failed to process stream since %s", pMsg, terrstr(code));
+    if (pMsg) {
+      dGError("snd, msg:%p failed to process stream msg %s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr(code));
+    } else {
+      dGError("snd, msg:%p failed to process stream empty msg since %s", pMsg, terrstr(code));
+    }
     smSendRsp(pMsg, terrno);
   }
 
@@ -118,6 +122,7 @@ void smStopWorker(SSnodeMgmt *pMgmt) {
   for (int32_t i = 0; i < taosArrayGetSize(pMgmt->writeWroker); i++) {
     SMultiWorker *pWorker = taosArrayGetP(pMgmt->writeWroker, i);
     tMultiWorkerCleanup(pWorker);
+    taosMemoryFree(pWorker);
   }
   taosArrayDestroy(pMgmt->writeWroker);
   tSingleWorkerCleanup(&pMgmt->streamWorker);
@@ -125,7 +130,7 @@ void smStopWorker(SSnodeMgmt *pMgmt) {
 }
 
 int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
-  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
+  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
   if (pMsg == NULL) {
     rpcFreeCont(pRpc->pCont);
     pRpc->pCont = NULL;
@@ -134,8 +139,11 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
 
   SSnode *pSnode = pMgmt->pSnode;
   if (pSnode == NULL) {
-    dError("snode: msg:%p failed to put into vnode queue since %s, type:%s qtype:%d", pMsg, terrstr(),
-           TMSG_INFO(pMsg->msgType), qtype);
+    dError("msg:%p failed to put into snode queue since %s, type:%s qtype:%d len:%d", pMsg, terrstr(),
+           TMSG_INFO(pMsg->msgType), qtype, pRpc->contLen);
+    taosFreeQitem(pMsg);
+    rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
     return -1;
   }
 
@@ -143,6 +151,7 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   pHead->contLen = htonl(pHead->contLen);
   pHead->vgId = SNODE_HANDLE;
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
+  pRpc->pCont = NULL;
 
   switch (qtype) {
     case STREAM_QUEUE:
@@ -152,7 +161,8 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       smPutNodeMsgToWriteQueue(pMgmt, pMsg);
       break;
     default:
-      ASSERT(0);
+      ASSERTS(0, "msg:%p failed to put into snode queue since %s, type:%s qtype:%d", pMsg, terrstr(),
+              TMSG_INFO(pMsg->msgType), qtype);
   }
   return 0;
 }

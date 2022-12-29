@@ -25,6 +25,7 @@ import json
 
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
         self._conn = conn
@@ -1718,6 +1719,7 @@ class TDTestCase:
             print(err.errno)
 
     def runAll(self):
+        """
         for value_type in ["obj", "default"]:
             self.initCheckCase(value_type)
             self.symbolsCheckCase(value_type)
@@ -1770,7 +1772,7 @@ class TDTestCase:
         # self.sStbStbDdataDtsMtInsertMultiThreadCheckCase()
         # self.sStbDtbDdataDtsMtInsertMultiThreadCheckCase()
         # self.lengthIcreaseCrashCheckCase()
-
+        """
     def run(self):
         print("running {}".format(__file__))
         self.createDb()

@@ -26,22 +26,20 @@ extern "C" {
 #endif
 
 typedef struct SVnodeMgmt {
-  SDnodeData    *pData;
-  SMsgCb         msgCb;
-  const char    *path;
-  const char    *name;
-  SQWorkerPool   queryPool;
-  SQWorkerPool   streamPool;
-  SWWorkerPool   fetchPool;
-  SWWorkerPool   syncPool;
-  SWWorkerPool   syncCtrlPool;
-  SWWorkerPool   writePool;
-  SWWorkerPool   applyPool;
-  SSingleWorker  mgmtWorker;
-  SHashObj      *hash;
-  TdThreadRwlock lock;
-  SVnodesStat    state;
-  STfs          *pTfs;
+  SDnodeData      *pData;
+  SMsgCb           msgCb;
+  const char      *path;
+  const char      *name;
+  SQWorkerPool     queryPool;
+  SAutoQWorkerPool streamPool;
+  SWWorkerPool     fetchPool;
+  SSingleWorker    mgmtWorker;
+  SHashObj        *hash;
+  TdThreadRwlock   lock;
+  SVnodesStat      state;
+  STfs            *pTfs;
+  TdThread         thread;
+  bool             stop;
 } SVnodeMgmt;
 
 typedef struct {
@@ -52,19 +50,19 @@ typedef struct {
 } SWrapperCfg;
 
 typedef struct {
-  int32_t     vgId;
-  int32_t     vgVersion;
-  int32_t     refCount;
-  int8_t      dropped;
-  char       *path;
-  SVnode     *pImpl;
-  STaosQueue *pWriteQ;
-  STaosQueue *pSyncQ;
-  STaosQueue *pSyncCtrlQ;
-  STaosQueue *pApplyQ;
-  STaosQueue *pQueryQ;
-  STaosQueue *pStreamQ;
-  STaosQueue *pFetchQ;
+  int32_t       vgId;
+  int32_t       vgVersion;
+  int32_t       refCount;
+  int8_t        dropped;
+  char         *path;
+  SVnode       *pImpl;
+  SMultiWorker  pWriteW;
+  SMultiWorker  pSyncW;
+  SMultiWorker  pSyncCtrlW;
+  SMultiWorker  pApplyW;
+  STaosQueue   *pQueryQ;
+  STaosQueue   *pStreamQ;
+  STaosQueue   *pFetchQ;
 } SVnodeObj;
 
 typedef struct {

@@ -13,14 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "filter.h"
 #include "executorimpl.h"
 #include "tdatablock.h"
+
+typedef struct SSortOperatorInfo {
+  SOptrBasicInfo binfo;
+  uint32_t       sortBufSize;  // max buffer size for in-memory sort
+  SArray*        pSortInfo;
+  SSortHandle*   pSortHandle;
+  SColMatchInfo  matchInfo;
+  int32_t        bufPageSize;
+  int64_t        startTs;      // sort start time
+  uint64_t       sortElapsed;  // sort elapsed time, time to flush to disk not included.
+  SLimitInfo     limitInfo;
+} SSortOperatorInfo;
 
 static SSDataBlock* doSort(SOperatorInfo* pOperator);
 static int32_t      doOpenSortOperator(SOperatorInfo* pOperator);
 static int32_t      getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len);
 
-static void destroyOrderOperatorInfo(void* param);
+static void destroySortOperatorInfo(void* param);
 
 // todo add limit/offset impl
 SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortNode, SExecTaskInfo* pTaskInfo) {
@@ -33,28 +46,28 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   pOperator->pTaskInfo = pTaskInfo;
   SDataBlockDescNode* pDescNode = pSortNode->node.pOutputDataBlockDesc;
 
-  int32_t      numOfCols = 0;
-  SSDataBlock* pResBlock = createResDataBlock(pDescNode);
-  SExprInfo*   pExprInfo = createExprInfo(pSortNode->pExprs, NULL, &numOfCols);
+  int32_t    numOfCols = 0;
+  SExprInfo* pExprInfo = createExprInfo(pSortNode->pExprs, NULL, &numOfCols);
 
   int32_t numOfOutputCols = 0;
   int32_t code =
       extractColMatchInfo(pSortNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
-
   initResultSizeInfo(&pOperator->resultInfo, 1024);
+  code = filterInitFromNode((SNode*)pSortNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
-  pInfo->binfo.pRes = pResBlock;
+  pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
   pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys);
-  pInfo->pCondition = pSortNode->node.pConditions;
   initLimitInfo(pSortNode->node.pLimit, pSortNode->node.pSlimit, &pInfo->limitInfo);
 
-  pOperator->name = "SortOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SORT;
-  pOperator->blocking = true;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
+  setOperatorInfo(pOperator, "SortOperator", QUERY_NODE_PHYSICAL_PLAN_SORT, true, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.pExprInfo = pExprInfo;
   pOperator->exprSupp.numOfExprs = numOfCols;
 
@@ -64,7 +77,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   // TODO dynamic set the available sort buffer
 
   pOperator->fpSet =
-      createOperatorFpSet(doOpenSortOperator, doSort, NULL, NULL, destroyOrderOperatorInfo, getExplainExecInfo);
+      createOperatorFpSet(doOpenSortOperator, doSort, NULL, destroySortOperatorInfo, optrDefaultBufFn, getExplainExecInfo);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -75,7 +88,10 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
 
 _error:
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-  taosMemoryFree(pInfo);
+  if (pInfo != NULL) {
+    destroySortOperatorInfo(pInfo);
+  }
+
   taosMemoryFree(pOperator);
   return NULL;
 }
@@ -94,6 +110,7 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
     }
   }
 
+  pBlock->info.dataLoad = 1;
   pBlock->info.rows += 1;
 }
 
@@ -127,7 +144,6 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColMatchItem* pmInfo = taosArrayGet(pColMatchInfo, i);
-      //      ASSERT(pmInfo->matchType == COL_MATCH_FROM_SLOT_ID);
 
       SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
       SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->dstSlotId);
@@ -177,10 +193,10 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
 
   SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
   ps->param = pOperator->pDownstream[0];
+  ps->onlyRef = true;
   tsortAddSource(pInfo->pSortHandle, ps);
 
   int32_t code = tsortOpen(pInfo->pSortHandle);
-  taosMemoryFreeClear(ps);
 
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, terrno);
@@ -211,11 +227,11 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
     pBlock = getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
                                 pInfo->matchInfo.pList, pInfo);
     if (pBlock == NULL) {
-      doSetOperatorCompleted(pOperator);
+      setOperatorCompleted(pOperator);
       return NULL;
     }
 
-    doFilter(pInfo->pCondition, pBlock, &pInfo->matchInfo, NULL);
+    doFilter(pBlock, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo);
     if (blockDataGetNumOfRows(pBlock) == 0) {
       continue;
     }
@@ -249,7 +265,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
   return blockDataGetNumOfRows(pBlock) > 0 ? pBlock : NULL;
 }
 
-void destroyOrderOperatorInfo(void* param) {
+void destroySortOperatorInfo(void* param) {
   SSortOperatorInfo* pInfo = (SSortOperatorInfo*)param;
   pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
 
@@ -260,7 +276,6 @@ void destroyOrderOperatorInfo(void* param) {
 }
 
 int32_t getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
-  ASSERT(pOptr != NULL);
   SSortExecInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortExecInfo));
 
   SSortOperatorInfo* pOperatorInfo = (SSortOperatorInfo*)pOptr->info;
@@ -317,7 +332,6 @@ SSDataBlock* getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlo
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColMatchItem* pmInfo = taosArrayGet(pColMatchInfo, i);
-      //      ASSERT(pmInfo->matchType == COL_MATCH_FROM_SLOT_ID);
 
       SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
       SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->dstSlotId);
@@ -348,7 +362,7 @@ SSDataBlock* fetchNextGroupSortDataBlock(void* param) {
     SOperatorInfo* childOp = source->childOpInfo;
     SSDataBlock*   block = childOp->fpSet.getNextFn(childOp);
     if (block != NULL) {
-      if (block->info.groupId == grpSortOpInfo->currGroupId) {
+      if (block->info.id.groupId == grpSortOpInfo->currGroupId) {
         grpSortOpInfo->childOpStatus = CHILD_OP_SAME_GROUP;
         return block;
       } else {
@@ -378,10 +392,10 @@ int32_t beginSortGroup(SOperatorInfo* pOperator) {
   param->childOpInfo = pOperator->pDownstream[0];
   param->grpSortOpInfo = pInfo;
   ps->param = param;
+  ps->onlyRef = false;
   tsortAddSource(pInfo->pCurrSortHandle, ps);
 
   int32_t code = tsortOpen(pInfo->pCurrSortHandle);
-  taosMemoryFreeClear(ps);
 
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, terrno);
@@ -425,10 +439,10 @@ SSDataBlock* doGroupSort(SOperatorInfo* pOperator) {
 
     pInfo->prefetchedSortInput = pOperator->pDownstream[0]->fpSet.getNextFn(pOperator->pDownstream[0]);
     if (pInfo->prefetchedSortInput == NULL) {
-      doSetOperatorCompleted(pOperator);
+      setOperatorCompleted(pOperator);
       return NULL;
     }
-    pInfo->currGroupId = pInfo->prefetchedSortInput->info.groupId;
+    pInfo->currGroupId = pInfo->prefetchedSortInput->info.id.groupId;
     pInfo->childOpStatus = CHILD_OP_NEW_GROUP;
     beginSortGroup(pOperator);
   }
@@ -440,17 +454,17 @@ SSDataBlock* doGroupSort(SOperatorInfo* pOperator) {
     pBlock = getGroupSortedBlockData(pInfo->pCurrSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
                                      pInfo->matchInfo.pList, pInfo);
     if (pBlock != NULL) {
-      pBlock->info.groupId = pInfo->currGroupId;
+      pBlock->info.id.groupId = pInfo->currGroupId;
       pOperator->resultInfo.totalRows += pBlock->info.rows;
       return pBlock;
     } else {
       if (pInfo->childOpStatus == CHILD_OP_NEW_GROUP) {
         finishSortGroup(pOperator);
-        pInfo->currGroupId = pInfo->prefetchedSortInput->info.groupId;
+        pInfo->currGroupId = pInfo->prefetchedSortInput->info.id.groupId;
         beginSortGroup(pOperator);
       } else if (pInfo->childOpStatus == CHILD_OP_FINISHED) {
         finishSortGroup(pOperator);
-        doSetOperatorCompleted(pOperator);
+        setOperatorCompleted(pOperator);
         return NULL;
       }
     }
@@ -472,6 +486,9 @@ void destroyGroupSortOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->matchInfo.pList);
 
+  tsortDestroySortHandle(pInfo->pCurrSortHandle);
+  pInfo->pCurrSortHandle = NULL;
+
   taosMemoryFreeClear(param);
 }
 
@@ -479,38 +496,36 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSort
                                            SExecTaskInfo* pTaskInfo) {
   SGroupSortOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SGroupSortOperatorInfo));
   SOperatorInfo*          pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-  if (pInfo == NULL || pOperator == NULL /* || rowSize > 100 * 1024 * 1024*/) {
+  if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
 
+  SExprSupp* pSup = &pOperator->exprSupp;
   SDataBlockDescNode* pDescNode = pSortPhyNode->node.pOutputDataBlockDesc;
 
   int32_t      numOfCols = 0;
-  SSDataBlock* pResBlock = createResDataBlock(pDescNode);
   SExprInfo*   pExprInfo = createExprInfo(pSortPhyNode->pExprs, NULL, &numOfCols);
+
+  pSup->pExprInfo = pExprInfo;
+  pSup->numOfExprs = numOfCols;
+
+  initResultSizeInfo(&pOperator->resultInfo, 1024);
+  pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
+
+  pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
+  blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
 
   int32_t numOfOutputCols = 0;
   int32_t code = extractColMatchInfo(pSortPhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID,
                                      &pInfo->matchInfo);
-
-  pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
-  pInfo->binfo.pRes = pResBlock;
-
-  initResultSizeInfo(&pOperator->resultInfo, 1024);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto  _error;
+  }
 
   pInfo->pSortInfo = createSortInfo(pSortPhyNode->pSortKeys);
-
-  pOperator->name = "GroupSortOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->exprSupp.pExprInfo = pExprInfo;
-  pOperator->exprSupp.numOfExprs = numOfCols;
-  pOperator->pTaskInfo = pTaskInfo;
-
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doGroupSort, NULL, NULL, destroyGroupSortOperatorInfo,
-                                         getGroupSortExplainExecInfo);
+  setOperatorInfo(pOperator, "GroupSortOperator", QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT, false, OP_NOT_OPENED, pInfo, pTaskInfo);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doGroupSort, NULL, destroyGroupSortOperatorInfo,
+                                         optrDefaultBufFn, getGroupSortExplainExecInfo);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -520,8 +535,10 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSort
   return pOperator;
 
 _error:
-  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-  taosMemoryFree(pInfo);
+  pTaskInfo->code = code;
+  if (pInfo != NULL) {
+    destroyGroupSortOperatorInfo(pInfo);
+  }
   taosMemoryFree(pOperator);
   return NULL;
 }
@@ -537,6 +554,7 @@ typedef struct SMultiwayMergeOperatorInfo {
   SSortHandle*   pSortHandle;
   SColMatchInfo  matchInfo;
   SSDataBlock*   pInputBlock;
+  SSDataBlock*   pIntermediateBlock;   // to hold the intermediate result
   int64_t        startTs;  // sort start time
   bool           groupSort;
   bool           hasGroupId;
@@ -544,7 +562,7 @@ typedef struct SMultiwayMergeOperatorInfo {
   STupleHandle*  prefetchedTuple;
 } SMultiwayMergeOperatorInfo;
 
-int32_t doOpenMultiwayMergeOperator(SOperatorInfo* pOperator) {
+int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
 
@@ -562,8 +580,15 @@ int32_t doOpenMultiwayMergeOperator(SOperatorInfo* pOperator) {
   tsortSetCompareGroupId(pInfo->pSortHandle, pInfo->groupSort);
 
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+    SOperatorInfo* pDownstream = pOperator->pDownstream[i];
+    if (pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+      pDownstream->fpSet._openFn(pDownstream);
+    }
+
     SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
-    ps->param = pOperator->pDownstream[i];
+    ps->param = pDownstream;
+    ps->onlyRef = true;
+
     tsortAddSource(pInfo->pSortHandle, ps);
   }
 
@@ -579,21 +604,8 @@ int32_t doOpenMultiwayMergeOperator(SOperatorInfo* pOperator) {
   return TSDB_CODE_SUCCESS;
 }
 
-SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity,
-                                        SArray* pColMatchInfo, SOperatorInfo* pOperator) {
-  SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
-  SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
+static void doGetSortedBlockData(SMultiwayMergeOperatorInfo* pInfo, SSortHandle* pHandle, int32_t capacity, SSDataBlock* p) {
 
-  blockDataCleanup(pDataBlock);
-
-  SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
-  if (p == NULL) {
-    return NULL;
-  }
-
-  blockDataEnsureCapacity(p, capacity);
-
-_retry:
   while (1) {
     STupleHandle* pTupleHandle = NULL;
     if (pInfo->groupSort) {
@@ -638,29 +650,61 @@ _retry:
     pInfo->hasGroupId = false;
   }
 
-  if (p->info.rows > 0) {  // todo extract method
-    applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo, pOperator);
+}
+
+SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, SArray* pColMatchInfo,
+                                        SOperatorInfo* pOperator) {
+  SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
+
+  int32_t capacity = pOperator->resultInfo.capacity;
+
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  blockDataCleanup(pDataBlock);
+
+  if (pInfo->pIntermediateBlock == NULL) {
+    pInfo->pIntermediateBlock = tsortGetSortedDataBlock(pHandle);
+    if (pInfo->pIntermediateBlock == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+    blockDataEnsureCapacity(pInfo->pIntermediateBlock, capacity);
+  } else {
+    blockDataCleanup(pInfo->pIntermediateBlock);
+  }
+
+  SSDataBlock* p = pInfo->pIntermediateBlock;
+
+  while (1) {
+    doGetSortedBlockData(pInfo, pHandle, capacity, p);
     if (p->info.rows == 0) {
-      goto _retry;
+      break;
     }
 
-    blockDataEnsureCapacity(pDataBlock, p->info.rows);
+    if (p->info.rows > 0) {
+      applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo, pOperator);
+      if (p->info.rows > 0) {
+        break;
+      }
+    }
+  }
+
+  if (p->info.rows > 0) {
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColMatchItem* pmInfo = taosArrayGet(pColMatchInfo, i);
-      //      ASSERT(pColMatchInfo-> == COL_MATCH_FROM_SLOT_ID);
 
       SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
       SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->dstSlotId);
       colDataAssign(pDst, pSrc, p->info.rows, &pDataBlock->info);
     }
+
     pInfo->limitInfo.numOfOutputRows += p->info.rows;
     pDataBlock->info.rows = p->info.rows;
-    pDataBlock->info.groupId = pInfo->groupId;
+    pDataBlock->info.id.groupId = pInfo->groupId;
+    pDataBlock->info.dataLoad = 1;
   }
 
-  blockDataDestroy(p);
-  qDebug("%s get sorted block, groupId:0x%" PRIx64 " rows:%d", GET_TASKID(pTaskInfo), pDataBlock->info.groupId,
+  qDebug("%s get sorted block, groupId:0x%" PRIx64 " rows:%d", GET_TASKID(pTaskInfo), pDataBlock->info.id.groupId,
          pDataBlock->info.rows);
 
   return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
@@ -679,13 +723,14 @@ SSDataBlock* doMultiwayMerge(SOperatorInfo* pOperator) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  SSDataBlock* pBlock = getMultiwaySortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes,
-                                                   pOperator->resultInfo.capacity, pInfo->matchInfo.pList, pOperator);
+  qDebug("start to merge final sorted rows, %s", GET_TASKID(pTaskInfo));
+  SSDataBlock* pBlock = getMultiwaySortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pInfo->matchInfo.pList, pOperator);
   if (pBlock != NULL) {
     pOperator->resultInfo.totalRows += pBlock->info.rows;
   } else {
-    doSetOperatorCompleted(pOperator);
+    setOperatorCompleted(pOperator);
   }
+
   return pBlock;
 }
 
@@ -693,6 +738,7 @@ void destroyMultiwayMergeOperatorInfo(void* param) {
   SMultiwayMergeOperatorInfo* pInfo = (SMultiwayMergeOperatorInfo*)param;
   pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
   pInfo->pInputBlock = blockDataDestroy(pInfo->pInputBlock);
+  pInfo->pIntermediateBlock = blockDataDestroy(pInfo->pIntermediateBlock);
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   taosArrayDestroy(pInfo->pSortInfo);
@@ -702,13 +748,13 @@ void destroyMultiwayMergeOperatorInfo(void* param) {
 }
 
 int32_t getMultiwayMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
-  ASSERT(pOptr != NULL);
-  SSortExecInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortExecInfo));
+  SSortExecInfo* pSortExecInfo = taosMemoryCalloc(1, sizeof(SSortExecInfo));
 
-  SMultiwayMergeOperatorInfo* pOperatorInfo = (SMultiwayMergeOperatorInfo*)pOptr->info;
+  SMultiwayMergeOperatorInfo* pInfo = (SMultiwayMergeOperatorInfo*)pOptr->info;
 
-  *pInfo = tsortGetSortExecInfo(pOperatorInfo->pSortHandle);
-  *pOptrExplain = pInfo;
+  *pSortExecInfo = tsortGetSortExecInfo(pInfo->pSortHandle);
+  *pOptrExplain = pSortExecInfo;
+
   *len = sizeof(SSortExecInfo);
   return TSDB_CODE_SUCCESS;
 }
@@ -728,13 +774,12 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   }
 
   initLimitInfo(pMergePhyNode->node.pLimit, pMergePhyNode->node.pSlimit, &pInfo->limitInfo);
-  pInfo->binfo.pRes = createResDataBlock(pDescNode);
+  pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
+
   int32_t rowSize = pInfo->binfo.pRes->info.rowSize;
   ASSERT(rowSize < 100 * 1024 * 1024);
 
-  SArray* pSortInfo = createSortInfo(pMergePhyNode->pMergeKeys);
   int32_t numOfOutputCols = 0;
-
   code = extractColMatchInfo(pMergePhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID,
                              &pInfo->matchInfo);
   if (code != TSDB_CODE_SUCCESS) {
@@ -742,24 +787,21 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   }
 
   SPhysiNode*  pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, 0);
-  SSDataBlock* pInputBlock = createResDataBlock(pChildNode->pOutputDataBlockDesc);
+  SSDataBlock* pInputBlock = createDataBlockFromDescNode(pChildNode->pOutputDataBlockDesc);
+
   initResultSizeInfo(&pOperator->resultInfo, 1024);
+  blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
 
   pInfo->groupSort = pMergePhyNode->groupSort;
-  pInfo->pSortInfo = pSortInfo;
+  pInfo->pSortInfo = createSortInfo(pMergePhyNode->pMergeKeys);
   pInfo->pInputBlock = pInputBlock;
-  pInfo->bufPageSize = getProperSortPageSize(rowSize);
+  size_t numOfCols = taosArrayGetSize(pInfo->binfo.pRes->pDataBlock);
+  pInfo->bufPageSize = getProperSortPageSize(rowSize, numOfCols);
   pInfo->sortBufSize = pInfo->bufPageSize * (numStreams + 1);  // one additional is reserved for merged result.
 
-  pOperator->name = "MultiwayMerge";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
-
-  pOperator->fpSet = createOperatorFpSet(doOpenMultiwayMergeOperator, doMultiwayMerge, NULL, NULL,
-                                         destroyMultiwayMergeOperatorInfo, getMultiwayMergeExplainExecInfo);
+  setOperatorInfo(pOperator, "MultiwayMergeOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE, false, OP_NOT_OPENED, pInfo, pTaskInfo);
+  pOperator->fpSet = createOperatorFpSet(openMultiwayMergeOperator, doMultiwayMerge, NULL,
+                                         destroyMultiwayMergeOperatorInfo, optrDefaultBufFn, getMultiwayMergeExplainExecInfo);
 
   code = appendDownstream(pOperator, downStreams, numStreams);
   if (code != TSDB_CODE_SUCCESS) {
@@ -768,11 +810,11 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   return pOperator;
 
 _error:
-  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
   if (pInfo != NULL) {
     destroyMultiwayMergeOperatorInfo(pInfo);
   }
 
+  pTaskInfo->code = code;
   taosMemoryFree(pOperator);
   return NULL;
 }

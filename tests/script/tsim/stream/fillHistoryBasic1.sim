@@ -26,7 +26,7 @@ sql insert into t1 values(1648791243003,4,2,3,3.1);
 sql insert into t1 values(1648791213004,4,2,3,4.1);
 
 
-sleep 1000
+sleep 5000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 if $rows != 4 then
@@ -139,7 +139,7 @@ if $data35 != 3 then
 endi
 
 sql insert into t1 values(1648791223001,12,14,13,11.1);
-sleep 500
+sleep 1000
 sql select * from streamt;
 
 print    count(*) , count(d) , sum(a) , max(b) , min(c)
@@ -256,7 +256,7 @@ if $data35 != 3 then
 endi
 
 sql insert into t1 values(1648791223002,12,14,13,11.1);
-sleep 100
+sleep 1000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
@@ -286,7 +286,7 @@ if $data15 != 13 then
 endi
 
 sql insert into t1 values(1648791223003,12,14,13,11.1);
-sleep 100
+sleep 1000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
@@ -318,7 +318,7 @@ endi
 sql insert into t1 values(1648791223001,1,1,1,1.1);
 sql insert into t1 values(1648791223002,2,2,2,2.1);
 sql insert into t1 values(1648791223003,3,3,3,3.1);
-sleep 100
+sleep 1000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
@@ -350,7 +350,7 @@ endi
 sql insert into t1 values(1648791233003,3,2,3,2.1);
 sql insert into t1 values(1648791233002,5,6,7,8.1);
 sql insert into t1 values(1648791233002,3,2,3,2.1);
-sleep 100
+sleep 1000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 2
@@ -380,7 +380,7 @@ if $data25 != 3 then
 endi
 
 sql insert into t1 values(1648791213004,4,2,3,4.1) (1648791213006,5,4,7,9.1) (1648791213004,40,20,30,40.1) (1648791213005,4,2,3,4.1);
-sleep 100
+sleep 1000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 0
@@ -410,7 +410,7 @@ if $data05 != 3 then
 endi
 
 sql insert into t1 values(1648791223004,4,2,3,4.1) (1648791233006,5,4,7,9.1) (1648791223004,40,20,30,40.1) (1648791233005,4,2,3,4.1);
-sleep 100
+sleep 1000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
@@ -466,9 +466,6 @@ if $data25 != 3 then
 endi
 
 
-
-
-
 sql create database test2 vgroups 1;
 sql select * from information_schema.ins_databases;
 
@@ -484,7 +481,7 @@ sql insert into t1 values(1648791213004,4,2,3,4.1);
 
 sql create stream stream2 trigger at_once fill_history 1 into streamt as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s);
 
-sleep 1000
+sleep 5000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 if $rows != 4 then
@@ -597,7 +594,7 @@ if $data35 != 3 then
 endi
 
 sql insert into t1 values(1648791223001,12,14,13,11.1);
-sleep 500
+sleep 1000
 sql select * from streamt;
 
 print    count(*) , count(d) , sum(a) , max(b) , min(c)
@@ -714,7 +711,7 @@ if $data35 != 3 then
 endi
 
 sql insert into t1 values(1648791223002,12,14,13,11.1);
-sleep 100
+sleep 1000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
@@ -744,7 +741,7 @@ if $data15 != 13 then
 endi
 
 sql insert into t1 values(1648791223003,12,14,13,11.1);
-sleep 100
+sleep 1000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
@@ -776,7 +773,7 @@ endi
 sql insert into t1 values(1648791223001,1,1,1,1.1);
 sql insert into t1 values(1648791223002,2,2,2,2.1);
 sql insert into t1 values(1648791223003,3,3,3,3.1);
-sleep 100
+sleep 1000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
@@ -808,7 +805,7 @@ endi
 sql insert into t1 values(1648791233003,3,2,3,2.1);
 sql insert into t1 values(1648791233002,5,6,7,8.1);
 sql insert into t1 values(1648791233002,3,2,3,2.1);
-sleep 100
+sleep 1000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 2
@@ -838,7 +835,7 @@ if $data25 != 3 then
 endi
 
 sql insert into t1 values(1648791213004,4,2,3,4.1) (1648791213006,5,4,7,9.1) (1648791213004,40,20,30,40.1) (1648791213005,4,2,3,4.1);
-sleep 100
+sleep 1000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 0
@@ -868,7 +865,7 @@ if $data05 != 3 then
 endi
 
 sql insert into t1 values(1648791223004,4,2,3,4.1) (1648791233006,5,4,7,9.1) (1648791223004,40,20,30,40.1) (1648791233005,4,2,3,4.1);
-sleep 100
+sleep 1000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1

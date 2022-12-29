@@ -57,6 +57,9 @@ typedef enum {
 #define QUERY_RSP_POLICY_DELAY 0
 #define QUERY_RSP_POLICY_QUICK 1
 
+#define QUERY_MSG_MASK_SHOW_REWRITE() (1 << 0)
+#define TEST_SHOW_REWRITE_MASK(m)     (((m)&QUERY_MSG_MASK_SHOW_REWRITE()) != 0)
+
 typedef struct STableComInfo {
   uint8_t  numOfTags;     // the number of tags in schema
   uint8_t  precision;     // the number of precision
@@ -123,7 +126,9 @@ typedef struct SDBVgInfo {
   int16_t   hashSuffix;
   int8_t    hashMethod;
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
-  SHashObj* vgHash;      // key:vgId, value:SVgroupInfo
+  int64_t   stateTs;
+  SHashObj* vgHash;  // key:vgId, value:SVgroupInfo
+  SArray*   vgArray;
 } SDBVgInfo;
 
 typedef struct SUseDbOutput {
@@ -157,6 +162,23 @@ typedef struct STargetInfo {
   char*       dbFName;  // used to update db's vgroup epset
   int32_t     vgId;
 } STargetInfo;
+
+typedef struct SBoundColInfo {
+  int16_t* pColIndex;  // bound index => schema index
+  int32_t  numOfCols;
+  int32_t  numOfBound;
+} SBoundColInfo;
+
+typedef struct STableDataCxt {
+  STableMeta*    pMeta;
+  STSchema*      pSchema;
+  SBoundColInfo  boundColsInfo;
+  SArray*        pValues;
+  SSubmitTbData* pData;
+  TSKEY          lastTs;
+  bool           ordered;
+  bool           duplicateTs;
+} STableDataCxt;
 
 typedef int32_t (*__async_send_cb_fn_t)(void* param, SDataBuf* pMsg, int32_t code);
 typedef int32_t (*__async_exec_fn_t)(void* param);
@@ -199,6 +221,8 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 
+void destroyAhandle(void* ahandle);
+
 int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo,
                                 bool persistHandle, void* ctx);
 
@@ -231,6 +255,8 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
 char*   parseTagDatatoJson(void* p);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
+int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst);
+void    freeVgInfo(SDBVgInfo* vgInfo);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
                                           void* (*mallocFp)(int64_t));
@@ -242,28 +268,37 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define SET_META_TYPE_BOTH_TABLE(t) (t) = META_TYPE_BOTH_TABLE
 
 #define NEED_CLIENT_RM_TBLMETA_ERROR(_code)                                                   \
-  ((_code) == TSDB_CODE_PAR_TABLE_NOT_EXIST || (_code) == TSDB_CODE_VND_TB_NOT_EXIST ||       \
+  ((_code) == TSDB_CODE_PAR_TABLE_NOT_EXIST || (_code) == TSDB_CODE_TDB_TABLE_NOT_EXIST ||    \
    (_code) == TSDB_CODE_PAR_INVALID_COLUMNS_NUM || (_code) == TSDB_CODE_PAR_INVALID_COLUMN || \
    (_code) == TSDB_CODE_PAR_TAGS_NOT_MATCHED || (_code) == TSDB_CODE_PAR_VALUE_TOO_LONG ||    \
    (_code) == TSDB_CODE_PAR_INVALID_DROP_COL || ((_code) == TSDB_CODE_TDB_INVALID_TABLE_ID))
 #define NEED_CLIENT_REFRESH_VG_ERROR(_code) \
   ((_code) == TSDB_CODE_VND_HASH_MISMATCH || (_code) == TSDB_CODE_VND_INVALID_VGROUP_ID)
-#define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code) ((_code) == TSDB_CODE_TDB_TABLE_RECREATED)
+#define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code) ((_code) == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER)
 #define NEED_CLIENT_HANDLE_ERROR(_code)                                          \
   (NEED_CLIENT_RM_TBLMETA_ERROR(_code) || NEED_CLIENT_REFRESH_VG_ERROR(_code) || \
    NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code))
-#define NEED_REDIRECT_ERROR(_code)                                                  \
-  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || \
-   (_code) == TSDB_CODE_NODE_NOT_DEPLOYED || (_code) == TSDB_CODE_SYN_NOT_LEADER || \
-   (_code) == TSDB_CODE_APP_NOT_READY || (_code) == TSDB_CODE_RPC_BROKEN_LINK)
+
+#define SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code)                                    \
+  ((_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_SYN_INTERNAL_ERROR || \
+   (_code) == TSDB_CODE_VND_STOPPED || (_code) == TSDB_CODE_APP_IS_STARTING || (_code) == TSDB_CODE_APP_IS_STOPPING)
+#define SYNC_SELF_LEADER_REDIRECT_ERROR(_code) \
+  ((_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_SYN_RESTORING || (_code) == TSDB_CODE_SYN_INTERNAL_ERROR)
+#define SYNC_OTHER_LEADER_REDIRECT_ERROR(_code) ((_code) == TSDB_CODE_MNODE_NOT_FOUND)
+
+#define NO_RET_REDIRECT_ERROR(_code) ((_code) == TSDB_CODE_RPC_BROKEN_LINK || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || (_code) == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED)
+
+#define NEED_REDIRECT_ERROR(_code)                                              \
+  (NO_RET_REDIRECT_ERROR(_code) || SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || \
+   SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || SYNC_OTHER_LEADER_REDIRECT_ERROR(_code))
 
 #define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                  \
   ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE || \
    (_type) == TDMT_MND_DROP_STB)
 
-#define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                      \
-  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_NODE_NOT_DEPLOYED || \
-   (_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_APP_NOT_READY)
+#define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                              \
+  (SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || \
+   SYNC_OTHER_LEADER_REDIRECT_ERROR(_code))
 
 #define REQUEST_TOTAL_EXEC_TIMES 2
 

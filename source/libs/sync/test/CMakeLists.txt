@@ -1,3 +1,4 @@
+add_subdirectory(sync_test_lib)
 add_executable(syncTest "")
 add_executable(syncRaftIdCheck "")
 add_executable(syncEnvTest "")
@@ -24,8 +25,6 @@ add_executable(syncRequestVoteReplyTest "")
 add_executable(syncAppendEntriesTest "")
 add_executable(syncAppendEntriesBatchTest "")
 add_executable(syncAppendEntriesReplyTest "")
-add_executable(syncClientRequestTest "")
-add_executable(syncClientRequestBatchTest "")
 add_executable(syncTimeoutTest "")
 add_executable(syncPingTest "")
 add_executable(syncPingReplyTest "")
@@ -54,12 +53,13 @@ add_executable(syncRaftLogTest "")
 add_executable(syncRaftLogTest2 "")
 add_executable(syncRaftLogTest3 "")
 add_executable(syncLeaderTransferTest "")
-add_executable(syncReconfigFinishTest "")
 add_executable(syncRestoreFromSnapshot "")
 add_executable(syncRaftCfgIndexTest "")
 add_executable(syncHeartbeatTest "")
 add_executable(syncHeartbeatReplyTest "")
 add_executable(syncLocalCmdTest "")
+add_executable(syncPreSnapshotTest "")
+add_executable(syncPreSnapshotReplyTest "")
 
 
 target_sources(syncTest
@@ -165,14 +165,6 @@ target_sources(syncAppendEntriesBatchTest
 target_sources(syncAppendEntriesReplyTest
     PRIVATE
     "syncAppendEntriesReplyTest.cpp"
-)
-target_sources(syncClientRequestTest
-    PRIVATE
-    "syncClientRequestTest.cpp"
-)
-target_sources(syncClientRequestBatchTest
-    PRIVATE
-    "syncClientRequestBatchTest.cpp"
 )
 target_sources(syncTimeoutTest
     PRIVATE
@@ -286,10 +278,6 @@ target_sources(syncLeaderTransferTest
     PRIVATE
     "syncLeaderTransferTest.cpp"
 )
-target_sources(syncReconfigFinishTest
-    PRIVATE
-    "syncReconfigFinishTest.cpp"
-)
 target_sources(syncRestoreFromSnapshot
     PRIVATE
     "syncRestoreFromSnapshot.cpp"
@@ -309,6 +297,14 @@ target_sources(syncHeartbeatReplyTest
 target_sources(syncLocalCmdTest
     PRIVATE
     "syncLocalCmdTest.cpp"
+)
+target_sources(syncPreSnapshotTest
+    PRIVATE
+    "syncPreSnapshotTest.cpp"
+)
+target_sources(syncPreSnapshotReplyTest
+    PRIVATE
+    "syncPreSnapshotReplyTest.cpp"
 )
 
 
@@ -438,16 +434,6 @@ target_include_directories(syncAppendEntriesBatchTest
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncAppendEntriesReplyTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
-target_include_directories(syncClientRequestTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
-target_include_directories(syncClientRequestBatchTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -592,11 +578,6 @@ target_include_directories(syncLeaderTransferTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-target_include_directories(syncReconfigFinishTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
 target_include_directories(syncRestoreFromSnapshot
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
@@ -622,254 +603,260 @@ target_include_directories(syncLocalCmdTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncPreSnapshotTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncPreSnapshotReplyTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncRaftIdCheck
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncEnvTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncPingTimerTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncIOTickQTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncIOTickPingTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncIOSendMsgTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncIOClientTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncIOServerTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncRaftStoreTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncEnqTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncIndexTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncInitTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncUtilTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncVotesGrantedTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncVotesRespondTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncIndexMgrTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncLogStoreTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncEntryTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncEntryCacheTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncHashCacheTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncRequestVoteTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncRequestVoteReplyTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncAppendEntriesTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncAppendEntriesBatchTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncAppendEntriesReplyTest
-    sync
-    gtest_main
-)
-target_link_libraries(syncClientRequestTest
-    sync
-    gtest_main
-)
-target_link_libraries(syncClientRequestBatchTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncTimeoutTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncPingTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncPingReplyTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncRpcMsgTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncPingTimerTest2
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncPingSelfTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncElectTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncEncodeTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncWriteTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncReplicateTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncRefTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncLogStoreCheck
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncLogStoreCheck2
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncRaftCfgTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncRespMgrTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncSnapshotTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncApplyMsgTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncConfigChangeTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncConfigChangeSnapshotTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncSnapshotSendTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncSnapshotRspTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncSnapshotSenderTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncSnapshotReceiverTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncTestTool
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncRaftLogTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncRaftLogTest2
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncRaftLogTest3
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncLeaderTransferTest
-    sync
-    gtest_main
-)
-target_link_libraries(syncReconfigFinishTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncRestoreFromSnapshot
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncRaftCfgIndexTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncHeartbeatTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncHeartbeatReplyTest
-    sync
+    sync_test_lib
     gtest_main
 )
 target_link_libraries(syncLocalCmdTest
-    sync
+    sync_test_lib
+    gtest_main
+)
+target_link_libraries(syncPreSnapshotTest
+    sync_test_lib
+    gtest_main
+)
+target_link_libraries(syncPreSnapshotReplyTest
+    sync_test_lib
     gtest_main
 )
 

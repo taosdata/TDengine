@@ -6,7 +6,7 @@ title: Supertable
 ## Create a Supertable
 
 ```sql
-CREATE STABLE [IF NOT EXISTS] stb_name (create_definition [, create_definitionn] ...) TAGS (create_definition [, create_definition] ...) [table_options]
+CREATE STABLE [IF NOT EXISTS] stb_name (create_definition [, create_definition] ...) TAGS (create_definition [, create_definition] ...) [table_options]
  
 create_definition:
     col_name column_definition

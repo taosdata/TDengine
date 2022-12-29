@@ -23,6 +23,8 @@
 #define _DEFAULT_SOURCE
 #include "ttime.h"
 
+#include "tlog.h"
+
 /*
  * mktime64 - Converts date to seconds.
  * Converts Gregorian date to seconds since 1970-01-01 00:00:00.
@@ -436,21 +438,24 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
   ASSERT(toPrecision == TSDB_TIME_PRECISION_MILLI || toPrecision == TSDB_TIME_PRECISION_MICRO ||
          toPrecision == TSDB_TIME_PRECISION_NANO);
 
-  double tempResult = (double)utime;
-
   switch (fromPrecision) {
     case TSDB_TIME_PRECISION_MILLI: {
       switch (toPrecision) {
         case TSDB_TIME_PRECISION_MILLI:
           return utime;
         case TSDB_TIME_PRECISION_MICRO:
-          tempResult *= 1000;
-          utime *= 1000;
-          goto end_;
+          if (utime > INT64_MAX / 1000) {
+            return INT64_MAX;
+          }
+          return utime * 1000;
         case TSDB_TIME_PRECISION_NANO:
-          tempResult *= 1000000;
-          utime *= 1000000;
-          goto end_;
+          if (utime > INT64_MAX / 1000000) {
+            return INT64_MAX;
+          }
+          return utime * 1000000;
+        default:
+          ASSERT(0);
+          return utime;
       }
     }  // end from milli
     case TSDB_TIME_PRECISION_MICRO: {
@@ -460,9 +465,13 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
         case TSDB_TIME_PRECISION_MICRO:
           return utime;
         case TSDB_TIME_PRECISION_NANO:
-          tempResult *= 1000;
-          utime *= 1000;
-          goto end_;
+          if (utime > INT64_MAX / 1000) {
+            return INT64_MAX;
+          }
+          return utime * 1000;
+        default:
+          ASSERT(0);
+          return utime;
       }
     }  // end from micro
     case TSDB_TIME_PRECISION_NANO: {
@@ -473,17 +482,17 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
           return utime / 1000;
         case TSDB_TIME_PRECISION_NANO:
           return utime;
+        default:
+          ASSERT(0);
+          return utime;
       }
     }  // end from nano
     default: {
-      assert(0);
+      ASSERT(0);
       return utime;  // only to pass windows compilation
     }
   }  // end switch fromPrecision
 
-end_:
-  if (tempResult >= (double)INT64_MAX) return INT64_MAX;
-  if (tempResult <= (double)INT64_MIN) return INT64_MIN;  // INT64_MIN means NULL
   return utime;
 }
 
@@ -599,18 +608,33 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
 static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision) {
   switch (unit) {
     case 's':
+      if (val > INT64_MAX / MILLISECOND_PER_SECOND) {
+        return -1;
+      }
       (*result) = convertTimePrecision(val * MILLISECOND_PER_SECOND, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
     case 'm':
+      if (val > INT64_MAX / MILLISECOND_PER_MINUTE) {
+        return -1;
+      }
       (*result) = convertTimePrecision(val * MILLISECOND_PER_MINUTE, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
     case 'h':
+      if (val > INT64_MAX / MILLISECOND_PER_MINUTE) {
+        return -1;
+      }
       (*result) = convertTimePrecision(val * MILLISECOND_PER_HOUR, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
     case 'd':
+      if (val > INT64_MAX / MILLISECOND_PER_DAY) {
+        return -1;
+      }
       (*result) = convertTimePrecision(val * MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
     case 'w':
+      if (val > INT64_MAX / MILLISECOND_PER_WEEK) {
+        return -1;
+      }
       (*result) = convertTimePrecision(val * MILLISECOND_PER_WEEK, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
     case 'a':
@@ -650,7 +674,7 @@ int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* dura
 
   /* get the basic numeric value */
   int64_t timestamp = taosStr2Int64(token, &endPtr, 10);
-  if (errno != 0) {
+  if (timestamp < 0 || errno != 0) {
     return -1;
   }
 
@@ -668,7 +692,7 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
 
   /* get the basic numeric value */
   *duration = taosStr2Int64(token, NULL, 10);
-  if (errno != 0) {
+  if (*duration < 0 || errno != 0) {
     return -1;
   }
 

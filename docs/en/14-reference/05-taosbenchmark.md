@@ -204,6 +204,12 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-a/--replica <replicaNum\>** :
   Specify the number of replicas when creating the database. The default value is 1.
 
+- **-k/--keep-trying <NUMBER\>** :
+  Keep trying if failed to insert, default is no. Available with v3.0.9+.
+
+- **-z/--trying-interval <NUMBER\>** :
+  Specify interval between keep trying insert. Valid value is a postive number. Only valid when keep trying be enabled. Available with v3.0.9+.
+
 - **-V/--version** :
   Show version information only. Users should not use it with other parameters.
 
@@ -217,7 +223,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 The parameters listed in this section apply to all function modes.
 
 - **filetype** : The function to be tested, with optional values `insert`, `query` and `subscribe`. These correspond to the insert, query, and subscribe functions, respectively. Users can specify only one of these in each configuration file.
-**cfgdir**: specify the TDengine cluster configuration file's directory. The default path is /etc/taos.
+**cfgdir**: specify the TDengine client configuration file's directory. The default path is /etc/taos.
 
 - **host**: Specify the FQDN of the TDengine server to connect. The default value is `localhost`.
 
@@ -230,6 +236,10 @@ The parameters listed in this section apply to all function modes.
 ### Insert scenario configuration parameters
 
 `filetype` must be set to `insert` in the insertion scenario. See [General Configuration Parameters](#General Configuration Parameters)
+
+- ** keep_trying ** : Keep trying if failed to insert, default is no. Available with v3.0.9+.
+
+- ** trying_interval ** : Specify interval between keep trying insert. Valid value is a postive number. Only valid when keep trying be enabled. Available with v3.0.9+.
 
 #### Database related configuration parameters
 
@@ -374,7 +384,11 @@ The configuration parameters for specifying super table tag columns and data col
 
 ### Query scenario configuration parameters
 
-`filetype` must be set to `query` in the query scenario. See [General Configuration Parameters](#General Configuration Parameters) for details of this parameter and other general parameters
+`filetype` must be set to `query` in the query scenario.
+
+To control the query scenario by setting `kill_slow_query_threshold` and `kill_slow_query_interval` parameters to kill the execution of slow query statements. Threshold controls exec_usec of query command will be killed by taosBenchmark after the specified time, in seconds; interval controls sleep time to avoid continuous querying of slow queries consuming CPU in seconds.
+
+See [General Configuration Parameters](#General Configuration Parameters) for details of other general parameters.
 
 #### Configuration parameters for executing the specified query statement
 

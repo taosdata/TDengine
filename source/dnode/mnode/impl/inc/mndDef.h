@@ -71,6 +71,9 @@ typedef enum {
   MND_OPER_READ_DB,
   MND_OPER_READ_OR_WRITE_DB,
   MND_OPER_SHOW_VARIBALES,
+  MND_OPER_SUBSCRIBE,
+  MND_OPER_CREATE_TOPIC,
+  MND_OPER_DROP_TOPIC,
 } EOperType;
 
 typedef enum {
@@ -171,6 +174,7 @@ typedef struct {
   void*       param;
   char        opername[TSDB_TRANS_OPER_LEN];
   SArray*     pRpcArray;
+  SRWLatch    lockRpcArray;
 } STrans;
 
 typedef struct {
@@ -189,6 +193,7 @@ typedef struct {
   int64_t    lastAccessTime;
   int32_t    accessTimes;
   int32_t    numOfVnodes;
+  int32_t    numOfOtherNodes;
   int32_t    numOfSupportVnodes;
   float      numOfCores;
   int64_t    memTotal;
@@ -273,6 +278,7 @@ typedef struct {
   int32_t   authVersion;
   SHashObj* readDbs;
   SHashObj* writeDbs;
+  SHashObj* topics;
   SRWLatch  lock;
 } SUserObj;
 
@@ -321,12 +327,14 @@ typedef struct {
   int32_t  vgVersion;
   SDbCfg   cfg;
   SRWLatch lock;
+  int64_t  stateTs;
 } SDbObj;
 
 typedef struct {
   int32_t    dnodeId;
   ESyncState syncState;
   bool       syncRestore;
+  bool       syncCanRead;
 } SVnodeGid;
 
 typedef struct {
@@ -467,6 +475,7 @@ void*   tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset);
 typedef struct {
   char           name[TSDB_TOPIC_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
+  char           createUser[TSDB_USER_LEN];
   int64_t        createTime;
   int64_t        updateTime;
   int64_t        uid;
@@ -634,10 +643,15 @@ typedef struct {
   SArray*        tasks;  // SArray<SArray<SStreamTask>>
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;
+
+  // 3.0.20
+  int64_t checkpointFreq;  // ms
+  int64_t currentTick;     // do not serialize
+  int64_t deleteMark;
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
-int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj);
+int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj, int32_t sver);
 void    tFreeStreamObj(SStreamObj* pObj);
 
 typedef struct {
@@ -646,15 +660,6 @@ typedef struct {
   int64_t streamUid;
   SArray* childInfo;  // SArray<SStreamChildEpInfo>
 } SStreamCheckpointObj;
-
-#if 0
-typedef struct {
-  int64_t uid;
-  int64_t streamId;
-  int8_t  status;
-  int8_t  stage;
-} SStreamRecoverObj;
-#endif
 
 #ifdef __cplusplus
 }

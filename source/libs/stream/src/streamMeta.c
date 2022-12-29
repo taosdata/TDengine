@@ -69,7 +69,8 @@ _err:
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
-  tdbCommit(pMeta->db, &pMeta->txn);
+  tdbCommit(pMeta->db, pMeta->txn);
+  tdbPostCommit(pMeta->db, pMeta->txn);
   tdbTbClose(pMeta->pTaskDb);
   tdbTbClose(pMeta->pCheckpointDb);
   tdbClose(pMeta->db);
@@ -79,7 +80,12 @@ void streamMetaClose(SStreamMeta* pMeta) {
     pIter = taosHashIterate(pMeta->pTasks, pIter);
     if (pIter == NULL) break;
     SStreamTask* pTask = *(SStreamTask**)pIter;
+    if (pTask->timer) {
+      taosTmrStop(pTask->timer);
+      pTask->timer = NULL;
+    }
     tFreeSStreamTask(pTask);
+    /*streamMetaReleaseTask(pMeta, pTask);*/
   }
   taosHashCleanup(pMeta->pTasks);
   taosMemoryFree(pMeta->path);
@@ -109,7 +115,7 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t ver, char* msg, 
     goto FAIL;
   }
 
-  if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), msg, msgLen, &pMeta->txn) < 0) {
+  if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), msg, msgLen, pMeta->txn) < 0) {
     taosHashRemove(pMeta->pTasks, &pTask->taskId, sizeof(int32_t));
     ASSERT(0);
     goto FAIL;
@@ -146,7 +152,7 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
   tEncodeSStreamTask(&encoder, pTask);
   tEncoderClear(&encoder);
 
-  if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), buf, len, &pMeta->txn) < 0) {
+  if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), buf, len, pMeta->txn) < 0) {
     ASSERT(0);
     return -1;
   }
@@ -168,74 +174,81 @@ SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId) {
   }
 }
 
-int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
+SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
+  taosRLockLatch(&pMeta->lock);
+
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
+  if (ppTask) {
+    SStreamTask* pTask = *ppTask;
+    if (atomic_load_8(&pTask->taskStatus) != TASK_STATUS__DROPPING) {
+      atomic_add_fetch_32(&pTask->refCnt, 1);
+      taosRUnLockLatch(&pMeta->lock);
+      return pTask;
+    } else {
+      taosRUnLockLatch(&pMeta->lock);
+      return NULL;
+    }
+  }
+  taosRUnLockLatch(&pMeta->lock);
+  return NULL;
+}
+
+void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
+  int32_t left = atomic_sub_fetch_32(&pTask->refCnt, 1);
+  ASSERT(left >= 0);
+  if (left == 0) {
+    ASSERT(atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING);
+    tFreeSStreamTask(pTask);
+  }
+}
+
+void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
     SStreamTask* pTask = *ppTask;
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
+    /*if (pTask->timer) {
+     * taosTmrStop(pTask->timer);*/
+    /*pTask->timer = NULL;*/
+    /*}*/
     atomic_store_8(&pTask->taskStatus, TASK_STATUS__DROPPING);
 
-    if (tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), &pMeta->txn) < 0) {
-      /*return -1;*/
-    }
-
-    if (pTask->triggerParam != 0) {
-      taosTmrStop(pTask->timer);
-    }
-
-    while (1) {
-      int8_t schedStatus =
-          atomic_val_compare_exchange_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE, TASK_SCHED_STATUS__DROPPING);
-      if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
-        tFreeSStreamTask(pTask);
-        break;
-      } else if (schedStatus == TASK_SCHED_STATUS__DROPPING) {
-        break;
-      }
-      taosMsleep(10);
-    }
+    taosWLockLatch(&pMeta->lock);
+    streamMetaReleaseTask(pMeta, pTask);
+    taosWUnLockLatch(&pMeta->lock);
   }
-
-  return 0;
 }
 
 int32_t streamMetaBegin(SStreamMeta* pMeta) {
-  if (tdbTxnOpen(&pMeta->txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
-      0) {
-    return -1;
-  }
-
-  if (tdbBegin(pMeta->db, &pMeta->txn) < 0) {
+  if (tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+               TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
   return 0;
 }
 
 int32_t streamMetaCommit(SStreamMeta* pMeta) {
-  if (tdbCommit(pMeta->db, &pMeta->txn) < 0) {
+  if (tdbCommit(pMeta->db, pMeta->txn) < 0) {
     return -1;
   }
-  memset(&pMeta->txn, 0, sizeof(TXN));
-  if (tdbTxnOpen(&pMeta->txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
-      0) {
+  if (tdbPostCommit(pMeta->db, pMeta->txn) < 0) {
     return -1;
   }
-  if (tdbBegin(pMeta->db, &pMeta->txn) < 0) {
+
+  if (tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+               TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
   return 0;
 }
 
 int32_t streamMetaAbort(SStreamMeta* pMeta) {
-  if (tdbAbort(pMeta->db, &pMeta->txn) < 0) {
+  if (tdbAbort(pMeta->db, pMeta->txn) < 0) {
     return -1;
   }
-  memset(&pMeta->txn, 0, sizeof(TXN));
-  if (tdbTxnOpen(&pMeta->txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
-      0) {
-    return -1;
-  }
-  if (tdbBegin(pMeta->db, &pMeta->txn) < 0) {
+
+  if (tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+               TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
   return 0;

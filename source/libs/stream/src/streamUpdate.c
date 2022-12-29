@@ -44,6 +44,11 @@ static void windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
   }
 }
 
+static void clearItemHelper(void* p) {
+  SScalableBf** pBf = p;
+  tScalableBfDestroy(*pBf);
+}
+
 static void windowSBfDelete(SUpdateInfo *pInfo, uint64_t count) {
   if (count < pInfo->numSBFs) {
     for (uint64_t i = 0; i < count; ++i) {
@@ -52,7 +57,7 @@ static void windowSBfDelete(SUpdateInfo *pInfo, uint64_t count) {
       taosArrayRemove(pInfo->pTsSBFs, 0);
     }
   } else {
-    taosArrayClearP(pInfo->pTsSBFs, (FDelete)tScalableBfDestroy);
+    taosArrayClearEx(pInfo->pTsSBFs, clearItemHelper);
   }
   pInfo->minTS += pInfo->interval * count;
 }
@@ -163,10 +168,10 @@ bool updateInfoIsTableInserted(SUpdateInfo *pInfo, int64_t tbUid) {
   return false;
 }
 
-void updateInfoFillBlockData(SUpdateInfo *pInfo, SSDataBlock *pBlock, int32_t primaryTsCol) {
-  if (pBlock == NULL || pBlock->info.rows == 0) return;
-  TSKEY   maxTs = -1;
-  int64_t tbUid = pBlock->info.uid;
+TSKEY updateInfoFillBlockData(SUpdateInfo *pInfo, SSDataBlock *pBlock, int32_t primaryTsCol) {
+  if (pBlock == NULL || pBlock->info.rows == 0) return INT64_MIN;
+  TSKEY   maxTs = INT64_MIN;
+  int64_t tbUid = pBlock->info.id.uid;
 
   SColumnInfoData *pColDataInfo = taosArrayGet(pBlock->pDataBlock, primaryTsCol);
 
@@ -186,6 +191,7 @@ void updateInfoFillBlockData(SUpdateInfo *pInfo, SSDataBlock *pBlock, int32_t pr
   if (pMaxTs == NULL || *pMaxTs > maxTs) {
     taosHashPut(pInfo->pMap, &tbUid, sizeof(int64_t), &maxTs, sizeof(TSKEY));
   }
+  return maxTs;
 }
 
 bool updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts) {

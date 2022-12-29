@@ -104,7 +104,7 @@ typedef int32_t (*TUdfDestroyFunc)();
   } while (0)
 #define udfColDataSetNull_var(pColumn, row) ((pColumn->colData.varLenCol.varOffsets)[row] = -1)
 
-typedef uint16_t VarDataLenT;  // maxVarDataLen: 32767
+typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
 #define VARSTR_HEADER_SIZE     sizeof(VarDataLenT)
 #define varDataLen(v)          ((VarDataLenT *)(v))[0]
 #define varDataVal(v)          ((char *)(v) + VARSTR_HEADER_SIZE)
@@ -228,7 +228,7 @@ static FORCE_INLINE int32_t udfColDataSet(SUdfColumn *pColumn, uint32_t currentR
           newSize = 8;
         }
 
-        while (newSize < data->varLenCol.payloadLen + dataLen) {
+        while (newSize < (uint32_t)(data->varLenCol.payloadLen + dataLen)) {
           newSize = newSize * UDF_MEMORY_EXP_GROWTH;
         }
 
@@ -248,7 +248,7 @@ static FORCE_INLINE int32_t udfColDataSet(SUdfColumn *pColumn, uint32_t currentR
       data->varLenCol.payloadLen += dataLen;
     }
   }
-  data->numOfRows = (currentRow + 1 > data->numOfRows) ? (currentRow + 1) : data->numOfRows;
+  data->numOfRows = ((int32_t)(currentRow + 1) > data->numOfRows) ? (int32_t)(currentRow + 1) : data->numOfRows;
   return 0;
 }
 

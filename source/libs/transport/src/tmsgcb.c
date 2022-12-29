@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tmsgcb.h"
 #include "taoserror.h"
+#include "transLog.h"
 #include "trpc.h"
 
 static SMsgCb defaultMsgCb;
@@ -23,6 +24,7 @@ static SMsgCb defaultMsgCb;
 void tmsgSetDefault(const SMsgCb* msgcb) { defaultMsgCb = *msgcb; }
 
 int32_t tmsgPutToQueue(const SMsgCb* msgcb, EQueueType qtype, SRpcMsg* pMsg) {
+  ASSERT(msgcb != NULL);
   int32_t code = (*msgcb->putToQueueFp)(msgcb->mgmt, qtype, pMsg);
   if (code != 0) {
     rpcFreeCont(pMsg->pCont);
@@ -44,9 +46,13 @@ int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
   return code;
 }
 
-void tmsgSendRsp(SRpcMsg* pMsg) { return (*defaultMsgCb.sendRspFp)(pMsg); }
-
-void tmsgSendRedirectRsp(SRpcMsg* pMsg, const SEpSet* pNewEpSet) { (*defaultMsgCb.sendRedirectRspFp)(pMsg, pNewEpSet); }
+void tmsgSendRsp(SRpcMsg* pMsg) {
+#if 1
+  rpcSendResponse(pMsg);
+#else
+  return (*defaultMsgCb.sendRspFp)(pMsg);
+#endif
+}
 
 void tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg) { (*defaultMsgCb.registerBrokenLinkArgFp)(pMsg); }
 

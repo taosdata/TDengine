@@ -31,6 +31,12 @@ typedef struct SMetaStbStatsEntry {
   SMetaStbStats              info;
 } SMetaStbStatsEntry;
 
+typedef struct STagFilterResEntry {
+  uint64_t suid;    // uid for super table
+  SList    list;    // the linked list of md5 digest, extracted from the serialized tag query condition
+  uint32_t qTimes;  // queried times for current super table
+} STagFilterResEntry;
+
 struct SMetaCache {
   // child, normal, super, table entry cache
   struct SEntryCache {
@@ -47,6 +53,11 @@ struct SMetaCache {
   } sStbStatsCache;
 
   // query cache
+  struct STagFilterResCache {
+    TdThreadMutex lock;
+    SHashObj*  pTableEntry;
+    SLRUCache* pUidResCache;
+  } sTagFilterResCache;
 };
 
 static void entryCacheClose(SMeta* pMeta) {
@@ -79,6 +90,12 @@ static void statsCacheClose(SMeta* pMeta) {
   }
 }
 
+static void freeCacheEntryFp(void* param) {
+  STagFilterResEntry** p = param;
+  tdListEmpty(&(*p)->list);
+  taosMemoryFreeClear(*p);
+}
+
 int32_t metaCacheOpen(SMeta* pMeta) {
   int32_t     code = 0;
   SMetaCache* pCache = NULL;
@@ -109,9 +126,23 @@ int32_t metaCacheOpen(SMeta* pMeta) {
     goto _err2;
   }
 
-  pMeta->pCache = pCache;
+  pCache->sTagFilterResCache.pUidResCache = taosLRUCacheInit(5 * 1024 * 1024, -1, 0.5);
+  if (pCache->sTagFilterResCache.pUidResCache == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err2;
+  }
 
-_exit:
+  pCache->sTagFilterResCache.pTableEntry =
+      taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
+  if (pCache->sTagFilterResCache.pTableEntry == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err2;
+  }
+
+  taosHashSetFreeFp(pCache->sTagFilterResCache.pTableEntry, freeCacheEntryFp);
+  taosThreadMutexInit(&pCache->sTagFilterResCache.lock, NULL);
+
+  pMeta->pCache = pCache;
   return code;
 
 _err2:
@@ -119,7 +150,6 @@ _err2:
 
 _err:
   taosMemoryFree(pCache);
-
   metaError("vgId:%d, meta open cache failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
   return code;
 }
@@ -128,6 +158,11 @@ void metaCacheClose(SMeta* pMeta) {
   if (pMeta->pCache) {
     entryCacheClose(pMeta);
     statsCacheClose(pMeta);
+
+    taosHashCleanup(pMeta->pCache->sTagFilterResCache.pTableEntry);
+    taosLRUCacheCleanup(pMeta->pCache->sTagFilterResCache.pUidResCache);
+    taosThreadMutexDestroy(&pMeta->pCache->sTagFilterResCache.lock);
+
     taosMemoryFree(pMeta->pCache);
     pMeta->pCache = NULL;
   }
@@ -175,7 +210,7 @@ _exit:
 int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
   int32_t code = 0;
 
-  // ASSERT(metaIsWLocked(pMeta));
+  // meta is wlocked for calling this func.
 
   // search
   SMetaCache*       pCache = pMeta->pCache;
@@ -186,7 +221,10 @@ int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
   }
 
   if (*ppEntry) {  // update
-    ASSERT(pInfo->suid == (*ppEntry)->info.suid);
+    if (pInfo->suid != (*ppEntry)->info.suid) {
+      metaError("meta/cache: suid should be same as the one in cache.");
+      return TSDB_CODE_FAILED;
+    }
     if (pInfo->version > (*ppEntry)->info.version) {
       (*ppEntry)->info.version = pInfo->version;
       (*ppEntry)->info.skmVer = pInfo->skmVer;
@@ -305,7 +343,7 @@ _exit:
 int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo) {
   int32_t code = 0;
 
-  // ASSERT(metaIsWLocked(pMeta));
+  // meta is wlocked for calling this func.
 
   // search
   SMetaCache*          pCache = pMeta->pCache;
@@ -387,4 +425,182 @@ int32_t metaStatsCacheGet(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo) {
   }
 
   return code;
+}
+
+int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray* pList1,
+                                  bool* acquireRes) {
+  // generate the composed key for LRU cache
+  SLRUCache*     pCache = pMeta->pCache->sTagFilterResCache.pUidResCache;
+  SHashObj*      pTableMap = pMeta->pCache->sTagFilterResCache.pTableEntry;
+  TdThreadMutex* pLock = &pMeta->pCache->sTagFilterResCache.lock;
+
+  uint64_t buf[3] = {0};
+  uint32_t times = 0;
+
+  *acquireRes = 0;
+  buf[0] = suid;
+  memcpy(&buf[1], pKey, keyLen);
+
+  taosThreadMutexLock(pLock);
+
+  int32_t    len = keyLen + sizeof(uint64_t);
+  LRUHandle* pHandle = taosLRUCacheLookup(pCache, buf, len);
+  if (pHandle == NULL) {
+    taosThreadMutexUnlock(pLock);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // do some book mark work after acquiring the filter result from cache
+  STagFilterResEntry** pEntry = taosHashGet(pTableMap, &suid, sizeof(uint64_t));
+  if (NULL == pEntry) {
+    metaError("meta/cache: pEntry should not be NULL.");
+    return TSDB_CODE_FAILED;
+  }
+
+  *acquireRes = 1;
+
+  const char* p = taosLRUCacheValue(pCache, pHandle);
+  int32_t     size = *(int32_t*)p;
+
+  // set the result into the buffer
+  taosArrayAddBatch(pList1, p + sizeof(int32_t), size);
+
+  times = atomic_add_fetch_32(&(*pEntry)->qTimes, 1);
+  taosLRUCacheRelease(pCache, pHandle, false);
+
+  // unlock meta
+  taosThreadMutexUnlock(pLock);
+
+  // check if scanning all items are necessary or not
+  if (times >= 5000 && TD_DLIST_NELES(&(*pEntry)->list) > 10) {
+    taosThreadMutexLock(pLock);
+
+    SArray* pInvalidRes = taosArrayInit(64, POINTER_BYTES);
+
+    SListIter iter = {0};
+    tdListInitIter(&(*pEntry)->list, &iter, TD_LIST_FORWARD);
+
+    SListNode* pNode = NULL;
+    while ((pNode = tdListNext(&iter)) != NULL) {
+      memcpy(&buf[1], pNode->data, keyLen);
+
+      // check whether it is existed in LRU cache, and remove it from linked list if not.
+      LRUHandle* pRes = taosLRUCacheLookup(pCache, buf, len);
+      if (pRes == NULL) {  // remove the item in the linked list
+        taosArrayPush(pInvalidRes, &pNode);
+      } else {
+        taosLRUCacheRelease(pCache, pRes, false);
+      }
+    }
+
+    // remove the keys, of which query uid lists have been replaced already.
+    size_t s = taosArrayGetSize(pInvalidRes);
+    for (int32_t i = 0; i < s; ++i) {
+      SListNode** p1 = taosArrayGet(pInvalidRes, i);
+      tdListPopNode(&(*pEntry)->list, *p1);
+      taosMemoryFree(*p1);
+    }
+
+    atomic_store_32(&(*pEntry)->qTimes, 0);  // reset the query times
+    taosArrayDestroy(pInvalidRes);
+
+    taosThreadMutexUnlock(pLock);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void freePayload(const void* key, size_t keyLen, void* value) {
+  if (value == NULL) {
+    return;
+  }
+  taosMemoryFree(value);
+}
+
+// check both the payload size and selectivity ratio
+int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
+                              int32_t payloadLen, double selectivityRatio) {
+  if (selectivityRatio > tsSelectivityRatio) {
+    metaDebug("vgId:%d, suid:%" PRIu64
+              " failed to add to uid list cache, due to selectivity ratio %.2f less than threshold %.2f",
+              TD_VID(pMeta->pVnode), suid, selectivityRatio, tsSelectivityRatio);
+    taosMemoryFree(pPayload);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (payloadLen > tsTagFilterResCacheSize) {
+    metaDebug("vgId:%d, suid:%" PRIu64
+              " failed to add to uid list cache, due to payload length %d greater than threshold %d",
+              TD_VID(pMeta->pVnode), suid, payloadLen, tsTagFilterResCacheSize);
+    taosMemoryFree(pPayload);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SLRUCache*     pCache = pMeta->pCache->sTagFilterResCache.pUidResCache;
+  SHashObj*      pTableEntry = pMeta->pCache->sTagFilterResCache.pTableEntry;
+  TdThreadMutex* pLock = &pMeta->pCache->sTagFilterResCache.lock;
+
+  taosThreadMutexLock(pLock);
+
+  STagFilterResEntry** pEntry = taosHashGet(pTableEntry, &suid, sizeof(uint64_t));
+  if (pEntry == NULL) {
+    STagFilterResEntry* p = taosMemoryMalloc(sizeof(STagFilterResEntry));
+    p->qTimes = 0;
+    tdListInit(&p->list, keyLen);
+    taosHashPut(pTableEntry, &suid, sizeof(uint64_t), &p, POINTER_BYTES);
+    tdListAppend(&p->list, pKey);
+  } else {
+    tdListAppend(&(*pEntry)->list, pKey);
+  }
+
+  uint64_t buf[3] = {0};
+  buf[0] = suid;
+
+  memcpy(&buf[1], pKey, keyLen);
+  if (sizeof(uint64_t) + keyLen != 24) {
+    metaError("meta/cache: incorrect keyLen:%" PRId32 " length.", keyLen);
+    return TSDB_CODE_FAILED;
+  }
+
+  // add to cache.
+  taosLRUCacheInsert(pCache, buf, sizeof(uint64_t) + keyLen, pPayload, payloadLen, freePayload, NULL,
+                     TAOS_LRU_PRIORITY_LOW);
+
+  taosThreadMutexUnlock(pLock);
+
+  metaDebug("vgId:%d, suid:%" PRIu64 " list cache added into cache, total:%d, tables:%d", TD_VID(pMeta->pVnode), suid,
+            (int32_t)taosLRUCacheGetUsage(pCache), taosHashGetSize(pTableEntry));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// remove the lru cache that are expired due to the tags value update, or creating, or dropping, of child tables
+int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid) {
+  int32_t  keyLen = sizeof(uint64_t) * 3;
+  uint64_t p[3] = {0};
+  p[0] = suid;
+
+  TdThreadMutex* pLock = &pMeta->pCache->sTagFilterResCache.lock;
+
+  taosThreadMutexLock(pLock);
+  STagFilterResEntry** pEntry = taosHashGet(pMeta->pCache->sTagFilterResCache.pTableEntry, &suid, sizeof(uint64_t));
+  if (pEntry == NULL || listNEles(&(*pEntry)->list) == 0) {
+    taosThreadMutexUnlock(pLock);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SListIter iter = {0};
+  tdListInitIter(&(*pEntry)->list, &iter, TD_LIST_FORWARD);
+
+  SListNode* pNode = NULL;
+  while ((pNode = tdListNext(&iter)) != NULL) {
+    memcpy(&p[1], pNode->data, 16);
+    taosLRUCacheErase(pMeta->pCache->sTagFilterResCache.pUidResCache, p, keyLen);
+  }
+
+  (*pEntry)->qTimes = 0;
+  tdListEmpty(&(*pEntry)->list);
+
+  taosThreadMutexUnlock(pLock);
+  return TSDB_CODE_SUCCESS;
 }

@@ -1,12 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncEnv.h"
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncRaftLog.h"
-#include "syncRaftStore.h"
-#include "syncUtil.h"
-#include "wal.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -27,7 +20,7 @@ const char*    pWalPath = "./syncLogStoreTest_wal";
 SyncIndex gSnapshotLastApplyIndex;
 SyncIndex gSnapshotLastApplyTerm;
 
-int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
+int32_t GetSnapshotCb(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
   pSnapshot->data = NULL;
   pSnapshot->lastApplyIndex = gSnapshotLastApplyIndex;
   pSnapshot->lastApplyTerm = gSnapshotLastApplyTerm;
@@ -54,7 +47,7 @@ void init() {
   pSyncNode->pWal = pWal;
 
   pSyncNode->pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
-  pSyncNode->pFsm->FpGetSnapshotInfo = GetSnapshotCb;
+  // pSyncNode->pFsm->FpGetSnapshotInfo = GetSnapshotCb;
 }
 
 void cleanup() {

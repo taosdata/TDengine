@@ -13,9 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncRaftStore.h"
-#include "cJSON.h"
-#include "syncEnv.h"
 #include "syncUtil.h"
 
 // private function
@@ -26,22 +25,19 @@ static bool    raftStoreFileExist(char *path);
 SRaftStore *raftStoreOpen(const char *path) {
   int32_t ret;
 
-  SRaftStore *pRaftStore = taosMemoryMalloc(sizeof(SRaftStore));
+  SRaftStore *pRaftStore = taosMemoryCalloc(1, sizeof(SRaftStore));
   if (pRaftStore == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  memset(pRaftStore, 0, sizeof(*pRaftStore));
+
   snprintf(pRaftStore->path, sizeof(pRaftStore->path), "%s", path);
-
-  char storeBuf[RAFT_STORE_BLOCK_SIZE] = {0};
-  memset(storeBuf, 0, sizeof(storeBuf));
-
   if (!raftStoreFileExist(pRaftStore->path)) {
     ret = raftStoreInit(pRaftStore);
     ASSERT(ret == 0);
   }
 
+  char storeBuf[RAFT_STORE_BLOCK_SIZE] = {0};
   pRaftStore->pFile = taosOpenFile(path, TD_FILE_READ | TD_FILE_WRITE);
   ASSERT(pRaftStore->pFile != NULL);
 
@@ -72,9 +68,7 @@ static int32_t raftStoreInit(SRaftStore *pRaftStore) {
 }
 
 int32_t raftStoreClose(SRaftStore *pRaftStore) {
-  if (pRaftStore == NULL) {
-    return 0;
-  }
+  if (pRaftStore == NULL) return 0;
 
   taosCloseFile(&pRaftStore->pFile);
   taosMemoryFree(pRaftStore);
@@ -181,70 +175,4 @@ void raftStoreNextTerm(SRaftStore *pRaftStore) {
 void raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term) {
   pRaftStore->currentTerm = term;
   raftStorePersist(pRaftStore);
-}
-
-int32_t raftStoreFromJson(SRaftStore *pRaftStore, cJSON *pJson) { return 0; }
-
-cJSON *raftStore2Json(SRaftStore *pRaftStore) {
-  char   u64buf[128] = {0};
-  cJSON *pRoot = cJSON_CreateObject();
-
-  if (pRaftStore != NULL) {
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pRaftStore->currentTerm);
-    cJSON_AddStringToObject(pRoot, "currentTerm", u64buf);
-
-    cJSON *pVoteFor = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pRaftStore->voteFor.addr);
-    cJSON_AddStringToObject(pVoteFor, "addr", u64buf);
-    {
-      uint64_t u64 = pRaftStore->voteFor.addr;
-      char     host[128] = {0};
-      uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
-      cJSON_AddStringToObject(pVoteFor, "addr_host", host);
-      cJSON_AddNumberToObject(pVoteFor, "addr_port", port);
-    }
-    cJSON_AddNumberToObject(pVoteFor, "vgId", pRaftStore->voteFor.vgId);
-    cJSON_AddItemToObject(pRoot, "voteFor", pVoteFor);
-
-    int hasVoted = raftStoreHasVoted(pRaftStore);
-    cJSON_AddNumberToObject(pRoot, "hasVoted", hasVoted);
-  }
-
-  cJSON *pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SRaftStore", pRoot);
-  return pJson;
-}
-
-char *raftStore2Str(SRaftStore *pRaftStore) {
-  cJSON *pJson = raftStore2Json(pRaftStore);
-  char  *serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
-// for debug -------------------
-void raftStorePrint(SRaftStore *pObj) {
-  char *serialized = raftStore2Str(pObj);
-  printf("raftStorePrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void raftStorePrint2(char *s, SRaftStore *pObj) {
-  char *serialized = raftStore2Str(pObj);
-  printf("raftStorePrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-void raftStoreLog(SRaftStore *pObj) {
-  char *serialized = raftStore2Str(pObj);
-  sTrace("raftStoreLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
-  taosMemoryFree(serialized);
-}
-
-void raftStoreLog2(char *s, SRaftStore *pObj) {
-  char *serialized = raftStore2Str(pObj);
-  sTrace("raftStoreLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
 }

@@ -22,6 +22,7 @@ sys.path.append(os.path.dirname(__file__))
 
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
@@ -124,12 +125,12 @@ class TDTestCase:
             vgroup_id = vgroup_info[0]
             tmp_list = []
             for role in vgroup_info[3:-4]:
-                if role in ['leader','leader*','follower']:
+                if role in ['leader','leader*', 'leader**','follower']:
                     tmp_list.append(role)
             vgroups_infos[vgroup_id]=tmp_list
 
         for k , v in vgroups_infos.items():
-            if len(v) ==1 and v[0] in ['leader', 'leader*']:
+            if len(v) == 1 and v[0] in ['leader', 'leader*', 'leader**']:
                 tdLog.notice(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
             else:
                 tdLog.info(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
@@ -403,8 +404,8 @@ class TDTestCase:
 
             # begin stop dnode
             start = time.time()
-            tdDnodes[self.stop_dnode_id-1].forcestop()
-        
+            tdDnodes[self.stop_dnode_id-1].stoptaosd()
+    
             self.wait_stop_dnode_OK(newTdSql)
 
             # append rows of stablename when dnode stop
@@ -450,11 +451,13 @@ class TDTestCase:
             # begin restart dnode
 
             # force stop taosd by kill -9
-            self.force_stop_dnode(self.stop_dnode_id)
-            self.wait_stop_dnode_OK(newTdSql)
+            # self.force_stop_dnode(self.stop_dnode_id)
+            tdDnodes[self.stop_dnode_id].stoptaosd()
+            # self.wait_stop_dnode_OK(newTdSql)
+            time.sleep(3)
             os.system(" taos -s 'select * from information_schema.ins_dnodes;' ")
             tdDnodes[self.stop_dnode_id-1].starttaosd()
-            self.wait_start_dnode_OK(newTdSql)
+            # self.wait_start_dnode_OK(newTdSql)
             end = time.time()
             time_cost = int(end-start)
 

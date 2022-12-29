@@ -27,7 +27,8 @@ class TDTestCase:
         '''
         return
 
-    def init(self, conn, logSql, replicaVarl=1):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
@@ -55,7 +56,7 @@ class TDTestCase:
 
     def run(self):
         binPath = self.getPath()
-        cmd = "%s -F 7 -H 9 -n 10 -t 2 -x -y -M -C -d newtest -l 5 -A binary,nchar\(31\) -b tinyint,binary\(23\),bool,nchar -w 29 -E -m $%%^*" %binPath
+        cmd = "%s -F 7 -n 10 -t 2 -x -y -M -C -d newtest -l 5 -A binary,nchar\(31\) -b tinyint,binary\(23\),bool,nchar -w 29 -E -m $%%^*" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("use newtest")

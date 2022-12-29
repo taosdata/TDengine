@@ -192,6 +192,16 @@ TEST_F(ParserShowToUseTest, showTableDistributed) {
   run("SHOW TABLE DISTRIBUTED st1");
 }
 
+TEST_F(ParserShowToUseTest, showTableTags) {
+  useDb("root", "test");
+
+  run("SHOW TABLE TAGS FROM st1");
+
+  run("SHOW TABLE TAGS tag1, tag2 FROM st1");
+
+  run("SHOW TABLE TAGS TBNAME, _TAGS, tag3 FROM st1");
+}
+
 TEST_F(ParserShowToUseTest, showTags) {
   useDb("root", "test");
 
@@ -203,7 +213,13 @@ TEST_F(ParserShowToUseTest, showTags) {
 TEST_F(ParserShowToUseTest, showUsers) {
   useDb("root", "test");
 
-  run("SHOW users");
+  run("SHOW USERS");
+}
+
+TEST_F(ParserShowToUseTest, showUserPrivileges) {
+  useDb("root", "test");
+
+  run("SHOW USER PRIVILEGES");
 }
 
 TEST_F(ParserShowToUseTest, showVariables) {

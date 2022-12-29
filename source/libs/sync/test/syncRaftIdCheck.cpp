@@ -1,8 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void usage(char* exe) {
   printf("Usage: %s host port \n", exe);

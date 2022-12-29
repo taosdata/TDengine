@@ -544,4 +544,252 @@ if $rows != 10 then
 endi
 
 
+sql drop stream if exists streams4;
+sql drop database if exists test4;
+sql drop stable if exists streamt4;
+sql create database if not exists test4 vgroups 10 precision "ms" ;
+sql use test4;
+sql create table st (ts timestamp, c1 tinyint, c2 smallint) tags (t1 tinyint) ;
+sql create table t1 using st tags (-81) ;
+sql create table t2 using st tags (-81) ;
+sql create stream if not exists streams4 trigger window_close into streamt4 as select _wstart AS startts, min(c1),count(c1) from t1 state_window(c1);
+
+sql insert into t1 (ts, c1) values (1668073288209, 11);
+sql insert into t1 (ts, c1) values (1668073288210, 11);
+sql insert into t1 (ts, c1) values (1668073288211, 11);
+sql insert into t1 (ts, c1) values (1668073288212, 11);
+sql insert into t1 (ts, c1) values (1668073288213, 11);
+sql insert into t1 (ts, c1) values (1668073288214, 11);
+sql insert into t1 (ts, c1) values (1668073288215, 29);
+
+$loop_count = 0
+loop7:
+
+sleep 200
+
+sql select * from streamt4 order by startts;
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop7
+endi
+
+if $data01 != 11 then
+  print =====data01=$data01
+  goto loop7
+endi
+
+if $data02 != 6 then
+  print =====data02=$data02
+  goto loop7
+endi
+
+sql delete from t1 where ts = cast(1668073288214 as timestamp);
+sql insert into t1 (ts, c1) values (1668073288216, 29);
+sql delete from t1 where ts = cast(1668073288215 as timestamp);
+sql insert into t1 (ts, c1) values (1668073288217, 29);
+sql delete from t1 where ts = cast(1668073288216 as timestamp);
+sql insert into t1 (ts, c1) values (1668073288218, 29);
+sql delete from t1 where ts = cast(1668073288217 as timestamp);
+sql insert into t1 (ts, c1) values (1668073288219, 29);
+sql delete from t1 where ts = cast(1668073288218 as timestamp);
+sql insert into t1 (ts, c1) values (1668073288220, 29);
+sql delete from t1 where ts = cast(1668073288219 as timestamp);
+
+$loop_count = 0
+loop8:
+
+sleep 200
+
+sql select * from streamt4 order by startts;
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop8
+endi
+
+if $data01 != 11 then
+  print =====data01=$data01
+  goto loop8
+endi
+
+if $data02 != 5 then
+  print =====data02=$data02
+  goto loop8
+endi
+
+sql insert into t1 (ts, c1) values (1668073288221, 65);
+sql insert into t1 (ts, c1) values (1668073288222, 65);
+sql insert into t1 (ts, c1) values (1668073288223, 65);
+sql insert into t1 (ts, c1) values (1668073288224, 65);
+sql insert into t1 (ts, c1) values (1668073288225, 65);
+sql insert into t1 (ts, c1) values (1668073288226, 65);
+
+$loop_count = 0
+loop8:
+
+sleep 200
+
+sql select * from streamt4 order by startts;
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+if $rows != 2 then
+  print =====rows=$rows
+  goto loop8
+endi
+
+if $data01 != 11 then
+  print =====data01=$data01
+  goto loop8
+endi
+
+if $data02 != 5 then
+  print =====data02=$data02
+  goto loop8
+endi
+
+if $data11 != 29 then
+  print =====data11=$data11
+  goto loop8
+endi
+
+if $data12 != 1 then
+  print =====data12=$data12
+  goto loop8
+endi
+
+sql insert into t1 (ts, c1) values (1668073288224, 64);
+
+$loop_count = 0
+loop9:
+
+sleep 200
+
+sql select * from streamt4 order by startts;
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop9
+endi
+
+if $data01 != 11 then
+  print =====data01=$data01
+  goto loop9
+endi
+
+if $data02 != 5 then
+  print =====data02=$data02
+  goto loop9
+endi
+
+if $data11 != 29 then
+  print =====data11=$data11
+  goto loop9
+endi
+
+if $data12 != 1 then
+  print =====data12=$data12
+  goto loop9
+endi
+
+if $data21 != 65 then
+  print =====data21=$data21
+  goto loop9
+endi
+
+if $data22 != 3 then
+  print =====data22=$data22
+  goto loop9
+endi
+
+if $data31 != 64 then
+  print =====data31=$data31
+  goto loop9
+endi
+
+if $data32 != 1 then
+  print =====data32=$data32
+  goto loop9
+endi
+
+sql drop stream if exists streams5;
+sql drop database if exists test5;
+sql create database test5;
+sql use test5;
+sql create table tb (ts timestamp, a int);
+sql insert into tb values (now + 1m , 1 );
+sql create table b (c timestamp, d int, e int , f int, g double);
+sql create stream streams0 trigger at_once into streamt as select _wstart c1, count(*) c2, max(a) c3 from tb state_window(a);
+sql insert into b values(1648791213000,NULL,NULL,NULL,NULL);
+sql select * from streamt order by c1, c2, c3;
+
+print data00:$data00
+print data01:$data01
+
+sql insert into b values(1648791213000,NULL,NULL,NULL,NULL);
+sql select * from streamt order by c1, c2, c3;
+
+print data00:$data00
+print data01:$data01
+
+sql insert into b values(1648791213001,1,2,2,2.0);
+sql insert into b values(1648791213002,1,3,3,3.0);
+sql insert into tb values(1648791213003,1);
+
+sql select * from streamt;
+print data00:$data00
+print data01:$data01
+
+sql delete from b where c >= 1648791213001 and c <= 1648791213002;
+sql insert into b values(1648791223003,2,2,3,1.0); insert into b values(1648791223002,2,3,3,3.0);
+sql insert into tb values (now + 1m , 1 );
+
+sql select * from streamt;
+print data00:$data00
+print data01:$data01
+
+sql insert into b(c,d) values (now + 6m , 6 );
+sql delete from b where c >= 1648791213001 and c <= 1648791233005;;
+
+$loop_count = 0
+loop10:
+
+sleep 200
+
+sql select c2 from streamt;
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop10
+endi
+
+if $data00 != 2 then
+  print =====data00=$data00
+  goto loop10
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

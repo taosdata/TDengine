@@ -16,7 +16,7 @@ description: "TDengine 服务端、客户端和连接器支持的平台列表"
 
 ## TDengine 客户端和连接器支持的平台列表
 
-目前 TDengine 的连接器可支持的平台广泛，目前包括：X64/X86/ARM64/ARM32/MIPS/Alpha 等硬件平台，以及 Linux/Win64/Win32/macOS 等开发环境。
+目前 TDengine 的连接器可支持的平台广泛，目前包括：X64/X86/ARM64/ARM32/MIPS/LoongArch64 等硬件平台，以及 Linux/Win64/Win32/macOS 等开发环境。
 
 对照矩阵如下：
 

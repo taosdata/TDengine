@@ -42,6 +42,16 @@ extern "C" {
 #define PATH_MAX 256
 #endif
 
+#ifdef WINDOWS
+#define TD_PATH_MAX _MAX_PATH
+#elif defined(PATH_MAX)
+#define TD_PATH_MAX PATH_MAX
+#elif defined(_XOPEN_PATH_MAX)
+#define TD_PATH_MAX _XOPEN_PATH_MAX
+#else
+#define TD_PATH_MAX _POSIX_PATH_MAX
+#endif
+
 typedef struct TdFile *TdFilePtr;
 
 #define TD_FILE_CREATE   0x0001
@@ -78,6 +88,7 @@ int32_t taosFsyncFile(TdFilePtr pFile);
 int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count);
 int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset);
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count);
+int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t offset);
 void    taosFprintfFile(TdFilePtr pFile, const char *format, ...);
 
 int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf);

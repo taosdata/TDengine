@@ -16,8 +16,9 @@ from tmqCommon import *
 
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), True)
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def checkFileContent(self, dbname="sml_db"):
@@ -26,7 +27,7 @@ class TDTestCase:
         tdLog.info(cmdStr)
         ret = os.system(cmdStr)
         if ret != 0:
-            tdLog.exit("sml_test failed")
+            tdLog.info("sml_test ret != 0")
 
         # tdSql.execute('use sml_db')
         tdSql.query(f"select * from {dbname}.t_b7d815c9222ca64cdf2614c61de8f211")
@@ -75,13 +76,14 @@ class TDTestCase:
         tdSql.query(f"select * from {dbname}.`sys.cpu.nice` order by _ts")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 9.000000000)
-        tdSql.checkData(0, 2, "lga")
-        tdSql.checkData(0, 3, "web02")
-        tdSql.checkData(0, 4, None)
+        tdSql.checkData(0, 2, "web02")
+        tdSql.checkData(0, 3, None)
+        tdSql.checkData(0, 4, "lga")
+
         tdSql.checkData(1, 1, 18.000000000)
-        tdSql.checkData(1, 2, "lga")
-        tdSql.checkData(1, 3, "web01")
-        tdSql.checkData(1, 4, "t1")
+        tdSql.checkData(1, 2, "web01")
+        tdSql.checkData(1, 3, "t1")
+        tdSql.checkData(0, 4, "lga")
 
         tdSql.query(f"select * from {dbname}.macylr")
         tdSql.checkRows(2)

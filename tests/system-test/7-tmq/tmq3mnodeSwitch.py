@@ -33,6 +33,7 @@ class TDTestCase:
         self.dnodeOfLeader = 0
 
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
@@ -53,9 +54,9 @@ class TDTestCase:
             time.sleep(1)
             tdLog.debug("............... waiting for all dnodes ready!")
 
-        tdLog.info("==============create two new mnodes ========")
-        tdSql.execute("create mnode on dnode 2")
-        tdSql.execute("create mnode on dnode 3")
+        # tdLog.info("==============create two new mnodes ========")
+        # tdSql.execute("create mnode on dnode 2")
+        # tdSql.execute("create mnode on dnode 3")
         self.check3mnode()
         return
 
@@ -178,17 +179,20 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbNum':     1,
-                    'rowsPerTbl': 100000,
+                    'rowsPerTbl': 40000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  10,
+                    'pollDelay':  30,
                     'showMsg':    1,
                     'showRow':    1}
+        
+        if self.replicaVar == 3:
+            paraDict["rowsPerTbl"] = 20000
 
         topicNameList = ['topic1']
         expectRowsList = []
         tmqCom.initConsumerTable()
-        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=4,replica=1)
+        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=4,replica=self.replicaVar)
         tdLog.info("create stb")
         tdCom.create_stable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"], column_elm_list=paraDict['colSchema'], tag_elm_list=paraDict['tagSchema'])
         tdLog.info("create ctb")
@@ -197,7 +201,9 @@ class TDTestCase:
         pThread = tmqCom.asyncInsertData(paraDict)
 
         tdLog.info("create topics from stb with filter")
-        queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s where c1 %% 7 == 0" %(paraDict['dbName'], paraDict['stbName'])
+        # queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s where c1 %% 7 == 0" %(paraDict['dbName'], paraDict['stbName'])
+        
+        queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s" %(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)

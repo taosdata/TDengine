@@ -24,9 +24,10 @@ from util.cases import *
 from util.sql import *
 from util.dnodes import *
 
-
+msec_per_min=60 * 1000
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
@@ -53,7 +54,7 @@ class TDTestCase:
 
         if tdSql.queryRows == 0:
             tdSql.query(self.csum_query_form(
-                col=col, alias=alias, table_expr=table_expr, condition=condition
+                col=col, alias=alias, table_expr=table_expr.replace("csum", "ts, csum"), condition=condition
             ))
             print(f"case in {line}: ", end='')
             tdSql.checkRows(0)
@@ -131,7 +132,7 @@ class TDTestCase:
                 pre_result = np.array(pre_result, dtype = 'int64')
             pre_csum = np.cumsum(pre_result)[offset_val:]
             tdSql.query(self.csum_query_form(
-                col=col, alias=alias, table_expr=table_expr, condition=condition
+                col=col, alias=alias, table_expr=table_expr.replace("csum", "ts,csum"), condition=condition
             ))
 
             for i in range(tdSql.queryRows):
@@ -162,7 +163,7 @@ class TDTestCase:
         self.checkcsum(**case6)
 
         # case7~8: nested query
-        case7 = {"table_expr": "(select c1 from db.stb1 order by ts, tbname )"}
+        case7 = {"table_expr": "(select ts,c1 from db.stb1 order by ts, tbname )"}
         self.checkcsum(**case7)
         case8 = {"table_expr": "(select csum(c1) c1 from db.t1)"}
         self.checkcsum(**case8)
@@ -314,19 +315,19 @@ class TDTestCase:
             for j in range(data_row):
                 tdSql.execute(
                     f"insert into t{i} values ("
-                    f"{basetime + (j+1)*10}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
+                    f"{basetime + (j+1)*10 + i * msec_per_min}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
                     f"'binary_{j}', {random.uniform(-200, -1)}, {random.choice([0,1])}, {random.randint(-200,-1)}, "
                     f"{random.randint(-200, -1)}, {random.randint(-127, -1)}, 'nchar_{j}' )"
                 )
 
                 tdSql.execute(
                     f"insert into t{i} values ("
-                    f"{basetime - (j+1) * 10}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
+                    f"{basetime - (j+1) * 10 + i * msec_per_min}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
                     f"'binary_{j}_1', {random.uniform(1, 200)}, {random.choice([0, 1])}, {random.randint(1,200)}, "
                     f"{random.randint(1,200)}, {random.randint(1,127)}, 'nchar_{j}_1' )"
                 )
                 tdSql.execute(
-                    f"insert into tt{i} values ( {basetime-(j+1) * 10}, {random.randint(1, 200)} )"
+                    f"insert into tt{i} values ( {basetime-(j+1) * 10 + i * msec_per_min}, {random.randint(1, 200)} )"
                 )
 
         pass
@@ -365,26 +366,26 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert only NULL test:")
         for i in range(tbnum):
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime - 5})")
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime + 5})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime - 5 + i * msec_per_min})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime + 5 + i * msec_per_min})")
         self.csum_current_query()
         self.csum_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the max(bigint/double):")
         self.csum_test_table(tbnum)
         tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 1) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
+                      f"({nowtime - (per_table_rows + 1) * 10 + i * msec_per_min}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
         tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 2) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
+                      f"({nowtime - (per_table_rows + 2) * 10 + i * msec_per_min}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
         self.csum_current_query()
         self.csum_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the min(bigint/double):")
         self.csum_test_table(tbnum)
         tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 1) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {1-2**63})")
+                      f"({nowtime - (per_table_rows + 1) * 10 + i * msec_per_min}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {1-2**63})")
         tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 2) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {512-2**63})")
+                      f"({nowtime - (per_table_rows + 2) * 10 + i * msec_per_min}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {512-2**63})")
         self.csum_current_query()
         self.csum_error_query()
 
@@ -397,9 +398,9 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert data mix with NULL test:")
         for i in range(tbnum):
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime})")
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime-(per_table_rows+3)*10})")
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime+(per_table_rows+3)*10})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime + i * msec_per_min})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime-(per_table_rows+3)*10 + i * msec_per_min})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime+(per_table_rows+3)*10 + i * msec_per_min})")
         self.csum_current_query()
         self.csum_error_query()
 

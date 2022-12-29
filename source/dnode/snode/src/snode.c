@@ -36,13 +36,14 @@ void sndEnqueueStreamDispatch(SSnode *pSnode, SRpcMsg *pMsg) {
 
   int32_t taskId = req.taskId;
 
-  SStreamTask *pTask = streamMetaGetTask(pSnode->pMeta, taskId);
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, taskId);
   if (pTask) {
     SRpcMsg rsp = {
         .info = pMsg->info,
         .code = 0,
     };
     streamProcessDispatchReq(pTask, &req, &rsp, false);
+    streamMetaReleaseTask(pSnode->pMeta, pTask);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
     return;
@@ -63,6 +64,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
   ASSERT(pTask->taskLevel == TASK_LEVEL__AGG);
   ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
 
+  pTask->refCnt = 1;
   pTask->schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->inputQueue = streamQueueOpen();
   pTask->outputQueue = streamQueueOpen();
@@ -166,15 +168,17 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
 
 int32_t sndProcessTaskDropReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   SVDropStreamTaskReq *pReq = (SVDropStreamTaskReq *)msg;
-  return streamMetaRemoveTask(pSnode->pMeta, pReq->taskId);
+  streamMetaRemoveTask(pSnode->pMeta, pReq->taskId);
+  return 0;
 }
 
 int32_t sndProcessTaskRunReq(SSnode *pSnode, SRpcMsg *pMsg) {
   SStreamTaskRunReq *pReq = pMsg->pCont;
   int32_t            taskId = pReq->taskId;
-  SStreamTask       *pTask = streamMetaGetTask(pSnode->pMeta, taskId);
+  SStreamTask       *pTask = streamMetaAcquireTask(pSnode->pMeta, taskId);
   if (pTask) {
     streamProcessRunReq(pTask);
+    streamMetaReleaseTask(pSnode->pMeta, pTask);
     return 0;
   } else {
     return -1;
@@ -191,13 +195,14 @@ int32_t sndProcessTaskDispatchReq(SSnode *pSnode, SRpcMsg *pMsg, bool exec) {
   tDecodeStreamDispatchReq(&decoder, &req);
   int32_t taskId = req.taskId;
 
-  SStreamTask *pTask = streamMetaGetTask(pSnode->pMeta, taskId);
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, taskId);
   if (pTask) {
     SRpcMsg rsp = {
         .info = pMsg->info,
         .code = 0,
     };
     streamProcessDispatchReq(pTask, &req, &rsp, exec);
+    streamMetaReleaseTask(pSnode->pMeta, pTask);
     return 0;
   } else {
     return -1;
@@ -215,13 +220,14 @@ int32_t sndProcessTaskRetrieveReq(SSnode *pSnode, SRpcMsg *pMsg) {
   tDecodeStreamRetrieveReq(&decoder, &req);
   tDecoderClear(&decoder);
   int32_t      taskId = req.dstTaskId;
-  SStreamTask *pTask = streamMetaGetTask(pSnode->pMeta, taskId);
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, taskId);
   if (pTask) {
     SRpcMsg rsp = {
         .info = pMsg->info,
         .code = 0,
     };
     streamProcessRetrieveReq(pTask, &req, &rsp);
+    streamMetaReleaseTask(pSnode->pMeta, pTask);
     tDeleteStreamRetrieveReq(&req);
     return 0;
   } else {
@@ -231,10 +237,11 @@ int32_t sndProcessTaskRetrieveReq(SSnode *pSnode, SRpcMsg *pMsg) {
 
 int32_t sndProcessTaskDispatchRsp(SSnode *pSnode, SRpcMsg *pMsg) {
   SStreamDispatchRsp *pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t             taskId = pRsp->taskId;
-  SStreamTask        *pTask = streamMetaGetTask(pSnode->pMeta, taskId);
+  int32_t             taskId = ntohl(pRsp->upstreamTaskId);
+  SStreamTask        *pTask = streamMetaAcquireTask(pSnode->pMeta, taskId);
   if (pTask) {
-    streamProcessDispatchRsp(pTask, pRsp);
+    streamProcessDispatchRsp(pTask, pRsp, pMsg->code);
+    streamMetaReleaseTask(pSnode->pMeta, pTask);
     return 0;
   } else {
     return -1;
@@ -274,15 +281,17 @@ int32_t sndProcessTaskRecoverFinishReq(SSnode *pSnode, SRpcMsg *pMsg) {
   tDecoderClear(&decoder);
 
   // find task
-  SStreamTask *pTask = streamMetaGetTask(pSnode->pMeta, req.taskId);
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, req.taskId);
   if (pTask == NULL) {
     return -1;
   }
   // do process request
   if (streamProcessRecoverFinishReq(pTask, req.childId) < 0) {
+    streamMetaReleaseTask(pSnode->pMeta, pTask);
     return -1;
   }
 
+  streamMetaReleaseTask(pSnode->pMeta, pTask);
   return 0;
 }
 

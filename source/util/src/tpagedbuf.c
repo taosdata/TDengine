@@ -30,6 +30,7 @@ struct SDiskbasedBuf {
   TdFilePtr pFile;
   int32_t   allocateId;  // allocated page id
   char*     path;        // file path
+  char*     prefix;      // file name prefix
   int32_t   pageSize;    // current used page size
   int32_t   inMemPages;  // numOfPages that are allocated in memory
   SList*    freePgList;  // free page list
@@ -48,6 +49,12 @@ struct SDiskbasedBuf {
 };
 
 static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
+  if (pBuf->path == NULL) { // prepare the file name when needed it
+    char path[PATH_MAX] = {0};
+    taosGetTmpfilePath(pBuf->prefix, "paged-buf", path);
+    pBuf->path = taosMemoryStrDup(path);
+  }
+
   pBuf->pFile =
       taosOpenFile(pBuf->path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
   if (pBuf->pFile == NULL) {
@@ -107,7 +114,7 @@ static uint64_t allocatePositionInFile(SDiskbasedBuf* pBuf, size_t size) {
 
 static void setPageNotInBuf(SPageInfo* pPageInfo) { pPageInfo->pData = NULL; }
 
-static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) { return pageSize + POINTER_BYTES + 2; }
+static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) { return pageSize + POINTER_BYTES + sizeof(SFilePage); }
 
 /**
  *   +--------------------------+-------------------+--------------+
@@ -356,10 +363,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
 
   pPBuf->assistBuf = taosMemoryMalloc(pPBuf->pageSize + 2);  // EXTRA BYTES
   pPBuf->all = taosHashInit(10, fn, true, false);
-
-  char path[PATH_MAX] = {0};
-  taosGetTmpfilePath(dir, "paged-buf", path);
-  pPBuf->path = strdup(path);
+  pPBuf->prefix = (char*) dir;
 
   pPBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));
 
@@ -495,7 +499,7 @@ void releaseBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* pi) {
 
 size_t getTotalBufSize(const SDiskbasedBuf* pBuf) { return (size_t)pBuf->totalBufSize; }
 
-SIDList getDataBufPagesIdList(SDiskbasedBuf* pBuf) {
+SArray* getDataBufPagesIdList(SDiskbasedBuf* pBuf) {
   ASSERT(pBuf != NULL);
   return pBuf->pIdList;
 }
@@ -507,7 +511,9 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
 
   dBufPrintStatis(pBuf);
 
+  bool needRemoveFile = false;
   if (pBuf->pFile != NULL) {
+    needRemoveFile = true;
     uDebug(
         "Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page "
         "size:%.2f Kb, %s\n",
@@ -534,9 +540,13 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
     }
   }
 
-  if (taosRemoveFile(pBuf->path) < 0) {
-    uDebug("WARNING tPage remove file failed. path=%s", pBuf->path);
+  if (needRemoveFile) {
+    int32_t ret = taosRemoveFile(pBuf->path);
+    if (ret != 0) {  // print the error and discard this error info
+      uDebug("WARNING tPage remove file failed. path=%s, code:%s", pBuf->path, strerror(errno));
+    }
   }
+
   taosMemoryFreeClear(pBuf->path);
 
   size_t n = taosArrayGetSize(pBuf->pIdList);
@@ -561,7 +571,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   taosMemoryFreeClear(pBuf);
 }
 
-SPageInfo* getLastPageInfo(SIDList pList) {
+SPageInfo* getLastPageInfo(SArray* pList) {
   size_t     size = taosArrayGetSize(pList);
   SPageInfo* pPgInfo = taosArrayGetP(pList, size - 1);
   return pPgInfo;
@@ -611,11 +621,13 @@ void dBufPrintStatis(const SDiskbasedBuf* pBuf) {
 
   const SDiskbasedBufStatis* ps = &pBuf->statis;
 
+#if 0
   printf(
       "Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page size:%.2f "
       "Kb, %s\n",
       pBuf->totalBufSize / 1024.0, pBuf->numOfPages, listNEles(pBuf->lruList) * pBuf->pageSize / 1024.0,
       listNEles(pBuf->lruList), pBuf->fileSize / 1024.0, pBuf->pageSize / 1024.0f, pBuf->id);
+#endif
 
   if (ps->loadPages > 0) {
     printf(
@@ -624,7 +636,7 @@ void dBufPrintStatis(const SDiskbasedBuf* pBuf) {
         ps->getPages, ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f,
         ps->loadPages, ps->loadBytes / (1024.0 * ps->loadPages));
   } else {
-    printf("no page loaded\n");
+    //printf("no page loaded\n");
   }
 }
 

@@ -13,17 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncAppendEntriesReply.h"
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
-#include "syncInt.h"
-#include "syncRaftCfg.h"
-#include "syncRaftLog.h"
+#include "syncPipeline.h"
+#include "syncMessage.h"
+#include "syncRaftEntry.h"
 #include "syncRaftStore.h"
 #include "syncReplication.h"
 #include "syncSnapshot.h"
 #include "syncUtil.h"
-#include "syncVoteMgr.h"
 
 // TLA+ Spec
 // HandleAppendEntriesResponse(i, j, m) ==
@@ -39,52 +39,58 @@
 //    /\ UNCHANGED <<serverVars, candidateVars, logVars, elections>>
 //
 
-// only start once
-static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, SyncTerm lastApplyTerm,
-                                      SyncAppendEntriesReply* pMsg) {
-  if (beginIndex > endIndex) {
-    do {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "snapshot param error, start:%" PRId64 ", end:%" PRId64, beginIndex, endIndex);
-      syncNodeErrorLog(ths, logBuf);
-    } while (0);
+int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  SyncAppendEntriesReply* pMsg = pRpcMsg->pCont;
+  int32_t ret = 0;
 
-    return;
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
+    syncLogRecvAppendEntriesReply(ths, pMsg, "not in my config");
+    return 0;
   }
 
-  // get sender
-  SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(pMsg->srcId));
-  ASSERT(pSender != NULL);
-
-  if (snapshotSenderIsStart(pSender)) {
-    do {
-      char* eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender already start");
-      syncNodeErrorLog(ths, eventLog);
-      taosMemoryFree(eventLog);
-    } while (0);
-
-    return;
+  // drop stale response
+  if (pMsg->term < ths->pRaftStore->currentTerm) {
+    syncLogRecvAppendEntriesReply(ths, pMsg, "drop stale response");
+    return 0;
   }
 
-  SSnapshot snapshot = {
-      .data = NULL, .lastApplyIndex = endIndex, .lastApplyTerm = lastApplyTerm, .lastConfigIndex = SYNC_INDEX_INVALID};
-  void*          pReader = NULL;
-  SSnapshotParam readerParam = {.start = beginIndex, .end = endIndex};
-  int32_t        code = ths->pFsm->FpSnapshotStartRead(ths->pFsm, &readerParam, &pReader);
-  ASSERT(code == 0);
-
-  if (pMsg->privateTerm < pSender->privateTerm) {
-    ASSERT(pReader != NULL);
-    snapshotSenderStart(pSender, readerParam, snapshot, pReader);
-
-  } else {
-    if (pReader != NULL) {
-      ths->pFsm->FpSnapshotStopRead(ths->pFsm, pReader);
+  if (ths->state == TAOS_SYNC_STATE_LEADER) {
+    if (pMsg->term > ths->pRaftStore->currentTerm) {
+      syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
+      syncNodeStepDown(ths, pMsg->term);
+      return -1;
     }
+
+    ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
+
+    sTrace("vgId:%d, received append entries reply. srcId:0x%016" PRIx64 ",  term:%" PRId64 ", matchIndex:%" PRId64 "",
+           pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);
+
+    if (pMsg->success) {
+      SyncIndex oldMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
+      if (pMsg->matchIndex > oldMatchIndex) {
+        syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
+      }
+
+      // commit if needed
+      SyncIndex indexLikely = TMIN(pMsg->matchIndex, ths->pLogBuf->matchIndex);
+      SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely);
+      (void)syncLogBufferCommit(ths->pLogBuf, ths, commitIndex);
+    }
+
+    // replicate log
+    SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(ths, &pMsg->srcId);
+    if (pMgr == NULL) {
+      sError("vgId:%d, failed to get log repl mgr for src addr: 0x%016" PRIx64, ths->vgId, pMsg->srcId.addr);
+      return -1;
+    }
+    (void)syncLogReplMgrProcessReply(pMgr, ths, pMsg);
   }
+  return 0;
 }
 
-int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
+int32_t syncNodeOnAppendEntriesReplyOld(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
   int32_t ret = 0;
 
   // if already drop replica, do not process
@@ -113,6 +119,9 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMs
       if (pMsg->matchIndex > oldMatchIndex) {
         syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
         syncMaybeAdvanceCommitIndex(ths);
+
+        // maybe update minMatchIndex
+        ths->minMatchIndex = syncMinMatchIndex(ths);
       }
       syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), pMsg->matchIndex + 1);
 
@@ -129,7 +138,11 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMs
     ASSERT(pState != NULL);
 
     if (pMsg->lastSendIndex == pState->lastSendIndex) {
-      syncNodeReplicateOne(ths, &(pMsg->srcId));
+      int64_t timeNow = taosGetTimestampMs();
+      int64_t elapsed = timeNow - pState->lastSendTime;
+      sNTrace(ths, "sync-append-entries rtt elapsed:%" PRId64 ", index:%" PRId64, elapsed, pState->lastSendIndex);
+
+      syncNodeReplicateOne(ths, &(pMsg->srcId), true);
     }
   }
 

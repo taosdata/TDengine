@@ -32,15 +32,18 @@ SWalRef *walOpenRef(SWal *pWal) {
   return pRef;
 }
 
-#if 0
 void walCloseRef(SWal *pWal, int64_t refId) {
   SWalRef **ppRef = taosHashGet(pWal->pRefHash, &refId, sizeof(int64_t));
   if (ppRef == NULL) return;
   SWalRef *pRef = *ppRef;
+  if (pRef) {
+    wDebug("vgId:%d, wal close ref %" PRId64 ", refId %" PRId64, pWal->cfg.vgId, pRef->refVer, pRef->refId);
+  } else {
+    wDebug("vgId:%d, wal close ref null, refId %" PRId64, pWal->cfg.vgId, refId);
+  }
   taosHashRemove(pWal->pRefHash, &refId, sizeof(int64_t));
   taosMemoryFree(pRef);
 }
-#endif
 
 int32_t walRefVer(SWalRef *pRef, int64_t ver) {
   SWal *pWal = pRef->pWal;
@@ -58,7 +61,7 @@ int32_t walRefVer(SWalRef *pRef, int64_t ver) {
     SWalFileInfo tmpInfo;
     tmpInfo.firstVer = ver;
     SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
-    ASSERT(pRet != NULL);
+    /*A(pRet != NULL);*/
     pRef->refFile = pRet->firstVer;
 
     taosThreadMutexUnlock(&pWal->mutex);
@@ -67,7 +70,7 @@ int32_t walRefVer(SWalRef *pRef, int64_t ver) {
   return 0;
 }
 
-#if 0
+#if 1
 void walUnrefVer(SWalRef *pRef) {
   pRef->refId = -1;
   pRef->refFile = -1;
@@ -77,6 +80,7 @@ void walUnrefVer(SWalRef *pRef) {
 SWalRef *walRefCommittedVer(SWal *pWal) {
   SWalRef *pRef = walOpenRef(pWal);
   if (pRef == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   taosThreadMutexLock(&pWal->mutex);
@@ -88,7 +92,7 @@ SWalRef *walRefCommittedVer(SWal *pWal) {
   SWalFileInfo tmpInfo;
   tmpInfo.firstVer = ver;
   SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
-  ASSERT(pRet != NULL);
+  /*A(pRet != NULL);*/
   pRef->refFile = pRet->firstVer;
 
   taosThreadMutexUnlock(&pWal->mutex);

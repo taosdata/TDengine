@@ -8,6 +8,9 @@ will automatically add the required columns to ensure that the data written by t
 
 The schemaless writing method creates super tables and their corresponding subtables. These are completely indistinguishable from the super tables and subtables created directly via SQL. You can write data directly to them via SQL statements. Note that the names of tables created by schemaless writing are based on fixed mapping rules for tag values, so they are not explicitly ideographic and they lack readability.
 
+Tips:
+The schemaless write will automatically create a table. You do not need to create a table manually, or an unknown error may occur.
+
 ## Schemaless Writing Line Protocol
 
 TDengine's schemaless writing line protocol supports InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. However, when using these three protocols, you need to specify in the API the standard of the parsing protocol to be used for the input content.

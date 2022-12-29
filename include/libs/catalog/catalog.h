@@ -44,6 +44,7 @@ typedef enum {
   AUTH_TYPE_READ = 1,
   AUTH_TYPE_WRITE,
   AUTH_TYPE_OTHER,
+  AUTH_TYPE_READ_OR_WRITE,
 } AUTH_TYPE;
 
 typedef struct SUserAuthInfo {
@@ -56,6 +57,7 @@ typedef struct SDbInfo {
   int32_t vgVer;
   int32_t tbNum;
   int64_t dbId;
+  int64_t stateTs;
 } SDbInfo;
 
 typedef struct STablesReq {
@@ -124,6 +126,7 @@ typedef struct SDbVgVersion {
   int64_t dbId;
   int32_t vgVersion;
   int32_t numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
+  int64_t stateTs;
 } SDbVgVersion;
 
 typedef struct STbSVersion {
@@ -152,7 +155,7 @@ int32_t catalogInit(SCatalogCfg* cfg);
  */
 int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle);
 
-int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId, int32_t* tableNum);
+int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId, int32_t* tableNum, int64_t* stateTs);
 
 /**
  * Get a DB's all vgroup info.
@@ -203,13 +206,13 @@ int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp* rspMsg);
 
 int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp* rspMsg);
 
-int32_t catalogGetCachedTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, STableMeta** pTableMeta);
+int32_t catalogGetCachedTableMeta(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta);
 
-int32_t catalogGetCachedSTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
-                            STableMeta** pTableMeta);
+int32_t catalogGetCachedSTableMeta(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta);
 
-int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
-                                  SVgroupInfo* pVgroup, bool* exists);
+int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, const SName* pTableName, SVgroupInfo* pVgroup, bool* exists);
+
+int32_t catalogGetCachedTableVgMeta(SCatalog* pCtg, const SName* pTableName,          SVgroupInfo* pVgroup, STableMeta** pTableMeta);
 
 /**
  * Force refresh DB's local cached vgroup info.
@@ -309,8 +312,8 @@ int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* f
 int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
                        bool* pass);
 
-int32_t catalogChkAuthFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
-                                       bool* pass, bool* exists);
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, const char* user, const char* dbFName, AUTH_TYPE type, bool* pass,
+                                bool* exists);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 
@@ -325,6 +328,10 @@ int32_t catalogClearCache(void);
 SMetaData* catalogCloneMetaData(SMetaData* pData);
 
 void catalogFreeMetaData(SMetaData* pData);
+
+int32_t ctgdEnableDebug(char* option, bool enable);
+
+int32_t ctgdHandleDbgCommand(char* command);
 
 /**
  * Destroy catalog and relase all resources

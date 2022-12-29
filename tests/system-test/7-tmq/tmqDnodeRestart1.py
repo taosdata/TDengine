@@ -149,6 +149,8 @@ class TDTestCase:
 
         tmqCom.waitSubscriptionExit(tdSql, topicFromStb)
         tdSql.query("drop topic %s"%topicFromStb)
+        
+        tmqCom.stopTmqSimProcess(processorName="tmq_sim")
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
@@ -178,6 +180,8 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
+        
+        tmqCom.initConsumerTable()
    
         tdLog.info("create topics from stb")
         topicFromDb = 'topic_db'
@@ -203,10 +207,10 @@ class TDTestCase:
         tmqCom.getStartCommitNotifyFromTmqsim('cdb',1)
 
         tdLog.info("create some new child table and insert data for latest mode")
-        paraDict["batchNum"] = 100
+        paraDict["batchNum"] = 10
         paraDict["ctbPrefix"] = 'newCtb'
-        paraDict["ctbNum"]     = 10
-        paraDict["rowsPerTbl"] = 10
+        paraDict["ctbNum"]     = 100
+        paraDict["rowsPerTbl"] = 100
         tmqCom.insert_data_with_autoCreateTbl(tdSql,paraDict["dbName"],paraDict["stbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
 
         tdLog.info("================= restart dnode ===========================")

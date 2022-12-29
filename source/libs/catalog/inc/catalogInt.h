@@ -33,6 +33,7 @@ extern "C" {
 #define CTG_DEFAULT_MAX_RETRY_TIMES      3
 #define CTG_DEFAULT_BATCH_NUM            64
 #define CTG_DEFAULT_FETCH_NUM            8
+#define CTG_MAX_COMMAND_LEN              512
 
 #define CTG_RENT_SLOT_SECOND 1.5
 
@@ -223,6 +224,7 @@ typedef struct SCtgUserAuth {
 
 typedef struct SCatalog {
   uint64_t     clusterId;
+  bool         stopUpdate;
   SHashObj*    userCache;  // key:user, value:SCtgUserAuth
   SHashObj*    dbCache;    // key:dbname, value:SCtgDBCache
   SCtgRentMgmt dbRent;
@@ -232,7 +234,6 @@ typedef struct SCatalog {
 typedef struct SCtgBatch {
   int32_t          batchId;
   int32_t          msgType;
-  int32_t          msgSize;
   SArray*          pMsgs;
   SRequestConnInfo conn;
   char             dbFName[TSDB_DB_FNAME_LEN];
@@ -484,6 +485,9 @@ typedef struct SCtgOperation {
   ctgOpFunc func;
 } SCtgOperation;
 
+#define CTG_AUTH_READ(_t) ((_t) == AUTH_TYPE_READ || (_t) == AUTH_TYPE_READ_OR_WRITE)
+#define CTG_AUTH_WRITE(_t) ((_t) == AUTH_TYPE_WRITE || (_t) == AUTH_TYPE_READ_OR_WRITE)
+
 #define CTG_QUEUE_INC() atomic_add_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
 #define CTG_QUEUE_DEC() atomic_sub_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
 
@@ -536,7 +540,8 @@ typedef struct SCtgOperation {
   (sizeof(STableMeta) + ((pMeta)->tableInfo.numOfTags + (pMeta)->tableInfo.numOfColumns) * sizeof(SSchema))
 
 #define CTG_TABLE_NOT_EXIST(code) (code == CTG_ERR_CODE_TABLE_NOT_EXIST)
-#define CTG_DB_NOT_EXIST(code)    (code == TSDB_CODE_MND_DB_NOT_EXIST)
+#define CTG_DB_NOT_EXIST(code) \
+  (code == TSDB_CODE_MND_DB_NOT_EXIST || code == TSDB_CODE_MND_DB_IN_CREATING || code == TSDB_CODE_MND_DB_IN_DROPPING)
 
 #define ctgFatal(param, ...) qFatal("CTG:%p " param, pCtg, __VA_ARGS__)
 #define ctgError(param, ...) qError("CTG:%p " param, pCtg, __VA_ARGS__)
@@ -544,6 +549,14 @@ typedef struct SCtgOperation {
 #define ctgInfo(param, ...)  qInfo("CTG:%p " param, pCtg, __VA_ARGS__)
 #define ctgDebug(param, ...) qDebug("CTG:%p " param, pCtg, __VA_ARGS__)
 #define ctgTrace(param, ...) qTrace("CTG:%p " param, pCtg, __VA_ARGS__)
+
+#define ctgTaskFatal(param, ...) qFatal("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskError(param, ...) qError("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskWarn(param, ...)  qWarn("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskInfo(param, ...)  qInfo("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskDebug(param, ...) qDebug("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskTrace(param, ...) qTrace("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+
 
 #define CTG_LOCK_DEBUG(...)     \
   do {                          \
@@ -671,7 +684,7 @@ void    ctgdShowClusterCache(SCatalog* pCtg);
 int32_t ctgdShowCacheInfo(void);
 
 int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq);
-int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
+int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetTbMetasFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetasCtx* ctx, int32_t dbIdx,
                                int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
 
@@ -760,7 +773,6 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
 int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList);
 void    ctgFreeJob(void* job);
 void    ctgFreeHandleImpl(SCatalog* pCtg);
-void    ctgFreeVgInfo(SDBVgInfo* vgInfo);
 int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, const SName* pTableName, SVgroupInfo* pVgroup);
 int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SCtgTaskReq* tReq, SDBVgInfo* dbInfo, SCtgTbHashsCtx* pCtx,
                                    char* dbFName, SArray* pNames, bool update);
@@ -786,6 +798,12 @@ void    ctgFreeTbCacheImpl(SCtgTbCache* pCache);
 int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName);
 int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* pVgroup, bool* exists);
 SName*  ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch);
+int32_t ctgdGetOneHandle(SCatalog **pHandle);
+int     ctgVgInfoComp(const void* lp, const void* rp);
+int32_t ctgMakeVgArray(SDBVgInfo* dbInfo);
+int32_t ctgAcquireVgMetaFromCache(SCatalog *pCtg, const char *dbFName, const char *tbName, SCtgDBCache **pDb, SCtgTbCache **pTb);
+int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCtgTbCache **pTb, STableMeta **pTableMeta, char* dbFName);
+void    ctgReleaseVgMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, SCtgTbCache *pCache);
 
 extern SCatalogMgmt gCtgMgmt;
 extern SCtgDebug    gCTGDebug;

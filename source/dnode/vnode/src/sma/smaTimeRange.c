@@ -111,35 +111,48 @@ _err:
  * @return int32_t
  */
 static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg) {
-  SSmaCfg *pCfg = (SSmaCfg *)pMsg;
+  int32_t        code = 0;
+  int32_t        lino = 0;
+  SSmaCfg       *pCfg = (SSmaCfg *)pMsg;
+  SName          stbFullName = {0};
+  SVCreateStbReq pReq = {0};
 
   if (TD_VID(pSma->pVnode) == pCfg->dstVgId) {
     // create tsma meta in dstVgId
     if (metaCreateTSma(SMA_META(pSma), version, pCfg) < 0) {
-      return -1;
+      code = terrno;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     // create stable to save tsma result in dstVgId
-    SName stbFullName = {0};
     tNameFromString(&stbFullName, pCfg->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-    SVCreateStbReq pReq = {0};
     pReq.name = (char *)tNameGetTableName(&stbFullName);
     pReq.suid = pCfg->dstTbUid;
     pReq.schemaRow = pCfg->schemaRow;
     pReq.schemaTag = pCfg->schemaTag;
 
     if (metaCreateSTable(SMA_META(pSma), version, &pReq) < 0) {
-      return -1;
+      code = terrno;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
+  } else {
+    code = terrno = TSDB_CODE_TSMA_INVALID_STAT;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
+_exit:
+  if (code) {
+    smaError("vgId:%d, failed at line %d to create sma index %s %" PRIi64 " on stb:%" PRIi64 ", dstSuid:%" PRIi64
+             " dstTb:%s dstVg:%d",
+             SMA_VID(pSma), lino, pCfg->indexName, pCfg->indexUid, pCfg->tableUid, pCfg->dstTbUid, pReq.name,
+             pCfg->dstVgId);
+  } else {
     smaDebug("vgId:%d, success to create sma index %s %" PRIi64 " on stb:%" PRIi64 ", dstSuid:%" PRIi64
              " dstTb:%s dstVg:%d",
              SMA_VID(pSma), pCfg->indexName, pCfg->indexUid, pCfg->tableUid, pCfg->dstTbUid, pReq.name, pCfg->dstVgId);
-  } else {
-    ASSERT(0);
   }
 
-  return 0;
+  return code;
 }
 
 /**
@@ -174,7 +187,7 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
   STSmaStat *pTsmaStat = NULL;
 
   if (!pEnv || !(pStat = SMA_ENV_STAT(pEnv))) {
-    terrno = TSDB_CODE_TSMA_INVALID_STAT;
+    terrno = TSDB_CODE_TSMA_INVALID_ENV;
     return TSDB_CODE_FAILED;
   }
 
@@ -197,31 +210,38 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
   }
 
   if (pTsmaStat->pTSma->indexUid != indexUid) {
-    terrno = TSDB_CODE_VND_APP_ERROR;
+    terrno = TSDB_CODE_APP_ERROR;
     smaError("vgId:%d, tsma insert for smaIndex %" PRIi64 "(!=%" PRIi64 ") failed since %s", SMA_VID(pSma), indexUid,
              pTsmaStat->pTSma->indexUid, tstrerror(terrno));
     goto _err;
   }
 
-  SBatchDeleteReq deleteReq;
-  SSubmitReq     *pSubmitReq =
-      tqBlockToSubmit(pSma->pVnode, (const SArray *)msg, pTsmaStat->pTSchema, &pTsmaStat->pTSma->schemaTag, true,
-                      pTsmaStat->pTSma->dstTbUid, pTsmaStat->pTSma->dstTbName, &deleteReq);
+  SBatchDeleteReq deleteReq = {0};
+  void           *pSubmitReq = NULL;
+  int32_t         contLen = 0;
 
-  if (!pSubmitReq) {
-    smaError("vgId:%d, failed to gen submit blk while tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),
+  if (tqBlockToSubmit(pSma->pVnode, (const SArray *)msg, pTsmaStat->pTSchema, &pTsmaStat->pTSma->schemaTag, true,
+                      pTsmaStat->pTSma->dstTbUid, pTsmaStat->pTSma->dstTbName, &deleteReq, &pSubmitReq, &contLen) < 0) {
+    smaError("vgId:%d, failed to gen submit msg while tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),
              indexUid, tstrerror(terrno));
     goto _err;
   }
 
+  // TODO deleteReq
+  taosArrayDestroy(deleteReq.deleteReqs);
 #if 0
-   ASSERT(!strncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14));
+  if (!strncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14)) {
+    terrno = TSDB_CODE_APP_ERROR;
+    smaError("vgId:%d, tsma insert for smaIndex %" PRIi64 " failed since %s, %s", SMA_VID(pSma), indexUid,
+             pTsmaStat->pTSma->indexUid, tstrerror(terrno), pTsmaStat->pTSma->dstTbName);
+    goto _err;
+  }
 #endif
 
   SRpcMsg submitReqMsg = {
       .msgType = TDMT_VND_SUBMIT,
       .pCont = pSubmitReq,
-      .contLen = ntohl(pSubmitReq->length),
+      .contLen = ntohl(contLen),
   };
 
   if (tmsgPutToQueue(&pSma->pVnode->msgCb, WRITE_QUEUE, &submitReqMsg) < 0) {
