@@ -36,7 +36,6 @@ extern "C" {
 #define SERIALIZE_VAR_TO_BUF(buf, var, type)    \
   do {                                          \
     type c = var;                               \
-    assert(sizeof(type) == sizeof(c));          \
     memcpy((void *)buf, (void *)&c, sizeof(c)); \
     buf += sizeof(c);                           \
   } while (0)

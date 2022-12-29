@@ -267,7 +267,10 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn,
           pConn->refId);
-  assert(transMsg.info.handle != NULL);
+  ASSERTS(transMsg.info.handle != NULL, "trans-svr failed to alloc handle to msg");
+  if (transMsg.info.handle == NULL) {
+    return false;
+  }
 
   if (pHead->noResp == 1) {
     transMsg.info.refId = -1;
@@ -718,8 +721,8 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
   // free memory allocated by
-  assert(nread == strlen(notify));
-  assert(buf->base[0] == notify[0]);
+  ASSERTS(nread == strlen(notify), "trans-svr mem corrupted");
+  ASSERTS(buf->base[0] == notify[0], "trans-svr mem corrupted");
   taosMemoryFree(buf->base);
 
   SWorkThrd* pThrd = q->data;
@@ -731,7 +734,6 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   }
 
   uv_handle_type pending = uv_pipe_pending_type(pipe);
-  assert(pending == UV_TCP);
 
   SSvrConn* pConn = createConn(pThrd);
 
@@ -971,19 +973,24 @@ static void uvPipeListenCb(uv_stream_t* handle, int status) {
   uv_pipe_t*  pipe = &(srv->pipe[srv->numOfWorkerReady][0]);
 
   int ret = uv_pipe_init(srv->loop, pipe, 1);
-  assert(ret == 0);
+  ASSERTS(ret == 0, "trans-svr failed to init pipe");
+  if (ret != 0) return;
 
   ret = uv_accept((uv_stream_t*)&srv->pipeListen, (uv_stream_t*)pipe);
-  assert(ret == 0);
+  ASSERTS(ret == 0, "trans-svr failed to accept pipe msg");
+  if (ret != 0) return;
 
   ret = uv_is_readable((uv_stream_t*)pipe);
-  assert(ret == 1);
+  ASSERTS(ret == 1, "trans-svr pipe status corrupted");
+  if (ret != 1) return;
 
   ret = uv_is_writable((uv_stream_t*)pipe);
-  assert(ret == 1);
+  ASSERTS(ret == 1, "trans-svr pipe status corrupted");
+  if (ret != 0) return;
 
   ret = uv_is_closing((uv_handle_t*)pipe);
-  assert(ret == 0);
+  ASSERTS(ret == 0, "trans-svr pipe status corrupted");
+  if (ret != 0) return;
 
   srv->numOfWorkerReady++;
 }
@@ -1272,7 +1279,6 @@ int transSendResponse(const STransMsg* msg) {
   SExHandle* exh = msg->info.handle;
   int64_t    refId = msg->info.refId;
   ASYNC_CHECK_HANDLE(exh, refId);
-  assert(refId != 0);
 
   STransMsg tmsg = *msg;
   tmsg.info.refId = refId;
