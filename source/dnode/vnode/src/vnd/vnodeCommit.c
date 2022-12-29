@@ -61,7 +61,7 @@ int vnodeBegin(SVnode *pVnode) {
 void vnodeUpdCommitSched(SVnode *pVnode) {
   int64_t randNum = taosRand();
   pVnode->commitSched.commitMs = taosGetMonoTimestampMs();
-  pVnode->commitSched.maxWaitMs = SYNC_VND_COMMIT_MAX_MS + (randNum % SYNC_VND_COMMIT_MAX_MS);
+  pVnode->commitSched.maxWaitMs = tsVndCommitMaxIntervalMs + (randNum % tsVndCommitMaxIntervalMs);
 }
 
 int vnodeShouldCommit(SVnode *pVnode) {
