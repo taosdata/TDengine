@@ -840,6 +840,10 @@ void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuple
       }
       pStart += pDstCol->info.bytes;
     }
+
+    if (pCtx->saveHandle.pState) {
+      tdbFree((void*)p);
+    }
   }
 }
 
