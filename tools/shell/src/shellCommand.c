@@ -75,7 +75,7 @@ void shellGetPrevCharSize(const char *str, int32_t pos, int32_t *size, int32_t *
   }
 
   taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
-  // assert(rc == *size); // it will be core, if str is encode by utf8 and taos charset is gbk
+  // assert(rc == *size); // it will be core, if str is encode by utf8 and charset is gbk
 
   *width = taosWcharWidth(wc);
 }

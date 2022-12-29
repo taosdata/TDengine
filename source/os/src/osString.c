@@ -217,7 +217,7 @@ void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type) {
 
 bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
-  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile TDengine.\n");
+  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
   return -1;
 #else
   memset(ucs4, 0, ucs4_max_len);
@@ -245,7 +245,7 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
 
 int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
-  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile TDengine.\n");
+  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
   return -1;
 #else
 
@@ -263,7 +263,7 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
 }
 bool taosValidateEncodec(const char *encodec) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
-  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile TDengine.\n");
+  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
   return true;
 #else
   iconv_t cd = iconv_open(encodec, DEFAULT_UNICODE_ENCODEC);

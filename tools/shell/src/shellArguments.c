@@ -22,7 +22,7 @@
 #define TAOS_CONSOLE_PROMPT_HEADER "taos> "
 #define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
 
-#define SHELL_HOST     "TDengine server FQDN to connect. The default host is localhost."
+#define SHELL_HOST     "The server FQDN to connect. The default host is localhost."
 #define SHELL_PORT     "The TCP/IP port number to use for the connection."
 #define SHELL_USER     "The user name to use when connecting to the server."
 #define SHELL_PASSWORD "The password to use when connecting to the server."
