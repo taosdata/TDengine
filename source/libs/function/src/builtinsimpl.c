@@ -818,28 +818,27 @@ void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuple
     return;
   }
 
-  if (pCtx->saveHandle.pBuf != NULL) {
-    if (pTuplePos->pageId != -1) {
-      int32_t     numOfCols = pCtx->subsidiaries.num;
-      const char* p = loadTupleData(pCtx, pTuplePos);
+  if ((pCtx->saveHandle.pBuf != NULL && pTuplePos->pageId != -1) ||
+      (pCtx->saveHandle.pState && pTuplePos->streamTupleKey.ts > 0)) {
+    int32_t     numOfCols = pCtx->subsidiaries.num;
+    const char* p = loadTupleData(pCtx, pTuplePos);
 
-      bool* nullList = (bool*)p;
-      char* pStart = (char*)(nullList + numOfCols * sizeof(bool));
+    bool* nullList = (bool*)p;
+    char* pStart = (char*)(nullList + numOfCols * sizeof(bool));
 
-      // todo set the offset value to optimize the performance.
-      for (int32_t j = 0; j < numOfCols; ++j) {
-        SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
-        int32_t         dstSlotId = pc->pExpr->base.resSchema.slotId;
+    // todo set the offset value to optimize the performance.
+    for (int32_t j = 0; j < numOfCols; ++j) {
+      SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
+      int32_t         dstSlotId = pc->pExpr->base.resSchema.slotId;
 
-        SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
-        ASSERT(pc->pExpr->base.resSchema.bytes == pDstCol->info.bytes);
-        if (nullList[j]) {
-          colDataAppendNULL(pDstCol, rowIndex);
-        } else {
-          colDataAppend(pDstCol, rowIndex, pStart, false);
-        }
-        pStart += pDstCol->info.bytes;
+      SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
+      ASSERT(pc->pExpr->base.resSchema.bytes == pDstCol->info.bytes);
+      if (nullList[j]) {
+        colDataAppendNULL(pDstCol, rowIndex);
+      } else {
+        colDataAppend(pDstCol, rowIndex, pStart, false);
       }
+      pStart += pDstCol->info.bytes;
     }
   }
 }
@@ -2071,8 +2070,8 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
 
   int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
 
-  //  please ref. to the comment in lastRowFunction for the reason why disabling the opt version of last/first function.
-  //  we will use this opt implementation in an new version that is only available in scan subplan
+  //  please ref. to the comment in lastRowFunction for the reason why disabling the opt version of last/first
+  //  function. we will use this opt implementation in an new version that is only available in scan subplan
 #if 0
   if (blockDataOrder == TSDB_ORDER_ASC) {
     // filter according to current result firstly
@@ -2179,7 +2178,8 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
   int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
 
-  //  please ref. to the comment in lastRowFunction for the reason why disabling the opt version of last/first function.
+  //  please ref. to the comment in lastRowFunction for the reason why disabling the opt version of last/first
+  //  function.
 #if 0
   if (blockDataOrder == TSDB_ORDER_ASC) {
     for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
