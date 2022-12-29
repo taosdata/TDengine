@@ -16,6 +16,7 @@
 #define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include <stdlib.h>
 
 #ifdef WINDOWS
 void swapStr(char* j, char* J, int width) {
@@ -33,16 +34,5 @@ void swapStr(char* j, char* J, int width) {
 
 // todo refactor: 1) move away; 2) use merge sort instead; 3) qsort is not a stable sort actually.
 void taosSort(void* arr, int64_t sz, int64_t width, __compar_fn_t compar) {
-#ifdef WINDOWS
-  int64_t i, j;
-  for (i = 0; i < sz - 1; i++) {
-    for (j = 0; j < sz - 1 - i; j++) {
-      if (compar((char*)arr + j * width, (char*)arr + (j + 1) * width) > 0.00) {
-        swapStr((char*)arr + j * width, (char*)arr + (j + 1) * width, width);
-      }
-    }
-  }
-#else
   qsort(arr, sz, width, compar);
-#endif
 }
