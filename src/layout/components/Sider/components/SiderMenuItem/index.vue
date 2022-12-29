@@ -29,8 +29,9 @@
     },
     methods: {
       isDisabled(path) {
-        if (!this.$store.getters.hasCluster) return false;
-        return BaseRoute.includes(path) || this.$store.getters.operate;
+        // if (!this.$store.getters.hasCluster) return false;
+        // return BaseRoute.includes(path) || this.$store.getters.operate;
+        return true
       },
       menuRight(path) {
         OpenNewTab(path);

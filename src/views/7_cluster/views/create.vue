@@ -115,6 +115,7 @@
         this.$refs.form.validate(valid => {
           if (valid) {
             this.requestIng = true;
+            debugger
             createCluster(this.info)
               .then(async res => {
                 await this.$store.dispatch("app/getClusterList", false);

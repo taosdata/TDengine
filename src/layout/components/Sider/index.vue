@@ -31,7 +31,7 @@
             path: "/dashboard",
             title: this.$t("route.board"),
             icon: "dashboard",
-            role: ["1"],
+            // role: ["1"],
           },
           {
             path: "/dataIn",

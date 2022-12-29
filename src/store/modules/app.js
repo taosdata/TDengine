@@ -83,6 +83,7 @@ const mutations = {
   },
   SET_CURRENT_CLUSTER(state, current_cluster) {
     const isFirstCreate = window.location.pathname == "/createFirstInstance";
+    debugger
     if (current_cluster?.id) {
       /**
        * 获取当前集群的url进行比较和切换
@@ -116,7 +117,7 @@ const mutations = {
     refreshCount = 0;
   },
   LOGIN() {
-    window.location.href = process.env.VUE_APP_LOGIN_URL;
+    // window.location.href = process.env.VUE_APP_LOGIN_URL;
   },
 };
 

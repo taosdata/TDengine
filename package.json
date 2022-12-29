@@ -76,7 +76,9 @@
       "parser": "babel-eslint"
     },
     "rules": {
-      "no-debugger": "off"
+      "no-debugger": "off",
+      "no-unused-vars":"off",
+      "vue/no-unused-components":"off"
     },
     "ignorePatterns": [
       "/WebSocket/**"

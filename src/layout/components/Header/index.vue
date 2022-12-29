@@ -1,25 +1,26 @@
 <template>
   <div class="header">
     <div class="headerLeft">
-      <ClusterSelector></ClusterSelector>
+      <!-- <ClusterSelector></ClusterSelector> -->
     </div>
     <div class="headerRight">
       <!-- <QRcode></QRcode> -->
       <!-- <Github></Github> -->
       <!-- <International></International> -->
 
-      <el-tooltip class="item" effect="light" :content="$t('route.alerts')" placement="top-start" v-if="hasAlert">
+      <!-- <el-tooltip class="item" effect="light" :content="$t('route.alerts')" placement="top-start" v-if="hasAlert">
         <router-link class="header-item" to="/alert" :class="{ alert: alerts }">
           <Icon name="alert" class="avatar_svg"></Icon>
         </router-link>
       </el-tooltip>
-      <Help></Help>
+      <Help></Help> -->
       <Avatar></Avatar>
     </div>
   </div>
 </template>
 
 <script>
+
   import { Avatar, ClusterSelector, Help } from "./components";
   export default {
     components: { Avatar, ClusterSelector, Help },

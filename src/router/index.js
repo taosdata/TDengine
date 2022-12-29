@@ -282,10 +282,11 @@ router.onReady(() => {
 });
 // 添加主账户路由
 export function addRoutes(role) {
-  if (role != "1") return;
+  // if (role != "1") return;
   adminRoute.forEach(item => {
     router.addRoute("layout", item);
   });
 }
 console.log(router,'----')
+addRoutes()
 export default router;
