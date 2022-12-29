@@ -519,32 +519,54 @@ static int32_t tsdbCompactNextRow(STsdbCompactor *pCompactor) {
     if (pCompactor->pIter) {
       SRowInfo *pRowInfo = &pCompactor->pIter->rowInfo;
 
-      // Table exists
-      if (pRowInfo->uid == pCompactor->tbSkm.uid) {
-        if (pCompactor->aTSDBKEY) {
-          // TODO: check if the row is deleted. if deleted, continue, else break
-          ASSERT(0);
-        } else {
-          break;
-        }
-      }
+      if (pRowInfo->uid != pCompactor->tbSkm.uid) {
+        SMetaInfo info;
+        if (pRowInfo->suid) {  // child table
 
-      SMetaInfo info;
-      if (pRowInfo->suid) {  // child table
+          // check if super table exists
+          if (pRowInfo->suid != pCompactor->tbSkm.suid) {
+            if (metaGetInfo(pCompactor->pTsdb->pVnode->pMeta, pRowInfo->uid, &info, NULL) != TSDB_CODE_SUCCESS) {
+              excludeTableId.suid = pRowInfo->suid;
+              excludeTableId.uid = 0;
+              pExcludeTableId = &excludeTableId;
+              continue;
+            }
 
-        // check if super table exists
-        if (pRowInfo->suid != pCompactor->tbSkm.suid) {
+            // super table exists
+            pCompactor->tbSkm.suid = pRowInfo->suid;
+            pCompactor->tbSkm.uid = 0;
+            tDestroyTSchema(pCompactor->tbSkm.pTSchema);
+            pCompactor->tbSkm.pTSchema = metaGetTbTSchema(pCompactor->pTsdb->pVnode->pMeta, pRowInfo->suid, -1, 1);
+            if (pCompactor->tbSkm.pTSchema == NULL) {
+              code = TSDB_CODE_OUT_OF_MEMORY;
+              TSDB_CHECK_CODE(code, lino, _exit);
+            }
+          }
+
+          // check if table exists
           if (metaGetInfo(pCompactor->pTsdb->pVnode->pMeta, pRowInfo->uid, &info, NULL) != TSDB_CODE_SUCCESS) {
             excludeTableId.suid = pRowInfo->suid;
-            excludeTableId.uid = 0;
+            excludeTableId.uid = pRowInfo->uid;
             pExcludeTableId = &excludeTableId;
             continue;
           }
 
-          // super table exists
+          // table exists
+          pCompactor->tbSkm.uid = pRowInfo->uid;
+        } else {  // normal table
+          // check if table exists
+          if (metaGetInfo(pCompactor->pTsdb->pVnode->pMeta, pRowInfo->uid, &info, NULL) != TSDB_CODE_SUCCESS) {
+            excludeTableId.suid = pRowInfo->suid;
+            excludeTableId.uid = pRowInfo->uid;
+            pExcludeTableId = &excludeTableId;
+            continue;
+          }
+
+          // table exists
           pCompactor->tbSkm.suid = pRowInfo->suid;
-          pCompactor->tbSkm.uid = 0;
+          pCompactor->tbSkm.uid = pRowInfo->uid;
           tDestroyTSchema(pCompactor->tbSkm.pTSchema);
+
           pCompactor->tbSkm.pTSchema = metaGetTbTSchema(pCompactor->pTsdb->pVnode->pMeta, pRowInfo->suid, -1, 1);
           if (pCompactor->tbSkm.pTSchema == NULL) {
             code = TSDB_CODE_OUT_OF_MEMORY;
@@ -552,57 +574,33 @@ static int32_t tsdbCompactNextRow(STsdbCompactor *pCompactor) {
           }
         }
 
-        // check if table exists
-        if (metaGetInfo(pCompactor->pTsdb->pVnode->pMeta, pRowInfo->uid, &info, NULL) != TSDB_CODE_SUCCESS) {
-          excludeTableId.suid = pRowInfo->suid;
-          excludeTableId.uid = pRowInfo->uid;
-          pExcludeTableId = &excludeTableId;
-          continue;
-        }
+        // load delData and build the skyline
+        if (pCompactor->pDelFReader) {
+          SDelIdx *pDelIdx =
+              taosArraySearch(pCompactor->aDelIdx, &(SDelIdx){.suid = pRowInfo->suid, .uid = pRowInfo->uid},
+                              (__compar_fn_t)tDelIdxCmprFn, TD_EQ);
+          if (pDelIdx) {
+            code = tsdbReadDelData(pCompactor->pDelFReader, pDelIdx, pCompactor->aDelData);
+            TSDB_CHECK_CODE(code, lino, _exit);
 
-        // table exists
-        pCompactor->tbSkm.uid = pRowInfo->uid;
-      } else {  // normal table
-        // check if table exists
-        if (metaGetInfo(pCompactor->pTsdb->pVnode->pMeta, pRowInfo->uid, &info, NULL) != TSDB_CODE_SUCCESS) {
-          excludeTableId.suid = pRowInfo->suid;
-          excludeTableId.uid = pRowInfo->uid;
-          pExcludeTableId = &excludeTableId;
-          continue;
-        }
+            code = tsdbBuildDeleteSkyline(pCompactor->aDelData, 0, taosArrayGetSize(pCompactor->aDelData) - 1,
+                                          pCompactor->aSkyLine);
+            TSDB_CHECK_CODE(code, lino, _exit);
 
-        // table exists
-        pCompactor->tbSkm.suid = pRowInfo->suid;
-        pCompactor->tbSkm.uid = pRowInfo->uid;
-        tDestroyTSchema(pCompactor->tbSkm.pTSchema);
-
-        pCompactor->tbSkm.pTSchema = metaGetTbTSchema(pCompactor->pTsdb->pVnode->pMeta, pRowInfo->suid, -1, 1);
-        if (pCompactor->tbSkm.pTSchema == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          TSDB_CHECK_CODE(code, lino, _exit);
+            pCompactor->aTSDBKEY = (TSDBKEY *)TARRAY_DATA(pCompactor->aSkyLine);
+          } else {
+            pCompactor->aTSDBKEY = NULL;
+          }
         }
       }
 
-      // load delData and build the skyline
-      if (pCompactor->pDelFReader) {
-        SDelIdx *pDelIdx =
-            taosArraySearch(pCompactor->aDelIdx, &(SDelIdx){.suid = pRowInfo->suid, .uid = pRowInfo->uid},
-                            (__compar_fn_t)tDelIdxCmprFn, TD_EQ);
-        if (pDelIdx) {
-          code = tsdbReadDelData(pCompactor->pDelFReader, pDelIdx, pCompactor->aDelData);
-          TSDB_CHECK_CODE(code, lino, _exit);
+      ASSERT(pRowInfo->uid == pCompactor->tbSkm.uid);
 
-          code = tsdbBuildDeleteSkyline(pCompactor->aDelData, 0, taosArrayGetSize(pCompactor->aDelData) - 1,
-                                        pCompactor->aSkyLine);
-          TSDB_CHECK_CODE(code, lino, _exit);
-
-          pCompactor->aTSDBKEY = (TSDBKEY *)TARRAY_DATA(pCompactor->aDelData);
-        } else {
-          pCompactor->aTSDBKEY = NULL;
-        }
+      if (pCompactor->aTSDBKEY && 0 /* TODO: the row is deleted */) {
+        continue;
+      } else {
+        break;
       }
-
-      break;
     } else {
       // iter end, just break out
       break;
