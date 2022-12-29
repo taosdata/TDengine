@@ -24,7 +24,7 @@ SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pNode) {
     return NULL;
   }
 
-  pIndexMgr->replicas = &(pNode->replicasId);
+  pIndexMgr->replicas = &pNode->replicasId;
   pIndexMgr->replicaNum = pNode->replicaNum;
   pIndexMgr->pNode = pNode;
   syncIndexMgrClear(pIndexMgr);
@@ -33,7 +33,7 @@ SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pNode) {
 }
 
 void syncIndexMgrUpdate(SSyncIndexMgr *pIndexMgr, SSyncNode *pNode) {
-  pIndexMgr->replicas = &(pNode->replicasId);
+  pIndexMgr->replicas = &pNode->replicasId;
   pIndexMgr->replicaNum = pNode->replicaNum;
   pIndexMgr->pNode = pNode;
   syncIndexMgrClear(pIndexMgr);
@@ -49,18 +49,11 @@ void syncIndexMgrClear(SSyncIndexMgr *pIndexMgr) {
   memset(pIndexMgr->index, 0, sizeof(pIndexMgr->index));
   memset(pIndexMgr->privateTerm, 0, sizeof(pIndexMgr->privateTerm));
 
-  // int64_t timeNow = taosGetMonotonicMs();
   int64_t timeNow = taosGetTimestampMs();
   for (int i = 0; i < pIndexMgr->replicaNum; ++i) {
     pIndexMgr->startTimeArr[i] = 0;
     pIndexMgr->recvTimeArr[i] = timeNow;
   }
-
-  /*
-  for (int i = 0; i < pIndexMgr->replicaNum; ++i) {
-    pIndexMgr->index[i] = 0;
-  }
-  */
 }
 
 void syncIndexMgrSetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncIndex index) {
@@ -71,29 +64,27 @@ void syncIndexMgrSetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, Sync
     }
   }
 
-  // maybe config change
-  // ASSERT(0);
+  char     host[128];
+  uint16_t port;
+  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
+  sError("vgId:%d, indexmgr set index:%" PRId64 " for %s:%d failed", pIndexMgr->pNode->vgId, index, host, port);
+}
+
+SSyncLogReplMgr *syncNodeGetLogReplMgr(SSyncNode *pNode, SRaftId *pRaftId) {
+  for (int i = 0; i < pNode->replicaNum; i++) {
+    if (syncUtilSameId(&pNode->replicasId[i], pRaftId)) {
+      return pNode->logReplMgrs[i];
+    }
+  }
 
   char     host[128];
   uint16_t port;
   syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, index mgr set for %s:%d, index:%" PRId64 " error", pIndexMgr->pNode->vgId, host, port, index);
-}
-
-SSyncLogReplMgr *syncNodeGetLogReplMgr(SSyncNode *pNode, SRaftId *pDestId) {
-  for (int i = 0; i < pNode->replicaNum; i++) {
-    if (syncUtilSameId(&(pNode->replicasId[i]), pDestId)) {
-      return pNode->logReplMgrs[i];
-    }
-  }
+  sError("vgId:%d, indexmgr get replmgr from %s:%d failed", pNode->vgId, host, port);
   return NULL;
 }
 
 SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
-  if (pIndexMgr == NULL) {
-    return SYNC_INDEX_INVALID;
-  }
-
   for (int i = 0; i < pIndexMgr->replicaNum; ++i) {
     if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
       SyncIndex idx = (pIndexMgr->index)[i];
@@ -101,6 +92,10 @@ SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId)
     }
   }
 
+  char     host[128];
+  uint16_t port;
+  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
+  sError("vgId:%d, indexmgr get index from %s:%d failed", pIndexMgr->pNode->vgId, host, port);
   return SYNC_INDEX_INVALID;
 }
 
@@ -112,13 +107,11 @@ void syncIndexMgrSetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, 
     }
   }
 
-  // maybe config change
-  // ASSERT(0);
   char     host[128];
   uint16_t port;
   syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, index mgr set for %s:%d, start-time:%" PRId64 " error", pIndexMgr->pNode->vgId, host, port,
-         startTime);
+  sError("vgId:%d, indexmgr set start-time:%" PRId64 " for %s:%d failed", pIndexMgr->pNode->vgId, startTime, host,
+         port);
 }
 
 int64_t syncIndexMgrGetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
@@ -128,7 +121,11 @@ int64_t syncIndexMgrGetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftI
       return startTime;
     }
   }
-  ASSERT(0);
+
+  char     host[128];
+  uint16_t port;
+  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
+  sError("vgId:%d, indexmgr get start-time from %s:%d failed", pIndexMgr->pNode->vgId, host, port);
   return -1;
 }
 
@@ -140,12 +137,10 @@ void syncIndexMgrSetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, i
     }
   }
 
-  // maybe config change
-  // ASSERT(0);
   char     host[128];
   uint16_t port;
   syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, index mgr set for %s:%d, recv-time:%" PRId64 " error", pIndexMgr->pNode->vgId, host, port, recvTime);
+  sError("vgId:%d, indexmgr set recv-time:%" PRId64 " for %s:%d failed", pIndexMgr->pNode->vgId, recvTime, host, port);
 }
 
 int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
@@ -156,6 +151,10 @@ int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId
     }
   }
 
+  char     host[128];
+  uint16_t port;
+  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
+  sError("vgId:%d, indexmgr get recv-time from %s:%d failed", pIndexMgr->pNode->vgId, host, port);
   return -1;
 }
 
@@ -167,12 +166,10 @@ void syncIndexMgrSetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncT
     }
   }
 
-  // maybe config change
-  // ASSERT(0);
   char     host[128];
   uint16_t port;
   syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, index mgr set for %s:%d, term:%" PRIu64 " error", pIndexMgr->pNode->vgId, host, port, term);
+  sError("vgId:%d, indexmgr set term:%" PRId64 " for %s:%d failed", pIndexMgr->pNode->vgId, term, host, port);
 }
 
 SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
@@ -182,6 +179,10 @@ SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
       return term;
     }
   }
-  ASSERT(0);
+
+  char     host[128];
+  uint16_t port;
+  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
+  sError("vgId:%d, indexmgr get term from %s:%d failed", pIndexMgr->pNode->vgId, host, port);
   return -1;
 }
