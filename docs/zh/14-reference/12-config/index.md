@@ -709,7 +709,7 @@ charset 的有效值是 UTF-8。
 | 42  |   numOfCommitThreads    | 是              | 是              |                                                   |
 | 43  |  numOfMnodeReadThreads  | 否              | 是              |                                                   |
 | 44  | numOfVnodeQueryThreads  | 否              | 是              |                                                   |
-| 45  | numOfVnodeStreamThreads | 否              | 是              |                                                   |
+| 45  | ratioOfVnodeStreamThreads | 否            | 是              |                                                   |
 | 46  | numOfVnodeFetchThreads  | 否              | 是              |                                                   |
 | 47  |  numOfVnodeRsmaThreads  | 否              | 是              |                                                   |
 | 48  | numOfQnodeQueryThreads  | 否              | 是              |                                                   |

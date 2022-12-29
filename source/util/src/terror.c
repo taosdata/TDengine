@@ -643,13 +643,10 @@ const char* tstrerror(int32_t err) {
   // this is a system errno
   if ((err & 0x00ff0000) == 0x00ff0000) {
     int32_t code = err & 0x0000ffff;
-    if (code >= 0 && code < 36) {
-      return strerror(code);
-    } else {
-      return "unknown err";
-    }
+    // strerror can handle any invalid code
+    // invalid code return Unknown error 
+    return strerror(code);
   }
-
   int32_t s = 0;
   int32_t e = sizeof(errors) / sizeof(errors[0]);
 
