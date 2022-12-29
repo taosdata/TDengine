@@ -1001,6 +1001,13 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   uv_loop_init(srv->loop);
 
   char pipeName[PATH_MAX];
+
+  if (false == taosValidIpAndPort(srv->ip, srv->port)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    tError("invalid ip/port, %d:%d, reason:%s", srv->ip, srv->port, terrstr());
+    goto End;
+  }
+
 #if defined(WINDOWS) || defined(DARWIN)
   int ret = uv_pipe_init(srv->loop, &srv->pipeListen, 0);
   if (ret != 0) {
@@ -1086,12 +1093,6 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     }
   }
 #endif
-
-  if (false == taosValidIpAndPort(srv->ip, srv->port)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    tError("invalid ip/port, %d:%d, reason:%s", srv->ip, srv->port, terrstr());
-    goto End;
-  }
 
   if (false == addHandleToAcceptloop(srv)) {
     goto End;
@@ -1185,8 +1186,8 @@ void transCloseServer(void* arg) {
   // impl later
   SServerObj* srv = arg;
 
-  tDebug("send quit msg to accept thread");
   if (srv->inited) {
+    tDebug("send quit msg to accept thread");
     uv_async_send(srv->pAcceptAsync);
     taosThreadJoin(srv->thread, NULL);
     SRV_RELEASE_UV(srv->loop);

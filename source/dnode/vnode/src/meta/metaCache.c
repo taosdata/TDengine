@@ -57,7 +57,6 @@ struct SMetaCache {
     TdThreadMutex lock;
     SHashObj*  pTableEntry;
     SLRUCache* pUidResCache;
-    uint64_t   keyBuf[3];
   } sTagFilterResCache;
 };
 
@@ -429,20 +428,20 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
                                   bool* acquireRes) {
   // generate the composed key for LRU cache
   SLRUCache*     pCache = pMeta->pCache->sTagFilterResCache.pUidResCache;
-  uint64_t*      pBuf = pMeta->pCache->sTagFilterResCache.keyBuf;
   SHashObj*      pTableMap = pMeta->pCache->sTagFilterResCache.pTableEntry;
   TdThreadMutex* pLock = &pMeta->pCache->sTagFilterResCache.lock;
 
+  uint64_t buf[3] = {0};
   uint32_t times = 0;
 
   *acquireRes = 0;
-  pBuf[0] = suid;
-  memcpy(&pBuf[1], pKey, keyLen);
+  buf[0] = suid;
+  memcpy(&buf[1], pKey, keyLen);
 
   taosThreadMutexLock(pLock);
 
   int32_t    len = keyLen + sizeof(uint64_t);
-  LRUHandle* pHandle = taosLRUCacheLookup(pCache, pBuf, len);
+  LRUHandle* pHandle = taosLRUCacheLookup(pCache, buf, len);
   if (pHandle == NULL) {
     taosThreadMutexUnlock(pLock);
     return TSDB_CODE_SUCCESS;
@@ -476,10 +475,10 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
 
     SListNode* pNode = NULL;
     while ((pNode = tdListNext(&iter)) != NULL) {
-      memcpy(&pBuf[1], pNode->data, keyLen);
+      memcpy(&buf[1], pNode->data, keyLen);
 
       // check whether it is existed in LRU cache, and remove it from linked list if not.
-      LRUHandle* pRes = taosLRUCacheLookup(pCache, pBuf, len);
+      LRUHandle* pRes = taosLRUCacheLookup(pCache, buf, len);
       if (pRes == NULL) {  // remove the item in the linked list
         taosArrayPush(pInvalidRes, &pNode);
       } else {
@@ -547,14 +546,14 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
     tdListAppend(&(*pEntry)->list, pKey);
   }
 
-  uint64_t* pBuf = pMeta->pCache->sTagFilterResCache.keyBuf;
-  pBuf[0] = suid;
+  uint64_t buf[3] = {0};
+  buf[0] = suid;
 
-  memcpy(&pBuf[1], pKey, keyLen);
+  memcpy(&buf[1], pKey, keyLen);
   ASSERT(sizeof(uint64_t) + keyLen == 24);
 
   // add to cache.
-  taosLRUCacheInsert(pCache, pBuf, sizeof(uint64_t) + keyLen, pPayload, payloadLen, freePayload, NULL,
+  taosLRUCacheInsert(pCache, buf, sizeof(uint64_t) + keyLen, pPayload, payloadLen, freePayload, NULL,
                      TAOS_LRU_PRIORITY_LOW);
 
   taosThreadMutexUnlock(pLock);

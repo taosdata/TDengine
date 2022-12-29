@@ -942,7 +942,6 @@ int32_t qStreamRestoreParam(qTaskInfo_t tinfo) {
   }
   return 0;
 }
-
 bool qStreamRecoverScanFinished(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   return pTaskInfo->streamInfo.recoverScanFinished;
