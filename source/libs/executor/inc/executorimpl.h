@@ -693,7 +693,7 @@ void    cleanupExprSupp(SExprSupp* pSup);
 void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);
 
 int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
-                   const char* pkey);
+                   const char* pkey, void* pState);
 void    cleanupAggSup(SAggSupporter* pAggSup);
 
 void initResultSizeInfo(SResultInfo* pResultInfo, int32_t numOfRows);
