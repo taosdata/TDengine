@@ -177,7 +177,7 @@ typedef struct {
   int32_t      lineNum;
   SSmlMsgBuf   msgBuf;
 
-//  cJSON       *root;  // for parse json
+  cJSON       *root;  // for parse json
   int8_t             offset[4];
   SSmlLineInfo      *lines; // element is SSmlLineInfo
 
@@ -226,6 +226,7 @@ int32_t           is_same_child_table_telnet(const void *a, const void *b);
 int64_t           smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32_t len);
 int32_t           smlClearForRerun(SSmlHandle *info);
 int32_t           smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg);
+uint8_t           smlGetTimestampLen(int64_t num);
 
 int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);

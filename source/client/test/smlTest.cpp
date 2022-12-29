@@ -411,28 +411,28 @@ TEST(testCase, smlParseCols_Test) {
   smlDestroyInfo(info);
 }
 
-//TEST(testCase, smlGetTimestampLen_Test) {
-//  uint8_t len = smlGetTimestampLen(0);
-//  ASSERT_EQ(len, 1);
-//
-//  len = smlGetTimestampLen(1);
-//  ASSERT_EQ(len, 1);
-//
-//  len = smlGetTimestampLen(10);
-//  ASSERT_EQ(len, 2);
-//
-//  len = smlGetTimestampLen(390);
-//  ASSERT_EQ(len, 3);
-//
-//  len = smlGetTimestampLen(-1);
-//  ASSERT_EQ(len, 1);
-//
-//  len = smlGetTimestampLen(-10);
-//  ASSERT_EQ(len, 2);
-//
-//  len = smlGetTimestampLen(-390);
-//  ASSERT_EQ(len, 3);
-//}
+TEST(testCase, smlGetTimestampLen_Test) {
+  uint8_t len = smlGetTimestampLen(0);
+  ASSERT_EQ(len, 1);
+
+  len = smlGetTimestampLen(1);
+  ASSERT_EQ(len, 1);
+
+  len = smlGetTimestampLen(10);
+  ASSERT_EQ(len, 2);
+
+  len = smlGetTimestampLen(390);
+  ASSERT_EQ(len, 3);
+
+  len = smlGetTimestampLen(-1);
+  ASSERT_EQ(len, 1);
+
+  len = smlGetTimestampLen(-10);
+  ASSERT_EQ(len, 2);
+
+  len = smlGetTimestampLen(-390);
+  ASSERT_EQ(len, 3);
+}
 
 TEST(testCase, smlParseNumber_Test) {
   SSmlKv     kv = {0};
