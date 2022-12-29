@@ -61,6 +61,21 @@ TEST(utilTest, wchar_pattern_match_test) {
   const TdWchar* str9 = L"6_66";
   ret = wcsPatternMatch(reinterpret_cast<const TdUcs4*>(pattern9), 6, reinterpret_cast<const TdUcs4*>(str9), wcslen(str9), &pInfo);
   ASSERT_EQ(ret, TSDB_PATTERN_MATCH);
+
+  const TdWchar* pattern10 = L"%";
+  const TdWchar* str10 = L"";
+  ret = wcsPatternMatch(reinterpret_cast<const TdUcs4*>(pattern10), 1, reinterpret_cast<const TdUcs4*>(str10), 0, &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_MATCH);
+
+  const TdWchar* pattern11 = L"china%";
+  const TdWchar* str11 = L"CHI ";
+  ret = wcsPatternMatch(reinterpret_cast<const TdUcs4*>(pattern11), 6, reinterpret_cast<const TdUcs4*>(str11), 3, &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_NOMATCH);
+
+  const TdWchar* pattern12 = L"abc%";
+  const TdWchar* str12 = L"";
+  ret = wcsPatternMatch(reinterpret_cast<const TdUcs4*>(pattern12), 4, reinterpret_cast<const TdUcs4*>(str12), 0, &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_NOMATCH);
 }
 
 TEST(utilTest, wchar_pattern_match_no_terminated) {
@@ -174,6 +189,21 @@ TEST(utilTest, char_pattern_match_test) {
   const char* str9 = "6_6";
   ret = patternMatch(pattern9, 5, str9, strlen(str9), &pInfo);
   ASSERT_EQ(ret, TSDB_PATTERN_MATCH);
+
+  const char* pattern10 = "%";
+  const char* str10 = " ";
+  ret = patternMatch(pattern10, 1, str10, 0, &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_MATCH);
+
+  const char* pattern11 = "china%";
+  const char* str11 = "abc ";
+  ret = patternMatch(pattern11, 6, str11, 3, &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_NOMATCH);
+
+  const char* pattern12 = "abc%";
+  const char* str12 = NULL;
+  ret = patternMatch(pattern12, 4, str12, 0, &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_NOMATCH);
 }
 
 TEST(utilTest, char_pattern_match_no_terminated) {

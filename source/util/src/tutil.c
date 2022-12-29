@@ -144,6 +144,16 @@ char *strnchr(const char *haystack, char needle, int32_t len, bool skipquote) {
   return NULL;
 }
 
+TdUcs4* wcsnchr(const TdUcs4* haystack, TdUcs4 needle, size_t len) {
+  for(int32_t i = 0; i < len; ++i) {
+    if (haystack[i] == needle) {
+      return (TdUcs4*) &haystack[i];
+    }
+  }
+
+  return NULL;
+}
+
 char *strtolower(char *dst, const char *src) {
   int32_t esc = 0;
   char    quote = 0, *p = dst, c;
@@ -431,4 +441,18 @@ size_t tstrncspn(const char *str, size_t size, const char *reject, size_t rsize)
   }
 
   return size;
+}
+
+size_t twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rsize) {
+  if (rsize == 0 || rsize == 1) {
+    TdUcs4* p = wcsnchr(wcs, reject[0], size);
+    return (p == NULL)? size:(p-wcs);
+  }
+
+  size_t index = 0;
+  while ((index < size) && (wcsnchr(reject, wcs[index], rsize) == NULL)) {
+    ++index;
+  }
+
+  return index;
 }

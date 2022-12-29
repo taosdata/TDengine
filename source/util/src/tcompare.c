@@ -998,6 +998,7 @@ int32_t compareUint64Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareJsonValDesc(const void *pLeft, const void *pRight) { return compareJsonVal(pRight, pLeft); }
+
 /*
  * Compare two strings
  *    TSDB_MATCH:            Match
@@ -1055,10 +1056,10 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
       return TSDB_PATTERN_NOWILDCARDMATCH;
     }
 
-    c1 = str[j++];
-    ++nMatchChar;
+    if (j < ssize) {
+      c1 = str[j++];
+      ++nMatchChar;
 
-    if (j <= ssize) {
       if (c == '\\' && pattern[i] == '_' && c1 == '_') {
         i++;
         continue;
@@ -1099,12 +1100,12 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
         return TSDB_PATTERN_MATCH;
       }
 
-      TdUcs4  acceptArray[3] = {towupper(c), towlower(c), 0};
+      TdUcs4 rejectList[2] = {towupper(c), towlower(c)};
 
       str += nMatchChar;
       int32_t remain = ssize - nMatchChar;
       while (1) {
-        size_t n = wcscspn(str, acceptArray);
+        size_t n = twcsncspn(str, remain, rejectList, 2);
 
         str += n;
         remain -= n;
@@ -1122,10 +1123,10 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
       return TSDB_PATTERN_NOWILDCARDMATCH;
     }
 
-    c1 = str[j++];
-    nMatchChar++;
+    if (j < ssize) {
+      c1 = str[j++];
+      nMatchChar++;
 
-    if (j <= ssize) {
       if (c == L'\\' && pattern[i] == L'_' && c1 == L'_') {
         i++;
         continue;
