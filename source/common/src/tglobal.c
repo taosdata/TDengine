@@ -47,7 +47,7 @@ int32_t tsNumOfMnodeQueryThreads = 4;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
 int32_t tsNumOfVnodeQueryThreads = 4;
-int32_t tsNumOfVnodeStreamThreads = 2;
+float   tsRatioOfVnodeStreamThreads = 1.0;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeRsmaThreads = 2;
 int32_t tsNumOfQnodeQueryThreads = 4;
@@ -392,9 +392,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 4, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeStreamThreads = tsNumOfCores / 4;
-  tsNumOfVnodeStreamThreads = TMAX(tsNumOfVnodeStreamThreads, 4);
-  if (cfgAddInt32(pCfg, "numOfVnodeStreamThreads", tsNumOfVnodeStreamThreads, 4, 1024, 0) != 0) return -1;
+  if (cfgAddFloat(pCfg, "ratioOfVnodeStreamThreads", tsRatioOfVnodeStreamThreads, 0.01, 100, 0) != 0) return -1;
 
   tsNumOfVnodeFetchThreads = tsNumOfCores / 4;
   tsNumOfVnodeFetchThreads = TMAX(tsNumOfVnodeFetchThreads, 4);
@@ -513,11 +511,9 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     pItem->stype = stype;
   }
 
-  pItem = cfgGetItem(tsCfg, "numOfVnodeStreamThreads");
+  pItem = cfgGetItem(tsCfg, "ratioOfVnodeStreamThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfVnodeStreamThreads = numOfCores / 4;
-    tsNumOfVnodeStreamThreads = TMAX(tsNumOfVnodeStreamThreads, 4);
-    pItem->i32 = tsNumOfVnodeStreamThreads;
+    pItem->fval = tsRatioOfVnodeStreamThreads;
     pItem->stype = stype;
   }
 
@@ -710,7 +706,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   tsNumOfMnodeReadThreads = cfgGetItem(pCfg, "numOfMnodeReadThreads")->i32;
   tsNumOfVnodeQueryThreads = cfgGetItem(pCfg, "numOfVnodeQueryThreads")->i32;
-  tsNumOfVnodeStreamThreads = cfgGetItem(pCfg, "numOfVnodeStreamThreads")->i32;
+  tsRatioOfVnodeStreamThreads = cfgGetItem(pCfg, "ratioOfVnodeStreamThreads")->fval;
   tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
   tsNumOfVnodeRsmaThreads = cfgGetItem(pCfg, "numOfVnodeRsmaThreads")->i32;
   tsNumOfQnodeQueryThreads = cfgGetItem(pCfg, "numOfQnodeQueryThreads")->i32;

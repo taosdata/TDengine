@@ -1751,6 +1751,8 @@ typedef struct {
 #define STREAM_FILL_HISTORY_ON        1
 #define STREAM_FILL_HISTORY_OFF       0
 #define STREAM_DEFAULT_FILL_HISTORY   STREAM_FILL_HISTORY_OFF
+#define STREAM_CREATE_STABLE_TRUE     1
+#define STREAM_CREATE_STABLE_FALSE    0
 
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
@@ -1768,6 +1770,8 @@ typedef struct {
   SArray* pTags;  // array of SField
   // 3.0.20
   int64_t checkpointFreq;  // ms
+  // 3.0.2.3
+  int8_t createStb;
 } SCMCreateStreamReq;
 
 typedef struct {

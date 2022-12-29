@@ -5420,6 +5420,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
     if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
     if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
   }
+  if (tEncodeI8(&encoder, pReq->createStb) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -5480,6 +5481,7 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
       }
     }
   }
+  if (tDecodeI8(&decoder, &pReq->createStb) < 0) return -1;
 
   tEndDecode(&decoder);
 
