@@ -467,7 +467,11 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
   while (dcol < pCols->numOfCols) {
     SDataCol *pDataCol = &(pCols->cols[dcol]);
     if (rcol >= schemaNCols(pSchema)) {
-      dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints, rowOffset);
+      if (forceSetNull) {
+        dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints, rowOffset);
+      } else {
+        break;
+      }
       dcol++;
       continue;
     }
@@ -510,7 +514,11 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
   while (dcol < pCols->numOfCols) {
     SDataCol *pDataCol = &(pCols->cols[dcol]);
     if (rcol >= nRowCols || rcol >= schemaNCols(pSchema)) {
-      dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints, rowOffset);
+      if(forceSetNull) {
+        dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints, rowOffset);
+      } else {
+        break;
+      }
       ++dcol;
       continue;
     }
