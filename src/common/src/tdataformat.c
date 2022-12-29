@@ -512,6 +512,8 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
     if (rcol >= nRowCols || rcol >= schemaNCols(pSchema)) {
       if (forceSetNull) {
         dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints, rowOffset);
+      } else {
+        break;
       }
       ++dcol;
       continue;
