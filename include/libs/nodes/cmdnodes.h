@@ -171,10 +171,10 @@ typedef struct SCreateSubTableClause {
   STableOptions* pOptions;
 } SCreateSubTableClause;
 
-typedef struct SCreateMultiTableStmt {
+typedef struct SCreateMultiTablesStmt {
   ENodeType  type;
   SNodeList* pSubTables;
-} SCreateMultiTableStmt;
+} SCreateMultiTablesStmt;
 
 typedef struct SDropTableClause {
   ENodeType type;
@@ -209,14 +209,14 @@ typedef struct SAlterTableStmt {
 
 typedef struct SCreateUserStmt {
   ENodeType type;
-  char      useName[TSDB_USER_LEN];
+  char      userName[TSDB_USER_LEN];
   char      password[TSDB_USET_PASSWORD_LEN];
   int8_t    sysinfo;
 } SCreateUserStmt;
 
 typedef struct SAlterUserStmt {
   ENodeType type;
-  char      useName[TSDB_USER_LEN];
+  char      userName[TSDB_USER_LEN];
   int8_t    alterType;
   char      password[TSDB_USET_PASSWORD_LEN];
   int8_t    enable;
@@ -225,7 +225,7 @@ typedef struct SAlterUserStmt {
 
 typedef struct SDropUserStmt {
   ENodeType type;
-  char      useName[TSDB_USER_LEN];
+  char      userName[TSDB_USER_LEN];
 } SDropUserStmt;
 
 typedef struct SCreateDnodeStmt {
@@ -295,7 +295,7 @@ typedef struct SShowTableTagsStmt {
   SNodeList* pTags;
 } SShowTableTagsStmt;
 
-typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT } EIndexType;
+typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT, INDEX_TYPE_NORMAL } EIndexType;
 
 typedef struct SIndexOptions {
   ENodeType  type;

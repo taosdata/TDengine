@@ -98,6 +98,9 @@ LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 #include <errno.h>
 #include <libproc.h>
 #include <sys/sysctl.h>
+#include <SystemConfiguration/SCDynamicStoreCopySpecific.h>
+#include <CoreFoundation/CFString.h>
+#include <stdio.h>
 
 #else
 
@@ -353,6 +356,10 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   if (taosGetsCmd(pCmd, maxLen, cpuModel) > 0) {
     code = 0;
     done |= 1;
+  }
+  int endPos = strlen(cpuModel)-1;
+  if (cpuModel[endPos] == '\n') {
+    cpuModel[endPos] = '\0';
   }
   taosCloseCmd(&pCmd);
 
@@ -1003,6 +1010,11 @@ SysNameInfo taosGetSysNameInfo() {
     tstrncpy(info.machine, uts.machine, sizeof(info.machine));
   }
 
+  char     localHostName[512];
+  taosGetlocalhostname(localHostName, 512);
+  TdCmdPtr pCmd = taosOpenCmd("scutil --get LocalHostName");
+  tstrncpy(info.nodename, localHostName, sizeof(info.nodename));
+
   return info;
 #else
   SysNameInfo info = {0};
@@ -1036,5 +1048,48 @@ bool taosCheckCurrentInDll() {
   return false;
 #else
   return false;
+#endif
+}
+
+#ifdef _TD_DARWIN_64
+int taosGetMaclocalhostnameByCommand(char *hostname, size_t maxLen) {
+  TdCmdPtr pCmd = taosOpenCmd("scutil --get LocalHostName");
+  if (pCmd != NULL) {
+    if (taosGetsCmd(pCmd, maxLen - 1, hostname) > 0) {
+      int len = strlen(hostname);
+      if (hostname[len - 1] == '\n') {
+        hostname[len - 1] = '\0';
+      }
+      return 0;
+    }
+    taosCloseCmd(&pCmd);
+  }
+  return -1;
+}
+
+int getMacLocalHostNameBySCD(char *hostname, size_t maxLen) {
+  SCDynamicStoreRef store = SCDynamicStoreCreate(NULL, CFSTR(""), NULL, NULL);
+  CFStringRef       hostname_cfstr = SCDynamicStoreCopyLocalHostName(store);
+  if (hostname_cfstr != NULL) {
+    CFStringGetCString(hostname_cfstr, hostname, maxLen - 1, kCFStringEncodingMacRoman);
+    CFRelease(hostname_cfstr);
+  } else {
+    return -1;
+  }
+  CFRelease(store);
+  return 0;
+}
+#endif
+
+int taosGetlocalhostname(char *hostname, size_t maxLen) {
+#ifdef _TD_DARWIN_64
+  int res = getMacLocalHostNameBySCD(hostname, maxLen);
+  if (res != 0) {
+    return taosGetMaclocalhostnameByCommand(hostname, maxLen);
+  } else {
+    return 0;
+  }
+#else
+  return gethostname(hostname, maxLen);
 #endif
 }

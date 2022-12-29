@@ -252,7 +252,7 @@ static int32_t collectMetaKeyFromCreateTable(SCollectMetaKeyCxt* pCxt, SCreateTa
   return code;
 }
 
-static int32_t collectMetaKeyFromCreateMultiTable(SCollectMetaKeyCxt* pCxt, SCreateMultiTableStmt* pStmt) {
+static int32_t collectMetaKeyFromCreateMultiTable(SCollectMetaKeyCxt* pCxt, SCreateMultiTablesStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
   FOREACH(pNode, pStmt->pSubTables) {
@@ -613,8 +613,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromFlushDatabase(pCxt, (SFlushDatabaseStmt*)pStmt);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return collectMetaKeyFromCreateTable(pCxt, (SCreateTableStmt*)pStmt);
-    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
-      return collectMetaKeyFromCreateMultiTable(pCxt, (SCreateMultiTableStmt*)pStmt);
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+      return collectMetaKeyFromCreateMultiTable(pCxt, (SCreateMultiTablesStmt*)pStmt);
     case QUERY_NODE_DROP_TABLE_STMT:
       return collectMetaKeyFromDropTable(pCxt, (SDropTableStmt*)pStmt);
     case QUERY_NODE_ALTER_TABLE_STMT:

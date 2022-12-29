@@ -458,14 +458,16 @@ tag_item(A) ::= column_name(B) column_alias(C).                                 
 tag_item(A) ::= column_name(B) AS column_alias(C).                                { A = setProjectionAlias(pCxt, createColumnNode(pCxt, NULL, &B), &C); }
 
 /************************************************ create index ********************************************************/
-cmd ::= CREATE SMA INDEX not_exists_opt(D) 
+cmd ::= CREATE SMA INDEX not_exists_opt(D)
   full_table_name(A) ON full_table_name(B) index_options(C).                      { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, A, B, NULL, C); }
+cmd ::= CREATE INDEX not_exists_opt(D)
+  full_table_name(A) ON full_table_name(B) NK_LP col_name_list(C) NK_RP.          { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_NORMAL, D, A, B, C, NULL); }
 cmd ::= DROP INDEX exists_opt(B) full_table_name(A).                              { pCxt->pRootNode = createDropIndexStmt(pCxt, B, A); }
 
-index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL 
+index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL
   NK_LP duration_literal(C) NK_RP sliding_opt(D) sma_stream_opt(E).               { A = createIndexOption(pCxt, B, releaseRawExprNode(pCxt, C), NULL, D, E); }
-index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL 
-  NK_LP duration_literal(C) NK_COMMA duration_literal(D) NK_RP sliding_opt(E) 
+index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL
+  NK_LP duration_literal(C) NK_COMMA duration_literal(D) NK_RP sliding_opt(E)
   sma_stream_opt(F).                                                              { A = createIndexOption(pCxt, B, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D), E, F); }
 
 %type func_list                                                                   { SNodeList* }
@@ -473,7 +475,15 @@ index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL
 func_list(A) ::= func(B).                                                         { A = createNodeList(pCxt, B); }
 func_list(A) ::= func_list(B) NK_COMMA func(C).                                   { A = addNodeToList(pCxt, B, C); }
 
-func(A) ::= function_name(B) NK_LP expression_list(C) NK_RP.                      { A = createFunctionNode(pCxt, &B, C); }
+func(A) ::= sma_func_name(B) NK_LP expression_list(C) NK_RP.                      { A = createFunctionNode(pCxt, &B, C); }
+
+%type sma_func_name                                                               { SToken }
+%destructor sma_func_name                                                         { }
+sma_func_name(A) ::= function_name(B).                                            { A = B; }
+sma_func_name(A) ::= COUNT(B).                                                    { A = B; }
+sma_func_name(A) ::= FIRST(B).                                                    { A = B; }
+sma_func_name(A) ::= LAST(B).                                                     { A = B; }
+sma_func_name(A) ::= LAST_ROW(B).                                                 { A = B; }
 
 sma_stream_opt(A) ::= .                                                           { A = createStreamOptions(pCxt); }
 sma_stream_opt(A) ::= sma_stream_opt(B) WATERMARK duration_literal(C).            { ((SStreamOptions*)B)->pWatermark = releaseRawExprNode(pCxt, C); A = B; }
@@ -733,6 +743,7 @@ pseudo_column(A) ::= WSTART(B).                                                 
 pseudo_column(A) ::= WEND(B).                                                     { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= WDURATION(B).                                                { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= IROWTS(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= ISFILLED(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= QTAGS(B).                                                    { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 
 function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).    { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
@@ -964,6 +975,8 @@ twindow_clause_opt(A) ::=
 twindow_clause_opt(A) ::=
   INTERVAL NK_LP duration_literal(B) NK_COMMA duration_literal(C) NK_RP 
   sliding_opt(D) fill_opt(E).                                                     { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C), D, E); }
+twindow_clause_opt(A) ::=
+  EVENT_WINDOW START WITH search_condition(B) END WITH search_condition(C).       { A = createEventWindowNode(pCxt, B, C); }
 
 sliding_opt(A) ::= .                                                              { A = NULL; }
 sliding_opt(A) ::= SLIDING NK_LP duration_literal(B) NK_RP.                       { A = releaseRawExprNode(pCxt, B); }

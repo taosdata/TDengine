@@ -45,95 +45,46 @@ int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char*
   return TSDB_CODE_SUCCESS;
 }
 
-typedef struct SmlExecTableHandle {
-  SParsedDataColInfo tags;          // each table
-  SVCreateTbReq      createTblReq;  // each table
-} SmlExecTableHandle;
-
-typedef struct SmlExecHandle {
-  SHashObj*          pBlockHash;
-  SmlExecTableHandle tableExecHandle;
-  SQuery*            pQuery;
-} SSmlExecHandle;
-
-static void smlDestroyTableHandle(void* pHandle) {
-  SmlExecTableHandle* handle = (SmlExecTableHandle*)pHandle;
-  destroyBoundColumnInfo(&handle->tags);
-  tdDestroySVCreateTbReq(&handle->createTblReq);
-}
-
-static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SSchema* pSchema, bool isTag) {
-  col_id_t nCols = pColList->numOfCols;
-
-  pColList->numOfBound = 0;
-  pColList->boundNullLen = 0;
-  memset(pColList->boundColumns, 0, sizeof(col_id_t) * nCols);
-  for (col_id_t i = 0; i < nCols; ++i) {
-    pColList->cols[i].valStat = VAL_STAT_NONE;
+static int32_t smlBoundColumnData(SArray* cols, SBoundColInfo* pBoundInfo, SSchema* pSchema, bool isTag) {
+  bool* pUseCols = taosMemoryCalloc(pBoundInfo->numOfCols, sizeof(bool));
+  if (NULL == pUseCols) {
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  bool     isOrdered = true;
-  col_id_t lastColIdx = -1;  // last column found
+  pBoundInfo->numOfBound = 0;
+  int16_t lastColIdx = -1;  // last column found
+  int32_t code = TSDB_CODE_SUCCESS;
+
   for (int i = 0; i < taosArrayGetSize(cols); ++i) {
-    SSmlKv*  kv = taosArrayGetP(cols, i);
+    SSmlKv*  kv = taosArrayGet(cols, i);
     SToken   sToken = {.n = kv->keyLen, .z = (char*)kv->key};
     col_id_t t = lastColIdx + 1;
-    col_id_t index = ((t == 0 && !isTag) ? 0 : insFindCol(&sToken, t, nCols, pSchema));
-    uDebug("SML, index:%d, t:%d, ncols:%d", index, t, nCols);
+    col_id_t index = ((t == 0 && !isTag) ? 0 : insFindCol(&sToken, t, pBoundInfo->numOfCols, pSchema));
+    uDebug("SML, index:%d, t:%d, ncols:%d", index, t, pBoundInfo->numOfCols);
     if (index < 0 && t > 0) {
       index = insFindCol(&sToken, 0, t, pSchema);
-      isOrdered = false;
     }
+
     if (index < 0) {
       uError("smlBoundColumnData. index:%d", index);
-      return TSDB_CODE_SML_INVALID_DATA;
+      code = TSDB_CODE_SML_INVALID_DATA;
+      goto end;
     }
-    if (pColList->cols[index].valStat == VAL_STAT_HAS) {
+    if (pUseCols[index]) {
       uError("smlBoundColumnData. already set. index:%d", index);
-      return TSDB_CODE_SML_INVALID_DATA;
+      code = TSDB_CODE_SML_INVALID_DATA;
+      goto end;
     }
     lastColIdx = index;
-    pColList->cols[index].valStat = VAL_STAT_HAS;
-    pColList->boundColumns[pColList->numOfBound] = index;
-    ++pColList->numOfBound;
-    switch (pSchema[t].type) {
-      case TSDB_DATA_TYPE_BINARY:
-        pColList->boundNullLen += (sizeof(VarDataOffsetT) + VARSTR_HEADER_SIZE + CHAR_BYTES);
-        break;
-      case TSDB_DATA_TYPE_NCHAR:
-        pColList->boundNullLen += (sizeof(VarDataOffsetT) + VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
-        break;
-      default:
-        pColList->boundNullLen += TYPE_BYTES[pSchema[t].type];
-        break;
-    }
+    pUseCols[index] = true;
+    pBoundInfo->pColIndex[pBoundInfo->numOfBound] = index;
+    ++pBoundInfo->numOfBound;
   }
 
-  pColList->orderStatus = isOrdered ? ORDER_STATUS_ORDERED : ORDER_STATUS_DISORDERED;
+end:
+  taosMemoryFree(pUseCols);
 
-  if (!isOrdered) {
-    pColList->colIdxInfo = taosMemoryCalloc(pColList->numOfBound, sizeof(SBoundIdxInfo));
-    if (NULL == pColList->colIdxInfo) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    SBoundIdxInfo* pColIdx = pColList->colIdxInfo;
-    for (col_id_t i = 0; i < pColList->numOfBound; ++i) {
-      pColIdx[i].schemaColIdx = pColList->boundColumns[i];
-      pColIdx[i].boundIdx = i;
-    }
-    taosSort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), insSchemaIdxCompar);
-    for (col_id_t i = 0; i < pColList->numOfBound; ++i) {
-      pColIdx[i].finalIdx = i;
-    }
-    taosSort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), insBoundIdxCompar);
-  }
-
-  if (pColList->numOfCols > pColList->numOfBound) {
-    memset(&pColList->boundColumns[pColList->numOfBound], 0,
-           sizeof(col_id_t) * (pColList->numOfCols - pColList->numOfBound));
-  }
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 /**
@@ -146,7 +97,7 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
  * @param msg
  * @return int32_t
  */
-static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* pSchema, STag** ppTag, SArray** tagName,
+static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchema, STag** ppTag, SArray** tagName,
                               SMsgBuf* msg) {
   SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
   if (!pTagArray) {
@@ -159,8 +110,8 @@ static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* p
 
   int32_t code = TSDB_CODE_SUCCESS;
   for (int i = 0; i < tags->numOfBound; ++i) {
-    SSchema* pTagSchema = &pSchema[tags->boundColumns[i]];
-    SSmlKv*  kv = taosArrayGetP(cols, i);
+    SSchema* pTagSchema = &pSchema[tags->pColIndex[i]];
+    SSmlKv*  kv = taosArrayGet(cols, i);
 
     taosArrayPush(*tagName, pTagSchema->name);
     STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
@@ -207,153 +158,237 @@ end:
   return code;
 }
 
-int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols, bool format, STableMeta* pTableMeta,
-                    char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl, char* msgBuf, int16_t msgBufLen) {
+STableDataCxt* smlInitTableDataCtx(SQuery* query, STableMeta* pTableMeta) {
+  STableDataCxt* pTableCxt = NULL;
+  SVCreateTbReq* pCreateTbReq = NULL;
+  int            ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
+                                          sizeof(pTableMeta->uid), pTableMeta, &pCreateTbReq, &pTableCxt, false);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return NULL;
+  }
+
+  ret = initTableColSubmitData(pTableCxt);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return NULL;
+  }
+  return pTableCxt;
+}
+
+int32_t smlBuildRow(STableDataCxt* pTableCxt) {
+  SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
+  int    ret = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
+  if (TSDB_CODE_SUCCESS != ret) {
+    return ret;
+  }
+  insCheckTableDataOrder(pTableCxt, TD_ROW_KEY(*pRow));
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32_t index) {
+  int      ret = TSDB_CODE_SUCCESS;
+  SSchema* pColSchema = schema + index;
+  SColVal* pVal = taosArrayGet(pTableCxt->pValues, index);
+  SSmlKv*  kv = (SSmlKv*)data;
+  if (kv->type == TSDB_DATA_TYPE_NCHAR) {
+    int32_t len = 0;
+    char*   pUcs4 = taosMemoryCalloc(1, pColSchema->bytes - VARSTR_HEADER_SIZE);
+    if (NULL == pUcs4) {
+      ret = TSDB_CODE_OUT_OF_MEMORY;
+      goto end;
+    }
+    if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)pUcs4, pColSchema->bytes - VARSTR_HEADER_SIZE, &len)) {
+      if (errno == E2BIG) {
+        ret = TSDB_CODE_PAR_VALUE_TOO_LONG;
+        goto end;
+      }
+      ret = TSDB_CODE_TSC_INVALID_VALUE;
+      goto end;
+    }
+    pVal->value.pData = pUcs4;
+    pVal->value.nData = len;
+  } else if (kv->type == TSDB_DATA_TYPE_BINARY) {
+    pVal->value.nData = kv->length;
+    pVal->value.pData = (uint8_t*)kv->value;
+  } else {
+    memcpy(&pVal->value.val, &(kv->value), kv->length);
+  }
+  pVal->flag = CV_FLAG_VALUE;
+
+end:
+  return ret;
+}
+
+int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSchema, SArray* cols,
+                    STableMeta* pTableMeta, char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl,
+                    char* msgBuf, int16_t msgBufLen) {
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
 
-  SSmlExecHandle* smlHandle = (SSmlExecHandle*)handle;
-  smlDestroyTableHandle(&smlHandle->tableExecHandle);  // free for each table
-  SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
-  insSetBoundColumnInfo(&smlHandle->tableExecHandle.tags, pTagsSchema, getNumOfTags(pTableMeta));
-  int ret = smlBoundColumnData(tags, &smlHandle->tableExecHandle.tags, pTagsSchema, true);
+  SSchema*       pTagsSchema = getTableTagSchema(pTableMeta);
+  SBoundColInfo  bindTags = {0};
+  SVCreateTbReq* pCreateTblReq = NULL;
+  SArray*        tagName = NULL;
+
+  insInitBoundColsInfo(getNumOfTags(pTableMeta), &bindTags);
+  int ret = smlBoundColumnData(tags, &bindTags, pTagsSchema, true);
   if (ret != TSDB_CODE_SUCCESS) {
     buildInvalidOperationMsg(&pBuf, "bound tags error");
-    return ret;
-  }
-  STag*   pTag = NULL;
-  SArray* tagName = NULL;
-  ret = smlBuildTagRow(tags, &smlHandle->tableExecHandle.tags, pTagsSchema, &pTag, &tagName, &pBuf);
-  if (ret != TSDB_CODE_SUCCESS) {
-    taosArrayDestroy(tagName);
-    return ret;
+    goto end;
   }
 
-  insBuildCreateTbReq(&smlHandle->tableExecHandle.createTblReq, tableName, pTag, pTableMeta->suid, NULL, tagName,
-                      pTableMeta->tableInfo.numOfTags, ttl);
-  taosArrayDestroy(tagName);
+  STag* pTag = NULL;
 
-  smlHandle->tableExecHandle.createTblReq.ctb.stbName = taosMemoryMalloc(sTableNameLen + 1);
-  memcpy(smlHandle->tableExecHandle.createTblReq.ctb.stbName, sTableName, sTableNameLen);
-  smlHandle->tableExecHandle.createTblReq.ctb.stbName[sTableNameLen] = 0;
-
-  STableDataBlocks* pDataBlock = NULL;
-  ret = insGetDataBlockFromList(smlHandle->pBlockHash, &pTableMeta->uid, sizeof(pTableMeta->uid),
-                                TSDB_DEFAULT_PAYLOAD_SIZE, sizeof(SSubmitBlk), getTableInfo(pTableMeta).rowSize,
-                                pTableMeta, &pDataBlock, NULL, &smlHandle->tableExecHandle.createTblReq);
+  ret = smlBuildTagRow(tags, &bindTags, pTagsSchema, &pTag, &tagName, &pBuf);
   if (ret != TSDB_CODE_SUCCESS) {
-    buildInvalidOperationMsg(&pBuf, "create data block error");
-    return ret;
+    goto end;
+  }
+
+  pCreateTblReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+  if (NULL == pCreateTblReq) {
+    ret = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
+  insBuildCreateTbReq(pCreateTblReq, tableName, pTag, pTableMeta->suid, NULL, tagName, pTableMeta->tableInfo.numOfTags,
+                      ttl);
+
+  pCreateTblReq->ctb.stbName = taosMemoryCalloc(1, sTableNameLen + 1);
+  memcpy(pCreateTblReq->ctb.stbName, sTableName, sTableNameLen);
+
+  if (dataFormat) {
+    STableDataCxt** pTableCxt = (STableDataCxt**)taosHashGet(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj,
+                                                             &pTableMeta->uid, sizeof(pTableMeta->uid));
+    if (NULL == pTableCxt) {
+      ret = buildInvalidOperationMsg(&pBuf, "dataformat true. get tableDataCtx error");
+      goto end;
+    }
+    (*pTableCxt)->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
+    (*pTableCxt)->pData->pCreateTbReq = pCreateTblReq;
+    (*pTableCxt)->pMeta->uid = pTableMeta->uid;
+    (*pTableCxt)->pMeta->vgId = pTableMeta->vgId;
+    pCreateTblReq = NULL;
+    goto end;
+  }
+
+  STableDataCxt* pTableCxt = NULL;
+  ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
+                           sizeof(pTableMeta->uid), pTableMeta, &pCreateTblReq, &pTableCxt, false);
+  if (ret != TSDB_CODE_SUCCESS) {
+    buildInvalidOperationMsg(&pBuf, "insGetTableDataCxt error");
+    goto end;
   }
 
   SSchema* pSchema = getTableColumnSchema(pTableMeta);
-
-  ret = smlBoundColumnData(colsSchema, &pDataBlock->boundColumnInfo, pSchema, false);
+  ret = smlBoundColumnData(colsSchema, &pTableCxt->boundColsInfo, pSchema, false);
   if (ret != TSDB_CODE_SUCCESS) {
     buildInvalidOperationMsg(&pBuf, "bound cols error");
-    return ret;
+    goto end;
   }
-  int32_t             extendedRowSize = insGetExtendedRowSize(pDataBlock);
-  SParsedDataColInfo* spd = &pDataBlock->boundColumnInfo;
-  SRowBuilder*        pBuilder = &pDataBlock->rowBuilder;
-  SMemParam           param = {.rb = pBuilder};
 
-  insInitRowBuilder(&pDataBlock->rowBuilder, pDataBlock->pTableMeta->sversion, &pDataBlock->boundColumnInfo);
+  ret = initTableColSubmitData(pTableCxt);
+  if (ret != TSDB_CODE_SUCCESS) {
+    buildInvalidOperationMsg(&pBuf, "initTableColSubmitData error");
+    goto end;
+  }
 
   int32_t rowNum = taosArrayGetSize(cols);
   if (rowNum <= 0) {
-    return buildInvalidOperationMsg(&pBuf, "cols size <= 0");
+    ret = buildInvalidOperationMsg(&pBuf, "cols size <= 0");
+    goto end;
   }
-  ret = insAllocateMemForSize(pDataBlock, extendedRowSize * rowNum);
-  if (ret != TSDB_CODE_SUCCESS) {
-    buildInvalidOperationMsg(&pBuf, "allocate memory error");
-    return ret;
-  }
+
   for (int32_t r = 0; r < rowNum; ++r) {
-    STSRow* row = (STSRow*)(pDataBlock->pData + pDataBlock->size);  // skip the SSubmitBlk header
-    tdSRowResetBuf(pBuilder, row);
-    void*  rowData = taosArrayGetP(cols, r);
-    size_t rowDataSize = 0;
-    if (format) {
-      rowDataSize = taosArrayGetSize(rowData);
-    }
+    void* rowData = taosArrayGetP(cols, r);
 
     // 1. set the parsed value from sql string
-    for (int c = 0, j = 0; c < spd->numOfBound; ++c) {
-      SSchema* pColSchema = &pSchema[spd->boundColumns[c]];
+    for (int c = 0; c < pTableCxt->boundColsInfo.numOfBound; ++c) {
+      SSchema* pColSchema = &pSchema[pTableCxt->boundColsInfo.pColIndex[c]];
+      SColVal* pVal = taosArrayGet(pTableCxt->pValues, pTableCxt->boundColsInfo.pColIndex[c]);
+      void**   p = taosHashGet(rowData, pColSchema->name, strlen(pColSchema->name));
+      if (p == NULL) {
+        continue;
+      }
+      SSmlKv* kv = *(SSmlKv**)p;
 
-      param.schema = pColSchema;
-      insGetSTSRowAppendInfo(pBuilder->rowType, spd, c, &param.toffset, &param.colIdx);
-
-      SSmlKv* kv = NULL;
-      if (format) {
-        if (j < rowDataSize) {
-          kv = taosArrayGetP(rowData, j);
-          if (rowDataSize != spd->numOfBound && j != 0 &&
-              (kv->keyLen != strlen(pColSchema->name) || strncmp(kv->key, pColSchema->name, kv->keyLen) != 0)) {
-            kv = NULL;
-          } else {
-            j++;
+      if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
+        kv->i = convertTimePrecision(kv->i, TSDB_TIME_PRECISION_NANO, pTableMeta->tableInfo.precision);
+      }
+      if (kv->type == TSDB_DATA_TYPE_NCHAR) {
+        int32_t len = 0;
+        char*   pUcs4 = taosMemoryCalloc(1, pColSchema->bytes - VARSTR_HEADER_SIZE);
+        if (NULL == pUcs4) {
+          ret = TSDB_CODE_OUT_OF_MEMORY;
+          goto end;
+        }
+        if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)pUcs4, pColSchema->bytes - VARSTR_HEADER_SIZE, &len)) {
+          if (errno == E2BIG) {
+            buildInvalidOperationMsg(&pBuf, "value too long");
+            ret = TSDB_CODE_PAR_VALUE_TOO_LONG;
+            goto end;
           }
+          ret = buildInvalidOperationMsg(&pBuf, strerror(errno));
+          goto end;
         }
+        pVal->value.pData = pUcs4;
+        pVal->value.nData = len;
+      } else if (kv->type == TSDB_DATA_TYPE_BINARY) {
+        pVal->value.nData = kv->length;
+        pVal->value.pData = (uint8_t*)kv->value;
       } else {
-        void** p = taosHashGet(rowData, pColSchema->name, strlen(pColSchema->name));
-        if (p) kv = *p;
+        memcpy(&pVal->value.val, &(kv->value), kv->length);
       }
-
-      if (kv) {
-        int32_t colLen = kv->length;
-        if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
-          uDebug("SML:data before:%" PRId64 ", precision:%d", kv->i, pTableMeta->tableInfo.precision);
-          kv->i = convertTimePrecision(kv->i, TSDB_TIME_PRECISION_NANO, pTableMeta->tableInfo.precision);
-          uDebug("SML:data after:%" PRId64 ", precision:%d", kv->i, pTableMeta->tableInfo.precision);
-        }
-
-        if (IS_VAR_DATA_TYPE(kv->type)) {
-          insMemRowAppend(&pBuf, kv->value, colLen, &param);
-        } else {
-          insMemRowAppend(&pBuf, &(kv->value), colLen, &param);
-        }
-      } else {
-        pBuilder->hasNone = true;
-      }
-
-      if (PRIMARYKEY_TIMESTAMP_COL_ID == pColSchema->colId) {
-        TSKEY tsKey = TD_ROW_KEY(row);
-        insCheckTimestamp(pDataBlock, (const char*)&tsKey);
-      }
+      pVal->flag = CV_FLAG_VALUE;
     }
 
-    // set the null value for the columns that do not assign values
-    if ((spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
-      pBuilder->hasNone = true;
+    SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
+    ret = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
+    if (TSDB_CODE_SUCCESS != ret) {
+      buildInvalidOperationMsg(&pBuf, "tRowBuild error");
+      goto end;
     }
-
-    tdSRowEnd(pBuilder);
-    pDataBlock->size += extendedRowSize;
+    insCheckTableDataOrder(pTableCxt, TD_ROW_KEY(*pRow));
   }
 
-  SSubmitBlk* pBlocks = (SSubmitBlk*)(pDataBlock->pData);
-  return insSetBlockInfo(pBlocks, pDataBlock, rowNum, &pBuf);
+end:
+  insDestroyBoundColInfo(&bindTags);
+  taosMemoryFree(pCreateTblReq);
+  taosArrayDestroy(tagName);
+  return ret;
 }
 
-void* smlInitHandle(SQuery* pQuery) {
-  SSmlExecHandle* handle = taosMemoryCalloc(1, sizeof(SSmlExecHandle));
-  if (!handle) return NULL;
-  handle->pBlockHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
-  handle->pQuery = pQuery;
+SQuery* smlInitHandle() {
+  SQuery* pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
+  if (NULL == pQuery) {
+    uError("create pQuery error");
+    return NULL;
+  }
+  pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
+  pQuery->haveResultSet = false;
+  pQuery->msgType = TDMT_VND_SUBMIT;
+  SVnodeModifyOpStmt* stmt = (SVnodeModifyOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT);
+  if (NULL == stmt) {
+    uError("create SVnodeModifyOpStmt error");
+    qDestroyQuery(pQuery);
+    return NULL;
+  }
+  stmt->pTableBlockHashObj = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  stmt->freeHashFunc = insDestroyTableDataCxtHashMap;
+  stmt->freeArrayFunc = insDestroyVgroupDataCxtList;
 
-  return handle;
+  pQuery->pRoot = (SNode*)stmt;
+  return pQuery;
 }
 
-void smlDestroyHandle(void* pHandle) {
-  if (!pHandle) return;
-  SSmlExecHandle* handle = (SSmlExecHandle*)pHandle;
-  insDestroyBlockHashmap(handle->pBlockHash);
-  smlDestroyTableHandle(&handle->tableExecHandle);
-  taosMemoryFree(handle);
-}
-
-int32_t smlBuildOutput(void* handle, SHashObj* pVgHash) {
-  SSmlExecHandle* smlHandle = (SSmlExecHandle*)handle;
-  return qBuildStmtOutput(smlHandle->pQuery, pVgHash, smlHandle->pBlockHash);
+int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash) {
+  SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)(handle)->pRoot;
+  // merge according to vgId
+  int32_t code = insMergeTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pVgDataBlocks);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("insMergeTableDataCxt failed");
+    return code;
+  }
+  code = insBuildVgDataBlocks(pVgHash, pStmt->pVgDataBlocks, &pStmt->pDataBlocks);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("insBuildVgDataBlocks failed");
+    return code;
+  }
+  return code;
 }
