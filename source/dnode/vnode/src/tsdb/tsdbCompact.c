@@ -933,6 +933,9 @@ int32_t tsdbCompact(STsdb *pTsdb, int32_t flag) {
     tsdbCloseCompactor(pCompactor);
   }
 
+  code = tsdbFSUpsertDelFile(&pCompactor->fs, NULL);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
