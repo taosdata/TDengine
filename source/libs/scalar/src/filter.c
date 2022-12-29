@@ -338,7 +338,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
 __compar_fn_t filterGetCompFunc(int32_t type, int32_t optr) { return gDataCompare[filterGetCompFuncIdx(type, optr)]; }
 
 __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr) {
-  if (TSDB_DATA_TYPE_NULL == rType) {
+  if (TSDB_DATA_TYPE_NULL == rType || TSDB_DATA_TYPE_JSON == rType) {
     return NULL;
   }
   

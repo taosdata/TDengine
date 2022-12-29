@@ -1161,7 +1161,8 @@ static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
     return 1;
   }
 
-  ret = regexec(&regex, pString, 0, NULL, 0);
+  regmatch_t pmatch[1];
+  ret = regexec(&regex, pString, 1, pmatch, 0);
   if (ret != 0 && ret != REG_NOMATCH) {
     regerror(ret, &regex, msgbuf, sizeof(msgbuf));
     uDebug("Failed to match %s with pattern %s, reason %s", pString, pPattern, msgbuf)
@@ -1192,7 +1193,7 @@ int32_t comparestrRegexMatch(const void *pLeft, const void *pRight) {
 
 int32_t comparewcsRegexMatch(const void* pString, const void* pPattern) {
   size_t len = varDataLen(pPattern);
-  char  *pattern = taosMemoryMalloc(len + TSDB_NCHAR_SIZE);
+  char  *pattern = taosMemoryMalloc(len + 1);
 
   int convertLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(pPattern), len, pattern);
   if (convertLen < 0) {

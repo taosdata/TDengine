@@ -1723,18 +1723,8 @@ void vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *
     param2 = pRight;
   } else {
     vectorConvertCols(pLeft, pRight, &pLeftOut, &pRightOut, startIndex, numOfRows);
-
-    if (pLeftOut.columnData != NULL) {
-      param1 = &pLeftOut;
-    } else {
-      param1 = pLeft;
-    }
-
-    if (pRightOut.columnData != NULL) {
-      param2 = &pRightOut;
-    } else {
-      param2 = pRight;
-    }
+    param1 = (pLeftOut.columnData != NULL) ? &pLeftOut : pLeft;
+    param2 = (pRightOut.columnData != NULL) ? &pRightOut : pRight;
   }
 
   doVectorCompare(param1, param2, pOut, startIndex, numOfRows, _ord, optr);
