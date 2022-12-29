@@ -652,7 +652,11 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
         goto _exit;
       }
 
-      ASSERT(c);
+      if (c == 0) {
+        metaError("meta/query: incorrect c: %" PRId32 ".", c);
+        code = TSDB_CODE_FAILED;
+        goto _exit;
+      }
 
       if (c < 0) {
         tdbTbcMoveToPrev(pSkmDbC);
@@ -676,7 +680,11 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
     }
   }
 
-  ASSERT(sver > 0);
+  if (sver <= 0) {
+    metaError("meta/query: incorrect sver: %" PRId32 ".", sver);
+    code = TSDB_CODE_FAILED;
+    goto _exit;
+  }
 
   skmDbKey.uid = suid ? suid : uid;
   skmDbKey.sver = sver;
