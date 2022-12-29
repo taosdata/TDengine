@@ -114,14 +114,14 @@ typedef struct SQWTaskStatus {
 typedef struct SQWTaskCtx {
   SRWLatch lock;
   int8_t   phase;
+  int8_t   inFetch;
   int8_t   taskType;
   int8_t   explain;
   int8_t   needFetch;
   int8_t   localExec;
   int32_t  msgType;
-  int32_t  fetchType;
-  int32_t  execId;
   int32_t  level;
+  uint64_t sId;
 
   bool    queryGotData;
   bool    queryRsped;
@@ -221,8 +221,16 @@ typedef struct SQWorkerMgmt {
 #define QW_GET_PHASE(ctx) atomic_load_8(&(ctx)->phase)
 #define QW_SET_PHASE(ctx, _value)                                            \
   do {                                                                       \
-    if ((_value) != QW_PHASE_PRE_FETCH && (_value) != QW_PHASE_POST_FETCH) { \
-      atomic_store_8(&(ctx)->phase, _value);                                 \
+    switch (_value) {                                                        \
+      case QW_PHASE_PRE_FETCH:                                               \
+        ctx->inFetch = 1;                                                    \
+        break;                                                               \
+      case QW_PHASE_POST_FETCH:                                              \
+        ctx->inFetch = 0;                                                    \
+        break;                                                               \
+      default:                                                               \
+        atomic_store_8(&(ctx)->phase, _value);                               \
+        break;                                                               \
     }                                                                        \
   } while (0)
 
@@ -230,6 +238,7 @@ typedef struct SQWorkerMgmt {
 #define QW_UPDATE_RSP_CODE(ctx, code) atomic_val_compare_exchange_32(&(ctx)->rspCode, 0, code)
 
 #define QW_QUERY_RUNNING(ctx) (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
+#define QW_FETCH_RUNNING(ctx) ((ctx)->inFetch)
 
 #define QW_SET_QTID(id, qId, tId, eId)                              \
   do {                                                              \
