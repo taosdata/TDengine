@@ -88,7 +88,7 @@ void    taosResetTerminalMode();
         taosPrintLog(flags, level, dflag, "frame:%i: %s - 0x%0X", frames - i - 1, symbol->Name, symbol->Address); \
       }                                                                                                           \
     }                                                                                                             \
-    free(symbol);
+    free(symbol);                                                                                                 \
   }
 #endif
 
