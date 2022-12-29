@@ -16,25 +16,25 @@
 #define _DEFAULT_SOURCE
 #include "dnode.h"
 #include "machine.h"
+#include "mndAcct.h"
 #include "mndCluster.h"
 #include "mndDb.h"
 #include "mndDef.h"
 #include "mndDnode.h"
 #include "mndGrant.h"
+#include "mndMnode.h"
+#include "mndShow.h"
+#include "mndSync.h"
+#include "mndUser.h"
 #include "mnode.h"
 #include "os.h"
+#include "sdb.h"
 #include "tdataformat.h"
 #include "tglobal.h"
 #include "tlog.h"
 #include "trpc.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "mndAcct.h"
-#include "mndMnode.h"
-#include "mndShow.h"
-#include "mndUser.h"
-#include "sdb.h"
-#include "mndSync.h"
 
 #define COMPARE_SET_VAL(a, b, _comp_sign_) \
   do {                                     \
@@ -72,14 +72,8 @@ typedef struct {
   uint32_t limitTables;
 } SCloudGrantStatus;
 
-SCloudGrantStatus cloudGrantStatus = {0,
-                                      GRANT_TIME_SERIES_LIMITS,
-                                      0,
-                                      GRANT_DATABASE_LIMITS,
-                                      0,
-                                      GRANT_STABLE_LIMITS,
-                                      0,
-                                      GRANT_TABLE_LIMITS};
+SCloudGrantStatus cloudGrantStatus = {0, GRANT_TIME_SERIES_LIMITS, 0, GRANT_DATABASE_LIMITS,
+                                      0, GRANT_STABLE_LIMITS,      0, GRANT_TABLE_LIMITS};
 
 GRANT_CFG_EXTERN;
 typedef SCloudGrantStatus GrantStatus;
@@ -146,7 +140,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
-  
+
   uInfo("grant data is initialized");
   return TSDB_CODE_SUCCESS;
 }
@@ -224,47 +218,48 @@ static void dmRefreshGrantCfg() {
 
 static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus) {
 #ifdef GRANTS_CFG
-    pGrantMsg->updateForced = tsGrantUpdateForced;
-    tsGrantUpdateForced = false;
-    if (pGrantMsg->updateForced) {
-      cloudGrantStatus.limitTimeSeries = tsGrantLimitTimeSeries;
-      cloudGrantStatus.limitDbs = tsGrantLimitDbs;
-      cloudGrantStatus.limitSTables = tsGrantLimitSTables;
-      cloudGrantStatus.limitTables = tsGrantLimitTables;
+  pGrantMsg->updateForced = tsGrantUpdateForced;
+  tsGrantUpdateForced = false;
+  if (pGrantMsg->updateForced) {
+    cloudGrantStatus.limitTimeSeries = tsGrantLimitTimeSeries;
+    cloudGrantStatus.limitDbs = tsGrantLimitDbs;
+    cloudGrantStatus.limitSTables = tsGrantLimitSTables;
+    cloudGrantStatus.limitTables = tsGrantLimitTables;
+  } else {
+    if (cloudGrantStatus.limitTimeSeries == GRANT_TIME_SERIES_LIMITS) {
+      cloudGrantStatus.limitTimeSeries = pGrantStatus->limitTimeSeries;
     } else {
-      if (cloudGrantStatus.limitTimeSeries == GRANT_TIME_SERIES_LIMITS) {
-        cloudGrantStatus.limitTimeSeries = pGrantStatus->limitTimeSeries;
-      } else {
-        COMPARE_SET_VAL(cloudGrantStatus.limitTimeSeries, pGrantStatus->limitTimeSeries, <);
-      }
-      if (cloudGrantStatus.limitDbs == GRANT_DATABASE_LIMITS) {
-        cloudGrantStatus.limitDbs = pGrantStatus->limitDbs;
-      } else {
-        COMPARE_SET_VAL(cloudGrantStatus.limitDbs, pGrantStatus->limitDbs, <);
-      }
-      if (cloudGrantStatus.limitSTables == GRANT_STABLE_LIMITS) {
-        cloudGrantStatus.limitSTables = pGrantStatus->limitSTables;
-      } else {
-        COMPARE_SET_VAL(cloudGrantStatus.limitSTables, pGrantStatus->limitSTables, <);
-      }
-      if (cloudGrantStatus.limitTables == GRANT_TABLE_LIMITS) {
-        cloudGrantStatus.limitTables = pGrantStatus->limitTables;
-      } else {
-        COMPARE_SET_VAL(cloudGrantStatus.limitTables, pGrantStatus->limitTables, <);
-      }
-      
-      tsGrantLimitTimeSeries = cloudGrantStatus.limitTimeSeries;
-      tsGrantLimitDbs = cloudGrantStatus.limitDbs;
-      tsGrantLimitSTables = cloudGrantStatus.limitSTables;
-      tsGrantLimitTables = cloudGrantStatus.limitTables;
+      COMPARE_SET_VAL(cloudGrantStatus.limitTimeSeries, pGrantStatus->limitTimeSeries, <);
     }
-    
-    uInfo("dnode send grant message,timeseries:%" PRIu64 ", database:%u, stable:%u, table:%u, set to grant state",
-          cloudGrantStatus.limitTimeSeries, cloudGrantStatus.limitDbs, cloudGrantStatus.limitSTables, cloudGrantStatus.limitTables);
-    pGrantMsg->limitTimeSeries = cloudGrantStatus.limitTimeSeries;
-    pGrantMsg->limitDbs = cloudGrantStatus.limitDbs;
-    pGrantMsg->limitSTables = cloudGrantStatus.limitSTables;
-    pGrantMsg->limitTables = cloudGrantStatus.limitTables;
+    if (cloudGrantStatus.limitDbs == GRANT_DATABASE_LIMITS) {
+      cloudGrantStatus.limitDbs = pGrantStatus->limitDbs;
+    } else {
+      COMPARE_SET_VAL(cloudGrantStatus.limitDbs, pGrantStatus->limitDbs, <);
+    }
+    if (cloudGrantStatus.limitSTables == GRANT_STABLE_LIMITS) {
+      cloudGrantStatus.limitSTables = pGrantStatus->limitSTables;
+    } else {
+      COMPARE_SET_VAL(cloudGrantStatus.limitSTables, pGrantStatus->limitSTables, <);
+    }
+    if (cloudGrantStatus.limitTables == GRANT_TABLE_LIMITS) {
+      cloudGrantStatus.limitTables = pGrantStatus->limitTables;
+    } else {
+      COMPARE_SET_VAL(cloudGrantStatus.limitTables, pGrantStatus->limitTables, <);
+    }
+
+    tsGrantLimitTimeSeries = cloudGrantStatus.limitTimeSeries;
+    tsGrantLimitDbs = cloudGrantStatus.limitDbs;
+    tsGrantLimitSTables = cloudGrantStatus.limitSTables;
+    tsGrantLimitTables = cloudGrantStatus.limitTables;
+  }
+
+  uInfo("dnode send grant message,timeseries:%" PRIu64 ", database:%u, stable:%u, table:%u, set to grant state",
+        cloudGrantStatus.limitTimeSeries, cloudGrantStatus.limitDbs, cloudGrantStatus.limitSTables,
+        cloudGrantStatus.limitTables);
+  pGrantMsg->limitTimeSeries = cloudGrantStatus.limitTimeSeries;
+  pGrantMsg->limitDbs = cloudGrantStatus.limitDbs;
+  pGrantMsg->limitSTables = cloudGrantStatus.limitSTables;
+  pGrantMsg->limitTables = cloudGrantStatus.limitTables;
 #else
   // refresh
   dmRefreshGrantCfg();
@@ -325,19 +320,18 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
     grantStatus.limitAccts = pGrantStatus->limitAccts;
     grantStatus.limitDnodes = pGrantStatus->limitDnodes;
     grantStatus.limitCpuCores = pGrantStatus->limitCpuCores;
-
   }
 
   char *ts = grantSecondsToString(grantStatus.expireTimeSec);
   if (grantStatus.expireTimeSec > curTime) {
     uInfo("dnode send grant message, storage:%uGB, timeseries:%" PRIu64
-          ", database:%u, user:%u, expire:%s %u, curtime:%u, set to grant state",
-          (uint32_t)(grantStatus.limitStorage / (int64_t)1073741824), grantStatus.limitTimeSeries, grantStatus.limitDbs,
-          grantStatus.limitUsers, ts, grantStatus.expireTimeSec, curTime);
+             ", database:%u, user:%u, expire:%s %u, curtime:%u, set to grant state",
+             (uint32_t)(grantStatus.limitStorage / (int64_t)1073741824), grantStatus.limitTimeSeries, grantStatus.limitDbs,
+             grantStatus.limitUsers, ts, grantStatus.expireTimeSec, curTime);
     grantStatus.expired = false;
   } else {
     uError("grant cluster expired at %s %u, curtime: %u, set to un-grant state", ts, grantStatus.expireTimeSec,
-           curTime);
+              curTime);
     grantStatus.expired = true;
   }
   taosMemoryFree(ts);
@@ -438,7 +432,7 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
     return -1;
   }
 
-  if(recheckClusterTime) {
+  if (recheckClusterTime) {
     grantResetMaster(pMnode);
   }
   grantRetrieveGrantInfo(pMnode);
@@ -466,9 +460,9 @@ void grantParseParameter() {
 }
 
 static char *grantSecondsToString(uint32_t seconds) {
-  char      *ts = taosMemoryCalloc(64, 1);
-  time_t     sec = seconds;
-  struct tm  ptm;
+  char     *ts = taosMemoryCalloc(64, 1);
+  time_t    sec = seconds;
+  struct tm ptm;
   taosLocalTime(&sec, &ptm);
   strftime(ts, 64, "%Y-%m-%d %H:%M:%S", &ptm);
   return ts;
@@ -515,9 +509,9 @@ static uint64_t grantGetClusterCurTimeSeries(SMnode *pMnode) {
 
 /**
  * @brief not including tsma storage
- * 
- * @param pMnode 
- * @return uint64_t 
+ *
+ * @param pMnode
+ * @return uint64_t
  */
 static uint64_t grantGetClusterCurStorage(SMnode *pMnode) {
   uint64_t storage = 0;
@@ -590,10 +584,10 @@ static uint32_t grantGetClusterCurAccts(SMnode *pMnode) {
 
 static uint32_t grantGetClusterCurDnodes(SMnode *pMnode) { return (uint32_t)mndGetDnodeSize(pMnode); }
 
-static uint32_t grantGetClusterCurSTables(SMnode *pMnode) { 
+static uint32_t grantGetClusterCurSTables(SMnode *pMnode) {
   SSdb *pSdb = pMnode->pSdb;
   return (uint32_t)sdbGetSize(pSdb, SDB_STB);
- }
+}
 
 static uint32_t grantGetClusterCurTables(SMnode *pMnode) {
   uint64_t numOfPoints = 0;
@@ -716,10 +710,12 @@ void grantRestore(EGrantType grant, uint64_t value) {
 
 #ifdef GRANTS_CFG
 static int32_t cloudGrantCheckTimeSeries() {
-  if (cloudGrantStatus.limitTimeSeries == GRANT_TIME_SERIES_LIMITS || cloudGrantStatus.curTimeSeries < cloudGrantStatus.limitTimeSeries) {
+  if (cloudGrantStatus.limitTimeSeries == GRANT_TIME_SERIES_LIMITS ||
+      cloudGrantStatus.curTimeSeries < cloudGrantStatus.limitTimeSeries) {
     return TSDB_CODE_SUCCESS;
   } else {
-    uError("grant failed to create table, exist:%" PRIu64 ", reason:grant timeseries limited", cloudGrantStatus.curTimeSeries);
+    uError("grant failed to create table, exist:%" PRIu64 ", reason:grant timeseries limited",
+           cloudGrantStatus.curTimeSeries);
     return TSDB_CODE_GRANT_TIMESERIES_LIMITED;
   }
 }
@@ -732,10 +728,12 @@ static int32_t cloudGrantCheckDatabases() {
   }
 }
 static int32_t cloudGrantCheckSTables() {
-  if (cloudGrantStatus.limitSTables == GRANT_STABLE_LIMITS || cloudGrantStatus.curSTables < cloudGrantStatus.limitSTables) {
+  if (cloudGrantStatus.limitSTables == GRANT_STABLE_LIMITS ||
+      cloudGrantStatus.curSTables < cloudGrantStatus.limitSTables) {
     return TSDB_CODE_SUCCESS;
   } else {
-    uError("grant failed to create stable, exist:%" PRIu32 ", reason:grant stable limited", cloudGrantStatus.curSTables);
+    uError("grant failed to create stable, exist:%" PRIu32 ", reason:grant stable limited",
+           cloudGrantStatus.curSTables);
     return TSDB_CODE_GRANT_STABLE_LIMITED;
   }
 }
@@ -888,8 +886,9 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, GrantMsg *pGrantMsg, Gra
     COMPARE_SET_VAL(pGrantStatus->limitTables, pGrantMsg->limitTables, <);
   }
 
-  uInfo("grant message received from dnode, timeseries:%" PRIu64 ", database:%u, stable:%u, table:%u, set to grant state",
-        pGrantStatus->limitTimeSeries, pGrantStatus->limitDbs, pGrantStatus->limitSTables,pGrantStatus->limitTables);
+  uInfo("grant message received from dnode, timeseries:%" PRIu64
+        ", database:%u, stable:%u, table:%u, set to grant state",
+        pGrantStatus->limitTimeSeries, pGrantStatus->limitDbs, pGrantStatus->limitSTables, pGrantStatus->limitTables);
 #else
   uint32_t curTime = taosGetTimestampSec();
   // TODO: process grant status from mnode
@@ -963,8 +962,8 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   char    tmp1[42] = {0};
 
   if (pShow->numOfRows < 1) {
-  #ifdef GRANTS_CFG
-    const char *src;
+#ifdef GRANTS_CFG
+    const char      *src;
     SColumnInfoData *pColInfo;
 
     cols = 0;
@@ -972,7 +971,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     src = "cloud";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
-    
+
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
@@ -1022,7 +1021,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
-  #else
+#else
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     const char      *src = grantStatus.officialVersion ? "official" : "trial";
@@ -1031,9 +1030,9 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    char       expire[22] = {0};
-    time_t     tt = grantStatus.expireTimeSec;
-    struct tm  ptm;
+    char      expire[22] = {0};
+    time_t    tt = grantStatus.expireTimeSec;
+    struct tm ptm;
     taosLocalTime(&tt, &ptm);
     strftime(expire, 21, "%Y-%m-%d %H:%M:%S", &ptm);
     src = grantStatus.expireTimeSec != GRANT_EXPIRE_TIME ? expire : "unlimited";
@@ -1042,7 +1041,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = grantStatus.expired ? " true" : " false";
+    src = grantStatus.expired ? "true" : "false";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
@@ -1142,7 +1141,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     src = "unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
-  #endif
+#endif
     numOfRows++;
   }
 
@@ -1244,7 +1243,7 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus)
   if (tDecodeU64(&decoder, &pStatus->curTimeSeries) < 0) return -1;
   if (tDecodeU32(&decoder, &pStatus->curSpeed) < 0) return -1;
   if (tDecodeU32(&decoder, &pStatus->curQueryTime) < 0) return -1;
-  #endif
+#endif
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
