@@ -818,11 +818,10 @@ int32_t syncLogReplMgrReplicateProbeOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode
   pMgr->endIndex = index + 1;
 
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  sTrace("vgId:%d, attempted to probe the %d'th peer with msg of index:%" PRId64 " term: %" PRId64
-         ". pMgr(rs:%d): [%" PRId64 " %" PRId64 ", %" PRId64 "), pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64
-         ")",
-         pNode->vgId, pMgr->peerId, index, term, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
-         pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+  sInfo("vgId:%d, probe peer:%" PRIx64 " with msg of index:%" PRId64 " term: %" PRId64 ". mgr (rs:%d): [%" PRId64
+        " %" PRId64 ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+        pNode->vgId, pDestId->addr, index, term, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
+        pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
   return 0;
 }
 
@@ -1003,6 +1002,10 @@ void syncLogBufferDestroy(SSyncLogBuffer* pBuf) {
 
 int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex toIndex) {
   ASSERT(pBuf->commitIndex < toIndex && toIndex <= pBuf->endIndex);
+
+  if (toIndex == pBuf->endIndex) {
+    return 0;
+  }
 
   sInfo("vgId:%d, rollback sync log buffer. toindex: %" PRId64 ", buffer: [%" PRId64 " %" PRId64 " %" PRId64
         ", %" PRId64 ")",
