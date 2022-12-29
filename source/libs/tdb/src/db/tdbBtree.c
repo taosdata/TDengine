@@ -374,7 +374,9 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
   int mlen;
   int cret;
 
-  ASSERT(keyLen1 > 0 && keyLen2 > 0 && pKey1 != NULL && pKey2 != NULL);
+  if (ASSERT(keyLen1 > 0 && keyLen2 > 0 && pKey1 != NULL && pKey2 != NULL)) {
+    // -1 is less than
+  }
 
   mlen = keyLen1 < keyLen2 ? keyLen1 : keyLen2;
   cret = memcmp(pKey1, pKey2, mlen);
@@ -525,11 +527,15 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       nOlds = 3;
     }
     for (int i = 0; i < nOlds; i++) {
-      ASSERT(sIdx + i <= nCells);
+      if (ASSERT(sIdx + i <= nCells)) {
+        return -1;
+      }
 
       SPgno pgno;
       if (sIdx + i == nCells) {
-        ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pParent));
+        if (ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pParent))) {
+          return -1;
+        }
         pgno = ((SIntHdr *)(pParent->pData))->pgno;
       } else {
         pCell = tdbPageGetCell(pParent, sIdx + i);
@@ -658,7 +664,9 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           szRCell = tdbBtreeCellSize(pPage, pCell, 0, NULL, NULL);
         }
 
-        ASSERT(infoNews[iNew - 1].cnt > 0);
+        if (ASSERT(infoNews[iNew - 1].cnt > 0)) {
+          return -1;
+        }
 
         if (infoNews[iNew].size + szRCell >= infoNews[iNew - 1].size - szRCell) {
           break;
@@ -746,8 +754,12 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
         pCell = tdbPageGetCell(pPage, oIdx);
         szCell = tdbBtreeCellSize(pPage, pCell, 0, NULL, NULL);
 
-        ASSERT(nNewCells <= infoNews[iNew].cnt);
-        ASSERT(iNew < nNews);
+        if (ASSERT(nNewCells <= infoNews[iNew].cnt)) {
+          return -1;
+        }
+        if (ASSERT(iNew < nNews)) {
+          return -1;
+        }
 
         if (nNewCells < infoNews[iNew].cnt) {
           tdbPageInsertCell(pNews[iNew], nNewCells, pCell, szCell, 0);
@@ -786,14 +798,20 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
             }
           }
         } else {
-          ASSERT(childNotLeaf);
-          ASSERT(iNew < nNews - 1);
+          if (ASSERT(childNotLeaf)) {
+            return -1;
+          }
+          if (ASSERT(iNew < nNews - 1)) {
+            return -1;
+          }
 
           // set current new page right-most child
           ((SIntHdr *)pNews[iNew]->pData)->pgno = ((SPgno *)pCell)[0];
 
           // insert to parent as divider cell
-          ASSERT(iNew < nNews - 1);
+          if (ASSERT(iNew < nNews - 1)) {
+            return -1;
+          }
           ((SPgno *)pCell)[0] = TDB_PAGE_PGNO(pNews[iNew]);
           tdbPageInsertCell(pParent, sIdx++, pCell, szCell, 0);
 
@@ -808,7 +826,9 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     }
 
     if (childNotLeaf) {
-      ASSERT(TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]) == infoNews[nNews - 1].cnt);
+      if (ASSERT(TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]) == infoNews[nNews - 1].cnt)) {
+        return -1;
+      }
       ((SIntHdr *)(pNews[nNews - 1]->pData))->pgno = rPgno;
 
       SIntHdr *pIntHdr = (SIntHdr *)pParent->pData;
@@ -998,7 +1018,9 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
       nLeft -= kLen;
       // pack partial val to local if any space left
       if (nLocal > nHeader + kLen + sizeof(SPgno)) {
-        ASSERT(pVal != NULL && vLen != 0);
+        if (ASSERT(pVal != NULL && vLen != 0)) {
+          return -1;
+        }
         memcpy(pCell + nHeader + kLen, pVal, nLocal - nHeader - kLen - sizeof(SPgno));
         nLeft -= nLocal - nHeader - kLen - sizeof(SPgno);
       }
@@ -1160,9 +1182,15 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   int nPayload;
   int ret;
 
-  ASSERT(pPage->kLen == TDB_VARIANT_LEN || pPage->kLen == kLen);
-  ASSERT(pPage->vLen == TDB_VARIANT_LEN || pPage->vLen == vLen);
-  ASSERT(pKey != NULL && kLen > 0);
+  if (ASSERT(pPage->kLen == TDB_VARIANT_LEN || pPage->kLen == kLen)) {
+    return -1;
+  }
+  if (ASSERT(pPage->vLen == TDB_VARIANT_LEN || pPage->vLen == vLen)) {
+    return -1;
+  }
+  if (ASSERT(pKey != NULL && kLen > 0)) {
+    return -1;
+  }
 
   nPayload = 0;
   nHeader = 0;
