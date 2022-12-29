@@ -737,6 +737,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
     if (!pBuf->assign) {
       pBuf->v = *(int64_t*)tval;
+
       if (pCtx->subsidiaries.num > 0) {
         index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
         if (index >= 0) {
@@ -788,11 +789,11 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         }
       } else if (type == TSDB_DATA_TYPE_FLOAT) {
         float prev = 0;
-        GET_TYPED_DATA(prev, float, type, &pBuf->v);
+        GET_TYPED_DATA(prev, float, TSDB_DATA_TYPE_DOUBLE, &pBuf->v);
 
         float val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          *(float*)&pBuf->v = val;
+          *(double*)&pBuf->v = GET_DOUBLE_VAL(tval);
         }
 
         if (pCtx->subsidiaries.num > 0) {
