@@ -244,7 +244,7 @@ int32_t compareJsonVal(const void *pLeft, const void *pRight) {
   } else if (leftType == TSDB_DATA_TYPE_NULL) {
     return 0;
   } else {
-    assert(0);
+    ASSERTS(0, "data type unexpected");
     return 0;
   }
 }
@@ -1285,7 +1285,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_TIMESTAMP:
         return setChkInBytes8;
       default:
-        assert(0);
+        ASSERTS(0, "data type unexpected");
     }
   }
 
@@ -1308,7 +1308,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_TIMESTAMP:
         return setChkNotInBytes8;
       default:
-        assert(0);
+        ASSERTS(0, "data type unexpected");
     }
   }
 
