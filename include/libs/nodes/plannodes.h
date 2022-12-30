@@ -121,6 +121,7 @@ typedef struct SAggLogicNode {
   bool       hasLast;
   bool       hasTimeLineFunc;
   bool       onlyHasKeepOrderFunc;
+  bool       hasGroupKeyOptimized;
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {
@@ -402,6 +403,7 @@ typedef struct SAggPhysiNode {
   SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
   bool       mergeDataBlock;
+  bool       groupKeyOptimized;
 } SAggPhysiNode;
 
 typedef struct SDownstreamSourceNode {

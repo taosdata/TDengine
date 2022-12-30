@@ -39,14 +39,10 @@ static void doSetVal(SColumnInfoData* pDstColInfoData, int32_t rowIndex, const S
 
 static void setNotFillColumn(SFillInfo* pFillInfo, SColumnInfoData* pDstColInfo, int32_t rowIndex, int32_t colIdx) {
   SRowVal* p = NULL;
-  if (FILL_IS_ASC_FILL(pFillInfo)) {
-    if (pFillInfo->prev.key != 0) {
-      p = &pFillInfo->prev;  // prev has been set value
-    } else { // otherwise, use the value in the next row
-      p = &pFillInfo->next;
-    }
+  if (pFillInfo->type == TSDB_FILL_NEXT) {
+    p = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->next : &pFillInfo->prev;
   } else {
-    p = &pFillInfo->next;
+    p = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->prev : &pFillInfo->next;
   }
   
   SGroupKeys* pKey = taosArrayGet(p->pRowVal, colIdx);
@@ -257,8 +253,15 @@ static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SRowVa
 
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     int32_t type = pFillInfo->pFillCol[i].pExpr->pExpr->nodeType;
-    if (type == QUERY_NODE_COLUMN || type == QUERY_NODE_OPERATOR || type == QUERY_NODE_FUNCTION) {
+    if ( type == QUERY_NODE_COLUMN || type == QUERY_NODE_OPERATOR || type == QUERY_NODE_FUNCTION) {
+      if (!pFillInfo->pFillCol[i].notFillCol && pFillInfo->type != TSDB_FILL_NEXT) {
+        continue;
+      }
       int32_t srcSlotId = GET_DEST_SLOT_ID(&pFillInfo->pFillCol[i]);
+
+      if (srcSlotId == pFillInfo->srcTsSlotId && pFillInfo->type == TSDB_FILL_LINEAR) {
+        continue;
+      }
 
       SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
 
@@ -288,8 +291,12 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
     int64_t ts = ((int64_t*)pTsCol->pData)[pFillInfo->index];
 
     // set the next value for interpolation
-    if ((pFillInfo->currentKey < ts && ascFill) || (pFillInfo->currentKey > ts && !ascFill)) {
-      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, &pFillInfo->next);
+    if (pFillInfo->currentKey < ts && ascFill) {
+      SRowVal* pRVal = pFillInfo->type == TSDB_FILL_NEXT ? &pFillInfo->next : &pFillInfo->prev;
+      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pRVal);
+    } else if (pFillInfo->currentKey > ts && !ascFill) {
+      SRowVal* pRVal = pFillInfo->type == TSDB_FILL_NEXT ? &pFillInfo->prev : &pFillInfo->next;
+      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pRVal);
     }
 
     if (((pFillInfo->currentKey < ts && ascFill) || (pFillInfo->currentKey > ts && !ascFill)) &&

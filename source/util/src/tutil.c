@@ -144,6 +144,16 @@ char *strnchr(const char *haystack, char needle, int32_t len, bool skipquote) {
   return NULL;
 }
 
+TdUcs4* wcsnchr(const TdUcs4* haystack, TdUcs4 needle, size_t len) {
+  for(int32_t i = 0; i < len; ++i) {
+    if (haystack[i] == needle) {
+      return (TdUcs4*) &haystack[i];
+    }
+  }
+
+  return NULL;
+}
+
 char *strtolower(char *dst, const char *src) {
   int32_t esc = 0;
   char    quote = 0, *p = dst, c;
@@ -375,4 +385,74 @@ void taosIp2String(uint32_t ip, char *str) {
 
 void taosIpPort2String(uint32_t ip, uint16_t port, char *str) {
   sprintf(str, "%u.%u.%u.%u:%u", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (uint8_t)(ip >> 24), port);
+}
+
+size_t tstrncspn(const char *str, size_t size, const char *reject, size_t rsize) {
+  if (rsize == 0 || rsize == 1) {
+    char* p = strnchr(str, reject[0], size, false);
+    return (p == NULL)? size:(p-str);
+  }
+
+  /* Use multiple small memsets to enable inlining on most targets.  */
+  unsigned char  table[256];
+  unsigned char *p = memset(table, 0, 64);
+  memset(p + 64, 0, 64);
+  memset(p + 128, 0, 64);
+  memset(p + 192, 0, 64);
+
+  unsigned char *s = (unsigned char *)reject;
+  int32_t index = 0;
+  do {
+    p[s[index++]] = 1;
+  } while (index < rsize);
+
+  s = (unsigned char*) str;
+  int32_t times = size >> 2;
+  if (times == 0) {
+    for(int32_t i = 0; i < size; ++i) {
+      if (p[s[i]]) {
+        return i;
+      }
+    }
+
+    return size;
+  }
+
+  index = 0;
+  uint32_t c0, c1, c2, c3;
+  for(int32_t i = 0; i < times; ++i, index += 4) {
+    int32_t j = index;
+    c0 = p[s[j]];
+    c1 = p[s[j + 1]];
+    c2 = p[s[j + 2]];
+    c3 = p[s[j + 3]];
+
+    if ((c0 | c1 | c2 | c3) != 0) {
+      size_t count = ((i + 1) >> 2);
+      return (c0 | c1) != 0 ? count - c0 + 1 : count - c2 + 3;
+    }
+  }
+
+  int32_t offset = times * 4;
+  for(int32_t i = offset; i < size; ++i) {
+    if (p[s[i]]) {
+      return i;
+    }
+  }
+
+  return size;
+}
+
+size_t twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rsize) {
+  if (rsize == 0 || rsize == 1) {
+    TdUcs4* p = wcsnchr(wcs, reject[0], size);
+    return (p == NULL)? size:(p-wcs);
+  }
+
+  size_t index = 0;
+  while ((index < size) && (wcsnchr(reject, wcs[index], rsize) == NULL)) {
+    ++index;
+  }
+
+  return index;
 }

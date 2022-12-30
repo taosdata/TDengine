@@ -215,7 +215,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
   if (pVnode != NULL) {
-    dDebug("vgId:%d, already exist", req.vgId);
+    dInfo("vgId:%d, already exist", req.vgId);
     tFreeSCreateVnodeReq(&req);
     vmReleaseVnode(pMgmt, pVnode);
     terrno = TSDB_CODE_VND_ALREADY_EXIST;
@@ -360,7 +360,7 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   int32_t vgId = dropReq.vgId;
-  dDebug("vgId:%d, start to drop vnode", vgId);
+  dInfo("vgId:%d, start to drop vnode", vgId);
 
   if (dropReq.dnodeId != pMgmt->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -370,7 +370,7 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
   if (pVnode == NULL) {
-    dDebug("vgId:%d, failed to drop since %s", vgId, terrstr());
+    dInfo("vgId:%d, failed to drop since %s", vgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
     return -1;
   }
@@ -385,6 +385,7 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   vmCloseVnode(pMgmt, pVnode);
   vmWriteVnodeListToFile(pMgmt);
 
+  dInfo("vgId:%d, is dropped", vgId);
   return 0;
 }
 

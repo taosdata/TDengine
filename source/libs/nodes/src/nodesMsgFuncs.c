@@ -2370,7 +2370,8 @@ enum {
   PHY_AGG_CODE_EXPR,
   PHY_AGG_CODE_GROUP_KEYS,
   PHY_AGG_CODE_AGG_FUNCS,
-  PHY_AGG_CODE_MERGE_DATA_BLOCK
+  PHY_AGG_CODE_MERGE_DATA_BLOCK,
+  PHY_AGG_CODE_GROUP_KEY_OPTIMIZE
 };
 
 static int32_t physiAggNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2388,6 +2389,9 @@ static int32_t physiAggNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_AGG_CODE_MERGE_DATA_BLOCK, pNode->mergeDataBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_AGG_CODE_GROUP_KEY_OPTIMIZE, pNode->groupKeyOptimized);
   }
 
   return code;
@@ -2414,6 +2418,9 @@ static int32_t msgToPhysiAggNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_AGG_CODE_MERGE_DATA_BLOCK:
         code = tlvDecodeBool(pTlv, &pNode->mergeDataBlock);
+        break;
+      case PHY_AGG_CODE_GROUP_KEY_OPTIMIZE:
+        code = tlvDecodeBool(pTlv, &pNode->groupKeyOptimized);
         break;
       default:
         break;
