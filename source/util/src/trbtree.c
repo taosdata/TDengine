@@ -14,6 +14,7 @@
  */
 
 #include "trbtree.h"
+#include "tlog.h"
 
 static void tRBTreeRotateLeft(SRBTree *pTree, SRBTreeNode *x) {
   SRBTreeNode *y = x->right;
