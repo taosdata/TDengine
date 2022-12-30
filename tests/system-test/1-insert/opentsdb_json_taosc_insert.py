@@ -1758,7 +1758,7 @@ class TDTestCase:
         self.batchErrorInsertCheckCase()
         self.chineseCheckCase()
         # self.spellCheckCase()
-        self.tbnameTagsColsNameCheckCase()
+        # self.tbnameTagsColsNameCheckCase()
         # # MultiThreads
         # self.sStbStbDdataInsertMultiThreadCheckCase()
         # self.sStbStbDdataAtInsertMultiThreadCheckCase()
