@@ -986,7 +986,7 @@ static void uvPipeListenCb(uv_stream_t* handle, int status) {
 
   ret = uv_is_writable((uv_stream_t*)pipe);
   ASSERTS(ret == 1, "trans-svr pipe status corrupted");
-  if (ret != 0) return;
+  if (ret != 1) return;
 
   ret = uv_is_closing((uv_handle_t*)pipe);
   ASSERTS(ret == 0, "trans-svr pipe status corrupted");
