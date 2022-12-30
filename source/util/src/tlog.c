@@ -790,7 +790,7 @@ cmp_end:
   return ret;
 }
 
-bool taosAssert(bool condition, const char *file, int32_t line, const char *format, ...) {
+bool taosAssertDebug(bool condition, const char *file, int32_t line, const char *format, ...) {
   if (condition) return false;
 
   const char *flags = "UTL FATAL ";
@@ -823,3 +823,23 @@ bool taosAssert(bool condition, const char *file, int32_t line, const char *form
 
   return true;
 }
+
+#ifdef NDEBUG
+bool taosAssertRelease(bool condition) {
+  if (condition) return false;
+
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;  // tsLogEmbedded ? 255 : uDebugFlag
+
+  taosPrintLog(flags, level, dflag, "tAssert called in release mode, exit:%d", tsAssert);
+  taosPrintTrace(flags, level, dflag);
+
+  if (tsAssert) {
+    taosMsleep(300);
+    abort();
+  }
+
+  return true;
+}
+#endif
