@@ -5846,10 +5846,10 @@ static int32_t adjustStreamQueryForExistTable(STranslateContext* pCxt, SCreateSt
     if (NULL != pStmt->pCols) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, pStmt->targetTabName);
     }
+    pReq->createStb = 1;
     return TSDB_CODE_SUCCESS;
   }
   if (TSDB_CODE_SUCCESS == code) {
-    // todo pReq->create = true;
     code = adjustStreamQueryForExistTableImpl(pCxt, pStmt, pMeta);
   }
   return code;
