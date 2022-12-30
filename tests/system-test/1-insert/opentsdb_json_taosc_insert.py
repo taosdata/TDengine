@@ -1719,7 +1719,6 @@ class TDTestCase:
             print(err.errno)
 
     def runAll(self):
-        """
         for value_type in ["obj", "default"]:
             self.initCheckCase(value_type)
             self.symbolsCheckCase(value_type)
@@ -1759,7 +1758,7 @@ class TDTestCase:
         self.batchErrorInsertCheckCase()
         self.chineseCheckCase()
         # self.spellCheckCase()
-        self.tbnameTagsColsNameCheckCase()
+        # self.tbnameTagsColsNameCheckCase()
         # # MultiThreads
         # self.sStbStbDdataInsertMultiThreadCheckCase()
         # self.sStbStbDdataAtInsertMultiThreadCheckCase()
@@ -1772,7 +1771,7 @@ class TDTestCase:
         # self.sStbStbDdataDtsMtInsertMultiThreadCheckCase()
         # self.sStbDtbDdataDtsMtInsertMultiThreadCheckCase()
         # self.lengthIcreaseCrashCheckCase()
-        """
+
     def run(self):
         print("running {}".format(__file__))
         self.createDb()

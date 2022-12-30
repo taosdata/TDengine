@@ -69,6 +69,7 @@ extern "C" {
 #define VALUE     "_value"
 #define VALUE_LEN 6
 
+#define OTD_JSON_FIELDS_NUM     4
 #define MAX_RETRY_TIMES 5
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
@@ -177,9 +178,10 @@ typedef struct {
   int32_t      lineNum;
   SSmlMsgBuf   msgBuf;
 
-//  cJSON       *root;  // for parse json
-  int8_t             offset[4];
+  cJSON       *root;  // for parse json
+  int8_t             offset[OTD_JSON_FIELDS_NUM];
   SSmlLineInfo      *lines; // element is SSmlLineInfo
+  bool               parseJsonByLib;
 
   //
   SArray      *preLineTagKV;
@@ -206,9 +208,9 @@ typedef int32_t (*_equal_fn_sml)(const void *, const void *);
 
 SSmlHandle   *smlBuildSmlInfo(TAOS *taos);
 void          smlDestroyInfo(SSmlHandle *info);
-void          smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset);
-void          smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset);
-SArray       *smlJsonParseTags(char *start, char *end);
+int           smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset);
+int           smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset);
+//SArray       *smlJsonParseTags(char *start, char *end);
 bool          smlParseNumberOld(SSmlKv *kvVal, SSmlMsgBuf *msg);
 void*         nodeListGet(NodeList* list, const void *key, int32_t len, _equal_fn_sml fn);
 int           nodeListSet(NodeList** list, const void *key, int32_t len, void* value, _equal_fn_sml fn);
@@ -226,6 +228,7 @@ int32_t           is_same_child_table_telnet(const void *a, const void *b);
 int64_t           smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32_t len);
 int32_t           smlClearForRerun(SSmlHandle *info);
 int32_t           smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg);
+uint8_t           smlGetTimestampLen(int64_t num);
 
 int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
