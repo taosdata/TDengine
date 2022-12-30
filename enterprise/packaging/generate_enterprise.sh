@@ -7,6 +7,8 @@ versionComp=$2
 branchName=$3
 verType=$4
 cpuType=$5
+brandName=$6
+brandPrompt=$7
 
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
@@ -30,7 +32,18 @@ if [ ! -d $communityDir ]; then
   cd $topDir
   mkdir -p debug
   cd debug
-  cmake .. -DBUILD_TAOSX=true
+
+  if [ -z "$brandName" ] && [ -z "$brandPrompt" ]; then
+    cmake .. -DBUILD_TAOSX=true
+  else
+    if [ ! -z "${brandName}" ] && [ ! -z "$brandPrompt" ]; then
+      cmake .. -DBUILD_TAOSX=true -DOEM_BRAND=${brandName} -DOEM_PROMPT=${brandPrompt}
+    elif [ ! -z "${brandName}" ]; then
+      cmake .. -DBUILD_TAOSX=true -DOEM_BRAND=${brandName}
+    else
+      cmake .. -DBUILD_TAOSX=true -DOEM_PROMPT=${brandPrompt}
+    fi
+  fi
 fi
 
 # cd $communityDir
@@ -49,7 +62,7 @@ cd $communityDir
 rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
-./packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+./packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${brandName} -P ${brandPrompt}
 
 # if [ ! -d  "$archiveDir/v$version" ]; then
 #   mkdir -p "$archiveDir/v$version"

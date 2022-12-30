@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+# set -x
 
 # new_ver_release.sh  -b [develop | master] 
 #                     -c [aarch32 | aarch64 | x64 ...]  
@@ -21,7 +22,7 @@ verType=stable      # -V [stable, beta]
 versionComp=3.0.0.0
 dockerMode="no"
 
-while getopts "hb:c:n:l:v:d:V:" arg
+while getopts "hb:c:n:l:v:d:V:N:P:" arg
 do
   case $arg in
     c)
@@ -52,6 +53,14 @@ do
       #echo "dockerMode=$OPTARG"
       dockerMode=$(echo $OPTARG)
       ;;
+    N)
+      #echo "dockerMode=$OPTARG"
+      brandName=$(echo $OPTARG)
+      ;;
+    P)
+      #echo "dockerMode=$OPTARG"
+      brandPrompt=$(echo $OPTARG)
+      ;;
     h)
       echo "Usage: `basename $0` -b [develop | master] "
       echo "                     -c [aarch32 | aarch64 | x64 ...] "
@@ -60,6 +69,8 @@ do
       echo "                     -v [cluster, edge ,all] cluster is enterprise, edge is community  "
       echo "                     -V [stable | beta] "
       echo "                     -d [no | build | push | latest]   "
+      echo "                     -N <oem name>"
+      echo "                     -P <oem prompt>"
       exit 0
       ;;
     ?) #unknow option
@@ -75,11 +86,11 @@ fi
 
 if [ "$verMode" == "all" ];then
   bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
-  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType
+  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $brandName $brandPrompt
 elif [ "$verMode" == "edge" ];then
   bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
 elif [ "$verMode" == "cluster" ];then
-  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType
+  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $brandName $brandPrompt
 elif [ "$verMode" == "cloud" ];then
   bash generate_cloud.sh $version $versionComp $branchName $verType $cpuType
 else
