@@ -20,8 +20,8 @@
 
 static int32_t syncEncodeSyncCfg(const void *pObj, SJson *pJson) {
   SSyncCfg *pCfg = (SSyncCfg *)pObj;
-  if (tjsonAddIntegerToObject(pJson, "replicaNum", pCfg->replicaNum) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "myIndex", pCfg->myIndex) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "replicaNum", pCfg->replicaNum) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "myIndex", pCfg->myIndex) < 0) return -1;
 
   SJson *nodeInfo = tjsonCreateArray();
   if (nodeInfo == NULL) return -1;
@@ -29,7 +29,7 @@ static int32_t syncEncodeSyncCfg(const void *pObj, SJson *pJson) {
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
     SJson *info = tjsonCreateObject();
     if (info == NULL) return -1;
-    if (tjsonAddIntegerToObject(info, "nodePort", pCfg->nodeInfo[i].nodePort) < 0) return -1;
+    if (tjsonAddDoubleToObject(info, "nodePort", pCfg->nodeInfo[i].nodePort) < 0) return -1;
     if (tjsonAddStringToObject(info, "nodeFqdn", pCfg->nodeInfo[i].nodeFqdn) < 0) return -1;
     if (tjsonAddIntegerToObject(info, "nodeId", pCfg->nodeInfo[i].nodeId) < 0) return -1;
     if (tjsonAddIntegerToObject(info, "clusterId", pCfg->nodeInfo[i].clusterId) < 0) return -1;
@@ -42,11 +42,11 @@ static int32_t syncEncodeSyncCfg(const void *pObj, SJson *pJson) {
 static int32_t syncEncodeRaftCfg(const void *pObj, SJson *pJson) {
   SRaftCfg *pCfg = (SRaftCfg *)pObj;
   if (tjsonAddObject(pJson, "SSyncCfg", syncEncodeSyncCfg, (void *)&pCfg->cfg) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "isStandBy", pCfg->isStandBy) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "snapshotStrategy", pCfg->snapshotStrategy) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "isStandBy", pCfg->isStandBy) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "snapshotStrategy", pCfg->snapshotStrategy) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "batchSize", pCfg->batchSize) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "lastConfigIndex", pCfg->lastConfigIndex) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "configIndexCount", pCfg->configIndexCount) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "lastConfigIndex", pCfg->lastConfigIndex) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "configIndexCount", pCfg->configIndexCount) < 0) return -1;
 
   SJson *configIndexArr = tjsonCreateArray();
   if (configIndexArr == NULL) return -1;
@@ -115,9 +115,9 @@ static int32_t syncDecodeSyncCfg(const SJson *pJson, void *pObj) {
   SSyncCfg *pCfg = (SSyncCfg *)pObj;
   int32_t   code = 0;
 
-  tjsonGetNumberValue(pJson, "replicaNum", pCfg->replicaNum, code);
+  tjsonGetInt32ValueFromDouble(pJson, "replicaNum", pCfg->replicaNum, code);
   if (code < 0) return -1;
-  tjsonGetNumberValue(pJson, "myIndex", pCfg->myIndex, code);
+  tjsonGetInt32ValueFromDouble(pJson, "myIndex", pCfg->myIndex, code);
   if (code < 0) return -1;
 
   SJson *nodeInfo = tjsonGetObjectItem(pJson, "nodeInfo");
@@ -127,9 +127,9 @@ static int32_t syncDecodeSyncCfg(const SJson *pJson, void *pObj) {
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
     SJson *info = tjsonGetArrayItem(nodeInfo, i);
     if (info == NULL) return -1;
-    tjsonGetNumberValue(info, "nodePort", pCfg->nodeInfo[i].nodePort, code);
+    tjsonGetUInt16ValueFromDouble(info, "nodePort", pCfg->nodeInfo[i].nodePort, code);
     if (code < 0) return -1;
-    tjsonGetStringValue(info, "nodeFqdn", pCfg->nodeInfo[i].nodeFqdn);
+    code = tjsonGetStringValue(info, "nodeFqdn", pCfg->nodeInfo[i].nodeFqdn);
     if (code < 0) return -1;
     tjsonGetNumberValue(info, "nodeId", pCfg->nodeInfo[i].nodeId, code);
     tjsonGetNumberValue(info, "clusterId", pCfg->nodeInfo[i].clusterId, code);
@@ -144,15 +144,15 @@ static int32_t syncDecodeRaftCfg(const SJson *pJson, void *pObj) {
 
   if (tjsonToObject(pJson, "SSyncCfg", syncDecodeSyncCfg, (void *)&pCfg->cfg) < 0) return -1;
 
-  tjsonGetNumberValue(pJson, "isStandBy", pCfg->isStandBy, code);
+  tjsonGetInt8ValueFromDouble(pJson, "isStandBy", pCfg->isStandBy, code);
   if (code < 0) return -1;
-  tjsonGetNumberValue(pJson, "snapshotStrategy", pCfg->snapshotStrategy, code);
+  tjsonGetInt8ValueFromDouble(pJson, "snapshotStrategy", pCfg->snapshotStrategy, code);
   if (code < 0) return -1;
-  tjsonGetNumberValue(pJson, "batchSize", pCfg->batchSize, code);
+  tjsonGetInt32ValueFromDouble(pJson, "batchSize", pCfg->batchSize, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "lastConfigIndex", pCfg->lastConfigIndex, code);
   if (code < 0) return -1;
-  tjsonGetNumberValue(pJson, "configIndexCount", pCfg->configIndexCount, code);
+  tjsonGetInt32ValueFromDouble(pJson, "configIndexCount", pCfg->configIndexCount, code);
 
   SJson *configIndexArr = tjsonGetObjectItem(pJson, "configIndexArr");
   if (configIndexArr == NULL) return -1;
