@@ -37,10 +37,10 @@ class TsmaTest(TDCase):
         self.querySmaOptimize = 1
 
 
-        self.tsma_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)", "stddev(c2)", "hyperloglog(c11)", 
-                                "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
-        # self.tsma_function_list = ["min(c1)", "max(c2)", "sum(c3)", "apercentile(c6, 50)", "avg(c7)", "spread(c1)", "stddev(c2)", "hyperloglog(c11)", 
-        #                         "min(t1)", "max(t2)", "sum(t3)", "apercentile(t6, 50)", "avg(t7)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
+        # self.tsma_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)", "stddev(c2)", "hyperloglog(c11)", 
+        #                         "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
+        self.tsma_function_list = ["min(c1)", "max(c2)", "sum(c3)", "apercentile(c6, 50)", "avg(c7)", "spread(c1)", "stddev(c2)", "hyperloglog(c11)", 
+                                "min(t1)", "max(t2)", "sum(t3)", "apercentile(t6, 50)", "avg(t7)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
         self.tsma_function = ','.join(self.tsma_function_list)
 
         self.date_time = self.tdCom.genTs(precision=self.precision)[0]
@@ -231,7 +231,7 @@ class TsmaTest(TDCase):
         # self.tsma_watermark_max_delay_test(sliding="5s")
         # self.delete_vnode_test()
         # ! TD-21438
-        # self.recreate_tsma_after_drop()
+        self.recreate_tsma_after_drop()
         self.partition_by_unsupported()
         self.drop_sma_stb()
         self.drop_sma_db()
