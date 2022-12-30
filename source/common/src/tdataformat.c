@@ -21,6 +21,7 @@
 #include "tlog.h"
 
 static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData);
+static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward);
 
 // SBuffer ================================
 void tBufferDestroy(SBuffer *pBuffer) {
@@ -850,8 +851,10 @@ _exit:
   return &pIter->cv;
 }
 
-static int32_t tRowAppendNoneToColData(SColData *aColData, int32_t nColData) {
+static int32_t tRowNoneUpsertColData(SColData *aColData, int32_t nColData, int32_t flag) {
   int32_t code = 0;
+
+  if (flag) return code;
 
   for (int32_t iColData = 0; iColData < nColData; iColData++) {
     SColData *pColData = &aColData[iColData];
@@ -862,7 +865,7 @@ static int32_t tRowAppendNoneToColData(SColData *aColData, int32_t nColData) {
 _exit:
   return code;
 }
-static int32_t tRowNullUpsertColData(SColData *aColData, int32_t nColData, STSchema *pSchema) {
+static int32_t tRowNullUpsertColData(SColData *aColData, int32_t nColData, STSchema *pSchema, int32_t flag) {
   int32_t code = 0;
 
   int32_t   iColData = 0;
@@ -873,21 +876,23 @@ static int32_t tRowNullUpsertColData(SColData *aColData, int32_t nColData, STSch
   while (pColData) {
     if (pTColumn) {
       if (pTColumn->colId == pColData->cid) {  // NULL
-        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+        if (flag == 0) {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+        } else {
+          code = tColDataUpdateValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0, flag > 0);
+        }
         if (code) goto _exit;
+
         pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
         pTColumn = (++iTColumn < pSchema->numOfCols) ? &pSchema->columns[iTColumn] : NULL;
       } else if (pTColumn->colId > pColData->cid) {  // NONE
-        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
-        if (code) goto _exit;
+        if (flag == 0 && (code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0))) goto _exit;
         pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
       } else {
         pTColumn = (++iTColumn < pSchema->numOfCols) ? &pSchema->columns[iTColumn] : NULL;
       }
-    } else {
-      code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
-      if (code) goto _exit;
-
+    } else {  // NONE
+      if (flag == 0 && (code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0))) goto _exit;
       pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
     }
   }
@@ -895,7 +900,8 @@ static int32_t tRowNullUpsertColData(SColData *aColData, int32_t nColData, STSch
 _exit:
   return code;
 }
-static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData) {
+static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData,
+                                      int32_t flag) {
   int32_t code = 0;
 
   int32_t   iColData = 0;
@@ -957,11 +963,15 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
           }
 
           if (bv == BIT_FLG_NONE) {
-            code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
-            if (code) goto _exit;
+            if (flag == 0 && (code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0)))
+              goto _exit;
             goto _continue;
           } else if (bv == BIT_FLG_NULL) {
-            code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+            if (flag == 0) {
+              code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+            } else {
+              code = tColDataUpdateValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0, flag > 0);
+            }
             if (code) goto _exit;
             goto _continue;
           }
@@ -971,11 +981,20 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
           uint8_t *pData = pv + *(int32_t *)(pf + pTColumn->offset);
           uint32_t nData;
           pData += tGetU32v(pData, &nData);
-          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, nData);
+          if (flag == 0) {
+            code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, nData);
+          } else {
+            code = tColDataUpdateValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, nData, flag > 0);
+          }
           if (code) goto _exit;
         } else {
-          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pf + pTColumn->offset,
-                                                                        TYPE_BYTES[pColData->type]);
+          if (flag == 0) {
+            code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pf + pTColumn->offset,
+                                                                          TYPE_BYTES[pColData->type]);
+          } else {
+            code = tColDataUpdateValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pf + pTColumn->offset,
+                                                                          TYPE_BYTES[pColData->type], flag > 0);
+          }
           if (code) goto _exit;
         }
 
@@ -983,17 +1002,13 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
         pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
       } else if (pTColumn->colId > pColData->cid) {  // NONE
-        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
-        if (code) goto _exit;
-
+        if (flag == 0 && (code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0))) goto _exit;
         pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
       } else {
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
       }
     } else {
-      code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
-      if (code) goto _exit;
-
+      if (flag == 0 && (code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0))) goto _exit;
       pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
     }
   }
@@ -1001,7 +1016,7 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
 _exit:
   return code;
 }
-static int32_t tRowKVUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData) {
+static int32_t tRowKVUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag) {
   int32_t code = 0;
 
   SKVIdx   *pKVIdx = (SKVIdx *)pRow->data;
@@ -1042,18 +1057,25 @@ static int32_t tRowKVUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aCo
 
           if (TABS(cid) == pTColumn->colId) {
             if (cid < 0) {
-              code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+              if (flag == 0) {
+                code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+              } else {
+                code = tColDataUpdateValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0, flag > 0);
+              }
               if (code) goto _exit;
             } else {
+              uint32_t nData;
               if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-                uint32_t nData;
                 pData += tGetU32v(pData, &nData);
-                code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, nData);
-                if (code) goto _exit;
               } else {
-                code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, 0);
-                if (code) goto _exit;
+                nData = 0;
               }
+              if (flag == 0) {
+                code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, nData);
+              } else {
+                code = tColDataUpdateValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, nData, flag > 0);
+              }
+              if (code) goto _exit;
             }
             iCol++;
             goto _continue;
@@ -1064,22 +1086,19 @@ static int32_t tRowKVUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aCo
           }
         }
 
-        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
-        if (code) goto _exit;
+        if (flag == 0 && (code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0))) goto _exit;
 
       _continue:
         pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
       } else if (pTColumn->colId > pColData->cid) {
-        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
-        if (code) goto _exit;
+        if (flag == 0 && (code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0))) goto _exit;
         pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
       } else {
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
       }
     } else {
-      code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
-      if (code) goto _exit;
+      if (flag == 0 && (code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0))) goto _exit;
       pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
     }
   }
@@ -1096,17 +1115,13 @@ int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, in
   ASSERT(nColData > 0);
 
   if (pRow->flag == HAS_NONE) {
-    if (flag) {
-      return TSDB_CODE_SUCCESS;
-    } else {
-      return tRowAppendNoneToColData(aColData, nColData);
-    }
+    return tRowNoneUpsertColData(aColData, nColData, flag);
   } else if (pRow->flag == HAS_NULL) {
-    return tRowNullUpsertColData(aColData, nColData, pTSchema);
+    return tRowNullUpsertColData(aColData, nColData, pTSchema, flag);
   } else if (pRow->flag >> 4) {  // KV row
-    return tRowKVUpsertColData(pRow, pTSchema, aColData, nColData);
+    return tRowKVUpsertColData(pRow, pTSchema, aColData, nColData, flag);
   } else {  // TUPLE row
-    return tRowTupleUpsertColData(pRow, pTSchema, aColData, nColData);
+    return tRowTupleUpsertColData(pRow, pTSchema, aColData, nColData, flag);
   }
 }
 
