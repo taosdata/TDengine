@@ -47,26 +47,46 @@ int32_t taosGetOldTerminalMode();
 void    taosResetTerminalMode();
 
 #if !defined(WINDOWS)
-#define taosPrintTrace(flags, level, dflag)                                \
-  {                                                                        \
-    void*   array[100];                                                    \
-    int32_t size = backtrace(array, 100);                                  \
-    char**  strings = backtrace_symbols(array, size);                      \
-    if (strings != NULL) {                                                 \
-      taosPrintLog(flags, level, dflag, "obtained %d stack frames", size); \
-      for (int32_t i = 0; i < size; i++) {                                 \
-        taosPrintLog(flags, level, dflag, "frame:%d, %s", i, strings[i]);  \
-      }                                                                    \
-    }                                                                      \
-                                                                           \
-    taosMemoryFree(strings);                                               \
+#define taosLogTraceToBuf(buf, bufSize, ignoreNum) {                                                                      \
+  void*   array[100];                                                                                                     \
+  int32_t size = backtrace(array, 100);                                                                                   \
+  char**  strings = backtrace_symbols(array, size);                                                                       \
+  int32_t offset = 0;                                                                                                     \
+  if (strings != NULL) {                                                                                                  \
+    offset = snprintf(buf, bufSize - 1, "obtained %d stack frames\n", (ignoreNum > 0) ? size - ignoreNum : size);           \
+    for (int32_t i = (ignoreNum > 0) ? ignoreNum : 0; i < size; i++) {                                                    \
+      offset += snprintf(buf + offset, bufSize - 1 - offset, "frame:%d, %s\n", (ignoreNum > 0) ? i - ignoreNum : i, strings[i]);     \
+    }                                                                                                                     \
+  }                                                                                                                       \
+                                                                                                                          \
+  taosMemoryFree(strings);                                                                                                \
+}
+
+#define taosPrintTrace(flags, level, dflag, ignoreNum)                                                          \
+  {                                                                                                             \
+    void*   array[100];                                                                                         \
+    int32_t size = backtrace(array, 100);                                                                       \
+    char**  strings = backtrace_symbols(array, size);                                                           \
+    if (strings != NULL) {                                                                                      \
+      taosPrintLog(flags, level, dflag, "obtained %d stack frames", (ignoreNum > 0) ? size - ignoreNum : size); \
+      for (int32_t i = (ignoreNum > 0) ? ignoreNum : 0; i < size; i++) {                                        \
+        taosPrintLog(flags, level, dflag, "frame:%d, %s", (ignoreNum > 0) ? i - ignoreNum : i, strings[i]);     \
+      }                                                                                                         \
+    }                                                                                                           \
+                                                                                                                \
+    taosMemoryFree(strings);                                                                                    \
   }
 #else
-#define taosPrintTrace(flags, level, dflag)                                                                \
-  {                                                                                                        \
-    taosPrintLog(flags, level, dflag,                                                                      \
-                 "backtrace not implemented on windows, so detailed stack information cannot be printed"); \
-    }
+#define taosLogTraceToBuf(buf, bufSize, ignoreNum) {                                                            \
+  snprintf(buf, bufSize - 1,                                                                                    \
+               "backtrace not implemented on windows, so detailed stack information cannot be printed");        \
+}
+
+#define taosPrintTrace(flags, level, dflag, ignoreNum)                                                         \
+  {                                                                                                            \
+    taosPrintLog(flags, level, dflag,                                                                          \
+                 "backtrace not implemented on windows, so detailed stack information cannot be printed");     \
+  }
 #endif
 
 #ifdef __cplusplus

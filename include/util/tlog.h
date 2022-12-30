@@ -87,7 +87,10 @@ bool taosAssert(bool condition, const char *file, int32_t line, const char *form
 #define ASSERTS(condition, ...) taosAssert(condition, __FILE__, __LINE__, __VA_ARGS__)
 #define ASSERT(condition)       ASSERTS(condition, "assert info not provided")
 
-void taosCrash(int signum, void *sigInfo, void *context);
+void taosLogCrashInfo(char* nodeType, char* pMsg, int64_t msgLen, int signum, void *sigInfo);
+void taosReadCrashInfo(char* filepath, char** pMsg, int64_t* pMsgLen, TdFilePtr* pFd);
+void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
+int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime);
 
 // clang-format off
 #define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", DEBUG_FATAL, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
