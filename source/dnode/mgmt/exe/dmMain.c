@@ -217,7 +217,7 @@ static int32_t dmInitLog() {
 }
 
 static void taosCleanupArgs() {
-  if (global.envCmd != NULL) taosMemoryFree(global.envCmd);
+  if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
 }
 
 int main(int argc, char const *argv[]) {
@@ -307,6 +307,10 @@ int mainWindows(int argc, char **argv) {
 
   if (dmInit() != 0) {
     dError("failed to init dnode since %s", terrstr());
+
+    taosCleanupCfg();
+    taosCloseLog();
+    taosConvDestroy();
     return -1;
   }
 

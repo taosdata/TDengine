@@ -48,6 +48,10 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
 
   // exec
   while (1) {
+    if (pTask->taskStatus == TASK_STATUS__DROPPING) {
+      return 0;
+    }
+
     SSDataBlock* output = NULL;
     uint64_t     ts = 0;
     if ((code = qExecTask(exec, &output, &ts)) < 0) {
@@ -106,13 +110,21 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
     int32_t batchCnt = 0;
     while (1) {
+      if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+        return 0;
+      }
+
       SSDataBlock* output = NULL;
       uint64_t     ts = 0;
       if (qExecTask(exec, &output, &ts) < 0) {
-        ASSERT(0);
+        return -1;
       }
       if (output == NULL) {
-        finished = true;
+        if (qStreamRecoverScanFinished(exec)) {
+          finished = true;
+        } else {
+          qSetStreamOpOpen(exec);
+        }
         break;
       }
 

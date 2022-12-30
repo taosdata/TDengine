@@ -1742,6 +1742,10 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
       }
 
       memcpy(pVal, cd.pVal, cd.vLen);
+      if (TDB_CELLDECODER_FREE_VAL(&cd)) {
+        tdbTrace("tdb/btree-next decoder: %p pVal free: %p", &cd, cd.pVal);
+        tdbFree(cd.pVal);
+      }
     } else {
       pVal = NULL;
     }

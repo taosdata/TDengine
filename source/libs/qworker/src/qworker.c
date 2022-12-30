@@ -508,14 +508,6 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
   }
 
   if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
-    if (QW_PHASE_POST_FETCH == phase) {
-      QW_TASK_WLOG("drop received at wrong phase %s", qwPhaseStr(phase));
-      QW_ERR_JRET(TSDB_CODE_APP_ERROR);
-    }
-
-    // qwBuildAndSendDropRsp(&ctx->ctrlConnInfo, code);
-    // QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, code, tstrerror(code));
-
     QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
     QW_ERR_JRET(ctx->rspCode);
   }
@@ -580,6 +572,7 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   ctx->ctrlConnInfo = qwMsg->connInfo;
+  ctx->sId = sId;
   ctx->phase = -1;
 
   QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_INIT));
@@ -670,7 +663,7 @@ _return:
       qwMsg->connInfo = ctx->dataConnInfo;
       QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);
 
-      qwBuildAndSendFetchRsp(ctx->fetchType, &qwMsg->connInfo, rsp, dataLen, code);
+      qwBuildAndSendFetchRsp(ctx->msgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
       rsp = NULL;
 
       QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code),
@@ -722,7 +715,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
         qwMsg->connInfo = ctx->dataConnInfo;
         QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);
 
-        qwBuildAndSendFetchRsp(ctx->fetchType, &qwMsg->connInfo, rsp, dataLen, code);
+        qwBuildAndSendFetchRsp(ctx->msgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
         rsp = NULL;
 
         QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code,
@@ -744,7 +737,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       rsp = NULL;
 
       qwMsg->connInfo = ctx->dataConnInfo;
-      qwBuildAndSendFetchRsp(ctx->fetchType, &qwMsg->connInfo, NULL, 0, code);
+      qwBuildAndSendFetchRsp(ctx->msgType + 1, &qwMsg->connInfo, NULL, 0, code);
       QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code),
                    0);
     }
@@ -1178,8 +1171,9 @@ void qWorkerStopAllTasks(void *qWorkerMgmt) {
 
   QW_DLOG("start to stop all tasks, taskNum:%d", taosHashGetSize(mgmt->ctxHash));
 
-  uint64_t qId, tId;
+  uint64_t qId, tId, sId;
   int32_t  eId;
+  int64_t  rId = 0;
   void    *pIter = taosHashIterate(mgmt->ctxHash, NULL);
   while (pIter) {
     SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
@@ -1187,6 +1181,8 @@ void qWorkerStopAllTasks(void *qWorkerMgmt) {
     QW_GET_QTID(key, qId, tId, eId);
 
     QW_LOCK(QW_WRITE, &ctx->lock);
+
+    sId = ctx->sId;
 
     QW_TASK_DLOG_E("start to force stop task");
 
@@ -1200,9 +1196,11 @@ void qWorkerStopAllTasks(void *qWorkerMgmt) {
 
     if (QW_QUERY_RUNNING(ctx)) {
       qwKillTaskHandle(ctx, TSDB_CODE_VND_STOPPED);
-    } else if (!QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
+    } else if (QW_FETCH_RUNNING(ctx)) {
       QW_UPDATE_RSP_CODE(ctx, TSDB_CODE_VND_STOPPED);
-      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
+      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);    
+    } else {
+      qwDropTask(QW_FPARAMS());
     }
 
     QW_UNLOCK(QW_WRITE, &ctx->lock);

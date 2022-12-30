@@ -113,8 +113,8 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
   pHdr->size = nData;
   memcpy(pHdr->data, pData, nData);
 
-  metaInfo("vgId:%d, vnode snapshot meta read data, version:%" PRId64 " uid:%" PRId64 " nData:%d",
-           TD_VID(pReader->pMeta->pVnode), key.version, key.uid, nData);
+  metaDebug("vgId:%d, vnode snapshot meta read data, version:%" PRId64 " uid:%" PRId64 " blockLen:%d",
+            TD_VID(pReader->pMeta->pVnode), key.version, key.uid, nData);
 
 _exit:
   return code;
@@ -189,7 +189,8 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   SDecoder*  pDecoder = &(SDecoder){0};
 
   tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
-  metaDecodeEntry(pDecoder, &metaEntry);
+  code = metaDecodeEntry(pDecoder, &metaEntry);
+  if (code) goto _err;
 
   code = metaHandleEntry(pMeta, &metaEntry);
   if (code) goto _err;
@@ -198,6 +199,7 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   return code;
 
 _err:
+  tDecoderClear(pDecoder);
   metaError("vgId:%d, vnode snapshot meta write failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
   return code;
 }

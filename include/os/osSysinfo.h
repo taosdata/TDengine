@@ -70,6 +70,7 @@ typedef struct {
 
 SysNameInfo taosGetSysNameInfo();
 bool        taosCheckCurrentInDll();
+int         taosGetlocalhostname(char *hostname, size_t maxLen);
 
 #ifdef __cplusplus
 }

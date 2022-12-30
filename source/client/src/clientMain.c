@@ -1333,6 +1333,14 @@ int taos_stmt_get_col_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fiel
   return stmtGetColFields(stmt, fieldNum, fields);
 }
 
+// let stmt to reclaim TAOS_FIELD_E that was allocated by `taos_stmt_get_tag_fields`/`taos_stmt_get_col_fields`
+void taos_stmt_reclaim_fields(TAOS_STMT *stmt, TAOS_FIELD_E *fields)
+{
+  (void)stmt;
+  if (!fields) return;
+  taosMemoryFree(fields);
+}
+
 int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   if (stmt == NULL || bind == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
