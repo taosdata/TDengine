@@ -69,6 +69,7 @@ extern "C" {
 #define VALUE     "_value"
 #define VALUE_LEN 6
 
+#define OTD_JSON_FIELDS_NUM     4
 #define MAX_RETRY_TIMES 5
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
@@ -178,7 +179,7 @@ typedef struct {
   SSmlMsgBuf   msgBuf;
 
   cJSON       *root;  // for parse json
-  int8_t             offset[4];
+  int8_t             offset[OTD_JSON_FIELDS_NUM];
   SSmlLineInfo      *lines; // element is SSmlLineInfo
 
   //

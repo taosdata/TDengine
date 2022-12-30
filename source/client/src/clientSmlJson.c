@@ -20,7 +20,6 @@
 #include "clientSml.h"
 
 #define OTD_JSON_SUB_FIELDS_NUM 2
-#define OTD_JSON_FIELDS_NUM     4
 
 #define JUMP_JSON_SPACE(start) \
 while(*(start)){\
@@ -249,6 +248,11 @@ int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
       continue;
     }
 
+    if(unlikely(index >= OTD_JSON_FIELDS_NUM)) {
+      uError("index >= %d, %s", OTD_JSON_FIELDS_NUM, *start)
+      break;
+    }
+
     char *sTmp = *start;
     if((*start)[1] == 'm' && (*start)[2] == 'e' && (*start)[3] == 't'
        && (*start)[4] == 'r' &&  (*start)[5] == 'i' && (*start)[6] == 'c' && (*start)[7] == '"'){
@@ -351,6 +355,11 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
     if((*start)[0] != '"'){
       (*start)++;
       continue;
+    }
+
+    if(unlikely(index >= OTD_JSON_FIELDS_NUM)) {
+      uError("index >= %d, %s", OTD_JSON_FIELDS_NUM, *start)
+      break;
     }
 
     if((*start)[1] == 'm'){
@@ -979,6 +988,13 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
   cJSON *tsJson = NULL;
   cJSON *valueJson = NULL;
   cJSON *tagsJson = NULL;
+
+  int32_t size = cJSON_GetArraySize(root);
+  // outmost json fields has to be exactly 4
+  if (size != OTD_JSON_FIELDS_NUM) {
+    uError("OTD:0x%" PRIx64 " Invalid number of JSON fields in data point %d", info->id, size);
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
 
   cJSON **marks[OTD_JSON_FIELDS_NUM] = {&metricJson, &tsJson, &valueJson, &tagsJson};
   ret = smlGetJsonElements(root, marks);
