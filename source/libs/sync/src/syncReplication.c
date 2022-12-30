@@ -168,7 +168,7 @@ int32_t syncNodeReplicateOld(SSyncNode* pSyncNode) {
     SRaftId* pDestId = &(pSyncNode->peersId[i]);
     ret = syncNodeReplicateOne(pSyncNode, pDestId, true);
     if (ret != 0) {
-      sError("vgId:%d, do append entries error for %s:%d", pSyncNode->vgId, DID(pDestId));
+      sError("vgId:%d, do append entries error for dnode:%d", pSyncNode->vgId, DID(pDestId));
     }
   }
 

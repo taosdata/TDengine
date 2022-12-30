@@ -363,14 +363,14 @@ int32_t dmUpdateDnodeInfo(void *data, int32_t *dnodeId, int64_t *clusterId, char
     for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pData->dnodeEps); ++i) {
       SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, i);
       if (strcmp(pDnodeEp->ep.fqdn, fqdn) == 0 && pDnodeEp->ep.port == *port) {
-        dInfo("dnode:%s:%u, update dnodeId from %d to %d", fqdn, port, *dnodeId, pDnodeEp->id);
+        dInfo("dnode:%s:%u, update dnodeId from %d to %d", fqdn, *port, *dnodeId, pDnodeEp->id);
         *dnodeId = pDnodeEp->id;
         *clusterId = pData->clusterId;
         ret = 0;
       }
     }
     if (ret != 0) {
-      dInfo("dnode:%s:%u, failed to update dnodeId:%d", fqdn, port, *dnodeId);
+      dInfo("dnode:%s:%u, failed to update dnodeId:%d", fqdn, *port, *dnodeId);
     }
   } else {
     SDnodeEp *pDnodeEp = taosHashGet(pData->dnodeHash, dnodeId, sizeof(int32_t));

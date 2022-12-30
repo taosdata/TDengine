@@ -302,7 +302,7 @@ int32_t mndInitSync(SMnode *pMnode) {
     pNode->nodePort = pMgmt->replicas[i].port;
     tstrncpy(pNode->nodeFqdn, pMgmt->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
     (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
-    mInfo("vgId:1, index:%d ep:%s:%u dnode:%d cluster:" PRId64, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId,
+    mInfo("vgId:1, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId,
           pNode->clusterId);
   }
 

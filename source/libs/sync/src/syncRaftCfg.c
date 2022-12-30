@@ -74,7 +74,7 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    sError("failed to open sync cfg file:%s since %s", pNode->vgId, realfile, terrstr());
+    sError("vgId:%d, failed to open sync cfg file:%s since %s", pNode->vgId, realfile, terrstr());
     goto _OVER;
   }
 
@@ -106,7 +106,7 @@ _OVER:
   if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
-    sError("failed to write sync cfg file:%s since %s", pNode->vgId, realfile, terrstr());
+    sError("vgId:%d, failed to write sync cfg file:%s since %s", pNode->vgId, realfile, terrstr());
   }
   return code;
 }
