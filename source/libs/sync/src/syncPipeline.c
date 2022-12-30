@@ -882,7 +882,7 @@ int32_t syncLogReplMgrReplicateAttemptedOnce(SSyncLogReplMgr* pMgr, SSyncNode* p
   syncLogReplMgrRetryOnNeed(pMgr, pNode);
 
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  sTrace("vgId:%d, replicated %d msgs to peer: %" PRId64 ". indexes: %" PRId64 "..., terms: ...%" PRId64
+  sTrace("vgId:%d, replicated %d msgs to peer: %" PRIx64 ". indexes: %" PRId64 "..., terms: ...%" PRId64
          ", mgr: (rs:%d) [%" PRId64 " %" PRId64 ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64
          ")",
          pNode->vgId, count, pDestId->addr, firstIndex, term, pMgr->restored, pMgr->startIndex, pMgr->matchIndex,
