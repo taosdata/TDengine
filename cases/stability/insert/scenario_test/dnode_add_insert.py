@@ -14,56 +14,22 @@
 import os
 from taostest.util.file import read_yaml
 from taostest.util.common import TDCom
-from datetime import datetime,timedelta
 from typing import List
 from taostest import TDCase
-from taostest.performance.perfor_basic import InsertFile
-from taostest.performance.result_reduction import Perf_Base_func
 from taostest.components.taosd import TaosD
-import time
 from taostest.util.remote import Remote
-from apscheduler.schedulers.background import BackgroundScheduler
-import random
-import sys
 
 
 class LongTimeInsert(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.stb_name = "stb"
-        self.ctb_name = "ctb"
-        self.tb_name = "tb"
-        self.des_table_suffix = "_output"
-        self.non_prikey_ts_col_name = ""
-        self.restart_timeout = 10
-        self.syncing_drop_count = 10
-        # self.query_interval = 7200
-        # self.query_interval = 3600
-        self.query_interval = 120
         self._remote: Remote = Remote(self.logger)
         self.taosd = TaosD(self._remote)
         self.taosd_setting = self.tdCom.get_components_setting(
             self.env_setting["settings"], "taosd"
         )
-        self.taosadapter_setting = self.tdCom.get_components_setting(
-            self.env_setting["settings"], "taosadapter"
-        )
-        self.fqdn_list = self.taosd_setting["fqdn"]
-        self.counter = len(self.fqdn_list)
-        self.firstEp = self.taosd_setting["spec"]["config"]["firstEP"]
-        self.data_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"]
-        self.log_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["logDir"]
-        self.streams = None
         self.result_file_name = ""
-        # now - 3d and now + 3d
-        self.date_timespan = 6
-        self.drop_tag = False
-
-        self.record_endpoint = None
-        self.record_dnode = None
         self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
-
-
 
     def desc(self):
         pass
