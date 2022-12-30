@@ -303,7 +303,7 @@ static char* evacOneDataPage(SDiskbasedBuf* pBuf) {
     tdListPopNode(pBuf->lruList, pn);
 
     SPageInfo* d = *(SPageInfo**)pn->data;
-    ASSERT(d->pn == pn, "d->pn not equal pn");
+    ASSERTS(d->pn == pn, "d->pn not equal pn");
 
     d->pn = NULL;
     taosMemoryFreeClear(pn);
