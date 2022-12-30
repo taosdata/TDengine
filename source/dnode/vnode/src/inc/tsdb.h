@@ -638,6 +638,7 @@ struct SDataFReader {
   uint8_t   *aBuf[3];
 };
 
+// NOTE: do NOT change the order of the fields
 typedef struct {
   int64_t suid;
   int64_t uid;
