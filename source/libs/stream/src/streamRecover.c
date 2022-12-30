@@ -143,6 +143,7 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
       ASSERT(left >= 0);
       if (left == 0) {
         taosArrayDestroy(pTask->checkReqIds);
+        pTask->checkReqIds = NULL;
         streamTaskLaunchRecover(pTask, version);
       }
     } else if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {

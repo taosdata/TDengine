@@ -44,6 +44,10 @@ if(TD_WINDOWS)
         os PUBLIC ws2_32 iconv msvcregex wcwidth winmm crashdump
     )
 elseif(TD_DARWIN_64)
+    find_library(CORE_FOUNDATION_FRAMEWORK CoreFoundation)
+    target_link_libraries(os  PUBLIC ${CORE_FOUNDATION_FRAMEWORK})
+    find_library(SYSTEM_CONFIGURATION_FRAMEWORK SystemConfiguration)
+    target_link_libraries(os  PUBLIC  ${SYSTEM_CONFIGURATION_FRAMEWORK})
     target_link_libraries(
         os PUBLIC dl m iconv
     )

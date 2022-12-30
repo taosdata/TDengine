@@ -42,5 +42,5 @@ python3 ./test.py -f 7-tmq/tmqCheckData.py
 python3 ./test.py -f 7-tmq/tmqCheckData1.py
 python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
 python3 ./test.py -f 7-tmq/tmqShow.py
-python3 ./test.py -f 7-tmq/tmqAlterSchema.
+python3 ./test.py -f 7-tmq/tmqAlterSchema.py
 python3 ./test.py -f 99-TDcase/TD-20582.py

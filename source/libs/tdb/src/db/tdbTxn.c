@@ -18,7 +18,10 @@
 int tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *), void *xArg,
                int flags) {
   // not support read-committed version at the moment
-  ASSERT(flags == 0 || flags == (TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED));
+  if (flags != 0 && flags != (TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED)) {
+    tdbError("tdb/txn: invalid txn flags: %" PRId32, flags);
+    return -1;
+  }
 
   pTxn->flags = flags;
   pTxn->txnId = txnid;

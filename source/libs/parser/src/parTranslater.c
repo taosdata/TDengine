@@ -5704,7 +5704,8 @@ static int32_t addSubtableInfoToCreateStreamQuery(STranslateContext* pCxt, SCrea
   return code;
 }
 
-static int32_t checkStreamQuery(STranslateContext* pCxt, SSelectStmt* pSelect) {
+static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
+  SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
   if (TSDB_DATA_TYPE_TIMESTAMP != ((SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0))->resType.type ||
       !pSelect->isTimeLineResult || crossTableWithoutAggOper(pSelect) || NULL != pSelect->pOrderByList ||
       crossTableWithUdaf(pSelect)) {
@@ -5713,6 +5714,10 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL != pSelect->pSubtable && TSDB_DATA_TYPE_VARCHAR != ((SExprNode*)pSelect->pSubtable)->resType.type) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                    "SUBTABLE expression must be of VARCHAR type");
+  }
+  if (NULL == pSelect->pWindow && STREAM_TRIGGER_AT_ONCE != pStmt->pOptions->triggerType) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "The trigger mode of non window query can only be AT_ONCE");
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -5860,7 +5865,7 @@ static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt
     code = translateQuery(pCxt, pStmt->pQuery);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkStreamQuery(pCxt, (SSelectStmt*)pStmt->pQuery);
+    code = checkStreamQuery(pCxt, pStmt);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = adjustStreamQueryForExistTable(pCxt, pStmt, pReq);
@@ -5902,6 +5907,8 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
     columnDefNodeToField(pStmt->pTags, &pReq->pTags);
     pReq->numOfTags = LIST_LENGTH(pStmt->pTags);
   }
+
+  pReq->createStb = STREAM_CREATE_STABLE_TRUE;
 
   return code;
 }
