@@ -44,8 +44,8 @@ static int32_t syncEncodeRaftCfg(const void *pObj, SJson *pJson) {
   if (tjsonAddObject(pJson, "SSyncCfg", syncEncodeSyncCfg, (void *)&pCfg->cfg) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "isStandBy", pCfg->isStandBy) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "snapshotStrategy", pCfg->snapshotStrategy) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "batchSize", pCfg->batchSize) < 0) return -1;
-  if (tjsonAddDoubleToObject(pJson, "lastConfigIndex", pCfg->lastConfigIndex) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "batchSize", pCfg->batchSize) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "lastConfigIndex", pCfg->lastConfigIndex) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "configIndexCount", pCfg->configIndexCount) < 0) return -1;
 
   SJson *configIndexArr = tjsonCreateArray();
