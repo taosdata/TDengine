@@ -2186,6 +2186,7 @@ github.com/onsi/ginkgo v1.11.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+
 github.com/onsi/ginkgo v1.12.0/go.mod h1:oUhWkIvk5aDxtKvDDuw8gItl8pKl42LzjC9KZE0HfGg=
 github.com/onsi/ginkgo v1.12.1/go.mod h1:zj2OWP4+oCPe1qIXoGWkgMRwljMUYCdkwsT2108oapk=
 github.com/onsi/ginkgo v1.13.0/go.mod h1:+REjRxOmWfHCjfv9TTWB1jD1Frx4XydAD3zm1lskyM0=
+github.com/onsi/ginkgo v1.14.0 h1:2mOpI4JVVPBN+WQRa0WKH2eXR+Ey+uK4n7Zj0aYpIQA=
 github.com/onsi/ginkgo v1.14.0/go.mod h1:iSB4RoI2tjJc9BBv4NKIKWKya62Rps+oPG/Lv9klQyY=
 github.com/onsi/ginkgo v1.14.2/go.mod h1:iSB4RoI2tjJc9BBv4NKIKWKya62Rps+oPG/Lv9klQyY=
 github.com/onsi/ginkgo v1.16.4 h1:29JGrr5oVBm5ulCWet69zQkzWipVXIol6ygQUe/EzNc=
@@ -2628,8 +2629,8 @@ github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2/go.mod h1:hkRG
 github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
 github.com/taosdata/driver-go/v3 v3.0.4 h1:XJdQfIrqH1FeviH8I+1m2JH9Sg828RpkiszO8qXYhn8=
 github.com/taosdata/driver-go/v3 v3.0.4/go.mod h1:H2vo/At+rOPY1aMzUV9P49SVX7NlXb3LAbKw+MCLrmU=
-github.com/taosdata/taosadapter/v3 v3.0.0-20221226095655-5662a6d2c6cc h1:mNDuZeC0eVmSwhXoiNhr19XyQFz8F61tpHxf2RvYeB4=
-github.com/taosdata/taosadapter/v3 v3.0.0-20221226095655-5662a6d2c6cc/go.mod h1:GP8Uxu+/tlGx3ppc9aJokJ3FMqlAzUQwj9GEEptG8Kk=
+github.com/taosdata/taosadapter/v3 v3.0.0-20221230085955-a2e99207d58c h1:IBBSYfpumN27n1dRz1NdchJY6zdQKli3oCPCT+C5qJs=
+github.com/taosdata/taosadapter/v3 v3.0.0-20221230085955-a2e99207d58c/go.mod h1:GP8Uxu+/tlGx3ppc9aJokJ3FMqlAzUQwj9GEEptG8Kk=
 github.com/tbrandon/mbserver v0.0.0-20170611213546-993e1772cc62/go.mod h1:qUzPVlSj2UgxJkVbH0ZwuuiR46U8RBMDT5KLY78Ifpw=
 github.com/tchap/go-patricia v2.2.6+incompatible/go.mod h1:bmLyhP68RS6kStMGxByiQ23RP/odRBOTVjwp2cDyi6I=
 github.com/tdakkota/asciicheck v0.0.0-20200416200610-e657995f937b/go.mod h1:yHp0ai0Z9gUljN3o0xMhYJnH/IcvkdTBOX2fmJ93JEM=
