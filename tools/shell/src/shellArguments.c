@@ -19,7 +19,18 @@
 
 #include "shellInt.h"
 
-#define TAOS_CONSOLE_PROMPT_HEADER "taos> "
+#ifndef OEM_BRAND
+    char brandName[] = "TDengine";
+#else
+    char brandName[] = OEM_BRAND;
+#endif
+
+#ifndef OEM_PROMPT
+    char brandPrompt[] = "taos";
+#else
+    char brandPrompt[] = OEM_PROMPT;
+#endif
+
 #define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
 
 #define SHELL_HOST     "The server FQDN to connect. The default host is localhost."
@@ -388,12 +399,13 @@ static int32_t shellCheckArgs() {
 
 int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shellInitArgs(argc, argv);
-  shell.info.clientVersion =
-      "Welcome to the TDengine Command Line Interface, Client Version:%s\r\n"
-      "Copyright (c) 2022 by TDengine, all rights reserved.\r\n\r\n";
-  shell.info.promptHeader = TAOS_CONSOLE_PROMPT_HEADER;
+  shell.info.clientVersion = 
+      "Welcome to the %s Command Line Interface, Client Version:%s\r\n"
+      "Copyright (c) 2022 by %s, all rights reserved.\r\n\r\n";
+  strcpy(shell.info.brandName, brandName);
+  sprintf(shell.info.promptHeader, "%s> ", brandPrompt);
   shell.info.promptContinue = TAOS_CONSOLE_PROMPT_CONTINUE;
-  shell.info.promptSize = 6;
+  shell.info.promptSize = strlen(shell.info.promptHeader);
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion), "version: %s", version);
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
