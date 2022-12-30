@@ -342,8 +342,8 @@ int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
     (*start)++;
   }
 
-  if(unlikely(index != OTD_JSON_FIELDS_NUM)) {
-    uError("elements != %d", OTD_JSON_FIELDS_NUM)
+  if(unlikely(index != OTD_JSON_FIELDS_NUM) || element->tags == NULL || element->cols == NULL || element->measure == NULL || element->timestamp == NULL) {
+    uError("elements != %d or element parse null", OTD_JSON_FIELDS_NUM)
     return -1;
   }
   return 0;
