@@ -55,7 +55,7 @@ class TDTestQuery(TDCase):
         return case_description
 
     #basic_param
-    db = "stable_interval"
+    db = "stable_str_interval"
     
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
