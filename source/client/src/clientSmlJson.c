@@ -958,12 +958,14 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
     if (unlikely(ret)) {
       uError("OTD:0x%" PRIx64 " Unable to parse tags from JSON payload", info->id);
       taosMemoryFree(elements->tags);
+      elements->tags = NULL;
       return ret;
     }
   }
 
   if(info->dataFormat){
     taosMemoryFree(elements->tags);
+    elements->tags = NULL;
   }
 
   if(unlikely(info->reRun)){
