@@ -355,7 +355,12 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
 }
 
 static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateStreamStmt* pStmt) {
-  return collectMetaKeyFromQuery(pCxt, pStmt->pQuery);
+  int32_t code =
+      reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectMetaKeyFromQuery(pCxt, pStmt->pQuery);
+  }
+  return code;
 }
 
 static int32_t collectMetaKeyFromShowDnodes(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
