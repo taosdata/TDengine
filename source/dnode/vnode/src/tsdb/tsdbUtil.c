@@ -1030,7 +1030,12 @@ void tBlockDataClear(SBlockData *pBlockData) {
   }
 }
 
-static int32_t tBlockDataAppendBlockRow(SBlockData *pBlockData, SBlockData *pBlockDataFrom, int32_t iRow) {
+/* flag > 0: forward update
+ * flag == 0: insert
+ * flag < 0: backward update
+ */
+static int32_t tBlockDataUpsertBlockRow(SBlockData *pBlockData, SBlockData *pBlockDataFrom, int32_t iRow,
+                                        int32_t flag) {
   int32_t code = 0;
 
   SColVal   cv = {0};
@@ -1045,12 +1050,21 @@ static int32_t tBlockDataAppendBlockRow(SBlockData *pBlockData, SBlockData *pBlo
     }
 
     if (pColDataFrom == NULL || pColDataFrom->cid > pColDataTo->cid) {
-      code = tColDataAppendValue(pColDataTo, &COL_VAL_NONE(pColDataTo->cid, pColDataTo->type));
+      cv = COL_VAL_NONE(pColDataTo->cid, pColDataTo->type);
+      if (flag) {
+        code = tColDataUpdateValue(pColDataTo, &cv, flag > 0);
+      } else {
+        code = tColDataAppendValue(pColDataTo, &cv);
+      }
       if (code) goto _exit;
     } else {
       tColDataGetValue(pColDataFrom, iRow, &cv);
 
-      code = tColDataAppendValue(pColDataTo, &cv);
+      if (flag) {
+        code = tColDataUpdateValue(pColDataTo, &cv, flag > 0);
+      } else {
+        code = tColDataAppendValue(pColDataTo, &cv);
+      }
       if (code) goto _exit;
 
       pColDataFrom = (++iColDataFrom < pBlockDataFrom->nColData) ? &pBlockDataFrom->aColData[iColDataFrom] : NULL;
@@ -1082,12 +1096,11 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   if (code) goto _exit;
   pBlockData->aTSKEY[pBlockData->nRow] = TSDBROW_TS(pRow);
 
-  SColVal cv = {0};
   if (pRow->type == TSDBROW_ROW_FMT) {
-    code = tRowAppendToColData(pRow->pTSRow, pTSchema, pBlockData->aColData, pBlockData->nColData);
+    code = tRowUpsertColData(pRow->pTSRow, pTSchema, pBlockData->aColData, pBlockData->nColData, 0 /* append */);
     if (code) goto _exit;
   } else if (pRow->type == TSDBROW_COL_FMT) {
-    code = tBlockDataAppendBlockRow(pBlockData, pRow->pBlockData, pRow->iRow);
+    code = tBlockDataUpsertBlockRow(pBlockData, pRow->pBlockData, pRow->iRow, 0 /* append */);
     if (code) goto _exit;
   } else {
     ASSERT(0);
@@ -1097,15 +1110,44 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
 _exit:
   return code;
 }
+static int32_t tBlockDataUpdateRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
+  int32_t code = 0;
 
-int32_t tBlockDataAppendRowEx(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid) {
+  // version
+  int64_t lversion = pBlockData->aVersion[pBlockData->nRow - 1];
+  int64_t rversion = TSDBROW_VERSION(pRow);
+  ASSERT(lversion != rversion);
+  if (rversion > lversion) {
+    pBlockData->aVersion[pBlockData->nRow - 1] = rversion;
+  }
+
+  // update other rows
+  if (pRow->type == TSDBROW_ROW_FMT) {
+    code = tRowUpsertColData(pRow->pTSRow, pTSchema, pBlockData->aColData, pBlockData->nColData,
+                             (rversion > lversion) ? 1 : -1 /* update */);
+    if (code) goto _exit;
+  } else if (pRow->type == TSDBROW_COL_FMT) {
+    code = tBlockDataUpsertBlockRow(pBlockData, pRow->pBlockData, pRow->iRow, (rversion > lversion) ? 1 : -1);
+    if (code) goto _exit;
+  } else {
+    ASSERT(0);
+  }
+
+_exit:
+  return code;
+}
+
+int32_t tBlockDataUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid) {
   int32_t code = 0;
 
   ASSERT(pBlockData->suid || pBlockData->uid);
 
   if (pBlockData->nRow == 0) {
     pBlockData->uid = uid;
-  } else if (pBlockData->uid && pBlockData->uid != uid) {
+    return tBlockDataAppendRow(pBlockData, pRow, pTSchema, uid);
+  }
+
+  if (pBlockData->uid && pBlockData->uid != uid) {
     ASSERT(pBlockData->suid);
 
     code = tRealloc((uint8_t **)&pBlockData->aUid, sizeof(int64_t) * (pBlockData->nRow + 1));
@@ -1118,7 +1160,13 @@ int32_t tBlockDataAppendRowEx(SBlockData *pBlockData, TSDBROW *pRow, STSchema *p
     pBlockData->uid = 0;
   }
 
-  return tBlockDataAppendRow(pBlockData, pRow, pTSchema, uid);
+  // decide append/update row
+  int64_t luid = pBlockData->uid ? pBlockData->uid : pBlockData->aUid[pBlockData->nRow - 1];
+  if (luid == uid && pBlockData->aTSKEY[pBlockData->nRow - 1] == TSDBROW_TS(pRow)) {
+    return tBlockDataUpdateRow(pBlockData, pRow, pTSchema);
+  } else {
+    return tBlockDataAppendRow(pBlockData, pRow, pTSchema, uid);
+  }
 }
 
 void tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData) {

@@ -855,7 +855,7 @@ static int32_t tsdbCompactFileSet(STsdbCompactor *pCompactor) {
   }
 
   while (pRowInfo) {
-    // write block data according to table id if necessary
+    // write block data according to table id if necessary (TODO)
     if ((pCompactor->tableId.suid != pRowInfo->suid) ||
         (pCompactor->tableId.uid != pRowInfo->uid &&
          (pRowInfo->suid == 0 || (pCompactor->bData.uid && pCompactor->bData.nRow >= pCompactor->minRows)))) {
@@ -869,18 +869,17 @@ static int32_t tsdbCompactFileSet(STsdbCompactor *pCompactor) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    // check if append/merge the row causes nRow exceed maxRows
+    // check if append/merge the row causes nRow exceed maxRows (TODO)
     if (0 /* add the row causes row exceed maxRows */) {
       code = tsdbCompactWriteBlockData(pCompactor);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     // append/merge the row
-    // code = tBlockDataAppendRowEx(&pCompactor->bData, &pRowInfo->row, pTSchema, pRowInfo->uid);
-    // TSDB_CHECK_CODE(code, lino, _exit);
-
     pCompactor->tableId.suid = pRowInfo->suid;
     pCompactor->tableId.uid = pRowInfo->uid;
+    code = tBlockDataUpsertRow(&pCompactor->bData, &pRowInfo->row, pTSchema, pRowInfo->uid);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     // iter to the next row
     code = tsdbCompactNextRow(pCompactor);
