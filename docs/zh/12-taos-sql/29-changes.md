@@ -94,6 +94,7 @@ description: "TDengine 3.0 版本的语法变更说明"
 | 9 | SAMPLE | 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
 | 10 | STATECOUNT | 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
 | 11 | STATEDURATION | 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
+| 12 | TIMETRUNCATE | 增强 | 增加ignore_timezone参数，可选是否使用，默认值为1.
 
 
 ## SCHEMALESS 变更
