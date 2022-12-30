@@ -83,9 +83,14 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
 #endif
     ;
 
-bool taosAssert(bool condition, const char *file, int32_t line, const char *format, ...);
-#define ASSERTS(condition, ...) taosAssert(condition, __FILE__, __LINE__, __VA_ARGS__)
-#define ASSERT(condition)       ASSERTS(condition, "assert info not provided")
+bool taosAssertDebug(bool condition, const char *file, int32_t line, const char *format, ...);
+bool taosAssertRelease(bool condition);
+#define ASSERTS(condition, ...) taosAssertDebug(condition, __FILE__, __LINE__, __VA_ARGS__)
+#ifdef NDEBUG
+#define ASSERT(condition) taosAssertRelease(condition)
+#else
+#define ASSERT(condition) taosAssertDebug(condition, __FILE__, __LINE__, "assert info not provided")
+#endif
 
 void taosLogCrashInfo(char* nodeType, char* pMsg, int64_t msgLen, int signum, void *sigInfo);
 void taosReadCrashInfo(char* filepath, char** pMsg, int64_t* pMsgLen, TdFilePtr* pFd);
