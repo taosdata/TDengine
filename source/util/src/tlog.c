@@ -899,7 +899,7 @@ void taosLogCrashInfo(char* nodeType, char* pMsg, int64_t msgLen, int signum, vo
     int64_t writeSize = taosWriteFile(pFile, &msgLen, sizeof(msgLen));
     if (sizeof(msgLen) != writeSize) {
       taosUnLockFile(pFile);
-      taosPrintLog(flags, level, dflag, "failed to write len to file:%s,%p wlen:%" PRId64 " tlen:%" PRId64 " since %s", 
+      taosPrintLog(flags, level, dflag, "failed to write len to file:%s,%p wlen:%" PRId64 " tlen:%lu since %s", 
           filepath, pFile, writeSize, sizeof(msgLen), terrstr());
       goto _return;
     }
@@ -977,7 +977,7 @@ void taosReadCrashInfo(char* filepath, char** pMsg, int64_t* pMsgLen, TdFilePtr*
   if (sizeof(msgLen) != readSize) {
     truncateFile = true;
     if (readSize < 0) {
-      taosPrintLog(flags, level, dflag, "failed to read len from file:%s,%p wlen:%" PRId64 " tlen:%" PRId64 " since %s", 
+      taosPrintLog(flags, level, dflag, "failed to read len from file:%s,%p wlen:%" PRId64 " tlen:%lu since %s", 
           filepath, pFile, readSize, sizeof(msgLen), terrstr());
     }
     goto _return;

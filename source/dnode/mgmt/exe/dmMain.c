@@ -73,8 +73,10 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGHUP);
   taosIgnSignal(SIGINT);
   taosIgnSignal(SIGBREAK);
-  
+
+#ifndef WINDOWS  
   taosIgnSignal(SIGBUS);
+#endif
   taosIgnSignal(SIGABRT);
   taosIgnSignal(SIGFPE);
   taosIgnSignal(SIGSEGV);
@@ -111,7 +113,9 @@ static void dmSetSignalHandle() {
   taosSetSignal(SIGQUIT, dmStopDnode);
 #endif
 
+#ifndef WINDOWS
   taosSetSignal(SIGBUS, dmLogCrash);
+#endif  
   taosSetSignal(SIGABRT, dmLogCrash);
   taosSetSignal(SIGFPE, dmLogCrash);
   taosSetSignal(SIGSEGV, dmLogCrash);

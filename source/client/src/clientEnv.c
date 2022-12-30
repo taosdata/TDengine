@@ -393,8 +393,10 @@ void taosClientCrash(int signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGHUP);
   taosIgnSignal(SIGINT);
   taosIgnSignal(SIGBREAK);
-  
+
+#if !defined(WINDOWS)
   taosIgnSignal(SIGBUS);
+#endif  
   taosIgnSignal(SIGABRT);
   taosIgnSignal(SIGFPE);
   taosIgnSignal(SIGSEGV);
@@ -504,7 +506,9 @@ void tscStopCrashReport() {
 }
 
 static void tscSetSignalHandle() {
+#if !defined(WINDOWS)
   taosSetSignal(SIGBUS, taosClientCrash);
+#endif
   taosSetSignal(SIGABRT, taosClientCrash);
   taosSetSignal(SIGFPE, taosClientCrash);
   taosSetSignal(SIGSEGV, taosClientCrash);
