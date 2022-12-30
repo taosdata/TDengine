@@ -23,21 +23,21 @@ static void voteGrantedClearVotes(SVotesGranted *pVotesGranted) {
   pVotesGranted->votes = 0;
 }
 
-SVotesGranted *voteGrantedCreate(SSyncNode *pSyncNode) {
+SVotesGranted *voteGrantedCreate(SSyncNode *pNode) {
   SVotesGranted *pVotesGranted = taosMemoryCalloc(1, sizeof(SVotesGranted));
   if (pVotesGranted == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  pVotesGranted->replicas = &(pSyncNode->replicasId);
-  pVotesGranted->replicaNum = pSyncNode->replicaNum;
+  pVotesGranted->replicas = &pNode->replicasId;
+  pVotesGranted->replicaNum = pNode->replicaNum;
   voteGrantedClearVotes(pVotesGranted);
 
   pVotesGranted->term = 0;
-  pVotesGranted->quorum = pSyncNode->quorum;
+  pVotesGranted->quorum = pNode->quorum;
   pVotesGranted->toLeader = false;
-  pVotesGranted->pSyncNode = pSyncNode;
+  pVotesGranted->pNode = pNode;
 
   return pVotesGranted;
 }
@@ -48,33 +48,33 @@ void voteGrantedDestroy(SVotesGranted *pVotesGranted) {
   }
 }
 
-void voteGrantedUpdate(SVotesGranted *pVotesGranted, SSyncNode *pSyncNode) {
-  pVotesGranted->replicas = &(pSyncNode->replicasId);
-  pVotesGranted->replicaNum = pSyncNode->replicaNum;
+void voteGrantedUpdate(SVotesGranted *pVotesGranted, SSyncNode *pNode) {
+  pVotesGranted->replicas = &pNode->replicasId;
+  pVotesGranted->replicaNum = pNode->replicaNum;
   voteGrantedClearVotes(pVotesGranted);
 
   pVotesGranted->term = 0;
-  pVotesGranted->quorum = pSyncNode->quorum;
+  pVotesGranted->quorum = pNode->quorum;
   pVotesGranted->toLeader = false;
-  pVotesGranted->pSyncNode = pSyncNode;
+  pVotesGranted->pNode = pNode;
 }
 
 bool voteGrantedMajority(SVotesGranted *pVotesGranted) { return pVotesGranted->votes >= pVotesGranted->quorum; }
 
 void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
   if (!pMsg->voteGranted) {
-    sNFatal(pVotesGranted->pSyncNode, "vote granted should be true");
+    sNFatal(pVotesGranted->pNode, "vote granted should be true");
     return;
   }
 
   if (pMsg->term != pVotesGranted->term) {
-    sNTrace(pVotesGranted->pSyncNode, "vote grant term:%" PRId64 " not matched with msg term:%" PRId64,
-            pVotesGranted->term, pMsg->term);
+    sNTrace(pVotesGranted->pNode, "vote grant term:%" PRId64 " not matched with msg term:%" PRId64, pVotesGranted->term,
+            pMsg->term);
     return;
   }
 
-  if (!syncUtilSameId(&pVotesGranted->pSyncNode->myRaftId, &pMsg->destId)) {
-    sNFatal(pVotesGranted->pSyncNode, "vote granted raftId not matched with msg");
+  if (!syncUtilSameId(&pVotesGranted->pNode->myRaftId, &pMsg->destId)) {
+    sNFatal(pVotesGranted->pNode, "vote granted raftId not matched with msg");
     return;
   }
 
@@ -86,7 +86,7 @@ void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
     }
   }
   if ((j == -1) || !(j >= 0 && j < pVotesGranted->replicaNum)) {
-    sNFatal(pVotesGranted->pSyncNode, "invalid msg srcId, index:%d", j);
+    sNFatal(pVotesGranted->pNode, "invalid msg srcId, index:%d", j);
     return;
   }
 
@@ -96,7 +96,7 @@ void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
   }
 
   if (pVotesGranted->votes > pVotesGranted->replicaNum) {
-    sNFatal(pVotesGranted->pSyncNode, "votes:%d not matched with replicaNum:%d", pVotesGranted->votes,
+    sNFatal(pVotesGranted->pNode, "votes:%d not matched with replicaNum:%d", pVotesGranted->votes,
             pVotesGranted->replicaNum);
     return;
   }
@@ -108,17 +108,17 @@ void voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term) {
   pVotesGranted->toLeader = false;
 }
 
-SVotesRespond *votesRespondCreate(SSyncNode *pSyncNode) {
+SVotesRespond *votesRespondCreate(SSyncNode *pNode) {
   SVotesRespond *pVotesRespond = taosMemoryCalloc(1, sizeof(SVotesRespond));
   if (pVotesRespond == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  pVotesRespond->replicas = &(pSyncNode->replicasId);
-  pVotesRespond->replicaNum = pSyncNode->replicaNum;
+  pVotesRespond->replicas = &pNode->replicasId;
+  pVotesRespond->replicaNum = pNode->replicaNum;
   pVotesRespond->term = 0;
-  pVotesRespond->pSyncNode = pSyncNode;
+  pVotesRespond->pNode = pNode;
 
   return pVotesRespond;
 }
@@ -129,11 +129,11 @@ void votesRespondDestory(SVotesRespond *pVotesRespond) {
   }
 }
 
-void votesRespondUpdate(SVotesRespond *pVotesRespond, SSyncNode *pSyncNode) {
-  pVotesRespond->replicas = &(pSyncNode->replicasId);
-  pVotesRespond->replicaNum = pSyncNode->replicaNum;
+void votesRespondUpdate(SVotesRespond *pVotesRespond, SSyncNode *pNode) {
+  pVotesRespond->replicas = &pNode->replicasId;
+  pVotesRespond->replicaNum = pNode->replicaNum;
   pVotesRespond->term = 0;
-  pVotesRespond->pSyncNode = pSyncNode;
+  pVotesRespond->pNode = pNode;
 }
 
 bool votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId) {
@@ -149,7 +149,7 @@ bool votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId) {
 
 void votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *pMsg) {
   if (pVotesRespond->term != pMsg->term) {
-    sNTrace(pVotesRespond->pSyncNode, "vote respond add error");
+    sNTrace(pVotesRespond->pNode, "vote respond add error");
     return;
   }
 
@@ -160,7 +160,7 @@ void votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *p
     }
   }
 
-  sNFatal(pVotesRespond->pSyncNode, "votes respond not found");
+  sNFatal(pVotesRespond->pNode, "votes respond not found");
 }
 
 void votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term) {

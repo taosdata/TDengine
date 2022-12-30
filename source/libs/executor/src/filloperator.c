@@ -147,6 +147,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
 
       taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
     } else {
+      pBlock->info.dataLoad = 1;
       blockDataUpdateTsWindow(pBlock, pInfo->primarySrcSlotId);
 
       blockDataCleanup(pInfo->pRes);
@@ -170,6 +171,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
         // Fill the previous group data block, before handle the data block of new group.
         // Close the fill operation for previous group data block
         taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
+        pInfo->pFillInfo->prev.key = 0;
       }
     }
 

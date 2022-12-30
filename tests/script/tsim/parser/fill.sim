@@ -1075,13 +1075,8 @@ if $loop_count == 20 then
   return -1
 endi
 
-if $data00 != 20026 then
+if $data00 != 40052 then
   print =====data00=$data00
-  goto loop0
-endi
-
-if $data10 != 20026 then
-  print =====data10=$data10
   goto loop0
 endi
 

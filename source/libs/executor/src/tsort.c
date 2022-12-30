@@ -800,6 +800,7 @@ STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
     }
   }
 
+  // all sources are completed.
   if (pHandle->cmpParam.numOfSources == pHandle->numOfCompletedSources) {
     return NULL;
   }

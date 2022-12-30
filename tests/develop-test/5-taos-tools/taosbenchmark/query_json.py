@@ -116,7 +116,7 @@ class TDTestCase:
 
         assert times == 1, "result is %s != expect: 1" % times
 
-
+        tAdapter.stop()
 
 
     def stop(self):
