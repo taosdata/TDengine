@@ -273,45 +273,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
     char    bit = bit_per_integer[(int32_t)selector];  // bit = 3
     int32_t elems = selector_to_elems[(int32_t)selector];
 
-#if 0
-    for (int32_t i = 0; i < elems; i++) {
-      uint64_t zigzag_value;
-
-      if (selector == 0 || selector == 1) {
-        zigzag_value = 0;
-      } else {
-        zigzag_value = ((w >> (4 + bit * i)) & INT64MASK(bit));
-      }
-      int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
-      int64_t curr_value = diff + prev_value;
-      prev_value = curr_value;
-
-      switch (type) {
-        case TSDB_DATA_TYPE_BIGINT:
-          *((int64_t *)output + _pos) = (int64_t)curr_value;
-          _pos++;
-          break;
-        case TSDB_DATA_TYPE_INT:
-          *((int32_t *)output + _pos) = (int32_t)curr_value;
-          _pos++;
-          break;
-        case TSDB_DATA_TYPE_SMALLINT:
-          *((int16_t *)output + _pos) = (int16_t)curr_value;
-          _pos++;
-          break;
-        case TSDB_DATA_TYPE_TINYINT:
-          *((int8_t *)output + _pos) = (int8_t)curr_value;
-          _pos++;
-          break;
-        default:
-          perror("Wrong integer types.\n");
-          return -1;
-      }
-      count++;
-      if (count == nelements) break;
-    }
-#endif
-
+    // Optimize the performance, by remove the constantly switch operation.
     int32_t v = 0;
     uint64_t zigzag_value;
 
@@ -844,7 +806,7 @@ int32_t tsDecompressDoubleImp(const char *const input, const int32_t nelements, 
   uint64_t prev_value = 0;
 
   for (int32_t i = 0; i < nelements; i++) {
-    if (i % 2 == 0) {
+    if ((i & 0x01) == 0) {
       flags = input[ipos++];
     }
 
