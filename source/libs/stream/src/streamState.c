@@ -107,7 +107,7 @@ static inline int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, 
 }
 
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages) {
-  szPage = szPage < 0 ? (16 * 1024) : szPage;
+  szPage = szPage < 0 ? 4096 : szPage;
   pages = pages < 0 ? 256 : pages;
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   if (pState == NULL) {
