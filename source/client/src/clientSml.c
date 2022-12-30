@@ -1267,11 +1267,13 @@ int32_t smlClearForRerun(SSmlHandle *info) {
     pList = pList->next;
   }
 
-  if (unlikely(info->lines != NULL)) {
-    uError("SML:0x%" PRIx64 " info->lines != NULL", info->id);
-    return TSDB_CODE_SML_INVALID_DATA;
+  if (!info->dataFormat){
+    if (unlikely(info->lines != NULL)) {
+      uError("SML:0x%" PRIx64 " info->lines != NULL", info->id);
+      return TSDB_CODE_SML_INVALID_DATA;
+    }
+    info->lines = (SSmlLineInfo *)taosMemoryCalloc(info->lineNum, sizeof(SSmlLineInfo));
   }
-  info->lines = (SSmlLineInfo *)taosMemoryCalloc(info->lineNum, sizeof(SSmlLineInfo));
 
   memset(&info->preLine, 0, sizeof(SSmlLineInfo));
   info->currSTableMeta = NULL;

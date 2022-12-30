@@ -406,7 +406,7 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
   }else{
     smlJsonParseObj(start, elements, info->offset);
   }
-  if(**start == '\0') return TSDB_CODE_SUCCESS;
+  if(**start == '\0' && elements->measure == NULL) return TSDB_CODE_SUCCESS;
 
   SSmlKv kv = {.key = VALUE, .keyLen = VALUE_LEN, .value = elements->cols, .length = (size_t)elements->colsLen};
   if (smlParseValue(&kv, &info->msgBuf) != TSDB_CODE_SUCCESS) {
@@ -804,7 +804,7 @@ static int32_t smlParseTagsFromJSONExt(SSmlHandle *info, cJSON *tags, SSmlLineIn
     cnt++;
   }
 
-  SSmlTableInfo *tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements->tags, POINTER_BYTES, is_same_child_table_telnet);
+  SSmlTableInfo *tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements, POINTER_BYTES, is_same_child_table_telnet);
   if (unlikely(tinfo == NULL)) {
     tinfo = smlBuildTableInfo(1, elements->measure, elements->measureLen);
     if (unlikely(!tinfo)) {
@@ -822,7 +822,10 @@ static int32_t smlParseTagsFromJSONExt(SSmlHandle *info, cJSON *tags, SSmlLineIn
       }
     }
 
-    nodeListSet(&info->childTables, tags, POINTER_BYTES, tinfo, is_same_child_table_telnet);
+    SSmlLineInfo *key = (SSmlLineInfo *)taosMemoryMalloc(sizeof(SSmlLineInfo));
+    *key = *elements;
+    tinfo->key = key;
+    nodeListSet(&info->childTables, key, POINTER_BYTES, tinfo, is_same_child_table_telnet);
   }
   if (info->dataFormat) info->currTableDataCtx = tinfo->tableDataCtx;
 
@@ -1054,6 +1057,9 @@ static int32_t smlParseJSONExt(SSmlHandle *info, char *payload) {
     info->lines = NULL;
   }
   ret = smlClearForRerun(info);
+  if(ret != TSDB_CODE_SUCCESS){
+    return ret;
+  }
   cJSON *head = (payloadNum == 1 && cJSON_IsObject(info->root)) ? info->root : info->root->child;
 
   int cnt = 0;
@@ -1103,6 +1109,7 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
         void* tmp = taosMemoryRealloc(info->lines, payloadNum * sizeof(SSmlLineInfo));
         if(tmp != NULL){
           info->lines = (SSmlLineInfo*)tmp;
+          memset(info->lines + cnt, 0, (payloadNum - cnt) * sizeof(SSmlLineInfo));
         }
       }
       ret = smlParseJSONString(info, &dataPointStart, info->lines + cnt);
@@ -1111,8 +1118,6 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
       uError("SML:0x%" PRIx64 " Invalid JSON Payload", info->id);
       return smlParseJSONExt(info, payload);
     }
-
-    if(*dataPointStart == '\0') break;
 
     if(unlikely(info->reRun)){
       cnt = 0;
@@ -1124,6 +1129,8 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
       }
       continue;
     }
+
+    if(*dataPointStart == '\0') break;
     cnt++;
   }
   info->lineNum = cnt;
