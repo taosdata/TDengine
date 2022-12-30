@@ -2388,6 +2388,9 @@ static bool tagScanOptShouldBeOptimized(SLogicNode* pNode) {
   if (pScan->hasNormalCols) {
     return false;
   }
+  if (pScan->tableType == TSDB_SYSTEM_TABLE) {
+    return false;
+  }
   if (NULL == pNode->pParent || QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent) ||
       1 != LIST_LENGTH(pNode->pParent->pChildren)) {
     return false;
