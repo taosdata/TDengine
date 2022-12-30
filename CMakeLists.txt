@@ -11,6 +11,11 @@ SET(TD_ENTERPRISE_DIR ${PROJECT_SOURCE_DIR}/enterprise)
 MESSAGE(STATUS "Community source directory: " ${TD_COMMUNITY_DIR})
 MESSAGE(STATUS "Enterprise source directory: " ${TD_ENTERPRISE_DIR})
 
+MESSAGE(STATUS "OEM brand: " ${OEM_BRAND})
+MESSAGE(STATUS "OEM prompt: " ${OEM_PROMPT})
+
+ADD_DEFINITIONS(-DOEM_BRAND="${OEM_BRAND}" -DOEM_PROMPT="${OEM_PROMPT}")
+
 set( TD_SOURCE_DIR ${PROJECT_SOURCE_DIR} )
 include(${TD_SOURCE_DIR}/enterprise/cmake/cmake.options)
 add_subdirectory(enterprise/contrib)
