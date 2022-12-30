@@ -64,10 +64,8 @@ void syncIndexMgrSetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, Sync
     }
   }
 
-  char     host[128];
-  uint16_t port;
-  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, indexmgr set index:%" PRId64 " for %s:%d failed", pIndexMgr->pNode->vgId, index, host, port);
+  sError("vgId:%d, indexmgr set index:%" PRId64 " for dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, index,
+         DID(pRaftId), CID(pRaftId));
 }
 
 SSyncLogReplMgr *syncNodeGetLogReplMgr(SSyncNode *pNode, SRaftId *pRaftId) {
@@ -77,10 +75,7 @@ SSyncLogReplMgr *syncNodeGetLogReplMgr(SSyncNode *pNode, SRaftId *pRaftId) {
     }
   }
 
-  char     host[128];
-  uint16_t port;
-  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, indexmgr get replmgr from %s:%d failed", pNode->vgId, host, port);
+  sError("vgId:%d, indexmgr get replmgr from dnode:%d cluster:%d failed", pNode->vgId, DID(pRaftId), CID(pRaftId));
   return NULL;
 }
 
@@ -92,10 +87,8 @@ SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId)
     }
   }
 
-  char     host[128];
-  uint16_t port;
-  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, indexmgr get index from %s:%d failed", pIndexMgr->pNode->vgId, host, port);
+  sError("vgId:%d, indexmgr get index from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
+         CID(pRaftId));
   return SYNC_INDEX_INVALID;
 }
 
@@ -107,11 +100,8 @@ void syncIndexMgrSetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, 
     }
   }
 
-  char     host[128];
-  uint16_t port;
-  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, indexmgr set start-time:%" PRId64 " for %s:%d failed", pIndexMgr->pNode->vgId, startTime, host,
-         port);
+  sError("vgId:%d, indexmgr set start-time:%" PRId64 " for dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId,
+         startTime, DID(pRaftId), CID(pRaftId));
 }
 
 int64_t syncIndexMgrGetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
@@ -122,10 +112,8 @@ int64_t syncIndexMgrGetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftI
     }
   }
 
-  char     host[128];
-  uint16_t port;
-  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, indexmgr get start-time from %s:%d failed", pIndexMgr->pNode->vgId, host, port);
+  sError("vgId:%d, indexmgr get start-time from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
+         CID(pRaftId));
   return -1;
 }
 
@@ -137,10 +125,8 @@ void syncIndexMgrSetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, i
     }
   }
 
-  char     host[128];
-  uint16_t port;
-  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, indexmgr set recv-time:%" PRId64 " for %s:%d failed", pIndexMgr->pNode->vgId, recvTime, host, port);
+  sError("vgId:%d, indexmgr set recv-time:%" PRId64 " for dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, recvTime,
+         DID(pRaftId), CID(pRaftId));
 }
 
 int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
@@ -151,10 +137,8 @@ int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId
     }
   }
 
-  char     host[128];
-  uint16_t port;
-  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, indexmgr get recv-time from %s:%d failed", pIndexMgr->pNode->vgId, host, port);
+  sError("vgId:%d, indexmgr get recv-time from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
+         CID(pRaftId));
   return -1;
 }
 
@@ -166,10 +150,8 @@ void syncIndexMgrSetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncT
     }
   }
 
-  char     host[128];
-  uint16_t port;
-  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, indexmgr set term:%" PRId64 " for %s:%d failed", pIndexMgr->pNode->vgId, term, host, port);
+  sError("vgId:%d, indexmgr set term:%" PRId64 " for dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, term,
+         DID(pRaftId), CID(pRaftId));
 }
 
 SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
@@ -180,9 +162,7 @@ SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
     }
   }
 
-  char     host[128];
-  uint16_t port;
-  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, indexmgr get term from %s:%d failed", pIndexMgr->pNode->vgId, host, port);
+  sError("vgId:%d, indexmgr get term from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
+         CID(pRaftId));
   return -1;
 }

@@ -200,8 +200,8 @@ inline char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
            "r-num:%d, "
            "lcfg:%" PRId64 ", chging:%d, rsto:%d",
            pSyncNode->vgId, syncStr(pSyncNode->state), pSyncNode->pRaftStore->currentTerm, pSyncNode->commitIndex,
-           logBeginIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum,
-           pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing, pSyncNode->restoreFinish);
+           logBeginIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->raftCfg.isStandBy, pSyncNode->replicaNum,
+           pSyncNode->raftCfg.lastConfigIndex, pSyncNode->changing, pSyncNode->restoreFinish);
 
   return s;
 }
@@ -243,7 +243,7 @@ int32_t syncNodePingPeers(SSyncNode* pSyncNode) {
 
 int32_t syncNodePingAll(SSyncNode* pSyncNode) {
   int32_t ret = 0;
-  for (int32_t i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->raftCfg.cfg.replicaNum; ++i) {
     SRaftId*  destId = &(pSyncNode->replicasId[i]);
     SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, destId, pSyncNode->vgId);
     ret = syncNodePing(pSyncNode, destId, pMsg);

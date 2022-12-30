@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndSync.h"
+#include "mndCluster.h"
 #include "mndTrans.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
@@ -297,9 +298,12 @@ int32_t mndInitSync(SMnode *pMnode) {
   pCfg->myIndex = pMgmt->selfIndex;
   for (int32_t i = 0; i < pMgmt->numOfReplicas; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
-    tstrncpy(pNode->nodeFqdn, pMgmt->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    pNode->nodeId = pMgmt->replicas[i].id;
     pNode->nodePort = pMgmt->replicas[i].port;
-    mInfo("vgId:1, index:%d ep:%s:%u", i, pNode->nodeFqdn, pNode->nodePort);
+    tstrncpy(pNode->nodeFqdn, pMgmt->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    mInfo("vgId:1, index:%d ep:%s:%u dnode:%d cluster:" PRId64, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId,
+          pNode->clusterId);
   }
 
   tsem_init(&pMgmt->syncSem, 0, 0);

@@ -213,6 +213,6 @@ _OVER:
 
   if (code != 0) return -1;
 
-  dDebug("successed to write %s, numOfVnodes:%d", realfile, numOfVnodes);
+  dDebug("succeed to write %s, numOfVnodes:%d", realfile, numOfVnodes);
   return taosRenameFile(file, realfile);
 }

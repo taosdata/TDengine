@@ -640,7 +640,7 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
 
 int32_t taosFsyncFile(TdFilePtr pFile) {
   if (pFile == NULL) {
-    return 0;
+    return -1;
   }
 
   // this implementation is WRONG

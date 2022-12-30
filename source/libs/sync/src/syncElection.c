@@ -94,7 +94,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
     voteGrantedUpdate(pSyncNode->pVotesGranted, pSyncNode);
     votesRespondUpdate(pSyncNode->pVotesRespond, pSyncNode);
 
-    pSyncNode->quorum = syncUtilQuorum(pSyncNode->pRaftCfg->cfg.replicaNum);
+    pSyncNode->quorum = syncUtilQuorum(pSyncNode->raftCfg.cfg.replicaNum);
 
     syncNodeCandidate2Leader(pSyncNode);
     pSyncNode->pVotesGranted->toLeader = true;
