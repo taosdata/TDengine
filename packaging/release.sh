@@ -29,7 +29,7 @@ verNumber=""
 verNumberComp="3.0.0.0"
 httpdBuild=false
 
-while getopts "hv:V:c:o:l:s:d:a:n:m:H:" arg; do
+while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:" arg; do
   case $arg in
   v)
     #echo "verMode=$OPTARG"
@@ -75,6 +75,14 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:" arg; do
     #echo "httpdBuild=$OPTARG"
     httpdBuild=$(echo $OPTARG)
     ;;
+  N)
+    #echo "httpdBuild=$OPTARG"
+    brandName=$(echo $OPTARG)
+    ;;
+  P)
+    #echo "httpdBuild=$OPTARG"
+    brandPrompt=$(echo $OPTARG)
+    ;;
   h)
     echo "Usage: $(basename $0) -v [cluster | edge] "
     echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...] "
@@ -87,6 +95,8 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:" arg; do
     echo "                  -n [version number] "
     echo "                  -m [compatible version number] "
     echo "                  -H [false | true] "
+    echo "                  -N <brand name>"
+    echo "                  -P <brand prompt>"
     exit 0
     ;;
   ?) #unknow option
@@ -196,10 +206,10 @@ else
   allocator_macro=""
 fi
 
-if [[ "$dbName" != "taos" ]]; then
-  source ${enterprise_dir}/packaging/oem/sed_$dbName.sh
-  replace_community_$dbName
-fi
+#if [[ "$dbName" != "taos" ]]; then
+#  source ${enterprise_dir}/packaging/oem/sed_$dbName.sh
+#  replace_community_$dbName
+#fi
 
 if [[ "$httpdBuild" == "true" ]]; then
   BUILD_HTTP=true
@@ -225,10 +235,20 @@ if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" =
   elif [ "$verMode" == "cloud" ]; then
     cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DBUILD_CLOUD=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   elif [ "$verMode" == "cluster" ]; then
-    if [[ "$dbName" != "taos" ]]; then
-      replace_enterprise_$dbName
+#    if [[ "$dbName" != "taos" ]]; then
+#      replace_enterprise_$dbName
+#    fi
+    if [ -z "${brandName}" ] && [ -z "${brandPrompt}" ]; then
+        cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
+    else
+      if [ ! -z "${brandName}" ] && [ ! -z "${brandPrompt}" ]; then
+        cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro} -DOEM_BRAND=${brandName} -DOEM_PROMPT=${brandPrompt}
+      elif [ ! -z "${brandName}" ]; then
+        cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro} -DOEM_BRAND=${brandName}
+      else
+        cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro} -DOEM_PROMPT=${brandPrompt}
+      fi
     fi
-    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   fi
 else
   echo "input cpuType=${cpuType} error!!!"
