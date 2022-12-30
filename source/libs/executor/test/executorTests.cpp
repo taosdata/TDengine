@@ -43,6 +43,19 @@ enum {
   data_desc = 0x3,
 };
 
+TEST(testCase, windowFunctionTest) {
+  int64_t tsCol[100000];
+  int32_t rows = 100000;
+  for (int32_t i = 0; i < rows; i++) {
+    tsCol[i] = 1648791213000 + i;
+  }
+  int32_t ekeyNum = 50000;
+  int32_t pos = 40000;
+  int64_t ekey = tsCol[ekeyNum];
+  int32_t num = getForwardStepsInBlock(rows, binarySearchForKey, ekey, pos, TSDB_ORDER_ASC, tsCol);
+  ASSERT_EQ(num, ekeyNum - pos + 1);
+}
+
 typedef struct SDummyInputInfo {
   int32_t      totalPages;  // numOfPages
   int32_t      current;
