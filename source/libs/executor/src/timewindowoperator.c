@@ -119,8 +119,8 @@ static void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsL
   pRowSup->groupId = groupId;
 }
 
-static FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey,
-                                                   int16_t pos, int16_t order, int64_t* pData) {
+FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey,
+                                                   int32_t pos, int32_t order, int64_t* pData) {
   int32_t forwardRows = 0;
 
   if (order == TSDB_ORDER_ASC) {
