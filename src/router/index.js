@@ -149,41 +149,41 @@ const adminRoute = [
       },
     ],
   },
-  {
-    path: "user",
-    component: () => import("@/views/9_user"),
-    children: [
-      {
-        path: "",
-        name: "userList",
-        meta: {
-          role: ["1"],
-        },
-        component: () => import("@/views/9_user/views/list"),
-      },
-      {
-        path: "detail/:id",
-        meta: {
-          role: ["1"],
-        },
-        props: true,
-        component: () => import("@/views/9_user/views/detail"),
-      },
-    ],
-  },
-  {
-    path: "billing",
-    component: () => import("@/views/8_billing"),
-    children: [
-      {
-        path: "",
-        component: () => import("@/views/8_billing/views/postpaid.vue"),
-        meta: {
-          role: ["1"],
-        },
-      },
-    ],
-  },
+  // {
+  //   path: "user",
+  //   component: () => import("@/views/9_user"),
+  //   children: [
+  //     {
+  //       path: "",
+  //       name: "userList",
+  //       meta: {
+  //         role: ["1"],
+  //       },
+  //       component: () => import("@/views/9_user/views/list"),
+  //     },
+  //     {
+  //       path: "detail/:id",
+  //       meta: {
+  //         role: ["1"],
+  //       },
+  //       props: true,
+  //       component: () => import("@/views/9_user/views/detail"),
+  //     },
+  //   ],
+  // },
+  // {
+  //   path: "billing",
+  //   component: () => import("@/views/8_billing"),
+  //   children: [
+  //     {
+  //       path: "",
+  //       component: () => import("@/views/8_billing/views/postpaid.vue"),
+  //       meta: {
+  //         role: ["1"],
+  //       },
+  //     },
+  //   ],
+  // },
   {
     path: "calculator",
     component: () => import("@/views/calculator"),

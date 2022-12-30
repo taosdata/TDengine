@@ -84,23 +84,23 @@
           //   icon: "VPC",
           //   role: ["1"],
           // },
-          {
-            path: "/instances",
-            title: this.$t("route.clusters"),
-            icon: "cluster",
-          },
-          {
-            path: "/user",
-            title: this.$t("route.users"),
-            icon: "users",
-            role: ["1"],
-          },
-          {
-            path: "/billing",
-            title: this.$t("route.billing"),
-            icon: "billing",
-            role: ["1"],
-          },
+          // {
+          //   path: "/instances",
+          //   title: this.$t("route.clusters"),
+          //   icon: "cluster",
+          // },
+          // {
+          //   path: "/user",
+          //   title: this.$t("route.users"),
+          //   icon: "users",
+          //   role: ["1"],
+          // },
+          // {
+          //   path: "/billing",
+          //   title: this.$t("route.billing"),
+          //   icon: "billing",
+          //   role: ["1"],
+          // },
         ];
         return permission_routes.filter(route => {
           return route?.role?.includes(this.role) || !route.role;
