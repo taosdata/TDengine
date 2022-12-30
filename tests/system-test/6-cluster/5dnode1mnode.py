@@ -140,21 +140,21 @@ class TDTestCase:
     def check_alive(self):
         # check cluster alive
         tdLog.printNoPrefix("======== test cluster alive: ")
-        tdSql.checkDataLoop(0, 0, 1, "show cluster alive;", 10, 0.5)
+        tdSql.checkDataLoop(0, 0, 1, "show cluster alive;", 20, 0.5)
 
         tdSql.query("show db.alive;")
         tdSql.checkData(0, 0, 1)
 
         # stop 5 dnode 
         self.TDDnodes.stoptaosd(5)
-        tdSql.checkDataLoop(0, 0, 2, "show cluster alive;", 10, 0.5)
+        tdSql.checkDataLoop(0, 0, 2, "show cluster alive;", 20, 0.5)
         
         tdSql.query("show db.alive;")
         tdSql.checkData(0, 0, 2)
 
         # stop 2 dnode
         self.TDDnodes.stoptaosd(2)
-        tdSql.checkDataLoop(0, 0, 0, "show cluster alive;", 10, 0.5)
+        tdSql.checkDataLoop(0, 0, 0, "show cluster alive;", 20, 0.5)
 
         tdSql.query("show db.alive;")
         tdSql.checkData(0, 0, 0)
