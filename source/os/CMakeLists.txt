@@ -41,7 +41,7 @@ target_link_libraries(
 )
 if(TD_WINDOWS)
     target_link_libraries(
-        os PUBLIC ws2_32 iconv msvcregex wcwidth winmm crashdump
+        os PUBLIC ws2_32 iconv msvcregex wcwidth winmm crashdump dbghelp
     )
 elseif(TD_DARWIN_64)
     find_library(CORE_FOUNDATION_FRAMEWORK CoreFoundation)
