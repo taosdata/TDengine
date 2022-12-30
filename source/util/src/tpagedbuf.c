@@ -482,7 +482,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
 }
 
 void releaseBufPage(SDiskbasedBuf* pBuf, void* page) {
-  if (ASSERTS(pBuf == NULL || page == NULL, "pBuf or page is NULL")) {
+  if (ASSERTS(pBuf != NULL && page != NULL, "pBuf or page is NULL")) {
     return;
   }
   SPageInfo* ppi = getPageInfoFromPayload(page);
@@ -493,7 +493,7 @@ void releaseBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* pi) {
 #ifdef BUF_PAGE_DEBUG
   uDebug("page_releaseBufPageInfo pageId:%d, used:%d, offset:%" PRId64, pi->pageId, pi->used, pi->offset);
 #endif
-  if (ASSERTS(pi->pData == NULL, "pi->pData is NULL")) {
+  if (ASSERTS(pi->pData != NULL, "pi->pData is NULL")) {
     return;
   }
 
