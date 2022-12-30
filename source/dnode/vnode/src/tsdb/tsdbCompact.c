@@ -82,9 +82,9 @@ typedef struct {
   // Writer
   SDataFWriter *pWriter;
   SArray       *aBlockIdx;  // SArray<SBlockIdx>
+  SMapData      mDataBlk;   // SMapData<SDataBlk>
+  SArray       *aSttBlk;    // SArray<SSttBlk>
   TABLEID       tableId;
-  SMapData      mDataBlk;  // SMapData<SDataBlk>
-  SArray       *aSttBlk;   // SArray<SSttBlk>
 } STsdbCompactor;
 
 #define TSDB_FLG_DEEP_COMPACT 0x1
@@ -855,13 +855,10 @@ static int32_t tsdbCompactFileSet(STsdbCompactor *pCompactor) {
   }
 
   while (pRowInfo) {
-    nRow++;
-
-    if ((pCompactor->tableId.suid != pRowInfo->suid) ||  // different super table
+    // write block data according to table id if necessary
+    if ((pCompactor->tableId.suid != pRowInfo->suid) ||
         (pCompactor->tableId.uid != pRowInfo->uid &&
-         (pRowInfo->suid == 0 ||
-          pCompactor->bData.uid && pCompactor->bData.nRow >= pCompactor->minRows))  // different table
-    ) {
+         (pRowInfo->suid == 0 || (pCompactor->bData.uid && pCompactor->bData.nRow >= pCompactor->minRows)))) {
       code = tsdbCompactWriteBlockData(pCompactor);
       TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -872,20 +869,20 @@ static int32_t tsdbCompactFileSet(STsdbCompactor *pCompactor) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    // append row to block data
-    code = tBlockDataAppendRowEx(&pCompactor->bData, &pRowInfo->row, pTSchema, pRowInfo->uid);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    pCompactor->tableId.suid = pRowInfo->suid;
-    pCompactor->tableId.uid = pRowInfo->uid;
-
-    // check if block data is full
-    if (pCompactor->bData.nRow >= pCompactor->maxRows) {
+    // check if append/merge the row causes nRow exceed maxRows
+    if (0 /* add the row causes row exceed maxRows */) {
       code = tsdbCompactWriteBlockData(pCompactor);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    // iterate to next row
+    // append/merge the row
+    // code = tBlockDataAppendRowEx(&pCompactor->bData, &pRowInfo->row, pTSchema, pRowInfo->uid);
+    // TSDB_CHECK_CODE(code, lino, _exit);
+
+    pCompactor->tableId.suid = pRowInfo->suid;
+    pCompactor->tableId.uid = pRowInfo->uid;
+
+    // iter to the next row
     code = tsdbCompactNextRow(pCompactor);
     TSDB_CHECK_CODE(code, lino, _exit);
 
