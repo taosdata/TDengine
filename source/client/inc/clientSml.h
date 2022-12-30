@@ -181,6 +181,7 @@ typedef struct {
   cJSON       *root;  // for parse json
   int8_t             offset[OTD_JSON_FIELDS_NUM];
   SSmlLineInfo      *lines; // element is SSmlLineInfo
+  bool               parseJsonByLib;
 
   //
   SArray      *preLineTagKV;
@@ -209,7 +210,7 @@ SSmlHandle   *smlBuildSmlInfo(TAOS *taos);
 void          smlDestroyInfo(SSmlHandle *info);
 int           smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset);
 int           smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset);
-SArray       *smlJsonParseTags(char *start, char *end);
+//SArray       *smlJsonParseTags(char *start, char *end);
 bool          smlParseNumberOld(SSmlKv *kvVal, SSmlMsgBuf *msg);
 void*         nodeListGet(NodeList* list, const void *key, int32_t len, _equal_fn_sml fn);
 int           nodeListSet(NodeList** list, const void *key, int32_t len, void* value, _equal_fn_sml fn);
