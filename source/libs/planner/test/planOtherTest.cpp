@@ -30,7 +30,7 @@ TEST_F(PlanOtherTest, createTopic) {
 TEST_F(PlanOtherTest, createStream) {
   useDb("root", "test");
 
-  run("create stream if not exists s1 trigger window_close watermark 10s into st1 as select count(*) from t1 "
+  run("create stream if not exists s1 trigger window_close watermark 10s into st3 as select count(*) from t1 "
       "interval(10s)");
 
   run("CREATE STREAM s1 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tname)) "
@@ -43,9 +43,9 @@ TEST_F(PlanOtherTest, createStream) {
 TEST_F(PlanOtherTest, createStreamUseSTable) {
   useDb("root", "test");
 
-  run("CREATE STREAM IF NOT EXISTS s1 into st1 as SELECT COUNT(*) FROM st1 INTERVAL(10s)");
+  run("CREATE STREAM IF NOT EXISTS s1 into st3 as SELECT COUNT(*) FROM st1 INTERVAL(10s)");
 
-  run("CREATE STREAM IF NOT EXISTS s1 into st1 as SELECT COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
+  run("CREATE STREAM IF NOT EXISTS s1 into st3 as SELECT COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
 }
 
 TEST_F(PlanOtherTest, createSmaIndex) {

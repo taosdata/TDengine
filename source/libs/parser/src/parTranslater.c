@@ -352,7 +352,7 @@ static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STa
       code = catalogGetTableMeta(pParCxt->pCatalog, &conn, pName, pMeta);
     }
   }
-  if (TSDB_CODE_SUCCESS != code && TSDB_CODE_TSC_INVALID_TABLE_NAME != code) {
+  if (TSDB_CODE_SUCCESS != code && TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
     parserError("0x%" PRIx64 " catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
                 tstrerror(code), pName->dbname, pName->tname);
   }
@@ -5842,11 +5842,11 @@ static int32_t adjustStreamQueryForExistTable(STranslateContext* pCxt, SCreateSt
                                               SCMCreateStreamReq* pReq) {
   STableMeta* pMeta = NULL;
   int32_t     code = getTableMeta(pCxt, pStmt->targetDbName, pStmt->targetTabName, &pMeta);
-  if (TSDB_CODE_TSC_INVALID_TABLE_NAME == code) {
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
     if (NULL != pStmt->pCols) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, pStmt->targetTabName);
     }
-    pReq->createStb = 1;
+    pReq->createStb = STREAM_CREATE_STABLE_TRUE;
     return TSDB_CODE_SUCCESS;
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -5907,8 +5907,6 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
     columnDefNodeToField(pStmt->pTags, &pReq->pTags);
     pReq->numOfTags = LIST_LENGTH(pStmt->pTags);
   }
-
-  pReq->createStb = STREAM_CREATE_STABLE_TRUE;
 
   return code;
 }
