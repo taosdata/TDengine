@@ -541,8 +541,14 @@ bufsize_opt(A) ::= BUFSIZE NK_INTEGER(B).                                       
 
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A) stream_options(B) INTO
-  full_table_name(C) tags_def_opt(F) subtable_opt(G) AS query_or_subquery(D).     { pCxt->pRootNode = createCreateStreamStmt(pCxt, E, &A, C, B, F, G, D); }
+  full_table_name(C) col_list_opt(H) tags_def_opt(F) subtable_opt(G)
+  AS query_or_subquery(D).                                                        { pCxt->pRootNode = createCreateStreamStmt(pCxt, E, &A, C, B, F, G, D, H); }
 cmd ::= DROP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createDropStreamStmt(pCxt, A, &B); }
+
+%type col_list_opt                                                                { SNodeList* }
+%destructor col_list_opt                                                          { nodesDestroyList($$); }
+col_list_opt(A) ::= .                                                             { A = NULL; }
+col_list_opt(A) ::= NK_LP col_name_list(B) NK_RP.                                 { A = B; }
 
 stream_options(A) ::= .                                                           { A = createStreamOptions(pCxt); }
 stream_options(A) ::= stream_options(B) TRIGGER AT_ONCE.                          { ((SStreamOptions*)B)->triggerType = STREAM_TRIGGER_AT_ONCE; A = B; }
