@@ -29,11 +29,17 @@ extern "C" {
 int32_t strdequote(char *src);
 size_t  strtrim(char *src);
 char   *strnchr(const char *haystack, char needle, int32_t len, bool skipquote);
+TdUcs4* wcsnchr(const TdUcs4* haystack, TdUcs4 needle, size_t len);
+
 char  **strsplit(char *src, const char *delim, int32_t *num);
 char   *strtolower(char *dst, const char *src);
 char   *strntolower(char *dst, const char *src, int32_t n);
 char   *strntolower_s(char *dst, const char *src, int32_t n);
 int64_t strnatoi(char *num, int32_t len);
+
+size_t  tstrncspn(const char *str, size_t ssize, const char *reject, size_t rsize);
+size_t  twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rsize);
+
 char   *strbetween(char *string, char *begin, char *end);
 char   *paGetToken(char *src, char **token, int32_t *tokenLen);
 
