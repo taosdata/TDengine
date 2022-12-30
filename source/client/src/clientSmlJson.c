@@ -1040,6 +1040,8 @@ static int32_t smlParseJSONExt(SSmlHandle *info, char *payload) {
   if(ret != TSDB_CODE_SUCCESS){
     return ret;
   }
+
+  info->parseJsonByLib = true;
   cJSON *head = (payloadNum == 1 && cJSON_IsObject(info->root)) ? info->root : info->root->child;
 
   int cnt = 0;
@@ -1173,7 +1175,6 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
     }
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       uError("SML:0x%" PRIx64 " Invalid JSON Payload 1:%s", info->id, payload);
-      info->parseJsonByLib = true;
       return smlParseJSONExt(info, payload);
     }
 
