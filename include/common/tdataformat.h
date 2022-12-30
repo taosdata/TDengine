@@ -137,6 +137,7 @@ void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn)
 void    tColDataClear(SColData *pColData);
 void    tColDataDeepClear(SColData *pColData);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
+int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, int32_t flag);
 void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
@@ -146,9 +147,9 @@ extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max,
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind);
 void    tColDataSortMerge(SArray *colDataArr);
 
-//for raw block
-int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes,
-                                    int32_t nRows, char* lengthOrbitmap, char *data);
+// for raw block
+int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
+                                    char *data);
 // for encode/decode
 int32_t tPutColData(uint8_t *pBuf, SColData *pColData);
 int32_t tGetColData(uint8_t *pBuf, SColData *pColData);

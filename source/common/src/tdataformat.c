@@ -1910,6 +1910,107 @@ int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
       pColVal->value.nData);
 }
 
+static int32_t tColDataUpdateValue10(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue11(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue12(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue20(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue21(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue22(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue30(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue31(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue32(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue40(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue41(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue42(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue50(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue51(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue52(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue60(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue61(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue62(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue70(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue71(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t tColDataUpdateValue72(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) {
+  ASSERT(0);
+  return 0;
+}
+static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData, int32_t flag) = {
+    {NULL, NULL, NULL},                                                     // 0
+    {tColDataUpdateValue10, tColDataUpdateValue11, tColDataUpdateValue12},  // HAS_NONE
+    {tColDataUpdateValue20, tColDataUpdateValue21, tColDataUpdateValue22},  // HAS_NULL
+    {tColDataUpdateValue30, tColDataUpdateValue31, tColDataUpdateValue32},  // HAS_NULL|HAS_NONE
+    {tColDataUpdateValue40, tColDataUpdateValue41, tColDataUpdateValue42},  // HAS_VALUE
+    {tColDataUpdateValue50, tColDataUpdateValue51, tColDataUpdateValue52},  // HAS_VALUE|HAS_NONE
+    {tColDataUpdateValue60, tColDataUpdateValue61, tColDataUpdateValue62},  // HAS_VALUE|HAS_NULL
+    {tColDataUpdateValue70, tColDataUpdateValue71, tColDataUpdateValue72},  // HAS_VALUE|HAS_NULL|HAS_NONE
+};
+int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, int32_t flag) {
+  ASSERT(pColData->cid == pColVal->cid && pColData->type == pColVal->type);
+  return tColDataUpdateValueImpl[pColData->flag][pColVal->flag](
+      pColData, IS_VAR_DATA_TYPE(pColData->type) ? pColVal->value.pData : (uint8_t *)&pColVal->value.val,
+      pColVal->value.nData, flag);
+}
+
 static FORCE_INLINE void tColDataGetValue1(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_NONE
   *pColVal = COL_VAL_NONE(pColData->cid, pColData->type);
 }

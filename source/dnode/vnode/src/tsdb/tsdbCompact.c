@@ -530,6 +530,8 @@ static bool tsdbCompactRowIsDeleted(STsdbCompactor *pCompactor, TSDBROW *pRow) {
     int64_t version;
     if (pCompactor->iKey < taosArrayGetSize(pCompactor->aSkyLine)) {
       version = TMAX(pCompactor->sKey.version, pCompactor->aTSDBKEY[pCompactor->iKey].version);
+    } else {
+      version = pCompactor->sKey.version;
     }
 
     if (tKey.version > version) {
@@ -858,15 +860,19 @@ int32_t tsdbCompact(STsdb *pTsdb, int32_t flag) {
     if (pCompactor->pDFileSet == NULL) break;
 
     // loop to merge row by row
-    SRowInfo *pRowInfo = NULL;
-    STSchema *pTSchema = NULL;
+    SRowInfo *pRowInfo;
+    STSchema *pTSchema;
     int64_t   nRow = 0;
-    for (;;) {
-      code = tsdbCompactGetRow(pCompactor, &pRowInfo, &pTSchema);
+
+    code = tsdbCompactGetRow(pCompactor, &pRowInfo, &pTSchema);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (pRowInfo && (code = tBlockDataInit(&pCompactor->bData, &(TABLEID){.suid = pRowInfo->suid, .uid = pRowInfo->uid},
+                                           pTSchema, NULL, 0))) {
       TSDB_CHECK_CODE(code, lino, _exit);
+    }
 
-      if (pRowInfo == NULL) break;
-
+    while (pRowInfo) {
       nRow++;
 
       if (pCompactor->bData.suid == 0 && pCompactor->bData.uid == 0) {  // init the block data if not initialized yet
@@ -906,6 +912,9 @@ int32_t tsdbCompact(STsdb *pTsdb, int32_t flag) {
 
       // iterate to next row
       code = tsdbCompactNextRow(pCompactor);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      code = tsdbCompactGetRow(pCompactor, &pRowInfo, &pTSchema);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
