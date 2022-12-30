@@ -451,6 +451,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
     if (inserter->fullOrderColList && pCol->colId != inserter->pSchema->columns[i].colId) {
       inserter->fullOrderColList = false;
     }
+    ++i;
   }
 
   tsem_init(&inserter->ready, 0, 0);
