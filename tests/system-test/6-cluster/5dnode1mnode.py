@@ -137,11 +137,37 @@ class TDTestCase:
         config_dir = dnode.cfgDir
         return taos.connect(host=host, port=int(port), config=config_dir)
 
+    def check_alive(self):
+        # check cluster alive
+        tdLog.printNoPrefix("======== test cluster alive: ")
+        tdSql.query("show cluster alive;")
+        tdSql.checkData(0, 0, "1")
+
+        tdSql.query("show db.alive;")
+        tdSql.checkData(0, 0, "1")
+
+        # stop 5 dnode 
+        self.TDDnodes[4].stoptaosd()
+        tdSql.query("show cluster alive;")
+        tdSql.checkData(0, 0, "2")
+
+        tdSql.query("show db.alive;")
+        tdSql.checkData(0, 0, "2")
+
+        # stop 2 dnode
+        self.TDDnodes[1].stoptaosd()
+        tdSql.query("show cluster alive;")
+        tdSql.checkData(0, 0, "0")
+
+        tdSql.query("show db.alive;")
+        tdSql.checkData(0, 0, "0")
+        
 
     def run(self):
         # print(self.master_dnode.cfgDict)
         self.five_dnode_one_mnode()
-
+        # check cluster and db alive
+        self.check_alive("db")
 
     def stop(self):
         tdSql.close()
