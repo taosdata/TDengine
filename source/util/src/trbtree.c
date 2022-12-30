@@ -289,7 +289,7 @@ static void rbtree_delete_fixup(rbtree_t *rbtree, rbnode_t *child, rbnode_t *chi
   sibling->color = child_parent->color;
   child_parent->color = BLACK;
   if (child_parent->right == child) {
-    ASSERT(sibling->left->color == RED, "slibing->left->color=%d not equal RED", sibling->left->color);
+    ASSERTS(sibling->left->color == RED, "slibing->left->color=%d not equal RED", sibling->left->color);
     sibling->left->color = BLACK;
     rbtree_rotate_right(rbtree, child_parent);
   } else {

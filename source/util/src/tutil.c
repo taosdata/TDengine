@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "tutil.h"
+#include "tlog.h"
 
 void *tmemmem(const char *haystack, int32_t hlen, const char *needle, int32_t nlen) {
   const char *limit;

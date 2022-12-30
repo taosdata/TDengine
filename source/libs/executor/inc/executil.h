@@ -18,7 +18,6 @@
 #include "function.h"
 #include "nodes.h"
 #include "plannodes.h"
-#include "tbuffer.h"
 #include "tcommon.h"
 #include "tpagedbuf.h"
 #include "tsimplehash.h"
