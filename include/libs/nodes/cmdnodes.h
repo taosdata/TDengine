@@ -407,6 +407,7 @@ typedef struct SCreateStreamStmt {
   SNode*          pQuery;
   SNodeList*      pTags;
   SNode*          pSubtable;
+  SNodeList*      pCols;
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {
