@@ -906,7 +906,7 @@ int32_t ctgCallUserCb(void* param) {
 }
 
 void ctgUpdateJobErrCode(SCtgJob* pJob, int32_t errCode) {
-  if (TSDB_CODE_SUCCESS == errCode) return;
+  if (!NEED_CLIENT_HANDLE_ERROR(errCode) || errCode == TSDB_CODE_SUCCESS) return;
 
   int32_t origCode = atomic_load_32(&pJob->jobResCode);
   if (TSDB_CODE_SUCCESS == origCode) {
