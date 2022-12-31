@@ -906,7 +906,7 @@ int32_t ctgCallUserCb(void* param) {
 }
 
 void ctgUpdateJobErrCode(SCtgJob* pJob, int32_t errCode) {
-  if (!NEED_CLIENT_HANDLE_ERROR(errCode) || errCode == TSDB_CODE_SUCCESS) return;
+  if (!NEED_CLIENT_REFRESH_VG_ERROR(errCode) || errCode == TSDB_CODE_SUCCESS) return;
 
   int32_t origCode = atomic_load_32(&pJob->jobResCode);
   if (TSDB_CODE_SUCCESS == origCode) {
@@ -916,11 +916,11 @@ void ctgUpdateJobErrCode(SCtgJob* pJob, int32_t errCode) {
     origCode = atomic_load_32(&pJob->jobResCode);
   }
 
-  if (NEED_CLIENT_HANDLE_ERROR(origCode)) {
+  if (NEED_CLIENT_REFRESH_VG_ERROR(origCode)) {
     return;
   }
 
-  if (NEED_CLIENT_HANDLE_ERROR(errCode)) {
+  if (NEED_CLIENT_REFRESH_VG_ERROR(errCode)) {
     atomic_store_32(&pJob->jobResCode, errCode);
     goto _return;
   }
