@@ -170,6 +170,7 @@
 38,,script,./test.sh -f unique/arbitrator/sync_replica2_dropDb.sim 
 38,,script,./test.sh -f general/table/delete_reuse2.sim 
 38,,script,./test.sh -f general/insert/insert_drop.sim 
+38,,script,./test.sh -f general/insert/insert_update2.sim 
 37,,script,./test.sh -f unique/mnode/mgmt30.sim 
 37,,script,./test.sh -f unique/column/replica3.sim 
 37,,script,./test.sh -f unique/arbitrator/offline_replica2_createTable_online.sim 
