@@ -77,7 +77,7 @@ int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg)
   u8 *ptr;
 
   tdbTrace("page/destroy: %p/%d %p", pPage, pPage->id, xFree);
-  //  ASSERT(!pPage->isDirty);
+  ASSERT(!pPage->isDirty);
   ASSERT(xFree);
 
   for (int iOvfl = 0; iOvfl < pPage->nOverflow; iOvfl++) {

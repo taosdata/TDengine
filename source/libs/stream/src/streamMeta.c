@@ -69,7 +69,7 @@ _err:
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
-  tdbTxnClose(pMeta->txn);
+  tdbAbort(pMeta->db, pMeta->txn);
   tdbTbClose(pMeta->pTaskDb);
   tdbTbClose(pMeta->pCheckpointDb);
   tdbClose(pMeta->db);
