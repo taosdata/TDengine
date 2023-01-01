@@ -208,6 +208,27 @@ static void      rpcUnlockConn(SRpcConn *pConn);
 static void      rpcAddRef(SRpcInfo *pRpc);
 static void      rpcDecRef(SRpcInfo *pRpc);
 
+static int ip2str(uint32_t ip, char *buf, int len) {
+  if (buf == NULL || len < 16) {
+    return -1;
+  }
+
+  uint8_t aByte = 0;
+  int     offset = 0;
+
+  for (int i = 0; i < 4; i++) {
+    aByte = (ip & 0x000000FF);
+    offset += sprintf(&buf[offset], "%d", aByte);
+    if (3 == i) {
+      buf[offset] = '\0';
+    } else {
+      buf[offset++] = '.';
+    }
+    ip = ip >> 8;
+  }
+  return 0;
+}
+
 static bool rpcGenUID(uint32_t *first, uint32_t *second) {
   static uint64_t hashId = 0;
   static uint32_t tranId = 0;
@@ -609,6 +630,9 @@ static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerFqdn, uint16_t peerPort, 
     return NULL;
   }
 
+  char buf[32] = {0};
+  ip2str(peerIp, buf, sizeof(buf));
+
   pConn = rpcAllocateClientConn(pRpc);
 
   if (pConn) {
@@ -622,7 +646,7 @@ static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerFqdn, uint16_t peerPort, 
       void *shandle = (connType & RPC_CONN_TCP) ? pRpc->tcphandle : pRpc->udphandle;
       pConn->chandle = (*taosOpenConn[connType])(shandle, pConn, pConn->peerIp, pConn->peerPort);
       if (pConn->chandle == NULL) {
-        tError("failed to connect to:0x%x:%d", pConn->peerIp, pConn->peerPort);
+        tError("failed to connect to:%s:%d", buf, pConn->peerPort);
 
         terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
         rpcCloseConn(pConn);
@@ -1189,14 +1213,17 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
     return pConn;
   }
 
+  char buf[32] = {0};
+  ip2str(pRecv->ip, buf, sizeof(buf));
+
   if (pHead->msgType >= 1 && pHead->msgType < TSDB_MSG_TYPE_MAX) {
-    tDebug("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
-           pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, terrno, pRecv->msgLen,
+    tDebug("%s %p %p, %s received from %s:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
+           pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType], buf, pRecv->port, terrno, pRecv->msgLen,
            pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
   } else {
-    tDebug("%s %p %p, %d received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
-           pConn, (void *)pHead->ahandle, pHead->msgType, pRecv->ip, pRecv->port, terrno, pRecv->msgLen,
-           pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
+    tDebug("%s %p %p, %d received from %s:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
+           pConn, (void *)pHead->ahandle, pHead->msgType, buf, pRecv->port, terrno, pRecv->msgLen, pHead->sourceId,
+           pHead->destId, pHead->tranId, pHead->code);
   }
 
   int32_t code = terrno;
@@ -1485,13 +1512,16 @@ static bool rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
 
   msgLen = rpcAddAuthPart(pConn, msg, msgLen);
 
+  char buf[32] = {0};
+  ip2str(pConn->peerIp, buf, sizeof(buf));
+
   if (rpcIsReq(pHead->msgType)) {
     tDebug("%s, %s is sent to %s:%hu, len:%d sig:0x%08x:0x%08x:%d", pConn->info, taosMsg[pHead->msgType],
            pConn->peerFqdn, pConn->peerPort, msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   } else {
     if (pHead->code == 0) pConn->secured = 1;  // for success response, set link as secured
-    tDebug("%s, %s is sent to 0x%x:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d", pConn->info, taosMsg[pHead->msgType],
-           pConn->peerIp, pConn->peerPort, htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
+    tDebug("%s, %s is sent to %s:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d", pConn->info, taosMsg[pHead->msgType], buf,
+           pConn->peerPort, htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
 
   // tTrace("connection type is: %d", pConn->connType);
