@@ -80,6 +80,8 @@ typedef enum {
 } ESyncState;
 
 typedef struct SNodeInfo {
+  int64_t  clusterId;
+  int32_t  nodeId;
   uint16_t nodePort;
   char     nodeFqdn[TSDB_FQDN_LEN];
 } SNodeInfo;

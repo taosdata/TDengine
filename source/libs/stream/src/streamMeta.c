@@ -294,6 +294,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
       tdbTbcClose(pCur);
       return -1;
     }
+    pTask->taskStatus = TASK_STATUS__NORMAL;
   }
 
   tdbFree(pKey);

@@ -612,7 +612,8 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   vInfo("vgId:%d, start to open sync, replica:%d selfIndex:%d", pVnode->config.vgId, pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
-    vInfo("vgId:%d, index:%d ep:%s:%u", pVnode->config.vgId, i, pNode->nodeFqdn, pNode->nodePort);
+    vInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pVnode->config.vgId, i, pNode->nodeFqdn, pNode->nodePort,
+          pNode->nodeId, pNode->clusterId);
   }
 
   pVnode->sync = syncOpen(&syncInfo);

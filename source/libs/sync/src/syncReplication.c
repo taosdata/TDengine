@@ -107,10 +107,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
 
       pMsg = rpcMsg.pCont;
     } else {
-      char     host[64];
-      uint16_t port;
-      syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
-      sNError(pSyncNode, "replicate to %s:%d error, next-index:%" PRId64, host, port, nextIndex);
+      sNError(pSyncNode, "replicate to dnode:%d error, next-index:%" PRId64, DID(pDestId), nextIndex);
       return -1;
     }
   }
@@ -171,10 +168,7 @@ int32_t syncNodeReplicateOld(SSyncNode* pSyncNode) {
     SRaftId* pDestId = &(pSyncNode->peersId[i]);
     ret = syncNodeReplicateOne(pSyncNode, pDestId, true);
     if (ret != 0) {
-      char    host[64];
-      int16_t port;
-      syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
-      sError("vgId:%d, do append entries error for %s:%d", pSyncNode->vgId, host, port);
+      sError("vgId:%d, do append entries error for dnode:%d", pSyncNode->vgId, DID(pDestId));
     }
   }
 
@@ -183,7 +177,6 @@ int32_t syncNodeReplicateOld(SSyncNode* pSyncNode) {
 
 int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
-  int32_t ret = 0;
   pMsg->destId = *destRaftId;
   syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
   return 0;
@@ -229,11 +222,7 @@ int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* dest
   if (syncNodeNeedSendAppendEntries(pSyncNode, destRaftId, pMsg)) {
     ret = syncNodeSendAppendEntries(pSyncNode, destRaftId, pRpcMsg);
   } else {
-    char    logBuf[128];
-    char    host[64];
-    int16_t port;
-    syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
-    sNTrace(pSyncNode, "do not repcate to %s:%d for index:%" PRId64, host, port, pMsg->prevLogIndex + 1);
+    sNTrace(pSyncNode, "do not repcate to dnode:%d for index:%" PRId64, DID(destRaftId), pMsg->prevLogIndex + 1);
     rpcFreeCont(pRpcMsg->pCont);
   }
 

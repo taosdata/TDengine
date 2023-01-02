@@ -53,17 +53,25 @@ endi
 
 return 
 print =============== step2: create database
-sql create database db vgroups 33 replica 3
+sql create database db vgroups 1 replica 3
 
 sql use db;
 sql create table stb (ts timestamp, c int) tags (t int);
 sql create table t0 using stb tags (0);
-sql insert into t0 values(now, 1);
+$x = 0
+while $x < 28
+  sql insert into t0 values(now, 1);
+  $x = $x + 1
+endw
+
 sql select * from information_schema.ins_stables where db_name = 'db';
 sql select * from information_schema.ins_tables where db_name = 'db';
 sql show db.vgroups;
 
+system sh/exec.sh -n dnode1 -s stop
 system sh/exec.sh -n dnode2 -s stop
+system sh/exec.sh -n dnode3 -s stop
+system sh/exec.sh -n dnode4 -s stop
 
 return
 print ======== start back

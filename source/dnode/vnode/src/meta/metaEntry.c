@@ -99,7 +99,9 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     }
     if (tDecodeTSma(pCoder, pME->smaEntry.tsma, true) < 0) return -1;
   } else {
-    ASSERT(0);
+    metaError("meta/entry: invalide table type: %" PRId8 " decode failed.", pME->type);
+
+    return -1;
   }
 
   tEndDecode(pCoder);

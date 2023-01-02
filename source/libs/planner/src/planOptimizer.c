@@ -1544,6 +1544,11 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       code = adjustLogicNodeDataRequirement((SLogicNode*)pScan, pNode->resultDataOrder);
     }
     if (TSDB_CODE_SUCCESS == code) {
+      if (QUERY_NODE_LOGIC_PLAN_AGG == pNode->pParent->type) {
+        SAggLogicNode* pParent = (SAggLogicNode*)(pNode->pParent);
+        pParent->hasGroupKeyOptimized = true;
+      }
+
       NODES_CLEAR_LIST(pNode->pChildren);
       nodesDestroyNode((SNode*)pNode);
     }
@@ -1569,6 +1574,8 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
         break;
       }
     }
+    pAgg->hasGroupKeyOptimized = true;
+
     NODES_DESTORY_LIST(pAgg->pGroupKeys);
     if (TSDB_CODE_SUCCESS == code && start >= 0) {
       code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, start, pAgg);
@@ -1577,6 +1584,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   if (TSDB_CODE_SUCCESS == code) {
     code = partTagsOptRebuildTbanme(pScan->pGroupTags);
   }
+
   pCxt->optimized = true;
   return code;
 }
@@ -2378,6 +2386,9 @@ static bool tagScanOptShouldBeOptimized(SLogicNode* pNode) {
   }
   SScanLogicNode* pScan = (SScanLogicNode*)pNode;
   if (pScan->hasNormalCols) {
+    return false;
+  }
+  if (pScan->tableType == TSDB_SYSTEM_TABLE) {
     return false;
   }
   if (NULL == pNode->pParent || QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent) ||

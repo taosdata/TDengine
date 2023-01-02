@@ -988,7 +988,7 @@ int32_t taosGetFqdn(char *fqdn) {
 #endif
   char hostname[1024];
   hostname[1023] = '\0';
-  if (gethostname(hostname, 1023) == -1) {
+  if (taosGetlocalhostname(hostname, 1023) == -1) {
 #ifdef WINDOWS
     printf("failed to get hostname, reason:%s\n", strerror(WSAGetLastError()));
 #else
@@ -998,30 +998,28 @@ int32_t taosGetFqdn(char *fqdn) {
     return -1;
   }
 
-  struct addrinfo  hints = {0};
-  struct addrinfo *result = NULL;
 #ifdef __APPLE__
   // on macosx, hostname -f has the form of xxx.local
   // which will block getaddrinfo for a few seconds if AI_CANONNAME is set
   // thus, we choose AF_INET (ipv4 for the moment) to make getaddrinfo return
   // immediately
-  hints.ai_family = AF_INET;
+  // hints.ai_family = AF_INET;
+  strcpy(fqdn, hostname);
+  strcpy(fqdn+strlen(hostname), ".local");
 #else   // __APPLE__
+  struct addrinfo  hints = {0};
+  struct addrinfo *result = NULL;
   hints.ai_flags = AI_CANONNAME;
-#endif  // __APPLE__
+
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
     fprintf(stderr, "failed to get fqdn, code:%d, reason:%s\n", ret, gai_strerror(ret));
     return -1;
   }
-
-#ifdef __APPLE__
-  // refer to comments above
-  strcpy(fqdn, hostname);
-#else   // __APPLE__
   strcpy(fqdn, result->ai_canonname);
-#endif  // __APPLE__
   freeaddrinfo(result);
+#endif  // __APPLE__
+
   return 0;
 }
 

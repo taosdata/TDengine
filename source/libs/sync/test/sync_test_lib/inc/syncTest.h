@@ -474,6 +474,11 @@ void syncLocalCmdPrint2(char* s, const SyncLocalCmd* pMsg);
 void syncLocalCmdLog(const SyncLocalCmd* pMsg);
 void syncLocalCmdLog2(char* s, const SyncLocalCmd* pMsg);
 
+char*    syncUtilPrintBin(char* ptr, uint32_t len);
+char*    syncUtilPrintBin2(char* ptr, uint32_t len);
+void     syncUtilU642Addr(uint64_t u64, char* host, int64_t len, uint16_t* port);
+uint64_t syncUtilAddr2U64(const char* host, uint16_t port);
+
 #ifdef __cplusplus
 }
 #endif
