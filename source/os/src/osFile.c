@@ -560,6 +560,21 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
 
 int32_t taosLockFile(TdFilePtr pFile) {
 #ifdef WINDOWS
+  BOOL          fSuccess = FALSE;
+  LARGE_INTEGER fileSize;
+  OVERLAPPED    overlapped = {0};
+
+  HANDLE hFile = (HANDLE)_get_osfhandle(pFile->fd);
+
+  fSuccess = LockFileEx(hFile, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY,
+                        0,           // reserved
+                        ~0,          // number of bytes to lock low
+                        ~0,          // number of bytes to lock high
+                        &overlapped  // overlapped structure
+  );
+  if (!fSuccess) {
+    return GetLastError();
+  }
   return 0;
 #else
   assert(pFile->fd >= 0);  // Please check if you have closed the file.
@@ -570,6 +585,14 @@ int32_t taosLockFile(TdFilePtr pFile) {
 
 int32_t taosUnLockFile(TdFilePtr pFile) {
 #ifdef WINDOWS
+  BOOL          fSuccess = FALSE;
+  OVERLAPPED    overlapped = {0};
+  HANDLE        hFile = (HANDLE)_get_osfhandle(pFile->fd);
+
+  fSuccess = UnlockFileEx(hFile, 0, ~0, ~0, &overlapped);
+  if (!fSuccess) {
+    return GetLastError();
+  }
   return 0;
 #else
   assert(pFile->fd >= 0);  // Please check if you have closed the file.
