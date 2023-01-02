@@ -73,6 +73,7 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
 
   int     cnt = 0;
   SArray *preLineKV = info->preLineTagKV;
+  SArray *maxKVs = info->maxTagKVs;
   bool    isSuperKVInit = true;
   SArray *superKV = NULL;
   if(info->dataFormat){
@@ -96,12 +97,13 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
       if(unlikely(taosArrayGetSize(superKV) == 0)){
         isSuperKVInit = false;
       }
-      taosArraySetSize(preLineKV, 0);
+      taosArraySetSize(maxKVs, 0);
     }
   }else{
-    taosArraySetSize(preLineKV, 0);
+    taosArraySetSize(maxKVs, 0);
   }
 
+  taosArraySetSize(preLineKV, 0);
   const char *sql = data;
   while (sql < sqlEnd) {
     JUMP_SPACE(sql, sqlEnd)
@@ -168,14 +170,14 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
       }
 
       if(isSameMeasure){
-        if(unlikely(cnt >= taosArrayGetSize(preLineKV))) {
+        if(unlikely(cnt >= taosArrayGetSize(maxKVs))) {
           info->dataFormat = false;
           info->reRun      = true;
           return TSDB_CODE_SUCCESS;
         }
-        SSmlKv *preKV = (SSmlKv *)taosArrayGet(preLineKV, cnt);
-        if(unlikely(kv.length > preKV->length)){
-          preKV->length = kv.length;
+        SSmlKv *maxKV = (SSmlKv *)taosArrayGet(maxKVs, cnt);
+        if(unlikely(kv.length > maxKV->length)){
+          maxKV->length = kv.length;
           SSmlSTableMeta *tableMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, elements->measure, elements->measureLen, NULL);
           ASSERT(tableMeta != NULL);
 
@@ -195,11 +197,11 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
             info->reRun      = true;
             return TSDB_CODE_SUCCESS;
           }
-          SSmlKv *preKV = (SSmlKv *)taosArrayGet(superKV, cnt);
-          if(unlikely(kv.length > preKV->length)) {
-            preKV->length = kv.length;
+          SSmlKv *maxKV = (SSmlKv *)taosArrayGet(superKV, cnt);
+          if(unlikely(kv.length > maxKV->length)) {
+            maxKV->length = kv.length;
           }else{
-            kv.length = preKV->length;
+            kv.length = maxKV->length;
           }
           info->needModifySchema = true;
 
@@ -211,11 +213,12 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
         }else{
           taosArrayPush(superKV, &kv);
         }
-        taosArrayPush(preLineKV, &kv);
+        taosArrayPush(maxKVs, &kv);
       }
     }else{
-      taosArrayPush(preLineKV, &kv);
+      taosArrayPush(maxKVs, &kv);
     }
+    taosArrayPush(preLineKV, &kv);
     cnt++;
   }
   SSmlTableInfo *tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements, POINTER_BYTES, is_same_child_table_telnet);

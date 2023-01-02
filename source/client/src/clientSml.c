@@ -1054,6 +1054,7 @@ void smlDestroyInfo(SSmlHandle *info) {
   taosHashCleanup(info->pVgHash);
 
   taosArrayDestroy(info->preLineTagKV);
+  taosArrayDestroy(info->maxTagKVs);
   taosArrayDestroy(info->preLineColKV);
 
   if (!info->dataFormat) {
@@ -1090,6 +1091,7 @@ SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
   info->dataFormat = true;
 
   info->preLineTagKV = taosArrayInit(8, sizeof(SSmlKv));
+  info->maxTagKVs = taosArrayInit(8, sizeof(SSmlKv));
   info->preLineColKV = taosArrayInit(8, sizeof(SSmlKv));
 
   if (NULL == info->pVgHash) {

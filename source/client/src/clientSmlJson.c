@@ -429,9 +429,8 @@ static inline int32_t smlParseMetricFromJSON(SSmlHandle *info, cJSON *metric, SS
 
 const char *jsonName[OTD_JSON_FIELDS_NUM] = {"metric", "timestamp", "value", "tags"};
 static int32_t smlGetJsonElements(cJSON *root, cJSON ***marks){
-  cJSON *child = root->child;
-
   for (int i = 0; i < OTD_JSON_FIELDS_NUM; ++i) {
+    cJSON *child = root->child;
     while(child != NULL)
     {
       if(strcasecmp(child->string, jsonName[i]) == 0){
@@ -441,7 +440,7 @@ static int32_t smlGetJsonElements(cJSON *root, cJSON ***marks){
       child = child->next;
     }
     if(*marks[i] == NULL){
-      uError("smlGetJsonElements error, not find mark:%s", jsonName[i]);
+      uError("smlGetJsonElements error, not find mark:%d:%s", i, jsonName[i]);
       return -1;
     }
   }
@@ -648,6 +647,7 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
 
   int     cnt = 0;
   SArray *preLineKV = info->preLineTagKV;
+  SArray *maxKVs = info->maxTagKVs;
   bool    isSuperKVInit = true;
   SArray *superKV = NULL;
   if(info->dataFormat){
@@ -671,11 +671,12 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
       if(unlikely(taosArrayGetSize(superKV) == 0)){
         isSuperKVInit = false;
       }
-      taosArraySetSize(preLineKV, 0);
+      taosArraySetSize(maxKVs, 0);
     }
   }else{
-    taosArraySetSize(preLineKV, 0);
+    taosArraySetSize(maxKVs, 0);
   }
+  taosArraySetSize(preLineKV, 0);
 
   int32_t tagNum = cJSON_GetArraySize(tags);
   if(unlikely(tagNum == 0)){
@@ -710,14 +711,14 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
       }
 
       if(isSameMeasure){
-        if(unlikely(cnt >= taosArrayGetSize(preLineKV))) {
+        if(unlikely(cnt >= taosArrayGetSize(maxKVs))) {
           info->dataFormat = false;
           info->reRun      = true;
           return TSDB_CODE_SUCCESS;
         }
-        SSmlKv *preKV = (SSmlKv *)taosArrayGet(preLineKV, cnt);
-        if(unlikely(kv.length > preKV->length)){
-          preKV->length = kv.length;
+        SSmlKv *maxKV = (SSmlKv *)taosArrayGet(maxKVs, cnt);
+        if(unlikely(kv.length > maxKV->length)){
+          maxKV->length = kv.length;
           SSmlSTableMeta *tableMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, elements->measure, elements->measureLen, NULL);
           ASSERT(tableMeta != NULL);
 
@@ -737,11 +738,11 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
             info->reRun      = true;
             return TSDB_CODE_SUCCESS;
           }
-          SSmlKv *preKV = (SSmlKv *)taosArrayGet(superKV, cnt);
-          if(unlikely(kv.length > preKV->length)) {
-            preKV->length = kv.length;
+          SSmlKv *maxKV = (SSmlKv *)taosArrayGet(superKV, cnt);
+          if(unlikely(kv.length > maxKV->length)) {
+            maxKV->length = kv.length;
           }else{
-            kv.length = preKV->length;
+            kv.length = maxKV->length;
           }
           info->needModifySchema = true;
 
@@ -753,11 +754,12 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
         }else{
           taosArrayPush(superKV, &kv);
         }
-        taosArrayPush(preLineKV, &kv);
+        taosArrayPush(maxKVs, &kv);
       }
     }else{
-      taosArrayPush(preLineKV, &kv);
+      taosArrayPush(maxKVs, &kv);
     }
+    taosArrayPush(preLineKV, &kv);
     cnt++;
   }
 
@@ -921,6 +923,9 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
   cJSON *tsJson = NULL;
   cJSON *valueJson = NULL;
   cJSON *tagsJson = NULL;
+  char* rootStr = cJSON_PrintUnformatted(root);
+  uError("rootStr:%s", rootStr);
+  taosMemoryFree(rootStr);
 
   int32_t size = cJSON_GetArraySize(root);
   // outmost json fields has to be exactly 4
