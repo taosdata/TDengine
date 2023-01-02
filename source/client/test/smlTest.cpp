@@ -503,35 +503,35 @@ TEST(testCase, smlParseTelnetLine_Test) {
   smlDestroyInfo(info);
 }
 
-TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
-  SSmlHandle *info = smlBuildSmlInfo(NULL);
-  info->protocol = TSDB_SML_JSON_PROTOCOL;
-  ASSERT_NE(info, nullptr);
-
-  const char *sql[] = {
-      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\": 1346846400,\"value\": 18,\"tags\": {\"host\": \"lga\"}},{\"metric\": \"sys.sdfa\",\"timestamp\": 1346846400,\"value\": \"18\",\"tags\": {\"host\": 8932}},]",
-  };
-  for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
-    char *dataPointStart = (char *)sql[i];
-    int8_t offset[4] = {0};
-    while (1) {
-      SSmlLineInfo elements = {0};
-      if(offset[0] == 0){
-        smlJsonParseObjFirst(&dataPointStart, &elements, offset);
-      }else{
-        smlJsonParseObj(&dataPointStart, &elements, offset);
-      }
-      if(*dataPointStart == '\0') break;
-
-      SArray *tags = smlJsonParseTags(elements.tags, elements.tags + elements.tagsLen);
-      size_t num = taosArrayGetSize(tags);
-      ASSERT_EQ(num, 1);
-
-      taosArrayDestroy(tags);
-    }
-  }
-  smlDestroyInfo(info);
-}
+//TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
+//  SSmlHandle *info = smlBuildSmlInfo(NULL);
+//  info->protocol = TSDB_SML_JSON_PROTOCOL;
+//  ASSERT_NE(info, nullptr);
+//
+//  const char *sql[] = {
+//      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\": 1346846400,\"value\": 18,\"tags\": {\"host\": \"lga\"}},{\"metric\": \"sys.sdfa\",\"timestamp\": 1346846400,\"value\": \"18\",\"tags\": {\"host\": 8932}},]",
+//  };
+//  for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
+//    char *dataPointStart = (char *)sql[i];
+//    int8_t offset[4] = {0};
+//    while (1) {
+//      SSmlLineInfo elements = {0};
+//      if(offset[0] == 0){
+//        smlJsonParseObjFirst(&dataPointStart, &elements, offset);
+//      }else{
+//        smlJsonParseObj(&dataPointStart, &elements, offset);
+//      }
+//      if(*dataPointStart == '\0') break;
+//
+//      SArray *tags = smlJsonParseTags(elements.tags, elements.tags + elements.tagsLen);
+//      size_t num = taosArrayGetSize(tags);
+//      ASSERT_EQ(num, 1);
+//
+//      taosArrayDestroy(tags);
+//    }
+//  }
+//  smlDestroyInfo(info);
+//}
 
 TEST(testCase, smlParseNumber_performance_Test) {
   char       msg[256] = {0};

@@ -78,21 +78,23 @@ int smlProcess_telnet_Test() {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  char *sql[4] = {0};
-  sql[0] = taosMemoryCalloc(1, 128);
-  sql[1] = taosMemoryCalloc(1, 128);
-  sql[2] = taosMemoryCalloc(1, 128);
-  sql[3] = taosMemoryCalloc(1, 128);
+//  char *sql[4] = {0};
+//  sql[0] = taosMemoryCalloc(1, 128);
+//  sql[1] = taosMemoryCalloc(1, 128);
+//  sql[2] = taosMemoryCalloc(1, 128);
+//  sql[3] = taosMemoryCalloc(1, 128);
   const char *sql1[] = {"sys.if.bytes.out  1479496100 1.3E0 host=web01 interface=eth0",
                        "sys.if.bytes.out  1479496101 1.3E1 interface=eth0    host=web01   ",
                        "sys.if.bytes.out  1479496102 1.3E3 network=tcp",
                        " sys.procs.running   1479496100 42 host=web01   "};
 
-  for(int i = 0; i < 4; i++){
-    strncpy(sql[i], sql1[i], 128);
-  }
+//  for(int i = 0; i < 4; i++){
+//    strncpy(sql[i], sql1[i], 128);
+//  }
 
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_TELNET_PROTOCOL,
+//  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_TELNET_PROTOCOL,
+//                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_TELNET_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);

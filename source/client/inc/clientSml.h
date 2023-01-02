@@ -185,6 +185,7 @@ typedef struct {
 
   //
   SArray      *preLineTagKV;
+  SArray      *maxTagKVs;
   SArray      *preLineColKV;
 
   SSmlLineInfo preLine;
@@ -199,7 +200,7 @@ typedef struct {
 #define IS_SAME_SUPER_TABLE (elements->measureLen == info->preLine.measureLen \
 && memcmp(elements->measure, info->preLine.measure, elements->measureLen) == 0)
 
-#define IS_SAME_KEY (preKV->keyLen == kv.keyLen && memcmp(preKV->key, kv.key, kv.keyLen) == 0)
+#define IS_SAME_KEY (maxKV->keyLen == kv.keyLen && memcmp(maxKV->key, kv.key, kv.keyLen) == 0)
 
 extern int64_t smlFactorNS[3];
 extern int64_t smlFactorS[3];
