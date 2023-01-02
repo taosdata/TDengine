@@ -23,6 +23,11 @@
 int32_t is_same_child_table_telnet(const void *a, const void *b){
   SSmlLineInfo *t1 = (SSmlLineInfo *)a;
   SSmlLineInfo *t2 = (SSmlLineInfo *)b;
+  uError("is_same_child_table_telnet len:%d,%d %s,%s @@@ len:%d,%d %s,%s", t1->measureLen, t2->measureLen,
+         t1->measure, t2->measure, t1->tagsLen, t2->tagsLen, t1->tags, t2->tags);
+  if(t1 == NULL || t2 == NULL || t1->measure == NULL || t2->measure == NULL
+      || t1->tags == NULL || t2->tags == NULL)
+    return 1;
   return (((t1->measureLen == t2->measureLen) && memcmp(t1->measure, t2->measure, t1->measureLen) == 0)
           && ((t1->tagsLen == t2->tagsLen) && memcmp(t1->tags, t2->tags, t1->tagsLen) == 0)) ? 0 : 1;
 }
