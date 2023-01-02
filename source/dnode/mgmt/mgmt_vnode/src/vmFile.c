@@ -215,7 +215,7 @@ _OVER:
 
   if (code != 0) return -1;
 
-  dInfo("successed to write %s, numOfVnodes:%d", realfile, numOfVnodes);
+  dInfo("succeed to write %s, numOfVnodes:%d", realfile, numOfVnodes);
   code = taosRenameFile(file, realfile);
   
   if (code != 0) {

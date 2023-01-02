@@ -345,6 +345,8 @@ SMsgCb dmGetMsgcb(SDnode *pDnode) {
       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
       .releaseHandleFp = dmReleaseHandle,
       .reportStartupFp = dmReportStartup,
+      .updateDnodeInfoFp = dmUpdateDnodeInfo,
+      .data = &pDnode->data,
   };
   return msgCb;
 }
