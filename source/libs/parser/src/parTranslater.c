@@ -4948,6 +4948,10 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
   }
 
+  if (getNumOfTags(pTableMeta) == 1 && pStmt->alterType == TSDB_ALTER_TABLE_DROP_TAG) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "the only tag cannot be dropped");
+  }
+
   int32_t tagsLen = 0;
   for (int32_t i = 0; i < pTableMeta->tableInfo.numOfTags; ++i) {
     tagsLen += pTagsSchema[i].bytes;
@@ -7482,7 +7486,7 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
 static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                      SQuery* pQuery) {
   if (getNumOfTags(pTableMeta) == 1 && pStmt->alterType == TSDB_ALTER_TABLE_DROP_TAG) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "the only tag cannot be dropped");
   }
 
   if (TSDB_SUPER_TABLE == pTableMeta->tableType) {

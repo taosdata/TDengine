@@ -73,7 +73,7 @@ int32_t syncIOSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
 
   int32_t ret = 0;
   {
-    syncUtilMsgNtoH(pMsg->pCont);
+    // syncUtilMsgNtoH(pMsg->pCont);
 
     char logBuf[256] = {0};
     snprintf(logBuf, sizeof(logBuf), "==syncIOSendMsg== %s:%d msgType:%d", pEpSet->eps[0].fqdn, pEpSet->eps[0].port,
@@ -376,7 +376,7 @@ static void *syncIOConsumerFunc(void *param) {
 }
 
 static void syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  syncUtilMsgNtoH(pMsg->pCont);
+  // syncUtilMsgNtoH(pMsg->pCont);
 
   syncRpcMsgLog2((char *)"==syncIOProcessRequest==", pMsg);
   SSyncIO *io = pParent;
@@ -432,9 +432,9 @@ static void syncIOTickQ(void *param, void *tmrId) {
   SSyncIO *io = (SSyncIO *)param;
 
   SRaftId srcId, destId;
-  srcId.addr = syncUtilAddr2U64(io->myAddr.eps[0].fqdn, io->myAddr.eps[0].port);
+  // srcId.addr = syncUtilAddr2U64(io->myAddr.eps[0].fqdn, io->myAddr.eps[0].port);
   srcId.vgId = -1;
-  destId.addr = syncUtilAddr2U64(io->myAddr.eps[0].fqdn, io->myAddr.eps[0].port);
+  // destId.addr = syncUtilAddr2U64(io->myAddr.eps[0].fqdn, io->myAddr.eps[0].port);
   destId.vgId = -1;
   SyncPingReply *pMsg = syncPingReplyBuild2(&srcId, &destId, -1, "syncIOTickQ");
 
@@ -454,9 +454,9 @@ static void syncIOTickPing(void *param, void *tmrId) {
   SSyncIO *io = (SSyncIO *)param;
 
   SRaftId srcId, destId;
-  srcId.addr = syncUtilAddr2U64(io->myAddr.eps[0].fqdn, io->myAddr.eps[0].port);
+  // srcId.addr = syncUtilAddr2U64(io->myAddr.eps[0].fqdn, io->myAddr.eps[0].port);
   srcId.vgId = -1;
-  destId.addr = syncUtilAddr2U64(io->myAddr.eps[0].fqdn, io->myAddr.eps[0].port);
+  // destId.addr = syncUtilAddr2U64(io->myAddr.eps[0].fqdn, io->myAddr.eps[0].port);
   destId.vgId = -1;
   SyncPing *pMsg = syncPingBuild2(&srcId, &destId, -1, "syncIOTickPing");
   // SyncPing *pMsg = syncPingBuild3(&srcId, &destId);
@@ -471,3 +471,67 @@ static void syncIOTickPing(void *param, void *tmrId) {
 }
 
 void syncEntryDestory(SSyncRaftEntry* pEntry) {}
+
+
+void syncUtilMsgNtoH(void* msg) {
+  SMsgHead* pHead = msg;
+  pHead->contLen = ntohl(pHead->contLen);
+  pHead->vgId = ntohl(pHead->vgId);
+}
+
+static inline bool syncUtilCanPrint(char c) {
+  if (c >= 32 && c <= 126) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+char* syncUtilPrintBin(char* ptr, uint32_t len) {
+  int64_t memLen = (int64_t)(len + 1);
+  char*   s = taosMemoryMalloc(memLen);
+  ASSERT(s != NULL);
+  memset(s, 0, len + 1);
+  memcpy(s, ptr, len);
+
+  for (int32_t i = 0; i < len; ++i) {
+    if (!syncUtilCanPrint(s[i])) {
+      s[i] = '.';
+    }
+  }
+  return s;
+}
+
+char* syncUtilPrintBin2(char* ptr, uint32_t len) {
+  uint32_t len2 = len * 4 + 1;
+  char*    s = taosMemoryMalloc(len2);
+  ASSERT(s != NULL);
+  memset(s, 0, len2);
+
+  char* p = s;
+  for (int32_t i = 0; i < len; ++i) {
+    int32_t n = sprintf(p, "%d,", ptr[i]);
+    p += n;
+  }
+  return s;
+}
+
+void syncUtilU642Addr(uint64_t u64, char* host, int64_t len, uint16_t* port) {
+  uint32_t hostU32 = (uint32_t)((u64 >> 32) & 0x00000000FFFFFFFF);
+
+  struct in_addr addr = {.s_addr = hostU32};
+  taosInetNtoa(addr, host, len);
+  *port = (uint16_t)((u64 & 0x00000000FFFF0000) >> 16);
+}
+
+uint64_t syncUtilAddr2U64(const char* host, uint16_t port) {
+  uint32_t hostU32 = taosGetIpv4FromFqdn(host);
+  if (hostU32 == (uint32_t)-1) {
+    sError("failed to resolve ipv4 addr, host:%s", host);
+    terrno = TSDB_CODE_TSC_INVALID_FQDN;
+    return -1;
+  }
+
+  uint64_t u64 = (((uint64_t)hostU32) << 32) | (((uint32_t)port) << 16);
+  return u64;
+}
