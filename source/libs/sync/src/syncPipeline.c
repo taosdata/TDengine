@@ -632,9 +632,10 @@ int32_t syncLogReplMgrRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
     }
 
     if (pMgr->states[pos].acked) {
-      if (pMgr->states[pos].timeMs + (syncGetRetryMaxWaitMs() << 3) < nowMs) {
+      if (pMgr->matchIndex < index && pMgr->states[pos].timeMs + (syncGetRetryMaxWaitMs() << 3) < nowMs) {
         syncLogReplMgrReset(pMgr);
-        sWarn("vgId:%d, reset sync log repl mgr since stagnation. peer: %" PRIx64, pNode->vgId, pDestId->addr);
+        sWarn("vgId:%d, reset sync log repl mgr since stagnation. index: %" PRId64 ", peer: %" PRIx64, pNode->vgId,
+              index, pDestId->addr);
         goto _out;
       }
       continue;
