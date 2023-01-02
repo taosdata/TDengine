@@ -427,7 +427,7 @@ class MockCatalogServiceImpl {
   int32_t copyTableSchemaMeta(const string& db, const string& tbname, std::unique_ptr<STableMeta>* dst) const {
     STableMeta* src = getTableSchemaMeta(db, tbname);
     if (nullptr == src) {
-      return TSDB_CODE_TSC_INVALID_TABLE_NAME;
+      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
     }
     int32_t len = sizeof(STableMeta) + sizeof(SSchema) * (src->tableInfo.numOfTags + src->tableInfo.numOfColumns);
     dst->reset((STableMeta*)taosMemoryCalloc(1, len));

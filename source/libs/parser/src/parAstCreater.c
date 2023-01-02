@@ -1593,8 +1593,11 @@ SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists,
 }
 
 SNode* createCreateTopicStmtUseDb(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pTopicName,
-                                  const SToken* pSubDbName, bool withMeta) {
+                                  SToken* pSubDbName, bool withMeta) {
   CHECK_PARSER_STATUS(pCxt);
+  if (!checkDbName(pCxt, pSubDbName, true)) {
+    return NULL;
+  }
   SCreateTopicStmt* pStmt = (SCreateTopicStmt*)nodesMakeNode(QUERY_NODE_CREATE_TOPIC_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
@@ -1742,21 +1745,20 @@ SNode* createStreamOptions(SAstCreateContext* pCxt) {
 }
 
 SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pStreamName, SNode* pRealTable,
-                              SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery) {
+                              SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery, SNodeList* pCols) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateStreamStmt* pStmt = (SCreateStreamStmt*)nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
-  if (NULL != pRealTable) {
-    strcpy(pStmt->targetDbName, ((SRealTableNode*)pRealTable)->table.dbName);
-    strcpy(pStmt->targetTabName, ((SRealTableNode*)pRealTable)->table.tableName);
-    nodesDestroyNode(pRealTable);
-  }
+  strcpy(pStmt->targetDbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->targetTabName, ((SRealTableNode*)pRealTable)->table.tableName);
+  nodesDestroyNode(pRealTable);
   pStmt->ignoreExists = ignoreExists;
   pStmt->pOptions = (SStreamOptions*)pOptions;
   pStmt->pQuery = pQuery;
   pStmt->pTags = pTags;
   pStmt->pSubtable = pSubtable;
+  pStmt->pCols = pCols;
   return (SNode*)pStmt;
 }
 

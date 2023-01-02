@@ -1014,6 +1014,7 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
     tqError("unable to encode rsp %d", __LINE__);
     return -1;
   }
+
   void* buf = rpcMallocCont(sizeof(SMsgHead) + len);
   ((SMsgHead*)buf)->vgId = htonl(req.upstreamNodeId);
 
