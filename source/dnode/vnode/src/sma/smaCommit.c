@@ -147,7 +147,8 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
     }
   }
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
-  if (pRSmaStat->commitAppliedVer < 0) {
+  if (ASSERTS(pRSmaStat->commitAppliedVer > 0, "commit applied version %" PRIi64 " <= 0",
+              pRSmaStat->commitAppliedVer)) {
     code = TSDB_CODE_APP_ERROR;
     TSDB_CHECK_CODE(code, lino, _exit);
   }

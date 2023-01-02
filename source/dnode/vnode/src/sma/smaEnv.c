@@ -131,8 +131,7 @@ static int32_t tdNewSmaEnv(SSma *pSma, int8_t smaType, SSmaEnv **ppEnv) {
   (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_store_ptr(&SMA_TSMA_ENV(pSma), *ppEnv)
                                         : atomic_store_ptr(&SMA_RSMA_ENV(pSma), *ppEnv);
 
-  terrno = tdInitSmaStat(&SMA_ENV_STAT(pEnv), smaType, pSma);
-  if (terrno != TSDB_CODE_SUCCESS) {
+  if ((terrno = tdInitSmaStat(&SMA_ENV_STAT(pEnv), smaType, pSma)) != TSDB_CODE_SUCCESS) {
     tdFreeSmaEnv(pEnv);
     *ppEnv = NULL;
     (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_store_ptr(&SMA_TSMA_ENV(pSma), NULL)
@@ -197,7 +196,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (!pSmaStat) {
+  if (ASSERTS(pSmaStat != NULL, "pSmaStat is NULL")) {
     terrno = TSDB_CODE_RSMA_INVALID_ENV;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -257,6 +256,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
     } else if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
       // TODO
     } else {
+      ASSERTS(0, "unknown smaType:%" PRIi8, smaType);
       code = TSDB_CODE_APP_ERROR;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -354,6 +354,7 @@ static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
         smaDebug("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " succeed", vid, refId, smaMgmt.rsetId);
       }
     } else {
+      ASSERTS(0, "unknown smaType:%" PRIi8, smaType);
       terrno = TSDB_CODE_APP_ERROR;
       smaError("%s failed at line %d since %s", __func__, __LINE__, terrstr());
       return -1;
@@ -374,7 +375,7 @@ int32_t tdLockSma(SSma *pSma) {
 }
 
 int32_t tdUnLockSma(SSma *pSma) {
-  if (!SMA_LOCKED(pSma)) {
+  if (ASSERTS(SMA_LOCKED(pSma), "pSma %p is not locked:%d", pSma, pSma->locked)) {
     terrno = TSDB_CODE_APP_ERROR;
     smaError("vgId:%d, failed to unlock since %s", SMA_VID(pSma), tstrerror(terrno));
     return -1;

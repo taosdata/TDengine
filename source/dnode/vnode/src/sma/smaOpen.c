@@ -102,6 +102,7 @@ int smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int ty
   pKeepCfg->precision = pCfg->precision;
   switch (type) {
     case TSDB_TYPE_TSMA:
+      ASSERTS(0, "undefined smaType:%d", (int32_t)type);
       terrno = TSDB_CODE_APP_ERROR;
       break;
     case TSDB_TYPE_RSMA_L0:
@@ -114,6 +115,7 @@ int smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int ty
       SMA_SET_KEEP_CFG(pVnode, 2);
       break;
     default:
+      ASSERTS(0, "unknown smaType:%d", (int32_t)type);
       terrno = TSDB_CODE_APP_ERROR;
       break;
   }

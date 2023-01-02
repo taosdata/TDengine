@@ -88,7 +88,8 @@ static int32_t tsdbBinaryToFS(uint8_t *pData, int64_t nData, SRSmaFS *pFS) {
     }
   }
 
-  if(n + sizeof(TSCKSUM) != nData) {
+  if (ASSERTS(n + sizeof(TSCKSUM) == nData, "n:%d + sizeof(TSCKSUM):%d != nData:%d", n, (int32_t)sizeof(TSCKSUM),
+              nData)) {
     code = TSDB_CODE_FILE_CORRUPTED;
     goto _exit;
   }

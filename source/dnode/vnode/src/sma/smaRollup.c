@@ -129,13 +129,17 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree) {
 }
 
 static FORCE_INLINE int32_t tdUidStoreInit(STbUidStore **pStore) {
-  if (*pStore == NULL) {
-    *pStore = taosMemoryCalloc(1, sizeof(STbUidStore));
-    if (*pStore == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return TSDB_CODE_FAILED;
-    }
+  if (ASSERTS(*pStore == NULL, "*pStore:%p != NULL", *pStore)) {
+    terrno = TSDB_CODE_APP_ERROR;
+    return TSDB_CODE_FAILED;
   }
+
+  *pStore = taosMemoryCalloc(1, sizeof(STbUidStore));
+  if (*pStore == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_FAILED;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -298,7 +302,12 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
       pItem->maxDelay = TSDB_MAX_ROLLUP_MAX_DELAY;
     }
 
-    pItem->level = idx == 0 ? TSDB_RETENTION_L1 : TSDB_RETENTION_L2;  // make sure: pItem->level > 0
+    pItem->level = idx == 0 ? TSDB_RETENTION_L1 : TSDB_RETENTION_L2;
+
+    if (ASSERTS(pItem->level > 0, "pItem level:%" PRIi8 " should > 0", pItem->level)) {
+      terrno = TSDB_CODE_APP_ERROR;
+      return TSDB_CODE_FAILED;
+    }
 
     SRSmaRef rsmaRef = {.refId = pStat->refId, .suid = pRSmaInfo->suid};
     taosHashPut(smaMgmt.refHash, &pItem, POINTER_BYTES, &rsmaRef, sizeof(rsmaRef));
@@ -850,7 +859,7 @@ static int32_t tdCloneQTaskInfo(SSma *pSma, qTaskInfo_t dstTaskInfo, qTaskInfo_t
       .initTqReader = 1,
   };
 
-  if (dstTaskInfo) {
+  if (ASSERTS(!dstTaskInfo, "dstTaskInfo:%p is not NULL", dstTaskInfo)) {
     code = TSDB_CODE_APP_ERROR;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -899,6 +908,7 @@ static int32_t tdRSmaInfoClone(SSma *pSma, SRSmaInfo *pInfo) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
+
   if (mr.me.type != TSDB_SUPER_TABLE) {
     code = TSDB_CODE_RSMA_INVALID_SCHEMA;
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -907,6 +917,7 @@ static int32_t tdRSmaInfoClone(SSma *pSma, SRSmaInfo *pInfo) {
     code = TSDB_CODE_RSMA_INVALID_SCHEMA;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
+
   if (TABLE_IS_ROLLUP(mr.me.flags)) {
     param = &mr.me.stbEntry.rsmaParam;
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
@@ -924,8 +935,8 @@ static int32_t tdRSmaInfoClone(SSma *pSma, SRSmaInfo *pInfo) {
 
 _exit:
   if (code) {
-    smaError("vgId:%d, %s failed at line %d since %s, suid:%" PRIi64 ", type:%" PRIi8 ", uid:%" PRIi64, SMA_VID(pSma),
-             __func__, lino, tstrerror(code), pInfo->suid, mr.me.type, mr.me.uid);
+    smaError("vgId:%d, %s failed at line %d since %s, suid:%" PRIi64 ", flags:%" PRIi8 ",type:%" PRIi8 ", uid:%" PRIi64,
+             SMA_VID(pSma), __func__, lino, tstrerror(code), pInfo->suid, mr.me.flags, mr.me.type, mr.me.uid);
   }
   metaReaderClear(&mr);
   return code;
@@ -973,10 +984,8 @@ static SRSmaInfo *tdAcquireRSmaInfoBySuid(SSma *pSma, int64_t suid) {
     }
     tdRefRSmaInfo(pSma, pRSmaInfo);
     taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
-    if (pRSmaInfo->suid != suid) {
+    if (ASSERTS(pRSmaInfo->suid == suid, "suid:%" PRIi64 " != %" PRIi64, pRSmaInfo->suid, suid)) {
       terrno = TSDB_CODE_APP_ERROR;
-      smaError("vgId:%d, invalid rsma info in cache,  suid:%" PRIi64 " != %" PRIi64, SMA_VID(pSma), pRSmaInfo->suid,
-               suid);
       return NULL;
     }
     return pRSmaInfo;
@@ -1597,7 +1606,8 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
                 if (oldStat == 0 ||
                     ((oldStat == 2) && atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)) < TASK_TRIGGER_STAT_PAUSED)) {
                   int32_t oldVal = atomic_fetch_add_32(&pRSmaStat->nFetchAll, 1);
-                  if (oldVal < 0) {
+
+                  if (ASSERTS(oldVal >= 0, "oldVal of nFetchAll: %d < 0", oldVal)) {
                     code = TSDB_CODE_APP_ERROR;
                     TSDB_CHECK_CODE(code, lino, _exit);
                   }
@@ -1630,6 +1640,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
         }
       }
     } else {
+      ASSERTS(0, "unknown rsma exec type:%d", (int32_t)type);
       code = TSDB_CODE_APP_ERROR;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -1653,8 +1664,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
 _exit:
   taosArrayDestroy(pSubmitArr);
   if (code) {
-    smaError("vgId:%d, %s failed at line %d since %s, type:%d", TD_VID(pVnode), __func__, lino, tstrerror(code),
-             (int32_t)type);
+    smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
