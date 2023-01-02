@@ -89,8 +89,8 @@ void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
     pLoadInfo[i].blockIndex[0] = -1;
     pLoadInfo[i].blockIndex[1] = -1;
 
-    tBlockDataDestroy(&pLoadInfo[i].blockData[0], true);
-    tBlockDataDestroy(&pLoadInfo[i].blockData[1], true);
+    tBlockDataDestroy(&pLoadInfo[i].blockData[0]);
+    tBlockDataDestroy(&pLoadInfo[i].blockData[1]);
 
     taosArrayDestroy(pLoadInfo[i].aSttBlk);
   }
@@ -567,7 +567,6 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
 
   pMTree->pLoadInfo = pBlockLoadInfo;
   pMTree->destroyLoadInfo = destroyLoadInfo;
-  ASSERT(pMTree->pLoadInfo != NULL);
 
   for (int32_t i = 0; i < pFReader->pSet->nSttF; ++i) {  // open all last file
     struct SLDataIter *pIter = NULL;

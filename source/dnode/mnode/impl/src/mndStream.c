@@ -637,7 +637,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   // create stb for stream
-  if (mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
+  if (createStreamReq.createStb == STREAM_CREATE_STABLE_TRUE && mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
     mError("trans:%d, failed to create stb for stream %s since %s", pTrans->id, createStreamReq.name, terrstr());
     mndTransDrop(pTrans);
     goto _OVER;
