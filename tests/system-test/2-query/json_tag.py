@@ -421,9 +421,10 @@ class TDTestCase:
         tdSql.query(f"select count(*),jtag->'tag1' from {dbname}.jsons1 group by jtag->'tag1' order by jtag->'tag1' desc")
         tdSql.checkRows(8)
         tdSql.checkData(0, 0, 2)
-        tdSql.checkData(0, 1, '"femail"')
+        tdSql.checkData(0, 1, '"收到货"')
+        tdSql.checkData(1, 1, '"femail"')
         tdSql.checkData(1, 0, 2)
-        tdSql.checkData(1, 1, '"收到货"')
+        
         tdSql.checkData(2, 0, 1)
         tdSql.checkData(2, 1, "11.000000000")
         tdSql.checkData(5, 0, 1)
