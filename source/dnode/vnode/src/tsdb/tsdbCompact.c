@@ -867,6 +867,7 @@ static int32_t tsdbCompactFileSet(STsdbCompactor *pCompactor) {
 
       code = tBlockDataInit(&pCompactor->bData, (TABLEID *)pRowInfo, pTSchema, NULL, 0);
       TSDB_CHECK_CODE(code, lino, _exit);
+
       pCompactor->tableId.suid = pRowInfo->suid;
       pCompactor->tableId.uid = pRowInfo->uid;
     }
@@ -891,9 +892,10 @@ static int32_t tsdbCompactFileSet(STsdbCompactor *pCompactor) {
       // init block data if need
       if (init && (code = tBlockDataInit(&pCompactor->bData, (TABLEID *)pRowInfo, pTSchema, NULL, 0))) {
         TSDB_CHECK_CODE(code, lino, _exit);
-        pCompactor->tableId.suid = pRowInfo->suid;
-        pCompactor->tableId.uid = pRowInfo->uid;
       }
+
+      pCompactor->tableId.suid = pRowInfo->suid;
+      pCompactor->tableId.uid = pRowInfo->uid;
     }
 
     // if append/merge the row causes nRow exceed maxRows
@@ -903,8 +905,6 @@ static int32_t tsdbCompactFileSet(STsdbCompactor *pCompactor) {
     }
 
     // append/merge the row
-    pCompactor->tableId.suid = pRowInfo->suid;
-    pCompactor->tableId.uid = pRowInfo->uid;
     code = tBlockDataUpsertRow(&pCompactor->bData, &pRowInfo->row, pTSchema, pRowInfo->uid);
     TSDB_CHECK_CODE(code, lino, _exit);
 
