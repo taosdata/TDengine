@@ -1051,12 +1051,7 @@ static int32_t tBlockDataUpsertBlockRow(SBlockData *pBlockData, SBlockData *pBlo
 
     if (pColDataFrom == NULL || pColDataFrom->cid > pColDataTo->cid) {
       cv = COL_VAL_NONE(pColDataTo->cid, pColDataTo->type);
-      if (flag) {
-        code = tColDataUpdateValue(pColDataTo, &cv, flag > 0);
-      } else {
-        code = tColDataAppendValue(pColDataTo, &cv);
-      }
-      if (code) goto _exit;
+      if (flag == 0 && (code = tColDataAppendValue(pColDataTo, &cv))) goto _exit;
     } else {
       tColDataGetValue(pColDataFrom, iRow, &cv);
 
@@ -1135,6 +1130,19 @@ static int32_t tBlockDataUpdateRow(SBlockData *pBlockData, TSDBROW *pRow, STSche
 
 _exit:
   return code;
+}
+
+int32_t tBlockDataTryUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, int64_t uid) {
+  if (pBlockData->nRow == 0) {
+    return 1;
+  }
+
+  int64_t luid = pBlockData->uid ? pBlockData->uid : pBlockData->aUid[pBlockData->nRow - 1];
+  if (luid == uid && pBlockData->aTSKEY[pBlockData->nRow - 1] == TSDBROW_TS(pRow)) {
+    return pBlockData->nRow;
+  } else {
+    return pBlockData->nRow + 1;
+  }
 }
 
 int32_t tBlockDataUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid) {

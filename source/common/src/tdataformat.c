@@ -857,12 +857,10 @@ static int32_t tRowNoneUpsertColData(SColData *aColData, int32_t nColData, int32
   if (flag) return code;
 
   for (int32_t iColData = 0; iColData < nColData; iColData++) {
-    SColData *pColData = &aColData[iColData];
-    code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
-    if (code) goto _exit;
+    code = tColDataAppendValueImpl[aColData[iColData].flag][CV_FLAG_NONE](&aColData[iColData], NULL, 0);
+    if (code) return code;
   }
 
-_exit:
   return code;
 }
 static int32_t tRowNullUpsertColData(SColData *aColData, int32_t nColData, STSchema *pSchema, int32_t flag) {
