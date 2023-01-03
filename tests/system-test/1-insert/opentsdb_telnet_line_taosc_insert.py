@@ -243,7 +243,7 @@ class TDTestCase:
             if t_add_tag is not None:
                 sql_seq = f'{stb_name} {ts} {value} t0={t0} t1={t1} t2={t2} t3={t3} t4={t4} t5={t5} t6={t6} t7={t7} t8={t8} t9={t8}'
         if id_change_tag is not None:
-            sql_seq = f'{stb_name} {ts} {value} t0={t0} {id}={tb_name} t1={t1} t2={t2} t3={t3} t4={t4} t5={t5} t6={t6} t7={t7} t8={t8}'
+            sql_seq = f'{stb_name} {ts} {value} {id}={tb_name} t0={t0} t1={t1} t2={t2} t3={t3} t4={t4} t5={t5} t6={t6} t7={t7} t8={t8}'
         if id_double_tag is not None:
             sql_seq = f'{stb_name} {ts} {value} {id}=\"{tb_name}_1\" t0={t0} t1={t1} {id}=\"{tb_name}_2\" t2={t2} t3={t3} t4={t4} t5={t5} t6={t6} t7={t7} t8={t8}'
         if t_add_tag is not None:
@@ -1126,9 +1126,9 @@ class TDTestCase:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             query_sql = 'select * from `rFa$sta`'
             query_res = tdSql.query(query_sql, True)
-            tdSql.checkEqual(query_res, [(datetime.datetime(2021, 7, 11, 20, 33, 54), 9.223372036854776e+18, '2147483647i32', 'L"ncharTagValue"', '32767i16', '9223372036854775807i64', '22.123456789f64', '"ddzhiksj"', '11.12345f32', 'true', '127Ii8')])
+            tdSql.checkEqual(query_res, [(datetime.datetime(2021, 7, 11, 20, 33, 54), 9.223372036854776e+18, 'true', '127Ii8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
             col_tag_res = tdSql.getColNameList(query_sql)
-            tdSql.checkEqual(col_tag_res, ['_ts', '_value', '"t$3"', 't!@#$%^&*()_+[];:<>?,9', 't#2', 't%4', 't&6', 't*7', 't^5', 'Tt!0', 'tT@1'])
+            tdSql.checkEqual(col_tag_res, ['_ts', '_value', 'Tt!0', 'tT@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
             tdSql.execute('drop table `rFa$sta`')
 
     def tcpKeywordsCheckCase(self, protocol="telnet-tcp"):
@@ -1207,7 +1207,6 @@ class TDTestCase:
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb(dbname="test")
         input_sql = self.genSqlList()[0]
-        print(input_sql)
         self.multiThreadRun(self.genMultiThreadSeq(input_sql))
         tdSql.query(f"show tables;")
         tdSql.checkRows(5)
@@ -1416,8 +1415,8 @@ class TDTestCase:
         self.symbolsCheckCase()
         self.tsCheckCase()
         self.openTstbTelnetTsCheckCase()
-        #self.idSeqCheckCase()
-        #self.idLetterCheckCase()
+        # self.idSeqCheckCase()
+        self.idLetterCheckCase()
         self.noIdCheckCase()
         self.maxColTagCheckCase()
         self.stbTbNameCheckCase()
@@ -1450,7 +1449,7 @@ class TDTestCase:
         self.spellCheckCase()
         self.pointTransCheckCase()
         self.defaultTypeCheckCase()
-        #self.tbnameTagsColsNameCheckCase()
+        self.tbnameTagsColsNameCheckCase()
         # # # MultiThreads
         # self.stbInsertMultiThreadCheckCase()
         # self.sStbStbDdataInsertMultiThreadCheckCase()
