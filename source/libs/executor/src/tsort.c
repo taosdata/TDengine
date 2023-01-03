@@ -108,7 +108,7 @@ static int32_t sortComparCleanup(SMsortComparParam* cmpParam) {
   return TSDB_CODE_SUCCESS;
 }
 
-void tsortClearOrderdSource(SArray *pOrderedSource) {
+void tsortClearOrderdSource(SArray* pOrderedSource) {
   for (size_t i = 0; i < taosArrayGetSize(pOrderedSource); i++) {
     SSortSource** pSource = taosArrayGet(pOrderedSource, i);
     if (NULL == *pSource) {
@@ -120,6 +120,10 @@ void tsortClearOrderdSource(SArray *pOrderedSource) {
     }
     if ((*pSource)->param && !(*pSource)->onlyRef) {
       taosMemoryFree((*pSource)->param);
+    }
+    if (pSource->src.pBlock) {
+      blockDataDestroy(pSource->src.pBlock);
+      pSource->src.pBlock = NULL;
     }
     taosMemoryFreeClear(*pSource);
   }
@@ -620,9 +624,9 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
 
   if (pHandle->type == SORT_SINGLESOURCE_SORT) {
     SSortSource** pSource = taosArrayGet(pHandle->pOrderedSource, 0);
-    SSortSource* source = *pSource;
+    SSortSource*  source = *pSource;
     *pSource = NULL;
-    
+
     tsortClearOrderdSource(pHandle->pOrderedSource);
 
     while (1) {
@@ -840,8 +844,8 @@ SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   SSortExecInfo info = {0};
 
   if (pHandle == NULL) {
-    info.sortMethod = SORT_QSORT_T; // by default
-    info.sortBuffer = 2 * 1048576;  // 2mb by default
+    info.sortMethod = SORT_QSORT_T;  // by default
+    info.sortBuffer = 2 * 1048576;   // 2mb by default
   } else {
     info.sortBuffer = pHandle->pageSize * pHandle->numOfPages;
     info.sortMethod = pHandle->inMemSort ? SORT_QSORT_T : SORT_SPILLED_MERGE_SORT_T;
