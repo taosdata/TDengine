@@ -884,9 +884,6 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   bool           tbCreated = false;
   terrno = TSDB_CODE_SUCCESS;
 
-  int32_t tta = 0;
-  int32_t ttt = 1/tta;
-
   pRsp->code = 0;
   pSubmitReq->version = version;
   statis.nBatchInsert = 1;
