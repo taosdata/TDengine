@@ -27,6 +27,7 @@
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
 #include "os.h"
+#include "tlog.h"
 
 TEST(osTest, osSystem) {
   const char *flags = "UTL FATAL ";
