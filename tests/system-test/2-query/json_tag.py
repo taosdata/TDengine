@@ -408,8 +408,8 @@ class TDTestCase:
         # test group by & order by  json tag
         tdSql.query(f"select ts,jtag->'tag1' from {dbname}.jsons1 partition by jtag->'tag1' order by jtag->'tag1' desc")
         tdSql.checkRows(11)
-        tdSql.checkData(0, 1, '"femail"')
-        tdSql.checkData(2, 1, '"收到货"')
+        tdSql.checkData(0, 1, '"收到货"')
+        tdSql.checkData(2, 1, '"femail"')
         tdSql.checkData(7, 1, "false")
 
 
