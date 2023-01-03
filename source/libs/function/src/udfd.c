@@ -461,13 +461,14 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 #else
     snprintf(path, sizeof(path), "%s/lib%s.so", tsTempDir, pFuncInfo->name);
 #endif
-    TdFilePtr file =
-        taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
+
+    TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
     if (file == NULL) {
       fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(errno));
       msgInfo->code = TSDB_CODE_FILE_CORRUPTED;
       goto _return;
     }
+
     int64_t count = taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
     if (count != pFuncInfo->codeSize) {
       fnError("udfd write udf shared library failed");
