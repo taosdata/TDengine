@@ -930,7 +930,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
               if (colDataIsNull_f(pBitmap, j)) {
                 colDataSetNull_f(pDst->nullbitmap, numOfRows);
               } else {
-                ((int32_t*)pDst->pData)[numOfRows++] = ((int32_t*)pDst->pData)[j];
+                ((int32_t*)pDst->pData)[numOfRows] = ((int32_t*)pDst->pData)[j];
               }
               numOfRows += 1;
               j += 1;
@@ -946,7 +946,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
               if (colDataIsNull_f(pBitmap, j)) {
                 colDataSetNull_f(pDst->nullbitmap, numOfRows);
               } else {
-                ((int16_t*)pDst->pData)[numOfRows++] = ((int16_t*)pDst->pData)[j];
+                ((int16_t*)pDst->pData)[numOfRows] = ((int16_t*)pDst->pData)[j];
               }
               numOfRows += 1;
               j += 1;
