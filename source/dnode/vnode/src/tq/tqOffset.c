@@ -66,6 +66,17 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname) {
       if (taosHashPut(pStore->pHash, offset.subKey, strlen(offset.subKey), &offset, sizeof(STqOffset)) < 0) {
         return -1;
       }
+
+      if (offset.val.type == TMQ_OFFSET__LOG) {
+        STqHandle* pHandle = taosHashGet(pStore->pTq->pHandle, offset.subKey, strlen(offset.subKey));
+        if (pHandle) {
+          if (walRefVer(pHandle->pRef, offset.val.version) < 0) {
+            tqError("vgId: %d, tq handle %s ref ver %" PRId64 "error", pStore->pTq->pVnode->config.vgId,
+                    pHandle->subKey, offset.val.version);
+          }
+        }
+      }
+
       taosMemoryFree(memBuf);
     }
 
