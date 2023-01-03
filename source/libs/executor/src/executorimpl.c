@@ -854,32 +854,100 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
   } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
     pBlock->info.rows = 0;
   } else {
-    SSDataBlock* px = createOneDataBlock(pBlock, true);
+    int32_t bmLen = BitmapLen(totalRows);
+    char* pBitmap = NULL;
 
     size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
     for (int32_t i = 0; i < numOfCols; ++i) {
-      SColumnInfoData* pSrc = taosArrayGet(px->pDataBlock, i);
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
       // it is a reserved column for scalar function, and no data in this column yet.
-      if (pDst->pData == NULL || pSrc->pData == NULL) {
+      if (pDst->pData == NULL) {
         continue;
       }
 
-      colInfoDataCleanup(pDst, pBlock->info.rows);
-
       int32_t numOfRows = 0;
-      for (int32_t j = 0; j < totalRows; ++j) {
-        if (((int8_t*)p->pData)[j] == 0) {
-          continue;
-        }
 
-        if (colDataIsNull_s(pSrc, j)) {
-          colDataAppendNULL(pDst, numOfRows);
-        } else {
-          colDataAppend(pDst, numOfRows, colDataGetData(pSrc, j), false);
-        }
-        numOfRows += 1;
-      }
+      switch (pDst->info.type) {
+        case TSDB_DATA_TYPE_VARCHAR:
+        case TSDB_DATA_TYPE_NCHAR:
+          break;
+        default:
+          if (pBitmap == NULL) {
+            pBitmap = taosMemoryCalloc(1, bmLen);
+          }
+          memcpy(pBitmap, pDst->nullbitmap, bmLen);
+          memset(pDst->nullbitmap, 0, bmLen);
+
+          int32_t j = 0;
+
+          switch (pDst->info.type) {
+            case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UBIGINT:
+            case TSDB_DATA_TYPE_DOUBLE:
+            case TSDB_DATA_TYPE_TIMESTAMP:
+              while (j < totalRows) {
+                if (((int8_t*)p->pData)[j] == 0) {
+                  j += 1;
+                  continue;
+                }
+
+                if (colDataIsNull_f(pBitmap, j)) {
+                  colDataAppendNULL(pDst, numOfRows);
+                } else {
+                  ((int64_t*)pDst->pData)[numOfRows] = ((int64_t*)pDst->pData)[j];
+                }
+                numOfRows += 1;
+              }
+              break;
+            case TSDB_DATA_TYPE_FLOAT:
+            case TSDB_DATA_TYPE_INT:
+            case TSDB_DATA_TYPE_UINT:
+              while (j < totalRows) {
+                if (((int8_t*)p->pData)[j] == 0) {
+                  j += 1;
+                  continue;
+                }
+                if (colDataIsNull_f(pBitmap, j)) {
+                  colDataAppendNULL(pDst, numOfRows);
+                } else {
+                  ((int32_t*)pDst->pData)[numOfRows++] = ((int32_t*)pDst->pData)[j];
+                }
+                numOfRows += 1;
+              }
+              break;
+            case TSDB_DATA_TYPE_SMALLINT:
+            case TSDB_DATA_TYPE_USMALLINT:
+              while (j < totalRows) {
+                if (((int8_t*)p->pData)[j] == 0) {
+                  j += 1;
+                  continue;
+                }
+                if (colDataIsNull_f(pBitmap, j)) {
+                  colDataAppendNULL(pDst, numOfRows);
+                } else {
+                  ((int16_t*)pDst->pData)[numOfRows++] = ((int16_t*)pDst->pData)[j];
+                }
+                numOfRows += 1;
+              }
+              break;
+            case TSDB_DATA_TYPE_BOOL:
+            case TSDB_DATA_TYPE_TINYINT:
+            case TSDB_DATA_TYPE_UTINYINT:
+              while (j < totalRows) {
+                if (((int8_t*)p->pData)[j] == 0) {
+                  j += 1;
+                  continue;
+                }
+                if (colDataIsNull_f(pBitmap, j)) {
+                  colDataAppendNULL(pDst, numOfRows);
+                } else {
+                  ((int8_t*)pDst->pData)[numOfRows] = ((int8_t*)pDst->pData)[j];
+                }
+                numOfRows += 1;
+              }
+              break;
+          }
+      };
 
       // todo this value can be assigned directly
       if (pBlock->info.rows == totalRows) {
@@ -888,8 +956,6 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
         ASSERT(pBlock->info.rows == numOfRows);
       }
     }
-
-    blockDataDestroy(px);  // fix memory leak
   }
 }
 
