@@ -956,6 +956,10 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
         ASSERT(pBlock->info.rows == numOfRows);
       }
     }
+
+    if (pBitmap != NULL) {
+      taosMemoryFree(pBitmap);
+    }
   }
 }
 
