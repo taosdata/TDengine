@@ -90,7 +90,7 @@ rangeCompFunc gRangeCompare[] = {filterRangeCompee, filterRangeCompei, filterRan
 
 int8_t filterGetRangeCompFuncFromOptrs(uint8_t optr, uint8_t optr2) {
   if (optr2) {
-    assert(optr2 == OP_TYPE_LOWER_THAN || optr2 == OP_TYPE_LOWER_EQUAL);
+    ASSERT(optr2 == OP_TYPE_LOWER_THAN || optr2 == OP_TYPE_LOWER_EQUAL);
 
     if (optr == OP_TYPE_GREATER_THAN) {
       if (optr2 == OP_TYPE_LOWER_THAN) {
@@ -703,7 +703,7 @@ int32_t filterAddRangeImpl(void *h, SFilterRange *ra, int32_t optr) {
 int32_t filterAddRange(void *h, SFilterRange *ra, int32_t optr) {
   SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
   int64_t tmp = 0;
-  
+
   if (FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
     SIMPLE_COPY_VALUES(&ra->s, getDataMin(ctx->type, &tmp));
     // FILTER_CLR_FLAG(ra->sflag, RA_NULL);
@@ -721,7 +721,7 @@ int32_t filterAddRangeCtx(void *dst, void *src, int32_t optr) {
   SFilterRangeCtx *dctx = (SFilterRangeCtx *)dst;
   SFilterRangeCtx *sctx = (SFilterRangeCtx *)src;
 
-  assert(optr == LOGIC_COND_TYPE_OR);
+  ASSERT(optr == LOGIC_COND_TYPE_OR);
 
   if (sctx->rs == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -1120,7 +1120,7 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
 
   if (u->right.type == FLD_TYPE_VALUE) {
     SFilterField *val = FILTER_UNIT_RIGHT_FIELD(info, u);
-    assert(FILTER_GET_FLAG(val->flag, FLD_TYPE_VALUE));
+    ASSERT(FILTER_GET_FLAG(val->flag, FLD_TYPE_VALUE));
   } else {
     int32_t paramNum = scalarGetOperatorParamNum(optr);
     if (1 != paramNum) {
@@ -1130,7 +1130,7 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
   }
 
   SFilterField *col = FILTER_UNIT_LEFT_FIELD(info, u);
-  assert(FILTER_GET_FLAG(col->flag, FLD_TYPE_COLUMN));
+  ASSERT(FILTER_GET_FLAG(col->flag, FLD_TYPE_COLUMN));
 
   info->units[info->unitNum].compare.type = FILTER_GET_COL_FIELD_TYPE(col);
   info->units[info->unitNum].compare.precision = FILTER_GET_COL_FIELD_PRECISION(col);
@@ -1290,29 +1290,29 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
   if (optr == LOGIC_COND_TYPE_AND) {
     if (ctx->isnull) {
-      assert(ctx->notnull == false && ctx->isrange == false);
+      ASSERT(ctx->notnull == false && ctx->isrange == false);
       filterAddUnit(dst, OP_TYPE_IS_NULL, &left, NULL, &uidx);
       filterAddUnitToGroup(g, uidx);
       return TSDB_CODE_SUCCESS;
     }
 
     if (ctx->notnull) {
-      assert(ctx->isnull == false && ctx->isrange == false);
+      ASSERT(ctx->isnull == false && ctx->isrange == false);
       filterAddUnit(dst, OP_TYPE_IS_NOT_NULL, &left, NULL, &uidx);
       filterAddUnitToGroup(g, uidx);
       return TSDB_CODE_SUCCESS;
     }
 
     if (!ctx->isrange) {
-      assert(ctx->isnull || ctx->notnull);
+      ASSERT(ctx->isnull || ctx->notnull);
       return TSDB_CODE_SUCCESS;
     }
 
-    assert(ctx->rs && ctx->rs->next == NULL);
+    ASSERT(ctx->rs && ctx->rs->next == NULL);
 
     SFilterRange *ra = &ctx->rs->ra;
 
-    assert(!((FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL))));
+    ASSERT(!((FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL))));
 
     if ((!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (!FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL))) {
       __compar_fn_t func = getComparFunc(type, 0);
@@ -1366,7 +1366,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
   SFilterGroup ng = {0};
   g = &ng;
 
-  assert(ctx->isnull || ctx->notnull || ctx->isrange);
+  ASSERT(ctx->isnull || ctx->notnull || ctx->isrange);
 
   if (ctx->isnull) {
     filterAddUnit(dst, OP_TYPE_IS_NULL, &left, NULL, &uidx);
@@ -1375,7 +1375,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
   }
 
   if (ctx->notnull) {
-    assert(!ctx->isrange);
+    ASSERT(!ctx->isrange);
     memset(g, 0, sizeof(*g));
 
     filterAddUnit(dst, OP_TYPE_IS_NOT_NULL, &left, NULL, &uidx);
@@ -1384,7 +1384,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
   }
 
   if (!ctx->isrange) {
-    assert(ctx->isnull || ctx->notnull);
+    ASSERT(ctx->isnull || ctx->notnull);
     g->unitNum = 0;
     return TSDB_CODE_SUCCESS;
   }
@@ -1442,7 +1442,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
       filterAddUnitToGroup(g, uidx);
     }
 
-    assert(g->unitNum > 0);
+    ASSERT(g->unitNum > 0);
 
     taosArrayPush(res, g);
 
@@ -1898,7 +1898,7 @@ void filterFreeInfo(SFilterInfo *info) {
 }
 
 int32_t filterHandleValueExtInfo(SFilterUnit *unit, char extInfo) {
-  assert(extInfo > 0 || extInfo < 0);
+  ASSERT(extInfo > 0 || extInfo < 0);
 
   uint8_t optr = FILTER_UNIT_OPTR(unit);
   switch (optr) {
@@ -1914,7 +1914,8 @@ int32_t filterHandleValueExtInfo(SFilterUnit *unit, char extInfo) {
       unit->compare.optr = FILTER_DUMMY_EMPTY_OPTR;
       break;
     default:
-      assert(0);
+      fltError("unsupported operator type");
+      return TSDB_CODE_APP_ERROR;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1924,13 +1925,13 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
   for (uint32_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit *unit = &info->units[i];
     if (unit->right.type != FLD_TYPE_VALUE) {
-      assert(unit->compare.optr == FILTER_DUMMY_EMPTY_OPTR || scalarGetOperatorParamNum(unit->compare.optr) == 1);
+      ASSERT(unit->compare.optr == FILTER_DUMMY_EMPTY_OPTR || scalarGetOperatorParamNum(unit->compare.optr) == 1);
       continue;
     }
 
     SFilterField *right = FILTER_UNIT_RIGHT_FIELD(info, unit);
 
-    assert(FILTER_GET_FLAG(right->flag, FLD_TYPE_VALUE));
+    ASSERT(FILTER_GET_FLAG(right->flag, FLD_TYPE_VALUE));
 
     uint32_t      type = FILTER_UNIT_DATA_TYPE(unit);
     int8_t        precision = FILTER_UNIT_DATA_PRECISION(unit);
@@ -1938,7 +1939,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
 
     SValueNode *var = (SValueNode *)fi->desc;
     if (var == NULL) {
-      assert(fi->data != NULL);
+      ASSERT(fi->data != NULL);
       continue;
     }
 
@@ -2066,7 +2067,8 @@ bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right) 
     }
 
     default:
-      assert(false);
+      fltError("unsupported operator type");
+      return false;
   }
 
   return true;
@@ -2099,7 +2101,7 @@ int32_t filterAddUnitRange(SFilterInfo *info, SFilterUnit *u, SFilterRangeCtx *c
       FILTER_SET_FLAG(ra.sflag, RANGE_FLG_NULL);
       break;
     case OP_TYPE_NOT_EQUAL:
-      assert(type == TSDB_DATA_TYPE_BOOL);
+      ASSERT(type == TSDB_DATA_TYPE_BOOL);
       if (GET_INT8_VAL(val)) {
         SIMPLE_COPY_VALUES(&ra.s, &tmp);
         SIMPLE_COPY_VALUES(&ra.e, &tmp);
@@ -2114,7 +2116,8 @@ int32_t filterAddUnitRange(SFilterInfo *info, SFilterUnit *u, SFilterRangeCtx *c
       SIMPLE_COPY_VALUES(&ra.e, val);
       break;
     default:
-      assert(0);
+      fltError("unsupported operator type");
+      return TSDB_CODE_APP_ERROR;
   }
 
   filterAddRange(ctx, &ra, optr);
@@ -2366,8 +2369,8 @@ int32_t filterMergeTwoGroupsImpl(SFilterInfo *info, SFilterRangeCtx **ctx, int32
     filterReuseRangeCtx(*ctx, type, 0);
   }
 
-  assert(gRes2->colInfo[cidx].type == RANGE_TYPE_MR_CTX);
-  assert(gRes1->colInfo[cidx].type == RANGE_TYPE_MR_CTX);
+  ASSERT(gRes2->colInfo[cidx].type == RANGE_TYPE_MR_CTX);
+  ASSERT(gRes1->colInfo[cidx].type == RANGE_TYPE_MR_CTX);
 
   filterCopyRangeCtx(*ctx, gRes2->colInfo[cidx].info);
   filterSourceRangeFromCtx(*ctx, gRes1->colInfo[cidx].info, optr, empty, all);
@@ -2403,7 +2406,7 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx **gRes1, SFilter
         continue;
       }
 
-      assert(idx1 == idx2);
+      ASSERT(idx1 == idx2);
 
       ++merNum;
 
@@ -2453,15 +2456,15 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx **gRes1, SFilter
     }
   }
 
-  assert(merNum > 0);
+  ASSERT(merNum > 0);
 
   SFilterColInfo *colInfo = NULL;
-  assert(merNum == equal1 || merNum == equal2);
+  ASSERT(merNum == equal1 || merNum == equal2);
 
   filterFreeGroupCtx(*gRes2);
   *gRes2 = NULL;
 
-  assert(colCtxs && taosArrayGetSize(colCtxs) > 0);
+  ASSERT(colCtxs && taosArrayGetSize(colCtxs) > 0);
 
   int32_t        ctxSize = (int32_t)taosArrayGetSize(colCtxs);
   SFilterColCtx *pctx = NULL;
@@ -2518,7 +2521,7 @@ int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t *gR
     if (pColNum > 0) {
       for (int32_t m = 0; m <= pEnd; ++m) {
         for (int32_t n = cStart; n <= cEnd; ++n) {
-          assert(m < n);
+          ASSERT(m < n);
           filterMergeTwoGroups(info, &gRes[m], &gRes[n], &all);
 
           FLT_CHK_JMP(all);
@@ -2539,7 +2542,7 @@ int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t *gR
 
     for (int32_t m = cStart; m < cEnd; ++m) {
       for (int32_t n = m + 1; n <= cEnd; ++n) {
-        assert(m < n);
+        ASSERT(m < n);
         filterMergeTwoGroups(info, &gRes[m], &gRes[n], &all);
 
         FLT_CHK_JMP(all);
@@ -2634,7 +2637,7 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
     for (uint32_t m = 0; m < res->colNum; ++m) {
       colInfo = &res->colInfo[res->colIdx[m]];
       if (FILTER_NO_MERGE_DATA_TYPE(colInfo->dataType)) {
-        assert(colInfo->type == RANGE_TYPE_UNIT);
+        ASSERT(colInfo->type == RANGE_TYPE_UNIT);
         int32_t usize = (int32_t)taosArrayGetSize((SArray *)colInfo->info);
 
         for (int32_t n = 0; n < usize; ++n) {
@@ -2647,7 +2650,7 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
         continue;
       }
 
-      assert(colInfo->type == RANGE_TYPE_MR_CTX);
+      ASSERT(colInfo->type == RANGE_TYPE_MR_CTX);
 
       filterAddGroupUnitFromCtx(info, &oinfo, colInfo->info, res->colIdx[m], &ng, optr, group);
     }
@@ -2688,7 +2691,7 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx **gRes, int32_
       continue;
     }
 
-    assert(idxNum[i] == gResNum);
+    ASSERT(idxNum[i] == gResNum);
 
     if (idxs == NULL) {
       idxs = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(*idxs));
@@ -2712,7 +2715,7 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx **gRes, int32_
           continue;
         }
 
-        assert(res->colIdx[n] == idxs[m]);
+        ASSERT(res->colIdx[n] == idxs[m]);
 
         SFilterColInfo *colInfo = &res->colInfo[res->colIdx[n]];
         if (info->colRange[m] == NULL) {
@@ -2721,7 +2724,7 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx **gRes, int32_
           info->colRange[m]->colId = FILTER_GET_COL_FIELD_ID(fi);
         }
 
-        assert(colInfo->type == RANGE_TYPE_MR_CTX);
+        ASSERT(colInfo->type == RANGE_TYPE_MR_CTX);
 
         bool all = false;
         filterSourceRangeFromCtx(info->colRange[m], colInfo->info, LOGIC_COND_TYPE_OR, NULL, &all);
@@ -2969,7 +2972,7 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
       unitIdx = pGroupIdx;
 
       --info->blkGroupNum;
-      assert(empty || all);
+      ASSERT(empty || all);
 
       if (empty) {
         FILTER_SET_FLAG(info->blkFlag, FI_STATUS_BLK_EMPTY);
@@ -3075,7 +3078,7 @@ int32_t filterExecuteBasedOnStatis(SFilterInfo *info, int32_t numOfRows, SColumn
         goto _return;
       }
 
-      assert(info->unitNum > 1);
+      ASSERT(info->unitNum > 1);
 
       *all = filterExecuteBasedOnStatisImpl(info, numOfRows, p, statis, numOfCols);
       goto _return;
