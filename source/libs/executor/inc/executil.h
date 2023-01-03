@@ -115,6 +115,10 @@ struct SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t i
 
 static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRowPosition* pos, bool forUpdate) {
   SFilePage* bufPage = (SFilePage*)getBufPage(pBuf, pos->pageId);
+  if (NULL == bufPage) {
+    return NULL;
+  }
+  
   if (forUpdate) {
     setBufPageDirty(bufPage, true);
   }
