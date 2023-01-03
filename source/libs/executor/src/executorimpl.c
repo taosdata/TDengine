@@ -847,6 +847,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
     return;
   }
 
+  int8_t* pIndicator = p->pData;
   int32_t totalRows = pBlock->info.rows;
 
   if (status == FILTER_RESULT_ALL_QUALIFIED) {
@@ -886,7 +887,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
             case TSDB_DATA_TYPE_DOUBLE:
             case TSDB_DATA_TYPE_TIMESTAMP:
               while (j < totalRows) {
-                if (((int8_t*)p->pData)[j] == 0) {
+                if (pIndicator[j] == 0) {
                   j += 1;
                   continue;
                 }
@@ -897,13 +898,14 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
                   ((int64_t*)pDst->pData)[numOfRows] = ((int64_t*)pDst->pData)[j];
                 }
                 numOfRows += 1;
+                j += 1;
               }
               break;
             case TSDB_DATA_TYPE_FLOAT:
             case TSDB_DATA_TYPE_INT:
             case TSDB_DATA_TYPE_UINT:
               while (j < totalRows) {
-                if (((int8_t*)p->pData)[j] == 0) {
+                if (pIndicator[j] == 0) {
                   j += 1;
                   continue;
                 }
@@ -913,12 +915,13 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
                   ((int32_t*)pDst->pData)[numOfRows++] = ((int32_t*)pDst->pData)[j];
                 }
                 numOfRows += 1;
+                j += 1;
               }
               break;
             case TSDB_DATA_TYPE_SMALLINT:
             case TSDB_DATA_TYPE_USMALLINT:
               while (j < totalRows) {
-                if (((int8_t*)p->pData)[j] == 0) {
+                if (pIndicator[j] == 0) {
                   j += 1;
                   continue;
                 }
@@ -928,13 +931,14 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
                   ((int16_t*)pDst->pData)[numOfRows++] = ((int16_t*)pDst->pData)[j];
                 }
                 numOfRows += 1;
+                j += 1;
               }
               break;
             case TSDB_DATA_TYPE_BOOL:
             case TSDB_DATA_TYPE_TINYINT:
             case TSDB_DATA_TYPE_UTINYINT:
               while (j < totalRows) {
-                if (((int8_t*)p->pData)[j] == 0) {
+                if (pIndicator[j] == 0) {
                   j += 1;
                   continue;
                 }
@@ -944,6 +948,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
                   ((int8_t*)pDst->pData)[numOfRows] = ((int8_t*)pDst->pData)[j];
                 }
                 numOfRows += 1;
+                j += 1;
               }
               break;
           }
