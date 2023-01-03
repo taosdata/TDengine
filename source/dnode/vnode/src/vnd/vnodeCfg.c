@@ -128,14 +128,19 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   SJson *nodeInfo = tjsonCreateArray();
   if (nodeInfo == NULL) return -1;
   if (tjsonAddItemToObject(pJson, "syncCfg.nodeInfo", nodeInfo) < 0) return -1;
+  vDebug("vgId:%d, encode config, replicas:%d selfIndex:%d", pCfg->vgId, pCfg->syncCfg.replicaNum,
+         pCfg->syncCfg.myIndex);
   for (int i = 0; i < pCfg->syncCfg.replicaNum; ++i) {
-    SJson *info = tjsonCreateObject();
+    SJson     *info = tjsonCreateObject();
+    SNodeInfo *pNode = (SNodeInfo *)&pCfg->syncCfg.nodeInfo[i];
     if (info == NULL) return -1;
-    if (tjsonAddIntegerToObject(info, "nodePort", pCfg->syncCfg.nodeInfo[i].nodePort) < 0) return -1;
-    if (tjsonAddStringToObject(info, "nodeFqdn", pCfg->syncCfg.nodeInfo[i].nodeFqdn) < 0) return -1;
-    if (tjsonAddIntegerToObject(info, "nodeId", pCfg->syncCfg.nodeInfo[i].nodeId) < 0) return -1;
-    if (tjsonAddIntegerToObject(info, "clusterId", pCfg->syncCfg.nodeInfo[i].clusterId) < 0) return -1;
+    if (tjsonAddIntegerToObject(info, "nodePort", pNode->nodePort) < 0) return -1;
+    if (tjsonAddStringToObject(info, "nodeFqdn", pNode->nodeFqdn) < 0) return -1;
+    if (tjsonAddIntegerToObject(info, "nodeId", pNode->nodeId) < 0) return -1;
+    if (tjsonAddIntegerToObject(info, "clusterId", pNode->clusterId) < 0) return -1;
     if (tjsonAddItemToArray(nodeInfo, info) < 0) return -1;
+    vDebug("vgId:%d, encode config, replica:%d ep:%s:%u dnode:%d", pCfg->vgId, i, pNode->nodeFqdn, pNode->nodePort,
+           pNode->nodeId);
   }
 
   return 0;
@@ -248,15 +253,20 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   int    arraySize = tjsonGetArraySize(nodeInfo);
   if (arraySize != pCfg->syncCfg.replicaNum) return -1;
 
+  vDebug("vgId:%d, decode config, replicas:%d selfIndex:%d", pCfg->vgId, pCfg->syncCfg.replicaNum,
+         pCfg->syncCfg.myIndex);
   for (int i = 0; i < arraySize; ++i) {
-    SJson *info = tjsonGetArrayItem(nodeInfo, i);
+    SJson     *info = tjsonGetArrayItem(nodeInfo, i);
+    SNodeInfo *pNode = &pCfg->syncCfg.nodeInfo[i];
     if (info == NULL) return -1;
-    tjsonGetNumberValue(info, "nodePort", pCfg->syncCfg.nodeInfo[i].nodePort, code);
+    tjsonGetNumberValue(info, "nodePort", pNode->nodePort, code);
     if (code < 0) return -1;
-    tjsonGetStringValue(info, "nodeFqdn", pCfg->syncCfg.nodeInfo[i].nodeFqdn);
+    tjsonGetStringValue(info, "nodeFqdn", pNode->nodeFqdn);
     if (code < 0) return -1;
-    tjsonGetNumberValue(info, "nodeId", pCfg->syncCfg.nodeInfo[i].nodeId, code);
-    tjsonGetNumberValue(info, "clusterId", pCfg->syncCfg.nodeInfo[i].clusterId, code);
+    tjsonGetNumberValue(info, "nodeId", pNode->nodeId, code);
+    tjsonGetNumberValue(info, "clusterId", pNode->clusterId, code);
+    vDebug("vgId:%d, decode config, replica:%d ep:%s:%u dnode:%d", pCfg->vgId, i, pNode->nodeFqdn, pNode->nodePort,
+           pNode->nodeId);
   }
 
   tjsonGetNumberValue(pJson, "tsdbPageSize", pCfg->tsdbPageSize, code);

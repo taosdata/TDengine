@@ -132,7 +132,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->syncCfg.myIndex = pCreate->selfIndex;
   pCfg->syncCfg.replicaNum = pCreate->replica;
   memset(&pCfg->syncCfg.nodeInfo, 0, sizeof(pCfg->syncCfg.nodeInfo));
-  for (int i = 0; i < pCreate->replica; ++i) {
+  for (int32_t i = 0; i < pCreate->replica; ++i) {
     SNodeInfo *pNode = &pCfg->syncCfg.nodeInfo[i];
     pNode->nodeId = pCreate->replicas[i].id;
     pNode->nodePort = pCreate->replicas[i].port;
@@ -288,7 +288,8 @@ int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo("vgId:%d, start to alter vnode, replica:%d selfIndex:%d strict:%d", alterReq.vgId, alterReq.replica,
         alterReq.selfIndex, alterReq.strict);
   for (int32_t i = 0; i < alterReq.replica; ++i) {
-    dInfo("vgId:%d, replica:%d ep:%s:%u", alterReq.vgId, i, alterReq.replicas[i].fqdn, alterReq.replicas[i].port);
+    SReplica *pReplica = &alterReq.replicas[i];
+    dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", alterReq.vgId, i, pReplica->fqdn, pReplica->port, pReplica->port);
   }
 
   if (alterReq.replica <= 0 || alterReq.selfIndex < 0 || alterReq.selfIndex >= alterReq.replica) {
