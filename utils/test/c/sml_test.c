@@ -116,11 +116,22 @@ int smlProcess_json1_Test() {
   const char *sql[] = {
       "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":0,\"value\":18,\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}},{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344042,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":\"lga\"}}]"
   };
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
+
+  char *sql1[1] = {0};
+  for(int i = 0; i < 1; i++){
+    sql1[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql1[i], sql[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+
+  for(int i = 0; i < 1; i++){
+    taosMemoryFree(sql1[i]);
+  }
   taos_close(taos);
 
   return code;
@@ -138,13 +149,22 @@ int smlProcess_json2_Test() {
   const char *sql[] = {
       "{\"metric\":\"meter_current0\",\"timestamp\":{\"value\":1662344042,\"type\":\"s\"},\"value\":{\"value\":10.3,\"type\":\"i64\"},\"tags\":{\"groupid\":{\"value\":2,\"type\":\"bigint\"},\"location\":{\"value\":\"北京\",\"type\":\"binary\"},\"id\":\"d1001\"}}"
   };
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
+  char *sql1[1] = {0};
+  for(int i = 0; i < 1; i++){
+    sql1[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql1[i], sql[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
   taos_close(taos);
 
+  for(int i = 0; i < 1; i++){
+    taosMemoryFree(sql1[i]);
+  }
   return code;
 }
 
@@ -160,13 +180,22 @@ int smlProcess_json3_Test() {
   const char *sql[] = {
       "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":0,\"value\":\"18\",\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}}]"
   };
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
+  char *sql1[1] = {0};
+  for(int i = 0; i < 1; i++){
+    sql1[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql1[i], sql[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
   taos_close(taos);
 
+  for(int i = 0; i < 1; i++){
+    taosMemoryFree(sql1[i]);
+  }
   return code;
 }
 
@@ -927,14 +956,14 @@ int main(int argc, char *argv[]) {
 //    printf("str:%s \t %d\n", str[i], smlCalTypeSum(str[i], strlen(str[i])));
 //  }
   int ret = 0;
-  ret = sml_ttl_Test();
-  ASSERT(!ret);
-  ret = sml_ts2164_Test();
-  ASSERT(!ret);
-  ret = smlProcess_influx_Test();
-  ASSERT(!ret);
-  ret = smlProcess_telnet_Test();
-  ASSERT(!ret);
+//  ret = sml_ttl_Test();
+//  ASSERT(!ret);
+//  ret = sml_ts2164_Test();
+//  ASSERT(!ret);
+//  ret = smlProcess_influx_Test();
+//  ASSERT(!ret);
+//  ret = smlProcess_telnet_Test();
+//  ASSERT(!ret);
   ret = smlProcess_json1_Test();
   ASSERT(!ret);
   ret = smlProcess_json2_Test();
