@@ -664,7 +664,7 @@ pub async fn legacy_to_taos(
     // let to = to_builder.build()?;
     let to = to_pool.get()?;
 
-    #[cfg(feature = "enterprise-only-validation")]
+    #[cfg(not(feature = "disable-enterprise-only-validation"))]
     if !is_available_enterprise_edition(&from).await && !is_available_enterprise_edition(&to).await
     {
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")

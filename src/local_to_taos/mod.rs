@@ -148,7 +148,7 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
     let target = TaosBuilder::from_dsn(&to)?;
     let global_taos = target.build()?;
 
-    #[cfg(feature = "enterprise-only-validation")]
+    #[cfg(not(feature = "disable-enterprise-only-validation"))]
     if !is_available_enterprise_edition(&global_taos).await {
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
     }

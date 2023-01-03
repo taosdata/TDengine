@@ -305,7 +305,7 @@ pub async fn tmq_to_td(
 
     let global_taos = target.get()?;
 
-    #[cfg(feature = "enterprise-only-validation")]
+    #[cfg(not(feature = "disable-enterprise-only-validation"))]
     {
         let from_taos = builder.build()?;
         if !is_available_enterprise_edition(&from_taos).await

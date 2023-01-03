@@ -67,12 +67,12 @@ dotenv = "0.15.0"
 shadow-rs = "0.19.0"
 
 [features]
-default = ["sys", "native-tls", "enterprise-only-validation"]
+default = ["sys", "native-tls"]
 optin = ["taos/optin"]
 sys = ["taos/native"]
 rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls"]
 native-tls = ["sqlx/runtime-tokio-native-tls", "taos/ws-native-tls"]
-enterprise-only-validation = []
+disable-enterprise-only-validation = []
 
 [profile.sanitizer]
 inherits = "dev"
