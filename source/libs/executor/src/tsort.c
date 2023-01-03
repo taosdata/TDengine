@@ -656,6 +656,10 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
         if (source->param && !source->onlyRef) {
           taosMemoryFree(source->param);
         }
+        if (!source->onlyRef && source->src.pBlock) {
+          blockDataDestroy(source->src.pBlock);
+          source->src.pBlock = NULL;
+        }
         taosMemoryFree(source);
         return code;
       }
@@ -668,6 +672,10 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
         if (code != 0) {
           if (source->param && !source->onlyRef) {
             taosMemoryFree(source->param);
+          }
+          if (!source->onlyRef && source->src.pBlock) {
+            blockDataDestroy(source->src.pBlock);
+            source->src.pBlock = NULL;
           }
           taosMemoryFree(source);
           return code;
