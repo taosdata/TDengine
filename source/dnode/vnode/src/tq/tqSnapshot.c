@@ -175,6 +175,8 @@ int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
     if (code) goto _err;
   }
 
+  int vgId = TD_VID(pWriter->pTq->pVnode);
+
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
 
@@ -186,7 +188,7 @@ int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
   return code;
 
 _err:
-  tqError("vgId:%d, tq snapshot writer close failed since %s", TD_VID(pWriter->pTq->pVnode), tstrerror(code));
+  tqError("vgId:%d, tq snapshot writer close failed since %s", vgId, tstrerror(code));
   return code;
 }
 
