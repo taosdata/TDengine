@@ -4145,6 +4145,7 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
 
   SReaderStatus* pStatus = &pReader->status;
 
+  qTrace("tsdb/read: %p, take read mutex", pReader);
   taosThreadMutexLock(&pReader->readerMutex);
   if (pReader->suspended) {
     tsdbReaderResume(pReader);
@@ -4154,7 +4155,9 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
     bool ret = doTsdbNextDataBlock(pReader->innerReader[0]);
     pReader->step = EXTERNAL_ROWS_PREV;
     if (ret) {
+      pStatus = &pReader->innerReader[0]->status;
       if (pStatus->composedDataBlock) {
+        qTrace("tsdb/read: %p, unlock read mutex", pReader);
         taosThreadMutexUnlock(&pReader->readerMutex);
       }
 
@@ -4177,6 +4180,7 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
   bool ret = doTsdbNextDataBlock(pReader);
   if (ret) {
     if (pStatus->composedDataBlock) {
+      qTrace("tsdb/read: %p, unlock read mutex", pReader);
       taosThreadMutexUnlock(&pReader->readerMutex);
     }
 
@@ -4194,7 +4198,9 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
     bool ret1 = doTsdbNextDataBlock(pReader->innerReader[1]);
     pReader->step = EXTERNAL_ROWS_NEXT;
     if (ret1) {
+      pStatus = &pReader->innerReader[1]->status;
       if (pStatus->composedDataBlock) {
+        qTrace("tsdb/read: %p, unlock read mutex", pReader);
         taosThreadMutexUnlock(&pReader->readerMutex);
       }
 
@@ -4202,6 +4208,7 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
     }
   }
 
+  qTrace("tsdb/read: %p, unlock read mutex", pReader);
   taosThreadMutexUnlock(&pReader->readerMutex);
 
   return false;
@@ -4334,19 +4341,12 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, 
   *pBlockSMA = pResBlock->pBlockAgg;
   pReader->cost.smaDataLoad += 1;
 
-  taosThreadMutexUnlock(&pReader->readerMutex);
-
   tsdbDebug("vgId:%d, succeed to load block SMA for uid %" PRIu64 ", %s", 0, pFBlock->uid, pReader->idStr);
   return code;
 }
 
 static SSDataBlock* doRetrieveDataBlock(STsdbReader* pReader) {
-  SReaderStatus* pStatus = &pReader->status;
-
-  if (pStatus->composedDataBlock) {
-    return pReader->pResBlock;
-  }
-
+  SReaderStatus*       pStatus = &pReader->status;
   SFileDataBlockInfo*  pBlockInfo = getCurrentBlockInfo(&pStatus->blockIter);
   STableBlockScanInfo* pBlockScanInfo =
       *(STableBlockScanInfo**)taosHashGet(pStatus->pTableMap, &pBlockInfo->uid, sizeof(pBlockInfo->uid));
@@ -4354,7 +4354,6 @@ static SSDataBlock* doRetrieveDataBlock(STsdbReader* pReader) {
     terrno = TSDB_CODE_INVALID_PARA;
     tsdbError("failed to locate the uid:%" PRIu64 " in query table uid list, total tables:%d, %s", pBlockInfo->uid,
               taosHashGetSize(pReader->status.pTableMap), pReader->idStr);
-    taosThreadMutexUnlock(&pReader->readerMutex);
     return NULL;
   }
 
@@ -4362,28 +4361,40 @@ static SSDataBlock* doRetrieveDataBlock(STsdbReader* pReader) {
   if (code != TSDB_CODE_SUCCESS) {
     tBlockDataDestroy(&pStatus->fileBlockData);
     terrno = code;
-    taosThreadMutexUnlock(&pReader->readerMutex);
     return NULL;
   }
-
-  taosThreadMutexUnlock(&pReader->readerMutex);
 
   copyBlockDataToSDataBlock(pReader, pBlockScanInfo);
   return pReader->pResBlock;
 }
 
-void tsdbReleaseDataBlock(STsdbReader* pReader) { taosThreadMutexUnlock(&pReader->readerMutex); }
+void tsdbReleaseDataBlock(STsdbReader* pReader) {
+  // SReaderStatus* pStatus = &pReader->status;
+  // if (!pStatus->composedDataBlock) {
+  taosThreadMutexUnlock(&pReader->readerMutex);
+  //}
+}
 
 SSDataBlock* tsdbRetrieveDataBlock(STsdbReader* pReader, SArray* pIdList) {
+  STsdbReader* pTReader = pReader;
   if (pReader->type == TIMEWINDOW_RANGE_EXTERNAL) {
     if (pReader->step == EXTERNAL_ROWS_PREV) {
-      return doRetrieveDataBlock(pReader->innerReader[0]);
+      pTReader = pReader->innerReader[0];
     } else if (pReader->step == EXTERNAL_ROWS_NEXT) {
-      return doRetrieveDataBlock(pReader->innerReader[1]);
+      pTReader = pReader->innerReader[1];
     }
   }
 
-  return doRetrieveDataBlock(pReader);
+  SReaderStatus* pStatus = &pTReader->status;
+  if (pStatus->composedDataBlock) {
+    return pTReader->pResBlock;
+  }
+
+  SSDataBlock* ret = doRetrieveDataBlock(pTReader);
+
+  taosThreadMutexUnlock(&pReader->readerMutex);
+
+  return ret;
 }
 
 int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
@@ -4543,7 +4554,9 @@ int64_t tsdbGetNumOfRowsInMemTable(STsdbReader* pReader) {
     // current table is exhausted, let's try the next table
     pStatus->pTableIter = taosHashIterate(pStatus->pTableMap, pStatus->pTableIter);
   }
-  tsdbReleaseDataBlock(pReader);
+
+  taosThreadMutexUnlock(&pReader->readerMutex);
+
   return rows;
 }
 

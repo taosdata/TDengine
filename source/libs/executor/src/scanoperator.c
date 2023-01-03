@@ -319,6 +319,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
       qDebug("%s data block SMA loaded, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
       doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, 1);
+      tsdbReleaseDataBlock(pTableScanInfo->dataReader);
       return TSDB_CODE_SUCCESS;
     } else {
       qDebug("%s failed to load SMA, since not all columns have SMA", GET_TASKID(pTaskInfo));
@@ -340,6 +341,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
         pCost->filterOutBlocks += 1;
         (*status) = FUNC_DATA_REQUIRED_FILTEROUT;
 
+        tsdbReleaseDataBlock(pTableScanInfo->dataReader);
         return TSDB_CODE_SUCCESS;
       }
     }
