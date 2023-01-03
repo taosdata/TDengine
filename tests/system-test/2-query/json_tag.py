@@ -438,7 +438,7 @@ class TDTestCase:
         tdSql.checkData(5, 0, 1)
         tdSql.checkData(5, 1, "11.000000000")
         tdSql.checkData(7, 0, 2)
-        tdSql.checkData(7, 1, '"femail"')
+        tdSql.checkData(7, 1, '"收到货"')
 
         # test stddev with group by json tag
         tdSql.query(f"select stddev(dataint),jtag->'tag1' from {dbname}.jsons1 group by jtag->'tag1' order by jtag->'tag1'")
@@ -446,8 +446,8 @@ class TDTestCase:
         tdSql.checkData(0, 1, None)
         tdSql.checkData(4, 0, 0)
         tdSql.checkData(4, 1, "5.000000000")
-        tdSql.checkData(7, 0, 11)
-        tdSql.checkData(7, 1, '"femail"')
+        tdSql.checkData(6, 0, 11)
+        tdSql.checkData(7, 1, '"收到货"')
 
         res = tdSql.getColNameList(f"select stddev(dataint),jsons1.jtag->'tag1' from {dbname}.jsons1 group by jsons1.jtag->'tag1' order by jtag->'tag1'")
         cname_list = []
