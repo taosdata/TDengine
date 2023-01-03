@@ -230,7 +230,7 @@ async fn sync_super_table_schema(
     let sql = if is_v3 {
         format!("SELECT distinct tbname, {tag_names} FROM `{name}`")
     } else {
-        format!("SELECT tbname, {tag_names} FROM {name}")
+        format!("SELECT tbname, {tag_names} FROM `{name}`")
     };
     let mut res = from.query(sql).await?;
 
