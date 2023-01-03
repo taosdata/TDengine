@@ -693,6 +693,7 @@ static SSdbRaw *mndSubActionEncode(SMqSubscribeObj *pSub) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   void   *buf = NULL;
   int32_t tlen = tEncodeSubscribeObj(NULL, pSub);
+  if (tlen <= 0) goto SUB_ENCODE_OVER;
   int32_t size = sizeof(int32_t) + tlen + MND_SUBSCRIBE_RESERVE_SIZE;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_SUBSCRIBE, MND_SUBSCRIBE_VER_NUMBER, size);
