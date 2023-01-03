@@ -1768,7 +1768,10 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
 
       double v = 0;
       GET_TYPED_DATA(v, double, type, data);
-      tHistogramAdd(&pInfo->pHisto, v);
+      int32_t code = tHistogramAdd(&pInfo->pHisto, v);
+      if (code != 0) {
+        return TSDB_CODE_FAILED;
+      }
     }
 
     qDebug("%s after add %d elements into histogram, total:%" PRId64 ", numOfEntry:%d, pHisto:%p, elems: %p",
