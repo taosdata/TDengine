@@ -14,6 +14,7 @@
  */
 
 #include "sma.h"
+#include "tq.h"
 #include "tsdb.h"
 
 #define SMA_STORAGE_MINUTES_MAX  86400
@@ -330,7 +331,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len - sizeof(SMsgHead));
     if (tEncodeSSubmitReq2(&encoder, pReq) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      tqError("failed to encode submit req since %s", terrstr());
+      /*vError("failed to encode submit req since %s", terrstr());*/
     }
     tEncoderClear(&encoder);
   }
