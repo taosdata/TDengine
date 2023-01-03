@@ -201,6 +201,9 @@ struct SColData {
   int16_t  cid;
   int8_t   type;
   int8_t   smaOn;
+  int32_t  nNone;   // # of none
+  int32_t  nNull;   // # of null
+  int32_t  nValue;  // # of vale
   int32_t  nVal;
   uint8_t  flag;
   uint8_t *pBitMap;
