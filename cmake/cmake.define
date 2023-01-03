@@ -124,7 +124,7 @@ ELSE ()
     ENDIF ()
 
     # disable all assert
-    IF (${DISABLE_ASSERT} OR ${DISABLE_ASSERTS})
+    IF ((${DISABLE_ASSERT} MATCHES "true") OR (${DISABLE_ASSERTS} MATCHES "true"))
         ADD_DEFINITIONS(-DDISABLE_ASSERT)
         MESSAGE(STATUS "Disable all asserts")
     ENDIF()
