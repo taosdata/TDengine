@@ -4392,6 +4392,7 @@ SSDataBlock* tsdbRetrieveDataBlock(STsdbReader* pReader, SArray* pIdList) {
 
   SSDataBlock* ret = doRetrieveDataBlock(pTReader);
 
+  qTrace("tsdb/read-retrieve: %p, unlock read mutex", pReader);
   taosThreadMutexUnlock(&pReader->readerMutex);
 
   return ret;

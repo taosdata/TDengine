@@ -2554,6 +2554,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   }
 
   STsdbReader* reader = pInfo->base.dataReader;
+  qTrace("tsdb/read-table-data: %p, enter next reader", reader);
   while (tsdbNextDataBlock(reader)) {
     if (isTaskKilled(pTaskInfo)) {
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
@@ -2588,6 +2589,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     pOperator->resultInfo.totalRows += pBlock->info.rows;
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
+    qTrace("tsdb/read-table-data: %p, close reader", reader);
     tsdbReaderClose(pInfo->base.dataReader);
     pInfo->base.dataReader = NULL;
     return pBlock;

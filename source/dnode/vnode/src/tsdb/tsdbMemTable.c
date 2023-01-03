@@ -750,7 +750,7 @@ int32_t tsdbRefMemTable(SMemTable *pMemTable, void *pQHandle, _tsdb_reseek_func_
 
   int32_t nRef = atomic_fetch_add_32(&pMemTable->nRef, 1);
   ASSERT(nRef > 0);
-
+  /*
   // register handle (todo: take concurrency in consideration)
   *ppNode = taosMemoryMalloc(sizeof(SQueryNode));
   if (*ppNode == NULL) {
@@ -763,21 +763,21 @@ int32_t tsdbRefMemTable(SMemTable *pMemTable, void *pQHandle, _tsdb_reseek_func_
   (*ppNode)->ppNext = &pMemTable->qList.pNext;
   pMemTable->qList.pNext->ppNext = &(*ppNode)->pNext;
   pMemTable->qList.pNext = *ppNode;
-
+  */
 _exit:
   return code;
 }
 
 int32_t tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode) {
   int32_t code = 0;
-
+  /*
   // unregister handle (todo: take concurrency in consideration)
   if (pNode) {
     pNode->pNext->ppNext = pNode->ppNext;
     *pNode->ppNext = pNode->pNext;
     taosMemoryFree(pNode);
   }
-
+  */
   int32_t nRef = atomic_sub_fetch_32(&pMemTable->nRef, 1);
   if (nRef == 0) {
     tsdbMemTableDestroy(pMemTable);
