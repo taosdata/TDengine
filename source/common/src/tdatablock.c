@@ -111,7 +111,7 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
     uint32_t len = pColumnInfoData->varmeta.length;
     pColumnInfoData->varmeta.offset[currentRow] = len;
 
-    memcpy(pColumnInfoData->pData + len, pData, dataLen);
+    memmove(pColumnInfoData->pData + len, pData, dataLen);
     pColumnInfoData->varmeta.length += dataLen;
   } else {
     memcpy(pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow, pData, pColumnInfoData->info.bytes);
