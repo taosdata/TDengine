@@ -88,7 +88,7 @@ static void resetPosInfo(SSlotInfo *pInfo) {
 }
 
 double findOnlyResult(tMemBucket *pMemBucket) {
-  ASSERTS(pMemBucket->total == 1);
+  ASSERT(pMemBucket->total == 1);
 
   for (int32_t i = 0; i < pMemBucket->numOfSlots; ++i) {
     tMemBucketSlot *pSlot = &pMemBucket->pSlots[i];
@@ -100,11 +100,11 @@ double findOnlyResult(tMemBucket *pMemBucket) {
     SArray **pList = taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
     if (pList != NULL)  {
       SArray *list = *pList;
-      ASSERTS(list->size == 1);
+      ASSERT(list->size == 1);
 
       int32_t   *pageId = taosArrayGet(list, 0);
       SFilePage *pPage = getBufPage(pMemBucket->pBuffer, *pageId);
-      ASSERTS(pPage->num == 1);
+      ASSERT(pPage->num == 1);
 
       double v = 0;
       GET_TYPED_DATA(v, double, pMemBucket->type, pPage->data);
@@ -168,7 +168,7 @@ int32_t tBucketUintHash(tMemBucket *pBucket, const void *value) {
     }
   }
 
-  ASSERTS(index >= 0 && index < pBucket->numOfSlots);
+  ASSERT(index >= 0 && index < pBucket->numOfSlots);
   return index;
 }
 
@@ -199,7 +199,7 @@ int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value) {
     }
   }
 
-  ASSERTS(index >= 0 && index < pBucket->numOfSlots);
+  ASSERT(index >= 0 && index < pBucket->numOfSlots);
   return index;
 }
 
@@ -332,7 +332,7 @@ void tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, int32_t dataT
       r->dMaxVal = v;
     }
   } else {
-    ASSERTS(0);
+    ASSERT(0);
   }
 }
 
@@ -340,7 +340,7 @@ void tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, int32_t dataT
  * in memory bucket, we only accept data array list
  */
 int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
-  ASSERTS(pBucket != NULL && data != NULL && size > 0);
+  ASSERT(pBucket != NULL && data != NULL && size > 0);
 
   int32_t count = 0;
   int32_t bytes = pBucket->bytes;
@@ -362,7 +362,7 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
 
     if (pSlot->info.data == NULL || pSlot->info.data->num >= pBucket->elemPerPage) {
       if (pSlot->info.data != NULL) {
-        ASSERTS(pSlot->info.data->num >= pBucket->elemPerPage && pSlot->info.size > 0);
+        ASSERT(pSlot->info.data->num >= pBucket->elemPerPage && pSlot->info.size > 0);
 
         // keep the pointer in memory
         setBufPageDirty(pSlot->info.data, true);
@@ -408,14 +408,14 @@ static MinMaxEntry getMinMaxEntryOfNextSlotWithData(tMemBucket *pMemBucket, int3
     ++j;
   }
 
-  ASSERTS(j < pMemBucket->numOfSlots);
+  ASSERT(j < pMemBucket->numOfSlots);
   return pMemBucket->pSlots[j].range;
 }
 
 static bool isIdenticalData(tMemBucket *pMemBucket, int32_t index);
 
 static double getIdenticalDataVal(tMemBucket *pMemBucket, int32_t slotIndex) {
-  ASSERTS(isIdenticalData(pMemBucket, slotIndex));
+  ASSERT(isIdenticalData(pMemBucket, slotIndex));
 
   tMemBucketSlot *pSlot = &pMemBucket->pSlots[slotIndex];
 
@@ -462,7 +462,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
           minOfNextSlot = (double)next.dMinVal;
         }
 
-        ASSERTS(minOfNextSlot > maxOfThisSlot);
+        ASSERT(minOfNextSlot > maxOfThisSlot);
 
         double val = (1 - fraction) * maxOfThisSlot + fraction * minOfNextSlot;
         return val;
@@ -500,7 +500,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
 
         int32_t groupId = getGroupId(pMemBucket->numOfSlots, i, pMemBucket->times - 1);
         SArray* list = *(SArray **)taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
-        ASSERTS(list != NULL && list->size > 0);
+        ASSERT(list != NULL && list->size > 0);
 
         for (int32_t f = 0; f < list->size; ++f) {
           int32_t *pageId = taosArrayGet(list, f);
