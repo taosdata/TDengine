@@ -2869,7 +2869,6 @@ void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSData
   taosVariantCreateFromBinary(&val, pData, tDataTypes[type].bytes, type);
 
   STopBotResItem* pItems = pRes->pItems;
-  assert(pItems != NULL);
 
   // not full yet
   if (pEntryInfo->numOfRes < pRes->maxSize) {
@@ -3079,7 +3078,6 @@ void addResult(SqlFunctionCtx* pCtx, STopBotResItem* pSourceItem, int16_t type, 
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   STopBotRes*          pRes = getTopBotOutputInfo(pCtx);
   STopBotResItem*      pItems = pRes->pItems;
-  assert(pItems != NULL);
 
   // not full yet
   if (pEntryInfo->numOfRes < pRes->maxSize) {
@@ -5167,7 +5165,6 @@ _twa_over:
  * is required, we simply copy to the resut ot interResBuffer.
  */
 // void twa_function_copy(SQLFunctionCtx *pCtx) {
-//   assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
 //   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
 //
 //   memcpy(GET_ROWCELL_INTERBUF(pResInfo), pCtx->pInput, (size_t)pCtx->inputBytes);
