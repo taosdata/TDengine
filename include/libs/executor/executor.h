@@ -154,6 +154,8 @@ void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);
  */
 int32_t qAsyncKillTask(qTaskInfo_t tinfo, int32_t rspCode);
 
+bool qTaskIsExecuting(qTaskInfo_t qinfo);
+
 /**
  * destroy query info structure
  * @param qHandle
