@@ -5227,6 +5227,7 @@ int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDist
   if (tEncodeU16(&encoder, pInfo->numOfFiles) < 0) return -1;
   if (tEncodeU32(&encoder, pInfo->numOfBlocks) < 0) return -1;
   if (tEncodeU32(&encoder, pInfo->numOfTables) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->numOfVgroups) < 0) return -1;
 
   if (tEncodeU64(&encoder, pInfo->totalSize) < 0) return -1;
   if (tEncodeU64(&encoder, pInfo->totalRows) < 0) return -1;
@@ -5258,6 +5259,7 @@ int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo
   if (tDecodeU16(&decoder, &pInfo->numOfFiles) < 0) return -1;
   if (tDecodeU32(&decoder, &pInfo->numOfBlocks) < 0) return -1;
   if (tDecodeU32(&decoder, &pInfo->numOfTables) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->numOfVgroups) < 0) return -1;
 
   if (tDecodeU64(&decoder, &pInfo->totalSize) < 0) return -1;
   if (tDecodeU64(&decoder, &pInfo->totalRows) < 0) return -1;
