@@ -71,18 +71,18 @@ class TDTestCase:
         tdSql.checkData(0, 2, "web01")
 
         tdSql.query(f"select distinct tbname from {dbname}.`sys.cpu.nice`")
-        tdSql.checkRows(2)
+        tdSql.checkRows(3)
 
         tdSql.query(f"select * from {dbname}.`sys.cpu.nice` order by _ts")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 9.000000000)
-        tdSql.checkData(0, 2, "web02")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 1, 13.000000000)
+        tdSql.checkData(0, 2, "web01")
         tdSql.checkData(0, 3, None)
         tdSql.checkData(0, 4, "lga")
 
-        tdSql.checkData(1, 1, 18.000000000)
-        tdSql.checkData(1, 2, "web01")
-        tdSql.checkData(1, 3, "t1")
+        tdSql.checkData(1, 1, 9.000000000)
+        tdSql.checkData(1, 2, "web02")
+        tdSql.checkData(3, 3, "t1")
         tdSql.checkData(0, 4, "lga")
 
         tdSql.query(f"select * from {dbname}.macylr")
