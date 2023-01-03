@@ -1067,6 +1067,7 @@ void smlDestroyInfo(SSmlHandle *info) {
     taosMemoryFree(info->lines);
   }
 
+  cJSON_Delete(info->root);
   taosMemoryFreeClear(info);
 }
 
