@@ -348,8 +348,10 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
     while (taosArrayGetSize(pConsumerEp->vgs) < minVgCnt) {
       // iter hash and find one vg
       pRemovedIter = taosHashIterate(pHash, pRemovedIter);
-      mError("sub:%s, removed iter is null", sub);
-      continue;
+      if (pRemovedIter == NULL) {
+        mError("sub:%s, removed iter is null", sub);
+        continue;
+      }
 
       pRebVg = (SMqRebOutputVg *)pRemovedIter;
       // push
