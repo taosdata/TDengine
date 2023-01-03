@@ -335,6 +335,9 @@ int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
         (*start)++;
       }
     }
+    if(*(*start) == '\0'){
+      break;
+    }
     if(*(*start) == '}'){
       (*start)++;
       break;
@@ -923,9 +926,6 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
   cJSON *tsJson = NULL;
   cJSON *valueJson = NULL;
   cJSON *tagsJson = NULL;
-  char* rootStr = cJSON_PrintUnformatted(root);
-  uError("rootStr:%s", rootStr);
-  taosMemoryFree(rootStr);
 
   int32_t size = cJSON_GetArraySize(root);
   // outmost json fields has to be exactly 4
@@ -956,6 +956,7 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
   }
 
   // Parse tags
+  bool needFree = info->dataFormat;
   elements->tags = cJSON_PrintUnformatted(tagsJson);
   elements->tagsLen = strlen(elements->tags);
   if(is_same_child_table_telnet(elements, &info->preLine) != 0) {
@@ -968,7 +969,7 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
     }
   }
 
-  if(info->dataFormat){
+  if(needFree){
     taosMemoryFree(elements->tags);
     elements->tags = NULL;
   }

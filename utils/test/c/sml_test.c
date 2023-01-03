@@ -211,8 +211,7 @@ int smlProcess_json3_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-//      "[{\"metric\":\"sys.cpu.nice3\",\"timestamp\":0,\"value\":\"18\",\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}}]"
-        "{\"metric\": \"dcxnmr\", \"timestamp\": {\"value\": 1626006833639000000, \"type\": \"ns\"}, \"value\": {\"value\": false, \"type\": \"bool\"}, \"tags\": {\"t0\": {\"value\": false, \"type\": \"bool\"}, \"t1\": {\"value\": 127, \"type\": \"tinyint\"}, \"t2\": {\"value\": 32767, \"type\": \"smallint\"}, \"t3\": {\"value\": 2147483647, \"type\": \"int\"}, \"t4\": {\"value\": 9223372036854775807, \"type\": \"bigint\"}, \"t5\": {\"value\": 11.12345027923584, \"type\": \"float\"}, \"t6\": {\"value\": 22.123456789, \"type\": \"double\"}, \"t7\": {\"value\": \"binaryTagValue\", \"type\": \"binary\"}, \"t8\": {\"value\": \"abc{aaa\", \"type\": \"nchar\"}}}"
+      "[{\"metric\":\"sys.cpu.nice3\",\"timestamp\":0,\"value\":\"18\",\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}}]"
   };
   char *sql1[1] = {0};
   for(int i = 0; i < 1; i++){
