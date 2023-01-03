@@ -14,7 +14,7 @@ pub async fn is_available_enterprise_edition(taos: &Taos) -> bool {
     impl Grant {
         fn is_available_enterprise_edition(&self) -> bool {
             let _ = &self.expire_time;
-            match (self.version.as_str(), self.expired.trim()) {
+            match (self.version.trim(), self.expired.trim()) {
                 ("official" | "trial", "false") => true,
                 _ => false,
             }
