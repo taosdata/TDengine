@@ -39,14 +39,6 @@
 #define _SEND_FILE_STEP_ 1000
 #endif
 
-#if defined(WINDOWS)
-typedef int32_t FileFd;
-typedef int32_t SocketFd;
-#else
-typedef int32_t FileFd;
-typedef int32_t SocketFd;
-#endif
-
 typedef int32_t FileFd;
 
 typedef struct TdFile {
@@ -54,18 +46,9 @@ typedef struct TdFile {
   int            refId;
   FileFd         fd;
   FILE          *fp;
-} * TdFilePtr, TdFile;
+} TdFile;
 
 #define FILE_WITH_LOCK 1
-
-typedef struct AutoDelFile *AutoDelFilePtr;
-typedef struct AutoDelFile {
-  char          *name;
-  AutoDelFilePtr lastAutoDelFilePtr;
-} AutoDelFile;
-static TdThreadMutex  autoDelFileLock;
-static AutoDelFilePtr nowAutoDelFilePtr = NULL;
-static TdThreadOnce   autoDelFileInit = PTHREAD_ONCE_INIT;
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
 #ifdef WINDOWS
@@ -268,34 +251,6 @@ int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
   return 0;
 }
 
-void autoDelFileList() {
-  taosThreadMutexLock(&autoDelFileLock);
-  while (nowAutoDelFilePtr != NULL) {
-    taosRemoveFile(nowAutoDelFilePtr->name);
-    AutoDelFilePtr tmp = nowAutoDelFilePtr->lastAutoDelFilePtr;
-    taosMemoryFree(nowAutoDelFilePtr->name);
-    taosMemoryFree(nowAutoDelFilePtr);
-    nowAutoDelFilePtr = tmp;
-  }
-  taosThreadMutexUnlock(&autoDelFileLock);
-  taosThreadMutexDestroy(&autoDelFileLock);
-}
-
-void autoDelFileListInit() {
-  taosThreadMutexInit(&autoDelFileLock, NULL);
-  atexit(autoDelFileList);
-}
-
-void autoDelFileListAdd(const char *path) {
-  taosThreadOnce(&autoDelFileInit, autoDelFileListInit);
-  taosThreadMutexLock(&autoDelFileLock);
-  AutoDelFilePtr tmp = taosMemoryMalloc(sizeof(AutoDelFile));
-  tmp->lastAutoDelFilePtr = nowAutoDelFilePtr;
-  tmp->name = taosMemoryStrDup(path);
-  nowAutoDelFilePtr = tmp;
-  taosThreadMutexUnlock(&autoDelFileLock);
-}
-
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
   int   fd = -1;
   FILE *fp = NULL;
@@ -313,7 +268,6 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     assert(!(tdFileOptions & TD_FILE_EXCL));
     fp = fopen(path, mode);
     if (fp == NULL) {
-      // terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
     }
   } else {
@@ -331,32 +285,44 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     access |= (tdFileOptions & TD_FILE_TEXT) ? O_TEXT : 0;
     access |= (tdFileOptions & TD_FILE_EXCL) ? O_EXCL : 0;
 #ifdef WINDOWS
-    fd = _open(path, access, _S_IREAD | _S_IWRITE);
+    int32_t pmode = _S_IREAD | _S_IWRITE;
+    if (tdFileOptions & TD_FILE_AUTO_DEL) {
+      pmode |= _O_TEMPORARY;
+    }
+    fd = _open(path, access, pmode);
 #else
     fd = open(path, access, S_IRWXU | S_IRWXG | S_IRWXO);
 #endif
     if (fd == -1) {
-      // terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
     }
   }
 
   TdFilePtr pFile = (TdFilePtr)taosMemoryMalloc(sizeof(TdFile));
   if (pFile == NULL) {
-    // terrno = TSDB_CODE_OUT_OF_MEMORY;
     if (fd >= 0) close(fd);
     if (fp != NULL) fclose(fp);
     return NULL;
   }
+
 #if FILE_WITH_LOCK
   taosThreadRwlockInit(&(pFile->rwlock), NULL);
 #endif
   pFile->fd = fd;
   pFile->fp = fp;
   pFile->refId = 0;
+
   if (tdFileOptions & TD_FILE_AUTO_DEL) {
-    autoDelFileListAdd(path);
+#ifdef WINDOWS
+    // do nothing, since the property of pmode is set with _O_TEMPORARY; the OS will recycle
+    // the file handle, as well as the space on disk.
+#else
+    // Remove it instantly, so when the program exits normally/abnormally, the file
+    // will be automatically remove by OS.
+    unlink(path);
+#endif
   }
+
   return pFile;
 }
 
