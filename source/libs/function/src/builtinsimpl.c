@@ -784,7 +784,7 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   pEntryInfo->isNullRes = (pEntryInfo->numOfRes == 0) ? 1 : 0;
 
   if (pCol->info.type == TSDB_DATA_TYPE_FLOAT) {
-    float v = *(float*)&pRes->v;
+    float v = GET_FLOAT_VAL(&pRes->v);
     colDataAppend(pCol, currentRow, (const char*)&v, pEntryInfo->isNullRes);
   } else {
     colDataAppend(pCol, currentRow, (const char*)&pRes->v, pEntryInfo->isNullRes);
