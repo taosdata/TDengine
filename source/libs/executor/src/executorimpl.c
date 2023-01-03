@@ -871,6 +871,8 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
 
       if (IS_VAR_DATA_TYPE(pDst->info.type)) {
         int32_t j = 0;
+        pDst->varmeta.length = 0;
+
         while(j < totalRows) {
           if (pIndicator[j] == 0) {
             continue;
