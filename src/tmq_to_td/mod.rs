@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     tmq::{check_tmq_dsn, group_id_hash, TmqMetrics},
+    utils::is_available_enterprise_edition,
     Action,
 };
 
@@ -303,6 +304,16 @@ pub async fn tmq_to_td(
     let target = TaosBuilder::from_dsn(&to)?.pool()?;
 
     let global_taos = target.get()?;
+
+    #[cfg(feature = "enterprise-only-validation")]
+    {
+        let from_taos = builder.build()?;
+        if !is_available_enterprise_edition(&from_taos).await
+            && !is_available_enterprise_edition(&global_taos).await
+        {
+            bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
+        }
+    }
 
     let (consumers_sender, mut consumers_receiver) = tokio::sync::mpsc::unbounded_channel();
 

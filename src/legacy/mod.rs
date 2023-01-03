@@ -15,7 +15,7 @@ use serde::Deserialize;
 use taos::*;
 use tokio::sync::Semaphore;
 
-use crate::{legacy::tasks::TablesHandle, Action};
+use crate::{legacy::tasks::TablesHandle, utils::is_available_enterprise_edition, Action};
 
 use self::tasks::TableOpts;
 
@@ -664,11 +664,11 @@ pub async fn legacy_to_taos(
     // let to = to_builder.build()?;
     let to = to_pool.get()?;
 
-    // let to_is_v3 = to
-    //     .query_one::<_, String>("SELECT server_version()")
-    //     .await?
-    //     .unwrap()
-    //     .starts_with('3');
+    #[cfg(feature = "enterprise-only-validation")]
+    if !is_available_enterprise_edition(&from).await && !is_available_enterprise_edition(&to).await
+    {
+        bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
+    }
 
     match (source_opts.mode, source_opts.schema) {
         (_, SchemaMode::Only) => sync_schema(&from, &to).await?,

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 
 use arrow::{
     array::{Array, ArrayRef},
@@ -14,6 +14,8 @@ use taos::{
 };
 
 use parquet::{arrow::arrow_writer::ArrowWriter, file::properties::WriterProperties};
+
+use crate::utils::is_available_enterprise_edition;
 fn precision_to_arrow(precision: Precision) -> TimeUnit {
     match precision {
         Precision::Millisecond => TimeUnit::Millisecond,
@@ -98,6 +100,11 @@ fn column_to_arrow(column: &ColumnView) -> ArrayRef {
 pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()> {
     let sql = from.params.remove("query").unwrap();
     let taos = TaosBuilder::from_dsn(from)?.build()?;
+    #[cfg(feature = "enterprise-only-validation")]
+    if !is_available_enterprise_edition(&taos).await {
+        bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
+    }
+
     let mut rs = taos.query(&sql).await?;
 
     log::info!("sql: {sql}, fields: {}", rs.num_of_fields());

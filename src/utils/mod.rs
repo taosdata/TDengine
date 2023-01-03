@@ -1,5 +1,32 @@
 use futures::TryStreamExt;
-use taos::{AsyncFetchable, AsyncQueryable, Dsn, TBuilder, TaosBuilder};
+use serde::Deserialize;
+use taos::{AsyncFetchable, AsyncQueryable, Dsn, TBuilder, Taos, TaosBuilder};
+
+/// Check enterprise edition
+pub async fn is_available_enterprise_edition(taos: &Taos) -> bool {
+    #[derive(Deserialize, Debug)]
+    struct Grant {
+        version: String,
+        expire_time: String,
+        expired: String,
+    }
+
+    impl Grant {
+        fn is_available_enterprise_edition(&self) -> bool {
+            let _ = &self.expire_time;
+            match (self.version.as_str(), self.expired.trim()) {
+                ("official" | "trial", "false") => true,
+                _ => false,
+            }
+        }
+    }
+
+    if let Ok(Some(grant)) = taos.query_one::<_, Grant>("show grants").await {
+        grant.is_available_enterprise_edition()
+    } else {
+        false
+    }
+}
 
 /// Clear database stables and tables.
 pub async fn clear_database(dsn: &Dsn) -> anyhow::Result<()> {
