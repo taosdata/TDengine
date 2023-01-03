@@ -261,6 +261,70 @@ class TDSql:
 
         tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
 
+    # return true or false replace exit, no print out
+    def checkRowColNoExit(self, row, col):
+        caller = inspect.getframeinfo(inspect.stack()[2][0])
+        if row < 0:
+            args = (caller.filename, caller.lineno, self.sql, row)
+            return False
+        if col < 0:
+            args = (caller.filename, caller.lineno, self.sql, row)
+            return False
+        if row > self.queryRows:
+            args = (caller.filename, caller.lineno, self.sql, row, self.queryRows)
+            return False
+        if col > self.queryCols:
+            args = (caller.filename, caller.lineno, self.sql, col, self.queryCols)
+            return False
+            
+        return True
+
+
+    # return true or false replace exit, no print out
+    def checkDataNoExit(self, row, col, data):
+        if self.checkRowColNoExit(row, col) == False:
+            return False
+        if self.queryResult[row][col] != data:
+            if self.cursor.istype(col, "TIMESTAMP"):
+                # suppose user want to check nanosecond timestamp if a longer data passed
+                if (len(data) >= 28):
+                    if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
+                        return True
+                else:
+                    if self.queryResult[row][col] == _parse_datetime(data):
+                        return True
+                return False
+
+            if str(self.queryResult[row][col]) == str(data):
+                return True
+            elif isinstance(data, float):
+                if abs(data) >= 1 and abs((self.queryResult[row][col] - data) / data) <= 0.000001:
+                    return True
+                elif abs(data) < 1 and abs(self.queryResult[row][col] - data) <= 0.000001:
+                    return True
+                else:
+                    return False
+            else:
+                return False
+                
+        return True
+
+
+    # loop execute sql then sleep(waitTime) , if checkData ok break loop
+    def checkDataLoop(self, row, col, data, sql, loopCount, waitTime):
+        # loop check util checkData return true
+        for i in range(loopCount):
+            self.query(sql)
+            if self.checkDataNoExit(row, col, data) :
+                self.checkData(row, col, data)
+                return
+            time.sleep(waitTime)
+
+        # last check
+        self.query(sql)
+        self.checkData(row, col, data)
+
+
     def getData(self, row, col):
         self.checkRowCol(row, col)
         return self.queryResult[row][col]
