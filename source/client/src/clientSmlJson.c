@@ -1161,6 +1161,7 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
   int32_t payloadNum = 1 << 15;
   int32_t ret = TSDB_CODE_SUCCESS;
 
+  uDebug("SML:0x%" PRIx64 "json:%s", info->id, payload);
   int cnt = 0;
   char *dataPointStart = payload;
   while (1) {
