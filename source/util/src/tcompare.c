@@ -209,7 +209,7 @@ int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
 
-  int32_t ret = tasoUcs4Compare(varDataVal(pLeft), varDataVal(pRight), len1>len2 ? len2:len1);
+  int32_t ret = tasoUcs4Compare((TdUcs4 *)varDataVal(pLeft), (TdUcs4 *)varDataVal(pRight), len1>len2 ? len2:len1);
   if (ret == 0) {
     if (len1 > len2)
       return 1;
