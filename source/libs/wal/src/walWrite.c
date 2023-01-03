@@ -302,6 +302,7 @@ int32_t walEndSnapshot(SWal *pWal) {
   pWal->vers.snapshotVer = ver;
   int ts = taosGetTimestampSec();
 
+#if 0
   void *pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pWal->pRefHash, pIter);
@@ -311,6 +312,7 @@ int32_t walEndSnapshot(SWal *pWal) {
     ver = TMIN(ver, pRef->refVer - 1);
     wDebug("vgId:%d, wal found ref %" PRId64 ", refId %" PRId64, pWal->cfg.vgId, pRef->refVer, pRef->refId);
   }
+#endif
 
   int          deleteCnt = 0;
   int64_t      newTotSize = pWal->totSize;
