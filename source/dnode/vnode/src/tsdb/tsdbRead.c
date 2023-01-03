@@ -3927,6 +3927,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
     pReader->pDelIdx = NULL;
   }
 
+  qTrace("tsdb/reader: %p, untake snapshot", pReader);
   tsdbUntakeReadSnap(pReader, pReader->pReadSnap);
 
   taosThreadMutexDestroy(&pReader->readerMutex);
@@ -4065,6 +4066,7 @@ int32_t tsdbReaderResume(STsdbReader* pReader) {
   //  task snapshot
   int32_t numOfTables = taosHashGetSize(pReader->status.pTableMap);
   if (numOfTables > 0) {
+    qTrace("tsdb/reader: %p, take snapshot", pReader);
     code = tsdbTakeReadSnap(pReader, tsdbSetQueryReseek, &pReader->pReadSnap);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
@@ -4392,6 +4394,7 @@ SSDataBlock* tsdbRetrieveDataBlock(STsdbReader* pReader, SArray* pIdList) {
 
   SSDataBlock* ret = doRetrieveDataBlock(pTReader);
 
+  qTrace("tsdb/read-retrieve: %p, unlock read mutex", pReader);
   taosThreadMutexUnlock(&pReader->readerMutex);
 
   return ret;
