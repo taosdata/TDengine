@@ -97,7 +97,7 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
 }
 
 static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
-  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, AUTH_TYPE_READ);
+  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, AUTH_TYPE_READ_OR_WRITE);
 }
 
 static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) {
@@ -145,6 +145,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:    
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:

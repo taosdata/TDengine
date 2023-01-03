@@ -116,8 +116,6 @@ int32_t cleanupTaskQueue() {
 }
 
 static void execHelper(struct SSchedMsg* pSchedMsg) {
-  assert(pSchedMsg != NULL && pSchedMsg->ahandle != NULL);
-
   __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
   int32_t           code = execFn(pSchedMsg->thandle);
   if (code != 0 && pSchedMsg->msg != NULL) {
@@ -126,8 +124,6 @@ static void execHelper(struct SSchedMsg* pSchedMsg) {
 }
 
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) {
-  assert(execFn != NULL);
-
   SSchedMsg schedMsg = {0};
   schedMsg.fp = execHelper;
   schedMsg.ahandle = execFn;
@@ -138,7 +134,10 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
 }
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
-  assert(pMsgBody != NULL);
+  if (NULL == pMsgBody) {
+    return;
+  }
+  
   taosMemoryFreeClear(pMsgBody->target.dbFName);
   taosMemoryFreeClear(pMsgBody->msgInfo.pData);
   if (pMsgBody->paramFreeFp) {
@@ -394,7 +393,7 @@ char* parseTagDatatoJson(void* p) {
       } else if (pTagVal->nData == 0) {
         value = cJSON_CreateString("");
       } else {
-        ASSERT(0);
+        goto end;
       }
 
       cJSON_AddItemToObject(json, tagJsonKey, value);
@@ -413,7 +412,7 @@ char* parseTagDatatoJson(void* p) {
       }
       cJSON_AddItemToObject(json, tagJsonKey, value);
     } else {
-      ASSERT(0);
+      goto end;
     }
   }
   string = cJSON_PrintUnformatted(json);

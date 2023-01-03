@@ -173,6 +173,10 @@ const char* nodesNodeName(ENodeType type) {
       return "BalanceVgroupStmt";
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return "MergeVgroupStmt";
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+      return "ShowDbAliveStmt";
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
+      return "ShowClusterAliveStmt";      
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
       return "RedistributeVgroupStmt";
     case QUERY_NODE_SPLIT_VGROUP_STMT:
@@ -3903,7 +3907,7 @@ static const char* jkNodeListNodeList = "NodeList";
 static int32_t nodeListNodeToJson(const void* pObj, SJson* pJson) {
   const SNodeListNode* pNode = (const SNodeListNode*)pObj;
 
-  int32_t code = tjsonAddObject(pJson, jkNodeListDataType, dataTypeToJson, &pNode->dataType);
+  int32_t code = tjsonAddObject(pJson, jkNodeListDataType, dataTypeToJson, &pNode->node.resType);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkNodeListNodeList, pNode->pNodeList);
   }
@@ -3914,7 +3918,7 @@ static int32_t nodeListNodeToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToNodeListNode(const SJson* pJson, void* pObj) {
   SNodeListNode* pNode = (SNodeListNode*)pObj;
 
-  int32_t code = tjsonToObject(pJson, jkNodeListDataType, jsonToDataType, &pNode->dataType);
+  int32_t code = tjsonToObject(pJson, jkNodeListDataType, jsonToDataType, &pNode->node.resType);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkNodeListNodeList, &pNode->pNodeList);
   }

@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 
 set(CMAKE_VERBOSE_MAKEFILE OFF)
+set(TD_BUILD_TAOSA_INTERNAL FALSE)
 
 #set output directory
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/lib)
@@ -141,13 +142,13 @@ ELSE ()
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse4.2")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.2")
     ENDIF()
-    IF (COMPILER_SUPPORT_FMA)
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mfma")
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfma")
-    ENDIF()
 
     IF ("${SIMD_SUPPORT}" MATCHES "true")
-        IF (COMPILER_SUPPORT_AVX)
+       IF (COMPILER_SUPPORT_FMA)
+           SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mfma")
+           SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfma")
+       ENDIF()
+       IF (COMPILER_SUPPORT_AVX)
             SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mavx")
             SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx")
         ENDIF()

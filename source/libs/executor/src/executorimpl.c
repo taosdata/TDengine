@@ -99,11 +99,11 @@ static void    extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SC
                                                    int32_t status);
 static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                                    bool createDummyCol);
+static int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
+                                  SGroupResInfo* pGroupResInfo);
 
 void setOperatorCompleted(SOperatorInfo* pOperator) {
   pOperator->status = OP_EXEC_DONE;
-  ASSERT(pOperator->pTaskInfo != NULL);
-
   pOperator->cost.totalCost = (taosGetTimestampUs() - pOperator->pTaskInfo->cost.start) / 1000.0;
   setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
 }
@@ -138,9 +138,6 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
 
   return fpSet;
 }
-
-static int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
-                                  SGroupResInfo* pGroupResInfo);
 
 SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, int32_t interBufSize) {
   SFilePage* pData = NULL;
@@ -200,7 +197,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 
   // in case of repeat scan/reverse scan, no new time window added.
   if (isIntervalQuery) {
-    if (masterscan && p1 != NULL) {  // the *p1 may be NULL in case of sliding+offset exists.
+    if (p1 != NULL) {  // the *p1 may be NULL in case of sliding+offset exists.
       pResult = getResultRowByPos(pResultBuf, p1, true);
       ASSERT(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
     }
@@ -245,7 +242,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 }
 
 // a new buffer page for each table. Needs to opt this design
-static int32_t addNewWindowResultBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, int32_t tid, uint32_t size) {
+static int32_t addNewWindowResultBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size) {
   if (pWindowRes->pageId != -1) {
     return 0;
   }
@@ -525,7 +522,7 @@ bool functionNeedToExecute(SqlFunctionCtx* pCtx) {
   return true;
 }
 
-static int32_t doCreateConstantValColumnAggInfo(SInputColumnInfoData* pInput, SFunctParam* pFuncParam, int32_t type,
+static int32_t doCreateConstantValColumnSMAInfo(SInputColumnInfoData* pInput, SFunctParam* pFuncParam, int32_t type,
                                                 int32_t paramIndex, int32_t numOfRows) {
   if (pInput->pData[paramIndex] == NULL) {
     pInput->pData[paramIndex] = taosMemoryCalloc(1, sizeof(SColumnInfoData));
@@ -549,8 +546,6 @@ static int32_t doCreateConstantValColumnAggInfo(SInputColumnInfoData* pInput, SF
     da = pInput->pColumnDataAgg[paramIndex];
   }
 
-  ASSERT(!IS_VAR_DATA_TYPE(type));
-
   if (type == TSDB_DATA_TYPE_BIGINT) {
     int64_t v = pFuncParam->param.i;
     *da = (SColumnDataAgg){.numOfNull = 0, .min = v, .max = v, .sum = v * numOfRows};
@@ -571,7 +566,7 @@ static int32_t doCreateConstantValColumnAggInfo(SInputColumnInfoData* pInput, SF
   } else if (type == TSDB_DATA_TYPE_TIMESTAMP) {
     // do nothing
   } else {
-    ASSERT(0);
+    qError("invalid constant type for sma info");
   }
 
   return TSDB_CODE_SUCCESS;
@@ -601,7 +596,7 @@ void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock* pB
         // the data in the corresponding SColumnInfoData will not be used.
         pInput->pData[j] = taosArrayGet(pBlock->pDataBlock, slotId);
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
-        doCreateConstantValColumnAggInfo(pInput, pFuncParam, pFuncParam->param.nType, j, pBlock->info.rows);
+        doCreateConstantValColumnSMAInfo(pInput, pFuncParam, pFuncParam->param.nType, j, pBlock->info.rows);
       }
     }
   } else {
@@ -916,8 +911,7 @@ void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uin
    * all group belong to one result set, and each group result has different group id so set the id to be one
    */
   if (pResultRow->pageId == -1) {
-    int32_t ret =
-        addNewWindowResultBuf(pResultRow, pAggInfo->aggSup.pResultBuf, groupId, pAggInfo->binfo.pRes->info.rowSize);
+    int32_t ret = addNewWindowResultBuf(pResultRow, pAggInfo->aggSup.pResultBuf, pAggInfo->binfo.pRes->info.rowSize);
     if (ret != TSDB_CODE_SUCCESS) {
       return;
     }
@@ -1579,8 +1573,7 @@ void destroyOperatorInfo(SOperatorInfo* pOperator) {
 // each operator should be set their own function to return total cost buffer
 int32_t optrDefaultBufFn(SOperatorInfo* pOperator) {
   if (pOperator->blocking) {
-    ASSERT(0);
-    return 0;
+    return -1;
   } else {
     return 0;
   }
@@ -2207,7 +2200,6 @@ static int32_t extractTbscanInStreamOpTree(SOperatorInfo* pOperator, STableScanI
     return extractTbscanInStreamOpTree(pOperator->pDownstream[0], ppInfo);
   } else {
     SStreamScanInfo* pInfo = pOperator->info;
-    ASSERT(pInfo->pTableScanOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
     *ppInfo = pInfo->pTableScanOp->info;
     return 0;
   }
@@ -2219,13 +2211,11 @@ int32_t extractTableScanNode(SPhysiNode* pNode, STableScanPhysiNode** ppNode) {
       *ppNode = (STableScanPhysiNode*)pNode;
       return 0;
     } else {
-      ASSERT(0);
       terrno = TSDB_CODE_APP_ERROR;
       return -1;
     }
   } else {
     if (LIST_LENGTH(pNode->pChildren) != 1) {
-      ASSERT(0);
       terrno = TSDB_CODE_APP_ERROR;
       return -1;
     }
@@ -2234,32 +2224,6 @@ int32_t extractTableScanNode(SPhysiNode* pNode, STableScanPhysiNode** ppNode) {
   }
   return -1;
 }
-
-#if 0
-int32_t rebuildReader(SOperatorInfo* pOperator, SSubplan* plan, SReadHandle* pHandle, int64_t uid, int64_t ts) {
-  STableScanInfo* pTableScanInfo = NULL;
-  if (extractTbscanInStreamOpTree(pOperator, &pTableScanInfo) < 0) {
-    return -1;
-  }
-
-  STableScanPhysiNode* pNode = NULL;
-  if (extractTableScanNode(plan->pNode, &pNode) < 0) {
-    ASSERT(0);
-  }
-
-  tsdbReaderClose(pTableScanInfo->dataReader);
-
-  STableListInfo info = {0};
-  pTableScanInfo->dataReader = doCreateDataReader(pNode, pHandle, &info, NULL);
-  if (pTableScanInfo->dataReader == NULL) {
-    ASSERT(0);
-    qError("failed to create data reader");
-    return TSDB_CODE_APP_ERROR;
-  }
-  // TODO: set uid and ts to data reader
-  return 0;
-}
-#endif
 
 int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pTaskInfo, SReadHandle* readHandle) {
   SExecTaskInfo* pTask = *(SExecTaskInfo**)pTaskInfo;

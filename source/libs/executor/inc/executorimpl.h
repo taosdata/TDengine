@@ -138,6 +138,7 @@ typedef struct {
   SSchemaWrapper*     schema;
   char                tbName[TSDB_TABLE_NAME_LEN];
   int8_t              recoverStep;
+  int8_t              recoverScanFinished;
   SQueryTableDataCond tableCond;
   int64_t             fillHistoryVer1;
   int64_t             fillHistoryVer2;
@@ -471,6 +472,11 @@ typedef struct SStreamScanInfo {
   SNodeList* pGroupTags;
   SNode*     pTagCond;
   SNode*     pTagIndexCond;
+
+  // recover
+  int32_t blockRecoverContiCnt;
+  int32_t blockRecoverTotCnt;
+
 } SStreamScanInfo;
 
 typedef struct {
@@ -659,7 +665,6 @@ typedef struct SStreamFillOperatorInfo {
   SSDataBlock*          pRes;
   SSDataBlock*          pSrcBlock;
   int32_t               srcRowIndex;
-  SSDataBlock*          pPrevSrcBlock;
   SSDataBlock*          pSrcDelBlock;
   int32_t               srcDelRowIndex;
   SSDataBlock*          pDelRes;

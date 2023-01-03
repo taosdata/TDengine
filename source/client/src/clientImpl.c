@@ -122,6 +122,12 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
 
   char* key = getClusterKey(user, secretEncrypt, ip, port);
 
+  tscInfo("connecting to server, numOfEps:%d inUse:%d user:%s db:%s key:%s", epSet.epSet.numOfEps, epSet.epSet.inUse,
+          user, db, key);
+  for (int32_t i = 0; i < epSet.epSet.numOfEps; ++i) {
+    tscInfo("ep:%d, %s:%u", i, epSet.epSet.eps[i].fqdn, epSet.epSet.eps[i].port);
+  }
+
   SAppInstInfo** pInst = NULL;
   taosThreadMutexLock(&appInfo.mutex);
 
@@ -142,7 +148,7 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
     p->instKey = key;
     key = NULL;
-    tscDebug("new app inst mgr %p, user:%s, ip:%s, port:%d", p, user, ip, port);
+    tscDebug("new app inst mgr %p, user:%s, ip:%s, port:%d", p, user, epSet.epSet.eps[0].fqdn, epSet.epSet.eps[0].port);
 
     pInst = &p;
   }
@@ -266,7 +272,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
-  int32_t            code = qExecCommand(pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
+  int32_t            code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
@@ -304,7 +310,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return;
   }
 
-  int32_t code = qExecCommand(pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
+  int32_t code = qExecCommand(&pRequest->pTscObj->id ,pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
@@ -1395,6 +1401,21 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   if (pEpSet != NULL) {
     tEpSet = taosMemoryCalloc(1, sizeof(SEpSet));
     memcpy((void*)tEpSet, (void*)pEpSet, sizeof(SEpSet));
+  }
+
+  // pMsg is response msg
+  if (pMsg->msgType == TDMT_MND_CONNECT + 1) {
+    // restore origin code
+    if (pMsg->code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED) {
+      pMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    } else if (pMsg->code == TSDB_CODE_RPC_SOMENODE_BROKEN_LINK) {
+      pMsg->code = TSDB_CODE_RPC_BROKEN_LINK;
+    }
+  } else {
+    // uniform to one error code: TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED
+    if (pMsg->code == TSDB_CODE_RPC_SOMENODE_BROKEN_LINK) {
+      pMsg->code = TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED;
+    }
   }
 
   AsyncArg* arg = taosMemoryCalloc(1, sizeof(AsyncArg));

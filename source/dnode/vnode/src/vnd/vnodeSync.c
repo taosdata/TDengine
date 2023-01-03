@@ -380,9 +380,8 @@ static int32_t vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   return code;
 }
 
-static int32_t vnodeSyncGetSnapshot(const SSyncFSM *pFsm, SSnapshot *pSnapshot) {
+static void vnodeSyncGetSnapshotInfo(const SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   vnodeGetSnapshot(pFsm->data, pSnapshot);
-  return 0;
 }
 
 static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
@@ -392,9 +391,9 @@ static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsm
 
   const STraceId *trace = &pMsg->info.traceId;
   vGTrace("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
-          ", weak:%d, code:%d, state:%d %s, type:%s",
+          ", weak:%d, code:%d, state:%d %s, type:%s code:0x%x",
           pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, pMsg->info.conn.applyIndex, pMeta->isWeak, pMeta->code,
-          pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType));
+          pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType), pMsg->code);
 
   return tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
 }
@@ -424,10 +423,9 @@ static int32_t vnodeSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void *
   return code;
 }
 
-static int32_t vnodeSnapshotStopRead(const SSyncFSM *pFsm, void *pReader) {
+static void vnodeSnapshotStopRead(const SSyncFSM *pFsm, void *pReader) {
   SVnode *pVnode = pFsm->data;
-  int32_t code = vnodeSnapReaderClose(pReader);
-  return code;
+  vnodeSnapReaderClose(pReader);
 }
 
 static int32_t vnodeSnapshotDoRead(const SSyncFSM *pFsm, void *pReader, void **ppBuf, int32_t *len) {
@@ -467,9 +465,9 @@ static int32_t vnodeSnapshotStopWrite(const SSyncFSM *pFsm, void *pWriter, bool 
 
 static int32_t vnodeSnapshotDoWrite(const SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) {
   SVnode *pVnode = pFsm->data;
-  vDebug("vgId:%d, continue write vnode snapshot, len:%d", pVnode->config.vgId, len);
+  vDebug("vgId:%d, continue write vnode snapshot, blockLen:%d", pVnode->config.vgId, len);
   int32_t code = vnodeSnapWrite(pWriter, pBuf, len);
-  vDebug("vgId:%d, continue write vnode snapshot finished, len:%d", pVnode->config.vgId, len);
+  vDebug("vgId:%d, continue write vnode snapshot finished, blockLen:%d", pVnode->config.vgId, len);
   return code;
 }
 
@@ -539,7 +537,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpCommitCb = vnodeSyncCommitMsg;
   pFsm->FpPreCommitCb = vnodeSyncPreCommitMsg;
   pFsm->FpRollBackCb = vnodeSyncRollBackMsg;
-  pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshot;
+  pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshotInfo;
   pFsm->FpRestoreFinishCb = vnodeRestoreFinish;
   pFsm->FpLeaderTransferCb = NULL;
   pFsm->FpApplyQueueEmptyCb = vnodeApplyQueueEmpty;

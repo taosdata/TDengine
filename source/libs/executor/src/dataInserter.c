@@ -41,6 +41,7 @@ typedef struct SDataInserterHandle {
   SHashObj*           pCols;
   int32_t             status;
   bool                queryEnd;
+  bool                fullOrderColList;
   uint64_t            useconds;
   uint64_t            cachedSize;
   TdThreadMutex       mutex;
@@ -153,7 +154,6 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
   SSubmitReq2* pReq = *ppReq;
   SArray*      pVals = NULL;
   int32_t      numOfBlks = 0;
-  bool         fullCol = (pInserter->pNode->pCols->length == pTSchema->numOfCols);
 
   terrno = TSDB_CODE_SUCCESS;
 
@@ -196,7 +196,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
     for (int32_t k = 0; k < pTSchema->numOfCols; ++k) {  // iterate by column
       int16_t  colIdx = k;
       const STColumn*  pCol = &pTSchema->columns[k];
-      if (!fullCol) {
+      if (!pInserter->fullOrderColList) {
         int16_t* slotId = taosHashGet(pInserter->pCols, &pCol->colId, sizeof(pCol->colId));
         if (NULL == slotId) {
           continue;
@@ -439,12 +439,19 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  inserter->fullOrderColList = pInserterNode->pCols->length == inserter->pSchema->numOfCols;
+
   inserter->pCols = taosHashInit(pInserterNode->pCols->length, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT),
                                  false, HASH_NO_LOCK);
   SNode* pNode = NULL;
+  int32_t i = 0;
   FOREACH(pNode, pInserterNode->pCols) {
     SColumnNode* pCol = (SColumnNode*)pNode;
     taosHashPut(inserter->pCols, &pCol->colId, sizeof(pCol->colId), &pCol->slotId, sizeof(pCol->slotId));
+    if (inserter->fullOrderColList && pCol->colId != inserter->pSchema->columns[i].colId) {
+      inserter->fullOrderColList = false;
+    }
+    ++i;
   }
 
   tsem_init(&inserter->ready, 0, 0);

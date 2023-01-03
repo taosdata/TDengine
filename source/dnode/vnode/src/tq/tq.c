@@ -80,6 +80,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   }
   pTq->path = strdup(path);
   pTq->pVnode = pVnode;
+  pTq->walLogLastVer = pVnode->pWal->vers.lastVer;
 
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   taosHashSetFreeFp(pTq->pHandle, destroySTqHandle);
@@ -1013,6 +1014,7 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
     tqError("unable to encode rsp %d", __LINE__);
     return -1;
   }
+
   void* buf = rpcMallocCont(sizeof(SMsgHead) + len);
   ((SMsgHead*)buf)->vgId = htonl(req.upstreamNodeId);
 
@@ -1542,3 +1544,5 @@ FAIL:
   taosFreeQitem(pMsg);
   return -1;
 }
+
+int32_t tqCheckLogInWal(STQ* pTq, int64_t version) { return version <= pTq->walLogLastVer; }

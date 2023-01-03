@@ -232,30 +232,6 @@ static bool doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBlock, 
   if (!allColumnsHaveAgg) {
     return false;
   }
-
-#if 0
-  //  if (allColumnsHaveAgg == true) {
-  int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-
-  // todo create this buffer during creating operator
-  if (pBlock->pBlockAgg == NULL) {
-    pBlock->pBlockAgg = taosMemoryCalloc(numOfCols, POINTER_BYTES);
-    if (pBlock->pBlockAgg == NULL) {
-      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
-    }
-  }
-
-  size_t num = taosArrayGetSize(pTableScanInfo->matchInfo.pList);
-  for (int32_t i = 0; i < num; ++i) {
-    SColMatchItem* pColMatchInfo = taosArrayGet(pTableScanInfo->matchInfo.pList, i);
-    if (!pColMatchInfo->needOutput) {
-      continue;
-    }
-
-    pBlock->pBlockAgg[pColMatchInfo->dstSlotId] = pColAgg[i];
-  }
-#endif
-
   return true;
 }
 
@@ -1790,11 +1766,18 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     pTSInfo->scanTimes = 0;
     pTSInfo->currentGroupId = -1;
     pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__SCAN;
+    pTaskInfo->streamInfo.recoverScanFinished = false;
   }
 
   if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__SCAN) {
+    if (pInfo->blockRecoverContiCnt > 100) {
+      pInfo->blockRecoverTotCnt += pInfo->blockRecoverContiCnt;
+      pInfo->blockRecoverContiCnt = 0;
+      return NULL;
+    }
     SSDataBlock* pBlock = doTableScan(pInfo->pTableScanOp);
     if (pBlock != NULL) {
+      pInfo->blockRecoverContiCnt++;
       calBlockTbName(pInfo, pBlock);
       if (pInfo->pUpdateInfo) {
         TSKEY maxTs = updateInfoFillBlockData(pInfo->pUpdateInfo, pBlock, pInfo->primaryTsIndex);
@@ -1812,6 +1795,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     pTSInfo->base.cond.startVersion = -1;
     pTSInfo->base.cond.endVersion = -1;
 
+    pTaskInfo->streamInfo.recoverScanFinished = true;
     return NULL;
   }
 
@@ -2243,6 +2227,7 @@ static void destroyStreamScanOperatorInfo(void* param) {
 
 SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
                                             SExecTaskInfo* pTaskInfo) {
+  SArray*          pColIds = NULL;
   SStreamScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamScanInfo));
   SOperatorInfo*   pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
@@ -2265,7 +2250,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   }
 
   int32_t numOfOutput = taosArrayGetSize(pInfo->matchInfo.pList);
-  SArray* pColIds = taosArrayInit(numOfOutput, sizeof(int16_t));
+  pColIds = taosArrayInit(numOfOutput, sizeof(int16_t));
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SColMatchItem* id = taosArrayGet(pInfo->matchInfo.pList, i);
 
@@ -2362,6 +2347,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     memcpy(&pTaskInfo->streamInfo.tableCond, &pTSInfo->base.cond, sizeof(SQueryTableDataCond));
   } else {
     taosArrayDestroy(pColIds);
+    pColIds = NULL;
   }
 
   // create the pseduo columns info

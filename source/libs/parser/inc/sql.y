@@ -433,6 +433,9 @@ cmd ::= SHOW TAGS FROM table_name_cond(A) from_db_opt(B).                       
 cmd ::= SHOW TABLE TAGS tag_list_opt(C) FROM table_name_cond(A) from_db_opt(B).   { pCxt->pRootNode = createShowTableTagsStmt(pCxt, A, B, C); }
 cmd ::= SHOW VNODES NK_INTEGER(A).                                                { pCxt->pRootNode = createShowVnodesStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A), NULL); }
 cmd ::= SHOW VNODES NK_STRING(A).                                                 { pCxt->pRootNode = createShowVnodesStmt(pCxt, NULL, createValueNode(pCxt, TSDB_DATA_TYPE_VARCHAR, &A)); }
+// show alive
+cmd ::= SHOW db_name_cond_opt(A) ALIVE.                                           { pCxt->pRootNode = createShowAliveStmt(pCxt, A,    QUERY_NODE_SHOW_DB_ALIVE_STMT); }
+cmd ::= SHOW CLUSTER ALIVE.                                                       { pCxt->pRootNode = createShowAliveStmt(pCxt, NULL, QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT); }
 
 db_name_cond_opt(A) ::= .                                                         { A = createDefaultDatabaseCondValue(pCxt); }
 db_name_cond_opt(A) ::= db_name(B) NK_DOT.                                        { A = createIdentifierValueNode(pCxt, &B); }
@@ -458,14 +461,16 @@ tag_item(A) ::= column_name(B) column_alias(C).                                 
 tag_item(A) ::= column_name(B) AS column_alias(C).                                { A = setProjectionAlias(pCxt, createColumnNode(pCxt, NULL, &B), &C); }
 
 /************************************************ create index ********************************************************/
-cmd ::= CREATE SMA INDEX not_exists_opt(D) 
+cmd ::= CREATE SMA INDEX not_exists_opt(D)
   full_table_name(A) ON full_table_name(B) index_options(C).                      { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, A, B, NULL, C); }
+cmd ::= CREATE INDEX not_exists_opt(D)
+  full_table_name(A) ON full_table_name(B) NK_LP col_name_list(C) NK_RP.          { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_NORMAL, D, A, B, C, NULL); }
 cmd ::= DROP INDEX exists_opt(B) full_table_name(A).                              { pCxt->pRootNode = createDropIndexStmt(pCxt, B, A); }
 
-index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL 
+index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL
   NK_LP duration_literal(C) NK_RP sliding_opt(D) sma_stream_opt(E).               { A = createIndexOption(pCxt, B, releaseRawExprNode(pCxt, C), NULL, D, E); }
-index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL 
-  NK_LP duration_literal(C) NK_COMMA duration_literal(D) NK_RP sliding_opt(E) 
+index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL
+  NK_LP duration_literal(C) NK_COMMA duration_literal(D) NK_RP sliding_opt(E)
   sma_stream_opt(F).                                                              { A = createIndexOption(pCxt, B, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D), E, F); }
 
 %type func_list                                                                   { SNodeList* }
@@ -539,8 +544,14 @@ bufsize_opt(A) ::= BUFSIZE NK_INTEGER(B).                                       
 
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A) stream_options(B) INTO
-  full_table_name(C) tags_def_opt(F) subtable_opt(G) AS query_or_subquery(D).     { pCxt->pRootNode = createCreateStreamStmt(pCxt, E, &A, C, B, F, G, D); }
+  full_table_name(C) col_list_opt(H) tags_def_opt(F) subtable_opt(G)
+  AS query_or_subquery(D).                                                        { pCxt->pRootNode = createCreateStreamStmt(pCxt, E, &A, C, B, F, G, D, H); }
 cmd ::= DROP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createDropStreamStmt(pCxt, A, &B); }
+
+%type col_list_opt                                                                { SNodeList* }
+%destructor col_list_opt                                                          { nodesDestroyList($$); }
+col_list_opt(A) ::= .                                                             { A = NULL; }
+col_list_opt(A) ::= NK_LP col_name_list(B) NK_RP.                                 { A = B; }
 
 stream_options(A) ::= .                                                           { A = createStreamOptions(pCxt); }
 stream_options(A) ::= stream_options(B) TRIGGER AT_ONCE.                          { ((SStreamOptions*)B)->triggerType = STREAM_TRIGGER_AT_ONCE; A = B; }
