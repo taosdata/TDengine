@@ -5192,6 +5192,7 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
   pDistInfo->numOfBlocks += p1.numOfBlocks;
   pDistInfo->numOfTables += p1.numOfTables;
   pDistInfo->numOfInmemRows += p1.numOfInmemRows;
+  pDistInfo->numOfVgroups += p1.numOfVgroups;
   pDistInfo->totalSize += p1.totalSize;
   pDistInfo->totalRows += p1.totalRows;
   pDistInfo->numOfFiles += p1.numOfFiles;
@@ -5317,7 +5318,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   colDataAppend(pColInfo, row++, st, false);
 
   len = sprintf(st + VARSTR_HEADER_SIZE, "Total_Tables=[%d] Total_Files=[%d] Total_Vgroups=[%d]", pData->numOfTables,
-                pData->numOfFiles, 0);
+                pData->numOfFiles, pData->numOfVgroups);
 
   varDataSetLen(st, len);
   colDataAppend(pColInfo, row++, st, false);
