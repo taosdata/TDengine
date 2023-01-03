@@ -121,10 +121,12 @@ void tsortClearOrderdSource(SArray* pOrderedSource) {
     if ((*pSource)->param && !(*pSource)->onlyRef) {
       taosMemoryFree((*pSource)->param);
     }
-    if ((*pSource)->src.pBlock) {
+
+    if (!(*pSource)->onlyRef && (*pSource)->src.pBlock) {
       blockDataDestroy((*pSource)->src.pBlock);
       (*pSource)->src.pBlock = NULL;
     }
+
     taosMemoryFreeClear(*pSource);
   }
 
