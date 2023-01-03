@@ -1096,6 +1096,11 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
 
   if(unlikely(**start == '\0' && elements->measure == NULL)) return TSDB_CODE_SUCCESS;
 
+  if (unlikely(IS_INVALID_TABLE_LEN(elements->measureLen))) {
+    smlBuildInvalidDataMsg(&info->msgBuf, "measure is empty or too large than 192", NULL);
+    return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+  }
+
   SSmlKv kv = {.key = VALUE, .keyLen = VALUE_LEN, .value = elements->cols, .length = (size_t)elements->colsLen};
   if (elements->colsLen == 0 || smlParseValue(&kv, &info->msgBuf) != TSDB_CODE_SUCCESS) {
     uError("SML:cols invalidate:%s", elements->cols);
