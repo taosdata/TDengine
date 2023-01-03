@@ -41,6 +41,32 @@ static void destroyEWindowOperatorInfo(void* param);
 static void doEventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
 static SSDataBlock* doEventWindowAgg(SOperatorInfo* pOperator);
 
+// todo : move to  util
+static void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex,
+                                     uint64_t groupId) {
+  pRowSup->startRowIndex = rowIndex;
+  pRowSup->numOfRows = 0;
+  pRowSup->win.skey = tsList[rowIndex];
+  pRowSup->groupId = groupId;
+}
+
+static void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId) {
+  pRowSup->win.ekey = ts;
+  pRowSup->prevTs = ts;
+  pRowSup->numOfRows += 1;
+  pRowSup->groupId = groupId;
+}
+
+static void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, bool includeEndpoint) {
+  int64_t* ts = (int64_t*)pColData->pData;
+  int32_t  delta = includeEndpoint ? 1 : 0;
+
+  int64_t duration = pWin->ekey - pWin->skey + delta;
+  ts[2] = duration;            // set the duration
+  ts[3] = pWin->skey;          // window start key
+  ts[4] = pWin->ekey + delta;  // window end key
+}
+
 SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SEventWinodwPhysiNode* pStateNode,
                                              SExecTaskInfo* pTaskInfo) {
   SEventWindowOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SEventWindowOperatorInfo));
@@ -264,7 +290,7 @@ SSDataBlock* doEventWindowAgg(SOperatorInfo* pOperator) {
     return NULL;
   }
 
-  SStateWindowOperatorInfo* pInfo = pOperator->info;
+  SEventWindowOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
   SOptrBasicInfo*           pBInfo = &pInfo->binfo;
 
