@@ -125,8 +125,12 @@ int smlProcess_json1_Test() {
 
   pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
+  if(code != 0){
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  }else{
+    printf("%s result:success\n", __FUNCTION__);
+  }
   taos_free_result(pRes);
 
   for(int i = 0; i < 1; i++){
@@ -145,8 +149,12 @@ int smlProcess_json1_Test() {
 
   pRes = taos_schemaless_insert(taos, (char **)sql3, sizeof(sql3) / sizeof(sql3[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   code = taos_errno(pRes);
+  if(code != 0){
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  }else{
+    printf("%s result:success\n", __FUNCTION__);
+  }
   taos_free_result(pRes);
 
   for(int i = 0; i < 1; i++){
@@ -178,8 +186,12 @@ int smlProcess_json2_Test() {
 
   pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
+  if(code != 0){
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  }else{
+    printf("%s result:success\n", __FUNCTION__);
+  }
   taos_free_result(pRes);
   taos_close(taos);
 
@@ -199,7 +211,8 @@ int smlProcess_json3_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "[{\"metric\":\"sys.cpu.nice3\",\"timestamp\":0,\"value\":\"18\",\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}}]"
+//      "[{\"metric\":\"sys.cpu.nice3\",\"timestamp\":0,\"value\":\"18\",\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}}]"
+        "{\"metric\": \"dcxnmr\", \"timestamp\": {\"value\": 1626006833639000000, \"type\": \"ns\"}, \"value\": {\"value\": false, \"type\": \"bool\"}, \"tags\": {\"t0\": {\"value\": false, \"type\": \"bool\"}, \"t1\": {\"value\": 127, \"type\": \"tinyint\"}, \"t2\": {\"value\": 32767, \"type\": \"smallint\"}, \"t3\": {\"value\": 2147483647, \"type\": \"int\"}, \"t4\": {\"value\": 9223372036854775807, \"type\": \"bigint\"}, \"t5\": {\"value\": 11.12345027923584, \"type\": \"float\"}, \"t6\": {\"value\": 22.123456789, \"type\": \"double\"}, \"t7\": {\"value\": \"binaryTagValue\", \"type\": \"binary\"}, \"t8\": {\"value\": \"abc{aaa\", \"type\": \"nchar\"}}}"
   };
   char *sql1[1] = {0};
   for(int i = 0; i < 1; i++){
@@ -209,8 +222,12 @@ int smlProcess_json3_Test() {
 
   pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
+  if(code != 0){
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  }else{
+    printf("%s result:success\n", __FUNCTION__);
+  }
   taos_free_result(pRes);
   taos_close(taos);
 
