@@ -1917,10 +1917,10 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
             printf(" %15d |", *(int32_t*)var);
             break;
           case TSDB_DATA_TYPE_UTINYINT:
-            printf(" %15" PRIi8 " |", *(int8_t*)var);
+            printf(" %15" PRIu8 " |", *(uint8_t*)var);
             break;
           case TSDB_DATA_TYPE_USMALLINT:
-            printf(" %15" PRIi16 " |", *(int16_t*)var);
+            printf(" %15" PRIu16 " |", *(uint16_t*)var);
             break;
           case TSDB_DATA_TYPE_UINT:
             printf(" %15u |", *(uint32_t*)var);
