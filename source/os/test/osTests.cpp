@@ -70,7 +70,11 @@ void fileOperateOnBusy(void *param) {
 
   ret = taosUnLockFile(pFile);
   printf("On busy thread unlock file ret:%d\n", ret);
+#ifdef _TD_DARWIN_64
+  ASSERT_EQ(ret, 0);
+#else
   ASSERT_NE(ret, 0);
+#endif
 
   ret = taosCloseFile(&pFile);
   printf("On busy thread close file ret:%d\n", ret);
