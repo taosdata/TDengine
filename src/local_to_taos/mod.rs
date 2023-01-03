@@ -4,7 +4,7 @@ use anyhow::{bail, Context, Result};
 use taos::*;
 use tokio::sync::Semaphore;
 
-use crate::{taoz::ZCodec, tmq_to_local::LocalConfig};
+use crate::{taoz::ZCodec, tmq_to_local::LocalConfig, utils::is_available_enterprise_edition};
 
 async fn restore(
     id: usize,
@@ -147,6 +147,11 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
     let target_database = to.subject.take();
     let target = TaosBuilder::from_dsn(&to)?;
     let global_taos = target.build()?;
+
+    #[cfg(feature = "enterprise-only-validation")]
+    if !is_available_enterprise_edition(&global_taos).await {
+        bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
+    }
 
     let mut handles = Vec::new();
     let jobs = if jobs == 0 { 16 } else { jobs };
