@@ -292,6 +292,7 @@ typedef struct STableBlockDistInfo {
   uint16_t numOfFiles;
   uint32_t numOfTables;
   uint32_t numOfBlocks;
+  uint32_t numOfVgroups;
   uint64_t totalSize;
   uint64_t totalRows;
   int32_t  maxRows;

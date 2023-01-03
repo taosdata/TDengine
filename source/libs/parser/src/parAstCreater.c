@@ -1370,6 +1370,38 @@ SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   return (SNode*)pStmt;
 }
 
+SNode* createShowAliveStmt(SAstCreateContext* pCxt, SNode* pNode, ENodeType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  SToken  dbToken = {0};
+  SToken* pDbToken = NULL;
+
+  if (pNode) {
+    SValueNode* pDbName = (SValueNode*)pNode;
+    if (pDbName->literal) {
+      dbToken.z = pDbName->literal;
+      dbToken.n = strlen(pDbName->literal);
+      pDbToken = &dbToken;
+    }
+  }
+
+  if (pDbToken && !checkDbName(pCxt, pDbToken, true)) {
+    nodesDestroyNode(pNode);
+    return NULL;
+  }
+
+  SShowAliveStmt* pStmt = (SShowAliveStmt*)nodesMakeNode(type);
+  CHECK_OUT_OF_MEM(pStmt);
+
+  if (pDbToken) {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbToken);
+  }
+  if (pNode) {
+    nodesDestroyNode(pNode);
+  }
+
+  return (SNode*)pStmt;
+}
+
 SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
   CHECK_PARSER_STATUS(pCxt);
   SShowCreateTableStmt* pStmt = (SShowCreateTableStmt*)nodesMakeNode(type);
@@ -1745,21 +1777,20 @@ SNode* createStreamOptions(SAstCreateContext* pCxt) {
 }
 
 SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pStreamName, SNode* pRealTable,
-                              SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery) {
+                              SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery, SNodeList* pCols) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateStreamStmt* pStmt = (SCreateStreamStmt*)nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
-  if (NULL != pRealTable) {
-    strcpy(pStmt->targetDbName, ((SRealTableNode*)pRealTable)->table.dbName);
-    strcpy(pStmt->targetTabName, ((SRealTableNode*)pRealTable)->table.tableName);
-    nodesDestroyNode(pRealTable);
-  }
+  strcpy(pStmt->targetDbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->targetTabName, ((SRealTableNode*)pRealTable)->table.tableName);
+  nodesDestroyNode(pRealTable);
   pStmt->ignoreExists = ignoreExists;
   pStmt->pOptions = (SStreamOptions*)pOptions;
   pStmt->pQuery = pQuery;
   pStmt->pTags = pTags;
   pStmt->pSubtable = pSubtable;
+  pStmt->pCols = pCols;
   return (SNode*)pStmt;
 }
 

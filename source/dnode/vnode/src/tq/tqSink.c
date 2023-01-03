@@ -426,7 +426,7 @@ int32_t tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* p
       goto _end;
     }
 
-    for (int32_t j = 0; j < rows; j++) {
+    for (int32_t j = 0; j < rows; ++j) {
       taosArrayClear(pVals);
       for (int32_t k = 0; k < pTSchema->numOfCols; k++) {
         const STColumn*  pCol = &pTSchema->columns[k];
@@ -469,7 +469,7 @@ int32_t tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* p
     if (NULL == pBuf) {
       goto _end;
     }
-    ((SMsgHead*)pBuf)->vgId = htonl(TD_VID(pVnode));
+    ((SMsgHead*)pBuf)->vgId = TD_VID(pVnode);
     ((SMsgHead*)pBuf)->contLen = htonl(len);
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len - sizeof(SMsgHead));
     if (tEncodeSSubmitReq2(&encoder, pReq) < 0) {

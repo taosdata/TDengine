@@ -173,6 +173,10 @@ const char* nodesNodeName(ENodeType type) {
       return "BalanceVgroupStmt";
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return "MergeVgroupStmt";
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+      return "ShowDbAliveStmt";
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
+      return "ShowClusterAliveStmt";      
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
       return "RedistributeVgroupStmt";
     case QUERY_NODE_SPLIT_VGROUP_STMT:
