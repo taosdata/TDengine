@@ -409,7 +409,7 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
     (*start)++;
   }
 
-  if(unlikely(index != OTD_JSON_FIELDS_NUM)) {
+  if(unlikely(index != 0 && index != OTD_JSON_FIELDS_NUM)) {
     uError("elements != %d", OTD_JSON_FIELDS_NUM)
     return -1;
   }
@@ -1161,6 +1161,7 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
   int32_t payloadNum = 1 << 15;
   int32_t ret = TSDB_CODE_SUCCESS;
 
+  uDebug("SML:0x%" PRIx64 "json:%s", info->id, payload);
   int cnt = 0;
   char *dataPointStart = payload;
   while (1) {

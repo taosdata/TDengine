@@ -114,13 +114,53 @@ int smlProcess_json1_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":0,\"value\":18,\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}},{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344042,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":\"lga\"}}]"
+      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":0,\"value\":18,\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}},{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344045,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":\"lga\"}}]"
   };
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
+
+  char *sql1[1] = {0};
+  for(int i = 0; i < 1; i++){
+    sql1[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql1[i], sql[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
+  if(code != 0){
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  }else{
+    printf("%s result:success\n", __FUNCTION__);
+  }
   taos_free_result(pRes);
+
+  for(int i = 0; i < 1; i++){
+    taosMemoryFree(sql1[i]);
+  }
+
+  const char *sql2[] = {
+      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344041,\"value\":13,\"tags\":{\"host\":\"web01\",\"dc\":\"lga\"}},{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344042,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":\"lga\"}}]",
+  };
+
+  char *sql3[1] = {0};
+  for(int i = 0; i < 1; i++){
+    sql3[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql3[i], sql2[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql3, sizeof(sql3) / sizeof(sql3[0]), TSDB_SML_JSON_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  code = taos_errno(pRes);
+  if(code != 0){
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  }else{
+    printf("%s result:success\n", __FUNCTION__);
+  }
+  taos_free_result(pRes);
+
+  for(int i = 0; i < 1; i++){
+    taosMemoryFree(sql3[i]);
+  }
+
   taos_close(taos);
 
   return code;
@@ -138,13 +178,26 @@ int smlProcess_json2_Test() {
   const char *sql[] = {
       "{\"metric\":\"meter_current0\",\"timestamp\":{\"value\":1662344042,\"type\":\"s\"},\"value\":{\"value\":10.3,\"type\":\"i64\"},\"tags\":{\"groupid\":{\"value\":2,\"type\":\"bigint\"},\"location\":{\"value\":\"北京\",\"type\":\"binary\"},\"id\":\"d1001\"}}"
   };
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
+  char *sql1[1] = {0};
+  for(int i = 0; i < 1; i++){
+    sql1[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql1[i], sql[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
+  if(code != 0){
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  }else{
+    printf("%s result:success\n", __FUNCTION__);
+  }
   taos_free_result(pRes);
   taos_close(taos);
 
+  for(int i = 0; i < 1; i++){
+    taosMemoryFree(sql1[i]);
+  }
   return code;
 }
 
@@ -158,15 +211,29 @@ int smlProcess_json3_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":0,\"value\":\"18\",\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}}]"
+//      "[{\"metric\":\"sys.cpu.nice3\",\"timestamp\":0,\"value\":\"18\",\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}}]"
+        "{\"metric\": \"dcxnmr\", \"timestamp\": {\"value\": 1626006833639000000, \"type\": \"ns\"}, \"value\": {\"value\": false, \"type\": \"bool\"}, \"tags\": {\"t0\": {\"value\": false, \"type\": \"bool\"}, \"t1\": {\"value\": 127, \"type\": \"tinyint\"}, \"t2\": {\"value\": 32767, \"type\": \"smallint\"}, \"t3\": {\"value\": 2147483647, \"type\": \"int\"}, \"t4\": {\"value\": 9223372036854775807, \"type\": \"bigint\"}, \"t5\": {\"value\": 11.12345027923584, \"type\": \"float\"}, \"t6\": {\"value\": 22.123456789, \"type\": \"double\"}, \"t7\": {\"value\": \"binaryTagValue\", \"type\": \"binary\"}, \"t8\": {\"value\": \"abc{aaa\", \"type\": \"nchar\"}}}"
   };
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
+  char *sql1[1] = {0};
+  for(int i = 0; i < 1; i++){
+    sql1[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql1[i], sql[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
+  if(code != 0){
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  }else{
+    printf("%s result:success\n", __FUNCTION__);
+  }
   taos_free_result(pRes);
   taos_close(taos);
 
+  for(int i = 0; i < 1; i++){
+    taosMemoryFree(sql1[i]);
+  }
   return code;
 }
 
@@ -235,7 +302,7 @@ int sml_16384_Test() {
   if(code) return code;
 
   const char *sql1[] = {
-      "qelhxo,id=pnnqhsa,t0=t,t1=127i8 c0=f,c1=127i8,c11=L\"ncharColValue\",c10=t 1626006833639000000",
+      "qelhxo,id=pnnqhsa,t0=t,t1=127i8 c0=f,c1=127i8,c11=L\"ncharColValue\",c10=t 1626006833631000000",
   };
   pRes = taos_schemaless_insert(taos, (char **)sql1, 1, TSDB_SML_LINE_PROTOCOL, 0);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
@@ -799,7 +866,7 @@ int sml_19221_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "qelhxo,id=pnnqhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833639000000\nqelhxo,id=pnnhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833639000000\n#comment\nqelhxo,id=pnqhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833639000000",
+      "qelhxo,id=pnnqhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833632000000\nqelhxo,id=pnnhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833633000000\n#comment\nqelhxo,id=pnqhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833634000000",
   };
 
   pRes = taos_query(taos, "use sml_db");
@@ -938,9 +1005,9 @@ int main(int argc, char *argv[]) {
   ret = smlProcess_json1_Test();
   ASSERT(!ret);
   ret = smlProcess_json2_Test();
-  ASSERT(ret);
+  ASSERT(!ret);
   ret = smlProcess_json3_Test();
-  ASSERT(ret);
+  ASSERT(!ret);
   ret = sml_TD15662_Test();
   ASSERT(!ret);
   ret = sml_TD15742_Test();
