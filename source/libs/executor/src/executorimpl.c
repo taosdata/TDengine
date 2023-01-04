@@ -875,6 +875,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
 
         while(j < totalRows) {
           if (pIndicator[j] == 0) {
+            j += 1;
             continue;
           }
 
