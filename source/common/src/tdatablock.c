@@ -1145,7 +1145,7 @@ void blockDataCleanup(SSDataBlock* pDataBlock) {
 
 void blockDataEmpty(SSDataBlock* pDataBlock) {
   SDataBlockInfo* pInfo = &pDataBlock->info;
-  if (pInfo->capacity == 0 || pInfo->rows <= pDataBlock->info.capacity) {
+  if (pInfo->capacity == 0 || pInfo->rows > pDataBlock->info.capacity) {
     return;
   }
 
