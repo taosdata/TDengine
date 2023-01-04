@@ -1701,12 +1701,12 @@ int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaul
 int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t numOfOutput, size_t keyBufSize,
                          const char* pKey) {
   int32_t    code = 0;
-  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+//  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
 
   pAggSup->currentPageId = -1;
   pAggSup->resultRowSize = getResultRowSize(pCtx, numOfOutput);
   pAggSup->keyBuf = taosMemoryCalloc(1, keyBufSize + POINTER_BYTES + sizeof(int64_t));
-  pAggSup->pResultRowHashTable = tSimpleHashInit(100, hashFn);
+  pAggSup->pResultRowHashTable = tSimpleHashInit(100, taosFastHash);
 
   if (pAggSup->keyBuf == NULL || pAggSup->pResultRowHashTable == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
