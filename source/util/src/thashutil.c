@@ -17,6 +17,7 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "types.h"
+#include "xxhash.h"
 
 #define ROTL32(x, r) ((x) << (r) | (x) >> (32u - (r)))
 
@@ -47,6 +48,11 @@ uint32_t taosDJB2Hash(const char *key, uint32_t len) {
     hash = ((hash << 5) + hash) + (uint8_t)key[i]; /* hash * 33 + c */
   }
   return hash;
+}
+
+uint32_t xxHash(const char *key, uint32_t len) {
+  int32_t seed = 0xcc9e2d51;
+  return XXH32(key, len, seed);
 }
 
 uint32_t MurmurHash3_32(const char *key, uint32_t len) {
@@ -192,10 +198,8 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
       fn = taosIntHash_64;
       break;
     case TSDB_DATA_TYPE_BINARY:
-      fn = MurmurHash3_32;
-      break;
     case TSDB_DATA_TYPE_NCHAR:
-      fn = MurmurHash3_32;
+      fn = xxHash;
       break;
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_INT:

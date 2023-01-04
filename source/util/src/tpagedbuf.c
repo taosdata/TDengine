@@ -407,8 +407,8 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
 
   // allocate buf
   if (availablePage == NULL) {
-    pi->pData =
-        taosMemoryCalloc(1, getAllocPageSize(pBuf->pageSize));  // add extract bytes in case of zipped buffer increased.
+    // add extract bytes in case of zipped buffer increased.
+    pi->pData = taosMemoryMalloc(getAllocPageSize(pBuf->pageSize));
   } else {
     pi->pData = availablePage;
   }
