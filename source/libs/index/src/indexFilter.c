@@ -206,7 +206,9 @@ static FORCE_INLINE int32_t sifGetValueFromNode(SNode *node, char **value) {
 
 static FORCE_INLINE int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   SOperatorNode *nd = (SOperatorNode *)node;
-  assert(nodeType(node) == QUERY_NODE_OPERATOR);
+  if (nodeType(node) != QUERY_NODE_OPERATOR) {
+    return -1;
+  }
   SColumnNode *l = (SColumnNode *)nd->pLeft;
   SValueNode  *r = (SValueNode *)nd->pRight;
 

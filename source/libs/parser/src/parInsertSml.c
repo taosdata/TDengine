@@ -189,14 +189,23 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
   SSchema* pColSchema = schema + index;
   SColVal* pVal = taosArrayGet(pTableCxt->pValues, index);
   SSmlKv*  kv = (SSmlKv*)data;
+  if(kv->keyLen != strlen(pColSchema->name) || memcmp(kv->key, pColSchema->name, kv->keyLen) != 0){
+    ret = TSDB_CODE_SML_INVALID_DATA;
+    goto end;
+  }
   if (kv->type == TSDB_DATA_TYPE_NCHAR) {
     int32_t len = 0;
-    char*   pUcs4 = taosMemoryCalloc(1, pColSchema->bytes - VARSTR_HEADER_SIZE);
+    int64_t size = pColSchema->bytes - VARSTR_HEADER_SIZE;
+    if(size <= 0){
+      ret = TSDB_CODE_SML_INVALID_DATA;
+      goto end;
+    }
+    char*   pUcs4 = taosMemoryCalloc(1, size);
     if (NULL == pUcs4) {
       ret = TSDB_CODE_OUT_OF_MEMORY;
       goto end;
     }
-    if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)pUcs4, pColSchema->bytes - VARSTR_HEADER_SIZE, &len)) {
+    if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)pUcs4, size, &len)) {
       if (errno == E2BIG) {
         ret = TSDB_CODE_PAR_VALUE_TOO_LONG;
         goto end;

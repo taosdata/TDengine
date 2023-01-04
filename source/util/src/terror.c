@@ -277,8 +277,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST,      "Subcribe not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_OFFSET_NOT_EXIST,         "Offset not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CONSUMER_NOT_READY,       "Consumer not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_SUBSCRIBED,         "Topic subscribed cannot be dropped")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_MUST_BE_DELETED,    "Topic must be dropped first")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CGROUP_USED,              "Consumer group being used by some consumer")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_MUST_BE_DELETED,    "Topic must be dropped first")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SUB_OPTION,       "Invalid subscribe option")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_IN_REBALANCE,             "Topic being rebalanced")
 
 // mnode-stream

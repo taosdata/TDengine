@@ -545,6 +545,7 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   pAgg->hasLastRow = pSelect->hasLastRowFunc;
   pAgg->hasLast = pSelect->hasLastFunc;
   pAgg->hasTimeLineFunc = pSelect->hasTimeLineFunc;
+  pAgg->hasGroupKeyOptimized = false;
   pAgg->onlyHasKeepOrderFunc = pSelect->onlyHasKeepOrderFunc;
   pAgg->node.groupAction = getGroupAction(pCxt, pSelect);
   pAgg->node.requireDataOrder = getRequireDataOrder(pAgg->hasTimeLineFunc, pSelect);

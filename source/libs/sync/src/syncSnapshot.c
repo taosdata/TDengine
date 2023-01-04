@@ -406,7 +406,7 @@ void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *p
 }
 
 // just set start = false
-// FpSnapshotStopWrite should not be called, assert writer == NULL
+// FpSnapshotStopWrite should not be called
 void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
   sRInfo(pReceiver, "snapshot receiver stop, not apply, writer:%p", pReceiver->pWriter);
 

@@ -488,7 +488,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   memcpy(smaObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   smaObj.createdTime = taosGetTimestampMs();
   smaObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
-  ASSERT(smaObj.uid != 0);
+
   char resultTbName[TSDB_TABLE_FNAME_LEN + 16] = {0};
   snprintf(resultTbName, TSDB_TABLE_FNAME_LEN + 16, "%s_td_tsma_rst_tb", pCreate->name);
   memcpy(smaObj.dstTbName, resultTbName, TSDB_TABLE_FNAME_LEN);
@@ -558,13 +558,15 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
 
   SNode *pAst = NULL;
   if (nodesStringToNode(streamObj.ast, &pAst) < 0) {
-    ASSERT(0);
+    terrno = TSDB_CODE_MND_INVALID_SMA_OPTION;
+    mError("sma:%s, failed to create since parse ast error", smaObj.name);
     return -1;
   }
 
   // extract output schema from ast
   if (qExtractResultSchema(pAst, (int32_t *)&streamObj.outputSchema.nCols, &streamObj.outputSchema.pSchema) != 0) {
-    ASSERT(0);
+    terrno = TSDB_CODE_MND_INVALID_SMA_OPTION;
+    mError("sma:%s, failed to create since extract result schema error", smaObj.name);
     return -1;
   }
 
@@ -579,15 +581,18 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   };
 
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
-    ASSERT(0);
+    terrno = TSDB_CODE_MND_INVALID_SMA_OPTION;
+    mError("sma:%s, failed to create since create query plan error", smaObj.name);
     return -1;
   }
 
   // save physcial plan
   if (nodesNodeToString((SNode *)pPlan, false, &streamObj.physicalPlan, NULL) != 0) {
-    ASSERT(0);
+    terrno = TSDB_CODE_MND_INVALID_SMA_OPTION;
+    mError("sma:%s, failed to create since save physcial plan error", smaObj.name);
     return -1;
   }
+
   if (pAst != NULL) nodesDestroyNode(pAst);
   nodesDestroyNode((SNode *)pPlan);
 
@@ -826,14 +831,13 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
     if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
       mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
       sdbRelease(pMnode->pSdb, pStream);
-      ASSERT(0);
       goto _OVER;
     }
 
     // drop stream
     if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
+      mError("stream:%s, failed to drop log since %s", pStream->name, terrstr());
       sdbRelease(pMnode->pSdb, pStream);
-      ASSERT(0);
       goto _OVER;
     }
   }

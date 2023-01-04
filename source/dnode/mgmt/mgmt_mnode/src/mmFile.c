@@ -180,6 +180,6 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
     return -1;
   }
 
-  dDebug("successed to write %s, deployed:%d", realfile, pOption->deploy);
+  dDebug("succeed to write %s, deployed:%d", realfile, pOption->deploy);
   return 0;
 }

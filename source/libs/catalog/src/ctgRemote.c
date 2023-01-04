@@ -40,7 +40,9 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
     msgNum = taosArrayGetSize(batchRsp.pRsps);
   }
   
-  ASSERT(taskNum == msgNum || 0 == msgNum);
+  if (ASSERTS(taskNum == msgNum || 0 == msgNum, "taskNum %d mis-match msgNum %d", taskNum, msgNum)) {
+    msgNum = 0;
+  }
 
   ctgDebug("QID:0x%" PRIx64 " ctg got batch %d rsp %s", pJob->queryId, cbParam->batchId,
            TMSG_INFO(cbParam->reqType + 1));
@@ -58,11 +60,19 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
     if (msgNum > 0) {
       pRsp = taosArrayGet(batchRsp.pRsps, i);
 
-      taskMsg.msgType = pRsp->reqType;
-      taskMsg.pData = pRsp->msg;
-      taskMsg.len = pRsp->msgLen;
-
-      ASSERT(pRsp->msgIdx == *msgIdx);
+      if (ASSERTS(pRsp->msgIdx == *msgIdx, "rsp msgIdx %d mis-match msgIdx %d", pRsp->msgIdx, *msgIdx)) {
+        pRsp = &rsp;
+        pRsp->msgIdx = *msgIdx;
+        pRsp->reqType = -1;
+        pRsp->rspCode = 0;
+        taskMsg.msgType = -1;
+        taskMsg.pData = NULL;
+        taskMsg.len = 0;
+      } else {
+        taskMsg.msgType = pRsp->reqType;
+        taskMsg.pData = pRsp->msg;
+        taskMsg.len = pRsp->msgLen;
+      }
     } else {
       pRsp = &rsp;
       pRsp->msgIdx = *msgIdx;

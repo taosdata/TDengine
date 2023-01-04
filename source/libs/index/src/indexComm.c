@@ -170,7 +170,6 @@ TExeCond tCompare(__compar_fn_t func, int8_t cmptype, void* a, void* b, int8_t d
     }
     return tDoCompare(func, cmptype, &va, &vb);
   }
-  assert(0);
   return BREAK;
 #endif
 }
@@ -367,7 +366,7 @@ int32_t idxConvertData(void* src, int8_t type, void** dst) {
       tlen = taosEncodeBinary(dst, src, strlen(src));
       break;
     default:
-      ASSERT(0);
+      ASSERTS(0, "index invalid input type");
       break;
   }
   *dst = (char*)*dst - tlen;
@@ -459,7 +458,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       *dst = (char*)*dst - tlen;
       break;
     default:
-      ASSERT(0);
+      ASSERTS(0, "index invalid input type");
       break;
   }
   return tlen;
