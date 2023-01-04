@@ -274,46 +274,70 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
     int32_t elems = selector_to_elems[(int32_t)selector];
 
     // Optimize the performance, by remove the constantly switch operation.
-    int32_t v = 0;
-    uint64_t zigzag_value;
+    int32_t  v = 0;
+    uint64_t zigzag_value = 0;
+    uint64_t mask = INT64MASK(bit);
 
     switch (type) {
       case TSDB_DATA_TYPE_BIGINT: {
-        for (int32_t i = 0; i < elems; i++) {
-          if (selector == 0 || selector == 1) {
-            zigzag_value = 0;
-          } else {
-            zigzag_value = ((w >> (4 + v)) & INT64MASK(bit));
+        if (selector == 0 || selector == 1) {
+          zigzag_value = 0;
+
+          for (int32_t i = 0; i < elems; i++) {
+            int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+            int64_t curr_value = diff + prev_value;
+            prev_value = curr_value;
+
+            *((int64_t *)output + _pos) = (int64_t)curr_value;
+            _pos++;
+
+            v += bit;
+            if ((++count) == nelements) break;
           }
+        } else {
+          for (int32_t i = 0; i < elems; i++) {
+            zigzag_value = ((w >> (4 + v)) & mask);
 
-          int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
-          int64_t curr_value = diff + prev_value;
-          prev_value = curr_value;
+            int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+            int64_t curr_value = diff + prev_value;
+            prev_value = curr_value;
 
-          *((int64_t *)output + _pos) = (int64_t)curr_value;
-          _pos++;
+            *((int64_t *)output + _pos) = (int64_t)curr_value;
+            _pos++;
 
-          v += bit;
-          if ((++count) == nelements) break;
+            v += bit;
+            if ((++count) == nelements) break;
+          }
         }
       } break;
       case TSDB_DATA_TYPE_INT: {
-        for (int32_t i = 0; i < elems; i++) {
-          if (selector == 0 || selector == 1) {
-            zigzag_value = 0;
-          } else {
-            zigzag_value = ((w >> (4 + v)) & INT64MASK(bit));
+        if (selector == 0 || selector == 1) {
+          zigzag_value = 0;
+          for (int32_t i = 0; i < elems; i++) {
+            int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+            int64_t curr_value = diff + prev_value;
+            prev_value = curr_value;
+
+            *((int32_t *)output + _pos) = (int32_t)curr_value;
+            _pos++;
+
+            v += bit;
+            if ((++count) == nelements) break;
           }
+        } else {
+          for (int32_t i = 0; i < elems; i++) {
+            zigzag_value = ((w >> (4 + v)) & mask);
 
-          int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
-          int64_t curr_value = diff + prev_value;
-          prev_value = curr_value;
+            int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+            int64_t curr_value = diff + prev_value;
+            prev_value = curr_value;
 
-          *((int32_t *)output + _pos) = (int32_t)curr_value;
-          _pos++;
+            *((int32_t *)output + _pos) = (int32_t)curr_value;
+            _pos++;
 
-          v += bit;
-          if ((++count) == nelements) break;
+            v += bit;
+            if ((++count) == nelements) break;
+          }
         }
       } break;
       case TSDB_DATA_TYPE_SMALLINT: {
@@ -321,7 +345,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
           if (selector == 0 || selector == 1) {
             zigzag_value = 0;
           } else {
-            zigzag_value = ((w >> (4 + v)) & INT64MASK(bit));
+            zigzag_value = ((w >> (4 + v)) & mask);
           }
 
           int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
@@ -341,7 +365,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
           if (selector == 0 || selector == 1) {
             zigzag_value = 0;
           } else {
-            zigzag_value = ((w >> (4 + v)) & INT64MASK(bit));
+            zigzag_value = ((w >> (4 + v)) & mask);
           }
 
           int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
