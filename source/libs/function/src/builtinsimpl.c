@@ -1673,6 +1673,11 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   tMemBucketDestroy(pMemBucket);
+
+  if (ppInfo->result < 0) {
+    return TSDB_CODE_NO_AVAIL_DISK;
+  }
+
   return functionFinalize(pCtx, pBlock);
 }
 

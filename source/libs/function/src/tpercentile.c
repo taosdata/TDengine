@@ -40,6 +40,9 @@ static SFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) 
     int32_t *pageId = taosArrayGet(pIdList, i);
 
     SFilePage *pg = getBufPage(pMemBucket->pBuffer, *pageId);
+    if (pg == NULL) {
+      return NULL;
+    }
     memcpy(buffer->data + offset, pg->data, (size_t)(pg->num * pMemBucket->bytes));
 
     offset += (int32_t)(pg->num * pMemBucket->bytes);
@@ -104,6 +107,9 @@ double findOnlyResult(tMemBucket *pMemBucket) {
 
       int32_t   *pageId = taosArrayGet(list, 0);
       SFilePage *pPage = getBufPage(pMemBucket->pBuffer, *pageId);
+      if (pPage == NULL) {
+        return -1;
+      }
       assert(pPage->num == 1);
 
       double v = 0;
@@ -470,6 +476,9 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
       if (pSlot->info.size <= pMemBucket->maxCapacity) {
         // data in buffer and file are merged together to be processed.
         SFilePage *buffer = loadDataFromFilePage(pMemBucket, i);
+        if (buffer == NULL) {
+          return -1;
+        }
         int32_t    currentIdx = count - num;
 
         char *thisVal = buffer->data + pMemBucket->bytes * currentIdx;
@@ -504,6 +513,9 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
         for (int32_t f = 0; f < list->size; ++f) {
           int32_t *pageId = taosArrayGet(list, f);
           SFilePage *pg = getBufPage(pMemBucket->pBuffer, *pageId);
+          if (pg == NULL) {
+            return -1;
+          }
 
           tMemBucketPut(pMemBucket, pg->data, (int32_t)pg->num);
           setBufPageDirty(pg, true);
@@ -527,7 +539,9 @@ double getPercentile(tMemBucket *pMemBucket, double percent) {
 
   // if only one elements exists, return it
   if (pMemBucket->total == 1) {
-    return findOnlyResult(pMemBucket);
+    if (findOnlyResult(pMemBucket) < 0) {
+      return -1;
+    }
   }
 
   percent = fabs(percent);
