@@ -91,6 +91,7 @@ typedef struct STuplePos {
     };
     STupleKey streamTupleKey;
   };
+  bool isValid;
 } STuplePos;
 
 typedef struct SFirstLastRes {
