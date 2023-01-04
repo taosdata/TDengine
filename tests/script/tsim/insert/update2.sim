@@ -214,7 +214,6 @@ if $data03 != 1 then
   return -1
 endi
 
-### this check for fix TS-2306
 if $data04 != 1 then 
   return -1
 endi
