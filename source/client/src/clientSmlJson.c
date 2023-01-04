@@ -1118,8 +1118,8 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
       return TSDB_CODE_TSC_INVALID_JSON;
     }
 
+    taosArrayPush(info->tagJsonArray, &tagsJson);
     ret = smlParseTagsFromJSON(info, tagsJson, elements);
-    cJSON_free(tagsJson);
     if (unlikely(ret)) {
       uError("OTD:0x%" PRIx64 " Unable to parse tags from JSON payload", info->id);
       return ret;

@@ -182,6 +182,7 @@ typedef struct {
   int8_t             offset[OTD_JSON_FIELDS_NUM];
   SSmlLineInfo      *lines; // element is SSmlLineInfo
   bool               parseJsonByLib;
+  SArray      *tagJsonArray;
 
   //
   SArray      *preLineTagKV;
