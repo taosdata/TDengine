@@ -909,10 +909,12 @@ void tmqFreeImpl(void* handle) {
   tmq_t* tmq = (tmq_t*)handle;
 
   // TODO stop timer
-  tmqClearUnhandleMsg(tmq);
-  if (tmq->mqueue) taosCloseQueue(tmq->mqueue);
+  if (tmq->mqueue) {
+    tmqClearUnhandleMsg(tmq);
+    taosCloseQueue(tmq->mqueue);
+  }
   if (tmq->delayedTask) taosCloseQueue(tmq->delayedTask);
-  if (tmq->qall) taosFreeQall(tmq->qall);
+  taosFreeQall(tmq->qall);
 
   tsem_destroy(&tmq->rspSem);
 
@@ -1902,10 +1904,6 @@ tmq_res_t tmq_get_res_type(TAOS_RES* res) {
   if (TD_RES_TMQ(res)) {
     return TMQ_RES_DATA;
   } else if (TD_RES_TMQ_META(res)) {
-    SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
-    if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DELETE) {
-      return TMQ_RES_DATA;
-    }
     return TMQ_RES_TABLE_META;
   } else if (TD_RES_TMQ_METADATA(res)) {
     return TMQ_RES_METADATA;

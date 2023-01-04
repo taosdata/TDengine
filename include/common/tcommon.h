@@ -292,6 +292,7 @@ typedef struct STableBlockDistInfo {
   uint16_t numOfFiles;
   uint32_t numOfTables;
   uint32_t numOfBlocks;
+  uint32_t numOfVgroups;
   uint64_t totalSize;
   uint64_t totalRows;
   int32_t  maxRows;
@@ -341,7 +342,7 @@ typedef struct SExprInfo {
 
 typedef struct {
   const char* key;
-  int32_t     keyLen;
+  size_t     keyLen;
   uint8_t     type;
   union {
     const char* value;
@@ -350,7 +351,7 @@ typedef struct {
     double      d;
     float       f;
   };
-  int32_t length;
+  size_t length;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1

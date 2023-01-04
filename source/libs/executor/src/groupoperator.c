@@ -458,7 +458,8 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode*
 
   int32_t    num = 0;
   SExprInfo* pExprInfo = createExprInfo(pAggNode->pAggFuncs, pAggNode->pGroupKeys, &num);
-  code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, pInfo->groupKeyLen, pTaskInfo->id.str);
+  code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, pInfo->groupKeyLen, pTaskInfo->id.str,
+                    pTaskInfo->streamInfo.pState);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -491,13 +492,17 @@ _error:
 
 static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   SPartitionOperatorInfo* pInfo = pOperator->info;
-
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
     int32_t len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
 
     SDataGroupInfo* pGroupInfo = NULL;
     void*           pPage = getCurrentDataGroupInfo(pInfo, &pGroupInfo, len);
+    if (pPage == NULL) {
+      T_LONG_JMP(pTaskInfo->env, terrno);
+    }
 
     pGroupInfo->numOfRows += 1;
 
@@ -594,6 +599,10 @@ void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInf
   } else {
     int32_t* curId = taosArrayGetLast(p->pPageList);
     pPage = getBufPage(pInfo->pBuf, *curId);
+    if (pPage == NULL) {
+      qError("failed to get buffer, code:%s", tstrerror(terrno));
+      return pPage;
+    }
 
     int32_t* rows = (int32_t*)pPage;
     if (*rows >= pInfo->rowCapacity) {
@@ -673,7 +682,8 @@ static int compareDataGroupInfo(const void* group1, const void* group2) {
 
 static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
   SPartitionOperatorInfo* pInfo = pOperator->info;
-
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  
   SDataGroupInfo* pGroupInfo =
       (pInfo->groupIndex != -1) ? taosArrayGet(pInfo->sortedGroupArray, pInfo->groupIndex) : NULL;
   if (pInfo->groupIndex == -1 || pInfo->pageIndex >= taosArrayGetSize(pGroupInfo->pPageList)) {
@@ -691,7 +701,11 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
 
   int32_t* pageId = taosArrayGet(pGroupInfo->pPageList, pInfo->pageIndex);
   void*    page = getBufPage(pInfo->pBuf, *pageId);
-
+  if (page == NULL) {
+    qError("failed to get buffer, code:%s, %s", tstrerror(terrno), GET_TASKID(pTaskInfo));
+    T_LONG_JMP(pTaskInfo->env, terrno);
+  }
+  
   blockDataEnsureCapacity(pInfo->binfo.pRes, pInfo->rowCapacity);
   blockDataFromBuf1(pInfo->binfo.pRes, page, pInfo->rowCapacity);
 

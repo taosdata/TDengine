@@ -84,20 +84,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	for {
-		result, err := consumer.Poll(time.Second)
-		if err != nil {
-			panic(err)
-		}
-		if result.Type != common.TMQ_RES_TABLE_META {
-			panic("want message type 2 got " + strconv.Itoa(int(result.Type)))
-		}
-		data, _ := json.Marshal(result.Meta)
-		fmt.Println(string(data))
-		consumer.Commit(context.Background(), result.Message)
-		consumer.FreeMessage(result.Message)
-		break
-	}
 	_, err = db.Exec("insert into example_tmq.t1 values(now,1)")
 	if err != nil {
 		panic(err)

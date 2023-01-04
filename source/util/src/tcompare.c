@@ -21,6 +21,7 @@
 #include "tdef.h"
 #include "thash.h"
 #include "tlog.h"
+#include "tutil.h"
 #include "types.h"
 
 int32_t setChkInBytes1(const void *pLeft, const void *pRight) {
@@ -243,7 +244,7 @@ int32_t compareJsonVal(const void *pLeft, const void *pRight) {
   } else if (leftType == TSDB_DATA_TYPE_NULL) {
     return 0;
   } else {
-    assert(0);
+    ASSERTS(0, "data type unexpected");
     return 0;
   }
 }
@@ -997,6 +998,7 @@ int32_t compareUint64Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareJsonValDesc(const void *pLeft, const void *pRight) { return compareJsonVal(pRight, pLeft); }
+
 /*
  * Compare two strings
  *    TSDB_MATCH:            Match
@@ -1007,59 +1009,63 @@ int32_t compareJsonValDesc(const void *pLeft, const void *pRight) { return compa
  *      '_': Matches one character
  *
  */
-int32_t patternMatch(const char *patterStr, const char *str, size_t size, const SPatternCompareInfo *pInfo) {
+int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t ssize,
+                     const SPatternCompareInfo *pInfo) {
   char c, c1;
 
   int32_t i = 0;
   int32_t j = 0;
-  int32_t o = 0;
-  int32_t m = 0;
+  int32_t nMatchChar = 0;
 
-  while ((c = patterStr[i++]) != 0) {
+  while ((i < psize) && ((c = pattern[i++]) != 0)) {
     if (c == pInfo->matchAll) { /* Match "*" */
 
-      while ((c = patterStr[i++]) == pInfo->matchAll || c == pInfo->matchOne) {
+      while ((i < psize) && ((c = pattern[i++]) == pInfo->matchAll || c == pInfo->matchOne)) {
         if (c == pInfo->matchOne) {
-          if (j > size || str[j++] == 0) {
-            // empty string, return not match
+          if (j >= ssize || str[j++] == 0) {  // empty string, return not match
             return TSDB_PATTERN_NOWILDCARDMATCH;
           } else {
-            ++o;
+            ++nMatchChar;
           }
         }
       }
 
-      if (c == 0) {
+      if (i >= psize && (c == pInfo->umatchOne || c == pInfo->umatchAll)) {
         return TSDB_PATTERN_MATCH; /* "*" at the end of the pattern matches */
       }
 
-      char next[3] = {toupper(c), tolower(c), 0};
-      m = o;
-      while (1) {
-        size_t n = strcspn(str + m, next);
-        str += m + n;
+      char rejectList[2] = {toupper(c), tolower(c)};
 
-        if (str[0] == 0 || (n >= size)) {
+      str += nMatchChar;
+      int32_t remain = ssize - nMatchChar;
+      while (1) {
+        size_t n = tstrncspn(str, remain, rejectList, 2);
+
+        str += n;
+        remain -= n;
+
+        if ((remain <= 0) || str[0] == 0) {
           break;
         }
 
-        int32_t ret = patternMatch(&patterStr[i], ++str, size - n - 1, pInfo);
+        int32_t ret = patternMatch(&pattern[i], psize - i, ++str, --remain, pInfo);
         if (ret != TSDB_PATTERN_NOMATCH) {
           return ret;
         }
-        m = 0;
       }
+
       return TSDB_PATTERN_NOWILDCARDMATCH;
     }
 
-    c1 = str[j++];
-    ++o;
+    if (j < ssize) {
+      c1 = str[j++];
+      ++nMatchChar;
 
-    if (j <= size) {
-      if (c == '\\' && patterStr[i] == '_' && c1 == '_') {
+      if (c == '\\' && pattern[i] == '_' && c1 == '_') {
         i++;
         continue;
       }
+
       if (c == c1 || tolower(c) == tolower(c1) || (c == pInfo->matchOne && c1 != 0)) {
         continue;
       }
@@ -1068,39 +1074,49 @@ int32_t patternMatch(const char *patterStr, const char *str, size_t size, const 
     return TSDB_PATTERN_NOMATCH;
   }
 
-  return (str[j] == 0 || j >= size) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
+  return (j >= ssize || str[j] == 0) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
-int32_t WCSPatternMatch(const TdUcs4 *patterStr, const TdUcs4 *str, size_t size, const SPatternCompareInfo *pInfo) {
+int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize,
+                        const SPatternCompareInfo *pInfo) {
   TdUcs4 c, c1;
-  TdUcs4 matchOne = L'_';  // "_"
-  TdUcs4 matchAll = L'%';  // "%"
 
   int32_t i = 0;
   int32_t j = 0;
+  int32_t nMatchChar = 0;
 
-  while ((c = patterStr[i++]) != 0) {
-    if (c == matchAll) { /* Match "%" */
+  while ((i < psize) && ((c = pattern[i++]) != 0)) {
+    if (c == pInfo->umatchAll) { /* Match "%" */
 
-      while ((c = patterStr[i++]) == matchAll || c == matchOne) {
-        if (c == matchOne && (j >= size || str[j++] == 0)) {
-          return TSDB_PATTERN_NOWILDCARDMATCH;
+      while ((i < psize) && ((c = pattern[i++]) == pInfo->umatchAll || c == pInfo->umatchOne)) {
+        if (c == pInfo->umatchOne) {
+          if (j >= ssize || str[j++] == 0) {
+            return TSDB_PATTERN_NOWILDCARDMATCH;
+          } else {
+            ++nMatchChar;
+          }
         }
       }
-      if (c == 0) {
+
+      if (i >= psize && (c == pInfo->umatchOne || c == pInfo->umatchAll)) {
         return TSDB_PATTERN_MATCH;
       }
 
-      TdUcs4 accept[3] = {towupper(c), towlower(c), 0};
+      TdUcs4 rejectList[2] = {towupper(c), towlower(c)};
+
+      str += nMatchChar;
+      int32_t remain = ssize - nMatchChar;
       while (1) {
-        size_t n = wcscspn(str, accept);
+        size_t n = twcsncspn(str, remain, rejectList, 2);
 
         str += n;
-        if (str[0] == 0 || (n >= size)) {
+        remain -= n;
+
+        if ((remain <= 0) || str[0] == 0) {
           break;
         }
 
-        int32_t ret = WCSPatternMatch(&patterStr[i], ++str, size - n - 1, pInfo);
+        int32_t ret = wcsPatternMatch(&pattern[i], psize - i, ++str, --remain, pInfo);
         if (ret != TSDB_PATTERN_NOMATCH) {
           return ret;
         }
@@ -1109,10 +1125,16 @@ int32_t WCSPatternMatch(const TdUcs4 *patterStr, const TdUcs4 *str, size_t size,
       return TSDB_PATTERN_NOWILDCARDMATCH;
     }
 
-    c1 = str[j++];
+    if (j < ssize) {
+      c1 = str[j++];
+      nMatchChar++;
 
-    if (j <= size) {
-      if (c == c1 || towlower(c) == towlower(c1) || (c == matchOne && c1 != 0)) {
+      if (c == L'\\' && pattern[i] == L'_' && c1 == L'_') {
+        i++;
+        continue;
+      }
+
+      if (c == c1 || towlower(c) == towlower(c1) || (c == pInfo->umatchOne && c1 != 0)) {
         continue;
       }
     }
@@ -1120,16 +1142,39 @@ int32_t WCSPatternMatch(const TdUcs4 *patterStr, const TdUcs4 *str, size_t size,
     return TSDB_PATTERN_NOMATCH;
   }
 
-  return (str[j] == 0 || j >= size) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
+  return (j >= ssize || str[j] == 0) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
-int32_t compareStrRegexCompMatch(const void *pLeft, const void *pRight) { return compareStrRegexComp(pLeft, pRight); }
-
-int32_t compareStrRegexCompNMatch(const void *pLeft, const void *pRight) {
-  return compareStrRegexComp(pLeft, pRight) ? 0 : 1;
+int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight) {
+  return comparestrRegexMatch(pLeft, pRight) ? 0 : 1;
 }
 
-int32_t compareStrRegexComp(const void *pLeft, const void *pRight) {
+static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
+  int32_t ret = 0;
+  regex_t regex;
+  char    msgbuf[256] = {0};
+
+  int32_t cflags = REG_EXTENDED;
+  if ((ret = regcomp(&regex, pPattern, cflags)) != 0) {
+    regerror(ret, &regex, msgbuf, tListLen(msgbuf));
+
+    uError("Failed to compile regex pattern %s. reason %s", pPattern, msgbuf);
+    regfree(&regex);
+    return 1;
+  }
+
+  regmatch_t pmatch[1];
+  ret = regexec(&regex, pString, 1, pmatch, 0);
+  if (ret != 0 && ret != REG_NOMATCH) {
+    regerror(ret, &regex, msgbuf, sizeof(msgbuf));
+    uDebug("Failed to match %s with pattern %s, reason %s", pString, pPattern, msgbuf)
+  }
+
+  regfree(&regex);
+  return (ret == 0) ? 0 : 1;
+}
+
+int32_t comparestrRegexMatch(const void *pLeft, const void *pRight) {
   size_t sz = varDataLen(pRight);
   char  *pattern = taosMemoryMalloc(sz + 1);
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
@@ -1140,30 +1185,49 @@ int32_t compareStrRegexComp(const void *pLeft, const void *pRight) {
   memcpy(str, varDataVal(pLeft), sz);
   str[sz] = 0;
 
-  int32_t errCode = 0;
-  regex_t regex;
-  char    msgbuf[256] = {0};
+  int32_t ret = doExecRegexMatch(str, pattern);
 
-  int32_t cflags = REG_EXTENDED;
-  if ((errCode = regcomp(&regex, pattern, cflags)) != 0) {
-    regerror(errCode, &regex, msgbuf, sizeof(msgbuf));
-    uError("Failed to compile regex pattern %s. reason %s", pattern, msgbuf);
-    regfree(&regex);
-    taosMemoryFree(str);
-    taosMemoryFree(pattern);
-    return 1;
-  }
-
-  errCode = regexec(&regex, str, 0, NULL, 0);
-  if (errCode != 0 && errCode != REG_NOMATCH) {
-    regerror(errCode, &regex, msgbuf, sizeof(msgbuf));
-    uDebug("Failed to match %s with pattern %s, reason %s", str, pattern, msgbuf)
-  }
-  int32_t result = (errCode == 0) ? 0 : 1;
-  regfree(&regex);
   taosMemoryFree(str);
   taosMemoryFree(pattern);
-  return result;
+
+  return (ret == 0) ? 0 : 1;
+  ;
+}
+
+int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
+  size_t len = varDataLen(pPattern);
+  char  *pattern = taosMemoryMalloc(len + 1);
+
+  int convertLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(pPattern), len, pattern);
+  if (convertLen < 0) {
+    taosMemoryFree(pattern);
+    return TSDB_CODE_APP_ERROR;
+  }
+
+  pattern[convertLen] = 0;
+
+  len = varDataLen(pString);
+  char *str = taosMemoryMalloc(len + 1);
+  convertLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(pString), len, str);
+  if (convertLen < 0) {
+    taosMemoryFree(str);
+    taosMemoryFree(pattern);
+
+    return TSDB_CODE_APP_ERROR;
+  }
+
+  str[convertLen] = 0;
+
+  int32_t ret = doExecRegexMatch(str, pattern);
+
+  taosMemoryFree(str);
+  taosMemoryFree(pattern);
+
+  return (ret == 0) ? 0 : 1;
+}
+
+int32_t comparewcsRegexNMatch(const void *pLeft, const void *pRight) {
+  return comparewcsRegexMatch(pLeft, pRight) ? 0 : 1;
 }
 
 int32_t taosArrayCompareString(const void *a, const void *b) {
@@ -1173,46 +1237,35 @@ int32_t taosArrayCompareString(const void *a, const void *b) {
   return compareLenPrefixedStr(x, y);
 }
 
-int32_t compareStrPatternMatch(const void *pLeft, const void *pRight) {
-  SPatternCompareInfo pInfo = {'%', '_'};
+int32_t comparestrPatternMatch(const void *pLeft, const void *pRight) {
+  SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
 
-  assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN);
-  char *pattern = taosMemoryCalloc(varDataLen(pRight) + 1, sizeof(char));
-  memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-
+  ASSERT(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN);
+  size_t pLen = varDataLen(pRight);
   size_t sz = varDataLen(pLeft);
-  char  *buf = taosMemoryMalloc(sz + 1);
-  memcpy(buf, varDataVal(pLeft), sz);
-  buf[sz] = 0;
 
-  int32_t ret = patternMatch(pattern, buf, sz, &pInfo);
-  taosMemoryFree(buf);
-  taosMemoryFree(pattern);
+  int32_t ret = patternMatch(varDataVal(pRight), pLen, varDataVal(pLeft), sz, &pInfo);
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
-int32_t compareStrPatternNotMatch(const void *pLeft, const void *pRight) {
-  return compareStrPatternMatch(pLeft, pRight) ? 0 : 1;
+int32_t comparestrPatternNMatch(const void *pLeft, const void *pRight) {
+  return comparestrPatternMatch(pLeft, pRight) ? 0 : 1;
 }
 
-int32_t compareWStrPatternMatch(const void *pLeft, const void *pRight) {
-  SPatternCompareInfo pInfo = {'%', '_'};
+int32_t comparewcsPatternMatch(const void *pLeft, const void *pRight) {
+  SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
 
-  assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
+  size_t psize = varDataLen(pRight);
 
-  char *pattern = taosMemoryCalloc(varDataLen(pRight) + TSDB_NCHAR_SIZE, 1);
-  memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-
-  int32_t ret =
-      WCSPatternMatch((TdUcs4 *)pattern, (TdUcs4 *)varDataVal(pLeft), varDataLen(pLeft) / TSDB_NCHAR_SIZE, &pInfo);
-  taosMemoryFree(pattern);
-
+  int32_t ret = wcsPatternMatch((TdUcs4 *)varDataVal(pRight), psize / TSDB_NCHAR_SIZE, (TdUcs4 *)varDataVal(pLeft),
+                                varDataLen(pLeft) / TSDB_NCHAR_SIZE, &pInfo);
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
-int32_t compareWStrPatternNotMatch(const void *pLeft, const void *pRight) {
-  return compareWStrPatternMatch(pLeft, pRight) ? 0 : 1;
+int32_t comparewcsPatternNMatch(const void *pLeft, const void *pRight) {
+  return comparewcsPatternMatch(pLeft, pRight) ? 0 : 1;
 }
+
 __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
 
@@ -1235,7 +1288,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_TIMESTAMP:
         return setChkInBytes8;
       default:
-        assert(0);
+        ASSERTS(0, "data type unexpected");
     }
   }
 
@@ -1258,7 +1311,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_TIMESTAMP:
         return setChkNotInBytes8;
       default:
-        assert(0);
+        ASSERTS(0, "data type unexpected");
     }
   }
 
@@ -1285,13 +1338,13 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       break;
     case TSDB_DATA_TYPE_BINARY: {
       if (optr == OP_TYPE_MATCH) {
-        comparFn = compareStrRegexCompMatch;
+        comparFn = comparestrRegexMatch;
       } else if (optr == OP_TYPE_NMATCH) {
-        comparFn = compareStrRegexCompNMatch;
+        comparFn = comparestrRegexNMatch;
       } else if (optr == OP_TYPE_LIKE) { /* wildcard query using like operator */
-        comparFn = compareStrPatternMatch;
+        comparFn = comparestrPatternMatch;
       } else if (optr == OP_TYPE_NOT_LIKE) { /* wildcard query using like operator */
-        comparFn = compareStrPatternNotMatch;
+        comparFn = comparestrPatternNMatch;
       } else if (optr == OP_TYPE_IN) {
         comparFn = compareChkInString;
       } else if (optr == OP_TYPE_NOT_IN) {
@@ -1305,13 +1358,13 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
 
     case TSDB_DATA_TYPE_NCHAR: {
       if (optr == OP_TYPE_MATCH) {
-        comparFn = compareStrRegexCompMatch;
+        comparFn = comparewcsRegexMatch;
       } else if (optr == OP_TYPE_NMATCH) {
-        comparFn = compareStrRegexCompNMatch;
+        comparFn = comparewcsRegexNMatch;
       } else if (optr == OP_TYPE_LIKE) {
-        comparFn = compareWStrPatternMatch;
+        comparFn = comparewcsPatternMatch;
       } else if (optr == OP_TYPE_NOT_LIKE) {
-        comparFn = compareWStrPatternNotMatch;
+        comparFn = comparewcsPatternNMatch;
       } else if (optr == OP_TYPE_IN) {
         comparFn = compareChkInString;
       } else if (optr == OP_TYPE_NOT_IN) {

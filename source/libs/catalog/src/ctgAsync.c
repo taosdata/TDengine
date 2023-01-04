@@ -471,17 +471,20 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
 }
 
 int32_t ctgInitTask(SCtgJob* pJob, CTG_TASK_TYPE type, void* param, int32_t* taskId) {
+  int32_t code = 0;
   int32_t tid = atomic_fetch_add_32(&pJob->taskIdx, 1);
 
   CTG_LOCK(CTG_WRITE, &pJob->taskLock);
-  CTG_ERR_RET((*gCtgAsyncFps[type].initFp)(pJob, tid, param));
-  CTG_UNLOCK(CTG_WRITE, &pJob->taskLock);
+  CTG_ERR_JRET((*gCtgAsyncFps[type].initFp)(pJob, tid, param));
 
   if (taskId) {
     *taskId = tid;
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  CTG_UNLOCK(CTG_WRITE, &pJob->taskLock);
+  
+  return code;
 }
 
 int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const SCatalogReq* pReq, catalogCallback fp,
@@ -1549,10 +1552,10 @@ int32_t ctgHandleGetUserRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* 
     goto _return;
   }
 
-  if (ctx->user.type == AUTH_TYPE_READ && pOut->readDbs &&
+  if (CTG_AUTH_READ(ctx->user.type) && pOut->readDbs &&
       taosHashGet(pOut->readDbs, ctx->user.dbFName, strlen(ctx->user.dbFName))) {
     pass = true;
-  } else if (ctx->user.type == AUTH_TYPE_WRITE && pOut->writeDbs &&
+  } else if (CTG_AUTH_WRITE(ctx->user.type) && pOut->writeDbs &&
              taosHashGet(pOut->writeDbs, ctx->user.dbFName, strlen(ctx->user.dbFName))) {
     pass = true;
   }

@@ -631,11 +631,13 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
   mInfo("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+
   // create stb for stream
-  if (mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
+  if (createStreamReq.createStb == STREAM_CREATE_STABLE_TRUE && mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
     mError("trans:%d, failed to create stb for stream %s since %s", pTrans->id, createStreamReq.name, terrstr());
     mndTransDrop(pTrans);
     goto _OVER;
@@ -781,6 +783,12 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "stream-checkpoint");
   if (pTrans == NULL) return -1;
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    mndReleaseStream(pMnode, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
   taosRLockLatch(&pStream->lock);
   // 1. redo action: broadcast checkpoint source msg for all source vg
   int32_t totLevel = taosArrayGetSize(pStream->tasks);
@@ -871,17 +879,24 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   }
 
   if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "drop-stream");
-  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
   if (pTrans == NULL) {
     mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
   mInfo("trans:%d, used to drop stream:%s", pTrans->id, dropReq.name);
+
+  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
 
   // drop all tasks
   if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {

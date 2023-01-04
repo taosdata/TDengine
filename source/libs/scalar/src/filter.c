@@ -130,9 +130,9 @@ __compar_fn_t gDataCompare[] = {compareInt32Val,
                                 compareFloatVal,
                                 compareDoubleVal,
                                 compareLenPrefixedStr,
-                                compareStrPatternMatch,
+                                comparestrPatternMatch,
                                 compareChkInString,
-                                compareWStrPatternMatch,
+                                comparewcsPatternMatch,
                                 compareLenPrefixedWStr,
                                 compareUint8Val,
                                 compareUint16Val,
@@ -142,15 +142,17 @@ __compar_fn_t gDataCompare[] = {compareInt32Val,
                                 setChkInBytes2,
                                 setChkInBytes4,
                                 setChkInBytes8,
-                                compareStrRegexCompMatch,
-                                compareStrRegexCompNMatch,
+                                comparestrRegexMatch,
+                                comparestrRegexNMatch,
                                 setChkNotInBytes1,
                                 setChkNotInBytes2,
                                 setChkNotInBytes4,
                                 setChkNotInBytes8,
                                 compareChkNotInString,
-                                compareStrPatternNotMatch,
-                                compareWStrPatternNotMatch};
+                                comparestrPatternNMatch,
+                                comparewcsPatternNMatch,
+                                comparewcsRegexMatch,
+                                comparewcsRegexNMatch,};
 
 __compar_fn_t gInt8SignCompare[] = {compareInt8Val,   compareInt8Int16, compareInt8Int32,
                                     compareInt8Int64, compareInt8Float, compareInt8Double};
@@ -295,9 +297,9 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
 
     case TSDB_DATA_TYPE_NCHAR: {
       if (optr == OP_TYPE_MATCH) {
-        comparFn = 19;
+        comparFn = 28;
       } else if (optr == OP_TYPE_NMATCH) {
-        comparFn = 20;
+        comparFn = 29;
       } else if (optr == OP_TYPE_LIKE) {
         comparFn = 9;
       } else if (optr == OP_TYPE_NOT_LIKE) {
@@ -336,7 +338,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
 __compar_fn_t filterGetCompFunc(int32_t type, int32_t optr) { return gDataCompare[filterGetCompFuncIdx(type, optr)]; }
 
 __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr) {
-  if (TSDB_DATA_TYPE_NULL == rType) {
+  if (TSDB_DATA_TYPE_NULL == rType || TSDB_DATA_TYPE_JSON == rType) {
     return NULL;
   }
   
@@ -3762,6 +3764,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       return DEAL_RES_CONTINUE;
     }
 
+/*
     if (!FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP)) {
       return DEAL_RES_CONTINUE;
     }
@@ -3785,7 +3788,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       stat->code = code;
       return DEAL_RES_ERROR;
     }
-
+*/
     return DEAL_RES_CONTINUE;
   }
 
@@ -3931,7 +3934,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
           stat->scalarMode = true;
           return DEAL_RES_CONTINUE;
         }
-        int32_t        type = vectorGetConvertType(refNode->node.resType.type, listNode->dataType.type);
+        int32_t        type = vectorGetConvertType(refNode->node.resType.type, listNode->node.resType.type);
         if (0 != type && type != refNode->node.resType.type) {
           stat->scalarMode = true;
           return DEAL_RES_CONTINUE;
@@ -3955,12 +3958,14 @@ int32_t fltReviseNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
 
   FLT_ERR_JRET(pStat->code);
 
+/*
   int32_t nodeNum = taosArrayGetSize(pStat->nodeList);
   for (int32_t i = 0; i < nodeNum; ++i) {
     SValueNode *valueNode = *(SValueNode **)taosArrayGet(pStat->nodeList, i);
 
     FLT_ERR_JRET(sclConvertToTsValueNode(pStat->precision, valueNode));
   }
+*/
 
 _return:
 
@@ -4082,7 +4087,7 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SC
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     taosArrayPush(pList, &pSrc);
 
-    int32_t code = scalarCalculate(info->sclCtx.node, pList, &output);
+    code = scalarCalculate(info->sclCtx.node, pList, &output);
     taosArrayDestroy(pList);
 
     FLT_ERR_RET(code);

@@ -41,15 +41,15 @@
 #define HLL_BUCKET_MASK (HLL_BUCKETS - 1)
 #define HLL_ALPHA_INF   0.721347520444481703680  // constant for 0.5/ln(2)
 
-//typedef struct SMinmaxResInfo {
-//  bool      assign;  // assign the first value or not
-//  int64_t   v;
-//  STuplePos tuplePos;
+// typedef struct SMinmaxResInfo {
+//   bool      assign;  // assign the first value or not
+//   int64_t   v;
+//   STuplePos tuplePos;
 //
-//  STuplePos nullTuplePos;
-//  bool      nullTupleSaved;
-//  int16_t   type;
-//} SMinmaxResInfo;
+//   STuplePos nullTuplePos;
+//   bool      nullTupleSaved;
+//   int16_t   type;
+// } SMinmaxResInfo;
 
 typedef struct STopBotResItem {
   SVariant  v;
@@ -540,7 +540,7 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
   if (IS_NULL_TYPE(type)) {
     // select count(NULL) returns 0
     numOfElem = 1;
-    *((int64_t*)buf) = 0;
+    *((int64_t*)buf) += 0;
   } else {
     numOfElem = getNumOfElems(pCtx);
     *((int64_t*)buf) += numOfElem;
@@ -784,7 +784,7 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   pEntryInfo->isNullRes = (pEntryInfo->numOfRes == 0) ? 1 : 0;
 
   if (pCol->info.type == TSDB_DATA_TYPE_FLOAT) {
-    float v = *(float*)&pRes->v;
+    float v = GET_FLOAT_VAL(&pRes->v);
     colDataAppend(pCol, currentRow, (const char*)&v, pEntryInfo->isNullRes);
   } else {
     colDataAppend(pCol, currentRow, (const char*)&pRes->v, pEntryInfo->isNullRes);
@@ -818,28 +818,31 @@ void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuple
     return;
   }
 
-  if (pCtx->saveHandle.pBuf != NULL) {
-    if (pTuplePos->pageId != -1) {
-      int32_t     numOfCols = pCtx->subsidiaries.num;
-      const char* p = loadTupleData(pCtx, pTuplePos);
+  if ((pCtx->saveHandle.pBuf != NULL && pTuplePos->pageId != -1) ||
+      (pCtx->saveHandle.pState && pTuplePos->streamTupleKey.ts > 0)) {
+    int32_t     numOfCols = pCtx->subsidiaries.num;
+    const char* p = loadTupleData(pCtx, pTuplePos);
 
-      bool* nullList = (bool*)p;
-      char* pStart = (char*)(nullList + numOfCols * sizeof(bool));
+    bool* nullList = (bool*)p;
+    char* pStart = (char*)(nullList + numOfCols * sizeof(bool));
 
-      // todo set the offset value to optimize the performance.
-      for (int32_t j = 0; j < numOfCols; ++j) {
-        SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
-        int32_t         dstSlotId = pc->pExpr->base.resSchema.slotId;
+    // todo set the offset value to optimize the performance.
+    for (int32_t j = 0; j < numOfCols; ++j) {
+      SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
+      int32_t         dstSlotId = pc->pExpr->base.resSchema.slotId;
 
-        SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
-        ASSERT(pc->pExpr->base.resSchema.bytes == pDstCol->info.bytes);
-        if (nullList[j]) {
-          colDataAppendNULL(pDstCol, rowIndex);
-        } else {
-          colDataAppend(pDstCol, rowIndex, pStart, false);
-        }
-        pStart += pDstCol->info.bytes;
+      SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
+      ASSERT(pc->pExpr->base.resSchema.bytes == pDstCol->info.bytes);
+      if (nullList[j]) {
+        colDataAppendNULL(pDstCol, rowIndex);
+      } else {
+        colDataAppend(pDstCol, rowIndex, pStart, false);
       }
+      pStart += pDstCol->info.bytes;
+    }
+
+    if (pCtx->saveHandle.pState) {
+      tdbFree((void*)p);
     }
   }
 }
@@ -1995,6 +1998,22 @@ static FORCE_INLINE TSKEY getRowPTs(SColumnInfoData* pTsColInfo, int32_t rowInde
   return *(TSKEY*)colDataGetData(pTsColInfo, rowIndex);
 }
 
+static void prepareBuf(SqlFunctionCtx* pCtx) {
+  if (pCtx->subsidiaries.rowLen == 0) {
+    int32_t rowLen = 0;
+    for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
+      SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
+      rowLen += pc->pExpr->base.resSchema.bytes;
+    }
+
+    pCtx->subsidiaries.rowLen = rowLen + pCtx->subsidiaries.num * sizeof(bool);
+    pCtx->subsidiaries.buf = taosMemoryMalloc(pCtx->subsidiaries.rowLen);
+  }
+
+  ASSERT(pCtx->subsidiaries.buf != NULL);
+  ASSERT(pCtx->subsidiaries.rowLen > 0);
+}
+
 static void firstlastSaveTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SqlFunctionCtx* pCtx,
                                    SFirstLastRes* pInfo) {
   if (pCtx->subsidiaries.num <= 0) {
@@ -2002,9 +2021,7 @@ static void firstlastSaveTupleData(const SSDataBlock* pSrcBlock, int32_t rowInde
   }
 
   if (!pInfo->hasResult) {
-    pInfo->pos = saveTupleData(pCtx, rowIndex, pSrcBlock, NULL);
-    ASSERT(pCtx->subsidiaries.buf != NULL);
-    ASSERT(pCtx->subsidiaries.rowLen > 0);
+    pInfo->pos = saveTupleData(pCtx, rowIndex, pSrcBlock);
   } else {
     updateTupleData(pCtx, rowIndex, pSrcBlock, &pInfo->pos);
   }
@@ -2057,8 +2074,8 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
 
   int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
 
-  //  please ref. to the comment in lastRowFunction for the reason why disabling the opt version of last/first function.
-  //  we will use this opt implementation in an new version that is only available in scan subplan
+  //  please ref. to the comment in lastRowFunction for the reason why disabling the opt version of last/first
+  //  function. we will use this opt implementation in an new version that is only available in scan subplan
 #if 0
   if (blockDataOrder == TSDB_ORDER_ASC) {
     // filter according to current result firstly
@@ -2165,7 +2182,8 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
   int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
 
-  //  please ref. to the comment in lastRowFunction for the reason why disabling the opt version of last/first function.
+  //  please ref. to the comment in lastRowFunction for the reason why disabling the opt version of last/first
+  //  function.
 #if 0
   if (blockDataOrder == TSDB_ORDER_ASC) {
     for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
@@ -2222,9 +2240,9 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     int32_t round = pInput->numOfRows >> 2;
     int32_t reminder = pInput->numOfRows & 0x03;
 
-      for (int32_t i = pInput->startRowIndex, tick = 0; tick < round; i += 4, tick += 1) {
-        int64_t cts = pts[i];
-        int32_t chosen = i;
+    for (int32_t i = pInput->startRowIndex, tick = 0; tick < round; i += 4, tick += 1) {
+      int64_t cts = pts[i];
+      int32_t chosen = i;
 
       if (cts < pts[i + 1]) {
         cts = pts[i + 1];
@@ -2248,18 +2266,18 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       }
     }
 
-      for (int32_t i = pInput->startRowIndex + round * 4; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
-        if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
-          char* data = colDataGetData(pInputCol, i);
-          doSaveCurrentVal(pCtx, i, pts[i], type, data);
-          pResInfo->numOfRes = 1;
-        }
+    for (int32_t i = pInput->startRowIndex + round * 4; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+      if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
+        char* data = colDataGetData(pInputCol, i);
+        doSaveCurrentVal(pCtx, i, pts[i], type, data);
+        pResInfo->numOfRes = 1;
       }
-    } else {
-      for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
-        if (colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
-          continue;
-        }
+    }
+  } else {
+    for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+      if (colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+        continue;
+      }
 
       numOfElems++;
 
@@ -2425,7 +2443,7 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
-  int32_t type  = pInputCol->info.type;
+  int32_t type = pInputCol->info.type;
   int32_t bytes = pInputCol->info.bytes;
   pInfo->bytes = bytes;
 
@@ -2763,7 +2781,7 @@ int32_t topFunction(SqlFunctionCtx* pCtx) {
   }
 
   if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pRes->nullTupleSaved) {
-    pRes->nullTuplePos = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, NULL);
+    pRes->nullTuplePos = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock);
     pRes->nullTupleSaved = true;
   }
   return TSDB_CODE_SUCCESS;
@@ -2791,7 +2809,7 @@ int32_t bottomFunction(SqlFunctionCtx* pCtx) {
   }
 
   if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pRes->nullTupleSaved) {
-    pRes->nullTuplePos = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, NULL);
+    pRes->nullTuplePos = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock);
     pRes->nullTupleSaved = true;
   }
 
@@ -2849,7 +2867,7 @@ void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSData
 
     // save the data of this tuple
     if (pCtx->subsidiaries.num > 0) {
-      pItem->tuplePos = saveTupleData(pCtx, rowIndex, pSrcBlock, NULL);
+      pItem->tuplePos = saveTupleData(pCtx, rowIndex, pSrcBlock);
     }
 #ifdef BUF_PAGE_DEBUG
     qDebug("page_saveTuple i:%d, item:%p,pageId:%d, offset:%d\n", pEntryInfo->numOfRes, pItem, pItem->tuplePos.pageId,
@@ -2923,8 +2941,7 @@ void* serializeTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubsid
   return buf;
 }
 
-static STuplePos doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, size_t length,
-                                 const STupleKey* pKey) {
+static STuplePos doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, size_t length, STupleKey key) {
   STuplePos p = {0};
   if (pHandle->pBuf != NULL) {
     SFilePage* pPage = NULL;
@@ -2950,29 +2967,31 @@ static STuplePos doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf
     releaseBufPage(pHandle->pBuf, pPage);
   } else {
     // other tuple save policy
-    if (streamStateFuncPut(pHandle->pState, pKey, pBuf, length) < 0) {
+    if (streamStateFuncPut(pHandle->pState, &key, pBuf, length) < 0) {
       ASSERT(0);
     }
-    p.streamTupleKey = *pKey;
+    p.streamTupleKey = key;
   }
 
   return p;
 }
 
-STuplePos saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, const STupleKey* pKey) {
-  if (pCtx->subsidiaries.rowLen == 0) {
-    int32_t rowLen = 0;
-    for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
-      SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
-      rowLen += pc->pExpr->base.resSchema.bytes;
-    }
+STuplePos saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock) {
+  prepareBuf(pCtx);
 
-    pCtx->subsidiaries.rowLen = rowLen + pCtx->subsidiaries.num * sizeof(bool);
-    pCtx->subsidiaries.buf = taosMemoryMalloc(pCtx->subsidiaries.rowLen);
+  STupleKey key;
+  if (pCtx->saveHandle.pBuf == NULL) {
+    SColumnInfoData* pColInfo = taosArrayGet(pSrcBlock->pDataBlock, 0);
+    ASSERT(pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+    int64_t skey = *(int64_t*)colDataGetData(pColInfo, rowIndex);
+
+    key.groupId = pSrcBlock->info.id.groupId;
+    key.ts = skey;
+    key.exprIdx = pCtx->exprIdx;
   }
 
   char* buf = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf);
-  return doSaveTupleData(&pCtx->saveHandle, buf, pCtx->subsidiaries.rowLen, pKey);
+  return doSaveTupleData(&pCtx->saveHandle, buf, pCtx->subsidiaries.rowLen, key);
 }
 
 static int32_t doUpdateTupleData(SSerializeDataHandle* pHandle, const void* pBuf, size_t length, STuplePos* pPos) {
@@ -2989,6 +3008,8 @@ static int32_t doUpdateTupleData(SSerializeDataHandle* pHandle, const void* pBuf
 }
 
 int32_t updateTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
+  prepareBuf(pCtx);
+
   char* buf = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf);
   doUpdateTupleData(&pCtx->saveHandle, buf, pCtx->subsidiaries.rowLen, pPos);
   return TSDB_CODE_SUCCESS;
@@ -3616,7 +3637,7 @@ bool histogramFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
   pInfo->totalCount = 0;
   pInfo->normalized = 0;
 
-  char *binTypeStr = strndup(varDataVal(pCtx->param[1].param.pz), varDataLen(pCtx->param[1].param.pz));
+  char*  binTypeStr = strndup(varDataVal(pCtx->param[1].param.pz), varDataLen(pCtx->param[1].param.pz));
   int8_t binType = getHistogramBinType(binTypeStr);
   taosMemoryFree(binTypeStr);
 
@@ -3939,7 +3960,6 @@ int32_t hllFunctionMerge(SqlFunctionCtx* pCtx) {
   SHLLInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   int32_t start = pInput->startRowIndex;
-
 
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
     char*     data = colDataGetData(pCol, i);
@@ -4416,7 +4436,7 @@ static void doReservoirSample(SqlFunctionCtx* pCtx, SSampleInfo* pInfo, char* da
   if (pInfo->numSampled < pInfo->samples) {
     sampleAssignResult(pInfo, data, pInfo->numSampled);
     if (pCtx->subsidiaries.num > 0) {
-      pInfo->tuplePos[pInfo->numSampled] = saveTupleData(pCtx, index, pCtx->pSrcBlock, NULL);
+      pInfo->tuplePos[pInfo->numSampled] = saveTupleData(pCtx, index, pCtx->pSrcBlock);
     }
     pInfo->numSampled++;
   } else {
@@ -4447,7 +4467,7 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
   }
 
   if (pInfo->numSampled == 0 && pCtx->subsidiaries.num > 0 && !pInfo->nullTupleSaved) {
-    pInfo->nullTuplePos = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, NULL);
+    pInfo->nullTuplePos = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock);
     pInfo->nullTupleSaved = true;
   }
 
@@ -4751,7 +4771,7 @@ static void doModeAdd(SModeInfo* pInfo, int32_t rowIndex, SqlFunctionCtx* pCtx, 
     pItem->count += 1;
 
     if (pCtx->subsidiaries.num > 0) {
-      pItem->tuplePos = saveTupleData(pCtx, rowIndex, pCtx->pSrcBlock, NULL);
+      pItem->tuplePos = saveTupleData(pCtx, rowIndex, pCtx->pSrcBlock);
     }
 
     taosHashPut(pInfo->pHash, data, hashKeyBytes, &pItem, sizeof(SModeItem*));
@@ -4791,7 +4811,7 @@ int32_t modeFunction(SqlFunctionCtx* pCtx) {
   }
 
   if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pInfo->nullTupleSaved) {
-    pInfo->nullTuplePos = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, NULL);
+    pInfo->nullTuplePos = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock);
     pInfo->nullTupleSaved = true;
   }
 
@@ -5185,6 +5205,7 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
   pDistInfo->numOfBlocks += p1.numOfBlocks;
   pDistInfo->numOfTables += p1.numOfTables;
   pDistInfo->numOfInmemRows += p1.numOfInmemRows;
+  pDistInfo->numOfVgroups += p1.numOfVgroups;
   pDistInfo->totalSize += p1.totalSize;
   pDistInfo->totalRows += p1.totalRows;
   pDistInfo->numOfFiles += p1.numOfFiles;
@@ -5219,6 +5240,7 @@ int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDist
   if (tEncodeU16(&encoder, pInfo->numOfFiles) < 0) return -1;
   if (tEncodeU32(&encoder, pInfo->numOfBlocks) < 0) return -1;
   if (tEncodeU32(&encoder, pInfo->numOfTables) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->numOfVgroups) < 0) return -1;
 
   if (tEncodeU64(&encoder, pInfo->totalSize) < 0) return -1;
   if (tEncodeU64(&encoder, pInfo->totalRows) < 0) return -1;
@@ -5250,6 +5272,7 @@ int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo
   if (tDecodeU16(&decoder, &pInfo->numOfFiles) < 0) return -1;
   if (tDecodeU32(&decoder, &pInfo->numOfBlocks) < 0) return -1;
   if (tDecodeU32(&decoder, &pInfo->numOfTables) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->numOfVgroups) < 0) return -1;
 
   if (tDecodeU64(&decoder, &pInfo->totalSize) < 0) return -1;
   if (tDecodeU64(&decoder, &pInfo->totalRows) < 0) return -1;
@@ -5292,7 +5315,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   int32_t len = sprintf(st + VARSTR_HEADER_SIZE,
                         "Total_Blocks=[%d] Total_Size=[%.2f Kb] Average_size=[%.2f Kb] Compression_Ratio=[%.2f %c]",
-                        pData->numOfBlocks, pData->totalSize / 1024.0, averageSize, compRatio, '%');
+                        pData->numOfBlocks, pData->totalSize / 1024.0, averageSize / 1024.0, compRatio, '%');
 
   varDataSetLen(st, len);
   colDataAppend(pColInfo, row++, st, false);
@@ -5310,7 +5333,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   colDataAppend(pColInfo, row++, st, false);
 
   len = sprintf(st + VARSTR_HEADER_SIZE, "Total_Tables=[%d] Total_Files=[%d] Total_Vgroups=[%d]", pData->numOfTables,
-                pData->numOfFiles, 0);
+                pData->numOfFiles, pData->numOfVgroups);
 
   varDataSetLen(st, len);
   colDataAppend(pColInfo, row++, st, false);

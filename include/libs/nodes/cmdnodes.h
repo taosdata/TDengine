@@ -40,6 +40,7 @@ extern "C" {
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 
+#define SHOW_ALIVE_RESULT_COLS 1
 #define PRIVILEGE_TYPE_MASK(n) (1 << n)
 
 #define PRIVILEGE_TYPE_ALL       PRIVILEGE_TYPE_MASK(0)
@@ -262,6 +263,11 @@ typedef struct SShowCreateDatabaseStmt {
   void*     pCfg;  // SDbCfgInfo
 } SShowCreateDatabaseStmt;
 
+typedef struct SShowAliveStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+} SShowAliveStmt;
+
 typedef struct SShowCreateTableStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
@@ -401,6 +407,7 @@ typedef struct SCreateStreamStmt {
   SNode*          pQuery;
   SNodeList*      pTags;
   SNode*          pSubtable;
+  SNodeList*      pCols;
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {

@@ -333,12 +333,22 @@ static bool stbSplHasPartTbname(SNodeList* pPartKeys) {
   return false;
 }
 
-static bool stbSplIsPartTableAgg(SAggLogicNode* pAgg) {
-  if (NULL != pAgg->pGroupKeys) {
-    return stbSplHasPartTbname(pAgg->pGroupKeys);
+static bool stbSplNotSystemScan(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    return SCAN_TYPE_SYSTEM_TABLE != ((SScanLogicNode*)pNode)->scanType;
+  } else if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    return stbSplNotSystemScan((SLogicNode*)nodesListGetNode(pNode->pChildren, 0));
+  } else {
+    return true;
   }
+}
+
+static bool stbSplIsPartTableAgg(SAggLogicNode* pAgg) {
   if (1 != LIST_LENGTH(pAgg->node.pChildren)) {
     return false;
+  }
+  if (NULL != pAgg->pGroupKeys) {
+    return stbSplHasPartTbname(pAgg->pGroupKeys) && stbSplNotSystemScan((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0));
   }
   return stbSplHasPartTbname(stbSplGetPartKeys((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0)));
 }

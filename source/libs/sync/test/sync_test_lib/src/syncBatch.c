@@ -311,7 +311,7 @@ cJSON* syncAppendEntriesBatch2Json(const SyncAppendEntriesBatch* pMsg) {
       cJSON*   pTmp = pSrcId;
       char     host[128] = {0};
       uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      // syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pTmp, "addr_host", host);
       cJSON_AddNumberToObject(pTmp, "addr_port", port);
     }
