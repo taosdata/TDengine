@@ -700,7 +700,7 @@ static void doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFunct
   }
 }
 
-int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
+int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems) {
   int32_t numOfElems = 0;
 
   SInputColumnInfoData* pInput = &pCtx->input;
@@ -746,7 +746,10 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
       if (pCtx->subsidiaries.num > 0) {
         index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
         if (index >= 0) {
-          pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock);
+          int32_t code = saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
+          }
         }
       }
     } else {
@@ -760,7 +763,10 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             if (index >= 0) {
-              pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock);
+              int32_t code = saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (code != TSDB_CODE_SUCCESS) {
+                return code;
+              }
             }
           }
         }
@@ -774,7 +780,10 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             if (index >= 0) {
-              pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock);
+              int32_t code = saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (code != TSDB_CODE_SUCCESS) {
+                return code;
+              }
             }
           }
         }
@@ -788,7 +797,10 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             if (index >= 0) {
-              pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock);
+              int32_t code = saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (code != TSDB_CODE_SUCCESS) {
+                return code;
+              }
             }
           }
         }
@@ -804,7 +816,10 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         if (pCtx->subsidiaries.num > 0) {
           index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
           if (index >= 0) {
-            pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock);
+            int32_t code = saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
+            if (code != TSDB_CODE_SUCCESS) {
+              return code;
+            }
           }
         }
       }
@@ -825,7 +840,10 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
       memcpy(&pBuf->v, pCol->pData + (pCol->info.bytes * i), pCol->info.bytes);
 
       if (pCtx->subsidiaries.num > 0) {
-        pBuf->tuplePos = saveTupleData(pCtx, i, pCtx->pSrcBlock);
+        int32_t code = saveTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
       pBuf->assign = true;
       numOfElems = 1;
@@ -889,9 +907,13 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
 _over:
   if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pBuf->nullTupleSaved) {
-    pBuf->nullTuplePos = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock);
+    int32_t code = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, &pBuf->nullTuplePos);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
     pBuf->nullTupleSaved = true;
   }
 
-  return numOfElems;
+  *nElems = numOfElems;
+  return TSDB_CODE_SUCCESS;
 }
