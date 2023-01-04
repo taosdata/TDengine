@@ -199,7 +199,7 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
-      fn = xxHash;
+      fn = MurmurHash3_32;
       break;
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_INT:
