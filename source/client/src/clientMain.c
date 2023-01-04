@@ -1168,6 +1168,54 @@ _return:
   return code;
 }
 
+int taos_get_tables_vgId(TAOS *taos, const char *db, const char *table[], int tableNum, int *vgId) {
+  if (NULL == taos) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return terrno;
+  }
+
+  if (NULL == db || NULL == table || NULL == vgId || tableNum <= 0) {
+    tscError("invalid input param, db:%p, table:%p, vgId:%p, tbNum:%d", db, table, vgId, tableNum);
+    terrno = TSDB_CODE_TSC_INVALID_INPUT;
+    return terrno;
+  }
+
+  int64_t      connId = *(int64_t *)taos;
+  SRequestObj *pRequest = NULL;
+  char        *sql = "taos_get_table_vgId";
+  int32_t      code = buildRequest(connId, sql, strlen(sql), NULL, false, &pRequest, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    return terrno;
+  }
+
+  pRequest->syncQuery = true;
+
+  STscObj  *pTscObj = pRequest->pTscObj;
+  SCatalog *pCtg = NULL;
+  code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCtg);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _return;
+  }
+
+  SRequestConnInfo conn = {
+      .pTrans = pTscObj->pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
+
+  conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+  code = catalogGetTablesHashVgId(pCtg, &conn, pTscObj->acctId, db, table, tableNum, vgId);
+  if (code) {
+    goto _return;
+  }
+
+_return:
+
+  terrno = code;
+
+  destroyRequest(pRequest);
+  return code;
+}
+
+
 int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   if (NULL == taos) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
