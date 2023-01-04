@@ -866,7 +866,12 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
   tjsonAddIntegerToObject(pJson, "crashSig", signum);
   tjsonAddIntegerToObject(pJson, "crashTs", taosGetTimestampUs());
 
+#if !defined(WINDOWS)
   taosLogTraceToBuf(tmp, sizeof(tmp), 3);
+#else
+  taosLogTraceToBuf(tmp, sizeof(tmp), 8);
+#endif
+
   tjsonAddStringToObject(pJson, "stackInfo", tmp);
   
   char* pCont = tjsonToString(pJson);
@@ -925,9 +930,10 @@ _return:
 #ifndef WINDOWS
   taosPrintLog(flags, level, dflag, "sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
         taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
-#endif
-
   taosPrintTrace(flags, level, dflag, 3);
+#else
+  taosPrintTrace(flags, level, dflag, 8);
+#endif
 
   taosMemoryFree(pMsg);
 }

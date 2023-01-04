@@ -102,10 +102,10 @@ void    taosResetTerminalMode();
         symbol->SizeOfStruct = sizeof(SYMBOL_INFO);                                                                   \
                                                                                                                       \
         if (frames > 0) {                                                                                             \
-          offset = snprintf(buf, bufSize - 1, "obtained %d stack frames", frames);                                    \
-          for (i = 0; i < frames; i++) {                                                                              \
+          offset = snprintf(buf, bufSize - 1, "obtained %d stack frames", (ignoreNum > 0) ? frames - ignoreNum : frames);                                    \
+          for (i = (ignoreNum > 0) ? ignoreNum : 0; i < frames; i++) {                                                                              \
             SymFromAddr(process, (DWORD64)(stack[i]), 0, symbol);                                                     \
-            offset += snprintf(buf + offset, bufSize - 1 - offset, "frame:%i, %s - 0x%0X", frames - i - 1, symbol->Name, symbol->Address); \
+            offset += snprintf(buf + offset, bufSize - 1 - offset, "frame:%i, %s - 0x%0X", (ignoreNum > 0) ? i - ignoreNum : i, symbol->Name, symbol->Address); \
           }                                                                                                           \
         }                                                                                                             \
         free(symbol);                                                                                                 \
@@ -131,10 +131,10 @@ void    taosResetTerminalMode();
         symbol->SizeOfStruct = sizeof(SYMBOL_INFO);                                                                   \
                                                                                                                       \
         if (frames > 0) {                                                                                             \
-          taosPrintLog(flags, level, dflag, "obtained %d stack frames", frames);                                      \
-          for (i = 0; i < frames; i++) {                                                                              \
+          taosPrintLog(flags, level, dflag, "obtained %d stack frames", (ignoreNum > 0) ? frames - ignoreNum : frames);                                      \
+          for (i = (ignoreNum > 0) ? ignoreNum : 0; i < frames; i++) {                                                                              \
             SymFromAddr(process, (DWORD64)(stack[i]), 0, symbol);                                                     \
-            taosPrintLog(flags, level, dflag, "frame:%i, %s - 0x%0X", frames - i - 1, symbol->Name, symbol->Address); \
+            taosPrintLog(flags, level, dflag, "frame:%i, %s - 0x%0X", (ignoreNum > 0) ? i - ignoreNum : i, symbol->Name, symbol->Address); \
           }                                                                                                           \
         }                                                                                                             \
         free(symbol);                                                                                                 \

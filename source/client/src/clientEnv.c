@@ -419,7 +419,13 @@ void taosClientCrash(int signum, void *sigInfo, void *context) {
 _return:
 
   taosLogCrashInfo("taos", pMsg, msgLen, signum, sigInfo);
+
+#if defined(WINDOWS)
+  exit(signum);
+#endif  
 }
+
+void crashReportThreadFuncUnexpectedStopped(void) { atomic_store_32(&clientStop, -1); }
 
 static void *tscCrashReportThreadFp(void *param) {
   setThreadName("client-crashReport");
@@ -432,6 +438,12 @@ static void *tscCrashReportThreadFp(void *param) {
   int32_t sleepTime = 200;
   int32_t reportPeriodNum = 3600 * 1000 / sleepTime;
   int32_t loopTimes = reportPeriodNum;
+
+#ifdef WINDOWS
+  if (taosCheckCurrentInDll()) {
+    atexit(crashReportThreadFuncUnexpectedStopped);
+  }
+#endif
   
   while (1) {
     if (clientStop) break;
@@ -499,7 +511,11 @@ void tscStopCrashReport() {
     return;
   }
 
-  clientStop = 1;
+  if (atomic_val_compare_exchange_32(&clientStop, 0, 1)) {
+    tscDebug("hb thread already stopped");
+    return;
+  }
+
   while (atomic_load_32(&clientStop) > 0) {
     taosMsleep(100);
   }
