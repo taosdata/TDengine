@@ -78,7 +78,6 @@ int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, 
 void qDestroyParseContext(SParseContext* pCxt);
 
 void qDestroyQuery(SQuery* pQueryNode);
-void insDestroyTableDataCxt(STableDataCxt *pTableCxt);
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
 int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid);
