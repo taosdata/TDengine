@@ -646,6 +646,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   if(info->dataFormat){
     smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, 0);
     smlBuildRow(info->currTableDataCtx);
+    clearColValArray(info->currTableDataCtx->pValues);
   }else{
     taosArraySet(elements->colArray, 0, &kv);
   }

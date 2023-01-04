@@ -995,6 +995,7 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
     if(ret == TSDB_CODE_SUCCESS){
       ret = smlBuildRow(info->currTableDataCtx);
     }
+    clearColValArray(info->currTableDataCtx->pValues);
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
       return ret;
@@ -1147,6 +1148,7 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
     if(ret == TSDB_CODE_SUCCESS){
       ret = smlBuildRow(info->currTableDataCtx);
     }
+    clearColValArray(info->currTableDataCtx->pValues);
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
       return ret;
