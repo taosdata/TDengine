@@ -228,6 +228,7 @@ int32_t tsCompressINTImp(const char *const input, const int32_t nelements, char 
 }
 
 int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, char *const output, const char type) {
+#if 1
   int32_t word_length = 0;
   switch (type) {
     case TSDB_DATA_TYPE_BIGINT:
@@ -280,103 +281,96 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
 
     switch (type) {
       case TSDB_DATA_TYPE_BIGINT: {
+        int64_t* p = (int64_t*) output;
+
         if (selector == 0 || selector == 1) {
           zigzag_value = 0;
 
-          for (int32_t i = 0; i < elems; i++) {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
             int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
-            int64_t curr_value = diff + prev_value;
-            prev_value = curr_value;
-
-            *((int64_t *)output + _pos) = (int64_t)curr_value;
-            _pos++;
-
-            v += bit;
-            if ((++count) == nelements) break;
+            prev_value = diff + prev_value;
+            p[_pos++] = prev_value;
           }
         } else {
-          for (int32_t i = 0; i < elems; i++) {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
             zigzag_value = ((w >> (4 + v)) & mask);
 
             int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
-            int64_t curr_value = diff + prev_value;
-            prev_value = curr_value;
+            prev_value = diff + prev_value;
 
-            *((int64_t *)output + _pos) = (int64_t)curr_value;
-            _pos++;
-
+            p[_pos++] = prev_value;
             v += bit;
-            if ((++count) == nelements) break;
           }
         }
       } break;
       case TSDB_DATA_TYPE_INT: {
+        int32_t* p = (int32_t*) output;
+
         if (selector == 0 || selector == 1) {
           zigzag_value = 0;
-          for (int32_t i = 0; i < elems; i++) {
+
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
             int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
-            int64_t curr_value = diff + prev_value;
-            prev_value = curr_value;
-
-            *((int32_t *)output + _pos) = (int32_t)curr_value;
-            _pos++;
-
-            v += bit;
-            if ((++count) == nelements) break;
+            prev_value = diff + prev_value;
+            p[_pos++] = (int32_t)prev_value;
           }
         } else {
-          for (int32_t i = 0; i < elems; i++) {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
             zigzag_value = ((w >> (4 + v)) & mask);
 
             int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
-            int64_t curr_value = diff + prev_value;
-            prev_value = curr_value;
+            prev_value = diff + prev_value;
 
-            *((int32_t *)output + _pos) = (int32_t)curr_value;
-            _pos++;
-
+            p[_pos++] = (int32_t)prev_value;
             v += bit;
-            if ((++count) == nelements) break;
           }
         }
       } break;
       case TSDB_DATA_TYPE_SMALLINT: {
-        for (int32_t i = 0; i < elems; i++) {
-          if (selector == 0 || selector == 1) {
-            zigzag_value = 0;
-          } else {
-            zigzag_value = ((w >> (4 + v)) & mask);
+        int16_t* p = (int16_t*) output;
+
+        if (selector == 0 || selector == 1) {
+          zigzag_value = 0;
+
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+            prev_value = diff + prev_value;
+            p[_pos++] = (int16_t)prev_value;
           }
+        } else {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            zigzag_value = ((w >> (4 + v)) & mask);
 
-          int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
-          int64_t curr_value = diff + prev_value;
-          prev_value = curr_value;
+            int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+            prev_value = diff + prev_value;
 
-          *((int16_t *)output + _pos) = (int16_t)curr_value;
-          _pos++;
-
-          v += bit;
-          if ((++count) == nelements) break;
+            p[_pos++] = (int16_t)prev_value;
+            v += bit;
+          }
         }
       } break;
 
       case TSDB_DATA_TYPE_TINYINT: {
-        for (int32_t i = 0; i < elems; i++) {
-          if (selector == 0 || selector == 1) {
-            zigzag_value = 0;
-          } else {
-            zigzag_value = ((w >> (4 + v)) & mask);
+        int8_t *p = (int8_t *)output;
+
+        if (selector == 0 || selector == 1) {
+          zigzag_value = 0;
+
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+            prev_value = diff + prev_value;
+            p[_pos++] = (int8_t)prev_value;
           }
+        } else {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            zigzag_value = ((w >> (4 + v)) & mask);
 
-          int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
-          int64_t curr_value = diff + prev_value;
-          prev_value = curr_value;
+            int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+            prev_value = diff + prev_value;
 
-          *((int8_t *)output + _pos) = (int8_t)curr_value;
-          _pos++;
-
-          v += bit;
-          if ((++count) == nelements) break;
+            p[_pos++] = (int8_t)prev_value;
+            v += bit;
+          }
         }
       } break;
     }
@@ -385,6 +379,94 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
   }
 
   return nelements * word_length;
+#else
+
+  int32_t word_length = 0;
+  switch (type) {
+    case TSDB_DATA_TYPE_BIGINT:
+      word_length = LONG_BYTES;
+      break;
+    case TSDB_DATA_TYPE_INT:
+      word_length = INT_BYTES;
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      word_length = SHORT_BYTES;
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      word_length = CHAR_BYTES;
+      break;
+    default:
+    uError("Invalid decompress integer type:%d", type);
+      return -1;
+  }
+
+  // If not compressed.
+  if (input[0] == 1) {
+    memcpy(output, input + 1, nelements * word_length);
+    return nelements * word_length;
+  }
+
+  // Selector value:              0    1   2   3   4   5   6   7   8  9  10  11
+  // 12  13  14  15
+  char    bit_per_integer[] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 60};
+  int32_t selector_to_elems[] = {240, 120, 60, 30, 20, 15, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1};
+
+  const char *ip = input + 1;
+  int32_t     count = 0;
+  int32_t     _pos = 0;
+  int64_t     prev_value = 0;
+
+  while (1) {
+    if (count == nelements) break;
+
+    uint64_t w = 0;
+    memcpy(&w, ip, LONG_BYTES);
+
+    char    selector = (char)(w & INT64MASK(4));       // selector = 4
+    char    bit = bit_per_integer[(int32_t)selector];  // bit = 3
+    int32_t elems = selector_to_elems[(int32_t)selector];
+
+    for (int32_t i = 0; i < elems; i++) {
+      uint64_t zigzag_value;
+
+      if (selector == 0 || selector == 1) {
+        zigzag_value = 0;
+      } else {
+        zigzag_value = ((w >> (4 + bit * i)) & INT64MASK(bit));
+      }
+      int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+      int64_t curr_value = diff + prev_value;
+      prev_value = curr_value;
+
+      switch (type) {
+        case TSDB_DATA_TYPE_BIGINT:
+          *((int64_t *)output + _pos) = (int64_t)curr_value;
+          _pos++;
+          break;
+        case TSDB_DATA_TYPE_INT:
+          *((int32_t *)output + _pos) = (int32_t)curr_value;
+          _pos++;
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          *((int16_t *)output + _pos) = (int16_t)curr_value;
+          _pos++;
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          *((int8_t *)output + _pos) = (int8_t)curr_value;
+          _pos++;
+          break;
+        default:
+          perror("Wrong integer types.\n");
+          return -1;
+      }
+      count++;
+      if (count == nelements) break;
+    }
+    ip += LONG_BYTES;
+  }
+
+  return nelements * word_length;
+#endif
 }
 
 /* ----------------------------------------------Bool Compression
