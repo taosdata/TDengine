@@ -420,9 +420,7 @@ _return:
 
   taosLogCrashInfo("taos", pMsg, msgLen, signum, sigInfo);
 
-#if defined(WINDOWS)
   exit(signum);
-#endif  
 }
 
 void crashReportThreadFuncUnexpectedStopped(void) { atomic_store_32(&clientStop, -1); }

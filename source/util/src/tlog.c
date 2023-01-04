@@ -868,7 +868,7 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
 
 #ifdef _TD_DARWIN_64
   taosLogTraceToBuf(tmp, sizeof(tmp), 4);
-#elseif !defined(WINDOWS)
+#elif !defined(WINDOWS)
   taosLogTraceToBuf(tmp, sizeof(tmp), 3);
 #else
   taosLogTraceToBuf(tmp, sizeof(tmp), 8);
@@ -931,7 +931,7 @@ _return:
 
 #ifdef _TD_DARWIN_64
   taosPrintTrace(flags, level, dflag, 4);
-#elseif !defined(WINDOWS)
+#elif !defined(WINDOWS)
   taosPrintLog(flags, level, dflag, "sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
         taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
   taosPrintTrace(flags, level, dflag, 3);

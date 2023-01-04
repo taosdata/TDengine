@@ -99,6 +99,8 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
 _return:
 
   taosLogCrashInfo("taosd", pMsg, msgLen, signum, sigInfo);
+
+  exit(signum);
 }
 
 static void dmSetSignalHandle() {
