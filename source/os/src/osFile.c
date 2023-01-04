@@ -826,11 +826,11 @@ int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf) {
 
 int32_t taosEOFFile(TdFilePtr pFile) {
   if (pFile == NULL) {
-    return 0;
+    return -1;
   }
   ASSERT(pFile->fp != NULL);
   if(pFile->fp == NULL) {
-    return 0;
+    return -1;
   }
 
   return feof(pFile->fp);
