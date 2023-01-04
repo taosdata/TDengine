@@ -172,6 +172,11 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
   SResultRow* pResultRow = (SResultRow*)((char*)pData + pData->num);
   pResultRow->pageId = pageId;
   pResultRow->offset = (int32_t)pData->num;
+  pResultRow->numOfRows = 0;
+  pResultRow->closed = false;
+  pResultRow->startInterp = false;
+  pResultRow->endInterp = false;
+
   *currentPageId = pageId;
 
   pData->num += interBufSize;
