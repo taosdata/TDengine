@@ -4399,7 +4399,19 @@ SSDataBlock* tsdbRetrieveDataBlock(STsdbReader* pReader, SArray* pIdList) {
 }
 
 int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
+  SReaderStatus* pStatus = &pReader->status;
+
+  qTrace("tsdb/read: %p, take read mutex", pReader);
+  taosThreadMutexLock(&pReader->readerMutex);
+
+  if (pReader->suspended) {
+    tsdbReaderResume(pReader);
+  }
+
+  taosThreadMutexUnlock(&pReader->readerMutex);
+
   if (isEmptyQueryTimeWindow(&pReader->window) || pReader->pReadSnap == NULL) {
+    tsdbDebug("tsdb reader reset return %p", pReader->pReadSnap);
     return TSDB_CODE_SUCCESS;
   }
 
