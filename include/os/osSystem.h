@@ -62,11 +62,38 @@ void    taosResetTerminalMode();
     taosMemoryFree(strings);                                               \
   }
 #else
+#include <windows.h>
+#include <dbghelp.h>
+
+#define STACKSIZE 64
 #define taosPrintTrace(flags, level, dflag)                                                                \
   {                                                                                                        \
-    taosPrintLog(flags, level, dflag,                                                                      \
-                 "backtrace not implemented on windows, so detailed stack information cannot be printed"); \
-    }
+    unsigned int   i;                                                                                                 \
+    void*          stack[STACKSIZE];                                                                                  \
+    unsigned short frames;                                                                                            \
+    SYMBOL_INFO*   symbol;                                                                                            \
+    HANDLE         process;                                                                                           \
+                                                                                                                      \
+    process = GetCurrentProcess();                                                                                    \
+                                                                                                                      \
+    SymInitialize(process, NULL, TRUE);                                                                               \
+                                                                                                                      \
+    frames = CaptureStackBackTrace(0, STACKSIZE, stack, NULL);                                                        \
+    symbol = (SYMBOL_INFO*)calloc(sizeof(SYMBOL_INFO) + 256 * sizeof(char), 1);                                       \
+    if (symbol != NULL) {                                                                                             \
+        symbol->MaxNameLen = 255;                                                                                     \
+        symbol->SizeOfStruct = sizeof(SYMBOL_INFO);                                                                   \
+                                                                                                                      \
+        if (frames > 0) {                                                                                             \
+          taosPrintLog(flags, level, dflag, "obtained %d stack frames", frames);                                      \
+          for (i = 0; i < frames; i++) {                                                                              \
+            SymFromAddr(process, (DWORD64)(stack[i]), 0, symbol);                                                     \
+            taosPrintLog(flags, level, dflag, "frame:%i: %s - 0x%0X", frames - i - 1, symbol->Name, symbol->Address); \
+          }                                                                                                           \
+        }                                                                                                             \
+        free(symbol);                                                                                                 \
+    }                                                                                                                 \
+  }
 #endif
 
 #ifdef __cplusplus

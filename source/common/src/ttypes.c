@@ -131,7 +131,10 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
       varDataCopy(val, src);
       break;
     default: {
-      memcpy(val, src, len);
+      if (len > 0) {
+        memcpy(val, src, len);
+      }
+
       break;
     }
   }

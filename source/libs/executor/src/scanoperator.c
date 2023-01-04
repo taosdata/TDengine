@@ -170,6 +170,10 @@ static SResultRow* getTableGroupOutputBuf(SOperatorInfo* pOperator, uint64_t gro
   }
 
   *pPage = getBufPage(pTableScanInfo->base.pdInfo.pAggSup->pResultBuf, p1->pageId);
+  if (NULL == *pPage) {
+    return NULL;
+  }
+  
   return (SResultRow*)((char*)(*pPage) + p1->offset);
 }
 

@@ -182,22 +182,25 @@ _OVER:
 }
 
 int32_t dmWriteEps(SDnodeData *pData) {
+  int32_t   code = -1;
+  char     *content = NULL;
+  TdFilePtr pFile = NULL;
+
   char file[PATH_MAX] = {0};
   char realfile[PATH_MAX] = {0};
-
   snprintf(file, sizeof(file), "%s%sdnode%sdnode.json.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
   snprintf(realfile, sizeof(realfile), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
 
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    dError("failed to write %s since %s", file, strerror(errno));
+    dError("failed to open %s since %s", file, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    goto _OVER;
   }
 
   int32_t len = 0;
   int32_t maxLen = 256 * 1024;
-  char   *content = taosMemoryCalloc(1, maxLen + 1);
+  content = taosMemoryCalloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", pData->dnodeId);
@@ -221,20 +224,39 @@ int32_t dmWriteEps(SDnodeData *pData) {
   }
   len += snprintf(content + len, maxLen - len, "}\n");
 
-  taosWriteFile(pFile, content, len);
-  taosFsyncFile(pFile);
+  if (taosWriteFile(pFile, content, len) != len) {
+    dError("failed to write %s since %s", file, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _OVER;
+  }
+
+  if (taosFsyncFile(pFile) < 0) {
+    dError("failed to fsync %s since %s", file, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _OVER;
+  }
+
   taosCloseFile(&pFile);
-  taosMemoryFree(content);
+  taosMemoryFreeClear(content);
 
   if (taosRenameFile(file, realfile) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to rename %s since %s", file, terrstr());
-    return -1;
+    goto _OVER;
   }
 
+  code = 0;
   pData->updateTime = taosGetTimestampMs();
-  dDebug("successed to write %s, dnodeVer:%" PRId64, realfile, pData->dnodeVer);
-  return 0;
+  dInfo("succeed to write %s, dnodeVer:%" PRId64, realfile, pData->dnodeVer);
+
+_OVER:
+  if (content != NULL) taosMemoryFreeClear(content);
+  if (pFile != NULL) taosCloseFile(&pFile);
+  if (code != 0) {
+    dError("failed to write file %s since %s", realfile, terrstr());
+  }
+
+  return code;
 }
 
 void dmUpdateEps(SDnodeData *pData, SArray *eps) {
@@ -331,4 +353,42 @@ void dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
     dInfo("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
   }
+}
+
+int32_t dmUpdateDnodeInfo(void *data, int32_t *dnodeId, int64_t *clusterId, char *fqdn, uint16_t *port) {
+  SDnodeData *pData = data;
+  int32_t     ret = -1;
+  taosThreadRwlockRdlock(&pData->lock);
+  if (*dnodeId <= 0) {
+    for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pData->dnodeEps); ++i) {
+      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, i);
+      if (strcmp(pDnodeEp->ep.fqdn, fqdn) == 0 && pDnodeEp->ep.port == *port) {
+        dInfo("dnode:%s:%u, update dnodeId from %d to %d", fqdn, *port, *dnodeId, pDnodeEp->id);
+        *dnodeId = pDnodeEp->id;
+        *clusterId = pData->clusterId;
+        ret = 0;
+      }
+    }
+    if (ret != 0) {
+      dInfo("dnode:%s:%u, failed to update dnodeId:%d", fqdn, *port, *dnodeId);
+    }
+  } else {
+    SDnodeEp *pDnodeEp = taosHashGet(pData->dnodeHash, dnodeId, sizeof(int32_t));
+    if (pDnodeEp) {
+      if (strcmp(pDnodeEp->ep.fqdn, fqdn) != 0) {
+        dInfo("dnode:%d, update port from %s to %s", *dnodeId, fqdn, pDnodeEp->ep.fqdn);
+        tstrncpy(fqdn, pDnodeEp->ep.fqdn, TSDB_FQDN_LEN);
+      }
+      if (pDnodeEp->ep.port != *port) {
+        dInfo("dnode:%d, update port from %u to %u", *dnodeId, *port, pDnodeEp->ep.port);
+        *port = pDnodeEp->ep.port;
+      }
+      *clusterId = pData->clusterId;
+      ret = 0;
+    } else {
+      dInfo("dnode:%d, failed to update dnode info", *dnodeId);
+    }
+  }
+  taosThreadRwlockUnlock(&pData->lock);
+  return ret;
 }

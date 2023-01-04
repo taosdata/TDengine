@@ -736,7 +736,12 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
     }
 
     if (!pBuf->assign) {
-      pBuf->v = *(int64_t*)tval;
+      if (type == TSDB_DATA_TYPE_FLOAT) {
+        GET_FLOAT_VAL(&pBuf->v) = GET_DOUBLE_VAL(tval);
+      } else {
+        pBuf->v = GET_INT64_VAL(tval);
+      }
+
       if (pCtx->subsidiaries.num > 0) {
         index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
         if (index >= 0) {
@@ -750,7 +755,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
         int64_t val = GET_INT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          *(int64_t*)&pBuf->v = val;
+          GET_INT64_VAL(&pBuf->v) = val;
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             if (index >= 0) {
@@ -764,7 +769,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
         uint64_t val = GET_UINT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          *(uint64_t*)&pBuf->v = val;
+          GET_UINT64_VAL(&pBuf->v) = val;
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             if (index >= 0) {
@@ -778,7 +783,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
         double val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          *(double*)&pBuf->v = val;
+          GET_DOUBLE_VAL(&pBuf->v) = val;
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             if (index >= 0) {
@@ -792,7 +797,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
         float val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          *(float*)&pBuf->v = val;
+          GET_FLOAT_VAL(&pBuf->v) = val;
         }
 
         if (pCtx->subsidiaries.num > 0) {
