@@ -385,6 +385,9 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
       }
 
       pSlot->info.data = getNewBufPage(pBucket->pBuffer, &pageId);
+      if (pSlot->info.data == NULL) {
+        return TSDB_CODE_NO_AVAIL_DISK;
+      }
       pSlot->info.pageId = pageId;
       taosArrayPush(pPageIdList, &pageId);
     }
@@ -396,7 +399,7 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
   }
 
   pBucket->total += count;
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -517,7 +520,10 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
             return -1;
           }
 
-          tMemBucketPut(pMemBucket, pg->data, (int32_t)pg->num);
+          int32_t code = tMemBucketPut(pMemBucket, pg->data, (int32_t)pg->num);
+          if (code != TSDB_CODE_SUCCESS) {
+            return -1;
+          }
           setBufPageDirty(pg, true);
           releaseBufPage(pMemBucket->pBuffer, pg);
         }

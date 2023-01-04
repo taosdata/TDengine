@@ -1587,7 +1587,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
     // all data are null, set it completed
     if (pInfo->numOfElems == 0) {
       pResInfo->complete = true;
-      return 0;
+      return TSDB_CODE_SUCCESS;
     } else {
       pInfo->pMemBucket = tMemBucketCreate(pCol->info.bytes, type, pInfo->minval, pInfo->maxval);
     }
@@ -1650,7 +1650,10 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
 
       char* data = colDataGetData(pCol, i);
       numOfElems += 1;
-      tMemBucketPut(pInfo->pMemBucket, data, 1);
+      int32_t code = tMemBucketPut(pInfo->pMemBucket, data, 1);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
 
     SET_VAL(pResInfo, numOfElems, 1);
