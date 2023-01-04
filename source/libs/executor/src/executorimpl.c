@@ -170,15 +170,12 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
 
   // set the number of rows in current disk page
   SResultRow* pResultRow = (SResultRow*)((char*)pData + pData->num);
+
+  memset((char*) pResultRow, 0, interBufSize);
   pResultRow->pageId = pageId;
   pResultRow->offset = (int32_t)pData->num;
-  pResultRow->numOfRows = 0;
-  pResultRow->closed = false;
-  pResultRow->startInterp = false;
-  pResultRow->endInterp = false;
 
   *currentPageId = pageId;
-
   pData->num += interBufSize;
   return pResultRow;
 }
