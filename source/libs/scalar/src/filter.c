@@ -776,7 +776,10 @@ int32_t filterFinishRange(void *h) {
 
     while (r && r->next) {
       int64_t tmp = 1;
-      operateVal(&tmp, &r->ra.e, &tmp, OP_TYPE_ADD, ctx->type);
+      int32_t code = operateVal(&tmp, &r->ra.e, &tmp, OP_TYPE_ADD, ctx->type);
+      if (code != 0) {
+        return TSDB_CODE_APP_ERROR;
+      }
       if (ctx->pCompareFunc(&tmp, &r->next->ra.s) == 0) {
         rn = r->next;
         SIMPLE_COPY_VALUES((char *)&r->next->ra.s, (char *)&r->ra.s);
