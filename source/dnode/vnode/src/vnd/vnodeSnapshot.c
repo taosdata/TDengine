@@ -405,6 +405,10 @@ static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_
   } else {
     snprintf(dir, TSDB_FILENAME_LEN, "%s", pWriter->pVnode->path);
   }
+
+  SVnode *pVnode = pWriter->pVnode;
+  pWriter->info.config = pVnode->config;
+  vDebug("vgId:%d, save config while write snapshot", pWriter->pVnode->config.vgId);
   if (vnodeSaveInfo(dir, &pWriter->info) < 0) {
     code = terrno;
     goto _exit;

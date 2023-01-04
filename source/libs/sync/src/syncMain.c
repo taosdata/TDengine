@@ -851,6 +851,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
 
   if (!taosCheckExistFile(pSyncNode->configPath)) {
     // create a new raft config file
+    sInfo("vgId:%d, create a new raft config file", pSyncNode->vgId);
     pSyncNode->raftCfg.isStandBy = pSyncInfo->isStandBy;
     pSyncNode->raftCfg.snapshotStrategy = pSyncInfo->snapshotStrategy;
     pSyncNode->raftCfg.lastConfigIndex = SYNC_INDEX_INVALID;
@@ -893,7 +894,6 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
     sInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pSyncNode->vgId, i, pNode->nodeFqdn, pNode->nodePort,
           pNode->nodeId, pNode->clusterId);
   }
-
 
   pSyncNode->pWal = pSyncInfo->pWal;
   pSyncNode->msgcb = pSyncInfo->msgcb;
@@ -1657,7 +1657,6 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 
     // persist cfg
     syncWriteCfgFile(pSyncNode);
-
 
     // change isStandBy to normal (election timeout)
     if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {

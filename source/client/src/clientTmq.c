@@ -912,10 +912,12 @@ void tmqFreeImpl(void* handle) {
   tmq_t* tmq = (tmq_t*)handle;
 
   // TODO stop timer
-  tmqClearUnhandleMsg(tmq);
-  if (tmq->mqueue) taosCloseQueue(tmq->mqueue);
+  if (tmq->mqueue) {
+    tmqClearUnhandleMsg(tmq);
+    taosCloseQueue(tmq->mqueue);
+  }
   if (tmq->delayedTask) taosCloseQueue(tmq->delayedTask);
-  if (tmq->qall) taosFreeQall(tmq->qall);
+  taosFreeQall(tmq->qall);
 
   tsem_destroy(&tmq->rspSem);
 
