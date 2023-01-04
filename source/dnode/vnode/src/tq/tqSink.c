@@ -63,7 +63,7 @@ int32_t tqBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
         .startTs = startTs,
         .endTs = endTs,
     };
-    strncpy(req.tbname, name, TSDB_TABLE_NAME_LEN);
+    strncpy(req.tbname, name, TSDB_TABLE_NAME_LEN - 1);
     taosMemoryFree(name);
     /*tqDebug("stream delete msg, active: vgId:%d, ts:%" PRId64 " name:%s", pVnode->config.vgId, ts, name);*/
     taosArrayPush(deleteReq->deleteReqs, &req);

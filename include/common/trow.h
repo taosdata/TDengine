@@ -20,7 +20,6 @@
 #include "talgo.h"
 #include "taosdef.h"
 #include "taoserror.h"
-#include "tbuffer.h"
 #include "tdataformat.h"
 #include "tdef.h"
 #include "ttypes.h"

@@ -105,7 +105,7 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
     return -1;
   }
 
-  dInfo("successed to write %s, deployed:%d", realfile, deployed);
+  dInfo("succeed to write %s, deployed:%d", realfile, deployed);
   code = 0;
 
 _OVER:

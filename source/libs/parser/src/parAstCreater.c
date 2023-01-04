@@ -201,6 +201,24 @@ static bool checkIndexName(SAstCreateContext* pCxt, SToken* pIndexName) {
   return true;
 }
 
+static bool checkTopicName(SAstCreateContext* pCxt, SToken* pTopicName) {
+  trimEscape(pTopicName);
+  if (pTopicName->n >= TSDB_TOPIC_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pTopicName->z);
+    return false;
+  }
+  return true;
+}
+
+static bool checkStreamName(SAstCreateContext* pCxt, SToken* pStreamName) {
+  trimEscape(pStreamName);
+  if (pStreamName->n >= TSDB_STREAM_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pStreamName->z);
+    return false;
+  }
+  return true;
+}
+
 static bool checkComment(SAstCreateContext* pCxt, const SToken* pCommentToken, bool demand) {
   if (NULL == pCommentToken) {
     pCxt->errCode = demand ? TSDB_CODE_PAR_SYNTAX_ERROR : TSDB_CODE_SUCCESS;
@@ -1555,6 +1573,13 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
   return (SNode*)pStmt;
 }
 
+SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName) {
+  if (!checkIndexName(pCxt, pIndexName)) {
+    return NULL;
+  }
+  return createRealTableNode(pCxt, pDbName, pIndexName, NULL);
+}
+
 SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SNode* pIndexName,
                              SNode* pRealTable, SNodeList* pCols, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
@@ -1613,9 +1638,11 @@ SNode* createDropComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, cons
   return (SNode*)pStmt;
 }
 
-SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pTopicName,
-                                     SNode* pQuery) {
+SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pQuery) {
   CHECK_PARSER_STATUS(pCxt);
+  if (!checkTopicName(pCxt, pTopicName)) {
+    return NULL;
+  }
   SCreateTopicStmt* pStmt = (SCreateTopicStmt*)nodesMakeNode(QUERY_NODE_CREATE_TOPIC_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
@@ -1624,10 +1651,10 @@ SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists,
   return (SNode*)pStmt;
 }
 
-SNode* createCreateTopicStmtUseDb(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pTopicName,
-                                  SToken* pSubDbName, bool withMeta) {
+SNode* createCreateTopicStmtUseDb(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SToken* pSubDbName,
+                                  bool withMeta) {
   CHECK_PARSER_STATUS(pCxt);
-  if (!checkDbName(pCxt, pSubDbName, true)) {
+  if (!checkTopicName(pCxt, pTopicName) || !checkDbName(pCxt, pSubDbName, true)) {
     return NULL;
   }
   SCreateTopicStmt* pStmt = (SCreateTopicStmt*)nodesMakeNode(QUERY_NODE_CREATE_TOPIC_STMT);
@@ -1639,9 +1666,12 @@ SNode* createCreateTopicStmtUseDb(SAstCreateContext* pCxt, bool ignoreExists, co
   return (SNode*)pStmt;
 }
 
-SNode* createCreateTopicStmtUseTable(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pTopicName,
-                                     SNode* pRealTable, bool withMeta) {
+SNode* createCreateTopicStmtUseTable(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pRealTable,
+                                     bool withMeta) {
   CHECK_PARSER_STATUS(pCxt);
+  if (!checkTopicName(pCxt, pTopicName)) {
+    return NULL;
+  }
   SCreateTopicStmt* pStmt = (SCreateTopicStmt*)nodesMakeNode(QUERY_NODE_CREATE_TOPIC_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
@@ -1653,8 +1683,11 @@ SNode* createCreateTopicStmtUseTable(SAstCreateContext* pCxt, bool ignoreExists,
   return (SNode*)pStmt;
 }
 
-SNode* createDropTopicStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pTopicName) {
+SNode* createDropTopicStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pTopicName) {
   CHECK_PARSER_STATUS(pCxt);
+  if (!checkTopicName(pCxt, pTopicName)) {
+    return NULL;
+  }
   SDropTopicStmt* pStmt = (SDropTopicStmt*)nodesMakeNode(QUERY_NODE_DROP_TOPIC_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
@@ -1663,8 +1696,11 @@ SNode* createDropTopicStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const 
 }
 
 SNode* createDropCGroupStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pCGroupId,
-                            const SToken* pTopicName) {
+                            SToken* pTopicName) {
   CHECK_PARSER_STATUS(pCxt);
+  if (!checkTopicName(pCxt, pTopicName)) {
+    return NULL;
+  }
   SDropCGroupStmt* pStmt = (SDropCGroupStmt*)nodesMakeNode(QUERY_NODE_DROP_CGROUP_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->ignoreNotExists = ignoreNotExists;
@@ -1776,9 +1812,12 @@ SNode* createStreamOptions(SAstCreateContext* pCxt) {
   return (SNode*)pOptions;
 }
 
-SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pStreamName, SNode* pRealTable,
+SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pStreamName, SNode* pRealTable,
                               SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery, SNodeList* pCols) {
   CHECK_PARSER_STATUS(pCxt);
+  if (!checkStreamName(pCxt, pStreamName)) {
+    return NULL;
+  }
   SCreateStreamStmt* pStmt = (SCreateStreamStmt*)nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
@@ -1794,8 +1833,11 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, const 
   return (SNode*)pStmt;
 }
 
-SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pStreamName) {
+SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName) {
   CHECK_PARSER_STATUS(pCxt);
+  if (!checkStreamName(pCxt, pStreamName)) {
+    return NULL;
+  }
   SDropStreamStmt* pStmt = (SDropStreamStmt*)nodesMakeNode(QUERY_NODE_DROP_STREAM_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);

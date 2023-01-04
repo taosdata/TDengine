@@ -112,13 +112,6 @@ int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len) {
 
   cJSON_AddNumberToObject(pRoot, "vote_for_vgid", pRaftStore->voteFor.vgId);
 
-  uint64_t u64 = pRaftStore->voteFor.addr;
-  char     host[128] = {0};
-  uint16_t port;
-  syncUtilU642Addr(u64, host, sizeof(host), &port);
-  cJSON_AddStringToObject(pRoot, "addr_host", host);
-  cJSON_AddNumberToObject(pRoot, "addr_port", port);
-
   char *serialized = cJSON_Print(pRoot);
   int   len2 = strlen(serialized);
   ASSERT(len2 < len);

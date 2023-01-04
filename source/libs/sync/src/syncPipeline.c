@@ -652,18 +652,15 @@ int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNod
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
   SRaftId         destId = pMsg->srcId;
   ASSERT(pMgr->restored == false);
-  char     host[64];
-  uint16_t port;
-  syncUtilU642Addr(destId.addr, host, sizeof(host), &port);
 
   if (pMgr->endIndex == 0) {
     ASSERT(pMgr->startIndex == 0);
     ASSERT(pMgr->matchIndex == 0);
     if (pMsg->matchIndex < 0) {
       pMgr->restored = true;
-      sInfo("vgId:%d, sync log repl mgr restored. peer: %s:%d (%" PRIx64 "), mgr: rs(%d) [%" PRId64 " %" PRId64
+      sInfo("vgId:%d, sync log repl mgr restored. peer: dnode:%d (%" PRIx64 "), mgr: rs(%d) [%" PRId64 " %" PRId64
             ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
-            pNode->vgId, host, port, destId.addr, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
+            pNode->vgId, DID(&destId), destId.addr, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
             pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
       return 0;
     }
@@ -678,21 +675,21 @@ int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNod
     if (pMsg->success && pMsg->matchIndex == pMsg->lastSendIndex) {
       pMgr->matchIndex = pMsg->matchIndex;
       pMgr->restored = true;
-      sInfo("vgId:%d, sync log repl mgr restored. peer: %s:%d (%" PRIx64 "), mgr: rs(%d) [%" PRId64 " %" PRId64
+      sInfo("vgId:%d, sync log repl mgr restored. peer: dnode:%d (%" PRIx64 "), mgr: rs(%d) [%" PRId64 " %" PRId64
             ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
-            pNode->vgId, host, port, destId.addr, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
+            pNode->vgId, DID(&destId), destId.addr, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
             pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
       return 0;
     }
 
     if (pMsg->success == false && pMsg->matchIndex >= pMsg->lastSendIndex) {
-      sWarn("vgId:%d, failed to rollback match index. peer: %s:%d, match index: %" PRId64 ", last sent: %" PRId64,
-            pNode->vgId, host, port, pMsg->matchIndex, pMsg->lastSendIndex);
+      sWarn("vgId:%d, failed to rollback match index. peer: dnode:%d, match index: %" PRId64 ", last sent: %" PRId64,
+            pNode->vgId, DID(&destId), pMsg->matchIndex, pMsg->lastSendIndex);
       if (syncNodeStartSnapshot(pNode, &destId) < 0) {
-        sError("vgId:%d, failed to start snapshot for peer %s:%d", pNode->vgId, host, port);
+        sError("vgId:%d, failed to start snapshot for peer dnode:%d", pNode->vgId, DID(&destId));
         return -1;
       }
-      sInfo("vgId:%d, snapshot replication to peer %s:%d", pNode->vgId, host, port);
+      sInfo("vgId:%d, snapshot replication to peer dnode:%d", pNode->vgId, DID(&destId));
       return 0;
     }
   }
@@ -707,10 +704,10 @@ int32_t syncLogReplMgrProcessReplyInRecoveryMode(SSyncLogReplMgr* pMgr, SSyncNod
     if (term < 0 || (term != pMsg->lastMatchTerm && (index + 1 == firstVer || index == firstVer))) {
       ASSERT(term >= 0 || terrno == TSDB_CODE_WAL_LOG_NOT_EXIST);
       if (syncNodeStartSnapshot(pNode, &destId) < 0) {
-        sError("vgId:%d, failed to start snapshot for peer %s:%d", pNode->vgId, host, port);
+        sError("vgId:%d, failed to start snapshot for peer dnode:%d", pNode->vgId, DID(&destId));
         return -1;
       }
-      sInfo("vgId:%d, snapshot replication to peer %s:%d", pNode->vgId, host, port);
+      sInfo("vgId:%d, snapshot replication to peer dnode:%d", pNode->vgId, DID(&destId));
       return 0;
     }
 
