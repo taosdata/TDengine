@@ -20,7 +20,7 @@
 SScript *simScriptList[MAX_MAIN_SCRIPT_NUM];
 SCommand simCmdList[SIM_CMD_END];
 int32_t  simScriptPos = -1;
-int32_t  simScriptSucced = 0;
+int32_t  simScriptSucceed = 0;
 int32_t  simDebugFlag = 143;
 void     simCloseTaosdConnect(SScript *script);
 char     simScriptDir[PATH_MAX] = {0};
@@ -88,13 +88,13 @@ SScript *simProcessCallOver(SScript *script) {
     }
 
     simCloseTaosdConnect(script);
-    simScriptSucced++;
+    simScriptSucceed++;
     simScriptPos--;
     simFreeScript(script);
 
     if (simScriptPos == -1 && simExecSuccess) {
       simInfo("----------------------------------------------------------------------");
-      simInfo("Simulation Test Done, " SUCCESS_PREFIX "%d" SUCCESS_POSTFIX " Passed:\n", simScriptSucced);
+      simInfo("Simulation Test Done, " SUCCESS_PREFIX "%d" SUCCESS_POSTFIX " Passed:\n", simScriptSucceed);
       return NULL;
     }
 

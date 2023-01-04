@@ -617,6 +617,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/update_data.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/tb_100w_data_order.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_stable.py
@@ -832,6 +834,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 3
@@ -928,6 +931,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 4
@@ -1034,6 +1038,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
 

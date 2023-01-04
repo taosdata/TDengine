@@ -85,11 +85,18 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
 
 bool taosAssertDebug(bool condition, const char *file, int32_t line, const char *format, ...);
 bool taosAssertRelease(bool condition);
+
+// Disable all asserts that may compromise the performance.
+#if defined DISABLE_ASSERT
+#define ASSERT(condition)
+#define ASSERTS(condition, ...)
+#else
 #define ASSERTS(condition, ...) taosAssertDebug(condition, __FILE__, __LINE__, __VA_ARGS__)
 #ifdef NDEBUG
 #define ASSERT(condition) taosAssertRelease(condition)
 #else
 #define ASSERT(condition) taosAssertDebug(condition, __FILE__, __LINE__, "assert info not provided")
+#endif
 #endif
 
 void taosLogCrashInfo(char* nodeType, char* pMsg, int64_t msgLen, int signum, void *sigInfo);

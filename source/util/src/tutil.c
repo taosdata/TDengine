@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "tutil.h"
+#include "tlog.h"
 
 void *tmemmem(const char *haystack, int32_t hlen, const char *needle, int32_t nlen) {
   const char *limit;
@@ -117,7 +118,7 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
     if ((*num) >= size) {
       size = (size << 1);
       split = taosMemoryRealloc(split, POINTER_BYTES * size);
-      assert(NULL != split);
+      ASSERTS(NULL != split, "realloc memory failed. size=%d", POINTER_BYTES * size);
     }
   }
 
@@ -158,7 +159,9 @@ char *strtolower(char *dst, const char *src) {
   int32_t esc = 0;
   char    quote = 0, *p = dst, c;
 
-  assert(dst != NULL);
+  if (ASSERTS(dst != NULL, "dst is NULL")) {
+    return NULL;
+  }
 
   for (c = *src++; c; c = *src++) {
     if (esc) {
@@ -185,7 +188,10 @@ char *strntolower(char *dst, const char *src, int32_t n) {
   int32_t esc = 0;
   char    quote = 0, *p = dst, c;
 
-  assert(dst != NULL);
+  if (ASSERTS(dst != NULL, "dst is NULL")) {
+    return NULL;
+  }
+  
   if (n == 0) {
     *p = 0;
     return dst;
@@ -214,7 +220,10 @@ char *strntolower(char *dst, const char *src, int32_t n) {
 char *strntolower_s(char *dst, const char *src, int32_t n) {
   char *p = dst, c;
 
-  assert(dst != NULL);
+  if (ASSERTS(dst != NULL, "dst is NULL")) {
+    return NULL;
+  }
+
   if (n == 0) {
     return NULL;
   }
