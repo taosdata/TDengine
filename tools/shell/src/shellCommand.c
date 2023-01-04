@@ -40,7 +40,7 @@ static void    shellPositionCursorEnd(SShellCmd *cmd);
 static void    shellPrintChar(char c, int32_t times);
 static void    shellPositionCursor(int32_t step, int32_t direction);
 static void    shellUpdateBuffer(SShellCmd *cmd);
-static int32_t shellIsReadyGo(SShellCmd *cmd);
+static bool    shellIsReadyGo(SShellCmd *cmd);
 static void    shellGetMbSizeInfo(const char *str, int32_t *size, int32_t *width);
 static void    shellResetCommand(SShellCmd *cmd, const char s[]);
 void           shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
@@ -305,9 +305,9 @@ void shellUpdateBuffer(SShellCmd *cmd) {
   shellShowOnScreen(cmd);
 }
 
-int32_t shellIsReadyGo(SShellCmd *cmd) {
+bool shellIsReadyGo(SShellCmd *cmd) {
   ASSERT(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
-  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return;
+  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return false;
 
   char *total = (char *)taosMemoryCalloc(1, SHELL_MAX_COMMAND_SIZE);
   memset(cmd->command + cmd->commandSize, 0, SHELL_MAX_COMMAND_SIZE - cmd->commandSize);
@@ -318,11 +318,11 @@ int32_t shellIsReadyGo(SShellCmd *cmd) {
       "\\s*clear\\s*$)";
   if (shellRegexMatch(total, reg_str, REG_EXTENDED | REG_ICASE)) {
     taosMemoryFree(total);
-    return 1;
+    return true;
   }
 
   taosMemoryFree(total);
-  return 0;
+  return false;
 }
 
 void shellGetMbSizeInfo(const char *str, int32_t *size, int32_t *width) {

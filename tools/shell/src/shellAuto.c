@@ -717,7 +717,7 @@ void putBackAutoPtr(int type, STire* tire) {
     tires[type]->ref--;
     ASSERT(tires[type]->ref > 0);
     if (tires[type]->ref <= 0) {
-      return
+      return;
     }
   }
   taosThreadMutexUnlock(&tiresMutex);
