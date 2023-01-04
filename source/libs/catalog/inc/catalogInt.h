@@ -776,6 +776,7 @@ void    ctgFreeHandleImpl(SCatalog* pCtg);
 int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, const SName* pTableName, SVgroupInfo* pVgroup);
 int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SCtgTaskReq* tReq, SDBVgInfo* dbInfo, SCtgTbHashsCtx* pCtx,
                                    char* dbFName, SArray* pNames, bool update);
+int32_t ctgGetVgIdsFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, char* dbFName, const char* pTbs[], int32_t tbNum, int32_t* vgId);                                  
 void    ctgResetTbMetaTask(SCtgTask* pTask);
 void    ctgFreeDbCache(SCtgDBCache* dbCache);
 int32_t ctgStbVersionSortCompare(const void* key1, const void* key2);
