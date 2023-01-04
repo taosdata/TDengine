@@ -359,6 +359,8 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
 end:
   insDestroyBoundColInfo(&bindTags);
   taosMemoryFree(pCreateTblReq);
+  tdDestroySVCreateTbReq(pCreateTblReq);
+  taosMemoryFree(pCreateTblReq);
   taosArrayDestroy(tagName);
   return ret;
 }
