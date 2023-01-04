@@ -134,7 +134,9 @@ int transDumpFromBuffer(SConnBuffer* connBuf, char** buf) {
   if (total >= HEADSIZE && !p->invalid) {
     *buf = taosMemoryCalloc(1, total);
     memcpy(*buf, p->buf, total);
-    transResetBuffer(connBuf);
+    if (transResetBuffer(connBuf) < 0) {
+      return -1;
+    }
   } else {
     total = -1;
   }
@@ -154,7 +156,8 @@ int transResetBuffer(SConnBuffer* connBuf) {
     p->total = 0;
     p->len = 0;
   } else {
-    assert(0);
+    ASSERTS(0, "invalid read from sock buf");
+    return -1;
   }
   return 0;
 }

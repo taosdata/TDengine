@@ -19,9 +19,13 @@
 #define SL_MAX_LEVEL 5
 
 // sizeof(SMemSkipListNode) + sizeof(SMemSkipListNode *) * (l) * 2
-#define SL_NODE_SIZE(l)        (sizeof(SMemSkipListNode) + ((l) << 4))
-#define SL_NODE_FORWARD(n, l)  ((n)->forwards[l])
-#define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
+#define SL_NODE_SIZE(l)               (sizeof(SMemSkipListNode) + ((l) << 4))
+#define SL_NODE_FORWARD(n, l)         ((n)->forwards[l])
+#define SL_NODE_BACKWARD(n, l)        ((n)->forwards[(n)->level + (l)])
+#define SL_GET_NODE_FORWARD(n, l)     ((SMemSkipListNode *)atomic_load_64((int64_t *)&SL_NODE_FORWARD(n, l)))
+#define SL_GET_NODE_BACKWARD(n, l)    ((SMemSkipListNode *)atomic_load_64((int64_t *)&SL_NODE_BACKWARD(n, l)))
+#define SL_SET_NODE_FORWARD(n, l, p)  atomic_store_64((int64_t *)&SL_NODE_FORWARD(n, l), (int64_t)(p))
+#define SL_SET_NODE_BACKWARD(n, l, p) atomic_store_64((int64_t *)&SL_NODE_BACKWARD(n, l), (int64_t)(p))
 
 #define SL_MOVE_BACKWARD 0x1
 #define SL_MOVE_FROM_POS 0x2
@@ -259,18 +263,18 @@ void tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDa
   if (pFrom == NULL) {
     // create from head or tail
     if (backward) {
-      pIter->pNode = SL_NODE_BACKWARD(pTbData->sl.pTail, 0);
+      pIter->pNode = SL_GET_NODE_BACKWARD(pTbData->sl.pTail, 0);
     } else {
-      pIter->pNode = SL_NODE_FORWARD(pTbData->sl.pHead, 0);
+      pIter->pNode = SL_GET_NODE_FORWARD(pTbData->sl.pHead, 0);
     }
   } else {
     // create from a key
     if (backward) {
       tbDataMovePosTo(pTbData, pos, pFrom, SL_MOVE_BACKWARD);
-      pIter->pNode = SL_NODE_BACKWARD(pos[0], 0);
+      pIter->pNode = SL_GET_NODE_BACKWARD(pos[0], 0);
     } else {
       tbDataMovePosTo(pTbData, pos, pFrom, 0);
-      pIter->pNode = SL_NODE_FORWARD(pos[0], 0);
+      pIter->pNode = SL_GET_NODE_FORWARD(pos[0], 0);
     }
   }
 }
@@ -284,7 +288,7 @@ bool tsdbTbDataIterNext(STbDataIter *pIter) {
       return false;
     }
 
-    pIter->pNode = SL_NODE_BACKWARD(pIter->pNode, 0);
+    pIter->pNode = SL_GET_NODE_BACKWARD(pIter->pNode, 0);
     if (pIter->pNode == pIter->pTbData->sl.pHead) {
       return false;
     }
@@ -295,7 +299,7 @@ bool tsdbTbDataIterNext(STbDataIter *pIter) {
       return false;
     }
 
-    pIter->pNode = SL_NODE_FORWARD(pIter->pNode, 0);
+    pIter->pNode = SL_GET_NODE_FORWARD(pIter->pNode, 0);
     if (pIter->pNode == pIter->pTbData->sl.pTail) {
       return false;
     }
@@ -348,7 +352,7 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   int8_t     maxLevel = pMemTable->pTsdb->pVnode->config.tsdbCfg.slLevel;
 
   ASSERT(pPool != NULL);
-  pTbData = vnodeBufPoolMalloc(pPool, sizeof(*pTbData) + SL_NODE_SIZE(maxLevel) * 2);
+  pTbData = vnodeBufPoolMallocAligned(pPool, sizeof(*pTbData) + SL_NODE_SIZE(maxLevel) * 2);
   if (pTbData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -421,7 +425,7 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *p
       if (fromPos) px = pos[pTbData->sl.level - 1];
 
       for (int8_t iLevel = pTbData->sl.level - 1; iLevel >= 0; iLevel--) {
-        pn = SL_NODE_BACKWARD(px, iLevel);
+        pn = SL_GET_NODE_BACKWARD(px, iLevel);
         while (pn != pTbData->sl.pHead) {
           if (pn->flag == TSDBROW_ROW_FMT) {
             tKey.version = pn->version;
@@ -436,7 +440,7 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *p
             break;
           } else {
             px = pn;
-            pn = SL_NODE_BACKWARD(px, iLevel);
+            pn = SL_GET_NODE_BACKWARD(px, iLevel);
           }
         }
 
@@ -456,7 +460,7 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *p
       if (fromPos) px = pos[pTbData->sl.level - 1];
 
       for (int8_t iLevel = pTbData->sl.level - 1; iLevel >= 0; iLevel--) {
-        pn = SL_NODE_FORWARD(px, iLevel);
+        pn = SL_GET_NODE_FORWARD(px, iLevel);
         while (pn != pTbData->sl.pTail) {
           if (pn->flag == TSDBROW_ROW_FMT) {
             tKey.version = pn->version;
@@ -471,7 +475,7 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *p
             break;
           } else {
             px = pn;
-            pn = SL_NODE_FORWARD(px, iLevel);
+            pn = SL_GET_NODE_FORWARD(px, iLevel);
           }
         }
 
@@ -497,26 +501,28 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
   int8_t            level;
   SMemSkipListNode *pNode;
   SVBufPool        *pPool = pMemTable->pTsdb->pVnode->inUse;
+  int64_t           nSize;
 
-  ASSERT(pPool != NULL);
-
-  // node
+  // create node
   level = tsdbMemSkipListRandLevel(&pTbData->sl);
-  pNode = (SMemSkipListNode *)vnodeBufPoolMalloc(pPool, SL_NODE_SIZE(level));
+  nSize = SL_NODE_SIZE(level);
+  if (pRow->type == TSDBROW_ROW_FMT) {
+    pNode = (SMemSkipListNode *)vnodeBufPoolMallocAligned(pPool, nSize + pRow->pTSRow->len);
+  } else if (pRow->type == TSDBROW_COL_FMT) {
+    pNode = (SMemSkipListNode *)vnodeBufPoolMallocAligned(pPool, nSize);
+  } else {
+    ASSERT(0);
+  }
   if (pNode == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
+
   pNode->level = level;
   pNode->flag = pRow->type;
-
   if (pRow->type == TSDBROW_ROW_FMT) {
     pNode->version = pRow->version;
-    pNode->pData = vnodeBufPoolMalloc(pPool, pRow->pTSRow->len);
-    if (NULL == pNode->pData) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
+    pNode->pData = (char *)pNode + nSize;
     memcpy(pNode->pData, pRow->pTSRow, pRow->pTSRow->len);
   } else if (pRow->type == TSDBROW_COL_FMT) {
     pNode->iRow = pRow->iRow;
@@ -525,40 +531,38 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
     ASSERT(0);
   }
 
-  for (int8_t iLevel = level - 1; iLevel >= 0; iLevel--) {
-    SMemSkipListNode *pn = pos[iLevel];
-    SMemSkipListNode *px;
-
-    if (forward) {
-      px = SL_NODE_FORWARD(pn, iLevel);
-
-      SL_NODE_BACKWARD(pNode, iLevel) = pn;
-      SL_NODE_FORWARD(pNode, iLevel) = px;
-    } else {
-      px = SL_NODE_BACKWARD(pn, iLevel);
-
-      SL_NODE_BACKWARD(pNode, iLevel) = px;
-      SL_NODE_FORWARD(pNode, iLevel) = pn;
+  // set node
+  if (forward) {
+    for (int8_t iLevel = 0; iLevel < level; iLevel++) {
+      SL_NODE_FORWARD(pNode, iLevel) = SL_NODE_FORWARD(pos[iLevel], iLevel);
+      SL_NODE_BACKWARD(pNode, iLevel) = pos[iLevel];
+    }
+  } else {
+    for (int8_t iLevel = 0; iLevel < level; iLevel++) {
+      SL_NODE_FORWARD(pNode, iLevel) = pos[iLevel];
+      SL_NODE_BACKWARD(pNode, iLevel) = SL_NODE_BACKWARD(pos[iLevel], iLevel);
     }
   }
 
-  for (int8_t iLevel = level - 1; iLevel >= 0; iLevel--) {
-    SMemSkipListNode *pn = pos[iLevel];
-    SMemSkipListNode *px;
+  // set forward and backward
+  if (forward) {
+    for (int8_t iLevel = level - 1; iLevel >= 0; iLevel--) {
+      SMemSkipListNode *pNext = pos[iLevel]->forwards[iLevel];
 
-    if (forward) {
-      px = SL_NODE_FORWARD(pn, iLevel);
+      SL_SET_NODE_FORWARD(pos[iLevel], iLevel, pNode);
+      SL_SET_NODE_BACKWARD(pNext, iLevel, pNode);
 
-      SL_NODE_FORWARD(pn, iLevel) = pNode;
-      SL_NODE_BACKWARD(px, iLevel) = pNode;
-    } else {
-      px = SL_NODE_BACKWARD(pn, iLevel);
-
-      SL_NODE_FORWARD(px, iLevel) = pNode;
-      SL_NODE_BACKWARD(pn, iLevel) = pNode;
+      pos[iLevel] = pNode;
     }
+  } else {
+    for (int8_t iLevel = level - 1; iLevel >= 0; iLevel--) {
+      SMemSkipListNode *pPrev = pos[iLevel]->forwards[pos[iLevel]->level + iLevel];
 
-    pos[iLevel] = pNode;
+      SL_SET_NODE_FORWARD(pPrev, iLevel, pNode);
+      SL_SET_NODE_BACKWARD(pos[iLevel], iLevel, pNode);
+
+      pos[iLevel] = pNode;
+    }
   }
 
   pTbData->sl.size++;

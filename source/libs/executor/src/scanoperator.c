@@ -170,6 +170,10 @@ static SResultRow* getTableGroupOutputBuf(SOperatorInfo* pOperator, uint64_t gro
   }
 
   *pPage = getBufPage(pTableScanInfo->base.pdInfo.pAggSup->pResultBuf, p1->pageId);
+  if (NULL == *pPage) {
+    return NULL;
+  }
+
   return (SResultRow*)((char*)(*pPage) + p1->offset);
 }
 
@@ -1584,7 +1588,8 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
-      qDebug("queue scan tsdb return %d rows", pResult->info.rows);
+      qDebug("queue scan tsdb return %d rows min:%" PRId64 " max:%" PRId64, pResult->info.rows,
+             pResult->info.window.skey, pResult->info.window.ekey);
       pTaskInfo->streamInfo.returned = 1;
       return pResult;
     } else {

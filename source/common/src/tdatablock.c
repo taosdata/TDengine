@@ -1879,7 +1879,7 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
   char    pBuf[128] = {0};
   int32_t sz = taosArrayGetSize(dataBlocks);
   for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock* pDataBlock = taosArrayGetP(dataBlocks, i);
+    SSDataBlock* pDataBlock = taosArrayGet(dataBlocks, i);
     size_t       numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
 
     int32_t rows = pDataBlock->info.rows;
@@ -1891,20 +1891,36 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
       for (int32_t k = 0; k < numOfCols; k++) {
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
         void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
+        if (k == 0) {
+          printf("cols:%d |", (int32_t)numOfCols);
+        }
         if (colDataIsNull(pColInfoData, rows, j, NULL)) {
           printf(" %15s |", "NULL");
           continue;
         }
+
         switch (pColInfoData->info.type) {
           case TSDB_DATA_TYPE_TIMESTAMP:
             formatTimestamp(pBuf, *(uint64_t*)var, TSDB_TIME_PRECISION_MILLI);
             printf(" %25s |", pBuf);
             break;
           case TSDB_DATA_TYPE_BOOL:
-            printf(" %15d |", *(int32_t*)var);
+            printf(" %15" PRIi8 " |", *(int8_t*)var);
+            break;
+          case TSDB_DATA_TYPE_TINYINT:
+            printf(" %15" PRIi8 " |", *(int8_t*)var);
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+            printf(" %15" PRIi16 " |", *(int16_t*)var);
             break;
           case TSDB_DATA_TYPE_INT:
             printf(" %15d |", *(int32_t*)var);
+            break;
+          case TSDB_DATA_TYPE_UTINYINT:
+            printf(" %15" PRIu8 " |", *(uint8_t*)var);
+            break;
+          case TSDB_DATA_TYPE_USMALLINT:
+            printf(" %15" PRIu16 " |", *(uint16_t*)var);
             break;
           case TSDB_DATA_TYPE_UINT:
             printf(" %15u |", *(uint32_t*)var);

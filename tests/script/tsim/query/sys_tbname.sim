@@ -1,0 +1,89 @@
+
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database sys_tbname;
+sql use sys_tbname;
+sql create stable st(ts timestamp, f int) tags(t int);
+sql create table ct1 using st tags(1);
+sql create table ct2 using st tags(2);
+
+sql create table t (ts timestamp, f int);
+sql insert into t values(now, 1)(now+1s, 2);
+
+
+sql create table t2 (ts timestamp, f1 int, f2 int);
+sql insert into t2 values(now, 0, 0)(now+1s, 1, 1);
+
+sql select tbname from information_schema.ins_databases;
+print $rows $data00
+if $rows != 3 then
+	return -1
+endi
+if $data00 != @ins_databases@ then
+	return -1
+endi
+sql select distinct tbname from information_schema.ins_databases;
+print $rows $data00
+if $rows != 1 then
+	return -1
+endi
+if $data00 != @ins_databases@ then
+	return -1
+endi
+
+sql select tbname from information_schema.ins_stables;
+print $rows $data00
+if $rows != 1 then
+	return -1
+endi
+if $data00 != @ins_stables@ then
+	return -1
+endi
+sql select distinct tbname from information_schema.ins_stables;
+print $rows $data00
+if $rows != 1 then
+	return -1
+endi
+if $data00 != @ins_stables@ then
+	return -1
+endi
+
+sql select tbname from information_schema.ins_tables;
+print $rows $data00
+if $rows != 32 then
+	return -1
+endi
+if $data00 != @ins_tables@ then
+	return -1
+endi
+
+sql select distinct tbname from information_schema.ins_tables;
+print $rows $data00
+if $rows != 1 then
+	return -1
+endi
+if $data00 != @ins_tables@ then
+	return -1
+endi
+
+sql select tbname from information_schema.ins_tags;
+print $rows $data00
+if $rows != 2 then
+	return -1
+endi
+if $data00 != @ins_tags@ then
+	return -1
+endi
+sql select distinct tbname from information_schema.ins_tags;
+print $rows $data00
+if $rows != 1 then
+	return -1
+endi
+if $data00 != @ins_tags@ then
+	return -1
+endi
+
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -16,382 +16,226 @@
 #define _DEFAULT_SOURCE
 #include "syncRaftCfg.h"
 #include "syncUtil.h"
+#include "tjson.h"
 
-// file must already exist!
-SRaftCfgIndex *raftCfgIndexOpen(const char *path) {
-  SRaftCfgIndex *pRaftCfgIndex = taosMemoryMalloc(sizeof(SRaftCfg));
-  snprintf(pRaftCfgIndex->path, sizeof(pRaftCfgIndex->path), "%s", path);
+static int32_t syncEncodeSyncCfg(const void *pObj, SJson *pJson) {
+  SSyncCfg *pCfg = (SSyncCfg *)pObj;
+  if (tjsonAddDoubleToObject(pJson, "replicaNum", pCfg->replicaNum) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "myIndex", pCfg->myIndex) < 0) return -1;
 
-  pRaftCfgIndex->pFile = taosOpenFile(pRaftCfgIndex->path, TD_FILE_READ | TD_FILE_WRITE);
-  ASSERT(pRaftCfgIndex->pFile != NULL);
-
-  taosLSeekFile(pRaftCfgIndex->pFile, 0, SEEK_SET);
-
-  int32_t bufLen = MAX_CONFIG_INDEX_COUNT * 16;
-  char   *pBuf = taosMemoryMalloc(bufLen);
-  memset(pBuf, 0, bufLen);
-  int64_t len = taosReadFile(pRaftCfgIndex->pFile, pBuf, bufLen);
-  ASSERT(len > 0);
-
-  int32_t ret = raftCfgIndexFromStr(pBuf, pRaftCfgIndex);
-  ASSERT(ret == 0);
-
-  taosMemoryFree(pBuf);
-
-  return pRaftCfgIndex;
-}
-
-int32_t raftCfgIndexClose(SRaftCfgIndex *pRaftCfgIndex) {
-  if (pRaftCfgIndex != NULL) {
-    int64_t ret = taosCloseFile(&(pRaftCfgIndex->pFile));
-    ASSERT(ret == 0);
-    taosMemoryFree(pRaftCfgIndex);
-  }
-  return 0;
-}
-
-int32_t raftCfgIndexPersist(SRaftCfgIndex *pRaftCfgIndex) {
-  ASSERT(pRaftCfgIndex != NULL);
-
-  char *s = raftCfgIndex2Str(pRaftCfgIndex);
-  taosLSeekFile(pRaftCfgIndex->pFile, 0, SEEK_SET);
-
-  int64_t ret = taosWriteFile(pRaftCfgIndex->pFile, s, strlen(s) + 1);
-  ASSERT(ret == strlen(s) + 1);
-
-  taosMemoryFree(s);
-  taosFsyncFile(pRaftCfgIndex->pFile);
-  return 0;
-}
-
-int32_t raftCfgIndexAddConfigIndex(SRaftCfgIndex *pRaftCfgIndex, SyncIndex configIndex) {
-  ASSERT(pRaftCfgIndex->configIndexCount <= MAX_CONFIG_INDEX_COUNT);
-  (pRaftCfgIndex->configIndexArr)[pRaftCfgIndex->configIndexCount] = configIndex;
-  ++(pRaftCfgIndex->configIndexCount);
-  return 0;
-}
-
-cJSON *raftCfgIndex2Json(SRaftCfgIndex *pRaftCfgIndex) {
-  cJSON *pRoot = cJSON_CreateObject();
-
-  cJSON_AddNumberToObject(pRoot, "configIndexCount", pRaftCfgIndex->configIndexCount);
-  cJSON *pIndexArr = cJSON_CreateArray();
-  cJSON_AddItemToObject(pRoot, "configIndexArr", pIndexArr);
-  for (int i = 0; i < pRaftCfgIndex->configIndexCount; ++i) {
-    char buf64[128];
-    snprintf(buf64, sizeof(buf64), "%" PRId64, (pRaftCfgIndex->configIndexArr)[i]);
-    cJSON *pIndexObj = cJSON_CreateObject();
-    cJSON_AddStringToObject(pIndexObj, "index", buf64);
-    cJSON_AddItemToArray(pIndexArr, pIndexObj);
-  }
-
-  cJSON *pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SRaftCfgIndex", pRoot);
-  return pJson;
-}
-
-char *raftCfgIndex2Str(SRaftCfgIndex *pRaftCfgIndex) {
-  cJSON *pJson = raftCfgIndex2Json(pRaftCfgIndex);
-  char  *serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
-int32_t raftCfgIndexFromJson(const cJSON *pRoot, SRaftCfgIndex *pRaftCfgIndex) {
-  cJSON *pJson = cJSON_GetObjectItem(pRoot, "SRaftCfgIndex");
-
-  cJSON *pJsonConfigIndexCount = cJSON_GetObjectItem(pJson, "configIndexCount");
-  pRaftCfgIndex->configIndexCount = cJSON_GetNumberValue(pJsonConfigIndexCount);
-
-  cJSON *pIndexArr = cJSON_GetObjectItem(pJson, "configIndexArr");
-  int    arraySize = cJSON_GetArraySize(pIndexArr);
-  ASSERT(arraySize == pRaftCfgIndex->configIndexCount);
-
-  memset(pRaftCfgIndex->configIndexArr, 0, sizeof(pRaftCfgIndex->configIndexArr));
-  for (int i = 0; i < arraySize; ++i) {
-    cJSON *pIndexObj = cJSON_GetArrayItem(pIndexArr, i);
-    ASSERT(pIndexObj != NULL);
-
-    cJSON *pIndex = cJSON_GetObjectItem(pIndexObj, "index");
-    ASSERT(cJSON_IsString(pIndex));
-    (pRaftCfgIndex->configIndexArr)[i] = atoll(pIndex->valuestring);
+  SJson *nodeInfo = tjsonCreateArray();
+  if (nodeInfo == NULL) return -1;
+  if (tjsonAddItemToObject(pJson, "nodeInfo", nodeInfo) < 0) return -1;
+  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+    SJson *info = tjsonCreateObject();
+    if (info == NULL) return -1;
+    if (tjsonAddDoubleToObject(info, "nodePort", pCfg->nodeInfo[i].nodePort) < 0) return -1;
+    if (tjsonAddStringToObject(info, "nodeFqdn", pCfg->nodeInfo[i].nodeFqdn) < 0) return -1;
+    if (tjsonAddIntegerToObject(info, "nodeId", pCfg->nodeInfo[i].nodeId) < 0) return -1;
+    if (tjsonAddIntegerToObject(info, "clusterId", pCfg->nodeInfo[i].clusterId) < 0) return -1;
+    if (tjsonAddItemToArray(nodeInfo, info) < 0) return -1;
   }
 
   return 0;
 }
 
-int32_t raftCfgIndexFromStr(const char *s, SRaftCfgIndex *pRaftCfgIndex) {
-  cJSON *pRoot = cJSON_Parse(s);
-  ASSERT(pRoot != NULL);
+static int32_t syncEncodeRaftCfg(const void *pObj, SJson *pJson) {
+  SRaftCfg *pCfg = (SRaftCfg *)pObj;
+  if (tjsonAddObject(pJson, "SSyncCfg", syncEncodeSyncCfg, (void *)&pCfg->cfg) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "isStandBy", pCfg->isStandBy) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "snapshotStrategy", pCfg->snapshotStrategy) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "batchSize", pCfg->batchSize) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "lastConfigIndex", pCfg->lastConfigIndex) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "configIndexCount", pCfg->configIndexCount) < 0) return -1;
 
-  int32_t ret = raftCfgIndexFromJson(pRoot, pRaftCfgIndex);
-  ASSERT(ret == 0);
+  SJson *configIndexArr = tjsonCreateArray();
+  if (configIndexArr == NULL) return -1;
+  if (tjsonAddItemToObject(pJson, "configIndexArr", configIndexArr) < 0) return -1;
+  for (int32_t i = 0; i < pCfg->configIndexCount; ++i) {
+    SJson *configIndex = tjsonCreateObject();
+    if (configIndex == NULL) return -1;
+    if (tjsonAddIntegerToObject(configIndex, "index", pCfg->configIndexArr[i]) < 0) return -1;
+    if (tjsonAddItemToArray(configIndexArr, configIndex) < 0) return -1;
+  }
 
-  cJSON_Delete(pRoot);
   return 0;
 }
 
-int32_t raftCfgIndexCreateFile(const char *path) {
-  TdFilePtr pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE);
+int32_t syncWriteCfgFile(SSyncNode *pNode) {
+  int32_t     code = -1;
+  char       *buffer = NULL;
+  SJson      *pJson = NULL;
+  TdFilePtr   pFile = NULL;
+  const char *realfile = pNode->configPath;
+  SRaftCfg   *pCfg = &pNode->raftCfg;
+  char        file[PATH_MAX] = {0};
+  snprintf(file, sizeof(file), "%s.bak", realfile);
+
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    int32_t     err = terrno;
-    const char *errStr = tstrerror(err);
-    int32_t     sysErr = errno;
-    const char *sysErrStr = strerror(errno);
-    sError("create raft cfg index file error, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", err, err, errStr, sysErr,
-           sysErrStr);
-    ASSERT(0);
-
-    return -1;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    sError("vgId:%d, failed to open sync cfg file:%s since %s", pNode->vgId, realfile, terrstr());
+    goto _OVER;
   }
 
-  SRaftCfgIndex raftCfgIndex;
-  memset(raftCfgIndex.configIndexArr, 0, sizeof(raftCfgIndex.configIndexArr));
-  raftCfgIndex.configIndexCount = 1;
-  raftCfgIndex.configIndexArr[0] = -1;
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  pJson = tjsonCreateObject();
+  if (pJson == NULL) goto _OVER;
+  if (tjsonAddObject(pJson, "RaftCfg", syncEncodeRaftCfg, pCfg) < 0) goto _OVER;
 
-  char   *s = raftCfgIndex2Str(&raftCfgIndex);
-  int64_t ret = taosWriteFile(pFile, s, strlen(s) + 1);
-  ASSERT(ret == strlen(s) + 1);
+  buffer = tjsonToString(pJson);
+  if (buffer == NULL) goto _OVER;
 
-  taosMemoryFree(s);
+  int32_t len = strlen(buffer);
+  if (taosWriteFile(pFile, buffer, len) <= 0) goto _OVER;
+  if (taosFsyncFile(pFile) < 0) goto _OVER;
   taosCloseFile(&pFile);
-  return 0;
-}
 
-// ---------------------------------------
-// file must already exist!
-SRaftCfg *raftCfgOpen(const char *path) {
-  SRaftCfg *pCfg = taosMemoryMalloc(sizeof(SRaftCfg));
-  snprintf(pCfg->path, sizeof(pCfg->path), "%s", path);
-
-  pCfg->pFile = taosOpenFile(pCfg->path, TD_FILE_READ | TD_FILE_WRITE);
-  ASSERT(pCfg->pFile != NULL);
-
-  taosLSeekFile(pCfg->pFile, 0, SEEK_SET);
-
-  char buf[CONFIG_FILE_LEN] = {0};
-  int  len = taosReadFile(pCfg->pFile, buf, sizeof(buf));
-  ASSERT(len > 0);
-
-  int32_t ret = raftCfgFromStr(buf, pCfg);
-  ASSERT(ret == 0);
-
-  return pCfg;
-}
-
-int32_t raftCfgClose(SRaftCfg *pRaftCfg) {
-  int64_t ret = taosCloseFile(&(pRaftCfg->pFile));
-  ASSERT(ret == 0);
-  taosMemoryFree(pRaftCfg);
-  return 0;
-}
-
-int32_t raftCfgPersist(SRaftCfg *pRaftCfg) {
-  ASSERT(pRaftCfg != NULL);
-
-  char *s = raftCfg2Str(pRaftCfg);
-  taosLSeekFile(pRaftCfg->pFile, 0, SEEK_SET);
-
-  char buf[CONFIG_FILE_LEN] = {0};
-  memset(buf, 0, sizeof(buf));
-
-  if (strlen(s) + 1 > CONFIG_FILE_LEN) {
-    sError("too long config str:%s", s);
-    ASSERT(0);
+  if (taosRenameFile(file, realfile) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    sError("vgId:%d, failed to rename sync cfg file:%s to %s since %s", pNode->vgId, file, realfile, terrstr());
+    goto _OVER;
   }
 
-  snprintf(buf, sizeof(buf), "%s", s);
-  int64_t ret = taosWriteFile(pRaftCfg->pFile, buf, sizeof(buf));
-  ASSERT(ret == sizeof(buf));
+  code = 0;
+  sInfo("vgId:%d, succeed to write sync cfg file:%s, len:%d", pNode->vgId, realfile, len);
 
-  // int64_t ret = taosWriteFile(pRaftCfg->pFile, s, strlen(s) + 1);
-  // ASSERT(ret == strlen(s) + 1);
+_OVER:
+  if (pJson != NULL) tjsonDelete(pJson);
+  if (buffer != NULL) taosMemoryFree(buffer);
+  if (pFile != NULL) taosCloseFile(&pFile);
 
-  taosMemoryFree(s);
-  taosFsyncFile(pRaftCfg->pFile);
-  return 0;
-}
-
-int32_t raftCfgAddConfigIndex(SRaftCfg *pRaftCfg, SyncIndex configIndex) {
-  ASSERT(pRaftCfg->configIndexCount <= MAX_CONFIG_INDEX_COUNT);
-  (pRaftCfg->configIndexArr)[pRaftCfg->configIndexCount] = configIndex;
-  ++(pRaftCfg->configIndexCount);
-  return 0;
-}
-
-cJSON *syncCfg2Json(SSyncCfg *pSyncCfg) {
-  char   u64buf[128] = {0};
-  cJSON *pRoot = cJSON_CreateObject();
-
-  if (pSyncCfg != NULL) {
-    cJSON_AddNumberToObject(pRoot, "replicaNum", pSyncCfg->replicaNum);
-    cJSON_AddNumberToObject(pRoot, "myIndex", pSyncCfg->myIndex);
-
-    cJSON *pNodeInfoArr = cJSON_CreateArray();
-    cJSON_AddItemToObject(pRoot, "nodeInfo", pNodeInfoArr);
-    for (int i = 0; i < pSyncCfg->replicaNum; ++i) {
-      cJSON *pNodeInfo = cJSON_CreateObject();
-      cJSON_AddNumberToObject(pNodeInfo, "nodePort", ((pSyncCfg->nodeInfo)[i]).nodePort);
-      cJSON_AddStringToObject(pNodeInfo, "nodeFqdn", ((pSyncCfg->nodeInfo)[i]).nodeFqdn);
-      cJSON_AddItemToArray(pNodeInfoArr, pNodeInfo);
-    }
+  if (code != 0) {
+    sError("vgId:%d, failed to write sync cfg file:%s since %s", pNode->vgId, realfile, terrstr());
   }
-
-  return pRoot;
-}
-
-int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg) {
-  memset(pSyncCfg, 0, sizeof(SSyncCfg));
-  // cJSON *pJson = cJSON_GetObjectItem(pRoot, "SSyncCfg");
-  const cJSON *pJson = pRoot;
-
-  cJSON *pReplicaNum = cJSON_GetObjectItem(pJson, "replicaNum");
-  ASSERT(cJSON_IsNumber(pReplicaNum));
-  pSyncCfg->replicaNum = cJSON_GetNumberValue(pReplicaNum);
-
-  cJSON *pMyIndex = cJSON_GetObjectItem(pJson, "myIndex");
-  ASSERT(cJSON_IsNumber(pMyIndex));
-  pSyncCfg->myIndex = cJSON_GetNumberValue(pMyIndex);
-
-  cJSON *pNodeInfoArr = cJSON_GetObjectItem(pJson, "nodeInfo");
-  int    arraySize = cJSON_GetArraySize(pNodeInfoArr);
-  ASSERT(arraySize == pSyncCfg->replicaNum);
-
-  for (int i = 0; i < arraySize; ++i) {
-    cJSON *pNodeInfo = cJSON_GetArrayItem(pNodeInfoArr, i);
-    ASSERT(pNodeInfo != NULL);
-
-    cJSON *pNodePort = cJSON_GetObjectItem(pNodeInfo, "nodePort");
-    ASSERT(cJSON_IsNumber(pNodePort));
-    ((pSyncCfg->nodeInfo)[i]).nodePort = cJSON_GetNumberValue(pNodePort);
-
-    cJSON *pNodeFqdn = cJSON_GetObjectItem(pNodeInfo, "nodeFqdn");
-    ASSERT(cJSON_IsString(pNodeFqdn));
-    snprintf(((pSyncCfg->nodeInfo)[i]).nodeFqdn, sizeof(((pSyncCfg->nodeInfo)[i]).nodeFqdn), "%s",
-             pNodeFqdn->valuestring);
-  }
-
-  return 0;
-}
-
-cJSON *raftCfg2Json(SRaftCfg *pRaftCfg) {
-  cJSON *pRoot = cJSON_CreateObject();
-  cJSON_AddItemToObject(pRoot, "SSyncCfg", syncCfg2Json(&(pRaftCfg->cfg)));
-  cJSON_AddNumberToObject(pRoot, "isStandBy", pRaftCfg->isStandBy);
-  cJSON_AddNumberToObject(pRoot, "snapshotStrategy", pRaftCfg->snapshotStrategy);
-  cJSON_AddNumberToObject(pRoot, "batchSize", pRaftCfg->batchSize);
-
-  char buf64[128];
-  snprintf(buf64, sizeof(buf64), "%" PRId64, pRaftCfg->lastConfigIndex);
-  cJSON_AddStringToObject(pRoot, "lastConfigIndex", buf64);
-
-  cJSON_AddNumberToObject(pRoot, "configIndexCount", pRaftCfg->configIndexCount);
-  cJSON *pIndexArr = cJSON_CreateArray();
-  cJSON_AddItemToObject(pRoot, "configIndexArr", pIndexArr);
-  for (int i = 0; i < pRaftCfg->configIndexCount; ++i) {
-    snprintf(buf64, sizeof(buf64), "%" PRId64, (pRaftCfg->configIndexArr)[i]);
-    cJSON *pIndexObj = cJSON_CreateObject();
-    cJSON_AddStringToObject(pIndexObj, "index", buf64);
-    cJSON_AddItemToArray(pIndexArr, pIndexObj);
-  }
-
-  cJSON *pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "RaftCfg", pRoot);
-  return pJson;
-}
-
-char *raftCfg2Str(SRaftCfg *pRaftCfg) {
-  cJSON *pJson = raftCfg2Json(pRaftCfg);
-  char  *serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
-int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path) {
-  TdFilePtr pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE);
-  if (pFile == NULL) {
-    int32_t     err = terrno;
-    const char *errStr = tstrerror(err);
-    int32_t     sysErr = errno;
-    const char *sysErrStr = strerror(errno);
-    sError("create raft cfg file error, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", err, err, errStr, sysErr, sysErrStr);
-    return -1;
-  }
-
-  SRaftCfg raftCfg;
-  raftCfg.cfg = *pCfg;
-  raftCfg.isStandBy = meta.isStandBy;
-  raftCfg.batchSize = meta.batchSize;
-  raftCfg.snapshotStrategy = meta.snapshotStrategy;
-  raftCfg.lastConfigIndex = meta.lastConfigIndex;
-  raftCfg.configIndexCount = 1;
-  memset(raftCfg.configIndexArr, 0, sizeof(raftCfg.configIndexArr));
-  raftCfg.configIndexArr[0] = -1;
-  char *s = raftCfg2Str(&raftCfg);
-
-  char buf[CONFIG_FILE_LEN] = {0};
-  memset(buf, 0, sizeof(buf));
-  ASSERT(strlen(s) + 1 <= CONFIG_FILE_LEN);
-  snprintf(buf, sizeof(buf), "%s", s);
-  int64_t ret = taosWriteFile(pFile, buf, sizeof(buf));
-  ASSERT(ret == sizeof(buf));
-
-  // int64_t ret = taosWriteFile(pFile, s, strlen(s) + 1);
-  // ASSERT(ret == strlen(s) + 1);
-
-  taosMemoryFree(s);
-  taosCloseFile(&pFile);
-  return 0;
-}
-
-int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg) {
-  // memset(pRaftCfg, 0, sizeof(SRaftCfg));
-  cJSON *pJson = cJSON_GetObjectItem(pRoot, "RaftCfg");
-
-  cJSON *pJsonIsStandBy = cJSON_GetObjectItem(pJson, "isStandBy");
-  pRaftCfg->isStandBy = cJSON_GetNumberValue(pJsonIsStandBy);
-
-  cJSON *pJsonBatchSize = cJSON_GetObjectItem(pJson, "batchSize");
-  pRaftCfg->batchSize = cJSON_GetNumberValue(pJsonBatchSize);
-
-  cJSON *pJsonSnapshotStrategy = cJSON_GetObjectItem(pJson, "snapshotStrategy");
-  pRaftCfg->snapshotStrategy = cJSON_GetNumberValue(pJsonSnapshotStrategy);
-
-  cJSON *pJsonLastConfigIndex = cJSON_GetObjectItem(pJson, "lastConfigIndex");
-  pRaftCfg->lastConfigIndex = atoll(cJSON_GetStringValue(pJsonLastConfigIndex));
-
-  cJSON *pJsonConfigIndexCount = cJSON_GetObjectItem(pJson, "configIndexCount");
-  pRaftCfg->configIndexCount = cJSON_GetNumberValue(pJsonConfigIndexCount);
-
-  cJSON *pIndexArr = cJSON_GetObjectItem(pJson, "configIndexArr");
-  int    arraySize = cJSON_GetArraySize(pIndexArr);
-  ASSERT(arraySize == pRaftCfg->configIndexCount);
-
-  memset(pRaftCfg->configIndexArr, 0, sizeof(pRaftCfg->configIndexArr));
-  for (int i = 0; i < arraySize; ++i) {
-    cJSON *pIndexObj = cJSON_GetArrayItem(pIndexArr, i);
-    ASSERT(pIndexObj != NULL);
-
-    cJSON *pIndex = cJSON_GetObjectItem(pIndexObj, "index");
-    ASSERT(cJSON_IsString(pIndex));
-    (pRaftCfg->configIndexArr)[i] = atoll(pIndex->valuestring);
-  }
-
-  cJSON  *pJsonSyncCfg = cJSON_GetObjectItem(pJson, "SSyncCfg");
-  int32_t code = syncCfgFromJson(pJsonSyncCfg, &(pRaftCfg->cfg));
-  ASSERT(code == 0);
-
   return code;
 }
 
-int32_t raftCfgFromStr(const char *s, SRaftCfg *pRaftCfg) {
-  cJSON *pRoot = cJSON_Parse(s);
-  ASSERT(pRoot != NULL);
+static int32_t syncDecodeSyncCfg(const SJson *pJson, void *pObj) {
+  SSyncCfg *pCfg = (SSyncCfg *)pObj;
+  int32_t   code = 0;
 
-  int32_t ret = raftCfgFromJson(pRoot, pRaftCfg);
-  ASSERT(ret == 0);
+  tjsonGetInt32ValueFromDouble(pJson, "replicaNum", pCfg->replicaNum, code);
+  if (code < 0) return -1;
+  tjsonGetInt32ValueFromDouble(pJson, "myIndex", pCfg->myIndex, code);
+  if (code < 0) return -1;
 
-  cJSON_Delete(pRoot);
+  SJson *nodeInfo = tjsonGetObjectItem(pJson, "nodeInfo");
+  if (nodeInfo == NULL) return -1;
+  pCfg->replicaNum = tjsonGetArraySize(nodeInfo);
+
+  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+    SJson *info = tjsonGetArrayItem(nodeInfo, i);
+    if (info == NULL) return -1;
+    tjsonGetUInt16ValueFromDouble(info, "nodePort", pCfg->nodeInfo[i].nodePort, code);
+    if (code < 0) return -1;
+    code = tjsonGetStringValue(info, "nodeFqdn", pCfg->nodeInfo[i].nodeFqdn);
+    if (code < 0) return -1;
+    tjsonGetNumberValue(info, "nodeId", pCfg->nodeInfo[i].nodeId, code);
+    tjsonGetNumberValue(info, "clusterId", pCfg->nodeInfo[i].clusterId, code);
+  }
+
+  return 0;
+}
+
+static int32_t syncDecodeRaftCfg(const SJson *pJson, void *pObj) {
+  SRaftCfg *pCfg = (SRaftCfg *)pObj;
+  int32_t   code = 0;
+
+  if (tjsonToObject(pJson, "SSyncCfg", syncDecodeSyncCfg, (void *)&pCfg->cfg) < 0) return -1;
+
+  tjsonGetInt8ValueFromDouble(pJson, "isStandBy", pCfg->isStandBy, code);
+  if (code < 0) return -1;
+  tjsonGetInt8ValueFromDouble(pJson, "snapshotStrategy", pCfg->snapshotStrategy, code);
+  if (code < 0) return -1;
+  tjsonGetInt32ValueFromDouble(pJson, "batchSize", pCfg->batchSize, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "lastConfigIndex", pCfg->lastConfigIndex, code);
+  if (code < 0) return -1;
+  tjsonGetInt32ValueFromDouble(pJson, "configIndexCount", pCfg->configIndexCount, code);
+
+  SJson *configIndexArr = tjsonGetObjectItem(pJson, "configIndexArr");
+  if (configIndexArr == NULL) return -1;
+
+  pCfg->configIndexCount = tjsonGetArraySize(configIndexArr);
+  for (int32_t i = 0; i < pCfg->configIndexCount; ++i) {
+    SJson *configIndex = tjsonGetArrayItem(configIndexArr, i);
+    if (configIndex == NULL) return -1;
+    tjsonGetNumberValue(configIndex, "index", pCfg->configIndexArr[i], code);
+    if (code < 0) return -1;
+  }
+
+  return 0;
+}
+
+int32_t syncReadCfgFile(SSyncNode *pNode) {
+  int32_t     code = -1;
+  TdFilePtr   pFile = NULL;
+  char       *pData = NULL;
+  SJson      *pJson = NULL;
+  const char *file = pNode->configPath;
+  SRaftCfg   *pCfg = &pNode->raftCfg;
+
+  pFile = taosOpenFile(file, TD_FILE_READ);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    sError("vgId:%d, failed to open sync cfg file:%s since %s", pNode->vgId, file, terrstr());
+    goto _OVER;
+  }
+
+  int64_t size = 0;
+  if (taosFStatFile(pFile, &size, NULL) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    sError("vgId:%d, failed to fstat sync cfg file:%s since %s", pNode->vgId, file, terrstr());
+    goto _OVER;
+  }
+
+  pData = taosMemoryMalloc(size + 1);
+  if (pData == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  if (taosReadFile(pFile, pData, size) != size) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    sError("vgId:%d, failed to read sync cfg file:%s since %s", pNode->vgId, file, terrstr());
+    goto _OVER;
+  }
+
+  pData[size] = '\0';
+
+  pJson = tjsonParse(pData);
+  if (pJson == NULL) {
+    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+  if (tjsonToObject(pJson, "RaftCfg", syncDecodeRaftCfg, (void *)pCfg) < 0) {
+    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+  code = 0;
+  sInfo("vgId:%d, succceed to read sync cfg file %s", pNode->vgId, file);
+
+_OVER:
+  if (pData != NULL) taosMemoryFree(pData);
+  if (pJson != NULL) cJSON_Delete(pJson);
+  if (pFile != NULL) taosCloseFile(&pFile);
+
+  if (code != 0) {
+    sError("vgId:%d, failed to read sync cfg file:%s since %s", pNode->vgId, file, terrstr());
+  }
+  return code;
+}
+
+int32_t syncAddCfgIndex(SSyncNode *pNode, SyncIndex cfgIndex) {
+  SRaftCfg *pCfg = &pNode->raftCfg;
+  if (pCfg->configIndexCount <= MAX_CONFIG_INDEX_COUNT) {
+    return -1;
+  }
+
+  pCfg->configIndexArr[pCfg->configIndexCount] = cfgIndex;
+  pCfg->configIndexCount++;
   return 0;
 }

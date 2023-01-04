@@ -57,52 +57,6 @@ uint8_t smlPrecisionConvert[7] = {TSDB_TIME_PRECISION_NANO, TSDB_TIME_PRECISION_
                                   TSDB_TIME_PRECISION_SECONDS, TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO,
                                   TSDB_TIME_PRECISION_NANO};
 
-static bool smlParseBool(SSmlKv *kvVal) {
-  const char *pVal = kvVal->value;
-  int32_t     len = kvVal->length;
-  if ((len == 1) && (pVal[0] == 't' || pVal[0] == 'T')) {
-    kvVal->i = TSDB_TRUE;
-    return true;
-  }
-
-  if ((len == 1) && (pVal[0] == 'f' || pVal[0] == 'F')) {
-    kvVal->i = TSDB_FALSE;
-    return true;
-  }
-
-  if ((len == 4) && !strncasecmp(pVal, "true", len)) {
-    kvVal->i = TSDB_TRUE;
-    return true;
-  }
-  if ((len == 5) && !strncasecmp(pVal, "false", len)) {
-    kvVal->i = TSDB_FALSE;
-    return true;
-  }
-  return false;
-}
-
-static bool smlIsBinary(const char *pVal, uint16_t len) {
-  // binary: "abc"
-  if (len < 2) {
-    return false;
-  }
-  if (pVal[0] == '"' && pVal[len - 1] == '"') {
-    return true;
-  }
-  return false;
-}
-
-static bool smlIsNchar(const char *pVal, uint16_t len) {
-  // nchar: L"abc"
-  if (len < 3) {
-    return false;
-  }
-  if (pVal[1] == '"' && pVal[len - 1] == '"' && (pVal[0] == 'l' || pVal[0] == 'L')) {
-    return true;
-  }
-  return false;
-}
-
 static int64_t smlParseInfluxTime(SSmlHandle *info, const char *data, int32_t len) {
   uint8_t toPrecision = info->currSTableMeta ? info->currSTableMeta->tableInfo.precision : TSDB_TIME_PRECISION_NANO;
 
@@ -189,6 +143,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
 
   int     cnt = 0;
   SArray *preLineKV = info->preLineTagKV;
+  SArray *maxKVs = info->maxTagKVs;
   bool    isSuperKVInit = true;
   SArray *superKV = NULL;
   if(info->dataFormat){
@@ -212,12 +167,12 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
       if(unlikely(taosArrayGetSize(superKV) == 0)){
         isSuperKVInit = false;
       }
-      taosArraySetSize(preLineKV, 0);
+      taosArraySetSize(maxKVs, 0);
     }
   }else{
-    taosArraySetSize(preLineKV, 0);
+    taosArraySetSize(maxKVs, 0);
   }
-
+  taosArraySetSize(preLineKV, 0);
 
   while (*sql < sqlEnd) {
     if (unlikely(IS_SPACE(*sql))) {
@@ -295,14 +250,14 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
       }
 
       if(isSameMeasure){
-        if(unlikely(cnt >= taosArrayGetSize(preLineKV))) {
+        if(unlikely(cnt >= taosArrayGetSize(maxKVs))) {
           info->dataFormat = false;
           info->reRun      = true;
           return TSDB_CODE_SUCCESS;
         }
-        SSmlKv *preKV = (SSmlKv *)taosArrayGet(preLineKV, cnt);
-        if(unlikely(kv.length > preKV->length)){
-          preKV->length = kv.length;
+        SSmlKv *maxKV = (SSmlKv *)taosArrayGet(maxKVs, cnt);
+        if(unlikely(kv.length > maxKV->length)){
+          maxKV->length = kv.length;
           SSmlSTableMeta *tableMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, currElement->measure, currElement->measureLen, NULL);
           ASSERT(tableMeta != NULL);
 
@@ -322,11 +277,11 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
             info->reRun      = true;
             return TSDB_CODE_SUCCESS;
           }
-          SSmlKv *preKV = (SSmlKv *)taosArrayGet(superKV, cnt);
-          if(unlikely(kv.length > preKV->length)) {
-            preKV->length = kv.length;
+          SSmlKv *maxKV = (SSmlKv *)taosArrayGet(superKV, cnt);
+          if(unlikely(kv.length > maxKV->length)) {
+            maxKV->length = kv.length;
           }else{
-            kv.length = preKV->length;
+            kv.length = maxKV->length;
           }
           info->needModifySchema = true;
 
@@ -338,11 +293,12 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
         }else{
           taosArrayPush(superKV, &kv);
         }
-        taosArrayPush(preLineKV, &kv);
+        taosArrayPush(maxKVs, &kv);
       }
     }else{
-      taosArrayPush(preLineKV, &kv);
+      taosArrayPush(maxKVs, &kv);
     }
+    taosArrayPush(preLineKV, &kv);
 
     cnt++;
     if(IS_SPACE(*sql)){
@@ -518,15 +474,15 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd,
           info->reRun      = true;
           return TSDB_CODE_SUCCESS;
         }
-        SSmlKv *preKV = (SSmlKv *)taosArrayGet(preLineKV, cnt);
-        if(kv.type != preKV->type){
+        SSmlKv *maxKV = (SSmlKv *)taosArrayGet(preLineKV, cnt);
+        if(kv.type != maxKV->type){
           info->dataFormat = false;
           info->reRun      = true;
           return TSDB_CODE_SUCCESS;
         }
 
-        if(unlikely(IS_VAR_DATA_TYPE(kv.type) && kv.length > preKV->length)){
-          preKV->length = kv.length;
+        if(unlikely(IS_VAR_DATA_TYPE(kv.type) && kv.length > maxKV->length)){
+          maxKV->length = kv.length;
           SSmlSTableMeta *tableMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, currElement->measure, currElement->measureLen, NULL);
           ASSERT(tableMeta != NULL);
 
@@ -546,18 +502,18 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd,
             info->reRun      = true;
             return TSDB_CODE_SUCCESS;
           }
-          SSmlKv *preKV = (SSmlKv *)taosArrayGet(superKV, cnt);
-          if(unlikely(kv.type != preKV->type)){
+          SSmlKv *maxKV = (SSmlKv *)taosArrayGet(superKV, cnt);
+          if(unlikely(kv.type != maxKV->type)){
             info->dataFormat = false;
             info->reRun      = true;
             return TSDB_CODE_SUCCESS;
           }
 
           if(IS_VAR_DATA_TYPE(kv.type)){
-            if(kv.length > preKV->length) {
-              preKV->length = kv.length;
+            if(kv.length > maxKV->length) {
+              maxKV->length = kv.length;
             }else{
-              kv.length = preKV->length;
+              kv.length = maxKV->length;
             }
             info->needModifySchema = true;
           }
