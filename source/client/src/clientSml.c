@@ -1021,6 +1021,7 @@ static void smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag) {
   taosMemoryFree(tag->key);
   taosArrayDestroy(tag->cols);
   taosArrayDestroy(tag->tags);
+  insDestroyTableDataCxt(tag->tableDataCtx);
   taosMemoryFree(tag);
 }
 
