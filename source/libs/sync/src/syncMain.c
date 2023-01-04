@@ -1456,16 +1456,21 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pNode, SRpcMsg
     }
   }
 
+  int32_t code = -1;
   if (pNode->syncSendMSg != NULL && epSet != NULL) {
     syncUtilMsgHtoN(pMsg->pCont);
     pMsg->info.noResp = 1;
-    return pNode->syncSendMSg(epSet, pMsg);
-  } else {
-    sError("vgId:%d, sync send msg by id error, fp:%p epset:%p", pNode->vgId, pNode->syncSendMSg, epSet);
+    code = pNode->syncSendMSg(epSet, pMsg);
+  }
+
+  if (code < 0) {
+    sError("vgId:%d, sync send msg by id error, epset:%p dnode:%d addr:%" PRId64 " err:0x%x", pNode->vgId, epSet,
+           DID(destRaftId), destRaftId->addr, terrno);
     rpcFreeCont(pMsg->pCont);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return -1;
   }
+
+  return code;
 }
 
 inline bool syncNodeInConfig(SSyncNode* pNode, const SSyncCfg* pCfg) {
