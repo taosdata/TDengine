@@ -208,10 +208,9 @@ int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
   return 0;
 }
 int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
-  if (pFile == NULL) {
-    return 0;
+  if (pFile == NULL || pFile->fd < 0) {
+    return -1;
   }
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
 
 #ifdef WINDOWS
 
@@ -265,7 +264,10 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     } else {
       mode = (tdFileOptions & TD_FILE_TEXT) ? "rt+" : "rb+";
     }
-    assert(!(tdFileOptions & TD_FILE_EXCL));
+    ASSERT(!(tdFileOptions & TD_FILE_EXCL));
+    if (tdFileOptions & TD_FILE_EXCL) {
+      return NULL;
+    }
     fp = fopen(path, mode);
     if (fp == NULL) {
       return NULL;
@@ -364,7 +366,10 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
 #if FILE_WITH_LOCK
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
+  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+  if (pFile->fd < 0) {
+    return -1;
+  }
   int64_t leftbytes = count;
   int64_t readbytes;
   char   *tbuf = (char *)buf;
@@ -408,7 +413,10 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 #if FILE_WITH_LOCK
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
+  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+  if (pFile->fd < 0) {
+    return -1;
+  }
 #ifdef WINDOWS
   size_t pos = _lseeki64(pFile->fd, 0, SEEK_CUR);
   _lseeki64(pFile->fd, offset, SEEK_SET);
@@ -466,7 +474,10 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
 #if FILE_WITH_LOCK
   taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
+  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+  if (pFile->fd < 0) {
+    return 0;
+  }
 #ifdef WINDOWS
   size_t pos = _lseeki64(pFile->fd, 0, SEEK_CUR);
   _lseeki64(pFile->fd, offset, SEEK_SET);
@@ -485,7 +496,10 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
 #if FILE_WITH_LOCK
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
+  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+  if (pFile->fd < 0) {
+    return -1;
+  }
 #ifdef WINDOWS
   int64_t ret = _lseeki64(pFile->fd, offset, whence);
 #else
@@ -501,7 +515,10 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   if (pFile == NULL) {
     return 0;
   }
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
+  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+  if (pFile->fd < 0) {
+    return -1;
+  }
 
   struct stat fileStat;
 #ifdef WINDOWS
@@ -525,6 +542,10 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
 }
 
 int32_t taosLockFile(TdFilePtr pFile) {
+  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+  if(pFile->fd < 0) {
+    return -1;
+  }
 #ifdef WINDOWS
   BOOL          fSuccess = FALSE;
   LARGE_INTEGER fileSize;
@@ -543,13 +564,15 @@ int32_t taosLockFile(TdFilePtr pFile) {
   }
   return 0;
 #else
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
-
   return (int32_t)flock(pFile->fd, LOCK_EX | LOCK_NB);
 #endif
 }
 
 int32_t taosUnLockFile(TdFilePtr pFile) {
+  ASSERT(pFile->fd >= 0);
+  if(pFile->fd < 0) {
+    return 0;
+  }
 #ifdef WINDOWS
   BOOL          fSuccess = FALSE;
   OVERLAPPED    overlapped = {0};
@@ -561,19 +584,19 @@ int32_t taosUnLockFile(TdFilePtr pFile) {
   }
   return 0;
 #else
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
-
   return (int32_t)flock(pFile->fd, LOCK_UN | LOCK_NB);
 #endif
 }
 
 int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
-#ifdef WINDOWS
-  if (pFile->fd < 0) {
-    errno = EBADF;
+  if (pFile == NULL) {
+    return 0;
+  }
+  if(pFile->fd < 0) {
     printf("Ftruncate file error, fd arg was negative\n");
     return -1;
   }
+#ifdef WINDOWS
 
   HANDLE h = (HANDLE)_get_osfhandle(pFile->fd);
 
@@ -618,11 +641,6 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
 
   return 0;
 #else
-  if (pFile == NULL) {
-    return 0;
-  }
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
-
   return ftruncate(pFile->fd, l_size);
 #endif
 }
@@ -650,7 +668,10 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   if (pFileOut == NULL || pFileIn == NULL) {
     return 0;
   }
-  assert(pFileIn->fd >= 0 && pFileOut->fd >= 0);
+  ASSERT(pFileIn->fd >= 0 && pFileOut->fd >= 0);
+  if(pFileIn->fd < 0 || pFileOut->fd < 0) {
+    return 0;
+  }
 
 #ifdef WINDOWS
 
@@ -743,11 +764,9 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 }
 
 void taosFprintfFile(TdFilePtr pFile, const char *format, ...) {
-  if (pFile == NULL) {
+  if (pFile == NULL || pFile->fp == NULL) {
     return;
   }
-  assert(pFile->fp != NULL);
-
   va_list ap;
   va_start(ap, format);
   vfprintf(pFile->fp, format, ap);
@@ -772,7 +791,10 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
   if (*ptrBuf != NULL) {
     taosMemoryFreeClear(*ptrBuf);
   }
-  assert(pFile->fp != NULL);
+  ASSERT(pFile->fp != NULL);
+  if (pFile->fp == NULL) {
+    return -1;
+  }
 #ifdef WINDOWS
   *ptrBuf = taosMemoryMalloc(1024);
   if (*ptrBuf == NULL) return -1;
@@ -792,7 +814,10 @@ int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf) {
   if (pFile == NULL || buf == NULL) {
     return -1;
   }
-  assert(pFile->fp != NULL);
+  ASSERT(pFile->fp != NULL);
+  if (pFile->fp == NULL) {
+    return -1;
+  }
   if (fgets(buf, maxSize, pFile->fp) == NULL) {
     return -1;
   }
@@ -803,7 +828,10 @@ int32_t taosEOFFile(TdFilePtr pFile) {
   if (pFile == NULL) {
     return 0;
   }
-  assert(pFile->fp != NULL);
+  ASSERT(pFile->fp != NULL);
+  if(pFile->fp == NULL) {
+    return 0;
+  }
 
   return feof(pFile->fp);
 }
