@@ -346,7 +346,7 @@ void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
 
 #define IS_BSMA_ON(s) (((s)->flags & 0x01) == COL_SMA_ON)
-#define IS_INDX_ON(s) (((s)->flags & 0x2) == COL_IDX_ON)
+#define IS_IDX_ON(s)  (((s)->flags & 0x2) == COL_IDX_ON)
 
 #define SSCHMEA_TYPE(s)  ((s)->type)
 #define SSCHMEA_FLAGS(s) ((s)->flags)

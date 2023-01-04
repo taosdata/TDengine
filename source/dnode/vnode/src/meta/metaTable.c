@@ -653,7 +653,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
         } else {
           for (int i = 0; i < pTagSchema->nCols; i++) {
             pTagColumn = &stbEntry.stbEntry.schemaTag.pSchema[i];
-            if (!IS_INDX_ON(pTagColumn)) continue;
+            if (!IS_IDX_ON(pTagColumn)) continue;
             STagIdxKey *pTagIdxKey = NULL;
             int32_t     nTagIdxKey;
 
@@ -1436,7 +1436,7 @@ static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterT
     goto _err;
   }
 
-  if (IS_INDX_ON(pCol)) {
+  if (IS_IDX_ON(pCol)) {
     terrno = TSDB_CODE_VND_COL_ALREADY_EXISTS;
     goto _err;
   }
@@ -1664,7 +1664,7 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   } else {
     for (int i = 0; i < pTagSchema->nCols; i++) {
       pTagColumn = &pTagSchema->pSchema[i];
-      if (!IS_INDX_ON(pTagColumn)) continue;
+      if (!IS_IDX_ON(pTagColumn)) continue;
 
       STagVal tagVal = {.cid = pTagColumn->colId};
       tTagGet((const STag *)pCtbEntry->ctbEntry.pTags, &tagVal);

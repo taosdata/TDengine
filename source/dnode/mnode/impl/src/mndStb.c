@@ -2631,7 +2631,9 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *ta
   int32_t code = -1;
   SField *pField0 = NULL;
 
-  SStbObj stbObj = {0};
+  SStbObj  stbObj = {0};
+  SStbObj *pNew = &stbObj;
+
   taosRLockLatch(&pOld->lock);
   memcpy(&stbObj, pOld, sizeof(SStbObj));
   taosRUnLockLatch(&pOld->lock);
@@ -2640,6 +2642,28 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *ta
   stbObj.pTags = NULL;
   stbObj.updateTime = taosGetTimestampMs();
   stbObj.lock = 0;
+
+  int32_t tag = mndFindSuperTableTagIndex(pOld, tagIdxReq->colName);
+  if (tag < 0) {
+    terrno = TSDB_CODE_MND_TAG_NOT_EXIST;
+    return -1;
+  }
+  col_id_t colId = pOld->pTags[tag].colId;
+  if (mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId) != 0) {
+    return -1;
+  }
+  if (mndAllocStbSchemas(pOld, pNew) != 0) {
+    return -1;
+  }
+
+  SSchema *pTag = pNew->pTags + tag;
+  if (IS_IDX_ON(pTag)) {
+    terrno = TSDB_CODE_MND_TAG_NOT_EXIST;
+    return -1;
+  } else {
+    pTag->flags |= COL_IDX_ON;
+  }
+  pNew->tagVer++;
 
   return TSDB_CODE_SUCCESS;
 }
