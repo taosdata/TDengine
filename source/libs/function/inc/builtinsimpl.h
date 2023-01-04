@@ -32,7 +32,7 @@ typedef struct SSumRes {
   int16_t type;
   int64_t prevTs;
   bool    isPrevTsSet;
-  bool    overflow; // if overflow is true, dsum to be used for any type;
+  bool    overflow;  // if overflow is true, dsum to be used for any type;
 } SSumRes;
 
 typedef struct SMinmaxResInfo {
@@ -46,7 +46,7 @@ typedef struct SMinmaxResInfo {
 } SMinmaxResInfo;
 int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc);
 
-STuplePos   saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, const STupleKey* pKey);
+STuplePos   saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock);
 int32_t     updateTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos);
 const char* loadTupleData(SqlFunctionCtx* pCtx, const STuplePos* pPos);
 

@@ -194,6 +194,7 @@ typedef enum ELogicConditionType {
 #define TSDB_TOPIC_NAME_LEN  193                                // it is a null-terminated string
 #define TSDB_CGROUP_LEN      193                                // it is a null-terminated string
 #define TSDB_USER_CGROUP_LEN (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
+#define TSDB_STREAM_NAME_LEN 193                                // it is a null-terminated string
 #define TSDB_DB_NAME_LEN     65
 #define TSDB_DB_FNAME_LEN    (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 
@@ -213,8 +214,8 @@ typedef enum ELogicConditionType {
 #define TSDB_INDEX_FNAME_LEN     (TSDB_DB_FNAME_LEN + TSDB_INDEX_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_TYPE_STR_MAX_LEN    32
 #define TSDB_TABLE_FNAME_LEN     (TSDB_DB_FNAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
-#define TSDB_TOPIC_FNAME_LEN     (TSDB_ACCT_ID_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
-#define TSDB_STREAM_FNAME_LEN    (TSDB_ACCT_ID_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_TOPIC_FNAME_LEN     (TSDB_ACCT_ID_LEN + TSDB_TOPIC_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_STREAM_FNAME_LEN    (TSDB_ACCT_ID_LEN + TSDB_STREAM_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_SUBSCRIBE_KEY_LEN   (TSDB_CGROUP_LEN + TSDB_TOPIC_FNAME_LEN + 2)
 #define TSDB_PARTITION_KEY_LEN   (TSDB_SUBSCRIBE_KEY_LEN + 20)
 #define TSDB_COL_NAME_LEN        65
@@ -311,7 +312,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_KEEP                   (1 * 1440)          // data in db to be reserved. unit minute
 #define TSDB_MAX_KEEP                   (365000 * 1440)     // data in db to be reserved.
 #define TSDB_MAX_KEEP_NS                (365 * 292 * 1440)  // data in db to be reserved.
-#define TSDB_DEFAULT_KEEP               (3650 * 1440)    // ten years
+#define TSDB_DEFAULT_KEEP               (3650 * 1440)       // ten years
 #define TSDB_MIN_MINROWS_FBLOCK         10
 #define TSDB_MAX_MINROWS_FBLOCK         1000
 #define TSDB_DEFAULT_MINROWS_FBLOCK     100

@@ -785,8 +785,8 @@ static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
-#define SL_NODE_FORWARD(n, l)  ((n)->forwards[l])
-#define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
+// #define SL_NODE_FORWARD(n, l)  ((n)->forwards[l])
+// #define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
 
 static FORCE_INLINE TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
   if (pIter == NULL) return NULL;

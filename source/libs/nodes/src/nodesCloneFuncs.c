@@ -409,6 +409,7 @@ static int32_t logicAggCopy(const SAggLogicNode* pSrc, SAggLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pGroupKeys);
   CLONE_NODE_LIST_FIELD(pAggFuncs);
+  COPY_SCALAR_FIELD(hasGroupKeyOptimized);
   return TSDB_CODE_SUCCESS;
 }
 

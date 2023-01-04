@@ -24,33 +24,35 @@
 #include "syncUtil.h"
 
 static void syncNodeCleanConfigIndex(SSyncNode* ths) {
+#if 0
   int32_t   newArrIndex = 0;
   SyncIndex newConfigIndexArr[MAX_CONFIG_INDEX_COUNT] = {0};
   SSnapshot snapshot = {0};
 
   ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
   if (snapshot.lastApplyIndex != SYNC_INDEX_INVALID) {
-    for (int32_t i = 0; i < ths->pRaftCfg->configIndexCount; ++i) {
-      if (ths->pRaftCfg->configIndexArr[i] < snapshot.lastConfigIndex) {
+    for (int32_t i = 0; i < ths->raftCfg.configIndexCount; ++i) {
+      if (ths->raftCfg.configIndexArr[i] < snapshot.lastConfigIndex) {
         // pass
       } else {
         // save
-        newConfigIndexArr[newArrIndex] = ths->pRaftCfg->configIndexArr[i];
+        newConfigIndexArr[newArrIndex] = ths->raftCfg.configIndexArr[i];
         ++newArrIndex;
       }
     }
 
-    int32_t oldCnt = ths->pRaftCfg->configIndexCount;
-    ths->pRaftCfg->configIndexCount = newArrIndex;
-    memcpy(ths->pRaftCfg->configIndexArr, newConfigIndexArr, sizeof(newConfigIndexArr));
+    int32_t oldCnt = ths->raftCfg.configIndexCount;
+    ths->raftCfg.configIndexCount = newArrIndex;
+    memcpy(ths->raftCfg.configIndexArr, newConfigIndexArr, sizeof(newConfigIndexArr));
 
-    int32_t code = raftCfgPersist(ths->pRaftCfg);
+    int32_t code = syncWriteCfgFile(ths);
     if (code != 0) {
       sNFatal(ths, "failed to persist cfg");
     } else {
-      sNTrace(ths, "clean config index arr, old-cnt:%d, new-cnt:%d", oldCnt, ths->pRaftCfg->configIndexCount);
+      sNTrace(ths, "clean config index arr, old-cnt:%d, new-cnt:%d", oldCnt, ths->raftCfg.configIndexCount);
     }
   }
+#endif
 }
 
 static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
