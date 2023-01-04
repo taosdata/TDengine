@@ -2786,9 +2786,14 @@ int32_t tDeserializeSCreateTagIdxReq(void* buf, int32_t bufLen, SCreateTagIndexR
 
 typedef struct {
   char   dbFName[TSDB_DB_FNAME_LEN];
-  char   stb[TSDB_TABLE_FNAME_LEN];
-  int8_t indexType;
+  char   stbName[TSDB_TABLE_FNAME_LEN];
+  char   colName[TSDB_COL_NAME_LEN];
+  char   idxName[TSDB_COL_NAME_LEN];
+  int8_t idxType;
 } SDropTagIndexReq;
+
+int32_t tSerializeSDropTagIdxReq(void* buf, int32_t bufLen, SDropTagIndexReq* pReq);
+int32_t tDeserializeSDropTagIdxReq(void* buf, int32_t bufLen, SDropTagIndexReq* pReq);
 
 typedef struct {
   int8_t         version;       // for compatibility(default 0)

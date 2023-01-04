@@ -951,6 +951,38 @@ int32_t tDeserializeSCreateTagIdxReq(void *buf, int32_t bufLen, SCreateTagIndexR
   tDecoderClear(&decoder);
   return 0;
 }
+int32_t tSerializeSDropTagIdxReq(void *buf, int32_t bufLen, SDropTagIndexReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  if (tStartEncode(&encoder) < 0) return -1;
+  tEndEncode(&encoder);
+
+  if (tEncodeCStr(&encoder, pReq->dbFName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->stbName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->colName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->idxName) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->idxType) < 0) return -1;
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+int32_t tDeserializeSDropTagIdxReq(void *buf, int32_t bufLen, SDropTagIndexReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  if (tDecodeCStrTo(&decoder, pReq->dbFName) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->stbName) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->colName) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->idxName) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->idxType) < 0) return -1;
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+
+  return 0;
+}
 int32_t tSerializeSMCreateFullTextReq(void *buf, int32_t bufLen, SMCreateFullTextReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);

@@ -5333,6 +5333,16 @@ static int32_t buildCreateFullTextReq(STranslateContext* pCxt, SCreateIndexStmt*
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t buildCreateTagIndexReq(STranslateContext* pCxt, SCreateIndexStmt* pStmt, SCreateTagIndexReq* pReq) {
+  SName name;
+  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->indexDbName, pStmt->indexName, &name), pReq->dbFName);
+  memset(&name, 0, sizeof(SName));
+
+  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name), pReq->stbName);
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateCreateFullTextIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
   SMCreateFullTextReq createFTReq = {0};
   int32_t             code = buildCreateFullTextReq(pCxt, pStmt, &createFTReq);
@@ -5343,9 +5353,20 @@ static int32_t translateCreateFullTextIndex(STranslateContext* pCxt, SCreateInde
   return code;
 }
 
+static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
+  SCreateTagIndexReq createTagIdxReq = {0};
+  int32_t            code = buildCreateTagIndexReq(pCxt, pStmt, &createTagIdxReq);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_INDEX, (FSerializeFunc)tSerializeSCreateTagIdxReq, &createTagIdxReq);
+  }
+  return code;
+}
+
 static int32_t translateCreateIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
   if (INDEX_TYPE_FULLTEXT == pStmt->indexType) {
     return translateCreateFullTextIndex(pCxt, pStmt);
+  } else if (INDEX_TYPE_NORMAL == pStmt->indexType) {
+    return translateCreateNormalIndex(pCxt, pStmt);
   }
   return translateCreateSmaIndex(pCxt, pStmt);
 }
@@ -6435,7 +6456,7 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
       return extractShowCreateDatabaseResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
-      return extractShowAliveResultSchema(numOfCols, pSchema);      
+      return extractShowAliveResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return extractShowCreateTableResultSchema(numOfCols, pSchema);
@@ -7956,7 +7977,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_DESCRIBE_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:    
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:

@@ -49,6 +49,9 @@ static int32_t  mndAlterStbImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbO
                                void *alterOriData, int32_t alterOriDataLen);
 static int32_t  mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbname, int64_t suid, col_id_t colId);
 
+static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq);
+static int32_t mndProcessDropIndexReq(SRpcMsg *pReq);
+
 int32_t mndInitStb(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_STB,
@@ -69,6 +72,9 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_META, mndProcessTableMetaReq);
   mndSetMsgHandle(pMnode, TDMT_MND_TTL_TIMER, mndProcessTtlTimer);
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_CFG, mndProcessTableCfgReq);
+
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_INDEX, mndProcessCreateIndexReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_INDEX, mndProcessDropIndexReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STB, mndRetrieveStb);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STB, mndCancelGetNextStb);
@@ -2613,4 +2619,88 @@ const char *mndGetStbStr(const char *src) {
   if (posStb != NULL) ++posStb;
   if (posStb == NULL) return posDb;
   return posStb;
+}
+
+static int32_t mndCheckIndexReq(SCreateTagIndexReq *pReq) {
+  // impl
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *tagIdxReq, SDbObj *pDb, SStbObj *pOld) {
+  bool    needRsp = true;
+  int32_t code = -1;
+  SField *pField0 = NULL;
+
+  SStbObj stbObj = {0};
+  taosRLockLatch(&pOld->lock);
+  memcpy(&stbObj, pOld, sizeof(SStbObj));
+  taosRUnLockLatch(&pOld->lock);
+
+  stbObj.pColumns = NULL;
+  stbObj.pTags = NULL;
+  stbObj.updateTime = taosGetTimestampMs();
+  stbObj.lock = 0;
+
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq) {
+  SMnode            *pMnode = pReq->info.node;
+  int32_t            code = -1;
+  SDbObj            *pDb = NULL;
+  SStbObj           *pStb = NULL;
+  SCreateTagIndexReq tagIdxReq = {0};
+
+  if (tDeserializeSCreateTagIdxReq(pReq->pCont, pReq->contLen, &tagIdxReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  mInfo("stb:%s, start to alter", tagIdxReq.stbName);
+
+  if (mndCheckIndexReq(&tagIdxReq) != TSDB_CODE_SUCCESS) {
+    goto _OVER;
+  }
+
+  pDb = mndAcquireDbByStb(pMnode, tagIdxReq.dbFName);
+  if (pDb == NULL) {
+    terrno = TSDB_CODE_MND_INVALID_DB;
+    goto _OVER;
+  }
+
+  pStb = mndAcquireStb(pMnode, tagIdxReq.stbName);
+  if (pStb == NULL) {
+    terrno = TSDB_CODE_MND_STB_NOT_EXIST;
+    goto _OVER;
+  }
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+    goto _OVER;
+  }
+
+  code = mndAddIndex(pMnode, pReq, &tagIdxReq, pDb, pStb);
+  if (code != 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  return TSDB_CODE_SUCCESS;
+
+_OVER:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("stb:%s, failed to create index since %s", tagIdxReq.stbName, terrstr());
+  }
+  mndReleaseStb(pMnode, pStb);
+  mndReleaseDb(pMnode, pDb);
+  return code;
+}
+static int32_t mndProcessDropIndexReq(SRpcMsg *pReq) {
+  SMnode          *pMnode = pReq->info.node;
+  int32_t          code = -1;
+  SDbObj          *pDb = NULL;
+  SStbObj         *pStb = NULL;
+  SDropTagIndexReq dropReq = {0};
+  if (tDeserializeSDropTagIdxReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+  //
+  return TSDB_CODE_SUCCESS;
+_OVER:
+  return code;
 }
