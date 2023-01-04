@@ -315,7 +315,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
 int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows,
                       const SDataBlockInfo* pBlockInfo) {
   if (pColumnInfoData->info.type != pSource->info.type ||
-      pBlockInfo->capacity < numOfRows) {
+      (pBlockInfo != NULL && pBlockInfo->capacity < numOfRows)) {
     return TSDB_CODE_FAILED;
   }
 
