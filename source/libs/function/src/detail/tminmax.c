@@ -64,7 +64,7 @@
 static void calculateRounds(int32_t numOfRows, int32_t bytes, int32_t* remainder, int32_t* rounds, int32_t* width) {
   const int32_t bitWidth = 256;
 
-  *width = (bitWidth>>3u) / bytes;
+  *width = (bitWidth >> 3u) / bytes;
   *remainder = numOfRows % (*width);
   *rounds = numOfRows / (*width);
 }
@@ -92,8 +92,7 @@ static void calculateRounds(int32_t numOfRows, int32_t bytes, int32_t* remainder
       (_v) = (_sec)[j];                                    \
     }                                                      \
   }
-  
-  
+
 static int8_t i8VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFunc, bool signVal) {
   int8_t        v = 0;
   const int8_t* p = pData;
@@ -116,7 +115,7 @@ static int8_t i8VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFu
 
       const int8_t* q = (const int8_t*)&initVal;
       EXTRACT_MAX_VAL(q, p, width, remain, v)
-    } else {  // unsigned value 
+    } else {  // unsigned value
       for (int32_t i = 0; i < rounds; ++i) {
         next = _mm256_lddqu_si256((__m256i*)p);
         initVal = _mm256_max_epu8(initVal, next);
@@ -126,7 +125,7 @@ static int8_t i8VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFu
       const uint8_t* q = (const uint8_t*)&initVal;
       EXTRACT_MAX_VAL(q, p, width, remain, v)
     }
-    
+
   } else {  // min function
     if (signVal) {
       for (int32_t i = 0; i < rounds; ++i) {
@@ -241,7 +240,7 @@ static int32_t i32VectorCmpAVX2(const int32_t* pData, int32_t numOfRows, bool is
       // let compare  the final results
       const int32_t* q = (const int32_t*)&initVal;
       EXTRACT_MAX_VAL(q, p, width, remain, v)
-    } else { // unsigned value
+    } else {  // unsigned value
       for (int32_t i = 0; i < rounds; ++i) {
         next = _mm256_lddqu_si256((__m256i*)p);
         initVal = _mm256_max_epi32(initVal, next);
@@ -281,7 +280,7 @@ static int32_t i32VectorCmpAVX2(const int32_t* pData, int32_t numOfRows, bool is
 }
 
 static float floatVectorCmpAVX(const float* pData, int32_t numOfRows, bool isMinFunc) {
-  float v = 0;
+  float        v = 0;
   const float* p = pData;
 
   int32_t width, remain, rounds;
@@ -358,7 +357,7 @@ static double doubleVectorCmpAVX(const double* pData, int32_t numOfRows, bool is
 
 static int32_t findFirstValPosition(const SColumnInfoData* pCol, int32_t start, int32_t numOfRows) {
   int32_t i = start;
-  
+
   while (i < (start + numOfRows) && (colDataIsNull_f(pCol->nullbitmap, i) == true)) {
     i += 1;
   }
@@ -495,7 +494,8 @@ static void handleInt64Col(const void* data, int32_t start, int32_t numOfRows, S
   }
 }
 
-static void handleFloatCol(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc) {
+static void handleFloatCol(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf,
+                           bool isMinFunc) {
   float* pData = (float*)pCol->pData;
   float* val = (float*)&pBuf->v;
 
@@ -525,7 +525,8 @@ static void handleFloatCol(SColumnInfoData* pCol, int32_t start, int32_t numOfRo
   pBuf->assign = true;
 }
 
-static void handleDoubleCol(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc) {
+static void handleDoubleCol(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf,
+                            bool isMinFunc) {
   double* pData = (double*)pCol->pData;
   double* val = (double*)&pBuf->v;
 
@@ -736,11 +737,16 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
     }
 
     if (!pBuf->assign) {
-      pBuf->v = *(int64_t*)tval;
+      if (type == TSDB_DATA_TYPE_FLOAT) {
+        GET_FLOAT_VAL(&pBuf->v) = GET_DOUBLE_VAL(tval);
+      } else {
+        pBuf->v = GET_INT64_VAL(tval);
+      }
+
       if (pCtx->subsidiaries.num > 0) {
         index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
         if (index >= 0) {
-          pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock, NULL);
+          pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock);
         }
       }
     } else {
@@ -750,11 +756,11 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
         int64_t val = GET_INT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          *(int64_t*)&pBuf->v = val;
+          GET_INT64_VAL(&pBuf->v) = val;
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             if (index >= 0) {
-              pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock, NULL);
+              pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock);
             }
           }
         }
@@ -764,11 +770,11 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
         uint64_t val = GET_UINT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          *(uint64_t*)&pBuf->v = val;
+          GET_UINT64_VAL(&pBuf->v) = val;
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             if (index >= 0) {
-              pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock, NULL);
+              pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock);
             }
           }
         }
@@ -778,11 +784,11 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
         double val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          *(double*)&pBuf->v = val;
+          GET_DOUBLE_VAL(&pBuf->v) = val;
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             if (index >= 0) {
-              pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock, NULL);
+              pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock);
             }
           }
         }
@@ -792,13 +798,13 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
         float val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          *(float*)&pBuf->v = val;
+          GET_FLOAT_VAL(&pBuf->v) = val;
         }
 
         if (pCtx->subsidiaries.num > 0) {
           index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
           if (index >= 0) {
-            pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock, NULL);
+            pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock);
           }
         }
       }
@@ -819,7 +825,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
       memcpy(&pBuf->v, pCol->pData + (pCol->info.bytes * i), pCol->info.bytes);
 
       if (pCtx->subsidiaries.num > 0) {
-        pBuf->tuplePos = saveTupleData(pCtx, i, pCtx->pSrcBlock, NULL);
+        pBuf->tuplePos = saveTupleData(pCtx, i, pCtx->pSrcBlock);
       }
       pBuf->assign = true;
       numOfElems = 1;
@@ -883,7 +889,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
 _over:
   if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pBuf->nullTupleSaved) {
-    pBuf->nullTuplePos = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, NULL);
+    pBuf->nullTuplePos = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock);
     pBuf->nullTupleSaved = true;
   }
 

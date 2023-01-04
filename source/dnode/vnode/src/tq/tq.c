@@ -1125,6 +1125,11 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   // do recovery step 1
   streamSourceRecoverScanStep1(pTask);
 
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+    return 0;
+  }
+
   // build msg to launch next step
   SStreamRecoverStep2Req req;
   code = streamBuildSourceRecover2Req(pTask, &req);
@@ -1134,6 +1139,10 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+    return 0;
+  }
 
   // serialize msg
   int32_t len = sizeof(SStreamRecoverStep1Req);
@@ -1171,6 +1180,11 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t version, char* msg, int32_t m
   if (code < 0) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
+  }
+
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+    return 0;
   }
 
   // restore param

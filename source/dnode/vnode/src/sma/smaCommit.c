@@ -116,68 +116,6 @@ _exit:
   return code;
 }
 
-// SQTaskFile ======================================================
-
-/**
- * @brief At most time, there is only one qtaskinfo file committed latest in aTaskFile. Sometimes, there would be
- * multiple qtaskinfo files supporting snapshot replication.
- *
- * @param pSma
- * @param pStat
- * @return int32_t
- */
-static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pStat) {
-#if 0
-  SVnode  *pVnode = pSma->pVnode;
-  SRSmaFS *pFS = RSMA_FS(pStat);
-  int64_t  committed = pStat->commitAppliedVer;
-  int64_t  fsMaxVer = -1;
-  char     qTaskInfoFullName[TSDB_FILENAME_LEN];
-
-  taosWLockLatch(RSMA_FS_LOCK(pStat));
-
-  for (int32_t i = 0; i < taosArrayGetSize(pFS->aQTaskInf);) {
-    SQTaskFile *pTaskF = taosArrayGet(pFS->aQTaskInf, i);
-    int32_t     oldVal = atomic_fetch_sub_32(&pTaskF->nRef, 1);
-    if ((oldVal <= 1) && (pTaskF->version < committed)) {
-      tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->version, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
-      if (taosRemoveFile(qTaskInfoFullName) < 0) {
-        smaWarn("vgId:%d, cleanup qinf, committed %" PRIi64 ", failed to remove %s since %s", TD_VID(pVnode), committed,
-                qTaskInfoFullName, tstrerror(TAOS_SYSTEM_ERROR(errno)));
-      } else {
-        smaDebug("vgId:%d, cleanup qinf, committed %" PRIi64 ", success to remove %s", TD_VID(pVnode), committed,
-                 qTaskInfoFullName);
-      }
-      taosArrayRemove(pFS->aQTaskInf, i);
-      continue;
-    }
-    ++i;
-  }
-
-  if (taosArrayGetSize(pFS->aQTaskInf) > 0) {
-    fsMaxVer = ((SQTaskFile *)taosArrayGetLast(pFS->aQTaskInf))->version;
-  }
-
-  if (fsMaxVer < committed) {
-    tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), committed, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
-    if (taosCheckExistFile(qTaskInfoFullName)) {
-      SQTaskFile qFile = {.nRef = 1, .padding = 0, .version = committed, .size = 0};
-      if (!taosArrayPush(pFS->aQTaskInf, &qFile)) {
-        taosWUnLockLatch(RSMA_FS_LOCK(pStat));
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return TSDB_CODE_FAILED;
-      }
-    }
-  } else {
-    smaDebug("vgId:%d, update qinf, no need as committed %" PRIi64 " not larger than fsMaxVer %" PRIi64, TD_VID(pVnode),
-             committed, fsMaxVer);
-  }
-
-  taosWUnLockLatch(RSMA_FS_LOCK(pStat));
-#endif
-  return TSDB_CODE_SUCCESS;
-}
-
 /**
  * @brief Rsma async commit implementation(only do some necessary light weighted task)
  *  1) set rsma stat TASK_TRIGGER_STAT_PAUSED
@@ -187,7 +125,8 @@ static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pStat) {
  * @return int32_t
  */
 static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
-  int32_t  code = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
 
   SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
   if (!pEnv) {
@@ -208,7 +147,11 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
     }
   }
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
-  // ASSERT(pRSmaStat->commitAppliedVer > 0);
+  if (ASSERTS(pRSmaStat->commitAppliedVer >= 0, "commit applied version %" PRIi64 " < 0",
+              pRSmaStat->commitAppliedVer)) {
+    code = TSDB_CODE_APP_ERROR;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   // step 2: wait for all triggered fetch tasks to finish
   nLoops = 0;
@@ -242,17 +185,15 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
     }
   }
   smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
-  if ((code = tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat))) != 0) {
-    return code;
-  }
+  code = tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
+  TSDB_CHECK_CODE(code, lino, _exit);
+  
   smaInfo("vgId:%d, rsma commit, operator state committed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
 #if 0  // consuming task of qTaskInfo clone 
   // step 4:  swap queue/qall and iQueue/iQall
   // lock
   taosWLockLatch(SMA_ENV_LOCK(pEnv));
-
-  ASSERT(RSMA_INFO_HASH(pRSmaStat));
 
   void *pIter = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), NULL);
 
@@ -271,9 +212,19 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
 
   // all rsma results are written completely
   STsdb *pTsdb = NULL;
-  if ((pTsdb = VND_RSMA1(pSma->pVnode))) tsdbPrepareCommit(pTsdb);
-  if ((pTsdb = VND_RSMA2(pSma->pVnode))) tsdbPrepareCommit(pTsdb);
+  if ((pTsdb = VND_RSMA1(pSma->pVnode))) {
+    code = tsdbPrepareCommit(pTsdb);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  if ((pTsdb = VND_RSMA2(pSma->pVnode))) {
+    code = tsdbPrepareCommit(pTsdb);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
+_exit:
+  if (code) {
+    smaError("vgId:%d, %s failed at line %d since %s", SMA_VID(pSma), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -359,8 +310,6 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
     // unlock
     taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
   }
-
-  tdUpdateQTaskInfoFiles(pSma, pRSmaStat);
 
   atomic_store_8(RSMA_COMMIT_STAT(pRSmaStat), 0);
 

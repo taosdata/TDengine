@@ -273,42 +273,90 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
     char    bit = bit_per_integer[(int32_t)selector];  // bit = 3
     int32_t elems = selector_to_elems[(int32_t)selector];
 
-    for (int32_t i = 0; i < elems; i++) {
-      uint64_t zigzag_value;
+    // Optimize the performance, by remove the constantly switch operation.
+    int32_t v = 0;
+    uint64_t zigzag_value;
 
-      if (selector == 0 || selector == 1) {
-        zigzag_value = 0;
-      } else {
-        zigzag_value = ((w >> (4 + bit * i)) & INT64MASK(bit));
-      }
-      int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
-      int64_t curr_value = diff + prev_value;
-      prev_value = curr_value;
+    switch (type) {
+      case TSDB_DATA_TYPE_BIGINT: {
+        for (int32_t i = 0; i < elems; i++) {
+          if (selector == 0 || selector == 1) {
+            zigzag_value = 0;
+          } else {
+            zigzag_value = ((w >> (4 + v)) & INT64MASK(bit));
+          }
 
-      switch (type) {
-        case TSDB_DATA_TYPE_BIGINT:
+          int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+          int64_t curr_value = diff + prev_value;
+          prev_value = curr_value;
+
           *((int64_t *)output + _pos) = (int64_t)curr_value;
           _pos++;
-          break;
-        case TSDB_DATA_TYPE_INT:
+
+          v += bit;
+          if ((++count) == nelements) break;
+        }
+      } break;
+      case TSDB_DATA_TYPE_INT: {
+        for (int32_t i = 0; i < elems; i++) {
+          if (selector == 0 || selector == 1) {
+            zigzag_value = 0;
+          } else {
+            zigzag_value = ((w >> (4 + v)) & INT64MASK(bit));
+          }
+
+          int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+          int64_t curr_value = diff + prev_value;
+          prev_value = curr_value;
+
           *((int32_t *)output + _pos) = (int32_t)curr_value;
           _pos++;
-          break;
-        case TSDB_DATA_TYPE_SMALLINT:
+
+          v += bit;
+          if ((++count) == nelements) break;
+        }
+      } break;
+      case TSDB_DATA_TYPE_SMALLINT: {
+        for (int32_t i = 0; i < elems; i++) {
+          if (selector == 0 || selector == 1) {
+            zigzag_value = 0;
+          } else {
+            zigzag_value = ((w >> (4 + v)) & INT64MASK(bit));
+          }
+
+          int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+          int64_t curr_value = diff + prev_value;
+          prev_value = curr_value;
+
           *((int16_t *)output + _pos) = (int16_t)curr_value;
           _pos++;
-          break;
-        case TSDB_DATA_TYPE_TINYINT:
+
+          v += bit;
+          if ((++count) == nelements) break;
+        }
+      } break;
+
+      case TSDB_DATA_TYPE_TINYINT: {
+        for (int32_t i = 0; i < elems; i++) {
+          if (selector == 0 || selector == 1) {
+            zigzag_value = 0;
+          } else {
+            zigzag_value = ((w >> (4 + v)) & INT64MASK(bit));
+          }
+
+          int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+          int64_t curr_value = diff + prev_value;
+          prev_value = curr_value;
+
           *((int8_t *)output + _pos) = (int8_t)curr_value;
           _pos++;
-          break;
-        default:
-          perror("Wrong integer types.\n");
-          return -1;
-      }
-      count++;
-      if (count == nelements) break;
+
+          v += bit;
+          if ((++count) == nelements) break;
+        }
+      } break;
     }
+
     ip += LONG_BYTES;
   }
 
@@ -470,7 +518,7 @@ int32_t tsDecompressStringImp(const char *const input, int32_t compressedSize, c
 // TODO: Take care here, we assumes little endian encoding.
 int32_t tsCompressTimestampImp(const char *const input, const int32_t nelements, char *const output) {
   int32_t _pos = 1;
-  assert(nelements >= 0);
+  ASSERTS(nelements >= 0, "nelements is negative");
 
   if (nelements == 0) return 0;
 
@@ -565,7 +613,7 @@ _exit_over:
 }
 
 int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelements, char *const output) {
-  assert(nelements >= 0);
+  ASSERTS(nelements >= 0, "nelements is negative");
   if (nelements == 0) return 0;
 
   if (input[0] == 0) {
@@ -629,7 +677,7 @@ int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelement
     }
 
   } else {
-    assert(0);
+    ASSERT(0);
     return -1;
   }
 }
@@ -758,7 +806,7 @@ int32_t tsDecompressDoubleImp(const char *const input, const int32_t nelements, 
   uint64_t prev_value = 0;
 
   for (int32_t i = 0; i < nelements; i++) {
-    if (i % 2 == 0) {
+    if ((i & 0x01) == 0) {
       flags = input[ipos++];
     }
 
@@ -2146,7 +2194,7 @@ int32_t tsCompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, in
     int32_t len = tsCompressTimestampImp(pIn, nEle, pBuf);
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo not one or two stage");
     return -1;
   }
 }
@@ -2159,7 +2207,7 @@ int32_t tsDecompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, 
     if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
     return tsDecompressTimestampImp(pBuf, nEle, pOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2180,7 +2228,7 @@ int32_t tsCompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_
       int32_t len = tsCompressFloatImp(pIn, nEle, pBuf);
       return tsCompressStringImp(pBuf, len, pOut, nOut);
     } else {
-      assert(0);
+      ASSERTS(0, "compress algo invalid");
       return -1;
     }
 #ifdef TD_TSZ
@@ -2203,7 +2251,7 @@ int32_t tsDecompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int3
       if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
       return tsDecompressFloatImp(pBuf, nEle, pOut);
     } else {
-      assert(0);
+      ASSERTS(0, "compress algo invalid");
       return -1;
     }
 #ifdef TD_TSZ
@@ -2227,7 +2275,7 @@ int32_t tsCompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32
       int32_t len = tsCompressDoubleImp(pIn, nEle, pBuf);
       return tsCompressStringImp(pBuf, len, pOut, nOut);
     } else {
-      assert(0);
+      ASSERTS(0, "compress algo invalid");
       return -1;
     }
 #ifdef TD_TSZ
@@ -2250,7 +2298,7 @@ int32_t tsDecompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
       if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
       return tsDecompressDoubleImp(pBuf, nEle, pOut);
     } else {
-      assert(0);
+      ASSERTS(0, "compress algo invalid");
       return -1;
     }
 #ifdef TD_TSZ
@@ -2281,7 +2329,7 @@ int32_t tsCompressBool(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t
     }
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2294,7 +2342,7 @@ int32_t tsDecompressBool(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32
     if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
     return tsDecompressBoolImp(pBuf, nEle, pOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2308,7 +2356,7 @@ int32_t tsCompressTinyint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int3
     int32_t len = tsCompressINTImp(pIn, nEle, pBuf, TSDB_DATA_TYPE_TINYINT);
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2321,7 +2369,7 @@ int32_t tsDecompressTinyint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, in
     if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
     return tsDecompressINTImp(pBuf, nEle, pOut, TSDB_DATA_TYPE_TINYINT);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2335,7 +2383,7 @@ int32_t tsCompressSmallint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
     int32_t len = tsCompressINTImp(pIn, nEle, pBuf, TSDB_DATA_TYPE_SMALLINT);
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2348,7 +2396,7 @@ int32_t tsDecompressSmallint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, i
     if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
     return tsDecompressINTImp(pBuf, nEle, pOut, TSDB_DATA_TYPE_SMALLINT);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2362,7 +2410,7 @@ int32_t tsCompressInt(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t 
     int32_t len = tsCompressINTImp(pIn, nEle, pBuf, TSDB_DATA_TYPE_INT);
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2375,7 +2423,7 @@ int32_t tsDecompressInt(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_
     if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
     return tsDecompressINTImp(pBuf, nEle, pOut, TSDB_DATA_TYPE_INT);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2389,7 +2437,7 @@ int32_t tsCompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32
     int32_t len = tsCompressINTImp(pIn, nEle, pBuf, TSDB_DATA_TYPE_BIGINT);
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2402,7 +2450,7 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
     if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
     return tsDecompressINTImp(pBuf, nEle, pOut, TSDB_DATA_TYPE_BIGINT);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }

@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-#include "tbuffer.h"
 #include "tcommon.h"
 #include "tvariant.h"
 
@@ -138,7 +137,7 @@ typedef struct SqlFunctionCtx {
   char                *pOutput;     // final result output buffer, point to sdata->data
   int32_t              numOfParams;
   // input parameter, e.g., top(k, 20), the number of results of top query is kept in param
-  SFunctParam         *param;
+  SFunctParam *param;
   // corresponding output buffer for timestamp of each result, e.g., diff/csum
   SColumnInfoData     *pTsOutput;
   int32_t              offset;
@@ -152,6 +151,7 @@ typedef struct SqlFunctionCtx {
   struct SSDataBlock  *pSrcBlock;
   struct SSDataBlock  *pDstBlock;  // used by indefinite rows function to set selectivity
   SSerializeDataHandle saveHandle;
+  int32_t              exprIdx;
   char                 udfName[TSDB_FUNC_NAME_LEN];
 } SqlFunctionCtx;
 
@@ -182,9 +182,9 @@ struct SScalarParam {
   int32_t          numOfQualified;  // number of qualified elements in the final results
 };
 
-void    cleanupResultRowEntry(struct SResultRowEntryInfo *pCell);
-bool    isRowEntryCompleted(struct SResultRowEntryInfo *pEntry);
-bool    isRowEntryInitialized(struct SResultRowEntryInfo *pEntry);
+void cleanupResultRowEntry(struct SResultRowEntryInfo *pCell);
+bool isRowEntryCompleted(struct SResultRowEntryInfo *pEntry);
+bool isRowEntryInitialized(struct SResultRowEntryInfo *pEntry);
 
 typedef struct SPoint {
   int64_t key;

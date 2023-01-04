@@ -4455,6 +4455,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
   int32_t code = TSDB_CODE_SUCCESS;
   pTableBlockInfo->totalSize = 0;
   pTableBlockInfo->totalRows = 0;
+  pTableBlockInfo->numOfVgroups = 1;
 
   // find the start data block in file
   SReaderStatus* pStatus = &pReader->status;
