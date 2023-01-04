@@ -26,7 +26,10 @@
 #include <pthread.h>
 #include "taos.h"
 
-int  rtTables = 20;
+#define RT_TABLE_NUM 100
+
+int  rtTables = RT_TABLE_NUM;
+int rtTableUs[RT_TABLE_NUM] = {0};
 char hostName[128];
 
 static void rtExecSQL(TAOS *taos, char *command) {
@@ -101,6 +104,22 @@ int rtPrepare(TAOS   ** p, int prefix, int suffix) {
   return 0;
 }
 
+int32_t rtGetTimeOfDay(struct timeval *tv) {
+  return gettimeofday(tv, NULL);
+}
+static int64_t rtGetTimestampMs() {
+  struct timeval systemTime;
+  rtGetTimeOfDay(&systemTime);
+  return (int64_t)systemTime.tv_sec * 1000LL + (int64_t)systemTime.tv_usec/1000;
+}
+
+static int64_t rtGetTimestampUs() {
+  struct timeval systemTime;
+  rtGetTimeOfDay(&systemTime);
+  return (int64_t)systemTime.tv_sec * 1000000LL + (int64_t)systemTime.tv_usec;
+}
+
+
 int rtGetDbRouteInfo(TAOS   * taos) {
   TAOS_DB_ROUTE_INFO dbInfo;
   int code = taos_get_db_route_info(taos, "db1", &dbInfo);
@@ -126,7 +145,10 @@ int rtGetTableRouteInfo(TAOS   * taos) {
   char    sql[1024]  = {0};
   for (int32_t i = 0; i < rtTables; ++i) {
     sprintf(table, "tb%d", i);
+    int64_t startTs = rtGetTimestampUs();
     int code = taos_get_table_vgId(taos, "db1", table, &vgId1);
+    int64_t endTs = rtGetTimestampUs();
+    rtTableUs[i] = (int)(endTs - startTs);
     if (code) {
       rtExit("taos_get_table_vgId", taos_errstr(NULL));
     }
@@ -142,8 +164,60 @@ int rtGetTableRouteInfo(TAOS   * taos) {
     }
   }
 
+  printf("table vgId use us:");
+
+  for (int32_t i = 0; i < rtTables; ++i) {
+    printf("%d ", rtTableUs[i]);
+  }
+
+  printf("\n");
+
   return 0;
 }
+
+int rtGetTablesRouteInfo(TAOS   * taos) {
+  char *table = {0};
+  int *vgId1 = malloc(rtTables * sizeof(int));
+  int vgId2 = 0;
+  char sql[1024]  = {0};
+  const char *tbs[RT_TABLE_NUM] = {0};
+  
+  for (int32_t i = 0; i < rtTables; ++i) {
+    table = malloc(10);
+    sprintf(table, "tb%d", i);
+    tbs[i] = table;
+  }
+  
+  int64_t startTs = rtGetTimestampUs();
+  int code = taos_get_tables_vgId(taos, "db1", tbs, rtTables, vgId1);
+  int64_t endTs = rtGetTimestampUs();
+  rtTableUs[0] = (int)(endTs - startTs);
+  if (code) {
+    rtExit("taos_get_tables_vgId", taos_errstr(NULL));
+  }
+
+  for (int32_t i = 0; i < rtTables; ++i) {
+    sprintf(sql, "select vgroup_id from information_schema.ins_tables where table_name=\"tb%d\"", i);
+    
+    rtFetchVgId(taos, sql, &vgId2);
+    if (vgId1[i] != vgId2) {
+      fprintf(stderr, "!!!! table tb%d vgId mis-match, vgId(api):%d, vgId(sys):%d\n", i, vgId1[i], vgId2);
+      exit(1);
+    } else {
+      printf("table tb%d vgId %d\n", i, vgId1[i]);
+    }
+  }
+
+  printf("tables vgId use us:%d\n", rtTableUs[0]);
+
+  for (int32_t i = 0; i < rtTables; ++i) {
+    free((void*)tbs[i]);
+  }
+  free(vgId1);
+
+  return 0;
+}
+
 
 void rtClose(TAOS   * taos) {
   taos_close(taos);
@@ -170,6 +244,16 @@ int rtRunCase2(void) {
   return 0;
 }
 
+int rtRunCase3(void) {
+  TAOS *taos = NULL;
+  rtPrepare(&taos, 0, 0);
+  rtGetTablesRouteInfo(taos);
+  rtClose(taos);
+
+  return 0;
+}
+
+
 int main(int argc, char *argv[]) {
   if (argc != 2) {
     printf("usage: %s server-ip\n", argv[0]);
@@ -182,6 +266,7 @@ int main(int argc, char *argv[]) {
 
   rtRunCase1();
   rtRunCase2();
+  rtRunCase3();
 
   int32_t l = 5;
   while (l) {
