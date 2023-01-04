@@ -349,6 +349,6 @@ Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to th
 For more information about TDengine, you can follow us on social media and join our Discord server:
 
 - [Discord](https://discord.com/invite/VZdSuUg4pS)
-- [Twitter](https://twitter.com/TaosData)
+- [Twitter](https://twitter.com/TDengineDB)
 - [LinkedIn](https://www.linkedin.com/company/tdengine/)
-- [YouTube](https://www.youtube.com/channel/UCmp-1U6GS_3V3hjir6Uq5DQ)
+- [YouTube](https://www.youtube.com/@tdengine)
