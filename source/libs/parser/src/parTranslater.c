@@ -5541,7 +5541,7 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
   strcpy(pFunc->functionName, "_wstart");
   getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName));
   int32_t code = getFuncInfo(pCxt, pFunc);
-  if (TSDB_CODE_SUCCESS != code) {
+  if (TSDB_CODE_SUCCESS == code) {
     code = nodesListPushFront(pSelect->pProjectionList, (SNode*)pFunc);
   }
   if (TSDB_CODE_SUCCESS != code) {
