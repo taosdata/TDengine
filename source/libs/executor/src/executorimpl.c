@@ -1159,9 +1159,15 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
     }
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-      ASSERT(pBlock->info.rows > 0);
       releaseBufPage(pBuf, page);
-      break;
+
+      if (pBlock->info.rows <= 0 || pRow->numOfRows > pBlock->info.capacity) {
+        qError("error in copy data to ssdatablock, existed rows in block:%d, rows in pRow:%d, capacity:%d, %s",
+            pBlock->info.rows, pRow->numOfRows, pBlock->info.capacity, GET_TASKID(pTaskInfo));
+        T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
+      } else {
+        break;
+      }
     }
 
     pGroupResInfo->index += 1;
