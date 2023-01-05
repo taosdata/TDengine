@@ -110,11 +110,17 @@ fi
 
 taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeper`
 
-sudo cp -rf /opt/Homebrew/Cellar/tdengine/$version /opt/tdengine
+sudo cp -rf /opt/Homebrew/Cellar/tdengine/$version/ /opt/tdengine/
 sudo rm -rf /opt/tdengine/data
 sudo rm -rf /opt/tdengine/log
 sudo mkdir -p /opt/tdengine/service
 sudo cp $communityDir/packaging/tools/{logo.png,TDengine,com.taosdata.*} /opt/tdengine/service/
+
+sudo cp -f $taoskeeper_binary /opt/tdengine/bin/
+sudo cp -f $(dirname $taoskeeper_binary)/taoskeeper.service /opt/tdengine/cfg/
+sudo cp -f $(dirname $taoskeeper_binary)/config/keeper.toml /opt/tdengine/cfg/
+sudo chmod ugo+w /opt/tdengine/bin/remove.sh
+sudo cat $scriptDir/remove_taoskeeper.sh >> /opt/tdengine/bin/remove.sh
 
 cd $communityDir/packaging/tools
 sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-server-$version-macOS-arm64\</g" $communityDir/packaging/tools/TDengine.pkgproj
@@ -127,15 +133,3 @@ sed -i '' "s|/opt.*/tools/mac_before_install.txt|$communityDir/packaging/tools/m
 sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/udfd}
 sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-client-$version-macOS-arm64\</g" $communityDir/packaging/tools/TDengine.pkgproj
 /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
-
-exit 1
-prefix="/opt"
-cp -f $taoskeeper_binary $prefix/taos/bin/
-cp -f $(dirname $taoskeeper_binary)/taoskeeper.service $prefix/taos/cfg/
-cp -f $(dirname $taoskeeper_binary)/config/keeper.toml $prefix/taos/cfg/
-cat $scriptDir/remove_taoskeeper.sh >> $prefix/taos/bin/remove.sh
-cat $scriptDir/install_taoskeeper.sh >> $prefix/install.sh
-
-echo "append taoskeeper to community server package"
-rm -rf $prefix/
-rm -rf build-taoskeeper
