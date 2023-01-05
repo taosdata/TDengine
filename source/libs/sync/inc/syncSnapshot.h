@@ -81,7 +81,6 @@ void                   snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver)
 void                   snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg);
 void                   snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
 bool                   snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver);
-void                   snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver);
 
 // on message
 int32_t syncNodeOnSnapshot(SSyncNode *ths, const SRpcMsg *pMsg);
