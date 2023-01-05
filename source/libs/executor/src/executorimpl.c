@@ -1785,6 +1785,10 @@ void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
     taosMemoryFreeClear(pCtx[i].subsidiaries.buf);
     taosMemoryFree(pCtx[i].input.pData);
     taosMemoryFree(pCtx[i].input.pColumnDataAgg);
+
+    if (pCtx[i].udfName != NULL) {
+      taosMemoryFree(pCtx[i].udfName);
+    }
   }
 
   taosMemoryFreeClear(pCtx);

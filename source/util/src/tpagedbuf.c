@@ -360,16 +360,13 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   // init id hash table
   _hash_fn_t fn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
   pPBuf->pIdList = taosArrayInit(4, POINTER_BYTES);
-
-  pPBuf->assistBuf = taosMemoryMalloc(pPBuf->pageSize + 2);  // EXTRA BYTES
   pPBuf->all = taosHashInit(10, fn, true, false);
   pPBuf->prefix = (char*) dir;
 
   pPBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));
 
   //  qDebug("QInfo:0x%"PRIx64" create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId,
-  //  pPBuf->pageSize,
-  //         pPBuf->inMemPages, pPBuf->path);
+  //  pPBuf->pageSize, pPBuf->inMemPages, pPBuf->path);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -593,7 +590,12 @@ void setBufPageDirty(void* pPage, bool dirty) {
   ppi->dirty = dirty;
 }
 
-void setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp) { pBuf->comp = comp; }
+void setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp) {
+  pBuf->comp = comp;
+  if (comp  && (pBuf->assistBuf == NULL)) {
+    pBuf->assistBuf = taosMemoryMalloc(pBuf->pageSize + 2);  // EXTRA BYTES
+  }
+}
 
 void dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage) {
   SPageInfo* ppi = getPageInfoFromPayload(pPage);
