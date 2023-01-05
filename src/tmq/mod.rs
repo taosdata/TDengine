@@ -101,7 +101,7 @@ impl FromStr for StopAt {
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let at = StopAt::Now;
         match s {
-            "" => Ok(at),
+            "" | "0" | "now" => Ok(at),
             s if s.starts_with('-') => {
                 let s = s.trim_start_matches('-');
                 let d = parse_duration::parse(s)?;
