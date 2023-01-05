@@ -1128,7 +1128,7 @@ int32_t shellExecute() {
   }
 
   if (tsem_init(&shell.cancelSem, 0, 0) != 0) {
-    printf("failed to create cancel semphore\r\n");
+    printf("failed to create cancel semaphore\r\n");
     return -1;
   }
 
