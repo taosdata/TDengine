@@ -1066,8 +1066,8 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
         SIdxFltStatus status = SFLT_NOT_INDEX;
         code = doFilterTag(pTagIndexCond, &metaArg, res, &status);
-        if (code != 0 || status == SFLT_NOT_INDEX) {
-          qError("failed to get tableIds from index, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
+        if (code != 0 || status == SFLT_NOT_INDEX) {  // temporarily disable it for performance sake
+//          qError("failed to get tableIds from index, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
           code = TDB_CODE_SUCCESS;
         }
       }
