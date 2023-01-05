@@ -48,15 +48,6 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* pSyncNode, SyncRequestVote* pM
   SyncTerm  myLastTerm = syncNodeGetLastTerm(pSyncNode);
   SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
 
-  if (pMsg->lastLogIndex < pSyncNode->commitIndex) {
-    sNTrace(pSyncNode,
-            "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
-            ", recv-term:%" PRIu64 "}",
-            myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
-
-    return false;
-  }
-
   if (myLastTerm == SYNC_TERM_INVALID) {
     sNTrace(pSyncNode,
             "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
@@ -70,6 +61,13 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* pSyncNode, SyncRequestVote* pM
             "logok:1, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
             ", recv-term:%" PRIu64 "}",
             myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+
+    if (pMsg->lastLogIndex < pSyncNode->commitIndex) {
+      sNWarn(pSyncNode,
+             "logok:1, commit rollback required. {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64
+             ", recv-lindex:%" PRId64 ", recv-term:%" PRIu64 "}",
+             myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+    }
     return true;
   }
 
