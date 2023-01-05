@@ -84,6 +84,9 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   taosThreadRwlockUnlock(&pMgmt->lock);
   vmReleaseVnode(pMgmt, pVnode);
 
+  dInfo("vgId:%d, pre close", pVnode->vgId);
+  vnodePreClose(pVnode->pImpl);
+
   dInfo("vgId:%d, wait for vnode ref become 0", pVnode->vgId);
   while (pVnode->refCount > 0) taosMsleep(10);
 
@@ -115,8 +118,8 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
 
   dInfo("vgId:%d, all vnode queues is empty", pVnode->vgId);
 
-  dInfo("vgId:%d, pre close", pVnode->vgId);
-  vnodePreClose(pVnode->pImpl);
+  dInfo("vgId:%d, post close", pVnode->vgId);
+  vnodePostClose(pVnode->pImpl);
 
   vmFreeQueue(pMgmt, pVnode);
   vnodeClose(pVnode->pImpl);
