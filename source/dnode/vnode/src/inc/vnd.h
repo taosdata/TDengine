@@ -98,6 +98,7 @@ bool    vnodeShouldRollback(SVnode* pVnode);
 int32_t vnodeSyncOpen(SVnode* pVnode, char* path);
 int32_t vnodeSyncStart(SVnode* pVnode);
 void    vnodeSyncPreClose(SVnode* pVnode);
+void    vnodeSyncPostClose(SVnode* pVnode);
 void    vnodeSyncClose(SVnode* pVnode);
 void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg, int32_t code);
 bool    vnodeIsLeader(SVnode* pVnode);
