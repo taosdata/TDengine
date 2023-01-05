@@ -258,8 +258,8 @@ int32_t syncBuildRequestVote(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildRequestVoteReply(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildAppendEntries(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId);
 int32_t syncBuildAppendEntriesReply(SRpcMsg* pMsg, int32_t vgId);
-int32_t syncBuildAppendEntriesFromRaftLog(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm,
-                                          SRpcMsg* pRpcMsg);
+int32_t syncBuildAppendEntriesFromRaftEntry(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm,
+                                            SRpcMsg* pRpcMsg);
 int32_t syncBuildHeartbeat(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildHeartbeatReply(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildPreSnapshot(SRpcMsg* pMsg, int32_t vgId);
