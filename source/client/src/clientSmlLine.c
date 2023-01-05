@@ -151,14 +151,14 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
       SSmlSTableMeta *sMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, currElement->measure, currElement->measureLen, NULL);
 
       if(unlikely(sMeta == NULL)){
-        sMeta = smlBuildSTableMeta(info->dataFormat);
         STableMeta * pTableMeta = smlGetMeta(info, currElement->measure, currElement->measureLen);
-        sMeta->tableMeta = pTableMeta;
         if(pTableMeta == NULL){
           info->dataFormat = false;
           info->reRun      = true;
           return TSDB_CODE_SUCCESS;
         }
+        sMeta = smlBuildSTableMeta(info->dataFormat);
+        sMeta->tableMeta = pTableMeta;
         nodeListSet(&info->superTables, currElement->measure, currElement->measureLen, sMeta, NULL);
       }
       info->currSTableMeta = sMeta->tableMeta;
@@ -353,14 +353,14 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd,
       SSmlSTableMeta *sMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, currElement->measure, currElement->measureLen, NULL);
 
       if(unlikely(sMeta == NULL)){
-        sMeta = smlBuildSTableMeta(info->dataFormat);
         STableMeta * pTableMeta = smlGetMeta(info, currElement->measure, currElement->measureLen);
-        sMeta->tableMeta = pTableMeta;
         if(pTableMeta == NULL){
           info->dataFormat = false;
           info->reRun      = true;
           return TSDB_CODE_SUCCESS;
         }
+        sMeta = smlBuildSTableMeta(info->dataFormat);
+        sMeta->tableMeta = pTableMeta;
         nodeListSet(&info->superTables, currElement->measure, currElement->measureLen, sMeta, NULL);
       }
       info->currSTableMeta = sMeta->tableMeta;
@@ -646,6 +646,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   if(info->dataFormat){
     smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, 0);
     smlBuildRow(info->currTableDataCtx);
+    clearColValArray(info->currTableDataCtx->pValues);
   }else{
     taosArraySet(elements->colArray, 0, &kv);
   }

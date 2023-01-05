@@ -173,7 +173,7 @@ static SResultRow* getTableGroupOutputBuf(SOperatorInfo* pOperator, uint64_t gro
   if (NULL == *pPage) {
     return NULL;
   }
-  
+
   return (SResultRow*)((char*)(*pPage) + p1->offset);
 }
 
@@ -306,12 +306,14 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
     pCost->filterOutBlocks += 1;
     pCost->totalRows += pBlock->info.rows;
+    tsdbReleaseDataBlock(pTableScanInfo->dataReader);
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {
     qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
     doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, 1);
     pCost->skipBlocks += 1;
+    tsdbReleaseDataBlock(pTableScanInfo->dataReader);
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_SMA_LOAD) {
     pCost->loadBlockStatis += 1;
@@ -321,6 +323,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
       qDebug("%s data block SMA loaded, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
       doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, 1);
+      tsdbReleaseDataBlock(pTableScanInfo->dataReader);
       return TSDB_CODE_SUCCESS;
     } else {
       qDebug("%s failed to load SMA, since not all columns have SMA", GET_TASKID(pTaskInfo));
@@ -342,6 +345,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
         pCost->filterOutBlocks += 1;
         (*status) = FUNC_DATA_REQUIRED_FILTEROUT;
 
+        tsdbReleaseDataBlock(pTableScanInfo->dataReader);
         return TSDB_CODE_SUCCESS;
       }
     }
@@ -356,7 +360,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     qDebug("%s data block skipped due to dynamic prune, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
     pCost->skipBlocks += 1;
-
+    tsdbReleaseDataBlock(pTableScanInfo->dataReader);
     *status = FUNC_DATA_REQUIRED_FILTEROUT;
     return TSDB_CODE_SUCCESS;
   }
@@ -1584,7 +1588,8 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
-      qDebug("queue scan tsdb return %d rows", pResult->info.rows);
+      qDebug("queue scan tsdb return %d rows min:%" PRId64 " max:%" PRId64, pResult->info.rows,
+             pResult->info.window.skey, pResult->info.window.ekey);
       pTaskInfo->streamInfo.returned = 1;
       return pResult;
     } else {
@@ -2554,6 +2559,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   }
 
   STsdbReader* reader = pInfo->base.dataReader;
+  qTrace("tsdb/read-table-data: %p, enter next reader", reader);
   while (tsdbNextDataBlock(reader)) {
     if (isTaskKilled(pTaskInfo)) {
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
@@ -2588,6 +2594,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     pOperator->resultInfo.totalRows += pBlock->info.rows;
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
+    qTrace("tsdb/read-table-data: %p, close reader", reader);
     tsdbReaderClose(pInfo->base.dataReader);
     pInfo->base.dataReader = NULL;
     return pBlock;
