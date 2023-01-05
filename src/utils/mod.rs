@@ -7,26 +7,27 @@ use taos::{AsyncFetchable, AsyncQueryable, Dsn, TBuilder, Taos, TaosBuilder};
 /// Check enterprise edition
 pub async fn is_available_enterprise_edition(taos: &Taos) -> bool {
     #[derive(Deserialize, Debug)]
-    struct Grant {
-        version: String,
-        expire_time: String,
-        expired: String,
-    }
+    struct Grant(String, (), String);
+
 
     impl Grant {
         fn is_available_enterprise_edition(&self) -> bool {
-            let _ = &self.expire_time;
-            match (self.version.trim(), self.expired.trim()) {
+            match (self.0.trim(), self.2.trim()) {
                 ("official" | "trial", "false") => true,
                 _ => false,
             }
         }
     }
-
-    if let Ok(Some(grant)) = taos.query_one::<_, Grant>("show grants").await {
-        grant.is_available_enterprise_edition()
-    } else {
-        false
+    let grant = taos.query_one::<_, Grant>("show grants").await;
+    match grant {
+        Ok(Some(grant)) => {
+            grant.is_available_enterprise_edition()
+        }
+        Ok(None) => {false}
+        Err(err) => {
+            log::error!("Get grant info error: {}", err);
+            false
+        }
     }
 }
 
