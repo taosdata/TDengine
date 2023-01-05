@@ -552,14 +552,12 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     if (strcmp(alterReq.objname, "1.*") != 0) {
       int32_t len = strlen(alterReq.objname) + 1;
       SDbObj *pDb = mndAcquireDb(pMnode, alterReq.objname);
-      if (pDb == NULL) {
-        mndReleaseDb(pMnode, pDb);
-        goto _OVER;
-      }
+      if (pDb == NULL) goto _OVER;
       if (taosHashPut(newUser.readDbs, alterReq.objname, len, alterReq.objname, TSDB_DB_FNAME_LEN) != 0) {
         mndReleaseDb(pMnode, pDb);
         goto _OVER;
       }
+      mndReleaseDb(pMnode, pDb);
     } else {
       while (1) {
         SDbObj *pDb = NULL;
@@ -576,14 +574,12 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     if (strcmp(alterReq.objname, "1.*") != 0) {
       int32_t len = strlen(alterReq.objname) + 1;
       SDbObj *pDb = mndAcquireDb(pMnode, alterReq.objname);
-      if (pDb == NULL) {
-        mndReleaseDb(pMnode, pDb);
-        goto _OVER;
-      }
+      if (pDb == NULL) goto _OVER;
       if (taosHashPut(newUser.writeDbs, alterReq.objname, len, alterReq.objname, TSDB_DB_FNAME_LEN) != 0) {
         mndReleaseDb(pMnode, pDb);
         goto _OVER;
       }
+      mndReleaseDb(pMnode, pDb);
     } else {
       while (1) {
         SDbObj *pDb = NULL;
@@ -601,9 +597,9 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       int32_t len = strlen(alterReq.objname) + 1;
       SDbObj *pDb = mndAcquireDb(pMnode, alterReq.objname);
       if (pDb == NULL) {
-        mndReleaseDb(pMnode, pDb);
-        goto _OVER;
+        mInfo("db:%s, not exist while revoke, still execute the operation", alterReq.objname)
       }
+      mndReleaseDb(pMnode, pDb);
       taosHashRemove(newUser.readDbs, alterReq.objname, len);
     } else {
       taosHashClear(newUser.readDbs);
@@ -615,9 +611,9 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       int32_t len = strlen(alterReq.objname) + 1;
       SDbObj *pDb = mndAcquireDb(pMnode, alterReq.objname);
       if (pDb == NULL) {
-        mndReleaseDb(pMnode, pDb);
-        goto _OVER;
+        mInfo("db:%s, not exist while revoke, still execute the operation", alterReq.objname)
       }
+      mndReleaseDb(pMnode, pDb);
       taosHashRemove(newUser.writeDbs, alterReq.objname, len);
     } else {
       taosHashClear(newUser.writeDbs);
@@ -627,10 +623,8 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   if (alterReq.alterType == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC) {
     int32_t      len = strlen(alterReq.objname) + 1;
     SMqTopicObj *pTopic = mndAcquireTopic(pMnode, alterReq.objname);
-    if (pTopic == NULL) {
-      mndReleaseTopic(pMnode, pTopic);
-      goto _OVER;
-    }
+    if (pTopic == NULL) goto _OVER;
+    mndReleaseTopic(pMnode, pTopic);
     taosHashPut(newUser.topics, pTopic->name, len, pTopic->name, TSDB_TOPIC_FNAME_LEN);
   }
 
@@ -638,9 +632,9 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     int32_t      len = strlen(alterReq.objname) + 1;
     SMqTopicObj *pTopic = mndAcquireTopic(pMnode, alterReq.objname);
     if (pTopic == NULL) {
-      mndReleaseTopic(pMnode, pTopic);
-      goto _OVER;
+      mInfo("topic:%s, not exist while revoke, still execute the operation", alterReq.objname)
     }
+    mndReleaseTopic(pMnode, pTopic);
     taosHashRemove(newUser.topics, alterReq.objname, len);
   }
 
