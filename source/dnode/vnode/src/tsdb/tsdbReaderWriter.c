@@ -48,7 +48,6 @@ static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsd
     goto _exit;
   }
 
-#if 0  // temporarily disable it for performance evaluation.
   if (taosStatFile(path, &pFD->szFile, NULL) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     taosMemoryFree(pFD->pBuf);
@@ -56,7 +55,6 @@ static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsd
     taosMemoryFree(pFD);
     goto _exit;
   }
-#endif
 
   ASSERT(pFD->szFile % szPage == 0);
   pFD->szFile = pFD->szFile / szPage;
