@@ -84,7 +84,20 @@ if [ ! -d $communityDir ]; then
   cmake ..
 fi
 
+cd $communityDir
+rm -rf release/*
+rm -rf debs/*
+rm -rf rpms/*
+
+# expect -c "spawn su root; expect \"Password:\"; send -- \"$password\r\"; interact"
+
+echo "./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType"
+./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+
+
 echo "build taoskeeper..."
+cd $communityDir/release
+
 if [ "$cpuType" = "x64" ] || [ "$cpuType" = "x86_64" ] || [ "$cpuType" = "amd64" ]; then
   arch=amd64
 elif [ "$cpuType" = "x32" ] || [ "$cpuType" = "i386" ] || [ "$cpuType" = "i686" ]; then
@@ -97,17 +110,7 @@ else
   arch=$cpuType
 fi
 
-taoskeeper_binary=`./build_taoskeeper.sh -r $arch -e taoskeeper`
-
-cd $communityDir
-rm -rf release/*
-rm -rf debs/*
-rm -rf rpms/*
-
-expect -c "spawn su root; expect \"Password:\"; send -- \"$password\r\"; interact"
-
-echo "./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType"
-./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeper`
 
 sed -i '' "s/TDengine-client-3.0.1.4-macOS-arm64/TDengine-client-3.0.1.5-macOS-arm64/g" $communityDir/packaging/tools/TDengine.pkgproj
 sed -i '' 's/3.0.1.4/3.0.1.5/g' $communityDir/packaging/tools/TDengine.pkgproj
