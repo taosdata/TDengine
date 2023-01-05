@@ -183,9 +183,42 @@ async fn sync_single_table(
             .context("prepare statement")?;
         while let Some(block) = blocks.try_next().await? {
             // let views = block.columns().collect_vec();
-            stmt.bind(block.column_views()).context("bind")?;
-            stmt.add_batch().context("add batch")?;
-            stmt.execute().context("execute")?;
+            let res = {
+                stmt.bind(block.column_views()).context("bind")?;
+                stmt.add_batch().context("add batch")?;
+                stmt.execute().context("execute")?;
+                Ok::<_, taos::Error>(())
+            };
+
+            if let Err(err) = res {
+                log::warn!("Write block error: {err}");
+                if err.to_string().contains("0x1002") {
+                    let mut chunks = 4;
+                    let views = block.column_views();
+                    for _ in 0..4 {
+                        let mut chunk = block.nrows() / chunks;
+                        if chunk == 0 {
+                            chunk = 1;
+                        }
+                        // let iters = (block.nrows() + chunk - 1 ) / chunk;
+                        for i in 0..(block.nrows() + chunk - 1) / chunk {
+                            let range = chunk * i..chunk * (i + 1);
+                            let params: Vec<_> = views
+                                .iter()
+                                .map(|view| view.slice(range.clone()).unwrap())
+                                .collect();
+                            stmt.bind(&params).context(format!("bind by chunk {chunk}"))?;
+                            stmt.add_batch().context(format!("add batch by chunk {chunk}"))?;
+                            stmt.execute().context(format!("execute by chunk {chunk}"))?;
+                        }
+                        chunks *= 4;
+                        if chunk == 1 {
+                            break;
+                        }
+                    }
+                }
+                Err(err)?;
+            }
         }
     }
     Ok(())
