@@ -423,7 +423,7 @@ impl TaskController {
         }
         let res = sqlx::query(
             "INSERT INTO tasks (`from`, `from_cluster`, `oneshot_topic`, `to`, `to_cluster`, `stream_type`, `jobs`, `compression_level`, `force`, \
-                 `created_at`, `status`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 `created_at`, `status`, `after_delete`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&task.from)
         .bind(&task.from_cluster)
@@ -436,15 +436,18 @@ impl TaskController {
         .bind(&task.force)
         .bind(&chrono::Utc::now().to_rfc3339())
         .bind(&Status::Created)
+        .bind(&task.after_delete)
         .execute(&self.pool)
         .await
         .unwrap();
 
         if task.clear {
             let to: Dsn = task.to.parse()?;
-            taosx::utils::clear_database(&to)
-                .await
-                .with_context(|| format!("Failed to clear target database with {to}"))?;
+            if to.driver == "taos" {
+                taosx::utils::clear_database(&to)
+                    .await
+                    .with_context(|| format!("Failed to clear target database with {to}"))?;
+            }
         }
 
         // let opts = taosx::TaskOpts::try_from(task.clone())?;
@@ -569,7 +572,6 @@ impl TaskController {
         )
         .execute(&self.pool)
         .await?;
-        // dbg!(res);
         if res.rows_affected() == 1 {
             log::info!("successfully deleted task by id {id}");
         }
@@ -594,6 +596,12 @@ impl TaskController {
                 } else {
                     break;
                 }
+            }
+        }
+
+        if let Some(action) = task.after_delete.as_deref() {
+            if task.to.starts_with("local") && action == "clear" {
+                taosx::utils::clear_local(&task.to.parse()?).await?;
             }
         }
         Ok(Some(()))
@@ -820,6 +828,12 @@ pub(super) struct Task {
     #[schema(read_only)]
     #[serde(skip_serializing_if = "is_false")]
     deleted: bool,
+
+    /// Add after_delete hook action, the string would be action name, with or without some configuration.
+    ///
+    /// It will do nothing if the action is not supported by a specific task case.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    after_delete: Option<String>,
 }
 
 fn is_false(b: &bool) -> bool {
@@ -860,10 +874,19 @@ pub(super) struct NewTask {
     #[schema(example = 0)]
     #[serde(default)]
     jobs: u16,
+
+    /// Compression level when need (for backup only)
     #[serde(default)]
     compression_level: Option<u8>,
+
+    /// Force to do some risking steps.
     #[serde(default)]
     force: bool,
+
+    /// Add after_delete hook action, the string would be action name, with or without some configuration.
+    ///
+    /// It will do nothing if the action is not supported by a specific task case.
+    after_delete: Option<String>,
 }
 
 #[derive(
@@ -1101,6 +1124,7 @@ impl NewReplicate {
             from_cluster: None,
             to_cluster: None,
             clear,
+            after_delete: None,
         })
     }
 }
@@ -1122,6 +1146,7 @@ impl NewReplicate {
         // (status = 409, description = "Task with id already exists", body = ErrorResponse, example = json!(ErrorResponse::Conflict(String::from("id = 1"))))
     )
 )]
+#[deprecated]
 #[post("/tasks/replicate")]
 pub(super) async fn replicate(
     task: Json<NewReplicate>,
@@ -1233,6 +1258,7 @@ impl NewSubscribe {
             to_cluster: None,
             clear,
             oneshot_topic: None,
+            after_delete: None,
         })
     }
 }
