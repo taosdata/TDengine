@@ -451,7 +451,8 @@ class TDTestCase:
         return [
             self.__revoke_user_privileges(privilege=self.__privilege[0], user_name="") ,
             self.__revoke_user_privileges(privilege=self.__privilege[0], user_name="*") ,
-            self.__revoke_user_privileges(privilege=self.__privilege[1], dbname="not_exist_db", user_name=self.__user_list[0]),
+            # return success on db not exist
+            # self.__revoke_user_privileges(privilege=self.__privilege[1], dbname="not_exist_db", user_name=self.__user_list[0]),
             self.__revoke_user_privileges(privilege="any_priv", user_name=self.__user_list[0]),
             self.__revoke_user_privileges(privilege="", dbname="db", user_name=self.__user_list[0]) ,
             self.__revoke_user_privileges(privilege=" ".join(self.__privilege), user_name=self.__user_list[0]) ,

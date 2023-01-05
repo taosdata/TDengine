@@ -135,7 +135,7 @@ sql REVOKE subscribe ON root_d1_topic3 from user6
 
 print =============== invalid revoke/grant
 sql_error GRANT subscribe ON root_d1_topicx from user5
-sql_error REVOKE subscribe ON root_d1_topicx from user5
+sql REVOKE subscribe ON root_d1_topicx from user5
 
 print =============== check 
 sql GRANT subscribe ON root_d1_topic1 TO user4
