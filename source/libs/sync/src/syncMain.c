@@ -1249,7 +1249,7 @@ void syncNodePreClose(SSyncNode* pSyncNode) {
 #if 0
   if (pSyncNode->pNewNodeReceiver != NULL) {
     if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
-      snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+      snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
     }
 
     sDebug("vgId:%d, snapshot receiver destroy while preclose sync node, data:%p", pSyncNode->vgId,
@@ -1272,7 +1272,7 @@ void syncNodePreClose(SSyncNode* pSyncNode) {
 void syncNodePostClose(SSyncNode* pSyncNode) {
   if (pSyncNode->pNewNodeReceiver != NULL) {
     if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
-      snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+      snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
     }
 
     sDebug("vgId:%d, snapshot receiver destroy while preclose sync node, data:%p", pSyncNode->vgId,
@@ -1327,7 +1327,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
 
   if (pSyncNode->pNewNodeReceiver != NULL) {
     if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
-      snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+      snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
     }
 
     sDebug("vgId:%d, snapshot receiver destroy while close, data:%p", pSyncNode->vgId, pSyncNode->pNewNodeReceiver);
@@ -1862,7 +1862,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   // close receiver
   if (pSyncNode != NULL && pSyncNode->pNewNodeReceiver != NULL &&
       snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
-    snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+    snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
   }
 
   // stop elect timer
