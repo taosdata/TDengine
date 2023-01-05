@@ -298,9 +298,13 @@ static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma) {
  * @return int32_t
  */
 static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  STsdb   *pTsdb = NULL;
   SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
+
   if (!pEnv) {
-    return TSDB_CODE_SUCCESS;
+    goto _exit;
   }
 
   SSmaStat  *pStat = SMA_ENV_STAT(pEnv);
@@ -351,9 +355,8 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
     }
   }
   smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
-  if (tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat)) < 0) {
-    return TSDB_CODE_FAILED;
-  }
+  code = tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
+  TSDB_CHECK_CODE(code, lino, _exit);
   smaInfo("vgId:%d, rsma commit, operator state committed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
 #if 0  // consuming task of qTaskInfo clone 
@@ -378,12 +381,16 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
 #endif
 
-  // all rsma results are written completely
-  STsdb *pTsdb = NULL;
+  // all rsma results are written completely, start to tsdbPrepareCommit
+  
+_exit:
   if ((pTsdb = VND_RSMA1(pSma->pVnode))) tsdbPrepareCommit(pTsdb);
   if ((pTsdb = VND_RSMA2(pSma->pVnode))) tsdbPrepareCommit(pTsdb);
 
-  return TSDB_CODE_SUCCESS;
+  if (code) {
+    smaError("vgId:%d, %s failed at line %d since %s", SMA_VID(pSma), __func__, lino, tstrerror(code));
+  } 
+  return code;
 }
 
 /**
