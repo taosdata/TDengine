@@ -1,5 +1,5 @@
 #!/bin/bash
-#set -x
+set -x
 scriptDir=$(dirname $(realpath $0 || readlink -f $0))
 #
 version=$1
@@ -25,11 +25,11 @@ if [ ! -d $communityDir ]; then
   cmake .. -DBUILD_TAOSX=true
 fi
 
-cd $communityDir
+cd $topDir
 rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
-./packaging/release.sh -v cloud -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+./enterprise/packaging/release.sh -v cloud -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
 
 
 # modify tar.gz to append taoskeeper

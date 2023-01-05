@@ -1,5 +1,5 @@
 #!/bin/bash
-# set -x
+set -x
 scriptDir=$(dirname $(realpath $0 || readlink -f $0))
 #
 version=$1
@@ -58,11 +58,11 @@ fi
 # # git checkout -- .
 # # git pull
 
-cd $communityDir
+cd $topDir
 rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
-./packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${brandName} -P ${brandPrompt}
+./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${brandName} -P ${brandPrompt}
 
 # if [ ! -d  "$archiveDir/v$version" ]; then
 #   mkdir -p "$archiveDir/v$version"
