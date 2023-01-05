@@ -292,6 +292,60 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
             p[_pos++] = prev_value;
           }
         } else {
+          int32_t batch = elems >> 2;
+          int32_t globalBatch = (nelements - count) >> 2;
+
+          int32_t minBatch = TMIN(batch, globalBatch);
+
+#if 1
+          // manual unrolling, to erase the hotspot
+            for (int32_t i = 0; i < minBatch; ++i, count += 4) {
+              zigzag_value = ((w >> (4 + v)) & mask);
+              int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+              prev_value = diff + prev_value;
+
+              p[_pos++] = prev_value;
+              v += bit;
+
+              zigzag_value = ((w >> (4 + v)) & mask);
+              diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+              prev_value = diff + prev_value;
+
+              p[_pos++] = prev_value;
+              v += bit;
+
+              zigzag_value = ((w >> (4 + v)) & mask);
+
+              diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+              prev_value = diff + prev_value;
+
+              p[_pos++] = prev_value;
+              v += bit;
+
+              zigzag_value = ((w >> (4 + v)) & mask);
+
+              diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+              prev_value = diff + prev_value;
+
+              p[_pos++] = prev_value;
+              v += bit;
+            }
+
+            // handle the remain
+            int32_t remain = elems % 4;
+            int32_t globalRemain = (nelements - count);
+            int32_t minRemain = TMIN(globalRemain,remain);
+
+            for (int32_t i = 0; i < minRemain; i++, count++) {
+              zigzag_value = ((w >> (4 + v)) & mask);
+
+              int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
+              prev_value = diff + prev_value;
+
+              p[_pos++] = prev_value;
+              v += bit;
+            }
+#else
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
             zigzag_value = ((w >> (4 + v)) & mask);
 
@@ -301,6 +355,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
             p[_pos++] = prev_value;
             v += bit;
           }
+#endif
         }
       } break;
       case TSDB_DATA_TYPE_INT: {
