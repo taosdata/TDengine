@@ -89,8 +89,6 @@ rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
 
-# expect -c "spawn su root; expect \"Password:\"; send -- \"$password\r\"; interact"
-
 echo "./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType"
 ./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
 
@@ -112,11 +110,23 @@ fi
 
 taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeper`
 
-sed -i '' "s/TDengine-client-3.0.1.4-macOS-arm64/TDengine-client-3.0.1.5-macOS-arm64/g" $communityDir/packaging/tools/TDengine.pkgproj
-sed -i '' 's/3.0.1.4/3.0.1.5/g' $communityDir/packaging/tools/TDengine.pkgproj
+sudo cp -rf /opt/Homebrew/Cellar/tdengine/$version /opt/tdengine
+sudo rm -rf /opt/tdengine/data
+sudo rm -rf /opt/tdengine/log
+sudo mkdir -p /opt/tdengine/service
+sudo cp $communityDir/packaging/tools/{logo.png,TDengine,com.taosdata.*} /opt/tdengine/service/
 
-/usr/local/bin/packagesbuild --package-version $version ./packaging/tools/TDengine.pkgproj
+cd $communityDir/packaging/tools
+sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-server-$version-macOS-arm64\</g" $communityDir/packaging/tools/TDengine.pkgproj
+sed -i '' "s/3.0.1.4/$version/g" $communityDir/packaging/tools/TDengine.pkgproj
+sed -i '' "s|/opt.*/tools/post.sh|$communityDir/packaging/tools/post.sh|g" $communityDir/packaging/tools/TDengine.pkgproj
+sed -i '' "s|/opt.*/tools/mac_before_install.txt|$communityDir/packaging/tools/mac_before_install.txt|g" $communityDir/packaging/tools/TDengine.pkgproj
 
+/usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
+
+sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/udfd}
+sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-client-$version-macOS-arm64\</g" $communityDir/packaging/tools/TDengine.pkgproj
+/usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
 
 exit 1
 prefix="/opt"
