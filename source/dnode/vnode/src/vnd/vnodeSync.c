@@ -648,6 +648,11 @@ void vnodeSyncPreClose(SVnode *pVnode) {
   taosThreadMutexUnlock(&pVnode->lock);
 }
 
+void vnodeSyncPostClose(SVnode *pVnode) {
+  vInfo("vgId:%d, post close sync", pVnode->config.vgId);
+  syncPostStop(pVnode->sync);
+}
+
 void vnodeSyncClose(SVnode *pVnode) {
   vInfo("vgId:%d, close sync", pVnode->config.vgId);
   syncStop(pVnode->sync);

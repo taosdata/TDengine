@@ -120,6 +120,9 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
 
   dInfo("vgId:%d, all vnode queues is empty", pVnode->vgId);
 
+  dInfo("vgId:%d, post close", pVnode->vgId);
+  vnodePostClose(pVnode->pImpl);
+
   vmFreeQueue(pMgmt, pVnode);
   vnodeClose(pVnode->pImpl);
   pVnode->pImpl = NULL;

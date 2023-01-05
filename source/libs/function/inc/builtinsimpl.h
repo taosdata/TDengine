@@ -44,9 +44,10 @@ typedef struct SMinmaxResInfo {
   bool      nullTupleSaved;
   int16_t   type;
 } SMinmaxResInfo;
-int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc);
 
-STuplePos   saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock);
+int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems);
+
+int32_t     saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos);
 int32_t     updateTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos);
 const char* loadTupleData(SqlFunctionCtx* pCtx, const STuplePos* pPos);
 

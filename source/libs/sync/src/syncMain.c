@@ -124,6 +124,14 @@ void syncPreStop(int64_t rid) {
   }
 }
 
+void syncPostStop(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode != NULL) {
+    syncNodePostClose(pSyncNode);
+    syncNodeRelease(pSyncNode);
+  }
+}
+
 static bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pCfg) {
   if (!syncNodeInConfig(pSyncNode, pCfg)) return false;
   return abs(pCfg->replicaNum - pSyncNode->replicaNum) <= 1;
@@ -1238,6 +1246,7 @@ void syncNodePreClose(SSyncNode* pSyncNode) {
     }
   }
 
+#if 0
   if (pSyncNode->pNewNodeReceiver != NULL) {
     if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
       snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
@@ -1248,6 +1257,7 @@ void syncNodePreClose(SSyncNode* pSyncNode) {
     snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
     pSyncNode->pNewNodeReceiver = NULL;
   }
+#endif
 
   // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
@@ -1257,6 +1267,19 @@ void syncNodePreClose(SSyncNode* pSyncNode) {
 
   // clean rsp
   syncRespCleanRsp(pSyncNode->pSyncRespMgr);
+}
+
+void syncNodePostClose(SSyncNode* pSyncNode) {
+  if (pSyncNode->pNewNodeReceiver != NULL) {
+    if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+      snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+    }
+
+    sDebug("vgId:%d, snapshot receiver destroy while preclose sync node, data:%p", pSyncNode->vgId,
+           pSyncNode->pNewNodeReceiver);
+    snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
+    pSyncNode->pNewNodeReceiver = NULL;
+  }
 }
 
 void syncHbTimerDataFree(SSyncHbTimerData* pData) { taosMemoryFree(pData); }

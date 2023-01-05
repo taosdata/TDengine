@@ -234,6 +234,7 @@ int64_t syncOpen(SSyncInfo* pSyncInfo);
 int32_t syncStart(int64_t rid);
 void    syncStop(int64_t rid);
 void    syncPreStop(int64_t rid);
+void    syncPostStop(int64_t rid);
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak, int64_t* seq);
 int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg);
 int32_t syncReconfig(int64_t rid, SSyncCfg* pCfg);

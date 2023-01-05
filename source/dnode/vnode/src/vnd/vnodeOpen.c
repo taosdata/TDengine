@@ -252,6 +252,8 @@ void vnodePreClose(SVnode *pVnode) {
   vnodeSyncPreClose(pVnode);
 }
 
+void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
+
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     tsem_wait(&pVnode->canCommit);
