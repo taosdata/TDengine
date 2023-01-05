@@ -21,14 +21,14 @@
 
 #ifndef CUS_NAME
     char cusName[] = "TDengine";
-#else
-    char cusName[] = CUS_NAME;
 #endif
 
 #ifndef CUS_PROMPT
     char cusPrompt[] = "taos";
-#else
-    char cusPrompt[] = CUS_PROMPT;
+#endif
+
+#if defined(CUS_NAME) || defined(CUS_PROMPT)
+#include "cus_name.h"
 #endif
 
 #define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
