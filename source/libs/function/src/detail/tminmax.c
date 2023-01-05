@@ -825,7 +825,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
     }
 
     pBuf->assign = true;
-    return numOfElems;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t start = pInput->startRowIndex;
