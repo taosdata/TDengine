@@ -22,10 +22,10 @@ extern "C" {
 
 #include "function.h"
 
+int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
 int32_t geomFromTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t asTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
-
-int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 int32_t intersectsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 

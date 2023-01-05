@@ -28,6 +28,61 @@ void geosErrMsgeHandler(const char *errMsg, void *userData) {
   snprintf(targetErrMsg, 512, errMsg);
 }
 
+int32_t initCtxMakePoint() {
+  int32_t code = TSDB_CODE_FAILED;
+  SGeosContext* geosCtx = getThreadLocalGeosCtx();
+
+  if (geosCtx->handle == NULL) {
+    geosCtx->handle = GEOS_init_r();
+    if (geosCtx->handle == NULL) {
+      return code;
+    }
+
+    GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
+  }
+
+  if (geosCtx->WKBWriter == NULL) {
+    geosCtx->WKBWriter = GEOSWKBWriter_create_r(geosCtx->handle);
+    if (geosCtx->WKBWriter == NULL) {
+      return code;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// outputWKT is a zero ending string
+// need to call geosFreeBuffer(*outputGeom) later
+int32_t doMakePoint(double x, double y, unsigned char **outputGeom, size_t *size) {
+  int32_t code = TSDB_CODE_FAILED;
+  SGeosContext* geosCtx = getThreadLocalGeosCtx();
+
+  GEOSGeometry *geom = NULL;
+  unsigned char *wkb = NULL;
+
+  geom = GEOSGeom_createPointFromXY_r(geosCtx->handle, x, y);
+  if (geom == NULL) {
+    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    goto _exit;
+  }
+
+  wkb = GEOSWKBWriter_write_r(geosCtx->handle, geosCtx->WKBWriter, geom, size);
+  if (wkb == NULL) {
+    goto _exit;
+  }
+  *outputGeom = wkb;
+
+  code = TSDB_CODE_SUCCESS;
+
+_exit:
+  if (geom) {
+    GEOSGeom_destroy_r(geosCtx->handle, geom);
+    geom = NULL;
+  }
+
+  return code;
+}
+
 int32_t initCtxGeomFromText() {
   int32_t code = TSDB_CODE_FAILED;
   SGeosContext* geosCtx = getThreadLocalGeosCtx();
@@ -143,61 +198,6 @@ int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT) 
     goto _exit;
   }
   *outputWKT = wkt;
-
-  code = TSDB_CODE_SUCCESS;
-
-_exit:
-  if (geom) {
-    GEOSGeom_destroy_r(geosCtx->handle, geom);
-    geom = NULL;
-  }
-
-  return code;
-}
-
-int32_t initCtxMakePoint() {
-  int32_t code = TSDB_CODE_FAILED;
-  SGeosContext* geosCtx = getThreadLocalGeosCtx();
-
-  if (geosCtx->handle == NULL) {
-    geosCtx->handle = GEOS_init_r();
-    if (geosCtx->handle == NULL) {
-      return code;
-    }
-
-    GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
-  }
-
-  if (geosCtx->WKBWriter == NULL) {
-    geosCtx->WKBWriter = GEOSWKBWriter_create_r(geosCtx->handle);
-    if (geosCtx->WKBWriter == NULL) {
-      return code;
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-// outputWKT is a zero ending string
-// need to call geosFreeBuffer(*outputGeom) later
-int32_t doMakePoint(double x, double y, unsigned char **outputGeom, size_t *size) {
-  int32_t code = TSDB_CODE_FAILED;
-  SGeosContext* geosCtx = getThreadLocalGeosCtx();
-
-  GEOSGeometry *geom = NULL;
-  unsigned char *wkb = NULL;
-
-  geom = GEOSGeom_createPointFromXY_r(geosCtx->handle, x, y);
-  if (geom == NULL) {
-    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
-    goto _exit;
-  }
-
-  wkb = GEOSWKBWriter_write_r(geosCtx->handle, geosCtx->WKBWriter, geom, size);
-  if (wkb == NULL) {
-    goto _exit;
-  }
-  *outputGeom = wkb;
 
   code = TSDB_CODE_SUCCESS;
 

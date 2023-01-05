@@ -28,6 +28,34 @@ typedef int32_t (*_geomExecuteTwoParamsFunc_t)(SColumnInfoData *pInputData[], in
 typedef int32_t (*_geomExecutePreparedFunc_t)(const GEOSPreparedGeometry *preparedGeom1, SColumnInfoData *pInputData2, int32_t i2,
                                               SColumnInfoData *pOutputData);
 
+// output is with VARSTR format
+// need to call taosMemoryFree(*output) later
+int32_t doMakePointFunc(double x, double y, unsigned char **output) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  unsigned char *outputGeom = NULL;
+  size_t size = 0;
+  code = doMakePoint(x, y, &outputGeom, &size);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
+  *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
+  if (*output == NULL) {
+    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  memcpy(varDataVal(*output), outputGeom, size);
+  varDataSetLen(*output, size);
+  code = TSDB_CODE_SUCCESS;
+
+_exit:
+  geosFreeBuffer(outputGeom);
+
+  return code;
+}
+
 // both input and output are with VARSTR format
 // need to call taosMemoryFree(*output) later
 int32_t doGeomFromTextFunc(const char *input, unsigned char **output) {
@@ -102,34 +130,6 @@ _exit:
   return code;
 }
 
-// output is with VARSTR format
-// need to call taosMemoryFree(*output) later
-int32_t doMakePointFunc(double x, double y, unsigned char **output) {
-  int32_t code = TSDB_CODE_FAILED;
-
-  unsigned char *outputGeom = NULL;
-  size_t size = 0;
-  code = doMakePoint(x, y, &outputGeom, &size);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
-
-  *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
-  if (*output == NULL) {
-    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    goto _exit;
-  }
-
-  memcpy(varDataVal(*output), outputGeom, size);
-  varDataSetLen(*output, size);
-  code = TSDB_CODE_SUCCESS;
-
-_exit:
-  geosFreeBuffer(outputGeom);
-
-  return code;
-}
-
 // both input1 and input2 are with VARSTR format
 int32_t doIntersectsFunc(unsigned char *input1, unsigned char *input2, char *res) {
   int32_t code = TSDB_CODE_FAILED;
@@ -142,6 +142,30 @@ int32_t doIntersectsFunc(unsigned char *input1, unsigned char *input2, char *res
   code = doIntersects(varDataVal(input1), varDataLen(input1),
                       varDataVal(input2), varDataLen(input2),
                       res);
+
+  return code;
+}
+
+int32_t executeMakePointFunc(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
+                             SColumnInfoData *pOutputData) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  _getDoubleValue_fn_t getDoubleValueFn[2];
+  getDoubleValueFn[0]= getVectorDoubleValueFn(pInputData[0]->info.type);
+  getDoubleValueFn[1]= getVectorDoubleValueFn(pInputData[1]->info.type);
+
+  unsigned char *output = NULL;
+  code = doMakePointFunc(getDoubleValueFn[0](pInputData[0]->pData, iLeft), getDoubleValueFn[1](pInputData[1]->pData, iRight), &output);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
+  colDataAppend(pOutputData, TMAX(iLeft, iRight), output, (output == NULL));
+
+_exit:
+  if (output) {
+    taosMemoryFree(output);
+  }
 
   return code;
 }
@@ -186,30 +210,6 @@ _exit:
   return code;
 }
 
-int32_t executeMakePointFunc(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
-                             SColumnInfoData *pOutputData) {
-  int32_t code = TSDB_CODE_FAILED;
-
-  _getDoubleValue_fn_t getDoubleValueFn[2];
-  getDoubleValueFn[0]= getVectorDoubleValueFn(pInputData[0]->info.type);
-  getDoubleValueFn[1]= getVectorDoubleValueFn(pInputData[1]->info.type);
-
-  unsigned char *output = NULL;
-  code = doMakePointFunc(getDoubleValueFn[0](pInputData[0]->pData, iLeft), getDoubleValueFn[1](pInputData[1]->pData, iRight), &output);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
-
-  colDataAppend(pOutputData, TMAX(iLeft, iRight), output, (output == NULL));
-
-_exit:
-  if (output) {
-    taosMemoryFree(output);
-  }
-
-  return code;
-}
-
 int32_t executeIntersectsFunc(SColumnInfoData *pInputData[], int32_t i1, int32_t i2,
                               SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
@@ -242,7 +242,7 @@ int32_t executePreparedIntersectsFunc(const GEOSPreparedGeometry *preparedGeom1,
   return code;
 }
 
-int32_t geomOneParamFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput,
+int32_t geomOneParamFunction(SScalarParam *pInput, SScalarParam *pOutput,
                              _geomInitCtxFunc_t initCtxFn, _geomExecuteOneParamFunc_t executeOneParamFn) {
   int32_t code = TSDB_CODE_FAILED;
 
@@ -272,9 +272,10 @@ int32_t geomOneParamFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   return code;
 }
 
-int32_t geomTwoParamsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput,
+int32_t geomTwoParamsFunction(SScalarParam *pInput, SScalarParam *pOutput,
                               _geomInitCtxFunc_t initCtxFn, _geomExecuteTwoParamsFunc_t executeTwoParamsFn) {
   int32_t code = TSDB_CODE_FAILED;
+  int32_t inputNum = 2;
 
   SColumnInfoData *pInputData[inputNum];
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -325,11 +326,12 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   return code;
 }
 
-int32_t geomPreparedSwappableFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput,
+int32_t geomPreparedSwappableFunction(SScalarParam *pInput, SScalarParam *pOutput,
                                       _geomInitCtxFunc_t initCtxFn,
                                       _geomExecuteTwoParamsFunc_t executeTwoParamsFn,
                                       _geomExecutePreparedFunc_t executePreparedFn) {
   int32_t code = TSDB_CODE_FAILED;
+  int32_t inputNum = 2;
 
   SColumnInfoData *pInputData[inputNum];
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -408,19 +410,19 @@ _exit:
   return code;
 }
 
+int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return geomTwoParamsFunction(pInput, pOutput, initCtxMakePoint, executeMakePointFunc);
+}
+
 int32_t geomFromTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomOneParamFunction(pInput, inputNum, pOutput, initCtxGeomFromText, executeGeomFromTextFunc);
+  return geomOneParamFunction(pInput, pOutput, initCtxGeomFromText, executeGeomFromTextFunc);
 }
 
 int32_t asTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomOneParamFunction(pInput, inputNum, pOutput, initCtxAsText, executeAsTextFunc);
-}
-
-int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomTwoParamsFunction(pInput, inputNum, pOutput, initCtxMakePoint, executeMakePointFunc);
+  return geomOneParamFunction(pInput, pOutput, initCtxAsText, executeAsTextFunc);
 }
 
 int32_t intersectsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomPreparedSwappableFunction(pInput, inputNum, pOutput,
+  return geomPreparedSwappableFunction(pInput, pOutput,
                                        initCtxIntersects, executeIntersectsFunc, executePreparedIntersectsFunc);
 }
