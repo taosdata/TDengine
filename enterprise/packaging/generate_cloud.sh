@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+#set -x
 scriptDir=$(dirname $(realpath $0 || readlink -f $0))
 #
 version=$1
@@ -75,7 +75,7 @@ if [ -d $archiveDir ]; then
     cd $archiveDir
     cp -f $communityDir/release/* ./
 else
-    echo "Cannont found $archiveDir on this machine"
+    echo "Cannot found $archiveDir on this machine"
 fi
 
 echo " packaging release done! "

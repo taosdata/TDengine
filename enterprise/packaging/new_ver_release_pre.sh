@@ -67,7 +67,7 @@ done
 scriptDir=$(dirname $(readlink -f $0))
 cd ${scriptDir}
 communityDir=${scriptDir}/../../community
-comunityArchiveDir=/nas/TDengine/v$version/community   # community version’package directory
+communityArchiveDir=/nas/TDengine/v$version/community   # community version’package directory
 
 
 if [ "$branchName" == "master" ];then
@@ -95,8 +95,8 @@ else
   echo "please input right Specified para "
 fi
 
-if [ ! -d $comunityArchiveDir ]; then
-  mkdir -p $comunityArchiveDir
+if [ ! -d $communityArchiveDir ]; then
+  mkdir -p $communityArchiveDir
 fi
 
 # docker parameters
@@ -110,7 +110,7 @@ dockerinput_x64=TDengine-server-${version}-Linux-amd64.tar.gz
 #   if [ "${cpuType}" == "x64" ] ; then
 #     cpuType=amd64
 #     # cd ${communityDir}/packaging/docker
-#     cp -f ${comunityArchiveDir}/${dockerinput}  ${comunityArchiveDir}/${dockerinput_x64}
+#     cp -f ${communityArchiveDir}/${dockerinput}  ${communityArchiveDir}/${dockerinput_x64}
 #     bash generate_docker.sh     $version $dockerPass  $branchName $verType $cpuType ${dockerinput_x64}
 #     # echo ">>>>>>>>>>>>> check whether the docker image has been published"
 #     # docker pull ${dockerim}:${version}

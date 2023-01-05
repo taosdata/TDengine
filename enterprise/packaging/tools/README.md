@@ -30,7 +30,7 @@ that directory, run **install.sh** to install the database.
 
 # Check service status
 
-Because the installation using **systemd** to manage the serivce, people can use systemd to check
+Because the installation using **systemd** to manage the service, people can use systemd to check
 the service. Alias below are recommended to add to you startup script if you want to check
 the service status.
 

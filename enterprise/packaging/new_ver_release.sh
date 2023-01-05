@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -e
-set -x
+#set -x
 
 # new_ver_release.sh  -b [develop | master] 
 #                     -c [aarch32 | aarch64 | x64 ...]  

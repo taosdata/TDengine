@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-set -x
+#set -x
 
 version=$1
 versionComp=$2
@@ -18,7 +18,7 @@ if [ ! -d $archiveDir ]; then
   mkdir -p $archiveDir || echo -e "failed to create $archiveDir"
 fi
 
-echo "generate commnunity package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+echo "generate community package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 if [ ! -d $communityDir ]; then
   cd $communityDir
   mkdir -p debug
@@ -96,7 +96,7 @@ if [ -d $archiveDir ]; then
         echo "build rpms package at CentOS Linux"
     fi
 else
-    echo "Cannont found $archiveDir on this machine"
+    echo "Cannot found $archiveDir on this machine"
 fi
 
 echo " packaging release done! "
