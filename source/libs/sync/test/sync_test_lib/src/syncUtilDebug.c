@@ -29,8 +29,9 @@ cJSON* syncUtilNodeInfo2Json(const SNodeInfo* p) {
 }
 
 char* syncUtilRaftId2Str(const SRaftId* p) {
-  cJSON* pJson = syncUtilRaftId2Json(p);
-  char*  serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
+  // cJSON* pJson = syncUtilRaftId2Json(p);
+  // char*  serialized = cJSON_Print(pJson);
+  // cJSON_Delete(pJson);
+  // return serialized;
+  return "";
 }

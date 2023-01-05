@@ -986,6 +986,43 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SCtgTaskReq* tReq, SDBVgInfo*
   CTG_RET(code);
 }
 
+int32_t ctgGetVgIdsFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, char* dbFName, const char* pTbs[], int32_t tbNum, int32_t* vgId) {
+ int32_t code = 0;
+ CTG_ERR_RET(ctgMakeVgArray(dbInfo));
+
+ int32_t vgNum = taosArrayGetSize(dbInfo->vgArray);
+
+ if (vgNum <= 0) {
+   ctgError("db vgroup cache invalid, db:%s, vgroup number:%d", dbFName, vgNum);
+   CTG_ERR_RET(TSDB_CODE_TSC_DB_NOT_SELECTED);
+ }
+
+ SVgroupInfo* vgInfo = NULL;
+ char         tbFullName[TSDB_TABLE_FNAME_LEN];
+ snprintf(tbFullName, sizeof(tbFullName), "%s.", dbFName);
+ int32_t offset = strlen(tbFullName);
+ 
+ for (int32_t i = 0; i < tbNum; ++i) {
+   snprintf(tbFullName + offset, sizeof(tbFullName) - offset, "%s", pTbs[i]);
+   uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
+                                         dbInfo->hashPrefix, dbInfo->hashSuffix);
+
+   vgInfo = taosArraySearch(dbInfo->vgArray, &hashValue, ctgHashValueComp, TD_EQ);
+   if (NULL == vgInfo) {
+     ctgError("no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, dbFName,
+              (int32_t)taosArrayGetSize(dbInfo->vgArray));
+     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+   }
+
+   vgId[i] = vgInfo->vgId;
+
+   ctgDebug("Got tb %s vgId:%d", tbFullName, vgInfo->vgId);
+ }
+
+ CTG_RET(code);
+}
+
+
 int32_t ctgStbVersionSearchCompare(const void* key1, const void* key2) {
   if (*(uint64_t*)key1 < ((SSTableVersion*)key2)->suid) {
     return -1;

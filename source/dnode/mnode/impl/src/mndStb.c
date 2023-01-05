@@ -1177,7 +1177,9 @@ static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName,
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pTopic->ast, &pAst) != 0) {
-      ASSERT(0);
+      terrno = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC;
+      mError("topic:%s, create ast error", pTopic->name);
+      sdbRelease(pSdb, pTopic);
       return -1;
     }
 
@@ -1222,7 +1224,9 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pStream->ast, &pAst) != 0) {
-      ASSERT(0);
+      terrno = TSDB_CODE_MND_INVALID_STREAM_OPTION;
+      mError("stream:%s, create ast error", pStream->name);
+      sdbRelease(pSdb, pStream);
       return -1;
     }
 
@@ -2094,7 +2098,9 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pTopic->ast, &pAst) != 0) {
-      ASSERT(0);
+      terrno = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
+      mError("topic:%s, create ast error", pTopic->name);
+      sdbRelease(pSdb, pTopic);
       return -1;
     }
 
@@ -2141,7 +2147,9 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pStream->ast, &pAst) != 0) {
-      ASSERT(0);
+      terrno = TSDB_CODE_MND_INVALID_STREAM_OPTION;
+      mError("stream:%s, create ast error", pStream->name);
+      sdbRelease(pSdb, pStream);
       return -1;
     }
 

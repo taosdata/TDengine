@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
-#define MAX_CONTENT_LEN 1024 * 1024
+#define MAX_CONTENT_LEN 2 * 1024 * 1024
 
 SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes) {
   taosThreadRwlockRdlock(&pMgmt->lock);
@@ -60,7 +60,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    dDebug("file %s not exist", file);
+    dInfo("file %s not exist", file);
     code = 0;
     goto _OVER;
   }
@@ -133,7 +133,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
 
   *numOfVnodes = vnodesNum;
   code = 0;
-  dDebug("succcessed to read file %s, numOfVnodes:%d", file, vnodesNum);
+  dInfo("succcessed to read file %s, numOfVnodes:%d", file, vnodesNum);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
@@ -163,6 +163,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   if (ppVnodes == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     code = -1;
+    dError("failed to write %s while get vnodelist", file);
     goto _OVER;
   }
 
@@ -172,6 +173,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   if (content == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     code = -1;
+    dError("failed to write %s while malloc content", file);
     goto _OVER;
   }
 
@@ -213,6 +215,12 @@ _OVER:
 
   if (code != 0) return -1;
 
-  dDebug("successed to write %s, numOfVnodes:%d", realfile, numOfVnodes);
-  return taosRenameFile(file, realfile);
+  dInfo("succeed to write %s, numOfVnodes:%d", realfile, numOfVnodes);
+  code = taosRenameFile(file, realfile);
+  
+  if (code != 0) {
+    dError("failed to rename %s to %s", file, realfile);
+  }
+
+  return code;
 }
