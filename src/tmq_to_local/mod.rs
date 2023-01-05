@@ -1,10 +1,11 @@
 use std::{
     path::{Path, PathBuf},
+    str::FromStr,
     sync::Arc,
 };
 
-use anyhow::Result;
-use chrono::Local;
+use anyhow::{Context, Result};
+use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use taos::{sync::MessageSet, Consumer, *};
@@ -13,7 +14,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     taoz::ZFile,
-    tmq::{check_tmq_dsn, TmqMetrics, Topic},
+    tmq::{check_tmq_dsn, StopAt, TmqMetrics, Topic},
 };
 
 struct ZFileMan {
@@ -79,16 +80,26 @@ impl ZFileMan {
         vgroup: i32,
         data: taos::Data,
         metrics: &Arc<TmqMetrics>,
-    ) -> Result<usize> {
+        stop_at: Option<DateTime<Local>>,
+    ) -> Result<(usize, bool)> {
         // let raw = meta.as_raw_meta().await?;
         self.assert_vgroup(vgroup).await?;
         let entry = self.writers.get(&vgroup).expect("should always exist");
         let mut writer = entry.value().lock().await;
         writer.start_raw_block().await?;
         let mut nrows = 0;
+        let mut last_ts = None;
         while let Some(block) = data.fetch_raw_block().await.unwrap() {
             // dbg!(&block);
             writer.write_raw_block(&block).await?;
+            if let Some(view) = block.column_views().get(0) {
+                match view {
+                    ColumnView::Timestamp(view) => {
+                        last_ts = view.iter().last().unwrap();
+                    }
+                    _ => unreachable!("expect first column is timestamp"),
+                }
+            }
             nrows += block.nrows();
             log::debug!(
                 "[vg:{vgroup}] table {} rows: {}",
@@ -109,10 +120,20 @@ impl ZFileMan {
         }
         writer.finish_raw_block().await?;
 
+        let mut stop = false;
+        match (stop_at, last_ts) {
+            (Some(stop_at), Some(last_ts)) => {
+                if last_ts.to_datetime_with_tz() >= stop_at {
+                    stop = true;
+                }
+            }
+            _ => (),
+        }
+
         metrics
             .messages_of_data
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        Ok(nrows)
+        Ok((nrows, stop))
     }
 
     async fn flush_vgroup(&self, vgroup: i32) -> Result<()> {
@@ -132,6 +153,7 @@ async fn backup(
     barrier: Arc<Barrier>,
     cancel: CancellationToken,
     metrics: Arc<TmqMetrics>,
+    stop_at: Option<DateTime<Local>>,
 ) -> Result<()> {
     let mut stream = consumer.stream();
     let mut rows = 0;
@@ -160,12 +182,20 @@ async fn backup(
                             man.write_vgroup_with_meta(vgroup, meta, &metrics).await?;
                         }
                         MessageSet::Data(data) => {
-                            rows += man.write_vgroup_with_data(vgroup, data, &metrics).await?;
+                            let (size, stop) = man.write_vgroup_with_data(vgroup, data, &metrics, stop_at).await?;
+                            rows += size;
+                            if stop {
+                                break;
+                            }
                         }
                         MessageSet::MetaData(meta, data) => {
                             // writer.write_meta(&meta.as_raw_meta().await?).await?;
                             man.write_vgroup_with_meta(vgroup, meta, &metrics).await?;
-                            rows += man.write_vgroup_with_data(vgroup, data, &metrics).await?;
+                            let (size, stop) = man.write_vgroup_with_data(vgroup, data, &metrics, stop_at).await?;
+                            rows += size;
+                            if stop {
+                                break;
+                            }
                         }
                     }
                     // writer.flush().await?;
@@ -238,6 +268,13 @@ pub async fn tmq_to_local(
     let (mut from, _, topics) = check_tmq_dsn(from).await?;
     let mut from_params = from.drain_params();
 
+    let stop_at = if let Some(stop_at) = from_params.remove("stopAt") {
+        let ts = StopAt::from_str(&stop_at)
+            .context(format!("Unsupported `stopAt` parameter: {stop_at}"))?;
+        Some(ts.to_local_date_time())
+    } else {
+        None
+    };
     // let (mut from, mut from_params) = from.split_params();
     let to_params = to.drain_params();
 
@@ -366,7 +403,7 @@ pub async fn tmq_to_local(
             let metrics = metrics.clone();
             let sender = consumers_sender.clone();
             let handle = tokio::spawn(backup(
-                sender, consumer, man, task_id, barrier, cancel, metrics,
+                sender, consumer, man, task_id, barrier, cancel, metrics, stop_at,
             ));
             handles.push(handle);
             task_id += 1;

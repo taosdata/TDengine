@@ -1,13 +1,16 @@
 use std::{
     fmt::Display,
+    ops::{AddAssign, SubAssign},
+    str::FromStr,
     sync::{
         atomic::{AtomicU16, AtomicU64},
         Arc,
     },
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use anyhow::{bail, Context, Result};
+use chrono::Local;
 use serde::{Deserialize, Serialize};
 use taos::*;
 
@@ -58,6 +61,68 @@ impl Default for TmqMetrics {
     }
 }
 
+#[derive(Debug, Default)]
+pub(crate) enum StopAt {
+    #[default]
+    Now,
+    Backward(Duration),
+    Forward(Duration),
+    At(chrono::DateTime<Local>),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub(crate) enum StopAtError {
+    #[error(transparent)]
+    DurationParseError(#[from] parse_duration::parse::Error),
+    #[error(transparent)]
+    DateTimeParseError(#[from] chrono::ParseError),
+}
+impl StopAt {
+    pub fn to_local_date_time(&self) -> chrono::DateTime<Local> {
+        let mut now = Local::now();
+        match self {
+            StopAt::Now => now,
+            StopAt::Backward(duration) => {
+                now.sub_assign(chrono::Duration::from_std(*duration).unwrap());
+                now
+            }
+            StopAt::Forward(duration) => {
+                now.add_assign(chrono::Duration::from_std(*duration).unwrap());
+                now
+            }
+            StopAt::At(dt) => *dt,
+        }
+    }
+}
+
+impl FromStr for StopAt {
+    type Err = StopAtError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let at = StopAt::Now;
+        match s {
+            "" => Ok(at),
+            s if s.starts_with('-') => {
+                let s = s.trim_start_matches('-');
+                let d = parse_duration::parse(s)?;
+                Ok(Self::Backward(d))
+            }
+            s if s.starts_with('+') => {
+                let s = s.trim_start_matches('+');
+                let d = parse_duration::parse(s)?;
+                Ok(Self::Forward(d))
+            }
+            s => {
+                let d = chrono::DateTime::parse_from_rfc3339(s)?;
+                Ok(Self::At(d.into()))
+            }
+        }
+    }
+}
+
+pub(crate) struct TmqExtraOpts {
+    stop_at: StopAt,
+}
 // impl TmqMetrics {
 //     pub fn new() -> Self {
 //         Self {
