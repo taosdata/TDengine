@@ -329,7 +329,15 @@ int        cntDel = 0;        // delete byte count after next press tab
 // show auto tab introduction
 void printfIntroduction() {
   printf("   ******************************  Tab Completion  **********************************\n");
-  printf("   *   The %s CLI supports tab completion for a variety of items,             \n", shell.info.cusName);
+  char secondLine[160] = "\0";
+  sprintf(secondLine, "   *   The %s CLI supports tab completion for a variety of items, ",
+          shell.info.cusName);
+  printf("%s", secondLine);
+  int secondLineLen = strlen(secondLine);
+  while (84-(secondLineLen++) > 0) {
+    printf(" ");
+  }
+  printf("*\n");
   printf("   *   including database names, table names, function names and keywords.          *\n");
   printf("   *   The full list of shortcut keys is as follows:                                *\n");
   printf("   *    [ TAB ]        ......  complete the current word                            *\n");
