@@ -430,6 +430,22 @@ const char *taos_data_type(int type) {
       return "TSDB_DATA_TYPE_NCHAR";
     case TSDB_DATA_TYPE_JSON:
       return "TSDB_DATA_TYPE_JSON";
+    case TSDB_DATA_TYPE_UTINYINT:
+      return "TSDB_DATA_TYPE_UTINYINT";
+    case TSDB_DATA_TYPE_USMALLINT:
+      return "TSDB_DATA_TYPE_USMALLINT";
+    case TSDB_DATA_TYPE_UINT:
+      return "TSDB_DATA_TYPE_UINT";
+    case TSDB_DATA_TYPE_UBIGINT:
+      return "TSDB_DATA_TYPE_UBIGINT";
+    case TSDB_DATA_TYPE_VARBINARY:
+      return "TSDB_DATA_TYPE_VARBINARY";
+    case TSDB_DATA_TYPE_DECIMAL:
+      return "TSDB_DATA_TYPE_DECIMAL";
+    case TSDB_DATA_TYPE_BLOB:
+      return "TSDB_DATA_TYPE_BLOB";
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+      return "TSDB_DATA_TYPE_MEDIUMBLOB";
     default:
       return "UNKNOWN";
   }
@@ -668,6 +684,15 @@ const char *taos_get_server_info(TAOS *taos) {
   releaseTscObj(*(int64_t *)taos);
 
   return pTscObj->sDetailVer;
+}
+
+const char *taos_get_current_db(TAOS *taos, size_t *required) {
+  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
+  if (pTscObj == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+  return pTscObj->db;
 }
 
 static void destoryTablesReq(void *p) {

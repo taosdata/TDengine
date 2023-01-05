@@ -413,6 +413,135 @@ static bool sysTableIsCondOnOneTable(SNode* pCond, char* condTable) {
   return false;
 }
 
+static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SSysTableScanInfo* pInfo = pOperator->info;
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  blockDataCleanup(pInfo->pRes);
+  int32_t numOfRows = 0;
+
+  SSDataBlock* dataBlock = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_COLS);
+  blockDataEnsureCapacity(dataBlock, pOperator->resultInfo.capacity);
+
+  const char* db = NULL;
+  int32_t     vgId = 0;
+  vnodeGetInfo(pInfo->readHandle.vnode, &db, &vgId);
+
+  SName sn = {0};
+  char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
+
+  tNameGetDbName(&sn, varDataVal(dbname));
+  varDataSetLen(dbname, strlen(varDataVal(dbname)));
+
+  char condTableName[TSDB_TABLE_NAME_LEN] = {0};
+  // optimize when sql like where table_name='tablename' and xxx.
+  if (pInfo->pCondition && sysTableIsCondOnOneTable(pInfo->pCondition, condTableName)) {
+    char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(tableName, condTableName);
+
+    SMetaReader smrChildTable = {0};
+    metaReaderInit(&smrChildTable, pInfo->readHandle.meta, 0);
+    int32_t code = metaGetTableEntryByName(&smrChildTable, condTableName);
+    if (code != TSDB_CODE_SUCCESS) {
+      // terrno has been set by metaGetTableEntryByName, therefore, return directly
+      metaReaderClear(&smrChildTable);
+      blockDataDestroy(dataBlock);
+      pInfo->loadInfo.totalRows = 0;
+      return NULL;
+    }
+
+    if (smrChildTable.me.type != TSDB_CHILD_TABLE) {
+      metaReaderClear(&smrChildTable);
+      blockDataDestroy(dataBlock);
+      pInfo->loadInfo.totalRows = 0;
+      return NULL;
+    }
+
+    SMetaReader smrSuperTable = {0};
+    metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, META_READER_NOLOCK);
+    code = metaGetTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      // terrno has been set by metaGetTableEntryByUid
+      metaReaderClear(&smrSuperTable);
+      metaReaderClear(&smrChildTable);
+      blockDataDestroy(dataBlock);
+      return NULL;
+    }
+
+    sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows, dataBlock);
+    metaReaderClear(&smrSuperTable);
+    metaReaderClear(&smrChildTable);
+
+    if (numOfRows > 0) {
+      relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
+      numOfRows = 0;
+    }
+    blockDataDestroy(dataBlock);
+    pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+    setOperatorCompleted(pOperator);
+    return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+  }
+
+  int32_t ret = 0;
+  if (pInfo->pCur == NULL) {
+    pInfo->pCur = metaOpenTbCursor(pInfo->readHandle.meta);
+  }
+
+  while ((ret = metaTbCursorNext(pInfo->pCur)) == 0) {
+    if (pInfo->pCur->mr.me.type != TSDB_CHILD_TABLE) {
+      continue;
+    }
+
+    char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
+
+    SMetaReader smrSuperTable = {0};
+    metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, 0);
+    uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
+    int32_t  code = metaGetTableEntryByUid(&smrSuperTable, suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("failed to get super table meta, uid:0x%" PRIx64 ", code:%s, %s", suid, tstrerror(terrno),
+             GET_TASKID(pTaskInfo));
+      metaReaderClear(&smrSuperTable);
+      metaCloseTbCursor(pInfo->pCur);
+      pInfo->pCur = NULL;
+      T_LONG_JMP(pTaskInfo->env, terrno);
+    }
+
+    sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows, dataBlock);
+
+    metaReaderClear(&smrSuperTable);
+
+    if (numOfRows >= pOperator->resultInfo.capacity) {
+      relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
+      numOfRows = 0;
+
+      if (pInfo->pRes->info.rows > 0) {
+        break;
+      }
+    }
+  }
+
+  if (numOfRows > 0) {
+    relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
+    numOfRows = 0;
+  }
+
+  blockDataDestroy(dataBlock);
+  if (ret != 0) {
+    metaCloseTbCursor(pInfo->pCur);
+    pInfo->pCur = NULL;
+    setOperatorCompleted(pOperator);
+  }
+
+  pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+  return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+}
+
 static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
@@ -1321,6 +1450,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
     pBlock = sysTableScanUserTables(pOperator);
   } else if (strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
     pBlock = sysTableScanUserTags(pOperator);
+  } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0) {
+    pBlock = sysTableScanUserCols(pOperator);
   } else if (strncasecmp(name, TSDB_INS_TABLE_STABLES, TSDB_TABLE_FNAME_LEN) == 0 && pInfo->showRewrite &&
              IS_SYS_DBNAME(dbName)) {
     pBlock = sysTableScanUserSTables(pOperator);
@@ -1427,6 +1558,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
 
 SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode,
                                               const char* pUser, SExecTaskInfo* pTaskInfo) {
+  int32_t code = TDB_CODE_SUCCESS;
   SSysTableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SSysTableScanInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -1437,7 +1569,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   SDataBlockDescNode* pDescNode = pScanNode->node.pOutputDataBlockDesc;
 
   int32_t num = 0;
-  int32_t code = extractColMatchInfo(pScanNode->pScanCols, pDescNode, &num, COL_MATCH_FROM_COL_ID, &pInfo->matchInfo);
+  code = extractColMatchInfo(pScanNode->pScanCols, pDescNode, &num, COL_MATCH_FROM_COL_ID, &pInfo->matchInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -1463,7 +1595,8 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   const char* name = tNameGetTableName(&pInfo->name);
 
   if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
-      strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
+      strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
+      strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0) {
     pInfo->readHandle = *(SReadHandle*)readHandle;
   } else {
     tsem_init(&pInfo->ready, 0, 0);
@@ -1513,7 +1646,8 @@ void destroySysScanOperator(void* param) {
 
   const char* name = tNameGetTableName(&pInfo->name);
   if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
-      strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
+      strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
+      strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0|| pInfo->pCur != NULL) {
     metaCloseTbCursor(pInfo->pCur);
     pInfo->pCur = NULL;
   }

@@ -163,6 +163,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pShowCols = {"*"}
   },
   {
+    .showType = QUERY_NODE_SHOW_TAGS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_COLS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
     .showType = QUERY_NODE_SHOW_USERS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_USERS,
@@ -2210,7 +2217,7 @@ static int32_t dnodeToVgroupsInfo(SArray* pDnodes, SVgroupsInfo** pVgsInfo) {
 }
 
 static bool sysTableFromVnode(const char* pTable) {
-  return ((0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) || (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)));
+  return ((0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) || (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)) || (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)));
 }
 
 static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES); }
@@ -2273,7 +2280,7 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   SArray* pVgs = NULL;
   int32_t code = getVnodeSysTableVgroupList(pCxt, pName, &pVgs, &hasUserDbCond);
 
-  if (TSDB_CODE_SUCCESS == code && 0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TAGS) &&
+  if (TSDB_CODE_SUCCESS == code && 0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TAGS) && 0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) &&
       isSelectStmt(pCxt->pCurrStmt) && 0 == taosArrayGetSize(pVgs)) {
     ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
   }
@@ -2376,7 +2383,8 @@ static bool isSingleTable(SRealTableNode* pRealTable) {
   int8_t tableType = pRealTable->pMeta->tableType;
   if (TSDB_SYSTEM_TABLE == tableType) {
     return 0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) &&
-           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TAGS);
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TAGS) &&
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS);
   }
   return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType);
 }
