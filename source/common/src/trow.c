@@ -342,7 +342,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
     }
 
     if (iColumn == 0) {
-      ASSERT(pColVal->cid == pTColumn->colId);
+      ASSERT(pColVal && pColVal->cid == pTColumn->colId);
       ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
       ASSERT(pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
     } else {

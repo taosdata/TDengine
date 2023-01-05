@@ -731,8 +731,8 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
   int   ret;
   int   lcode;
   int   nLoops;
-  i64   nRead;
-  SPgno pgno;
+  i64   nRead = 0;
+  SPgno pgno = 0;
   int   init = 0;
 
   lcode = TDB_TRY_LOCK_PAGE(pPage);

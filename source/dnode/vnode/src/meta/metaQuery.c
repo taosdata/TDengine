@@ -653,8 +653,10 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
       }
 
       if (c == 0) {
-        metaError("meta/query: incorrect c: %" PRId32 ".", c);
+        metaULock(pMeta);
+        tdbTbcClose(pSkmDbC);
         code = TSDB_CODE_FAILED;
+        metaError("meta/query: incorrect c: %" PRId32 ".", c);
         goto _exit;
       }
 
