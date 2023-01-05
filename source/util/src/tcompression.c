@@ -331,8 +331,6 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
 
             for (int32_t i = 0; i < minRemain; i++, count++) {
               zigzag_value = ((w >> (4 + v)) & mask);
-
-              int64_t diff = ZIGZAG_DECODE(int64_t, zigzag_value);
               prev_value = ZIGZAG_DECODE(int64_t, zigzag_value) + prev_value;
 
               p[_pos++] = prev_value;
