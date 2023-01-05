@@ -123,13 +123,14 @@ sudo chmod ugo+w /opt/tdengine/bin/remove.sh
 sudo cat $scriptDir/remove_taoskeeper.sh >> /opt/tdengine/bin/remove.sh
 
 cd $communityDir/packaging/tools
-sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-server-$version-macOS-arm64\</g" $communityDir/packaging/tools/TDengine.pkgproj
+sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-server-$version-macOS-$arch\</g" $communityDir/packaging/tools/TDengine.pkgproj
 sed -i '' "s/3.0.1.4/$version/g" $communityDir/packaging/tools/TDengine.pkgproj
 sed -i '' "s|/opt.*/tools/post.sh|$communityDir/packaging/tools/post.sh|g" $communityDir/packaging/tools/TDengine.pkgproj
 sed -i '' "s|/opt.*/tools/mac_before_install.txt|$communityDir/packaging/tools/mac_before_install.txt|g" $communityDir/packaging/tools/TDengine.pkgproj
+sed -i '' "s|/opt/.*/release|$topDir/release|g" $communityDir/packaging/tools/TDengine.pkgproj
 
 /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
 
 sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/udfd}
-sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-client-$version-macOS-arm64\</g" $communityDir/packaging/tools/TDengine.pkgproj
+sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-client-$version-macOS-$arch\</g" $communityDir/packaging/tools/TDengine.pkgproj
 /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
