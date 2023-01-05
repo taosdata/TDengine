@@ -220,6 +220,7 @@ DLL_EXPORT const void *taos_get_raw_block(TAOS_RES *res);
 
 DLL_EXPORT int taos_get_db_route_info(TAOS *taos, const char *db, TAOS_DB_ROUTE_INFO *dbInfo);
 DLL_EXPORT int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId);
+DLL_EXPORT int taos_get_tables_vgId(TAOS *taos, const char *db, const char *table[], int tableNum, int *vgId);
 
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char *tableNameList);
 

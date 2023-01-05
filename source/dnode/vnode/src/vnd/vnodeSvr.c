@@ -182,7 +182,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     vError("vgId:%d, duplicate write request. version: %" PRId64 ", applied: %" PRId64 "", TD_VID(pVnode), version,
            pVnode->state.applied);
     terrno = TSDB_CODE_VND_DUP_REQUEST;
-    pRsp->info.handle = NULL;
     return -1;
   }
 
