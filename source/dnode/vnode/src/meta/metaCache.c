@@ -55,8 +55,8 @@ struct SMetaCache {
   // query cache
   struct STagFilterResCache {
     TdThreadMutex lock;
-    SHashObj*  pTableEntry;
-    SLRUCache* pUidResCache;
+    SHashObj*     pTableEntry;
+    SLRUCache*    pUidResCache;
   } sTagFilterResCache;
 };
 
@@ -563,13 +563,13 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
   }
 
   // add to cache.
-  taosLRUCacheInsert(pCache, buf, sizeof(uint64_t) + keyLen, pPayload, payloadLen, freePayload, NULL,
-                     TAOS_LRU_PRIORITY_LOW);
+  int32_t ret = taosLRUCacheInsert(pCache, buf, sizeof(uint64_t) + keyLen, pPayload, payloadLen, freePayload, NULL,
+                                   TAOS_LRU_PRIORITY_LOW);
 
   taosThreadMutexUnlock(pLock);
 
-  metaDebug("vgId:%d, suid:%" PRIu64 " list cache added into cache, total:%d, tables:%d", TD_VID(pMeta->pVnode), suid,
-            (int32_t)taosLRUCacheGetUsage(pCache), taosHashGetSize(pTableEntry));
+  metaDebug("vgId:%d, suid:%" PRIu64 " list cache added into cache, total:%d, tables:%d, ret:%d", TD_VID(pMeta->pVnode),
+            suid, (int32_t)taosLRUCacheGetUsage(pCache), taosHashGetSize(pTableEntry), ret);
 
   return TSDB_CODE_SUCCESS;
 }
