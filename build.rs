@@ -48,7 +48,7 @@ fn main() {
         sqlx::test_block_on(init_sqlx(&dsn)).unwrap();
     }
     // trigger recompilation when a new migration is added
-    println!("cargo:rerun-if-changed=migrations");
+    println!("cargo:rerun-if-changed=migrations/**");
     // trigger recompilation when dotenv changed
     println!("cargo:rerun-if-changed=.env");
 }

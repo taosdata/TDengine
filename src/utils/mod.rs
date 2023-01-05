@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use futures::TryStreamExt;
 use serde::Deserialize;
 use taos::{AsyncFetchable, AsyncQueryable, Dsn, TBuilder, Taos, TaosBuilder};
@@ -48,6 +50,16 @@ pub async fn clear_database(dsn: &Dsn) -> anyhow::Result<()> {
         taos.exec(format!("DROP TABLE {name}")).await?;
     }
 
+    Ok(())
+}
+
+pub async fn clear_local(local: &Dsn) -> anyhow::Result<()> {
+    if let Some(path) = local.path.as_deref() {
+        let path = Path::new(path);
+        if path.exists() {
+            tokio::fs::remove_dir_all(path).await?;
+        }
+    }
     Ok(())
 }
 
