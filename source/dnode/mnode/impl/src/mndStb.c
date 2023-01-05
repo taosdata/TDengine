@@ -2628,6 +2628,11 @@ static int32_t mndCheckIndexReq(SCreateTagIndexReq *pReq) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t mndAddIndexImpl(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp, void *sql,
+                        int32_t len) {
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
 static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *tagIdxReq, SDbObj *pDb, SStbObj *pOld) {
   bool    needRsp = true;
   int32_t code = -1;
@@ -2667,7 +2672,9 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *ta
   }
   pNew->tagVer++;
 
-  return TSDB_CODE_SUCCESS;
+  code = mndAddIndexImpl(pMnode, pReq, pDb, pNew, needRsp, pReq->pCont, pReq->contLen);
+
+  return code;
 }
 static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq) {
   SMnode            *pMnode = pReq->info.node;
