@@ -238,7 +238,7 @@ _err:
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
   if (pVnode->pSma) smaClose(pVnode->pSma);
   if (pVnode->pMeta) metaClose(pVnode->pMeta);
-  if (pVnode->pPool) vnodeCloseBufPool(pVnode);
+  if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
   tsem_destroy(&(pVnode->canCommit));
   taosMemoryFree(pVnode);

@@ -16,8 +16,6 @@
 #include "vnd.h"
 
 /* ------------------------ STRUCTURES ------------------------ */
-#define VNODE_BUFPOOL_SEGMENTS 3
-
 static int vnodeBufPoolCreate(SVnode *pVnode, int64_t size, SVBufPool **ppPool) {
   SVBufPool *pPool;
 
@@ -44,7 +42,7 @@ static int vnodeBufPoolCreate(SVnode *pVnode, int64_t size, SVBufPool **ppPool) 
     pPool->lock = NULL;
   }
 
-  pPool->next = NULL;
+  pPool->freeNext = NULL;
   pPool->pVnode = pVnode;
   pPool->nRef = 0;
   pPool->size = 0;
@@ -69,22 +67,21 @@ static int vnodeBufPoolDestroy(SVBufPool *pPool) {
 }
 
 int vnodeOpenBufPool(SVnode *pVnode) {
-  SVBufPool *pPool = NULL;
-  int64_t    size = pVnode->config.szBuf / VNODE_BUFPOOL_SEGMENTS;
+  int64_t size = pVnode->config.szBuf / VNODE_BUFPOOL_SEGMENTS;
 
-  ASSERT(pVnode->pPool == NULL);
+  ASSERT(pVnode->freeList == NULL);
 
   for (int i = 0; i < VNODE_BUFPOOL_SEGMENTS; i++) {
     // create pool
-    if (vnodeBufPoolCreate(pVnode, size, &pPool)) {
+    if (vnodeBufPoolCreate(pVnode, size, &pVnode->aBufPool[i])) {
       vError("vgId:%d, failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
       vnodeCloseBufPool(pVnode);
       return -1;
     }
 
-    // add pool to vnode
-    pPool->next = pVnode->pPool;
-    pVnode->pPool = pPool;
+    // add to free list
+    pVnode->aBufPool[i]->freeNext = pVnode->freeList;
+    pVnode->freeList = pVnode->aBufPool[i];
   }
 
   vDebug("vgId:%d, vnode buffer pool is opened, size:%" PRId64, TD_VID(pVnode), size);
@@ -92,19 +89,18 @@ int vnodeOpenBufPool(SVnode *pVnode) {
 }
 
 int vnodeCloseBufPool(SVnode *pVnode) {
-  SVBufPool *pPool;
-
-  for (pPool = pVnode->pPool; pPool; pPool = pVnode->pPool) {
-    pVnode->pPool = pPool->next;
-    vnodeBufPoolDestroy(pPool);
+  for (int32_t i = 0; i < VNODE_BUFPOOL_SEGMENTS; i++) {
+    if (pVnode->aBufPool[i]) {
+      vnodeBufPoolDestroy(pVnode->aBufPool[i]);
+      pVnode->aBufPool[i] = NULL;
+    }
   }
 
-  if (pVnode->inUse) {
-    vnodeBufPoolDestroy(pVnode->inUse);
-    pVnode->inUse = NULL;
-  }
+  pVnode->freeList = NULL;
+  ASSERT(pVnode->inUse == NULL);
+  ASSERT(pVnode->recycling == NULL);
+
   vDebug("vgId:%d, vnode buffer pool is closed", TD_VID(pVnode));
-
   return 0;
 }
 
@@ -240,8 +236,8 @@ void vnodeBufPoolUnRef(SVBufPool *pPool) {
       }
     }
 
-    pPool->next = pVnode->pPool;
-    pVnode->pPool = pPool;
+    pPool->freeNext = pVnode->freeList;
+    pVnode->freeList = pPool;
     taosThreadCondSignal(&pVnode->poolNotEmpty);
 
     taosThreadMutexUnlock(&pVnode->mutex);

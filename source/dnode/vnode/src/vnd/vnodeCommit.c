@@ -25,14 +25,14 @@ int vnodeBegin(SVnode *pVnode) {
   // alloc buffer pool
   taosThreadMutexLock(&pVnode->mutex);
 
-  while (pVnode->pPool == NULL) {
+  while (pVnode->freeList == NULL) {
     taosThreadCondWait(&pVnode->poolNotEmpty, &pVnode->mutex);
   }
 
-  pVnode->inUse = pVnode->pPool;
+  pVnode->inUse = pVnode->freeList;
   pVnode->inUse->nRef = 1;
-  pVnode->pPool = pVnode->inUse->next;
-  pVnode->inUse->next = NULL;
+  pVnode->freeList = pVnode->inUse->freeNext;
+  pVnode->inUse->freeNext = NULL;
 
   taosThreadMutexUnlock(&pVnode->mutex);
 

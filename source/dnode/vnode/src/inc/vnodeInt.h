@@ -87,6 +87,8 @@ typedef struct SCommitInfo        SCommitInfo;
 #define VNODE_RSMA1_DIR "rsma1"
 #define VNODE_RSMA2_DIR "rsma2"
 
+#define VNODE_BUFPOOL_SEGMENTS 3
+
 #define VND_INFO_FNAME "vnode.json"
 
 // vnd.h
@@ -326,16 +328,21 @@ struct STsdbKeepCfg {
 };
 
 struct SVnode {
-  char*         path;
-  SVnodeCfg     config;
-  SVState       state;
-  SVStatis      statis;
-  STfs*         pTfs;
-  SMsgCb        msgCb;
+  char*     path;
+  SVnodeCfg config;
+  SVState   state;
+  SVStatis  statis;
+  STfs*     pTfs;
+  SMsgCb    msgCb;
+
+  // Buffer Pool
   TdThreadMutex mutex;
   TdThreadCond  poolNotEmpty;
-  SVBufPool*    pPool;
+  SVBufPool*    aBufPool[VNODE_BUFPOOL_SEGMENTS];
+  SVBufPool*    freeList;
   SVBufPool*    inUse;
+  SVBufPool*    recycling;
+
   SMeta*        pMeta;
   SSma*         pSma;
   STsdb*        pTsdb;

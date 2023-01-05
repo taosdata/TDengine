@@ -61,7 +61,7 @@ struct SVBufPoolNode {
 };
 
 struct SVBufPool {
-  SVBufPool*        next;
+  SVBufPool*        freeNext;
   SVnode*           pVnode;
   TdThreadSpinlock* lock;
   volatile int32_t  nRef;
