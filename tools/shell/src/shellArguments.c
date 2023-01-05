@@ -20,9 +20,9 @@
 #include "shellInt.h"
 
 #ifndef CUS_NAME
-    char cus_name[] = "TDengine";
+    char cusName[] = "TDengine";
 #else
-    char cust_name[] = CUS_NAME;
+    char cusName[] = CUS_NAME;
 #endif
 
 #ifndef CUS_PROMPT
