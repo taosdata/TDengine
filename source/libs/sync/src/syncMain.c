@@ -1252,6 +1252,9 @@ void syncNodePreClose(SSyncNode* pSyncNode) {
 
   // stop heartbeat timer
   syncNodeStopHeartbeatTimer(pSyncNode);
+
+  // clean rsp
+  syncRespCleanRsp(pSyncNode->pSyncRespMgr);
 }
 
 void syncHbTimerDataFree(SSyncHbTimerData* pData) { taosMemoryFree(pData); }
@@ -2667,16 +2670,12 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
     }
 
     int32_t code = syncNodeAppend(ths, pEntry);
-    if (code < 0) {
-      sNError(ths, "failed to append blocking msg");
-    }
     return code;
   } else {
     syncEntryDestroy(pEntry);
     pEntry = NULL;
+    return -1;
   }
-
-  return -1;
 }
 
 int32_t syncNodeOnClientRequestOld(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex) {
