@@ -40,8 +40,7 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname) {
         if (code == 0) {
           break;
         } else {
-          ASSERT(0);
-          // TODO handle error
+          return -1;
         }
       }
       int32_t size = htonl(head.size);
@@ -101,7 +100,9 @@ STqOffsetStore* tqOffsetOpen(STQ* pTq) {
   }
   char* fname = tqOffsetBuildFName(pStore->pTq->path, 0);
   if (tqOffsetRestoreFromFile(pStore, fname) < 0) {
-    ASSERT(0);
+    taosMemoryFree(fname);
+    taosMemoryFree(pStore);
+    return NULL;
   }
   taosMemoryFree(fname);
   return pStore;
@@ -152,9 +153,7 @@ int32_t tqOffsetCommitFile(STqOffsetStore* pStore) {
     int32_t    bodyLen;
     int32_t    code;
     tEncodeSize(tEncodeSTqOffset, pOffset, bodyLen, code);
-    ASSERT(code == 0);
     if (code < 0) {
-      ASSERT(0);
       taosHashCancelIterate(pStore->pHash, pIter);
       return -1;
     }
@@ -170,7 +169,6 @@ int32_t tqOffsetCommitFile(STqOffsetStore* pStore) {
     // write file
     int64_t writeLen;
     if ((writeLen = taosWriteFile(pFile, buf, totLen)) != totLen) {
-      ASSERT(0);
       tqError("write offset incomplete, len %d, write len %" PRId64, bodyLen, writeLen);
       taosHashCancelIterate(pStore->pHash, pIter);
       taosMemoryFree(buf);

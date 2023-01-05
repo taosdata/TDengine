@@ -802,7 +802,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
          tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
-    //pWrapper->pCatalogReq->forceUpdate = false;
+    // pWrapper->pCatalogReq->forceUpdate = false;
     code = qContinueParseSql(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
 
@@ -831,8 +831,8 @@ void continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest)
              tstrerror(code), pWrapper->pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
     terrno = code;
-    pWrapper->pRequest->code = code;
-    pWrapper->pRequest->body.queryFp(pWrapper->pRequest->body.param, pWrapper->pRequest, code);
+    pRequest->code = code;
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   }
 }
 
@@ -866,7 +866,6 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
                            .pTransporter = pTscObj->pAppInfo->pTransporter,
                            .pStmtCb = NULL,
                            .pUser = pTscObj->user,
-                           .schemalessType = pTscObj->schemalessType,
                            .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
                            .enableSysInfo = pTscObj->sysInfo,
                            .async = true,
@@ -1380,8 +1379,7 @@ int taos_stmt_get_col_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fiel
 }
 
 // let stmt to reclaim TAOS_FIELD_E that was allocated by `taos_stmt_get_tag_fields`/`taos_stmt_get_col_fields`
-void taos_stmt_reclaim_fields(TAOS_STMT *stmt, TAOS_FIELD_E *fields)
-{
+void taos_stmt_reclaim_fields(TAOS_STMT *stmt, TAOS_FIELD_E *fields) {
   (void)stmt;
   if (!fields) return;
   taosMemoryFree(fields);

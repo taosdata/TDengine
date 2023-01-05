@@ -89,8 +89,8 @@ void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
     pLoadInfo[i].blockIndex[0] = -1;
     pLoadInfo[i].blockIndex[1] = -1;
 
-    tBlockDataDestroy(&pLoadInfo[i].blockData[0], true);
-    tBlockDataDestroy(&pLoadInfo[i].blockData[1], true);
+    tBlockDataDestroy(&pLoadInfo[i].blockData[0]);
+    tBlockDataDestroy(&pLoadInfo[i].blockData[1]);
 
     taosArrayDestroy(pLoadInfo[i].aSttBlk);
   }

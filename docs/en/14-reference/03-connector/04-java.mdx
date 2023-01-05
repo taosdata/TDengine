@@ -878,8 +878,10 @@ The source code of the sample application is under `TDengine/examples/JDBC`:
 
 | taos-jdbcdriver version |                 major changes                  |
 | :---------------------: | :--------------------------------------------: |
+|       3.0.3        |  fix timestamp resolution error for REST connection in jdk17+ version    |
 |       3.0.1 - 3.0.2        |  fix the resultSet data is parsed incorrectly sometimes. 3.0.1 is compiled on JDK 11, you are advised to use 3.0.2 in the JDK 8 environment    |
 |       3.0.0        |   Support for TDengine 3.0    |
+|       2.0.42        |   fix wasNull interface return value in WebSocket connection  |
 |       2.0.41        |   fix decode method of username and password in REST connection |
 |     2.0.39 - 2.0.40     | Add REST connection/request timeout parameters |
 |         2.0.38          |  JDBC REST connections add bulk pull function  |

@@ -478,34 +478,34 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_LOCK(type, _lock)                                                                        \
   do {                                                                                               \
     if (SCH_READ == (type)) {                                                                        \
-      assert(atomic_load_32(_lock) >= 0);                                                            \
+      ASSERTS(atomic_load_32(_lock) >= 0, "invalid lock value before read lock");                    \
       SCH_LOCK_DEBUG("SCH RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRLockLatch(_lock);                                                                         \
       SCH_LOCK_DEBUG("SCH RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32(_lock) > 0);                                                             \
+      ASSERTS(atomic_load_32(_lock) > 0, "invalid lock value after read lock");                      \
     } else {                                                                                         \
-      assert(atomic_load_32(_lock) >= 0);                                                            \
+      ASSERTS(atomic_load_32(_lock) >= 0, "invalid lock value before write lock");                   \
       SCH_LOCK_DEBUG("SCH WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWLockLatch(_lock);                                                                         \
       SCH_LOCK_DEBUG("SCH WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32(_lock) == TD_RWLATCH_WRITE_FLAG_COPY);                                   \
+      ASSERTS(atomic_load_32(_lock) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after write lock");  \
     }                                                                                                \
   } while (0)
 
 #define SCH_UNLOCK(type, _lock)                                                                       \
   do {                                                                                                \
     if (SCH_READ == (type)) {                                                                         \
-      assert(atomic_load_32((_lock)) > 0);                                                            \
+      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value before read unlock");                  \
       SCH_LOCK_DEBUG("SCH RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRUnLockLatch(_lock);                                                                        \
       SCH_LOCK_DEBUG("SCH RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) >= 0);                                                           \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after read unlock");                  \
     } else {                                                                                          \
-      assert(atomic_load_32((_lock)) & TD_RWLATCH_WRITE_FLAG_COPY);                                   \
+      ASSERTS(atomic_load_32((_lock)) & TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value before write unlock");  \
       SCH_LOCK_DEBUG("SCH WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWUnLockLatch(_lock);                                                                        \
       SCH_LOCK_DEBUG("SCH WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) >= 0);                                                           \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after write unlock");                 \
     }                                                                                                 \
   } while (0)
 

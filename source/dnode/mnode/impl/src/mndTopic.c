@@ -699,14 +699,9 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     sdbRelease(pSdb, pConsumer);
   }
 
-#if 0
-  if (pTopic->refConsumerCnt != 0) {
-    mndReleaseTopic(pMnode, pTopic);
-    terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-    mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db) != 0) {
     return -1;
   }
-#endif
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "drop-topic");
   if (pTrans == NULL) {

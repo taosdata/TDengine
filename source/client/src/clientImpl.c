@@ -239,7 +239,6 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
                        .pTransporter = pTscObj->pAppInfo->pTransporter,
                        .pStmtCb = pStmtCb,
                        .pUser = pTscObj->user,
-                       .schemalessType = pTscObj->schemalessType,
                        .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
                        .enableSysInfo = pTscObj->sysInfo,
                        .svrVer = pTscObj->sVer,
@@ -273,7 +272,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
-  int32_t            code = qExecCommand(pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
+  int32_t            code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
@@ -311,7 +310,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return;
   }
 
-  int32_t code = qExecCommand(pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
+  int32_t code = qExecCommand(&pRequest->pTscObj->id ,pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
@@ -741,47 +740,21 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
 }
 
 int32_t handleSubmitExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog, SEpSet* epset) {
-  int32_t     code = 0;
-  SArray*     pArray = NULL;
-  SSubmitRsp* pRsp = (SSubmitRsp*)res;
-  if (pRsp->nBlocks <= 0) {
-    taosMemoryFreeClear(pRsp->pBlocks);
+  SArray*      pArray = NULL;
+  SSubmitRsp2* pRsp = (SSubmitRsp2*)res;
+  if (NULL == pRsp->aCreateTbRsp) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pArray = taosArrayInit(pRsp->nBlocks, sizeof(STbSVersion));
-  if (NULL == pArray) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+  int32_t tbNum = taosArrayGetSize(pRsp->aCreateTbRsp);
+  for (int32_t i = 0; i < tbNum; ++i) {
+    SVCreateTbRsp* pTbRsp = (SVCreateTbRsp*)taosArrayGet(pRsp->aCreateTbRsp, i);
+    if (pTbRsp->pMeta) {
+      handleCreateTbExecRes(pTbRsp->pMeta, pCatalog);
+    }
   }
 
-  for (int32_t i = 0; i < pRsp->nBlocks; ++i) {
-    SSubmitBlkRsp* blk = pRsp->pBlocks + i;
-    if (blk->pMeta) {
-      handleCreateTbExecRes(blk->pMeta, pCatalog);
-      tFreeSTableMetaRsp(blk->pMeta);
-      taosMemoryFreeClear(blk->pMeta);
-    }
-
-    if (NULL == blk->tblFName || 0 == blk->tblFName[0]) {
-      continue;
-    }
-
-    STbSVersion tbSver = {.tbFName = blk->tblFName, .sver = blk->sver};
-    taosArrayPush(pArray, &tbSver);
-  }
-
-  SRequestConnInfo conn = {.pTrans = pRequest->pTscObj->pAppInfo->pTransporter,
-                           .requestId = pRequest->requestId,
-                           .requestObjRefId = pRequest->self,
-                           .mgmtEps = *epset};
-
-  code = catalogChkTbMetaVersion(pCatalog, &conn, pArray);
-
-_return:
-
-  taosArrayDestroy(pArray);
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t handleQueryExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog, SEpSet* epset) {
@@ -882,7 +855,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
 }
 
 static bool incompletaFileParsing(SNode* pStmt) {
-  return QUERY_NODE_VNODE_MODIF_STMT != nodeType(pStmt) ? false : ((SVnodeModifOpStmt*)pStmt)->fileProcessing;
+  return QUERY_NODE_VNODE_MODIFY_STMT != nodeType(pStmt) ? false : ((SVnodeModifyOpStmt*)pStmt)->fileProcessing;
 }
 
 // todo refacto the error code  mgmt
@@ -961,7 +934,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   if (pQuery->pRoot && !pRequest->inRetry) {
     STscObj*            pTscObj = pRequest->pTscObj;
     SAppClusterSummary* pActivity = &pTscObj->pAppInfo->summary;
-    if (QUERY_NODE_VNODE_MODIF_STMT == pQuery->pRoot->type) {
+    if (QUERY_NODE_VNODE_MODIFY_STMT == pQuery->pRoot->type) {
       atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertsReq, 1);
     } else if (QUERY_NODE_SELECT_STMT == pQuery->pRoot->type) {
       atomic_add_fetch_64((int64_t*)&pActivity->numOfQueryReq, 1);
@@ -1066,7 +1039,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   }
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
     SArray* pNodeList = NULL;
-    if (QUERY_NODE_VNODE_MODIF_STMT != nodeType(pQuery->pRoot)) {
+    if (QUERY_NODE_VNODE_MODIFY_STMT != nodeType(pQuery->pRoot)) {
       buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
     }
 

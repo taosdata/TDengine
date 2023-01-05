@@ -222,7 +222,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   blockDataCleanup(pFinalRes);
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  if (pTaskInfo->streamInfo.pReq) {
+  if (pTaskInfo->streamInfo.submit.msgStr) {
     pOperator->status = OP_OPENED;
   }
 

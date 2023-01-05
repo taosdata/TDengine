@@ -138,6 +138,7 @@ SWords shellCommands[] = {
     {"show create table <tb_name> \\G;", 0, 0, NULL},
     {"show connections;", 0, 0, NULL},
     {"show cluster;", 0, 0, NULL},
+    {"show cluster alive;", 0, 0, NULL},
     {"show databases;", 0, 0, NULL},
     {"show dnodes;", 0, 0, NULL},
     {"show dnode <dnode_id> variables;", 0, 0, NULL},
@@ -425,6 +426,7 @@ void showHelp() {
     show create table <tb_name>;\n\
     show connections;\n\
     show cluster;\n\
+    show cluster alive;\n\
     show databases;\n\
     show dnodes;\n\
     show dnode <dnode_id> variables;\n\
@@ -713,7 +715,10 @@ void putBackAutoPtr(int type, STire* tire) {
 
   } else {
     tires[type]->ref--;
-    assert(tires[type]->ref > 0);
+    ASSERT(tires[type]->ref > 0);
+    if (tires[type]->ref <= 0) {
+      return;
+    }
   }
   taosThreadMutexUnlock(&tiresMutex);
 

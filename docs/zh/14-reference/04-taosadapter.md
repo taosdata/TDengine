@@ -21,6 +21,7 @@ taosAdapter 提供以下功能：
 - 无缝连接到 collectd
 - 无缝连接到 StatsD
 - 支持 Prometheus remote_read 和 remote_write
+- 获取 table 所在的虚拟节点组（VGroup）的 VGroup ID
 
 ## taosAdapter 架构图
 
@@ -59,6 +60,7 @@ Usage of taosAdapter:
       --collectd.port int                            collectd server port. Env "TAOS_ADAPTER_COLLECTD_PORT" (default 6045)
       --collectd.user string                         collectd user. Env "TAOS_ADAPTER_COLLECTD_USER" (default "root")
       --collectd.worker int                          collectd write worker. Env "TAOS_ADAPTER_COLLECTD_WORKER" (default 10)
+      --collectd.ttl int                             collectd data ttl. Env "TAOS_ADAPTER_COLLECTD_TTL" (default 0, means no ttl)
   -c, --config string                                config path default /etc/taos/taosadapter.toml
       --cors.allowAllOrigins                         cors allow all origins. Env "TAOS_ADAPTER_CORS_ALLOW_ALL_ORIGINS" (default true)
       --cors.allowCredentials                        cors allow credentials. Env "TAOS_ADAPTER_CORS_ALLOW_Credentials"
@@ -100,6 +102,7 @@ Usage of taosAdapter:
       --node_exporter.responseTimeout duration       node_exporter response timeout. Env "TAOS_ADAPTER_NODE_EXPORTER_RESPONSE_TIMEOUT" (default 5s)
       --node_exporter.urls strings                   node_exporter urls. Env "TAOS_ADAPTER_NODE_EXPORTER_URLS" (default [http://localhost:9100])
       --node_exporter.user string                    node_exporter user. Env "TAOS_ADAPTER_NODE_EXPORTER_USER" (default "root")
+      --node_exporter.ttl int                        node_exporter data ttl. Env "TAOS_ADAPTER_NODE_EXPORTER_TTL"(default 0, means no ttl)
       --opentsdb.enable                              enable opentsdb. Env "TAOS_ADAPTER_OPENTSDB_ENABLE" (default true)
       --opentsdb_telnet.batchSize int                opentsdb_telnet batch size. Env "TAOS_ADAPTER_OPENTSDB_TELNET_BATCH_SIZE" (default 1)
       --opentsdb_telnet.dbs strings                  opentsdb_telnet db names. Env "TAOS_ADAPTER_OPENTSDB_TELNET_DBS" (default [opentsdb_telnet,collectd_tsdb,icinga2_tsdb,tcollector_tsdb])
@@ -110,6 +113,7 @@ Usage of taosAdapter:
       --opentsdb_telnet.ports ints                   opentsdb telnet tcp port. Env "TAOS_ADAPTER_OPENTSDB_TELNET_PORTS" (default [6046,6047,6048,6049])
       --opentsdb_telnet.tcpKeepAlive                 enable tcp keep alive. Env "TAOS_ADAPTER_OPENTSDB_TELNET_TCP_KEEP_ALIVE"
       --opentsdb_telnet.user string                  opentsdb_telnet user. Env "TAOS_ADAPTER_OPENTSDB_TELNET_USER" (default "root")
+      --opentsdb_telnet.ttl int                      opentsdb_telnet data ttl. Env "TAOS_ADAPTER_OPENTSDB_TELNET_TTL"(default 0, means no ttl)
       --pool.idleTimeout duration                    Set idle connection timeout. Env "TAOS_ADAPTER_POOL_IDLE_TIMEOUT" (default 1h0m0s)
       --pool.maxConnect int                          max connections to taosd. Env "TAOS_ADAPTER_POOL_MAX_CONNECT" (default 4000)
       --pool.maxIdle int                             max idle connections to taosd. Env "TAOS_ADAPTER_POOL_MAX_IDLE" (default 4000)
@@ -131,6 +135,7 @@ Usage of taosAdapter:
       --statsd.tcpKeepAlive                          enable tcp keep alive. Env "TAOS_ADAPTER_STATSD_TCP_KEEP_ALIVE"
       --statsd.user string                           statsd user. Env "TAOS_ADAPTER_STATSD_USER" (default "root")
       --statsd.worker int                            statsd write worker. Env "TAOS_ADAPTER_STATSD_WORKER" (default 10)
+      --statsd.ttl int                               statsd data ttl. Env "TAOS_ADAPTER_STATSD_TTL" (default 0, means no ttl)
       --taosConfigDir string                         load taos client config path. Env "TAOS_ADAPTER_TAOS_CONFIG_FILE"
       --version                                      Print the version and exit
 ```
@@ -174,6 +179,7 @@ AllowWebSockets
   node_export 是一个机器指标的导出器。请访问 [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) 了解更多信息。
 - 支持 Prometheus remote_read 和 remote_write
   remote_read 和 remote_write 是 Prometheus 数据读写分离的集群方案。请访问[https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) 了解更多信息。
+- 获取 table 所在的虚拟节点组（VGroup）的 VGroup ID。关于虚拟节点组（VGroup）的更多信息，请访问[整体架构文档](/tdinternal/arch/#主要逻辑单元) 。
 
 ## 接口
 
@@ -195,6 +201,7 @@ AllowWebSockets
 - `precision` TDengine 使用的时间精度
 - `u` TDengine 用户名
 - `p` TDengine 密码
+- `ttl` 自动创建的子表生命周期，以子表的第一条数据的 TTL 参数为准，不可更新。更多信息请参考[创建表文档](taos-sql/table/#创建表)的 TTL 参数。
 
 注意： 目前不支持 InfluxDB 的 token 验证方式，仅支持 Basic 验证和查询参数验证。
 示例： curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
@@ -234,6 +241,10 @@ Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输�
 ### prometheus
 
 <Prometheus />
+
+### 获取 table 的 VGroup ID
+
+可以访问 http 接口 `http://<fqdn>:6041/rest/vgid?db=<db>&table=<table>` 获取 table 的 VGroup ID。关于虚拟节点组（VGroup）的更多信息，请访问[整体架构文档](/tdinternal/arch/#主要逻辑单元) 。
 
 ## 内存使用优化方法
 
@@ -277,7 +288,7 @@ http 返回内容：
 
 ## taosAdapter 监控指标
 
-taosAdapter 采集 http 相关指标、cpu 百分比和内存百分比。
+taosAdapter 采集 http 相关指标、CPU 百分比和内存百分比。
 
 ### http 接口
 
@@ -289,13 +300,13 @@ http://<fqdn>:6041/metrics
 
 ### 写入 TDengine
 
-taosAdapter 支持将 http 监控、cpu 百分比和内存百分比写入 TDengine。
+taosAdapter 支持将 http 监控、CPU 百分比和内存百分比写入 TDengine。
 
 有关配置参数
 
 | **配置项**                 | **描述**                                     | **默认值**  |
 |-------------------------|--------------------------------------------|----------|
-| monitor.collectDuration | cpu 和内存采集间隔                                | 3s       |
+| monitor.collectDuration | CPU 和内存采集间隔                                | 3s       |
 | monitor.identity        | 当前taosadapter 的标识符如果不设置将使用 'hostname:port' |          |
 | monitor.incgroup        | 是否是 cgroup 中运行(容器中运行设置为 true)              | false    |
 | monitor.writeToTD       | 是否写入到 TDengine                             | false    |
