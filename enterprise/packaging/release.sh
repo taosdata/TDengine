@@ -116,10 +116,10 @@ if [ "$osType" == "Darwin" ]; then
   script_dir=$(dirname $0)
   cd ${script_dir}
   script_dir="$(pwd)"
-  top_dir=${script_dir}/..
+  top_dir=${script_dir}/../..
 else
   script_dir="$(dirname $(readlink -f $0))"
-  top_dir="$(readlink -f ${script_dir}/..)"
+  top_dir="$(readlink -f ${script_dir}/../..)"
 fi
 
 csudo=""
@@ -182,7 +182,7 @@ build_time=$(date +"%F %R")
 gitinfo=$(git rev-parse --verify HEAD)
 
 if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
-  enterprise_dir="${top_dir}/../enterprise"
+  enterprise_dir="${top_dir}/enterprise"
   cd ${enterprise_dir}
   gitinfoOfInternal=$(git rev-parse --verify HEAD)
 else
@@ -192,7 +192,7 @@ fi
 cd "${curr_dir}"
 
 # 2. cmake executable file
-compile_dir="${top_dir}/debug"
+compile_dir="${top_dir}/community/debug"
 if [ -d ${compile_dir} ]; then
   rm -rf ${compile_dir}
 fi
@@ -278,17 +278,17 @@ if [ "$osType" != "Darwin" ]; then
     command -v dpkg >/dev/null 2>&1 || { ret='1'; }
     if [ "$ret" -eq 0 ]; then
       echo "====do deb package for the ubuntu system===="
-      output_dir="${top_dir}/debs"
+      output_dir="${top_dir}/community/debs"
       if [ -d ${output_dir} ]; then
         rm -rf ${output_dir}
       fi
       mkdir -p ${output_dir}
-      cd ${script_dir}/deb
+      cd ${top_dir}/community/packaging/deb
       ${csudo}./makedeb.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
       if [[ "$pagMode" == "full" ]]; then
-        if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
-          cd ${top_dir}/tools/taos-tools/packaging/deb
+        if [ -d ${top_dir}/community/tools/taos-tools/packaging/deb ]; then
+          cd ${top_dir}/community/tools/taos-tools/packaging/deb
           taos_tools_ver=$(git tag |grep -v taos | sort | tail -1)
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
@@ -303,17 +303,17 @@ if [ "$osType" != "Darwin" ]; then
     command -v rpmbuild >/dev/null 2>&1 || { ret='1'; }
     if [ "$ret" -eq 0 ]; then
       echo "====do rpm package for the centos system===="
-      output_dir="${top_dir}/rpms"
+      output_dir="${top_dir}/community/rpms"
       if [ -d ${output_dir} ]; then
         rm -rf ${output_dir}
       fi
       mkdir -p ${output_dir}
-      cd ${script_dir}/rpm
+      cd ${top_dir}/community/packaging/rpm
       ${csudo}./makerpm.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
       if [[ "$pagMode" == "full" ]]; then
-        if [ -d ${top_dir}/tools/taos-tools/packaging/rpm ]; then
-          cd ${top_dir}/tools/taos-tools/packaging/rpm
+        if [ -d ${top_dir}/community/tools/taos-tools/packaging/rpm ]; then
+          cd ${top_dir}/community/tools/taos-tools/packaging/rpm
           taos_tools_ver=$(git tag |grep -v taos | sort | tail -1)
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
@@ -327,13 +327,13 @@ if [ "$osType" != "Darwin" ]; then
   fi
 
   echo "====do tar.gz package for all systems===="
-  cd ${script_dir}/tools
+  cd ${top_dir}/community/packaging/tools
 
   ${csudo}./makepkg.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName}
   ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
 
 else
-  cd ${script_dir}/tools
+  cd ${top_dir}/community/packaging/tools
   ./makepkg.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName}
   ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
 fi

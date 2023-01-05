@@ -20,13 +20,13 @@ fi
 
 echo "generate commnunity package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 if [ ! -d $communityDir ]; then
-  cd $topDir
+  cd $communityDir
   mkdir -p debug
   cd debug
   cmake ..
 fi
 
-cd $topDir
+cd $communityDir
 ###git checkout $branchName
 #git checkout -- .
 #git pull
@@ -36,13 +36,13 @@ rm -rf rpms/*
 
 # generate lite version in x64
 if [ "$cpuType" == "x64" ]; then
-  echo "./enterprise/packing/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true"
-  ./enterprise/packing/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true
+  echo "../enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true"
+  ../enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true
 fi
 
 # need build lite package first. standard need rebuild to include blm3
-echo "./enterprise/packing/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType"
-./enterprise/packing/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+echo "../enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType"
+../enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
 
 # modify tar.gz to append taoskeeper
 cd $communityDir/release
