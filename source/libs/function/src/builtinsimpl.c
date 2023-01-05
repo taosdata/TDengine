@@ -1649,6 +1649,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
       numOfElems += 1;
       int32_t code = tMemBucketPut(pInfo->pMemBucket, data, 1);
       if (code != TSDB_CODE_SUCCESS) {
+        tMemBucketDestroy(pInfo->pMemBucket);
         return code;
       }
     }
