@@ -81,7 +81,7 @@ typedef struct {
 
 typedef struct {
   const char *clientVersion;
-  char brandName[32];
+  char cusName[32];
   char promptHeader[32];
   const char* promptContinue;
   const char* osname;

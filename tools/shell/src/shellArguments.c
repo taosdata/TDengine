@@ -19,16 +19,16 @@
 
 #include "shellInt.h"
 
-#ifndef OEM_BRAND
-    char brandName[] = "TDengine";
+#ifndef CUS_NAME
+    char cus_name[] = "TDengine";
 #else
-    char brandName[] = OEM_BRAND;
+    char cust_name[] = CUS_NAME;
 #endif
 
-#ifndef OEM_PROMPT
-    char brandPrompt[] = "taos";
+#ifndef CUS_PROMPT
+    char cusPrompt[] = "taos";
 #else
-    char brandPrompt[] = OEM_PROMPT;
+    char cusPrompt[] = CUS_PROMPT;
 #endif
 
 #define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
@@ -402,8 +402,8 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shell.info.clientVersion = 
       "Welcome to the %s Command Line Interface, Client Version:%s\r\n"
       "Copyright (c) 2022 by %s, all rights reserved.\r\n\r\n";
-  strcpy(shell.info.brandName, brandName);
-  sprintf(shell.info.promptHeader, "%s> ", brandPrompt);
+  strcpy(shell.info.cusName, cusName);
+  sprintf(shell.info.promptHeader, "%s> ", cusPrompt);
   shell.info.promptContinue = TAOS_CONSOLE_PROMPT_CONTINUE;
   shell.info.promptSize = strlen(shell.info.promptHeader);
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion), "version: %s", version);

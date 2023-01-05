@@ -1072,8 +1072,8 @@ void *shellThreadLoop(void *arg) {
 }
 
 int32_t shellExecute() {
-  printf(shell.info.clientVersion, shell.info.brandName,
-         taos_get_client_info(), shell.info.brandName);
+  printf(shell.info.clientVersion, shell.info.cusName,
+         taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 
   SShellArgs *pArgs = &shell.args;
