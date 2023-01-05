@@ -903,9 +903,7 @@ static int32_t tRowAppendTupleToColData(SRow *pRow, STSchema *pTSchema, SColData
   int32_t   iTColumn = 1;
   STColumn *pTColumn = &pTSchema->columns[iTColumn];
 
-  uint8_t *pb = NULL;
-  uint8_t *pf;
-  uint8_t *pv;
+  uint8_t *pb = NULL, *pf = NULL, *pv = NULL;
 
   switch (pRow->flag) {
     case HAS_VALUE:
