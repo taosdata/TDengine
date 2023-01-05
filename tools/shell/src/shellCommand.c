@@ -40,7 +40,7 @@ static void    shellPositionCursorEnd(SShellCmd *cmd);
 static void    shellPrintChar(char c, int32_t times);
 static void    shellPositionCursor(int32_t step, int32_t direction);
 static void    shellUpdateBuffer(SShellCmd *cmd);
-static int32_t shellIsReadyGo(SShellCmd *cmd);
+static bool    shellIsReadyGo(SShellCmd *cmd);
 static void    shellGetMbSizeInfo(const char *str, int32_t *size, int32_t *width);
 static void    shellResetCommand(SShellCmd *cmd, const char s[]);
 void           shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
@@ -62,7 +62,8 @@ int32_t shellCountPrefixOnes(uint8_t c) {
 }
 
 void shellGetPrevCharSize(const char *str, int32_t pos, int32_t *size, int32_t *width) {
-  assert(pos > 0);
+  ASSERT(pos > 0);
+  if (pos <= 0) return;
 
   TdWchar wc;
   *size = 0;
@@ -75,13 +76,14 @@ void shellGetPrevCharSize(const char *str, int32_t pos, int32_t *size, int32_t *
   }
 
   taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
-  // assert(rc == *size); // it will be core, if str is encode by utf8 and charset is gbk
+  // ASSERT(rc == *size); // it will be core, if str is encode by utf8 and taos charset is gbk
 
   *width = taosWcharWidth(wc);
 }
 
 void shellGetNextCharSize(const char *str, int32_t pos, int32_t *size, int32_t *width) {
-  assert(pos >= 0);
+  ASSERT(pos >= 0);
+  if(pos < 0) return;
 
   TdWchar wc;
   *size = taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
@@ -89,7 +91,8 @@ void shellGetNextCharSize(const char *str, int32_t pos, int32_t *size, int32_t *
 }
 
 void shellInsertChar(SShellCmd *cmd, char *c, int32_t size) {
-  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  ASSERT(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return;
 
   TdWchar wc;
   if (taosMbToWchar(&wc, c, size) < 0) return;
@@ -135,7 +138,8 @@ void shellInsertStr(SShellCmd *cmd, char *str, int32_t size) {
 }
 
 void shellBackspaceChar(SShellCmd *cmd) {
-  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  ASSERT(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return;
 
   if (cmd->cursorOffset > 0) {
     shellClearScreen(cmd->endOffset + PSIZE, cmd->screenOffset + PSIZE);
@@ -155,7 +159,8 @@ void shellBackspaceChar(SShellCmd *cmd) {
 }
 
 void shellClearLineBefore(SShellCmd *cmd) {
-  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  ASSERT(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return;
 
   shellClearScreen(cmd->endOffset + PSIZE, cmd->screenOffset + PSIZE);
   memmove(cmd->command, cmd->command + cmd->cursorOffset, cmd->commandSize - cmd->cursorOffset);
@@ -169,7 +174,8 @@ void shellClearLineBefore(SShellCmd *cmd) {
 }
 
 void shellClearLineAfter(SShellCmd *cmd) {
-  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  ASSERT(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return;
 
   shellClearScreen(cmd->endOffset + PSIZE, cmd->screenOffset + PSIZE);
   cmd->commandSize -= cmd->endOffset - cmd->cursorOffset;
@@ -178,7 +184,8 @@ void shellClearLineAfter(SShellCmd *cmd) {
 }
 
 void shellDeleteChar(SShellCmd *cmd) {
-  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  ASSERT(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return;
 
   if (cmd->cursorOffset < cmd->commandSize) {
     shellClearScreen(cmd->endOffset + PSIZE, cmd->screenOffset + PSIZE);
@@ -196,7 +203,8 @@ void shellDeleteChar(SShellCmd *cmd) {
 }
 
 void shellMoveCursorLeft(SShellCmd *cmd) {
-  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  ASSERT(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return;
 
   if (cmd->cursorOffset > 0) {
     shellClearScreen(cmd->endOffset + PSIZE, cmd->screenOffset + PSIZE);
@@ -210,7 +218,8 @@ void shellMoveCursorLeft(SShellCmd *cmd) {
 }
 
 void shellMoveCursorRight(SShellCmd *cmd) {
-  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  ASSERT(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return;
 
   if (cmd->cursorOffset < cmd->commandSize) {
     shellClearScreen(cmd->endOffset + PSIZE, cmd->screenOffset + PSIZE);
@@ -224,7 +233,8 @@ void shellMoveCursorRight(SShellCmd *cmd) {
 }
 
 void shellPositionCursorHome(SShellCmd *cmd) {
-  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  ASSERT(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return;
 
   if (cmd->cursorOffset > 0) {
     shellClearScreen(cmd->endOffset + PSIZE, cmd->screenOffset + PSIZE);
@@ -244,7 +254,8 @@ void positionCursorMiddle(SShellCmd *cmd) {
 }
 
 void shellPositionCursorEnd(SShellCmd *cmd) {
-  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  ASSERT(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return;
 
   if (cmd->cursorOffset < cmd->commandSize) {
     shellClearScreen(cmd->endOffset + PSIZE, cmd->screenOffset + PSIZE);
@@ -279,7 +290,8 @@ void shellPositionCursor(int32_t step, int32_t direction) {
 }
 
 void shellUpdateBuffer(SShellCmd *cmd) {
-  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  ASSERT(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return;
 
   if (shellRegexMatch(cmd->buffer, "(\\s+$)|(^$)", REG_EXTENDED)) strcat(cmd->command, " ");
   strcat(cmd->buffer, cmd->command);
@@ -293,8 +305,9 @@ void shellUpdateBuffer(SShellCmd *cmd) {
   shellShowOnScreen(cmd);
 }
 
-int32_t shellIsReadyGo(SShellCmd *cmd) {
-  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+bool shellIsReadyGo(SShellCmd *cmd) {
+  ASSERT(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return false;
 
   char *total = (char *)taosMemoryCalloc(1, SHELL_MAX_COMMAND_SIZE);
   memset(cmd->command + cmd->commandSize, 0, SHELL_MAX_COMMAND_SIZE - cmd->commandSize);
@@ -305,11 +318,11 @@ int32_t shellIsReadyGo(SShellCmd *cmd) {
       "\\s*clear\\s*$)";
   if (shellRegexMatch(total, reg_str, REG_EXTENDED | REG_ICASE)) {
     taosMemoryFree(total);
-    return 1;
+    return true;
   }
 
   taosMemoryFree(total);
-  return 0;
+  return false;
 }
 
 void shellGetMbSizeInfo(const char *str, int32_t *size, int32_t *width) {
@@ -321,7 +334,8 @@ void shellGetMbSizeInfo(const char *str, int32_t *size, int32_t *width) {
 }
 
 void shellResetCommand(SShellCmd *cmd, const char s[]) {
-  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  ASSERT(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return;
 
   shellClearScreen(cmd->endOffset + PSIZE, cmd->screenOffset + PSIZE);
   memset(cmd->buffer, 0, SHELL_MAX_COMMAND_SIZE);
@@ -399,7 +413,7 @@ void shellShowOnScreen(SShellCmd *cmd) {
     int32_t ret = taosMbToWchar(&wc, str, MB_CUR_MAX);
     if (ret < 0) break;
     size += ret;
-    /* assert(size >= 0); */
+    /* ASSERT(size >= 0); */
     int32_t width = taosWcharWidth(wc);
     if (remain_column > width) {
       printf("%lc", wc);

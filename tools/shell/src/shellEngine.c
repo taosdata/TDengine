@@ -713,7 +713,7 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
       }
 
     default:
-      assert(false);
+      ASSERT(false);
   }
 
   return 0;

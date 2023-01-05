@@ -582,34 +582,34 @@ typedef struct SCtgOperation {
 #define CTG_LOCK(type, _lock)                                                                        \
   do {                                                                                               \
     if (CTG_READ == (type)) {                                                                        \
-      assert(atomic_load_32((_lock)) >= 0);                                                          \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before read lock");                  \
       CTG_LOCK_DEBUG("CTG RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRLockLatch(_lock);                                                                         \
       CTG_LOCK_DEBUG("CTG RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) > 0);                                                           \
+      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value after read lock");                    \
     } else {                                                                                         \
-      assert(atomic_load_32((_lock)) >= 0);                                                          \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before write lock");                 \
       CTG_LOCK_DEBUG("CTG WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWLockLatch(_lock);                                                                         \
       CTG_LOCK_DEBUG("CTG WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);                                 \
+      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after write lock");    \
     }                                                                                                \
   } while (0)
 
 #define CTG_UNLOCK(type, _lock)                                                                       \
   do {                                                                                                \
     if (CTG_READ == (type)) {                                                                         \
-      assert(atomic_load_32((_lock)) > 0);                                                            \
+      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value before read unlock");                  \
       CTG_LOCK_DEBUG("CTG RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRUnLockLatch(_lock);                                                                        \
       CTG_LOCK_DEBUG("CTG RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) >= 0);                                                           \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after read unlock");                  \
     } else {                                                                                          \
-      assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);                                  \
+      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value before write unlock");   \
       CTG_LOCK_DEBUG("CTG WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWUnLockLatch(_lock);                                                                        \
       CTG_LOCK_DEBUG("CTG WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) >= 0);                                                           \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after write unlock");                 \
     }                                                                                                 \
   } while (0)
 
@@ -776,6 +776,7 @@ void    ctgFreeHandleImpl(SCatalog* pCtg);
 int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, const SName* pTableName, SVgroupInfo* pVgroup);
 int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SCtgTaskReq* tReq, SDBVgInfo* dbInfo, SCtgTbHashsCtx* pCtx,
                                    char* dbFName, SArray* pNames, bool update);
+int32_t ctgGetVgIdsFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, char* dbFName, const char* pTbs[], int32_t tbNum, int32_t* vgId);                                  
 void    ctgResetTbMetaTask(SCtgTask* pTask);
 void    ctgFreeDbCache(SCtgDBCache* dbCache);
 int32_t ctgStbVersionSortCompare(const void* key1, const void* key2);

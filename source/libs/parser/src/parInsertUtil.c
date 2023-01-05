@@ -73,8 +73,6 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
   char*   p = tableNameGetPosition(pTableName, TS_PATH_DELIMITER[0]);
 
   if (p != NULL) {  // db has been specified in sql string so we ignore current db path
-    assert(*p == TS_PATH_DELIMITER[0]);
-
     int32_t dbLen = p - pTableName->z;
     if (dbLen <= 0) {
       return buildInvalidOperationMsg(pMsgBuf, msg2);
@@ -105,8 +103,6 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     if (pTableName->n >= TSDB_TABLE_NAME_LEN) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
-
-    assert(pTableName->n < TSDB_TABLE_FNAME_LEN);
 
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     strncpy(name, pTableName->z, pTableName->n);

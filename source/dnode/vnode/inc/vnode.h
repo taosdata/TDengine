@@ -54,7 +54,7 @@ int32_t vnodeAlter(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs);
 void    vnodeDestroy(const char *path, STfs *pTfs);
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
 void    vnodePreClose(SVnode *pVnode);
-void    vnodeSyncCheckTimeout(SVnode* pVnode);
+void    vnodeSyncCheckTimeout(SVnode *pVnode);
 void    vnodeClose(SVnode *pVnode);
 
 int32_t vnodeStart(SVnode *pVnode);
@@ -175,7 +175,8 @@ int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableL
 void         tsdbReaderClose(STsdbReader *pReader);
 bool         tsdbNextDataBlock(STsdbReader *pReader);
 void         tsdbRetrieveDataBlockInfo(const STsdbReader *pReader, int32_t *rows, uint64_t *uid, STimeWindow *pWindow);
-int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock* pDataBlock, bool *allHave);
+int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave);
+void         tsdbReleaseDataBlock(STsdbReader *pReader);
 SSDataBlock *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
 int32_t      tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
 int32_t      tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
@@ -185,7 +186,7 @@ void        *tsdbGetIvtIdx(SMeta *pMeta);
 uint64_t     getReaderMaxVersion(STsdbReader *pReader);
 
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
-                                uint64_t suid, void **pReader, const char* idstr);
+                                uint64_t suid, void **pReader, const char *idstr);
 int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, SArray *pTableUids);
 void   *tsdbCacherowsReaderClose(void *pReader);
 int32_t tsdbGetTableSchema(SVnode *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);

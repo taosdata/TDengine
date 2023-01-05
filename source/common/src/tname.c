@@ -90,10 +90,8 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 SName* toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName) {
   pName->type = TSDB_TABLE_NAME_T;
   pName->acctId = acctId;
-  memset(pName->dbname, 0, TSDB_DB_NAME_LEN);
-  strncpy(pName->dbname, pDbName, TSDB_DB_NAME_LEN - 1);
-  memset(pName->tname, 0, TSDB_TABLE_NAME_LEN);
-  strncpy(pName->tname, pTableName, TSDB_TABLE_NAME_LEN - 1);
+  snprintf(pName->dbname, sizeof(pName->dbname), "%s", pDbName);
+  snprintf(pName->tname, sizeof(pName->tname), "%s", pTableName);
   return pName;
 }
 
@@ -316,7 +314,7 @@ static int compareKv(const void* p1, const void* p2) {
 void buildChildTableName(RandTableName* rName) {
   SStringBuilder sb = {0};
   taosStringBuilderAppendStringLen(&sb, rName->stbFullName, rName->stbFullNameLen);
-  if(sb.buf == NULL) return;
+  if (sb.buf == NULL) return;
   taosArraySort(rName->tags, compareKv);
   for (int j = 0; j < taosArrayGetSize(rName->tags); ++j) {
     taosStringBuilderAppendChar(&sb, ',');

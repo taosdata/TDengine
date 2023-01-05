@@ -105,8 +105,8 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d", pInfo->config.vgId, fname,
-        pInfo->config.syncCfg.replicaNum);
+  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d", pInfo->config.vgId, fname,
+        pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex);
 
   return 0;
 
@@ -206,6 +206,8 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   } else {
     snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
   }
+
+  vDebug("vgId:%d, save config while prepare commit", TD_VID(pVnode));
   if (vnodeSaveInfo(dir, &pInfo->info) < 0) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);

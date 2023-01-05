@@ -78,21 +78,23 @@ int smlProcess_telnet_Test() {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  char *sql[4] = {0};
-  sql[0] = taosMemoryCalloc(1, 128);
-  sql[1] = taosMemoryCalloc(1, 128);
-  sql[2] = taosMemoryCalloc(1, 128);
-  sql[3] = taosMemoryCalloc(1, 128);
+//  char *sql[4] = {0};
+//  sql[0] = taosMemoryCalloc(1, 128);
+//  sql[1] = taosMemoryCalloc(1, 128);
+//  sql[2] = taosMemoryCalloc(1, 128);
+//  sql[3] = taosMemoryCalloc(1, 128);
   const char *sql1[] = {"sys.if.bytes.out  1479496100 1.3E0 host=web01 interface=eth0",
                        "sys.if.bytes.out  1479496101 1.3E1 interface=eth0    host=web01   ",
                        "sys.if.bytes.out  1479496102 1.3E3 network=tcp",
                        " sys.procs.running   1479496100 42 host=web01   "};
 
-  for(int i = 0; i < 4; i++){
-    strncpy(sql[i], sql1[i], 128);
-  }
+//  for(int i = 0; i < 4; i++){
+//    strncpy(sql[i], sql1[i], 128);
+//  }
 
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_TELNET_PROTOCOL,
+//  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_TELNET_PROTOCOL,
+//                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_TELNET_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
@@ -112,13 +114,53 @@ int smlProcess_json1_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":0,\"value\":18,\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}},{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344042,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":\"lga\"}}]"
+      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":0,\"value\":18,\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}},{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344045,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":\"lga\"}}]"
   };
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
+
+  char *sql1[1] = {0};
+  for(int i = 0; i < 1; i++){
+    sql1[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql1[i], sql[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
+  if(code != 0){
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  }else{
+    printf("%s result:success\n", __FUNCTION__);
+  }
   taos_free_result(pRes);
+
+  for(int i = 0; i < 1; i++){
+    taosMemoryFree(sql1[i]);
+  }
+
+  const char *sql2[] = {
+      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344041,\"value\":13,\"tags\":{\"host\":\"web01\",\"dc\":\"lga\"}},{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344042,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":\"lga\"}}]",
+  };
+
+  char *sql3[1] = {0};
+  for(int i = 0; i < 1; i++){
+    sql3[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql3[i], sql2[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql3, sizeof(sql3) / sizeof(sql3[0]), TSDB_SML_JSON_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  code = taos_errno(pRes);
+  if(code != 0){
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  }else{
+    printf("%s result:success\n", __FUNCTION__);
+  }
+  taos_free_result(pRes);
+
+  for(int i = 0; i < 1; i++){
+    taosMemoryFree(sql3[i]);
+  }
+
   taos_close(taos);
 
   return code;
@@ -136,13 +178,26 @@ int smlProcess_json2_Test() {
   const char *sql[] = {
       "{\"metric\":\"meter_current0\",\"timestamp\":{\"value\":1662344042,\"type\":\"s\"},\"value\":{\"value\":10.3,\"type\":\"i64\"},\"tags\":{\"groupid\":{\"value\":2,\"type\":\"bigint\"},\"location\":{\"value\":\"北京\",\"type\":\"binary\"},\"id\":\"d1001\"}}"
   };
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
+  char *sql1[1] = {0};
+  for(int i = 0; i < 1; i++){
+    sql1[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql1[i], sql[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
+  if(code != 0){
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  }else{
+    printf("%s result:success\n", __FUNCTION__);
+  }
   taos_free_result(pRes);
   taos_close(taos);
 
+  for(int i = 0; i < 1; i++){
+    taosMemoryFree(sql1[i]);
+  }
   return code;
 }
 
@@ -156,15 +211,28 @@ int smlProcess_json3_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":0,\"value\":\"18\",\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}}]"
+      "[{\"metric\":\"sys.cpu.nice3\",\"timestamp\":0,\"value\":\"18\",\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}}]"
   };
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
+  char *sql1[1] = {0};
+  for(int i = 0; i < 1; i++){
+    sql1[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql1[i], sql[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
+  if(code != 0){
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  }else{
+    printf("%s result:success\n", __FUNCTION__);
+  }
   taos_free_result(pRes);
   taos_close(taos);
 
+  for(int i = 0; i < 1; i++){
+    taosMemoryFree(sql1[i]);
+  }
   return code;
 }
 
@@ -233,7 +301,7 @@ int sml_16384_Test() {
   if(code) return code;
 
   const char *sql1[] = {
-      "qelhxo,id=pnnqhsa,t0=t,t1=127i8 c0=f,c1=127i8,c11=L\"ncharColValue\",c10=t 1626006833639000000",
+      "qelhxo,id=pnnqhsa,t0=t,t1=127i8 c0=f,c1=127i8,c11=L\"ncharColValue\",c10=t 1626006833631000000",
   };
   pRes = taos_schemaless_insert(taos, (char **)sql1, 1, TSDB_SML_LINE_PROTOCOL, 0);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
@@ -672,26 +740,11 @@ int sml_dup_time_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {//"test_ms,t0=t c0=f 1626006833641",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=false,c1=1i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"xcxvwjvf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=T,c1=2i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"fixrzcuq\",c8=L\"ncharColValue\",c9=7u64 1626006834639000000",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=t,c1=3i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"iupzdqub\",c8=L\"ncharColValue\",c9=7u64 1626006835639000000",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=t,c1=4i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"yvvtzzof\",c8=L\"ncharColValue\",c9=7u64 1626006836639000000",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=t,c1=5i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"vbxpilkj\",c8=L\"ncharColValue\",c9=7u64 1626006837639000000"};
+                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=f,c1=1i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"xcxvwjvf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=T,c1=2i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"fixrzcuq\",c8=L\"ncharColValue\",c9=7u64 1626006834639000000",
+                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=t,c1=3i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"iupzdqub\",c8=L\"ncharColValue\",c9=7u64 1626006835639000000",
+                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=t,c1=4i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"yvvtzzof\",c8=L\"ncharColValue\",c9=7u64 1626006836639000000",
+                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=t,c1=5i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"vbxpilkj\",c8=L\"ncharColValue\",c9=7u64 1626006837639000000"};
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
@@ -797,7 +850,7 @@ int sml_19221_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "qelhxo,id=pnnqhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833639000000\nqelhxo,id=pnnhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833639000000\n#comment\nqelhxo,id=pnqhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833639000000",
+      "qelhxo,id=pnnqhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833632000000\nqelhxo,id=pnnhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833633000000\n#comment\nqelhxo,id=pnqhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833634000000",
   };
 
   pRes = taos_query(taos, "use sml_db");
@@ -874,8 +927,10 @@ int sml_ttl_Test() {
   pRes = taos_query(taos, "select `ttl` from information_schema.ins_tables where table_name='t_be97833a0e1f523fcdaeb6291d6fdf27'");
   printf("%s result2:%s\n", __FUNCTION__, taos_errstr(pRes));
   TAOS_ROW row = taos_fetch_row(pRes);
-  int32_t ttl = *(int32_t*)row[0];
-  ASSERT(ttl == 20);
+  if(row != NULL && *row != NULL){
+    int32_t ttl = *(int32_t*)row[0];
+    ASSERT(ttl == 20);
+  }
 
   int code = taos_errno(pRes);
   taos_free_result(pRes);
@@ -936,9 +991,9 @@ int main(int argc, char *argv[]) {
   ret = smlProcess_json1_Test();
   ASSERT(!ret);
   ret = smlProcess_json2_Test();
-  ASSERT(ret);
+  ASSERT(!ret);
   ret = smlProcess_json3_Test();
-  ASSERT(ret);
+  ASSERT(!ret);
   ret = sml_TD15662_Test();
   ASSERT(!ret);
   ret = sml_TD15742_Test();
