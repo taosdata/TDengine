@@ -29,7 +29,7 @@ verNumber=""
 verNumberComp="3.0.0.0"
 httpdBuild=false
 
-while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:" arg; do
+while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:" arg; do
   case $arg in
   v)
     #echo "verMode=$OPTARG"
@@ -76,12 +76,16 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:" arg; do
     httpdBuild=$(echo $OPTARG)
     ;;
   N)
-    #echo "httpdBuild=$OPTARG"
-    brandName=$(echo $OPTARG)
+    #echo "cusName=$OPTARG"
+    cusName=$(echo $OPTARG)
     ;;
   P)
-    #echo "httpdBuild=$OPTARG"
-    brandPrompt=$(echo $OPTARG)
+    #echo "cusPrompt=$OPTARG"
+    cusPrompt=$(echo $OPTARG)
+    ;;
+  M)
+    #echo "cusEmail=$OPTARG"
+    cusEmail=$(echo $OPTARG)
     ;;
   h)
     echo "Usage: $(basename $0) -v [cluster | edge] "
@@ -95,8 +99,9 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:" arg; do
     echo "                  -n [version number] "
     echo "                  -m [compatible version number] "
     echo "                  -H [false | true] "
-    echo "                  -N <brand name>"
-    echo "                  -P <brand prompt>"
+    echo "                  -N <custom name>"
+    echo "                  -P <custom prompt>"
+    echo "                  -M <custom email>"
     exit 0
     ;;
   ?) #unknow option
@@ -238,15 +243,15 @@ if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" =
 #    if [[ "$dbName" != "taos" ]]; then
 #      replace_enterprise_$dbName
 #    fi
-    if [ -z "${brandName}" ] && [ -z "${brandPrompt}" ]; then
+    if [ -z "${cusName}" ] && [ -z "${cusPrompt}" ] && [ -z "${cusEmail}" ]; then
         cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
     else
-      if [ ! -z "${brandName}" ] && [ ! -z "${brandPrompt}" ]; then
-        cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro} -DOEM_BRAND=${brandName} -DOEM_PROMPT=${brandPrompt}
-      elif [ ! -z "${brandName}" ]; then
-        cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro} -DOEM_BRAND=${brandName}
+      if [ ! -z "${cusName}" ] && [ ! -z "${cusPrompt}" ] && [ -z "${cusEmail}" ]; then
+        cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail}
+      elif [ ! -z "${cusName}" ]; then
+        cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro} -DCUS_NAME=${cusName}
       else
-        cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro} -DOEM_PROMPT=${brandPrompt}
+        cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro} -DCUS_PROMPT=${cusPrompt}
       fi
     fi
   fi
