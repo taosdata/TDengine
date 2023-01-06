@@ -2631,7 +2631,19 @@ static int32_t mndCheckIndexReq(SCreateTagIndexReq *pReq) {
 int32_t mndAddIndexImpl(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp, void *sql,
                         int32_t len) {
   // impl later
-  return TSDB_CODE_SUCCESS;
+  int32_t code = -1;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "create-stb-index");
+  if (pTrans == NULL) goto _OVER;
+
+  mInfo("trans:%d, used to add index to stb:%s", pTrans->id, pStb->name);
+  mndTransSetDbName(pTrans, pDb->name, pStb->name);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+
+  return code;
+
+_OVER:
+  mndTransDrop(pTrans);
+  return code;
 }
 static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *tagIdxReq, SDbObj *pDb, SStbObj *pOld) {
   bool    needRsp = true;
