@@ -27,4 +27,8 @@
     char cusPrompt[] = CUS_PROMPT;
 #endif
 
+#ifdef CUS_EMAIL
+    char cusEmail[] = CUS_EMAIL;
+#endif
+
 #endif  // _CUS_NAME_H_

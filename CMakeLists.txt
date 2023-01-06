@@ -21,6 +21,11 @@ IF (CUS_PROMPT)
     ADD_DEFINITIONS(-DCUS_PROMPT="${CUS_PROMPT}")
 ENDIF ()
 
+IF (CUS_EMAIL)
+    MESSAGE(STATUS "Customized email: " ${CUS_EMAIL})
+    ADD_DEFINITIONS(-DCUS_EMAIL="${CUS_EMAIL}")
+ENDIF ()
+
 set( TD_SOURCE_DIR ${PROJECT_SOURCE_DIR} )
 include(${TD_SOURCE_DIR}/enterprise/cmake/cmake.options)
 add_subdirectory(enterprise/contrib)
