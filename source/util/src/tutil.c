@@ -320,6 +320,22 @@ char *strbetween(char *string, char *begin, char *end) {
   return result;
 }
 
+int32_t tintToHex(uint64_t val, char hex[]) {
+  const char hexstr[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+
+  int32_t j = 0;
+  int32_t k = 0;
+  while((val & (((uint64_t)0xfL) << ((15 - k) * 4))) == 0) {
+    k += 1;
+  }
+
+  for (j = 0; k < 16; ++k, ++j) {
+    hex[j] = hexstr[(val & (((uint64_t)0xfL) << ((15 - k) * 4))) >> (15 - k) * 4];
+  }
+
+  return j;
+}
+
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]) {
   int32_t i;
   char    hexval[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};

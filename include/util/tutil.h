@@ -46,6 +46,8 @@ char   *paGetToken(char *src, char **token, int32_t *tokenLen);
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]);
 int32_t taosHexStrToByteArray(char hexstr[], char bytes[]);
 
+int32_t tintToHex(uint64_t val, char hex[]);
+
 char    *taosIpStr(uint32_t ipInt);
 uint32_t ip2uint(const char *const ip_addr);
 void     taosIp2String(uint32_t ip, char *str);

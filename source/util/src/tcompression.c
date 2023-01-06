@@ -284,7 +284,6 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
         int64_t* p = (int64_t*) output;
 
         if (selector == 0 || selector == 1) {
-#if 1
           int32_t gRemainder = nelements - count;
           int32_t num = gRemainder > elems? elems:gRemainder;
 
@@ -302,14 +301,8 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
           }
 
           count += num;
-#else
-          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-            p[_pos++] = prev_value;
-          }
-#endif
         } else {
           int32_t gRemainder = (nelements - count);
-
           int32_t num = gRemainder > elems? elems:gRemainder;
 
           int32_t batch = num >> 2;
@@ -369,10 +362,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
         int32_t* p = (int32_t*) output;
 
         if (selector == 0 || selector == 1) {
-          zigzag_value = 0;
-
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
             p[_pos++] = (int32_t)prev_value;
           }
         } else {
@@ -389,10 +379,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
         int16_t* p = (int16_t*) output;
 
         if (selector == 0 || selector == 1) {
-          zigzag_value = 0;
-
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
             p[_pos++] = (int16_t)prev_value;
           }
         } else {
@@ -410,10 +397,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
         int8_t *p = (int8_t *)output;
 
         if (selector == 0 || selector == 1) {
-          zigzag_value = 0;
-
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
             p[_pos++] = (int8_t)prev_value;
           }
         } else {

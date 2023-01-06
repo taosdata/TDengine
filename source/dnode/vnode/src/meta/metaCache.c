@@ -32,7 +32,7 @@ typedef struct SMetaStbStatsEntry {
 } SMetaStbStatsEntry;
 
 typedef struct STagFilterResEntry {
-  uint64_t suid;    // uid for super table
+//  uint64_t suid;    // uid for super table
   SList    list;    // the linked list of md5 digest, extracted from the serialized tag query condition
   uint32_t qTimes;  // queried times for current super table
 } STagFilterResEntry;
@@ -533,6 +533,11 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
   SHashObj*      pTableEntry = pMeta->pCache->sTagFilterResCache.pTableEntry;
   TdThreadMutex* pLock = &pMeta->pCache->sTagFilterResCache.lock;
 
+  uint64_t buf[3] = {0};
+  buf[0] = suid;
+  memcpy(&buf[1], pKey, keyLen);
+  ASSERT(sizeof(uint64_t) + keyLen == 24);
+
   taosThreadMutexLock(pLock);
 
   STagFilterResEntry** pEntry = taosHashGet(pTableEntry, &suid, sizeof(uint64_t));
@@ -543,14 +548,23 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
     taosHashPut(pTableEntry, &suid, sizeof(uint64_t), &p, POINTER_BYTES);
     tdListAppend(&p->list, pKey);
   } else {
+    // check if it exists or not
+    SListIter iter = {0};
+    tdListInitIter(&(*pEntry)->list, &iter, TD_LIST_FORWARD);
+
+    SListNode* pNode = NULL;
+    while ((pNode = tdListNext(&iter)) != NULL) {
+      uint64_t* p = (uint64_t*) pNode->data;
+
+      // key already exists in cache, quit
+      if (p[1] == ((uint64_t*)pKey)[1] && p[2] == ((uint64_t*)pKey)[2]) {
+        taosThreadMutexUnlock(pLock);
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+
     tdListAppend(&(*pEntry)->list, pKey);
   }
-
-  uint64_t buf[3] = {0};
-  buf[0] = suid;
-
-  memcpy(&buf[1], pKey, keyLen);
-  ASSERT(sizeof(uint64_t) + keyLen == 24);
 
   // add to cache.
   taosLRUCacheInsert(pCache, buf, sizeof(uint64_t) + keyLen, pPayload, payloadLen, freePayload, NULL,

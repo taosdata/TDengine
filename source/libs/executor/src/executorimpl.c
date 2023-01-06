@@ -1962,6 +1962,22 @@ void destroyAggOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+static char* buildTaskId(uint64_t taskId, uint64_t queryId) {
+  char* p = taosMemoryMalloc(64);
+
+  int32_t offset = 6;
+  memcpy(p, "TID:0x", offset);
+  offset += tintToHex(taskId, &p[offset]);
+
+  memcpy(&p[offset], " QID:0x", 7);
+  offset += 7;
+  offset += tintToHex(queryId, &p[offset]);
+
+  p[offset] = 0;
+
+  return p;
+}
+
 static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPTR_EXEC_MODEL model, char* dbFName) {
   SExecTaskInfo* pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
   if (pTaskInfo == NULL) {
@@ -1978,10 +1994,9 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
   pTaskInfo->stopInfo.pStopInfo = taosArrayInit(4, sizeof(SExchangeOpStopInfo));
   pTaskInfo->pResultBlockList = taosArrayInit(128, POINTER_BYTES);
 
-  char* p = taosMemoryCalloc(1, 128);
-  snprintf(p, 128, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
-  pTaskInfo->id.str = p;
-
+//  char* p = taosMemoryMalloc(64);
+//  snprintf(p, 64, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
+  pTaskInfo->id.str = buildTaskId(taskId, queryId);
   return pTaskInfo;
 }
 
