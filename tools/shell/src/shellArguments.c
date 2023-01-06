@@ -31,7 +31,7 @@
     char cusEmail[] = "<support@taosdata.com>";
 #endif
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT)
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
 #endif
 
@@ -92,7 +92,7 @@ void shellPrintHelp() {
 #endif
   printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
   printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
-  printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
+  printf("\r\n\r\nReport bugs to %s.\r\n", cusEmail);
 }
 
 #ifdef LINUX
@@ -100,7 +100,7 @@ void shellPrintHelp() {
 #include <termio.h>
 
 const char *argp_program_version = version;
-const char *argp_program_bug_address = CUS_EMAIL;
+const char *argp_program_bug_address = cusEmail;
 
 static struct argp_option shellOptions[] = {
     {"host", 'h', "HOST", 0, SHELL_HOST},
