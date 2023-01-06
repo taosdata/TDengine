@@ -27,6 +27,10 @@
     char cusPrompt[] = "taos";
 #endif
 
+#ifndef CUS_EMAIL
+    char cusEmail[] = "<support@taosdata.com>";
+#endif
+
 #if defined(CUS_NAME) || defined(CUS_PROMPT)
 #include "cus_name.h"
 #endif
@@ -52,7 +56,6 @@
 #define SHELL_PKT_LEN  "Packet length used for net test, default is 1024 bytes."
 #define SHELL_PKT_NUM  "Packet numbers used for net test, default is 100."
 #define SHELL_VERSION  "Print program version."
-#define SHELL_EMAIL    "<support@taosdata.com>"
 
 #ifdef WEBSOCKET
 #define SHELL_DSN      "The dsn to use when connecting to cloud server."
@@ -89,7 +92,7 @@ void shellPrintHelp() {
 #endif
   printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
   printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
-  printf("\r\n\r\nReport bugs to %s.\r\n", SHELL_EMAIL);
+  printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
 }
 
 #ifdef LINUX
@@ -97,7 +100,7 @@ void shellPrintHelp() {
 #include <termio.h>
 
 const char *argp_program_version = version;
-const char *argp_program_bug_address = SHELL_EMAIL;
+const char *argp_program_bug_address = CUS_EMAIL;
 
 static struct argp_option shellOptions[] = {
     {"host", 'h', "HOST", 0, SHELL_HOST},
