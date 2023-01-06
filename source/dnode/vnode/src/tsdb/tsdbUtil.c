@@ -775,7 +775,16 @@ _exit:
   return code;
 }
 
-void tRowMergerClear(SRowMerger *pMerger) { taosArrayDestroy(pMerger->pArray); }
+void tRowMergerClear(SRowMerger *pMerger) { 
+  for (int32_t iCol = 1; iCol < pMerger->pTSchema->numOfCols; iCol++) {
+    SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
+    if (IS_VAR_DATA_TYPE(pTColVal->type)) {
+      tFree(pTColVal->value.pData);
+    }
+  }
+
+  taosArrayDestroy(pMerger->pArray); 
+}
 
 int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
   int32_t  code = 0;
@@ -789,7 +798,17 @@ int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
 
     if (key.version > pMerger->version) {
       if (!COL_VAL_IS_NONE(pColVal)) {
-        taosArraySet(pMerger->pArray, iCol, pColVal);
+        if (IS_VAR_DATA_TYPE(pColVal->type)) {
+          SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
+
+          code = tRealloc(pTColVal->value.pData, pColVal->value.nData);
+          if (code) goto _exit;
+
+          pTColVal->value.nData = pColVal->value.nData;
+          memcpy(pTColVal->value.pData,  pColVal->value.pData, pTColVal.value.nData);
+        } else {
+          taosArraySet(pMerger->pArray, iCol, pColVal);
+        }
       }
     } else if (key.version < pMerger->version) {
       SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
