@@ -650,6 +650,9 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
     goto _OVER;
   }
 
+  taosCloseFile(&pIter->file);
+  pIter->file = NULL;
+
   char datafile[PATH_MAX] = {0};
   snprintf(datafile, sizeof(datafile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
   if (taosRenameFile(pIter->name, datafile) != 0) {
@@ -677,8 +680,10 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
   code = 0;
 
 _OVER:
-  taosCloseFile(&pIter->file);
-  pIter->file = NULL;
+  if (pIter->file != NULL) {
+    taosCloseFile(&pIter->file);
+    pIter->file = NULL;
+  }
   sdbCloseIter(pIter);
   return code;
 }
