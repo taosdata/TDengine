@@ -192,6 +192,7 @@ static int32_t tsdbSnapNextRow(STsdbSnapReader* pReader) {
         int64_t rowVer = pIter->bData.aVersion[pIter->iRow];
 
         if (rowVer >= pReader->sver && rowVer <= pReader->ever) {
+          pIter->rInfo.suid = pIter->bData.suid;
           pIter->rInfo.uid = pIter->bData.uid ? pIter->bData.uid : pIter->bData.aUid[pIter->iRow];
           pIter->rInfo.row = tsdbRowFromBlockData(&pIter->bData, pIter->iRow);
           goto _out;
