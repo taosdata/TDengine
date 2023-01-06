@@ -418,7 +418,10 @@ int32_t tmqCommitDone(SMqCommitCbParamSet* pParamSet) {
 
 static void tmqCommitRspCountDown(SMqCommitCbParamSet* pParamSet) {
   int32_t waitingRspNum = atomic_sub_fetch_32(&pParamSet->waitingRspNum, 1);
-  ASSERT(waitingRspNum >= 0);
+  if(ASSERT(waitingRspNum >= 0)){
+    tscError("tmqCommitRspCountDown error:%d", waitingRspNum);
+    return;
+  }
   if (waitingRspNum == 0) {
     tmqCommitDone(pParamSet);
   }
