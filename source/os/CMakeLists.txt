@@ -60,3 +60,7 @@ endif()
 IF (JEMALLOC_ENABLED)
     target_link_libraries(os PUBLIC -ljemalloc)
 ENDIF ()
+
+if(${BUILD_TEST})
+    add_subdirectory(test)
+endif(${BUILD_TEST})

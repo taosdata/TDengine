@@ -763,7 +763,6 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
     mInfo("vgId:1, mnode sync not reconfig since readyMnodes:%d updatingMnodes:%d", readyMnodes, updatingMnodes);
     return;
   }
-  // ASSERT(0);
 
   if (cfg.myIndex == -1) {
 #if 1

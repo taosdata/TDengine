@@ -150,7 +150,7 @@ void snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
 
 // when sender receive ack, call this function to send msg from seq
 // seq = ack + 1, already updated
-int32_t snapshotSend(SSyncSnapshotSender *pSender) {
+static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   // free memory last time (current seq - 1)
   if (pSender->pCurrentBlock != NULL) {
     taosMemoryFree(pSender->pCurrentBlock);
@@ -341,23 +341,6 @@ void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {
 }
 
 bool snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver) { return pReceiver->start; }
-
-// force stop
-void snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver) {
-  sRInfo(pReceiver, "snapshot receiver force stop, writer:%p");
-
-  // force close, abandon incomplete data
-  if (pReceiver->pWriter != NULL) {
-    int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, false,
-                                                                  &pReceiver->snapshot);
-    if (ret != 0) {
-      sRInfo(pReceiver, "snapshot receiver force stop failed since %s", terrstr());
-    }
-    pReceiver->pWriter = NULL;
-  }
-
-  pReceiver->start = false;
-}
 
 static int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg) {
   if (pReceiver->pWriter != NULL) {
@@ -590,7 +573,7 @@ _START_RECEIVER:
 
     if (snapshotReceiverIsStart(pReceiver)) {
       sRInfo(pReceiver, "snapshot receiver already start and force stop pre one");
-      snapshotReceiverForceStop(pReceiver);
+      snapshotReceiverStop(pReceiver);
     }
 
     snapshotReceiverStart(pReceiver, pMsg);  // set start-time same with sender
@@ -842,7 +825,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_FORCE_CLOSE) {
         // force close, no response
         syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process force stop");
-        snapshotReceiverForceStop(pReceiver);
+        snapshotReceiverStop(pReceiver);
       } else if (pMsg->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->seq < SYNC_SNAPSHOT_SEQ_END) {
         syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process seq data");
         code = syncNodeOnSnapshotReceive(pSyncNode, pMsg);
@@ -987,6 +970,13 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
   if (pMsg->ack == SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq pre-snapshot");
     return syncNodeOnSnapshotPreRsp(pSyncNode, pSender, pMsg);
+  }
+
+  if (pSender->pReader == NULL || pSender->finish) {
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "snapshot sender invalid");
+    sSError(pSender, "snapshot sender invalid, pReader:%p finish:%d", pMsg->code, pSender->pReader, pSender->finish);
+    terrno = pMsg->code;
+    goto _ERROR;
   }
 
   if (pMsg->ack == SYNC_SNAPSHOT_SEQ_BEGIN) {

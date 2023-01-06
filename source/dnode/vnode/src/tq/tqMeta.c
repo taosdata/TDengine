@@ -284,8 +284,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
 
     handle.pRef = walOpenRef(pTq->pVnode->pWal);
     if (handle.pRef == NULL) {
-      ASSERT(0);
-      return -1;
+      continue;
     }
     walRefVer(handle.pRef, handle.snapshotVer);
 
