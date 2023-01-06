@@ -72,11 +72,7 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
   snprintf(file, sizeof(file), "%s.bak", realfile);
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    sError("vgId:%d, failed to open sync cfg file:%s since %s", pNode->vgId, realfile, terrstr());
-    goto _OVER;
-  }
+  if (pFile == NULL) goto _OVER;
 
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   pJson = tjsonCreateObject();
@@ -91,11 +87,7 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
   if (taosFsyncFile(pFile) < 0) goto _OVER;
   taosCloseFile(&pFile);
 
-  if (taosRenameFile(file, realfile) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    sError("vgId:%d, failed to rename sync cfg file:%s to %s since %s", pNode->vgId, file, realfile, terrstr());
-    goto _OVER;
-  }
+  if (taosRenameFile(file, realfile) != 0) goto _OVER;
 
   code = 0;
   sInfo("vgId:%d, succeed to write sync cfg file:%s, len:%d", pNode->vgId, realfile, len);
