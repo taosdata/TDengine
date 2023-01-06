@@ -107,8 +107,8 @@ static inline int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, 
 }
 
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages) {
-  szPage = szPage < 0 ? 4096 : szPage;
-  pages = pages < 0 ? 256 : pages;
+  szPage = szPage < 0 ? 4096 * 8 : szPage;
+  pages = pages < 0 ? 256 * 32 : pages;
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   if (pState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
