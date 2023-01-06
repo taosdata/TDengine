@@ -327,7 +327,10 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     case QUERY_NODE_VALUE: {
       SValueNode *valueNode = (SValueNode *)node;
 
-      ASSERT(param->columnData == NULL);
+      if (param->columnData != NULL) {
+        sclError("columnData should be NULL");
+        SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+      }
       param->numOfRows = 1;
       int32_t code = sclCreateColumnInfoData(&valueNode->node.resType, 1, param);
       if (code != TSDB_CODE_SUCCESS) {

@@ -140,7 +140,7 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
   }
 }
 
-void operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
+int32_t operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
   if (optr == OP_TYPE_ADD) {
     switch (type) {
       case TSDB_DATA_TYPE_TINYINT:
@@ -177,11 +177,12 @@ void operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
         SET_DOUBLE_VAL(dst, GET_DOUBLE_VAL(s1) + GET_DOUBLE_VAL(s2));
         break;
       default: {
-        assert(0);
-        break;
+        return -1;
       }
     }
   } else {
-    assert(0);
+    return -1;
   }
+
+  return 0;
 }
