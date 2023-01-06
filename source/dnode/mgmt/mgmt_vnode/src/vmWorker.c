@@ -134,6 +134,13 @@ static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOf
   }
 }
 
+static void vmSendResponse(SRpcMsg *pMsg) {
+  if (pMsg->info.handle) {
+    SRpcMsg rsp = {.info = pMsg->info, .code = terrno};
+    rpcSendResponse(&rsp);
+  }
+}
+
 static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtype) {
   const STraceId *trace = &pMsg->info.traceId;
   if (pMsg->contLen < sizeof(SMsgHead)) {
@@ -152,7 +159,9 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
   if (pVnode == NULL) {
     dGError("vgId:%d, msg:%p failed to put into vnode queue since %s, type:%s qtype:%d contLen:%d", pHead->vgId, pMsg,
             terrstr(), TMSG_INFO(pMsg->msgType), qtype, pHead->contLen);
-    return terrno != 0 ? terrno : -1;
+    terrno = (terrno != 0) ? terrno : -1;
+    vmSendResponse(pMsg);
+    return terrno;
   }
 
   switch (qtype) {

@@ -22,10 +22,10 @@
 #define SL_NODE_SIZE(l)               (sizeof(SMemSkipListNode) + ((l) << 4))
 #define SL_NODE_FORWARD(n, l)         ((n)->forwards[l])
 #define SL_NODE_BACKWARD(n, l)        ((n)->forwards[(n)->level + (l)])
-#define SL_GET_NODE_FORWARD(n, l)     ((SMemSkipListNode *)atomic_load_64((int64_t *)&SL_NODE_FORWARD(n, l)))
-#define SL_GET_NODE_BACKWARD(n, l)    ((SMemSkipListNode *)atomic_load_64((int64_t *)&SL_NODE_BACKWARD(n, l)))
-#define SL_SET_NODE_FORWARD(n, l, p)  atomic_store_64((int64_t *)&SL_NODE_FORWARD(n, l), (int64_t)(p))
-#define SL_SET_NODE_BACKWARD(n, l, p) atomic_store_64((int64_t *)&SL_NODE_BACKWARD(n, l), (int64_t)(p))
+#define SL_GET_NODE_FORWARD(n, l)     ((SMemSkipListNode *)atomic_load_ptr(&SL_NODE_FORWARD(n, l)))
+#define SL_GET_NODE_BACKWARD(n, l)    ((SMemSkipListNode *)atomic_load_ptr(&SL_NODE_BACKWARD(n, l)))
+#define SL_SET_NODE_FORWARD(n, l, p)  atomic_store_ptr(&SL_NODE_FORWARD(n, l), p)
+#define SL_SET_NODE_BACKWARD(n, l, p) atomic_store_ptr(&SL_NODE_BACKWARD(n, l), p)
 
 #define SL_MOVE_BACKWARD 0x1
 #define SL_MOVE_FROM_POS 0x2

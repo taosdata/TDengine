@@ -23,6 +23,7 @@
 #include "tlog.h"
 #include "tutil.h"
 #include "types.h"
+#include "osString.h"
 
 int32_t setChkInBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
@@ -208,16 +209,16 @@ int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
 
-  if (len1 != len2) {
-    return len1 > len2 ? 1 : -1;
-  } else {
-    int32_t ret = memcmp((TdUcs4 *)pLeft, (TdUcs4 *)pRight, len1);
-    if (ret == 0) {
+  int32_t ret = tasoUcs4Compare((TdUcs4 *)varDataVal(pLeft), (TdUcs4 *)varDataVal(pRight), len1>len2 ? len2:len1);
+  if (ret == 0) {
+    if (len1 > len2)
+      return 1;
+    else if(len1 < len2)
+      return -1;
+    else
       return 0;
-    } else {
-      return ret > 0 ? 1 : -1;
-    }
   }
+  return (ret < 0) ? -1 : 1;
 }
 
 int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight) {
