@@ -86,12 +86,8 @@ static void vmProcessStreamQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, pMsg, pInfo);
   if (code != 0) {
     if (terrno != 0) code = terrno;
-    if (pMsg) {
-      dGError("vgId:%d, msg:%p failed to process stream msg %s since %s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType),
-              terrstr(code));
-    } else {
-      dGError("vgId:%d, msg:%p failed to process stream empty msg since %s", pVnode->vgId, pMsg, terrstr(code));
-    }
+    dGError("vgId:%d, msg:%p failed to process stream msg %s since %s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType),
+            terrstr(code));
     vmSendRsp(pMsg, code);
   }
 
@@ -138,6 +134,13 @@ static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOf
   }
 }
 
+static void vmSendResponse(SRpcMsg *pMsg) {
+  if (pMsg->info.handle) {
+    SRpcMsg rsp = {.info = pMsg->info, .code = terrno};
+    rpcSendResponse(&rsp);
+  }
+}
+
 static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtype) {
   const STraceId *trace = &pMsg->info.traceId;
   if (pMsg->contLen < sizeof(SMsgHead)) {
@@ -146,17 +149,19 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
     return -1;
   }
 
-  SMsgHead       *pHead = pMsg->pCont;
-  int32_t         code = 0;
+  SMsgHead *pHead = pMsg->pCont;
+  int32_t   code = 0;
 
   pHead->contLen = ntohl(pHead->contLen);
   pHead->vgId = ntohl(pHead->vgId);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) {
-    dGError("vgId:%d, msg:%p failed to put into vnode queue since %s, type:%s qtype:%d contLen:%d", pHead->vgId, pMsg, terrstr(),
-            TMSG_INFO(pMsg->msgType), qtype, pHead->contLen);
-    return terrno != 0 ? terrno : -1;
+    dGError("vgId:%d, msg:%p failed to put into vnode queue since %s, type:%s qtype:%d contLen:%d", pHead->vgId, pMsg,
+            terrstr(), TMSG_INFO(pMsg->msgType), qtype, pHead->contLen);
+    terrno = (terrno != 0) ? terrno : -1;
+    vmSendResponse(pMsg);
+    return terrno;
   }
 
   switch (qtype) {

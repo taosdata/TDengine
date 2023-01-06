@@ -168,12 +168,13 @@ int64_t parseFraction(char* str, char** end, int32_t timePrec) {
       i = MICRO_SEC_FRACTION_LEN;
     }
     times = MICRO_SEC_FRACTION_LEN - i;
-  } else {
-    assert(timePrec == TSDB_TIME_PRECISION_NANO);
+  } else if (timePrec == TSDB_TIME_PRECISION_NANO) {
     if (i >= NANO_SEC_FRACTION_LEN) {
       i = NANO_SEC_FRACTION_LEN;
     }
     times = NANO_SEC_FRACTION_LEN - i;
+  } else {
+    return -1;
   }
 
   fraction = strnatoi(str, i) * factor[times];
@@ -510,8 +511,11 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
 // !!!!notice: double lose precison if time is too large, for example: 1626006833631000000*1.0 = double =
 // 1626006833631000064
 int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit) {
-  assert(fromPrecision == TSDB_TIME_PRECISION_MILLI || fromPrecision == TSDB_TIME_PRECISION_MICRO ||
-         fromPrecision == TSDB_TIME_PRECISION_NANO);
+  if (fromPrecision != TSDB_TIME_PRECISION_MILLI && fromPrecision != TSDB_TIME_PRECISION_MICRO &&
+      fromPrecision != TSDB_TIME_PRECISION_NANO) {
+    return -1;
+  }
+
   int64_t factors[3] = {NANOSECOND_PER_MSEC, NANOSECOND_PER_USEC, 1};
   double  tmp = time;
   switch (toUnit) {
@@ -761,8 +765,7 @@ int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char
 }
 
 int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precision) {
-  if (pInterval->sliding == 0) {
-    assert(pInterval->interval == 0);
+  if (pInterval->sliding == 0 && pInterval->interval == 0) {
     return t;
   }
 
@@ -931,7 +934,7 @@ void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precision) 
 
     default:
       fractionLen = 0;
-      assert(false);
+      ASSERT(false);
   }
 
   taosLocalTime(&quot, &ptm);

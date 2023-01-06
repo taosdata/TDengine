@@ -459,8 +459,11 @@ tag_item(A) ::= column_name(B) AS column_alias(C).                              
 
 /************************************************ create index ********************************************************/
 cmd ::= CREATE SMA INDEX not_exists_opt(D) 
-  full_table_name(A) ON full_table_name(B) index_options(C).                      { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, A, B, NULL, C); }
-cmd ::= DROP INDEX exists_opt(B) full_table_name(A).                              { pCxt->pRootNode = createDropIndexStmt(pCxt, B, A); }
+  full_index_name(A) ON full_table_name(B) index_options(C).                      { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, A, B, NULL, C); }
+cmd ::= DROP INDEX exists_opt(B) full_index_name(A).                              { pCxt->pRootNode = createDropIndexStmt(pCxt, B, A); }
+
+full_index_name(A) ::= index_name(B).                                             { A = createRealTableNodeForIndexName(pCxt, NULL, &B); }
+full_index_name(A) ::= db_name(B) NK_DOT index_name(C).                           { A = createRealTableNodeForIndexName(pCxt, &B, &C); }
 
 index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL 
   NK_LP duration_literal(C) NK_RP sliding_opt(D) sma_stream_opt(E).               { A = createIndexOption(pCxt, B, releaseRawExprNode(pCxt, C), NULL, D, E); }
@@ -656,6 +659,10 @@ stream_name(A) ::= NK_ID(B).                                                    
 %type cgroup_name                                                                 { SToken }
 %destructor cgroup_name                                                           { }
 cgroup_name(A) ::= NK_ID(B).                                                      { A = B; }
+
+%type index_name                                                                  { SToken }
+%destructor index_name                                                            { }
+index_name(A) ::= NK_ID(B).                                                       { A = B; }
 
 /************************************************ expression **********************************************************/
 expr_or_subquery(A) ::= expression(B).                                            { A = B; }

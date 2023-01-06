@@ -1726,8 +1726,10 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
     return w;
   }
 
-  w = getResultRowByPos(pBuf, &pResultRowInfo->cur, false)->win;
-
+  SResultRow* pRow = getResultRowByPos(pBuf, &pResultRowInfo->cur, false);
+  if (pRow) {
+    w = pRow->win;
+  }
   // in case of typical time window, we can calculate time window directly.
   if (w.skey > ts || w.ekey < ts) {
     w = doCalculateTimeWindow(ts, pInterval);

@@ -40,6 +40,9 @@ static SFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) 
     int32_t *pageId = taosArrayGet(pIdList, i);
 
     SFilePage *pg = getBufPage(pMemBucket->pBuffer, *pageId);
+    if (pg == NULL) {
+      return NULL;
+    }
     memcpy(buffer->data + offset, pg->data, (size_t)(pg->num * pMemBucket->bytes));
 
     offset += (int32_t)(pg->num * pMemBucket->bytes);
@@ -88,7 +91,7 @@ static void resetPosInfo(SSlotInfo *pInfo) {
 }
 
 double findOnlyResult(tMemBucket *pMemBucket) {
-  assert(pMemBucket->total == 1);
+  ASSERT(pMemBucket->total == 1);
 
   for (int32_t i = 0; i < pMemBucket->numOfSlots; ++i) {
     tMemBucketSlot *pSlot = &pMemBucket->pSlots[i];
@@ -100,11 +103,14 @@ double findOnlyResult(tMemBucket *pMemBucket) {
     SArray **pList = taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
     if (pList != NULL)  {
       SArray *list = *pList;
-      assert(list->size == 1);
+      ASSERT(list->size == 1);
 
       int32_t   *pageId = taosArrayGet(list, 0);
       SFilePage *pPage = getBufPage(pMemBucket->pBuffer, *pageId);
-      assert(pPage->num == 1);
+      if (pPage == NULL) {
+        return -1;
+      }
+      ASSERT(pPage->num == 1);
 
       double v = 0;
       GET_TYPED_DATA(v, double, pMemBucket->type, pPage->data);
@@ -140,7 +146,8 @@ int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
     }
   }
 
-  assert(index >= 0 && index < pBucket->numOfSlots);
+  ASSERTS(index >= 0 && index < pBucket->numOfSlots, "tBucketIntHash Error, index:%d, numOfSlots:%d",
+          index, pBucket->numOfSlots);
   return index;
 }
 
@@ -167,7 +174,7 @@ int32_t tBucketUintHash(tMemBucket *pBucket, const void *value) {
     }
   }
 
-  assert(index >= 0 && index < pBucket->numOfSlots);
+  ASSERT(index >= 0 && index < pBucket->numOfSlots);
   return index;
 }
 
@@ -198,7 +205,7 @@ int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value) {
     }
   }
 
-  assert(index >= 0 && index < pBucket->numOfSlots);
+  ASSERT(index >= 0 && index < pBucket->numOfSlots);
   return index;
 }
 
@@ -331,7 +338,7 @@ void tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, int32_t dataT
       r->dMaxVal = v;
     }
   } else {
-    assert(0);
+    ASSERT(0);
   }
 }
 
@@ -339,7 +346,7 @@ void tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, int32_t dataT
  * in memory bucket, we only accept data array list
  */
 int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
-  assert(pBucket != NULL && data != NULL && size > 0);
+  ASSERT(pBucket != NULL && data != NULL && size > 0);
 
   int32_t count = 0;
   int32_t bytes = pBucket->bytes;
@@ -361,7 +368,7 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
 
     if (pSlot->info.data == NULL || pSlot->info.data->num >= pBucket->elemPerPage) {
       if (pSlot->info.data != NULL) {
-        assert(pSlot->info.data->num >= pBucket->elemPerPage && pSlot->info.size > 0);
+        ASSERT(pSlot->info.data->num >= pBucket->elemPerPage && pSlot->info.size > 0);
 
         // keep the pointer in memory
         setBufPageDirty(pSlot->info.data, true);
@@ -379,6 +386,9 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
       }
 
       pSlot->info.data = getNewBufPage(pBucket->pBuffer, &pageId);
+      if (pSlot->info.data == NULL) {
+        return TSDB_CODE_NO_AVAIL_DISK;
+      }
       pSlot->info.pageId = pageId;
       taosArrayPush(pPageIdList, &pageId);
     }
@@ -390,7 +400,7 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
   }
 
   pBucket->total += count;
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -407,14 +417,14 @@ static MinMaxEntry getMinMaxEntryOfNextSlotWithData(tMemBucket *pMemBucket, int3
     ++j;
   }
 
-  assert(j < pMemBucket->numOfSlots);
+  ASSERT(j < pMemBucket->numOfSlots);
   return pMemBucket->pSlots[j].range;
 }
 
 static bool isIdenticalData(tMemBucket *pMemBucket, int32_t index);
 
 static double getIdenticalDataVal(tMemBucket *pMemBucket, int32_t slotIndex) {
-  assert(isIdenticalData(pMemBucket, slotIndex));
+  ASSERT(isIdenticalData(pMemBucket, slotIndex));
 
   tMemBucketSlot *pSlot = &pMemBucket->pSlots[slotIndex];
 
@@ -461,7 +471,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
           minOfNextSlot = (double)next.dMinVal;
         }
 
-        assert(minOfNextSlot > maxOfThisSlot);
+        ASSERT(minOfNextSlot > maxOfThisSlot);
 
         double val = (1 - fraction) * maxOfThisSlot + fraction * minOfNextSlot;
         return val;
@@ -470,6 +480,9 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
       if (pSlot->info.size <= pMemBucket->maxCapacity) {
         // data in buffer and file are merged together to be processed.
         SFilePage *buffer = loadDataFromFilePage(pMemBucket, i);
+        if (buffer == NULL) {
+          return -1;
+        }
         int32_t    currentIdx = count - num;
 
         char *thisVal = buffer->data + pMemBucket->bytes * currentIdx;
@@ -504,8 +517,14 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
         for (int32_t f = 0; f < list->size; ++f) {
           int32_t *pageId = taosArrayGet(list, f);
           SFilePage *pg = getBufPage(pMemBucket->pBuffer, *pageId);
+          if (pg == NULL) {
+            return -1;
+          }
 
-          tMemBucketPut(pMemBucket, pg->data, (int32_t)pg->num);
+          int32_t code = tMemBucketPut(pMemBucket, pg->data, (int32_t)pg->num);
+          if (code != TSDB_CODE_SUCCESS) {
+            return -1;
+          }
           setBufPageDirty(pg, true);
           releaseBufPage(pMemBucket->pBuffer, pg);
         }
@@ -527,7 +546,9 @@ double getPercentile(tMemBucket *pMemBucket, double percent) {
 
   // if only one elements exists, return it
   if (pMemBucket->total == 1) {
-    return findOnlyResult(pMemBucket);
+    if (findOnlyResult(pMemBucket) < 0) {
+      return -1;
+    }
   }
 
   percent = fabs(percent);

@@ -168,7 +168,7 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
       pSrc->nType == TSDB_DATA_TYPE_JSON) {
     int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
     char   *p = taosMemoryRealloc(pDst->pz, len);
-    assert(p);
+    ASSERT(p);
 
     memset(p, 0, len);
     pDst->pz = p;
@@ -192,7 +192,7 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
     size_t num = taosArrayGetSize(pSrc->arr);
     pDst->arr = taosArrayInit(num, sizeof(int64_t));
     pDst->nLen = pSrc->nLen;
-    assert(pSrc->nLen == num);
+    ASSERT(pSrc->nLen == num);
     for (size_t i = 0; i < num; i++) {
       int64_t *p = taosArrayGet(pSrc->arr, i);
       taosArrayPush(pDst->arr, p);
