@@ -1670,15 +1670,14 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   tMemBucket* pMemBucket = ppInfo->pMemBucket;
   if (pMemBucket != NULL && pMemBucket->total > 0) {  // check for null
-    SET_DOUBLE_VAL(&ppInfo->result, getPercentile(pMemBucket, v));
+    int32_t code = getPercentile(pMemBucket, v, &ppInfo->result);
+    if (code != TSDB_CODE_SUCCESS) {
+      tMemBucketDestroy(pMemBucket);
+      return code;
+    }
   }
 
   tMemBucketDestroy(pMemBucket);
-
-  if (ppInfo->result < 0) {
-    return TSDB_CODE_NO_AVAIL_DISK;
-  }
-
   return functionFinalize(pCtx, pBlock);
 }
 
