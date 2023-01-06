@@ -680,10 +680,6 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
   code = 0;
 
 _OVER:
-  if (pIter->file != NULL) {
-    taosCloseFile(&pIter->file);
-    pIter->file = NULL;
-  }
   sdbCloseIter(pIter);
   return code;
 }
