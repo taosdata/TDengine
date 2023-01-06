@@ -159,10 +159,6 @@ char *strtolower(char *dst, const char *src) {
   int32_t esc = 0;
   char    quote = 0, *p = dst, c;
 
-  if (ASSERTS(dst != NULL, "dst is NULL")) {
-    return NULL;
-  }
-
   for (c = *src++; c; c = *src++) {
     if (esc) {
       esc = 0;
@@ -188,10 +184,6 @@ char *strntolower(char *dst, const char *src, int32_t n) {
   int32_t esc = 0;
   char    quote = 0, *p = dst, c;
 
-  if (ASSERTS(dst != NULL, "dst is NULL")) {
-    return NULL;
-  }
-  
   if (n == 0) {
     *p = 0;
     return dst;
@@ -219,11 +211,6 @@ char *strntolower(char *dst, const char *src, int32_t n) {
 
 char *strntolower_s(char *dst, const char *src, int32_t n) {
   char *p = dst, c;
-
-  if (ASSERTS(dst != NULL, "dst is NULL")) {
-    return NULL;
-  }
-
   if (n == 0) {
     return NULL;
   }
