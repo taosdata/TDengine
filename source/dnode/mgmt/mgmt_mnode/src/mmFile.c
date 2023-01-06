@@ -166,22 +166,22 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
   snprintf(file, sizeof(file), "%s%smnode.json.bak", path, TD_DIRSEP);
   snprintf(realfile, sizeof(realfile), "%s%smnode.json", path, TD_DIRSEP);
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pFile == NULL) goto _OVER;
-
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   pJson = tjsonCreateObject();
   if (pJson == NULL) goto _OVER;
   if (mmEncodeOption(pJson, pOption) != 0) goto _OVER;
-
   buffer = tjsonToString(pJson);
   if (buffer == NULL) goto _OVER;
+  terrno = 0;
+
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) goto _OVER;
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) goto _OVER;
   if (taosFsyncFile(pFile) < 0) goto _OVER;
-  taosCloseFile(&pFile);
 
+  taosCloseFile(&pFile);
   if (taosRenameFile(file, realfile) != 0) goto _OVER;
 
   code = 0;
@@ -193,6 +193,7 @@ _OVER:
   if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
+    if (terrno == 0) terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to write mnode file:%s since %s, deloyed:%d", realfile, terrstr(), pOption->deploy);
   }
   return code;

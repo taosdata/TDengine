@@ -225,15 +225,15 @@ int32_t dmWriteEps(SDnodeData *pData) {
   pJson = tjsonCreateObject();
   if (pJson == NULL) goto _OVER;
   if (dmEncodeEps(pJson, pData) != 0) goto _OVER;
-
   buffer = tjsonToString(pJson);
   if (buffer == NULL) goto _OVER;
+  terrno = 0;
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) goto _OVER;
   if (taosFsyncFile(pFile) < 0) goto _OVER;
-  taosCloseFile(&pFile);
 
+  taosCloseFile(&pFile);
   if (taosRenameFile(file, realfile) != 0) goto _OVER;
 
   code = 0;
@@ -246,6 +246,7 @@ _OVER:
   if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
+    if (terrno == 0) terrno = TAOS_SYSTEM_ERROR(errno);
     dInfo("succeed to write dnode file:%s since %s, dnodeVer:%" PRId64, realfile, terrstr(), pData->dnodeVer);
   }
   return code;

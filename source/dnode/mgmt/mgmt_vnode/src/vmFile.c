@@ -176,9 +176,6 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   snprintf(file, sizeof(file), "%s%svnodes.json.bak", pMgmt->path, TD_DIRSEP);
   snprintf(realfile, sizeof(realfile), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pFile == NULL) goto _OVER;
-
   int32_t numOfVnodes = 0;
   ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
   if (ppVnodes == NULL) goto _OVER;
@@ -187,15 +184,18 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   pJson = tjsonCreateObject();
   if (pJson == NULL) goto _OVER;
   if (vmEncodeVnodeList(pJson, ppVnodes, numOfVnodes) != 0) goto _OVER;
-
   buffer = tjsonToString(pJson);
   if (buffer == NULL) goto _OVER;
+  terrno = 0;
+
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) goto _OVER;
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) goto _OVER;
   if (taosFsyncFile(pFile) < 0) goto _OVER;
-  taosCloseFile(&pFile);
 
+  taosCloseFile(&pFile);
   if (taosRenameFile(file, realfile) != 0) goto _OVER;
 
   code = 0;
@@ -216,6 +216,7 @@ _OVER:
   }
 
   if (code != 0) {
+    if (terrno == 0) terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to write vnodes file:%s since %s, vnodes:%d", realfile, terrstr(), numOfVnodes);
   }
   return code;
