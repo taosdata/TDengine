@@ -69,8 +69,6 @@ static int vnodeBufPoolDestroy(SVBufPool *pPool) {
 int vnodeOpenBufPool(SVnode *pVnode) {
   int64_t size = pVnode->config.szBuf / VNODE_BUFPOOL_SEGMENTS;
 
-  ASSERT(pVnode->freeList == NULL);
-
   for (int i = 0; i < VNODE_BUFPOOL_SEGMENTS; i++) {
     // create pool
     if (vnodeBufPoolCreate(pVnode, size, &pVnode->aBufPool[i])) {
