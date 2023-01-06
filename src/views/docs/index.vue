@@ -33,7 +33,8 @@
     },
     computed: {
       language() {
-        return this.$store.state.app.userInfo.language || "en";
+        // return this.$store.state.app.userInfo.language || "en";
+        return "en";
       },
       config() {
         let lang = window.decodeURIComponent(this.lang);

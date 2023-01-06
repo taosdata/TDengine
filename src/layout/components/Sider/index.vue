@@ -65,11 +65,17 @@
             icon: "topic",
             role: ["1"],
           },
+          // {
+          //   path: "/replication",
+          //   title: this.$t("route.replication"),
+          //   icon: "replication",
+          //   role: ["1"],
+          // },
           {
-            path: "/replication",
-            title: this.$t("route.replication"),
-            icon: "replication",
-            role: ["1"],
+            path: "/programming",
+            title: this.$t("route.programming"),
+            icon: "programming",
+            parting: false
           },
           {
             path: "/tools",
@@ -77,6 +83,58 @@
             icon: "tool",
             parting: true,
             role: ["1"],
+          },
+          // {
+          //   path: "/backup",
+          //   title: this.$t("route.backup"),
+          //   icon: "backup",
+          //   parting: true
+          // },
+          // {
+          //   path: "/users",
+          //   title: this.$t("route.users"),
+          //   icon: "users",
+          //   parting: true
+          // },
+          
+          // {
+          //   path: "/qnodes",
+          //   title: this.$t("route.qnodes"),
+          //   icon: "qnodes",
+          //   parting: true
+          // },
+          // {
+          //   path: "/mnodes",
+          //   title: this.$t("route.mnodes"),
+          //   icon: "mnodes",
+          //   parting: true
+          // },
+          // {
+          //   path: "/dnodes",
+          //   title: this.$t("route.dnodes"),
+          //   icon: "dnodes",
+          //   parting: true
+          // },
+          
+          
+          {
+            path: "/admin",
+            title: this.$t("route.admin"),
+            icon: "management",
+            parting: false
+          },
+          {
+            path: "/cluster",
+            title: this.$t("route.cluster"),
+            icon: "cluster",
+            parting: false
+          },
+          
+          {
+            path: "/settings",
+            title: this.$t("route.settings"),
+            icon: "settings",
+            parting: true
           },
           // {
           //   path: "/network",

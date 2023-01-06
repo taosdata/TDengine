@@ -1,7 +1,7 @@
 <template>
   <div>
-    <p class="primary-tip" v-html="$t('dataIn.connectorTip')"></p>
-    <DocsList v-bind="docsMap.connector" />
+    <!-- <p class="primary-tip" v-html="$t('dataIn.connectorTip')"></p>
+    <DocsList v-bind="docsMap.connector" /> -->
     <p class="primary-tip" v-html="$t('dataIn.thirdPartyTip')"></p>
     <DocsList v-bind="docsMap.thirdParty" />
     <p class="primary-tip" v-html="$t('dataIn.inputCSVFile')"></p>

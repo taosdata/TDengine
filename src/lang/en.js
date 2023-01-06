@@ -222,6 +222,15 @@ export default {
     dataIn: "Data In",
     dataOut: "Data Out",
     visualize: "Visualize",
+    dnodes:"DNodes",
+    mnodes:"MNodes",
+    qnodes:"QNodes",
+    udf:"UDF",
+    settings:"Settings",
+    programming:"Programming",
+    backup:"Backup",
+    admin:"Admin",
+    cluster:'Cluster'
   },
   login: {
     loginLeftMessage: {
@@ -769,6 +778,13 @@ export default {
     learnMoreTip: `To learn more about stream processing, please check <a target='_blank' href="docsUrl">documentation</a>`,
   },
   topic: {
+    users:'Users',
+    dnodes:'DNodes',
+    mnodes:'MNodes',
+    qnodes:'QNodes',
+    udf:'UDF',
+    backup:'Backup',
+    replication:'Replication',
     pageTitle: "Data Subscription",
     createTopic: "Add New Topic",
     consumer: "Consumer",

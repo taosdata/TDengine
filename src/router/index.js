@@ -104,6 +104,54 @@ const layoutCommonChildren = [
     path: "landing",
     component: () => import("@/views/landing"),
   },
+  {
+    path: "users",
+    component: () => import("@/views/13_users"),
+  },
+  {
+    path: "backup",
+    component: () => import("@/views/20_backup"),
+  },
+  {
+    path: "programming",
+    component: () => import("@/views/19_programming"),
+    children:[
+      {
+        path: "",
+        component: () => import("@/views/19_programming/views/main.vue"),
+      },
+    ]
+  },
+  // {
+  //   path: "qnodes",
+  //   component: () => import("@/views/16_qnodes"),
+  // },
+  // {
+  //   path: "mnodes",
+  //   component: () => import("@/views/15_mnodes"),
+  // },
+  // {
+  //   path: "dnodes",
+  //   component: () => import("@/views/14_dnodes"),
+  // },
+  
+  
+  // {
+  //   path: "udf",
+  //   component: () => import("@/views/17_udf"),
+  // },
+  {
+    path: "admin",
+    component: () => import("@/views/13_administrator"),
+  },
+  {
+    path: "cluster",
+    component: () => import("@/views/14_cluster"),
+  },
+  {
+    path: "settings",
+    component: () => import("@/views/18_settings"),
+  },
 ];
 const adminRoute = [
   {
