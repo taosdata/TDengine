@@ -283,21 +283,23 @@ async fn sync_single_table(
             if let Err(err) = res {
                 log::warn!("Write block error: {err}");
                 if err.to_string().contains("0x1002") {
-                    if target_is_v3 {
-                        stmt.prepare(&sql).context("re-prepare statement")?;
-                    } else {
-                        stmt = Stmt::init(to).context("re-initialize stmt")?;
-                        stmt.prepare(&sql)
-                            .with_context(|| format!("[{table}] re-prepare statement error"))?;
-                    }
                     let mut chunks = 4;
                     let views = block.column_views();
+                    let mut success = true;
+                    // re-bind from start of the block for each loop until success
                     for _ in 0..4 {
+                        if target_is_v3 {
+                            stmt.prepare(&sql).context("re-prepare statement")?;
+                        } else {
+                            stmt = Stmt::init(to).context("re-initialize stmt")?;
+                            stmt.prepare(&sql)
+                                .with_context(|| format!("[{table}] re-prepare statement error"))?;
+                        }
                         let mut batch_size = block.nrows() / chunks;
                         if batch_size == 0 {
                             batch_size = 1;
                         }
-                        // let iters = (block.nrows() + chunk - 1 ) / chunk;
+                        // split chunks by batch size
                         for i in 0..(block.nrows() + batch_size - 1) / batch_size {
                             let range = batch_size * i..batch_size * (i + 1);
                             let params: Vec<_> = views
@@ -308,14 +310,27 @@ async fn sync_single_table(
                                 .context(format!("[{table}] bind by batch limit {batch_size}"))?;
                             stmt.add_batch()
                                 .context(format!("[{table}] add batch with limit {batch_size}"))?;
-                            stmt.execute().context(format!(
-                                "[{table}] execute with batch limit {batch_size}"
-                            ))?;
+                            // stmt.execute().context(format!(
+                            //     "[{table}] execute with batch limit {batch_size}"
+                            // ))?;
+
+                            // if still error, go ahead to next loop.
+                            if stmt.execute().is_err() {
+                                success = false;
+                                break;
+                            }
+                        }
+                        if success {
+                            break;
                         }
                         chunks *= 4;
                         if batch_size == 1 {
                             break;
                         }
+                    }
+
+                    if !success {
+                        Err(err).with_context(|| format!("[{table}] execute error and unable to auto choose a batch size limit"))?;
                     }
                 } else {
                     Err(err).with_context(|| format!("[{table}] execute error"))?;
