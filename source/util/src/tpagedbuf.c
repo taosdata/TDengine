@@ -132,7 +132,6 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   if (pg->offset == -1 || pg->dirty) {
     void* payload = GET_DATA_PAYLOAD(pg);
     t = doCompressData(payload, pBuf->pageSize, &size, pBuf);
-    ASSERTS(size >= 0, "size is negative");
   }
 
   // this page is flushed to disk for the first time
@@ -272,13 +271,15 @@ static SListNode* getEldestUnrefedPage(SDiskbasedBuf* pBuf) {
   SListNode* pn = NULL;
   while ((pn = tdListNext(&iter)) != NULL) {
     SPageInfo* pageInfo = *(SPageInfo**)pn->data;
-    ASSERT(pageInfo->pageId >= 0 && pageInfo->pn == pn);
+    if (pageInfo->pageId < 0 || pageInfo->pn != pn) {
+      uError("data in consistent in paged buffer, %s", pBuf->id);
+      return NULL;
+    }
 
     if (!pageInfo->used) {
-      //      printf("%d is chosen\n", pageInfo->pageId);
       break;
     } else {
-      //      printf("page %d is used, dirty:%d\n", pageInfo->pageId, pageInfo->dirty);
+      // printf("page %d is used, dirty:%d\n", pageInfo->pageId, pageInfo->dirty);
     }
   }
 
@@ -353,7 +354,9 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   pPBuf->freePgList = tdListNew(POINTER_BYTES);
 
   // at least more than 2 pages must be in memory
-  ASSERT(inMemBufSize >= pagesize * 2);
+  if (pPBuf->inMemPages < 2) {
+    pPBuf->inMemPages = 2;
+  }
 
   pPBuf->lruList = tdListNew(POINTER_BYTES);
 
@@ -418,11 +421,17 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
 }
 
 void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
-  ASSERT(pBuf != NULL && id >= 0);
+  if (id < 0) {
+    return NULL;
+  }
+
   pBuf->statis.getPages += 1;
 
   SPageInfo** pi = taosHashGet(pBuf->all, &id, sizeof(int32_t));
-  ASSERT(pi != NULL && *pi != NULL);
+  if (pi == NULL || *pi == NULL) {
+    uError("no pages exist, id:%d, %s", id, pBuf->id);
+    return NULL;
+  }
 
   if ((*pi)->pData != NULL) {  // it is in memory
     // no need to update the LRU list if only one page exists
@@ -432,7 +441,10 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
     }
 
     SPageInfo** pInfo = (SPageInfo**)((*pi)->pn->data);
-    ASSERT(*pInfo == *pi);
+    if (*pInfo != *pi) {
+      uError("data inconsistent in paged buf, %s", pBuf->id);
+      return NULL;
+    }
 
     lruListMoveToFront(pBuf->lruList, (*pi));
     (*pi)->used = true;
@@ -479,9 +491,6 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
 }
 
 void releaseBufPage(SDiskbasedBuf* pBuf, void* page) {
-  if (ASSERTS(pBuf != NULL && page != NULL, "pBuf or page is NULL")) {
-    return;
-  }
   SPageInfo* ppi = getPageInfoFromPayload(page);
   releaseBufPageInfo(pBuf, ppi);
 }
@@ -490,7 +499,7 @@ void releaseBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* pi) {
 #ifdef BUF_PAGE_DEBUG
   uDebug("page_releaseBufPageInfo pageId:%d, used:%d, offset:%" PRId64, pi->pageId, pi->used, pi->offset);
 #endif
-  if (ASSERTS(pi->pData != NULL, "pi->pData is NULL")) {
+  if (pi->pData == NULL) {
     return;
   }
 
@@ -501,7 +510,6 @@ void releaseBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* pi) {
 size_t getTotalBufSize(const SDiskbasedBuf* pBuf) { return (size_t)pBuf->totalBufSize; }
 
 SArray* getDataBufPagesIdList(SDiskbasedBuf* pBuf) {
-  ASSERT(pBuf != NULL);
   return pBuf->pIdList;
 }
 
@@ -579,7 +587,6 @@ SPageInfo* getLastPageInfo(SArray* pList) {
 }
 
 int32_t getPageId(const SPageInfo* pPgInfo) {
-  ASSERT(pPgInfo != NULL);
   return pPgInfo->pageId;
 }
 
