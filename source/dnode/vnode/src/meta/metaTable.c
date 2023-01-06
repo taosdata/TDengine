@@ -389,6 +389,14 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   tdbTbcClose(pUidIdxc);
   return 0;
 }
+int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
+int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
 
 int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **pMetaRsp) {
   SMetaEntry  me = {0};

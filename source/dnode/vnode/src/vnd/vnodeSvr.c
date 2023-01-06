@@ -1427,8 +1427,30 @@ _err:
   return code;
 }
 static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  // impl later
-  return TSDB_CODE_SUCCESS;
+  SVCreateStbReq req = {0};
+  SDecoder       dc = {0};
+
+  pRsp->msgType = TDMT_VND_CREATE_INDEX_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  tDecoderInit(&dc, pReq, len);
+  // decode req
+  if (tDecodeSVCreateStbReq(&dc, &req) < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    tDecoderClear(&dc);
+    return -1;
+  }
+  if (metaAddIndexToSTable(pVnode->pMeta, version, &req) < 0) {
+    pRsp->code = terrno;
+    goto _err;
+  }
+  tDecoderClear(&dc);
+  return 0;
+_err:
+  tDecoderClear(&dc);
+  return -1;
 }
 static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   // impl later
