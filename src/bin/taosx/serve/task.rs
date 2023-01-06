@@ -183,8 +183,22 @@ impl TaskController {
 
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
         let id = task.id;
-        if self.tasks.read().await.get(&id).is_some() {
-            anyhow::bail!("task {id} is running");
+        let mut remove_finished_task = false;
+        {
+            // for read guard lifetime
+            if let Some(h) = self.tasks.read().await.get(&id) {
+                if !h.0.is_finished() {
+                    anyhow::bail!("task {id} is running");
+                } else {
+                    remove_finished_task = true;
+                }
+            }
+        }
+
+        if remove_finished_task {
+            // write guard lifetime.
+            let mut guard = self.tasks.write().await;
+            guard.remove(&id);
         }
 
         let from = if let Some(topic) = task.oneshot_topic.as_deref() {
