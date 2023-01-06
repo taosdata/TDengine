@@ -179,16 +179,16 @@ async fn sync_single_table(
     } else {
         let mut stmt = Stmt::init(to).context("initialize stmt")?;
         let question_masks = std::iter::repeat('?').take(fields).join(",");
-        stmt.prepare(format!("INSERT INTO `{table}` VALUES({question_masks})"))
-            .context("prepare statement")?;
+        let sql = format!("INSERT INTO `{table}` VALUES({question_masks})");
+        stmt.prepare(&sql).context("prepare statement")?;
         while let Some(block) = blocks.try_next().await? {
             // let views = block.columns().collect_vec();
-            let res = {
-                stmt.bind(block.column_views()).context("bind")?;
-                stmt.add_batch().context("add batch")?;
-                stmt.execute().context("execute")?;
-                Ok::<_, taos::Error>(())
-            };
+            // let res = {
+            stmt.bind(block.column_views()).context("bind")?;
+            stmt.add_batch().context("add batch")?;
+            let res = stmt.execute().context("execute");
+            // Ok::<_, taos::Error>(())
+            // };
 
             if let Err(err) = res {
                 log::warn!("Write block error: {err}");
@@ -207,9 +207,12 @@ async fn sync_single_table(
                                 .iter()
                                 .map(|view| view.slice(range.clone()).unwrap())
                                 .collect();
-                            stmt.bind(&params).context(format!("bind by chunk {chunk}"))?;
-                            stmt.add_batch().context(format!("add batch by chunk {chunk}"))?;
-                            stmt.execute().context(format!("execute by chunk {chunk}"))?;
+                            stmt.bind(&params)
+                                .context(format!("bind by chunk {chunk}"))?;
+                            stmt.add_batch()
+                                .context(format!("add batch by chunk {chunk}"))?;
+                            stmt.execute()
+                                .context(format!("execute by chunk {chunk}"))?;
                         }
                         chunks *= 4;
                         if chunk == 1 {
