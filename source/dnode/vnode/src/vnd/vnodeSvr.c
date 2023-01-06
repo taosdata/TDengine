@@ -479,13 +479,13 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
     goto _exit;
   }
 
-  vInfo("vgId:%d, trim vnode request will be processed, time:%d", pVnode->config.vgId, trimReq.timestamp);
+  vInfo("vgId:%d, trim vnode request will be processed, time:%" PRIi64, pVnode->config.vgId, trimReq.timestamp);
 
   // process
-  code = tsdbDoRetention(pVnode->pTsdb, trimReq.timestamp);
+  code = tsdbDoRetention(pVnode->pTsdb, trimReq.timestamp, trimReq.maxSpeed);
   if (code) goto _exit;
 
-  code = smaDoRetention(pVnode->pSma, trimReq.timestamp);
+  code = smaDoRetention(pVnode->pSma, trimReq.timestamp, trimReq.maxSpeed);
   if (code) goto _exit;
 
 _exit:

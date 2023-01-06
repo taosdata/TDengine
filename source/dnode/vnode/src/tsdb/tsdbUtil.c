@@ -538,11 +538,11 @@ int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now) {
   TSKEY   key;
 
   if (pKeepCfg->precision == TSDB_TIME_PRECISION_MILLI) {
-    now = now * 1000;
+    // now = now * 1000;
   } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_MICRO) {
-    now = now * 1000000l;
+    now = now * 1000l;
   } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_NANO) {
-    now = now * 1000000000l;
+    now = now * 1000000l;
   } else {
     ASSERT(0);
   }
@@ -1506,4 +1506,58 @@ int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, in
 
 _exit:
   return code;
+}
+
+/**
+ * @brief send file with limited speed(rough control)
+ *
+ * @param pTsdb
+ * @param pFileOut
+ * @param pFileIn
+ * @param size
+ * @param maxSpeed 0 no limit, unit: bytes/s
+ * @return int64_t
+ */
+int64_t tsdbFSendFile(STsdb *pTsdb, TdFilePtr pOutFD, TdFilePtr pInFD, int64_t size, int64_t maxSpeed) {
+  if (maxSpeed <= 0) {
+    return taosFSendFile(pOutFD, pInFD, 0, size);
+  }
+
+  int64_t offset = 0;
+  int64_t tBytes = 0;
+  int64_t nBytes = 0;
+  int64_t startMs = 0;
+  int64_t cost = 0;
+
+  while ((offset + nBytes) < size) {
+    startMs = taosGetTimestampMs();
+    if ((nBytes = taosFSendFile(pOutFD, pInFD, &offset, maxSpeed)) < 0) {
+      return nBytes;
+    }
+    cost = taosGetTimestampMs() - startMs;
+    tBytes += nBytes;
+
+    int64_t nSleep = 0;
+    if (cost < 0) {
+      nSleep = 1000;
+    } else if (cost < 1000) {
+      nSleep = 1000 - cost;
+    }
+    if (nSleep > 0) {
+      taosMsleep(nSleep);
+      tsdbDebug("vgId:%d sendFile and msleep:%" PRIi64 ", fSize:%" PRIi64 ", tBytes:%" PRIi64 " maxSpeed:%" PRIi64,
+                TD_VID(pTsdb->pVnode), nSleep, size, tBytes, maxSpeed);
+    }
+  }
+
+_remain:
+  if (offset < size) {
+    if ((nBytes = taosFSendFile(pOutFD, pInFD, &offset, size - offset)) < 0) {
+      return nBytes;
+    }
+    tBytes += nBytes;
+    tsdbDebug("vgId:%d sendFile remain, fSize:%" PRIi64 ", tBytes:%" PRIi64 " maxSpeed:%" PRIi64, TD_VID(pTsdb->pVnode),
+              size, tBytes, maxSpeed);
+  }
+  return tBytes;
 }

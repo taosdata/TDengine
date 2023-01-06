@@ -600,9 +600,10 @@ static int32_t tdFetchSubmitReqSuids(SSubmitReq2 *pMsg, STbUidStore *pStore) {
  *
  * @param pSma
  * @param now
+ * @param maxSpeed
  * @return int32_t
  */
-int32_t smaDoRetention(SSma *pSma, int64_t now) {
+int32_t smaDoRetention(SSma *pSma, int64_t now, int64_t maxSpeed) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!VND_IS_RSMA(pSma->pVnode)) {
     return code;
@@ -610,7 +611,7 @@ int32_t smaDoRetention(SSma *pSma, int64_t now) {
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
-      code = tsdbDoRetention(pSma->pRSmaTsdb[i], now);
+      code = tsdbDoRetention(pSma->pRSmaTsdb[i], now, maxSpeed);
       if (code) goto _end;
     }
   }

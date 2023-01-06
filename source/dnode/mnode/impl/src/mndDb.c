@@ -1423,11 +1423,19 @@ _OVER:
   return code;
 }
 
-static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
+/**
+ * @brief trim database
+ * 
+ * @param pMnode 
+ * @param pDb 
+ * @param maxSpeed MB/s
+ * @return int32_t 
+ */
+static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb, int32_t maxSpeed) {
   SSdb       *pSdb = pMnode->pSdb;
   SVgObj     *pVgroup = NULL;
   void       *pIter = NULL;
-  SVTrimDbReq trimReq = {.timestamp = taosGetTimestampSec()};
+  SVTrimDbReq trimReq = {.timestamp = taosGetTimestampMs(), .maxSpeed = maxSpeed << 20};
   int32_t     reqLen = tSerializeSVTrimDbReq(NULL, 0, &trimReq);
   int32_t     contLen = reqLen + sizeof(SMsgHead);
 
@@ -1451,7 +1459,8 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
     if (code != 0) {
       mError("vgId:%d, failed to send vnode-trim request to vnode since 0x%x", pVgroup->vgId, code);
     } else {
-      mInfo("vgId:%d, send vnode-trim request to vnode, time:%d", pVgroup->vgId, trimReq.timestamp);
+      mInfo("vgId:%d, send vnode-trim request to vnode, time:%" PRIi64 ", max speed:%" PRIi64, pVgroup->vgId,
+            trimReq.timestamp, trimReq.maxSpeed);
     }
     sdbRelease(pSdb, pVgroup);
   }
@@ -1481,7 +1490,7 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndTrimDb(pMnode, pDb);
+  code = mndTrimDb(pMnode, pDb, trimReq.maxSpeed);
 
 _OVER:
   if (code != 0) {

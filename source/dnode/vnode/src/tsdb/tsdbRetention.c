@@ -39,7 +39,7 @@ static bool tsdbShouldDoRetention(STsdb *pTsdb, int64_t now) {
   return false;
 }
 
-int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
+int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now, int64_t maxSpeed) {
   int32_t code = 0;
 
   if (!tsdbShouldDoRetention(pTsdb, now)) {
@@ -77,7 +77,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
       SDFileSet fSet = *pSet;
       fSet.diskId = did;
 
-      code = tsdbDFileSetCopy(pTsdb, pSet, &fSet);
+      code = tsdbDFileSetCopy(pTsdb, pSet, &fSet, maxSpeed);
       if (code) goto _err;
 
       code = tsdbFSUpsertFSet(&fs, &fSet);

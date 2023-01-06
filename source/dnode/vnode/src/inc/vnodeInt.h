@@ -162,7 +162,7 @@ int32_t tsdbPrepareCommit(STsdb* pTsdb);
 int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbFinishCommit(STsdb* pTsdb);
 int32_t tsdbRollbackCommit(STsdb* pTsdb);
-int32_t tsdbDoRetention(STsdb* pTsdb, int64_t now);
+int32_t tsdbDoRetention(STsdb* pTsdb, int64_t now, int64_t maxSpeed);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
@@ -213,7 +213,7 @@ int32_t smaPrepareAsyncCommit(SSma* pSma);
 int32_t smaCommit(SSma* pSma, SCommitInfo* pInfo);
 int32_t smaFinishCommit(SSma* pSma);
 int32_t smaPostCommit(SSma* pSma);
-int32_t smaDoRetention(SSma* pSma, int64_t now);
+int32_t smaDoRetention(SSma* pSma, int64_t now, int64_t maxSpeed);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);

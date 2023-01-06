@@ -2743,7 +2743,8 @@ int32_t tSerializeSVTrimDbReq(void *buf, int32_t bufLen, SVTrimDbReq *pReq) {
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->timestamp) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->timestamp) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->maxSpeed) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2756,7 +2757,8 @@ int32_t tDeserializeSVTrimDbReq(void *buf, int32_t bufLen, SVTrimDbReq *pReq) {
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->timestamp) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->timestamp) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->maxSpeed) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
