@@ -1,5 +1,5 @@
 #!/bin/bash
-#set -x
+# set -x
 scriptDir=$(dirname $(realpath $0 || readlink -f $0))
 #
 version=$1
@@ -7,8 +7,9 @@ versionComp=$2
 branchName=$3
 verType=$4
 cpuType=$5
-brandName=$6
-brandPrompt=$7
+cusName=$6
+cusPrompt=$7
+cusEmail=$8
 
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
@@ -33,15 +34,17 @@ if [ ! -d $communityDir ]; then
   mkdir -p debug
   cd debug
 
-  if [ -z "$brandName" ] && [ -z "$brandPrompt" ]; then
+  if [ -z "$cusName" ] && [ -z "$cusPrompt" ] && [ -z "$cusEmail" ]; then
     cmake .. -DBUILD_TAOSX=true
   else
-    if [ ! -z "${brandName}" ] && [ ! -z "$brandPrompt" ]; then
-      cmake .. -DBUILD_TAOSX=true -DOEM_BRAND=${brandName} -DOEM_PROMPT=${brandPrompt}
-    elif [ ! -z "${brandName}" ]; then
-      cmake .. -DBUILD_TAOSX=true -DOEM_BRAND=${brandName}
+    if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
+      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail}
+    elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
+      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt}
+    elif [ ! -z "${cusName}" ]; then
+      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName}
     else
-      cmake .. -DBUILD_TAOSX=true -DOEM_PROMPT=${brandPrompt}
+      cmake .. -DBUILD_TAOSX=true -DCUS_PROMPT=${cusPrompt}
     fi
   fi
 fi
@@ -62,7 +65,7 @@ cd $topDir
 rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
-./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${brandName} -P ${brandPrompt}
+./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail}
 
 # if [ ! -d  "$archiveDir/v$version" ]; then
 #   mkdir -p "$archiveDir/v$version"

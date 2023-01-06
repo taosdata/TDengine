@@ -3,7 +3,7 @@
 # Generate the deb package for ubuntu, or rpm package for centos, or tar.gz package for other linux os
 
 set -e
-#set -x
+# set -x
 
 # release.sh  -v [cluster | edge]
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64...]
@@ -246,8 +246,10 @@ if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" =
     if [ -z "${cusName}" ] && [ -z "${cusPrompt}" ] && [ -z "${cusEmail}" ]; then
         cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
     else
-      if [ ! -z "${cusName}" ] && [ ! -z "${cusPrompt}" ] && [ -z "${cusEmail}" ]; then
+      if [ ! -z "${cusName}" ] && [ ! -z "${cusPrompt}" ] && [ ! -z "${cusEmail}" ]; then
         cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail}
+      elif [ ! -z "${cusName}" ] && [ ! -z "${cusPrompt}" ]; then
+        cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt}
       elif [ ! -z "${cusName}" ]; then
         cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro} -DCUS_NAME=${cusName}
       else
