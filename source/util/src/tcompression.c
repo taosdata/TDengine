@@ -284,9 +284,9 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
         int64_t* p = (int64_t*) output;
 
         if (selector == 0 || selector == 1) {
-#if 0
+#if 1
           int32_t batch = elems >> 2;
-          int32_t remainder = elems & 0x3;
+          int32_t remainder = elems & 0x03;
           int32_t gBatch = (nelements - count) >> 2;
 
           int32_t minBatch = TMIN(batch, gBatch);
@@ -301,15 +301,16 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
           int32_t gRemainder = nelements - count;
           int32_t minRemain = TMIN(remainder, gRemainder);
 
-          for (int32_t i = 0; i < minRemain; i++) {
+          for (int32_t i = 0; i < minRemain; ++i) {
             p[_pos++] = prev_value;
           }
 
           count += minRemain;
-#endif
+#else
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
             p[_pos++] = prev_value;
           }
+#endif
         } else {
           int32_t batch = elems >> 2;
           int32_t remain = elems & 0x03;
