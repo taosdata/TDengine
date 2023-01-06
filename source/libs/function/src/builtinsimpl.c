@@ -789,11 +789,37 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   pEntryInfo->isNullRes = (pEntryInfo->numOfRes == 0) ? 1 : 0;
 
-  if (pCol->info.type == TSDB_DATA_TYPE_FLOAT) {
-    float v = GET_FLOAT_VAL(&pRes->v);
-    colDataAppend(pCol, currentRow, (const char*)&v, pEntryInfo->isNullRes);
+  // NOTE: do nothing change it, for performance issue
+  if (!pEntryInfo->isNullRes) {
+    switch (pCol->info.type) {
+      case TSDB_DATA_TYPE_UBIGINT:
+      case TSDB_DATA_TYPE_BIGINT:
+        colDataAppendInt64(pCol, currentRow, &pRes->v);
+        break;
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_INT:
+        colDataAppendInt32(pCol, currentRow, (int32_t*)&pRes->v);
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+      case TSDB_DATA_TYPE_SMALLINT:
+        colDataAppendInt16(pCol, currentRow, (int16_t*)&pRes->v);
+        break;
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_UTINYINT:
+      case TSDB_DATA_TYPE_TINYINT:
+        colDataAppendInt8(pCol, currentRow, (int8_t*)&pRes->v);
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        colDataAppendDouble(pCol, currentRow, (double*)&pRes->v);
+        break;
+      case TSDB_DATA_TYPE_FLOAT: {
+        float v = GET_FLOAT_VAL(&pRes->v);
+        colDataAppendFloat(pCol, currentRow, &v);
+        break;
+      }
+    }
   } else {
-    colDataAppend(pCol, currentRow, (const char*)&pRes->v, pEntryInfo->isNullRes);
+    colDataAppendNULL(pCol, currentRow);
   }
 
   if (pEntryInfo->numOfRes > 0) {
@@ -1674,11 +1700,6 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   tMemBucketDestroy(pMemBucket);
-
-  if (ppInfo->result < 0) {
-    return TSDB_CODE_NO_AVAIL_DISK;
-  }
-
   return functionFinalize(pCtx, pBlock);
 }
 
