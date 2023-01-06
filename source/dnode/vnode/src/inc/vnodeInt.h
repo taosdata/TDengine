@@ -87,8 +87,7 @@ typedef struct SCommitInfo        SCommitInfo;
 #define VNODE_RSMA1_DIR "rsma1"
 #define VNODE_RSMA2_DIR "rsma2"
 
-#define VNODE_BUF_POOL_SEG 1  // TODO: change parameter here for sync/async commit
-#define VND_INFO_FNAME     "vnode.json"
+#define VND_INFO_FNAME "vnode.json"
 
 // vnd.h
 
