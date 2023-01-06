@@ -285,41 +285,38 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
 
         if (selector == 0 || selector == 1) {
 #if 1
-          int32_t batch = elems >> 2;
-          int32_t remainder = elems & 0x03;
-          int32_t gBatch = (nelements - count) >> 2;
-
-          int32_t minBatch = TMIN(batch, gBatch);
-          for(int32_t i = 0; i < minBatch; ++i) {
-            p[_pos++] = prev_value;
-            p[_pos++] = prev_value;
-            p[_pos++] = prev_value;
-            p[_pos++] = prev_value;
-          }
-
-          count += (minBatch << 2);
           int32_t gRemainder = nelements - count;
-          int32_t minRemain = TMIN(remainder, gRemainder);
+          int32_t num = gRemainder > elems? elems:gRemainder;
 
-          for (int32_t i = 0; i < minRemain; ++i) {
+          int32_t batch = num >> 2;
+          int32_t remainder = num & 0x03;
+          for (int32_t i = 0; i < batch; ++i) {
+            p[_pos++] = prev_value;
+            p[_pos++] = prev_value;
+            p[_pos++] = prev_value;
             p[_pos++] = prev_value;
           }
 
-          count += minRemain;
+          for (int32_t i = 0; i < remainder; ++i) {
+            p[_pos++] = prev_value;
+          }
+
+          count += num;
 #else
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
             p[_pos++] = prev_value;
           }
 #endif
         } else {
-          int32_t batch = elems >> 2;
-          int32_t remain = elems & 0x03;
-          int32_t globalBatch = (nelements - count) >> 2;
+          int32_t gRemainder = (nelements - count);
 
-          int32_t minBatch = TMIN(batch, globalBatch);
+          int32_t num = gRemainder > elems? elems:gRemainder;
+
+          int32_t batch = num >> 2;
+          int32_t remain = num & 0x03;
 #if 1
           // manual unrolling, to erase the hotspot
-          for (int32_t i = 0; i < minBatch; ++i) {
+          for (int32_t i = 0; i < batch; ++i) {
             zigzag_value = ((w >> v) & mask);
             prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
@@ -346,11 +343,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
           }
 
           // handle the remain
-          count += (minBatch << 2);
-          int32_t globalRemain = (nelements - count);
-          int32_t minRemain = TMIN(remain, globalRemain);
-
-          for (int32_t i = 0; i < minRemain; i++) {
+          for (int32_t i = 0; i < remain; i++) {
             zigzag_value = ((w >> v) & mask);
             prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
@@ -358,7 +351,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
             v += bit;
           }
 
-          count += minRemain;
+          count += num;
 #else
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
             zigzag_value = ((w >> (4 + v)) & mask);
