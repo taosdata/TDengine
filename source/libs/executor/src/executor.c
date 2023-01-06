@@ -710,6 +710,15 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo, int32_t rspCode) {
   return TSDB_CODE_SUCCESS;
 }
 
+bool qTaskIsExecuting(qTaskInfo_t qinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qinfo;
+  if (NULL == pTaskInfo) {
+    return false;
+  }
+
+  return 0 != atomic_load_64(&pTaskInfo->owner);
+}
+
 static void printTaskExecCostInLog(SExecTaskInfo* pTaskInfo) {
   STaskCostInfo* pSummary = &pTaskInfo->cost;
   int64_t        idleTime = pSummary->start - pSummary->created;

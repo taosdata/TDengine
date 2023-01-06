@@ -201,6 +201,15 @@ _return:
   QW_RET(code);
 }
 
+bool qwTaskNotInExec(SQWTaskCtx *ctx) {
+  qTaskInfo_t    taskHandle = ctx->taskHandle;
+  if (NULL == taskHandle || !qTaskIsExecuting(taskHandle)) {
+    return true;
+  }
+
+  return false;
+}
+
 int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo) {
   int32_t taskNum = 0;
 
@@ -507,8 +516,10 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
   }
 
   if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
-    QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
-    QW_ERR_JRET(ctx->rspCode);
+    if (QW_PHASE_POST_FETCH != phase || qwTaskNotInExec(ctx)) {
+      QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
+      QW_ERR_JRET(ctx->rspCode);
+    }
   }
 
   if (ctx->rspCode) {
