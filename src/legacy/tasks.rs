@@ -7,13 +7,14 @@ use tokio_util::sync::CancellationToken;
 
 use anyhow::{bail, Result};
 
-use crate::TimeRange;
+use crate::{TargetOpts, TimeRange};
 
 use super::{sync_single_table, TableRecord};
 
 pub struct TablesHandle {
     source: TaosPool,
     target: TaosPool,
+    target_opts: TargetOpts,
     target_is_v3: bool,
     opts: TableOpts,
     handles: HashMap<String, JoinHandle<Result<()>>>,
@@ -27,7 +28,12 @@ impl Drop for TablesHandle {
 }
 
 impl TablesHandle {
-    pub async fn new(source: TaosPool, target: TaosPool, opts: TableOpts) -> Result<Self> {
+    pub async fn new(
+        source: TaosPool,
+        target: TaosPool,
+        opts: TableOpts,
+        target_opts: TargetOpts,
+    ) -> Result<Self> {
         // let source = source.pool()?;
         // let target = target.pool()?;
         let version: String = target
@@ -39,6 +45,7 @@ impl TablesHandle {
         Ok(Self {
             source,
             target,
+            target_opts,
             target_is_v3,
             opts,
             handles: Default::default(),
@@ -49,6 +56,7 @@ impl TablesHandle {
         let mut handle = TableHandler {
             source: self.source.clone(),
             target: self.target.clone(),
+            target_opts: self.target_opts.clone(),
             target_is_v3: self.target_is_v3,
             opts: self.opts.clone(),
             table: table.clone(),
@@ -143,6 +151,7 @@ impl TableOpts {
 pub struct TableHandler {
     source: TaosPool,
     target: TaosPool,
+    target_opts: TargetOpts,
     target_is_v3: bool,
     table: String,
     opts: TableOpts,
@@ -172,9 +181,10 @@ impl TableHandler {
             };
             let target_is_v3 = self.target_is_v3;
             let table = self.table.clone();
+            let target_opts = self.target_opts.clone();
             log::debug!("spawn sync task for range: {:?}", opts.time_range);
             let h = tokio::spawn(async move {
-                sync_single_table(&from, &table, &to, &opts, target_is_v3).await
+                sync_single_table(&from, &table, &to, &opts, &target_opts, target_is_v3).await
             });
             self.handles.push(h);
         }
@@ -195,8 +205,9 @@ impl TableHandler {
                 ..Default::default()
             };
             log::debug!("spawn sync task for range: {:?}", opts.time_range);
+            let target_opts = self.target_opts.clone();
             let h = tokio::spawn(async move {
-                sync_single_table(&from, &table, &to, &opts, target_is_v3).await
+                sync_single_table(&from, &table, &to, &opts, &target_opts, target_is_v3).await
             });
             self.handles.push(h);
             start = end;
@@ -240,11 +251,13 @@ mod tests {
         .await?;
         let source = TaosBuilder::from_dsn("taos:///ts2031f")?;
         let target = TaosBuilder::from_dsn("taos:///ts2031t")?;
+        let target_opts = TargetOpts::default();
         let mut opts = TableOpts::new();
         opts.restro(Duration::from_secs(60))
             .excursion(Duration::from_secs(2));
 
-        let mut tables_handle = TablesHandle::new(source.pool()?, target.pool()?, opts).await?;
+        let mut tables_handle =
+            TablesHandle::new(source.pool()?, target.pool()?, opts, target_opts).await?;
         tables_handle.spawn().await?;
 
         let sleep = tokio::time::sleep(Duration::from_secs(10));
@@ -290,12 +303,14 @@ mod tests {
         let source = TaosBuilder::from_dsn("taos:///ts2031f")?.pool()?;
         let target = TaosBuilder::from_dsn("taos:///ts2031t")?.pool()?;
         let mut opts = TableOpts::new();
+        let target_opts = TargetOpts::default();
         opts.restro(Duration::from_secs(60))
             .excursion(Duration::from_secs(2));
 
         let mut table_task = TableHandler {
             source,
             target,
+            target_opts,
             target_is_v3: true,
             table: "ntb1".to_string(),
             opts,

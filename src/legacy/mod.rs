@@ -3,7 +3,7 @@ use std::{
     num::{NonZeroU32, NonZeroUsize},
     str::FromStr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicU16, AtomicU32, AtomicU64, AtomicUsize, Ordering},
         Arc,
     },
     time::{Duration, Instant},
@@ -21,6 +21,59 @@ use self::tasks::TableOpts;
 
 mod tasks;
 
+#[derive(Debug)]
+pub(crate) struct LegacyMetrics {
+    pub workers: AtomicU16,
+    pub stables: AtomicU32,
+    pub tables: AtomicU32,
+    pub blocks: AtomicU64,
+    pub records: AtomicU64,
+    pub points: AtomicU64,
+    pub time_cost: Instant,
+}
+
+impl Default for LegacyMetrics {
+    fn default() -> Self {
+        Self {
+            workers: Default::default(),
+            stables: Default::default(),
+            tables: Default::default(),
+            blocks: Default::default(),
+            records: Default::default(),
+            points: Default::default(),
+            time_cost: Instant::now(),
+        }
+    }
+}
+impl Display for LegacyMetrics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use std::sync::atomic::Ordering::SeqCst;
+        let records = self.records.load(SeqCst);
+        let points = self.points.load(SeqCst);
+        let cost = self.time_cost.elapsed();
+        write!(
+            f,
+            "# Metrics\n\
+            workers: {}\n\
+            stables: {}\n\
+            tables: {}\n\
+            blocks: {}\n\
+            records: {} ({} r/s)\n\
+            points: {} ({} p/s)\n\
+            time cost: {:?}",
+            self.workers.load(std::sync::atomic::Ordering::SeqCst),
+            self.stables.load(std::sync::atomic::Ordering::SeqCst),
+            self.tables.load(std::sync::atomic::Ordering::SeqCst),
+            self.blocks.load(std::sync::atomic::Ordering::SeqCst),
+            records,
+            records / cost.as_secs(),
+            points,
+            points / cost.as_secs(),
+            self.time_cost.elapsed()
+        )?;
+        Ok(())
+    }
+}
 /// A paging expression.
 ///
 /// It will be append to query with `LIMIT {limit} OFFSET {offset}`.
@@ -155,6 +208,7 @@ async fn sync_single_table(
     table: &str,
     to: &Taos,
     opts: &QueryOpts,
+    target_opts: &TargetOpts,
     target_is_v3: bool,
 ) -> anyhow::Result<()> {
     let sql = if opts.is_none() {
@@ -168,7 +222,7 @@ async fn sync_single_table(
         .context(format!("query with {sql}"))?;
     let fields = res.num_of_fields();
     let mut blocks = res.blocks();
-    if target_is_v3 {
+    if target_is_v3 && !target_opts.force_stmt {
         while let Some(mut block) = blocks.try_next().await? {
             block.with_table_name(table);
             to.write_raw_block(&block).await.context(format!(
@@ -177,47 +231,110 @@ async fn sync_single_table(
             ))?;
         }
     } else {
-        let mut stmt = Stmt::init(to).context("initialize stmt")?;
         let question_masks = std::iter::repeat('?').take(fields).join(",");
-        stmt.prepare(format!("INSERT INTO `{table}` VALUES({question_masks})"))
-            .context("prepare statement")?;
+        let sql = format!("INSERT INTO `{table}` VALUES({question_masks})");
+
+        let mut stmt = Stmt::init(to).context("initialize stmt")?;
+        stmt.prepare(&sql)
+            .with_context(|| format!("[{table}] prepare statement error"))?;
         while let Some(block) = blocks.try_next().await? {
-            // let views = block.columns().collect_vec();
-            let res = {
-                stmt.bind(block.column_views()).context("bind")?;
-                stmt.add_batch().context("add batch")?;
-                stmt.execute().context("execute")?;
-                Ok::<_, taos::Error>(())
-            };
+            let views = block.column_views();
+            if let Some(batch_size) = target_opts.batch_size {
+                if batch_size < block.nrows() {
+                    for i in 0..(block.nrows() + batch_size - 1) / batch_size {
+                        let range =
+                            batch_size * i..std::cmp::min(batch_size * (i + 1), block.nrows());
+                        let params: Vec<_> = views
+                            .iter()
+                            .map(|view| view.slice(range.clone()).unwrap())
+                            .collect();
+                        // for (orig, now) in
+                        //     range.into_iter().map(|orig| (orig, orig - batch_size * i))
+                        // {
+                        //     unsafe {
+                        //         let orig = views[0].as_timestamp_view().get(orig).unwrap();
+                        //         assert!(orig.is_some());
+                        //         let now = params[0].as_timestamp_view().get(now).unwrap();
+                        //         assert!(now.is_some());
+                        //         assert_eq!(orig, now);
+                        //     }
+                        // }
+                        log::debug!(
+                            "[{table}] write {}..{} rows with max batch size: {batch_size}",
+                            range.start,
+                            range.end,
+                        );
+                        stmt.bind(&params)
+                            .context(format!("bind by chunk {batch_size}"))?;
+                        stmt.add_batch()
+                            .context(format!("add batch by chunk {batch_size}"))?;
+                        stmt.execute()
+                            .context(format!("[{table}] execute by chunk {batch_size}"))?;
+                    }
+                    continue;
+                }
+            }
+            stmt.bind(views)
+                .with_context(|| format!("[{table}] bind error"))?;
+            stmt.add_batch()
+                .with_context(|| format!("[{table}] add batch"))?;
+            let res = stmt.execute();
 
             if let Err(err) = res {
                 log::warn!("Write block error: {err}");
                 if err.to_string().contains("0x1002") {
                     let mut chunks = 4;
                     let views = block.column_views();
+                    let mut success = true;
+                    // re-bind from start of the block for each loop until success
                     for _ in 0..4 {
-                        let mut chunk = block.nrows() / chunks;
-                        if chunk == 0 {
-                            chunk = 1;
+                        if target_is_v3 {
+                            stmt.prepare(&sql).context("re-prepare statement")?;
+                        } else {
+                            stmt = Stmt::init(to).context("re-initialize stmt")?;
+                            stmt.prepare(&sql)
+                                .with_context(|| format!("[{table}] re-prepare statement error"))?;
                         }
-                        // let iters = (block.nrows() + chunk - 1 ) / chunk;
-                        for i in 0..(block.nrows() + chunk - 1) / chunk {
-                            let range = chunk * i..chunk * (i + 1);
+                        let mut batch_size = block.nrows() / chunks;
+                        if batch_size == 0 {
+                            batch_size = 1;
+                        }
+                        // split chunks by batch size
+                        for i in 0..(block.nrows() + batch_size - 1) / batch_size {
+                            let range = batch_size * i..batch_size * (i + 1);
                             let params: Vec<_> = views
                                 .iter()
                                 .map(|view| view.slice(range.clone()).unwrap())
                                 .collect();
-                            stmt.bind(&params).context(format!("bind by chunk {chunk}"))?;
-                            stmt.add_batch().context(format!("add batch by chunk {chunk}"))?;
-                            stmt.execute().context(format!("execute by chunk {chunk}"))?;
+                            stmt.bind(&params)
+                                .context(format!("[{table}] bind by batch limit {batch_size}"))?;
+                            stmt.add_batch()
+                                .context(format!("[{table}] add batch with limit {batch_size}"))?;
+                            // stmt.execute().context(format!(
+                            //     "[{table}] execute with batch limit {batch_size}"
+                            // ))?;
+
+                            // if still error, go ahead to next loop.
+                            if stmt.execute().is_err() {
+                                success = false;
+                                break;
+                            }
+                        }
+                        if success {
+                            break;
                         }
                         chunks *= 4;
-                        if chunk == 1 {
+                        if batch_size == 1 {
                             break;
                         }
                     }
+
+                    if !success {
+                        Err(err).with_context(|| format!("[{table}] execute error and unable to auto choose a batch size limit"))?;
+                    }
+                } else {
+                    Err(err).with_context(|| format!("[{table}] execute error"))?;
                 }
-                Err(err)?;
             }
         }
     }
@@ -396,7 +513,12 @@ async fn sync_schema(from: &Taos, to: &Taos) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn sync_tables_only(from: &Taos, to: &Taos, opts: QueryOpts) -> anyhow::Result<()> {
+async fn sync_tables_only(
+    from: &Taos,
+    to: &Taos,
+    opts: QueryOpts,
+    target_opts: TargetOpts,
+) -> anyhow::Result<()> {
     let v1: String = from.query_one("SELECT server_version()").await?.unwrap();
     let v2: String = to.query_one("SELECT server_version()").await?.unwrap();
     let to_is_v3 = v2.starts_with('3');
@@ -405,7 +527,7 @@ async fn sync_tables_only(from: &Taos, to: &Taos, opts: QueryOpts) -> anyhow::Re
         let tables: Vec<TableRecord> = res.deserialize().try_collect().await?;
         drop(res);
         for row in tables {
-            sync_single_table(from, &row.table_name, to, &opts, to_is_v3)
+            sync_single_table(from, &row.table_name, to, &opts, &target_opts, to_is_v3)
                 .await
                 .map_err(Error::Any)?;
         }
@@ -418,7 +540,7 @@ async fn sync_tables_only(from: &Taos, to: &Taos, opts: QueryOpts) -> anyhow::Re
 
         let mut count = 0;
         for table in &tables {
-            sync_single_table(from, table.as_str(), to, &opts, to_is_v3)
+            sync_single_table(from, table.as_str(), to, &opts, &target_opts, to_is_v3)
                 .await
                 .map_err(Error::Any)?;
             count += 1;
@@ -437,6 +559,7 @@ async fn sync_tables_only_with_workers(
     from: TaosPool,
     to: TaosPool,
     opts: QueryOpts,
+    target_opts: TargetOpts,
     workers: usize,
 ) -> anyhow::Result<()> {
     let from_taos = from.get()?;
@@ -493,10 +616,11 @@ async fn sync_tables_only_with_workers(
         let from = from.get()?;
         let to = to.get()?;
         let count = count.clone();
+        let target_opts = target_opts.clone();
         // let chunk = chunk.collect_vec();
         join_handles.push(tokio::spawn(async move {
             for table in chunk {
-                sync_single_table(&from, table.as_str(), &to, &opts, to_is_v3)
+                sync_single_table(&from, table.as_str(), &to, &opts, &target_opts, to_is_v3)
                     .await
                     .map_err(Error::Any)?;
                 let count = count.fetch_add(1, Ordering::SeqCst);
@@ -632,30 +756,49 @@ impl FromStr for SchemaMode {
         }
     }
 }
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct TargetOpts {
     assert: bool,
     schema: SchemaMode,
     database_options: Option<String>,
+    batch_size: Option<usize>,
+    force_stmt: bool,
 }
 
 impl TargetOpts {
     pub fn from_params(dsn: &mut Dsn) -> anyhow::Result<Self> {
         let mut opts = Self::default();
-        if let Some(schema) = dsn.remove("schema") {
-            opts.schema = schema.parse()?;
+        if let Some(value) = dsn.remove("schema") {
+            opts.schema = value.parse().with_context(|| {
+                format!(
+                    "invalid schema value: {value}, \
+                    only always|true, none|false, or only is supported "
+                )
+            })?;
         }
 
         if let Some(assert) = dsn.remove("assert") {
             match assert.as_str() {
                 "false" => opts.assert = false,
                 "" | "true" => opts.assert = true,
-                _ => anyhow::bail!("assert in target dsn should be only empty, or true/false"),
+                _ => anyhow::bail!(
+                    "assert in target dsn should be only empty, or true/false (default is false)"
+                ),
             }
         }
 
         if let Some(value) = dsn.remove("database-options") {
             opts.database_options.replace(value);
+        }
+        if let Some(value) = dsn.remove("batch-size") {
+            opts.batch_size.replace(
+                value
+                    .parse()
+                    .with_context(|| format!("invalid batch-size value: {value}"))?,
+            );
+        }
+        if let Some(_) = dsn.remove("force-stmt") {
+            opts.force_stmt = true;
         }
         Ok(opts)
     }
@@ -703,22 +846,27 @@ pub async fn legacy_to_taos(
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
     }
 
+    let metrics = Arc::new(LegacyMetrics::default());
+
     match (source_opts.mode, source_opts.schema) {
         (_, SchemaMode::Only) => sync_schema(&from, &to).await?,
         (SyncMode::AsIs, SchemaMode::None) => {
             // sync_tables_only(&from, &to, source_opts.query).await?;
-            sync_tables_only_with_workers(from_pool, to_pool, source_opts.query, jobs).await?;
+            sync_tables_only_with_workers(from_pool, to_pool, source_opts.query, target_opts, jobs)
+                .await?;
         }
         (SyncMode::AsIs, SchemaMode::Always) => {
             log::info!("synchronize schema");
             sync_schema(&from, &to).await?;
             log::info!("synchronize all tables");
             // sync_tables_only(&from, &to, source_opts.query).await?;
-            sync_tables_only_with_workers(from_pool, to_pool, source_opts.query, jobs).await?;
+            sync_tables_only_with_workers(from_pool, to_pool, source_opts.query, target_opts, jobs)
+                .await?;
             log::info!("synchronize finished.");
         }
         (SyncMode::Realtime, _) => {
-            let mut tables = TablesHandle::new(from_pool, to_pool, source_opts.table).await?;
+            let mut tables =
+                TablesHandle::new(from_pool, to_pool, source_opts.table, target_opts).await?;
             tables.spawn().await?;
             tables.join().await?;
         }
@@ -729,7 +877,7 @@ pub async fn legacy_to_taos(
                 SchemaMode::Always => sync_schema(&from, &to).await?,
             }
             let restro_mark = Instant::now();
-            sync_tables_only(&from, &to, source_opts.query).await?;
+            sync_tables_only(&from, &to, source_opts.query, target_opts.clone()).await?;
             if source_opts.table.restro.is_zero() {
                 source_opts.table.restro = restro_mark.elapsed();
                 log::info!(
@@ -737,7 +885,8 @@ pub async fn legacy_to_taos(
                     source_opts.table.restro
                 );
             }
-            let mut tables = TablesHandle::new(from_pool, to_pool, source_opts.table).await?;
+            let mut tables =
+                TablesHandle::new(from_pool, to_pool, source_opts.table, target_opts).await?;
             tables.spawn().await?;
             tables.join().await?;
         }
