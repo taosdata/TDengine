@@ -125,8 +125,8 @@ int32_t main(int32_t argc, char *argv[]) {
       exit(EXIT_FAILURE);
     }
     if (tfsInit(tsDiskCfg, tsDiskCfgNum) < 0) {
-      printf("failed to init TFS since %s", tstrerror(terrno));
-      return -1;
+      printf("failed to init TFS since %s\n", tstrerror(terrno));
+      exit(EXIT_FAILURE);
     }
     strncpy(tsDataDir, TFS_PRIMARY_PATH(), TSDB_FILENAME_LEN);
     grantParseParameter("-u");
