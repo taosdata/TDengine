@@ -275,7 +275,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
     int32_t elems = selector_to_elems[(int32_t)selector];
 
     // Optimize the performance, by remove the constantly switch operation.
-    int32_t  v = 0;
+    int32_t  v = 4;
     uint64_t zigzag_value = 0;
     uint64_t mask = INT64MASK(bit);
 
@@ -287,7 +287,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
           zigzag_value = 0;
 
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-            prev_value = ZIGZAG_DECODE(int64_t, zigzag_value) + prev_value;
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
             p[_pos++] = prev_value;
           }
         } else {
@@ -298,44 +298,44 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
 
 #if 1
           // manual unrolling, to erase the hotspot
-            for (int32_t i = 0; i < minBatch; ++i, count += 4) {
-              zigzag_value = ((w >> (4 + v)) & mask);
-              prev_value = ZIGZAG_DECODE(int64_t, zigzag_value) + prev_value;
+          for (int32_t i = 0; i < minBatch; ++i, count += 4) {
+            zigzag_value = ((w >> v) & mask);
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
-              p[_pos++] = prev_value;
-              v += bit;
+            p[_pos++] = prev_value;
+            v += bit;
 
-              zigzag_value = ((w >> (4 + v)) & mask);
-              prev_value = ZIGZAG_DECODE(int64_t, zigzag_value) + prev_value;
+            zigzag_value = ((w >> v) & mask);
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
-              p[_pos++] = prev_value;
-              v += bit;
+            p[_pos++] = prev_value;
+            v += bit;
 
-              zigzag_value = ((w >> (4 + v)) & mask);
-              prev_value = ZIGZAG_DECODE(int64_t, zigzag_value) + prev_value;
+            zigzag_value = ((w >> v) & mask);
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
-              p[_pos++] = prev_value;
-              v += bit;
+            p[_pos++] = prev_value;
+            v += bit;
 
-              zigzag_value = ((w >> (4 + v)) & mask);
-              prev_value = ZIGZAG_DECODE(int64_t, zigzag_value) + prev_value;
+            zigzag_value = ((w >> v) & mask);
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
-              p[_pos++] = prev_value;
-              v += bit;
-            }
+            p[_pos++] = prev_value;
+            v += bit;
+          }
 
-            // handle the remain
-            int32_t remain = elems % 4;
-            int32_t globalRemain = (nelements - count);
-            int32_t minRemain = TMIN(globalRemain,remain);
+          // handle the remain
+          int32_t remain = elems & 0x03;
+          int32_t globalRemain = (nelements - count);
+          int32_t minRemain = TMIN(globalRemain, remain);
 
-            for (int32_t i = 0; i < minRemain; i++, count++) {
-              zigzag_value = ((w >> (4 + v)) & mask);
-              prev_value = ZIGZAG_DECODE(int64_t, zigzag_value) + prev_value;
+          for (int32_t i = 0; i < minRemain; i++, count++) {
+            zigzag_value = ((w >> v) & mask);
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
-              p[_pos++] = prev_value;
-              v += bit;
-            }
+            p[_pos++] = prev_value;
+            v += bit;
+          }
 #else
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
             zigzag_value = ((w >> (4 + v)) & mask);
@@ -356,13 +356,13 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
           zigzag_value = 0;
 
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-            prev_value = ZIGZAG_DECODE(int64_t, zigzag_value) + prev_value;
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
             p[_pos++] = (int32_t)prev_value;
           }
         } else {
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-            zigzag_value = ((w >> (4 + v)) & mask);
-            prev_value = ZIGZAG_DECODE(int64_t, zigzag_value) + prev_value;
+            zigzag_value = ((w >> v) & mask);
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
             p[_pos++] = (int32_t)prev_value;
             v += bit;
@@ -376,14 +376,14 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
           zigzag_value = 0;
 
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-            prev_value = ZIGZAG_DECODE(int64_t, zigzag_value) + prev_value;
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
             p[_pos++] = (int16_t)prev_value;
           }
         } else {
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-            zigzag_value = ((w >> (4 + v)) & mask);
+            zigzag_value = ((w >> v) & mask);
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
-            prev_value = ZIGZAG_DECODE(int64_t, zigzag_value) + prev_value;
             p[_pos++] = (int16_t)prev_value;
             v += bit;
           }
@@ -397,13 +397,13 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
           zigzag_value = 0;
 
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-            prev_value = ZIGZAG_DECODE(int64_t, zigzag_value) + prev_value;
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
             p[_pos++] = (int8_t)prev_value;
           }
         } else {
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-            zigzag_value = ((w >> (4 + v)) & mask);
-            prev_value = ZIGZAG_DECODE(int64_t, zigzag_value) + prev_value;
+            zigzag_value = ((w >> v) & mask);
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
             p[_pos++] = (int8_t)prev_value;
             v += bit;
