@@ -73,7 +73,7 @@ void tMemBucketDestroy(tMemBucket *pBucket);
 
 int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size);
 
-double getPercentile(tMemBucket *pMemBucket, double percent);
+int32_t getPercentile(tMemBucket *pMemBucket, double percent, double *result);
 
 #endif  // TDENGINE_TPERCENTILE_H
 
