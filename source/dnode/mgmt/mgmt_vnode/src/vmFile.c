@@ -145,37 +145,26 @@ _OVER:
 }
 
 int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
-  int32_t code = 0;
-  char    file[PATH_MAX] = {0};
-  char    realfile[PATH_MAX] = {0};
+  int32_t     code = -1;
+  char       *content = NULL;
+  TdFilePtr   pFile = NULL;
+  SVnodeObj **ppVnodes = NULL;
+  char        file[PATH_MAX] = {0};
+  char        realfile[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%svnodes.json.bak", pMgmt->path, TD_DIRSEP);
-  snprintf(realfile, sizeof(file), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
 
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to write %s since %s", file, terrstr());
-    return -1;
-  }
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) goto _OVER;
 
-  int32_t     numOfVnodes = 0;
-  SVnodeObj **ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
-  if (ppVnodes == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    code = -1;
-    dError("failed to write %s while get vnodelist", file);
-    goto _OVER;
-  }
+  int32_t numOfVnodes = 0;
+  ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
+  if (ppVnodes == NULL) goto _OVER;
 
   int32_t len = 0;
   int32_t maxLen = MAX_CONTENT_LEN;
-  char   *content = taosMemoryCalloc(1, maxLen + 1);
-  if (content == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    code = -1;
-    dError("failed to write %s while malloc content", file);
-    goto _OVER;
-  }
+  content = taosMemoryCalloc(1, maxLen + 1);
+  if (content == NULL) goto _OVER;
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"vnodes\": [\n");
@@ -195,14 +184,19 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   }
   len += snprintf(content + len, maxLen - len, "  ]\n");
   len += snprintf(content + len, maxLen - len, "}\n");
-  terrno = 0;
+
+  if (taosWriteFile(pFile, content, len) <= 0) goto _OVER;
+  if (taosFsyncFile(pFile) < 0) goto _OVER;
+  taosCloseFile(&pFile);
+
+  if (taosRenameFile(file, realfile) != 0) goto _OVER;
+
+  code = 0;
+  dInfo("succeed to write vnodes file:%s, vnodes:%d", realfile, numOfVnodes);
 
 _OVER:
-  taosWriteFile(pFile, content, len);
-  taosFsyncFile(pFile);
-  taosCloseFile(&pFile);
-  taosMemoryFree(content);
-
+  if (content != NULL) taosMemoryFree(content);
+  if (pFile != NULL) taosCloseFile(&pFile);
   if (ppVnodes != NULL) {
     for (int32_t i = 0; i < numOfVnodes; ++i) {
       SVnodeObj *pVnode = ppVnodes[i];
@@ -213,14 +207,8 @@ _OVER:
     taosMemoryFree(ppVnodes);
   }
 
-  if (code != 0) return -1;
-
-  dInfo("succeed to write %s, numOfVnodes:%d", realfile, numOfVnodes);
-  code = taosRenameFile(file, realfile);
-  
   if (code != 0) {
-    dError("failed to rename %s to %s", file, realfile);
+    dError("failed to write vnodes file:%s since %s, vnodes:%d", realfile, terrstr(), numOfVnodes);
   }
-
   return code;
 }
