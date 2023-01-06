@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
+#include "tjson.h"
 
 #define MAX_CONTENT_LEN 2 * 1024 * 1024
 
@@ -144,9 +145,30 @@ _OVER:
   return code;
 }
 
+static int32_t vmEncodeVnodeList(SJson *pJson, SVnodeObj **ppVnodes, int32_t numOfVnodes) {
+  SJson *vnodes = tjsonCreateArray();
+  if (vnodes == NULL) return -1;
+  if (tjsonAddItemToObject(pJson, "vnodes", vnodes) < 0) return -1;
+
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
+    SVnodeObj *pVnode = ppVnodes[i];
+    if (pVnode == NULL) continue;
+
+    SJson *vnode = tjsonCreateObject();
+    if (vnode == NULL) return -1;
+    if (tjsonAddDoubleToObject(vnode, "vgId", pVnode->vgId) < 0) return -1;
+    if (tjsonAddDoubleToObject(vnode, "dropped", pVnode->dropped) < 0) return -1;
+    if (tjsonAddDoubleToObject(vnode, "vgVersion", pVnode->vgVersion) < 0) return -1;
+    if (tjsonAddItemToArray(vnodes, vnode) < 0) return -1;
+  }
+
+  return 0;
+}
+
 int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   int32_t     code = -1;
-  char       *content = NULL;
+  char       *buffer = NULL;
+  SJson      *pJson = NULL;
   TdFilePtr   pFile = NULL;
   SVnodeObj **ppVnodes = NULL;
   char        file[PATH_MAX] = {0};
@@ -161,31 +183,16 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
   if (ppVnodes == NULL) goto _OVER;
 
-  int32_t len = 0;
-  int32_t maxLen = MAX_CONTENT_LEN;
-  content = taosMemoryCalloc(1, maxLen + 1);
-  if (content == NULL) goto _OVER;
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  pJson = tjsonCreateObject();
+  if (pJson == NULL) goto _OVER;
+  if (vmEncodeVnodeList(pJson, ppVnodes, numOfVnodes) != 0) goto _OVER;
 
-  len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"vnodes\": [\n");
-  for (int32_t i = 0; i < numOfVnodes; ++i) {
-    SVnodeObj *pVnode = ppVnodes[i];
-    if (pVnode == NULL) continue;
+  buffer = tjsonToString(pJson);
+  if (buffer == NULL) goto _OVER;
 
-    len += snprintf(content + len, maxLen - len, "    {\n");
-    len += snprintf(content + len, maxLen - len, "      \"vgId\": %d,\n", pVnode->vgId);
-    len += snprintf(content + len, maxLen - len, "      \"dropped\": %d,\n", pVnode->dropped);
-    len += snprintf(content + len, maxLen - len, "      \"vgVersion\": %d\n", pVnode->vgVersion);
-    if (i < numOfVnodes - 1) {
-      len += snprintf(content + len, maxLen - len, "    },\n");
-    } else {
-      len += snprintf(content + len, maxLen - len, "    }\n");
-    }
-  }
-  len += snprintf(content + len, maxLen - len, "  ]\n");
-  len += snprintf(content + len, maxLen - len, "}\n");
-
-  if (taosWriteFile(pFile, content, len) <= 0) goto _OVER;
+  int32_t len = strlen(buffer);
+  if (taosWriteFile(pFile, buffer, len) <= 0) goto _OVER;
   if (taosFsyncFile(pFile) < 0) goto _OVER;
   taosCloseFile(&pFile);
 
@@ -195,7 +202,8 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   dInfo("succeed to write vnodes file:%s, vnodes:%d", realfile, numOfVnodes);
 
 _OVER:
-  if (content != NULL) taosMemoryFree(content);
+  if (pJson != NULL) tjsonDelete(pJson);
+  if (buffer != NULL) taosMemoryFree(buffer);
   if (pFile != NULL) taosCloseFile(&pFile);
   if (ppVnodes != NULL) {
     for (int32_t i = 0; i < numOfVnodes; ++i) {
