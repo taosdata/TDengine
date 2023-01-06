@@ -147,16 +147,6 @@ static int32_t collectMetaKeyFromInsTags(SCollectMetaKeyCxt* pCxt) {
   return code;
 }
 
-static int32_t collectMetaKeyFromInsCols(SCollectMetaKeyCxt* pCxt) {
-  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pStmt;
-  SName        name = {0};
-  int32_t      code = getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pSelect->pWhere, &name);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = collectMetaKeyFromInsTagsImpl(pCxt, &name);
-  }
-  return code;
-}
-
 static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const char* pDb, const char* pTable,
                                                AUTH_TYPE authType) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pDb, pTable, pCxt->pMetaCache);
@@ -179,11 +169,6 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
       (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS) || 0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) &&
       QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
     code = collectMetaKeyFromInsTags(pCxt);
-  }
-  if (TSDB_CODE_SUCCESS == code &&
-      0 == strcmp(pTable, TSDB_INS_TABLE_COLS) &&
-      QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
-    code = collectMetaKeyFromInsCols(pCxt);
   }
   return code;
 }
@@ -479,19 +464,6 @@ static int32_t collectMetaKeyFromShowTables(SCollectMetaKeyCxt* pCxt, SShowStmt*
 
 static int32_t collectMetaKeyFromShowTags(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TAGS,
-                                         pCxt->pMetaCache);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
-  }
-  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pTbName) {
-    code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,
-                                     ((SValueNode*)pStmt->pTbName)->literal, pCxt->pMetaCache);
-  }
-  return code;
-}
-
-static int32_t collectMetaKeyFromShowCols(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
-  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_COLS,
                                          pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);

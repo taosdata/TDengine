@@ -686,13 +686,32 @@ const char *taos_get_server_info(TAOS *taos) {
   return pTscObj->sDetailVer;
 }
 
-const char *taos_get_current_db(TAOS *taos, size_t *required) {
+int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
   STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
   if (pTscObj == NULL) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return NULL;
+    return -1;
   }
-  return pTscObj->db;
+
+  int code = TSDB_CODE_SUCCESS;
+  taosThreadMutexLock(&pTscObj->mutex);
+  if(database == NULL || len <= 0){
+    if(required != NULL) *required = strlen(pTscObj->db) + 1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
+
+  if(len < strlen(pTscObj->db) + 1){
+    tstrncpy(database, pTscObj->db, len);
+    if(required) *required = strlen(pTscObj->db) + 1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    code = -1;
+  }else{
+    strcpy(database, pTscObj->db);
+    code = 0;
+  }
+  taosThreadMutexUnlock(&pTscObj->mutex);
+  return code;
 }
 
 static void destoryTablesReq(void *p) {

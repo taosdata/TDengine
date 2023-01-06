@@ -140,6 +140,9 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
                                                 SMetaReader* smrChildTable, const char* dbname, const char* tableName,
                                                 int32_t* pNumOfRows, const SSDataBlock* dataBlock);
 
+static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, SMetaReader* smrTable, const char* dbname,
+                                                int32_t* pNumOfRows, const SSDataBlock* dataBlock);
+
 static void relocateAndFilterSysTagsScanResult(SSysTableScanInfo* pInfo, int32_t numOfRows, SSDataBlock* dataBlock,
                                                SFilterInfo* pFilterInfo);
 
@@ -443,38 +446,26 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(tableName, condTableName);
 
-    SMetaReader smrChildTable = {0};
-    metaReaderInit(&smrChildTable, pInfo->readHandle.meta, 0);
-    int32_t code = metaGetTableEntryByName(&smrChildTable, condTableName);
+    SMetaReader smrTable = {0};
+    metaReaderInit(&smrTable, pInfo->readHandle.meta, 0);
+    int32_t code = metaGetTableEntryByName(&smrTable, condTableName);
     if (code != TSDB_CODE_SUCCESS) {
       // terrno has been set by metaGetTableEntryByName, therefore, return directly
-      metaReaderClear(&smrChildTable);
+      metaReaderClear(&smrTable);
       blockDataDestroy(dataBlock);
       pInfo->loadInfo.totalRows = 0;
       return NULL;
     }
 
-    if (smrChildTable.me.type != TSDB_CHILD_TABLE) {
-      metaReaderClear(&smrChildTable);
+    if (smrTable.me.type == TSDB_CHILD_TABLE) {
+      metaReaderClear(&smrTable);
       blockDataDestroy(dataBlock);
       pInfo->loadInfo.totalRows = 0;
       return NULL;
     }
 
-    SMetaReader smrSuperTable = {0};
-    metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, META_READER_NOLOCK);
-    code = metaGetTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
-    if (code != TSDB_CODE_SUCCESS) {
-      // terrno has been set by metaGetTableEntryByUid
-      metaReaderClear(&smrSuperTable);
-      metaReaderClear(&smrChildTable);
-      blockDataDestroy(dataBlock);
-      return NULL;
-    }
-
-    sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows, dataBlock);
-    metaReaderClear(&smrSuperTable);
-    metaReaderClear(&smrChildTable);
+    sysTableUserColsFillOneTableCols(pInfo, &smrTable, dbname, &numOfRows, dataBlock);
+    metaReaderClear(&smrTable);
 
     if (numOfRows > 0) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
@@ -492,29 +483,11 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   }
 
   while ((ret = metaTbCursorNext(pInfo->pCur)) == 0) {
-    if (pInfo->pCur->mr.me.type != TSDB_CHILD_TABLE) {
+    if (pInfo->pCur->mr.me.type == TSDB_CHILD_TABLE) {
       continue;
     }
 
-    char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
-
-    SMetaReader smrSuperTable = {0};
-    metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, 0);
-    uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
-    int32_t  code = metaGetTableEntryByUid(&smrSuperTable, suid);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("failed to get super table meta, uid:0x%" PRIx64 ", code:%s, %s", suid, tstrerror(terrno),
-             GET_TASKID(pTaskInfo));
-      metaReaderClear(&smrSuperTable);
-      metaCloseTbCursor(pInfo->pCur);
-      pInfo->pCur = NULL;
-      T_LONG_JMP(pTaskInfo->env, terrno);
-    }
-
-    sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows, dataBlock);
-
-    metaReaderClear(&smrSuperTable);
+    sysTableUserColsFillOneTableCols(pInfo, &pInfo->pCur->mr, dbname, &numOfRows, dataBlock);
 
     if (numOfRows >= pOperator->resultInfo.capacity) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
@@ -849,6 +822,72 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     colDataAppend(pColInfoData, numOfRows, tagVarChar,
                   (tagData == NULL) || (tagType == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(tagData)));
     taosMemoryFree(tagVarChar);
+    ++numOfRows;
+  }
+
+  *pNumOfRows = numOfRows;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, SMetaReader* smrTable, const char* dbname,
+                                                int32_t* pNumOfRows, const SSDataBlock* dataBlock) {
+  char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(tableName, smrTable->me.name);
+
+  SSchemaWrapper schemaRow = {0};
+  if(smrTable->me.type == TSDB_SUPER_TABLE){
+    schemaRow  = smrTable->me.stbEntry.schemaRow;
+  }else if(smrTable->me.type == TSDB_NORMAL_TABLE){
+    schemaRow  = smrTable->me.ntbEntry.schemaRow;
+  }
+  int32_t numOfRows = *pNumOfRows;
+
+  int32_t numOfCols = schemaRow.nCols;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pColInfoData = NULL;
+
+    // table name
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 0);
+    colDataAppend(pColInfoData, numOfRows, tableName, tableName == NULL ? true : false);
+
+    // database name
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
+    colDataAppend(pColInfoData, numOfRows, dbname, false);
+
+    // col name
+    char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(colName, schemaRow.pSchema[i].name);
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
+    colDataAppend(pColInfoData, numOfRows, colName, false);
+
+    // col type
+    int8_t colType = schemaRow.pSchema[i].type;
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
+    char colTypeStr[VARSTR_HEADER_SIZE + 32];
+    int  colTypeLen = sprintf(varDataVal(colTypeStr), "%s", tDataTypes[colType].name);
+    if (colType == TSDB_DATA_TYPE_VARCHAR) {
+      colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d)",
+                            (int32_t)(schemaRow.pSchema[i].bytes - VARSTR_HEADER_SIZE));
+    } else if (colType == TSDB_DATA_TYPE_NCHAR) {
+      colTypeLen += sprintf(
+          varDataVal(colTypeStr) + colTypeLen, "(%d)",
+          (int32_t)((schemaRow.pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+    }
+    varDataSetLen(colTypeStr, colTypeLen);
+    colDataAppend(pColInfoData, numOfRows, (char*)colTypeStr, false);
+
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
+    colDataAppend(pColInfoData, numOfRows, (const char*)&schemaRow.pSchema[i].bytes, false);
+
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
+    colDataAppend(pColInfoData, numOfRows, NULL, true);
+
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 6);
+    colDataAppend(pColInfoData, numOfRows, NULL, true);
+
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 7);
+    colDataAppend(pColInfoData, numOfRows, NULL, true);
     ++numOfRows;
   }
 
