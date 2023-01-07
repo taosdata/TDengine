@@ -291,7 +291,6 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     tscError("invalid result passed to taos_fetch_row");
     return NULL;
   }
-  return NULL;
 }
 
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
@@ -355,9 +354,13 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
       case TSDB_DATA_TYPE_NCHAR: {
         int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
         if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
-          assert(charLen <= fields[i].bytes && charLen >= 0);
+          if(ASSERT(charLen <= fields[i].bytes && charLen >= 0)){
+            tscError("taos_print_row error binary. charLen:%d, fields[i].bytes:%d", charLen, fields[i].bytes);
+          }
         } else {
-          assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
+          if(ASSERT(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0)){
+            tscError("taos_print_row error. charLen:%d, fields[i].bytes:%d", charLen, fields[i].bytes);
+          }
         }
 
         memcpy(str + len, row[i], charLen);
@@ -577,7 +580,7 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
     (*numOfRows) = pResultInfo->numOfRows;
     return 0;
   } else {
-    ASSERT(0);
+    tscError("taos_fetch_block_s invalid res type");
     return -1;
   }
 }
@@ -1000,8 +1003,14 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
 }
 
 void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
-  ASSERT(res != NULL && fp != NULL);
-  ASSERT(TD_RES_QUERY(res));
+  if(ASSERT(res != NULL && fp != NULL)){
+    tscError("taos_fetch_rows_a invalid paras");
+    return;
+  }
+  if(ASSERT(TD_RES_QUERY(res))){
+    tscError("taos_fetch_rows_a res is NULL");
+    return;
+  }
 
   SRequestObj *pRequest = res;
   pRequest->body.fetchFp = fp;
@@ -1044,9 +1053,14 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 }
 
 void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
-  ASSERT(res != NULL && fp != NULL);
-  ASSERT(TD_RES_QUERY(res));
-
+  if(ASSERT(res != NULL && fp != NULL)){
+    tscError("taos_fetch_rows_a invalid paras");
+    return;
+  }
+  if(ASSERT(TD_RES_QUERY(res))){
+    tscError("taos_fetch_rows_a res is NULL");
+    return;
+  }
   SRequestObj    *pRequest = res;
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
 
@@ -1058,8 +1072,14 @@ void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 }
 
 const void *taos_get_raw_block(TAOS_RES *res) {
-  ASSERT(res != NULL);
-  ASSERT(TD_RES_QUERY(res));
+  if(ASSERT(res != NULL)){
+    tscError("taos_fetch_rows_a invalid paras");
+    return NULL;
+  }
+  if(ASSERT(TD_RES_QUERY(res))){
+    tscError("taos_fetch_rows_a res is NULL");
+    return NULL;
+  }
   SRequestObj *pRequest = res;
 
   return pRequest->body.resInfo.pData;
