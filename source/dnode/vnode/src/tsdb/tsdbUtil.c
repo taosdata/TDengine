@@ -801,11 +801,11 @@ int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
         if (IS_VAR_DATA_TYPE(pColVal->type)) {
           SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
 
-          code = tRealloc(pTColVal->value.pData, pColVal->value.nData);
+          code = tRealloc(&pTColVal->value.pData, pColVal->value.nData);
           if (code) goto _exit;
 
           pTColVal->value.nData = pColVal->value.nData;
-          memcpy(pTColVal->value.pData,  pColVal->value.pData, pTColVal.value.nData);
+          memcpy(pTColVal->value.pData,  pColVal->value.pData, pTColVal->value.nData);
         } else {
           taosArraySet(pMerger->pArray, iCol, pColVal);
         }
