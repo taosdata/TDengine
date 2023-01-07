@@ -35,7 +35,7 @@ static int vnodeBufPoolCreate(SVnode *pVnode, int64_t size, SVBufPool **ppPool) 
       return -1;
     }
     if (taosThreadSpinInit(pPool->lock, 0) != 0) {
-      taosMemoryFree((void*)pPool->lock);
+      taosMemoryFree((void *)pPool->lock);
       taosMemoryFree(pPool);
       terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
@@ -62,7 +62,7 @@ static int vnodeBufPoolDestroy(SVBufPool *pPool) {
   vnodeBufPoolReset(pPool);
   if (pPool->lock) {
     taosThreadSpinDestroy(pPool->lock);
-    taosMemoryFree((void*)pPool->lock);
+    taosMemoryFree((void *)pPool->lock);
   }
   taosMemoryFree(pPool);
   return 0;
@@ -74,7 +74,7 @@ int vnodeOpenBufPool(SVnode *pVnode) {
 
   ASSERT(pVnode->pPool == NULL);
 
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < VNODE_BUFPOOL_SEGMENTS; i++) {
     // create pool
     if (vnodeBufPoolCreate(pVnode, size, &pPool)) {
       vError("vgId:%d, failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -121,6 +121,46 @@ void vnodeBufPoolReset(SVBufPool *pPool) {
 
   pPool->size = 0;
   pPool->ptr = pPool->node.data;
+}
+
+void *vnodeBufPoolMallocAligned(SVBufPool *pPool, int size) {
+  SVBufPoolNode *pNode;
+  void          *p = NULL;
+  uint8_t       *ptr = NULL;
+  int            paddingLen = 0;
+  ASSERT(pPool != NULL);
+
+  if (pPool->lock) taosThreadSpinLock(pPool->lock);
+
+  ptr = pPool->ptr;
+  paddingLen = (((long)ptr + 7) & ~7) - (long)ptr;
+
+  if (pPool->node.size >= pPool->ptr - pPool->node.data + size + paddingLen) {
+    // allocate from the anchor node
+    p = pPool->ptr + paddingLen;
+    size += paddingLen;
+    pPool->ptr = pPool->ptr + size;
+    pPool->size += size;
+  } else {
+    // allocate a new node
+    pNode = taosMemoryMalloc(sizeof(*pNode) + size);
+    if (pNode == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      if (pPool->lock) taosThreadSpinUnlock(pPool->lock);
+      return NULL;
+    }
+
+    p = pNode->data;
+    pNode->size = size;
+    pNode->prev = pPool->pTail;
+    pNode->pnext = &pPool->pTail;
+    pPool->pTail->pnext = &pNode->prev;
+    pPool->pTail = pNode;
+
+    pPool->size = pPool->size + sizeof(*pNode) + size;
+  }
+  if (pPool->lock) taosThreadSpinUnlock(pPool->lock);
+  return p;
 }
 
 void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {

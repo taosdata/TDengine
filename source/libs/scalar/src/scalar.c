@@ -327,7 +327,10 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     case QUERY_NODE_VALUE: {
       SValueNode *valueNode = (SValueNode *)node;
 
-      ASSERT(param->columnData == NULL);
+      if (param->columnData != NULL) {
+        sclError("columnData should be NULL");
+        SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+      }
       param->numOfRows = 1;
       int32_t code = sclCreateColumnInfoData(&valueNode->node.resType, 1, param);
       if (code != TSDB_CODE_SUCCESS) {
@@ -349,7 +352,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
       int32_t type = vectorGetConvertType(ctx->type.selfType, ctx->type.peerType);
       if (type == 0) {
-        type = nodeList->dataType.type;
+        type = nodeList->node.resType.type;
       }
 
       SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type));
@@ -507,7 +510,7 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx) {
     }
     case QUERY_NODE_NODE_LIST: {
       SNodeListNode *nodeList = (SNodeListNode *)pNode;
-      return nodeList->dataType.type;
+      return nodeList->node.resType.type;
     }
     case QUERY_NODE_COLUMN: {
       SColumnNode *colNode = (SColumnNode *)pNode;
@@ -1029,6 +1032,72 @@ bool sclContainsAggFuncNode(SNode *pNode) {
   return aggFunc;
 }
 
+
+int32_t sclConvertOpValueNodeTs(SOperatorNode *node, SScalarCtx *ctx) {
+  int32_t code = 0;
+  
+  if (node->pLeft && SCL_IS_VAR_VALUE_NODE(node->pLeft)) {
+    if (node->pRight && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pRight)->resType.type)) {
+      SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pRight)->resType.precision, (SValueNode*)node->pLeft));
+    }
+  } else if (node->pRight && SCL_IS_NOTNULL_CONST_NODE(node->pRight)) {
+    if (node->pLeft && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pLeft)->resType.type)) {
+      if (SCL_IS_VAR_VALUE_NODE(node->pRight)) {
+        SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pLeft)->resType.precision, (SValueNode*)node->pRight));
+      } else if (QUERY_NODE_NODE_LIST == node->pRight->type) {
+        SNode* pNode;
+        FOREACH(pNode, ((SNodeListNode*)node->pRight)->pNodeList) {
+          if (SCL_IS_VAR_VALUE_NODE(pNode)) {
+            SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pLeft)->resType.precision, (SValueNode*)pNode));
+          }
+        }
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  ctx->code = code;
+  return DEAL_RES_ERROR;
+}
+
+
+
+int32_t sclConvertCaseWhenValueNodeTs(SCaseWhenNode *node, SScalarCtx *ctx) {
+  int32_t code = 0;
+
+  if (NULL == node->pCase) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  if (SCL_IS_VAR_VALUE_NODE(node->pCase)) {
+    SNode* pNode;
+    FOREACH(pNode, node->pWhenThenList) {
+      SExprNode *pExpr = (SExprNode *)((SWhenThenNode *)pNode)->pWhen;
+      if (TSDB_DATA_TYPE_TIMESTAMP == pExpr->resType.type) {
+        SCL_ERR_JRET(sclConvertToTsValueNode(pExpr->resType.precision, (SValueNode*)node->pCase));
+        break;
+      }
+    }
+  } else if (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pCase)->resType.type) {
+    SNode* pNode;
+    FOREACH(pNode, node->pWhenThenList) {
+      if (SCL_IS_VAR_VALUE_NODE(((SWhenThenNode *)pNode)->pWhen)) {
+        SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pCase)->resType.precision, (SValueNode*)((SWhenThenNode *)pNode)->pWhen));
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  ctx->code = code;
+  return DEAL_RES_ERROR;
+}
+
 EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;
   int32_t        code = 0;
@@ -1038,15 +1107,6 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
     if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL) &&
         (!sclContainsAggFuncNode(node->pRight))) {
       return sclRewriteNullInOptr(pNode, ctx, node->opType);
-    }
-
-    if (IS_STR_DATA_TYPE(valueNode->node.resType.type) && node->pRight && nodesIsExprNode(node->pRight) &&
-        ((SExprNode *)node->pRight)->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
-      code = sclConvertToTsValueNode(((SExprNode *)node->pRight)->resType.precision, valueNode);
-      if (code) {
-        ctx->code = code;
-        return DEAL_RES_ERROR;
-      }
     }
 
     if (SCL_IS_COMPARISON_OPERATOR(node->opType) && SCL_DOWNGRADE_DATETYPE(valueNode->node.resType.type)) {
@@ -1059,15 +1119,6 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
     if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL) &&
         (!sclContainsAggFuncNode(node->pLeft))) {
       return sclRewriteNullInOptr(pNode, ctx, node->opType);
-    }
-
-    if (IS_STR_DATA_TYPE(valueNode->node.resType.type) && node->pLeft && nodesIsExprNode(node->pLeft) &&
-        ((SExprNode *)node->pLeft)->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
-      code = sclConvertToTsValueNode(((SExprNode *)node->pLeft)->resType.precision, valueNode);
-      if (code) {
-        ctx->code = code;
-        return DEAL_RES_ERROR;
-      }
     }
 
     if (SCL_IS_COMPARISON_OPERATOR(node->opType) && SCL_DOWNGRADE_DATETYPE(valueNode->node.resType.type)) {
@@ -1197,8 +1248,11 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
   return DEAL_RES_CONTINUE;
 }
 
+
 EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;
+
+  SCL_ERR_RET(sclConvertOpValueNodeTs(node, ctx));
 
   if ((!SCL_IS_CONST_NODE(node->pLeft)) || (!SCL_IS_CONST_NODE(node->pRight))) {
     return sclRewriteNonConstOperator(pNode, ctx);
@@ -1244,6 +1298,8 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
 
 EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
   SCaseWhenNode *node = (SCaseWhenNode *)*pNode;
+
+  SCL_ERR_RET(sclConvertCaseWhenValueNodeTs(node, ctx));
 
   if ((!SCL_IS_CONST_NODE(node->pCase)) || (!SCL_IS_CONST_NODE(node->pElse))) {
     return DEAL_RES_CONTINUE;

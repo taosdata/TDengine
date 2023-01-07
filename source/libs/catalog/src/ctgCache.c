@@ -718,11 +718,11 @@ int32_t ctgChkAuthFromCache(SCatalog *pCtg, char *user, char *dbFName, AUTH_TYPE
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pUser->readDbs && taosHashGet(pUser->readDbs, dbFName, strlen(dbFName)) && type == AUTH_TYPE_READ) {
+  if (pUser->readDbs && taosHashGet(pUser->readDbs, dbFName, strlen(dbFName)) && CTG_AUTH_READ(type)) {
     *pass = true;
   }
 
-  if (pUser->writeDbs && taosHashGet(pUser->writeDbs, dbFName, strlen(dbFName)) && type == AUTH_TYPE_WRITE) {
+  if (pUser->writeDbs && taosHashGet(pUser->writeDbs, dbFName, strlen(dbFName)) && CTG_AUTH_WRITE(type)) {
     *pass = true;
   }
 
@@ -2500,6 +2500,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
     CTG_LOCK(CTG_READ, &pCache->metaLock);
     if (NULL == pCache->pMeta) {
+      CTG_UNLOCK(CTG_READ, &pCache->metaLock);
       ctgDebug("tb %s meta not in cache, dbFName:%s", pName->tname, dbFName);
       ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
       taosArraySetSize(ctx->pResList, taosArrayGetSize(ctx->pResList) + 1);

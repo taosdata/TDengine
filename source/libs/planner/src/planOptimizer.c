@@ -1284,18 +1284,14 @@ static int32_t smaIndexOptFindSmaFunc(SNode* pQueryFunc, SNodeList* pSmaFuncs) {
   return -1;
 }
 
-static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNodeList* pSmaFuncs, SNodeList** pOutput,
-                                        int32_t* pWStrartIndex) {
+static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNodeList* pSmaFuncs,
+                                        SNodeList** pOutput) {
   SNodeList* pCols = NULL;
   SNode*     pFunc = NULL;
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    index = 0;
   int32_t    smaFuncIndex = -1;
-  *pWStrartIndex = -1;
   FOREACH(pFunc, pFuncs) {
-    if (FUNCTION_TYPE_WSTART == ((SFunctionNode*)pFunc)->funcType) {
-      *pWStrartIndex = index;
-    }
     smaFuncIndex = smaIndexOptFindSmaFunc(pFunc, pSmaFuncs);
     if (smaFuncIndex < 0) {
       break;
@@ -1317,8 +1313,7 @@ static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNo
   return code;
 }
 
-static int32_t smaIndexOptCouldApplyIndex(SScanLogicNode* pScan, STableIndexInfo* pIndex, SNodeList** pCols,
-                                          int32_t* pWStrartIndex) {
+static int32_t smaIndexOptCouldApplyIndex(SScanLogicNode* pScan, STableIndexInfo* pIndex, SNodeList** pCols) {
   SWindowLogicNode* pWindow = (SWindowLogicNode*)pScan->node.pParent;
   if (!smaIndexOptEqualInterval(pScan, pWindow, pIndex)) {
     return TSDB_CODE_SUCCESS;
@@ -1326,14 +1321,14 @@ static int32_t smaIndexOptCouldApplyIndex(SScanLogicNode* pScan, STableIndexInfo
   SNodeList* pSmaFuncs = NULL;
   int32_t    code = nodesStringToList(pIndex->expr, &pSmaFuncs);
   if (TSDB_CODE_SUCCESS == code) {
-    code = smaIndexOptCreateSmaCols(pWindow->pFuncs, pIndex->dstTbUid, pSmaFuncs, pCols, pWStrartIndex);
+    code = smaIndexOptCreateSmaCols(pWindow->pFuncs, pIndex->dstTbUid, pSmaFuncs, pCols);
   }
   nodesDestroyList(pSmaFuncs);
   return code;
 }
 
 static int32_t smaIndexOptApplyIndex(SLogicSubplan* pLogicSubplan, SScanLogicNode* pScan, STableIndexInfo* pIndex,
-                                     SNodeList* pSmaCols, int32_t wstrartIndex) {
+                                     SNodeList* pSmaCols) {
   SLogicNode* pSmaScan = NULL;
   int32_t     code = smaIndexOptCreateSmaScan(pScan, pIndex, pSmaCols, &pSmaScan);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1350,10 +1345,9 @@ static int32_t smaIndexOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogi
   for (int32_t i = 0; i < nindexes; ++i) {
     STableIndexInfo* pIndex = taosArrayGet(pScan->pSmaIndexes, i);
     SNodeList*       pSmaCols = NULL;
-    int32_t          wstrartIndex = -1;
-    code = smaIndexOptCouldApplyIndex(pScan, pIndex, &pSmaCols, &wstrartIndex);
+    code = smaIndexOptCouldApplyIndex(pScan, pIndex, &pSmaCols);
     if (TSDB_CODE_SUCCESS == code && NULL != pSmaCols) {
-      code = smaIndexOptApplyIndex(pLogicSubplan, pScan, pIndex, pSmaCols, wstrartIndex);
+      code = smaIndexOptApplyIndex(pLogicSubplan, pScan, pIndex, pSmaCols);
       taosArrayDestroyEx(pScan->pSmaIndexes, smaIndexOptDestroySmaIndex);
       pScan->pSmaIndexes = NULL;
       pCxt->optimized = true;
@@ -1544,6 +1538,11 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       code = adjustLogicNodeDataRequirement((SLogicNode*)pScan, pNode->resultDataOrder);
     }
     if (TSDB_CODE_SUCCESS == code) {
+      if (QUERY_NODE_LOGIC_PLAN_AGG == pNode->pParent->type) {
+        SAggLogicNode* pParent = (SAggLogicNode*)(pNode->pParent);
+        pParent->hasGroupKeyOptimized = true;
+      }
+
       NODES_CLEAR_LIST(pNode->pChildren);
       nodesDestroyNode((SNode*)pNode);
     }
@@ -1569,6 +1568,8 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
         break;
       }
     }
+    pAgg->hasGroupKeyOptimized = true;
+
     NODES_DESTORY_LIST(pAgg->pGroupKeys);
     if (TSDB_CODE_SUCCESS == code && start >= 0) {
       code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, start, pAgg);
@@ -1577,6 +1578,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   if (TSDB_CODE_SUCCESS == code) {
     code = partTagsOptRebuildTbanme(pScan->pGroupTags);
   }
+
   pCxt->optimized = true;
   return code;
 }
@@ -2378,6 +2380,9 @@ static bool tagScanOptShouldBeOptimized(SLogicNode* pNode) {
   }
   SScanLogicNode* pScan = (SScanLogicNode*)pNode;
   if (pScan->hasNormalCols) {
+    return false;
+  }
+  if (pScan->tableType == TSDB_SYSTEM_TABLE) {
     return false;
   }
   if (NULL == pNode->pParent || QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent) ||

@@ -112,26 +112,8 @@ int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
 }
 
 TdUcs4 *tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4) {
-  assert(taosMemorySize(target_ucs4) >= len_ucs4 * sizeof(TdUcs4));
+  ASSERT(taosMemorySize(target_ucs4) >= len_ucs4 * sizeof(TdUcs4));
   return memcpy(target_ucs4, source_ucs4, len_ucs4 * sizeof(TdUcs4));
-}
-
-int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
-#ifdef DISALLOW_NCHAR_WITHOUT_ICONV
-  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile TDengine.\n");
-  return -1;
-#else
-  iconv_t cd = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
-  size_t  ucs4_input_len = ucs4_max_len;
-  size_t  outLen = ucs4_max_len;
-  if (iconv(cd, (char **)&ucs4, &ucs4_input_len, &mbs, &outLen) == -1) {
-    iconv_close(cd);
-    return -1;
-  }
-
-  iconv_close(cd);
-  return (int32_t)(ucs4_max_len - outLen);
-#endif
 }
 
 typedef struct {
@@ -139,16 +121,31 @@ typedef struct {
   int8_t  inUse;
 } SConv;
 
-SConv  *gConv = NULL;
-int32_t convUsed = 0;
-int32_t gConvMaxNum = 0;
+typedef enum { M2C = 0, C2M } ConvType;
+
+// 0: Mbs --> Ucs4
+// 1: Ucs4--> Mbs
+SConv  *gConv[2] = {NULL, NULL};
+int32_t convUsed[2] = {0, 0};
+int32_t gConvMaxNum[2] = {0, 0};
 
 int32_t taosConvInit(void) {
-  gConvMaxNum = 512;
-  gConv = taosMemoryCalloc(gConvMaxNum, sizeof(SConv));
-  for (int32_t i = 0; i < gConvMaxNum; ++i) {
-    gConv[i].conv = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
-    if ((iconv_t)-1 == gConv[i].conv || (iconv_t)0 == gConv[i].conv) {
+  int8_t M2C = 0;
+  gConvMaxNum[M2C] = 512;
+  gConvMaxNum[1 - M2C] = 512;
+
+  gConv[M2C] = taosMemoryCalloc(gConvMaxNum[M2C], sizeof(SConv));
+  gConv[1 - M2C] = taosMemoryCalloc(gConvMaxNum[1 - M2C], sizeof(SConv));
+
+  for (int32_t i = 0; i < gConvMaxNum[M2C]; ++i) {
+    gConv[M2C][i].conv = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
+    if ((iconv_t)-1 == gConv[M2C][i].conv || (iconv_t)0 == gConv[M2C][i].conv) {
+      return -1;
+    }
+  }
+  for (int32_t i = 0; i < gConvMaxNum[1 - M2C]; ++i) {
+    gConv[1 - M2C][i].conv = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
+    if ((iconv_t)-1 == gConv[1 - M2C][i].conv || (iconv_t)0 == gConv[1 - M2C][i].conv) {
       return -1;
     }
   }
@@ -157,23 +154,33 @@ int32_t taosConvInit(void) {
 }
 
 void taosConvDestroy() {
-  for (int32_t i = 0; i < gConvMaxNum; ++i) {
-    iconv_close(gConv[i].conv);
+  int8_t M2C = 0;
+  for (int32_t i = 0; i < gConvMaxNum[M2C]; ++i) {
+    iconv_close(gConv[M2C][i].conv);
   }
-  taosMemoryFreeClear(gConv);
-  gConvMaxNum = -1;
+  for (int32_t i = 0; i < gConvMaxNum[1 - M2C]; ++i) {
+    iconv_close(gConv[1 - M2C][i].conv);
+  }
+  taosMemoryFreeClear(gConv[M2C]);
+  taosMemoryFreeClear(gConv[1 - M2C]);
+  gConvMaxNum[M2C] = -1;
+  gConvMaxNum[1 - M2C] = -1;
 }
 
-iconv_t taosAcquireConv(int32_t *idx) {
-  if (gConvMaxNum <= 0) {
+iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
+  if (gConvMaxNum[type] <= 0) {
     *idx = -1;
-    return iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
+    if (type == M2C) {
+      return iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
+    } else {
+      return iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
+    }
   }
 
   while (true) {
-    int32_t used = atomic_add_fetch_32(&convUsed, 1);
-    if (used > gConvMaxNum) {
-      used = atomic_sub_fetch_32(&convUsed, 1);
+    int32_t used = atomic_add_fetch_32(&convUsed[type], 1);
+    if (used > gConvMaxNum[type]) {
+      used = atomic_sub_fetch_32(&convUsed[type], 1);
       sched_yield();
       continue;
     }
@@ -181,50 +188,50 @@ iconv_t taosAcquireConv(int32_t *idx) {
     break;
   }
 
-  int32_t startId = taosGetSelfPthreadId() % gConvMaxNum;
+  int32_t startId = taosGetSelfPthreadId() % gConvMaxNum[type];
   while (true) {
-    if (gConv[startId].inUse) {
-      startId = (startId + 1) % gConvMaxNum;
+    if (gConv[type][startId].inUse) {
+      startId = (startId + 1) % gConvMaxNum[type];
       continue;
     }
 
-    int8_t old = atomic_val_compare_exchange_8(&gConv[startId].inUse, 0, 1);
+    int8_t old = atomic_val_compare_exchange_8(&gConv[type][startId].inUse, 0, 1);
     if (0 == old) {
       break;
     }
   }
 
   *idx = startId;
-  return gConv[startId].conv;
+  return gConv[type][startId].conv;
 }
 
-void taosReleaseConv(int32_t idx, iconv_t conv) {
+void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type) {
   if (idx < 0) {
     iconv_close(conv);
     return;
   }
 
-  atomic_store_8(&gConv[idx].inUse, 0);
-  atomic_sub_fetch_32(&convUsed, 1);
+  atomic_store_8(&gConv[type][idx].inUse, 0);
+  atomic_sub_fetch_32(&convUsed[type], 1);
 }
 
 bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
-  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile TDengine.\n");
+  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
   return -1;
 #else
   memset(ucs4, 0, ucs4_max_len);
 
   int32_t idx = -1;
-  iconv_t conv = taosAcquireConv(&idx);
+  iconv_t conv = taosAcquireConv(&idx, M2C);
   size_t  ucs4_input_len = mbsLength;
   size_t  outLeft = ucs4_max_len;
   if (iconv(conv, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
-    taosReleaseConv(idx, conv);
+    taosReleaseConv(idx, conv, M2C);
     return false;
   }
 
-  taosReleaseConv(idx, conv);
+  taosReleaseConv(idx, conv, M2C);
   if (len != NULL) {
     *len = (int32_t)(ucs4_max_len - outLeft);
     if (*len < 0) {
@@ -236,9 +243,27 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
 #endif
 }
 
+int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
+#ifdef DISALLOW_NCHAR_WITHOUT_ICONV
+  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
+  return -1;
+#else
+
+  int32_t idx = -1;
+  iconv_t conv = taosAcquireConv(&idx, C2M);
+  size_t  ucs4_input_len = ucs4_max_len;
+  size_t  outLen = ucs4_max_len;
+  if (iconv(conv, (char **)&ucs4, &ucs4_input_len, &mbs, &outLen) == -1) {
+    taosReleaseConv(idx, conv, C2M);
+    return -1;
+  }
+  taosReleaseConv(idx, conv, C2M);
+  return (int32_t)(ucs4_max_len - outLen);
+#endif
+}
 bool taosValidateEncodec(const char *encodec) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
-  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile TDengine.\n");
+  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
   return true;
 #else
   iconv_t cd = iconv_open(encodec, DEFAULT_UNICODE_ENCODEC);
@@ -330,8 +355,8 @@ int64_t taosStr2Int64(const char *str, char **pEnd, int32_t radix) {
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
 #endif
   return tmp;
 }
@@ -342,8 +367,8 @@ uint64_t taosStr2UInt64(const char *str, char **pEnd, int32_t radix) {
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
 #endif
   return tmp;
 }
@@ -354,8 +379,8 @@ int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
 #endif
   return tmp;
 }
@@ -366,8 +391,8 @@ uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
 #endif
   return tmp;
 }
@@ -378,10 +403,10 @@ int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
-  assert(tmp >= SHRT_MIN);
-  assert(tmp <= SHRT_MAX);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
+  ASSERT(tmp >= SHRT_MIN);
+  ASSERT(tmp <= SHRT_MAX);
 #endif
   return (int16_t)tmp;
 }
@@ -392,9 +417,9 @@ uint16_t taosStr2UInt16(const char *str, char **pEnd, int32_t radix) {
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
-  assert(tmp <= USHRT_MAX);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
+  ASSERT(tmp <= USHRT_MAX);
 #endif
   return (uint16_t)tmp;
 }
@@ -402,10 +427,10 @@ uint16_t taosStr2UInt16(const char *str, char **pEnd, int32_t radix) {
 int8_t taosStr2Int8(const char *str, char **pEnd, int32_t radix) {
   int32_t tmp = strtol(str, pEnd, radix);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
-  assert(tmp >= SCHAR_MIN);
-  assert(tmp <= SCHAR_MAX);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
+  ASSERT(tmp >= SCHAR_MIN);
+  ASSERT(tmp <= SCHAR_MAX);
 #endif
   return tmp;
 }
@@ -416,9 +441,9 @@ uint8_t taosStr2UInt8(const char *str, char **pEnd, int32_t radix) {
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
-  assert(tmp <= UCHAR_MAX);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
+  ASSERT(tmp <= UCHAR_MAX);
 #endif
   return tmp;
 }
@@ -426,9 +451,9 @@ uint8_t taosStr2UInt8(const char *str, char **pEnd, int32_t radix) {
 double taosStr2Double(const char *str, char **pEnd) {
   double tmp = strtod(str, pEnd);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
-  assert(tmp != HUGE_VAL);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
+  ASSERT(tmp != HUGE_VAL);
 #endif
   return tmp;
 }
@@ -436,10 +461,10 @@ double taosStr2Double(const char *str, char **pEnd) {
 float taosStr2Float(const char *str, char **pEnd) {
   float tmp = strtof(str, pEnd);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
-  assert(tmp != HUGE_VALF);
-  assert(tmp != NAN);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
+  ASSERT(tmp != HUGE_VALF);
+  ASSERT(tmp != NAN);
 #endif
   return tmp;
 }

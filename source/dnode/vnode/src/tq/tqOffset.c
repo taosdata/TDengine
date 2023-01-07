@@ -40,27 +40,42 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname) {
         if (code == 0) {
           break;
         } else {
-          ASSERT(0);
-          // TODO handle error
+          return -1;
         }
       }
       int32_t size = htonl(head.size);
       void*   memBuf = taosMemoryCalloc(1, size);
+      if (memBuf == NULL) {
+        return -1;
+      }
       if ((code = taosReadFile(pFile, memBuf, size)) != size) {
-        ASSERT(0);
-        // TODO handle error
+        taosMemoryFree(memBuf);
+        return -1;
       }
       STqOffset offset;
       SDecoder  decoder;
       tDecoderInit(&decoder, memBuf, size);
       if (tDecodeSTqOffset(&decoder, &offset) < 0) {
-        ASSERT(0);
+        taosMemoryFree(memBuf);
+        tDecoderClear(&decoder);
+        return -1;
       }
+
       tDecoderClear(&decoder);
       if (taosHashPut(pStore->pHash, offset.subKey, strlen(offset.subKey), &offset, sizeof(STqOffset)) < 0) {
-        ASSERT(0);
-        // TODO
+        return -1;
       }
+
+      if (offset.val.type == TMQ_OFFSET__LOG) {
+        STqHandle* pHandle = taosHashGet(pStore->pTq->pHandle, offset.subKey, strlen(offset.subKey));
+        if (pHandle) {
+          if (walRefVer(pHandle->pRef, offset.val.version) < 0) {
+            tqError("vgId: %d, tq handle %s ref ver %" PRId64 "error", pStore->pTq->pVnode->config.vgId,
+                    pHandle->subKey, offset.val.version);
+          }
+        }
+      }
+
       taosMemoryFree(memBuf);
     }
 
@@ -85,7 +100,9 @@ STqOffsetStore* tqOffsetOpen(STQ* pTq) {
   }
   char* fname = tqOffsetBuildFName(pStore->pTq->path, 0);
   if (tqOffsetRestoreFromFile(pStore, fname) < 0) {
-    ASSERT(0);
+    taosMemoryFree(fname);
+    taosMemoryFree(pStore);
+    return NULL;
   }
   taosMemoryFree(fname);
   return pStore;
@@ -124,7 +141,7 @@ int32_t tqOffsetCommitFile(STqOffsetStore* pStore) {
     const char* sysErrStr = strerror(errno);
     tqError("vgId:%d, cannot open file %s when commit offset since %s", pStore->pTq->pVnode->config.vgId, fname,
             sysErrStr);
-    ASSERT(0);
+    taosMemoryFree(fname);
     return -1;
   }
   taosMemoryFree(fname);
@@ -136,9 +153,7 @@ int32_t tqOffsetCommitFile(STqOffsetStore* pStore) {
     int32_t    bodyLen;
     int32_t    code;
     tEncodeSize(tEncodeSTqOffset, pOffset, bodyLen, code);
-    ASSERT(code == 0);
     if (code < 0) {
-      ASSERT(0);
       taosHashCancelIterate(pStore->pHash, pIter);
       return -1;
     }
@@ -154,7 +169,6 @@ int32_t tqOffsetCommitFile(STqOffsetStore* pStore) {
     // write file
     int64_t writeLen;
     if ((writeLen = taosWriteFile(pFile, buf, totLen)) != totLen) {
-      ASSERT(0);
       tqError("write offset incomplete, len %d, write len %" PRId64, bodyLen, writeLen);
       taosHashCancelIterate(pStore->pHash, pIter);
       taosMemoryFree(buf);

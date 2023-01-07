@@ -78,6 +78,8 @@ typedef enum {
 } ESyncState;
 
 typedef struct SNodeInfo {
+  int64_t  clusterId;
+  int32_t  nodeId;
   uint16_t nodePort;
   char     nodeFqdn[TSDB_FQDN_LEN];
 } SNodeInfo;
@@ -153,10 +155,10 @@ typedef struct SSyncFSM {
   void (*FpBecomeFollowerCb)(const struct SSyncFSM* pFsm);
 
   int32_t (*FpGetSnapshot)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void* pReaderParam, void** ppReader);
-  int32_t (*FpGetSnapshotInfo)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
+  void (*FpGetSnapshotInfo)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
   int32_t (*FpSnapshotStartRead)(const struct SSyncFSM* pFsm, void* pReaderParam, void** ppReader);
-  int32_t (*FpSnapshotStopRead)(const struct SSyncFSM* pFsm, void* pReader);
+  void (*FpSnapshotStopRead)(const struct SSyncFSM* pFsm, void* pReader);
   int32_t (*FpSnapshotDoRead)(const struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len);
 
   int32_t (*FpSnapshotStartWrite)(const struct SSyncFSM* pFsm, void* pWriterParam, void** ppWriter);
@@ -230,6 +232,7 @@ int64_t syncOpen(SSyncInfo* pSyncInfo);
 int32_t syncStart(int64_t rid);
 void    syncStop(int64_t rid);
 void    syncPreStop(int64_t rid);
+void    syncPostStop(int64_t rid);
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak, int64_t* seq);
 int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg);
 int32_t syncReconfig(int64_t rid, SSyncCfg* pCfg);

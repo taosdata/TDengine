@@ -66,32 +66,40 @@ function buildTDengine() {
 
 function runCasesOneByOne () {
 	while read -r line; do
-		cmd=`echo $line | cut -d',' -f 5`		
-		if [[ "$2" == "sim" ]] && [[ $cmd == *"test.sh"* ]]; then
-			case=`echo $cmd | cut -d' ' -f 3`
-			start_time=`date +%s`
-			date +%F\ %T | tee -a  $TDENGINE_COVERAGE_REPORT  && $cmd > /dev/null 2>&1 && \
-			echo -e "${GREEN}$case success${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT \
-			|| echo -e "${RED}$case failed${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT
-			end_time=`date +%s`
-			echo execution time of $case was `expr $end_time - $start_time`s. | tee -a $TDENGINE_COVERAGE_REPORT
-		elif [[ "$2" == "system-test" ]] && [[ $line == *"system-test"* ]]; then
-			case=`echo $cmd | cut -d' ' -f 4`
-			start_time=`date +%s`
-			date +%F\ %T | tee -a $TDENGINE_COVERAGE_REPORT && $cmd > /dev/null 2>&1 && \
-			echo -e "${GREEN}$case success${NC}" | tee -a $TDENGINE_COVERAGE_REPORT || \
-			echo -e "${RED}$case failed${NC}" | tee -a $TDENGINE_COVERAGE_REPORT
-			end_time=`date +%s`
-			echo execution time of $case was `expr $end_time - $start_time`s. | tee -a $TDENGINE_COVERAGE_REPORT
-		elif [[ "$2" == "develop-test" ]] && [[ $line == *"develop-test"* ]]; then
-			case=`echo $cmd | cut -d' ' -f 4`
-			start_time=`date +%s`
-			date +%F\ %T | tee -a $TDENGINE_COVERAGE_REPORT && $cmd > /dev/null 2>&1 && \
-			echo -e "${GREEN}$case success${NC}" | tee -a $TDENGINE_COVERAGE_REPORT || \
-			echo -e "${RED}$case failed${NC}" | tee -a $TDENGINE_COVERAGE_REPORT
-			end_time=`date +%s`
-			echo execution time of $case was `expr $end_time - $start_time`s. | tee -a $TDENGINE_COVERAGE_REPORT			
-		fi
+		if [[ "$line" != "#"* ]]; then
+			cmd=`echo $line | cut -d',' -f 5`
+            if [[ "$2" == "sim" ]] && [[ $line == *"script"* ]]; then
+                case=`echo $cmd | cut -d' ' -f 3`
+                start_time=`date +%s`
+                date +%F\ %T | tee -a  $TDENGINE_COVERAGE_REPORT  && $cmd > /dev/null 2>&1 && \
+                echo -e "${GREEN}$case success${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT \
+                || echo -e "${RED}$case failed${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT
+                end_time=`date +%s`
+                echo execution time of $case was `expr $end_time - $start_time`s. | tee -a $TDENGINE_COVERAGE_REPORT
+            elif [[ "$2" == "system-test" ]] && [[ $line == *"system-test"* ]]; then
+                if [[ "$cmd" == *"pytest.sh"* ]]; then
+                    cmd=`echo $cmd | cut -d' ' -f 2-20`
+                fi
+                case=`echo $cmd | cut -d' ' -f 4-20`
+                start_time=`date +%s`
+                date +%F\ %T | tee -a $TDENGINE_COVERAGE_REPORT && $cmd > /dev/null 2>&1 && \
+                echo -e "${GREEN}$case success${NC}" | tee -a $TDENGINE_COVERAGE_REPORT || \
+                echo -e "${RED}$case failed${NC}" | tee -a $TDENGINE_COVERAGE_REPORT
+                end_time=`date +%s`
+                echo execution time of $case was `expr $end_time - $start_time`s. | tee -a $TDENGINE_COVERAGE_REPORT
+            elif [[ "$2" == "develop-test" ]] && [[ $line == *"develop-test"* ]]; then
+                if [[ "$cmd" == *"pytest.sh"* ]]; then
+                    cmd=`echo $cmd | cut -d' ' -f 2-20`
+                fi
+                case=`echo $cmd | cut -d' ' -f 4-20`
+                start_time=`date +%s`
+                date +%F\ %T | tee -a $TDENGINE_COVERAGE_REPORT && $cmd > /dev/null 2>&1 && \
+                echo -e "${GREEN}$case success${NC}" | tee -a $TDENGINE_COVERAGE_REPORT || \
+                echo -e "${RED}$case failed${NC}" | tee -a $TDENGINE_COVERAGE_REPORT
+                end_time=`date +%s`
+                echo execution time of $case was `expr $end_time - $start_time`s. | tee -a $TDENGINE_COVERAGE_REPORT
+            fi
+        fi
 	done < $1
 }
 

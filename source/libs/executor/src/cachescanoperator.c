@@ -90,7 +90,7 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
 
     uint64_t suid = tableListGetSuid(pTableList);
     code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, totalTables,
-                                   taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader);
+                                   taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader, pTaskInfo->id.str);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -216,7 +216,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       }
 
       tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
-                              taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader);
+                              taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader, pTaskInfo->id.str);
       taosArrayClear(pInfo->pUidList);
 
       code = tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pUidList);

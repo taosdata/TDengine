@@ -957,9 +957,13 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   for (int32_t i = 0; i < size; ++i) {
     SRpcHandleInfo *pInfo = taosArrayGet(pTrans->pRpcArray, i);
     if (pInfo->handle != NULL) {
-      if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+      if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED) {
         code = TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL;
       }
+      if (code == TSDB_CODE_SYN_TIMEOUT) {
+        code = TSDB_CODE_MND_TRNAS_SYNC_TIMEOUT;
+      }
+
       if (i != 0 && code == 0) {
         code = TSDB_CODE_MNODE_NOT_FOUND;
       }

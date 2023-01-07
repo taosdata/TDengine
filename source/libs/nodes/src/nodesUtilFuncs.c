@@ -321,8 +321,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateTableStmt));
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
       return makeNode(type, sizeof(SCreateSubTableClause));
-    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
-      return makeNode(type, sizeof(SCreateMultiTableStmt));
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+      return makeNode(type, sizeof(SCreateMultiTablesStmt));
     case QUERY_NODE_DROP_TABLE_CLAUSE:
       return makeNode(type, sizeof(SDropTableClause));
     case QUERY_NODE_DROP_TABLE_STMT:
@@ -434,6 +434,9 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SShowDnodeVariablesStmt));
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return makeNode(type, sizeof(SShowCreateDatabaseStmt));
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
+      return makeNode(type, sizeof(SShowAliveStmt));      
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return makeNode(type, sizeof(SShowCreateTableStmt));
@@ -832,7 +835,8 @@ void nodesDestroyNode(SNode* pNode) {
       if (pStmt->freeArrayFunc) {
         pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
       }
-      tdDestroySVCreateTbReq(&pStmt->createTblReq);
+      tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
+      taosMemoryFreeClear(pStmt->pCreateTblReq);
       taosCloseFile(&pStmt->fp);
       break;
     }
@@ -861,8 +865,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->pOptions);
       break;
     }
-    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
-      nodesDestroyList(((SCreateMultiTableStmt*)pNode)->pSubTables);
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+      nodesDestroyList(((SCreateMultiTablesStmt*)pNode)->pSubTables);
       break;
     case QUERY_NODE_DROP_TABLE_CLAUSE:  // no pointer field
       break;
@@ -959,6 +963,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:    
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:

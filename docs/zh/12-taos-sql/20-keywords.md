@@ -18,6 +18,7 @@ description: TDengine 保留关键字的详细列表
 - ADD
 - AFTER
 - AGGREGATE
+- ALIVE
 - ALL
 - ALTER
 - ANALYZE

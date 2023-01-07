@@ -41,6 +41,57 @@
     }                                                                     \
   } while (0)
 
+// define signed number sum with check overflow
+#define CHECK_OVERFLOW_SUM_SIGNED(out, val)                                      \
+  if (out->sum.overflow) {                                                       \
+    out->sum.dsum += val;                                                        \
+  } else if (out->sum.isum > 0 && val > 0 && INT64_MAX - out->sum.isum <= val || \
+             out->sum.isum < 0 && val < 0 && INT64_MIN - out->sum.isum >= val) { \
+    double dsum = (double)out->sum.isum;                                         \
+    out->sum.overflow = true;                                                    \
+    out->sum.dsum = dsum + val;                                                  \
+  } else {                                                                       \
+    out->sum.isum += val;                                                        \
+  }
+
+// val is big than INT64_MAX, val come from merge
+#define CHECK_OVERFLOW_SUM_SIGNED_BIG(out, val, big)                             \
+  if (out->sum.overflow) {                                                       \
+    out->sum.dsum += val;                                                        \
+  } else if (out->sum.isum > 0 && val > 0 && INT64_MAX - out->sum.isum <= val || \
+             out->sum.isum < 0 && val < 0 && INT64_MIN - out->sum.isum >= val || \
+             big) {                                                              \
+    double dsum = (double)out->sum.isum;                                         \
+    out->sum.overflow = true;                                                    \
+    out->sum.dsum = dsum + val;                                                  \
+  } else {                                                                       \
+    out->sum.isum += val;                                                        \
+  }
+
+// define unsigned number sum with check overflow
+#define CHECK_OVERFLOW_SUM_UNSIGNED(out, val)                 \
+  if (out->sum.overflow) {                                    \
+    out->sum.dsum += val;                                     \
+  } else if (UINT64_MAX - out->sum.usum <= val) {             \
+    double dsum = (double)out->sum.usum;                      \
+    out->sum.overflow = true;                                 \
+    out->sum.dsum = dsum + val;                               \
+  } else {                                                    \
+    out->sum.usum += val;                                     \
+  }
+
+// val is big than UINT64_MAX, val come from merge
+#define CHECK_OVERFLOW_SUM_UNSIGNED_BIG(out, val, big)        \
+  if (out->sum.overflow) {                                    \
+    out->sum.dsum += val;                                     \
+  } else if (UINT64_MAX - out->sum.usum <= val || big) {      \
+    double dsum = (double)out->sum.usum;                      \
+    out->sum.overflow = true;                                 \
+    out->sum.dsum = dsum + val;                               \
+  } else {                                                    \
+    out->sum.usum += val;                                     \
+  }
+
 typedef struct SAvgRes {
   double  result;
   SSumRes sum;
@@ -315,13 +366,12 @@ bool avgFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
 
 static int32_t calculateAvgBySMAInfo(SAvgRes* pRes, int32_t numOfRows, int32_t type, const SColumnDataAgg* pAgg) {
   int32_t numOfElem = numOfRows - pAgg->numOfNull;
-  ASSERT(numOfElem >= 0);
 
   pRes->count += numOfElem;
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    pRes->sum.isum += pAgg->sum;
+    CHECK_OVERFLOW_SUM_SIGNED(pRes, pAgg->sum);
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    pRes->sum.usum += pAgg->sum;
+    CHECK_OVERFLOW_SUM_UNSIGNED(pRes, pAgg->sum);
   } else if (IS_FLOAT_TYPE(type)) {
     pRes->sum.dsum += GET_DOUBLE_VAL((const char*)&(pAgg->sum));
   }
@@ -344,7 +394,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
 
         numOfElems += 1;
         pRes->count += 1;
-        pRes->sum.isum += plist[i];
+        CHECK_OVERFLOW_SUM_SIGNED(pRes, plist[i])
       }
 
       break;
@@ -359,7 +409,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
 
         numOfElems += 1;
         pRes->count += 1;
-        pRes->sum.isum += plist[i];
+        CHECK_OVERFLOW_SUM_SIGNED(pRes, plist[i])
       }
       break;
     }
@@ -373,7 +423,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
 
         numOfElems += 1;
         pRes->count += 1;
-        pRes->sum.isum += plist[i];
+        CHECK_OVERFLOW_SUM_SIGNED(pRes, plist[i])
       }
 
       break;
@@ -388,7 +438,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
 
         numOfElems += 1;
         pRes->count += 1;
-        pRes->sum.isum += plist[i];
+        CHECK_OVERFLOW_SUM_SIGNED(pRes, plist[i])
       }
       break;
     }
@@ -402,7 +452,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
 
         numOfElems += 1;
         pRes->count += 1;
-        pRes->sum.usum += plist[i];
+        CHECK_OVERFLOW_SUM_UNSIGNED(pRes, plist[i])
       }
 
       break;
@@ -417,7 +467,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
 
         numOfElems += 1;
         pRes->count += 1;
-        pRes->sum.usum += plist[i];
+        CHECK_OVERFLOW_SUM_UNSIGNED(pRes, plist[i])
       }
       break;
     }
@@ -431,7 +481,7 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
 
         numOfElems += 1;
         pRes->count += 1;
-        pRes->sum.usum += plist[i];
+        CHECK_OVERFLOW_SUM_UNSIGNED(pRes, plist[i])
       }
 
       break;
@@ -446,7 +496,8 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
 
         numOfElems += 1;
         pRes->count += 1;
-        pRes->sum.usum += plist[i];
+        CHECK_OVERFLOW_SUM_UNSIGNED(pRes, plist[i])
+        
       }
       break;
     }
@@ -527,9 +578,9 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
         } else {
           for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
             if (type == TSDB_DATA_TYPE_TINYINT) {
-              pAvgRes->sum.isum += plist[i];
+              CHECK_OVERFLOW_SUM_SIGNED(pAvgRes, plist[i])
             } else {
-              pAvgRes->sum.usum += (uint8_t)plist[i];
+              CHECK_OVERFLOW_SUM_UNSIGNED(pAvgRes, (uint8_t)plist[i])
             }
           }
         }
@@ -546,9 +597,9 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
         } else {
           for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
             if (type == TSDB_DATA_TYPE_SMALLINT) {
-              pAvgRes->sum.isum += plist[i];
+              CHECK_OVERFLOW_SUM_SIGNED(pAvgRes, plist[i])
             } else {
-              pAvgRes->sum.usum += (uint16_t)plist[i];
+              CHECK_OVERFLOW_SUM_UNSIGNED(pAvgRes, (uint16_t)plist[i])
             }
           }
         }
@@ -565,9 +616,9 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
         } else {
           for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
             if (type == TSDB_DATA_TYPE_INT) {
-              pAvgRes->sum.isum += plist[i];
+              CHECK_OVERFLOW_SUM_SIGNED(pAvgRes, plist[i])
             } else {
-              pAvgRes->sum.usum += (uint32_t)plist[i];
+              CHECK_OVERFLOW_SUM_UNSIGNED(pAvgRes, (uint32_t)plist[i])
             }
           }
         }
@@ -584,9 +635,9 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
         } else {
           for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
             if (type == TSDB_DATA_TYPE_BIGINT) {
-              pAvgRes->sum.isum += plist[i];
+              CHECK_OVERFLOW_SUM_SIGNED(pAvgRes, plist[i])
             } else {
-              pAvgRes->sum.usum += (uint64_t)plist[i];
+              CHECK_OVERFLOW_SUM_UNSIGNED(pAvgRes, (uint64_t)plist[i])
             }
           }
         }
@@ -620,7 +671,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
         break;
       }
       default:
-        ASSERT(0);
+        return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
     }
   } else {
     numOfElem = doAddNumericVector(pCol, type, pInput, pAvgRes);
@@ -639,9 +690,11 @@ static void avgTransferInfo(SAvgRes* pInput, SAvgRes* pOutput) {
 
   pOutput->type = pInput->type;
   if (IS_SIGNED_NUMERIC_TYPE(pOutput->type)) {
-    pOutput->sum.isum += pInput->sum.isum;
+    bool overflow = pInput->sum.overflow;
+    CHECK_OVERFLOW_SUM_SIGNED_BIG(pOutput, (overflow ? pInput->sum.dsum : pInput->sum.isum), overflow);
   } else if (IS_UNSIGNED_NUMERIC_TYPE(pOutput->type)) {
-    pOutput->sum.usum += pInput->sum.usum;
+    bool overflow = pInput->sum.overflow;
+    CHECK_OVERFLOW_SUM_UNSIGNED_BIG(pOutput, (overflow ? pInput->sum.dsum : pInput->sum.usum), overflow);
   } else {
     pOutput->sum.dsum += pInput->sum.dsum;
   }
@@ -652,7 +705,9 @@ static void avgTransferInfo(SAvgRes* pInput, SAvgRes* pOutput) {
 int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pCol = pInput->pData[0];
-  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
+  if (pCol->info.type != TSDB_DATA_TYPE_BINARY) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
 
   SAvgRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
@@ -741,9 +796,9 @@ int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   int16_t              type = pDBuf->type == TSDB_DATA_TYPE_NULL ? pSBuf->type : pDBuf->type;
 
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    pDBuf->sum.isum += pSBuf->sum.isum;
+    CHECK_OVERFLOW_SUM_SIGNED(pDBuf, pSBuf->sum.isum)
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    pDBuf->sum.usum += pSBuf->sum.usum;
+    CHECK_OVERFLOW_SUM_UNSIGNED(pDBuf, pSBuf->sum.usum)
   } else {
     pDBuf->sum.dsum += pSBuf->sum.dsum;
   }
@@ -759,7 +814,10 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t  type = pRes->type;
 
   if (pRes->count > 0) {
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+    if(pRes->sum.overflow) {
+      // overflow flag set , use dsum
+      pRes->result = pRes->sum.dsum / ((double)pRes->count);
+    }else if (IS_SIGNED_NUMERIC_TYPE(type)) {
       pRes->result = pRes->sum.isum / ((double)pRes->count);
     } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
       pRes->result = pRes->sum.usum / ((double)pRes->count);

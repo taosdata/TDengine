@@ -24,13 +24,13 @@ void pressTabKey(SShellCmd* cmd);
 // press othr key
 void pressOtherKey(char c);
 
-// init shell auto funciton , shell start call once
+// init shell auto function , shell start call once
 bool shellAutoInit();
 
 // set conn
 void shellSetConn(TAOS* conn);
 
-// exit shell auto funciton, shell exit call once
+// exit shell auto function, shell exit call once
 void shellAutoExit();
 
 // callback autotab module

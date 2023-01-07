@@ -17,6 +17,7 @@ The following list shows all reserved keywords:
 - ADD
 - AFTER
 - AGGREGATE
+- ALIVE
 - ALL
 - ALTER
 - ANALYZE

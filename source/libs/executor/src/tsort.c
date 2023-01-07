@@ -270,6 +270,10 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
       int32_t* pPgId = taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
       void* pPage = getBufPage(pHandle->pBuf, *pPgId);
+      if (NULL == pPage) {
+        return terrno;
+      }
+      
       code = blockDataFromBuf(pSource->src.pBlock, pPage);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -337,6 +341,11 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
         int32_t* pPgId = taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
         void*   pPage = getBufPage(pHandle->pBuf, *pPgId);
+        if (pPage == NULL) {
+          qError("failed to get buffer, code:%s", tstrerror(terrno));
+          return terrno;
+        }
+
         int32_t code = blockDataFromBuf(pSource->src.pBlock, pPage);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
@@ -800,6 +809,7 @@ STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
     }
   }
 
+  // all sources are completed.
   if (pHandle->cmpParam.numOfSources == pHandle->numOfCompletedSources) {
     return NULL;
   }

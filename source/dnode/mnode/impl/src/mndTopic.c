@@ -384,7 +384,11 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.subType = pCreate->subType;
   topicObj.withMeta = pCreate->withMeta;
   if (topicObj.withMeta) {
-    ASSERT(topicObj.subType != TOPIC_SUB_TYPE__COLUMN);
+    if (topicObj.subType == TOPIC_SUB_TYPE__COLUMN) {
+      terrno = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
+      mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      return -1;
+    }
   }
 
   if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
@@ -499,7 +503,6 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       if (code < 0) {
         sdbRelease(pSdb, pVgroup);
         mndTransDrop(pTrans);
-        ASSERT(0);
         return -1;
       }
       void    *buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
@@ -696,20 +699,21 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     sdbRelease(pSdb, pConsumer);
   }
 
-#if 0
-  if (pTopic->refConsumerCnt != 0) {
-    mndReleaseTopic(pMnode, pTopic);
-    terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-    mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db) != 0) {
     return -1;
   }
-#endif
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "drop-topic");
-  mndTransSetDbName(pTrans, pTopic->db, NULL);
   if (pTrans == NULL) {
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
     mndReleaseTopic(pMnode, pTopic);
+    return -1;
+  }
+
+  mndTransSetDbName(pTrans, pTopic->db, NULL);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    mndReleaseTopic(pMnode, pTopic);
+    mndTransDrop(pTrans);
     return -1;
   }
 
@@ -717,7 +721,6 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   // TODO check if rebalancing
   if (mndDropSubByTopic(pMnode, pTrans, dropReq.name) < 0) {
-    /*ASSERT(0);*/
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
     mndTransDrop(pTrans);
     mndReleaseTopic(pMnode, pTopic);
