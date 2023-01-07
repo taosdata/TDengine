@@ -264,7 +264,7 @@ char* key_tags[] = {"tags("};
 char* key_select[] = {"select "};
 
 //
-//  ------- gobal variant define ---------
+//  ------- global variant define ---------
 //
 int32_t firstMatchIndex = -1;  // first match shellCommands index
 int32_t lastMatchIndex = -1;   // last match shellCommands index
@@ -329,7 +329,15 @@ int        cntDel = 0;        // delete byte count after next press tab
 // show auto tab introduction
 void printfIntroduction() {
   printf("   ******************************  Tab Completion  **********************************\n");
-  printf("   *   The TDengine CLI supports tab completion for a variety of items,             *\n");
+  char secondLine[160] = "\0";
+  sprintf(secondLine, "   *   The %s CLI supports tab completion for a variety of items, ",
+          shell.info.cusName);
+  printf("%s", secondLine);
+  int secondLineLen = strlen(secondLine);
+  while (84-(secondLineLen++) > 0) {
+    printf(" ");
+  }
+  printf("*\n");
   printf("   *   including database names, table names, function names and keywords.          *\n");
   printf("   *   The full list of shortcut keys is as follows:                                *\n");
   printf("   *    [ TAB ]        ......  complete the current word                            *\n");
@@ -344,7 +352,7 @@ void printfIntroduction() {
 }
 
 void showHelp() {
-  printf("\nThe TDengine CLI supports the following commands:");
+  printf("\nThe %s CLI supports the following commands:", shell.info.cusName);
   printf(
       "\n\
   ----- A ----- \n\
@@ -595,7 +603,7 @@ void GenerateVarType(int type, char** p, int count) {
 //  -------------------- shell auto ----------------
 //
 
-// init shell auto funciton , shell start call once
+// init shell auto function , shell start call once
 bool shellAutoInit() {
   // command
   int32_t count = SHELL_COMMAND_COUNT();
@@ -628,7 +636,7 @@ bool shellAutoInit() {
 // set conn
 void shellSetConn(TAOS* conn) { varCon = conn; }
 
-// exit shell auto funciton, shell exit call once
+// exit shell auto function, shell exit call once
 void shellAutoExit() {
   // free command
   int32_t count = SHELL_COMMAND_COUNT();
@@ -645,7 +653,7 @@ void shellAutoExit() {
     }
   }
   taosThreadMutexUnlock(&tiresMutex);
-  // destory
+  // destroy
   taosThreadMutexDestroy(&tiresMutex);
 
   // free threads
@@ -666,7 +674,7 @@ void shellAutoExit() {
 //
 //  -------------------  auto ptr for tires --------------------------
 //
-bool setNewAuotPtr(int type, STire* pNew) {
+bool setNewAutoPtr(int type, STire* pNew) {
   if (pNew == NULL) return false;
 
   taosThreadMutexLock(&tiresMutex);
@@ -709,7 +717,7 @@ void putBackAutoPtr(int type, STire* tire) {
   if (tires[type] != tire) {
     // update by out,  can't put back , so free
     if (--tire->ref == 1) {
-      // support multi thread getAuotPtr
+      // support multi thread getAutoPtr
       freeTire(tire);
     }
 
@@ -767,7 +775,7 @@ int writeVarNames(int type, TAOS_RES* tres) {
   } while (row != NULL);
 
   // replace old tire
-  setNewAuotPtr(type, tire);
+  setNewAutoPtr(type, tire);
 
   return numOfRows;
 }
@@ -1035,7 +1043,7 @@ SWords* matchCommand(SWords* input, bool continueSearch) {
   for (int32_t i = 0; i < count; i++) {
     SWords* shellCommand = shellCommands + i;
     if (continueSearch && lastMatchIndex != -1 && i <= lastMatchIndex) {
-      // new match must greate than lastMatchIndex
+      // new match must greater than lastMatchIndex
       if (varMode && i == lastMatchIndex) {
         // do nothing, var match on lastMatchIndex
       } else {
@@ -1164,7 +1172,7 @@ void createInputFromFirst(SWords* input, SWords* firstMatch) {
   for (int i = 0; i < firstMatch->matchIndex && word; i++) {
     // combine source from each word
     strncpy(input->source + input->source_len, word->word, word->len);
-    strcat(input->source, " ");          // append blank splite
+    strcat(input->source, " ");          // append blank space
     input->source_len += word->len + 1;  // 1 is blank length
     // move next
     word = word->next;
@@ -1393,7 +1401,7 @@ bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* sql, int32_t len) {
       return true;
     }
 
-    // fill funciton
+    // fill function
     if (fieldEnd) {
       // fields is end , need match keyword
       ret = fillWithType(con, cmd, last, WT_VAR_KEYWORD);
@@ -1576,7 +1584,7 @@ bool matchCreateTable(TAOS* con, SShellCmd* cmd) {
 
   // tb options
   if (!ret) {
-    // find like create talbe st (...) tags(..)  <here is fill tb option area>
+    // find like create table st (...) tags(..)  <here is fill tb option area>
     char* p1 = strchr(ps, ')');  // first ')' end
     if (p1) {
       if (strchr(p1 + 1, ')')) {  // second ')' end

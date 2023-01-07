@@ -26,6 +26,10 @@ ELSE ()
     SET(LINK_WEBSOCKET "")
 ENDIF ()
 
+IF (CUS_NAME OR CUS_PROMPT)
+    ADD_DEFINITIONS(-I${CMAKE_CURRENT_SOURCE_DIR}/../../../enterprise/packaging)
+ENDIF (CUS_NAME)
+
 if(TD_WINDOWS)
     target_link_libraries(shell PUBLIC taos_static ${LINK_WEBSOCKET})
 else()
