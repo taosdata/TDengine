@@ -19,7 +19,7 @@ fi
 
 echo "generate cloud package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 if [ ! -d $communityDir ]; then
-  cd $topDir
+  cd $communityDir
   mkdir -p debug
   cd debug
   cmake .. -DBUILD_TAOSX=true
@@ -29,7 +29,7 @@ cd $communityDir
 rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
-./packaging/release.sh -v cloud -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+${topDir}/enterprise/packaging/release.sh -v cloud -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
 
 
 # modify tar.gz to append taoskeeper
@@ -75,7 +75,7 @@ if [ -d $archiveDir ]; then
     cd $archiveDir
     cp -f $communityDir/release/* ./
 else
-    echo "Cannont found $archiveDir on this machine"
+    echo "Cannot found $archiveDir on this machine"
 fi
 
 echo " packaging release done! "

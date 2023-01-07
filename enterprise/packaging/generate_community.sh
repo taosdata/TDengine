@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# set -x
+#set -x
 
 version=$1
 versionComp=$2
@@ -18,9 +18,9 @@ if [ ! -d $archiveDir ]; then
   mkdir -p $archiveDir || echo -e "failed to create $archiveDir"
 fi
 
-echo "generate commnunity package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+echo "generate community package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 if [ ! -d $communityDir ]; then
-  cd $topDir
+  cd $communityDir
   mkdir -p debug
   cd debug
   cmake ..
@@ -36,13 +36,13 @@ rm -rf rpms/*
 
 # generate lite version in x64
 if [ "$cpuType" == "x64" ]; then
-  echo "./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true"
-  ./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true
+  echo "../enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true"
+  ../enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true
 fi
 
 # need build lite package first. standard need rebuild to include blm3
-echo "./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType"
-./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+echo "../enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType"
+../enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
 
 # modify tar.gz to append taoskeeper
 cd $communityDir/release
@@ -96,7 +96,7 @@ if [ -d $archiveDir ]; then
         echo "build rpms package at CentOS Linux"
     fi
 else
-    echo "Cannont found $archiveDir on this machine"
+    echo "Cannot found $archiveDir on this machine"
 fi
 
 echo " packaging release done! "
