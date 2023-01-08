@@ -368,6 +368,9 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
 #endif
   ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
   if (pFile->fd < 0) {
+#if FILE_WITH_LOCK
+    taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
     return -1;
   }
   int64_t leftbytes = count;
@@ -415,6 +418,9 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 #endif
   ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
   if (pFile->fd < 0) {
+#if FILE_WITH_LOCK
+    taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
     return -1;
   }
 #ifdef WINDOWS
@@ -479,6 +485,9 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
 #endif
   ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
   if (pFile->fd < 0) {
+#if FILE_WITH_LOCK
+    taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
     return 0;
   }
 #ifdef WINDOWS

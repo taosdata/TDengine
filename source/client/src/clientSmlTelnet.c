@@ -184,7 +184,10 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
         if(unlikely(kv.length > maxKV->length)){
           maxKV->length = kv.length;
           SSmlSTableMeta *tableMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, elements->measure, elements->measureLen, NULL);
-          ASSERT(tableMeta != NULL);
+          if(unlikely(NULL == tableMeta)){
+            uError("SML:0x%" PRIx64 " NULL == tableMeta", info->id);
+            return TSDB_CODE_SML_INTERNAL_ERROR;
+          }
 
           SSmlKv *oldKV = (SSmlKv *)taosArrayGet(tableMeta->tags, cnt);
           oldKV->length = kv.length;
@@ -240,6 +243,7 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
       tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);
       if (tinfo->tableDataCtx == NULL) {
         smlBuildInvalidDataMsg(&info->msgBuf, "smlInitTableDataCtx error", NULL);
+        smlDestroyTableInfo(info, tinfo);
         return TSDB_CODE_SML_INVALID_DATA;
       }
     }

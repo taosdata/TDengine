@@ -353,6 +353,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   ret = tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData);
   if (ret < 0) {
+    tdbTbcClose(pUidIdxc);
     tdbTbcClose(pTbDbc);
 
     terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
@@ -1210,6 +1211,8 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   ret = metaDecodeEntry(&dc, &entry);
   if (ret != 0) {
     tDecoderClear(&dc);
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
     metaError("meta/table: invalide ret: %" PRId32 " alt tb options failed.", ret);
     return -1;
   }
