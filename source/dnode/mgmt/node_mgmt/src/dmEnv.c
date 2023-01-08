@@ -268,3 +268,8 @@ void dmReportStartup(const char *pName, const char *pDesc) {
   tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
   dDebug("step:%s, %s", pStartup->name, pStartup->desc);
 }
+
+int64_t dmGetClusterId() {
+  return global.data.clusterId;
+}
+

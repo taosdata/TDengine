@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
+#include "thttp.h"
 
 static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
@@ -63,6 +64,63 @@ static void *dmMonitorThreadFp(void *param) {
   return NULL;
 }
 
+static void *dmCrashReportThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-crashReport");
+  char filepath[PATH_MAX] = {0};
+  snprintf(filepath, sizeof(filepath), "%s%s.taosdCrashLog", tsLogDir, TD_DIRSEP);
+  char *pMsg = NULL;
+  int64_t msgLen = 0;
+  TdFilePtr pFile = NULL;
+  bool truncateFile = false;
+  int32_t sleepTime = 200;
+  int32_t reportPeriodNum = 3600 * 1000 / sleepTime;;
+  int32_t loopTimes = reportPeriodNum;
+  
+  while (1) {
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+    if (loopTimes++ < reportPeriodNum) {
+      taosMsleep(sleepTime);
+      continue;
+    }
+
+    taosReadCrashInfo(filepath, &pMsg, &msgLen, &pFile);
+    if (pMsg && msgLen > 0) {
+      if (taosSendHttpReport(tsTelemServer, tsSvrCrashReportUri, tsTelemPort, pMsg, msgLen, HTTP_FLAT) != 0) {
+        dError("failed to send crash report");
+        if (pFile) {
+          taosReleaseCrashLogFile(pFile, false);
+          continue;
+        }
+      } else {
+        dInfo("succeed to send crash report");
+        truncateFile = true;
+      }
+    } else {
+      dDebug("no crash info");
+    }
+
+    taosMemoryFree(pMsg);
+
+    if (pMsg && msgLen > 0) {
+      pMsg = NULL;
+      continue;
+    }
+    
+    if (pFile) {
+      taosReleaseCrashLogFile(pFile, truncateFile);
+      truncateFile = false;
+    }
+    
+    taosMsleep(sleepTime);
+    loopTimes = 0;
+  }
+
+  return NULL;
+}
+
+
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
@@ -104,6 +162,36 @@ void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
     taosThreadClear(&pMgmt->monitorThread);
   }
 }
+
+int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt) {
+  if (!tsEnableCrashReport) {
+    return 0;
+  }
+
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->crashReportThread, &thAttr, dmCrashReportThreadFp, pMgmt) != 0) {
+    dError("failed to create crashReport thread since %s", strerror(errno));
+    return -1;
+  }
+
+  taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-crashReport", "initialized");
+  return 0;
+}
+
+void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
+  if (!tsEnableCrashReport) {
+    return;
+  }
+
+  if (taosCheckPthreadValid(pMgmt->crashReportThread)) {
+    taosThreadJoin(pMgmt->crashReportThread, NULL);
+    taosThreadClear(&pMgmt->crashReportThread);
+  }
+}
+
 
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
