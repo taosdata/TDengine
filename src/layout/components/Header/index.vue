@@ -4,7 +4,9 @@
       <!-- <ClusterSelector></ClusterSelector> -->
     </div>
     <div class="headerRight">
-      <!-- <QRcode></QRcode> -->
+
+      <Support></Support>
+      <Document></Document>
       <!-- <Github></Github> -->
       <!-- <International></International> -->
 
@@ -21,11 +23,13 @@
 
 <script>
 
-  import { Avatar, ClusterSelector, Help } from "./components";
+  import { Avatar, ClusterSelector, Help,Support,Document } from "./components";
   export default {
-    components: { Avatar, ClusterSelector, Help },
+    components: { Avatar, ClusterSelector, Help,Support,Document },
     data() {
-      return {};
+      return {
+        issueTypeList: [],
+      };
     },
     computed: {
       alerts() {
@@ -100,5 +104,6 @@
   .headerRight {
     display: flex;
     flex-direction: row;
+    align-items: center;
   }
 </style>

@@ -4,3 +4,5 @@ export { default as Github } from "./Github";
 export { default as International } from "./International";
 export { default as QRcode } from "./QRcode";
 export { default as Help } from "./Help";
+export { default as Support } from "./Support";
+export { default as Document } from "./Document";

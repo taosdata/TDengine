@@ -12,9 +12,6 @@
         <el-tab-pane name="qnodes" :label="$t('topic.qnodes')">
           <MgQnodes></MgQnodes>
         </el-tab-pane>
-        <el-tab-pane name="udf" :label="$t('topic.udf')">
-          <MgUdf></MgUdf>
-        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -24,11 +21,10 @@
 import MgDnodes from './views/dnodes.vue'
 import MgMnodes from './views/mnodes.vue'
 import MgQnodes from './views/qnodes.vue'
-import MgUdf from './views/udf.vue'
 export default {
   name: "Cluster",
   components:{
-    MgDnodes,MgMnodes,MgQnodes,MgUdf
+    MgDnodes,MgMnodes,MgQnodes
   },
   data() {
     return {

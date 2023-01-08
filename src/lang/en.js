@@ -778,6 +778,13 @@ export default {
     learnMoreTip: `To learn more about stream processing, please check <a target='_blank' href="docsUrl">documentation</a>`,
   },
   topic: {
+    end_point:'End Point',
+    vnodes:'VNodes',
+    cores:'Cores',
+    status:'Status',
+    role:'Role',
+    create_time:'Create Time',
+    offline_reason:'Offline Reason',
     users:'Users',
     dnodes:'DNodes',
     mnodes:'MNodes',

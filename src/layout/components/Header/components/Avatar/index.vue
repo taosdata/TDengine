@@ -5,7 +5,7 @@
         <span>{{ user }}</span>
       </div>
       <el-dropdown-menu slot="dropdown">
-        <el-dropdown-item>
+        <!-- <el-dropdown-item>
           <router-link class="drop-block" to="/profile">
             <Icon name="setting" class="dropdown_icon"></Icon>
             {{ $t("setting.profile") }}
@@ -16,7 +16,7 @@
             <Icon name="activity" class="dropdown_icon"></Icon>
             {{ $t("route.activity") }}</router-link
           >
-        </el-dropdown-item>
+        </el-dropdown-item> -->
         <div class="custom-divider"></div>
         <el-dropdown-item>
           <div @click="logout" class="drop-block">
@@ -46,7 +46,7 @@
 <script>
   import Icon from "@/components/Icon";
   export default {
-    name: "avatar",
+    name: "avatar",         
     components: { Icon },
     data() {
       return {

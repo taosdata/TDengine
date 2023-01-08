@@ -12,7 +12,9 @@
         </el-tab-pane>
         <el-tab-pane name="replication" :label="$t('topic.replication')">
           <AdReplication></AdReplication>
-          <!-- <MgMnodes></MgMnodes> -->
+        </el-tab-pane>
+        <el-tab-pane name="udf" :label="$t('topic.udf')">
+          <MgUdf></MgUdf>
         </el-tab-pane>
       </el-tabs>
     </div>
@@ -23,11 +25,11 @@ import MgUser from './views/user.vue'
 import AdBackup from './views/backup.vue'
 import AdReplication from './views/replication.vue'
 // import MgQnodes from '../14_cluster/views/qnodes.vue'
-// import MgUdf from '../14_cluster/views/udf.vue'
+import MgUdf from './views/udf.vue'
 export default {
   name: "Admin",
   components:{
-    MgUser,AdBackup,AdReplication
+    MgUser,AdBackup,AdReplication,MgUdf
   },
   data() {
     return {
