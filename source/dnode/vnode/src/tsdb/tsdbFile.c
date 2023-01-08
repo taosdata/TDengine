@@ -93,8 +93,32 @@ static int32_t tGetSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
 
 // EXPOSED APIS ==================================================
 void tsdbHeadFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SHeadFile *pHeadF, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTsdb->pVnode->pTfs, did),
-           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pHeadF->commitID, ".head");
+  const char* p1 = tfsGetDiskPath(pTsdb->pVnode->pTfs, did);
+  int32_t len = strlen(p1);
+
+  char* p = memcpy(fname, p1, len);
+  p += len;
+
+  *(p++) = TD_DIRSEP[0];
+  len = strlen(pTsdb->path);
+
+  memcpy(p, pTsdb->path, len);
+  p += len;
+
+  *(p++) = TD_DIRSEP[0];
+  *(p++) = 'v';
+
+  p += tintToStr(TD_VID(pTsdb->pVnode), 10, p);
+  *(p++) = 'f';
+
+  p += tintToStr(fid, 10, p);
+
+  memcpy(p, "ver", 3);
+  p += 3;
+
+  p += tintToStr(pHeadF->commitID, 10, p);
+  memcpy(p, ".head", 5);
+  p[5] = 0;
 }
 
 void tsdbDataFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SDataFile *pDataF, char fname[]) {

@@ -336,6 +336,29 @@ int32_t tintToHex(uint64_t val, char hex[]) {
   return j;
 }
 
+int32_t tintToStr(uint64_t val, size_t radix, char str[]) {
+  if (radix < 2 || radix > 16) {
+    return 0;
+  }
+
+  const char* s = "0123456789abcdef";
+  char buf[65] = {0};
+
+  int32_t i = 0;
+  uint64_t v = val;
+  while(v > 0) {
+    buf[i++] = s[v % radix];
+    v /= radix;
+  }
+
+  // reverse order
+  for(int32_t j = 0; j < i; ++j) {
+    str[j] = buf[i - j - 1];
+  }
+
+  return i;
+}
+
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]) {
   int32_t i;
   char    hexval[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
