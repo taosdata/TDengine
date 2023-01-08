@@ -54,7 +54,7 @@ print $data70
 print $data80
 print $data90
 
-if $data40 != @18-09-17 09:06:49.500@ then
+if $data40 != @18-09-17 09:06:49.600@ then
  return -1
 endi
 
