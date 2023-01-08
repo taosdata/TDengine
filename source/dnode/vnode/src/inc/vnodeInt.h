@@ -90,6 +90,7 @@ typedef struct SCommitInfo        SCommitInfo;
 #define VND_INFO_FNAME "vnode.json"
 
 // vnd.h
+
 void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
 void* vnodeBufPoolMallocAligned(SVBufPool* pPool, int size);
 void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
@@ -162,10 +163,9 @@ int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbFinishCommit(STsdb* pTsdb);
 int32_t tsdbRollbackCommit(STsdb* pTsdb);
 int32_t tsdbDoRetention(STsdb* pTsdb, int64_t now);
-int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq* pMsg);
-int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
-int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock,
-                            SSubmitBlkRsp* pRsp);
+int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
+int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
+int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
 int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 
@@ -190,7 +190,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msg
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* data, int64_t ver);
+int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit);
 int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
@@ -203,19 +203,12 @@ int32_t tqProcessTaskRecoverFinishReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverFinishRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqCheckLogInWal(STQ* pTq, int64_t version);
 
-SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pSchema,
-                            SSchemaWrapper* pTagSchemaWrapper, bool createTb, int64_t suid, const char* stbFullName,
-                            SBatchDeleteReq* pDeleteReq);
-
 // sma
 int32_t smaInit();
 void    smaCleanUp();
 int32_t smaOpen(SVnode* pVnode, int8_t rollback);
 int32_t smaClose(SSma* pSma);
 int32_t smaBegin(SSma* pSma);
-int32_t smaSyncPreCommit(SSma* pSma);
-int32_t smaSyncCommit(SSma* pSma);
-int32_t smaSyncPostCommit(SSma* pSma);
 int32_t smaPrepareAsyncCommit(SSma* pSma);
 int32_t smaCommit(SSma* pSma, SCommitInfo* pInfo);
 int32_t smaFinishCommit(SSma* pSma);
@@ -226,11 +219,10 @@ int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
 
 int32_t tdProcessRSmaCreate(SSma* pSma, SVCreateStbReq* pReq);
-int32_t tdProcessRSmaSubmit(SSma* pSma, void* pMsg, int32_t inputType);
+int32_t tdProcessRSmaSubmit(SSma* pSma, int64_t version, void* pReq, void* pMsg, int32_t len, int32_t inputType);
 int32_t tdProcessRSmaDrop(SSma* pSma, SVDropStbReq* pReq);
 int32_t tdFetchTbUidList(SSma* pSma, STbUidStore** ppStore, tb_uid_t suid, tb_uid_t uid);
 int32_t tdUpdateTbUidList(SSma* pSma, STbUidStore* pUidStore, bool isAdd);
-void    tdUidStoreDestory(STbUidStore* pStore);
 void*   tdUidStoreFree(STbUidStore* pStore);
 
 // SMetaSnapReader ========================================
@@ -277,6 +269,7 @@ int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData);
 // SRSmaSnapWriter ========================================
 int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWriter** ppWriter);
 int32_t rsmaSnapWrite(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter);
 int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback);
 
 typedef struct {
@@ -420,6 +413,7 @@ enum {
 
 struct SSnapDataHdr {
   int8_t  type;
+  int8_t  flag;
   int64_t index;
   int64_t size;
   uint8_t data[];

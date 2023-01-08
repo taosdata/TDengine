@@ -623,6 +623,20 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr) {
   return (SNode*)state;
 }
 
+SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond) {
+  CHECK_PARSER_STATUS(pCxt);
+  SEventWindowNode* pEvent = (SEventWindowNode*)nodesMakeNode(QUERY_NODE_EVENT_WINDOW);
+  CHECK_OUT_OF_MEM(pEvent);
+  pEvent->pCol = createPrimaryKeyCol(pCxt, NULL);
+  if (NULL == pEvent->pCol) {
+    nodesDestroyNode((SNode*)pEvent);
+    CHECK_OUT_OF_MEM(NULL);
+  }
+  pEvent->pStartCond = pStartCond;
+  pEvent->pEndCond = pEndCond;
+  return (SNode*)pEvent;
+}
+
 SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding,
                                 SNode* pFill) {
   CHECK_PARSER_STATUS(pCxt);
@@ -1213,7 +1227,7 @@ SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SN
 
 SNode* createCreateMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pSubTables) {
   CHECK_PARSER_STATUS(pCxt);
-  SCreateMultiTableStmt* pStmt = (SCreateMultiTableStmt*)nodesMakeNode(QUERY_NODE_CREATE_MULTI_TABLE_STMT);
+  SCreateMultiTablesStmt* pStmt = (SCreateMultiTablesStmt*)nodesMakeNode(QUERY_NODE_CREATE_MULTI_TABLES_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->pSubTables = pSubTables;
   return (SNode*)pStmt;
@@ -1374,6 +1388,38 @@ SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   return (SNode*)pStmt;
 }
 
+SNode* createShowAliveStmt(SAstCreateContext* pCxt, SNode* pNode, ENodeType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  SToken  dbToken = {0};
+  SToken* pDbToken = NULL;
+
+  if (pNode) {
+    SValueNode* pDbName = (SValueNode*)pNode;
+    if (pDbName->literal) {
+      dbToken.z = pDbName->literal;
+      dbToken.n = strlen(pDbName->literal);
+      pDbToken = &dbToken;
+    }
+  }
+
+  if (pDbToken && !checkDbName(pCxt, pDbToken, true)) {
+    nodesDestroyNode(pNode);
+    return NULL;
+  }
+
+  SShowAliveStmt* pStmt = (SShowAliveStmt*)nodesMakeNode(type);
+  CHECK_OUT_OF_MEM(pStmt);
+
+  if (pDbToken) {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbToken);
+  }
+  if (pNode) {
+    nodesDestroyNode(pNode);
+  }
+
+  return (SNode*)pStmt;
+}
+
 SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
   CHECK_PARSER_STATUS(pCxt);
   SShowCreateTableStmt* pStmt = (SShowCreateTableStmt*)nodesMakeNode(type);
@@ -1435,7 +1481,7 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const ST
   }
   SCreateUserStmt* pStmt = (SCreateUserStmt*)nodesMakeNode(QUERY_NODE_CREATE_USER_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->useName, pUserName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   strcpy(pStmt->password, password);
   pStmt->sysinfo = sysinfo;
   return (SNode*)pStmt;
@@ -1448,7 +1494,7 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
   }
   SAlterUserStmt* pStmt = (SAlterUserStmt*)nodesMakeNode(QUERY_NODE_ALTER_USER_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->useName, pUserName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   pStmt->alterType = alterType;
   switch (alterType) {
     case TSDB_ALTER_USER_PASSWD: {
@@ -1479,7 +1525,7 @@ SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName) {
   }
   SDropUserStmt* pStmt = (SDropUserStmt*)nodesMakeNode(QUERY_NODE_DROP_USER_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->useName, pUserName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   return (SNode*)pStmt;
 }
 
@@ -1767,7 +1813,7 @@ SNode* createStreamOptions(SAstCreateContext* pCxt) {
 }
 
 SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pStreamName, SNode* pRealTable,
-                              SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery) {
+                              SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery, SNodeList* pCols) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkStreamName(pCxt, pStreamName)) {
     return NULL;
@@ -1775,16 +1821,15 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken
   SCreateStreamStmt* pStmt = (SCreateStreamStmt*)nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
-  if (NULL != pRealTable) {
-    strcpy(pStmt->targetDbName, ((SRealTableNode*)pRealTable)->table.dbName);
-    strcpy(pStmt->targetTabName, ((SRealTableNode*)pRealTable)->table.tableName);
-    nodesDestroyNode(pRealTable);
-  }
+  strcpy(pStmt->targetDbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->targetTabName, ((SRealTableNode*)pRealTable)->table.tableName);
+  nodesDestroyNode(pRealTable);
   pStmt->ignoreExists = ignoreExists;
   pStmt->pOptions = (SStreamOptions*)pOptions;
   pStmt->pQuery = pQuery;
   pStmt->pTags = pTags;
   pStmt->pSubtable = pSubtable;
+  pStmt->pCols = pCols;
   return (SNode*)pStmt;
 }
 

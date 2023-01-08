@@ -249,7 +249,7 @@ void taosGetSystemInfo() {
 
 int32_t taosGetEmail(char *email, int32_t maxLen) {
 #ifdef WINDOWS
-  // assert(0);
+  // ASSERT(0);
 #elif defined(_TD_DARWIN_64)
   const char *filepath = "/usr/local/taos/email";
 
@@ -356,6 +356,10 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   if (taosGetsCmd(pCmd, maxLen, cpuModel) > 0) {
     code = 0;
     done |= 1;
+  }
+  int endPos = strlen(cpuModel)-1;
+  if (cpuModel[endPos] == '\n') {
+    cpuModel[endPos] = '\0';
   }
   taosCloseCmd(&pCmd);
 
@@ -859,7 +863,7 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
 
 char *taosGetCmdlineByPID(int pid) {
 #ifdef WINDOWS
-  assert(0);
+  ASSERT(0);
   return "";
 #elif defined(_TD_DARWIN_64)
   static char cmdline[1024];
