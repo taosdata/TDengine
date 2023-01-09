@@ -573,6 +573,7 @@ struct STSDBRowIter {
 struct SRowMerger {
   STSchema *pTSchema;
   int64_t   version;
+  bool      merged;
   SArray   *pArray;  // SArray<SColVal>
 };
 

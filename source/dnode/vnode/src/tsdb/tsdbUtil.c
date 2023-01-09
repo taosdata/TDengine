@@ -776,10 +776,12 @@ _exit:
 }
 
 void tRowMergerClear(SRowMerger *pMerger) { 
-  for (int32_t iCol = 1; iCol < pMerger->pTSchema->numOfCols; iCol++) {
-    SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
-    if (IS_VAR_DATA_TYPE(pTColVal->type)) {
-      tFree(pTColVal->value.pData);
+  if (pMerger->merged) {
+    for (int32_t iCol = 1; iCol < pMerger->pTSchema->numOfCols; iCol++) {
+      SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
+      if (IS_VAR_DATA_TYPE(pTColVal->type)) {
+        tFree(pTColVal->value.pData);
+      }
     }
   }
 
@@ -801,6 +803,7 @@ int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
         if (IS_VAR_DATA_TYPE(pColVal->type)) {
           SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
 
+          pTColVal->value.pData = NULL;
           code = tRealloc(&pTColVal->value.pData, pColVal->value.nData);
           if (code) goto _exit;
 
@@ -821,6 +824,7 @@ int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
   }
 
   pMerger->version = key.version;
+  pMerger->merged = true;
 
 _exit:
   return code;
