@@ -285,9 +285,9 @@ SyncTerm syncLogBufferGetLastMatchTerm(SSyncLogBuffer* pBuf) {
 int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevTerm) {
   taosThreadMutexLock(&pBuf->mutex);
   syncLogBufferValidate(pBuf);
-  int32_t   ret = -1;
-  SyncIndex index = pEntry->index;
-  SyncIndex prevIndex = pEntry->index - 1;
+  int32_t         ret = -1;
+  SyncIndex       index = pEntry->index;
+  SyncIndex       prevIndex = pEntry->index - 1;
   SyncTerm        lastMatchTerm = syncLogBufferGetLastMatchTermWithoutLock(pBuf);
   SSyncRaftEntry* pExist = NULL;
   bool            inBuf = true;
@@ -509,7 +509,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   SSyncLogStore*  pLogStore = pNode->pLogStore;
   SSyncFSM*       pFsm = pNode->pFsm;
   ESyncState      role = pNode->state;
-  SyncTerm        term = pNode->pRaftStore->currentTerm;
+  SyncTerm        term = pNode->raftStore.currentTerm;
   SyncGroupId     vgId = pNode->vgId;
   int32_t         ret = -1;
   int64_t         upperIndex = TMIN(commitIndex, pBuf->matchIndex);
@@ -571,7 +571,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
 _out:
   // mark as restored if needed
   if (!pNode->restoreFinish && pBuf->commitIndex >= pNode->commitIndex && pEntry != NULL &&
-      pNode->pRaftStore->currentTerm <= pEntry->term) {
+      pNode->raftStore.currentTerm <= pEntry->term) {
     pNode->pFsm->FpRestoreFinishCb(pNode->pFsm);
     pNode->restoreFinish = true;
     sInfo("vgId:%d, restore finished. log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pNode->vgId,
@@ -614,9 +614,9 @@ int32_t syncLogReplMgrRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
     return -1;
   }
 
-  int32_t ret = -1;
-  bool    retried = false;
-  int64_t retryWaitMs = syncLogGetRetryBackoffTimeMs(pMgr);
+  int32_t  ret = -1;
+  bool     retried = false;
+  int64_t  retryWaitMs = syncLogGetRetryBackoffTimeMs(pMgr);
   int64_t  nowMs = taosGetMonoTimestampMs();
   int      count = 0;
   int64_t  firstIndex = -1;
@@ -807,9 +807,9 @@ int32_t syncLogReplMgrReplicateProbeOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode
   }
   (void)syncLogReplMgrReset(pMgr);
 
-  SRaftId*  pDestId = &pNode->replicasId[pMgr->peerId];
-  bool      barrier = false;
-  SyncTerm  term = -1;
+  SRaftId* pDestId = &pNode->replicasId[pMgr->peerId];
+  bool     barrier = false;
+  SyncTerm term = -1;
   if (syncLogBufferReplicateOneTo(pMgr, pNode, index, &term, pDestId, &barrier) < 0) {
     sError("vgId:%d, failed to replicate log entry since %s. index: %" PRId64 ", dest: 0x%016" PRIx64 "", pNode->vgId,
            terrstr(), index, pDestId->addr);
@@ -836,11 +836,11 @@ int32_t syncLogReplMgrReplicateProbeOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode
 int32_t syncLogReplMgrReplicateAttemptedOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
   ASSERT(pMgr->restored);
 
-  SRaftId* pDestId = &pNode->replicasId[pMgr->peerId];
-  int32_t  batchSize = TMAX(1, pMgr->size >> (4 + pMgr->retryBackoff));
-  int32_t  count = 0;
-  int64_t  nowMs = taosGetMonoTimestampMs();
-  int64_t  limit = pMgr->size >> 1;
+  SRaftId*  pDestId = &pNode->replicasId[pMgr->peerId];
+  int32_t   batchSize = TMAX(1, pMgr->size >> (4 + pMgr->retryBackoff));
+  int32_t   count = 0;
+  int64_t   nowMs = taosGetMonoTimestampMs();
+  int64_t   limit = pMgr->size >> 1;
   SyncTerm  term = -1;
   SyncIndex firstIndex = -1;
 
@@ -891,13 +891,13 @@ int32_t syncLogReplMgrReplicateAttemptedOnce(SSyncLogReplMgr* pMgr, SSyncNode* p
 int32_t syncLogReplMgrProcessReplyInNormalMode(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg) {
   ASSERT(pMgr->restored == true);
   if (pMgr->startIndex <= pMsg->lastSendIndex && pMsg->lastSendIndex < pMgr->endIndex) {
-     if (pMgr->startIndex < pMgr->matchIndex && pMgr->retryBackoff > 0) {
-        int64_t firstSentMs = pMgr->states[pMgr->startIndex % pMgr->size].timeMs;
-        int64_t lastSentMs = pMgr->states[(pMgr->endIndex - 1) % pMgr->size].timeMs;
-        int64_t timeDiffMs = lastSentMs - firstSentMs;
-        if (timeDiffMs > 0 && timeDiffMs < (SYNC_LOG_REPL_RETRY_WAIT_MS << (pMgr->retryBackoff - 1))) {
-            pMgr->retryBackoff -= 1;
-        }
+    if (pMgr->startIndex < pMgr->matchIndex && pMgr->retryBackoff > 0) {
+      int64_t firstSentMs = pMgr->states[pMgr->startIndex % pMgr->size].timeMs;
+      int64_t lastSentMs = pMgr->states[(pMgr->endIndex - 1) % pMgr->size].timeMs;
+      int64_t timeDiffMs = lastSentMs - firstSentMs;
+      if (timeDiffMs > 0 && timeDiffMs < (SYNC_LOG_REPL_RETRY_WAIT_MS << (pMgr->retryBackoff - 1))) {
+        pMgr->retryBackoff -= 1;
+      }
     }
     pMgr->states[pMsg->lastSendIndex % pMgr->size].acked = true;
     pMgr->matchIndex = TMAX(pMgr->matchIndex, pMsg->matchIndex);
