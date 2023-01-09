@@ -4620,46 +4620,67 @@ int32_t tsdbTakeReadSnap(STsdbReader* pReader, _query_reseek_func_t reseek, STsd
   SVersionRange* pRange = &pReader->verRange;
 
   // alloc
-  *ppSnap = (STsdbReadSnap*)taosMemoryCalloc(1, sizeof(STsdbReadSnap));
-  if (*ppSnap == NULL) {
+  STsdbReadSnap* pSnap = (STsdbReadSnap*)taosMemoryCalloc(1, sizeof(*pSnap));
+  if (pSnap == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
   // lock
-  code = taosThreadRwlockRdlock(&pTsdb->rwLock);
-  if (code) {
-    code = TAOS_SYSTEM_ERROR(code);
-    goto _exit;
-  }
+  taosThreadRwlockRdlock(&pTsdb->rwLock);
 
   // take snapshot
   if (pTsdb->mem && (pRange->minVer <= pTsdb->mem->maxVer && pRange->maxVer >= pTsdb->mem->minVer)) {
-    tsdbRefMemTable(pTsdb->mem, pReader, reseek, &(*ppSnap)->pNode);
-    (*ppSnap)->pMem = pTsdb->mem;
+    pSnap->pMem = pTsdb->mem;
+    pSnap->pNode = taosMemoryMalloc(sizeof(*pSnap->pNode));
+    if (pSnap->pNode == NULL) {
+      taosThreadRwlockUnlock(&pTsdb->rwLock);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    pSnap->pNode->pQHandle = pReader;
+    pSnap->pNode->reseek = reseek;
+
+    tsdbRefMemTable(pTsdb->mem, pSnap->pNode);
   }
 
   if (pTsdb->imem && (pRange->minVer <= pTsdb->imem->maxVer && pRange->maxVer >= pTsdb->imem->minVer)) {
-    tsdbRefMemTable(pTsdb->imem, pReader, reseek, &(*ppSnap)->pINode);
-    (*ppSnap)->pIMem = pTsdb->imem;
+    pSnap->pIMem = pTsdb->imem;
+    pSnap->pINode = taosMemoryMalloc(sizeof(*pSnap->pINode));
+    if (pSnap->pINode == NULL) {
+      taosThreadRwlockUnlock(&pTsdb->rwLock);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    pSnap->pINode->pQHandle = pReader;
+    pSnap->pINode->reseek = reseek;
+
+    tsdbRefMemTable(pTsdb->imem, pSnap->pINode);
   }
 
   // fs
-  code = tsdbFSRef(pTsdb, &(*ppSnap)->fs);
+  code = tsdbFSRef(pTsdb, &pSnap->fs);
   if (code) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     goto _exit;
   }
 
   // unlock
-  code = taosThreadRwlockUnlock(&pTsdb->rwLock);
-  if (code) {
-    code = TAOS_SYSTEM_ERROR(code);
-    goto _exit;
-  }
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
 
   tsdbTrace("vgId:%d, take read snapshot", TD_VID(pTsdb->pVnode));
+
 _exit:
+  if (code) {
+    *ppSnap = NULL;
+    if (pSnap) {
+      if (pSnap->pNode) taosMemoryFree(pSnap->pNode);
+      if (pSnap->pINode) taosMemoryFree(pSnap->pINode);
+      taosMemoryFree(pSnap);
+    }
+  } else {
+    *ppSnap = pSnap;
+  }
   return code;
 }
 
@@ -4676,6 +4697,8 @@ void tsdbUntakeReadSnap(STsdbReader* pReader, STsdbReadSnap* pSnap) {
     }
 
     tsdbFSUnref(pTsdb, &pSnap->fs);
+    if (pSnap->pNode) taosMemoryFree(pSnap->pNode);
+    if (pSnap->pINode) taosMemoryFree(pSnap->pINode);
     taosMemoryFree(pSnap);
   }
   tsdbTrace("vgId:%d, untake read snapshot", TD_VID(pTsdb->pVnode));

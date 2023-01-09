@@ -749,13 +749,13 @@ _exit:
 
 int32_t tsdbGetNRowsInTbData(STbData *pTbData) { return pTbData->sl.size; }
 
-int32_t tsdbRefMemTable(SMemTable *pMemTable, void *pQHandle, _query_reseek_func_t reseek, SQueryNode **ppNode) {
+int32_t tsdbRefMemTable(SMemTable *pMemTable, SQueryNode *pQNode) {
   int32_t code = 0;
 
   int32_t nRef = atomic_fetch_add_32(&pMemTable->nRef, 1);
   ASSERT(nRef > 0);
 
-  vnodeBufPoolRegisterQuery(pMemTable->pPool, pQHandle, reseek);
+  vnodeBufPoolRegisterQuery(pMemTable->pPool, pQNode);
 
 _exit:
   return code;

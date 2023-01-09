@@ -215,11 +215,11 @@ void vnodeBufPoolRef(SVBufPool *pPool) {
 void vnodeBufPoolUnRef(SVBufPool *pPool) {
   if (pPool == NULL) return;
 
-  if (atomic_sub_fetch_32(&pPool->nRef, 1) > 0) return;
-
   SVnode *pVnode = pPool->pVnode;
 
   taosThreadMutexLock(&pVnode->mutex);
+
+  if (atomic_sub_fetch_32(&pPool->nRef, 1) > 0) goto _exit;
 
   // remove from recycle list or on-recycle position
   if (pVnode->onRecycle == pPool) {
@@ -262,19 +262,13 @@ void vnodeBufPoolUnRef(SVBufPool *pPool) {
   pVnode->freeList = pPool;
   taosThreadCondSignal(&pVnode->poolNotEmpty);
 
+_exit:
   taosThreadMutexUnlock(&pVnode->mutex);
+  return;
 }
 
-int32_t vnodeBufPoolRegisterQuery(SVBufPool *pPool, void *pQHandle, _query_reseek_func_t reseekFn) {
+int32_t vnodeBufPoolRegisterQuery(SVBufPool *pPool, SQueryNode *pQNode) {
   int32_t code = 0;
-
-  SQueryNode *pQNode = taosMemoryMalloc(sizeof(*pQNode));
-  if (pQNode == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
-  pQNode->pQHandle = pQHandle;
-  pQNode->reseek = reseekFn;
 
   taosThreadMutexLock(&pPool->mutex);
 
