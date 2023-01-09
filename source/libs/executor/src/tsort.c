@@ -251,7 +251,8 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
   if (pHandle->pBuf == NULL) {
     if (!osTempSpaceAvailable()) {
       code = TSDB_CODE_NO_AVAIL_DISK;
-      qError("Sort compare init failed since %s, %s", terrstr(code), pHandle->idStr);
+      terrno = code;
+      qError("Sort compare init failed since %s, %s", tstrerror(code), pHandle->idStr);
       return code;
     }
 
@@ -259,6 +260,7 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
                               "sortComparInit", tsTempDir);
     dBufSetPrintInfo(pHandle->pBuf);
     if (code != TSDB_CODE_SUCCESS) {
+      terrno = code;
       return code;
     }
   }
@@ -282,6 +284,7 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
       
       code = blockDataFromBuf(pSource->src.pBlock, pPage);
       if (code != TSDB_CODE_SUCCESS) {
+        terrno = code;
         return code;
       }
 
