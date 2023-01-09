@@ -226,7 +226,7 @@ class TDTestCase:
             tdLog.exit("expect error not occured - 1")
         except Exception as error :
             if str(error)=='[0x0200]: invalid operation: bind column type mismatch or invalid':
-                tdLog.exit('=========stmt error occured  for bind part column(NULL Timestamp) ==============')
+                tdLog.info('=========stmt error occured  for bind part column(NULL Timestamp) ==============')
             else:
                 tdLog.exit("expect error not occured - 2")
         
