@@ -344,6 +344,7 @@ struct SVnode {
   SVBufPool*    onCommit;
   SVBufPool*    recycleHead;
   SVBufPool*    recycleTail;
+  SVBufPool*    onRecycle;
 
   SMeta*        pMeta;
   SSma*         pSma;

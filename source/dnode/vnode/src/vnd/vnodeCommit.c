@@ -25,7 +25,34 @@ static int vnodeCommitImpl(SCommitInfo *pInfo);
 
 static int32_t vnodeTryRecycleBufPool(SVnode *pVnode) {
   int32_t code = 0;
-  ASSERT(0);  // TODO
+
+  if (pVnode->onRecycle) {
+    vDebug("vgId:%d buffer pool %p of id %d is on recycling", TD_VID(pVnode), pVnode->onRecycle, pVnode->onRecycle->id);
+    goto _exit;
+  }
+
+  if (pVnode->recycleHead) {
+    vDebug("vgId:%d buffer pool %p of id %d on recycle list, try to recycle", TD_VID(pVnode), pVnode->recycleHead,
+           pVnode->recycleHead->id);
+
+    // pop the header buffer pool for recycling
+    pVnode->onRecycle = pVnode->recycleHead;
+    if (pVnode->recycleHead == pVnode->recycleTail) {
+      pVnode->recycleHead = pVnode->recycleTail = NULL;
+    } else {
+      pVnode->recycleHead = pVnode->recycleHead->recycleNext;
+      pVnode->recycleHead->recyclePrev = NULL;
+    }
+    pVnode->onRecycle->recycleNext = pVnode->onRecycle->recyclePrev = NULL;
+
+    {
+      // TODO: do recycle the buffer pool
+      ASSERT(0);
+    }
+  } else {
+    vDebug("vgId:%d no recyclable buffer pool", TD_VID(pVnode));
+  }
+
 _exit:
   return code;
 }
@@ -36,7 +63,8 @@ int vnodeBegin(SVnode *pVnode) {
   int32_t nTry = 0;
   while (++nTry) {
     if (pVnode->freeList) {
-      vDebug("vgId:%d allocate free buffer pool on %d try, pPool:%p", TD_VID(pVnode), nTry, pVnode->freeList);
+      vDebug("vgId:%d allocate free buffer pool on %d try, pPool:%p id:%d", TD_VID(pVnode), nTry, pVnode->freeList,
+             pVnode->freeList->id);
 
       pVnode->inUse = pVnode->freeList;
       pVnode->inUse->nRef = 1;
@@ -259,8 +287,11 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   code = smaPrepareAsyncCommit(pVnode->pSma);
   if (code) goto _exit;
 
-  vnodeBufPoolUnRef(pVnode->inUse);
+  taosThreadMutexLock(&pVnode->mutex);
+  ASSERT(pVnode->onCommit == NULL);
+  pVnode->onCommit = pVnode->inUse;
   pVnode->inUse = NULL;
+  taosThreadMutexUnlock(&pVnode->mutex);
 
 _exit:
   if (code) {
@@ -272,19 +303,51 @@ _exit:
 
   return code;
 }
-
 static int32_t vnodeCommitTask(void *arg) {
   int32_t code = 0;
 
   SCommitInfo *pInfo = (SCommitInfo *)arg;
+  SVnode      *pVnode = pInfo->pVnode;
 
   // commit
   code = vnodeCommitImpl(pInfo);
   if (code) goto _exit;
 
+  // recycle buffer pool
+  SVBufPool *pPool = pVnode->onCommit;
+
+  taosThreadMutexLock(&pVnode->mutex);
+
+  pVnode->onCommit = NULL;
+  int32_t nRef = atomic_sub_fetch_32(&pPool->nRef, 1);
+  if (nRef == 0) {
+    // add to free list
+    vDebug("vgId:%d buffer pool %p of id %d is added to free list", TD_VID(pVnode), pPool, pPool->id);
+
+    vnodeBufPoolReset(pPool);
+    pPool->freeNext = pVnode->freeList;
+    pVnode->freeList = pPool;
+    taosThreadCondSignal(&pVnode->poolNotEmpty);
+  } else {
+    // add to recycle list
+    vDebug("vgId:%d buffer pool %p of id %d is added to recycle list", TD_VID(pVnode), pPool, pPool->id);
+
+    if (pVnode->recycleTail == NULL) {
+      pPool->recyclePrev = pPool->recycleNext = NULL;
+      pVnode->recycleHead = pVnode->recycleTail = pPool;
+    } else {
+      pPool->recyclePrev = pVnode->recycleTail;
+      pPool->recycleNext = NULL;
+      pVnode->recycleTail->recycleNext = pPool;
+      pVnode->recycleTail = pPool;
+    }
+  }
+
+  taosThreadMutexUnlock(&pVnode->mutex);
+
 _exit:
   // end commit
-  tsem_post(&pInfo->pVnode->canCommit);
+  tsem_post(&pVnode->canCommit);
   taosMemoryFree(pInfo);
   return code;
 }
