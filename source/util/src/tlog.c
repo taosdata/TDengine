@@ -1045,7 +1045,7 @@ bool taosAssertRelease(bool condition) {
   int32_t     dflag = 255;  // tsLogEmbedded ? 255 : uDebugFlag
 
   taosPrintLog(flags, level, dflag, "tAssert called in release mode, exit:%d", tsAssert);
-  taosPrintTrace(flags, level, dflag);
+  taosPrintTrace(flags, level, dflag, 0);
 
   if (tsAssert) {
     taosMsleep(300);
