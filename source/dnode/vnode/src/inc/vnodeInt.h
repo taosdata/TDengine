@@ -76,6 +76,7 @@ typedef struct SRSmaSnapReader    SRSmaSnapReader;
 typedef struct SRSmaSnapWriter    SRSmaSnapWriter;
 typedef struct SSnapDataHdr       SSnapDataHdr;
 typedef struct SCommitInfo        SCommitInfo;
+typedef struct SQueryNode         SQueryNode;
 
 #define VNODE_META_DIR  "meta"
 #define VNODE_TSDB_DIR  "tsdb"
@@ -92,6 +93,13 @@ typedef struct SCommitInfo        SCommitInfo;
 #define VND_INFO_FNAME "vnode.json"
 
 // vnd.h
+typedef int32_t (*_query_reseek_func_t)(void* pQHandle);
+struct SQueryNode {
+  SQueryNode*          pNext;
+  SQueryNode**         ppNext;
+  void*                pQHandle;
+  _query_reseek_func_t reseek;
+};
 
 void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
 void* vnodeBufPoolMallocAligned(SVBufPool* pPool, int size);
@@ -99,6 +107,9 @@ void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
 void  vnodeBufPoolRef(SVBufPool* pPool);
 void  vnodeBufPoolUnRef(SVBufPool* pPool);
 int   vnodeDecodeInfo(uint8_t* pData, SVnodeInfo* pInfo);
+
+int32_t vnodeBufPoolRegisterQuery(SVBufPool* pPool, void* pQHandle, _query_reseek_func_t reseekFn);
+int32_t vnodeBufPoolDeregisterQuery(SVBufPool* pPool);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;

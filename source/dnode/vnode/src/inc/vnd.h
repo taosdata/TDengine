@@ -65,6 +65,11 @@ struct SVBufPool {
   SVBufPool* recycleNext;
   SVBufPool* recyclePrev;
 
+  // query handle list
+  TdThreadMutex mutex;
+  int32_t       nQuery;
+  SQueryNode    qList;
+
   SVnode*           pVnode;
   int32_t           id;
   volatile int32_t  nRef;
