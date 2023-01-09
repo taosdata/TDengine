@@ -80,7 +80,7 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     // tla+ server vars
     cJSON_AddNumberToObject(pRoot, "state", pSyncNode->state);
     cJSON_AddStringToObject(pRoot, "state_str", syncStr(pSyncNode->state));
-    cJSON_AddItemToObject(pRoot, "pRaftStore", raftStore2Json(pSyncNode->pRaftStore));
+    cJSON_AddItemToObject(pRoot, "pRaftStore", raftStore2Json(&pSyncNode.raftStore));
 
     // tla+ candidate vars
     cJSON_AddItemToObject(pRoot, "pVotesGranted", voteGranted2Json(pSyncNode->pVotesGranted));
@@ -199,7 +199,7 @@ inline char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
            ", sby:%d, "
            "r-num:%d, "
            "lcfg:%" PRId64 ", chging:%d, rsto:%d",
-           pSyncNode->vgId, syncStr(pSyncNode->state), pSyncNode->pRaftStore->currentTerm, pSyncNode->commitIndex,
+           pSyncNode->vgId, syncStr(pSyncNode->state), pSyncNode->raftStore.currentTerm, pSyncNode->commitIndex,
            logBeginIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->raftCfg.isStandBy, pSyncNode->replicaNum,
            pSyncNode->raftCfg.lastConfigIndex, pSyncNode->changing, pSyncNode->restoreFinish);
 
