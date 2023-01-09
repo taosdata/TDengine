@@ -39,6 +39,16 @@ class TestTimestamp(TDCase):
             for tbname in [f"{dbname}.{dbname}", f"{dbname}.stb", f"{dbname}.tb"]:
                 self.tdSql.query(f'select ts from {tbname}')
                 self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), str(dt))
+
+            for tbname in [f"{dbname}.{dbname}", f"{dbname}.stb", f"{dbname}.tb"]:
+                self.tdSql.query(f'select ts from {tbname} union all select ts from {tbname}')
+                self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), str(dt))
+                self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), str(dt))
+
+            for tbname in [f"{dbname}.{dbname}", f"{dbname}.stb", f"{dbname}.tb"]:
+                self.tdSql.query(f'select ts from {tbname} union select ts from {tbname}')
+                self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), str(dt))
+                
             self.tdSql.execute(f'drop database if exists {dbname}')
 
     def h_m_s_check(self):
