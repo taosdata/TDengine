@@ -16,6 +16,9 @@
         <el-tab-pane name="udf" :label="$t('topic.udf')">
           <MgUdf></MgUdf>
         </el-tab-pane>
+        <el-tab-pane name="activities" :label="$t('topic.activities')">
+          <Activities></Activities>
+        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -26,10 +29,11 @@ import AdBackup from './views/backup.vue'
 import AdReplication from './views/replication.vue'
 // import MgQnodes from '../14_cluster/views/qnodes.vue'
 import MgUdf from './views/udf.vue'
+import Activities from './views/activities.vue'
 export default {
   name: "Admin",
   components:{
-    MgUser,AdBackup,AdReplication,MgUdf
+    MgUser,AdBackup,AdReplication,MgUdf,Activities
   },
   data() {
     return {

@@ -1,37 +1,44 @@
 <template>
-  <div>
-    <!-- <p class="primary-tip" v-html="$t('dataIn.connectorTip')"></p>
-    <DocsList v-bind="docsMap.connector" /> -->
-    <p class="primary-tip" v-html="$t('dataIn.thirdPartyTip')"></p>
-    <DocsList v-bind="docsMap.thirdParty" />
-    <p class="primary-tip" v-html="$t('dataIn.inputCSVFile')"></p>
-    <InputCSVFile />
+  <div class="page-wrapper">
+    <div class="content">
+      <el-tabs value="datacollection">
+        <el-tab-pane name="datacollection" :label="$t('topic.datacollection')">
+          <DataIn></DataIn>
+        </el-tab-pane>
+        <el-tab-pane name="datasource" :label="$t('topic.datasource')">
+          <DataSource></DataSource>
+        </el-tab-pane>
+        <el-tab-pane name="csv" :label="$t('topic.csv')">
+          <DataCSV></DataCSV>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
+    
   </div>
 </template>
 
 <script>
-  import DocsList from "../components/docsList";
-  import InputCSVFile from "../components/inputCSVFile.vue";
-  import { dataInConnector, party } from "@/utils/config";
-  export default {
-    components: { DocsList, InputCSVFile },
-    data() {
-      return {
-        docsMap: {
-          connector: {
-            docsList: dataInConnector,
-            parentUrl: "/dataIn",
-            urlPre: "/docs/dataInConnector/",
-          },
-          thirdParty: {
-            docsList: party,
-            parentUrl: "/dataIn",
-            urlPre: "/docs/party/",
-          },
-        },
-      };
-    },
-  };
+import DataIn from "./dataIn.vue";
+import DataSource from "./dataSource.vue";
+import SourceContent from './sourceContent.vue'
+import DataCSV from './dataCSV.vue'
+export default {
+  components: {
+    DataIn,
+    DataSource,
+    SourceContent,
+    DataCSV
+  },
+  data() {
+    return {};
+  },
+  watch: {},
+  methods: {},
+};
 </script>
 
-<style></style>
+<style lang="scss">
+::v-deep.el-form-item__content {
+  margin-left: 0px !important;
+}
+</style>

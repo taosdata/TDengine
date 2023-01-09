@@ -1,0 +1,37 @@
+{
+  "id": "3857053",
+  "name": "taosexplorer",
+  "font_family": "element-icons",
+  "css_prefix_text": "el-icon-",
+  "description": "taosexplorer",
+  "glyphs": [
+    {
+      "icon_id": "5651501",
+      "name": "停止",
+      "font_class": "tingzhi",
+      "unicode": "e67d",
+      "unicode_decimal": 59005
+    },
+    {
+      "icon_id": "20104502",
+      "name": "启动",
+      "font_class": "qidong",
+      "unicode": "e616",
+      "unicode_decimal": 58902
+    },
+    {
+      "icon_id": "16616259",
+      "name": "more",
+      "font_class": "more",
+      "unicode": "e68a",
+      "unicode_decimal": 59018
+    },
+    {
+      "icon_id": "10670579",
+      "name": "check more",
+      "font_class": "checkmore",
+      "unicode": "e6a8",
+      "unicode_decimal": 59048
+    }
+  ]
+}

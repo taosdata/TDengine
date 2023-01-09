@@ -1,7 +1,5 @@
 <template>
   <div>
-    <!-- <p class="primary-tip" v-html="$t('dataOut.connectorTip')"></p>
-    <DocsList v-bind="docsMap.connector" /> -->
     <p class="primary-tip" v-html="$t('dataOut.toolsTip')"></p>
     <DocsList v-bind="docsMap.tool" />
     <p class="primary-tip flexStart">

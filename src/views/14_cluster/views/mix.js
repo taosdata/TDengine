@@ -1,0 +1,44 @@
+export default {
+    data() {
+        return {
+            pageSize: 10,
+            currentPage: 1,
+            total: 10,
+            dialog: false,
+            ruleForm: {
+                endpoint: ""
+            },
+            rules: {
+                endpoint: [
+                    {
+                        message: "Please enter the end point",
+                        trigger: "blur",
+                    },
+                ]
+            },
+        }
+    },
+    computed: {
+        confirmStatus() {
+            if (!this.ruleForm.endpoint) {
+                return true
+            }
+            return false
+        }
+    },
+    methods: {
+        del(data) {
+            console.log(data,'shanchu')
+            this.$confirm("Are you sure  to delete "+data.endpoint + '?', "Warning", {
+              confirmButtonText: "Ok",
+              cancelButtonText: "Cancle",
+              type: "warning",
+            });
+          },
+        add() {
+            this.dialog = true
+
+            console.log(this.dialog,'this.dialogthis.dialog')
+        }
+    }
+}

@@ -126,4 +126,7 @@
     height: 20px;
     margin-right: 8px;
   }
+  .custom-divider{
+    display: none;
+  }
 </style>

@@ -23,26 +23,11 @@ export default {
   data() {
     return {
       docsMap: {
-        inconnector: {
-          docsList: dataInConnector,
-          parentUrl: "/dataIn",
-          urlPre: "/docs/dataInConnector/",
-        },
-        inthirdParty: {
-          docsList: party,
-          parentUrl: "/dataIn",
-          urlPre: "/docs/party/",
-        },
         outconnector: {
           docsList: dataOutConnector,
-          parentUrl: "/dataOut",
+          parentUrl: "/programming",
           urlPre: "/docs/dataOutConnector/",
-        },
-        outtool: {
-          docsList: dataOutTool,
-          parentUrl: "/dataOut",
-          urlPre: "/docs/dataOutTool/",
-        },
+        }
       },
     };
   },

@@ -5,13 +5,14 @@ import router from "./router";
 import i18n from "./lang";
 import "@/styles/reset.css"; // CSS resets
 import ELEMENT from "element-ui";
-
+import 'element-ui/lib/theme-chalk/index.css'
 import MainContentHeader from "@/components/MainContentHeader";
 import Icon from "@/components/Icon";
 import CopyText from "@/components/CopyText";
 import "@/styles/element-variables.scss";
 import "@/assets/fonts/index"; //svgs
 import "@/styles/index.scss"; //global css
+import "@/assets/fonts/iconfont/iconfont.css"
 import directive, { LazyLoad } from "./directive";
 import computed from "@/common/computed";
 import { $bus } from "./const";

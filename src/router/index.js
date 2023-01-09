@@ -15,6 +15,12 @@ const layoutCommonChildren = [
         path: "",
         component: () => import("@/views/3_dataIn/views/main.vue"),
       },
+      
+      {
+        path: 'source/:sourceName',
+        props: true,
+        component: () => import("@/views/3_dataIn/views/sourceContent.vue")
+      },
       {
         path: "docs/:category/:lang",
         props: true,
@@ -115,10 +121,15 @@ const layoutCommonChildren = [
   {
     path: "programming",
     component: () => import("@/views/19_programming"),
-    children:[
+    children: [
       {
         path: "",
         component: () => import("@/views/19_programming/views/main.vue"),
+      },
+      {
+        path: "docs/:category/:lang",
+        props: true,
+        component: () => import("@/views/docs/index.vue"),
       },
     ]
   },
@@ -134,8 +145,8 @@ const layoutCommonChildren = [
   //   path: "dnodes",
   //   component: () => import("@/views/14_dnodes"),
   // },
-  
-  
+
+
   // {
   //   path: "udf",
   //   component: () => import("@/views/17_udf"),
@@ -308,8 +319,8 @@ router.onError(error => {
   const isChunkLoadFailed = error.message.match(jsPattern || cssPattern);
 
 
-  console.log(router,'哈哈哈',isChunkLoadFailed)
-  const targetPath =  router.history.pending.fullPath;
+  console.log(router, '哈哈哈', isChunkLoadFailed)
+  const targetPath = router.history.pending.fullPath;
   if (isChunkLoadFailed) {
     localStorage.setItem("targetPath", targetPath);
     // window.location.reload();
@@ -335,6 +346,6 @@ export function addRoutes(role) {
     router.addRoute("layout", item);
   });
 }
-console.log(router,'----')
+console.log(router, '----')
 addRoutes()
 export default router;
