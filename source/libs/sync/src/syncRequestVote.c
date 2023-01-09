@@ -44,12 +44,12 @@
 //       /\ UNCHANGED <<state, currentTerm, candidateVars, leaderVars, logVars>>
 //
 
-static bool syncNodeOnRequestVoteLogOK(SSyncNode* pSyncNode, SyncRequestVote* pMsg) {
-  SyncTerm  myLastTerm = syncNodeGetLastTerm(pSyncNode);
-  SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
+static bool syncNodeOnRequestVoteLogOK(SSyncNode* ths, SyncRequestVote* pMsg) {
+  SyncTerm  myLastTerm = syncNodeGetLastTerm(ths);
+  SyncIndex myLastIndex = syncNodeGetLastIndex(ths);
 
   if (myLastTerm == SYNC_TERM_INVALID) {
-    sNTrace(pSyncNode,
+    sNTrace(ths,
             "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
             ", recv-term:%" PRIu64 "}",
             myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
@@ -57,13 +57,13 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* pSyncNode, SyncRequestVote* pM
   }
 
   if (pMsg->lastLogTerm > myLastTerm) {
-    sNTrace(pSyncNode,
+    sNTrace(ths,
             "logok:1, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
             ", recv-term:%" PRIu64 "}",
             myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
 
-    if (pMsg->lastLogIndex < pSyncNode->commitIndex) {
-      sNWarn(pSyncNode,
+    if (pMsg->lastLogIndex < ths->commitIndex) {
+      sNWarn(ths,
              "logok:1, commit rollback required. {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64
              ", recv-lindex:%" PRId64 ", recv-term:%" PRIu64 "}",
              myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
@@ -72,14 +72,14 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* pSyncNode, SyncRequestVote* pM
   }
 
   if (pMsg->lastLogTerm == myLastTerm && pMsg->lastLogIndex >= myLastIndex) {
-    sNTrace(pSyncNode,
+    sNTrace(ths,
             "logok:1, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
             ", recv-term:%" PRIu64 "}",
             myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
     return true;
   }
 
-  sNTrace(pSyncNode,
+  sNTrace(ths,
           "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
           ", recv-term:%" PRIu64 "}",
           myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
@@ -91,7 +91,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncRequestVote* pMsg = pRpcMsg->pCont;
 
   // if already drop replica, do not process
-  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
+  if (!syncNodeInRaftGroup(ths, &pMsg->srcId)) {
     syncLogRecvRequestVote(ths, pMsg, -1, "not in my config");
     return -1;
   }
@@ -99,21 +99,21 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   bool logOK = syncNodeOnRequestVoteLogOK(ths, pMsg);
 
   // maybe update term
-  if (pMsg->term > ths->pRaftStore->currentTerm) {
+  if (pMsg->term > ths->raftStore.currentTerm) {
     syncNodeStepDown(ths, pMsg->term);
     // syncNodeUpdateTerm(ths, pMsg->term);
   }
-  ASSERT(pMsg->term <= ths->pRaftStore->currentTerm);
+  ASSERT(pMsg->term <= ths->raftStore.currentTerm);
 
-  bool grant = (pMsg->term == ths->pRaftStore->currentTerm) && logOK &&
-               ((!raftStoreHasVoted(ths->pRaftStore)) || (syncUtilSameId(&(ths->pRaftStore->voteFor), &(pMsg->srcId))));
+  bool grant = (pMsg->term == ths->raftStore.currentTerm) && logOK &&
+               ((!raftStoreHasVoted(ths)) || (syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId)));
   if (grant) {
     // maybe has already voted for pMsg->srcId
     // vote again, no harm
-    raftStoreVote(ths->pRaftStore, &(pMsg->srcId));
+    raftStoreVote(ths, &(pMsg->srcId));
 
     // candidate ?
-    syncNodeStepDown(ths, ths->pRaftStore->currentTerm);
+    syncNodeStepDown(ths, ths->raftStore.currentTerm);
 
     // forbid elect for this round
     syncNodeResetElectTimer(ths);
@@ -127,7 +127,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncRequestVoteReply* pReply = rpcMsg.pCont;
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
-  pReply->term = ths->pRaftStore->currentTerm;
+  pReply->term = ths->raftStore.currentTerm;
   pReply->voteGranted = grant;
 
   // trace log

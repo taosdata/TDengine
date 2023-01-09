@@ -57,7 +57,6 @@ void                 snapshotSenderDestroy(SSyncSnapshotSender *pSender);
 bool                 snapshotSenderIsStart(SSyncSnapshotSender *pSender);
 int32_t              snapshotSenderStart(SSyncSnapshotSender *pSender);
 void                 snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish);
-int32_t              snapshotSend(SSyncSnapshotSender *pSender);
 int32_t              snapshotReSend(SSyncSnapshotSender *pSender);
 
 typedef struct SSyncSnapshotReceiver {
@@ -82,7 +81,6 @@ void                   snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver)
 void                   snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg);
 void                   snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
 bool                   snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver);
-void                   snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver);
 
 // on message
 int32_t syncNodeOnSnapshot(SSyncNode *ths, const SRpcMsg *pMsg);

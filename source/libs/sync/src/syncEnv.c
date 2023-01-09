@@ -114,7 +114,7 @@ void syncHbTimerDataRemove(int64_t rid) { taosRemoveRef(gHbDataRefId, rid); }
 
 SSyncHbTimerData *syncHbTimerDataAcquire(int64_t rid) {
   SSyncHbTimerData *pData = taosAcquireRef(gHbDataRefId, rid);
-  if (pData == NULL) {
+  if (pData == NULL && rid > 0) {
     sInfo("failed to acquire hb-timer-data from refId:%" PRId64, rid);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
   }

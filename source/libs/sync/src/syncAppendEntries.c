@@ -90,6 +90,7 @@
 //
 
 int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
+  ASSERT(false && "deprecated");
   if (ths->state != TAOS_SYNC_STATE_FOLLOWER) {
     sNTrace(ths, "can not do follower commit");
     return -1;
@@ -158,17 +159,17 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   // prepare response msg
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
-  pReply->term = ths->pRaftStore->currentTerm;
+  pReply->term = ths->raftStore.currentTerm;
   pReply->success = false;
   pReply->matchIndex = SYNC_INDEX_INVALID;
   pReply->lastSendIndex = pMsg->prevLogIndex + 1;
   pReply->startTime = ths->startTime;
 
-  if (pMsg->term < ths->pRaftStore->currentTerm) {
+  if (pMsg->term < ths->raftStore.currentTerm) {
     goto _SEND_RESPONSE;
   }
 
-  if (pMsg->term > ths->pRaftStore->currentTerm) {
+  if (pMsg->term > ths->raftStore.currentTerm) {
     pReply->term = pMsg->term;
   }
 
@@ -206,12 +207,13 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   accepted = true;
 
 _SEND_RESPONSE:
+  pEntry = NULL;
   pReply->matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, &pReply->lastMatchTerm);
   bool matched = (pReply->matchIndex >= pReply->lastSendIndex);
   if (accepted && matched) {
     pReply->success = true;
     // update commit index only after matching
-    (void)syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
+    (void)syncNodeUpdateCommitIndex(ths, TMIN(pMsg->commitIndex, pReply->lastSendIndex));
   }
 
   // ack, i.e. send response
@@ -251,19 +253,19 @@ int32_t syncNodeOnAppendEntriesOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncAppendEntriesReply* pReply = rpcRsp.pCont;
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
-  pReply->term = ths->pRaftStore->currentTerm;
+  pReply->term = ths->raftStore.currentTerm;
   pReply->success = false;
   // pReply->matchIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
   pReply->matchIndex = SYNC_INDEX_INVALID;
   pReply->lastSendIndex = pMsg->prevLogIndex + 1;
   pReply->startTime = ths->startTime;
 
-  if (pMsg->term < ths->pRaftStore->currentTerm) {
+  if (pMsg->term < ths->raftStore.currentTerm) {
     syncLogRecvAppendEntries(ths, pMsg, "reject, small term");
     goto _SEND_RESPONSE;
   }
 
-  if (pMsg->term > ths->pRaftStore->currentTerm) {
+  if (pMsg->term > ths->raftStore.currentTerm) {
     pReply->term = pMsg->term;
   }
 

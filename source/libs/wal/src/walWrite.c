@@ -105,7 +105,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   wInfo("vgId:%d, wal rollback for version %" PRId64, pWal->cfg.vgId, ver);
   int64_t code;
   char    fnameStr[WAL_FILE_LEN];
-  if (ver > pWal->vers.lastVer || ver < pWal->vers.commitVer || ver <= pWal->vers.snapshotVer) {
+  if (ver > pWal->vers.lastVer || ver <= pWal->vers.commitVer || ver <= pWal->vers.snapshotVer) {
     terrno = TSDB_CODE_WAL_INVALID_VER;
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
