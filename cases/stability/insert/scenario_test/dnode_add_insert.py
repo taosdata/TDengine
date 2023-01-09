@@ -18,9 +18,10 @@ from typing import List
 from taostest import TDCase
 from taostest.components.taosd import TaosD
 from taostest.util.remote import Remote
+from datetime import datetime,timedelta
 
 
-class LongTimeInsert(TDCase):
+class DnodeAddInsert(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
@@ -30,6 +31,12 @@ class LongTimeInsert(TDCase):
         )
         self.result_file_name = ""
         self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
+        self.replica = 3
+        self.vgroups = 40
+        self.create_table_thread_count=40
+        self.thread_count=40
+        self.childtable_count = 10000
+        self.insert_rows = 10000
 
     def desc(self):
         pass
@@ -50,39 +57,44 @@ class LongTimeInsert(TDCase):
         taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
         file_name1 = "insert0.json"
         json_filename_list.append(file_name1)
-        child_table_count = 10000
-        insert_rows = 10000
-        childtable_prefix = "ctb0"
+        childtable_count = self.childtable_count
+        insert_rows = self.insert_rows
+        
         column_info_list = [
-            {
-              "type": "INT",
-              "count": 1
-            }
-          ]
+          {
+            "type": "INT",
+            "count": 1
+          }
+        ]
         tag_info_list = [
-            {
-              "type": "INT",
-              "count": 1
-            }
-          ]
-        stb_into = [self.tdCom.setStbinfo(columns=column_info_list, tags=tag_info_list, child_table_count=child_table_count, insert_rows=insert_rows, childtable_prefix=childtable_prefix)]
-        database_info = [self.tdCom.setDatabases(super_tables=stb_into)]
-        host = self.get_fqdn("taosd")[0]
-        json_info = self.tdCom.setJsoninfo(host=host, databases=database_info)
+          {
+            "type": "INT",
+            "count": 1
+          }
+        ]
+        
+        for start_index in range(len(self.taosd_setting["spec"]["reserve_dnodes"])):
+            start_timestamp = (datetime.now() + timedelta(days=start_index)).strftime("%Y-%m-%d %H:%M:%S")
+            child_table_exists = "yes" if start_index != 0 else "no"
+            db_drop = "no" if start_index != 0 else "yes"
+            dbinfo = self.tdCom.setDBinfo(replica=self.replica, vgroups=self.vgroups, drop=db_drop)
+            stb_into = [self.tdCom.setStbinfo(columns=column_info_list, tags=tag_info_list, childtable_count=childtable_count, insert_rows=insert_rows, start_timestamp=start_timestamp, child_table_exists=child_table_exists)]
+            database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
+            host = self.get_fqdn("taosd")[0]
+            json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count)
 
-        self.tdCom.genBenchmarkJson(self.run_log_dir, file_name1, json_info)
-        json_data_list.append(json_info)
-        self.tdCom.put_file(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, self.run_log_dir)
-        self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
+            self.tdCom.genBenchmarkJson(self.run_log_dir, file_name1, json_info)
+            json_data_list.append(json_info)
+            self.tdCom.put_file(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, self.run_log_dir)
+            self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
 
-        self.taosd.configure_and_start_specified_dnode(self._tmp_dir, self.taosd_setting, self.taosd_setting["spec"]["reserve_dnodes"][0])
-        self.tdSql.query('show dnodes')
-        db_kv_dict = self.tdSql.get_db_field_kv(1, self.taosd_setting["spec"]["dnodes"][1]["endpoint"])
-        self.tdSql.execute(f'drop dnode {db_kv_dict["id"]}')
+            self.taosd.configure_and_start_specified_dnode(self._tmp_dir, self.taosd_setting, self.taosd_setting["spec"]["reserve_dnodes"][start_index])
+            self.tdSql.query('show dnodes')
+            db_kv_dict = self.tdSql.get_db_field_kv(1, self.taosd_setting["spec"]["dnodes"][start_index+1]["endpoint"])
+            self.tdSql.execute(f'drop dnode {db_kv_dict["id"]}')
 
-        childtable_prefix = "ctb1"
-        stb_into = [self.tdCom.setStbinfo(columns=column_info_list, tags=tag_info_list, child_table_count=child_table_count, insert_rows=insert_rows, childtable_prefix=childtable_prefix)]
-        self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
+            # stb_into = [self.tdCom.setStbinfo(columns=column_info_list, tags=tag_info_list, childtable_count=childtable_count, insert_rows=insert_rows, start_timestamp=start_timestamp, child_table_exists=child_table_exists)]
+            # self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
 
         # taosBenchmark_iplist: List = self.get_fqdn("taosBenchmark")
         # json_data: List = []
