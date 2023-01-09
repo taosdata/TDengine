@@ -765,17 +765,8 @@ int32_t tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode) {
   int32_t code = 0;
 
   if (pNode) {
-    vnodeBufPoolDeregisterQuery(pMemTable->pPool);
+    vnodeBufPoolDeregisterQuery(pMemTable->pPool, pNode);
   }
-
-#if 0
-  // unregister handle (todo: take concurrency in consideration)
-  if (pNode) {
-    pNode->pNext->ppNext = pNode->ppNext;
-    *pNode->ppNext = pNode->pNext;
-    taosMemoryFree(pNode);
-  }
-#endif
 
   int32_t nRef = atomic_sub_fetch_32(&pMemTable->nRef, 1);
   if (nRef == 0) {

@@ -45,10 +45,19 @@ static int32_t vnodeTryRecycleBufPool(SVnode *pVnode) {
     }
     pVnode->onRecycle->recycleNext = pVnode->onRecycle->recyclePrev = NULL;
 
-    {
-      // TODO: do recycle the buffer pool
-      ASSERT(0);
+    // do recycle the buffer pool
+    SVBufPool *pPool = pVnode->onRecycle;
+
+    taosThreadMutexLock(&pPool->mutex);
+
+    SQueryNode *pNode = pPool->qList.pNext;
+    while (pNode != &pPool->qList) {
+      // TODO: refact/finish here
+      pNode->reseek(pNode->pQHandle);
+      pNode = pNode->pNext;
     }
+
+    taosThreadMutexUnlock(&pPool->mutex);
   } else {
     vDebug("vgId:%d no recyclable buffer pool", TD_VID(pVnode));
   }

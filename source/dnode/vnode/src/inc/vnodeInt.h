@@ -109,7 +109,7 @@ void  vnodeBufPoolUnRef(SVBufPool* pPool);
 int   vnodeDecodeInfo(uint8_t* pData, SVnodeInfo* pInfo);
 
 int32_t vnodeBufPoolRegisterQuery(SVBufPool* pPool, void* pQHandle, _query_reseek_func_t reseekFn);
-int32_t vnodeBufPoolDeregisterQuery(SVBufPool* pPool);
+int32_t vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;

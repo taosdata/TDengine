@@ -290,12 +290,14 @@ _exit:
   return code;
 }
 
-int32_t vnodeBufPoolDeregisterQuery(SVBufPool *pPool) {
+int32_t vnodeBufPoolDeregisterQuery(SVBufPool *pPool, SQueryNode *pQNode) {
   int32_t code = 0;
 
   taosThreadMutexLock(&pPool->mutex);
 
-  ASSERT(0);
+  pQNode->pNext->ppNext = pQNode->ppNext;
+  *pQNode->ppNext = pQNode->pNext;
+  pPool->nQuery--;
 
   taosThreadMutexUnlock(&pPool->mutex);
 
