@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 #set -x
 scriptDir=$(dirname $(realpath $0 || readlink -f $0))
 #

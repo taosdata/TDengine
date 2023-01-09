@@ -1,5 +1,6 @@
 #!/bin/sh
 
+set -e
 # set -x
 
 # OPTIONS=`getopt  --options 'ho:r:e:f' --longoptions 'help,os:,arch:,repo:,force' -- "$@"`

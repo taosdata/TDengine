@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+set -e
+
 tagVal=$1
 branchName=$2
 

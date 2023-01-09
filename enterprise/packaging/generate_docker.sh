@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+set -e
+
 version=$1
 branchName=$2
 verType=$3

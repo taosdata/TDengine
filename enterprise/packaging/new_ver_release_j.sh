@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+set -e
+
 version=$1
 versionComp=2.0.0.0
 
