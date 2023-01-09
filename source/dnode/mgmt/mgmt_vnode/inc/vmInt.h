@@ -26,18 +26,20 @@ extern "C" {
 #endif
 
 typedef struct SVnodeMgmt {
-  SDnodeData    *pData;
-  SMsgCb         msgCb;
-  const char    *path;
-  const char    *name;
-  SQWorkerPool   queryPool;
-  SQWorkerPool   streamPool;
-  SWWorkerPool   fetchPool;
-  SSingleWorker  mgmtWorker;
-  SHashObj      *hash;
-  TdThreadRwlock lock;
-  SVnodesStat    state;
-  STfs          *pTfs;
+  SDnodeData      *pData;
+  SMsgCb           msgCb;
+  const char      *path;
+  const char      *name;
+  SQWorkerPool     queryPool;
+  SAutoQWorkerPool streamPool;
+  SWWorkerPool     fetchPool;
+  SSingleWorker    mgmtWorker;
+  SHashObj        *hash;
+  TdThreadRwlock   lock;
+  SVnodesStat      state;
+  STfs            *pTfs;
+  TdThread         thread;
+  bool             stop;
 } SVnodeMgmt;
 
 typedef struct {

@@ -7,6 +7,7 @@ import os
 from util.log import *
 from util.sql import *
 from util.cases import *
+from util.dnodes import *
 from util.dnodes import TDDnodes
 from util.dnodes import TDDnode
 import time
@@ -68,6 +69,8 @@ class TDTestCase:
         self.TDDnodes.init("")
         self.TDDnodes.setTestCluster(testCluster)
         self.TDDnodes.setValgrind(valgrind)
+
+        self.TDDnodes.setAsan(tdDnodes.getAsan())
         self.TDDnodes.stopAll()
         for dnode in self.TDDnodes.dnodes:
             self.TDDnodes.deploy(dnode.index,{})
@@ -122,7 +125,7 @@ class TDTestCase:
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
         tdSql.query('select * from information_schema.ins_databases;')
-        tdSql.checkData(2,5,'off')
+        tdSql.checkData(2,5,'on')
         tdSql.error("alter database db strict 'off'")
         # tdSql.execute('alter database db strict 'on'')
         # tdSql.query('select * from information_schema.ins_databases;')
@@ -134,11 +137,34 @@ class TDTestCase:
         config_dir = dnode.cfgDir
         return taos.connect(host=host, port=int(port), config=config_dir)
 
+    def check_alive(self):
+        # check cluster alive
+        tdLog.printNoPrefix("======== test cluster alive: ")
+        tdSql.checkDataLoop(0, 0, 1, "show cluster alive;", 20, 0.5)
+
+        tdSql.query("show db.alive;")
+        tdSql.checkData(0, 0, 1)
+
+        # stop 5 dnode 
+        self.TDDnodes.stoptaosd(5)
+        tdSql.checkDataLoop(0, 0, 2, "show cluster alive;", 20, 0.5)
+        
+        tdSql.query("show db.alive;")
+        tdSql.checkData(0, 0, 2)
+
+        # stop 2 dnode
+        self.TDDnodes.stoptaosd(2)
+        tdSql.checkDataLoop(0, 0, 0, "show cluster alive;", 20, 0.5)
+
+        tdSql.query("show db.alive;")
+        tdSql.checkData(0, 0, 0)
+        
 
     def run(self):
         # print(self.master_dnode.cfgDict)
         self.five_dnode_one_mnode()
-
+        # check cluster and db alive
+        self.check_alive()
 
     def stop(self):
         tdSql.close()

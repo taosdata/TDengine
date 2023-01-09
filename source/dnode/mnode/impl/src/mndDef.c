@@ -76,11 +76,14 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 
   if (tEncodeSSchemaWrapper(pEncoder, &pObj->outputSchema) < 0) return -1;
 
+  // 3.0.20
+  if (tEncodeI64(pEncoder, pObj->checkpointFreq) < 0) return -1;
+
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
 
-int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
+int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pObj->name) < 0) return -1;
 
@@ -139,6 +142,10 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
 
   if (tDecodeSSchemaWrapper(pDecoder, &pObj->outputSchema) < 0) return -1;
 
+  // 3.0.20
+  if (sver >= 2) {
+    if (tDecodeI64(pDecoder, &pObj->checkpointFreq) < 0) return -1;
+  }
   tEndDecode(pDecoder);
   return 0;
 }
@@ -361,7 +368,7 @@ SMqConsumerEp *tCloneSMqConsumerEp(const SMqConsumerEp *pConsumerEpOld) {
   SMqConsumerEp *pConsumerEpNew = taosMemoryMalloc(sizeof(SMqConsumerEp));
   if (pConsumerEpNew == NULL) return NULL;
   pConsumerEpNew->consumerId = pConsumerEpOld->consumerId;
-  pConsumerEpNew->vgs = taosArrayDeepCopy(pConsumerEpOld->vgs, (FCopy)tCloneSMqVgEp);
+  pConsumerEpNew->vgs = taosArrayDup(pConsumerEpOld->vgs, (__array_item_dup_fn_t)tCloneSMqVgEp);
   return pConsumerEpNew;
 }
 
@@ -440,11 +447,11 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
     pConsumerEp = (SMqConsumerEp *)pIter;
     SMqConsumerEp newEp = {
         .consumerId = pConsumerEp->consumerId,
-        .vgs = taosArrayDeepCopy(pConsumerEp->vgs, (FCopy)tCloneSMqVgEp),
+        .vgs = taosArrayDup(pConsumerEp->vgs, (__array_item_dup_fn_t)tCloneSMqVgEp),
     };
     taosHashPut(pSubNew->consumerHash, &newEp.consumerId, sizeof(int64_t), &newEp, sizeof(SMqConsumerEp));
   }
-  pSubNew->unassignedVgs = taosArrayDeepCopy(pSub->unassignedVgs, (FCopy)tCloneSMqVgEp);
+  pSubNew->unassignedVgs = taosArrayDup(pSub->unassignedVgs, (__array_item_dup_fn_t)tCloneSMqVgEp);
   memcpy(pSubNew->dbName, pSub->dbName, TSDB_DB_FNAME_LEN);
   return pSubNew;
 }
@@ -482,7 +489,7 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
     tlen += tEncodeSMqConsumerEp(buf, pConsumerEp);
     cnt++;
   }
-  ASSERT(cnt == sz);
+  if(cnt != sz) return -1;
   tlen += taosEncodeArray(buf, pSub->unassignedVgs, (FEncode)tEncodeSMqVgEp);
   tlen += taosEncodeString(buf, pSub->dbName);
   return tlen;
@@ -516,7 +523,7 @@ SMqSubActionLogEntry *tCloneSMqSubActionLogEntry(SMqSubActionLogEntry *pEntry) {
   SMqSubActionLogEntry *pEntryNew = taosMemoryMalloc(sizeof(SMqSubActionLogEntry));
   if (pEntryNew == NULL) return NULL;
   pEntryNew->epoch = pEntry->epoch;
-  pEntryNew->consumers = taosArrayDeepCopy(pEntry->consumers, (FCopy)tCloneSMqConsumerEp);
+  pEntryNew->consumers = taosArrayDup(pEntry->consumers, (__array_item_dup_fn_t)tCloneSMqConsumerEp);
   return pEntryNew;
 }
 
@@ -541,7 +548,7 @@ SMqSubActionLogObj *tCloneSMqSubActionLogObj(SMqSubActionLogObj *pLog) {
   SMqSubActionLogObj *pLogNew = taosMemoryMalloc(sizeof(SMqSubActionLogObj));
   if (pLogNew == NULL) return pLogNew;
   memcpy(pLogNew->key, pLog->key, TSDB_SUBSCRIBE_KEY_LEN);
-  pLogNew->logs = taosArrayDeepCopy(pLog->logs, (FCopy)tCloneSMqConsumerEp);
+  pLogNew->logs = taosArrayDup(pLog->logs, (__array_item_dup_fn_t)tCloneSMqConsumerEp);
   return pLogNew;
 }
 

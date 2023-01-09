@@ -132,10 +132,12 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->syncCfg.myIndex = pCreate->selfIndex;
   pCfg->syncCfg.replicaNum = pCreate->replica;
   memset(&pCfg->syncCfg.nodeInfo, 0, sizeof(pCfg->syncCfg.nodeInfo));
-  for (int i = 0; i < pCreate->replica; ++i) {
+  for (int32_t i = 0; i < pCreate->replica; ++i) {
     SNodeInfo *pNode = &pCfg->syncCfg.nodeInfo[i];
+    pNode->nodeId = pCreate->replicas[i].id;
     pNode->nodePort = pCreate->replicas[i].port;
-    tstrncpy(pNode->nodeFqdn, pCreate->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    tstrncpy(pNode->nodeFqdn, pCreate->replicas[i].fqdn, TSDB_FQDN_LEN);
+    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
   }
 }
 
@@ -188,8 +190,8 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
         req.walRollPeriod, req.walSegmentSize, req.hashMethod, req.hashBegin, req.hashEnd, req.hashPrefix,
         req.hashSuffix, req.replica, req.selfIndex, req.strict);
   for (int32_t i = 0; i < req.replica; ++i) {
-    dInfo("vgId:%d, replica:%d id:%d fqdn:%s port:%u", req.vgId, i, req.replicas[i].id, req.replicas[i].fqdn,
-          req.replicas[i].port);
+    dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", req.vgId, i, req.replicas[i].fqdn, req.replicas[i].port,
+          req.replicas[i].id);
   }
 
   SReplica *pReplica = &req.replicas[req.selfIndex];
@@ -213,10 +215,10 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
   if (pVnode != NULL) {
-    dDebug("vgId:%d, already exist", req.vgId);
+    dInfo("vgId:%d, already exist", req.vgId);
     tFreeSCreateVnodeReq(&req);
     vmReleaseVnode(pMgmt, pVnode);
-    terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+    terrno = TSDB_CODE_VND_ALREADY_EXIST;
     code = terrno;
     return 0;
   }
@@ -286,7 +288,8 @@ int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo("vgId:%d, start to alter vnode, replica:%d selfIndex:%d strict:%d", alterReq.vgId, alterReq.replica,
         alterReq.selfIndex, alterReq.strict);
   for (int32_t i = 0; i < alterReq.replica; ++i) {
-    dInfo("vgId:%d, replica:%d ep:%s:%u", alterReq.vgId, i, alterReq.replicas[i].fqdn, alterReq.replicas[i].port);
+    SReplica *pReplica = &alterReq.replicas[i];
+    dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", alterReq.vgId, i, pReplica->fqdn, pReplica->port, pReplica->port);
   }
 
   if (alterReq.replica <= 0 || alterReq.selfIndex < 0 || alterReq.selfIndex >= alterReq.replica) {
@@ -307,7 +310,7 @@ int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
   if (pVnode == NULL) {
     dError("vgId:%d, failed to alter replica since %s", vgId, terrstr());
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    terrno = TSDB_CODE_VND_NOT_EXIST;
     return -1;
   }
 
@@ -358,7 +361,7 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   int32_t vgId = dropReq.vgId;
-  dDebug("vgId:%d, start to drop vnode", vgId);
+  dInfo("vgId:%d, start to drop vnode", vgId);
 
   if (dropReq.dnodeId != pMgmt->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -368,8 +371,8 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
   if (pVnode == NULL) {
-    dDebug("vgId:%d, failed to drop since %s", vgId, terrstr());
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    dInfo("vgId:%d, failed to drop since %s", vgId, terrstr());
+    terrno = TSDB_CODE_VND_NOT_EXIST;
     return -1;
   }
 
@@ -383,6 +386,7 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   vmCloseVnode(pMgmt, pVnode);
   vmWriteVnodeListToFile(pMgmt);
 
+  dInfo("vgId:%d, is dropped", vgId);
   return 0;
 }
 
@@ -464,7 +468,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_PRE_SNAPSHOT_REPLY, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT, vmPutMsgToSyncCtrlQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT_REPLY, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT_REPLY, vmPutMsgToSyncCtrlQueue, 0) == NULL) goto _OVER;
 
   code = 0;
 

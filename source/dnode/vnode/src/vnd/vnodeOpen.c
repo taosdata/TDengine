@@ -48,6 +48,7 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   info.state.applied = -1;
   info.state.commitID = 0;
 
+  vInfo("vgId:%d, save config while create", pCfg->vgId);
   if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir, &info) < 0) {
     vError("vgId:%d, failed to save vnode config since %s", pCfg ? pCfg->vgId : 0, tstrerror(terrno));
     return -1;
@@ -79,12 +80,14 @@ int32_t vnodeAlter(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs) {
   pCfg->replicaNum = pReq->replica;
   memset(&pCfg->nodeInfo, 0, sizeof(pCfg->nodeInfo));
 
-  vInfo("vgId:%d, save config, replicas:%d selfIndex:%d", pReq->vgId, pCfg->replicaNum, pCfg->myIndex);
+  vInfo("vgId:%d, save config while alter, replicas:%d selfIndex:%d", pReq->vgId, pCfg->replicaNum, pCfg->myIndex);
   for (int i = 0; i < pReq->replica; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
+    pNode->nodeId = pReq->replicas[i].id;
     pNode->nodePort = pReq->replicas[i].port;
     tstrncpy(pNode->nodeFqdn, pReq->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
-    vInfo("vgId:%d, save config, replica:%d ep:%s:%u", pReq->vgId, i, pNode->nodeFqdn, pNode->nodePort);
+    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    vInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", pReq->vgId, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId);
   }
 
   info.config.syncCfg = *pCfg;
@@ -144,9 +147,9 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->config = info.config;
   pVnode->state.committed = info.state.committed;
   pVnode->state.commitTerm = info.state.commitTerm;
-  pVnode->state.applied = info.state.committed;
   pVnode->state.commitID = info.state.commitID;
-  pVnode->state.commitTerm = info.state.commitTerm;
+  pVnode->state.applied = info.state.committed;
+  pVnode->state.applyTerm = info.state.commitTerm;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
   taosThreadMutexInit(&pVnode->lock, NULL);
@@ -242,14 +245,16 @@ _err:
   return NULL;
 }
 
-void vnodePreClose(SVnode *pVnode) { 
+void vnodePreClose(SVnode *pVnode) {
   vnodeQueryPreClose(pVnode);
-  vnodeSyncPreClose(pVnode); 
+  vnodeSyncPreClose(pVnode);
 }
+
+void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
-    vnodeCommit(pVnode);
+    vnodeSyncCommit(pVnode);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     walClose(pVnode->pWal);
@@ -269,10 +274,7 @@ void vnodeClose(SVnode *pVnode) {
 }
 
 // start the sync timer after the queue is ready
-int32_t vnodeStart(SVnode *pVnode) {
-  vnodeSyncStart(pVnode);
-  return 0;
-}
+int32_t vnodeStart(SVnode *pVnode) { return vnodeSyncStart(pVnode); }
 
 void vnodeStop(SVnode *pVnode) {}
 

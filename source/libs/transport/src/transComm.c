@@ -134,7 +134,9 @@ int transDumpFromBuffer(SConnBuffer* connBuf, char** buf) {
   if (total >= HEADSIZE && !p->invalid) {
     *buf = taosMemoryCalloc(1, total);
     memcpy(*buf, p->buf, total);
-    transResetBuffer(connBuf);
+    if (transResetBuffer(connBuf) < 0) {
+      return -1;
+    }
   } else {
     total = -1;
   }
@@ -154,7 +156,8 @@ int transResetBuffer(SConnBuffer* connBuf) {
     p->total = 0;
     p->len = 0;
   } else {
-    assert(0);
+    ASSERTS(0, "invalid read from sock buf");
+    return -1;
   }
   return 0;
 }
@@ -202,9 +205,8 @@ bool transReadComplete(SConnBuffer* connBuf) {
 }
 
 int transSetConnOption(uv_tcp_t* stream) {
-  uv_tcp_nodelay(stream, 0);
-  int ret = uv_tcp_keepalive(stream, 5, 60);
-  return ret;
+  return uv_tcp_nodelay(stream, 1);
+  // int ret = uv_tcp_keepalive(stream, 5, 60);
 }
 
 SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
@@ -283,6 +285,9 @@ void transCtxCleanup(STransCtx* ctx) {
 }
 
 void transCtxMerge(STransCtx* dst, STransCtx* src) {
+  if (src->args == NULL || src->freeFunc == NULL) {
+    return;
+  }
   if (dst->args == NULL) {
     dst->args = src->args;
     dst->brokenVal = src->brokenVal;

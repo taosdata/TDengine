@@ -65,6 +65,7 @@ typedef struct STaosQnode {
   STaosQnode *next;
   STaosQueue *queue;
   int64_t     timestamp;
+  int64_t     dataSize;
   int32_t     size;
   int8_t      itype;
   int8_t      reserved[3];
@@ -103,7 +104,7 @@ typedef struct STaosQall {
 STaosQueue *taosOpenQueue();
 void        taosCloseQueue(STaosQueue *queue);
 void        taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp);
-void       *taosAllocateQitem(int32_t size, EQItype itype);
+void       *taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize);
 void        taosFreeQitem(void *pItem);
 void        taosWriteQitem(STaosQueue *queue, void *pItem);
 int32_t     taosReadQitem(STaosQueue *queue, void **ppItem);

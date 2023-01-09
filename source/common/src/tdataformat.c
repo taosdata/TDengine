@@ -20,6 +20,8 @@
 #include "tdatablock.h"
 #include "tlog.h"
 
+static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData);
+
 // SBuffer ================================
 void tBufferDestroy(SBuffer *pBuffer) {
   tFree(pBuffer->pBuf);
@@ -61,9 +63,9 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 #define KV_FLG_MID ((uint8_t)0x20)
 #define KV_FLG_BIG ((uint8_t)0x30)
 
-#define ROW_BIT_NONE  ((uint8_t)0x0)
-#define ROW_BIT_NULL  ((uint8_t)0x1)
-#define ROW_BIT_VALUE ((uint8_t)0x2)
+#define BIT_FLG_NONE  ((uint8_t)0x0)
+#define BIT_FLG_NULL  ((uint8_t)0x1)
+#define BIT_FLG_VALUE ((uint8_t)0x2)
 
 #pragma pack(push, 1)
 typedef struct {
@@ -95,28 +97,29 @@ typedef struct {
     }                                             \
   } while (0)
 
-int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
+int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
   int32_t code = 0;
 
-  ASSERT(taosArrayGetSize(aColVal) > 0);
+  ASSERT(TARRAY_SIZE(aColVal) > 0);
   ASSERT(((SColVal *)aColVal->pData)[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
   ASSERT(((SColVal *)aColVal->pData)[0].type == TSDB_DATA_TYPE_TIMESTAMP);
 
   // scan ---------------
-  uint8_t       flag = 0;
-  int32_t       iColVal = 1;
-  const int32_t nColVal = taosArrayGetSize(aColVal);
-  SColVal      *pColVal = (iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
-  int32_t       iTColumn = 1;
-  STColumn     *pTColumn = pTSchema->columns + iTColumn;
-  int32_t       ntp = 0;
-  int32_t       nkv = 0;
-  int32_t       maxIdx = 0;
-  int32_t       nIdx = 0;
+  SRow           *pRow = NULL;
+  SColVal        *colVals = (SColVal *)TARRAY_DATA(aColVal);
+  uint8_t         flag = 0;
+  int32_t         iColVal = 1;
+  const int32_t   nColVal = TARRAY_SIZE(aColVal);
+  SColVal        *pColVal = (iColVal < nColVal) ? &colVals[iColVal] : NULL;
+  int32_t         iTColumn = 1;
+  const STColumn *pTColumn = pTSchema->columns + iTColumn;
+  int32_t         ntp = 0;
+  int32_t         nkv = 0;
+  int32_t         maxIdx = 0;
+  int32_t         nIdx = 0;
   while (pTColumn) {
     if (pColVal) {
       if (pColVal->cid == pTColumn->colId) {
-        ntp += TYPE_BYTES[pTColumn->type];
         if (COL_VAL_IS_VALUE(pColVal)) {  // VALUE
           flag |= HAS_VALUE;
           maxIdx = nkv;
@@ -139,17 +142,15 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
         }
 
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
-        pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+        pColVal = (++iColVal < nColVal) ? &colVals[iColVal] : NULL;
       } else if (pColVal->cid > pTColumn->colId) {  // NONE
         flag |= HAS_NONE;
-        ntp += TYPE_BYTES[pTColumn->type];
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
       } else {
-        pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+        pColVal = (++iColVal < nColVal) ? &colVals[iColVal] : NULL;
       }
     } else {  // NONE
       flag |= HAS_NONE;
-      ntp += TYPE_BYTES[pTColumn->type];
       pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
     }
   }
@@ -161,17 +162,17 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
       ntp = sizeof(SRow);
       break;
     case HAS_VALUE:
-      ntp = sizeof(SRow) + ntp;
+      ntp = sizeof(SRow) + pTSchema->flen + ntp;
       break;
     case (HAS_NULL | HAS_NONE):
       ntp = sizeof(SRow) + BIT1_SIZE(pTSchema->numOfCols - 1);
       break;
     case (HAS_VALUE | HAS_NONE):
     case (HAS_VALUE | HAS_NULL):
-      ntp = sizeof(SRow) + BIT1_SIZE(pTSchema->numOfCols - 1) + ntp;
+      ntp = sizeof(SRow) + BIT1_SIZE(pTSchema->numOfCols - 1) + pTSchema->flen + ntp;
       break;
     case (HAS_VALUE | HAS_NULL | HAS_NONE):
-      ntp = sizeof(SRow) + BIT2_SIZE(pTSchema->numOfCols - 1) + ntp;
+      ntp = sizeof(SRow) + BIT2_SIZE(pTSchema->numOfCols - 1) + pTSchema->flen + ntp;
       break;
     default:
       ASSERT(0);
@@ -196,12 +197,14 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
   }
 
   // alloc --------------
-  SRow *pRow = NULL;
-  code = tBufferReserve(pBuffer, nRow, (void **)&pRow);
-  if (code) return code;
+  pRow = taosMemoryMalloc(nRow);
+  if (NULL == pRow) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
 
   // build --------------
-  pColVal = (SColVal *)taosArrayGet(aColVal, 0);
+  pColVal = &colVals[0];
 
   pRow->flag = flag;
   pRow->rsv = 0;
@@ -214,10 +217,10 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
   }
 
   iColVal = 1;
-  pColVal = (iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+  pColVal = (iColVal < nColVal) ? &colVals[iColVal] : NULL;
   iTColumn = 1;
   pTColumn = pTSchema->columns + iTColumn;
-  if (flag & 0xf0) {  // KV
+  if (flag >> 4) {  // KV
     SKVIdx  *pIdx = (SKVIdx *)pRow->data;
     int32_t  iIdx = 0;
     int32_t  nv = 0;
@@ -266,11 +269,11 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
           }
 
           pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
-          pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+          pColVal = (++iColVal < nColVal) ? &colVals[iColVal] : NULL;
         } else if (pColVal->cid > pTColumn->colId) {  // NONE
           pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
         } else {
-          pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+          pColVal = (++iColVal < nColVal) ? &colVals[iColVal] : NULL;
         }
       } else {  // NONE
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
@@ -306,12 +309,20 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
         break;
     }
 
+    if (pb) {
+      if (flag == (HAS_VALUE | HAS_NULL | HAS_NONE)) {
+        memset(pb, 0, BIT2_SIZE(pTSchema->numOfCols - 1));
+      } else {
+        memset(pb, 0, BIT1_SIZE(pTSchema->numOfCols - 1));
+      }
+    }
+
     // build impl
     while (pTColumn) {
       if (pColVal) {
         if (pColVal->cid == pTColumn->colId) {
           if (COL_VAL_IS_VALUE(pColVal)) {  // VALUE
-            ROW_SET_BITMAP(pb, flag, iTColumn - 1, ROW_BIT_VALUE);
+            ROW_SET_BITMAP(pb, flag, iTColumn - 1, BIT_FLG_VALUE);
 
             if (IS_VAR_DATA_TYPE(pTColumn->type)) {
               *(int32_t *)(pf + pTColumn->offset) = nv;
@@ -324,24 +335,24 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
               memcpy(pf + pTColumn->offset, &pColVal->value.val, TYPE_BYTES[pTColumn->type]);
             }
           } else if (COL_VAL_IS_NONE(pColVal)) {  // NONE
-            ROW_SET_BITMAP(pb, flag, iTColumn - 1, ROW_BIT_NONE);
+            ROW_SET_BITMAP(pb, flag, iTColumn - 1, BIT_FLG_NONE);
             if (pf) memset(pf + pTColumn->offset, 0, TYPE_BYTES[pTColumn->type]);
           } else {  // NULL
-            ROW_SET_BITMAP(pb, flag, iTColumn - 1, ROW_BIT_NULL);
+            ROW_SET_BITMAP(pb, flag, iTColumn - 1, BIT_FLG_NULL);
             if (pf) memset(pf + pTColumn->offset, 0, TYPE_BYTES[pTColumn->type]);
           }
 
           pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
-          pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+          pColVal = (++iColVal < nColVal) ? &colVals[iColVal] : NULL;
         } else if (pColVal->cid > pTColumn->colId) {  // NONE
-          ROW_SET_BITMAP(pb, flag, iTColumn - 1, ROW_BIT_NONE);
+          ROW_SET_BITMAP(pb, flag, iTColumn - 1, BIT_FLG_NONE);
           if (pf) memset(pf + pTColumn->offset, 0, TYPE_BYTES[pTColumn->type]);
           pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
         } else {
-          pColVal = (++iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+          pColVal = (++iColVal < nColVal) ? &colVals[iColVal] : NULL;
         }
       } else {  // NONE
-        ROW_SET_BITMAP(pb, flag, iTColumn - 1, ROW_BIT_NONE);
+        ROW_SET_BITMAP(pb, flag, iTColumn - 1, BIT_FLG_NONE);
         if (pf) memset(pf + pTColumn->offset, 0, TYPE_BYTES[pTColumn->type]);
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
       }
@@ -349,6 +360,12 @@ int32_t tRowBuild(SArray *aColVal, STSchema *pTSchema, SBuffer *pBuffer) {
   }
 
 _exit:
+  if (code) {
+    *ppRow = NULL;
+    tRowDestroy(pRow);
+  } else {
+    *ppRow = pRow;
+  }
   return code;
 }
 
@@ -376,7 +393,7 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
     return;
   }
 
-  if (pRow->flag & 0xf0) {  // KV Row
+  if (pRow->flag >> 4) {  // KV Row
     SKVIdx  *pIdx = (SKVIdx *)pRow->data;
     uint8_t *pv = NULL;
     if (pRow->flag & KV_FLG_LIT) {
@@ -432,62 +449,188 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
 
     *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
   } else {  // Tuple Row
-    uint8_t *pf = NULL;
-    uint8_t *pv = NULL;
-    uint8_t  bv = ROW_BIT_VALUE;
-
-    switch (pRow->flag) {
-      case HAS_VALUE:
-        pf = pRow->data;
-        pv = pf + pTSchema->flen;
-        break;
-      case (HAS_NULL | HAS_NONE):
-        bv = GET_BIT1(pRow->data, iCol - 1);
-        break;
-      case (HAS_VALUE | HAS_NONE):
-        bv = GET_BIT1(pRow->data, iCol - 1);
-        if (bv) bv++;
-        pf = pRow->data + BIT1_SIZE(pTSchema->numOfCols - 1);
-        pv = pf + pTSchema->flen;
-        break;
-      case (HAS_VALUE | HAS_NULL):
-        bv = GET_BIT1(pRow->data, iCol - 1);
-        bv++;
-        pf = pRow->data + BIT1_SIZE(pTSchema->numOfCols - 1);
-        pv = pf + pTSchema->flen;
-        break;
-      case (HAS_VALUE | HAS_NULL | HAS_NONE):
-        bv = GET_BIT2(pRow->data, iCol - 1);
-        pf = pRow->data + BIT2_SIZE(pTSchema->numOfCols - 1);
-        pv = pf + pTSchema->flen;
-        break;
-      default:
-        break;
-    }
-
-    if (bv == ROW_BIT_NONE) {
-      *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
-      return;
-    } else if (bv == ROW_BIT_NULL) {
-      *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
-      return;
-    }
-
-    pColVal->cid = pTColumn->colId;
-    pColVal->type = pTColumn->type;
-    pColVal->flag = CV_FLAG_VALUE;
-    if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-      uint8_t *pData = pv + *(int32_t *)(pf + pTColumn->offset);
-      pData += tGetU32v(pData, &pColVal->value.nData);
-      if (pColVal->value.nData) {
-        pColVal->value.pData = pData;
+    if (pRow->flag == HAS_VALUE) {
+      pColVal->cid = pTColumn->colId;
+      pColVal->type = pTColumn->type;
+      pColVal->flag = CV_FLAG_VALUE;
+      if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+        uint8_t *pData = pRow->data + pTSchema->flen + *(int32_t *)(pRow->data + pTColumn->offset);
+        pData += tGetU32v(pData, &pColVal->value.nData);
+        if (pColVal->value.nData) {
+          pColVal->value.pData = pData;
+        } else {
+          pColVal->value.pData = NULL;
+        }
       } else {
-        pColVal->value.pData = NULL;
+        memcpy(&pColVal->value.val, pRow->data + pTColumn->offset, TYPE_BYTES[pTColumn->type]);
       }
     } else {
-      memcpy(&pColVal->value.val, pv + pTColumn->offset, pTColumn->bytes);
+      uint8_t *pf;
+      uint8_t *pv;
+      uint8_t  bv = BIT_FLG_VALUE;
+
+      switch (pRow->flag) {
+        case (HAS_NULL | HAS_NONE):
+          bv = GET_BIT1(pRow->data, iCol - 1);
+          break;
+        case (HAS_VALUE | HAS_NONE):
+          bv = GET_BIT1(pRow->data, iCol - 1);
+          if (bv) bv++;
+          pf = pRow->data + BIT1_SIZE(pTSchema->numOfCols - 1);
+          pv = pf + pTSchema->flen;
+          break;
+        case (HAS_VALUE | HAS_NULL):
+          bv = GET_BIT1(pRow->data, iCol - 1);
+          bv++;
+          pf = pRow->data + BIT1_SIZE(pTSchema->numOfCols - 1);
+          pv = pf + pTSchema->flen;
+          break;
+        case (HAS_VALUE | HAS_NULL | HAS_NONE):
+          bv = GET_BIT2(pRow->data, iCol - 1);
+          pf = pRow->data + BIT2_SIZE(pTSchema->numOfCols - 1);
+          pv = pf + pTSchema->flen;
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+
+      if (bv == BIT_FLG_NONE) {
+        *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+        return;
+      } else if (bv == BIT_FLG_NULL) {
+        *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
+        return;
+      }
+
+      pColVal->cid = pTColumn->colId;
+      pColVal->type = pTColumn->type;
+      pColVal->flag = CV_FLAG_VALUE;
+      if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+        uint8_t *pData = pv + *(int32_t *)(pf + pTColumn->offset);
+        pData += tGetU32v(pData, &pColVal->value.nData);
+        if (pColVal->value.nData) {
+          pColVal->value.pData = pData;
+        } else {
+          pColVal->value.pData = NULL;
+        }
+      } else {
+        memcpy(&pColVal->value.val, pf + pTColumn->offset, TYPE_BYTES[pTColumn->type]);
+      }
     }
   }
+}
+
+void tRowDestroy(SRow *pRow) {
+  if (pRow) taosMemoryFree(pRow);
+}
+
+static int32_t tRowPCmprFn(const void *p1, const void *p2) {
+  if ((*(SRow **)p1)->ts < (*(SRow **)p2)->ts) {
+    return -1;
+  } else if ((*(SRow **)p1)->ts > (*(SRow **)p2)->ts) {
+    return 1;
+  }
+
+  return 0;
+}
+static void    tRowPDestroy(SRow **ppRow) { tRowDestroy(*ppRow); }
+static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int32_t iEnd, int8_t flag) {
+  int32_t code = 0;
+
+  int32_t    nRow = iEnd - iStart;
+  SRowIter **aIter = NULL;
+  SArray    *aColVal = NULL;
+  SRow      *pRow = NULL;
+
+  aIter = taosMemoryCalloc(nRow, sizeof(SRowIter *));
+  if (aIter == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < nRow; i++) {
+    SRow *pRowT = taosArrayGetP(aRowP, iStart + i);
+
+    code = tRowIterOpen(pRowT, pTSchema, &aIter[i]);
+    if (code) goto _exit;
+  }
+
+  // merge
+  aColVal = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
+  if (aColVal == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  for (int32_t iCol = 0; iCol < pTSchema->numOfCols; iCol++) {
+    SColVal *pColVal = NULL;
+    for (int32_t iRow = 0; iRow < nRow; iRow++) {
+      SColVal *pColValT = tRowIterNext(aIter[iRow]);
+
+      // todo: take strategy according to the flag
+      if (COL_VAL_IS_VALUE(pColValT)) {
+        pColVal = pColValT;
+      } else if (COL_VAL_IS_NULL(pColValT)) {
+        if (pColVal == NULL) {
+          pColVal = pColValT;
+        }
+      }
+    }
+
+    if (pColVal) taosArrayPush(aColVal, pColVal);
+  }
+
+  // build
+  code = tRowBuild(aColVal, pTSchema, &pRow);
+  if (code) goto _exit;
+
+  taosArrayRemoveBatch(aRowP, iStart, nRow, (FDelete)tRowPDestroy);
+  taosArrayInsert(aRowP, iStart, &pRow);
+
+_exit:
+  if (aIter) {
+    for (int32_t i = 0; i < nRow; i++) {
+      tRowIterClose(&aIter[i]);
+    }
+    taosMemoryFree(aIter);
+  }
+  if (aColVal) taosArrayDestroy(aColVal);
+  if (code) tRowDestroy(pRow);
+  return code;
+}
+
+void tRowSort(SArray *aRowP) {
+  if (TARRAY_SIZE(aRowP) <= 1) return;
+  taosArraySort(aRowP, tRowPCmprFn);
+}
+
+int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
+  int32_t code = 0;
+
+  int32_t iStart = 0;
+  while (iStart < aRowP->size) {
+    SRow *pRow = (SRow *)taosArrayGetP(aRowP, iStart);
+
+    int32_t iEnd = iStart + 1;
+    while (iEnd < aRowP->size) {
+      SRow *pRowT = (SRow *)taosArrayGetP(aRowP, iEnd);
+
+      if (pRow->ts != pRowT->ts) break;
+
+      iEnd++;
+    }
+
+    if (iEnd - iStart > 1) {
+      code = tRowMergeImpl(aRowP, pTSchema, iStart, iEnd, flag);
+      if (code) return code;
+    }
+
+    // the array is also changing, so the iStart just ++ instead of iEnd
+    iStart++;
+  }
+
+  return code;
 }
 
 // SRowIter ========================================
@@ -505,10 +648,9 @@ struct SRowIter {
       uint8_t *pb;
       uint8_t *pf;
     };
-    uint8_t *pv;
   };
-
-  SColVal cv;
+  uint8_t *pv;
+  SColVal  cv;
 };
 
 int32_t tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter) {
@@ -518,7 +660,7 @@ int32_t tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter) {
 
   SRowIter *pIter = taosMemoryCalloc(1, sizeof(*pIter));
   if (pIter == NULL) {
-    code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
@@ -528,15 +670,15 @@ int32_t tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter) {
 
   if (pRow->flag == HAS_NONE || pRow->flag == HAS_NULL) goto _exit;
 
-  if (pRow->flag & 0xf0) {
+  if (pRow->flag >> 4) {
     pIter->iCol = 0;
     pIter->pIdx = (SKVIdx *)pRow->data;
     if (pRow->flag & KV_FLG_LIT) {
       pIter->pv = pIter->pIdx->idx + pIter->pIdx->nCol;
     } else if (pRow->flag & KV_FLG_MID) {
-      pIter->pv = pIter->pIdx->idx + (pIter->pIdx->nCol << 1);
+      pIter->pv = pIter->pIdx->idx + (pIter->pIdx->nCol << 1);  // * sizeof(uint16_t)
     } else {
-      pIter->pv = pIter->pIdx->idx + (pIter->pIdx->nCol << 2);
+      pIter->pv = pIter->pIdx->idx + (pIter->pIdx->nCol << 2);  // * sizeof(uint32_t)
     }
   } else {
     switch (pRow->flag) {
@@ -608,7 +750,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
     goto _exit;
   }
 
-  if (pIter->pRow->flag & 0xf0) {  // KV
+  if (pIter->pRow->flag >> 4) {  // KV
     if (pIter->iCol < pIter->pIdx->nCol) {
       uint8_t *pData;
 
@@ -656,7 +798,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
       goto _exit;
     }
   } else {  // Tuple
-    uint8_t bv = ROW_BIT_VALUE;
+    uint8_t bv = BIT_FLG_VALUE;
     if (pIter->pb) {
       switch (pIter->pRow->flag) {
         case (HAS_NULL | HAS_NONE):
@@ -677,10 +819,10 @@ SColVal *tRowIterNext(SRowIter *pIter) {
           break;
       }
 
-      if (bv == ROW_BIT_NONE) {
+      if (bv == BIT_FLG_NONE) {
         pIter->cv = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
         goto _exit;
-      } else if (bv == ROW_BIT_NULL) {
+      } else if (bv == BIT_FLG_NULL) {
         pIter->cv = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
         goto _exit;
       }
@@ -698,7 +840,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
         pIter->cv.value.pData = NULL;
       }
     } else {
-      memcpy(&pIter->cv.value.val, pIter->pv + pTColumn->offset, pTColumn->bytes);
+      memcpy(&pIter->cv.value.val, pIter->pf + pTColumn->offset, TYPE_BYTES[pTColumn->type]);
     }
     goto _exit;
   }
@@ -708,7 +850,266 @@ _exit:
   return &pIter->cv;
 }
 
-// STSchema ========================================
+static int32_t tRowAppendNoneToColData(SColData *aColData, int32_t nColData) {
+  int32_t code = 0;
+
+  for (int32_t iColData = 0; iColData < nColData; iColData++) {
+    SColData *pColData = &aColData[iColData];
+    code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+    if (code) goto _exit;
+  }
+
+_exit:
+  return code;
+}
+static int32_t tRowAppendNullToColData(SColData *aColData, int32_t nColData, STSchema *pSchema) {
+  int32_t code = 0;
+
+  int32_t   iColData = 0;
+  SColData *pColData = &aColData[iColData];
+  int32_t   iTColumn = 1;
+  STColumn *pTColumn = &pSchema->columns[iTColumn];
+
+  while (pColData) {
+    if (pTColumn) {
+      if (pTColumn->colId == pColData->cid) {  // NULL
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+        if (code) goto _exit;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
+        pTColumn = (++iTColumn < pSchema->numOfCols) ? &pSchema->columns[iTColumn] : NULL;
+      } else if (pTColumn->colId > pColData->cid) {  // NONE
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+        if (code) goto _exit;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
+      } else {
+        pTColumn = (++iTColumn < pSchema->numOfCols) ? &pSchema->columns[iTColumn] : NULL;
+      }
+    } else {
+      code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+      if (code) goto _exit;
+
+      pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
+    }
+  }
+
+_exit:
+  return code;
+}
+static int32_t tRowAppendTupleToColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData) {
+  int32_t code = 0;
+
+  int32_t   iColData = 0;
+  SColData *pColData = &aColData[iColData];
+  int32_t   iTColumn = 1;
+  STColumn *pTColumn = &pTSchema->columns[iTColumn];
+
+  uint8_t *pb = NULL, *pf = NULL, *pv = NULL;
+
+  switch (pRow->flag) {
+    case HAS_VALUE:
+      pf = pRow->data;
+      pv = pf + pTSchema->flen;
+      break;
+    case (HAS_NULL | HAS_NONE):
+      pb = pRow->data;
+      break;
+    case (HAS_VALUE | HAS_NONE):
+    case (HAS_VALUE | HAS_NULL):
+      pb = pRow->data;
+      pf = pb + BIT1_SIZE(pTSchema->numOfCols - 1);
+      pv = pf + pTSchema->flen;
+      break;
+    case (HAS_VALUE | HAS_NULL | HAS_NONE):
+      pb = pRow->data;
+      pf = pb + BIT2_SIZE(pTSchema->numOfCols - 1);
+      pv = pf + pTSchema->flen;
+      break;
+    default:
+      ASSERT(0);
+      break;
+  }
+
+  while (pColData) {
+    if (pTColumn) {
+      if (pTColumn->colId == pColData->cid) {
+        ASSERT(pTColumn->type == pColData->type);
+        if (pb) {
+          uint8_t bv;
+          switch (pRow->flag) {
+            case (HAS_NULL | HAS_NONE):
+              bv = GET_BIT1(pb, iTColumn - 1);
+              break;
+            case (HAS_VALUE | HAS_NONE):
+              bv = GET_BIT1(pb, iTColumn - 1);
+              if (bv) bv++;
+              break;
+            case (HAS_VALUE | HAS_NULL):
+              bv = GET_BIT1(pb, iTColumn - 1) + 1;
+              break;
+            case (HAS_VALUE | HAS_NULL | HAS_NONE):
+              bv = GET_BIT2(pb, iTColumn - 1);
+              break;
+            default:
+              ASSERT(0);
+              break;
+          }
+
+          if (bv == BIT_FLG_NONE) {
+            code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+            if (code) goto _exit;
+            goto _continue;
+          } else if (bv == BIT_FLG_NULL) {
+            code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+            if (code) goto _exit;
+            goto _continue;
+          }
+        }
+
+        if (IS_VAR_DATA_TYPE(pColData->type)) {
+          uint8_t *pData = pv + *(int32_t *)(pf + pTColumn->offset);
+          uint32_t nData;
+          pData += tGetU32v(pData, &nData);
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, nData);
+          if (code) goto _exit;
+        } else {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pf + pTColumn->offset,
+                                                                        TYPE_BYTES[pColData->type]);
+          if (code) goto _exit;
+        }
+
+      _continue:
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
+        pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
+      } else if (pTColumn->colId > pColData->cid) {  // NONE
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+        if (code) goto _exit;
+
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
+      } else {
+        pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
+      }
+    } else {
+      code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+      if (code) goto _exit;
+
+      pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
+    }
+  }
+
+_exit:
+  return code;
+}
+static int32_t tRowAppendKVToColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData) {
+  int32_t code = 0;
+
+  SKVIdx   *pKVIdx = (SKVIdx *)pRow->data;
+  uint8_t  *pv = NULL;
+  int32_t   iColData = 0;
+  SColData *pColData = &aColData[iColData];
+  int32_t   iTColumn = 1;
+  STColumn *pTColumn = &pTSchema->columns[iTColumn];
+  int32_t   iCol = 0;
+
+  if (pRow->flag & KV_FLG_LIT) {
+    pv = pKVIdx->idx + pKVIdx->nCol;
+  } else if (pRow->flag & KV_FLG_MID) {
+    pv = pKVIdx->idx + (pKVIdx->nCol << 1);
+  } else if (pRow->flag & KV_FLG_BIG) {
+    pv = pKVIdx->idx + (pKVIdx->nCol << 2);
+  } else {
+    ASSERT(0);
+  }
+
+  while (pColData) {
+    if (pTColumn) {
+      if (pTColumn->colId == pColData->cid) {
+        while (iCol < pKVIdx->nCol) {
+          uint8_t *pData;
+          if (pRow->flag & KV_FLG_LIT) {
+            pData = pv + ((uint8_t *)pKVIdx->idx)[iCol];
+          } else if (pRow->flag & KV_FLG_MID) {
+            pData = pv + ((uint16_t *)pKVIdx->idx)[iCol];
+          } else if (pRow->flag & KV_FLG_BIG) {
+            pData = pv + ((uint32_t *)pKVIdx->idx)[iCol];
+          } else {
+            ASSERT(0);
+          }
+
+          int16_t cid;
+          pData += tGetI16v(pData, &cid);
+
+          if (TABS(cid) == pTColumn->colId) {
+            if (cid < 0) {
+              code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+              if (code) goto _exit;
+            } else {
+              if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+                uint32_t nData;
+                pData += tGetU32v(pData, &nData);
+                code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, nData);
+                if (code) goto _exit;
+              } else {
+                code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, 0);
+                if (code) goto _exit;
+              }
+            }
+            iCol++;
+            goto _continue;
+          } else if (TABS(cid) > pTColumn->colId) {  // NONE
+            break;
+          } else {
+            iCol++;
+          }
+        }
+
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+        if (code) goto _exit;
+
+      _continue:
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
+        pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
+      } else if (pTColumn->colId > pColData->cid) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+        if (code) goto _exit;
+        pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
+      } else {
+        pTColumn = (++iTColumn < pTSchema->numOfCols) ? &pTSchema->columns[iTColumn] : NULL;
+      }
+    } else {
+      code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+      if (code) goto _exit;
+      pColData = (++iColData < nColData) ? &aColData[iColData] : NULL;
+    }
+  }
+
+_exit:
+  return code;
+}
+int32_t tRowAppendToColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData) {
+  ASSERT(pRow->sver == pTSchema->version);
+  ASSERT(nColData > 0);
+
+  int32_t code = 0;
+
+  if (pRow->flag == HAS_NONE) {
+    code = tRowAppendNoneToColData(aColData, nColData);
+    goto _exit;
+  } else if (pRow->flag == HAS_NULL) {
+    code = tRowAppendNullToColData(aColData, nColData, pTSchema);
+    goto _exit;
+  }
+
+  if (pRow->flag >> 4) {  // KV row
+    code = tRowAppendKVToColData(pRow, pTSchema, aColData, nColData);
+    if (code) goto _exit;
+  } else {
+    code = tRowAppendTupleToColData(pRow, pTSchema, aColData, nColData);
+    if (code) goto _exit;
+  }
+
+_exit:
+  return code;
+}
 
 // STag ========================================
 static int tTagValCmprFn(const void *p1, const void *p2) {
@@ -1086,91 +1487,7 @@ void tTagSetCid(const STag *pTag, int16_t iTag, int16_t cid) {
   tPutI16v(p + offset, cid);
 }
 
-#if 1  // ===================================================================================================================
-int tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version) {
-  if (pBuilder == NULL) return -1;
-
-  pBuilder->tCols = 256;
-  pBuilder->columns = (STColumn *)taosMemoryMalloc(sizeof(STColumn) * pBuilder->tCols);
-  if (pBuilder->columns == NULL) return -1;
-
-  tdResetTSchemaBuilder(pBuilder, version);
-  return 0;
-}
-
-void tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder) {
-  if (pBuilder) {
-    taosMemoryFreeClear(pBuilder->columns);
-  }
-}
-
-void tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version) {
-  pBuilder->nCols = 0;
-  pBuilder->tlen = 0;
-  pBuilder->flen = 0;
-  pBuilder->version = version;
-}
-
-int32_t tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, col_id_t colId, col_bytes_t bytes) {
-  if (!isValidDataType(type)) return -1;
-
-  if (pBuilder->nCols >= pBuilder->tCols) {
-    pBuilder->tCols *= 2;
-    STColumn *columns = (STColumn *)taosMemoryRealloc(pBuilder->columns, sizeof(STColumn) * pBuilder->tCols);
-    if (columns == NULL) return -1;
-    pBuilder->columns = columns;
-  }
-
-  STColumn *pCol = &(pBuilder->columns[pBuilder->nCols]);
-  pCol->type = type;
-  pCol->colId = colId;
-  pCol->flags = flags;
-  if (pBuilder->nCols == 0) {
-    pCol->offset = -1;
-  } else {
-    pCol->offset = pBuilder->flen;
-    pBuilder->flen += TYPE_BYTES[type];
-  }
-
-  if (IS_VAR_DATA_TYPE(type)) {
-    pCol->bytes = bytes;
-    pBuilder->tlen += (TYPE_BYTES[type] + bytes);
-  } else {
-    pCol->bytes = TYPE_BYTES[type];
-    pBuilder->tlen += TYPE_BYTES[type];
-  }
-
-  pBuilder->nCols++;
-
-  ASSERT(pCol->offset < pBuilder->flen);
-
-  return 0;
-}
-
-STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
-  if (pBuilder->nCols <= 0) return NULL;
-
-  int tlen = sizeof(STSchema) + sizeof(STColumn) * pBuilder->nCols;
-
-  STSchema *pSchema = (STSchema *)taosMemoryMalloc(tlen);
-  if (pSchema == NULL) return NULL;
-
-  pSchema->version = pBuilder->version;
-  pSchema->numOfCols = pBuilder->nCols;
-  pSchema->tlen = pBuilder->tlen;
-  pSchema->flen = pBuilder->flen;
-
-#ifdef TD_SUPPORT_BITMAP
-  pSchema->tlen += (int)TD_BITMAP_BYTES(pSchema->numOfCols);
-#endif
-
-  memcpy(&pSchema->columns[0], pBuilder->columns, sizeof(STColumn) * pBuilder->nCols);
-
-  return pSchema;
-}
-
-#endif
-
+// STSchema ========================================
 STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   STSchema *pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn) * numOfCols);
   if (pTSchema == NULL) return NULL;
@@ -1184,7 +1501,7 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   pTSchema->columns[0].colId = aSchema[0].colId;
   pTSchema->columns[0].type = aSchema[0].type;
   pTSchema->columns[0].flags = aSchema[0].flags;
-  pTSchema->columns[0].bytes = aSchema[0].bytes;
+  pTSchema->columns[0].bytes = TYPE_BYTES[aSchema[0].type];
   pTSchema->columns[0].offset = -1;
 
   // other columns
@@ -1195,11 +1512,22 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
     pTColumn->colId = pSchema->colId;
     pTColumn->type = pSchema->type;
     pTColumn->flags = pSchema->flags;
-    pTColumn->bytes = pSchema->bytes;
     pTColumn->offset = pTSchema->flen;
+
+    if (IS_VAR_DATA_TYPE(pSchema->type)) {
+      pTColumn->bytes = pSchema->bytes;
+      pTSchema->tlen += (TYPE_BYTES[pSchema->type] + pSchema->bytes);  // todo: remove
+    } else {
+      pTColumn->bytes = TYPE_BYTES[pSchema->type];
+      pTSchema->tlen += TYPE_BYTES[pSchema->type];  // todo: remove
+    }
 
     pTSchema->flen += TYPE_BYTES[pTColumn->type];
   }
+
+#if 1  // todo : remove this
+  pTSchema->tlen += (int32_t)TD_BITMAP_BYTES(numOfCols);
+#endif
 
   return pTSchema;
 }
@@ -1213,7 +1541,7 @@ void tColDataDestroy(void *ph) {
   SColData *pColData = (SColData *)ph;
 
   tFree(pColData->pBitMap);
-  tFree((uint8_t *)pColData->aOffset);
+  tFree(pColData->aOffset);
   tFree(pColData->pData);
 }
 
@@ -1230,25 +1558,37 @@ void tColDataClear(SColData *pColData) {
   pColData->nData = 0;
 }
 
-static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, SColVal *pColVal) {
+void tColDataDeepClear(SColData *pColData) {
+  pColData->pBitMap = NULL;
+  pColData->aOffset = NULL;
+  pColData->pData = NULL;
+
+  tColDataClear(pColData);
+}
+
+static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {
-    code = tRealloc((uint8_t **)(&pColData->aOffset), sizeof(int32_t) * (pColData->nVal + 1));
+    code = tRealloc((uint8_t **)(&pColData->aOffset), (pColData->nVal + 1) << 2);
     if (code) goto _exit;
     pColData->aOffset[pColData->nVal] = pColData->nData;
 
-    if (pColVal->value.nData) {
-      code = tRealloc(&pColData->pData, pColData->nData + pColVal->value.nData);
+    if (nData) {
+      code = tRealloc(&pColData->pData, pColData->nData + nData);
       if (code) goto _exit;
-      memcpy(pColData->pData + pColData->nData, pColVal->value.pData, pColVal->value.nData);
-      pColData->nData += pColVal->value.nData;
+      memcpy(pColData->pData + pColData->nData, pData, nData);
+      pColData->nData += nData;
     }
   } else {
     ASSERT(pColData->nData == tDataTypes[pColData->type].bytes * pColData->nVal);
     code = tRealloc(&pColData->pData, pColData->nData + tDataTypes[pColData->type].bytes);
     if (code) goto _exit;
-    memcpy(pColData->pData + pColData->nData, &pColVal->value.val, tDataTypes[pColData->type].bytes);
+    if (pData) {
+      memcpy(pColData->pData + pColData->nData, pData, TYPE_BYTES[pColData->type]);
+    } else {
+      memset(pColData->pData + pColData->nData, 0, TYPE_BYTES[pColData->type]);
+    }
     pColData->nData += tDataTypes[pColData->type].bytes;
   }
   pColData->nVal++;
@@ -1256,21 +1596,21 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, SColVal *pColVa
 _exit:
   return code;
 }
-static FORCE_INLINE int32_t tColDataAppendValue00(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue00(SColData *pColData, uint8_t *pData, uint32_t nData) {
   pColData->flag = HAS_VALUE;
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue01(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue01(SColData *pColData, uint8_t *pData, uint32_t nData) {
   pColData->flag = HAS_NONE;
   pColData->nVal++;
   return 0;
 }
-static FORCE_INLINE int32_t tColDataAppendValue02(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue02(SColData *pColData, uint8_t *pData, uint32_t nData) {
   pColData->flag = HAS_NULL;
   pColData->nVal++;
   return 0;
 }
-static FORCE_INLINE int32_t tColDataAppendValue10(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue10(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   int32_t nBit = BIT1_SIZE(pColData->nVal + 1);
@@ -1278,7 +1618,7 @@ static FORCE_INLINE int32_t tColDataAppendValue10(SColData *pColData, SColVal *p
   if (code) return code;
 
   memset(pColData->pBitMap, 0, nBit);
-  SET_BIT1(pColData->pBitMap, pColData->nVal, 1);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 1);
 
   pColData->flag |= HAS_VALUE;
 
@@ -1296,13 +1636,13 @@ static FORCE_INLINE int32_t tColDataAppendValue10(SColData *pColData, SColVal *p
     }
   }
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue11(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue11(SColData *pColData, uint8_t *pData, uint32_t nData) {
   pColData->nVal++;
   return 0;
 }
-static FORCE_INLINE int32_t tColDataAppendValue12(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue12(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   int32_t nBit = BIT1_SIZE(pColData->nVal + 1);
@@ -1310,14 +1650,14 @@ static FORCE_INLINE int32_t tColDataAppendValue12(SColData *pColData, SColVal *p
   if (code) return code;
 
   memset(pColData->pBitMap, 0, nBit);
-  SET_BIT1(pColData->pBitMap, pColData->nVal, 1);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 1);
 
   pColData->flag |= HAS_NULL;
   pColData->nVal++;
 
   return code;
 }
-static FORCE_INLINE int32_t tColDataAppendValue20(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue20(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   int32_t nBit = BIT1_SIZE(pColData->nVal + 1);
@@ -1325,7 +1665,7 @@ static FORCE_INLINE int32_t tColDataAppendValue20(SColData *pColData, SColVal *p
   if (code) return code;
 
   memset(pColData->pBitMap, 0, nBit);
-  SET_BIT1(pColData->pBitMap, pColData->nVal, 1);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 1);
 
   pColData->flag |= HAS_VALUE;
 
@@ -1343,9 +1683,9 @@ static FORCE_INLINE int32_t tColDataAppendValue20(SColData *pColData, SColVal *p
     }
   }
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue21(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue21(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   int32_t nBit = BIT1_SIZE(pColData->nVal + 1);
@@ -1353,18 +1693,18 @@ static FORCE_INLINE int32_t tColDataAppendValue21(SColData *pColData, SColVal *p
   if (code) return code;
 
   memset(pColData->pBitMap, 255, nBit);
-  SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 0);
 
   pColData->flag |= HAS_NONE;
   pColData->nVal++;
 
   return code;
 }
-static FORCE_INLINE int32_t tColDataAppendValue22(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue22(SColData *pColData, uint8_t *pData, uint32_t nData) {
   pColData->nVal++;
   return 0;
 }
-static FORCE_INLINE int32_t tColDataAppendValue30(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue30(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   pColData->flag |= HAS_VALUE;
@@ -1374,9 +1714,9 @@ static FORCE_INLINE int32_t tColDataAppendValue30(SColData *pColData, SColVal *p
   if (code) return code;
 
   for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
-    SET_BIT2(pBitMap, iVal, GET_BIT1(pColData->pBitMap, iVal));
+    SET_BIT2_EX(pBitMap, iVal, GET_BIT1(pColData->pBitMap, iVal));
   }
-  SET_BIT2(pBitMap, pColData->nVal, 2);
+  SET_BIT2_EX(pBitMap, pColData->nVal, 2);
 
   tFree(pColData->pBitMap);
   pColData->pBitMap = pBitMap;
@@ -1395,32 +1735,32 @@ static FORCE_INLINE int32_t tColDataAppendValue30(SColData *pColData, SColVal *p
     }
   }
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue31(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue31(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
   if (code) return code;
 
-  SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 0);
   pColData->nVal++;
 
   return code;
 }
-static FORCE_INLINE int32_t tColDataAppendValue32(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue32(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
   if (code) return code;
 
-  SET_BIT1(pColData->pBitMap, pColData->nVal, 1);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 1);
   pColData->nVal++;
 
   return code;
 }
 #define tColDataAppendValue40 tColDataPutValue
-static FORCE_INLINE int32_t tColDataAppendValue41(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue41(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   pColData->flag |= HAS_NONE;
@@ -1430,11 +1770,11 @@ static FORCE_INLINE int32_t tColDataAppendValue41(SColData *pColData, SColVal *p
   if (code) return code;
 
   memset(pColData->pBitMap, 255, nBit);
-  SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 0);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, NULL, 0);
 }
-static FORCE_INLINE int32_t tColDataAppendValue42(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue42(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   pColData->flag |= HAS_NULL;
@@ -1444,31 +1784,31 @@ static FORCE_INLINE int32_t tColDataAppendValue42(SColData *pColData, SColVal *p
   if (code) return code;
 
   memset(pColData->pBitMap, 255, nBit);
-  SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 0);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, NULL, 0);
 }
-static FORCE_INLINE int32_t tColDataAppendValue50(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue50(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
   if (code) return code;
 
-  SET_BIT1(pColData->pBitMap, pColData->nVal, 1);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 1);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue51(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue51(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
   if (code) return code;
 
-  SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 0);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, NULL, 0);
 }
-static FORCE_INLINE int32_t tColDataAppendValue52(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue52(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   pColData->flag |= HAS_NULL;
@@ -1478,25 +1818,25 @@ static FORCE_INLINE int32_t tColDataAppendValue52(SColData *pColData, SColVal *p
   if (code) return code;
 
   for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
-    SET_BIT2(pBitMap, iVal, GET_BIT1(pColData->pBitMap, iVal) ? 2 : 0);
+    SET_BIT2_EX(pBitMap, iVal, GET_BIT1(pColData->pBitMap, iVal) ? 2 : 0);
   }
-  SET_BIT2(pBitMap, pColData->nVal, 1);
+  SET_BIT2_EX(pBitMap, pColData->nVal, 1);
 
   tFree(pColData->pBitMap);
   pColData->pBitMap = pBitMap;
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, NULL, 0);
 }
-static FORCE_INLINE int32_t tColDataAppendValue60(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue60(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
   if (code) return code;
-  SET_BIT1(pColData->pBitMap, pColData->nVal, 1);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 1);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue61(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue61(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   pColData->flag |= HAS_NONE;
@@ -1506,52 +1846,52 @@ static FORCE_INLINE int32_t tColDataAppendValue61(SColData *pColData, SColVal *p
   if (code) return code;
 
   for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
-    SET_BIT2(pBitMap, iVal, GET_BIT1(pColData->pBitMap, iVal) ? 2 : 1);
+    SET_BIT2_EX(pBitMap, iVal, GET_BIT1(pColData->pBitMap, iVal) ? 2 : 1);
   }
-  SET_BIT2(pBitMap, pColData->nVal, 0);
+  SET_BIT2_EX(pBitMap, pColData->nVal, 0);
 
   tFree(pColData->pBitMap);
   pColData->pBitMap = pBitMap;
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, NULL, 0);
 }
-static FORCE_INLINE int32_t tColDataAppendValue62(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue62(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
   if (code) return code;
-  SET_BIT1(pColData->pBitMap, pColData->nVal, 0);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 0);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, NULL, 0);
 }
-static FORCE_INLINE int32_t tColDataAppendValue70(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue70(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT2_SIZE(pColData->nVal + 1));
   if (code) return code;
-  SET_BIT2(pColData->pBitMap, pColData->nVal, 2);
+  SET_BIT2_EX(pColData->pBitMap, pColData->nVal, 2);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, pData, nData);
 }
-static FORCE_INLINE int32_t tColDataAppendValue71(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue71(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT2_SIZE(pColData->nVal + 1));
   if (code) return code;
-  SET_BIT2(pColData->pBitMap, pColData->nVal, 0);
+  SET_BIT2_EX(pColData->pBitMap, pColData->nVal, 0);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, NULL, 0);
 }
-static FORCE_INLINE int32_t tColDataAppendValue72(SColData *pColData, SColVal *pColVal) {
+static FORCE_INLINE int32_t tColDataAppendValue72(SColData *pColData, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
 
   code = tRealloc(&pColData->pBitMap, BIT2_SIZE(pColData->nVal + 1));
   if (code) return code;
-  SET_BIT2(pColData->pBitMap, pColData->nVal, 1);
+  SET_BIT2_EX(pColData->pBitMap, pColData->nVal, 1);
 
-  return tColDataPutValue(pColData, pColVal);
+  return tColDataPutValue(pColData, NULL, 0);
 }
-static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, SColVal *pColVal) = {
+static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData) = {
     {tColDataAppendValue00, tColDataAppendValue01, tColDataAppendValue02},  // 0
     {tColDataAppendValue10, tColDataAppendValue11, tColDataAppendValue12},  // HAS_NONE
     {tColDataAppendValue20, tColDataAppendValue21, tColDataAppendValue22},  // HAS_NULL
@@ -1563,7 +1903,9 @@ static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, SColVal *pCo
 };
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
   ASSERT(pColData->cid == pColVal->cid && pColData->type == pColVal->type);
-  return tColDataAppendValueImpl[pColData->flag][pColVal->flag](pColData, pColVal);
+  return tColDataAppendValueImpl[pColData->flag][pColVal->flag](
+      pColData, IS_VAR_DATA_TYPE(pColData->type) ? pColVal->value.pData : (uint8_t *)&pColVal->value.val,
+      pColVal->value.nData);
 }
 
 static FORCE_INLINE void tColDataGetValue1(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_NONE
@@ -1572,7 +1914,8 @@ static FORCE_INLINE void tColDataGetValue1(SColData *pColData, int32_t iVal, SCo
 static FORCE_INLINE void tColDataGetValue2(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_NULL
   *pColVal = COL_VAL_NULL(pColData->cid, pColData->type);
 }
-static FORCE_INLINE void tColDataGetValue3(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_NULL|HAS_NONE
+static FORCE_INLINE void tColDataGetValue3(SColData *pColData, int32_t iVal,
+                                           SColVal *pColVal) {  // HAS_NULL|HAS_NONE
   switch (GET_BIT1(pColData->pBitMap, iVal)) {
     case 0:
       *pColVal = COL_VAL_NONE(pColData->cid, pColData->type);
@@ -1687,44 +2030,774 @@ uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal) {
   return v;
 }
 
-int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
+int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg) {
   int32_t code = 0;
-  int32_t size;
 
-  ASSERT(pColDataSrc->nVal > 0);
-  ASSERT(pColDataDest->cid == pColDataSrc->cid);
-  ASSERT(pColDataDest->type == pColDataSrc->type);
-
-  pColDataDest->smaOn = pColDataSrc->smaOn;
-  pColDataDest->nVal = pColDataSrc->nVal;
-  pColDataDest->flag = pColDataSrc->flag;
+  *pColData = *pColDataFrom;
 
   // bitmap
-  if (pColDataSrc->flag != HAS_NONE && pColDataSrc->flag != HAS_NULL && pColDataSrc->flag != HAS_VALUE) {
-    size = BIT2_SIZE(pColDataSrc->nVal);
-    code = tRealloc(&pColDataDest->pBitMap, size);
-    if (code) goto _exit;
-    memcpy(pColDataDest->pBitMap, pColDataSrc->pBitMap, size);
+  switch (pColData->flag) {
+    case (HAS_NULL | HAS_NONE):
+    case (HAS_VALUE | HAS_NONE):
+    case (HAS_VALUE | HAS_NULL):
+      pColData->pBitMap = xMalloc(arg, BIT1_SIZE(pColData->nVal));
+      if (pColData->pBitMap == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
+      }
+      memcpy(pColData->pBitMap, pColDataFrom->pBitMap, BIT1_SIZE(pColData->nVal));
+      break;
+    case (HAS_VALUE | HAS_NULL | HAS_NONE):
+      pColData->pBitMap = xMalloc(arg, BIT2_SIZE(pColData->nVal));
+      if (pColData->pBitMap == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
+      }
+      memcpy(pColData->pBitMap, pColDataFrom->pBitMap, BIT2_SIZE(pColData->nVal));
+      break;
+    default:
+      pColData->pBitMap = NULL;
+      break;
   }
 
   // offset
-  if (IS_VAR_DATA_TYPE(pColDataDest->type)) {
-    size = sizeof(int32_t) * pColDataSrc->nVal;
-
-    code = tRealloc((uint8_t **)&pColDataDest->aOffset, size);
-    if (code) goto _exit;
-
-    memcpy(pColDataDest->aOffset, pColDataSrc->aOffset, size);
+  if (IS_VAR_DATA_TYPE(pColData->type) && (pColData->flag & HAS_VALUE)) {
+    pColData->aOffset = xMalloc(arg, pColData->nVal << 2);
+    if (pColData->aOffset == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    memcpy(pColData->aOffset, pColDataFrom->aOffset, pColData->nVal << 2);
+  } else {
+    pColData->aOffset = NULL;
   }
 
   // value
-  pColDataDest->nData = pColDataSrc->nData;
-  code = tRealloc(&pColDataDest->pData, pColDataSrc->nData);
-  if (code) goto _exit;
-  memcpy(pColDataDest->pData, pColDataSrc->pData, pColDataDest->nData);
+  if (pColData->nData) {
+    pColData->pData = xMalloc(arg, pColData->nData);
+    if (pColData->pData == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    memcpy(pColData->pData, pColDataFrom->pData, pColData->nData);
+  } else {
+    pColData->pData = NULL;
+  }
 
 _exit:
   return code;
+}
+
+int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
+                                    char *data) {
+  int32_t code = 0;
+
+  if (IS_VAR_DATA_TYPE(type)) {  // var-length data type
+    for (int32_t i = 0; i < nRows; ++i) {
+      int32_t offset = *((int32_t *)lengthOrbitmap + i);
+      if (offset == -1) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+        if (code) goto _exit;
+      } else {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)varDataVal(data + offset),
+                                                                      varDataLen(data + offset));
+      }
+    }
+  } else {  // fixed-length data type
+    bool allValue = true;
+    bool allNull = true;
+    for (int32_t i = 0; i < nRows; ++i) {
+      if (!colDataIsNull_f(lengthOrbitmap, i)) {
+        allNull = false;
+      } else {
+        allValue = false;
+      }
+    }
+
+    if (allValue) {
+      // optimize (todo)
+      for (int32_t i = 0; i < nRows; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)data + bytes * i, bytes);
+      }
+    } else if (allNull) {
+      // optimize (todo)
+      for (int32_t i = 0; i < nRows; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+        if (code) goto _exit;
+      }
+    } else {
+      for (int32_t i = 0; i < nRows; ++i) {
+        if (colDataIsNull_f(lengthOrbitmap, i)) {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+          if (code) goto _exit;
+        } else {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)data + bytes * i, bytes);
+        }
+      }
+    }
+  }
+
+_exit:
+  return code;
+}
+
+int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind) {
+  int32_t code = 0;
+
+  ASSERT(pColData->type == pBind->buffer_type);
+
+  if (IS_VAR_DATA_TYPE(pBind->buffer_type)) {  // var-length data type
+    for (int32_t i = 0; i < pBind->num; ++i) {
+      if (pBind->is_null && pBind->is_null[i]) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+        if (code) goto _exit;
+      } else {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
+            pColData, (uint8_t *)pBind->buffer + pBind->buffer_length * i, pBind->length[i]);
+      }
+    }
+  } else {  // fixed-length data type
+    bool allValue;
+    bool allNull;
+    if (pBind->is_null) {
+      bool same = (memcmp(pBind->is_null, pBind->is_null + 1, pBind->num - 1) == 0);
+      allNull = (same && pBind->is_null[0] != 0);
+      allValue = (same && pBind->is_null[0] == 0);
+    } else {
+      allNull = false;
+      allValue = true;
+    }
+
+    if (allValue) {
+      // optimize (todo)
+      for (int32_t i = 0; i < pBind->num; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
+            pColData, (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i, pBind->buffer_length);
+      }
+    } else if (allNull) {
+      // optimize (todo)
+      for (int32_t i = 0; i < pBind->num; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+        if (code) goto _exit;
+      }
+    } else {
+      for (int32_t i = 0; i < pBind->num; ++i) {
+        if (pBind->is_null[i]) {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+          if (code) goto _exit;
+        } else {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
+              pColData, (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i, pBind->buffer_length);
+        }
+      }
+    }
+  }
+
+_exit:
+  return code;
+}
+
+static int32_t tColDataSwapValue(SColData *pColData, int32_t i, int32_t j) {
+  int32_t code = 0;
+
+  if (IS_VAR_DATA_TYPE(pColData->type)) {
+    int32_t  nData1 = pColData->aOffset[i + 1] - pColData->aOffset[i];
+    int32_t  nData2 = (j < pColData->nVal - 1) ? pColData->aOffset[j + 1] - pColData->aOffset[j]
+                                               : pColData->nData - pColData->aOffset[j];
+    uint8_t *pData = taosMemoryMalloc(TMAX(nData1, nData2));
+    if (pData == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    if (nData1 > nData2) {
+      memcpy(pData, pColData->pData + pColData->aOffset[i], nData1);
+      memcpy(pColData->pData + pColData->aOffset[i], pColData->pData + pColData->aOffset[j], nData2);
+      // memmove(pColData->pData + pColData->aOffset[i] + nData2, pColData->pData + pColData->aOffset[i] + nData1,
+      //         pColData->aOffset[j] - pColData->aOffset[i + 1]);
+      memmove(pColData->pData + pColData->aOffset[i] + nData2, pColData->pData + pColData->aOffset[i + 1],
+              pColData->aOffset[j] - pColData->aOffset[i + 1]);
+      memcpy(pColData->pData + pColData->aOffset[j] + nData2 - nData1, pData, nData1);
+    } else {
+      memcpy(pData, pColData->pData + pColData->aOffset[j], nData2);
+      memcpy(pColData->pData + pColData->aOffset[j] + nData2 - nData1, pColData->pData + pColData->aOffset[i], nData1);
+      // memmove(pColData->pData + pColData->aOffset[j] + nData2 - nData1, pColData->pData + pColData->aOffset[i] +
+      // nData1,
+      //         pColData->aOffset[j] - pColData->aOffset[i + 1]);
+      memmove(pColData->pData + pColData->aOffset[i] + nData2, pColData->pData + pColData->aOffset[i + 1],
+              pColData->aOffset[j] - pColData->aOffset[i + 1]);
+      memcpy(pColData->pData + pColData->aOffset[i], pData, nData2);
+    }
+    for (int32_t k = i + 1; k <= j; ++k) {
+      pColData->aOffset[k] = pColData->aOffset[k] + nData2 - nData1;
+    }
+
+    taosMemoryFree(pData);
+  } else {
+    uint64_t val;
+    memcpy(&val, &pColData->pData[TYPE_BYTES[pColData->type] * i], TYPE_BYTES[pColData->type]);
+    memcpy(&pColData->pData[TYPE_BYTES[pColData->type] * i], &pColData->pData[TYPE_BYTES[pColData->type] * j],
+           TYPE_BYTES[pColData->type]);
+    memcpy(&pColData->pData[TYPE_BYTES[pColData->type] * j], &val, TYPE_BYTES[pColData->type]);
+  }
+
+_exit:
+  return code;
+}
+
+static void tColDataSwap(SColData *pColData, int32_t i, int32_t j) {
+  ASSERT(i < j);
+  ASSERT(j < pColData->nVal);
+
+  switch (pColData->flag) {
+    case HAS_NONE:
+    case HAS_NULL:
+      break;
+    case (HAS_NULL | HAS_NONE): {
+      uint8_t bv = GET_BIT1(pColData->pBitMap, i);
+      SET_BIT1(pColData->pBitMap, i, GET_BIT1(pColData->pBitMap, j));
+      SET_BIT1(pColData->pBitMap, j, bv);
+    } break;
+    case HAS_VALUE: {
+      tColDataSwapValue(pColData, i, j);
+    } break;
+    case (HAS_VALUE | HAS_NONE):
+    case (HAS_VALUE | HAS_NULL): {
+      uint8_t bv = GET_BIT1(pColData->pBitMap, i);
+      SET_BIT1(pColData->pBitMap, i, GET_BIT1(pColData->pBitMap, j));
+      SET_BIT1(pColData->pBitMap, j, bv);
+      tColDataSwapValue(pColData, i, j);
+    } break;
+    case (HAS_VALUE | HAS_NULL | HAS_NONE): {
+      uint8_t bv = GET_BIT2(pColData->pBitMap, i);
+      SET_BIT2(pColData->pBitMap, i, GET_BIT2(pColData->pBitMap, j));
+      SET_BIT2(pColData->pBitMap, j, bv);
+      tColDataSwapValue(pColData, i, j);
+    } break;
+    default:
+      ASSERT(0);
+      break;
+  }
+}
+
+static int32_t tColDataCopyRowCell(SColData *pFromColData, int32_t iFromRow, SColData *pToColData, int32_t iToRow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (IS_VAR_DATA_TYPE(pToColData->type)) {
+    int32_t nData = (iFromRow < pFromColData->nVal - 1)
+                        ? pFromColData->aOffset[iFromRow + 1] - pFromColData->aOffset[iFromRow]
+                        : pFromColData->nData - pFromColData->aOffset[iFromRow];
+    if (iToRow == 0) {
+      pToColData->aOffset[iToRow] = 0;
+    }
+
+    if (iToRow < pToColData->nVal - 1) {
+      pToColData->aOffset[iToRow + 1] = pToColData->aOffset[iToRow] + nData;
+    }
+
+    memcpy(pToColData->pData + pToColData->aOffset[iToRow], pFromColData->pData + pFromColData->aOffset[iFromRow],
+           nData);
+  } else {
+    memcpy(&pToColData->pData[TYPE_BYTES[pToColData->type] * iToRow],
+           &pFromColData->pData[TYPE_BYTES[pToColData->type] * iFromRow], TYPE_BYTES[pToColData->type]);
+  }
+  return code;
+}
+
+static int32_t tColDataCopyRowSingleCol(SColData *pFromColData, int32_t iFromRow, SColData *pToColData,
+                                        int32_t iToRow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  switch (pFromColData->flag) {
+    case HAS_NONE:
+    case HAS_NULL:
+      break;
+    case (HAS_NULL | HAS_NONE): {
+      SET_BIT1(pToColData->pBitMap, iToRow, GET_BIT1(pFromColData->pBitMap, iFromRow));
+    } break;
+    case HAS_VALUE: {
+      tColDataCopyRowCell(pFromColData, iFromRow, pToColData, iToRow);
+    } break;
+    case (HAS_VALUE | HAS_NONE):
+    case (HAS_VALUE | HAS_NULL): {
+      SET_BIT1(pToColData->pBitMap, iToRow, GET_BIT1(pFromColData->pBitMap, iFromRow));
+      tColDataCopyRowCell(pFromColData, iFromRow, pToColData, iToRow);
+    } break;
+    case (HAS_VALUE | HAS_NULL | HAS_NONE): {
+      SET_BIT2(pToColData->pBitMap, iToRow, GET_BIT2(pFromColData->pBitMap, iFromRow));
+      tColDataCopyRowCell(pFromColData, iFromRow, pToColData, iToRow);
+    } break;
+    default:
+      return -1;
+  }
+
+  return code;
+}
+
+static int32_t tColDataCopyRow(SColData *aFromColData, int32_t iFromRow, SColData *aToColData, int32_t iToRow,
+                               int32_t nColData) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  for (int32_t i = 0; i < nColData; i++) {
+    code = tColDataCopyRowSingleCol(&aFromColData[i], iFromRow, &aToColData[i], iToRow);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  return code;
+}
+
+static int32_t tColDataCopyRowAppend(SColData *aFromColData, int32_t iFromRow, SColData *aToColData, int32_t nColData) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  for (int32_t i = 0; i < nColData; i++) {
+    SColVal cv = {0};
+    tColDataGetValue(&aFromColData[i], iFromRow, &cv);
+    code = tColDataAppendValue(&aToColData[i], &cv);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  return code;
+}
+
+static int32_t tColDataMergeSortMerge(SColData *aColData, int32_t start, int32_t mid, int32_t end, int32_t nColData) {
+  SColData *aDstColData = NULL;
+  TSKEY    *aKey = (TSKEY *)aColData[0].pData;
+
+  int32_t i = start, j = mid + 1, k = 0;
+
+  if (end > start) {
+    aDstColData = taosMemoryCalloc(1, sizeof(SColData) * nColData);
+    for (int c = 0; c < nColData; ++c) {
+      tColDataInit(&aDstColData[c], aColData[c].cid, aColData[c].type, aColData[c].smaOn);
+    }
+    if (aDstColData == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    /*
+    for (int32_t i = 0; i < nColData; i++) {
+      tColDataCopy(&aColData[i], &aDstColData[i], tColDataDefaultMalloc, NULL);
+    }
+    */
+  }
+
+  while (i <= mid && j <= end) {
+    if (aKey[i] <= aKey[j]) {
+      // tColDataCopyRow(aColData, i++, aDstColData, k++);
+      tColDataCopyRowAppend(aColData, i++, aDstColData, nColData);
+    } else {
+      // tColDataCopyRow(aColData, j++, aDstColData, k++);
+      tColDataCopyRowAppend(aColData, j++, aDstColData, nColData);
+    }
+  }
+
+  while (i <= mid) {
+    // tColDataCopyRow(aColData, i++, aDstColData, k++);
+    tColDataCopyRowAppend(aColData, i++, aDstColData, nColData);
+  }
+
+  while (j <= end) {
+    // tColDataCopyRow(aColData, j++, aDstColData, k++);
+    tColDataCopyRowAppend(aColData, j++, aDstColData, nColData);
+  }
+
+  for (i = start, k = 0; i <= end; ++i, ++k) {
+    tColDataCopyRow(aDstColData, k, aColData, i, nColData);
+  }
+
+  if (aDstColData) {
+    for (int32_t i = 0; i < nColData; i++) {
+      tColDataDestroy(&aDstColData[i]);
+    }
+    taosMemoryFree(aDstColData);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tColDataMergeSort(SColData *aColData, int32_t start, int32_t end, int32_t nColData) {
+  int32_t ret = TSDB_CODE_SUCCESS;
+  int32_t mid;
+
+  if (start >= end) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  mid = (start + end) / 2;
+
+  ret = tColDataMergeSort(aColData, start, mid, nColData);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+
+  ret = tColDataMergeSort(aColData, mid + 1, end, nColData);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+
+  return tColDataMergeSortMerge(aColData, start, mid, end, nColData);
+}
+
+static int32_t tColDataSort(SColData *aColData, int32_t nColData) {
+  int32_t nVal = aColData[0].nVal;
+
+  if (nVal < 2) return TSDB_CODE_SUCCESS;
+
+  return tColDataMergeSort(aColData, 0, nVal - 1, nColData);
+}
+static void tColDataMergeImpl(SColData *pColData, int32_t iStart, int32_t iEnd /* not included */) {
+  switch (pColData->flag) {
+    case HAS_NONE:
+    case HAS_NULL: {
+      pColData->nVal -= (iEnd - iStart - 1);
+    } break;
+    case (HAS_NULL | HAS_NONE): {
+      if (GET_BIT1(pColData->pBitMap, iStart) == 0) {
+        for (int32_t i = iStart + 1; i < iEnd; ++i) {
+          if (GET_BIT1(pColData->pBitMap, i) == 1) {
+            SET_BIT1(pColData->pBitMap, iStart, 1);
+            break;
+          }
+        }
+      }
+      for (int32_t i = iEnd, j = iStart + 1; i < pColData->nVal; ++i, ++j) {
+        SET_BIT1(pColData->pBitMap, j, GET_BIT1(pColData->pBitMap, i));
+      }
+
+      pColData->nVal -= (iEnd - iStart - 1);
+
+      uint8_t flag = 0;
+      for (int32_t i = 0; i < pColData->nVal; ++i) {
+        uint8_t bv = GET_BIT1(pColData->pBitMap, i);
+        if (bv == BIT_FLG_NONE) {
+          flag |= HAS_NONE;
+        } else if (bv == BIT_FLG_NULL) {
+          flag |= HAS_NULL;
+        } else {
+          ASSERT(0);
+        }
+
+        if (flag == pColData->flag) break;
+      }
+      pColData->flag = flag;
+    } break;
+    case HAS_VALUE: {
+      if (IS_VAR_DATA_TYPE(pColData->type)) {
+        int32_t nDiff = pColData->aOffset[iEnd - 1] - pColData->aOffset[iStart];
+
+        memmove(pColData->pData + pColData->aOffset[iStart], pColData->pData + pColData->aOffset[iEnd - 1],
+                pColData->nData - pColData->aOffset[iEnd - 1]);
+        pColData->nData -= nDiff;
+
+        for (int32_t i = iEnd, j = iStart + 1; i < pColData->nVal; ++i, ++j) {
+          pColData->aOffset[j] = pColData->aOffset[i] - nDiff;
+        }
+      } else {
+        memmove(pColData->pData + TYPE_BYTES[pColData->type] * iStart,
+                pColData->pData + TYPE_BYTES[pColData->type] * (iEnd - 1),
+                TYPE_BYTES[pColData->type] * (pColData->nVal - iEnd + 1));
+        pColData->nData -= (TYPE_BYTES[pColData->type] * (iEnd - iStart - 1));
+      }
+
+      pColData->nVal -= (iEnd - iStart - 1);
+    } break;
+    case (HAS_VALUE | HAS_NONE): {
+      uint8_t bv;
+      int32_t iv;
+      for (int32_t i = iEnd - 1; i >= iStart; --i) {
+        bv = GET_BIT1(pColData->pBitMap, i);
+        if (bv) {
+          iv = i;
+          break;
+        }
+      }
+
+      if (bv) {  // has a value
+        if (IS_VAR_DATA_TYPE(pColData->type)) {
+          if (iv != iStart) {
+            memmove(&pColData->pData[pColData->aOffset[iStart]], &pColData->pData[pColData->aOffset[iv]],
+                    iv < (pColData->nVal - 1) ? pColData->aOffset[iv + 1] - pColData->aOffset[iv]
+                                              : pColData->nData - pColData->aOffset[iv]);
+          }
+          // TODO
+          ASSERT(0);
+        } else {
+          if (iv != iStart) {
+            memcpy(&pColData->pData[TYPE_BYTES[pColData->type] * iStart],
+                   &pColData->pData[TYPE_BYTES[pColData->type] * iv], TYPE_BYTES[pColData->type]);
+          }
+          memmove(&pColData->pData[TYPE_BYTES[pColData->type] * (iStart + 1)],
+                  &pColData->pData[TYPE_BYTES[pColData->type] * iEnd],
+                  TYPE_BYTES[pColData->type] * (iEnd - iStart - 1));
+          pColData->nData -= (TYPE_BYTES[pColData->type] * (iEnd - iStart - 1));
+        }
+
+        SET_BIT1(pColData->pBitMap, iStart, 1);
+        for (int32_t i = iEnd, j = iStart + 1; i < pColData->nVal; ++i, ++j) {
+          SET_BIT1(pColData->pBitMap, j, GET_BIT1(pColData->pBitMap, i));
+        }
+
+        uint8_t flag = HAS_VALUE;
+        for (int32_t i = 0; i < pColData->nVal - (iEnd - iStart - 1); ++i) {
+          if (GET_BIT1(pColData->pBitMap, i) == 0) {
+            flag |= HAS_NONE;
+          }
+
+          if (flag == pColData->flag) break;
+        }
+        pColData->flag = flag;
+      } else {  // all NONE
+        if (IS_VAR_DATA_TYPE(pColData->type)) {
+          int32_t nDiff = pColData->aOffset[iEnd - 1] - pColData->aOffset[iStart];
+
+          memmove(&pColData->pData[pColData->aOffset[iStart]], &pColData->pData[pColData->aOffset[iEnd - 1]],
+                  pColData->nData - pColData->aOffset[iEnd - 1]);
+          pColData->nData -= nDiff;
+
+          for (int32_t i = iEnd, j = iStart + 1; i < pColData->nVal; ++i, ++j) {
+            pColData->aOffset[j] = pColData->aOffset[i] - nDiff;
+          }
+        } else {
+          memmove(pColData->pData + TYPE_BYTES[pColData->type] * (iStart + 1),
+                  pColData->pData + TYPE_BYTES[pColData->type] * iEnd,
+                  TYPE_BYTES[pColData->type] * (pColData->nVal - iEnd + 1));
+          pColData->nData -= (TYPE_BYTES[pColData->type] * (iEnd - iStart - 1));
+        }
+
+        for (int32_t i = iEnd, j = iStart + 1; i < pColData->nVal; ++i, ++j) {
+          SET_BIT1(pColData->pBitMap, j, GET_BIT1(pColData->pBitMap, i));
+        }
+      }
+      pColData->nVal -= (iEnd - iStart - 1);
+    } break;
+    case (HAS_VALUE | HAS_NULL): {
+      if (IS_VAR_DATA_TYPE(pColData->type)) {
+        int32_t nDiff = pColData->aOffset[iEnd - 1] - pColData->aOffset[iStart];
+
+        memmove(pColData->pData + pColData->aOffset[iStart], pColData->pData + pColData->aOffset[iEnd - 1],
+                pColData->nData - pColData->aOffset[iEnd - 1]);
+        pColData->nData -= nDiff;
+
+        for (int32_t i = iEnd, j = iStart + 1; i < pColData->nVal; ++i, ++j) {
+          pColData->aOffset[j] = pColData->aOffset[i] - nDiff;
+        }
+      } else {
+        memmove(pColData->pData + TYPE_BYTES[pColData->type] * iStart,
+                pColData->pData + TYPE_BYTES[pColData->type] * (iEnd - 1),
+                TYPE_BYTES[pColData->type] * (pColData->nVal - iEnd + 1));
+        pColData->nData -= (TYPE_BYTES[pColData->type] * (iEnd - iStart - 1));
+      }
+
+      for (int32_t i = iEnd - 1, j = iStart; i < pColData->nVal; ++i, ++j) {
+        SET_BIT1(pColData->pBitMap, j, GET_BIT1(pColData->pBitMap, i));
+      }
+
+      pColData->nVal -= (iEnd - iStart - 1);
+
+      uint8_t flag = 0;
+      for (int32_t i = 0; i < pColData->nVal; ++i) {
+        if (GET_BIT1(pColData->pBitMap, i)) {
+          flag |= HAS_VALUE;
+        } else {
+          flag |= HAS_NULL;
+        }
+
+        if (flag == pColData->flag) break;
+      }
+      pColData->flag = flag;
+    } break;
+    case (HAS_VALUE | HAS_NULL | HAS_NONE): {
+      uint8_t bv;
+      int32_t iv;
+      for (int32_t i = iEnd - 1; i >= iStart; --i) {
+        bv = GET_BIT2(pColData->pBitMap, i);
+        if (bv) {
+          iv = i;
+          break;
+        }
+      }
+
+      if (bv) {
+        // TODO
+        ASSERT(0);
+      } else {  // ALL NONE
+        if (IS_VAR_DATA_TYPE(pColData->type)) {
+          // TODO
+          ASSERT(0);
+        } else {
+          memmove(pColData->pData + TYPE_BYTES[pColData->type] * (iStart + 1),
+                  pColData->pData + TYPE_BYTES[pColData->type] * iEnd,
+                  TYPE_BYTES[pColData->type] * (pColData->nVal - iEnd));
+          pColData->nData -= (TYPE_BYTES[pColData->type] * (iEnd - iStart - 1));
+        }
+
+        for (int32_t i = iEnd, j = iStart + 1; i < pColData->nVal; ++i, ++j) {
+          SET_BIT2(pColData->pBitMap, j, GET_BIT2(pColData->pBitMap, i));
+        }
+      }
+      pColData->nVal -= (iEnd - iStart - 1);
+    } break;
+    default:
+      ASSERT(0);
+      break;
+  }
+}
+static void tColDataMerge(SColData *aColData, int32_t nColData) {
+  int32_t iStart = 0;
+  for (;;) {
+    if (iStart >= aColData[0].nVal - 1) break;
+
+    int32_t iEnd = iStart + 1;
+    while (iEnd < aColData[0].nVal) {
+      if (((TSKEY *)aColData[0].pData)[iEnd] != ((TSKEY *)aColData[0].pData)[iStart]) break;
+
+      iEnd++;
+    }
+
+    if (iEnd - iStart > 1) {
+      for (int32_t i = 0; i < nColData; i++) {
+        tColDataMergeImpl(&aColData[i], iStart, iEnd);
+      }
+    }
+
+    iStart++;
+  }
+}
+void tColDataSortMerge(SArray *colDataArr) {
+  int32_t   nColData = TARRAY_SIZE(colDataArr);
+  SColData *aColData = (SColData *)TARRAY_DATA(colDataArr);
+
+  if (aColData[0].nVal <= 1) goto _exit;
+
+  ASSERT(aColData[0].type == TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT(aColData[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
+  ASSERT(aColData[0].flag == HAS_VALUE);
+
+  int8_t doSort = 0;
+  int8_t doMerge = 0;
+  // scan -------
+  TSKEY *aKey = (TSKEY *)aColData[0].pData;
+  for (int32_t iVal = 1; iVal < aColData[0].nVal; ++iVal) {
+    if (aKey[iVal] > aKey[iVal - 1]) {
+      continue;
+    } else if (aKey[iVal] < aKey[iVal - 1]) {
+      doSort = 1;
+      break;
+    } else {
+      doMerge = 1;
+    }
+  }
+
+  // sort -------
+  if (doSort) {
+    tColDataSort(aColData, nColData);
+  }
+
+  if (doMerge != 1) {
+    for (int32_t iVal = 1; iVal < aColData[0].nVal; ++iVal) {
+      if (aKey[iVal] == aKey[iVal - 1]) {
+        doMerge = 1;
+        break;
+      }
+    }
+  }
+
+  // merge -------
+  if (doMerge) {
+    tColDataMerge(aColData, nColData);
+  }
+
+_exit:
+  return;
+}
+
+int32_t tPutColData(uint8_t *pBuf, SColData *pColData) {
+  int32_t n = 0;
+
+  n += tPutI16v(pBuf ? pBuf + n : NULL, pColData->cid);
+  n += tPutI8(pBuf ? pBuf + n : NULL, pColData->type);
+  n += tPutI32v(pBuf ? pBuf + n : NULL, pColData->nVal);
+  n += tPutI8(pBuf ? pBuf + n : NULL, pColData->flag);
+
+  // bitmap
+  switch (pColData->flag) {
+    case (HAS_NULL | HAS_NONE):
+    case (HAS_VALUE | HAS_NONE):
+    case (HAS_VALUE | HAS_NULL):
+      if (pBuf) memcpy(pBuf + n, pColData->pBitMap, BIT1_SIZE(pColData->nVal));
+      n += BIT1_SIZE(pColData->nVal);
+      break;
+    case (HAS_VALUE | HAS_NULL | HAS_NONE):
+      if (pBuf) memcpy(pBuf + n, pColData->pBitMap, BIT2_SIZE(pColData->nVal));
+      n += BIT2_SIZE(pColData->nVal);
+      break;
+    default:
+      break;
+  }
+
+  // value
+  if (pColData->flag & HAS_VALUE) {
+    if (IS_VAR_DATA_TYPE(pColData->type)) {
+      if (pBuf) memcpy(pBuf + n, pColData->aOffset, pColData->nVal << 2);
+      n += (pColData->nVal << 2);
+
+      n += tPutI32v(pBuf ? pBuf + n : NULL, pColData->nData);
+      if (pBuf) memcpy(pBuf + n, pColData->pData, pColData->nData);
+      n += pColData->nData;
+    } else {
+      if (pBuf) memcpy(pBuf + n, pColData->pData, pColData->nData);
+      n += pColData->nData;
+    }
+  }
+
+  return n;
+}
+
+int32_t tGetColData(uint8_t *pBuf, SColData *pColData) {
+  int32_t n = 0;
+
+  n += tGetI16v(pBuf + n, &pColData->cid);
+  n += tGetI8(pBuf + n, &pColData->type);
+  n += tGetI32v(pBuf + n, &pColData->nVal);
+  n += tGetI8(pBuf + n, &pColData->flag);
+
+  // bitmap
+  switch (pColData->flag) {
+    case (HAS_NULL | HAS_NONE):
+    case (HAS_VALUE | HAS_NONE):
+    case (HAS_VALUE | HAS_NULL):
+      pColData->pBitMap = pBuf + n;
+      n += BIT1_SIZE(pColData->nVal);
+      break;
+    case (HAS_VALUE | HAS_NULL | HAS_NONE):
+      pColData->pBitMap = pBuf + n;
+      n += BIT2_SIZE(pColData->nVal);
+      break;
+    default:
+      break;
+  }
+
+  // value
+  if (pColData->flag & HAS_VALUE) {
+    if (IS_VAR_DATA_TYPE(pColData->type)) {
+      pColData->aOffset = (int32_t *)(pBuf + n);
+      n += (pColData->nVal << 2);
+
+      n += tGetI32v(pBuf + n, &pColData->nData);
+      pColData->pData = pBuf + n;
+      n += pColData->nData;
+    } else {
+      pColData->pData = pBuf + n;
+      pColData->nData = TYPE_BYTES[pColData->type] * pColData->nVal;
+      n += pColData->nData;
+    }
+  }
+
+  return n;
 }
 
 #define CALC_SUM_MAX_MIN(SUM, MAX, MIN, VAL) \

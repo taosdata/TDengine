@@ -181,7 +181,7 @@ cJSON* syncPing2Json(const SyncPing* pMsg) {
       cJSON*   pTmp = pSrcId;
       char     host[128] = {0};
       uint16_t port;
-      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      // syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pTmp, "addr_host", host);
       cJSON_AddNumberToObject(pTmp, "addr_port", port);
     }
@@ -748,7 +748,7 @@ cJSON* syncSnapshotSend2Json(const SyncSnapshotSend* pMsg) {
 
     snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->lastConfigIndex);
     cJSON_AddStringToObject(pRoot, "lastConfigIndex", u64buf);
-    cJSON_AddItemToObject(pRoot, "lastConfig", syncCfg2Json((SSyncCfg*)&(pMsg->lastConfig)));
+    // cJSON_AddItemToObject(pRoot, "lastConfig", syncCfg2Json((SSyncCfg*)&(pMsg->lastConfig)));
 
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->lastTerm);
     cJSON_AddStringToObject(pRoot, "lastTerm", u64buf);
@@ -1583,8 +1583,8 @@ cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
     cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
     cJSON_AddItemToObject(pRoot, "destId", pDestId);
 
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->privateTerm);
-    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->privateTerm);
+    // cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
 
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);

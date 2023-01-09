@@ -27,6 +27,7 @@ extern "C" {
 
 #if !defined(WINDOWS)
 #include <dirent.h>
+#include <execinfo.h>
 #include <libgen.h>
 #include <sched.h>
 #include <unistd.h>
@@ -43,12 +44,14 @@ extern "C" {
 #include <sys/utsname.h>
 #include <sys/wait.h>
 #include <termios.h>
-#include <cpuid.h>
 
 #if defined(DARWIN)
 #else
 #include <argp.h>
 #include <sys/prctl.h>
+#if defined(_TD_X86_)
+#include <cpuid.h>
+#endif
 #endif
 #else
 
@@ -113,6 +116,7 @@ extern "C" {
 #include "osTimer.h"
 #include "osTimezone.h"
 #include "taoserror.h"
+#include "tlog.h"
 
 #ifdef __cplusplus
 }

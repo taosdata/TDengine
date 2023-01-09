@@ -17,6 +17,7 @@
 #include "dmMgmt.h"
 #include "mnode.h"
 #include "tconfig.h"
+#include "tglobal.h"
 
 // clang-format off
 #define DM_APOLLO_URL    "The apollo string to use when configuring the server, such as: -a 'jsonFile:./tests/cfg.json', cfg.json text can be '{\"fqdn\":\"td1\"}'."
@@ -45,9 +46,30 @@ static struct {
   SArray      *pArgs;  // SConfigPair
 } global = {0};
 
-static void dmStopDnode(int signum, void *info, void *ctx) { dmStop(); }
+static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { taosSetAllDebugFlag(143, true); }
+static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert = 1; }
+
+static void dmStopDnode(int signum, void *sigInfo, void *context) {
+  // taosIgnSignal(SIGUSR1);
+  // taosIgnSignal(SIGUSR2);
+  taosIgnSignal(SIGTERM);
+  taosIgnSignal(SIGHUP);
+  taosIgnSignal(SIGINT);
+  taosIgnSignal(SIGABRT);
+  taosIgnSignal(SIGBREAK);
+
+  dInfo("shut down signal is %d", signum);
+#ifndef WINDOWS
+  dInfo("sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
+        taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
+#endif
+
+  dmStop();
+}
 
 static void dmSetSignalHandle() {
+  taosSetSignal(SIGUSR1, dmSetDebugFlag);
+  taosSetSignal(SIGUSR2, dmSetAssert);
   taosSetSignal(SIGTERM, dmStopDnode);
   taosSetSignal(SIGHUP, dmStopDnode);
   taosSetSignal(SIGINT, dmStopDnode);
@@ -105,6 +127,19 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   return 0;
 }
 
+static void dmPrintArgs(int32_t argc, char const *argv[]) {
+  char path[1024] = {0};
+  taosGetCwd(path, sizeof(path));
+
+  char    args[1024] = {0};
+  int32_t arglen = snprintf(args, sizeof(args), "%s", argv[0]);
+  for (int32_t i = 1; i < argc; ++i) {
+    arglen = arglen + snprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
+  }
+
+  dInfo("startup path:%s args:%s", path, args);
+}
+
 static void dmGenerateGrant() { mndGenerateMachineCode(); }
 
 static void dmPrintVersion() {
@@ -143,7 +178,7 @@ static int32_t dmInitLog() {
 }
 
 static void taosCleanupArgs() {
-  if (global.envCmd != NULL) taosMemoryFree(global.envCmd);
+  if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
 }
 
 int main(int argc, char const *argv[]) {
@@ -194,6 +229,8 @@ int mainWindows(int argc, char **argv) {
     return -1;
   }
 
+  dmPrintArgs(argc, argv);
+
   if (taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0) != 0) {
     dError("failed to start since read config error");
     taosCloseLog();
@@ -201,7 +238,12 @@ int mainWindows(int argc, char **argv) {
     return -1;
   }
 
-  taosConvInit();
+  if (taosConvInit() != 0) {
+    dError("failed to init conv");
+    taosCloseLog();
+    taosCleanupArgs();
+    return -1;
+  }
 
   if (global.dumpConfig) {
     dmDumpCfg();
@@ -226,6 +268,10 @@ int mainWindows(int argc, char **argv) {
 
   if (dmInit() != 0) {
     dError("failed to init dnode since %s", terrstr());
+
+    taosCleanupCfg();
+    taosCloseLog();
+    taosConvDestroy();
     return -1;
   }
 

@@ -77,8 +77,8 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
 
   pBuf->useSize = sizeof(SDataCacheEntry);
   pEntry->dataLen = blockEncode(pInput->pData, pEntry->data, numOfCols);
-  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
-  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
+//  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
+//  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
 
   pBuf->useSize += pEntry->dataLen;
 
@@ -126,14 +126,14 @@ static int32_t getStatus(SDataDispatchHandle* pDispatcher) {
 
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
-  SDataDispatchBuf*    pBuf = taosAllocateQitem(sizeof(SDataDispatchBuf), DEF_QITEM);
+  SDataDispatchBuf*    pBuf = taosAllocateQitem(sizeof(SDataDispatchBuf), DEF_QITEM, 0);
   if (NULL == pBuf) {
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   if (!allocBuf(pDispatcher, pInput, pBuf)) {
     taosFreeQitem(pBuf);
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   
   toDataCacheEntry(pDispatcher, pInput, pBuf);
@@ -162,15 +162,14 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryE
 
   SDataDispatchBuf* pBuf = NULL;
   taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
-  ASSERT(NULL != pBuf);
   memcpy(&pDispatcher->nextOutput, pBuf, sizeof(SDataDispatchBuf));
   taosFreeQitem(pBuf);
 
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pDispatcher->nextOutput.pData;
   *pLen = pEntry->dataLen;
 
-  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
-  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
+//  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
+//  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
 
   *pQueryEnd = pDispatcher->queryEnd;
   qDebug("got data len %" PRId64 ", row num %d in sink", *pLen,
@@ -193,8 +192,8 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   pOutput->numOfCols = pEntry->numOfCols;
   pOutput->compressed = pEntry->compressed;
 
-  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
-  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
+//  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
+//  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
 
   atomic_sub_fetch_64(&pDispatcher->cachedSize, pEntry->dataLen);
   atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen);
@@ -237,8 +236,8 @@ static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
 int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {
   SDataDispatchHandle* dispatcher = taosMemoryCalloc(1, sizeof(SDataDispatchHandle));
   if (NULL == dispatcher) {
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   dispatcher->sink.fPut = putDataBlock;
   dispatcher->sink.fEndPut = endPut;
@@ -254,8 +253,8 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   taosThreadMutexInit(&dispatcher->mutex, NULL);
   if (NULL == dispatcher->pDataBlocks) {
     taosMemoryFree(dispatcher);
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   *pHandle = dispatcher;
   return TSDB_CODE_SUCCESS;

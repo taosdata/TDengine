@@ -109,6 +109,13 @@ function kill_taosadapter() {
   fi
 }
 
+function kill_taoskeeper() {
+  pid=$(ps -ef | grep "taoskeeper" | grep -v "grep" | awk '{print $2}')
+  if [ -n "$pid" ]; then
+    ${csudo}kill -9 $pid   || :
+  fi
+}
+
 function kill_taosd() {
 #  ${csudo}pkill -f taosd || :
   pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
@@ -161,6 +168,7 @@ function install_bin() {
     ${csudo}rm -f ${bin_link_dir}/udfd     || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter     || :
     ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
+    ${csudo}rm -f ${bin_link_dir}/taoskeeper || :
     ${csudo}rm -f ${bin_link_dir}/taosdemo || :
     ${csudo}rm -f ${bin_link_dir}/taosdump || :
     ${csudo}rm -f ${bin_link_dir}/rmtaos   || :
@@ -179,6 +187,7 @@ function install_bin() {
     [ -x ${bin_dir}/taosdump ] && ${csudo}ln -s ${bin_dir}/taosdump ${bin_link_dir}/taosdump || :
     [ -x ${bin_dir}/set_core.sh ] && ${csudo}ln -s ${bin_dir}/set_core.sh ${bin_link_dir}/set_core || :
     [ -x ${bin_dir}/remove.sh ] && ${csudo}ln -s ${bin_dir}/remove.sh ${bin_link_dir}/rmtaos || :
+    [ -x ${bin_dir}/taoskeeper ] && ${csudo}ln -sf ${bin_dir}/taoskeeper ${bin_link_dir}/taoskeeper || :
 }
 
 function add_newHostname_to_hosts() {
@@ -205,6 +214,7 @@ function set_hostname() {
       break
     else
       read -p "Please enter one hostname(must not be 'localhost'):" newHostname
+      break
     fi
   done
 
@@ -324,7 +334,9 @@ function local_fqdn_check() {
                 ;;
 
             *)
+                set_ipAsFqdn
                 echo "Invalid input..."
+                break
                 ;;
             esac
         fi
@@ -346,6 +358,22 @@ function install_taosadapter_config() {
 
     [ -f ${cfg_install_dir}/taosadapter.toml ] &&
         ${csudo}ln -s ${cfg_install_dir}/taosadapter.toml ${cfg_dir}
+}
+
+function install_taoskeeper_config() {
+    if [ ! -f "${cfg_install_dir}/keeper.toml" ]; then
+        [ ! -d %{cfg_install_dir} ] &&
+            ${csudo}${csudo}mkdir -p ${cfg_install_dir}
+        [ -f ${cfg_dir}/keeper.toml ] && ${csudo}cp ${cfg_dir}/keeper.toml ${cfg_install_dir}
+        [ -f ${cfg_install_dir}/keeper.toml ] &&
+            ${csudo}chmod 644 ${cfg_install_dir}/keeper.toml
+    fi
+
+    [ -f ${cfg_dir}/keeper.toml ] &&
+        ${csudo}mv ${cfg_dir}/keeper.toml ${cfg_dir}/keeper.toml.new
+
+    [ -f ${cfg_install_dir}/keeper.toml ] &&
+        ${csudo}ln -s ${cfg_install_dir}/keeper.toml ${cfg_dir}
 }
 
 function install_config() {
@@ -580,6 +608,7 @@ function install_TDengine() {
     install_bin
     install_config
     install_taosadapter_config
+    install_taoskeeper_config
     install_taosadapter_service
     install_service
     install_app

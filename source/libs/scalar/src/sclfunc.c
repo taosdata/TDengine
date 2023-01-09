@@ -361,7 +361,6 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  ASSERT(pOutputData->info.type == TSDB_DATA_TYPE_BIGINT);
   int64_t *out = (int64_t *)pOutputData->pData;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
@@ -1174,12 +1173,35 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 }
 
 /** Time functions **/
+static int64_t offsetFromTz(char *timezone, int64_t factor) {
+  char *minStr = &timezone[3];
+  int64_t minutes = taosStr2Int64(minStr, NULL, 10);
+  memset(minStr, 0, strlen(minStr));
+  int64_t hours = taosStr2Int64(timezone, NULL, 10);
+  int64_t seconds = hours * 3600 + minutes * 60;
+
+  return seconds * factor;
+
+}
+
 int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(&pInput[0]);
 
   int64_t timeUnit, timePrec, timeVal = 0;
+  bool    ignoreTz = true;
+  char    timezone[20] = {0};
+
   GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
-  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
+
+  int32_t timePrecIdx = 2, timeZoneIdx = 3;
+  if (inputNum == 5) {
+    timePrecIdx += 1;
+    timeZoneIdx += 1;
+    GET_TYPED_DATA(ignoreTz, bool, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
+  }
+
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[timePrecIdx]), pInput[timePrecIdx].columnData->pData);
+  memcpy(timezone, varDataVal(pInput[timeZoneIdx].columnData->pData), varDataLen(pInput[timeZoneIdx].columnData->pData));
 
   int64_t factor = TSDB_TICK_PER_SECOND(timePrec);
   int64_t unit = timeUnit * 1000 / factor;
@@ -1294,13 +1316,29 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
       }
       case 86400000: { /* 1d */
         if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-          timeVal = timeVal / 1000 / 86400 * 86400 * 1000;
+          if (ignoreTz) {
+            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000)) % (86400L * 1000);
+          } else {
+            timeVal = timeVal / 1000 / 86400 * 86400 * 1000;
+          }
         } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-          timeVal = timeVal / 1000000 / 86400 * 86400 * 1000000;
+          if (ignoreTz) {
+            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000000)) % (86400L * 1000000);
+          } else {
+            timeVal = timeVal / 1000000 / 86400 * 86400 * 1000000;
+          }
         } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          timeVal = timeVal / 1000000000 / 86400 * 86400 * 1000000000;
+          if (ignoreTz) {
+            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000000000)) % (86400L * 1000000000);
+          } else {
+            timeVal = timeVal / 1000000000 / 86400 * 86400 * 1000000000;
+          }
         } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
-          timeVal = timeVal * factor / factor / 86400 * 86400 * factor;
+          if (ignoreTz) {
+            timeVal = (timeVal - (timeVal + offsetFromTz(timezone, 1)) % (86400L)) * factor;
+          } else {
+            timeVal = timeVal * factor / factor / 86400 * 86400 * factor;
+          }
         } else {
           colDataAppendNULL(pOutput->columnData, i);
           continue;
@@ -1690,37 +1728,31 @@ bool getTimePseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv
 }
 
 int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  ASSERT(inputNum == 1);
   colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 0));
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  ASSERT(inputNum == 1);
   colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 1));
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t winDurFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  ASSERT(inputNum == 1);
   colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 2));
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t winStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  ASSERT(inputNum == 1);
   colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 3));
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  ASSERT(inputNum == 1);
   colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 4));
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  ASSERT(inputNum == 1);
   char* p = colDataGetVarData(pInput->columnData, 0);
 
   colDataAppendNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows);
@@ -2559,7 +2591,7 @@ static bool checkStateOp(int8_t op, SColumnInfoData *pCol, int32_t index, SScala
       break;
     }
     default: {
-      ASSERT(0);
+      return false;
     }
   }
   return false;
@@ -2732,7 +2764,9 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
       intervals[0] = -INFINITY;
       intervals[numOfBins - 1] = INFINITY;
       // in case of desc bin orders, -inf/inf should be swapped
-      ASSERT(numOfBins >= 4);
+      if (numOfBins < 4) {
+        return false;
+      }
       if (intervals[1] > intervals[numOfBins - 2]) {
         TSWAP(intervals[0], intervals[numOfBins - 1]);
       }

@@ -37,7 +37,9 @@ static int horizontalPrintWebsocket(WS_RES* wres, double* execute_time) {
   const void* data = NULL;
   int rows;
   ws_fetch_block(wres, &data, &rows);
-  *execute_time += (double)(ws_take_timing(wres)/1E6);
+  if (wres) {
+    *execute_time += (double)(ws_take_timing(wres)/1E6);
+  }
   if (!rows) {
     return 0;
   }
@@ -77,7 +79,9 @@ static int verticalPrintWebsocket(WS_RES* wres, double* pexecute_time) {
   int rows = 0;
   const void* data = NULL;
   ws_fetch_block(wres, &data, &rows);
-  *pexecute_time += (double)(ws_take_timing(wres)/1E6);
+  if (wres) {
+    *pexecute_time += (double)(ws_take_timing(wres)/1E6);
+  }
   if (!rows) {
     return 0;
   }
@@ -129,7 +133,9 @@ static int dumpWebsocketToFile(const char* fname, WS_RES* wres, double* pexecute
   int rows = 0;
   const void* data = NULL;
   ws_fetch_block(wres, &data, &rows);
-  *pexecute_time += (double)(ws_take_timing(wres)/1E6);
+  if (wres) {
+    *pexecute_time += (double)(ws_take_timing(wres)/1E6);
+  }
   if (!rows) {
     taosCloseFile(&pFile);
     return 0;
@@ -223,17 +229,23 @@ void shellRunSingleCommandWebsocketImp(char *command) {
       if (code == TSDB_CODE_WS_SEND_TIMEOUT || code == TSDB_CODE_WS_RECV_TIMEOUT) {
         fprintf(stderr, "Hint: use -t to increase the timeout in seconds\n");
       } else if (code == TSDB_CODE_WS_INTERNAL_ERRO || code == TSDB_CODE_WS_CLOSED) {
-        fprintf(stderr, "TDengine server is down, will try to reconnect\n");
         shell.ws_conn = NULL;
       }
       ws_free_result(res);
-      if (reconnectNum == 0) continue;
+      if (reconnectNum == 0) {
+        continue;
+      } else {
+        fprintf(stderr, "The server is disconnected, will try to reconnect\n");
+      }
       return;
     }
     break;
   }
 
-  double execute_time = ws_take_timing(res)/1E6;
+  double execute_time = 0;
+  if (res) {
+    execute_time = ws_take_timing(res)/1E6;
+  }
 
   if (shellRegexMatch(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\r\n\r\n");

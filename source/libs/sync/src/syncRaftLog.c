@@ -41,9 +41,12 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pLogStore->pCache = taosLRUCacheInit(30 * 1024 * 1024, 1, .5);
   if (pLogStore->pCache == NULL) {
     taosMemoryFree(pLogStore);
-    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+
+  pLogStore->cacheHit = 0;
+  pLogStore->cacheMiss = 0;
 
   taosLRUCacheSetStrictCapacity(pLogStore->pCache, false);
 
@@ -112,8 +115,8 @@ static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncI
     const char* sysErrStr = strerror(errno);
 
     sNError(pData->pSyncNode,
-            "wal restore from snapshot error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
-            snapshotIndex, err, err, errStr, sysErr, sysErrStr);
+            "wal restore from snapshot error, index:%" PRId64 ", err:0x%x, msg:%s, syserr:%d, sysmsg:%s", snapshotIndex,
+            err, errStr, sysErr, sysErrStr);
     return -1;
   }
 
@@ -198,9 +201,8 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
-
   int64_t tsWriteBegin = taosGetTimestampNs();
-  index = walAppendLog(pWal, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  index = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
   int64_t tsWriteEnd = taosGetTimestampNs();
   int64_t tsElapsed = tsWriteEnd - tsWriteBegin;
 
@@ -210,11 +212,12 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
 
-    sNError(pData->pSyncNode, "wal write error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
-            pEntry->index, err, err, errStr, sysErr, sysErrStr);
+    sNError(pData->pSyncNode, "wal write error, index:%" PRId64 ", err:0x%x, msg:%s, syserr:%d, sysmsg:%s",
+            pEntry->index, err, errStr, sysErr, sysErrStr);
     return -1;
   }
-  pEntry->index = index;
+
+  ASSERT(pEntry->index == index);
 
   sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s, elapsed:%" PRId64, pEntry->index,
           TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType), tsElapsed);
@@ -231,17 +234,16 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
 
   *ppEntry = NULL;
 
-  // SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
+  int64_t ts1 = taosGetTimestampNs();
+  taosThreadMutexLock(&(pData->mutex));
+
   SWalReader* pWalHandle = pData->pWalHandle;
   if (pWalHandle == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     sError("vgId:%d, wal handle is NULL", pData->pSyncNode->vgId);
-
+    taosThreadMutexUnlock(&(pData->mutex));
     return -1;
   }
-
-  int64_t ts1 = taosGetTimestampNs();
-  taosThreadMutexLock(&(pData->mutex));
 
   int64_t ts2 = taosGetTimestampNs();
   code = walReadVer(pWalHandle, index);
@@ -255,11 +257,11 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
     const char* sysErrStr = strerror(errno);
 
     if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
-      sNTrace(pData->pSyncNode, "wal read not exist, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s", index,
-              err, err, errStr, sysErr, sysErrStr);
+      sNTrace(pData->pSyncNode, "wal read not exist, index:%" PRId64 ", err:0x%x, msg:%s, syserr:%d, sysmsg:%s", index,
+              err, errStr, sysErr, sysErrStr);
     } else {
-      sNTrace(pData->pSyncNode, "wal read error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s", index,
-              err, err, errStr, sysErr, sysErrStr);
+      sNTrace(pData->pSyncNode, "wal read error, index:%" PRId64 ", err:0x%x, msg:%s, syserr:%d, sysmsg:%s", index, err,
+              errStr, sysErr, sysErrStr);
     }
 
     /*
@@ -339,10 +341,8 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
-    sError("vgId:%d, wal truncate error, from-index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
-           pData->pSyncNode->vgId, fromIndex, err, err, errStr, sysErr, sysErrStr);
-
-    // ASSERT(0);
+    sError("vgId:%d, wal truncate error, from-index:%" PRId64 ", err:0x%x, msg:%s, syserr:%d, sysmsg:%s",
+           pData->pSyncNode->vgId, fromIndex, err, errStr, sysErr, sysErrStr);
   }
 
   // event log
@@ -392,10 +392,8 @@ int32_t raftLogUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
-    sError("vgId:%d, wal update commit index error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
-           pData->pSyncNode->vgId, index, err, err, errStr, sysErr, sysErrStr);
-
-    ASSERT(0);
+    sError("vgId:%d, wal update commit index error, index:%" PRId64 ", err:0x%x, msg:%s, syserr:%d, sysmsg:%s",
+           pData->pSyncNode->vgId, index, err, errStr, sysErr, sysErrStr);
     return -1;
   }
   return 0;

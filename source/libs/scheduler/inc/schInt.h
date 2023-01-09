@@ -27,6 +27,7 @@ extern "C" {
 #include "tarray.h"
 #include "thash.h"
 #include "trpc.h"
+#include "ttimer.h"
 
 enum {
   SCH_READ = 1,
@@ -146,6 +147,7 @@ typedef struct SSchedulerMgmt {
   int32_t       jobRef;
   int32_t       jobNum;
   SSchStat      stat;
+  void         *timer;
   SRWLatch      hbLock;
   SHashObj     *hbConnections;
   void         *queryMgmt;
@@ -202,12 +204,30 @@ typedef struct SSchTaskProfile {
   int64_t endTs;
 } SSchTaskProfile;
 
+typedef struct SSchRedirectCtx {
+  int32_t periodMs;
+  bool    inRedirect;
+  int32_t totalTimes;
+  int32_t roundTotal;
+  int32_t roundTimes;  // retry times in current round
+  int64_t startTs;
+} SSchRedirectCtx;
+
+typedef struct SSchTimerParam {
+  int64_t  rId;
+  uint64_t queryId;
+  uint64_t taskId;
+} SSchTimerParam;
+
 typedef struct SSchTask {
   uint64_t        taskId;          // task id
   SRWLatch        lock;            // task reentrant lock
   int32_t         maxExecTimes;    // task max exec times
   int32_t         maxRetryTimes;   // task max retry times
   int32_t         retryTimes;      // task retry times
+  int32_t         delayExecMs;     // task execution delay time
+  tmr_h           delayTimer;      // task delay execution timer
+  SSchRedirectCtx redirectCtx;     // task redirect context
   bool            waitRetry;       // wait for retry
   int32_t         execId;          // task current execute index
   SSchLevel      *level;           // level
@@ -273,11 +293,12 @@ typedef struct SSchJob {
   void                *chkKillParam;
   SSchTask            *fetchTask;
   int32_t              errCode;
+  int32_t              redirectCode;
   SRWLatch             resLock;
   SExecResult          execRes;
   void                *fetchRes;  // TODO free it or not
   bool                 fetched;
-  int32_t              resNumOfRows;
+  int64_t              resNumOfRows; // from int32_t to int64_t
   SSchResInfo          userRes;
   char                *sql;
   SQueryProfileSummary summary;
@@ -310,6 +331,9 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_IS_LOCAL_EXEC_TASK(_job, _task)                                          \
   ((_job)->attr.localExec && SCH_IS_QUERY_JOB(_job) && (!SCH_IS_INSERT_JOB(_job)) && \
    (!SCH_IS_DATA_BIND_QRY_TASK(_task)))
+
+#define SCH_UPDATE_REDICT_CODE(job, _code) atomic_val_compare_exchange_32(&((job)->redirectCode), 0, _code)
+#define SCH_GET_REDICT_CODE(job, _code) (((!NO_RET_REDIRECT_ERROR(_code)) || (job)->redirectCode == 0) ? (_code) : (job)->redirectCode)
 
 #define SCH_SET_TASK_STATUS(task, st) atomic_store_8(&(task)->status, st)
 #define SCH_GET_TASK_STATUS(task)     atomic_load_8(&(task)->status)
@@ -351,9 +375,9 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_JOB_NEED_WAIT(_job)  (!SCH_IS_QUERY_JOB(_job))
 #define SCH_JOB_NEED_DROP(_job)  (SCH_IS_QUERY_JOB(_job))
 #define SCH_IS_EXPLAIN_JOB(_job) (EXPLAIN_MODE_ANALYZE == (_job)->attr.explainMode)
-#define SCH_NETWORK_ERR(_code)   ((_code) == TSDB_CODE_RPC_BROKEN_LINK || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL)
+#define SCH_NETWORK_ERR(_code)   ((_code) == TSDB_CODE_RPC_BROKEN_LINK || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || (_code) == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED)
 #define SCH_MERGE_TASK_NETWORK_ERR(_task, _code, _len) \
-  (SCH_NETWORK_ERR(_code) && (((_len) > 0) || (!SCH_IS_DATA_BIND_TASK(_task))))
+  (SCH_NETWORK_ERR(_code) && (((_len) > 0) || (!SCH_IS_DATA_BIND_TASK(_task)) || (_task)->redirectCtx.inRedirect))
 #define SCH_REDIRECT_MSGTYPE(_msgType)                                                                         \
   ((_msgType) == TDMT_SCH_LINK_BROKEN || (_msgType) == TDMT_SCH_QUERY || (_msgType) == TDMT_SCH_MERGE_QUERY || \
    (_msgType) == TDMT_SCH_FETCH || (_msgType) == TDMT_SCH_MERGE_FETCH)
@@ -454,40 +478,41 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_LOCK(type, _lock)                                                                        \
   do {                                                                                               \
     if (SCH_READ == (type)) {                                                                        \
-      assert(atomic_load_32(_lock) >= 0);                                                            \
+      ASSERTS(atomic_load_32(_lock) >= 0, "invalid lock value before read lock");                    \
       SCH_LOCK_DEBUG("SCH RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRLockLatch(_lock);                                                                         \
       SCH_LOCK_DEBUG("SCH RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32(_lock) > 0);                                                             \
+      ASSERTS(atomic_load_32(_lock) > 0, "invalid lock value after read lock");                      \
     } else {                                                                                         \
-      assert(atomic_load_32(_lock) >= 0);                                                            \
+      ASSERTS(atomic_load_32(_lock) >= 0, "invalid lock value before write lock");                   \
       SCH_LOCK_DEBUG("SCH WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWLockLatch(_lock);                                                                         \
       SCH_LOCK_DEBUG("SCH WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32(_lock) == TD_RWLATCH_WRITE_FLAG_COPY);                                   \
+      ASSERTS(atomic_load_32(_lock) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after write lock");  \
     }                                                                                                \
   } while (0)
 
 #define SCH_UNLOCK(type, _lock)                                                                       \
   do {                                                                                                \
     if (SCH_READ == (type)) {                                                                         \
-      assert(atomic_load_32((_lock)) > 0);                                                            \
+      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value before read unlock");                  \
       SCH_LOCK_DEBUG("SCH RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRUnLockLatch(_lock);                                                                        \
       SCH_LOCK_DEBUG("SCH RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) >= 0);                                                           \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after read unlock");                  \
     } else {                                                                                          \
-      assert(atomic_load_32((_lock)) & TD_RWLATCH_WRITE_FLAG_COPY);                                   \
+      ASSERTS(atomic_load_32((_lock)) & TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value before write unlock");  \
       SCH_LOCK_DEBUG("SCH WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWUnLockLatch(_lock);                                                                        \
       SCH_LOCK_DEBUG("SCH WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) >= 0);                                                           \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after write unlock");                 \
     }                                                                                                 \
   } while (0)
 
 void     schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask);
 void     schCleanClusterHb(void *pTrans);
 int32_t  schLaunchTask(SSchJob *job, SSchTask *task);
+int32_t  schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask);
 int32_t  schBuildAndSendMsg(SSchJob *job, SSchTask *task, SQueryNodeAddr *addr, int32_t msgType);
 SSchJob *schAcquireJob(int64_t refId);
 int32_t  schReleaseJob(int64_t refId);
@@ -529,6 +554,7 @@ int32_t  schJobFetchRows(SSchJob *pJob);
 int32_t  schJobFetchRowsA(SSchJob *pJob);
 int32_t  schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, int32_t execId);
 int32_t  schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList);
+char    *schDumpEpSet(SEpSet *pEpSet);
 char    *schGetOpStr(SCH_OP_TYPE type);
 int32_t  schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync);
 int32_t  schInitJob(int64_t *pJobId, SSchedulerReq *pReq);

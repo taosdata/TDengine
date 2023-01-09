@@ -100,7 +100,9 @@ SSyncNode *syncNodeAcquire(int64_t rid) {
   return pNode;
 }
 
-void syncNodeRelease(SSyncNode *pNode) { taosReleaseRef(gNodeRefId, pNode->rid); }
+void syncNodeRelease(SSyncNode *pNode) {
+  if (pNode) taosReleaseRef(gNodeRefId, pNode->rid);
+}
 
 int64_t syncHbTimerDataAdd(SSyncHbTimerData *pData) {
   pData->rid = taosAddRef(gHbDataRefId, pData);
@@ -113,7 +115,7 @@ void syncHbTimerDataRemove(int64_t rid) { taosRemoveRef(gHbDataRefId, rid); }
 SSyncHbTimerData *syncHbTimerDataAcquire(int64_t rid) {
   SSyncHbTimerData *pData = taosAcquireRef(gHbDataRefId, rid);
   if (pData == NULL) {
-    sError("failed to acquire hb-timer-data from refId:%" PRId64, rid);
+    sInfo("failed to acquire hb-timer-data from refId:%" PRId64, rid);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
   }
 

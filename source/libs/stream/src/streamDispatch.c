@@ -112,7 +112,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
   pRetrieve->compressed = 0;
   pRetrieve->completed = 1;
   pRetrieve->streamBlockType = pBlock->info.type;
-  pRetrieve->numOfRows = htonl(pBlock->info.rows);
+  pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
   pRetrieve->numOfCols = htonl(numOfCols);
   pRetrieve->skey = htobe64(pBlock->info.window.skey);
   pRetrieve->ekey = htobe64(pBlock->info.window.ekey);
@@ -189,7 +189,7 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   pRetrieve->compressed = 0;
   pRetrieve->completed = 1;
   pRetrieve->streamBlockType = pBlock->info.type;
-  pRetrieve->numOfRows = htonl(pBlock->info.rows);
+  pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
   pRetrieve->skey = htobe64(pBlock->info.window.skey);
   pRetrieve->ekey = htobe64(pBlock->info.window.ekey);
   pRetrieve->version = htobe64(pBlock->info.version);
@@ -463,7 +463,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
         continue;
       }
 
-      if (streamSearchAndAddBlock(pTask, pReqs, pDataBlock, vgSz, pDataBlock->info.groupId) < 0) {
+      if (streamSearchAndAddBlock(pTask, pReqs, pDataBlock, vgSz, pDataBlock->info.id.groupId) < 0) {
         goto FAIL_SHUFFLE_DISPATCH;
       }
     }
@@ -487,8 +487,6 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
       taosMemoryFree(pReqs);
     }
     return code;
-  } else {
-    ASSERT(0);
   }
   return 0;
 }
@@ -514,7 +512,6 @@ int32_t streamDispatch(SStreamTask* pTask) {
 
   int32_t code = 0;
   if (streamDispatchAllBlocks(pTask, pBlock) < 0) {
-    ASSERT(0);
     code = -1;
     streamQueueProcessFail(pTask->outputQueue);
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);

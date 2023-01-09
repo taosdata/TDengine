@@ -136,7 +136,7 @@ int32_t check_for_params(jobject jobj, jlong conn, jlong res) {
   }
 
   if ((TAOS_RES *)res == NULL) {
-    jniError("jobj:%p, conn:%p, res is null", jobj, (TAOS *)conn);
+    jniError("jobj:%p, conn:%p, param res is null", jobj, (TAOS *)conn);
     return JNI_RESULT_SET_NULL;
   }
 
@@ -393,9 +393,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_freeResultSetImp(
     return code;
   }
 
-  taos_free_result((void *)res);
   jniDebug("jobj:%p, conn:%p, free resultset:%p", jobj, (TAOS *)con, (void *)res);
-
+  taos_free_result((void *)res);
   return JNI_SUCCESS;
 }
 
@@ -489,7 +488,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
                numOfFields);
       return JNI_FETCH_END;
     } else {
-      jniDebug("jobj:%p, conn:%p, interrupted query", jobj, tscon);
+      jniDebug("jobj:%p, conn:%p, interrupted query. fetch row error code: %d, msg:%s", jobj, tscon, code,
+               taos_errstr(result));
       return JNI_RESULT_SET_NULL;
     }
   }
@@ -574,7 +574,11 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchBlockImp(JNI
   TAOS_RES *tres = (TAOS_RES *)res;
 
   int32_t numOfFields = taos_num_fields(tres);
-  assert(numOfFields > 0);
+  if(numOfFields <= 0){
+    jniError("jobj:%p, conn:%p, query interrupted. taos_num_fields error code:%d, msg:%s", jobj, tscon, numOfFields,
+             taos_errstr(tres));
+    return JNI_RESULT_SET_NULL;
+  }
 
   void   *data;
   int32_t numOfRows;
@@ -584,7 +588,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchBlockImp(JNI
       jniDebug("jobj:%p, conn:%p, resultset:%p, no data to retrieve", jobj, tscon, (void *)res);
       return JNI_FETCH_END;
     } else {
-      jniError("jobj:%p, conn:%p, query interrupted", jobj, tscon);
+      jniError("jobj:%p, conn:%p, query interrupted. fetch block error code:%d, msg:%s", jobj, tscon, error_code,
+               taos_errstr(tres));
       return JNI_RESULT_SET_NULL;
     }
   }
@@ -1028,4 +1033,63 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsert
     return JNI_OUT_OF_MEMORY;
   }
   return (jlong)tres;
+}
+
+// TABLE_VG_ID_FID_CACHE cache resp object for getTableVgID
+typedef struct TABLE_VG_ID_FIELD_CACHE {
+  int      cached;
+  jclass   clazz;
+  jfieldID codeField;
+  jfieldID vgIDField;
+} TABLE_VG_ID_FIELD_CACHE;
+
+TABLE_VG_ID_FIELD_CACHE tableVgIdFieldCache;
+
+void cacheTableVgIDField(JNIEnv *env, jobject jobj) {
+  if (tableVgIdFieldCache.cached) {
+    return;
+  }
+
+  tableVgIdFieldCache.clazz = (*env)->GetObjectClass(env, jobj);
+  tableVgIdFieldCache.codeField = (*env)->GetFieldID(env, tableVgIdFieldCache.clazz, "code", "I");
+  tableVgIdFieldCache.vgIDField = (*env)->GetFieldID(env, tableVgIdFieldCache.clazz, "vgID", "I");
+  tableVgIdFieldCache.cached = 1;
+}
+
+JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getTableVgID(JNIEnv *env, jobject jobj, jlong conn,
+                                                                               jstring jdb, jstring jtable,
+                                                                               jobject resp) {
+  if (!tableVgIdFieldCache.cached) {
+    cacheTableVgIDField(env, resp);
+  }
+
+  TAOS *taos = (TAOS *)conn;
+  if (taos == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    (*env)->SetIntField(env, resp, tableVgIdFieldCache.codeField, JNI_CONNECTION_NULL);
+    return resp;
+  }
+
+  const char *db = NULL;
+  const char *table = NULL;
+  int         vgID = 0;
+
+  if (jdb != NULL) {
+    db = (*env)->GetStringUTFChars(env, jdb, NULL);
+  }
+  if (jtable != NULL) {
+    table = (*env)->GetStringUTFChars(env, jtable, NULL);
+  }
+
+  int code = taos_get_table_vgId(taos, db, table, &vgID);
+  if (db != NULL) {
+    (*env)->ReleaseStringUTFChars(env, jdb, db);
+  }
+  if (table != NULL) {
+    (*env)->ReleaseStringUTFChars(env, jtable, table);
+  }
+
+  (*env)->SetIntField(env, resp, tableVgIdFieldCache.codeField, code);
+  (*env)->SetIntField(env, resp, tableVgIdFieldCache.vgIDField, vgID);
+  return resp;
 }

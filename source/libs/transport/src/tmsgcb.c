@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tmsgcb.h"
 #include "taoserror.h"
+#include "transLog.h"
 #include "trpc.h"
 
 static SMsgCb defaultMsgCb;
@@ -52,10 +53,12 @@ void tmsgSendRsp(SRpcMsg* pMsg) {
 #endif
 }
 
-void tmsgSendRedirectRsp(SRpcMsg* pMsg, const SEpSet* pNewEpSet) { (*defaultMsgCb.sendRedirectRspFp)(pMsg, pNewEpSet); }
-
 void tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg) { (*defaultMsgCb.registerBrokenLinkArgFp)(pMsg); }
 
 void tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type) { (*defaultMsgCb.releaseHandleFp)(pHandle, type); }
 
 void tmsgReportStartup(const char* name, const char* desc) { (*defaultMsgCb.reportStartupFp)(name, desc); }
+
+int32_t tmsgUpdateDnodeInfo(int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint16_t* port) {
+  return (*defaultMsgCb.updateDnodeInfoFp)(defaultMsgCb.data, dnodeId, clusterId, fqdn, port);
+}

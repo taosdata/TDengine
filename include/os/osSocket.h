@@ -169,6 +169,9 @@ void        taosSetMaskSIGPIPE();
 uint32_t    taosInetAddr(const char *ipAddr);
 const char *taosInetNtoa(struct in_addr ipInt, char *dstStr, int32_t len);
 
+uint64_t taosHton64(uint64_t val);
+uint64_t taosNtoh64(uint64_t val);
+
 #ifdef __cplusplus
 }
 #endif

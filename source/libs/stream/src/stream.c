@@ -56,7 +56,7 @@ void streamSchedByTimer(void* param, void* tmrId) {
   }
 
   if (atomic_load_8(&pTask->triggerStatus) == TASK_TRIGGER_STATUS__ACTIVE) {
-    SStreamTrigger* trigger = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM);
+    SStreamTrigger* trigger = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0);
     if (trigger == NULL) return;
     trigger->type = STREAM_INPUT__GET_RES;
     trigger->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
@@ -112,7 +112,7 @@ int32_t streamSchedExec(SStreamTask* pTask) {
 }
 
 int32_t streamTaskEnqueue(SStreamTask* pTask, const SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
-  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
   int8_t            status;
 
   // enqueue
@@ -150,7 +150,7 @@ int32_t streamTaskEnqueue(SStreamTask* pTask, const SStreamDispatchReq* pReq, SR
 }
 
 int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pRsp) {
-  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
   int8_t            status = TASK_INPUT_STATUS__NORMAL;
 
   // enqueue
@@ -187,6 +187,23 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
   return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
 }
 
+int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock) {
+  if (pTask->outputType == TASK_OUTPUT__TABLE) {
+    pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
+    taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
+    taosFreeQitem(pBlock);
+  } else if (pTask->outputType == TASK_OUTPUT__SMA) {
+    pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
+    taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
+    taosFreeQitem(pBlock);
+  } else {
+    ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH);
+    taosWriteQitem(pTask->outputQueue->queue, pBlock);
+    streamDispatch(pTask);
+  }
+  return 0;
+}
+
 int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
   qDebug("task %d receive dispatch req from node %d task %d", pTask->taskId, pReq->upstreamNodeId,
          pReq->upstreamTaskId);
@@ -199,9 +216,9 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, S
       return -1;
     }
 
-    if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-      streamDispatch(pTask);
-    }
+    /*if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {*/
+    /*streamDispatch(pTask);*/
+    /*}*/
   } else {
     streamSchedExec(pTask);
   }
@@ -237,9 +254,9 @@ int32_t streamProcessRunReq(SStreamTask* pTask) {
     return -1;
   }
 
-  if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-    streamDispatch(pTask);
-  }
+  /*if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {*/
+  /*streamDispatch(pTask);*/
+  /*}*/
   return 0;
 }
 

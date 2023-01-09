@@ -149,7 +149,6 @@ typedef struct STscObj {
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
   SHashObj*     pRequests;
-  int8_t        schemalessType;  // todo remove it, this attribute should be move to request
 } STscObj;
 
 typedef struct SResultColumn {
@@ -171,9 +170,9 @@ typedef struct SReqResultInfo {
   char**         convertBuf;
   TAOS_ROW       row;
   SResultColumn* pCol;
-  uint32_t       numOfRows;
+  uint64_t       numOfRows; // from int32_t change to int64_t
   uint64_t       totalRows;
-  uint32_t       current;
+  uint64_t       current;
   bool           localResultFetched;
   bool           completed;
   int32_t        precision;

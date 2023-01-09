@@ -377,7 +377,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
       int32_t valLen = (int32_t)strlen(jsonValue);
       char*   tmp = taosMemoryCalloc(1, valLen * TSDB_NCHAR_SIZE);
       if (!tmp) {
-        retCode = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        retCode = TSDB_CODE_OUT_OF_MEMORY;
         goto end;
       }
       val.type = TSDB_DATA_TYPE_NCHAR;
@@ -474,7 +474,7 @@ static int32_t getInsTagsTableTargetNameFromCond(int32_t acctId, SLogicCondition
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getInsTagsTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) {
+int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) {
   if (NULL == pWhere) {
     return TSDB_CODE_SUCCESS;
   }
@@ -844,7 +844,7 @@ int32_t getDbVgInfoFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, 
   int32_t code = getMetaDataFromHash(pDbFName, strlen(pDbFName), pMetaCache->pDbVgroup, (void**)&pVgList);
   // pVgList is null, which is a legal value, indicating that the user DB has not been created
   if (TSDB_CODE_SUCCESS == code && NULL != pVgList) {
-    *pVgInfo = taosArrayDup(pVgList);
+    *pVgInfo = taosArrayDup(pVgList, NULL);
     if (NULL == *pVgInfo) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -961,7 +961,7 @@ int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFun
 static void destroySmaIndex(void* p) { taosMemoryFree(((STableIndexInfo*)p)->expr); }
 
 static SArray* smaIndexesDup(SArray* pSrc) {
-  SArray* pDst = taosArrayDup(pSrc);
+  SArray* pDst = taosArrayDup(pSrc, NULL);
   if (NULL == pDst) {
     return NULL;
   }
@@ -1011,7 +1011,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
     memcpy(pNew->pComment, pCfg->pComment, pNew->commentLen);
   }
   if (NULL != pNew->pFuncs) {
-    pNew->pFuncs = taosArrayDup(pNew->pFuncs);
+    pNew->pFuncs = taosArrayDup(pNew->pFuncs, NULL);
   }
   if (NULL != pNew->pTags) {
     pNew->pTags = taosMemoryCalloc(pNew->tagsLen + 1, 1);
@@ -1053,7 +1053,7 @@ int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes) {
     return pRes->code;
   }
 
-  *pDnodes = taosArrayDup((SArray*)pRes->pRes);
+  *pDnodes = taosArrayDup((SArray*)pRes->pRes, NULL);
   if (NULL == *pDnodes) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }

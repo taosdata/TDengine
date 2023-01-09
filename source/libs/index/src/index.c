@@ -226,7 +226,9 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
     indexDebug("w suid:%" PRIu64 ", colName:%s, colType:%d", key.suid, key.colName, key.colType);
 
     IndexCache** cache = taosHashGet(index->colObj, buf, sz);
-    assert(*cache != NULL);
+    ASSERTS(*cache != NULL, "index-cache already release");
+    if (*cache == NULL) return -1;
+
     int ret = idxCachePut(*cache, p, uid);
     if (ret != 0) {
       return ret;

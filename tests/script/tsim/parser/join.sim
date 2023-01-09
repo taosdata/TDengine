@@ -496,18 +496,18 @@ sql create table tm0 using m1 tags('abc', 1);
 sql create table m2(ts timestamp, k int) tags(a int, b binary(12));
 
 sql select count(*) from m1, m2 where m1.ts=m2.ts and m1.b=m2.a;
-if $rows != 0 then
+if $rows != 1 then
   return -1
 endi
 
 sql create table tm2 using m2 tags(2, 'abc');
 sql select count(*) from tm0, tm2 where tm0.ts=tm2.ts;
-if $rows != 0 then
+if $rows != 1 then
   return -1
 endi
 
 sql select count(*) from m1, m2 where m1.ts=m2.ts and m1.b=m2.a;
-if $rows != 0 then
+if $rows != 1 then
   return -1
 endi
 

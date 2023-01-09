@@ -17,7 +17,9 @@
 #include "syncAppendEntriesReply.h"
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
+#include "syncPipeline.h"
 #include "syncMessage.h"
+#include "syncRaftEntry.h"
 #include "syncRaftStore.h"
 #include "syncReplication.h"
 #include "syncSnapshot.h"
@@ -38,8 +40,58 @@
 //
 
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
-  int32_t                 ret = 0;
   SyncAppendEntriesReply* pMsg = pRpcMsg->pCont;
+  int32_t ret = 0;
+
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
+    syncLogRecvAppendEntriesReply(ths, pMsg, "not in my config");
+    return 0;
+  }
+
+  // drop stale response
+  if (pMsg->term < ths->pRaftStore->currentTerm) {
+    syncLogRecvAppendEntriesReply(ths, pMsg, "drop stale response");
+    return 0;
+  }
+
+  if (ths->state == TAOS_SYNC_STATE_LEADER) {
+    if (pMsg->term > ths->pRaftStore->currentTerm) {
+      syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
+      syncNodeStepDown(ths, pMsg->term);
+      return -1;
+    }
+
+    ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
+
+    sTrace("vgId:%d, received append entries reply. srcId:0x%016" PRIx64 ",  term:%" PRId64 ", matchIndex:%" PRId64 "",
+           pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);
+
+    if (pMsg->success) {
+      SyncIndex oldMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
+      if (pMsg->matchIndex > oldMatchIndex) {
+        syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
+      }
+
+      // commit if needed
+      SyncIndex indexLikely = TMIN(pMsg->matchIndex, ths->pLogBuf->matchIndex);
+      SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely);
+      (void)syncLogBufferCommit(ths->pLogBuf, ths, commitIndex);
+    }
+
+    // replicate log
+    SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(ths, &pMsg->srcId);
+    if (pMgr == NULL) {
+      sError("vgId:%d, failed to get log repl mgr for src addr: 0x%016" PRIx64, ths->vgId, pMsg->srcId.addr);
+      return -1;
+    }
+    (void)syncLogReplMgrProcessReply(pMgr, ths, pMsg);
+  }
+  return 0;
+}
+
+int32_t syncNodeOnAppendEntriesReplyOld(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
+  int32_t ret = 0;
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {

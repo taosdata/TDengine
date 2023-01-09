@@ -122,7 +122,6 @@ TFileCache* tfileCacheCreate(SIndex* idx, const char* path) {
 
     char    buf[128] = {0};
     int32_t sz = idxSerialCacheKey(&key, buf);
-    assert(sz < sizeof(buf));
     taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
     tfileReaderRef(reader);
   }
@@ -151,9 +150,8 @@ void tfileCacheDestroy(TFileCache* tcache) {
 }
 
 TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key) {
-  char    buf[128] = {0};
-  int32_t sz = idxSerialCacheKey(key, buf);
-  assert(sz < sizeof(buf));
+  char          buf[128] = {0};
+  int32_t       sz = idxSerialCacheKey(key, buf);
   TFileReader** reader = taosHashGet(tcache->tableCache, buf, sz);
   if (reader == NULL || *reader == NULL) {
     return NULL;
@@ -269,7 +267,7 @@ static int32_t tfSearchPrefix(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
     if (ret != 0) {
       taosArrayDestroy(offsets);
       indexError("failed to find target tablelist");
-      return TSDB_CODE_TDB_FILE_CORRUPTED;
+      return TSDB_CODE_FILE_CORRUPTED;
     }
   }
   taosArrayDestroy(offsets);
@@ -877,7 +875,7 @@ static int tfileWriteFooter(TFileWriter* write) {
   int nwrite = write->ctx->write(write->ctx, buf, (int32_t)strlen(buf));
 
   indexInfo("tfile write footer size: %d", write->ctx->size(write->ctx));
-  assert(nwrite == sizeof(FILE_MAGIC_NUMBER));
+  ASSERTS(nwrite == sizeof(FILE_MAGIC_NUMBER), "index write incomplete data");
   return nwrite;
 }
 static int tfileReaderLoadHeader(TFileReader* reader) {
@@ -892,7 +890,6 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
   } else {
     indexInfo("actual Read: %d, to read: %d, filename: %s", (int)(nread), (int)sizeof(buf), reader->ctx->file.buf);
   }
-  // assert(nread == sizeof(buf));
   memcpy(&reader->header, buf, sizeof(buf));
 
   return 0;
@@ -914,7 +911,10 @@ static int tfileReaderLoadFst(TFileReader* reader) {
   indexInfo("nread = %d, and fst offset=%d, fst size: %d, filename: %s, file size: %d, time cost: %" PRId64 "us", nread,
             reader->header.fstOffset, fstSize, ctx->file.buf, size, cost);
   // we assuse fst size less than FST_MAX_SIZE
-  assert(nread > 0 && nread <= fstSize);
+  ASSERTS(nread > 0 && nread <= fstSize, "index read incomplete fst");
+  if (nread <= 0 || nread > fstSize) {
+    return -1;
+  }
 
   FstSlice st = fstSliceCreate((uint8_t*)buf, nread);
   reader->fst = fstCreate(&st);
@@ -929,7 +929,7 @@ static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* 
   // add block cache
   char    block[4096] = {0};
   int32_t nread = ctx->readFrom(ctx, block, sizeof(block), offset);
-  assert(nread >= sizeof(uint32_t));
+  ASSERT(nread >= sizeof(uint32_t));
 
   char*   p = block;
   int32_t nid = *(int32_t*)p;

@@ -34,14 +34,12 @@ struct SSortHandle {
   int32_t        pageSize;
   int32_t        numOfPages;
   SDiskbasedBuf* pBuf;
-
-  SArray* pSortInfo;
-  SArray* pOrderedSource;
-
-  int32_t  loops;
-  uint64_t sortElapsed;
-  int64_t  startTs;
-  uint64_t totalElapsed;
+  SArray*        pSortInfo;
+  SArray*        pOrderedSource;
+  int32_t        loops;
+  uint64_t       sortElapsed;
+  int64_t        startTs;
+  uint64_t       totalElapsed;
 
   int32_t           sourceId;
   SSDataBlock*      pDataBlock;
@@ -99,9 +97,9 @@ SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t page
 }
 
 static int32_t sortComparCleanup(SMsortComparParam* cmpParam) {
+  // NOTICE: pSource may be, if it is SORT_MULTISOURCE_MERGE
   for (int32_t i = 0; i < cmpParam->numOfSources; ++i) {
-    SSortSource* pSource =
-        cmpParam->pSources[i];  // NOTICE: pSource may be SGenericSource *, if it is SORT_MULTISOURCE_MERGE
+    SSortSource* pSource = cmpParam->pSources[i];
     blockDataDestroy(pSource->src.pBlock);
     taosMemoryFreeClear(pSource);
   }
@@ -116,9 +114,12 @@ void tsortClearOrderdSource(SArray *pOrderedSource) {
     if (NULL == *pSource) {
       continue;
     }
-    
+    // release pageIdList
+    if ((*pSource)->pageIdList) {
+      taosArrayDestroy((*pSource)->pageIdList);
+    }
     if ((*pSource)->param && !(*pSource)->onlyRef) {
-      taosMemoryFree((*pSource)->param);  
+      taosMemoryFree((*pSource)->param);
     }
     taosMemoryFreeClear(*pSource);
   }
@@ -155,7 +156,7 @@ static int32_t doAddNewExternalMemSource(SDiskbasedBuf* pBuf, SArray* pAllSource
   SSortSource* pSource = taosMemoryCalloc(1, sizeof(SSortSource));
   if (pSource == NULL) {
     taosArrayDestroy(pPageIdList);
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pSource->src.pBlock = pBlock;
@@ -228,15 +229,15 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
   return doAddNewExternalMemSource(pHandle->pBuf, pHandle->pOrderedSource, pBlock, &pHandle->sourceId, pPageIdList);
 }
 
-static void setCurrentSourceIsDone(SSortSource* pSource, SSortHandle* pHandle) {
+static void setCurrentSourceDone(SSortSource* pSource, SSortHandle* pHandle) {
   pSource->src.rowIndex = -1;
   ++pHandle->numOfCompletedSources;
 }
 
-static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int32_t startIndex, int32_t endIndex,
+static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32_t startIndex, int32_t endIndex,
                               SSortHandle* pHandle) {
-  cmpParam->pSources = taosArrayGet(pSources, startIndex);
-  cmpParam->numOfSources = (endIndex - startIndex + 1);
+  pParam->pSources = taosArrayGet(pSources, startIndex);
+  pParam->numOfSources = (endIndex - startIndex + 1);
 
   int32_t code = 0;
 
@@ -244,7 +245,7 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
   if (pHandle->pBuf == NULL) {
     if (!osTempSpaceAvailable()) {
       code = TSDB_CODE_NO_AVAIL_DISK;
-      qError("Sort compare init failed since %s", terrstr(code));
+      qError("Sort compare init failed since %s, %s", terrstr(code), pHandle->idStr);
       return code;
     }
 
@@ -257,18 +258,22 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
   }
 
   if (pHandle->type == SORT_SINGLESOURCE_SORT) {
-    for (int32_t i = 0; i < cmpParam->numOfSources; ++i) {
-      SSortSource* pSource = cmpParam->pSources[i];
+    for (int32_t i = 0; i < pParam->numOfSources; ++i) {
+      SSortSource* pSource = pParam->pSources[i];
 
       // set current source is done
       if (taosArrayGetSize(pSource->pageIdList) == 0) {
-        setCurrentSourceIsDone(pSource, pHandle);
+        setCurrentSourceDone(pSource, pHandle);
         continue;
       }
 
       int32_t* pPgId = taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
       void* pPage = getBufPage(pHandle->pBuf, *pPgId);
+      if (NULL == pPage) {
+        return terrno;
+      }
+      
       code = blockDataFromBuf(pSource->src.pBlock, pPage);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -277,15 +282,21 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
       releaseBufPage(pHandle->pBuf, pPage);
     }
   } else {
-    for (int32_t i = 0; i < cmpParam->numOfSources; ++i) {
-      SSortSource* pSource = cmpParam->pSources[i];
+    qDebug("start init for the multiway merge sort, %s", pHandle->idStr);
+    int64_t st = taosGetTimestampUs();
+
+    for (int32_t i = 0; i < pParam->numOfSources; ++i) {
+      SSortSource* pSource = pParam->pSources[i];
       pSource->src.pBlock = pHandle->fetchfp(pSource->param);
 
       // set current source is done
       if (pSource->src.pBlock == NULL) {
-        setCurrentSourceIsDone(pSource, pHandle);
+        setCurrentSourceDone(pSource, pHandle);
       }
     }
+
+    int64_t et = taosGetTimestampUs();
+    qDebug("init for merge sort completed, elapsed time:%.2f ms, %s", (et - st) / 1000.0, pHandle->idStr);
   }
 
   return code;
@@ -330,6 +341,11 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
         int32_t* pPgId = taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
         void*   pPage = getBufPage(pHandle->pBuf, *pPgId);
+        if (pPage == NULL) {
+          qError("failed to get buffer, code:%s", tstrerror(terrno));
+          return terrno;
+        }
+
         int32_t code = blockDataFromBuf(pSource->src.pBlock, pPage);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
@@ -417,8 +433,8 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
   SSDataBlock* pRightBlock = pRightSource->src.pBlock;
 
   if (pParam->cmpGroupId) {
-    if (pLeftBlock->info.groupId != pRightBlock->info.groupId) {
-      return pLeftBlock->info.groupId < pRightBlock->info.groupId ? -1 : 1;
+    if (pLeftBlock->info.id.groupId != pRightBlock->info.id.groupId) {
+      return pLeftBlock->info.id.groupId < pRightBlock->info.id.groupId ? -1 : 1;
     }
   }
 
@@ -793,6 +809,7 @@ STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
     }
   }
 
+  // all sources are completed.
   if (pHandle->cmpParam.numOfSources == pHandle->numOfCompletedSources) {
     return NULL;
   }
@@ -826,7 +843,7 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex) {
   }
 }
 
-uint64_t tsortGetGroupId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.groupId; }
+uint64_t tsortGetGroupId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.id.groupId; }
 
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   SSortExecInfo info = {0};

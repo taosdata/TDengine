@@ -125,12 +125,12 @@ class TDTestCase:
             vgroup_id = vgroup_info[0]
             tmp_list = []
             for role in vgroup_info[3:-4]:
-                if role in ['leader','leader*','follower']:
+                if role in ['leader','leader*', 'leader**','follower']:
                     tmp_list.append(role)
             vgroups_infos[vgroup_id]=tmp_list
 
         for k , v in vgroups_infos.items():
-            if len(v) ==1 and v[0] in ['leader', 'leader*']:
+            if len(v) == 1 and v[0] in ['leader', 'leader*', 'leader**']:
                 tdLog.notice(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
             else:
                 tdLog.info(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))

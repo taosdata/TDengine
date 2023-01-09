@@ -78,7 +78,7 @@ void sifAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *sl
     blockDataEnsureCapacity(res, rows);
 
     *dataBlockId = taosArrayGetSize(pBlockList) - 1;
-    res->info.blockId = *dataBlockId;
+    res->info.id.blockId = *dataBlockId;
     *slotId = 0;
   } else {
     SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(pBlockList);
@@ -139,7 +139,7 @@ void sifMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode *
 void sifMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
   SNode         *node = (SNode *)nodesMakeNode(QUERY_NODE_NODE_LIST);
   SNodeListNode *lnode = (SNodeListNode *)node;
-  lnode->dataType.type = resType;
+  lnode->node.resType.type = resType;
   lnode->pNodeList = list;
 
   *pNode = (SNode *)lnode;

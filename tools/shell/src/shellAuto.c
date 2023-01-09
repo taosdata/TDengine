@@ -138,6 +138,7 @@ SWords shellCommands[] = {
     {"show create table <tb_name> \\G;", 0, 0, NULL},
     {"show connections;", 0, 0, NULL},
     {"show cluster;", 0, 0, NULL},
+    {"show cluster alive;", 0, 0, NULL},
     {"show databases;", 0, 0, NULL},
     {"show dnodes;", 0, 0, NULL},
     {"show dnode <dnode_id> variables;", 0, 0, NULL},
@@ -263,7 +264,7 @@ char* key_tags[] = {"tags("};
 char* key_select[] = {"select "};
 
 //
-//  ------- gobal variant define ---------
+//  ------- global variant define ---------
 //
 int32_t firstMatchIndex = -1;  // first match shellCommands index
 int32_t lastMatchIndex = -1;   // last match shellCommands index
@@ -328,7 +329,15 @@ int        cntDel = 0;        // delete byte count after next press tab
 // show auto tab introduction
 void printfIntroduction() {
   printf("   ******************************  Tab Completion  **********************************\n");
-  printf("   *   The TDengine CLI supports tab completion for a variety of items,             *\n");
+  char secondLine[160] = "\0";
+  sprintf(secondLine, "   *   The %s CLI supports tab completion for a variety of items, ",
+          shell.info.cusName);
+  printf("%s", secondLine);
+  int secondLineLen = strlen(secondLine);
+  while (84-(secondLineLen++) > 0) {
+    printf(" ");
+  }
+  printf("*\n");
   printf("   *   including database names, table names, function names and keywords.          *\n");
   printf("   *   The full list of shortcut keys is as follows:                                *\n");
   printf("   *    [ TAB ]        ......  complete the current word                            *\n");
@@ -343,7 +352,7 @@ void printfIntroduction() {
 }
 
 void showHelp() {
-  printf("\nThe TDengine CLI supports the following commands:");
+  printf("\nThe %s CLI supports the following commands:", shell.info.cusName);
   printf(
       "\n\
   ----- A ----- \n\
@@ -425,6 +434,7 @@ void showHelp() {
     show create table <tb_name>;\n\
     show connections;\n\
     show cluster;\n\
+    show cluster alive;\n\
     show databases;\n\
     show dnodes;\n\
     show dnode <dnode_id> variables;\n\
@@ -593,7 +603,7 @@ void GenerateVarType(int type, char** p, int count) {
 //  -------------------- shell auto ----------------
 //
 
-// init shell auto funciton , shell start call once
+// init shell auto function , shell start call once
 bool shellAutoInit() {
   // command
   int32_t count = SHELL_COMMAND_COUNT();
@@ -626,7 +636,7 @@ bool shellAutoInit() {
 // set conn
 void shellSetConn(TAOS* conn) { varCon = conn; }
 
-// exit shell auto funciton, shell exit call once
+// exit shell auto function, shell exit call once
 void shellAutoExit() {
   // free command
   int32_t count = SHELL_COMMAND_COUNT();
@@ -643,7 +653,7 @@ void shellAutoExit() {
     }
   }
   taosThreadMutexUnlock(&tiresMutex);
-  // destory
+  // destroy
   taosThreadMutexDestroy(&tiresMutex);
 
   // free threads
@@ -664,7 +674,7 @@ void shellAutoExit() {
 //
 //  -------------------  auto ptr for tires --------------------------
 //
-bool setNewAuotPtr(int type, STire* pNew) {
+bool setNewAutoPtr(int type, STire* pNew) {
   if (pNew == NULL) return false;
 
   taosThreadMutexLock(&tiresMutex);
@@ -707,13 +717,13 @@ void putBackAutoPtr(int type, STire* tire) {
   if (tires[type] != tire) {
     // update by out,  can't put back , so free
     if (--tire->ref == 1) {
-      // support multi thread getAuotPtr
+      // support multi thread getAutoPtr
       freeTire(tire);
     }
 
   } else {
     tires[type]->ref--;
-    assert(tires[type]->ref > 0);
+    ASSERT(tires[type]->ref > 0);
   }
   taosThreadMutexUnlock(&tiresMutex);
 
@@ -762,7 +772,7 @@ int writeVarNames(int type, TAOS_RES* tres) {
   } while (row != NULL);
 
   // replace old tire
-  setNewAuotPtr(type, tire);
+  setNewAutoPtr(type, tire);
 
   return numOfRows;
 }
@@ -969,38 +979,43 @@ bool matchVarWord(SWord* word1, SWord* word2) {
 //  -------------------  match words --------------------------
 //
 
-// compare command cmd1 come from shellCommands , cmd2 come from user input
-int32_t compareCommand(SWords* cmd1, SWords* cmd2) {
-  SWord* word1 = cmd1->head;
-  SWord* word2 = cmd2->head;
+// compare command cmdPattern come from shellCommands , cmdInput come from user input
+int32_t compareCommand(SWords* cmdPattern, SWords* cmdInput) {
+  SWord* wordPattern = cmdPattern->head;
+  SWord* wordInput = cmdInput->head;
 
-  if (word1 == NULL || word2 == NULL) {
+  if (wordPattern == NULL || wordInput == NULL) {
     return -1;
   }
 
-  for (int32_t i = 0; i < cmd1->count; i++) {
-    if (word1->type == WT_TEXT) {
+  for (int32_t i = 0; i < cmdPattern->count; i++) {
+    if (wordPattern->type == WT_TEXT) {
       // WT_TEXT match
-      if (word1->len == word2->len) {
-        if (strncasecmp(word1->word, word2->word, word1->len) != 0) return -1;
-      } else if (word1->len < word2->len) {
+      if (wordPattern->len == wordInput->len) {
+        if (strncasecmp(wordPattern->word, wordInput->word, wordPattern->len) != 0) return -1;
+      } else if (wordPattern->len < wordInput->len) {
         return -1;
       } else {
-        // word1->len > word2->len
-        if (strncasecmp(word1->word, word2->word, word2->len) == 0) {
-          cmd1->matchIndex = i;
-          cmd1->matchLen = word2->len;
-          return i;
+        // wordPattern->len > wordInput->len
+        if (strncasecmp(wordPattern->word, wordInput->word, wordInput->len) == 0) {
+          if (i + 1 == cmdInput->count) {
+            // last word return match
+            cmdPattern->matchIndex = i;
+            cmdPattern->matchLen = wordInput->len;
+            return i;
+          } else {
+            return -1;
+          }
         } else {
           return -1;
         }
       }
     } else {
       // WT_VAR auto match any one word
-      if (word2->next == NULL) {  // input words last one
-        if (matchVarWord(word1, word2)) {
-          cmd1->matchIndex = i;
-          cmd1->matchLen = word2->len;
+      if (wordInput->next == NULL) {  // input words last one
+        if (matchVarWord(wordPattern, wordInput)) {
+          cmdPattern->matchIndex = i;
+          cmdPattern->matchLen = wordInput->len;
           varMode = true;
           return i;
         }
@@ -1009,9 +1024,9 @@ int32_t compareCommand(SWords* cmd1, SWords* cmd2) {
     }
 
     // move next
-    word1 = word1->next;
-    word2 = word2->next;
-    if (word1 == NULL || word2 == NULL) {
+    wordPattern = wordPattern->next;
+    wordInput = wordInput->next;
+    if (wordPattern == NULL || wordInput == NULL) {
       return -1;
     }
   }
@@ -1025,7 +1040,7 @@ SWords* matchCommand(SWords* input, bool continueSearch) {
   for (int32_t i = 0; i < count; i++) {
     SWords* shellCommand = shellCommands + i;
     if (continueSearch && lastMatchIndex != -1 && i <= lastMatchIndex) {
-      // new match must greate than lastMatchIndex
+      // new match must greater than lastMatchIndex
       if (varMode && i == lastMatchIndex) {
         // do nothing, var match on lastMatchIndex
       } else {
@@ -1154,7 +1169,7 @@ void createInputFromFirst(SWords* input, SWords* firstMatch) {
   for (int i = 0; i < firstMatch->matchIndex && word; i++) {
     // combine source from each word
     strncpy(input->source + input->source_len, word->word, word->len);
-    strcat(input->source, " ");          // append blank splite
+    strcat(input->source, " ");          // append blank space
     input->source_len += word->len + 1;  // 1 is blank length
     // move next
     word = word->next;
@@ -1383,7 +1398,7 @@ bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* sql, int32_t len) {
       return true;
     }
 
-    // fill funciton
+    // fill function
     if (fieldEnd) {
       // fields is end , need match keyword
       ret = fillWithType(con, cmd, last, WT_VAR_KEYWORD);
@@ -1566,7 +1581,7 @@ bool matchCreateTable(TAOS* con, SShellCmd* cmd) {
 
   // tb options
   if (!ret) {
-    // find like create talbe st (...) tags(..)  <here is fill tb option area>
+    // find like create table st (...) tags(..)  <here is fill tb option area>
     char* p1 = strchr(ps, ')');  // first ')' end
     if (p1) {
       if (strchr(p1 + 1, ')')) {  // second ')' end

@@ -159,8 +159,7 @@ static void lockTimerList(timer_list_t* list) {
 static void unlockTimerList(timer_list_t* list) {
   int64_t tid = taosGetSelfPthreadId();
   if (atomic_val_compare_exchange_64(&(list->lockedBy), tid, 0) != tid) {
-    assert(false);
-    tmrError("%" PRId64 " trying to unlock a timer list not locked by current thread.", tid);
+    ASSERTS(false, "%" PRId64 " trying to unlock a timer list not locked by current thread.", tid);
   }
 }
 
@@ -506,7 +505,7 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* han
     }
   }
 
-  assert(timer->refCount == 1);
+  ASSERTS(timer->refCount == 1, "timer refCount=%d not expected 1", timer->refCount);
   memset(timer, 0, sizeof(*timer));
   *pTmrId = (tmr_h)doStartTimer(timer, fp, mseconds, param, ctrl);
 

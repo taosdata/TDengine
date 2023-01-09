@@ -61,7 +61,8 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
 }
 
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
-  sNTrace(pSyncNode, "begin election");
+  sNInfo(pSyncNode, "begin election");
+  pSyncNode->electNum++;
 
   int32_t ret = 0;
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
@@ -86,19 +87,18 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
     syncNodeCandidate2Leader(pSyncNode);
     pSyncNode->pVotesGranted->toLeader = true;
     return ret;
-  } 
+  }
 
   if (pSyncNode->replicaNum == 1) {
     // only myself, to leader
     voteGrantedUpdate(pSyncNode->pVotesGranted, pSyncNode);
     votesRespondUpdate(pSyncNode->pVotesRespond, pSyncNode);
 
-    pSyncNode->quorum = syncUtilQuorum(pSyncNode->pRaftCfg->cfg.replicaNum);
+    pSyncNode->quorum = syncUtilQuorum(pSyncNode->raftCfg.cfg.replicaNum);
 
     syncNodeCandidate2Leader(pSyncNode);
     pSyncNode->pVotesGranted->toLeader = true;
     return ret;
-
   }
 
   ret = syncNodeRequestVotePeers(pSyncNode);

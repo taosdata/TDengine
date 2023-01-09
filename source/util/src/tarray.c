@@ -191,6 +191,8 @@ void* taosArrayReserve(SArray* pArray, int32_t num) {
   void* dst = TARRAY_GET_ELEM(pArray, pArray->size);
   pArray->size += num;
 
+  memset(dst, 0, num * pArray->elemSize);
+
   return dst;
 }
 
@@ -205,6 +207,9 @@ void* taosArrayPop(SArray* pArray) {
 }
 
 void* taosArrayGet(const SArray* pArray, size_t index) {
+  if (NULL == pArray) {
+    return NULL;
+  }
   assert(index < pArray->size);
   return TARRAY_GET_ELEM(pArray, index);
 }
@@ -223,7 +228,7 @@ size_t taosArrayGetSize(const SArray* pArray) {
   if (pArray == NULL) {
     return 0;
   }
-  return pArray->size;
+  return TARRAY_SIZE(pArray);
 }
 
 void taosArraySetSize(SArray* pArray, size_t size) {
@@ -292,6 +297,20 @@ void taosArrayRemove(SArray* pArray, size_t index) {
   pArray->size -= 1;
 }
 
+void taosArrayRemoveBatch(SArray* pArray, size_t index, size_t num, FDelete fp) {
+  ASSERT(index + num <= pArray->size);
+
+  if (fp) {
+    for (int32_t i = 0; i < num; i++) {
+      fp(taosArrayGet(pArray, index + i));
+    }
+  }
+
+  memmove((char*)pArray->pData + index * pArray->elemSize, (char*)pArray->pData + (index + num) * pArray->elemSize,
+          (pArray->size - index - num) * pArray->elemSize);
+  pArray->size -= num;
+}
+
 SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize) {
   assert(src != NULL && elemSize > 0);
   SArray* pDst = taosArrayInit(size, elemSize);
@@ -302,7 +321,7 @@ SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize) {
   return pDst;
 }
 
-SArray* taosArrayDup(const SArray* pSrc) {
+SArray* taosArrayDup(const SArray* pSrc, __array_item_dup_fn_t fn) {
   assert(pSrc != NULL);
 
   if (pSrc->size == 0) {  // empty array list
@@ -311,8 +330,19 @@ SArray* taosArrayDup(const SArray* pSrc) {
 
   SArray* dst = taosArrayInit(pSrc->size, pSrc->elemSize);
 
-  memcpy(dst->pData, pSrc->pData, pSrc->elemSize * pSrc->size);
+  if (fn == NULL) {
+    memcpy(dst->pData, pSrc->pData, pSrc->elemSize * pSrc->size);
+  } else {
+    ASSERT(pSrc->elemSize == sizeof(void*));
+
+    for (int32_t i = 0; i < pSrc->size; ++i) {
+      void* p = fn(taosArrayGetP(pSrc, i));
+      memcpy(((char*)dst->pData) + i * dst->elemSize, &p, dst->elemSize);
+    }
+  }
+
   dst->size = pSrc->size;
+
   return dst;
 }
 
@@ -385,9 +415,7 @@ void taosArrayDestroyEx(SArray* pArray, FDelete fp) {
 }
 
 void taosArraySort(SArray* pArray, __compar_fn_t compar) {
-  assert(pArray != NULL);
-  assert(compar != NULL);
-
+  ASSERT(pArray != NULL && compar != NULL);
   taosSort(pArray->pData, pArray->size, pArray->elemSize, compar);
 }
 
@@ -401,11 +429,6 @@ void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t compa
 int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t comparFn, int32_t flags) {
   void* item = taosArraySearch(pArray, key, comparFn, flags);
   return item == NULL ? -1 : (int32_t)((char*)item - (char*)pArray->pData) / pArray->elemSize;
-}
-
-void taosArraySortString(SArray* pArray, __compar_fn_t comparFn) {
-  assert(pArray != NULL);
-  taosSort(pArray->pData, pArray->size, pArray->elemSize, comparFn);
 }
 
 static int32_t taosArrayPartition(SArray* pArray, int32_t i, int32_t j, __ext_compar_fn_t fn, const void* userData) {
@@ -462,19 +485,6 @@ static void taosArrayInsertSort(SArray* pArray, __ext_compar_fn_t fn, const void
     }
   }
   return;
-}
-
-SArray* taosArrayDeepCopy(const SArray* pSrc, FCopy deepCopy) {
-  if (NULL == pSrc) {
-    return NULL;
-  }
-  ASSERT(pSrc->elemSize == sizeof(void*));
-  SArray* pArray = taosArrayInit(pSrc->size, sizeof(void*));
-  for (int32_t i = 0; i < pSrc->size; i++) {
-    void* clone = deepCopy(taosArrayGetP(pSrc, i));
-    taosArrayPush(pArray, &clone);
-  }
-  return pArray;
 }
 
 int32_t taosEncodeArray(void** buf, const SArray* pArray, FEncode encode) {

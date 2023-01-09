@@ -54,7 +54,6 @@ void initFsm() {
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
 #endif
-
 }
 
 SSyncNode *syncNodeInit() {

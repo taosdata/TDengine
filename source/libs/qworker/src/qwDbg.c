@@ -28,57 +28,57 @@ int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, 
       return TSDB_CODE_SUCCESS;
     }
 
-    QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+    QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
   switch (oriStatus) {
     case JOB_TASK_STATUS_NULL:
       if (newStatus != JOB_TASK_STATUS_EXEC && newStatus != JOB_TASK_STATUS_FAIL && newStatus != JOB_TASK_STATUS_INIT) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
 
       break;
     case JOB_TASK_STATUS_INIT:
       if (newStatus != JOB_TASK_STATUS_DROP && newStatus != JOB_TASK_STATUS_EXEC && newStatus != JOB_TASK_STATUS_FAIL) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
 
       break;
     case JOB_TASK_STATUS_EXEC:
       if (newStatus != JOB_TASK_STATUS_PART_SUCC && newStatus != JOB_TASK_STATUS_SUCC &&
           newStatus != JOB_TASK_STATUS_FAIL && newStatus != JOB_TASK_STATUS_DROP) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
 
       break;
     case JOB_TASK_STATUS_PART_SUCC:
       if (newStatus != JOB_TASK_STATUS_EXEC && newStatus != JOB_TASK_STATUS_SUCC && newStatus != JOB_TASK_STATUS_FAIL &&
           newStatus != JOB_TASK_STATUS_DROP) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
 
       break;
     case JOB_TASK_STATUS_SUCC:
       if (newStatus != JOB_TASK_STATUS_DROP && newStatus != JOB_TASK_STATUS_FAIL) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
 
       break;
     case JOB_TASK_STATUS_FAIL:
       if (newStatus != JOB_TASK_STATUS_DROP) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
       break;
 
     case JOB_TASK_STATUS_DROP:
       if (newStatus != JOB_TASK_STATUS_FAIL && newStatus != JOB_TASK_STATUS_PART_SUCC) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
       break;
 
     default:
       QW_TASK_ELOG("invalid task origStatus:%s", jobTaskStatusStr(oriStatus));
-      return TSDB_CODE_QRY_APP_ERROR;
+      return TSDB_CODE_APP_ERROR;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -124,11 +124,11 @@ void qwDbgDumpTasksInfo(SQWorker *mgmt) {
     void       *key = taosHashGetKey(pIter, NULL);
     QW_GET_QTID(key, qId, tId, eId);
     
-    QW_TASK_DLOG("%p lock:%x, phase:%d, type:%d, explain:%d, needFetch:%d, localExec:%d, msgType:%d, fetchType:%d, "
-      "execId:%x, level:%d, queryGotData:%d, queryRsped:%d, queryEnd:%d, queryContinue:%d, queryInQueue:%d, "
+    QW_TASK_DLOG("%p lock:%x, phase:%d, type:%d, explain:%d, needFetch:%d, localExec:%d, msgType:%d, "
+      "sId:%" PRId64 ", level:%d, queryGotData:%d, queryRsped:%d, queryEnd:%d, queryContinue:%d, queryInQueue:%d, "
       "rspCode:%x, affectedRows:%" PRId64 ", taskHandle:%p, sinkHandle:%p, tbFName:%s, sver:%d, tver:%d, events:%d,%d,%d,%d,%d",
       ctx, ctx->lock, ctx->phase, ctx->taskType, ctx->explain, ctx->needFetch, ctx->localExec, ctx->msgType,
-      ctx->fetchType, ctx->execId, ctx->level, ctx->queryGotData, ctx->queryRsped, ctx->queryEnd, ctx->queryContinue, 
+      ctx->sId, ctx->level, ctx->queryGotData, ctx->queryRsped, ctx->queryEnd, ctx->queryContinue, 
       ctx->queryInQueue, ctx->rspCode, ctx->affectedRows, ctx->taskHandle, ctx->sinkHandle, ctx->tbInfo.tbFName,
       ctx->tbInfo.sversion, ctx->tbInfo.tversion, ctx->events[QW_EVENT_CANCEL], ctx->events[QW_EVENT_READY], 
       ctx->events[QW_EVENT_FETCH], ctx->events[QW_EVENT_DROP], ctx->events[QW_EVENT_CQUERY]);
@@ -214,20 +214,20 @@ void qwDbgSimulateRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx, bool *rsped) {
       epSet.eps[2].port = 7300;
 
       ctx->phase = QW_PHASE_POST_QUERY;
-      qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_RPC_REDIRECT, &epSet);
+      qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_SYN_NOT_LEADER, &epSet);
       *rsped = true;
       return;
     }
 
     if (TDMT_SCH_MERGE_QUERY == qwMsg->msgType && (0 == taosRand() % 3)) {
       QW_SET_PHASE(ctx, QW_PHASE_POST_QUERY);
-      qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_RPC_REDIRECT, NULL);
+      qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_SYN_NOT_LEADER, NULL);
       *rsped = true;
       return;
     }
 
     if ((TDMT_SCH_FETCH == qwMsg->msgType) && (0 == taosRand() % 9)) {
-      qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_RPC_REDIRECT, NULL);
+      qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_SYN_NOT_LEADER, NULL);
       *rsped = true;
       return;
     }

@@ -47,17 +47,31 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
 
   pRpc->compressSize = pInit->compressSize;
+  if (pRpc->compressSize < 0) {
+    pRpc->compressSize = -1;
+  }
+
   pRpc->encryption = pInit->encryption;
-  pRpc->retryLimit = pInit->retryLimit;
-  pRpc->retryInterval = pInit->retryInterval;
+
+  pRpc->retryMinInterval = pInit->retryMinInterval;  // retry init interval
+  pRpc->retryStepFactor = pInit->retryStepFactor;
+  pRpc->retryMaxInterval = pInit->retryMaxInterval;
+  pRpc->retryMaxTimouet = pInit->retryMaxTimouet;
+
+  pRpc->failFastThreshold = pInit->failFastThreshold;
+  pRpc->failFastInterval = pInit->failFastInterval;
 
   // register callback handle
   pRpc->cfp = pInit->cfp;
   pRpc->retry = pInit->rfp;
   pRpc->startTimer = pInit->tfp;
   pRpc->destroyFp = pInit->dfp;
+  pRpc->failFastFp = pInit->ffp;
 
   pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
+  if (pRpc->numOfThreads <= 0) {
+    pRpc->numOfThreads = 1;
+  }
 
   uint32_t ip = 0;
   if (pInit->connType == TAOS_CONN_SERVER) {
@@ -146,21 +160,12 @@ int rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
 
 int rpcSendResponse(const SRpcMsg* pMsg) { return transSendResponse(pMsg); }
 
-void rpcRefHandle(void* handle, int8_t type) {
-  assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
-  (*taosRefHandle[type])(handle);
-}
+void rpcRefHandle(void* handle, int8_t type) { (*taosRefHandle[type])(handle); }
 
-void rpcUnrefHandle(void* handle, int8_t type) {
-  assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
-  (*taosUnRefHandle[type])(handle);
-}
+void rpcUnrefHandle(void* handle, int8_t type) { (*taosUnRefHandle[type])(handle); }
 
 int rpcRegisterBrokenLinkArg(SRpcMsg* msg) { return transRegisterMsg(msg); }
-int rpcReleaseHandle(void* handle, int8_t type) {
-  assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
-  return (*transReleaseHandle[type])(handle);
-}
+int rpcReleaseHandle(void* handle, int8_t type) { return (*transReleaseHandle[type])(handle); }
 
 int rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   // later

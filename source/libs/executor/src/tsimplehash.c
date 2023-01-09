@@ -49,7 +49,9 @@ static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
 }
 
 SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn) {
-  ASSERT(fn != NULL);
+  if (fn == NULL) {
+    return NULL;
+  }
 
   if (capacity == 0) {
     capacity = 4;
@@ -66,7 +68,6 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn) {
 
   pHashObj->equalFp = memcmp;
   pHashObj->hashFp = fn;
-  ASSERT((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
 
   pHashObj->hashList = (SHNode **)taosMemoryCalloc(pHashObj->capacity, sizeof(void *));
   if (!pHashObj->hashList) {

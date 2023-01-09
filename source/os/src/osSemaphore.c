@@ -75,22 +75,19 @@ int32_t tsem_wait(tsem_t* sem) {
   return ret;
 }
 
-int32_t tsem_timewait(tsem_t* sem, int64_t milis) {
-  return tsem_wait(sem);
-#if 0
+int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
   struct timespec ts;
-  timespec_get(&ts);
+  taosClockGetTime(0, &ts);
+
   ts.tv_nsec += ms * 1000000;
   ts.tv_sec += ts.tv_nsec / 1000000000;
   ts.tv_nsec %= 1000000000;
-
-  /*GetSystemTimeAsFileTime(&ft_before);*/
-  // errno = 0;
-  rc = sem_timedwait(sem, ts);
-
+  int rc;
+  while ((rc = sem_timedwait(sem, &ts)) == -1 && errno == EINTR) continue;
+  return rc;
   /* This should have timed out */
-  // assert(errno == ETIMEDOUT);
-  // assert(rc != 0);
+  // ASSERT(errno == ETIMEDOUT);
+  // ASSERT(rc != 0);
   // GetSystemTimeAsFileTime(&ft_after);
   // // We specified a non-zero wait. Time must advance.
   // if (ft_before.dwLowDateTime == ft_after.dwLowDateTime && ft_before.dwHighDateTime == ft_after.dwHighDateTime)
@@ -102,8 +99,6 @@ int32_t tsem_timewait(tsem_t* sem, int64_t milis) {
   //     printf("time must advance during sem_timedwait.");
   //     return 1;
   //   }
-  return rc;
-#endif
 }
 
 #elif defined(_TD_DARWIN_64)

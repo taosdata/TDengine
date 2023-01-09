@@ -55,7 +55,7 @@ extern int32_t tsNumOfMnodeQueryThreads;
 extern int32_t tsNumOfMnodeFetchThreads;
 extern int32_t tsNumOfMnodeReadThreads;
 extern int32_t tsNumOfVnodeQueryThreads;
-extern int32_t tsNumOfVnodeStreamThreads;
+extern float   tsRatioOfVnodeStreamThreads;
 extern int32_t tsNumOfVnodeFetchThreads;
 extern int32_t tsNumOfVnodeRsmaThreads;
 extern int32_t tsNumOfQnodeQueryThreads;
@@ -63,6 +63,11 @@ extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsRpcQueueMemoryAllowed;
+
+// sync raft
+extern int32_t tsElectInterval;
+extern int32_t tsHeartbeatInterval;
+extern int32_t tsHeartbeatTimeout;
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -92,6 +97,11 @@ extern int32_t tsQueryNodeChunkSize;
 extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
+extern int32_t tsRedirectPeriod;
+extern int32_t tsRedirectFactor;
+extern int32_t tsRedirectMaxPeriod;
+extern int32_t tsMaxRetryWaitTime;
+extern bool    tsUseAdapter;
 
 // client
 extern int32_t tsMinSlidingTime;
@@ -122,9 +132,10 @@ extern char tsUdfdResFuncs[];
 extern char tsUdfdLdLibPath[];
 
 // schemaless
-extern char tsSmlChildTableName[];
-extern char tsSmlTagName[];
-extern bool tsSmlDataFormat;
+extern char    tsSmlChildTableName[];
+extern char    tsSmlTagName[];
+extern bool    tsSmlDataFormat;
+extern int32_t tsSmlBatchSize;
 
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
@@ -132,6 +143,7 @@ extern int64_t tsWalFsyncDataSizeLimit;
 // internal
 extern int32_t tsTransPullupInterval;
 extern int32_t tsMqRebalanceInterval;
+extern int32_t tsStreamCheckpointTickInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushInterval;
 extern int32_t tsGrantHBInterval;
@@ -140,7 +152,7 @@ extern int32_t tsUptimeInterval;
 extern int32_t tsRpcRetryLimit;
 extern int32_t tsRpcRetryInterval;
 
-//#define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
+// #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
