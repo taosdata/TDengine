@@ -403,6 +403,10 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
  * Do not employ sort operation is not involved if server time is used.
  */
 int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
+  if (isNull(start, TSDB_DATA_TYPE_TIMESTAMP)) {
+    return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+  }
+
   // once the data block is disordered, we do NOT keep previous timestamp any more
   if (!pDataBlocks->ordered) {
     return TSDB_CODE_SUCCESS;
