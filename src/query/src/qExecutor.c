@@ -4966,8 +4966,10 @@ static void doOperatorExecProfOnce(SOperatorStackItem* item, SQueryProfEvent* ev
 }
 
 void calculateOperatorProfResults(SQInfo* pQInfo) {
-  if (pQInfo->summary.queryProfEvents == NULL) {
-    qDebug("QInfo:0x%" PRIx64 " query prof events array is null", pQInfo->qId);
+  if (pQInfo->summary.queryProfEvents == NULL ||
+      pQInfo->summary.queryProfEvents->pData == NULL ||
+      pQInfo->summary.queryProfEvents->size == 0) {
+    qDebug("QInfo:0x%" PRIx64 " query prof events array is null or array data invalid", pQInfo->qId);
     return;
   }
 
