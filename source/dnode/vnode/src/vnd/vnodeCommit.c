@@ -29,7 +29,7 @@ int vnodeBegin(SVnode *pVnode) {
 
   int32_t nTry = 0;
   for (;;) {
-    while (pVnode->freeList == NULL) {
+    while (pVnode->freeList == NULL) {  // move here below
       vDebug("vgId:%d no free buffer pool, try to wait %d...", TD_VID(pVnode), ++nTry);
 
       struct timeval  tv;

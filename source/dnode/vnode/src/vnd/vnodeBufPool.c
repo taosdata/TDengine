@@ -94,10 +94,6 @@ int vnodeCloseBufPool(SVnode *pVnode) {
     }
   }
 
-  pVnode->freeList = NULL;
-  ASSERT(pVnode->inUse == NULL);
-  ASSERT(pVnode->recycling == NULL);
-
   vDebug("vgId:%d, vnode buffer pool is closed", TD_VID(pVnode));
   return 0;
 }

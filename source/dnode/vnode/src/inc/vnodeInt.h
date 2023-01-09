@@ -341,7 +341,9 @@ struct SVnode {
   SVBufPool*    aBufPool[VNODE_BUFPOOL_SEGMENTS];
   SVBufPool*    freeList;
   SVBufPool*    inUse;
-  SVBufPool*    recycling;
+  SVBufPool*    onCommit;
+  SVBufPool*    recycleHead;
+  SVBufPool*    recycleTail;
 
   SMeta*        pMeta;
   SSma*         pSma;
