@@ -698,7 +698,7 @@ charset 的有效值是 UTF-8。
 | 2  |   numOfThreadsPerCore   | 是              | 否              | 有其它参数设置多种线程池的大小                    |
 | 3  |       numOfMnodes       | 是              | 否              | 通过 create mnode 命令动态创建 mnode              |
 | 4  |        vnodeBak         | 是              | 否              | 3.0 行为未知                                      |
-| 5  |         balance         | 是              | 否              | 负载均衡功能由 split/merge vgroups 实现           |
+| 5  |         balance         | 是              | 否              | 负载均衡功能由 split/merge vgroups 实现 （暂不支持）           |
 | 6  |     balanceInterval     | 是              | 否              | 随着 balance 参数失效                             |
 | 7  |    offlineThreshold     | 是              | 否              | 3.0 行为未知                                      |
 | 8  |          role           | 是              | 否              | 由 supportVnode 决定是否能够创建                  |
