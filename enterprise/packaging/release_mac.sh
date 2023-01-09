@@ -90,7 +90,7 @@ rm -rf debs/*
 rm -rf rpms/*
 
 echo "./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType"
-./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+$topDir/enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
 
 
 echo "build taoskeeper..."
