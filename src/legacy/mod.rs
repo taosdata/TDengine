@@ -269,7 +269,7 @@ async fn sync_single_table(
                         stmt.add_batch()
                             .context(format!("add batch by chunk {batch_size}"))?;
                         stmt.execute()
-                            .context(format!("[{table}] execute by chunk {batch_size}"))?;
+                            .with_context(|| format!("[{table}] execute {} rows insertion with batch size limit {batch_size}", range.len()))?;
                     }
                     continue;
                 }
