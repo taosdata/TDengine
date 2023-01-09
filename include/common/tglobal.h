@@ -69,6 +69,9 @@ extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
 
+// vnode
+extern int64_t tsVndCommitMaxIntervalMs;
+
 // monitor
 extern bool     tsEnableMonitor;
 extern int32_t  tsMonitorInterval;
