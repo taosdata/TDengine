@@ -23,44 +23,53 @@ static int vnodeCommitImpl(SCommitInfo *pInfo);
 
 #define WAIT_TIME_MILI_SEC 10  // miliseconds
 
+static int32_t vnodeTryRecycleBufPool(SVnode *pVnode) {
+  int32_t code = 0;
+  ASSERT(0);  // TODO
+_exit:
+  return code;
+}
 int vnodeBegin(SVnode *pVnode) {
   // alloc buffer pool
   taosThreadMutexLock(&pVnode->mutex);
 
   int32_t nTry = 0;
-  for (;;) {
-    while (pVnode->freeList == NULL) {  // move here below
-      vDebug("vgId:%d no free buffer pool, try to wait %d...", TD_VID(pVnode), ++nTry);
-
-      struct timeval  tv;
-      struct timespec ts;
-
-      taosGetTimeOfDay(&tv);
-      ts.tv_sec = tv.tv_sec;
-      ts.tv_nsec = tv.tv_usec * 1000 + WAIT_TIME_MILI_SEC * 1000000;
-
-      int32_t rc = taosThreadCondTimedWait(&pVnode->poolNotEmpty, &pVnode->mutex, &ts);
-      if (rc == ETIMEDOUT) {  // time out, break
-        break;
-      } else if (rc != 0) {  // error occurred
-        terrno = TAOS_SYSTEM_ERROR(rc);
-        vError("vgId:%d %s failed since %s", TD_VID(pVnode), __func__, tstrerror(terrno));
-        taosThreadMutexUnlock(&pVnode->mutex);
-        return -1;
-      }
-    }
-
+  while (++nTry) {
     if (pVnode->freeList) {
-      // allocate from free list
+      vDebug("vgId:%d allocate free buffer pool on %d try, pPool:%p", TD_VID(pVnode), nTry, pVnode->freeList);
+
       pVnode->inUse = pVnode->freeList;
       pVnode->inUse->nRef = 1;
       pVnode->freeList = pVnode->inUse->freeNext;
       pVnode->inUse->freeNext = NULL;
       break;
-    } else if (nTry == 1) {
-      // try to recycle a buffer pool
-      vInfo("vgId:%d no free buffer pool, try to recycle...", TD_VID(pVnode));
-      ASSERT(false);  // TODO: condition of nTry == 1 may not be reasonable
+    } else {
+      vInfo("vgId:%d no free buffer pool on %d try, try to recycle...", TD_VID(pVnode), nTry);
+
+      terrno = vnodeTryRecycleBufPool(pVnode);
+      if (terrno != TSDB_CODE_SUCCESS) {
+        vError("vgId:%d %s failed since %s", TD_VID(pVnode), __func__, tstrerror(terrno));
+        taosThreadMutexUnlock(&pVnode->mutex);
+        return -1;
+      }
+
+      if (pVnode->freeList == NULL) {
+        vDebug("vgId:%d no free buffer pool on %d try, wait %d ms...", TD_VID(pVnode), nTry, WAIT_TIME_MILI_SEC);
+
+        struct timeval  tv;
+        struct timespec ts;
+        taosGetTimeOfDay(&tv);
+        ts.tv_sec = tv.tv_sec;
+        ts.tv_nsec = tv.tv_usec * 1000 + WAIT_TIME_MILI_SEC * 1000000;
+
+        int32_t rc = taosThreadCondTimedWait(&pVnode->poolNotEmpty, &pVnode->mutex, &ts);
+        if (rc && rc != ETIMEDOUT) {
+          terrno = TAOS_SYSTEM_ERROR(rc);
+          vError("vgId:%d %s failed since %s", TD_VID(pVnode), __func__, tstrerror(terrno));
+          taosThreadMutexUnlock(&pVnode->mutex);
+          return -1;
+        }
+      }
     }
   }
 
