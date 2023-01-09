@@ -481,10 +481,10 @@ function install_adapter_config() {
     ${csudo}mkdir -p ${cfg_install_dir}
     [ -f ${script_dir}/cfg/${adapterName}.toml ] && ${csudo}cp ${script_dir}/cfg/${adapterName}.toml ${cfg_install_dir}
     [ -f ${cfg_install_dir}/${adapterName}.toml ] && ${csudo}chmod 644 ${cfg_install_dir}/${adapterName}.toml
+  else
+    [ -f ${script_dir}/cfg/${adapterName}.toml ] &&
+      ${csudo}cp -f ${script_dir}/cfg/${adapterName}.toml ${cfg_install_dir}/${adapterName}.toml.new
   fi
-
-  [ -f ${script_dir}/cfg/${adapterName}.toml ] &&
-    ${csudo}cp -f ${script_dir}/cfg/${adapterName}.toml ${cfg_install_dir}/${adapterName}.toml.new
 
   [ -f ${cfg_install_dir}/${adapterName}.toml ] &&
     ${csudo}ln -s ${cfg_install_dir}/${adapterName}.toml ${install_main_dir}/cfg/${adapterName}.toml
@@ -499,9 +499,10 @@ function install_config() {
     ${csudo}mkdir -p ${cfg_install_dir}
     [ -f ${script_dir}/cfg/${configFile} ] && ${csudo}cp ${script_dir}/cfg/${configFile} ${cfg_install_dir}
     ${csudo}chmod 644 ${cfg_install_dir}/*
+  else
+    ${csudo}cp -f ${script_dir}/cfg/${configFile} ${cfg_install_dir}/${configFile}.new
   fi
 
-  ${csudo}cp -f ${script_dir}/cfg/${configFile} ${cfg_install_dir}/${configFile}.new
   ${csudo}ln -s ${cfg_install_dir}/${configFile} ${install_main_dir}/cfg
 
   [ ! -z $1 ] && return 0 || : # only install client
