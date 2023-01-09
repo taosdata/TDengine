@@ -97,7 +97,7 @@ static void resetPosInfo(SSlotInfo *pInfo) {
   pInfo->data = NULL;
 }
 
-double findOnlyResult(tMemBucket *pMemBucket) {
+int32_t findOnlyResult(tMemBucket *pMemBucket, double *result) {
   ASSERT(pMemBucket->total == 1);
 
   for (int32_t i = 0; i < pMemBucket->numOfSlots; ++i) {
@@ -115,17 +115,17 @@ double findOnlyResult(tMemBucket *pMemBucket) {
       int32_t   *pageId = taosArrayGet(list, 0);
       SFilePage *pPage = getBufPage(pMemBucket->pBuffer, *pageId);
       if (pPage == NULL) {
-        return -1;
+        return TSDB_CODE_NO_AVAIL_DISK;
       }
       ASSERT(pPage->num == 1);
 
-      double v = 0;
-      GET_TYPED_DATA(v, double, pMemBucket->type, pPage->data);
-      return v;
+      GET_TYPED_DATA(*result, double, pMemBucket->type, pPage->data);
+      return TSDB_CODE_SUCCESS;
     }
   }
 
-  return 0;
+  *result = 0.0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
@@ -447,7 +447,7 @@ static double getIdenticalDataVal(tMemBucket *pMemBucket, int32_t slotIndex) {
   return finalResult;
 }
 
-double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction) {
+int32_t getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction, double *result) {
   int32_t num = 0;
 
   for (int32_t i = 0; i < pMemBucket->numOfSlots; ++i) {
@@ -480,15 +480,15 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
 
         ASSERT(minOfNextSlot > maxOfThisSlot);
 
-        double val = (1 - fraction) * maxOfThisSlot + fraction * minOfNextSlot;
-        return val;
+        *result = (1 - fraction) * maxOfThisSlot + fraction * minOfNextSlot;
+        return TSDB_CODE_SUCCESS;
       }
 
       if (pSlot->info.size <= pMemBucket->maxCapacity) {
         // data in buffer and file are merged together to be processed.
         SFilePage *buffer = loadDataFromFilePage(pMemBucket, i);
         if (buffer == NULL) {
-          return -1;
+          return TSDB_CODE_NO_AVAIL_DISK;
         }
         int32_t    currentIdx = count - num;
 
@@ -499,13 +499,14 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
         GET_TYPED_DATA(td, double, pMemBucket->type, thisVal);
         GET_TYPED_DATA(nd, double, pMemBucket->type, nextVal);
 
-        double val = (1 - fraction) * td + fraction * nd;
+        *result = (1 - fraction) * td + fraction * nd;
         taosMemoryFreeClear(buffer);
 
-        return val;
+        return TSDB_CODE_SUCCESS;
       } else {  // incur a second round bucket split
         if (isIdenticalData(pMemBucket, i)) {
-          return getIdenticalDataVal(pMemBucket, i);
+          *result = getIdenticalDataVal(pMemBucket, i);
+          return TSDB_CODE_SUCCESS;
         }
 
         // try next round
@@ -534,37 +535,37 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
           int32_t *pageId = taosArrayGet(list, f);
           SFilePage *pg = getBufPage(pMemBucket->pBuffer, *pageId);
           if (pg == NULL) {
-            return -1;
+            return TSDB_CODE_NO_AVAIL_DISK;
           }
 
           int32_t code = tMemBucketPut(pMemBucket, pg->data, (int32_t)pg->num);
           if (code != TSDB_CODE_SUCCESS) {
-            return -1;
+            return code;
           }
           setBufPageDirty(pg, true);
           releaseBufPage(pMemBucket->pBuffer, pg);
         }
 
-        return getPercentileImpl(pMemBucket, count - num, fraction);
+        return getPercentileImpl(pMemBucket, count - num, fraction, result);
       }
     } else {
       num += pSlot->info.size;
     }
   }
 
-  return 0;
+  *result = 0;
+  return TSDB_CODE_SUCCESS;
 }
 
-double getPercentile(tMemBucket *pMemBucket, double percent) {
+int32_t getPercentile(tMemBucket *pMemBucket, double percent, double *result) {
   if (pMemBucket->total == 0) {
-    return 0.0;
+    *result = 0.0;
+    return TSDB_CODE_SUCCESS;
   }
 
   // if only one elements exists, return it
   if (pMemBucket->total == 1) {
-    if (findOnlyResult(pMemBucket) < 0) {
-      return -1;
-    }
+    return findOnlyResult(pMemBucket, result);
   }
 
   percent = fabs(percent);
@@ -574,21 +575,21 @@ double getPercentile(tMemBucket *pMemBucket, double percent) {
     MinMaxEntry *pRange = &pMemBucket->range;
 
     if (IS_SIGNED_NUMERIC_TYPE(pMemBucket->type)) {
-      double v = (double)(fabs(percent - 100) < DBL_EPSILON ? pRange->i64MaxVal : pRange->i64MinVal);
-      return v;
+      *result = (double)(fabs(percent - 100) < DBL_EPSILON ? pRange->i64MaxVal : pRange->i64MinVal);
     } else if (IS_UNSIGNED_NUMERIC_TYPE(pMemBucket->type)) {
-      double v = (double)(fabs(percent - 100) < DBL_EPSILON ? pRange->u64MaxVal : pRange->u64MinVal);
-      return v;
+      *result = (double)(fabs(percent - 100) < DBL_EPSILON ? pRange->u64MaxVal : pRange->u64MinVal);
     } else {
-      return fabs(percent - 100) < DBL_EPSILON ? pRange->dMaxVal : pRange->dMinVal;
+      *result = fabs(percent - 100) < DBL_EPSILON ? pRange->dMaxVal : pRange->dMinVal;
     }
+
+    return TSDB_CODE_SUCCESS;
   }
 
   double percentVal = (percent * (pMemBucket->total - 1)) / ((double)100.0);
 
   // do put data by using buckets
   int32_t orderIdx = (int32_t)percentVal;
-  return getPercentileImpl(pMemBucket, orderIdx, percentVal - orderIdx);
+  return getPercentileImpl(pMemBucket, orderIdx, percentVal - orderIdx, result);
 }
 
 /*

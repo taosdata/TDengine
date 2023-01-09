@@ -149,7 +149,6 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pRequest) {
   pMsgSendInfo->msgType = pRequest->type;
   pMsgSendInfo->target.type = TARGET_TYPE_MNODE;
 
-  assert(pRequest != NULL);
   pMsgSendInfo->msgInfo = pRequest->body.requestMsg;
   pMsgSendInfo->fp = getMsgRspHandle(pRequest->type);
   return pMsgSendInfo;
@@ -273,7 +272,9 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
-  assert(pMsg != NULL && param != NULL);
+  if(pMsg == NULL || param == NULL){
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
   SRequestObj* pRequest = param;
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -454,7 +455,10 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data, SHOW_VARIABLES_RESULT_COLS);
-  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
+  if(len != rspSize - sizeof(SRetrieveTableRsp)){
+    uError("buildShowVariablesRsp error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len, (uint64_t) (rspSize - sizeof(SRetrieveTableRsp)));
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
 
   blockDataDestroy(pBlock);
   return TSDB_CODE_SUCCESS;

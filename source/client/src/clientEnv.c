@@ -62,7 +62,10 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
 
 static void deregisterRequest(SRequestObj *pRequest) {
   const static int64_t SLOW_QUERY_INTERVAL = 3000000L;  // todo configurable
-  assert(pRequest != NULL);
+  if(pRequest == NULL){
+    tscError("pRequest == NULL");
+    return;
+  }
 
   STscObj            *pTscObj = pRequest->pTscObj;
   SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
@@ -412,7 +415,8 @@ void taos_init_imp(void) {
   initQueryModuleMsgHandle();
 
   if (taosConvInit() != 0) {
-    ASSERTS(0, "failed to init conv");
+    tscError("failed to init conv");
+    return;
   }
 
   rpcInit();
