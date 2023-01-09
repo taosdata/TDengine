@@ -86,6 +86,9 @@ ENDIF ()
 
 IF(TD_BULID_TAOSX)
     include(ExternalProject)
+    set(ENV{TAOS_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib)
+    set(ENV{LD_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib:$ENV{LD_LIBRARY_PATH})
+    set(ENV{LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib:$ENV{LIBRARY_PATH})
     IF (TD_LINUX)
         ExternalProject_Add(taosx
             PREFIX              taosx
@@ -97,9 +100,7 @@ IF(TD_BULID_TAOSX)
             COMMAND git pull origin main
             COMMAND cargo update
             BUILD_COMMAND
-            COMMAND export C_INCLUDE_PATH=${CMAKE_BINARY_DIR}/build/include:${C_INCLUDE_PATH}
-            COMMAND export LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/build/lib:${LD_LIBRARY_PATH}
-            COMMAND cargo build --release
+            COMMAND LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} cargo build --release
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taosx ${CMAKE_BINARY_DIR}/build/bin
         )
@@ -114,9 +115,7 @@ IF(TD_BULID_TAOSX)
             COMMAND git pull origin main
             COMMAND cargo update
             BUILD_COMMAND
-            COMMAND set C_INCLUDE_PATH=${CMAKE_BINARY_DIR}/build/include:${C_INCLUDE_PATH}
-            COMMAND set LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/build/lib:${LD_LIBRARY_PATH}
-            COMMAND cargo build --release
+            COMMAND set LIBRARY_PATH=$ENV{LIBRARY_PATH} && set LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} && cargo build --release
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taosx.exe ${CMAKE_BINARY_DIR}/build/bin
         )
