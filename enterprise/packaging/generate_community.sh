@@ -20,7 +20,7 @@ fi
 
 echo "generate community package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 if [ ! -d $communityDir ]; then
-  cd $communityDir
+  cd $topDir
   mkdir -p debug
   cd debug
   cmake ..

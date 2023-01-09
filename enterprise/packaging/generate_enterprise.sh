@@ -65,7 +65,17 @@ cd $topDir
 rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
-./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail}
+
+
+if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail}
+elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt}
+elif [ ! -z "${cusName}" ]; then
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName}
+else
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+fi
 
 # if [ ! -d  "$archiveDir/v$version" ]; then
 #   mkdir -p "$archiveDir/v$version"
