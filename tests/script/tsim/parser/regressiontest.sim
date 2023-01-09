@@ -58,4 +58,9 @@ if $data40 != @18-09-17 09:06:49.600@ then
  return -1
 endi
 
+sql select * from $tb order by ts desc;
+if $rows != 8198 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
