@@ -785,9 +785,9 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
 
     int32_t code = syncReconfig(pMnode->syncMgmt.sync, &cfg);
     if (code != 0) {
-      mError("vgId:1, failed to reconfig mnode sync since %s", terrstr());
+      mError("vgId:1, mnode sync reconfig failed since %s", terrstr());
     } else {
-      mInfo("vgId:1, reconfig mnode sync success");
+      mInfo("vgId:1, mnode sync reconfig success");
     }
   }
 }
