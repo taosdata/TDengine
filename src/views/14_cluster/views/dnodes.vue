@@ -1,13 +1,12 @@
 <template>
   <div class="dnode-block">
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column width="150" :label="$t('topic.end_point')" prop="end_point"></el-table-column>
-      <el-table-column width="150" :label="$t('topic.vnodes')" prop="vnodes"></el-table-column>
-      <el-table-column width="200" :label="$t('topic.cores')" prop="cores"></el-table-column>
-      <el-table-column width="200" :label="$t('topic.status')" prop="status"></el-table-column>
-      <el-table-column width="200" :label="$t('topic.role')" prop="role"></el-table-column>
-      <el-table-column width="200" :label="$t('topic.create_time')" prop="create_time"></el-table-column>
-      <el-table-column width="200" :label="$t('topic.offline_reason')" prop="offline_reason"></el-table-column>
+      <el-table-column width="250" :label="$t('topic.endpoint')" prop="endpoint"></el-table-column>
+      <el-table-column width="250" :label="$t('topic.vnodes')" prop="vnodes"></el-table-column>
+      <el-table-column width="250" :label="$t('topic.support_vnodes')" prop="support_vnodes"></el-table-column>
+      <el-table-column width="250" :label="$t('topic.status')" prop="status"></el-table-column>
+      <el-table-column width="250" :label="$t('topic.create_time')" prop="create_time"></el-table-column>
+      <el-table-column  :label="$t('topic.note')" prop="note"></el-table-column>
       
       <el-table-column label="Action" width="80">
         <template slot-scope="scope">
@@ -29,7 +28,15 @@
 <script>
 export default {
   data() {
-    return {};
+    return {
+      pageSize:10,
+      currentPage:1,
+      total:10,
+      topicList:[]
+    };
+  },
+  methods:{
+    handlePageChange(){}
   }
 };
 </script>

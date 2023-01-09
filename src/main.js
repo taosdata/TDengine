@@ -12,6 +12,7 @@ import CopyText from "@/components/CopyText";
 import "@/styles/element-variables.scss";
 import "@/assets/fonts/index"; //svgs
 import "@/styles/index.scss"; //global css
+import "@/assets/fonts/iconfont/iconfont.css"
 import directive, { LazyLoad } from "./directive";
 import computed from "@/common/computed";
 import { $bus } from "./const";

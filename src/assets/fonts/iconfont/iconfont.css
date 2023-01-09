@@ -1,0 +1,23 @@
+@font-face {
+  font-family: "element-icons"; /* Project id 3857053 */
+  src: url('iconfont.woff2?t=1673253558440') format('woff2'),
+       url('iconfont.woff?t=1673253558440') format('woff'),
+       url('iconfont.ttf?t=1673253558440') format('truetype');
+}
+
+.element-icons {
+  font-family: "element-icons" !important;
+  font-size: 16px;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.el-icon-more:before {
+  content: "\e68a";
+}
+
+.el-icon-checkmore:before {
+  content: "\e6a8";
+}
+
