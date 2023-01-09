@@ -1190,6 +1190,10 @@ int sml_ts2385_Test() {
 }
 
 int main(int argc, char *argv[]) {
+  if(argc == 2){
+    taos_options(TSDB_OPTION_CONFIGDIR, argv[1]);
+  }
+
   int ret = 0;
   ret = sml_ts2385_Test();
   ASSERT(!ret);
