@@ -665,12 +665,13 @@ static SMemRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter) {
 
 static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SMemRow row, TSKEY minKey, TSKEY maxKey,
                                           TSKEY now) {
-  TSKEY rowKey = memRowKey(row);
-  if (rowKey < minKey || rowKey > maxKey) {
+  TSKEY       rowKey = memRowKey(row);
+  const void *rawKey = memRowKeys(row);
+  if (rowKey < minKey || rowKey > maxKey || isNull(rawKey, TSDB_DATA_TYPE_TIMESTAMP)) {
     tsdbError("vgId:%d table %s tid %d uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
-              " maxKey %" PRId64 " row key %" PRId64,
+              " maxKey %" PRId64 " row key %" PRId64 " raw key %" PRIu64,
               REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), now, minKey, maxKey,
-              rowKey);
+              rowKey, *(TKEY *)rawKey);
     terrno = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
     return -1;
   }
