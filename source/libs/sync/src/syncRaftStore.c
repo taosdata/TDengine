@@ -20,6 +20,8 @@
 // private function
 static int32_t raftStoreInit(SRaftStore *pRaftStore);
 static bool    raftStoreFileExist(char *path);
+static int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len);
+static int32_t raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len);
 
 // public function
 SRaftStore *raftStoreOpen(const char *path) {
