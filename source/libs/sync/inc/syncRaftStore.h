@@ -37,8 +37,6 @@ typedef struct SRaftStore {
 SRaftStore *raftStoreOpen(const char *path);
 int32_t     raftStoreClose(SRaftStore *pRaftStore);
 int32_t     raftStorePersist(SRaftStore *pRaftStore);
-int32_t     raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len);
-int32_t     raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len);
 
 bool raftStoreHasVoted(SRaftStore *pRaftStore);
 void raftStoreVote(SRaftStore *pRaftStore, SRaftId *pRaftId);
