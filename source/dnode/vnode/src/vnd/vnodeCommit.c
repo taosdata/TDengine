@@ -294,7 +294,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   SVnode *pVnode = pInfo->pVnode;
 
   vInfo("vgId:%d, start to commit, commitId:%" PRId64 " version:%" PRId64 " term: %" PRId64, TD_VID(pVnode),
-        pVnode->state.commitID, pVnode->state.applied, pVnode->state.applyTerm);
+        pInfo->info.state.commitID, pInfo->info.state.committed, pVnode->state.commitTerm);
 
   // persist wal before starting
   if (walPersist(pVnode->pWal) < 0) {
@@ -308,8 +308,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
   }
 
-  // walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
-  syncBeginSnapshot(pVnode->sync, pVnode->state.applied);
+  syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
 
   // commit each sub-system
   code = tsdbCommit(pVnode->pTsdb, pInfo);
@@ -351,7 +350,6 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     return -1;
   }
 
-  // walEndSnapshot(pVnode->pWal);
   syncEndSnapshot(pVnode->sync);
 
 _exit:
