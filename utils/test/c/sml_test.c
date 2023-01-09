@@ -974,12 +974,64 @@ int sml_ttl_Test() {
 //  return sum;
 //}
 
-int main(int argc, char *argv[]) {
+int sml_ts2385_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
+  TAOS_RES *pRes = taos_query(taos, "CREATE DATABASE IF NOT EXISTS ts2385");
+  taos_free_result(pRes);
+
+  const char *sql[] ={
+      "DataRTU,deviceId=2211230C94K0_1,dataModelName=DataRTU_2211230C94K0_1 s5=false,s18=false,k14=0,k2=0,k8=0,k10=0,s9=false,s19=false,k11=0,k13=0,s22=false,k15=0,m2=37.416671660000006,m8=600,m10=1532,m1=20.25,m13=0,s7=false,k7=0,m16=0,s17=false,k4=0,s11=false,s15=true,m7=600,m12=1490,s1=true,m14=0,s14=false,s16=true,k5=0,hex=\"7b3b00000001030301030200000000323231313233304339344b30002b01012a10028003000000070d05da025802580258025802580258045305fc05f505d200000000000000000afc7d\",k6=0,m3=600,s3=false,s24=false,k3=0,m6=600,m15=0,s12=false,k1=0,k16=0,s10=false,s21=false,k12=0,m5=600,s8=false,m4=600,m9=1107,s2=false,s13=false,s20=false,s23=false,k9=0,m11=1525,s4=false,s6=false 1672818929178749400",
+      "DataRTU,deviceId=2211230C94K0_1,dataModelName=DataRTU_2211230C94K0_1 k2=0,k11=0,m3=600,m12=1506,s17=false,m5=600,s11=false,s22=false,k6=0,m13=0,s16=true,k5=0,s21=false,m4=600,m7=600,s9=false,s10=false,s18=false,k7=0,m8=600,k1=0,hex=\"7b3a00000001030301030200000000323231313233304339344b30002b01012a10028003000000071105e8025802580258025802580258044905eb05ef05e200000000000000000afc7d\",m11=1519,m16=0,s19=false,s23=false,s24=false,s14=false,s6=false,k10=0,k15=0,k14=0,s2=false,s4=false,s8=false,s13=false,s15=true,s20=false,m2=38.000005040000005,s3=false,s7=false,k3=0,k8=0,k13=0,m6=600,m14=0,m15=0,k4=0,m1=20.450000000000003,m9=1097,s1=true,m10=1515,s5=false,s12=false,k9=0,k12=0,k16=0 1672818919126971000",
+      "DataRTU,deviceId=2211230C94K0_1,dataModelName=DataRTU_2211230C94K0_1 k7=0,k14=0,m3=600,m7=600,s5=false,k2=0,k3=0,k8=0,s3=false,s20=false,k15=0,m10=1482,s17=false,k1=0,k16=0,m15=0,s12=false,k9=0,m16=0,s11=false,m4=600,s10=false,s15=true,s24=false,m8=600,m13=0,s2=false,s18=false,k12=0,s14=false,s19=false,hex=\"7b3900000001030301030200000000323231313233304339344b30002b01012a10028003000000071505ef025802580258025802580258045005ca05b105d800000000000000000aa47d\",s1=true,s4=false,s7=false,s8=false,s13=false,m6=600,s6=false,s21=false,k11=0,m12=1496,m9=1104,s16=true,k5=0,s9=false,k10=0,k13=0,m2=38.291671730000004,s22=false,m5=600,m11=1457,m14=0,k4=0,m1=20.650000000000006,s23=false,k6=0 1672818909130866800",
+      "DataRTU,deviceId=2211230C94K0_1,dataModelName=DataRTU_2211230C94K0_1 m7=600,k4=0,k14=0,s22=false,k13=0,s2=false,m11=1510,m14=0,s4=false,s10=false,m1=21,m16=0,m13=0,s9=false,s13=false,s14=false,k10=0,m3=600,m9=1107,s18=false,s19=false,k2=0,hex=\"7b3600000001030301030200000000323231313233304339344b30002b01012a10028003000000071c0619025802580258025802580258045305dc05e6058d00000000000000000ad27d\",m2=40.04167187,m8=600,k7=0,k8=0,m10=1500,s23=false,k5=0,s11=false,s21=false,k9=0,m15=0,m12=1421,s1=true,s5=false,s8=false,m5=600,k16=0,k15=0,m6=600,s3=false,s6=false,s7=false,s15=true,s20=false,s24=false,k11=0,k1=0,k6=0,k12=0,m4=600,s16=true,s17=false,k3=0,s12=false 1672818879189483200",
+      "DataRTU,deviceId=2106070C11M0_2,dataModelName=DataRTU_2106070C11M0_2 m1=5691,k14=0,m6=0,s14=false,k8=0,s19=false,s20=false,k12=0,s17=false,k3=0,m8=0,s8=false,m7=0,s9=false,s4=false,s11=false,s13=false,s16=false,k5=0,k15=0,k16=0,s10=false,s23=false,s1=false,s2=false,s3=false,s12=false,s24=false,k2=0,k10=0,hex=\"7b1400000001030301030200000000323130363037304331314d30002b01022a080400000000000008af0c000000000000000000000000000000000000000000000000000000000ad47d\",m2=0,s7=false,s18=false,s21=false,m3=0,m5=0,k4=0,k11=0,m4=0,k1=0,k6=0,k13=0,s6=false,s15=false,s5=false,s22=false,k7=0,k9=0 1672818779549848800"
+  };
+  pRes = taos_query(taos, "use ts2385");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  ASSERT(!code);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select distinct tbname from `DataRTU` order by tbname");
+  printf("%s result2:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int num = 0;
+  TAOS_ROW row = NULL;
+  while((row = taos_fetch_row(pRes))){
+    if(row[0] != NULL && num == 0){
+      ASSERT(strncmp((char *)row[0], "DataRTU_2106070C11M0_2", sizeof("DataRTU_2106070C11M0_2") - 1) == 0);
+    }
+
+    if(row[0] != NULL && num == 1){
+      ASSERT(strncmp((char *)row[0], "DataRTU_2211230C94K0_1", sizeof("DataRTU_2211230C94K0_1") - 1) == 0);
+    }
+    num++;
+  }
+  ASSERT(num == 2);
+
+  code = taos_errno(pRes);
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  return code;
+}
+
+int main(int argc, char *argv[]) {
+  if(argc == 2){
+    taos_options(TSDB_OPTION_CONFIGDIR, argv[1]);
+  }
+
+  int ret = 0;
+  ret = sml_ts2385_Test();
+  ASSERT(!ret);
 //  for(int i = 0; i < sizeof(str)/sizeof(str[0]); i++){
 //    printf("str:%s \t %d\n", str[i], smlCalTypeSum(str[i], strlen(str[i])));
 //  }
-  int ret = 0;
+//  int ret = 0;
   ret = sml_ttl_Test();
   ASSERT(!ret);
   ret = sml_ts2164_Test();

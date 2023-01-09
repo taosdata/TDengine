@@ -781,6 +781,7 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
     tinfo->tags = taosArrayDup(preLineKV, NULL);
 
     smlSetCTableName(tinfo);
+    tinfo->uid = info->uid++;
     if (info->dataFormat) {
       info->currSTableMeta->uid = tinfo->uid;
       tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);

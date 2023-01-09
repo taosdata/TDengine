@@ -1002,6 +1002,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
           code = terrno;
           goto _exit;
         }
+        pSubmitTbData->uid = pSubmitTbData->pCreateTbReq->uid;   // update uid if table exist for using below
       }
     }
 

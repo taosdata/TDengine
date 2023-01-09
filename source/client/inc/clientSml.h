@@ -164,6 +164,7 @@ typedef struct {
   bool            dataFormat;  // true means that the name and order of keys in each line are the same(only for influx protocol)
   bool            isRawLine;
   int32_t         ttl;
+  int32_t         uid; // used for automatic create child table
 
   NodeList *childTables;
   NodeList *superTables;
