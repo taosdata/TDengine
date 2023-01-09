@@ -1,0 +1,46 @@
+name: CentOS 7.9
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: docker.io/centos:7
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Rust
+        id: setup-rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          default: true
+      - name: Install compiler
+        run: |
+          yum install -y autoconf make automake cmake gcc gcc-g++ openssl-devel
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ steps.setup-rust.outputs.rustc_hash }}
+
+      - name: Build taosX
+        run: |
+          cargo build --release --no-default-features --features optin --features native-tls
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: taosx
+          path: target/release/taosx
