@@ -186,13 +186,10 @@ int32_t smlSetCTableName(SSmlTableInfo *oneTable) {
 
   if (strlen(oneTable->childTableName) == 0) {
     SArray       *dst = taosArrayDup(oneTable->tags, NULL);
-    RandTableName rName = {dst, oneTable->sTableName, (uint8_t)oneTable->sTableNameLen, oneTable->childTableName, 0};
+    RandTableName rName = {dst, oneTable->sTableName, (uint8_t)oneTable->sTableNameLen, oneTable->childTableName};
 
     buildChildTableName(&rName);
     taosArrayDestroy(dst);
-    oneTable->uid = rName.uid;
-  } else {
-    oneTable->uid = *(uint64_t *)(oneTable->childTableName);
   }
   return TSDB_CODE_SUCCESS;
 }
