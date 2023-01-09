@@ -265,7 +265,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
   int64_t     prev_value = 0;
 
   while (1) {
-    if (count == nelements) break;
+    if (_pos == nelements) break;
 
     uint64_t w = 0;
     memcpy(&w, ip, LONG_BYTES);
@@ -284,8 +284,8 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
         int64_t* p = (int64_t*) output;
 
         if (selector == 0 || selector == 1) {
-          int32_t gRemainder = nelements - count;
-          int32_t num = gRemainder > elems? elems:gRemainder;
+          int32_t gRemainder = nelements - _pos;
+          int32_t num = gRemainder < elems? gRemainder:elems;
 
           int32_t batch = num >> 2;
           int32_t remainder = num & 0x03;
@@ -302,100 +302,68 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
 
           count += num;
         } else {
-          int32_t gRemainder = (nelements - count);
-          int32_t num = gRemainder > elems? elems:gRemainder;
+          int32_t gRemainder = (nelements - _pos);
+          int32_t num = (gRemainder > elems)? elems:gRemainder;
 
           int32_t batch = num >> 2;
           int32_t remain = num & 0x03;
 #if 1
-#if 1
           __m256i base =  _mm256_set1_epi64x(w);
-          __m256i mask_ = _mm256_set1_epi64x(mask);
+          __m256i maskVal = _mm256_set1_epi64x(mask);
 
           __m256i shiftBits = _mm256_set_epi64x(bit * 3 + 4, bit * 2 + 4, bit + 4, 4);
           __m256i inc = _mm256_set1_epi64x(bit << 2);
 
           for(int32_t i = 0; i < batch; ++i) {
             __m256i after = _mm256_srlv_epi64(base, shiftBits);
-            __m256i zz = _mm256_and_si256(after, mask_);
-            printf("1\n");
+            __m256i zigzagVal= _mm256_and_si256(after, maskVal);
 
-            //#define ZIGZAG_DECODE(T, v) (((v) >> 1) ^ -((T)((v)&1)))                                 // zigzag decode
-            __m256i signmask = _mm256_and_si256(_mm256_set_epi64x(1, 1, 1, 1), zz);
+            // ZIGZAG_DECODE(T, v) (((v) >> 1) ^ -((T)((v)&1)))
+            __m256i signmask = _mm256_and_si256(_mm256_set1_epi64x(1), zigzagVal);
             signmask = _mm256_sub_epi64(_mm256_setzero_si256(), signmask);
+            // get the four zigzag values here
+            __m256i delta = _mm256_xor_si256(_mm256_srli_epi64(zigzagVal, 1), signmask);
 
-            // now here we get the four zigzag value
-            __m256i final = _mm256_xor_si256(_mm256_srli_epi64(zz, 1), signmask);
-
-            // calculate the cumulative sum (prefix sum)
+            // calculate the cumulative sum (prefix sum) for each number
             // decode[0] = prev_value + final[0]
             // decode[1] = decode[0] + final[1]   -----> prev_value + final[0] + final[1]
             // decode[2] = decode[1] + final[1]   -----> prev_value + final[0] + final[1] + final[2]
             // decode[3] = decode[2] + final[1]   -----> prev_value + final[0] + final[1] + final[2] + final[3]
 
-            printf("2\n");
-
+            //  1, 2, 3, 4
+            //+ 0, 1, 2, 3
+            //  1, 3, 5, 7
+            // shift and add for the first round
             __m128i prev = _mm_set1_epi64x(prev_value);
-            final = _mm256_add_epi64(final, _mm256_slli_si256(final, 8));
-            // x = 1, 2, 3, 4
-            //   + 0, 1, 2, 3
-            //   = 1, 3, 5, 7
-            _mm256_storeu_si256((__m256i *)&p[_pos], final);
+            delta = _mm256_add_epi64(delta, _mm256_slli_si256(delta, 8));
+            _mm256_storeu_si256((__m256i *)&p[_pos], delta);
 
-            __m128i first = _mm_loadu_si128((__m128i *)&p[_pos]);
-            __m128i sec = _mm_add_epi64(_mm_loadu_si128((__m128i *)&p[_pos + 2]), first);
-            sec = _mm_add_epi64(sec, prev);
-            first = _mm_add_epi64(first, prev);
+            //  1, 3, 5, 7
+            //+ 0, 0, 1, 3
+            //  1, 3, 6, 10
+            // shift and add operation for the second round
+            __m128i firstPart = _mm_loadu_si128((__m128i *)&p[_pos]);
+            __m128i secPart = _mm_add_epi64(_mm_loadu_si128((__m128i *)&p[_pos + 2]), firstPart);
+            firstPart = _mm_add_epi64(firstPart, prev);
+            secPart = _mm_add_epi64(secPart, prev);
 
-            _mm_storeu_si128((__m128i *)&p[_pos], first);
-            _mm_storeu_si128((__m128i *)&p[_pos + 2], sec);
+            // save it in the memory
+            _mm_storeu_si128((__m128i *)&p[_pos], firstPart);
+            _mm_storeu_si128((__m128i *)&p[_pos + 2], secPart);
 
             shiftBits = _mm256_add_epi64(shiftBits, inc);
             prev_value = p[_pos + 3];
             _pos += 4;
-
-            printf("3\n");
-          }
-#else
-          // manual unrolling, to erase the hotspot
-          uint64_t zz[4];
-
-          for (int32_t i = 0; i < batch; ++i) {
-            zigzag_value = ((w >> v) & mask);
-            zz[0] = ZIGZAG_DECODE(int64_t, zigzag_value);
-
-            v += bit;
-            zigzag_value = ((w >> v) & mask);
-            zz[1] = ZIGZAG_DECODE(int64_t, zigzag_value);
-
-            v += bit;
-            zigzag_value = ((w >> v) & mask);
-            zz[2] = ZIGZAG_DECODE(int64_t, zigzag_value);
-
-            v += bit;
-            zigzag_value = ((w >> v) & mask);
-            zz[3] = ZIGZAG_DECODE(int64_t, zigzag_value);
-
-            p[_pos] = prev_value + zz[0];
-            p[_pos + 1] = p[_pos] + zz[1];
-            p[_pos + 2] = p[_pos + 1] + zz[2];
-            p[_pos + 3] = p[_pos + 2] + zz[3];
-            prev_value = p[_pos + 3];
-            v += bit;
           }
 
-          // handle the remain
+          // handle the remain value
           for (int32_t i = 0; i < remain; i++) {
-            zigzag_value = ((w >> v) & mask);
+            zigzag_value = ((w >> (v + (batch * bit))) & mask);
             prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
             p[_pos++] = prev_value;
             v += bit;
           }
-
-          count += num;
-#endif
-
 #else
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
             zigzag_value = ((w >> v) & mask);
