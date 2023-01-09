@@ -247,8 +247,8 @@ typedef struct SyncLocalCmd {
   SRaftId  destId;
 
   int32_t   cmd;
-  SyncTerm  sdNewTerm;  // step down new term
-  SyncIndex fcIndex;    // follower commit index
+  SyncTerm  currentTerm;  // step down new term
+  SyncIndex commitIndex;  // follower commit index
 } SyncLocalCmd;
 
 int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType ttype, uint64_t logicClock, int32_t ms, SSyncNode* pNode);

@@ -78,7 +78,7 @@ typedef struct {
 
   // output
   char*    ctbShortName;  // must have size of TSDB_TABLE_NAME_LEN;
-  uint64_t uid;           // child table uid, may be useful
+//  uint64_t uid;           // child table uid, may be useful
 } RandTableName;
 
 void buildChildTableName(RandTableName* rName);
