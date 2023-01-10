@@ -4443,6 +4443,9 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
 
   if (isEmptyQueryTimeWindow(&pReader->window) || pReader->pReadSnap == NULL) {
     tsdbDebug("tsdb reader reset return %p", pReader->pReadSnap);
+
+    taosThreadMutexUnlock(&pReader->readerMutex);
+
     return TSDB_CODE_SUCCESS;
   }
 
