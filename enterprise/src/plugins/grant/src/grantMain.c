@@ -43,6 +43,8 @@
     }                                      \
   } while (0)
 
+#define GRANT_VERSION (grantStatus.officialVersion ? "official" : "trial")
+
 #ifndef min
 #define min(x, y) (x) < (y) ? (x) : (y)
 #endif
@@ -84,11 +86,14 @@ typedef SGrantMsg    GrantMsg;
 #endif
 
 extern SGrantObj grantObj;
+extern char      tsVersionName[16];
+extern int64_t   tsExpireTime;
 
 static char    *grantSecondsToString(uint32_t seconds);
 static void     dmRefreshGrantCfg();
 static void     grantRetrieveGrantInfo(SMnode *pMnode);
 static void     grantResetMaster(SMnode *pMnode);
+static void     mndSetClusterInfo();
 static int32_t  mndProcessGrantHB(SRpcMsg *pReq);
 static int32_t  dmGenerateGrantMsg(GrantMsg *pGrant, GrantStatus *pGrantStatus);
 static int32_t  mndProcessDnodeSGrantMsg(SMnode *pMnode, GrantMsg *pGrantMsg, GrantStatus *pGrantStatus);
@@ -140,7 +145,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
-
+  mndSetClusterInfo();
   uInfo("grant data is initialized");
   return TSDB_CODE_SUCCESS;
 }
@@ -148,6 +153,15 @@ int32_t mndInitGrant(SMnode *pMnode) {
 void mndCleanupGrant() {
   taosTmrStopA(&grantCheckTimer);
   taosTmrStopA(&grantSendTimer);
+}
+
+static void mndSetClusterInfo() {
+  if (strncmp(tsVersionName, GRANT_VERSION, 16) != 0) {
+    strncpy(tsVersionName, GRANT_VERSION, 16);
+  }
+  if (tsExpireTime != (int64_t)grantStatus.expireTimeSec * 1000) {
+    tsExpireTime = (int64_t)grantStatus.expireTimeSec * 1000;
+  }
 }
 
 /**
@@ -436,6 +450,8 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
     grantResetMaster(pMnode);
   }
   grantRetrieveGrantInfo(pMnode);
+
+  mndSetClusterInfo();
 
   mndGetDnodeData(pMnode, pDnodeEps);
 
@@ -1024,7 +1040,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 #else
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    const char      *src = grantStatus.officialVersion ? "official" : "trial";
+    const char      *src = GRANT_VERSION;
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
