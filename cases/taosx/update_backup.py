@@ -76,10 +76,10 @@ class UpdateBackup(TDCase):
                     taosBenchmark_fqdn[0], f'taosBenchmark -h {host} -P {port} -n {row_num} -t {tb_num} -d {dbname[source]} -m {ntbname_m[source]} -N -y -U -s {start_timestamp}')
     
     def update_backup_db_stb(self,source_type):
-        for target_task in ['']:
-            for source_task in ['']:
-        # for source_task in ['','+ws']:
-        #     for target_task in ['','+ws']:
+        # for target_task in ['']:
+        #     for source_task in ['']:
+        for source_task in ['','+ws']:
+            for target_task in ['','+ws']:
                 thread_list_source = []
                 thread_list_target = []
                 master_count_rows = []
@@ -150,10 +150,10 @@ class UpdateBackup(TDCase):
                     taosd_backup.execute(f'drop database {self.dbname[source]}')
                 
     def update_backup_ctb(self):
-        for target_task in ['']:
-            for source_task in ['']:
-        # for source_task in ['','+ws']:
-        #     for target_task in ['','+ws']:
+        # for target_task in ['']:
+        #     for source_task in ['']:
+        for source_task in ['','+ws']:
+            for target_task in ['','+ws']:
                 thread_list_source = []
                 thread_list_target = []
                 master_count_rows = []
@@ -210,10 +210,10 @@ class UpdateBackup(TDCase):
                     taosd_backup.execute(f'drop database {self.dbname[source]}')
 
     def update_backup_ntb(self):
-        for target_task in ['']:
-            for source_task in ['']:
-        # for source_task in ['','+ws']:
-        #     for target_task in ['','+ws']:
+        # for target_task in ['']:
+        #     for source_task in ['']:
+        for source_task in ['','+ws']:
+            for target_task in ['','+ws']:
                 thread_list_source = []
                 thread_list_target = []
                 master_count_rows = []
