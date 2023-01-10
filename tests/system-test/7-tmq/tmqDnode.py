@@ -85,7 +85,7 @@ class TDTestCase:
             if tdSql.getRows() == expectRows:
                 break
             else:
-                time.sleep(5)
+                time.sleep(0.1)
 
         for i in range(expectRows):
             tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))

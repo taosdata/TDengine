@@ -149,7 +149,7 @@ class TDTestCase:
             index = tdSql.getData(0, 0)
             tdDnodes.stop(index)
             tdDnodes.start(index)
-            time.sleep(3)
+            # time.sleep(1)
             self.check_cachemodel_sets()
 
 

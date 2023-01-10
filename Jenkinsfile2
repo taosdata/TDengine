@@ -37,18 +37,19 @@ def check_docs() {
             date
             env
         '''
-        sh '''
-            cd ${WKC}
-            git reset --hard
-            git clean -fxd
-            rm -rf examples/rust/
-            git remote prune origin
-            git fetch
-        '''
+        // sh '''
+        //     cd ${WKC}
+        //     git reset --hard
+        //     git clean -fxd
+        //     rm -rf examples/rust/
+        //     git remote prune origin
+        //     git fetch
+        // '''
         script {
             sh '''
                 cd ${WKC}
-                git checkout ''' + env.CHANGE_TARGET + '''
+                git clean -fxd
+                git checkout -f ''' + env.CHANGE_TARGET + '''
             '''
         }
         sh '''
@@ -430,7 +431,7 @@ pipeline {
                                         date
                                         rm -rf ${WKC}/debug
                                         cd ${WKC}/tests/parallel_test
-                                        time ./container_build.sh -w ${WKDIR} -t 10 -e
+                                        time ./container_build.sh -w ${WKDIR} -t 30 -e
                                     '''
                                     def extra_param = ""
                                     def log_server_file = "/home/log_server.json"
