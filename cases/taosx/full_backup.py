@@ -73,10 +73,10 @@ class FullBackup(TDCase):
         for thread in thread_list:
             thread.join()
     def full_backup_db_stb(self,source_type):
-        for target_task in ['']:
-            for source_task in ['']:
-        # for target_task in ['','+ws']:
-        #     for source_task in ['', '+ws']:
+        # for target_task in ['']:
+        #     for source_task in ['']:
+        for target_task in ['','+ws']:
+            for source_task in ['', '+ws']:
                 thread_list_source = []
                 thread_list_target = []
                 master_count_rows = []
@@ -129,10 +129,10 @@ class FullBackup(TDCase):
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf {self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}')
                     taosd_backup.execute(f'drop database {self.dbname[source]}')
     def full_backup_ctb(self):
-        for target_task in ['']:
-            for source_task in ['']:
-        # for target_task in ['','+ws']:
-        #     for source_task in ['', '+ws']:
+        # for target_task in ['']:
+        #     for source_task in ['']:
+        for target_task in ['','+ws']:
+            for source_task in ['', '+ws']:
                 thread_list_source = []
                 thread_list_target = []
                 master_count_rows = []
@@ -177,10 +177,10 @@ class FullBackup(TDCase):
                     taosd_backup.execute(f'drop database {self.dbname[source]}')
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf {self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}')    
     def full_backup_ntb(self):
-        for target_task in ['']:
-            for source_task in ['']:
-        # for target_task in ['','+ws']:
-        #     for source_task in ['', '+ws']:
+        # for target_task in ['']:
+        #     for source_task in ['']:
+        for target_task in ['','+ws']:
+            for source_task in ['', '+ws']:
                 thread_list_source = []
                 thread_list_target = []
                 master_count_rows = []

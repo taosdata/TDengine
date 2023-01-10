@@ -151,10 +151,10 @@ class AddBackup(TDCase):
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf {self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}')
                     taosd_backup.execute(f'drop database {self.dbname[source]}')
     def add_backup_ctb(self):
-        for source_task in ['']:
-            for target_task in ['']:
-        # for source_task in ['','+ws']:
-        #     for target_task in ['','+ws']:
+        # for source_task in ['']:
+        #     for target_task in ['']:
+        for source_task in ['','+ws']:
+            for target_task in ['','+ws']:
                 thread_list_source = []
                 thread_list_target = []
                 master_count_rows = []
@@ -210,10 +210,10 @@ class AddBackup(TDCase):
                     taosd_backup.execute(f'drop database {self.dbname[source]}')
 
     def add_backup_ntb(self):
-        for source_task in ['']:
-            for target_task in ['']:
-        # for target_task in ['','+ws']:
-        #     for source_task in ['', '+ws']:
+        # for source_task in ['']:
+        #     for target_task in ['']:
+        for target_task in ['','+ws']:
+            for source_task in ['', '+ws']:
                 thread_list_source = []
                 thread_list_target = []
                 master_count_rows = []
