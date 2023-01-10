@@ -618,6 +618,7 @@
 5,,system-test,python3 ./test.py -f 2-query/TD-11945_crash.py 
 5,,system-test,python3 ./test.py -f 2-query/TD-11256.py 
 5,,system-test,python3 test.py -f 1-insert/TD-11970.py 
+5,,system-test,python3 test.py -f 1-insert/stmt_error.py 
 5,,pytest,python3 test.py -f user/user_create.py 
 5,,pytest,python3 test.py -f tools/taosdemoTestWithJson.py 
 5,,pytest,python3 test.py -f tools/taosdemoTestSampleData.py 
