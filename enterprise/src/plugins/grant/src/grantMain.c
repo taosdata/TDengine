@@ -43,6 +43,8 @@
     }                                      \
   } while (0)
 
+#define GRANT_VERSION (grantStatus.officialVersion ? "official" : "trial")
+
 #ifndef min
 #define min(x, y) (x) < (y) ? (x) : (y)
 #endif
@@ -154,10 +156,8 @@ void mndCleanupGrant() {
 }
 
 static void mndSetClusterInfo() {
-  char version[16] = "\0";
-  strcpy(version, grantStatus.officialVersion ? "official" : "trial");
-  if (strncmp(tsVersionName, version, 16) != 0) {
-    strncpy(tsVersionName, version, 16);
+  if (strncmp(tsVersionName, GRANT_VERSION, 16) != 0) {
+    strncpy(tsVersionName, GRANT_VERSION, 16);
   }
   if (tsExpireTime != (int64_t)grantStatus.expireTimeSec * 1000) {
     tsExpireTime = (int64_t)grantStatus.expireTimeSec * 1000;
@@ -1040,7 +1040,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 #else
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    const char      *src = grantStatus.officialVersion ? "official" : "trial";
+    const char      *src = GRANT_VERSION;
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
