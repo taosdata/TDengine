@@ -680,6 +680,9 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
     }
 
     taosArrayPush(pIndexList, pBlockIdx);
+    if (taosArrayGetSize(pIndexList) == taosHashGetSize(pReader->status.pTableMap)) {
+      break;
+    }
   }
 
   int64_t et2 = taosGetTimestampUs();
