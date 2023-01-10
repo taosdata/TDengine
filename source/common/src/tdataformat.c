@@ -1331,9 +1331,9 @@ int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
     }
     n += tPutTagVal(p + n, (STagVal *)taosArrayGet(pArray, iTag), isJson);
   }
-#ifdef TD_DEBUG_PRINT_TAG
+// #ifdef TD_DEBUG_PRINT_TAG
   debugPrintSTag(*ppTag, __func__, __LINE__);
-#endif
+// #endif
 
   return code;
 
