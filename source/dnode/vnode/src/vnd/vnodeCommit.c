@@ -81,6 +81,7 @@ _exit:
 }
 static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
   int32_t code = 0;
+  int32_t lino = 0;
 
   taosThreadMutexLock(&pVnode->mutex);
 
@@ -100,12 +101,8 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
     } else {
       vInfo("vgId:%d no free buffer pool on %d try, try to recycle...", TD_VID(pVnode), nTry);
 
-      terrno = vnodeTryRecycleBufPool(pVnode);
-      if (terrno != TSDB_CODE_SUCCESS) {
-        vError("vgId:%d %s failed since %s", TD_VID(pVnode), __func__, tstrerror(terrno));
-        taosThreadMutexUnlock(&pVnode->mutex);
-        return -1;
-      }
+      code = vnodeTryRecycleBufPool(pVnode);
+      TSDB_CHECK_CODE(code, lino, _exit);
 
       if (pVnode->freeList == NULL) {
         vDebug("vgId:%d no free buffer pool on %d try, wait %d ms...", TD_VID(pVnode), nTry, WAIT_TIME_MILI_SEC);
@@ -118,18 +115,18 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
 
         int32_t rc = taosThreadCondTimedWait(&pVnode->poolNotEmpty, &pVnode->mutex, &ts);
         if (rc && rc != ETIMEDOUT) {
-          terrno = TAOS_SYSTEM_ERROR(rc);
-          vError("vgId:%d %s failed since %s", TD_VID(pVnode), __func__, tstrerror(terrno));
-          taosThreadMutexUnlock(&pVnode->mutex);
-          return -1;
+          code = TAOS_SYSTEM_ERROR(rc);
+          TSDB_CHECK_CODE(code, lino, _exit);
         }
       }
     }
   }
 
-  taosThreadMutexUnlock(&pVnode->mutex);
-
 _exit:
+  taosThreadMutexUnlock(&pVnode->mutex);
+  if (code) {
+    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 int vnodeBegin(SVnode *pVnode) {
