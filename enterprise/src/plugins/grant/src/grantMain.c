@@ -84,12 +84,15 @@ typedef SGrantMsg    GrantMsg;
 #endif
 
 extern SGrantObj grantObj;
+extern char      tsVersionName[16];
+extern int64_t   tsExpireTime;
 
 static char    *grantSecondsToString(uint32_t seconds);
 static void     dmRefreshGrantCfg();
 static void     grantRetrieveGrantInfo(SMnode *pMnode);
 static void     grantResetMaster(SMnode *pMnode);
 static int32_t  mndProcessGrantHB(SRpcMsg *pReq);
+static void     mndSetClusterInfo();
 static int32_t  dmGenerateGrantMsg(GrantMsg *pGrant, GrantStatus *pGrantStatus);
 static int32_t  mndProcessDnodeSGrantMsg(SMnode *pMnode, GrantMsg *pGrantMsg, GrantStatus *pGrantStatus);
 static int32_t  tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus);
@@ -140,7 +143,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
-
+  mndSetClusterInfo();
   uInfo("grant data is initialized");
   return TSDB_CODE_SUCCESS;
 }
@@ -148,6 +151,17 @@ int32_t mndInitGrant(SMnode *pMnode) {
 void mndCleanupGrant() {
   taosTmrStopA(&grantCheckTimer);
   taosTmrStopA(&grantSendTimer);
+}
+
+static void mndSetClusterInfo() {
+  char version[16] = "\0";
+  strcpy(version, grantStatus.officialVersion ? "official" : "trial");
+  if (strncmp(tsVersionName, version, 16) != 0) {
+    strncpy(tsVersionName, version, 16);
+  }
+  if (tsExpireTime != (int64_t)grantStatus.expireTimeSec * 1000) {
+    tsExpireTime = (int64_t)grantStatus.expireTimeSec * 1000;
+  }
 }
 
 /**
@@ -436,6 +450,8 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
     grantResetMaster(pMnode);
   }
   grantRetrieveGrantInfo(pMnode);
+
+  mndSetClusterInfo();
 
   mndGetDnodeData(pMnode, pDnodeEps);
 
