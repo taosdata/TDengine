@@ -2834,7 +2834,37 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   TSDBKEY keyInBuf = getCurrentKeyInBuf(pScanInfo, pReader);
 
   if (pBlockInfo == NULL) {  // build data block from last data file
-    code = buildComposedDataBlock(pReader);
+    SBlockData* pBData = &pReader->status.fileBlockData;
+    tBlockDataReset(pBData);
+
+    SSDataBlock* pResBlock = pReader->pResBlock;
+    tsdbDebug("load data in last block firstly, due to desc scan data, %s", pReader->idStr);
+
+    int64_t st = taosGetTimestampUs();
+
+    while (1) {
+      bool hasBlockLData = hasDataInLastBlock(pLastBlockReader);
+
+      // no data in last block and block, no need to proceed.
+      if (hasBlockLData == false) {
+        break;
+      }
+
+      buildComposedDataBlockImpl(pReader, pScanInfo, &pReader->status.fileBlockData, pLastBlockReader);
+      if (pResBlock->info.rows >= pReader->capacity) {
+        break;
+      }
+    }
+
+    double el = (taosGetTimestampUs() - st) / 1000.0;
+    updateComposedBlockInfo(pReader, el, pScanInfo);
+
+    if (pResBlock->info.rows > 0) {
+      tsdbDebug("%p uid:%" PRIu64 ", composed data block created, brange:%" PRIu64 "-%" PRIu64
+                    " rows:%d, elapsed time:%.2f ms %s",
+                pReader, pResBlock->info.id.uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
+                pResBlock->info.rows, el, pReader->idStr);
+    }
   } else if (fileBlockShouldLoad(pReader, pBlockInfo, pBlock, pScanInfo, keyInBuf, pLastBlockReader)) {
     code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData, pScanInfo->uid);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2853,10 +2883,38 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
       // only return the rows in last block
       int64_t tsLast = getCurrentKeyInLastBlock(pLastBlockReader);
       ASSERT(tsLast >= pBlock->maxKey.ts);
-      tBlockDataReset(&pReader->status.fileBlockData);
 
+      SBlockData* pBData = &pReader->status.fileBlockData;
+      tBlockDataReset(pBData);
+
+      SSDataBlock* pResBlock = pReader->pResBlock;
       tsdbDebug("load data in last block firstly, due to desc scan data, %s", pReader->idStr);
-      code = buildComposedDataBlock(pReader);
+
+      int64_t st = taosGetTimestampUs();
+
+      while (1) {
+        bool hasBlockLData = hasDataInLastBlock(pLastBlockReader);
+
+        // no data in last block and block, no need to proceed.
+        if (hasBlockLData == false) {
+          break;
+        }
+
+        buildComposedDataBlockImpl(pReader, pScanInfo, &pReader->status.fileBlockData, pLastBlockReader);
+        if (pResBlock->info.rows >= pReader->capacity) {
+          break;
+        }
+      }
+
+      double el = (taosGetTimestampUs() - st) / 1000.0;
+      updateComposedBlockInfo(pReader, el, pScanInfo);
+
+      if (pResBlock->info.rows > 0) {
+        tsdbDebug("%p uid:%" PRIu64 ", composed data block created, brange:%" PRIu64 "-%" PRIu64
+                      " rows:%d, elapsed time:%.2f ms %s",
+                  pReader, pResBlock->info.id.uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
+                  pResBlock->info.rows, el, pReader->idStr);
+      }
     } else {  // whole block is required, return it directly
       SDataBlockInfo* pInfo = &pReader->pResBlock->info;
       pInfo->rows = pBlock->nRow;
