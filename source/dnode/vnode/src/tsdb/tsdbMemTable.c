@@ -76,9 +76,9 @@ _err:
   return code;
 }
 
-void tsdbMemTableDestroy(SMemTable *pMemTable) {
+void tsdbMemTableDestroy(SMemTable *pMemTable, bool proactive) {
   if (pMemTable) {
-    vnodeBufPoolUnRef(pMemTable->pPool);
+    vnodeBufPoolUnRef(pMemTable->pPool, proactive);
     taosMemoryFree(pMemTable->aBucket);
     taosMemoryFree(pMemTable);
   }
@@ -761,16 +761,15 @@ _exit:
   return code;
 }
 
-int32_t tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode) {
+int32_t tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode, bool proactive) {
   int32_t code = 0;
 
   if (pNode) {
-    vnodeBufPoolDeregisterQuery(pMemTable->pPool, pNode);
+    vnodeBufPoolDeregisterQuery(pMemTable->pPool, pNode, proactive);
   }
 
-  int32_t nRef = atomic_sub_fetch_32(&pMemTable->nRef, 1);
-  if (nRef == 0) {
-    tsdbMemTableDestroy(pMemTable);
+  if (atomic_sub_fetch_32(&pMemTable->nRef, 1) == 0) {
+    tsdbMemTableDestroy(pMemTable, proactive);
   }
 
   return code;

@@ -4719,11 +4719,11 @@ void tsdbUntakeReadSnap(STsdbReader* pReader, STsdbReadSnap* pSnap) {
 
   if (pSnap) {
     if (pSnap->pMem) {
-      tsdbUnrefMemTable(pSnap->pMem, pSnap->pNode);
+      tsdbUnrefMemTable(pSnap->pMem, pSnap->pNode, true);
     }
 
     if (pSnap->pIMem) {
-      tsdbUnrefMemTable(pSnap->pIMem, pSnap->pINode);
+      tsdbUnrefMemTable(pSnap->pIMem, pSnap->pINode, true);
     }
 
     tsdbFSUnref(pTsdb, &pSnap->fs);

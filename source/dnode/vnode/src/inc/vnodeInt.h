@@ -105,11 +105,11 @@ void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
 void* vnodeBufPoolMallocAligned(SVBufPool* pPool, int size);
 void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
 void  vnodeBufPoolRef(SVBufPool* pPool);
-void  vnodeBufPoolUnRef(SVBufPool* pPool);
+void  vnodeBufPoolUnRef(SVBufPool* pPool, bool proactive);
 int   vnodeDecodeInfo(uint8_t* pData, SVnodeInfo* pInfo);
 
 int32_t vnodeBufPoolRegisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
-int32_t vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
+void    vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode, bool proactive);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;
