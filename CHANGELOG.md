@@ -1,3 +1,34 @@
+<a name="v0.4.0"></a>
+## v0.4.0 TDengine Data Replication Toolkit (2023-01-10)
+
+
+#### Bug Fixes
+
+*   check handler finished when start a task ([34cfaa40](https://github.com/taosdata/taosx.git/commit/34cfaa407d59af733ea3928ba58e90ba899c46db))
+*   add batch-size option for legacy write to 2.6 ([54889b95](https://github.com/taosdata/taosx.git/commit/54889b9554838c4550351980b62e0e437c48a830))
+*   fix wal size limit error not catched in scope ([10cacaad](https://github.com/taosdata/taosx.git/commit/10cacaad5860e70b2656cee7b9ae0945b6b11f25))
+*   fix grant check failed in 2.6 ([8871929f](https://github.com/taosdata/taosx.git/commit/8871929f9c6f262de72c9595664708693341c6c2))
+*   fix table name escape to solve errors 0x0362 ([80d3bd45](https://github.com/taosdata/taosx.git/commit/80d3bd45f868556530d472283b3876b10f02fc2f))
+*   fix sqlite url error on windows ([118946b0](https://github.com/taosdata/taosx.git/commit/118946b0f07bb020b604f560e114e498a09db822))
+*   fix sync error with delete from tables ([d2d3fe2f](https://github.com/taosdata/taosx.git/commit/d2d3fe2fcca688706ead9b49cb72e403d9707d13))
+*   fix segmentfault at exit ([a424d46a](https://github.com/taosdata/taosx.git/commit/a424d46a0c843450c1b1405673695ba328daaaff))
+*   fix table schema sync in legacy mode ([fe0cf009](https://github.com/taosdata/taosx.git/commit/fe0cf0090325c0b50b0048ef8f710d8406ba328a))
+*   fix max sql len limit ([ab14320e](https://github.com/taosdata/taosx.git/commit/ab14320eec00fabc7792dae9c2ec3f69a199076c))
+*   fix 0x030B data expired error in 2.x ([ad833958](https://github.com/taosdata/taosx.git/commit/ad833958e0279ff474b0b6f9b8b0df07b8ce2c65))
+*   upgrade parquet to v28 ([42d25926](https://github.com/taosdata/taosx.git/commit/42d25926184180460c6d51ac3e39754b51f30d68))
+* **lagacy:**  fix stmt wal size limit error for legacy sync ([4e122f6d](https://github.com/taosdata/taosx.git/commit/4e122f6d289e2c4ee5b1fb08aef39e80dfa9c66a))
+* **metrics:**  use sysinfo for all-platform metrics collection ([83768ad2](https://github.com/taosdata/taosx.git/commit/83768ad2a0ae9a667af3b84d7fb242faa5a6ccaa))
+
+#### Features
+
+*   support stopAt task for tmq to local ([5a82acb8](https://github.com/taosdata/taosx.git/commit/5a82acb87dd51dc7a5265e0764efa98374dfa695))
+*   add feature gate `disable-enterprise-only-validation` ([0fe672b3](https://github.com/taosdata/taosx.git/commit/0fe672b3a7246a5e24bf881798a21c3339599535))
+*   support enterprise only validation ([3d4f76f0](https://github.com/taosdata/taosx.git/commit/3d4f76f040d926b075b4a196bfe22a51e4549eca))
+*   support multiple workers for legacy sync ([9d88f204](https://github.com/taosdata/taosx.git/commit/9d88f204d972d1912be3a218ffd48e7fd4d09bf2))
+* **serve:**  support `after_delete` action for tmq to local ([fab76c00](https://github.com/taosdata/taosx.git/commit/fab76c00368d2e6f17d2957e435e1ee3bd4117ff))
+
+
+
 <a name="v0.3.3"></a>
 ## v0.3.3 TDengine Data Replication Toolkit (2022-12-10)
 
