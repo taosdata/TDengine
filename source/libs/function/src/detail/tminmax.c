@@ -809,7 +809,16 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
   int32_t numOfRows = pInput->numOfRows;
   int32_t end = start + numOfRows;
 
-  if (pCol->hasNull || numOfRows < GET_INVOKE_INTRINSIC_THRESHOLD(256, pCol->info.bytes) || pCtx->subsidiaries.num > 0) {
+  // clang-format off
+  int32_t threshold[] = {
+      //NULL,    BOOL,      TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE, VARCHAR,   TIMESTAMP, NCHAR,
+      INT32_MAX, INT32_MAX, 32,      16,       8,   4,      8,     4,      INT32_MAX, INT32_MAX, INT32_MAX,
+      // UTINYINT,USMALLINT, UINT, UBIGINT,   JSON,      VARBINARY, DECIMAL,   BLOB,      MEDIUMBLOB, BINARY
+      32,         16,        8,    INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,  INT32_MAX,
+  };
+  // clang-format on
+
+  if (pCol->hasNull || numOfRows < threshold[pCol->info.type] || pCtx->subsidiaries.num > 0) {
     int32_t i = findFirstValPosition(pCol, start, numOfRows);
 
     if ((i < end) && (!pBuf->assign)) {
