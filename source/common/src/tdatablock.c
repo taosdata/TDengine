@@ -1161,14 +1161,15 @@ void blockDataEmpty(SSDataBlock* pDataBlock) {
   pInfo->window.skey = 0;
 }
 
-// todo temporarily disable it
+/*
+ * NOTE: the type of the input column may be TSDB_DATA_TYPE_NULL, which is used to denote
+ * the all NULL value in this column. It is an internal representation of all NULL value column, and no visible to
+ * any users. The length of TSDB_DATA_TYPE_NULL is 0, and it is an special case.
+ */
 static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows, bool clearPayload) {
   if (numOfRows <= 0 || numOfRows <= pBlockInfo->capacity) {
     return TSDB_CODE_SUCCESS;
   }
-
-  // todo temp disable it
-  //  ASSERT(pColumn->info.bytes != 0);
 
   int32_t existedRows = pBlockInfo->rows;
 
@@ -1194,7 +1195,8 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
       return TSDB_CODE_FAILED;
     }
 
-    // make sure the allocated memory is MALLOC_ALIGN_BYTES aligned
+    // here we employ the aligned malloc function, to make sure that the address of allocated memory is aligned
+    // to MALLOC_ALIGN_BYTES
     tmp = taosMemoryMallocAlign(MALLOC_ALIGN_BYTES, numOfRows * pColumn->info.bytes);
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -1208,7 +1210,7 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
 
     pColumn->pData = tmp;
 
-    // todo remove it soon
+    // check if the allocated memory is aligned to the requried bytes.
 #if defined LINUX
     if ((((uint64_t)pColumn->pData) & (MALLOC_ALIGN_BYTES - 1)) != 0x0) {
       return TSDB_CODE_FAILED;
@@ -1216,7 +1218,7 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
 #endif
 
     if (clearPayload) {
-      memset(tmp + pColumn->info.bytes * existedRows, 0, pColumn->info.bytes * (numOfRows - existedRows));
+//      memset(tmp + pColumn->info.bytes * existedRows, 0, pColumn->info.bytes * (numOfRows - existedRows));
     }
   }
 
