@@ -24,25 +24,16 @@ extern "C" {
 
 #define RAFT_STORE_BLOCK_SIZE 512
 #define RAFT_STORE_PATH_LEN   (TSDB_FILENAME_LEN * 2)
+#define EMPTY_RAFT_ID         ((SRaftId){.addr = 0, .vgId = 0})
 
-#define EMPTY_RAFT_ID ((SRaftId){.addr = 0, .vgId = 0})
+int32_t raftStoreReadFile(SSyncNode *pNode);
+int32_t raftStoreWriteFile(SSyncNode *pNode);
 
-typedef struct SRaftStore {
-  SyncTerm  currentTerm;
-  SRaftId   voteFor;
-  TdFilePtr pFile;
-  char      path[RAFT_STORE_PATH_LEN];
-} SRaftStore;
-
-SRaftStore *raftStoreOpen(const char *path);
-int32_t     raftStoreClose(SRaftStore *pRaftStore);
-int32_t     raftStorePersist(SRaftStore *pRaftStore);
-
-bool raftStoreHasVoted(SRaftStore *pRaftStore);
-void raftStoreVote(SRaftStore *pRaftStore, SRaftId *pRaftId);
-void raftStoreClearVote(SRaftStore *pRaftStore);
-void raftStoreNextTerm(SRaftStore *pRaftStore);
-void raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term);
+bool raftStoreHasVoted(SSyncNode *pNode);
+void raftStoreVote(SSyncNode *pNode, SRaftId *pRaftId);
+void raftStoreClearVote(SSyncNode *pNode);
+void raftStoreNextTerm(SSyncNode *pNode);
+void raftStoreSetTerm(SSyncNode *pNode, SyncTerm term);
 
 #ifdef __cplusplus
 }
