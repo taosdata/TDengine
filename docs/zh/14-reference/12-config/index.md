@@ -305,6 +305,25 @@ charset 的有效值是 UTF-8。
 | 适用范围 | 仅服务端适用                               |
 | 含义     | 数据文件目录，所有的数据文件都将写入该目录 |
 | 缺省值   | /var/lib/taos                              |
+```
+多级存储目录通过 dataDir 配置. 格式如下：
+dataDir [path] <level> <primary>
+dataDir: 配置文件( taos.cfg )中的配置项
+path:    需要挂载的目录（不可省略）
+level:   挂载等级，取值为 0，1 或 2，省略默认为 0。 最多支持 3 级, 每一级最多支持 16 个挂载点, 因此, 最多支持 48 个挂载点.
+primary: 是否为主挂载点，0（否）或 1（是），默认为 1. 主挂载点只允许在 level 0, 且只允许一个主挂载点存在（level=0，primary=1）. 
+如下，为一个正常的配置：
+dataDir /mnt/data01 0 1
+dataDir /mnt/data02 0 0
+dataDir /mnt/data03 0 0
+dataDir /mnt/data10 1 0
+dataDir /mnt/data11 1 0
+dataDir /mnt/data12 1 0
+dataDir /mnt/data20 2 0
+dataDir /mnt/data21 2 0
+dataDir /mnt/data22 2 0
+```
+
 
 ### tempDir
 
