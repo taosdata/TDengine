@@ -74,7 +74,7 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
       pVnode->inUse->freeNext = NULL;
       break;
     } else {
-      vInfo("vgId:%d no free buffer pool on %d try, try to recycle...", TD_VID(pVnode), nTry);
+      vDebug("vgId:%d no free buffer pool on %d try, try to recycle...", TD_VID(pVnode), nTry);
 
       code = vnodeTryRecycleBufPool(pVnode);
       TSDB_CHECK_CODE(code, lino, _exit);
