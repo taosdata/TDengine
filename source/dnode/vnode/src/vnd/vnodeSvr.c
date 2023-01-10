@@ -223,6 +223,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   // skip header
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   len = pMsg->contLen - sizeof(SMsgHead);
+  bool needCommit = false;
 
   switch (pMsg->msgType) {
     /* META */
@@ -319,9 +320,8 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       vnodeProcessAlterConfigReq(pVnode, version, pReq, len, pRsp);
       break;
     case TDMT_VND_COMMIT:
-      vnodeSyncCommit(pVnode);
-      vnodeBegin(pVnode);
-      goto _exit;
+      needCommit = true;
+      break;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
       return -1;
@@ -338,7 +338,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   }
 
   // commit if need
-  if (vnodeShouldCommit(pVnode)) {
+  if (needCommit) {
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), version);
     if (vnodeAsyncCommit(pVnode) < 0) {
       vError("vgId:%d, failed to vnode async commit since %s.", TD_VID(pVnode), tstrerror(terrno));
@@ -1001,6 +1001,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
           code = terrno;
           goto _exit;
         }
+        pSubmitTbData->uid = pSubmitTbData->pCreateTbReq->uid;   // update uid if table exist for using below
       }
     }
 

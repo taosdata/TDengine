@@ -119,6 +119,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   // update the appInstInfo
   pTscObj->pAppInfo->clusterId = connectRsp.clusterId;
+  lastClusterId = connectRsp.clusterId;
 
   pTscObj->connType = connectRsp.connType;
 
