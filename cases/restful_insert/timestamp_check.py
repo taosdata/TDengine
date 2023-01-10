@@ -283,6 +283,7 @@ class TestTimestamp(TDCase):
                 self.tdRest.error(error_sql)
 
     def run(self) -> bool:
+        self.tdCom.drop_all_db()
         self.ms_us_ns_db_check()
         # self.h_m_s_check()
         self.human_date_check()
