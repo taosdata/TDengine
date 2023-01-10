@@ -420,7 +420,11 @@ _return:
 
   taosLogCrashInfo("taos", pMsg, msgLen, signum, sigInfo);
 
+#ifdef _TD_DARWIN_64
   exit(signum);
+#elif defined(WINDOWS)
+  exit(signum);
+#endif
 }
 
 void crashReportThreadFuncUnexpectedStopped(void) { atomic_store_32(&clientStop, -1); }
