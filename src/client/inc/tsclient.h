@@ -895,7 +895,7 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
       } else {
         int64_t tmpVal;
         if (tsParseTime(pToken, &tmpVal, str, msg, timePrec) != TSDB_CODE_SUCCESS) {
-          return tscInvalidOperationMsg(msg, "invalid timestamp", pToken->z);
+          return TSDB_CODE_TSC_INVALID_OPERATION;
         }
         tdAppendMemRowColVal(row, &tmpVal, true, colId, pSchema->type, toffset);
       }
