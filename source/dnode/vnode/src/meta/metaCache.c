@@ -549,21 +549,35 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
     tdListAppend(&p->list, pKey);
   } else {
     // check if it exists or not
-    SListIter iter = {0};
-    tdListInitIter(&(*pEntry)->list, &iter, TD_LIST_FORWARD);
-
-    SListNode* pNode = NULL;
-    while ((pNode = tdListNext(&iter)) != NULL) {
+    size_t size = listNEles(&(*pEntry)->list);
+    if (size == 0) {
+      tdListAppend(&(*pEntry)->list, pKey);
+    } else if (size == 1) {
+      SListNode* pNode = listHead(&(*pEntry)->list);
       uint64_t* p = (uint64_t*) pNode->data;
-
-      // key already exists in cache, quit
       if (p[1] == ((uint64_t*)pKey)[1] && p[2] == ((uint64_t*)pKey)[2]) {
         taosThreadMutexUnlock(pLock);
         return TSDB_CODE_SUCCESS;
+      } else { // not equal, append it
+        tdListAppend(&(*pEntry)->list, pKey);
       }
-    }
+    } else {  // more than one element
+      SListIter iter = {0};
+      tdListInitIter(&(*pEntry)->list, &iter, TD_LIST_FORWARD);
 
-    tdListAppend(&(*pEntry)->list, pKey);
+      SListNode* pNode = NULL;
+      while ((pNode = tdListNext(&iter)) != NULL) {
+        uint64_t* p = (uint64_t*)pNode->data;
+
+        // key already exists in cache, quit
+        if (p[1] == ((uint64_t*)pKey)[1] && p[2] == ((uint64_t*)pKey)[2]) {
+          taosThreadMutexUnlock(pLock);
+          return TSDB_CODE_SUCCESS;
+        }
+      }
+
+      tdListAppend(&(*pEntry)->list, pKey);
+    }
   }
 
   // add to cache.
