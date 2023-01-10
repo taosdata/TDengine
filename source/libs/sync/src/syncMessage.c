@@ -154,8 +154,8 @@ int32_t syncBuildAppendEntriesReply(SRpcMsg* pMsg, int32_t vgId) {
   return 0;
 }
 
-int32_t syncBuildAppendEntriesFromRaftLog(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm,
-                                          SRpcMsg* pRpcMsg) {
+int32_t syncBuildAppendEntriesFromRaftEntry(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm,
+                                            SRpcMsg* pRpcMsg) {
   uint32_t dataLen = pEntry->bytes;
   uint32_t bytes = sizeof(SyncAppendEntries) + dataLen;
   pRpcMsg->contLen = bytes;

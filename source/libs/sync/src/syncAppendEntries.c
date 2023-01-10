@@ -128,7 +128,7 @@ int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
   return 0;
 }
 
-SSyncRaftEntry* syncLogAppendEntriesToRaftEntry(const SyncAppendEntries* pMsg) {
+SSyncRaftEntry* syncBuildRaftEntryFromAppendEntries(const SyncAppendEntries* pMsg) {
   SSyncRaftEntry* pEntry = taosMemoryMalloc(pMsg->dataLen);
   if (pEntry == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -182,7 +182,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
-  SSyncRaftEntry* pEntry = syncLogAppendEntriesToRaftEntry(pMsg);
+  SSyncRaftEntry* pEntry = syncBuildRaftEntryFromAppendEntries(pMsg);
 
   if (pEntry == NULL) {
     sError("vgId:%d, failed to get raft entry from append entries since %s", ths->vgId, terrstr());
