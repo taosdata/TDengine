@@ -4434,14 +4434,12 @@ SSDataBlock* tsdbRetrieveDataBlock(STsdbReader* pReader, SArray* pIdList) {
 int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   SReaderStatus* pStatus = &pReader->status;
 
-  qTrace("tsdb/read: %p, take read mutex", pReader);
+  qTrace("tsdb/reader-reset: %p, take read mutex", pReader);
   taosThreadMutexLock(&pReader->readerMutex);
 
   if (pReader->suspended) {
     tsdbReaderResume(pReader);
   }
-
-  taosThreadMutexUnlock(&pReader->readerMutex);
 
   if (isEmptyQueryTimeWindow(&pReader->window) || pReader->pReadSnap == NULL) {
     tsdbDebug("tsdb reader reset return %p", pReader->pReadSnap);
@@ -4480,6 +4478,9 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
     if (code != TSDB_CODE_SUCCESS) {
       tsdbError("%p reset reader failed, numOfTables:%d, query range:%" PRId64 " - %" PRId64 " in query %s", pReader,
                 numOfTables, pReader->window.skey, pReader->window.ekey, pReader->idStr);
+
+      taosThreadMutexUnlock(&pReader->readerMutex);
+
       return code;
     }
   }
@@ -4488,6 +4489,8 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
             " in query %s",
             pReader, pReader->suid, numOfTables, pCond->twindows.skey, pReader->window.skey, pReader->window.ekey,
             pReader->idStr);
+
+  taosThreadMutexUnlock(&pReader->readerMutex);
 
   return code;
 }
