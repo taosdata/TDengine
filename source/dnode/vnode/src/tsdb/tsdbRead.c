@@ -651,6 +651,8 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
     goto _end;
   }
 
+  int32_t numOfTables = taosHashGetSize(pReader->status.pTableMap);
+
   size_t num = taosArrayGetSize(aBlockIdx);
   if (num == 0) {
     taosArrayDestroy(aBlockIdx);
@@ -680,14 +682,15 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
     }
 
     taosArrayPush(pIndexList, pBlockIdx);
-    if (taosArrayGetSize(pIndexList) == taosHashGetSize(pReader->status.pTableMap)) {
+    if (taosArrayGetSize(pIndexList) == numOfTables) {
       break;
     }
   }
 
   int64_t et2 = taosGetTimestampUs();
-  tsdbDebug("load block index for %d tables completed, elapsed time:%.2f ms, set blockIdx:%.2f ms, size:%.2f Kb %s",
-            (int32_t)num, (et1 - st) / 1000.0, (et2 - et1) / 1000.0, num * sizeof(SBlockIdx) / 1024.0, pReader->idStr);
+  tsdbDebug("load block index for %d/%d tables completed, elapsed time:%.2f ms, set blockIdx:%.2f ms, size:%.2f Kb %s",
+            numOfTables, (int32_t)num, (et1 - st) / 1000.0, (et2 - et1) / 1000.0, num * sizeof(SBlockIdx) / 1024.0,
+            pReader->idStr);
 
   pReader->cost.headFileLoadTime += (et1 - st) / 1000.0;
 
