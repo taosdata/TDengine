@@ -321,14 +321,12 @@ int32_t vnodeBufPoolRecycle(SVBufPool *pPool) {
     if (rc == 0 || rc == TSDB_CODE_VND_QUERY_BUSY) {
       pNode = pTNode;
     } else {
-      taosThreadMutexUnlock(&pPool->mutex);
       code = rc;
       goto _exit;
     }
   }
 
-  taosThreadMutexUnlock(&pPool->mutex);
-
 _exit:
+  taosThreadMutexUnlock(&pPool->mutex);
   return code;
 }
