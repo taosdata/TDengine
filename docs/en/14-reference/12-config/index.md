@@ -318,14 +318,15 @@ The charset that takes effect is UTF-8.
 :::info
 The official version supports multi-tier storage (need to cooperate with [KEEP parameter](https://docs.tdengine.com/taos-sql/database/#create-a-database)). The configuration method is as follows.
 
-The multi-tier storage directory is configured through dataDir, the format is: dataDir [path] <level> <primary>
-
-dataDir: Configuration items in the configuration file (taos.cfg)
+The multi-tier storage directory is configured through `dataDir`, the format is: `dataDir [path] <level> <primary>`
+```
+dataDir: Configuration items in the configuration file (`taos.cfg`)
 path: the directory to mount (cannot be omitted)
 level: mount level, the value is 0, 1 or 2, if omitted, the default is 0. Up to 3 levels are supported, and each level supports up to 16 mount points, so a maximum of 48 mount points are supported.
 primary: whether it is the primary mount point, 0 (no) or 1 (yes), the default is 1. The primary mount point is only allowed at level 0, and only one primary mount point is allowed (level=0, primary=1).
-
+```
 Here is a normal configuration (3 storage tiers, each with 3 mount points):
+```
 Data directory /mnt/data01 0 1
 Data directory /mnt/data02 0 0
 Data directory /mnt/data03 0 0
@@ -335,11 +336,13 @@ Data directory /mnt/data12 1 0
 Data directory /mnt/data20 2 0
 Data directory /mnt/data21 2 0
 Data directory /mnt/data22 2 0
-
+```
 The community version does not support multi-tier storage, and the following three configurations are acceptable:
+```
 Data directory /var/lib/taos
 or dataDir /var/lib/taos 0
 or dataDir /var/lib/taos 0 1
+```
 
 :::
 
