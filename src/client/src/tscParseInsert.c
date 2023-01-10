@@ -121,7 +121,7 @@ int tsParseTime(SStrToken *pToken, int64_t *pTime, char **next, char *err, int16
 
     char unit = 0;
     if (parseAbsoluteDuration(valueToken.z, valueToken.n, &interval, &unit, timePrec) != TSDB_CODE_SUCCESS) {
-      return tscInvalidOperationMsg(err, "invalid timestamp", sToken.z);
+      return tscInvalidOperationMsg(err, "invalid timestamp", pToken->z);
     }
 
     if (sToken.type == TK_PLUS) {
