@@ -48,6 +48,7 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numer
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_twa.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_irate.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_interp.py --keep --containers
+taostest --use=common_insert_kcn.yaml --case=Query/queryscript/stable_query/keepColumnNameCheck.py --keep --containers
 
 
 # 200 seconds (at most)
