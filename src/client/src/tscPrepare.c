@@ -905,6 +905,12 @@ static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MU
 
     if (pBind->is_null != NULL && pBind->is_null[i]) {
       setNull(data + param->offset, param->type, param->bytes);
+      if (param->offset == 0) {
+        if (tsCheckTimestamp(pBlock, data) != TSDB_CODE_SUCCESS) {
+          tscError("invalid timestamp");
+          return TSDB_CODE_TSC_INVALID_VALUE;
+        }
+      }
       continue;
     }
 
