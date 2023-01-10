@@ -431,7 +431,7 @@ pipeline {
                                         date
                                         rm -rf ${WKC}/debug
                                         cd ${WKC}/tests/parallel_test
-                                        time ./container_build.sh -w ${WKDIR} -t 30 -e
+                                        time ./container_build.sh -w ${WKDIR} -t 40 -e
                                     '''
                                     def extra_param = ""
                                     def log_server_file = "/home/log_server.json"
