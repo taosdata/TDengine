@@ -314,7 +314,7 @@ The charset that takes effect is UTF-8.
 | Applicable    | Server Only                                 |
 | Meaning       | All data files are stored in this directory |
 | Default Value | /var/lib/taos                               |
-```
+:::info
 The official version supports multi-tier storage (need to cooperate with [KEEP parameter](https://docs.tdengine.com/taos-sql/database/#create-a-database)). The configuration method is as follows.
 
 The multi-tier storage directory is configured through dataDir, the format is: dataDir [path] <level> <primary>
@@ -339,7 +339,7 @@ The community version does not support multi-tier storage, and the following thr
 Data directory /var/lib/taos
 or dataDir /var/lib/taos 0
 or dataDir /var/lib/taos 0 1
-```
+:::
 
 ### tempDir
 

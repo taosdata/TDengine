@@ -305,7 +305,7 @@ charset 的有效值是 UTF-8。
 | 适用范围 | 仅服务端适用                               |
 | 含义     | 数据文件目录，所有的数据文件都将写入该目录 |
 | 缺省值   | /var/lib/taos                              |
-```
+:::info
 企业版支持多级存储 (需要与[KEEP 参数](https://docs.taosdata.com/taos-sql/database/#%E5%88%9B%E5%BB%BA%E6%95%B0%E6%8D%AE%E5%BA%93)配合使用). 配置方法如下。
 
 多级存储目录通过 dataDir 配置。配置项格式： dataDir [path] <level> <primary>
@@ -330,7 +330,7 @@ dataDir /mnt/data22 2 0
 dataDir /var/lib/taos
 或 dataDir /var/lib/taos 0 
 或 dataDir /var/lib/taos 0 1
-```
+:::
 
 ### tempDir
 
