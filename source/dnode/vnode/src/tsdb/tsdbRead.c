@@ -4068,18 +4068,23 @@ static int32_t tsdbSetQueryReseek(void* pQHandle) {
   int32_t      code = 0;
   STsdbReader* pReader = pQHandle;
 
-  taosThreadMutexLock(&pReader->readerMutex);
+  code = taosThreadMutexTryLock(&pReader->readerMutex);
+  if (code == 0) {
+    if (pReader->suspended) {
+      taosThreadMutexUnlock(&pReader->readerMutex);
+      return code;
+    }
 
-  if (pReader->suspended) {
+    tsdbReaderSuspend(pReader);
+
     taosThreadMutexUnlock(&pReader->readerMutex);
+
     return code;
+  } else if (code == EBUSY) {
+    return TSDB_CODE_VND_QUERY_BUSY;
+  } else {
+    return -1;
   }
-
-  tsdbReaderSuspend(pReader);
-
-  taosThreadMutexUnlock(&pReader->readerMutex);
-
-  return code;
 }
 
 int32_t tsdbReaderResume(STsdbReader* pReader) {
