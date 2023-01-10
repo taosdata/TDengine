@@ -339,7 +339,7 @@ dataDir /mnt/data21 2 0
 dataDir /mnt/data22 2 0
 ```
 
-`The community version` does not support multi-tier storage, and the following three configurations are acceptable:
+`The community version` does not support multi-tier storage, and the following three configurations are all normal:
 ```
 dataDir /var/lib/taos
 or dataDir /var/lib/taos 0
