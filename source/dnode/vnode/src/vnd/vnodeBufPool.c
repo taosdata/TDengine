@@ -212,34 +212,9 @@ void vnodeBufPoolRef(SVBufPool *pPool) {
   ASSERT(nRef > 0);
 }
 
-void vnodeBufPoolUnRef(SVBufPool *pPool) {
-  if (pPool == NULL) return;
-
+void vnodeBufPoolAddToFreeList(SVBufPool *pPool) {
   SVnode *pVnode = pPool->pVnode;
 
-  taosThreadMutexLock(&pVnode->mutex);
-
-  if (atomic_sub_fetch_32(&pPool->nRef, 1) > 0) goto _exit;
-
-  // remove from recycle list or on-recycle position
-  if (pVnode->onRecycle == pPool) {
-    pVnode->onRecycle = NULL;
-  } else {
-    if (pPool->recyclePrev) {
-      pPool->recyclePrev->recycleNext = pPool->recycleNext;
-    } else {
-      pVnode->recycleHead = pPool->recycleNext;
-    }
-
-    if (pPool->recycleNext) {
-      pPool->recycleNext->recyclePrev = pPool->recyclePrev;
-    } else {
-      pVnode->recycleTail = pPool->recyclePrev;
-    }
-    pPool->recyclePrev = pPool->recycleNext = NULL;
-  }
-
-  // change the pool size if need
   int64_t size = pVnode->config.szBuf / VNODE_BUFPOOL_SEGMENTS;
   if (pPool->node.size != size) {
     SVBufPool *pNewPool = NULL;
@@ -257,10 +232,41 @@ void vnodeBufPoolUnRef(SVBufPool *pPool) {
   }
 
   // add to free list
+  vDebug("vgId:%d buffer pool %p of id %d is added to free list", TD_VID(pVnode), pPool, pPool->id);
   vnodeBufPoolReset(pPool);
   pPool->freeNext = pVnode->freeList;
   pVnode->freeList = pPool;
   taosThreadCondSignal(&pVnode->poolNotEmpty);
+}
+
+void vnodeBufPoolUnRef(SVBufPool *pPool) {
+  if (pPool == NULL) return;
+
+  SVnode *pVnode = pPool->pVnode;
+
+  taosThreadMutexLock(&pVnode->mutex);
+
+  if (atomic_sub_fetch_32(&pPool->nRef, 1) > 0) goto _exit;
+
+  // remove from recycle queue or on-recycle position
+  if (pVnode->onRecycle == pPool) {
+    pVnode->onRecycle = NULL;
+  } else {
+    if (pPool->recyclePrev) {
+      pPool->recyclePrev->recycleNext = pPool->recycleNext;
+    } else {
+      pVnode->recycleHead = pPool->recycleNext;
+    }
+
+    if (pPool->recycleNext) {
+      pPool->recycleNext->recyclePrev = pPool->recyclePrev;
+    } else {
+      pVnode->recycleTail = pPool->recyclePrev;
+    }
+    pPool->recyclePrev = pPool->recycleNext = NULL;
+  }
+
+  vnodeBufPoolAddToFreeList(pPool);
 
 _exit:
   taosThreadMutexUnlock(&pVnode->mutex);
@@ -294,6 +300,48 @@ int32_t vnodeBufPoolDeregisterQuery(SVBufPool *pPool, SQueryNode *pQNode) {
   pPool->nQuery--;
 
   taosThreadMutexUnlock(&pPool->mutex);
+
+_exit:
+  return code;
+}
+
+int32_t vnodeBufPoolRecycle(SVBufPool *pPool) {
+  int32_t code = 0;
+
+  bool    canRecycle;
+  SVnode *pVnode = pPool->pVnode;
+
+  vDebug("vgId:%d recycle buffer pool %p of id %d", TD_VID(pVnode), pPool, pPool->id);
+
+  taosThreadMutexLock(&pPool->mutex);
+
+  SQueryNode *pNode = pPool->qList.pNext;
+  while (pNode != &pPool->qList) {
+    int32_t rc = pNode->reseek(pNode->pQHandle);
+    if (rc == 0) {
+      SQueryNode *pTNode = pNode->pNext;
+      pNode->pNext->ppNext = pNode->ppNext;
+      *pNode->ppNext = pNode->pNext;
+      pPool->nQuery--;
+      pNode = pTNode;
+    } else if (rc == TSDB_CODE_VND_QUERY_BUSY) {
+      pNode = pNode->pNext;
+    } else {
+      taosThreadMutexUnlock(&pPool->mutex);
+      code = rc;
+      goto _exit;
+    }
+  }
+
+  canRecycle = (pPool->nQuery == 0);
+
+  taosThreadMutexUnlock(&pPool->mutex);
+
+  if (canRecycle) {
+    ASSERT(atomic_load_32(&pPool->nRef) == 0);
+    pVnode->onRecycle = NULL;
+    vnodeBufPoolAddToFreeList(pPool);
+  }
 
 _exit:
   return code;

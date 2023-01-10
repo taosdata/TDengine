@@ -83,6 +83,8 @@ struct SVBufPool {
 int32_t vnodeOpenBufPool(SVnode* pVnode);
 int32_t vnodeCloseBufPool(SVnode* pVnode);
 void    vnodeBufPoolReset(SVBufPool* pPool);
+void    vnodeBufPoolAddToFreeList(SVBufPool* pPool);
+int32_t vnodeBufPoolRecycle(SVBufPool* pPool);
 
 // vnodeQuery.c
 int32_t vnodeQueryOpen(SVnode* pVnode);
