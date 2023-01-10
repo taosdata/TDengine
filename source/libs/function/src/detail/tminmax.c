@@ -61,7 +61,7 @@
     }                                                 \
   }
 
-static int32_t getInvokeThreshold(int32_t bits, int32_t bytes) { return bits / (bytes << 3u); }
+#define GET_INVOKE_INTRINSIC_THRESHOLD(_bits, _bytes) ((_bits) / ((_bytes) << 3u))
 
 static void calculateRounds(int32_t numOfRows, int32_t bytes, int32_t* remainder, int32_t* rounds, int32_t* width) {
   const int32_t bitWidth = 256;
@@ -809,7 +809,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
   int32_t numOfRows = pInput->numOfRows;
   int32_t end = start + numOfRows;
 
-  if (pCol->hasNull || numOfRows < getInvokeThreshold(256, type) || pCtx->subsidiaries.num > 0) {
+  if (pCol->hasNull || numOfRows < GET_INVOKE_INTRINSIC_THRESHOLD(256, pCol->info.bytes) || pCtx->subsidiaries.num > 0) {
     int32_t i = findFirstValPosition(pCol, start, numOfRows);
 
     if ((i < end) && (!pBuf->assign)) {
