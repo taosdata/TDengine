@@ -44,6 +44,7 @@ static struct {
   char         apolloUrl[PATH_MAX];
   const char **envCmd;
   SArray      *pArgs;  // SConfigPair
+  int64_t      startTime;
 } global = {0};
 
 static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { taosSetAllDebugFlag(143, true); }
@@ -67,23 +68,67 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
   dmStop();
 }
 
+void dmLogCrash(int signum, void *sigInfo, void *context) {
+  taosIgnSignal(SIGTERM);
+  taosIgnSignal(SIGHUP);
+  taosIgnSignal(SIGINT);
+  taosIgnSignal(SIGBREAK);
+
+#ifndef WINDOWS  
+  taosIgnSignal(SIGBUS);
+#endif
+  taosIgnSignal(SIGABRT);
+  taosIgnSignal(SIGFPE);
+  taosIgnSignal(SIGSEGV);
+
+  char *pMsg = NULL;
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;
+  int64_t     msgLen= -1;
+  
+  if (tsEnableCrashReport) {
+    if (taosGenCrashJsonMsg(signum, &pMsg, dmGetClusterId(), global.startTime)) {
+      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
+      goto _return;
+    } else {
+      msgLen = strlen(pMsg);  
+    }
+  }
+  
+_return:
+
+  taosLogCrashInfo("taosd", pMsg, msgLen, signum, sigInfo);
+
+  exit(signum);
+}
+
 static void dmSetSignalHandle() {
   taosSetSignal(SIGUSR1, dmSetDebugFlag);
   taosSetSignal(SIGUSR2, dmSetAssert);
   taosSetSignal(SIGTERM, dmStopDnode);
   taosSetSignal(SIGHUP, dmStopDnode);
   taosSetSignal(SIGINT, dmStopDnode);
-  taosSetSignal(SIGABRT, dmStopDnode);
   taosSetSignal(SIGBREAK, dmStopDnode);
 #ifndef WINDOWS
   taosSetSignal(SIGTSTP, dmStopDnode);
   taosSetSignal(SIGQUIT, dmStopDnode);
 #endif
+
+#ifndef WINDOWS
+  taosSetSignal(SIGBUS, dmLogCrash);
+#endif  
+  taosSetSignal(SIGABRT, dmLogCrash);
+  taosSetSignal(SIGFPE, dmLogCrash);
+  taosSetSignal(SIGSEGV, dmLogCrash);
 }
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
+  global.startTime = taosGetTimestampMs();
+
   int32_t cmdEnvIndex = 0;
   if (argc < 2) return 0;
+  
   global.envCmd = taosMemoryMalloc((argc - 1) * sizeof(char *));
   memset(global.envCmd, 0, (argc - 1) * sizeof(char *));
   for (int32_t i = 1; i < argc; ++i) {

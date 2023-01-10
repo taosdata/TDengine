@@ -31,11 +31,16 @@ int tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void 
   return 0;
 }
 
-int tdbTxnClose(TXN *pTxn) {
+int tdbTxnCloseImpl(TXN *pTxn) {
   if (pTxn) {
     if (pTxn->jPageSet) {
       hashset_destroy(pTxn->jPageSet);
       pTxn->jPageSet = NULL;
+    }
+
+    if (pTxn->jfd) {
+      tdbOsClose(pTxn->jfd);
+      ASSERT(pTxn->jfd == NULL);
     }
 
     tdbOsFree(pTxn);
