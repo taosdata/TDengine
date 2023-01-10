@@ -308,7 +308,8 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
   void   *pIter = NULL;
   while (1) {
     SDnodeObj *pDnode = NULL;
-    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    ESdbStatus objStatus = 0;
+    pIter = sdbFetchAll(pSdb, SDB_DNODE, pIter, (void **)&pDnode, &objStatus, true);
     if (pIter == NULL) break;
 
     SDnodeEp dnodeEp = {0};
