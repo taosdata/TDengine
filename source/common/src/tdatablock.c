@@ -1218,7 +1218,7 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
 #endif
 
     if (clearPayload) {
-//      memset(tmp + pColumn->info.bytes * existedRows, 0, pColumn->info.bytes * (numOfRows - existedRows));
+      memset(tmp + pColumn->info.bytes * existedRows, 0, pColumn->info.bytes * (numOfRows - existedRows));
     }
   }
 
@@ -1246,25 +1246,6 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, 
 }
 
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
-  int32_t code = 0;
-  if (numOfRows == 0 || numOfRows <= pDataBlock->info.capacity) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
-    code = doEnsureCapacity(p, &pDataBlock->info, numOfRows, true);
-    if (code) {
-      return code;
-    }
-  }
-
-  pDataBlock->info.capacity = numOfRows;
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t blockDataEnsureCapacityNoClear(SSDataBlock* pDataBlock, uint32_t numOfRows) {
   int32_t code = 0;
   if (numOfRows == 0 || numOfRows <= pDataBlock->info.capacity) {
     return TSDB_CODE_SUCCESS;
