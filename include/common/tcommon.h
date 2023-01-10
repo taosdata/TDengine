@@ -162,6 +162,7 @@ typedef enum EStreamType {
   STREAM_PULL_DATA,
   STREAM_PULL_OVER,
   STREAM_FILL_OVER,
+  STREAM_CREATE_CHILD_TABLE,
 } EStreamType;
 
 #pragma pack(push, 1)
@@ -205,8 +206,6 @@ typedef struct SDataBlockInfo {
   TSKEY       watermark;  // used for stream
 
   char    parTbName[TSDB_TABLE_NAME_LEN];  // used for stream partition
-  int32_t tagLen;
-  void*   pTag;  // used for stream partition
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -378,6 +377,11 @@ typedef struct SSortExecInfo {
 #define CALCULATE_START_TS_COLUMN_INDEX 4
 #define CALCULATE_END_TS_COLUMN_INDEX   5
 #define TABLE_NAME_COLUMN_INDEX         6
+
+// stream create table block column
+#define UD_TABLE_NAME_COLUMN_INDEX     0
+#define UD_GROUPID_COLUMN_INDEX        1
+#define UD_TAG_COLUMN_INDEX            2
 
 #ifdef __cplusplus
 }

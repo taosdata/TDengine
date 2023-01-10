@@ -465,7 +465,6 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
   SMCreateStbReq createReq = {0};
   tstrncpy(createReq.name, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
   createReq.numOfColumns = pStream->outputSchema.nCols;
-  createReq.numOfTags = 1;  // group id
   createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
   // build fields
   taosArraySetSize(createReq.pColumns, createReq.numOfColumns);
@@ -476,14 +475,29 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     pField->type = pStream->outputSchema.pSchema[i].type;
     pField->bytes = pStream->outputSchema.pSchema[i].bytes;
   }
-  createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
-  taosArraySetSize(createReq.pTags, 1);
-  // build tags
-  SField *pField = taosArrayGet(createReq.pTags, 0);
-  strcpy(pField->name, "group_id");
-  pField->type = TSDB_DATA_TYPE_UBIGINT;
-  pField->flags = 0;
-  pField->bytes = 8;
+
+  if (pStream->tagSchema.nCols == 0) {
+    createReq.numOfTags = 1;
+    createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
+    taosArraySetSize(createReq.pTags, createReq.numOfTags);
+    // build tags
+    SField *pField = taosArrayGet(createReq.pTags, 0);
+    strcpy(pField->name, "group_id");
+    pField->type = TSDB_DATA_TYPE_UBIGINT;
+    pField->flags = 0;
+    pField->bytes = 8;
+  } else {
+    createReq.numOfTags = pStream->tagSchema.nCols;
+    createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
+    taosArraySetSize(createReq.pTags, createReq.numOfTags);
+    for (int32_t i = 0; i < createReq.numOfTags; i++) {
+      SField *pField = taosArrayGet(createReq.pTags, i);
+      pField->bytes = pStream->tagSchema.pSchema[i].bytes;
+      pField->flags = pStream->tagSchema.pSchema[i].flags;
+      pField->type = pStream->tagSchema.pSchema[i].type;
+      tstrncpy(pField->name, pStream->tagSchema.pSchema[i].name, TSDB_COL_NAME_LEN);
+    }
+  }
 
   if (mndCheckCreateStbReq(&createReq) != 0) {
     goto _OVER;
