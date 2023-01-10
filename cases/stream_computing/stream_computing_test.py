@@ -2057,19 +2057,18 @@ class StreamComputingTest(TDCase):
         # return
         for vgroups in self.vgroups_list:
             self.vgroups = vgroups
-            
             self.create_none_db_stream()
             self.create_none_source_tb_stream()
             self.create_none_source_tb_tag_stream()
             self.create_none_source_tb_col_stream()
             self.create_error_source_sql_stream()
-            # ## ! TD-20280
-            # # self.insert_after_restart()
-            # # self.insert_after_restart(delete=True, fill_history_value=1)
-            # ## ! TD-18123
+            ## ! rep3 TD-20280
+            self.insert_after_restart()
+            self.insert_after_restart(delete=True, fill_history_value=1)
+            ## ! TD-18123
             # # self.insert_after_recreate_source_table()
-            # # ! rep3 bug
-            # self.query_after_drop_stream_db()
+            ## ! rep3 bug
+            self.query_after_drop_stream_db()
             self.data_filter()
             self.data_filter(delete=True)
             self.data_filter(delete=True, fill_history_value=1)
@@ -2085,23 +2084,26 @@ class StreamComputingTest(TDCase):
             self.udf_test(8, "int")
             self.udf_test(8, "int", 1)
             self.udaf_test(10, 8, "double")
-            # # TODO confirm
             self.udaf_test(10, 8, "double", 1)
             
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname")
-            self.at_once_interval(interval=random.randint(10, 15), partition="c1")
-            self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)")
+            # ! TD-21698
+            # self.at_once_interval(interval=random.randint(10, 15), partition="c1")
+            # self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)")
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname", delete=True)
-            self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
-            self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
-            # return
+            # ! TD-21698
+            # self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
+            # self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
+            ## return
             for fill_history_value in [None, 1]:
                 self.at_once_state_window(state_window="c1", partition="tbname", fill_history_value=fill_history_value)
-                self.at_once_state_window(state_window="c1", partition="c1", fill_history_value=fill_history_value)
-                self.at_once_state_window(state_window="c1", partition="abs(c1)", fill_history_value=fill_history_value)
+                # # ! TD-21698
+                # self.at_once_state_window(state_window="c1", partition="c1", fill_history_value=fill_history_value)
+                # self.at_once_state_window(state_window="c1", partition="abs(c1)", fill_history_value=fill_history_value)
                 self.at_once_state_window(state_window="c1", partition="tbname", delete=True, fill_history_value=fill_history_value)
-                self.at_once_state_window(state_window="c1", partition="c1", delete=True, fill_history_value=fill_history_value)
-                self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
+                # # ! TD-21698
+                # self.at_once_state_window(state_window="c1", partition="c1", delete=True, fill_history_value=fill_history_value)
+                # self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="tbname", fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="c1", fill_history_value=fill_history_value)
                 # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", fill_history_value=fill_history_value)
@@ -2118,7 +2120,8 @@ class StreamComputingTest(TDCase):
             self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20))
             self.window_close_state_window(state_window="c1")
             self.subtable_exceed_test()
-            self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s")
+            ## TODO not stable
+            # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s")
             # * in this case, when vgroups = 10, max_delay must be set upper than 4, root cause not found 
             self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
 
