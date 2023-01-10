@@ -85,8 +85,13 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
         struct timeval  tv;
         struct timespec ts;
         taosGetTimeOfDay(&tv);
-        ts.tv_sec = tv.tv_sec;
         ts.tv_nsec = tv.tv_usec * 1000 + WAIT_TIME_MILI_SEC * 1000000;
+        if (ts.tv_nsec > 999999999l) {
+          ts.tv_sec = tv.tv_sec + 1;
+          ts.tv_nsec -= 1000000000l;
+        } else {
+          ts.tv_sec = tv.tv_sec;
+        }
 
         int32_t rc = taosThreadCondTimedWait(&pVnode->poolNotEmpty, &pVnode->mutex, &ts);
         if (rc && rc != ETIMEDOUT) {
@@ -134,6 +139,7 @@ int vnodeBegin(SVnode *pVnode) {
 
 _exit:
   if (code) {
+    terrno = code;
     vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
   return code;
