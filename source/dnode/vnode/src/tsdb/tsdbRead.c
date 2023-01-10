@@ -4001,7 +4001,8 @@ int32_t tsdbReaderSuspend(STsdbReader* pReader) {
   if (pStatus->loadFromFile) {
     SFileDataBlockInfo* pBlockInfo = getCurrentBlockInfo(&pReader->status.blockIter);
     if (pBlockInfo != NULL) {
-      pBlockScanInfo = taosHashGet(pStatus->pTableMap, &pBlockInfo->uid, sizeof(pBlockInfo->uid));
+      pBlockScanInfo =
+          *(STableBlockScanInfo**)taosHashGet(pStatus->pTableMap, &pBlockInfo->uid, sizeof(pBlockInfo->uid));
       if (pBlockScanInfo == NULL) {
         code = TSDB_CODE_INVALID_PARA;
         tsdbError("failed to locate the uid:%" PRIu64 " in query table uid list, total tables:%d, %s", pBlockInfo->uid,
@@ -4015,20 +4016,28 @@ int32_t tsdbReaderSuspend(STsdbReader* pReader) {
     tsdbDataFReaderClose(&pReader->pFileReader);
 
     // resetDataBlockScanInfo excluding lastKey
-    STableBlockScanInfo* p = NULL;
+    STableBlockScanInfo** p = NULL;
 
     while ((p = taosHashIterate(pStatus->pTableMap, p)) != NULL) {
-      p->iterInit = false;
-      p->iiter.hasVal = false;
-      if (p->iter.iter != NULL) {
-        p->iter.iter = tsdbTbDataIterDestroy(p->iter.iter);
+      STableBlockScanInfo* pInfo = *(STableBlockScanInfo**)p;
+
+      pInfo->iterInit = false;
+      pInfo->iter.hasVal = false;
+      pInfo->iiter.hasVal = false;
+
+      if (pInfo->iter.iter != NULL) {
+        pInfo->iter.iter = tsdbTbDataIterDestroy(pInfo->iter.iter);
       }
 
-      p->delSkyline = taosArrayDestroy(p->delSkyline);
-      // p->lastKey = ts;
+      if (pInfo->iiter.iter != NULL) {
+        pInfo->iiter.iter = tsdbTbDataIterDestroy(pInfo->iiter.iter);
+      }
+
+      pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
+      // pInfo->lastKey = ts;
     }
   } else {
-    pBlockScanInfo = *pStatus->pTableIter;
+    pBlockScanInfo = pStatus->pTableIter == NULL ? NULL : *pStatus->pTableIter;
     if (pBlockScanInfo) {
       // save lastKey to restore memory iterator
       STimeWindow w = pReader->pResBlock->info.window;
@@ -4053,10 +4062,12 @@ int32_t tsdbReaderSuspend(STsdbReader* pReader) {
   }
 
   tsdbUntakeReadSnap(pReader, pReader->pReadSnap, false);
+  pReader->pReadSnap = NULL;
 
   pReader->suspended = true;
 
-  tsdbDebug("reader: %p suspended uid %" PRIu64 " in this query %s", pReader, pBlockScanInfo->uid, pReader->idStr);
+  tsdbDebug("reader: %p suspended uid %" PRIu64 " in this query %s", pReader, pBlockScanInfo ? pBlockScanInfo->uid : 0,
+            pReader->idStr);
   return code;
 
 _err:
