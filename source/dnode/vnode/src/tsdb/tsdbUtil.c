@@ -689,7 +689,9 @@ int32_t tRowMergerInit2(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRo
       code = tRealloc(&pColVal->value.pData, pColVal->value.nData);
       if (code) goto _exit;
 
-      memcpy(pColVal->value.pData, pVal, pColVal->value.nData);
+      if (pColVal->value.nData) {
+        memcpy(pColVal->value.pData, pVal, pColVal->value.nData);
+      }
     }
 
     if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
@@ -736,7 +738,9 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
           if (code) return code;
 
           tColVal->value.nData = pColVal->value.nData;
-          memcpy(tColVal->value.pData, pColVal->value.pData, pColVal->value.nData);
+          if (pColVal->value.nData) {
+            memcpy(tColVal->value.pData, pColVal->value.pData, pColVal->value.nData);
+          }
           tColVal->flag = 0;
         } else {
           taosArraySet(pMerger->pArray, iCol, pColVal);
@@ -750,7 +754,9 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
           if (code) return code;
 
           tColVal->value.nData = pColVal->value.nData;        
-          memcpy(tColVal->value.pData, pColVal->value.pData, pColVal->value.nData);
+          if (pColVal->value.nData) {
+            memcpy(tColVal->value.pData, pColVal->value.pData, pColVal->value.nData);
+          }
           tColVal->flag = 0;
         } else {
           taosArraySet(pMerger->pArray, iCol, pColVal);
@@ -800,8 +806,10 @@ int32_t tRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
       pColVal->value.pData = NULL;
       code = tRealloc(&pColVal->value.pData, pColVal->value.nData);
       if (code) goto _exit;
-    
-      memcpy(pColVal->value.pData, pVal, pColVal->value.nData);
+
+      if (pColVal->value.nData) {
+        memcpy(pColVal->value.pData, pVal, pColVal->value.nData);
+      }
     }
     
     if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
@@ -844,7 +852,9 @@ int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
             if (code) goto _exit;
 
             pTColVal->value.nData = pColVal->value.nData;
-            memcpy(pTColVal->value.pData,  pColVal->value.pData, pTColVal->value.nData);
+            if (pTColVal->value.nData) {
+              memcpy(pTColVal->value.pData,  pColVal->value.pData, pTColVal->value.nData);
+            }
             pTColVal->flag = 0;
           } else {
             tFree(pTColVal->value.pData);
@@ -864,7 +874,9 @@ int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
             if (code) goto _exit;
 
             tColVal->value.nData = pColVal->value.nData;
-            memcpy(tColVal->value.pData,  pColVal->value.pData, tColVal->value.nData);
+            if (tColVal->value.nData) {
+              memcpy(tColVal->value.pData,  pColVal->value.pData, tColVal->value.nData);
+            }
             tColVal->flag = 0;
           } else {
             tFree(tColVal->value.pData);
