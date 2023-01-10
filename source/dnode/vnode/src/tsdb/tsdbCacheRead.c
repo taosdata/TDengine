@@ -383,7 +383,7 @@ _end:
   tsdbDataFReaderClose(&pr->pDataFReader);
 
   resetLastBlockLoadInfo(pr->pLoadInfo);
-  tsdbUntakeReadSnap((STsdbReader*)pr, pr->pReadSnap);
+  tsdbUntakeReadSnap((STsdbReader*)pr, pr->pReadSnap, true);
   taosThreadMutexUnlock(&pr->readerMutex);
 
   for (int32_t j = 0; j < pr->numOfCols; ++j) {

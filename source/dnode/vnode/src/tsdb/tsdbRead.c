@@ -3953,7 +3953,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
   }
 
   qTrace("tsdb/reader: %p, untake snapshot", pReader);
-  tsdbUntakeReadSnap(pReader, pReader->pReadSnap);
+  tsdbUntakeReadSnap(pReader, pReader->pReadSnap, true);
 
   taosThreadMutexDestroy(&pReader->readerMutex);
 
@@ -4052,7 +4052,7 @@ int32_t tsdbReaderSuspend(STsdbReader* pReader) {
     }
   }
 
-  tsdbUntakeReadSnap(pReader, pReader->pReadSnap);
+  tsdbUntakeReadSnap(pReader, pReader->pReadSnap, false);
 
   pReader->suspended = true;
 
@@ -4083,7 +4083,8 @@ static int32_t tsdbSetQueryReseek(void* pQHandle) {
   } else if (code == EBUSY) {
     return TSDB_CODE_VND_QUERY_BUSY;
   } else {
-    return -1;
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return TSDB_CODE_FAILED;
   }
 }
 
@@ -4714,16 +4715,16 @@ _exit:
   return code;
 }
 
-void tsdbUntakeReadSnap(STsdbReader* pReader, STsdbReadSnap* pSnap) {
+void tsdbUntakeReadSnap(STsdbReader* pReader, STsdbReadSnap* pSnap, bool proactive) {
   STsdb* pTsdb = pReader->pTsdb;
 
   if (pSnap) {
     if (pSnap->pMem) {
-      tsdbUnrefMemTable(pSnap->pMem, pSnap->pNode, true);
+      tsdbUnrefMemTable(pSnap->pMem, pSnap->pNode, proactive);
     }
 
     if (pSnap->pIMem) {
-      tsdbUnrefMemTable(pSnap->pIMem, pSnap->pINode, true);
+      tsdbUnrefMemTable(pSnap->pIMem, pSnap->pINode, proactive);
     }
 
     tsdbFSUnref(pTsdb, &pSnap->fs);
