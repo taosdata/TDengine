@@ -33,7 +33,7 @@ TEST(osTest, osSystem) {
   const char *flags = "UTL FATAL ";
   ELogLevel   level = DEBUG_FATAL;
   int32_t     dflag = 255;  // tsLogEmbedded ? 255 : uDebugFlag
-  taosPrintTrace(flags, level, dflag);
+  taosPrintTrace(flags, level, dflag, 0);
 }
 
 void fileOperateOnFree(void *param) {

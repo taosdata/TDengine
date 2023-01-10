@@ -16,8 +16,8 @@ SyncLocalCmd *createMsg() {
   pMsg->srcId.vgId = 100;
   pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 5678);
   pMsg->destId.vgId = 100;
-  pMsg->sdNewTerm = 123;
-  pMsg->fcIndex = 456;
+  // pMsg->sdNewTerm = 123;
+  // pMsg->fcIndex = 456;
   pMsg->cmd = SYNC_LOCAL_CMD_STEP_DOWN;
 
   return pMsg;

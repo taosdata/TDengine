@@ -17,20 +17,20 @@
 #include "syncUtil.h"
 #include "syncIndexMgr.h"
 #include "syncMessage.h"
+#include "syncPipeline.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 #include "syncSnapshot.h"
 
 void syncCfg2SimpleStr(const SSyncCfg* pCfg, char* buf, int32_t bufLen) {
-  int32_t len = snprintf(buf, bufLen, "{r-num:%d, my:%d, ", pCfg->replicaNum, pCfg->myIndex);
-
+  int32_t len = snprintf(buf, bufLen, "{num:%d, as:%d, [", pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+    len += snprintf(buf + len, bufLen - len, "%s:%d", pCfg->nodeInfo[i].nodeFqdn, pCfg->nodeInfo[i].nodePort);
     if (i < pCfg->replicaNum - 1) {
-      len += snprintf(buf + len, bufLen - len, "%s:%d, ", pCfg->nodeInfo[i].nodeFqdn, pCfg->nodeInfo[i].nodePort);
-    } else {
-      len += snprintf(buf + len, bufLen - len, "%s:%d}", pCfg->nodeInfo[i].nodeFqdn, pCfg->nodeInfo[i].nodePort);
+      len += snprintf(buf + len, bufLen - len, "%s", ", ");
     }
   }
+  len += snprintf(buf + len, bufLen - len, "%s", "]}");
 }
 
 void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet) {
@@ -89,32 +89,55 @@ bool syncUtilUserRollback(tmsg_t msgType) { return msgType != TDMT_SYNC_NOOP && 
 
 // for leader
 static void syncHearbeatReplyTime2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
-  int32_t len = 5;
-
+  int32_t len = 0;
+  len += snprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     int64_t tsMs = syncIndexMgrGetRecvTime(pSyncNode->pMatchIndex, &(pSyncNode->replicasId[i]));
-
+    len += snprintf(buf + len, bufLen - len, "%d:%" PRId64, i, tsMs);
     if (i < pSyncNode->replicaNum - 1) {
-      len += snprintf(buf + len, bufLen - len, "%d:%" PRId64 ",", i, tsMs);
-    } else {
-      len += snprintf(buf + len, bufLen - len, "%d:%" PRId64 "}", i, tsMs);
+      len += snprintf(buf + len, bufLen - len, "%s", ",");
     }
   }
+  len += snprintf(buf + len, bufLen - len, "%s", "}");
 }
 
 // for follower
 static void syncHearbeatTime2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
-  int32_t len = 4;
-
+  int32_t len = 0;
+  len += snprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     int64_t tsMs = syncIndexMgrGetRecvTime(pSyncNode->pNextIndex, &(pSyncNode->replicasId[i]));
-
+    len += snprintf(buf + len, bufLen - len, "%d:%" PRId64, i, tsMs);
     if (i < pSyncNode->replicaNum - 1) {
-      len += snprintf(buf + len, bufLen - len, "%d:%" PRId64 ",", i, tsMs);
-    } else {
-      len += snprintf(buf + len, bufLen - len, "%d:%" PRId64 "}", i, tsMs);
+      len += snprintf(buf + len, bufLen - len, "%s", ",");
     }
   }
+  len += snprintf(buf + len, bufLen - len, "%s", "}");
+}
+
+static void syncLogBufferStates2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
+  SSyncLogBuffer* pBuf = pSyncNode->pLogBuf;
+  if (pBuf == NULL) {
+    return;
+  }
+  int len = 0;
+  len += snprintf(buf + len, bufLen - len, "[%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pBuf->startIndex,
+                  pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+}
+
+static void syncLogReplMgrStates2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
+  int len = 0;
+  len += snprintf(buf + len, bufLen - len, "%s", "{");
+  for (int32_t i = 0; i < pSyncNode->replicaNum; i++) {
+    SSyncLogReplMgr* pMgr = pSyncNode->logReplMgrs[i];
+    if (pMgr == NULL) break;
+    len += snprintf(buf + len, bufLen - len, "%d:%d [%" PRId64 " %" PRId64 ", %" PRId64 ")", i, pMgr->restored,
+                    pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex);
+    if (i + 1 < pSyncNode->replicaNum) {
+      len += snprintf(buf + len, bufLen - len, "%s", ", ");
+    }
+  }
+  len += snprintf(buf + len, bufLen - len, "%s", "}");
 }
 
 static void syncPeerState2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
@@ -135,8 +158,8 @@ static void syncPeerState2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
 }
 
 void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNode* pNode, const char* format, ...) {
-  if (pNode == NULL || pNode->pRaftStore == NULL || pNode->pLogStore == NULL) return;
-  int64_t currentTerm = pNode->pRaftStore->currentTerm;
+  if (pNode == NULL || pNode->pLogStore == NULL) return;
+  int64_t currentTerm = pNode->raftStore.currentTerm;
 
   // save error code, otherwise it will be overwritten
   int32_t errCode = terrno;
@@ -156,16 +179,19 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
   int32_t cacheHit = pNode->pLogStore->cacheHit;
   int32_t cacheMiss = pNode->pLogStore->cacheMiss;
 
-  char cfgStr[1024];
+  char cfgStr[1024] = "";
   syncCfg2SimpleStr(&pNode->raftCfg.cfg, cfgStr, sizeof(cfgStr));
 
-  char peerStr[1024] = "{";
-  syncPeerState2Str(pNode, peerStr, sizeof(peerStr));
+  char replMgrStatesStr[1024] = "";
+  syncLogReplMgrStates2Str(pNode, replMgrStatesStr, sizeof(replMgrStatesStr));
 
-  char hbrTimeStr[256] = "hbr:{";
+  char bufferStatesStr[256] = "";
+  syncLogBufferStates2Str(pNode, bufferStatesStr, sizeof(bufferStatesStr));
+
+  char hbrTimeStr[256] = "";
   syncHearbeatReplyTime2Str(pNode, hbrTimeStr, sizeof(hbrTimeStr));
 
-  char hbTimeStr[256] = "hb:{";
+  char hbTimeStr[256] = "";
   syncHearbeatTime2Str(pNode, hbTimeStr, sizeof(hbTimeStr));
 
   char    eventLog[512];  // {0};
@@ -181,28 +207,28 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
 
   // restore error code
   terrno = errCode;
-
+ 
   if (pNode != NULL) {
     taosPrintLog(flags, level, dflag,
                  "vgId:%d, %s, sync:%s, term:%" PRIu64 ", commit-index:%" PRId64 ", first-ver:%" PRId64
                  ", last-ver:%" PRId64 ", min:%" PRId64 ", snap:%" PRId64 ", snap-term:%" PRIu64
-                 ", elect-times:%d, as-leader-times:%d, cfg-ch-times:%d, hit:%d, mis:%d, hb-slow:%d, hbr-slow:%d, "
+                 ", elect-times:%d, as-leader-times:%d, cfg-ch-times:%d, hb-slow:%d, hbr-slow:%d, "
                  "aq-items:%d, snaping:%" PRId64 ", replicas:%d, last-cfg:%" PRId64
-                 ", chging:%d, restore:%d, quorum:%d, elect-lc-timer:%" PRId64 ", hb:%" PRId64 ", %s, %s, %s, %s",
+                 ", chging:%d, restore:%d, quorum:%d, elect-lc-timer:%" PRId64 ", hb:%" PRId64
+                 ", buffer:%s, repl-mgrs:%s, members:%s, hb:%s, hb-reply:%s",
                  pNode->vgId, eventLog, syncStr(pNode->state), currentTerm, pNode->commitIndex, logBeginIndex,
                  logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm, pNode->electNum,
-                 pNode->becomeLeaderNum, pNode->configChangeNum, cacheHit, cacheMiss, pNode->hbSlowNum,
-                 pNode->hbrSlowNum, aqItems, pNode->snapshottingIndex, pNode->replicaNum,
-                 pNode->raftCfg.lastConfigIndex, pNode->changing, pNode->restoreFinish, syncNodeDynamicQuorum(pNode),
-                 pNode->electTimerLogicClock, pNode->heartbeatTimerLogicClockUser, peerStr, cfgStr, hbTimeStr,
-                 hbrTimeStr);
+                 pNode->becomeLeaderNum, pNode->configChangeNum, pNode->hbSlowNum, pNode->hbrSlowNum, aqItems,
+                 pNode->snapshottingIndex, pNode->replicaNum, pNode->raftCfg.lastConfigIndex, pNode->changing,
+                 pNode->restoreFinish, syncNodeDynamicQuorum(pNode), pNode->electTimerLogicClock, pNode->heartbeatTimerLogicClockUser,
+                 bufferStatesStr, replMgrStatesStr, cfgStr, hbTimeStr, hbrTimeStr);
   }
 }
 
 void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotSender* pSender,
                                 const char* format, ...) {
   SSyncNode* pNode = pSender->pSyncNode;
-  if (pNode == NULL || pNode->pRaftStore == NULL || pNode->pLogStore == NULL) return;
+  if (pNode == NULL || pNode->pLogStore == NULL) return;
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
   if (pNode->pFsm != NULL && pNode->pFsm->FpGetSnapshotInfo != NULL) {
@@ -216,7 +242,7 @@ void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dfla
     logBeginIndex = pNode->pLogStore->syncLogBeginIndex(pNode->pLogStore);
   }
 
-  char cfgStr[1024];
+  char cfgStr[1024] = "";
   syncCfg2SimpleStr(&pNode->raftCfg.cfg, cfgStr, sizeof(cfgStr));
 
   char peerStr[1024] = "{";
@@ -238,7 +264,7 @@ void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dfla
                pNode->vgId, eventLog, syncStr(pNode->state), pSender, pSender->snapshotParam.start,
                pSender->snapshotParam.end, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
                pSender->snapshot.lastConfigIndex, pSender->seq, pSender->ack, pSender->finish, pSender->replicaIndex,
-               DID(&pNode->replicasId[pSender->replicaIndex]), pNode->pRaftStore->currentTerm, pNode->commitIndex,
+               DID(&pNode->replicasId[pSender->replicaIndex]), pNode->raftStore.currentTerm, pNode->commitIndex,
                logBeginIndex, logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                pNode->raftCfg.isStandBy, pNode->raftCfg.snapshotStrategy, pNode->raftCfg.batchSize, pNode->replicaNum,
                pNode->raftCfg.lastConfigIndex, pNode->changing, pNode->restoreFinish, syncNodeDynamicQuorum(pNode),
@@ -248,7 +274,7 @@ void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dfla
 void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotReceiver* pReceiver,
                                   const char* format, ...) {
   SSyncNode* pNode = pReceiver->pSyncNode;
-  if (pNode == NULL || pNode->pRaftStore == NULL || pNode->pLogStore == NULL) return;
+  if (pNode == NULL || pNode->pLogStore == NULL) return;
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
   if (pNode->pFsm != NULL && pNode->pFsm->FpGetSnapshotInfo != NULL) {
@@ -262,7 +288,7 @@ void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t df
     logBeginIndex = pNode->pLogStore->syncLogBeginIndex(pNode->pLogStore);
   }
 
-  char cfgStr[1024];
+  char cfgStr[1024] = "";
   syncCfg2SimpleStr(&pNode->raftCfg.cfg, cfgStr, sizeof(cfgStr));
 
   char peerStr[1024] = "{";
@@ -285,7 +311,7 @@ void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t df
                pNode->vgId, eventLog, syncStr(pNode->state), pReceiver, pReceiver->start, pReceiver->ack,
                pReceiver->term, pReceiver->startTime, DID(&pReceiver->fromId), pReceiver->snapshotParam.start,
                pReceiver->snapshotParam.end, pReceiver->snapshot.lastApplyIndex, pReceiver->snapshot.lastApplyTerm,
-               pReceiver->snapshot.lastConfigIndex, pNode->pRaftStore->currentTerm, pNode->commitIndex, logBeginIndex,
+               pReceiver->snapshot.lastConfigIndex, pNode->raftStore.currentTerm, pNode->commitIndex, logBeginIndex,
                logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                pNode->raftCfg.isStandBy, pNode->raftCfg.snapshotStrategy, pNode->raftCfg.batchSize, pNode->replicaNum,
                pNode->raftCfg.lastConfigIndex, pNode->changing, pNode->restoreFinish, syncNodeDynamicQuorum(pNode),
@@ -304,7 +330,7 @@ void syncLogRecvTimer(SSyncNode* pSyncNode, const SyncTimeout* pMsg, const char*
 
 void syncLogRecvLocalCmd(SSyncNode* pSyncNode, const SyncLocalCmd* pMsg, const char* s) {
   sNTrace(pSyncNode, "recv sync-local-cmd {cmd:%d-%s, sd-new-term:%" PRId64 ", fc-index:%" PRId64 "}, %s", pMsg->cmd,
-          syncLocalCmdGetStr(pMsg->cmd), pMsg->sdNewTerm, pMsg->fcIndex, s);
+          syncLocalCmdGetStr(pMsg->cmd), pMsg->currentTerm, pMsg->commitIndex, s);
 }
 
 void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {

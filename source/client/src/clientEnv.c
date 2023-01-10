@@ -28,13 +28,16 @@
 #include "trpc.h"
 #include "tsched.h"
 #include "ttime.h"
+#include "thttp.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
 
 SAppInfo appInfo;
+int64_t  lastClusterId = 0;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
+int32_t  clientStop = 0;
 
 int32_t timestampDeltaLimit = 900;  // s
 
@@ -385,12 +388,160 @@ void destroyRequest(SRequestObj *pRequest) {
   removeRequest(pRequest->self);
 }
 
+void taosClientCrash(int signum, void *sigInfo, void *context) {
+  taosIgnSignal(SIGTERM);
+  taosIgnSignal(SIGHUP);
+  taosIgnSignal(SIGINT);
+  taosIgnSignal(SIGBREAK);
+
+#if !defined(WINDOWS)
+  taosIgnSignal(SIGBUS);
+#endif  
+  taosIgnSignal(SIGABRT);
+  taosIgnSignal(SIGFPE);
+  taosIgnSignal(SIGSEGV);
+
+  char *pMsg = NULL;
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;
+  int64_t     msgLen= -1;
+
+  if (tsEnableCrashReport) {
+    if (taosGenCrashJsonMsg(signum, &pMsg, lastClusterId, appInfo.startTime)) {
+      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
+      goto _return;
+    } else {
+      msgLen = strlen(pMsg);  
+    }
+  }
+  
+_return:
+
+  taosLogCrashInfo("taos", pMsg, msgLen, signum, sigInfo);
+
+#ifdef _TD_DARWIN_64
+  exit(signum);
+#elif defined(WINDOWS)
+  exit(signum);
+#endif
+}
+
+void crashReportThreadFuncUnexpectedStopped(void) { atomic_store_32(&clientStop, -1); }
+
+static void *tscCrashReportThreadFp(void *param) {
+  setThreadName("client-crashReport");
+  char filepath[PATH_MAX] = {0};
+  snprintf(filepath, sizeof(filepath), "%s%s.taosCrashLog", tsLogDir, TD_DIRSEP);
+  char *pMsg = NULL;
+  int64_t msgLen = 0;
+  TdFilePtr pFile = NULL;
+  bool truncateFile = false;
+  int32_t sleepTime = 200;
+  int32_t reportPeriodNum = 3600 * 1000 / sleepTime;
+  int32_t loopTimes = reportPeriodNum;
+
+#ifdef WINDOWS
+  if (taosCheckCurrentInDll()) {
+    atexit(crashReportThreadFuncUnexpectedStopped);
+  }
+#endif
+  
+  while (1) {
+    if (clientStop) break;
+    if (loopTimes++ < reportPeriodNum) {
+      taosMsleep(sleepTime);
+      continue;
+    }
+
+    taosReadCrashInfo(filepath, &pMsg, &msgLen, &pFile);
+    if (pMsg && msgLen > 0) {
+      if (taosSendHttpReport(tsTelemServer, tsClientCrashReportUri, tsTelemPort, pMsg, msgLen, HTTP_FLAT) != 0) {
+        tscError("failed to send crash report");
+        if (pFile) {
+          taosReleaseCrashLogFile(pFile, false);
+          continue;
+        }
+      } else {
+        tscInfo("succeed to send crash report");
+        truncateFile = true;
+      }
+    } else {
+      tscDebug("no crash info");
+    }
+
+    taosMemoryFree(pMsg);
+
+    if (pMsg && msgLen > 0) {
+      pMsg = NULL;
+      continue;
+    }
+    
+    if (pFile) {
+      taosReleaseCrashLogFile(pFile, truncateFile);
+      truncateFile = false;
+    }
+    
+    taosMsleep(sleepTime);
+    loopTimes = 0;
+  }
+
+  clientStop = -1;
+  return NULL;
+}
+
+int32_t tscCrashReportInit() {
+  if (!tsEnableCrashReport) {
+    return 0;
+  }
+  
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TdThread            crashReportThread;
+  if (taosThreadCreate(&crashReportThread, &thAttr, tscCrashReportThreadFp, NULL) != 0) {
+    tscError("failed to create crashReport thread since %s", strerror(errno));
+    return -1;
+  }
+
+  taosThreadAttrDestroy(&thAttr);
+  return 0;
+}
+
+void tscStopCrashReport() {
+  if (!tsEnableCrashReport) {
+    return;
+  }
+
+  if (atomic_val_compare_exchange_32(&clientStop, 0, 1)) {
+    tscDebug("hb thread already stopped");
+    return;
+  }
+
+  while (atomic_load_32(&clientStop) > 0) {
+    taosMsleep(100);
+  }
+}
+
+static void tscSetSignalHandle() {
+#if !defined(WINDOWS)
+  taosSetSignal(SIGBUS, taosClientCrash);
+#endif
+  taosSetSignal(SIGABRT, taosClientCrash);
+  taosSetSignal(SIGFPE, taosClientCrash);
+  taosSetSignal(SIGSEGV, taosClientCrash);
+}
+
 void taos_init_imp(void) {
   // In the APIs of other program language, taos_cleanup is not available yet.
   // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
   atexit(taos_cleanup);
   errno = TSDB_CODE_SUCCESS;
   taosSeedRand(taosGetTimestampSec());
+
+  appInfo.pid = taosGetPId();
+  appInfo.startTime = taosGetTimestampMs();
+  appInfo.pInstMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
 
   deltaToUtcInitOnce();
 
@@ -403,6 +554,8 @@ void taos_init_imp(void) {
     tscInitRes = -1;
     return;
   }
+
+  tscSetSignalHandle();
 
   initQueryModuleMsgHandle();
 
@@ -433,9 +586,8 @@ void taos_init_imp(void) {
   taosGetAppName(appInfo.appName, NULL);
   taosThreadMutexInit(&appInfo.mutex, NULL);
 
-  appInfo.pid = taosGetPId();
-  appInfo.startTime = taosGetTimestampMs();
-  appInfo.pInstMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  tscCrashReportInit();
+  
   tscDebug("client is initialized successfully");
 }
 
