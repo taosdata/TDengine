@@ -150,7 +150,7 @@ typedef struct SMTbCursor SMTbCursor;
 
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);
-int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
+int32_t     metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType);
 #endif
 
 // tsdb

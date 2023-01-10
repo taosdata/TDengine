@@ -19,6 +19,7 @@
 #include "systable.h"
 
 #define SHOW_STEP_SIZE 100
+#define SHOW_COLS_STEP_SIZE 4096
 
 static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq);
 static void      mndFreeShowObj(SShowObj *pShow);
@@ -228,6 +229,9 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
   }
 
+  if(pShow->type == TSDB_MGMT_TABLE_COL){   // expend capacity for ins_columns
+    rowsToRead = SHOW_COLS_STEP_SIZE;
+  }
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
   if (retrieveFp == NULL) {
     mndReleaseShowObj(pShow, false);

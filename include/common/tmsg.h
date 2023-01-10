@@ -382,6 +382,13 @@ static FORCE_INLINE void tDeleteSSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
   }
 }
 
+static FORCE_INLINE void tDeleteSSchemaWrapperForHash(void* pSchemaWrapper) {
+  if (pSchemaWrapper) {
+    taosMemoryFree(((SSchemaWrapper*)pSchemaWrapper)->pSchema);
+    taosMemoryFree(pSchemaWrapper);
+  }
+}
+
 static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI8(buf, pSchema->type);

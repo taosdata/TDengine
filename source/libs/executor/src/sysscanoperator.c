@@ -67,6 +67,7 @@ typedef struct SSysTableScanInfo {
   SLoadRemoteDataInfo    loadInfo;
 
   int32_t                tbnameSlotId;
+  bool                   isGetStableCols;
 } SSysTableScanInfo;
 
 typedef struct {
@@ -140,8 +141,9 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
                                                 SMetaReader* smrChildTable, const char* dbname, const char* tableName,
                                                 int32_t* pNumOfRows, const SSDataBlock* dataBlock);
 
-static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, SMetaReader* smrTable, const char* dbname,
-                                                int32_t* pNumOfRows, const SSDataBlock* dataBlock);
+static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, const char* dbname,
+                                                int32_t* pNumOfRows, const SSDataBlock* dataBlock,
+                                                char* tName, SSchemaWrapper* schemaRow, char* tableType);
 
 static void relocateAndFilterSysTagsScanResult(SSysTableScanInfo* pInfo, int32_t numOfRows, SSDataBlock* dataBlock,
                                                SFilterInfo* pFilterInfo);
@@ -457,14 +459,38 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       return NULL;
     }
 
-    if (smrTable.me.type == TSDB_CHILD_TABLE) {
+    if (smrTable.me.type == TSDB_SUPER_TABLE) {
       metaReaderClear(&smrTable);
       blockDataDestroy(dataBlock);
       pInfo->loadInfo.totalRows = 0;
       return NULL;
     }
 
-    sysTableUserColsFillOneTableCols(pInfo, &smrTable, dbname, &numOfRows, dataBlock);
+    if (smrTable.me.type == TSDB_CHILD_TABLE) {
+      int64_t suid = smrTable.me.ctbEntry.suid;
+      metaReaderClear(&smrTable);
+      metaReaderInit(&smrTable, pInfo->readHandle.meta, 0);
+      code = metaGetTableEntryByUid(&smrTable, suid);
+      if (code != TSDB_CODE_SUCCESS) {
+        // terrno has been set by metaGetTableEntryByName, therefore, return directly
+        metaReaderClear(&smrTable);
+        blockDataDestroy(dataBlock);
+        pInfo->loadInfo.totalRows = 0;
+        return NULL;
+      }
+    }
+
+    char    typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    SSchemaWrapper *schemaRow = NULL;
+    if(smrTable.me.type == TSDB_SUPER_TABLE){
+      schemaRow  = &smrTable.me.stbEntry.schemaRow;
+      STR_TO_VARSTR(typeName, "CHILD_TABLE");
+    }else if(smrTable.me.type == TSDB_NORMAL_TABLE){
+      schemaRow  = &smrTable.me.ntbEntry.schemaRow;
+      STR_TO_VARSTR(typeName, "NORMAL_TABLE");
+    }
+
+    sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, dataBlock, tableName, schemaRow, typeName);
     metaReaderClear(&smrTable);
 
     if (numOfRows > 0) {
@@ -482,12 +508,50 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     pInfo->pCur = metaOpenTbCursor(pInfo->readHandle.meta);
   }
 
-  while ((ret = metaTbCursorNext(pInfo->pCur)) == 0) {
-    if (pInfo->pCur->mr.me.type == TSDB_CHILD_TABLE) {
+  SHashObj *stableSchema = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  taosHashSetFreeFp(stableSchema, tDeleteSSchemaWrapperForHash);
+  while ((ret = metaTbCursorNext(pInfo->pCur, TSDB_TABLE_MAX)) == 0) {
+    char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+
+    SSchemaWrapper *schemaRow = NULL;
+
+    if(pInfo->pCur->mr.me.type == TSDB_SUPER_TABLE){
+      void *schema = taosHashGet(stableSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t));
+      if(schema == NULL){
+        SSchemaWrapper *schemaWrapper = tCloneSSchemaWrapper(&pInfo->pCur->mr.me.stbEntry.schemaRow);
+        taosHashPut(stableSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
+      }
+      continue;
+    }else if (pInfo->pCur->mr.me.type == TSDB_CHILD_TABLE) {
+      STR_TO_VARSTR(typeName, "CHILD_TABLE");
+      STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
+
+      int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
+      void *schema = taosHashGet(stableSchema, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t));
+      if(schema != NULL){
+        schemaRow = *(SSchemaWrapper **)schema;
+      }else{
+        tDecoderClear(&pInfo->pCur->mr.coder);
+        int code = metaGetTableEntryByUid(&pInfo->pCur->mr, suid);
+        if (code != TSDB_CODE_SUCCESS) {
+          // terrno has been set by metaGetTableEntryByName, therefore, return directly
+          qError("sysTableScanUserCols get meta by suid:%"PRId64 " error, code:%d", suid, code);
+          blockDataDestroy(dataBlock);
+          pInfo->loadInfo.totalRows = 0;
+          return NULL;
+        }
+        schemaRow  = &pInfo->pCur->mr.me.stbEntry.schemaRow;
+      }
+    }else if(pInfo->pCur->mr.me.type == TSDB_NORMAL_TABLE){
+      schemaRow  = &pInfo->pCur->mr.me.ntbEntry.schemaRow;
+      STR_TO_VARSTR(typeName, "NORMAL_TABLE");
+      STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
+    }else{
       continue;
     }
 
-    sysTableUserColsFillOneTableCols(pInfo, &pInfo->pCur->mr, dbname, &numOfRows, dataBlock);
+    sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, dataBlock, tableName, schemaRow, typeName);
 
     if (numOfRows >= pOperator->resultInfo.capacity) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
@@ -593,7 +657,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     pInfo->pCur = metaOpenTbCursor(pInfo->readHandle.meta);
   }
 
-  while ((ret = metaTbCursorNext(pInfo->pCur)) == 0) {
+  while ((ret = metaTbCursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
     if (pInfo->pCur->mr.me.type != TSDB_CHILD_TABLE) {
       continue;
     }
@@ -830,64 +894,59 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, SMetaReader* smrTable, const char* dbname,
-                                                int32_t* pNumOfRows, const SSDataBlock* dataBlock) {
-  char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_TO_VARSTR(tableName, smrTable->me.name);
-
-  SSchemaWrapper schemaRow = {0};
-  if(smrTable->me.type == TSDB_SUPER_TABLE){
-    schemaRow  = smrTable->me.stbEntry.schemaRow;
-  }else if(smrTable->me.type == TSDB_NORMAL_TABLE){
-    schemaRow  = smrTable->me.ntbEntry.schemaRow;
+static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, const char* dbname,
+                                                int32_t* pNumOfRows, const SSDataBlock* dataBlock, char* tName,
+                                                SSchemaWrapper* schemaRow, char* tableType) {
+  if(schemaRow == NULL){
+    qError("sysTableUserColsFillOneTableCols schemaRow is NULL");
+    return TSDB_CODE_SUCCESS;
   }
   int32_t numOfRows = *pNumOfRows;
 
-  int32_t numOfCols = schemaRow.nCols;
+  int32_t numOfCols = schemaRow->nCols;
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = NULL;
 
     // table name
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 0);
-    colDataAppend(pColInfoData, numOfRows, tableName, tableName == NULL ? true : false);
+    colDataAppend(pColInfoData, numOfRows, tName, false);
+
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
+    colDataAppend(pColInfoData, numOfRows, tableType, false);
 
     // database name
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
     colDataAppend(pColInfoData, numOfRows, dbname, false);
 
     // col name
     char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(colName, schemaRow.pSchema[i].name);
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
+    STR_TO_VARSTR(colName, schemaRow->pSchema[i].name);
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
     colDataAppend(pColInfoData, numOfRows, colName, false);
 
     // col type
-    int8_t colType = schemaRow.pSchema[i].type;
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
+    int8_t colType = schemaRow->pSchema[i].type;
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
     char colTypeStr[VARSTR_HEADER_SIZE + 32];
     int  colTypeLen = sprintf(varDataVal(colTypeStr), "%s", tDataTypes[colType].name);
     if (colType == TSDB_DATA_TYPE_VARCHAR) {
       colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d)",
-                            (int32_t)(schemaRow.pSchema[i].bytes - VARSTR_HEADER_SIZE));
+                            (int32_t)(schemaRow->pSchema[i].bytes - VARSTR_HEADER_SIZE));
     } else if (colType == TSDB_DATA_TYPE_NCHAR) {
       colTypeLen += sprintf(
           varDataVal(colTypeStr) + colTypeLen, "(%d)",
-          (int32_t)((schemaRow.pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+          (int32_t)((schemaRow->pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
     varDataSetLen(colTypeStr, colTypeLen);
     colDataAppend(pColInfoData, numOfRows, (char*)colTypeStr, false);
 
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
-    colDataAppend(pColInfoData, numOfRows, (const char*)&schemaRow.pSchema[i].bytes, false);
-
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
-    colDataAppend(pColInfoData, numOfRows, NULL, true);
+    colDataAppend(pColInfoData, numOfRows, (const char*)&schemaRow->pSchema[i].bytes, false);
 
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 6);
-    colDataAppend(pColInfoData, numOfRows, NULL, true);
-
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 7);
-    colDataAppend(pColInfoData, numOfRows, NULL, true);
+    for (int32_t j = 6; j <= 8; ++j) {
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, j);
+      colDataAppendNULL(pColInfoData, numOfRows);
+    }
     ++numOfRows;
   }
 
@@ -1197,7 +1256,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   char n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
   int32_t ret = 0;
-  while ((ret = metaTbCursorNext(pInfo->pCur)) == 0) {
+  while ((ret = metaTbCursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
     STR_TO_VARSTR(n, pInfo->pCur->mr.me.name);
 
     // table name
@@ -1489,7 +1548,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
     pBlock = sysTableScanUserTables(pOperator);
   } else if (strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
     pBlock = sysTableScanUserTags(pOperator);
-  } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 && pInfo->readHandle.mnd == NULL) {
     pBlock = sysTableScanUserCols(pOperator);
   } else if (strncasecmp(name, TSDB_INS_TABLE_STABLES, TSDB_TABLE_FNAME_LEN) == 0 && pInfo->showRewrite &&
              IS_SYS_DBNAME(dbName)) {
