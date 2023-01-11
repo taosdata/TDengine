@@ -90,6 +90,7 @@
 //
 
 int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
+  ASSERT(false && "deprecated");
   if (ths->state != TAOS_SYNC_STATE_FOLLOWER) {
     sNTrace(ths, "can not do follower commit");
     return -1;
@@ -206,12 +207,13 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   accepted = true;
 
 _SEND_RESPONSE:
+  pEntry = NULL;
   pReply->matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, &pReply->lastMatchTerm);
   bool matched = (pReply->matchIndex >= pReply->lastSendIndex);
   if (accepted && matched) {
     pReply->success = true;
     // update commit index only after matching
-    (void)syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
+    (void)syncNodeUpdateCommitIndex(ths, TMIN(pMsg->commitIndex, pReply->lastSendIndex));
   }
 
   // ack, i.e. send response

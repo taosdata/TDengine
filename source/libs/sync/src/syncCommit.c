@@ -44,6 +44,7 @@
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
 void syncOneReplicaAdvance(SSyncNode* pSyncNode) {
+  ASSERT(false && "deprecated");
   if (pSyncNode == NULL) {
     sError("pSyncNode is NULL");
     return;

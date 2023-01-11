@@ -238,6 +238,7 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
     tinfo->tags = taosArrayDup(preLineKV, NULL);
 
     smlSetCTableName(tinfo);
+    tinfo->uid = info->uid++;
     if (info->dataFormat) {
       info->currSTableMeta->uid = tinfo->uid;
       tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);

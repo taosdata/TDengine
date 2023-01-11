@@ -322,6 +322,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
   tinfo->tags = taosArrayDup(preLineKV, NULL);
 
   smlSetCTableName(tinfo);
+  tinfo->uid = info->uid++;
   if(info->dataFormat) {
     info->currSTableMeta->uid = tinfo->uid;
     tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);

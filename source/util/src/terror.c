@@ -320,6 +320,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_COL_SUBSCRIBED,           "Table column is subsc
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_AVAIL_BUFPOOL,         "No availabe buffer pool")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_STOPPED,                  "Vnode stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_DUP_REQUEST,              "Duplicate write request")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_QUERY_BUSY,               "Query busy")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         "Invalid table ID")

@@ -60,6 +60,9 @@ int32_t tsElectInterval = 25 * 1000;
 int32_t tsHeartbeatInterval = 1000;
 int32_t tsHeartbeatTimeout = 20 * 1000;
 
+// vnode
+int64_t tsVndCommitMaxIntervalMs = 60 * 1000;
+
 // monitor
 bool     tsEnableMonitor = true;
 int32_t  tsMonitorInterval = 30;
@@ -73,6 +76,11 @@ bool     tsEnableTelem = true;
 int32_t  tsTelemInterval = 43200;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.taosdata.com";
 uint16_t tsTelemPort = 80;
+char*    tsTelemUri = "/report";
+
+bool     tsEnableCrashReport = true;
+char*    tsClientCrashReportUri = "/ccrashreport";
+char*    tsSvrCrashReportUri = "/dcrashreport";
 
 // schemaless
 char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
@@ -202,7 +210,9 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
 int32_t taosSetTfsCfg(SConfig *pCfg);
 #endif
 
-struct SConfig *taosGetCfg() { return tsCfg; }
+struct SConfig *taosGetCfg() {
+  return tsCfg;
+}
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -314,6 +324,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "maxMemUsedByInsert", tsMaxMemUsedByInsert, 1, INT32_MAX, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 0, 86400000, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, true) != 0) return -1;
+  if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, true) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
@@ -377,7 +388,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "queryRspPolicy", tsQueryRspPolicy, 0, 1, 0) != 0) return -1;
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
-  tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, 4);
+  tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, TSDB_MAX_RPC_THREADS);
   if (cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfCommitThreads = tsNumOfCores / 2;
@@ -427,6 +438,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "syncHeartbeatInterval", tsHeartbeatInterval, 10, 1000 * 60 * 24 * 2, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "syncHeartbeatTimeout", tsHeartbeatTimeout, 10, 1000 * 60 * 24 * 2, 0) != 0) return -1;
 
+  if (cfgAddInt64(pCfg, "vndCommitMaxInterval", tsVndCommitMaxIntervalMs, 1000, 1000 * 60 * 60, 0) != 0) return -1;
+
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, 0) != 0) return -1;
   if (cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, 0) != 0) return -1;
@@ -434,6 +447,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "monitorMaxLogs", tsMonitorMaxLogs, 1, 1000000, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "monitorComp", tsMonitorComp, 0) != 0) return -1;
 
+  if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "telemetryInterval", tsTelemInterval, 1, 200000, 0) != 0) return -1;
   if (cfgAddString(pCfg, "telemetryServer", tsTelemServer, 0) != 0) return -1;
@@ -665,6 +679,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsQueryUseNodeAllocator = cfgGetItem(pCfg, "queryUseNodeAllocator")->bval;
   tsKeepColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
   tsUseAdapter = cfgGetItem(pCfg, "useAdapter")->bval;
+  tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
 
   tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
   return 0;
@@ -715,7 +730,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfSnodeWriteThreads = cfgGetItem(pCfg, "numOfSnodeUniqueThreads")->i32;
   tsRpcQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
 
-  tsSIMDBuiltins = (bool) cfgGetItem(pCfg, "SIMD-builtins")->bval;
+  tsSIMDBuiltins = (bool)cfgGetItem(pCfg, "SIMD-builtins")->bval;
 
   tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
   tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;
@@ -726,6 +741,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsQueryRspPolicy = cfgGetItem(pCfg, "queryRspPolicy")->i32;
 
   tsEnableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
+  tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
   tsTelemInterval = cfgGetItem(pCfg, "telemetryInterval")->i32;
   tstrncpy(tsTelemServer, cfgGetItem(pCfg, "telemetryServer")->str, TSDB_FQDN_LEN);
   tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
@@ -742,6 +758,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsElectInterval = cfgGetItem(pCfg, "syncElectInterval")->i32;
   tsHeartbeatInterval = cfgGetItem(pCfg, "syncHeartbeatInterval")->i32;
   tsHeartbeatTimeout = cfgGetItem(pCfg, "syncHeartbeatTimeout")->i32;
+
+  tsVndCommitMaxIntervalMs = cfgGetItem(pCfg, "vndCommitMaxInterval")->i64;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
   tstrncpy(tsUdfdResFuncs, cfgGetItem(pCfg, "udfdResFuncs")->str, sizeof(tsUdfdResFuncs));
@@ -795,6 +813,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tsCountAlwaysReturnValue = cfgGetItem(pCfg, "countAlwaysReturnValue")->i32;
       } else if (strcasecmp("cDebugFlag", name) == 0) {
         cDebugFlag = cfgGetItem(pCfg, "cDebugFlag")->i32;
+      } else if (strcasecmp("crashReporting", name) == 0) {
+        tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
       }
       break;
     }

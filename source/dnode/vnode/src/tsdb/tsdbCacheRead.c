@@ -208,13 +208,21 @@ static int32_t tsdbCacheQueryReseek(void* pQHandle) {
   int32_t           code = 0;
   SCacheRowsReader* pReader = pQHandle;
 
-  taosThreadMutexLock(&pReader->readerMutex);
+  code = taosThreadMutexTryLock(&pReader->readerMutex);
+  if (code == 0) {
+    // pause current reader's state if not paused, save ts & version for resuming
+    // just wait for the big all tables' snapshot untaking for now
 
-  // pause current reader's state if not paused, save ts & version for resuming
-  // just wait for the big all tables' snapshot untaking for now
+    code = TSDB_CODE_VND_QUERY_BUSY;
 
-  taosThreadMutexUnlock(&pReader->readerMutex);
-  return code;
+    taosThreadMutexUnlock(&pReader->readerMutex);
+
+    return code;
+  } else if (code == EBUSY) {
+    return TSDB_CODE_VND_QUERY_BUSY;
+  } else {
+    return -1;
+  }
 }
 
 int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32_t* slotIds, SArray* pTableUidList) {
@@ -375,7 +383,7 @@ _end:
   tsdbDataFReaderClose(&pr->pDataFReader);
 
   resetLastBlockLoadInfo(pr->pLoadInfo);
-  tsdbUntakeReadSnap((STsdbReader*)pr, pr->pReadSnap);
+  tsdbUntakeReadSnap((STsdbReader*)pr, pr->pReadSnap, true);
   taosThreadMutexUnlock(&pr->readerMutex);
 
   for (int32_t j = 0; j < pr->numOfCols; ++j) {

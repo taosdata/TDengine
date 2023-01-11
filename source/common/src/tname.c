@@ -328,5 +328,5 @@ void buildChildTableName(RandTableName* rName) {
     strcat(rName->ctbShortName, temp);
   }
   taosStringBuilderDestroy(&sb);
-  rName->uid = *(uint64_t*)(context.digest);
+//  rName->uid = *(uint64_t*)(context.digest);
 }

@@ -604,22 +604,19 @@ _OVER:
 }
 
 static int32_t mndDropTopic(SMnode *pMnode, STrans *pTrans, SRpcMsg *pReq, SMqTopicObj *pTopic) {
+  int32_t code = -1;
+  if (mndUserRemoveTopic(pMnode, pTrans, pTopic->name) != 0) goto _OVER;
+
   SSdbRaw *pCommitRaw = mndTopicActionEncode(pTopic);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) goto _OVER;
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  code = 0;
 
+_OVER:
   mndTransDrop(pTrans);
-  return 0;
+  return code;
 }
 
 static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
@@ -885,6 +882,7 @@ int32_t mndCheckTopicExist(SMnode *pMnode, SDbObj *pDb) {
   return 0;
 }
 
+#if 0
 int32_t mndDropTopicByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
@@ -912,3 +910,4 @@ int32_t mndDropTopicByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
 
   return code;
 }
+#endif
