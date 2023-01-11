@@ -75,7 +75,9 @@ The following data types can be used in the schema for standard tables.
 | 49 | SHOW TRANSACTIONS | Added | Shows all running transactions in the system.
 | 50 | SHOW DNODE VARIABLES | Added | Shows the configuration of the specified dnode.
 | 51 | SHOW VNODES | Not supported | Shows information about vnodes in the system. Not supported.
-| 53 | TRIM DATABASE | Added | Deletes data that has expired and orders the remaining data in accordance with the storage configuration.
+| 52 | TRIM DATABASE | Added | Deletes data that has expired and orders the remaining data in accordance with the storage configuration.
+| 53 | REDISTRIBUTE VGROUP | Added | Adjust the distribution of VNODES in VGROUP.
+| 54 | BALANCE VGROUP | Added | Auto adjust the distribution of VNODES in VGROUP.
 
 ## SQL Functions
 

@@ -154,3 +154,19 @@ TRIM DATABASE db_name;
 ```
 
 The preceding SQL statement deletes data that has expired and orders the remaining data in accordance with the storage configuration.
+
+## Redistribute Vgroup
+
+```sql
+REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3]
+```
+
+Adjust the distribution of vnodes in the vgroup according to the given list of dnodes. 
+
+## Balance Vgroup
+
+```sql
+BALANCE VGROUP
+```
+
+Automatically adjusts the distribution of vnodes in all vgroups of the cluster, which is equivalent to load balancing the data of the cluster at the vnode level.

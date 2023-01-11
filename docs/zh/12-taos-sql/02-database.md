@@ -154,3 +154,19 @@ TRIM DATABASE db_name;
 ```
 
 删除过期数据，并根据多级存储的配置归整数据。
+
+## 调整VGROUP中VNODE的分布
+
+```sql
+REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3]
+```
+
+按照给定的dnode列表，调整vgroup中的vnode分布。因为副本数目最大为3，所以最多输入3个dnode。
+
+## 自动调整VGROUP中VNODE的分布
+
+```sql
+BALANCE VGROUP
+```
+
+自动调整集群所有vgroup中的vnode分布，相当于在vnode级别对集群进行数据的负载均衡操作。
