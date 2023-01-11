@@ -539,6 +539,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
           qError("sysTableScanUserCols get meta by suid:%"PRId64 " error, code:%d", suid, code);
           blockDataDestroy(dataBlock);
           pInfo->loadInfo.totalRows = 0;
+          taosHashCleanup(stableSchema);
           return NULL;
         }
         schemaRow  = &pInfo->pCur->mr.me.stbEntry.schemaRow;
@@ -562,6 +563,8 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       }
     }
   }
+
+  taosHashCleanup(stableSchema);
 
   if (numOfRows > 0) {
     relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
