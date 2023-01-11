@@ -69,7 +69,7 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
     if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
       pColumnInfoData->varmeta.offset[currentRow] = -1;  // it is a null value of VAR type.
     } else {
-      colDataSetNull_f(pColumnInfoData->nullbitmap, currentRow);
+      colDataSetNull_f_s(pColumnInfoData, currentRow);
     }
 
     pColumnInfoData->hasNull = true;
@@ -825,7 +825,7 @@ static int32_t blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataB
     } else {
       for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
         if (colDataIsNull_f(pSrc->nullbitmap, index[j])) {
-          colDataSetNull_f(pDst->nullbitmap, j);
+          colDataSetNull_f_s(pDst, j);
           continue;
         }
         memcpy(pDst->pData + j * pDst->info.bytes, pSrc->pData + index[j] * pDst->info.bytes, pDst->info.bytes);
