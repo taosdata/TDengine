@@ -419,6 +419,7 @@ static bool sysTableIsCondOnOneTable(SNode* pCond, char* condTable) {
 }
 
 static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
+  qDebug("sysTableScanUserCols get cols start");
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
   if (pOperator->status == OP_EXEC_DONE) {
@@ -517,6 +518,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     SSchemaWrapper *schemaRow = NULL;
 
     if(pInfo->pCur->mr.me.type == TSDB_SUPER_TABLE){
+      qDebug("sysTableScanUserCols cursor get super table");
       void *schema = taosHashGet(stableSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t));
       if(schema == NULL){
         SSchemaWrapper *schemaWrapper = tCloneSSchemaWrapper(&pInfo->pCur->mr.me.stbEntry.schemaRow);
@@ -524,6 +526,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       }
       continue;
     }else if (pInfo->pCur->mr.me.type == TSDB_CHILD_TABLE) {
+      qDebug("sysTableScanUserCols cursor get child table");
       STR_TO_VARSTR(typeName, "CHILD_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
 
@@ -545,10 +548,12 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         schemaRow  = &pInfo->pCur->mr.me.stbEntry.schemaRow;
       }
     }else if(pInfo->pCur->mr.me.type == TSDB_NORMAL_TABLE){
+      qDebug("sysTableScanUserCols cursor get normal table");
       schemaRow  = &pInfo->pCur->mr.me.ntbEntry.schemaRow;
       STR_TO_VARSTR(typeName, "NORMAL_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
     }else{
+      qDebug("sysTableScanUserCols cursor get invalid table");
       continue;
     }
 
@@ -579,6 +584,8 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   }
 
   pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+  qDebug("sysTableScanUserCols get cols success, rows:%" PRIu64, pInfo->loadInfo.totalRows);
+
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
