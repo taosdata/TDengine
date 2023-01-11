@@ -124,11 +124,13 @@ int32_t main(int32_t argc, char *argv[]) {
       printf("TDengine read global config failed\n");
       exit(EXIT_FAILURE);
     }
-    if (tfsInit(tsDiskCfg, tsDiskCfgNum) < 0) {
-      printf("failed to init TFS since %s\n", tstrerror(terrno));
-      exit(EXIT_FAILURE);
+    if (tsDiskCfgNum > 0) {
+      if (tfsInit(tsDiskCfg, tsDiskCfgNum) < 0) {
+        printf("failed to init TFS since %s\n", tstrerror(terrno));
+        exit(EXIT_FAILURE);
+      }
+      strncpy(tsDataDir, TFS_PRIMARY_PATH(), TSDB_FILENAME_LEN);
     }
-    strncpy(tsDataDir, TFS_PRIMARY_PATH(), TSDB_FILENAME_LEN);
     grantParseParameter("-u");
     exit(EXIT_SUCCESS);
   }
