@@ -813,6 +813,20 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
   }
 }
 
+void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    SResultRowEntryInfo* pResInfo = pCtx[i].resultInfo;
+    if (pResInfo == NULL) {
+      continue;
+    }
+
+    pResInfo->initialized = false;
+    pResInfo->numOfRes = 0;
+    pResInfo->isNullRes = 0;
+    pResInfo->complete = false;
+  }
+}
+
 void doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo) {
   if (pFilterInfo == NULL || pBlock->info.rows == 0) {
     return;
