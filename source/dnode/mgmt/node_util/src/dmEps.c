@@ -147,6 +147,22 @@ _OVER:
   if (code != 0) {
     dError("failed to read dnode file:%s since %s", file, terrstr());
   }
+
+  if (taosArrayGetSize(pData->dnodeEps) == 0) {
+    SDnodeEp dnodeEp = {0};
+    dnodeEp.isMnode = 1;
+    taosGetFqdnPortFromEp(tsFirst, &dnodeEp.ep);
+    taosArrayPush(pData->dnodeEps, &dnodeEp);
+  }
+
+  dDebug("reset dnode list on startup");
+  dmResetEps(pData, pData->dnodeEps);
+
+  if (dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
+    dError("localEp %s different with %s and need reconfigured", tsLocalEp, file);
+    return -1;
+  }
+
   return code;
 }
 
@@ -215,7 +231,7 @@ _OVER:
 
   if (code != 0) {
     if (terrno == 0) terrno = TAOS_SYSTEM_ERROR(errno);
-    dInfo("succeed to write dnode file:%s since %s, dnodeVer:%" PRId64, realfile, terrstr(), pData->dnodeVer);
+    dError("failed to write dnode file:%s since %s, dnodeVer:%" PRId64, realfile, terrstr(), pData->dnodeVer);
   }
   return code;
 }
