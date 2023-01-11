@@ -447,10 +447,9 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     }
   }
 
-  // update table.db
-  metaSaveToTbDb(pMeta, &nStbEntry);
-  // update uid index
-  metaUpdateUidIdx(pMeta, &nStbEntry);
+  if (diffIdx == -1) {
+    goto _err;
+  }
 
   // metaStatsCacheDrop(pMeta, nStbEntry.uid);
 
@@ -510,6 +509,11 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     metaDestroyTagIdxKey(pTagIdxKey);
   }
   metaWLock(pMeta);
+  // update table.db
+  metaSaveToTbDb(pMeta, &nStbEntry);
+  // update uid index
+  metaUpdateUidIdx(pMeta, &nStbEntry);
+  metaULock(pMeta);
 
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   tDecoderClear(&dc);
