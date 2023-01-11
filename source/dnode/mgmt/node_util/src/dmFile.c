@@ -19,48 +19,81 @@
 
 #define MAXLEN 1024
 
-int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
-  int32_t   code = TSDB_CODE_INVALID_JSON_FORMAT;
-  int64_t   len = 0;
-  char      content[MAXLEN + 1] = {0};
-  cJSON    *root = NULL;
-  char      file[PATH_MAX] = {0};
-  TdFilePtr pFile = NULL;
+static int32_t dmDecodeFile(SJson *pJson, bool *deployed) {
+  int32_t code = 0;
+  int32_t value = 0;
 
+  tjsonGetInt32ValueFromDouble(pJson, "deployed", value, code);
+  if (code < 0) return -1;
+
+  *deployed = (value != 0);
+  return code;
+}
+
+int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
+  int32_t   code = -1;
+  TdFilePtr pFile = NULL;
+  char     *content = NULL;
+  SJson    *pJson = NULL;
+  char      file[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
+
+  if (taosStatFile(file, NULL, NULL) < 0) {
+    dInfo("file:%s not exist", file);
     code = 0;
     goto _OVER;
   }
 
-  len = taosReadFile(pFile, content, MAXLEN);
-  if (len <= 0) {
-    dError("failed to read %s since content is null", file);
+  pFile = taosOpenFile(file, TD_FILE_READ);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to open file:%s since %s", file, terrstr());
     goto _OVER;
   }
 
-  root = cJSON_Parse(content);
-  if (root == NULL) {
-    dError("failed to read %s since invalid json format", file);
+  int64_t size = 0;
+  if (taosFStatFile(pFile, &size, NULL) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to fstat file:%s since %s", file, terrstr());
     goto _OVER;
   }
 
-  cJSON *deployed = cJSON_GetObjectItem(root, "deployed");
-  if (!deployed || deployed->type != cJSON_Number) {
-    dError("failed to read %s since deployed not found", file);
+  content = taosMemoryMalloc(size + 1);
+  if (content == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
-  *pDeployed = deployed->valueint != 0;
 
-  dDebug("succcessed to read file %s, deployed:%d", file, *pDeployed);
+  if (taosReadFile(pFile, content, size) != size) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to read file:%s since %s", file, terrstr());
+    goto _OVER;
+  }
+
+  content[size] = '\0';
+
+  pJson = tjsonParse(content);
+  if (pJson == NULL) {
+    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+  if (dmDecodeFile(pJson, pDeployed) < 0) {
+    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
   code = 0;
+  dInfo("succceed to read mnode file %s", file);
 
 _OVER:
-  if (root != NULL) cJSON_Delete(root);
+  if (content != NULL) taosMemoryFree(content);
+  if (pJson != NULL) cJSON_Delete(pJson);
   if (pFile != NULL) taosCloseFile(&pFile);
 
-  terrno = code;
+  if (code != 0) {
+    dError("failed to read dnode file:%s since %s", file, terrstr());
+  }
   return code;
 }
 
