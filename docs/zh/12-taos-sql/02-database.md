@@ -71,7 +71,7 @@ database_option: {
 - SINGLE_STABLE：表示此数据库中是否只可以创建一个超级表，用于超级表列非常多的情况。
   - 0：表示可以创建多张超级表。
   - 1：表示只可以创建一张超级表。
-- STT_TRIGGER：表示落盘文件触发文件合并的个数。默认为 8，范围 1 到 16。
+- STT_TRIGGER：表示落盘文件触发文件合并的个数。默认为 1，范围 1 到 16。对于少表高频场景，此参数建议使用默认配置，或较小的值；而对于多表低频场景，此参数建议配置较大的值。
 - TABLE_PREFIX：内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。
 - TABLE_SUFFIX：内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度。
 - TSDB_PAGESIZE：一个 VNODE 中时序数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB到 16 MB。
@@ -116,6 +116,10 @@ alter_database_options:
 alter_database_option: {
     CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
   | CACHESIZE value
+  | BUFFER value
+  | PAGES value
+  | REPLICA value
+  | STT_TRIGGER value
   | WAL_LEVEL value
   | WAL_FSYNC_PERIOD value
   | KEEP value

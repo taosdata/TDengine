@@ -71,7 +71,7 @@ database_option: {
 - SINGLE_STABLE: specifies whether the database can contain more than one supertable.
   - 0: The database can contain multiple supertables.
   - 1: The database can contain only one supertable.
-- STT_TRIGGER: specifies the number of file merges triggered by flushed files. The default is 8, ranging from 1 to 16.
+- STT_TRIGGER: specifies the number of file merges triggered by flushed files. The default is 8, ranging from 1 to 16. For high-frequency scenarios with few tables, it is recommended to use the default configuration or a smaller value for this parameter; For multi-table low-frequency scenarios, it is recommended to configure this parameter with a larger value.
 - TABLE_PREFIX：The prefix length in the table name that is ignored when distributing table to vnode based on table name.
 - TABLE_SUFFIX：The suffix length in the table name that is ignored when distributing table to vnode based on table name.
 - TSDB_PAGESIZE: The page size of the data storage engine in a vnode. The unit is KB. The default is 4 KB. The range is 1 to 16384, that is, 1 KB to 16 MB.
@@ -116,6 +116,10 @@ alter_database_options:
 alter_database_option: {
     CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
   | CACHESIZE value
+  | BUFFER value
+  | PAGES value
+  | REPLICA value
+  | STT_TRIGGER value
   | WAL_LEVEL value
   | WAL_FSYNC_PERIOD value
   | KEEP value
