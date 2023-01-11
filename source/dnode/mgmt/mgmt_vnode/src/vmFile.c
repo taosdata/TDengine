@@ -49,6 +49,7 @@ SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes) {
 static int32_t vmDecodeVnodeList(SJson *pJson, SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes) {
   int32_t      code = -1;
   SWrapperCfg *pCfgs = NULL;
+  *ppCfgs = NULL;
 
   SJson *vnodes = tjsonGetObjectItem(pJson, "vnodes");
   if (vnodes == NULL) return -1;
@@ -64,7 +65,7 @@ static int32_t vmDecodeVnodeList(SJson *pJson, SVnodeMgmt *pMgmt, SWrapperCfg **
     if (vnode == NULL) goto _OVER;
 
     SWrapperCfg *pCfg = &pCfgs[i];
-    tjsonGetInt32ValueFromDouble(vnode, "id", pCfg->vgId, code);
+    tjsonGetInt32ValueFromDouble(vnode, "vgId", pCfg->vgId, code);
     if (code < 0) goto _OVER;
     tjsonGetInt32ValueFromDouble(vnode, "dropped", pCfg->dropped, code);
     if (code < 0) goto _OVER;
