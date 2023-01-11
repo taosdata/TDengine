@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "vmInt.h"
 #include "tjson.h"
+#include "vmInt.h"
 
 #define MAX_CONTENT_LEN 2 * 1024 * 1024
 
@@ -46,102 +46,107 @@ SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes) {
   return pVnodes;
 }
 
-int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes) {
-  int32_t      code = TSDB_CODE_INVALID_JSON_FORMAT;
-  int32_t      len = 0;
-  int32_t      maxLen = MAX_CONTENT_LEN;
-  char        *content = taosMemoryCalloc(1, maxLen + 1);
-  cJSON       *root = NULL;
-  FILE        *fp = NULL;
-  char         file[PATH_MAX] = {0};
+static int32_t vmDecodeVnodeList(SJson *pJson, SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes) {
+  int32_t      code = -1;
   SWrapperCfg *pCfgs = NULL;
-  TdFilePtr    pFile = NULL;
 
-  snprintf(file, sizeof(file), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
-
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    dInfo("file %s not exist", file);
-    code = 0;
-    goto _OVER;
-  }
-
-  if (content == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  len = (int32_t)taosReadFile(pFile, content, maxLen);
-  if (len <= 0) {
-    dError("failed to read %s since content is null", file);
-    goto _OVER;
-  }
-
-  content[len] = 0;
-  root = cJSON_Parse(content);
-  if (root == NULL) {
-    dError("failed to read %s since invalid json format", file);
-    goto _OVER;
-  }
-
-  cJSON *vnodes = cJSON_GetObjectItem(root, "vnodes");
-  if (!vnodes || vnodes->type != cJSON_Array) {
-    dError("failed to read %s since vnodes not found", file);
-    goto _OVER;
-  }
+  SJson *vnodes = tjsonGetObjectItem(pJson, "vnodes");
+  if (vnodes == NULL) return -1;
 
   int32_t vnodesNum = cJSON_GetArraySize(vnodes);
   if (vnodesNum > 0) {
     pCfgs = taosMemoryCalloc(vnodesNum, sizeof(SWrapperCfg));
-    if (pCfgs == NULL) {
-      dError("failed to read %s since out of memory", file);
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _OVER;
-    }
-
-    for (int32_t i = 0; i < vnodesNum; ++i) {
-      cJSON       *vnode = cJSON_GetArrayItem(vnodes, i);
-      SWrapperCfg *pCfg = &pCfgs[i];
-
-      cJSON *vgId = cJSON_GetObjectItem(vnode, "vgId");
-      if (!vgId || vgId->type != cJSON_Number) {
-        dError("failed to read %s since vgId not found", file);
-        taosMemoryFree(pCfgs);
-        goto _OVER;
-      }
-      pCfg->vgId = vgId->valueint;
-      snprintf(pCfg->path, sizeof(pCfg->path), "%s%svnode%d", pMgmt->path, TD_DIRSEP, pCfg->vgId);
-
-      cJSON *dropped = cJSON_GetObjectItem(vnode, "dropped");
-      if (!dropped || dropped->type != cJSON_Number) {
-        dError("failed to read %s since dropped not found", file);
-        taosMemoryFree(pCfgs);
-        goto _OVER;
-      }
-      pCfg->dropped = dropped->valueint;
-
-      cJSON *vgVersion = cJSON_GetObjectItem(vnode, "vgVersion");
-      if (!vgVersion || vgVersion->type != cJSON_Number) {
-        dError("failed to read %s since vgVersion not found", file);
-        taosMemoryFree(pCfgs);
-        goto _OVER;
-      }
-      pCfg->vgVersion = vgVersion->valueint;
-    }
-
-    *ppCfgs = pCfgs;
+    if (pCfgs == NULL) return -1;
   }
 
-  *numOfVnodes = vnodesNum;
+  for (int32_t i = 0; i < vnodesNum; ++i) {
+    SJson *vnode = tjsonGetArrayItem(vnodes, i);
+    if (vnode == NULL) goto _OVER;
+
+    SWrapperCfg *pCfg = &pCfgs[i];
+    tjsonGetInt32ValueFromDouble(vnode, "id", pCfg->vgId, code);
+    if (code < 0) goto _OVER;
+    tjsonGetInt32ValueFromDouble(vnode, "dropped", pCfg->dropped, code);
+    if (code < 0) goto _OVER;
+    tjsonGetInt32ValueFromDouble(vnode, "vgVersion", pCfg->vgVersion, code);
+    if (code < 0) goto _OVER;
+
+    snprintf(pCfg->path, sizeof(pCfg->path), "%s%svnode%d", pMgmt->path, TD_DIRSEP, pCfg->vgId);
+  }
+
   code = 0;
-  dInfo("succcessed to read file %s, numOfVnodes:%d", file, vnodesNum);
+  *ppCfgs = pCfgs;
+  *numOfVnodes = vnodesNum;
 
 _OVER:
-  if (content != NULL) taosMemoryFree(content);
-  if (root != NULL) cJSON_Delete(root);
+  if (*ppCfgs == NULL) taosMemoryFree(pCfgs);
+  return code;
+}
+
+int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes) {
+  int32_t      code = -1;
+  TdFilePtr    pFile = NULL;
+  char        *pData = NULL;
+  SJson       *pJson = NULL;
+  char         file[PATH_MAX] = {0};
+  SWrapperCfg *pCfgs = NULL;
+  snprintf(file, sizeof(file), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
+
+  if (taosStatFile(file, NULL, NULL) < 0) {
+    dInfo("vnode file:%s not exist", file);
+    return 0;
+  }
+
+  pFile = taosOpenFile(file, TD_FILE_READ);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to open vnode file:%s since %s", file, terrstr());
+    goto _OVER;
+  }
+
+  int64_t size = 0;
+  if (taosFStatFile(pFile, &size, NULL) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to fstat mnode file:%s since %s", file, terrstr());
+    goto _OVER;
+  }
+
+  pData = taosMemoryMalloc(size + 1);
+  if (pData == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  if (taosReadFile(pFile, pData, size) != size) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to read vnode file:%s since %s", file, terrstr());
+    goto _OVER;
+  }
+
+  pData[size] = '\0';
+
+  pJson = tjsonParse(pData);
+  if (pJson == NULL) {
+    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+  if (vmDecodeVnodeList(pJson, pMgmt, ppCfgs, numOfVnodes) < 0) {
+    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+  code = 0;
+  dInfo("succceed to read vnode file %s", file);
+
+_OVER:
+  if (pData != NULL) taosMemoryFree(pData);
+  if (pJson != NULL) cJSON_Delete(pJson);
   if (pFile != NULL) taosCloseFile(&pFile);
 
-  terrno = code;
+  if (code != 0) {
+    dError("failed to read vnode file:%s since %s", file, terrstr());
+  }
   return code;
 }
 
