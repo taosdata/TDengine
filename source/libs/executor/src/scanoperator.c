@@ -173,7 +173,7 @@ static SResultRow* getTableGroupOutputBuf(SOperatorInfo* pOperator, uint64_t gro
   if (NULL == *pPage) {
     return NULL;
   }
-  
+
   return (SResultRow*)((char*)(*pPage) + p1->offset);
 }
 
@@ -1729,6 +1729,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     /*resetTableScanInfo(pTSInfo, pWin);*/
     tsdbReaderClose(pTSInfo->base.dataReader);
     pTSInfo->base.dataReader = NULL;
+    pInfo->pTableScanOp->status = OP_OPENED;
 
     pTSInfo->scanTimes = 0;
     pTSInfo->currentGroupId = -1;
