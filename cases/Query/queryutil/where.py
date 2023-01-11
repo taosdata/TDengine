@@ -77,7 +77,7 @@ class TDWhere():
         q_like_match = random.sample(q_like_match,1)
 
         q_tinyint_list=[]
-        for i in range(-1000,1000):
+        for i in range(-300,300):
             q_tinyint_list.append(i)
         q_tinyint_list = "q_tinyint in (" + str(q_tinyint_list).replace("[","").replace("]","") + ")"
 
@@ -119,7 +119,7 @@ class TDWhere():
         q_like_match_null = random.sample(q_like_match,1)
 
         q_tinyint_list=[]
-        for i in range(1000,4000):
+        for i in range(1000,2000):
             q_tinyint_list.append(i)
         q_tinyint_list = "q_tinyint in (" + str(q_tinyint_list).replace("[","").replace("]","") + ")"
             
@@ -181,7 +181,7 @@ class TDWhere():
         t_like_match = random.sample(t_like_match,1)
 
         t_tinyint_list=[]
-        for i in range(-1000,1000):
+        for i in range(-300,300):
             t_tinyint_list.append(i)
         t_tinyint_list = "t_tinyint in (" + str(t_tinyint_list).replace("[","").replace("]","") + ")"
 
@@ -219,7 +219,7 @@ class TDWhere():
         t_like_match_null = random.sample(t_like_match,1)
 
         t_tinyint_list=[]
-        for i in range(1000,4000):
+        for i in range(1000,2000):
             t_tinyint_list.append(i)
         t_tinyint_list = "t_tinyint in (" + str(t_tinyint_list).replace("[","").replace("]","") + ")"
         
