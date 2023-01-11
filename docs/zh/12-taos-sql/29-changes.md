@@ -75,7 +75,9 @@ description: "TDengine 3.0 版本的语法变更说明"
 | 49 | SHOW TRANSACTIONS | 新增 | 显示当前系统中正在执行的事务的信息。
 | 50 | SHOW DNODE VARIABLES | 新增 |显示指定DNODE的配置参数。
 | 51 | SHOW VNODES | 暂不支持 | 显示当前系统中VNODE的信息。3.0.0版本暂不支持。
-| 53 | TRIM DATABASE | 新增 | 删除过期数据，并根据多级存储的配置归整数据。
+| 52 | TRIM DATABASE | 新增 | 删除过期数据，并根据多级存储的配置归整数据。
+| 53 | REDISTRIBUTE VGROUP | 新增 | 调整VGROUP中VNODE的分布。
+| 54 | BALANCE VGROUP | 新增 | 自动调整VGROUP中VNODE的分布。
 
 ## SQL 函数变更
 
