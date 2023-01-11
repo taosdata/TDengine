@@ -3392,9 +3392,11 @@ static void copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted) {
   }
 }
 
+// the allocated memory comes from outer function.
 void initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList) {
   pGroupResInfo->pRows = pArrayList;
   pGroupResInfo->index = 0;
+  pGroupResInfo->pBuf = NULL;
 }
 
 void doBuildSessionResult(SOperatorInfo* pOperator, SStreamState* pState, SGroupResInfo* pGroupResInfo,
@@ -3405,8 +3407,7 @@ void doBuildSessionResult(SOperatorInfo* pOperator, SStreamState* pState, SGroup
 
   blockDataCleanup(pBlock);
   if (!hasRemainResults(pGroupResInfo)) {
-    taosArrayDestroy(pGroupResInfo->pRows);
-    pGroupResInfo->pRows = NULL;
+    cleanupGroupResInfo(pGroupResInfo);
     return;
   }
 

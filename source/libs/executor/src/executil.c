@@ -89,13 +89,7 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
 }
 
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
-  assert(pGroupResInfo != NULL);
-
-  for (int32_t i = 0; i < taosArrayGetSize(pGroupResInfo->pRows); ++i) {
-    SResKeyPos* pRes = taosArrayGetP(pGroupResInfo->pRows, i);
-    taosMemoryFree(pRes);
-  }
-
+  taosMemoryFreeClear(pGroupResInfo->pBuf);
   pGroupResInfo->pRows = taosArrayDestroy(pGroupResInfo->pRows);
   pGroupResInfo->index = 0;
 }
@@ -126,20 +120,28 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
   }
 
   // extract the result rows information from the hash map
-  void* pData = NULL;
-  pGroupResInfo->pRows = taosArrayInit(10, POINTER_BYTES);
+  int32_t size = tSimpleHashGetSize(pHashmap);
 
-  // todo avoid repeated malloc memory
+  void* pData = NULL;
+  pGroupResInfo->pRows = taosArrayInit(size, POINTER_BYTES);
+
   size_t  keyLen = 0;
-  int32_t iter = 0;
+  int32_t num = 0, iter = 0, itemSize = 0;
+
   while ((pData = tSimpleHashIterate(pHashmap, pData, &iter)) != NULL) {
     void* key = tSimpleHashGetKey(pData, &keyLen);
 
-    SResKeyPos* p = taosMemoryMalloc(keyLen + sizeof(SResultRowPosition));
+    if (pGroupResInfo->pBuf == NULL) {
+      itemSize = keyLen + sizeof(SResultRowPosition);
+      pGroupResInfo->pBuf = taosMemoryMalloc(size * itemSize);
+    }
+
+    SResKeyPos* p = (SResKeyPos*)(pGroupResInfo->pBuf + num * itemSize);
 
     p->groupId = *(uint64_t*)key;
     p->pos = *(SResultRowPosition*)pData;
     memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
+
     taosArrayPush(pGroupResInfo->pRows, &p);
   }
 
@@ -172,7 +174,6 @@ bool hasRemainResults(SGroupResInfo* pGroupResInfo) {
 }
 
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
-  assert(pGroupResInfo != NULL);
   if (pGroupResInfo->pRows == 0) {
     return 0;
   }
