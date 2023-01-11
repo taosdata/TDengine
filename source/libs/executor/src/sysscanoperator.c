@@ -1918,6 +1918,13 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
   colDataAppend(pColInfo, 0, p, false);
   taosMemoryFree(p);
 
+  // make the valgrind happy that all memory buffer has been initialized already.
+  if (slotId != 0) {
+    SColumnInfoData* p1 = taosArrayGet(pBlock->pDataBlock, 0);
+    int64_t v = 0;
+    colDataAppendInt64(p1, 0, &v);
+  }
+
   pBlock->info.rows = 1;
   pOperator->status = OP_EXEC_DONE;
   return pBlock;
