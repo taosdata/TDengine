@@ -383,9 +383,9 @@ static FORCE_INLINE void tDeleteSSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
 }
 
 static FORCE_INLINE void tDeleteSSchemaWrapperForHash(void* pSchemaWrapper) {
-  if (pSchemaWrapper) {
-    taosMemoryFree(((SSchemaWrapper*)pSchemaWrapper)->pSchema);
-    taosMemoryFree(pSchemaWrapper);
+  if (pSchemaWrapper != NULL && *(SSchemaWrapper**)pSchemaWrapper != NULL) {
+    taosMemoryFree((*(SSchemaWrapper**)pSchemaWrapper)->pSchema);
+    taosMemoryFree(*(SSchemaWrapper**)pSchemaWrapper);
   }
 }
 
