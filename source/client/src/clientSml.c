@@ -182,6 +182,7 @@ typedef struct {
   SSmlMsgBuf   msgBuf;
   SHashObj    *dumplicateKey;  // for dumplicate key
   SArray      *colsContainer;  // for cols parse, if dataFormat == false
+  int32_t      uid;            // used for automatic create child table
 
   cJSON       *root;  // for parse json
 } SSmlHandle;
@@ -2155,13 +2156,11 @@ static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql, const int l
     (*oneTable)->sTableNameLen = elements.measureLen;
     if (strlen((*oneTable)->childTableName) == 0) {
       RandTableName rName = {(*oneTable)->tags, (*oneTable)->sTableName, (uint8_t)(*oneTable)->sTableNameLen,
-                             (*oneTable)->childTableName, 0};
+                             (*oneTable)->childTableName};
 
       buildChildTableName(&rName);
-      (*oneTable)->uid = rName.uid;
-    } else {
-      (*oneTable)->uid = *(uint64_t *)((*oneTable)->childTableName);
     }
+    (*oneTable)->uid = info->uid++;
   }
 
   SSmlSTableMeta **tableMeta = (SSmlSTableMeta **)taosHashGet(info->superTables, elements.measure, elements.measureLen);
@@ -2226,11 +2225,8 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data, const int len) {
   taosHashClear(info->dumplicateKey);
 
   if (strlen(tinfo->childTableName) == 0) {
-    RandTableName rName = {tinfo->tags, tinfo->sTableName, (uint8_t)tinfo->sTableNameLen, tinfo->childTableName, 0};
+    RandTableName rName = {tinfo->tags, tinfo->sTableName, (uint8_t)tinfo->sTableNameLen, tinfo->childTableName};
     buildChildTableName(&rName);
-    tinfo->uid = rName.uid;
-  } else {
-    tinfo->uid = *(uint64_t *)(tinfo->childTableName);  // generate uid by name simple
   }
 
   bool            hasTable = true;
@@ -2239,6 +2235,7 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data, const int len) {
   if (!oneTable) {
     taosHashPut(info->childTables, tinfo->childTableName, strlen(tinfo->childTableName), &tinfo, POINTER_BYTES);
     oneTable = &tinfo;
+    tinfo->uid = info->uid++;
     hasTable = false;
   } else {
     smlDestroyTableInfo(info, tinfo);

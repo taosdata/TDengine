@@ -29,6 +29,7 @@ typedef struct SDnodeMgmt {
   const char         *name;
   TdThread            statusThread;
   TdThread            monitorThread;
+  TdThread            crashReportThread;
   SSingleWorker       mgmtWorker;
   ProcessCreateNodeFp processCreateNodeFp;
   ProcessDropNodeFp   processDropNodeFp;
@@ -55,6 +56,8 @@ int32_t dmStartStatusThread(SDnodeMgmt *pMgmt);
 void    dmStopStatusThread(SDnodeMgmt *pMgmt);
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt);
 void    dmStopMonitorThread(SDnodeMgmt *pMgmt);
+int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt);
+void    dmStopCrashReportThread(SDnodeMgmt *pMgmt);
 int32_t dmStartWorker(SDnodeMgmt *pMgmt);
 void    dmStopWorker(SDnodeMgmt *pMgmt);
 

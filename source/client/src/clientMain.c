@@ -55,6 +55,8 @@ void taos_cleanup(void) {
     return;
   }
 
+  tscStopCrashReport();
+
   int32_t id = clientReqRefPool;
   clientReqRefPool = -1;
   taosCloseRef(id);
@@ -106,7 +108,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   if (pass == NULL) {
     pass = TSDB_DEFAULT_PASS;
   }
-
+  
   STscObj *pObj = taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY);
   if (pObj) {
     int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
