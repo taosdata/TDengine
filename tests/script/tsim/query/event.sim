@@ -36,7 +36,7 @@ endi
 # child table: single row window
 print ====> select count(*) from tba1 event_window start with f1 = 0 end with f3 = false;
 sql select count(*) from tba1 event_window start with f1 = 0 end with f3 = false
-if $rows != 1 then
+if $rows != 2 then
   return -1
 endi
 if $data00 != 1 then
@@ -62,7 +62,7 @@ endi
 if $data00 != 2 then
   return -1
 endi
-if $data00 != 4 then
+if $data10 != 4 then
   return -1
 endi
 

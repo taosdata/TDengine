@@ -157,6 +157,20 @@ void destroyEWindowOperatorInfo(void* param) {
     return;
   }
 
+  if (pInfo->pRow != NULL) {
+    taosMemoryFree(pInfo->pRow);
+  }
+
+  if (pInfo->pStartCondInfo != NULL) {
+    filterFreeInfo(pInfo->pStartCondInfo);
+    pInfo->pStartCondInfo = NULL;
+  }
+
+  if (pInfo->pEndCondInfo != NULL) {
+    filterFreeInfo(pInfo->pEndCondInfo);
+    pInfo->pEndCondInfo = NULL;
+  }
+
   cleanupBasicInfo(&pInfo->binfo);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
 
@@ -315,4 +329,9 @@ void eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInf
       }
     }
   }
+
+  colDataDestroy(ps);
+  taosMemoryFree(ps);
+  colDataDestroy(pe);
+  taosMemoryFree(pe);
 }
