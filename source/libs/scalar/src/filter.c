@@ -3181,6 +3181,7 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, SColumnInfoData *pRe
     void *colData = colDataGetData(pData, i);
     if (colData == NULL || colDataIsNull_s(pData, i)) {
       all = false;
+      p[i] = 0;
       continue;
     }
 
