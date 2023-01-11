@@ -67,7 +67,6 @@ typedef struct SSysTableScanInfo {
   SLoadRemoteDataInfo    loadInfo;
 
   int32_t                tbnameSlotId;
-  bool                   isGetStableCols;
 } SSysTableScanInfo;
 
 typedef struct {
@@ -921,12 +920,12 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 0);
     colDataAppend(pColInfoData, numOfRows, tName, false);
 
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
-    colDataAppend(pColInfoData, numOfRows, tableType, false);
-
     // database name
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
     colDataAppend(pColInfoData, numOfRows, dbname, false);
+
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
+    colDataAppend(pColInfoData, numOfRows, tableType, false);
 
     // col name
     char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -1549,10 +1548,10 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   char               dbName[TSDB_DB_NAME_LEN] = {0};
 
   const char* name = tNameGetTableName(&pInfo->name);
-  if (pInfo->showRewrite) {
-    getDBNameFromCondition(pInfo->pCondition, dbName);
-    sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
-  }
+  getDBNameFromCondition(pInfo->pCondition, dbName);
+  strcpy(pInfo->req.db, dbName);
+//  sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
+
   SSDataBlock* pBlock = NULL;
   if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
     pBlock = sysTableScanUserTables(pOperator);
@@ -1630,7 +1629,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     tsem_wait(&pInfo->ready);
 
     if (pTaskInfo->code) {
-      qDebug("%s load meta data from mnode failed, totalRows:%" PRIu64 ", code:%s", GET_TASKID(pTaskInfo),
+      qError("%s load meta data from mnode failed, totalRows:%" PRIu64 ", code:%s", GET_TASKID(pTaskInfo),
              pInfo->loadInfo.totalRows, tstrerror(pTaskInfo->code));
       return NULL;
     }
@@ -1703,8 +1702,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   const char* name = tNameGetTableName(&pInfo->name);
 
   if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
-      strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
-      strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0) {
+      strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
     pInfo->readHandle = *(SReadHandle*)readHandle;
   } else {
     tsem_init(&pInfo->ready, 0, 0);

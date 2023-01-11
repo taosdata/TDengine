@@ -193,12 +193,14 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   int32_t    rowsToRead = SHOW_STEP_SIZE;
   int32_t    size = 0;
   int32_t    rowsRead = 0;
-
+  mDebug("mndProcessRetrieveSysTableReq start");
   SRetrieveTableReq retrieveReq = {0};
   if (tDeserializeSRetrieveTableReq(pReq->pCont, pReq->contLen, &retrieveReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
+
+  mDebug("mndProcessRetrieveSysTableReq tb:%s", retrieveReq.tb);
 
   if (retrieveReq.showId == 0) {
     STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
