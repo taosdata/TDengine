@@ -1,5 +1,6 @@
 <template>
   <div class="qnode-block">
+<<<<<<< HEAD
     <div class="flexEnd">
       <el-button plain @click="add" size="small" icon="el-icon-plus">{{
         $t("add")
@@ -23,6 +24,15 @@
             @click="del(scope.row)"
             icon="el-icon-delete"
           ></el-button>
+=======
+    <el-table style="margin-top: 20px" :data="topicList" size="mini">
+      <el-table-column  :label="$t('topic.endpoint')" prop="endpoint"></el-table-column>
+      <el-table-column  :label="$t('topic.create_time')" prop="create_time"></el-table-column>
+      
+      <el-table-column label="Action" width="80">
+        <template slot-scope="scope">
+          <el-button type="danger" plain size="small" @click="del(scope.row)" icon="el-icon-delete"></el-button>
+>>>>>>> 8895288015f78987fe1192eeaa34d5fe7903a71c
         </template>
       </el-table-column>
     </el-table>
@@ -35,6 +45,7 @@
       :total="total"
       @current-change="handlePageChange"
     ></el-pagination>
+<<<<<<< HEAD
     <el-dialog
       align="center"
       :title="$t('topic.addsource')"
@@ -72,11 +83,14 @@
         </el-col>
       </el-row>
     </el-dialog>
+=======
+>>>>>>> 8895288015f78987fe1192eeaa34d5fe7903a71c
   </div>
 </template>
 <script>
 import mix from "./mix";
 export default {
+<<<<<<< HEAD
   mixins: [mix],
   data() {
     return {
@@ -96,6 +110,19 @@ export default {
     },
     addQnodes(){}
   },
+=======
+  data() {
+    return {
+      pageSize:10,
+      currentPage:1,
+      total:10,
+      topicList:[]
+    };
+  },
+  methods:{
+    handlePageChange(){}
+  }
+>>>>>>> 8895288015f78987fe1192eeaa34d5fe7903a71c
 };
 </script>
 <style lang="scss" scoped>

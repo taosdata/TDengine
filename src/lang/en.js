@@ -780,6 +780,7 @@ export default {
     learnMoreTip: `To learn more about stream processing, please check <a target='_blank' href="docsUrl">documentation</a>`,
   },
   topic: {
+<<<<<<< HEAD
     activities:'Activities',
     //admin-user
     name:'Name',
@@ -803,6 +804,8 @@ export default {
     output_type:'Output Type',
     code_len:'Code Length',
     bufsize:'Buf Size',
+=======
+>>>>>>> 8895288015f78987fe1192eeaa34d5fe7903a71c
     endpoint:'End Point',
     vnodes:'VNodes',
     support_vnodes:"Support VNodes",
@@ -819,8 +822,11 @@ export default {
     mnodes:'MNodes',
     qnodes:'QNodes',
     datain:'Data In',
+<<<<<<< HEAD
     datacollection:'Data Collection Agents ',
     csv:'CSV',
+=======
+>>>>>>> 8895288015f78987fe1192eeaa34d5fe7903a71c
     datasource:'Data Source',
     udf:'UDF',
     backup:'Backup',
