@@ -92,6 +92,7 @@ static void resetPosInfo(SSlotInfo *pInfo) {
 
 double findOnlyResult(tMemBucket *pMemBucket) {
   ASSERT(pMemBucket->total == 1);
+  terrno = 0;
 
   for (int32_t i = 0; i < pMemBucket->numOfSlots; ++i) {
     tMemBucketSlot *pSlot = &pMemBucket->pSlots[i];
@@ -108,8 +109,10 @@ double findOnlyResult(tMemBucket *pMemBucket) {
       int32_t   *pageId = taosArrayGet(list, 0);
       SFilePage *pPage = getBufPage(pMemBucket->pBuffer, *pageId);
       if (pPage == NULL) {
-        return -1;
+        terrno = TSDB_CODE_NO_AVAIL_DISK;
+        return 0;
       }
+
       ASSERT(pPage->num == 1);
 
       double v = 0;
@@ -546,9 +549,7 @@ double getPercentile(tMemBucket *pMemBucket, double percent) {
 
   // if only one elements exists, return it
   if (pMemBucket->total == 1) {
-    if (findOnlyResult(pMemBucket) < 0) {
-      return -1;
-    }
+    return findOnlyResult(pMemBucket);
   }
 
   percent = fabs(percent);

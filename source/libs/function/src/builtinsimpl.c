@@ -1662,6 +1662,8 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
 
 int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SVariant* pVal = &pCtx->param[1].param;
+  terrno = 0;
+
   double    v = 0;
   GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
 
@@ -1675,8 +1677,8 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   tMemBucketDestroy(pMemBucket);
 
-  if (ppInfo->result < 0) {
-    return TSDB_CODE_NO_AVAIL_DISK;
+  if (terrno != TSDB_CODE_SUCCESS) {
+    return terrno;
   }
 
   return functionFinalize(pCtx, pBlock);
