@@ -59,7 +59,7 @@ class RenameTable(TDCase):
             {'prefix':'first','suffix':'one'},
             {'prefix':'second','suffix':'two'}]
         # param for taosx
-        self.timeout = '1s'
+        self.timeout = '5s'
     def get_json(self,json_path,host,port,dbname,stbname,tbname_m,tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag,replica):
         dict = {}
         with open(json_path,'rb') as file:
