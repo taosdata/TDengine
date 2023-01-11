@@ -30,8 +30,10 @@ database_option: {
   | WAL_LEVEL {1 | 2}
   | VGROUPS value
   | SINGLE_STABLE {0 | 1}
+  | STT_TRIGGER value
   | TABLE_PREFIX value
   | TABLE_SUFFIX value
+  | TSDB_PAGESIZE value
   | WAL_RETENTION_PERIOD value
   | WAL_ROLL_PERIOD value
   | WAL_RETENTION_SIZE value
@@ -69,8 +71,10 @@ database_option: {
 - SINGLE_STABLE: specifies whether the database can contain more than one supertable.
   - 0: The database can contain multiple supertables.
   - 1: The database can contain only one supertable.
+- STT_TRIGGER: specifies the number of file merges triggered by flushed files. The default is 8, ranging from 1 to 16.
 - TABLE_PREFIX：The prefix length in the table name that is ignored when distributing table to vnode based on table name.
 - TABLE_SUFFIX：The suffix length in the table name that is ignored when distributing table to vnode based on table name.
+- TSDB_PAGESIZE: The page size of the data storage engine in a vnode. The unit is KB. The default is 4 KB. The range is 1 to 16384, that is, 1 KB to 16 MB.
 - WAL_RETENTION_PERIOD: specifies the time after which WAL files are deleted. This parameter is used for data subscription. Enter a time in seconds. The default value of single copy is 0. A value of 0 indicates that each WAL file is deleted immediately after its contents are written to disk. -1: WAL files are never deleted. The default value of multiple copy is 4 days.
 - WAL_RETENTION_SIZE: specifies the size at which WAL files are deleted. This parameter is used for data subscription. Enter a size in KB. The default value of single copy is 0. A value of 0 indicates that each WAL file is deleted immediately after its contents are written to disk. -1: WAL files are never deleted. The default value of multiple copy is -1.
 - WAL_ROLL_PERIOD: specifies the time after which WAL files are rotated. After this period elapses, a new WAL file is created. The default value of single copy is 0. A value of 0 indicates that a new WAL file is created only after the previous WAL file was written to disk. The default values of multiple copy is 1 day.
