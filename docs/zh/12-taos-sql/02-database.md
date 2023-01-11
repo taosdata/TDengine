@@ -30,8 +30,10 @@ database_option: {
   | WAL_LEVEL {1 | 2}
   | VGROUPS value
   | SINGLE_STABLE {0 | 1}
+  | STT_TRIGGER value
   | TABLE_PREFIX value
   | TABLE_SUFFIX value
+  | TSDB_PAGESIZE value
   | WAL_RETENTION_PERIOD value
   | WAL_ROLL_PERIOD value
   | WAL_RETENTION_SIZE value
@@ -69,8 +71,10 @@ database_option: {
 - SINGLE_STABLE：表示此数据库中是否只可以创建一个超级表，用于超级表列非常多的情况。
   - 0：表示可以创建多张超级表。
   - 1：表示只可以创建一张超级表。
+- STT_TRIGGER：表示落盘文件触发文件合并的个数。默认为 1，范围 1 到 16。对于少表高频场景，此参数建议使用默认配置，或较小的值；而对于多表低频场景，此参数建议配置较大的值。
 - TABLE_PREFIX：内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。
 - TABLE_SUFFIX：内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度。
+- TSDB_PAGESIZE：一个 VNODE 中时序数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB到 16 MB。
 - WAL_RETENTION_PERIOD：wal 文件的额外保留策略，用于数据订阅。wal 的保存时长，单位为 s。单副本默认为 0，即落盘后立即删除。-1 表示不删除。多副本默认为 4 天。
 - WAL_RETENTION_SIZE：wal 文件的额外保留策略，用于数据订阅。wal 的保存的最大上限，单位为 KB。单副本默认为 0，即落盘后立即删除。多副本默认为-1，表示不删除。
 - WAL_ROLL_PERIOD：wal 文件切换时长，单位为 s。当 wal 文件创建并写入后，经过该时间，会自动创建一个新的 wal 文件。单副本默认为 0，即仅在落盘时创建新文件。多副本默认为 1 天。
@@ -112,6 +116,10 @@ alter_database_options:
 alter_database_option: {
     CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
   | CACHESIZE value
+  | BUFFER value
+  | PAGES value
+  | REPLICA value
+  | STT_TRIGGER value
   | WAL_LEVEL value
   | WAL_FSYNC_PERIOD value
   | KEEP value
