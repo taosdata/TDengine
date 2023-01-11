@@ -26,7 +26,7 @@ static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
   if (code < 0) return 0;
 
   SJson *replicas = tjsonGetObjectItem(pJson, "replicas");
-  if (replicas == NULL) return 0;
+  if (replicas == NULL) return -1;
   pOption->numOfReplicas = tjsonGetArraySize(replicas);
 
   for (int32_t i = 0; i < pOption->numOfReplicas; ++i) {
