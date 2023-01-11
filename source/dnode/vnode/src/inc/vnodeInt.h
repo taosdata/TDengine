@@ -129,7 +129,6 @@ int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 int             metaAlterCache(SMeta* pMeta, int32_t nPage);
 
 int metaAddIndexToSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
-}
 int metaDropIndexFromSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 
 int64_t       metaGetTimeSeriesNum(SMeta* pMeta);
