@@ -105,7 +105,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   wInfo("vgId:%d, wal rollback for version %" PRId64, pWal->cfg.vgId, ver);
   int64_t code;
   char    fnameStr[WAL_FILE_LEN];
-  if (ver > pWal->vers.lastVer || ver < pWal->vers.commitVer || ver <= pWal->vers.snapshotVer) {
+  if (ver > pWal->vers.lastVer || ver <= pWal->vers.commitVer || ver <= pWal->vers.snapshotVer) {
     terrno = TSDB_CODE_WAL_INVALID_VER;
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
@@ -635,6 +635,7 @@ int32_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, in
 }
 
 void walFsync(SWal *pWal, bool forceFsync) {
+  taosThreadMutexLock(&pWal->mutex);
   if (forceFsync || (pWal->cfg.level == TAOS_WAL_FSYNC && pWal->cfg.fsyncPeriod == 0)) {
     wTrace("vgId:%d, fileId:%" PRId64 ".idx, do fsync", pWal->cfg.vgId, walGetCurFileFirstVer(pWal));
     if (taosFsyncFile(pWal->pIdxFile) < 0) {
@@ -647,4 +648,5 @@ void walFsync(SWal *pWal, bool forceFsync) {
              strerror(errno));
     }
   }
+  taosThreadMutexUnlock(&pWal->mutex);
 }

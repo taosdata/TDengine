@@ -1662,9 +1662,9 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
 
 int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SVariant* pVal = &pCtx->param[1].param;
-  terrno = 0;
-
+  int32_t code = 0;
   double    v = 0;
+
   GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
@@ -1672,13 +1672,12 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   tMemBucket* pMemBucket = ppInfo->pMemBucket;
   if (pMemBucket != NULL && pMemBucket->total > 0) {  // check for null
-    SET_DOUBLE_VAL(&ppInfo->result, getPercentile(pMemBucket, v));
+    code = getPercentile(pMemBucket, v, &ppInfo->result);
   }
 
   tMemBucketDestroy(pMemBucket);
-
-  if (terrno != TSDB_CODE_SUCCESS) {
-    return terrno;
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   return functionFinalize(pCtx, pBlock);
