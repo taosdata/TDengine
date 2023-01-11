@@ -228,6 +228,7 @@ STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem 
       taosMemoryFree(worker);
       taosCloseQueue(queue);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
+      taosThreadMutexUnlock(&pool->mutex);
       return NULL;
     }
     worker->id = curWorkerNum;

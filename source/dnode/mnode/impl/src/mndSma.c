@@ -201,8 +201,8 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
   terrno = 0;
 
 _OVER:
-  if (terrno != 0) {
-    mError("sma:%s, failed to decode from raw:%p since %s", pSma == NULL ? "null" : pSma->name, pRaw, terrstr());
+  if (terrno != 0 && pSma != NULL) {
+    mError("sma:%s, failed to decode from raw:%p since %s", pSma->name, pRaw, terrstr());
     taosMemoryFreeClear(pSma->expr);
     taosMemoryFreeClear(pSma->tagsFilter);
     taosMemoryFreeClear(pSma->sql);
