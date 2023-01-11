@@ -2882,7 +2882,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 }
 
 static int32_t buildDbColsInfoBlock(const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta, size_t size,
-                                    const char* dbName) {
+                                    const char* dbName, const char* tbName) {
   char    tName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   char    dName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   char    typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -2896,6 +2896,10 @@ static int32_t buildDbColsInfoBlock(const SSDataBlock* p, const SSysTableMeta* p
 //    if (pm->sysInfo) {
 //      continue;
 //    }
+    if(tbName[0] && strncmp(tbName, pm->name, TSDB_TABLE_NAME_LEN) != 0){
+      continue;
+    }
+
     STR_TO_VARSTR(tName, pm->name);
 
     for(int32_t j = 0; j < pm->colNum; j++){
@@ -2946,15 +2950,19 @@ static int32_t buildDbColsInfoBlock(const SSDataBlock* p, const SSysTableMeta* p
   return numOfRows;
 }
 
-static int32_t buildSysDbColsInfo(SSDataBlock* p) {
+static int32_t buildSysDbColsInfo(SSDataBlock* p, char* db, char* tb) {
   size_t               size = 0;
   const SSysTableMeta* pSysDbTableMeta = NULL;
 
+  if(db[0] && strncmp(db, TSDB_INFORMATION_SCHEMA_DB, TSDB_DB_FNAME_LEN) != 0 && strncmp(db, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_DB_FNAME_LEN) != 0){
+    return p->info.rows;
+  }
+
   getInfosDbMeta(&pSysDbTableMeta, &size);
-  p->info.rows = buildDbColsInfoBlock(p, pSysDbTableMeta, size, TSDB_INFORMATION_SCHEMA_DB);
+  p->info.rows = buildDbColsInfoBlock(p, pSysDbTableMeta, size, TSDB_INFORMATION_SCHEMA_DB, tb);
 
   getPerfDbMeta(&pSysDbTableMeta, &size);
-  p->info.rows = buildDbColsInfoBlock(p, pSysDbTableMeta, size, TSDB_PERFORMANCE_SCHEMA_DB);
+  p->info.rows = buildDbColsInfoBlock(p, pSysDbTableMeta, size, TSDB_PERFORMANCE_SCHEMA_DB, tb);
 
   return p->info.rows;
 }
@@ -2964,7 +2972,7 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   SSdb    *pSdb = pMnode->pSdb;
   SStbObj *pStb = NULL;
 
-  int32_t numOfRows = buildSysDbColsInfo(pBlock);
+  int32_t numOfRows = buildSysDbColsInfo(pBlock, pShow->db, pShow->filterTb);
   mDebug("mndRetrieveStbCol get system table cols, rows:%d, db:%s", numOfRows, pShow->db);
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
@@ -2986,6 +2994,10 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     SName name = {0};
     char  stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     mndExtractTbNameFromStbFullName(pStb->name, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN);
+    if(pShow->filterTb[0] && strncmp(pShow->filterTb, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN) != 0){
+      sdbRelease(pSdb, pStb);
+      continue;
+    }
     varDataSetLen(stbName, strlen(&stbName[VARSTR_HEADER_SIZE]));
 
     mDebug("mndRetrieveStbCol get stable cols, stable name:%s, db:%s", pStb->name, pStb->db);

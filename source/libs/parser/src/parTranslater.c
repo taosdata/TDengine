@@ -2278,8 +2278,8 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
     ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
   }
 
-  if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) ||
-                                    0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS)) && !hasUserDbCond) {
+  if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) && !hasUserDbCond) ||
+                                    0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS)) {
     code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &pVgs);
   }
 

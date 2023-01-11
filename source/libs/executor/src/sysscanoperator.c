@@ -442,15 +442,14 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   tNameGetDbName(&sn, varDataVal(dbname));
   varDataSetLen(dbname, strlen(varDataVal(dbname)));
 
-  char condTableName[TSDB_TABLE_NAME_LEN] = {0};
   // optimize when sql like where table_name='tablename' and xxx.
-  if (pInfo->pCondition && sysTableIsCondOnOneTable(pInfo->pCondition, condTableName)) {
+  if (pInfo->req.filterTb[0]) {
     char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(tableName, condTableName);
+    STR_TO_VARSTR(tableName, pInfo->req.filterTb);
 
     SMetaReader smrTable = {0};
     metaReaderInit(&smrTable, pInfo->readHandle.meta, 0);
-    int32_t code = metaGetTableEntryByName(&smrTable, condTableName);
+    int32_t code = metaGetTableEntryByName(&smrTable, pInfo->req.filterTb);
     if (code != TSDB_CODE_SUCCESS) {
       // terrno has been set by metaGetTableEntryByName, therefore, return directly
       metaReaderClear(&smrTable);
@@ -1548,9 +1547,14 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   char               dbName[TSDB_DB_NAME_LEN] = {0};
 
   const char* name = tNameGetTableName(&pInfo->name);
-  getDBNameFromCondition(pInfo->pCondition, dbName);
-  strcpy(pInfo->req.db, dbName);
-//  sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
+  if (pInfo->showRewrite) {
+    getDBNameFromCondition(pInfo->pCondition, dbName);
+    sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
+  }else if(strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0){
+    getDBNameFromCondition(pInfo->pCondition, dbName);
+    if(dbName[0]) sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
+    sysTableIsCondOnOneTable(pInfo->pCondition, pInfo->req.filterTb);
+  }
 
   SSDataBlock* pBlock = NULL;
   if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
