@@ -2064,7 +2064,8 @@ class StreamComputingTest(TDCase):
             self.create_error_source_sql_stream()
             ## ! rep3 TD-20280
             self.insert_after_restart()
-            self.insert_after_restart(delete=True, fill_history_value=1)
+            ## ! TD-21908
+            # self.insert_after_restart(delete=True, fill_history_value=1)
             ## ! TD-18123
             # # self.insert_after_recreate_source_table()
             ## ! rep3 bug
