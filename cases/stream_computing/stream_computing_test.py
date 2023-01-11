@@ -55,7 +55,7 @@ class StreamComputingTest(TDCase):
         self.udf2 = "/tmp/libudf2.so"
         self.offset = 1000
         self.interation = 10
-        self.default_interval = 15
+        self.default_interval = 5
         
 
         self.range_count = 5
@@ -2151,7 +2151,7 @@ class StreamComputingTest(TDCase):
 
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_history_value=1, fill_value="NULL")
             # # TODO not stable
-            # # self.at_once_interval(interval=random.randint(10, 12), partition="c1", fill_value="NULL")
+            # self.at_once_interval(interval=random.randint(10, 12), partition="c1", fill_value="NULL")
             self.at_once_interval(interval=random.randint(10, 15), partition="c1", fill_value="NULL", delete=True)
             
             self.at_once_state_window(state_window="c2", partition="tbname", case_when="case when c1 < 0 then c1 else c2 end")
