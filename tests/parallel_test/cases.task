@@ -247,8 +247,8 @@
 ,,y,script,./test.sh -f tsim/stream/fillIntervalPartitionBy.sim
 ,,y,script,./test.sh -f tsim/stream/fillIntervalPrevNext.sim
 ,,y,script,./test.sh -f tsim/stream/fillIntervalValue.sim
-,,y,script,./test.sh -f tsim/stream/tableAndTag0.sim
-,,y,script,./test.sh -f tsim/stream/tableAndTag1.sim
+,,y,script,./test.sh -f tsim/stream/udTableAndTag0.sim
+,,y,script,./test.sh -f tsim/stream/udTableAndTag1.sim
 ,,y,script,./test.sh -f tsim/trans/lossdata1.sim
 ,,y,script,./test.sh -f tsim/trans/create_db.sim
 ,,y,script,./test.sh -f tsim/tmq/basic1.sim
