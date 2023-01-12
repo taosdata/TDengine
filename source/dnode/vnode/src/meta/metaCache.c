@@ -424,6 +424,50 @@ int32_t metaStatsCacheGet(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo) {
   return code;
 }
 
+static int checkAllEntriesInCache(const STagFilterResEntry* pEntry, SArray* pInvalidRes, int32_t keyLen, SLRUCache* pCache, uint64_t suid) {
+  SListIter iter = {0};
+  tdListInitIter((SList*)&(pEntry->list), &iter, TD_LIST_FORWARD);
+
+  SListNode* pNode = NULL;
+  uint64_t buf[3];
+  buf[0] = suid;
+
+  int32_t len = sizeof(uint64_t) * tListLen(buf);
+
+  while ((pNode = tdListNext(&iter)) != NULL) {
+    memcpy(&buf[1], pNode->data, keyLen);
+
+    // check whether it is existed in LRU cache, and remove it from linked list if not.
+    LRUHandle* pRes = taosLRUCacheLookup(pCache, buf, len);
+    if (pRes == NULL) {  // remove the item in the linked list
+      taosArrayPush(pInvalidRes, &pNode);
+    } else {
+      taosLRUCacheRelease(pCache, pRes, false);
+    }
+  }
+
+  return 0;
+}
+
+#define NEED_CHECK_CACHE_ITEM(_size, _acc_times)  ((_size) >= 100 || (_acc_times) > 5000)
+
+static void removeInvalidCacheItem(SArray* pInvalidRes, struct STagFilterResEntry* pEntry) {
+  if (pInvalidRes == NULL) {
+    return;
+  }
+
+  // remove the keys, of which query uid lists have been replaced already.
+  size_t s = taosArrayGetSize(pInvalidRes);
+  for (int32_t i = 0; i < s; ++i) {
+    SListNode** p1 = taosArrayGet(pInvalidRes, i);
+    tdListPopNode(&(pEntry->list), *p1);
+    taosMemoryFree(*p1);
+  }
+
+  atomic_store_32(&(pEntry->qTimes), 0); // reset the query times
+  taosArrayDestroy(pInvalidRes);
+}
+
 int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray* pList1,
                                   bool* acquireRes) {
   // generate the composed key for LRU cache
@@ -465,38 +509,13 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
   taosThreadMutexUnlock(pLock);
 
   // check if scanning all items are necessary or not
-  if (times >= 5000 && TD_DLIST_NELES(&(*pEntry)->list) > 100) {
+  if (NEED_CHECK_CACHE_ITEM(listNEles(&(*pEntry)->list), times)) {
     taosThreadMutexLock(pLock);
 
     SArray* pInvalidRes = taosArrayInit(64, POINTER_BYTES);
+    checkAllEntriesInCache(*pEntry, pInvalidRes, keyLen, pCache, suid);
 
-    SListIter iter = {0};
-    tdListInitIter(&(*pEntry)->list, &iter, TD_LIST_FORWARD);
-
-    SListNode* pNode = NULL;
-    while ((pNode = tdListNext(&iter)) != NULL) {
-      memcpy(&buf[1], pNode->data, keyLen);
-
-      // check whether it is existed in LRU cache, and remove it from linked list if not.
-      LRUHandle* pRes = taosLRUCacheLookup(pCache, buf, len);
-      if (pRes == NULL) {  // remove the item in the linked list
-        taosArrayPush(pInvalidRes, &pNode);
-      } else {
-        taosLRUCacheRelease(pCache, pRes, false);
-      }
-    }
-
-    // remove the keys, of which query uid lists have been replaced already.
-    size_t s = taosArrayGetSize(pInvalidRes);
-    for (int32_t i = 0; i < s; ++i) {
-      SListNode** p1 = taosArrayGet(pInvalidRes, i);
-      tdListPopNode(&(*pEntry)->list, *p1);
-      taosMemoryFree(*p1);
-    }
-
-    atomic_store_32(&(*pEntry)->qTimes, 0); // reset the query times
-    taosArrayDestroy(pInvalidRes);
-
+    removeInvalidCacheItem(pInvalidRes, *pEntry);  // remove the keys, of which query uid lists have been replaced already.
     taosThreadMutexUnlock(pLock);
   }
 
@@ -568,8 +587,8 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
       SArray* pInvalidRes = NULL;
       uint64_t keyBuf[3];
 
-      if (size >= 100 || times > 5000) {
-        // if the threshold value is reached, need to check the value.
+      // if the threshold value is reached, need to check the value.
+      if (NEED_CHECK_CACHE_ITEM(size, times)) {
         checkCacheEntry = true;
         keyBuf[0] = suid;
         pInvalidRes = taosArrayInit(64, POINTER_BYTES);
@@ -585,18 +604,16 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
         // key already exists in cache, quit
         if (p[1] == ((uint64_t*)pKey)[1] && p[0] == ((uint64_t*)pKey)[0]) {
           // do remove invalid entry in hash
-          size_t s = taosArrayGetSize(pInvalidRes);
-          for (int32_t i = 0; i < s; ++i) {
-            SListNode** p1 = taosArrayGet(pInvalidRes, i);
-            tdListPopNode(&(*pEntry)->list, *p1);
-            taosMemoryFree(*p1);
+          if (pInvalidRes != NULL) {
+            removeInvalidCacheItem(pInvalidRes, *pEntry);
           }
 
           taosThreadMutexUnlock(pLock);
           return TSDB_CODE_SUCCESS;
         }
 
-        // check whether it is existed in LRU cache, and remove it from linked list if not.
+        // check whether it is existed in LRU cache, and remove it from linked list if not
+        // we record every invalid items and remove when the loop is over.
         if (checkCacheEntry) {
           keyBuf[1] = p[1];
           keyBuf[2] = p[2];
@@ -611,11 +628,8 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
       }
 
       // do remove invalid entry in hash
-      size_t s = taosArrayGetSize(pInvalidRes);
-      for (int32_t i = 0; i < s; ++i) {
-        SListNode** p1 = taosArrayGet(pInvalidRes, i);
-        tdListPopNode(&(*pEntry)->list, *p1);
-        taosMemoryFree(*p1);
+      if (pInvalidRes != NULL) {
+        removeInvalidCacheItem(pInvalidRes, *pEntry);
       }
 
       tdListAppend(&(*pEntry)->list, pKey);
