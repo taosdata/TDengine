@@ -871,6 +871,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
     return;
   }
 
+  int8_t* pIndicator = (int8_t*)p->pData;
   int32_t totalRows = pBlock->info.rows;
 
   if (status == FILTER_RESULT_ALL_QUALIFIED) {
@@ -878,42 +879,135 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
   } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
     pBlock->info.rows = 0;
   } else {
-    SSDataBlock* px = createOneDataBlock(pBlock, true);
+    int32_t bmLen = BitmapLen(totalRows);
+    char*   pBitmap = NULL;
+    int32_t maxRows = 0;
 
     size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
     for (int32_t i = 0; i < numOfCols; ++i) {
-      SColumnInfoData* pSrc = taosArrayGet(px->pDataBlock, i);
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
       // it is a reserved column for scalar function, and no data in this column yet.
-      if (pDst->pData == NULL || pSrc->pData == NULL) {
+      if (pDst->pData == NULL) {
         continue;
       }
 
-      colInfoDataCleanup(pDst, pBlock->info.rows);
-
       int32_t numOfRows = 0;
-      for (int32_t j = 0; j < totalRows; ++j) {
-        if (((int8_t*)p->pData)[j] == 0) {
-          continue;
+
+      if (IS_VAR_DATA_TYPE(pDst->info.type)) {
+        int32_t j = 0;
+        pDst->varmeta.length = 0;
+
+        while(j < totalRows) {
+          if (pIndicator[j] == 0) {
+            j += 1;
+            continue;
+          }
+
+          if (colDataIsNull_var(pDst, j)) {
+            colDataSetNull_var(pDst, numOfRows);
+          } else {
+            char* p1 = colDataGetVarData(pDst, j);
+            colDataAppend(pDst, numOfRows, p1, false);
+          }
+          numOfRows += 1;
+          j += 1;
         }
 
-        if (colDataIsNull_s(pSrc, j)) {
-          colDataAppendNULL(pDst, numOfRows);
-        } else {
-          colDataAppend(pDst, numOfRows, colDataGetData(pSrc, j), false);
+        if (maxRows < numOfRows) {
+          maxRows = numOfRows;
         }
-        numOfRows += 1;
+      } else {
+        if (pBitmap == NULL) {
+          pBitmap = taosMemoryCalloc(1, bmLen);
+        }
+
+        memcpy(pBitmap, pDst->nullbitmap, bmLen);
+        memset(pDst->nullbitmap, 0, bmLen);
+
+        int32_t j = 0;
+
+        switch (pDst->info.type) {
+          case TSDB_DATA_TYPE_BIGINT:
+          case TSDB_DATA_TYPE_UBIGINT:
+          case TSDB_DATA_TYPE_DOUBLE:
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            while (j < totalRows) {
+              if (pIndicator[j] == 0) {
+                j += 1;
+                continue;
+              }
+
+              if (colDataIsNull_f(pBitmap, j)) {
+                colDataSetNull_f(pDst->nullbitmap, numOfRows);
+              } else {
+                ((int64_t*)pDst->pData)[numOfRows] = ((int64_t*)pDst->pData)[j];
+              }
+              numOfRows += 1;
+              j += 1;
+            }
+            break;
+          case TSDB_DATA_TYPE_FLOAT:
+          case TSDB_DATA_TYPE_INT:
+          case TSDB_DATA_TYPE_UINT:
+            while (j < totalRows) {
+              if (pIndicator[j] == 0) {
+                j += 1;
+                continue;
+              }
+              if (colDataIsNull_f(pBitmap, j)) {
+                colDataSetNull_f(pDst->nullbitmap, numOfRows);
+              } else {
+                ((int32_t*)pDst->pData)[numOfRows] = ((int32_t*)pDst->pData)[j];
+              }
+              numOfRows += 1;
+              j += 1;
+            }
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+          case TSDB_DATA_TYPE_USMALLINT:
+            while (j < totalRows) {
+              if (pIndicator[j] == 0) {
+                j += 1;
+                continue;
+              }
+              if (colDataIsNull_f(pBitmap, j)) {
+                colDataSetNull_f(pDst->nullbitmap, numOfRows);
+              } else {
+                ((int16_t*)pDst->pData)[numOfRows] = ((int16_t*)pDst->pData)[j];
+              }
+              numOfRows += 1;
+              j += 1;
+            }
+            break;
+          case TSDB_DATA_TYPE_BOOL:
+          case TSDB_DATA_TYPE_TINYINT:
+          case TSDB_DATA_TYPE_UTINYINT:
+            while (j < totalRows) {
+              if (pIndicator[j] == 0) {
+                j += 1;
+                continue;
+              }
+              if (colDataIsNull_f(pBitmap, j)) {
+                colDataSetNull_f(pDst->nullbitmap, numOfRows);
+              } else {
+                ((int8_t*)pDst->pData)[numOfRows] = ((int8_t*)pDst->pData)[j];
+              }
+              numOfRows += 1;
+              j += 1;
+            }
+            break;
+        }
       }
 
-      // todo this value can be assigned directly
-      if (pBlock->info.rows == totalRows) {
-        pBlock->info.rows = numOfRows;
-      } else {
-        ASSERT(pBlock->info.rows == numOfRows);
+      if (maxRows < numOfRows) {
+        maxRows = numOfRows;
       }
     }
 
-    blockDataDestroy(px);  // fix memory leak
+    pBlock->info.rows = maxRows;
+    if (pBitmap != NULL) {
+      taosMemoryFree(pBitmap);
+    }
   }
 }
 
@@ -2166,9 +2260,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL == type) {
     SIntervalPhysiNode* pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
-
-    bool isStream = (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type);
-    pOptr = createIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo, isStream);
+    pOptr = createIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type) {
     pOptr = createStreamIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == type) {
@@ -2653,4 +2745,25 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
   }
   blockDataUpdateTsWindow(pBlock, 0);
   return TSDB_CODE_SUCCESS;
+}
+
+void qStreamCloseTsdbReader(void* task) {
+  if (task == NULL) return;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)task;
+  SOperatorInfo* pOp = pTaskInfo->pRoot;
+  qDebug("stream close tsdb reader, reset status uid %" PRId64 " ts %" PRId64, pTaskInfo->streamInfo.lastStatus.uid,
+         pTaskInfo->streamInfo.lastStatus.ts);
+  pTaskInfo->streamInfo.lastStatus = (STqOffsetVal){0};
+  while (pOp->numOfDownstream == 1 && pOp->pDownstream[0]) {
+    SOperatorInfo* pDownstreamOp = pOp->pDownstream[0];
+    if (pDownstreamOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+      SStreamScanInfo* pInfo = pDownstreamOp->info;
+      if (pInfo->pTableScanOp) {
+        STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+        tsdbReaderClose(pTSInfo->base.dataReader);
+        pTSInfo->base.dataReader = NULL;
+        return;
+      }
+    }
+  }
 }

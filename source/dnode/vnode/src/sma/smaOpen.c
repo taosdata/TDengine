@@ -148,10 +148,6 @@ int32_t smaOpen(SVnode *pVnode, int8_t rollback) {
         SMA_OPEN_RSMA_IMPL(pVnode, 1);
       } else if (i == TSDB_RETENTION_L2) {
         SMA_OPEN_RSMA_IMPL(pVnode, 2);
-      } else {
-        code = TSDB_CODE_APP_ERROR;
-        smaError("vgId:%d, sma open failed since %s, level:%d", TD_VID(pVnode), tstrerror(code), i);
-        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
 

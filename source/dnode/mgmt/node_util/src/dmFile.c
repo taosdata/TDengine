@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmUtil.h"
+#include "tjson.h"
 
 #define MAXLEN 1024
 
@@ -63,56 +64,51 @@ _OVER:
   return code;
 }
 
+static int32_t dmEncodeFile(SJson *pJson, bool deployed) {
+  if (tjsonAddDoubleToObject(pJson, "deployed", deployed) < 0) return -1;
+  return 0;
+}
+
 int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
   int32_t   code = -1;
-  int32_t   len = 0;
-  char      content[MAXLEN + 1] = {0};
+  char     *buffer = NULL;
+  SJson    *pJson = NULL;
+  TdFilePtr pFile = NULL;
   char      file[PATH_MAX] = {0};
   char      realfile[PATH_MAX] = {0};
-  TdFilePtr pFile = NULL;
-
   snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
   snprintf(realfile, sizeof(realfile), "%s%s%s.json", path, TD_DIRSEP, name);
 
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  pJson = tjsonCreateObject();
+  if (pJson == NULL) goto _OVER;
+  if (dmEncodeFile(pJson, deployed) != 0) goto _OVER;
+  buffer = tjsonToString(pJson);
+  if (buffer == NULL) goto _OVER;
+  terrno = 0;
+
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to write %s since %s", file, terrstr());
-    goto _OVER;
-  }
+  if (pFile == NULL) goto _OVER;
 
-  len += snprintf(content + len, MAXLEN - len, "{\n");
-  len += snprintf(content + len, MAXLEN - len, "  \"deployed\": %d\n", deployed);
-  len += snprintf(content + len, MAXLEN - len, "}\n");
-
-  if (taosWriteFile(pFile, content, len) != len) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to write file:%s since %s", file, terrstr());
-    goto _OVER;
-  }
-
-  if (taosFsyncFile(pFile) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to fsync file:%s since %s", file, terrstr());
-    goto _OVER;
-  }
+  int32_t len = strlen(buffer);
+  if (taosWriteFile(pFile, buffer, len) <= 0) goto _OVER;
+  if (taosFsyncFile(pFile) < 0) goto _OVER;
 
   taosCloseFile(&pFile);
+  if (taosRenameFile(file, realfile) != 0) goto _OVER;
 
-  if (taosRenameFile(file, realfile) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to rename %s since %s", file, terrstr());
-    return -1;
-  }
-
-  dInfo("succeed to write %s, deployed:%d", realfile, deployed);
   code = 0;
+  dInfo("succeed to write file:%s, deloyed:%d", realfile, deployed);
 
 _OVER:
-  if (pFile != NULL) {
-    taosCloseFile(&pFile);
-  }
+  if (pJson != NULL) tjsonDelete(pJson);
+  if (buffer != NULL) taosMemoryFree(buffer);
+  if (pFile != NULL) taosCloseFile(&pFile);
 
+  if (code != 0) {
+    if (terrno == 0) terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to write file:%s since %s, deloyed:%d", realfile, terrstr(), deployed);
+  }
   return code;
 }
 

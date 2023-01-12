@@ -1359,6 +1359,7 @@ static int32_t createSetOpLogicNode(SLogicPlanContext* pCxt, SSetOperator* pSetO
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    pSetOp->precision = pSetOperator->precision;
     *pLogicNode = (SLogicNode*)pSetOp;
   } else {
     nodesDestroyNode((SNode*)pSetOp);

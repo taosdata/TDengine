@@ -86,14 +86,14 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
       SSmlSTableMeta *sMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, elements->measure, elements->measureLen, NULL);
 
       if(unlikely(sMeta == NULL)){
-        sMeta = smlBuildSTableMeta(info->dataFormat);
         STableMeta * pTableMeta = smlGetMeta(info, elements->measure, elements->measureLen);
-        sMeta->tableMeta = pTableMeta;
         if(pTableMeta == NULL){
           info->dataFormat = false;
           info->reRun      = true;
           return TSDB_CODE_SUCCESS;
         }
+        sMeta = smlBuildSTableMeta(info->dataFormat);
+        sMeta->tableMeta = pTableMeta;
         nodeListSet(&info->superTables, elements->measure, elements->measureLen, sMeta, NULL);
       }
       info->currSTableMeta = sMeta->tableMeta;
@@ -184,7 +184,10 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
         if(unlikely(kv.length > maxKV->length)){
           maxKV->length = kv.length;
           SSmlSTableMeta *tableMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, elements->measure, elements->measureLen, NULL);
-          ASSERT(tableMeta != NULL);
+          if(unlikely(NULL == tableMeta)){
+            uError("SML:0x%" PRIx64 " NULL == tableMeta", info->id);
+            return TSDB_CODE_SML_INTERNAL_ERROR;
+          }
 
           SSmlKv *oldKV = (SSmlKv *)taosArrayGet(tableMeta->tags, cnt);
           oldKV->length = kv.length;
@@ -235,11 +238,13 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
     tinfo->tags = taosArrayDup(preLineKV, NULL);
 
     smlSetCTableName(tinfo);
+    tinfo->uid = info->uid++;
     if (info->dataFormat) {
       info->currSTableMeta->uid = tinfo->uid;
       tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);
       if (tinfo->tableDataCtx == NULL) {
         smlBuildInvalidDataMsg(&info->msgBuf, "smlInitTableDataCtx error", NULL);
+        smlDestroyTableInfo(info, tinfo);
         return TSDB_CODE_SML_INVALID_DATA;
       }
     }
@@ -324,6 +329,7 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     if(ret == TSDB_CODE_SUCCESS){
       ret = smlBuildRow(info->currTableDataCtx);
     }
+    clearColValArray(info->currTableDataCtx->pValues);
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
       return ret;

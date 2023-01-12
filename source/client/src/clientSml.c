@@ -186,13 +186,10 @@ int32_t smlSetCTableName(SSmlTableInfo *oneTable) {
 
   if (strlen(oneTable->childTableName) == 0) {
     SArray       *dst = taosArrayDup(oneTable->tags, NULL);
-    RandTableName rName = {dst, oneTable->sTableName, (uint8_t)oneTable->sTableNameLen, oneTable->childTableName, 0};
+    RandTableName rName = {dst, oneTable->sTableName, (uint8_t)oneTable->sTableNameLen, oneTable->childTableName};
 
     buildChildTableName(&rName);
     taosArrayDestroy(dst);
-    oneTable->uid = rName.uid;
-  } else {
-    oneTable->uid = *(uint64_t *)(oneTable->childTableName);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -523,7 +520,10 @@ STableMeta *smlGetMeta(SSmlHandle *info, const void *measure, int32_t measureLen
   memset(pName.tname, 0, TSDB_TABLE_NAME_LEN);
   memcpy(pName.tname, measure, measureLen);
 
-  catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
+  int32_t code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
+  if(code != TSDB_CODE_SUCCESS){
+    return NULL;
+  }
   return pTableMeta;
 }
 
@@ -996,7 +996,10 @@ static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
       }
     } else {
       size_t tmp = taosArrayGetSize(metaArray);
-      ASSERT(tmp <= INT16_MAX);
+      if(tmp > INT16_MAX){
+        uError("too many cols or tags");
+        return -1;
+      }
       int16_t size = tmp;
       int     ret = taosHashPut(metaHash, kv->key, kv->keyLen, &size, SHORT_BYTES);
       if (ret == 0) {
@@ -1008,7 +1011,7 @@ static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
   return TSDB_CODE_SUCCESS;
 }
 
-static void smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag) {
+void smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag) {
   for (size_t i = 0; i < taosArrayGetSize(tag->cols); i++) {
     SHashObj *kvHash = (SHashObj *)taosArrayGetP(tag->cols, i);
     taosHashCleanup(kvHash);
@@ -1022,6 +1025,16 @@ static void smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag) {
   taosArrayDestroy(tag->cols);
   taosArrayDestroy(tag->tags);
   taosMemoryFree(tag);
+}
+
+void clearColValArray(SArray* pCols) {
+  int32_t num = taosArrayGetSize(pCols);
+  for (int32_t i = 0; i < num; ++i) {
+    SColVal* pCol = taosArrayGet(pCols, i);
+    if (TSDB_DATA_TYPE_NCHAR == pCol->type) {
+      taosMemoryFreeClear(pCol->value.pData);
+    }
+  }
 }
 
 void smlDestroyInfo(SSmlHandle *info) {
@@ -1053,6 +1066,12 @@ void smlDestroyInfo(SSmlHandle *info) {
   // destroy info->pVgHash
   taosHashCleanup(info->pVgHash);
 
+  for(int i = 0; i< taosArrayGetSize(info->tagJsonArray); i++){
+    cJSON *tags = (cJSON *)taosArrayGetP(info->tagJsonArray, i);
+    cJSON_Delete(tags);
+  }
+  taosArrayDestroy(info->tagJsonArray);
+
   taosArrayDestroy(info->preLineTagKV);
   taosArrayDestroy(info->maxTagKVs);
   taosArrayDestroy(info->preLineColKV);
@@ -1067,6 +1086,7 @@ void smlDestroyInfo(SSmlHandle *info) {
     taosMemoryFree(info->lines);
   }
 
+  cJSON_Delete(info->root);
   taosMemoryFreeClear(info);
 }
 
@@ -1090,6 +1110,7 @@ SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
   info->pQuery = smlInitHandle();
   info->dataFormat = true;
 
+  info->tagJsonArray = taosArrayInit(8, POINTER_BYTES);
   info->preLineTagKV = taosArrayInit(8, sizeof(SSmlKv));
   info->maxTagKVs = taosArrayInit(8, sizeof(SSmlKv));
   info->preLineColKV = taosArrayInit(8, sizeof(SSmlKv));
@@ -1211,7 +1232,10 @@ static int32_t smlInsertData(SSmlHandle *info) {
 
     SSmlSTableMeta *pMeta =
         (SSmlSTableMeta *)nodeListGet(info->superTables, tableData->sTableName, tableData->sTableNameLen, NULL);
-    ASSERT(NULL != pMeta);
+    if(unlikely(NULL == pMeta || NULL == pMeta->tableMeta)){
+      uError("SML:0x%" PRIx64 " NULL == pMeta. table name: %s", info->id, tableData->childTableName);
+      return TSDB_CODE_SML_INTERNAL_ERROR;
+    }
 
     // use tablemeta of stable to save vgid and uid of child table
     pMeta->tableMeta->vgId = vg.vgId;
@@ -1347,9 +1371,8 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
       } else {
         code = smlParseTelnetString(info, (char *)tmp, (char *)tmp + len, info->lines + i);
       }
-
     } else {
-      ASSERT(0);
+      code = TSDB_CODE_SML_INVALID_PROTOCOL_TYPE;
     }
     if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " smlParseLine failed. line %d : %s", info->id, i, tmp);

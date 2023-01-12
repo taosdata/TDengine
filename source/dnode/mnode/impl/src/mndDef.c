@@ -167,6 +167,10 @@ void tFreeStreamObj(SStreamObj *pStream) {
     taosArrayDestroy(pLevel);
   }
   taosArrayDestroy(pStream->tasks);
+  // tagSchema.pSchema
+  if (pStream->tagSchema.nCols > 0) {
+    taosMemoryFree(pStream->tagSchema.pSchema);
+  }
 }
 
 SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {

@@ -373,7 +373,10 @@ static char* processCreateTable(SMqMetaRsp* metaRsp) {
 }
 
 static char* processAutoCreateTable(STaosxRsp* rsp) {
-  ASSERT(rsp->createTableNum != 0);
+  if(rsp->createTableNum <= 0){
+    uError("WriteRaw:processAutoCreateTable rsp->createTableNum <= 0");
+    goto _exit;
+  }
 
   SDecoder*      decoder = taosMemoryCalloc(rsp->createTableNum, sizeof(SDecoder));
   SVCreateTbReq* pCreateReq = taosMemoryCalloc(rsp->createTableNum, sizeof(SVCreateTbReq));
@@ -389,7 +392,10 @@ static char* processAutoCreateTable(STaosxRsp* rsp) {
       goto _exit;
     }
 
-    ASSERT(pCreateReq[iReq].type == TSDB_CHILD_TABLE);
+    if(pCreateReq[iReq].type != TSDB_CHILD_TABLE){
+      uError("WriteRaw:processAutoCreateTable pCreateReq[iReq].type != TSDB_CHILD_TABLE");
+      goto _exit;
+    }
   }
   string = buildCreateCTableJson(pCreateReq, rsp->createTableNum);
 
@@ -494,7 +500,10 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
         char* buf = NULL;
 
         if (vAlterTbReq.tagType == TSDB_DATA_TYPE_JSON) {
-          ASSERT(tTagIsJson(vAlterTbReq.pTagVal) == true);
+          if(!tTagIsJson(vAlterTbReq.pTagVal)){
+            uError("processAlterTable isJson false");
+            goto _exit;
+          }
           buf = parseTagDatatoJson(vAlterTbReq.pTagVal);
         } else {
           buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 1, 1);
@@ -1610,7 +1619,11 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
         goto end;
       }
 
-      ASSERT(pCreateReq.type == TSDB_CHILD_TABLE);
+      if(pCreateReq.type != TSDB_CHILD_TABLE){
+        uError("WriteRaw:pCreateReq.type != TSDB_CHILD_TABLE. table name: %s", tbName);
+        code = TSDB_CODE_TSC_INVALID_VALUE;
+        goto end;
+      }
       if (strcmp(tbName, pCreateReq.name) == 0) {
         strcpy(pName.tname, pCreateReq.ctb.stbName);
         tDecoderClear(&decoderTmp);

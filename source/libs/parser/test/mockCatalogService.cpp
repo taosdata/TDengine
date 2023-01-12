@@ -33,7 +33,6 @@ std::unique_ptr<MockCatalogService> g_mockCatalogService;
 class TableBuilder : public ITableBuilder {
  public:
   virtual TableBuilder& addColumn(const string& name, int8_t type, int32_t bytes) {
-    assert(colId_ <= schema()->tableInfo.numOfTags + schema()->tableInfo.numOfColumns);
     SSchema* col = schema()->schema + (colId_ - 1);
     col->type = type;
     col->colId = colId_++;

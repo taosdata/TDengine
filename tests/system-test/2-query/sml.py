@@ -15,6 +15,9 @@ sys.path.append("./7-tmq")
 from tmqCommon import *
 
 class TDTestCase:
+    updatecfgDict = {'clientCfg': {'smlChildTableName': 'dataModelName', 'fqdn': 'localhost'}, 'fqdn': 'localhost'}
+    print("===================: ", updatecfgDict)
+
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
@@ -22,8 +25,10 @@ class TDTestCase:
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def checkFileContent(self, dbname="sml_db"):
+        simClientCfg="%s/taos.cfg"%tdDnodes.getSimCfgPath()
         buildPath = tdCom.getBuildPath()
-        cmdStr = '%s/build/bin/sml_test'%(buildPath)
+        cmdStr = '%s/build/bin/sml_test %s'%(buildPath, simClientCfg)
+        print("cmdStr:", cmdStr)
         tdLog.info(cmdStr)
         ret = os.system(cmdStr)
         if ret != 0:

@@ -82,6 +82,7 @@
 ,,y,script,./test.sh -f tsim/insert/tcp.sim
 ,,y,script,./test.sh -f tsim/insert/update0.sim
 ,,y,script,./test.sh -f tsim/insert/update1_sort_merge.sim
+,,y,script,./test.sh -f tsim/insert/update2.sim
 ,,y,script,./test.sh -f tsim/parser/alter__for_community_version.sim
 ,,y,script,./test.sh -f tsim/parser/alter_column.sim
 ,,y,script,./test.sh -f tsim/parser/alter_stable.sim
@@ -246,6 +247,8 @@
 ,,y,script,./test.sh -f tsim/stream/fillIntervalPartitionBy.sim
 ,,y,script,./test.sh -f tsim/stream/fillIntervalPrevNext.sim
 ,,y,script,./test.sh -f tsim/stream/fillIntervalValue.sim
+,,y,script,./test.sh -f tsim/stream/tableAndTag0.sim
+,,y,script,./test.sh -f tsim/stream/tableAndTag1.sim
 ,,y,script,./test.sh -f tsim/trans/lossdata1.sim
 ,,y,script,./test.sh -f tsim/trans/create_db.sim
 ,,y,script,./test.sh -f tsim/tmq/basic1.sim
@@ -425,8 +428,8 @@
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
-,,n,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
-,,n,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_stable.py

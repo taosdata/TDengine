@@ -160,6 +160,8 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   taosThreadMutexInit(&pVnode->mutex, NULL);
   taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
+  vnodeUpdCommitSched(pVnode);
+
   int8_t rollback = vnodeShouldRollback(pVnode);
 
   // open buffer pool
@@ -238,7 +240,7 @@ _err:
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
   if (pVnode->pSma) smaClose(pVnode->pSma);
   if (pVnode->pMeta) metaClose(pVnode->pMeta);
-  if (pVnode->pPool) vnodeCloseBufPool(pVnode);
+  if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
   tsem_destroy(&(pVnode->canCommit));
   taosMemoryFree(pVnode);
@@ -250,9 +252,11 @@ void vnodePreClose(SVnode *pVnode) {
   vnodeSyncPreClose(pVnode);
 }
 
+void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
+
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
-    vnodeSyncCommit(pVnode);
+    tsem_wait(&pVnode->canCommit);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     walClose(pVnode->pWal);
@@ -261,6 +265,8 @@ void vnodeClose(SVnode *pVnode) {
     smaClose(pVnode->pSma);
     metaClose(pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
+    tsem_post(&pVnode->canCommit);
+
     // destroy handle
     tsem_destroy(&(pVnode->canCommit));
     tsem_destroy(&pVnode->syncSem);

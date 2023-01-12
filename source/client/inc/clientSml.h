@@ -164,6 +164,7 @@ typedef struct {
   bool            dataFormat;  // true means that the name and order of keys in each line are the same(only for influx protocol)
   bool            isRawLine;
   int32_t         ttl;
+  int32_t         uid; // used for automatic create child table
 
   NodeList *childTables;
   NodeList *superTables;
@@ -182,6 +183,7 @@ typedef struct {
   int8_t             offset[OTD_JSON_FIELDS_NUM];
   SSmlLineInfo      *lines; // element is SSmlLineInfo
   bool               parseJsonByLib;
+  SArray      *tagJsonArray;
 
   //
   SArray      *preLineTagKV;
@@ -230,6 +232,8 @@ int64_t           smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32
 int32_t           smlClearForRerun(SSmlHandle *info);
 int32_t           smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg);
 uint8_t           smlGetTimestampLen(int64_t num);
+void              clearColValArray(SArray* pCols);
+void              smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag);
 
 int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);

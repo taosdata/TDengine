@@ -30,8 +30,10 @@ database_option: {
   | WAL_LEVEL {1 | 2}
   | VGROUPS value
   | SINGLE_STABLE {0 | 1}
+  | STT_TRIGGER value
   | TABLE_PREFIX value
   | TABLE_SUFFIX value
+  | TSDB_PAGESIZE value
   | WAL_RETENTION_PERIOD value
   | WAL_ROLL_PERIOD value
   | WAL_RETENTION_SIZE value
@@ -69,8 +71,10 @@ database_option: {
 - SINGLE_STABLE: specifies whether the database can contain more than one supertable.
   - 0: The database can contain multiple supertables.
   - 1: The database can contain only one supertable.
+- STT_TRIGGER: specifies the number of file merges triggered by flushed files. The default is 8, ranging from 1 to 16. For high-frequency scenarios with few tables, it is recommended to use the default configuration or a smaller value for this parameter; For multi-table low-frequency scenarios, it is recommended to configure this parameter with a larger value.
 - TABLE_PREFIX：The prefix length in the table name that is ignored when distributing table to vnode based on table name.
 - TABLE_SUFFIX：The suffix length in the table name that is ignored when distributing table to vnode based on table name.
+- TSDB_PAGESIZE: The page size of the data storage engine in a vnode. The unit is KB. The default is 4 KB. The range is 1 to 16384, that is, 1 KB to 16 MB.
 - WAL_RETENTION_PERIOD: specifies the time after which WAL files are deleted. This parameter is used for data subscription. Enter a time in seconds. The default value of single copy is 0. A value of 0 indicates that each WAL file is deleted immediately after its contents are written to disk. -1: WAL files are never deleted. The default value of multiple copy is 4 days.
 - WAL_RETENTION_SIZE: specifies the size at which WAL files are deleted. This parameter is used for data subscription. Enter a size in KB. The default value of single copy is 0. A value of 0 indicates that each WAL file is deleted immediately after its contents are written to disk. -1: WAL files are never deleted. The default value of multiple copy is -1.
 - WAL_ROLL_PERIOD: specifies the time after which WAL files are rotated. After this period elapses, a new WAL file is created. The default value of single copy is 0. A value of 0 indicates that a new WAL file is created only after the previous WAL file was written to disk. The default values of multiple copy is 1 day.
@@ -112,6 +116,10 @@ alter_database_options:
 alter_database_option: {
     CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
   | CACHESIZE value
+  | BUFFER value
+  | PAGES value
+  | REPLICA value
+  | STT_TRIGGER value
   | WAL_LEVEL value
   | WAL_FSYNC_PERIOD value
   | KEEP value
@@ -154,3 +162,19 @@ TRIM DATABASE db_name;
 ```
 
 The preceding SQL statement deletes data that has expired and orders the remaining data in accordance with the storage configuration.
+
+## Redistribute Vgroup
+
+```sql
+REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3]
+```
+
+Adjust the distribution of vnodes in the vgroup according to the given list of dnodes. 
+
+## Balance Vgroup
+
+```sql
+BALANCE VGROUP
+```
+
+Automatically adjusts the distribution of vnodes in all vgroups of the cluster, which is equivalent to load balancing the data of the cluster at the vnode level.

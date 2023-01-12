@@ -124,6 +124,14 @@ void syncPreStop(int64_t rid) {
   }
 }
 
+void syncPostStop(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode != NULL) {
+    syncNodePostClose(pSyncNode);
+    syncNodeRelease(pSyncNode);
+  }
+}
+
 static bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pCfg) {
   if (!syncNodeInConfig(pSyncNode, pCfg)) return false;
   return abs(pCfg->replicaNum - pSyncNode->replicaNum) <= 1;
@@ -1022,6 +1030,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
     }
   }
   pSyncNode->commitIndex = commitIndex;
+  sInfo("vgId:%d, sync node commitIndex initialized as %" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
 
   if (syncNodeLogStoreRestoreOnNeed(pSyncNode) < 0) {
     goto _error;
@@ -1162,9 +1171,10 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   }
 
   ASSERT(endIndex == lastVer + 1);
-  commitIndex = TMAX(pSyncNode->commitIndex, commitIndex);
+  pSyncNode->commitIndex = TMAX(pSyncNode->commitIndex, commitIndex);
+  sInfo("vgId:%d, restore sync until commitIndex:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
 
-  if (syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, commitIndex) < 0) {
+  if (syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex) < 0) {
     return -1;
   }
 
@@ -1236,9 +1246,10 @@ void syncNodePreClose(SSyncNode* pSyncNode) {
     }
   }
 
+#if 0
   if (pSyncNode->pNewNodeReceiver != NULL) {
     if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
-      snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+      snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
     }
 
     sDebug("vgId:%d, snapshot receiver destroy while preclose sync node, data:%p", pSyncNode->vgId,
@@ -1246,12 +1257,29 @@ void syncNodePreClose(SSyncNode* pSyncNode) {
     snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
     pSyncNode->pNewNodeReceiver = NULL;
   }
+#endif
 
   // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
 
   // stop heartbeat timer
   syncNodeStopHeartbeatTimer(pSyncNode);
+
+  // clean rsp
+  syncRespCleanRsp(pSyncNode->pSyncRespMgr);
+}
+
+void syncNodePostClose(SSyncNode* pSyncNode) {
+  if (pSyncNode->pNewNodeReceiver != NULL) {
+    if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+      snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
+    }
+
+    sDebug("vgId:%d, snapshot receiver destroy while preclose sync node, data:%p", pSyncNode->vgId,
+           pSyncNode->pNewNodeReceiver);
+    snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
+    pSyncNode->pNewNodeReceiver = NULL;
+  }
 }
 
 void syncHbTimerDataFree(SSyncHbTimerData* pData) { taosMemoryFree(pData); }
@@ -1299,7 +1327,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
 
   if (pSyncNode->pNewNodeReceiver != NULL) {
     if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
-      snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+      snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
     }
 
     sDebug("vgId:%d, snapshot receiver destroy while close, data:%p", pSyncNode->vgId, pSyncNode->pNewNodeReceiver);
@@ -1454,16 +1482,21 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pNode, SRpcMsg
     }
   }
 
+  int32_t code = -1;
   if (pNode->syncSendMSg != NULL && epSet != NULL) {
     syncUtilMsgHtoN(pMsg->pCont);
     pMsg->info.noResp = 1;
-    return pNode->syncSendMSg(epSet, pMsg);
-  } else {
-    sError("vgId:%d, sync send msg by id error, fp:%p epset:%p", pNode->vgId, pNode->syncSendMSg, epSet);
+    code = pNode->syncSendMSg(epSet, pMsg);
+  }
+
+  if (code < 0) {
+    sError("vgId:%d, sync send msg by id error, epset:%p dnode:%d addr:%" PRId64 " err:0x%x", pNode->vgId, epSet,
+           DID(destRaftId), destRaftId->addr, terrno);
     rpcFreeCont(pMsg->pCont);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return -1;
   }
+
+  return code;
 }
 
 inline bool syncNodeInConfig(SSyncNode* pNode, const SSyncCfg* pCfg) {
@@ -1829,7 +1862,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   // close receiver
   if (pSyncNode != NULL && pSyncNode->pNewNodeReceiver != NULL &&
       snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
-    snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+    snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
   }
 
   // stop elect timer
@@ -2511,8 +2544,9 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
       SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
       pSyncMsg->cmd = SYNC_LOCAL_CMD_FOLLOWER_CMT;
-      pSyncMsg->fcIndex = pMsg->commitIndex;
-      SyncIndex fcIndex = pSyncMsg->fcIndex;
+      pSyncMsg->commitIndex = pMsg->commitIndex;
+      pSyncMsg->currentTerm = pMsg->term;
+      SyncIndex fcIndex = pSyncMsg->commitIndex;
 
       if (ths->syncEqMsg != NULL && ths->msgcb != NULL) {
         int32_t code = ths->syncEqMsg(ths->msgcb, &rpcMsgLocalCmd);
@@ -2533,7 +2567,8 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
     SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
     pSyncMsg->cmd = SYNC_LOCAL_CMD_STEP_DOWN;
-    pSyncMsg->sdNewTerm = pMsg->term;
+    pSyncMsg->currentTerm = pMsg->term;
+    pSyncMsg->commitIndex = pMsg->commitIndex;
 
     if (ths->syncEqMsg != NULL && ths->msgcb != NULL) {
       int32_t code = ths->syncEqMsg(ths->msgcb, &rpcMsgLocalCmd);
@@ -2541,7 +2576,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
         sError("vgId:%d, sync enqueue step-down msg error, code:%d", ths->vgId, code);
         rpcFreeCont(rpcMsgLocalCmd.pCont);
       } else {
-        sTrace("vgId:%d, sync enqueue step-down msg, new-term: %" PRId64, ths->vgId, pSyncMsg->sdNewTerm);
+        sTrace("vgId:%d, sync enqueue step-down msg, new-term: %" PRId64, ths->vgId, pSyncMsg->currentTerm);
       }
     }
   }
@@ -2599,10 +2634,13 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   syncLogRecvLocalCmd(ths, pMsg, "");
 
   if (pMsg->cmd == SYNC_LOCAL_CMD_STEP_DOWN) {
-    syncNodeStepDown(ths, pMsg->sdNewTerm);
+    syncNodeStepDown(ths, pMsg->currentTerm);
 
   } else if (pMsg->cmd == SYNC_LOCAL_CMD_FOLLOWER_CMT) {
-    (void)syncNodeUpdateCommitIndex(ths, pMsg->fcIndex);
+    SyncTerm matchTerm = syncLogBufferGetLastMatchTerm(ths->pLogBuf);
+    if (pMsg->currentTerm == matchTerm) {
+      (void)syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
+    }
     if (syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
       sError("vgId:%d, failed to commit raft log since %s. commit index: %" PRId64 "", ths->vgId, terrstr(),
              ths->commitIndex);
@@ -2615,14 +2653,15 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 }
 
 int32_t syncNodeOnLocalCmdOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  ASSERT(false && "deprecated");
   SyncLocalCmd* pMsg = pRpcMsg->pCont;
   syncLogRecvLocalCmd(ths, pMsg, "");
 
   if (pMsg->cmd == SYNC_LOCAL_CMD_STEP_DOWN) {
-    syncNodeStepDown(ths, pMsg->sdNewTerm);
+    syncNodeStepDown(ths, pMsg->currentTerm);
 
   } else if (pMsg->cmd == SYNC_LOCAL_CMD_FOLLOWER_CMT) {
-    syncNodeFollowerCommit(ths, pMsg->fcIndex);
+    syncNodeFollowerCommit(ths, pMsg->commitIndex);
 
   } else {
     sError("error local cmd");
@@ -2667,16 +2706,12 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
     }
 
     int32_t code = syncNodeAppend(ths, pEntry);
-    if (code < 0) {
-      sNError(ths, "failed to append blocking msg");
-    }
     return code;
   } else {
     syncEntryDestroy(pEntry);
     pEntry = NULL;
+    return -1;
   }
-
-  return -1;
 }
 
 int32_t syncNodeOnClientRequestOld(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex) {

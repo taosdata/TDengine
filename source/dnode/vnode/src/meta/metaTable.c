@@ -343,12 +343,17 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   tdbTbcOpen(pMeta->pTbDb, &pTbDbc, NULL);
   ret = tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = pReq->suid, .version = oversion}), sizeof(STbDbKey), &c);
   if (!(ret == 0 && c == 0)) {
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
+
+    terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
     metaError("meta/table: invalide ret: %" PRId32 " or c: %" PRId32 "alter stb failed.", ret, c);
     return -1;
   }
 
   ret = tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData);
   if (ret < 0) {
+    tdbTbcClose(pUidIdxc);
     tdbTbcClose(pTbDbc);
 
     terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
@@ -926,6 +931,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, NULL);
   tdbTbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
   if (c != 0) {
+    tdbTbcClose(pUidIdxc);
     metaError("meta/table: invalide c: %" PRId32 " alt tb column failed.", c);
     return -1;
   }
@@ -939,6 +945,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   tdbTbcOpen(pMeta->pTbDb, &pTbDbc, NULL);
   tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
   if (c != 0) {
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
     metaError("meta/table: invalide c: %" PRId32 " alt tb column failed.", c);
     return -1;
   }
@@ -952,6 +960,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   tDecoderInit(&dc, entry.pBuf, nData);
   ret = metaDecodeEntry(&dc, &entry);
   if (ret != 0) {
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
     tDecoderClear(&dc);
     metaError("meta/table: invalide ret: %" PRId32 " alt tb column failed.", ret);
     return -1;
@@ -1132,6 +1142,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, NULL);
   tdbTbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
   if (c != 0) {
+    tdbTbcClose(pUidIdxc);
+    terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
     metaError("meta/table: invalide c: %" PRId32 " update tb tag val failed.", c);
     return -1;
   }
@@ -1148,6 +1160,9 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   tdbTbcOpen(pMeta->pTbDb, &pTbDbc, NULL);
   tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
   if (c != 0) {
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
+    terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
     metaError("meta/table: invalide c: %" PRId32 " update tb tag val failed.", c);
     return -1;
   }
@@ -1309,6 +1324,7 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, NULL);
   tdbTbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
   if (c != 0) {
+    tdbTbcClose(pUidIdxc);
     metaError("meta/table: invalide c: %" PRId32 " update tb options failed.", c);
     return -1;
   }
@@ -1322,6 +1338,8 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   tdbTbcOpen(pMeta->pTbDb, &pTbDbc, NULL);
   tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
   if (c != 0) {
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
     metaError("meta/table: invalide c: %" PRId32 " update tb options failed.", c);
     return -1;
   }
@@ -1336,6 +1354,8 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   ret = metaDecodeEntry(&dc, &entry);
   if (ret != 0) {
     tDecoderClear(&dc);
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
     metaError("meta/table: invalide ret: %" PRId32 " alt tb options failed.", ret);
     return -1;
   }
