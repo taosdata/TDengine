@@ -138,10 +138,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query("select * from stb0 order by ts desc;")
         self.logger.info("\n==========================*(result)=%s=======\n" %self.tdSql.getData(0,0))
         self.tdSql.query("insert into stb0_1 select * from stb0_2;")
-        self.logger.info("\n==========================*(result)=%s=======\n" %self.tdSql.getData(0,0))
         self.tdSql.query("insert into stb0_2 select * (select * from stb0_3 );")
-        self.logger.info("\n==========================*(result)=%s=======\n" %self.tdSql.getData(0,0))
         self.tdSql.query("insert into stb0_1 select * from stb0_1;")
+        self.tdSql.query("select count(*) from stb0;")
         self.logger.info("\n==========================*(result)=%s=======\n" %self.tdSql.getData(0,0))
     
     
