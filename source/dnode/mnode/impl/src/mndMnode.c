@@ -747,7 +747,7 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
       pNode->clusterId = mndGetClusterId(pMnode);
       pNode->nodePort = pObj->pDnode->port;
       tstrncpy(pNode->nodeFqdn, pObj->pDnode->fqdn, TSDB_FQDN_LEN);
-      (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+      tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
       mInfo("vgId:1, ep:%s:%u dnode:%d", pNode->nodeFqdn, pNode->nodePort, pNode->nodeId);
       if (pObj->pDnode->id == pMnode->selfDnodeId) {
         cfg.myIndex = cfg.replicaNum;

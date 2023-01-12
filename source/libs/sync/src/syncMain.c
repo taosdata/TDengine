@@ -898,7 +898,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   sInfo("vgId:%d, start to open sync node, replica:%d selfIndex:%d", pSyncNode->vgId, pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
     SNodeInfo* pNode = &pCfg->nodeInfo[i];
-    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
     sInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pSyncNode->vgId, i, pNode->nodeFqdn, pNode->nodePort,
           pNode->nodeId, pNode->clusterId);
   }
