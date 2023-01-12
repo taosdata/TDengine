@@ -698,10 +698,8 @@ int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
   if(database == NULL || len <= 0){
     if(required != NULL) *required = strlen(pTscObj->db) + 1;
     terrno = TSDB_CODE_INVALID_PARA;
-    return -1;
-  }
-
-  if(len < strlen(pTscObj->db) + 1){
+    code = -1;
+  }else if(len < strlen(pTscObj->db) + 1){
     tstrncpy(database, pTscObj->db, len);
     if(required) *required = strlen(pTscObj->db) + 1;
     terrno = TSDB_CODE_INVALID_PARA;
