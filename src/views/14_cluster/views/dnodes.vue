@@ -6,7 +6,6 @@
       }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-<<<<<<< HEAD
       <el-table-column
         width="250"
         :label="$t('topic.endpoint')"
@@ -34,16 +33,6 @@
       <!-- <el-table-column :label="$t('topic.note')" prop="note"></el-table-column> -->
 
       <el-table-column label="Action" width="65">
-=======
-      <el-table-column width="250" :label="$t('topic.endpoint')" prop="endpoint"></el-table-column>
-      <el-table-column width="250" :label="$t('topic.vnodes')" prop="vnodes"></el-table-column>
-      <el-table-column width="250" :label="$t('topic.support_vnodes')" prop="support_vnodes"></el-table-column>
-      <el-table-column width="250" :label="$t('topic.status')" prop="status"></el-table-column>
-      <el-table-column width="250" :label="$t('topic.create_time')" prop="create_time"></el-table-column>
-      <el-table-column  :label="$t('topic.note')" prop="note"></el-table-column>
-      
-      <el-table-column label="Action" width="80">
->>>>>>> 8895288015f78987fe1192eeaa34d5fe7903a71c
         <template slot-scope="scope">
           <el-button
             plain
@@ -108,7 +97,6 @@ export default {
   mixins: [mix],
   data() {
     return {
-<<<<<<< HEAD
       topicList: [
         {
           id: 1,
@@ -130,17 +118,6 @@ export default {
     },
     addDnodes() {},
   },
-=======
-      pageSize:10,
-      currentPage:1,
-      total:10,
-      topicList:[]
-    };
-  },
-  methods:{
-    handlePageChange(){}
-  }
->>>>>>> 8895288015f78987fe1192eeaa34d5fe7903a71c
 };
 </script>
 <style lang="scss" scoped>
