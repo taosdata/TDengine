@@ -366,6 +366,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   if (pMgmt->transId != 0) {
     mError("trans:%d, can't be proposed since trans:%d already waiting for confirm", transId, pMgmt->transId);
     taosThreadMutexUnlock(&pMgmt->lock);
+    rpcFreeCont(req.pCont);
     terrno = TSDB_CODE_MND_LAST_TRANS_NOT_FINISHED;
     return terrno;
   }
