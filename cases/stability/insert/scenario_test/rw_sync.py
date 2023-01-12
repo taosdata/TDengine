@@ -36,9 +36,9 @@ class RwSyncTest(TDCase):
         self.file_name2 = "insert1.json"
         self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
         self.replica = 1
-        self.vgroups = 40
-        self.create_table_thread_count=40
-        self.thread_count = 40
+        self.vgroups = 16
+        self.create_table_thread_count=16
+        self.thread_count = 16
         self.childtable_count = 10000
         self.insert_rows = 100000
         self.num_of_records_per_req1 = 1000
@@ -83,11 +83,10 @@ class RwSyncTest(TDCase):
           }
         ]
 
+        self.tdSql.execute(f'drop database if exists {self.dbname}')
+        self.tdSql.execute(f'create database if not exists {self.dbname} vgroups {self.vgroups}')
 
-        
-
-
-        dbinfo = self.tdCom.setDBinfo(replica=self.replica, vgroups=self.vgroups)
+        dbinfo = self.tdCom.setDBinfo(replica=self.replica, vgroups=self.vgroups, drop="no")
         stb_into = [self.tdCom.setStbinfo(columns=column_info_list, tags=tag_info_list, childtable_count=self.childtable_count, insert_rows=self.insert_rows, childtable_prefix=self.childtable_prefix1)]
         database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
         host = self.get_fqdn("taosd")[0]
@@ -108,23 +107,9 @@ class RwSyncTest(TDCase):
 
         self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
 
-        # self.taosd.configure_and_start_specified_dnode(self._tmp_dir, self.taosd_setting, self.taosd_setting["spec"]["reserve_dnodes"][start_index])
-        # self.tdSql.query('show dnodes')
-        # db_kv_dict = self.tdSql.get_db_field_kv(1, self.taosd_setting["spec"]["dnodes"][start_index+1]["endpoint"])
-        # self.tdSql.execute(f'drop dnode {db_kv_dict["id"]}')
-
-            # stb_into = [self.tdCom.setStbinfo(columns=column_info_list, tags=tag_info_list, childtable_count=childtable_count, insert_rows=insert_rows, start_timestamp=start_timestamp, child_table_exists=child_table_exists)]
-            # self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
-
-        # taosBenchmark_iplist: List = self.get_fqdn("taosBenchmark")
-        # json_data: List = []
-        # file_name = []
-        # test_root = os.environ['TEST_ROOT']
-        # cfg = read_yaml(test_root + "/cases/stability/insert/long_insert/insert.yaml")
 
         # jfile = InsertFile()
         # Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
-        # self.tdSql.execute(f'drop database if exists perf_test')
         # timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         # # # run taosBenchmark
         # taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
