@@ -1556,7 +1556,7 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
   }
   if (NULL != pSelect->pPartitionByList) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
-                                   "%s function is not supported in fill query", pFunc->functionName);
+                                   "%s function is not supported in partition query", pFunc->functionName);
   }
   return TSDB_CODE_SUCCESS;
 }
