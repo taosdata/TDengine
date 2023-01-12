@@ -301,11 +301,7 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
       continue;
     }
 
-    if (pBlocks->cloned) {
-      qFreeStmtDataBlock(pBlocks);
-    } else {
-      qDestroyStmtDataBlock(pBlocks);
-    }
+    qDestroyStmtDataBlockExt(pBlocks);
     taosHashRemove(pStmt->exec.pBlockHash, key, keyLen);
 
     pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);

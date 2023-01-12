@@ -90,6 +90,7 @@ int32_t     qCloneStmtDataBlock(void** pDst, void* pSrc);
 void        qFreeStmtDataBlock(void* pDataBlock);
 int32_t     qRebuildStmtDataBlock(void** pDst, void* pSrc, uint64_t uid, int32_t vgId);
 void        qDestroyStmtDataBlock(void* pBlock);
+void        qDestroyStmtDataBlockExt(void* pBlock);
 STableMeta* qGetTableMetaInDataBlock(void* pDataBlock);
 
 int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx);
@@ -108,7 +109,8 @@ int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char*
 void*   smlInitHandle(SQuery* pQuery);
 void    smlDestroyHandle(void* pHandle);
 int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols, bool format, STableMeta* pTableMeta,
-                    char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl, char* msgBuf, int16_t msgBufLen);
+                    char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl, char* msgBuf,
+                    int16_t msgBufLen);
 int32_t smlBuildOutput(void* handle, SHashObj* pVgHash);
 
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
