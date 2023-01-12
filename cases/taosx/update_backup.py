@@ -55,11 +55,11 @@ class UpdateBackup(TDCase):
         # update param
         self.add_drop_flag = 'no'
         self.add_child_table_exist_flag = 'yes'
-        self.add_row_num = 100
+        self.add_row_num = 10
         # param for taosBenchmark with ntb check
         self.ntb_dbname = ['test1','test2']
         self.ntb_name_m = ['nd','nt']
-        self.ntb_num = 100
+        self.ntb_num = 10
         self.ntb_row_num = 100
         #param for taosx
         self.timeout = '5s'

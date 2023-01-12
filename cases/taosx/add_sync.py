@@ -61,7 +61,7 @@ class AddSync(TDCase):
 
         # ntb param
         self.ntb_dbname = [self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)]
-        self.ntb_tbnum = 100
+        self.ntb_tbnum = 10
         self.ntbname_m = ['nd','nt']
         self.ntb_rownum = 100
         self.ntb_starttimestamp = 1601481600000
