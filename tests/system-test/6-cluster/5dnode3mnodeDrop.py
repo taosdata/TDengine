@@ -314,7 +314,8 @@ class TDTestCase:
         while count<timeout:
             time.sleep(1)
             tdSql.query("show transactions;")
-            if tdSql.checkRows(0):
+            print(tdSql.queryRows)
+            if tdSql.queryRows == 0 :
                 tdLog.debug("transactions completed successfully")
                 break
             count+=1
