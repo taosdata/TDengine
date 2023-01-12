@@ -555,7 +555,7 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
     } else if (size == 1) {
       SListNode* pNode = listHead(&(*pEntry)->list);
       uint64_t* p = (uint64_t*) pNode->data;
-      if (p[1] == ((uint64_t*)pKey)[1] && p[2] == ((uint64_t*)pKey)[2]) {
+      if (p[1] == ((uint64_t*)pKey)[1] && p[0] == ((uint64_t*)pKey)[0]) {
         taosThreadMutexUnlock(pLock);
         return TSDB_CODE_SUCCESS;
       } else { // not equal, append it
@@ -570,7 +570,7 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
         uint64_t* p = (uint64_t*)pNode->data;
 
         // key already exists in cache, quit
-        if (p[1] == ((uint64_t*)pKey)[1] && p[2] == ((uint64_t*)pKey)[2]) {
+        if (p[1] == ((uint64_t*)pKey)[1] && p[0] == ((uint64_t*)pKey)[0]) {
           taosThreadMutexUnlock(pLock);
           return TSDB_CODE_SUCCESS;
         }
