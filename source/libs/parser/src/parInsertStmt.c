@@ -461,7 +461,9 @@ void qFreeStmtDataBlock(void* pDataBlock) {
     return;
   }
 
-  insDestroyDataBlock((STableDataBlocks*)pDataBlock);
+  taosMemoryFreeClear(((STableDataBlocks*)pDataBlock)->pTableMeta);
+  taosMemoryFreeClear(((STableDataBlocks*)pDataBlock)->pData);
+  taosMemoryFreeClear(pDataBlock);
 }
 
 void qDestroyStmtDataBlock(void* pBlock) {

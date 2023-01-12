@@ -152,9 +152,10 @@ int32_t stmtRestoreQueryFields(STscStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, SName* tbName, const char* sTableName, bool autoCreateTbl) {
+int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, SName* tbName, const char* sTableName,
+                           bool autoCreateTbl) {
   STscStmt* pStmt = (STscStmt*)stmt;
-  char           tbFName[TSDB_TABLE_FNAME_LEN];
+  char      tbFName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(tbName, tbFName);
 
   memcpy(&pStmt->bInfo.sname, tbName, sizeof(*tbName));
@@ -300,7 +301,7 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
       continue;
     }
 
-    if (STMT_TYPE_MULTI_INSERT == pStmt->sql.type) {
+    if (pBlocks->cloned) {
       qFreeStmtDataBlock(pBlocks);
     } else {
       qDestroyStmtDataBlock(pBlocks);
@@ -776,9 +777,9 @@ int stmtAddBatch(TAOS_STMT* stmt) {
 int stmtUpdateTableUid(STscStmt* pStmt, SSubmitRsp* pRsp) {
   tscDebug("stmt start to update tbUid, blockNum: %d", pRsp->nBlocks);
 
-  int32_t code = 0;
-  int32_t finalCode = 0;
-  size_t  keyLen = 0;
+  int32_t            code = 0;
+  int32_t            finalCode = 0;
+  size_t             keyLen = 0;
   STableDataBlocks** pIter = taosHashIterate(pStmt->exec.pBlockHash, NULL);
   while (pIter) {
     STableDataBlocks* pBlock = *pIter;
@@ -848,7 +849,7 @@ int stmtUpdateTableUid(STscStmt* pStmt, SSubmitRsp* pRsp) {
 
       pMeta->uid = pTableMeta->uid;
       pStmt->bInfo.tbUid = pTableMeta->uid;
-      taosMemoryFree(pTableMeta);      
+      taosMemoryFree(pTableMeta);
     }
 
     pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
