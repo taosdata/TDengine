@@ -45,14 +45,14 @@ class AddSync(TDCase):
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
         self.tb_num = 100
-        self.row_num = 1000
+        self.row_num = 100
         self.drop_flag = 'yes'
         self.start_timestamp = 1601481600000
         self.child_table_exist_flag = 'no'
         # add_start_timestamp >= start_timestamp + row_num
         self.add_drop_flag = 'no'
         self.add_start_timestamp = 1601481610000
-        self.add_row_num = 100
+        self.add_row_num = 10
         self.add_child_table_exist_flag = 'yes'
         self.add_ctb_start_timestamp = 1601481700000
         #param for taosx
@@ -67,7 +67,7 @@ class AddSync(TDCase):
         self.ntb_starttimestamp = 1601481600000
         # add_start_timestamp >= start_timestamp + row_num
         self.ntb_addtimestamp = 1601481610000
-        self.ntb_addrownum = 100
+        self.ntb_addrownum = 10
         self.replica = [1,3]
     def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num,create_flag,start_timestamp):
         taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')

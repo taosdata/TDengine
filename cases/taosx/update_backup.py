@@ -60,7 +60,7 @@ class UpdateBackup(TDCase):
         self.ntb_dbname = ['test1','test2']
         self.ntb_name_m = ['nd','nt']
         self.ntb_num = 100
-        self.ntb_row_num = 1000
+        self.ntb_row_num = 100
         #param for taosx
         self.timeout = '5s'
     def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num,create_flag,start_timestamp):
