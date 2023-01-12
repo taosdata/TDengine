@@ -1383,6 +1383,7 @@ static SCliThrd* createThrdObj(void* trans) {
     taosMemoryFree(pThrd->loop);
     taosThreadMutexDestroy(&pThrd->msgMtx);
     taosMemoryFree(pThrd);
+    return NULL;
   }
 
   pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
