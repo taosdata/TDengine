@@ -293,7 +293,7 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mInfo("func:%s, start to create", createReq.name);
+  mInfo("func:%s, start to create, size:%d", createReq.name, createReq.codeLen);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_FUNC) != 0) {
     goto _OVER;
   }
