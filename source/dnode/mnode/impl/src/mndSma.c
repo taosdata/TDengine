@@ -480,7 +480,6 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFreeClear(pSmaReq);
-    taosMemoryFree(pReq);
     return -1;
   }
 
