@@ -271,6 +271,11 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
 int32_t mndInitSync(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   taosThreadMutexInit(&pMgmt->lock, NULL);
+  taosThreadMutexLock(&pMgmt->lock);
+  pMgmt->transId = 0;
+  pMgmt->transSec = 0;
+  pMgmt->transSeq = 0;
+  taosThreadMutexUnlock(&pMgmt->lock);
 
   SSyncInfo syncInfo = {
       .snapshotStrategy = SYNC_STRATEGY_STANDARD_SNAPSHOT,
