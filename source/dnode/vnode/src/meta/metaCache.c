@@ -464,7 +464,7 @@ static void removeInvalidCacheItem(SArray* pInvalidRes, struct STagFilterResEntr
     taosMemoryFree(*p1);
   }
 
-  atomic_store_32(&(pEntry->qTimes), 0); // reset the query times
+  pEntry->qTimes = 0; // reset the query times
   taosArrayDestroy(pInvalidRes);
 }
 
@@ -476,7 +476,6 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
   TdThreadMutex* pLock = &pMeta->pCache->sTagFilterResCache.lock;
 
   uint64_t buf[3];
-  uint32_t times = 0;
 
   *acquireRes = 0;
   buf[0] = suid;
@@ -502,14 +501,14 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
   // set the result into the buffer
   taosArrayAddBatch(pList1, p + sizeof(int32_t), size);
 
-  times = atomic_add_fetch_32(&(*pEntry)->qTimes, 1);
+  (*pEntry)->qTimes += 1;
   taosLRUCacheRelease(pCache, pHandle, false);
 
   // unlock meta
   taosThreadMutexUnlock(pLock);
 
   // check if scanning all items are necessary or not
-  if (NEED_CHECK_CACHE_ITEM(listNEles(&(*pEntry)->list), times)) {
+  if (NEED_CHECK_CACHE_ITEM(listNEles(&(*pEntry)->list), (*pEntry)->qTimes)) {
     taosThreadMutexLock(pLock);
 
     SArray* pInvalidRes = taosArrayInit(64, POINTER_BYTES);
@@ -527,6 +526,19 @@ static void freePayload(const void* key, size_t keyLen, void* value) {
     return;
   }
   taosMemoryFree(value);
+}
+
+static int32_t addNewEntry(SHashObj* pTableEntry, const void* pKey, int32_t keyLen, uint64_t suid) {
+  STagFilterResEntry* p = taosMemoryMalloc(sizeof(STagFilterResEntry));
+  if (p == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  p->qTimes = 1;
+  tdListInit(&p->list, keyLen);
+  taosHashPut(pTableEntry, &suid, sizeof(uint64_t), &p, POINTER_BYTES);
+  tdListAppend(&p->list, pKey);
+  return 0;
 }
 
 // check both the payload size and selectivity ratio
@@ -556,19 +568,19 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
   buf[0] = suid;
   memcpy(&buf[1], pKey, keyLen);
   ASSERT(sizeof(uint64_t) + keyLen == 24);
+  int32_t code = 0;
 
   taosThreadMutexLock(pLock);
 
   STagFilterResEntry** pEntry = taosHashGet(pTableEntry, &suid, sizeof(uint64_t));
   if (pEntry == NULL) {
-    STagFilterResEntry* p = taosMemoryMalloc(sizeof(STagFilterResEntry));
-    p->qTimes = 0;
-    tdListInit(&p->list, keyLen);
-    taosHashPut(pTableEntry, &suid, sizeof(uint64_t), &p, POINTER_BYTES);
-    tdListAppend(&p->list, pKey);
+    code = addNewEntry(pTableEntry, pKey, keyLen, suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _end;
+    }
   } else {
     // check if it exists or not
-    int32_t times = atomic_add_fetch_32(&(*pEntry)->qTimes, 1);
+    (*pEntry)->qTimes += 1;
 
     size_t size = listNEles(&(*pEntry)->list);
     if (size == 0) {
@@ -577,6 +589,7 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
       SListNode* pNode = listHead(&(*pEntry)->list);
       uint64_t* p = (uint64_t*) pNode->data;
       if (p[1] == ((uint64_t*)pKey)[1] && p[0] == ((uint64_t*)pKey)[0]) {
+        // we have already found the existed items, no need to added to cache anymore.
         taosThreadMutexUnlock(pLock);
         return TSDB_CODE_SUCCESS;
       } else { // not equal, append it
@@ -588,7 +601,7 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
       uint64_t keyBuf[3];
 
       // if the threshold value is reached, need to check the value.
-      if (NEED_CHECK_CACHE_ITEM(size, times)) {
+      if (NEED_CHECK_CACHE_ITEM(size, (*pEntry)->qTimes)) {
         checkCacheEntry = true;
         keyBuf[0] = suid;
         pInvalidRes = taosArrayInit(64, POINTER_BYTES);
@@ -619,7 +632,7 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
           keyBuf[2] = p[2];
 
           LRUHandle* pRes = taosLRUCacheLookup(pCache, keyBuf, 24);
-          if (pRes == NULL) {  // remove the item in the linked list
+          if (pRes == NULL) {  // add the invalid item in the array list to be removed.
             taosArrayPush(pInvalidRes, &pNode);
           } else {
             taosLRUCacheRelease(pCache, pRes, false);
@@ -639,13 +652,13 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
   // add to cache.
   taosLRUCacheInsert(pCache, buf, sizeof(uint64_t) + keyLen, pPayload, payloadLen, freePayload, NULL,
                      TAOS_LRU_PRIORITY_LOW);
-
+  _end:
   taosThreadMutexUnlock(pLock);
 
   metaDebug("vgId:%d, suid:%" PRIu64 " list cache added into cache, total:%d, tables:%d", TD_VID(pMeta->pVnode), suid,
             (int32_t)taosLRUCacheGetUsage(pCache), taosHashGetSize(pTableEntry));
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 // remove the lru cache that are expired due to the tags value update, or creating, or dropping, of child tables
