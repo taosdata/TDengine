@@ -3001,7 +3001,7 @@ int32_t tSerializeSTableIndexRsp(void *buf, int32_t bufLen, const STableIndexRsp
 
 void tFreeSerializeSTableIndexRsp(STableIndexRsp *pRsp) {
   if (pRsp->pIndex != NULL) {
-    taosArrayDestroy(pRsp->pIndex);
+    tFreeSTableIndexRsp(pRsp);
     pRsp->pIndex = NULL;
   }
 }
