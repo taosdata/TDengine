@@ -584,6 +584,14 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
 
         // key already exists in cache, quit
         if (p[1] == ((uint64_t*)pKey)[1] && p[0] == ((uint64_t*)pKey)[0]) {
+          // do remove invalid entry in hash
+          size_t s = taosArrayGetSize(pInvalidRes);
+          for (int32_t i = 0; i < s; ++i) {
+            SListNode** p1 = taosArrayGet(pInvalidRes, i);
+            tdListPopNode(&(*pEntry)->list, *p1);
+            taosMemoryFree(*p1);
+          }
+
           taosThreadMutexUnlock(pLock);
           return TSDB_CODE_SUCCESS;
         }
