@@ -1716,6 +1716,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     /*resetTableScanInfo(pTSInfo, pWin);*/
     tsdbReaderClose(pTSInfo->base.dataReader);
     pTSInfo->base.dataReader = NULL;
+    pInfo->pTableScanOp->status = OP_OPENED;
 
     pTSInfo->scanTimes = 0;
     pTSInfo->currentGroupId = -1;

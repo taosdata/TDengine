@@ -25,14 +25,13 @@ static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *
 static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg);
 static int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 
-// TODO: Who is responsible for resource allocate and release?
 int32_t tdProcessTSmaInsert(SSma *pSma, int64_t indexUid, const char *msg) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if ((code = tdProcessTSmaInsertImpl(pSma, indexUid, msg)) < 0) {
     smaWarn("vgId:%d, insert tsma data failed since %s", SMA_VID(pSma), tstrerror(terrno));
   }
-  // TODO: destroy SSDataBlocks(msg)
+
   return code;
 }
 
@@ -42,7 +41,6 @@ int32_t tdProcessTSmaCreate(SSma *pSma, int64_t version, const char *msg) {
   if ((code = tdProcessTSmaCreateImpl(pSma, version, msg)) < 0) {
     smaWarn("vgId:%d, create tsma failed since %s", SMA_VID(pSma), tstrerror(terrno));
   }
-  // TODO: destroy SSDataBlocks(msg)
   return code;
 }
 

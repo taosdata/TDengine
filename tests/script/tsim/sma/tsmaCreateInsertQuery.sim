@@ -6,6 +6,7 @@ sql connect
 
 print =============== create database
 sql create database d1 keep 36500d vgroups 1
+sql alter local 'querySmaOptimize' '1';
 sql use d1
 
 print =============== create super table, include column type for count/sum/min/max/first
