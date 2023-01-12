@@ -291,6 +291,7 @@ int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw);
  * @return void* The object of the row.
  */
 void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey);
+void *sdbAcquireNotReadyObj(SSdb *pSdb, ESdbType type, const void *pKey);
 
 /**
  * @brief Release a row from sdb.
