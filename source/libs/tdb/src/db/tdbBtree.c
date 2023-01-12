@@ -1316,11 +1316,11 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
       }
       TDB_CELLDECODER_SET_FREE_KEY(pDecoder);
 
-      memcpy(pDecoder->pKey, pCell + nHeader, nLocal - 4);
-      nLeft -= nLocal - 4;
-      nLeftKey -= nLocal - 4;
+      memcpy(pDecoder->pKey, pCell + nHeader, nLocal - nHeader - sizeof(pgno));
+      nLeft -= nLocal - nHeader - sizeof(pgno);
+      nLeftKey -= nLocal - nHeader - sizeof(pgno);
 
-      memcpy(&pgno, pCell + nHeader + nLocal - 4, sizeof(pgno));
+      memcpy(&pgno, pCell + nLocal - sizeof(pgno), sizeof(pgno));
 
       int lastKeyPageSpace = 0;
       // load left key & val to ovpages
@@ -1346,9 +1346,11 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
 
         if (lastKeyPage) {
           if (lastKeyPageSpace >= vLen) {
-            pDecoder->pVal = ofpCell + kLen - nLeftKey;
+            if (vLen > 0) {
+              pDecoder->pVal = ofpCell + kLen - nLeftKey;
 
-            nLeft -= vLen;
+              nLeft -= vLen;
+            }
             pgno = 0;
           } else {
             // read partial val to local

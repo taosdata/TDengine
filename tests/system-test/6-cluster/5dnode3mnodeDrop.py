@@ -112,7 +112,8 @@ class TDTestCase:
             dnode_first_port = dnode.cfgDict["firstEp"].split(":")[-1]
             cmd = f" taos -h {dnode_first_host} -P {dnode_first_port} -s ' create dnode \"{dnode_id} \" ' ;"
             tdLog.debug(cmd)
-            os.system(cmd)
+            if os.system(cmd) != 0:
+                raise Exception("failed to execute system command. cmd: %s" % cmd)
 
         time.sleep(2)
         tdLog.info(" create cluster with %d dnode  done! " %dnodes_nums)
@@ -292,6 +293,8 @@ class TDTestCase:
                         tdLog.debug("drop mnode %d successfully"%(i+1))
                         break
                     count+=1
+                self.wait_for_transactions(20)
+
                 tdLog.debug("create mnode on dnode %d"%(i+1))
                 tdSql.execute("create mnode on dnode %d"%(i+1))
                 count=0
@@ -299,12 +302,24 @@ class TDTestCase:
                     time.sleep(1)
                     tdSql.query("select * from information_schema.ins_mnodes;")
                     if tdSql.checkRows(3):
-                        tdLog.debug("drop mnode %d successfully"%(i+1))
+                        tdLog.debug("create mnode %d successfully"%(i+1))
                         break
                     count+=1
+                self.wait_for_transactions(20)
             dropcount+=1
         self.check3mnode()
 
+    def wait_for_transactions(self, timeout):
+        count=0
+        while count<timeout:
+            time.sleep(1)
+            tdSql.query("show transactions;")
+            if tdSql.checkRows(0):
+                tdLog.debug("transactions completed successfully")
+                break
+            count+=1
+        if count >= timeout:
+            tdLog.debug("transactions not finished before timeout (%d secs)", timeout)
 
     def getConnection(self, dnode):
         host = dnode.cfgDict["fqdn"]
