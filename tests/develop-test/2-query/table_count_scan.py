@@ -8,7 +8,7 @@ from math import inf
 class TDTestCase:
     def caseDescription(self):
         '''
-        case1<shenglian zhou>: [TD-11204]Difference improvement that can ignore negative 
+        case1<shenglian zhou>: [TD-21890] table count scan test case
         ''' 
         return
     
