@@ -332,7 +332,7 @@ void dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
   }
 }
 
-int32_t dmUpdateDnodeInfo(void *data, int32_t *dnodeId, int64_t *clusterId, char *fqdn, uint16_t *port) {
+void dmUpdateDnodeInfo(void *data, int32_t *dnodeId, int64_t *clusterId, char *fqdn, uint16_t *port) {
   SDnodeData *pData = data;
   int32_t     ret = -1;
   taosThreadRwlockRdlock(&pData->lock);
@@ -342,7 +342,7 @@ int32_t dmUpdateDnodeInfo(void *data, int32_t *dnodeId, int64_t *clusterId, char
       if (strcmp(pDnodeEp->ep.fqdn, fqdn) == 0 && pDnodeEp->ep.port == *port) {
         dInfo("dnode:%s:%u, update dnodeId from %d to %d", fqdn, *port, *dnodeId, pDnodeEp->id);
         *dnodeId = pDnodeEp->id;
-        *clusterId = pData->clusterId;
+        if (clusterId != NULL) *clusterId = pData->clusterId;
         ret = 0;
       }
     }
@@ -360,12 +360,12 @@ int32_t dmUpdateDnodeInfo(void *data, int32_t *dnodeId, int64_t *clusterId, char
         dInfo("dnode:%d, update port from %u to %u", *dnodeId, *port, pDnodeEp->ep.port);
         *port = pDnodeEp->ep.port;
       }
-      *clusterId = pData->clusterId;
+      if (clusterId != NULL) *clusterId = pData->clusterId;
       ret = 0;
     } else {
       dInfo("dnode:%d, failed to update dnode info", *dnodeId);
     }
   }
   taosThreadRwlockUnlock(&pData->lock);
-  return ret;
+  // return ret;
 }
