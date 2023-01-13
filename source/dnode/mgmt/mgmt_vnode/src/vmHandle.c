@@ -137,7 +137,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     pNode->nodeId = pCreate->replicas[i].id;
     pNode->nodePort = pCreate->replicas[i].port;
     tstrncpy(pNode->nodeFqdn, pCreate->replicas[i].fqdn, TSDB_FQDN_LEN);
-    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
   }
 }
 

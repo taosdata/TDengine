@@ -41,8 +41,8 @@ cJSON *raftStore2Json(SRaftStore *pRaftStore) {
     cJSON_AddNumberToObject(pVoteFor, "vgId", pRaftStore->voteFor.vgId);
     cJSON_AddItemToObject(pRoot, "voteFor", pVoteFor);
 
-    int hasVoted = raftStoreHasVoted(pRaftStore);
-    cJSON_AddNumberToObject(pRoot, "hasVoted", hasVoted);
+    // int hasVoted = raftStoreHasVoted(pRaftStore);
+    // cJSON_AddNumberToObject(pRoot, "hasVoted", hasVoted);
   }
 
   cJSON *pJson = cJSON_CreateObject();

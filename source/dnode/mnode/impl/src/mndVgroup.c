@@ -1441,10 +1441,10 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
 
   {
     SSdbRaw *pRaw = mndVgroupActionEncode(&newVg);
-    if (pRaw == NULL) return -1;
+    if (pRaw == NULL) goto _OVER;
     if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
       sdbFreeRaw(pRaw);
-      return -1;
+      goto _OVER;
     }
     (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
   }
