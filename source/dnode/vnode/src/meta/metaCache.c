@@ -158,9 +158,9 @@ void metaCacheClose(SMeta* pMeta) {
     entryCacheClose(pMeta);
     statsCacheClose(pMeta);
 
-    taosHashCleanup(pMeta->pCache->sTagFilterResCache.pTableEntry);
     taosLRUCacheCleanup(pMeta->pCache->sTagFilterResCache.pUidResCache);
     taosThreadMutexDestroy(&pMeta->pCache->sTagFilterResCache.lock);
+    taosHashCleanup(pMeta->pCache->sTagFilterResCache.pTableEntry);
 
     taosMemoryFree(pMeta->pCache);
     pMeta->pCache = NULL;
@@ -620,58 +620,6 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
       } else {  // not equal, append it
         tdListAppend(&(*pEntry)->list, pKey);
       }
-      /*} else {  // more than one element
-        bool checkCacheEntry = false;
-        SArray* pInvalidRes = NULL;
-        uint64_t keyBuf[3];
-
-        // if the threshold value is reached, need to check the value.
-  //      if (NEED_CHECK_CACHE_ITEM(size, (*pEntry)->qTimes)) {
-  //        checkCacheEntry = true;
-  //        keyBuf[0] = suid;
-  //        pInvalidRes = taosArrayInit(64, POINTER_BYTES);
-  //      }
-
-        SListIter iter = {0};
-        tdListInitIter(&(*pEntry)->list, &iter, TD_LIST_FORWARD);
-
-        SListNode* pNode = NULL;
-        while ((pNode = tdListNext(&iter)) != NULL) {
-          uint64_t* p = (uint64_t*)pNode->data;
-
-          // key already exists in cache, quit
-          if (p[1] == ((uint64_t*)pKey)[1] && p[0] == ((uint64_t*)pKey)[0]) {
-            // do remove invalid entry in hash
-            if (pInvalidRes != NULL) {
-              removeInvalidCacheItem(pInvalidRes, *pEntry, false);
-            }
-
-            taosThreadMutexUnlock(pLock);
-            return TSDB_CODE_SUCCESS;
-          }
-
-          // check whether it is existed in LRU cache, and remove it from linked list if not
-          // we record every invalid items and remove when the loop is over.
-          if (checkCacheEntry) {
-            keyBuf[1] = p[1];
-            keyBuf[2] = p[2];
-
-            LRUHandle* pRes = taosLRUCacheLookup(pCache, keyBuf, 24);
-            if (pRes == NULL) {  // add the invalid item in the array list to be removed.
-              taosArrayPush(pInvalidRes, &pNode);
-            } else {
-              taosLRUCacheRelease(pCache, pRes, false);
-            }
-          }
-        }
-
-        // do remove invalid entry in hash
-        if (pInvalidRes != NULL) {
-          removeInvalidCacheItem(pInvalidRes, *pEntry, false);
-        }
-
-        tdListAppend(&(*pEntry)->list, pKey);
-      }*/
     }
   }
 
