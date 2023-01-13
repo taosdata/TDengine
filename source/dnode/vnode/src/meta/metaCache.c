@@ -490,8 +490,8 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
   (*pEntry)->hitTimes += 1;
 
   uint32_t acc = pMeta->pCache->sTagFilterResCache.accTimes;
-  if ((*pEntry)->hitTimes % 5000 == 8 && (*pEntry)->hitTimes > 0) {
-    metaInfo("cache hit:%d, total acc:%d, rate:%.2f", (*pEntry)->hitTimes, acc, ((double)(*pEntry)->hitTimes)/acc);
+  if ((*pEntry)->hitTimes % 5000 == 0 && (*pEntry)->hitTimes > 0) {
+    metaInfo("cache hit:%d, total acc:%d, rate:%.2f", (*pEntry)->hitTimes, acc, ((double)(*pEntry)->hitTimes) / acc);
   }
 
   taosLRUCacheRelease(pCache, pHandle, false);
