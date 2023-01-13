@@ -160,9 +160,7 @@ int32_t tNameGetFullDbName(const SName* name, char* dst) {
   return 0;
 }
 
-bool tNameIsEmpty(const SName* name) {
-  return name->type == 0 || name->acctId == 0;
-}
+bool tNameIsEmpty(const SName* name) { return name->type == 0 || name->acctId == 0; }
 
 const char* tNameGetTableName(const SName* name) {
   ASSERT(name != NULL && name->type == TSDB_TABLE_NAME_T);
@@ -328,5 +326,4 @@ void buildChildTableName(RandTableName* rName) {
     strcat(rName->ctbShortName, temp);
   }
   taosStringBuilderDestroy(&sb);
-//  rName->uid = *(uint64_t*)(context.digest);
 }

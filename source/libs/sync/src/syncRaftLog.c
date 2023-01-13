@@ -192,6 +192,8 @@ SyncTerm raftLogLastTerm(struct SSyncLogStore* pLogStore) {
   return SYNC_TERM_INVALID;
 }
 
+static inline bool raftLogForceSync(SSyncRaftEntry* pEntry) { return (pEntry->originalRpcType == TDMT_VND_COMMIT); }
+
 static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -219,9 +221,8 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 
   ASSERT(pEntry->index == index);
 
-  if (pEntry->originalRpcType == TDMT_VND_COMMIT) {
-    walFsync(pWal, true);
-  }
+  bool forceSync = raftLogForceSync(pEntry);
+  walFsync(pWal, forceSync);
 
   sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s, elapsed:%" PRId64, pEntry->index,
           TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType), tsElapsed);

@@ -613,16 +613,13 @@ int32_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, in
 }
 
 void walFsync(SWal *pWal, bool forceFsync) {
+  taosThreadMutexLock(&pWal->mutex);
   if (forceFsync || (pWal->cfg.level == TAOS_WAL_FSYNC && pWal->cfg.fsyncPeriod == 0)) {
-    wTrace("vgId:%d, fileId:%" PRId64 ".idx, do fsync", pWal->cfg.vgId, walGetCurFileFirstVer(pWal));
-    if (taosFsyncFile(pWal->pIdxFile) < 0) {
-      wError("vgId:%d, file:%" PRId64 ".idx, fsync failed since %s", pWal->cfg.vgId, walGetCurFileFirstVer(pWal),
-             strerror(errno));
-    }
     wTrace("vgId:%d, fileId:%" PRId64 ".log, do fsync", pWal->cfg.vgId, walGetCurFileFirstVer(pWal));
     if (taosFsyncFile(pWal->pLogFile) < 0) {
       wError("vgId:%d, file:%" PRId64 ".log, fsync failed since %s", pWal->cfg.vgId, walGetCurFileFirstVer(pWal),
              strerror(errno));
     }
   }
+  taosThreadMutexUnlock(&pWal->mutex);
 }

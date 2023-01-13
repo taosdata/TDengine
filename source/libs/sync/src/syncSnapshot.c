@@ -43,7 +43,7 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
   pSender->sendingMS = SYNC_SNAPSHOT_RETRY_MS;
   pSender->pSyncNode = pSyncNode;
   pSender->replicaIndex = replicaIndex;
-  pSender->term = pSyncNode->pRaftStore->currentTerm;
+  pSender->term = pSyncNode->raftStore.currentTerm;
   pSender->startTime = 0;
   pSender->endTime = 0;
   pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &pSender->snapshot);
@@ -90,7 +90,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
 
   memset(&pSender->lastConfig, 0, sizeof(pSender->lastConfig));
   pSender->sendingMS = 0;
-  pSender->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  pSender->term = pSender->pSyncNode->raftStore.currentTerm;
   pSender->startTime = taosGetTimestampMs();
   pSender->lastSendTime = pSender->startTime;
   pSender->finish = false;
@@ -105,7 +105,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   SyncSnapshotSend *pMsg = rpcMsg.pCont;
   pMsg->srcId = pSender->pSyncNode->myRaftId;
   pMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  pMsg->term = pSender->pSyncNode->raftStore.currentTerm;
   pMsg->beginIndex = pSender->snapshotParam.start;
   pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
@@ -185,7 +185,7 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   SyncSnapshotSend *pMsg = rpcMsg.pCont;
   pMsg->srcId = pSender->pSyncNode->myRaftId;
   pMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  pMsg->term = pSender->pSyncNode->raftStore.currentTerm;
   pMsg->beginIndex = pSender->snapshotParam.start;
   pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
@@ -226,7 +226,7 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   SyncSnapshotSend *pMsg = rpcMsg.pCont;
   pMsg->srcId = pSender->pSyncNode->myRaftId;
   pMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  pMsg->term = pSender->pSyncNode->raftStore.currentTerm;
   pMsg->beginIndex = pSender->snapshotParam.start;
   pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
@@ -314,7 +314,7 @@ SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId from
   pReceiver->pWriter = NULL;
   pReceiver->pSyncNode = pSyncNode;
   pReceiver->fromId = fromId;
-  pReceiver->term = pSyncNode->pRaftStore->currentTerm;
+  pReceiver->term = pSyncNode->raftStore.currentTerm;
   pReceiver->snapshot.data = NULL;
   pReceiver->snapshot.lastApplyIndex = SYNC_INDEX_INVALID;
   pReceiver->snapshot.lastApplyTerm = 0;
@@ -380,7 +380,7 @@ void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *p
 
   pReceiver->start = true;
   pReceiver->ack = SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT;
-  pReceiver->term = pReceiver->pSyncNode->pRaftStore->currentTerm;
+  pReceiver->term = pReceiver->pSyncNode->raftStore.currentTerm;
   pReceiver->fromId = pPreMsg->srcId;
   pReceiver->startTime = pPreMsg->startTime;
 
@@ -437,9 +437,9 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
     }
 
     // maybe update term
-    if (pReceiver->snapshot.lastApplyTerm > pReceiver->pSyncNode->pRaftStore->currentTerm) {
-      pReceiver->pSyncNode->pRaftStore->currentTerm = pReceiver->snapshot.lastApplyTerm;
-      raftStorePersist(pReceiver->pSyncNode->pRaftStore);
+    if (pReceiver->snapshot.lastApplyTerm > pReceiver->pSyncNode->raftStore.currentTerm) {
+      pReceiver->pSyncNode->raftStore.currentTerm = pReceiver->snapshot.lastApplyTerm;
+      (void)raftStoreWriteFile(pReceiver->pSyncNode);
     }
 
     // stop writer, apply data
@@ -592,7 +592,7 @@ _SEND_REPLY:
   SyncSnapshotRsp *pRspMsg = rpcMsg.pCont;
   pRspMsg->srcId = pSyncNode->myRaftId;
   pRspMsg->destId = pMsg->srcId;
-  pRspMsg->term = pSyncNode->pRaftStore->currentTerm;
+  pRspMsg->term = pSyncNode->raftStore.currentTerm;
   pRspMsg->lastIndex = pMsg->lastIndex;
   pRspMsg->lastTerm = pMsg->lastTerm;
   pRspMsg->startTime = pReceiver->startTime;
@@ -648,7 +648,7 @@ _SEND_REPLY:
   SyncSnapshotRsp *pRspMsg = rpcMsg.pCont;
   pRspMsg->srcId = pSyncNode->myRaftId;
   pRspMsg->destId = pMsg->srcId;
-  pRspMsg->term = pSyncNode->pRaftStore->currentTerm;
+  pRspMsg->term = pSyncNode->raftStore.currentTerm;
   pRspMsg->lastIndex = pMsg->lastIndex;
   pRspMsg->lastTerm = pMsg->lastTerm;
   pRspMsg->startTime = pReceiver->startTime;
@@ -698,7 +698,7 @@ static int32_t syncNodeOnSnapshotReceive(SSyncNode *pSyncNode, SyncSnapshotSend 
   SyncSnapshotRsp *pRspMsg = rpcMsg.pCont;
   pRspMsg->srcId = pSyncNode->myRaftId;
   pRspMsg->destId = pMsg->srcId;
-  pRspMsg->term = pSyncNode->pRaftStore->currentTerm;
+  pRspMsg->term = pSyncNode->raftStore.currentTerm;
   pRspMsg->lastIndex = pMsg->lastIndex;
   pRspMsg->lastTerm = pMsg->lastTerm;
   pRspMsg->startTime = pReceiver->startTime;
@@ -745,7 +745,7 @@ static int32_t syncNodeOnSnapshotEnd(SSyncNode *pSyncNode, SyncSnapshotSend *pMs
   SyncSnapshotRsp *pRspMsg = rpcMsg.pCont;
   pRspMsg->srcId = pSyncNode->myRaftId;
   pRspMsg->destId = pMsg->srcId;
-  pRspMsg->term = pSyncNode->pRaftStore->currentTerm;
+  pRspMsg->term = pSyncNode->raftStore.currentTerm;
   pRspMsg->lastIndex = pMsg->lastIndex;
   pRspMsg->lastTerm = pMsg->lastTerm;
   pRspMsg->startTime = pReceiver->startTime;
@@ -794,13 +794,13 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     return -1;
   }
 
-  if (pMsg->term < pSyncNode->pRaftStore->currentTerm) {
+  if (pMsg->term < pSyncNode->raftStore.currentTerm) {
     syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "reject since small term");
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
 
-  if (pMsg->term > pSyncNode->pRaftStore->currentTerm) {
+  if (pMsg->term > pSyncNode->raftStore.currentTerm) {
     syncNodeStepDown(pSyncNode, pMsg->term);
   }
   syncNodeResetElectTimer(pSyncNode);
@@ -808,7 +808,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
   // state, term, seq/ack
   int32_t code = 0;
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
-    if (pMsg->term == pSyncNode->pRaftStore->currentTerm) {
+    if (pMsg->term == pSyncNode->raftStore.currentTerm) {
       if (pMsg->seq == SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT) {
         syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process seq pre-snapshot");
         code = syncNodeOnSnapshotPre(pSyncNode, pMsg);
@@ -892,7 +892,7 @@ static int32_t syncNodeOnSnapshotPreRsp(SSyncNode *pSyncNode, SSyncSnapshotSende
   SyncSnapshotSend *pSendMsg = rpcMsg.pCont;
   pSendMsg->srcId = pSender->pSyncNode->myRaftId;
   pSendMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  pSendMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  pSendMsg->term = pSender->pSyncNode->raftStore.currentTerm;
   pSendMsg->beginIndex = pSender->snapshotParam.start;
   pSendMsg->lastIndex = pSender->snapshot.lastApplyIndex;
   pSendMsg->lastTerm = pSender->snapshot.lastApplyTerm;
@@ -951,10 +951,10 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     goto _ERROR;
   }
 
-  if (pMsg->term != pSyncNode->pRaftStore->currentTerm) {
+  if (pMsg->term != pSyncNode->raftStore.currentTerm) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "snapshot sender and receiver term not match");
     sSError(pSender, "snapshot sender term not equal, msg term:%" PRId64 " currentTerm:%" PRId64, pMsg->term,
-            pSyncNode->pRaftStore->currentTerm);
+            pSyncNode->raftStore.currentTerm);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     goto _ERROR;
   }

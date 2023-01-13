@@ -1716,6 +1716,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     /*resetTableScanInfo(pTSInfo, pWin);*/
     tsdbReaderClose(pTSInfo->base.dataReader);
     pTSInfo->base.dataReader = NULL;
+    pInfo->pTableScanOp->status = OP_OPENED;
 
     pTSInfo->scanTimes = 0;
     pTSInfo->currentGroupId = -1;
@@ -3221,7 +3222,9 @@ static void buildVnodeGroupedNtbTableCount(STableCountScanOperatorInfo* pInfo, S
   uint64_t groupId = calcGroupId(fullStbName, strlen(fullStbName));
   pRes->info.id.groupId = groupId;
   int64_t ntbNum = metaGetNtbNum(pInfo->readHandle.meta);
-  fillTableCountScanDataBlock(pSupp, dbName, "", ntbNum, pRes);
+  if (ntbNum != 0) {
+    fillTableCountScanDataBlock(pSupp, dbName, "", ntbNum, pRes);
+  }
 }
 
 static void buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo, STableCountScanSupp* pSupp,
