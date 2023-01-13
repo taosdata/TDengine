@@ -457,13 +457,14 @@ static void removeInvalidCacheItem(SArray* pInvalidRes, struct STagFilterResEntr
   }
 
   // remove the keys, of which query uid lists have been replaced already.
-  size_t s = taosArrayGetSize(pInvalidRes);
+  int32_t s = taosArrayGetSize(pInvalidRes);
   for (int32_t i = 0; i < s; ++i) {
     SListNode** p1 = taosArrayGet(pInvalidRes, i);
     tdListPopNode(&(pEntry->list), *p1);
     taosMemoryFree(*p1);
   }
 
+  metaInfo("clear %d items in cache, remain:%d", s, TD_DLIST_NELES(&pEntry->list));
   pEntry->qTimes = 0; // reset the query times
   taosArrayDestroy(pInvalidRes);
 }
