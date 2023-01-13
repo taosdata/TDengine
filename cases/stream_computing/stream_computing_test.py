@@ -1395,12 +1395,15 @@ class StreamComputingTest(TDCase):
                     init_num += 1
             else:
                 init_num += 1
+            time.sleep(int(max_delay.replace("s", "")))
             if not fill_value:
                 for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
                     if tbname != self.tb_name:
-                        self.tdCom.check_stream(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)', init_num, max_delay)
+                        self.tdCom.check_query_data(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)')
+                        # self.tdCom.check_stream(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)', init_num, max_delay)
                     else:
-                        self.tdCom.check_stream(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)', init_num, max_delay)
+                        self.tdCom.check_query_data(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)')
+                        # self.tdCom.check_stream(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)', init_num, max_delay)
         if fill_value:
             history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
             start_ts = self.tdCom.time_cast(history_ts, "-")
