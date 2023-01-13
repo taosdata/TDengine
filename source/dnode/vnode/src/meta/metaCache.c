@@ -126,7 +126,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
     goto _err2;
   }
 
-  pCache->sTagFilterResCache.pUidResCache = taosLRUCacheInit(5 * 1024 * 1024, -1, 0.5);
+  pCache->sTagFilterResCache.pUidResCache = taosLRUCacheInit(25 * 1024 * 1024, -1, 0.5);
   if (pCache->sTagFilterResCache.pUidResCache == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err2;
@@ -449,7 +449,7 @@ static int checkAllEntriesInCache(const STagFilterResEntry* pEntry, SArray* pInv
   return 0;
 }
 
-#define NEED_CHECK_CACHE_ITEM(_size, _acc_times)  ((_size) >= 100 || (_acc_times) > 5000)
+#define NEED_CHECK_CACHE_ITEM(_size, _acc_times)  ((_size) >= 250 || (_acc_times) > 5000)
 
 static void removeInvalidCacheItem(SArray* pInvalidRes, struct STagFilterResEntry* pEntry) {
   if (pInvalidRes == NULL) {
