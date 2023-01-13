@@ -33,7 +33,8 @@ typedef struct SMetaStbStatsEntry {
 
 typedef struct STagFilterResEntry {
   SList    list;    // the linked list of md5 digest, extracted from the serialized tag query condition
-  uint32_t qTimes;  // queried times for current super table
+  uint32_t hitTimes;  // queried times for current super table
+  uint32_t accTime;
 } STagFilterResEntry;
 
 struct SMetaCache {
@@ -54,6 +55,7 @@ struct SMetaCache {
   // query cache
   struct STagFilterResCache {
     TdThreadMutex lock;
+    uint32_t   accTimes;
     SHashObj*  pTableEntry;
     SLRUCache* pUidResCache;
   } sTagFilterResCache;
@@ -448,27 +450,6 @@ static int checkAllEntriesInCache(const STagFilterResEntry* pEntry, SArray* pInv
   return 0;
 }
 
-#define NEED_CHECK_CACHE_ITEM(_size, _acc_times)  ((_size) >= 300 || (_acc_times) > 5000)
-
-static void removeInvalidCacheItem(SArray* pInvalidRes, struct STagFilterResEntry* pEntry, bool triggerByGet) {
-  if (pInvalidRes == NULL) {
-    return;
-  }
-
-  // remove the keys, of which query uid lists have been replaced already.
-  int32_t s = taosArrayGetSize(pInvalidRes);
-  for (int32_t i = 0; i < s; ++i) {
-    SListNode** p1 = taosArrayGet(pInvalidRes, i);
-    tdListPopNode(&(pEntry->list), *p1);
-    taosMemoryFree(*p1);
-  }
-
-  metaInfo("clear %d items in cache, remain:%d, acctime:%d, trigger by get:%d", s, listNEles(&pEntry->list),
-      pEntry->qTimes, triggerByGet);
-  pEntry->qTimes = 0; // reset the query times
-  taosArrayDestroy(pInvalidRes);
-}
-
 int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray* pList1,
                                   bool* acquireRes) {
   // generate the composed key for LRU cache
@@ -485,6 +466,7 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
   memcpy(&buf[2], pKey, keyLen);
 
   taosThreadMutexLock(pLock);
+  pMeta->pCache->sTagFilterResCache.accTimes += 1;
 
   int32_t    len = keyLen + sizeof(uint64_t) * 2;
   LRUHandle* pHandle = taosLRUCacheLookup(pCache, buf, len);
@@ -504,7 +486,13 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
   // set the result into the buffer
   taosArrayAddBatch(pList1, p + sizeof(int32_t), size);
 
-  (*pEntry)->qTimes += 1;
+  (*pEntry)->hitTimes += 1;
+
+  int32_t acc = pMeta->pCache->sTagFilterResCache.accTimes;
+  if ((*pEntry)->hitTimes % 5000 == 8 && (*pEntry)->hitTimes > 0) {
+    metaInfo("cache hit:%d, total acc:%d, rate:%.2f", (*pEntry)->hitTimes, acc, ((double)(*pEntry)->hitTimes)/acc);
+  }
+
   taosLRUCacheRelease(pCache, pHandle, false);
 
   // unlock meta
@@ -539,8 +527,8 @@ static void freePayload(const void* key, size_t keyLen, void* value) {
         tdListPopNode(&((*pEntry)->list), pNode);
 
         int64_t et = taosGetTimestampUs();
-        metaInfo("clear items in cache, remain cached item:%d, elapsed time:%.2fms, acc count:%d", listNEles(&((*pEntry)->list)),
-                 (et - st)/1000.0, (*pEntry)->qTimes);
+        metaInfo("clear items in cache, remain cached item:%d, elapsed time:%.2fms", listNEles(&((*pEntry)->list)),
+                 (et - st)/1000.0);
         return;
       }
     }
@@ -555,7 +543,7 @@ static int32_t addNewEntry(SHashObj* pTableEntry, const void* pKey, int32_t keyL
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  p->qTimes = 1;
+  p->hitTimes = 0;
   tdListInit(&p->list, keyLen);
   taosHashPut(pTableEntry, &suid, sizeof(uint64_t), &p, POINTER_BYTES);
   tdListAppend(&p->list, pKey);
@@ -605,8 +593,6 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
     }
   } else {
     // check if it exists or not
-    (*pEntry)->qTimes += 1;
-
     size_t size = listNEles(&(*pEntry)->list);
     if (size == 0) {
       tdListAppend(&(*pEntry)->list, pKey);
@@ -661,7 +647,7 @@ int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid) {
     taosLRUCacheErase(pMeta->pCache->sTagFilterResCache.pUidResCache, p, keyLen);
   }
 
-  (*pEntry)->qTimes = 0;
+  (*pEntry)->hitTimes = 0;
   tdListEmpty(&(*pEntry)->list);
 
   taosThreadMutexUnlock(pLock);
