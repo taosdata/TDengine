@@ -451,7 +451,7 @@ static int checkAllEntriesInCache(const STagFilterResEntry* pEntry, SArray* pInv
 
 #define NEED_CHECK_CACHE_ITEM(_size, _acc_times)  ((_size) >= 100 || (_acc_times) > 5000)
 
-static void removeInvalidCacheItem(SArray* pInvalidRes, struct STagFilterResEntry* pEntry) {
+static void removeInvalidCacheItem(SArray* pInvalidRes, struct STagFilterResEntry* pEntry, bool triggerByGet) {
   if (pInvalidRes == NULL) {
     return;
   }
@@ -464,7 +464,8 @@ static void removeInvalidCacheItem(SArray* pInvalidRes, struct STagFilterResEntr
     taosMemoryFree(*p1);
   }
 
-  metaInfo("clear %d items in cache, remain:%d", s, TD_DLIST_NELES(&pEntry->list));
+  metaInfo("clear %d items in cache, remain:%d, acctime:%d, trigger by get:%d", s, listNEles(&pEntry->list),
+      pEntry->qTimes, triggerByGet);
   pEntry->qTimes = 0; // reset the query times
   taosArrayDestroy(pInvalidRes);
 }
@@ -515,7 +516,7 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
     SArray* pInvalidRes = taosArrayInit(64, POINTER_BYTES);
     checkAllEntriesInCache(*pEntry, pInvalidRes, keyLen, pCache, suid);
 
-    removeInvalidCacheItem(pInvalidRes, *pEntry);  // remove the keys, of which query uid lists have been replaced already.
+    removeInvalidCacheItem(pInvalidRes, *pEntry, true);  // remove the keys, of which query uid lists have been replaced already.
     taosThreadMutexUnlock(pLock);
   }
 
@@ -619,7 +620,7 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
         if (p[1] == ((uint64_t*)pKey)[1] && p[0] == ((uint64_t*)pKey)[0]) {
           // do remove invalid entry in hash
           if (pInvalidRes != NULL) {
-            removeInvalidCacheItem(pInvalidRes, *pEntry);
+            removeInvalidCacheItem(pInvalidRes, *pEntry, false);
           }
 
           taosThreadMutexUnlock(pLock);
@@ -643,7 +644,7 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
 
       // do remove invalid entry in hash
       if (pInvalidRes != NULL) {
-        removeInvalidCacheItem(pInvalidRes, *pEntry);
+        removeInvalidCacheItem(pInvalidRes, *pEntry, false);
       }
 
       tdListAppend(&(*pEntry)->list, pKey);
