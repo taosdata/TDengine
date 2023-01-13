@@ -243,3 +243,8 @@ sudo launchctl load -w /Library/LaunchDaemons/limit.maxfiles.plist
 ```
 launchctl limit maxfiles
 ```
+### 19 建库时提示Out of dnode
+该提示是创建db的vnode数量不够了，需要的vnode不能超过了dnode中vnode的上限。因为系统默认是一个dnode中有cpu核数两倍的vnode，也可以通过配置文件中的参数supportVnodes控制。
+正常调大taos.cfg种这个supportVnodes参数即可。
+
+

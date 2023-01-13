@@ -474,9 +474,11 @@ typedef struct SStreamScanInfo {
   SNode*     pTagIndexCond;
 
   // recover
-  int32_t blockRecoverContiCnt;
-  int32_t blockRecoverTotCnt;
+  int32_t      blockRecoverContiCnt;
+  int32_t      blockRecoverTotCnt;
+  SSDataBlock* pRecoverRes;
 
+  SSDataBlock* pCreateTbRes;
 } SStreamScanInfo;
 
 typedef struct {
@@ -567,6 +569,8 @@ typedef struct SStreamIntervalOperatorInfo {
   SStreamState*      pState;
   SWinKey            delKey;
   uint64_t           numOfDatapack;
+  SArray*            pUpdated;
+  SHashObj*          pUpdatedMap;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {
@@ -613,6 +617,8 @@ typedef struct SStreamSessionAggOperatorInfo {
   SPhysiNode*         pPhyNode;   // create new child
   bool                isFinal;
   bool                ignoreExpiredData;
+  SArray*             pUpdated;
+  SSHashObj*          pStUpdated;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -628,6 +634,8 @@ typedef struct SStreamStateAggOperatorInfo {
   void*               pDelIterator;
   SArray*             pChildren;  // cache for children's result;
   bool                ignoreExpiredData;
+  SArray*             pUpdated;
+  SSHashObj*          pSeUpdated;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {
@@ -638,9 +646,11 @@ typedef struct SStreamPartitionOperatorInfo {
   SExprSupp             tagCalSup;
   SHashObj*             pPartitions;
   void*                 parIte;
+  void*                 pTbNameIte;
   SSDataBlock*          pInputDataBlock;
   int32_t               tsColIndex;
   SSDataBlock*          pDelRes;
+  SSDataBlock*          pCreateTbRes;
 } SStreamPartitionOperatorInfo;
 
 typedef struct SStreamFillSupporter {
@@ -762,7 +772,7 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** dowStreams, size_
 
 SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pTableScanNode, SReadHandle* readHandle, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, bool isStream);
+SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeIntervalPhysiNode* pIntervalPhyNode, SExecTaskInfo* pTaskInfo);
 
@@ -838,7 +848,6 @@ bool isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, SStreamState* pS
 void appendOneRowToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid,
                                       uint64_t* pGp, void* pTbName);
 uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
-void     calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock);
 
 int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
@@ -857,6 +866,11 @@ void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t ord
 int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo);
 int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int32_t pos,
                                             int32_t order, int64_t* pData);
+void    appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp* pTagSup, int64_t groupId,
+                             SSDataBlock* pSrcBlock, int32_t rowId, SSDataBlock* pDestBlock);
+
+SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag);
+SExprInfo*   createExpr(SNodeList* pNodeList, int32_t* numOfExprs);
 
 #ifdef __cplusplus
 }

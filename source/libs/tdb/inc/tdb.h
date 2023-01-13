@@ -74,7 +74,12 @@ int32_t tdbTbcUpsert(TBC *pTbc, const void *pKey, int nKey, const void *pData, i
 
 int32_t tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *),
                    void *xArg, int flags);
-int32_t tdbTxnClose(TXN *pTxn);
+int32_t tdbTxnCloseImpl(TXN *pTxn);
+#define tdbTxnClose(pTxn)  \
+  do {                     \
+    tdbTxnCloseImpl(pTxn); \
+    (pTxn) = NULL;         \
+  } while (0)
 
 // other
 void tdbFree(void *);

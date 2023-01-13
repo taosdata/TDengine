@@ -860,13 +860,6 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
   return TSDB_CODE_SUCCESS;
 }
 
-void releaseSource(STuplePos* pPos) {
-  if (pPos->pageId == -1) {
-    return;
-  }
-  // Todo(liuyao) relase row
-}
-
 // This function append the selectivity to subsidiaries function context directly, without fetching data
 // from intermediate disk based buf page
 void appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t pos) {
@@ -899,7 +892,6 @@ void appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t pos)
 }
 
 void replaceTupleData(STuplePos* pDestPos, STuplePos* pSourcePos) {
-  releaseSource(pDestPos);
   *pDestPos = *pSourcePos;
 }
 

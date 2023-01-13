@@ -350,9 +350,9 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN 子句
 
-TDengine 支持“普通表与普通表之间”、“超级表与超级表之间”、“子查询与子查询之间” 进行自然连接。自然连接与内连接的主要区别是，自然连接要求参与连接的字段在不同的表/超级表中必须是同名字段。也即，TDengine 在连接关系的表达中，要求必须使用同名数据列/标签列的相等关系。
+TDengine 支持基于时间戳主键的内连接，即 JOIN 条件必须包含时间戳主键。只要满足基于时间戳主键这个要求，普通表、子表、超级表和子查询之间可以随意的进行内连接，且对表个数没有限制。
 
-在普通表与普通表之间的 JOIN 操作中，只能使用主键时间戳之间的相等关系。例如：
+普通表与普通表之间的 JOIN 操作：
 
 ```sql
 SELECT *
@@ -360,7 +360,7 @@ FROM temp_tb_1 t1, pressure_tb_1 t2
 WHERE t1.ts = t2.ts
 ```
 
-在超级表与超级表之间的 JOIN 操作中，除了主键时间戳一致的条件外，还要求引入能实现一一对应的标签列的相等关系。例如：
+超级表与超级表之间的 JOIN 操作：
 
 ```sql
 SELECT *
@@ -368,20 +368,15 @@ FROM temp_stable t1, temp_stable t2
 WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 ```
 
+子表与超级表之间的 JOIN 操作：
+
+```sql
+SELECT *
+FROM temp_ctable t1, temp_stable t2
+WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+```
+
 类似地，也可以对多个子查询的查询结果进行 JOIN 操作。
-
-:::note
-
-JOIN 语句存在如下限制要求：
-
-- 参与一条语句中 JOIN 操作的表/超级表最多可以有 10 个。
-- 在包含 JOIN 操作的查询语句中不支持 FILL。
-- 暂不支持参与 JOIN 操作的表之间聚合后的四则运算。
-- 不支持只对其中一部分表做 GROUP BY。
-- JOIN 查询的不同表的过滤条件之间不能为 OR。
-- JOIN 查询要求连接条件不能是普通列，只能针对标签和主时间字段列（第一列）。
-
-:::
 
 ## 嵌套查询
 

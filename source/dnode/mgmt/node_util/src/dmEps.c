@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmUtil.h"
+#include "tjson.h"
 #include "tmisce.h"
 
 static void dmPrintEps(SDnodeData *pData);
@@ -181,81 +182,73 @@ _OVER:
   return code;
 }
 
-int32_t dmWriteEps(SDnodeData *pData) {
-  int32_t   code = -1;
-  char     *content = NULL;
-  TdFilePtr pFile = NULL;
+static int32_t dmEncodeEps(SJson *pJson, SDnodeData *pData) {
+  if (tjsonAddDoubleToObject(pJson, "dnodeId", pData->dnodeId) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "dnodeVer", pData->dnodeVer) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "clusterId", pData->clusterId) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "dropped", pData->dropped) < 0) return -1;
 
-  char file[PATH_MAX] = {0};
-  char realfile[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%s%sdnode%sdnode.json.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
-  snprintf(realfile, sizeof(realfile), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
-
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pFile == NULL) {
-    dError("failed to open %s since %s", file, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _OVER;
-  }
-
-  int32_t len = 0;
-  int32_t maxLen = 256 * 1024;
-  content = taosMemoryCalloc(1, maxLen + 1);
-
-  len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", pData->dnodeId);
-  len += snprintf(content + len, maxLen - len, "  \"dnodeVer\": \"%" PRId64 "\",\n", pData->dnodeVer);
-  len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%" PRId64 "\",\n", pData->clusterId);
-  len += snprintf(content + len, maxLen - len, "  \"dropped\": %d,\n", pData->dropped);
-  len += snprintf(content + len, maxLen - len, "  \"dnodes\": [{\n");
+  SJson *dnodes = tjsonCreateArray();
+  if (dnodes == NULL) return -1;
+  if (tjsonAddItemToObject(pJson, "dnodes", dnodes) < 0) return -1;
 
   int32_t numOfEps = (int32_t)taosArrayGetSize(pData->dnodeEps);
   for (int32_t i = 0; i < numOfEps; ++i) {
     SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, i);
-    len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pDnodeEp->id);
-    len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pDnodeEp->ep.fqdn);
-    len += snprintf(content + len, maxLen - len, "    \"port\": %u,\n", pDnodeEp->ep.port);
-    len += snprintf(content + len, maxLen - len, "    \"isMnode\": %d\n", pDnodeEp->isMnode);
-    if (i < numOfEps - 1) {
-      len += snprintf(content + len, maxLen - len, "  },{\n");
-    } else {
-      len += snprintf(content + len, maxLen - len, "  }]\n");
-    }
-  }
-  len += snprintf(content + len, maxLen - len, "}\n");
+    SJson    *dnode = tjsonCreateObject();
+    if (dnode == NULL) return -1;
 
-  if (taosWriteFile(pFile, content, len) != len) {
-    dError("failed to write %s since %s", file, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _OVER;
+    if (tjsonAddDoubleToObject(dnode, "id", pDnodeEp->id) < 0) return -1;
+    if (tjsonAddStringToObject(dnode, "fqdn", pDnodeEp->ep.fqdn) < 0) return -1;
+    if (tjsonAddDoubleToObject(dnode, "port", pDnodeEp->ep.port) < 0) return -1;
+    if (tjsonAddDoubleToObject(dnode, "isMnode", pDnodeEp->isMnode) < 0) return -1;
+    if (tjsonAddItemToArray(dnodes, dnode) < 0) return -1;
   }
 
-  if (taosFsyncFile(pFile) < 0) {
-    dError("failed to fsync %s since %s", file, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _OVER;
-  }
+  return 0;
+}
+
+int32_t dmWriteEps(SDnodeData *pData) {
+  int32_t   code = -1;
+  char     *buffer = NULL;
+  SJson    *pJson = NULL;
+  TdFilePtr pFile = NULL;
+  char      file[PATH_MAX] = {0};
+  char      realfile[PATH_MAX] = {0};
+  snprintf(file, sizeof(file), "%s%sdnode%sdnode.json.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  pJson = tjsonCreateObject();
+  if (pJson == NULL) goto _OVER;
+  if (dmEncodeEps(pJson, pData) != 0) goto _OVER;
+  buffer = tjsonToString(pJson);
+  if (buffer == NULL) goto _OVER;
+  terrno = 0;
+
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) goto _OVER;
+
+  int32_t len = strlen(buffer);
+  if (taosWriteFile(pFile, buffer, len) <= 0) goto _OVER;
+  if (taosFsyncFile(pFile) < 0) goto _OVER;
 
   taosCloseFile(&pFile);
-  taosMemoryFreeClear(content);
-
-  if (taosRenameFile(file, realfile) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to rename %s since %s", file, terrstr());
-    goto _OVER;
-  }
+  if (taosRenameFile(file, realfile) != 0) goto _OVER;
 
   code = 0;
   pData->updateTime = taosGetTimestampMs();
-  dInfo("succeed to write %s, dnodeVer:%" PRId64, realfile, pData->dnodeVer);
+  dInfo("succeed to write dnode file:%s, dnodeVer:%" PRId64, realfile, pData->dnodeVer);
 
 _OVER:
-  if (content != NULL) taosMemoryFreeClear(content);
+  if (pJson != NULL) tjsonDelete(pJson);
+  if (buffer != NULL) taosMemoryFree(buffer);
   if (pFile != NULL) taosCloseFile(&pFile);
-  if (code != 0) {
-    dError("failed to write file %s since %s", realfile, terrstr());
-  }
 
+  if (code != 0) {
+    if (terrno == 0) terrno = TAOS_SYSTEM_ERROR(errno);
+    dInfo("succeed to write dnode file:%s since %s, dnodeVer:%" PRId64, realfile, terrstr(), pData->dnodeVer);
+  }
   return code;
 }
 

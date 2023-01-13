@@ -85,6 +85,7 @@ endi
 
 
 #==================== reboot to trigger commit data to file
+sql flush database d0;
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
 
