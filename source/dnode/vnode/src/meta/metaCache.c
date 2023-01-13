@@ -449,7 +449,7 @@ static int checkAllEntriesInCache(const STagFilterResEntry* pEntry, SArray* pInv
   return 0;
 }
 
-#define NEED_CHECK_CACHE_ITEM(_size, _acc_times)  ((_size) >= 100 || (_acc_times) > 5000)
+#define NEED_CHECK_CACHE_ITEM(_size, _acc_times)  ((_size) >= 150 || (_acc_times) > 5000)
 
 static void removeInvalidCacheItem(SArray* pInvalidRes, struct STagFilterResEntry* pEntry, bool triggerByGet) {
   if (pInvalidRes == NULL) {
