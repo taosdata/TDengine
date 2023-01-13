@@ -133,6 +133,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
     goto _err2;
   }
 
+  pCache->sTagFilterResCache.accTimes = 0;
   pCache->sTagFilterResCache.pTableEntry =
       taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
   if (pCache->sTagFilterResCache.pTableEntry == NULL) {
@@ -488,7 +489,7 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
 
   (*pEntry)->hitTimes += 1;
 
-  int32_t acc = pMeta->pCache->sTagFilterResCache.accTimes;
+  uint32_t acc = pMeta->pCache->sTagFilterResCache.accTimes;
   if ((*pEntry)->hitTimes % 5000 == 8 && (*pEntry)->hitTimes > 0) {
     metaInfo("cache hit:%d, total acc:%d, rate:%.2f", (*pEntry)->hitTimes, acc, ((double)(*pEntry)->hitTimes)/acc);
   }
