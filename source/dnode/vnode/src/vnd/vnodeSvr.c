@@ -322,18 +322,13 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       vnodeProcessAlterConfigReq(pVnode, version, pReq, len, pRsp);
       break;
     case TDMT_VND_COMMIT:
-<<<<<<< HEAD
-      vnodeSyncCommit(pVnode);
-      vnodeBegin(pVnode);
-      goto _exit;
+      needCommit = true;
+      break;
     case TDMT_VND_CREATE_INDEX:
       vnodeProcessCreateIndexReq(pVnode, version, pReq, len, pRsp);
       break;
     case TDMT_VND_DROP_INDEX:
       vnodeProcessDropIndexReq(pVnode, version, pReq, len, pRsp);
-=======
-      needCommit = true;
->>>>>>> 072d6ab059553781b4fde03902d5d653e1151ce3
       break;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
