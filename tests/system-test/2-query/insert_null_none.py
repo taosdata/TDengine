@@ -24,7 +24,7 @@ from util.dnodes import tdDnodes
 from util.dnodes import *
 
 class TDTestCase:
-    updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 143 ,"querySmaOptimize":1}
+    updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 131 ,"querySmaOptimize":1}
     
     def init(self, conn, logSql, replicaVar):
         tdLog.debug("start to execute %s" % __file__)
