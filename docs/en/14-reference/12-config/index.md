@@ -314,6 +314,7 @@ The charset that takes effect is UTF-8.
 | Applicable    | Server Only                                 |
 | Meaning       | All data files are stored in this directory |
 | Default Value | /var/lib/taos                               |
+| Note          | [KEEP](https://docs.tdengine.com/taos-sql/database/#parameters) [Tiered Storage](https://docs.tdengine.com/tdinternal/arch/#tiered-storage) |
 
 ### tempDir
 
