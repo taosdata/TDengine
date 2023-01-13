@@ -158,8 +158,8 @@ static void syncPeerState2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
 }
 
 void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNode* pNode, const char* format, ...) {
-  if (pNode == NULL || pNode->pRaftStore == NULL || pNode->pLogStore == NULL) return;
-  int64_t currentTerm = pNode->pRaftStore->currentTerm;
+  if (pNode == NULL || pNode->pLogStore == NULL) return;
+  int64_t currentTerm = pNode->raftStore.currentTerm;
 
   // save error code, otherwise it will be overwritten
   int32_t errCode = terrno;
@@ -228,7 +228,7 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
 void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotSender* pSender,
                                 const char* format, ...) {
   SSyncNode* pNode = pSender->pSyncNode;
-  if (pNode == NULL || pNode->pRaftStore == NULL || pNode->pLogStore == NULL) return;
+  if (pNode == NULL || pNode->pLogStore == NULL) return;
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
   if (pNode->pFsm != NULL && pNode->pFsm->FpGetSnapshotInfo != NULL) {
@@ -264,7 +264,7 @@ void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dfla
                pNode->vgId, eventLog, syncStr(pNode->state), pSender, pSender->snapshotParam.start,
                pSender->snapshotParam.end, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
                pSender->snapshot.lastConfigIndex, pSender->seq, pSender->ack, pSender->finish, pSender->replicaIndex,
-               DID(&pNode->replicasId[pSender->replicaIndex]), pNode->pRaftStore->currentTerm, pNode->commitIndex,
+               DID(&pNode->replicasId[pSender->replicaIndex]), pNode->raftStore.currentTerm, pNode->commitIndex,
                logBeginIndex, logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                pNode->raftCfg.isStandBy, pNode->raftCfg.snapshotStrategy, pNode->raftCfg.batchSize, pNode->replicaNum,
                pNode->raftCfg.lastConfigIndex, pNode->changing, pNode->restoreFinish, syncNodeDynamicQuorum(pNode),
@@ -274,7 +274,7 @@ void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dfla
 void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotReceiver* pReceiver,
                                   const char* format, ...) {
   SSyncNode* pNode = pReceiver->pSyncNode;
-  if (pNode == NULL || pNode->pRaftStore == NULL || pNode->pLogStore == NULL) return;
+  if (pNode == NULL || pNode->pLogStore == NULL) return;
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
   if (pNode->pFsm != NULL && pNode->pFsm->FpGetSnapshotInfo != NULL) {
@@ -311,7 +311,7 @@ void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t df
                pNode->vgId, eventLog, syncStr(pNode->state), pReceiver, pReceiver->start, pReceiver->ack,
                pReceiver->term, pReceiver->startTime, DID(&pReceiver->fromId), pReceiver->snapshotParam.start,
                pReceiver->snapshotParam.end, pReceiver->snapshot.lastApplyIndex, pReceiver->snapshot.lastApplyTerm,
-               pReceiver->snapshot.lastConfigIndex, pNode->pRaftStore->currentTerm, pNode->commitIndex, logBeginIndex,
+               pReceiver->snapshot.lastConfigIndex, pNode->raftStore.currentTerm, pNode->commitIndex, logBeginIndex,
                logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                pNode->raftCfg.isStandBy, pNode->raftCfg.snapshotStrategy, pNode->raftCfg.batchSize, pNode->replicaNum,
                pNode->raftCfg.lastConfigIndex, pNode->changing, pNode->restoreFinish, syncNodeDynamicQuorum(pNode),

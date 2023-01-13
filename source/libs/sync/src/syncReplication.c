@@ -122,7 +122,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapsh
   ASSERT(pMsg != NULL);
   pMsg->srcId = pSyncNode->myRaftId;
   pMsg->destId = *pDestId;
-  pMsg->term = pSyncNode->pRaftStore->currentTerm;
+  pMsg->term = pSyncNode->raftStore.currentTerm;
   pMsg->prevLogIndex = preLogIndex;
   pMsg->prevLogTerm = preLogTerm;
   pMsg->commitIndex = pSyncNode->commitIndex;
@@ -245,7 +245,7 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
     pSyncMsg->srcId = pSyncNode->myRaftId;
     pSyncMsg->destId = pSyncNode->peersId[i];
-    pSyncMsg->term = pSyncNode->pRaftStore->currentTerm;
+    pSyncMsg->term = pSyncNode->raftStore.currentTerm;
     pSyncMsg->commitIndex = pSyncNode->commitIndex;
     pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
     pSyncMsg->privateTerm = 0;

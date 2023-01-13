@@ -100,7 +100,11 @@ _return:
 
   taosLogCrashInfo("taosd", pMsg, msgLen, signum, sigInfo);
 
+#ifdef _TD_DARWIN_64
   exit(signum);
+#elif defined(WINDOWS)
+  exit(signum);
+#endif
 }
 
 static void dmSetSignalHandle() {

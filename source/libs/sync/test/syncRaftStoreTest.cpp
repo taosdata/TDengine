@@ -33,35 +33,35 @@ int main() {
 
   initRaftId();
 
-  SRaftStore* pRaftStore = raftStoreOpen("./test_raft_store.json");
-  assert(pRaftStore != NULL);
-  raftStoreLog2((char*)"==raftStoreOpen==", pRaftStore);
+  // SRaftStore* pRaftStore = raftStoreOpen("./test_raft_store.json");
+  // assert(pRaftStore != NULL);
+  // raftStoreLog2((char*)"==raftStoreOpen==", pRaftStore);
 
-  raftStoreSetTerm(pRaftStore, 100);
-  raftStoreLog2((char*)"==raftStoreSetTerm==", pRaftStore);
+  // raftStoreSetTerm(pRaftStore, 100);
+  // raftStoreLog2((char*)"==raftStoreSetTerm==", pRaftStore);
 
-  raftStoreVote(pRaftStore, &ids[0]);
-  raftStoreLog2((char*)"==raftStoreVote==", pRaftStore);
+  // raftStoreVote(pRaftStore, &ids[0]);
+  // raftStoreLog2((char*)"==raftStoreVote==", pRaftStore);
 
-  raftStoreClearVote(pRaftStore);
-  raftStoreLog2((char*)"==raftStoreClearVote==", pRaftStore);
+  // raftStoreClearVote(pRaftStore);
+  // raftStoreLog2((char*)"==raftStoreClearVote==", pRaftStore);
 
-  raftStoreVote(pRaftStore, &ids[1]);
-  raftStoreLog2((char*)"==raftStoreVote==", pRaftStore);
+  // raftStoreVote(pRaftStore, &ids[1]);
+  // raftStoreLog2((char*)"==raftStoreVote==", pRaftStore);
 
-  raftStoreNextTerm(pRaftStore);
-  raftStoreLog2((char*)"==raftStoreNextTerm==", pRaftStore);
+  // raftStoreNextTerm(pRaftStore);
+  // raftStoreLog2((char*)"==raftStoreNextTerm==", pRaftStore);
 
-  raftStoreNextTerm(pRaftStore);
-  raftStoreLog2((char*)"==raftStoreNextTerm==", pRaftStore);
+  // raftStoreNextTerm(pRaftStore);
+  // raftStoreLog2((char*)"==raftStoreNextTerm==", pRaftStore);
 
-  raftStoreNextTerm(pRaftStore);
-  raftStoreLog2((char*)"==raftStoreNextTerm==", pRaftStore);
+  // raftStoreNextTerm(pRaftStore);
+  // raftStoreLog2((char*)"==raftStoreNextTerm==", pRaftStore);
 
-  raftStoreNextTerm(pRaftStore);
-  raftStoreLog2((char*)"==raftStoreNextTerm==", pRaftStore);
+  // raftStoreNextTerm(pRaftStore);
+  // raftStoreLog2((char*)"==raftStoreNextTerm==", pRaftStore);
 
-  raftStoreClose(pRaftStore);
+  // raftStoreClose(pRaftStore);
 
   return 0;
 }

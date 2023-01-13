@@ -1654,7 +1654,9 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
 
 int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SVariant* pVal = &pCtx->param[1].param;
+  int32_t code = 0;
   double    v = 0;
+
   GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
@@ -1662,14 +1664,14 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   tMemBucket* pMemBucket = ppInfo->pMemBucket;
   if (pMemBucket != NULL && pMemBucket->total > 0) {  // check for null
-    int32_t code = getPercentile(pMemBucket, v, &ppInfo->result);
-    if (code != TSDB_CODE_SUCCESS) {
-      tMemBucketDestroy(pMemBucket);
-      return code;
-    }
+    code = getPercentile(pMemBucket, v, &ppInfo->result);
   }
 
   tMemBucketDestroy(pMemBucket);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   return functionFinalize(pCtx, pBlock);
 }
 
@@ -2636,7 +2638,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
       int32_t v = *(int32_t*)pv;
       int64_t delta = factor * (v - pDiffInfo->prev.i64);  // direct previous may be null
       if (delta < 0 && pDiffInfo->ignoreNegative) {
-        colDataSetNull_f(pOutput->nullbitmap, pos);
+        colDataSetNull_f_s(pOutput, pos);
       } else {
         colDataAppendInt64(pOutput, pos, &delta);
       }
@@ -2649,7 +2651,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
       int8_t  v = *(int8_t*)pv;
       int64_t delta = factor * (v - pDiffInfo->prev.i64);  // direct previous may be null
       if (delta < 0 && pDiffInfo->ignoreNegative) {
-        colDataSetNull_f(pOutput->nullbitmap, pos);
+        colDataSetNull_f_s(pOutput, pos);
       } else {
         colDataAppendInt64(pOutput, pos, &delta);
       }
@@ -2660,7 +2662,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
       int16_t v = *(int16_t*)pv;
       int64_t delta = factor * (v - pDiffInfo->prev.i64);  // direct previous may be null
       if (delta < 0 && pDiffInfo->ignoreNegative) {
-        colDataSetNull_f(pOutput->nullbitmap, pos);
+        colDataSetNull_f_s(pOutput, pos);
       } else {
         colDataAppendInt64(pOutput, pos, &delta);
       }
@@ -2672,7 +2674,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
       int64_t v = *(int64_t*)pv;
       int64_t delta = factor * (v - pDiffInfo->prev.i64);  // direct previous may be null
       if (delta < 0 && pDiffInfo->ignoreNegative) {
-        colDataSetNull_f(pOutput->nullbitmap, pos);
+        colDataSetNull_f_s(pOutput, pos);
       } else {
         colDataAppendInt64(pOutput, pos, &delta);
       }
@@ -2683,7 +2685,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
       float  v = *(float*)pv;
       double delta = factor * (v - pDiffInfo->prev.d64);                               // direct previous may be null
       if ((delta < 0 && pDiffInfo->ignoreNegative) || isinf(delta) || isnan(delta)) {  // check for overflow
-        colDataSetNull_f(pOutput->nullbitmap, pos);
+        colDataSetNull_f_s(pOutput, pos);
       } else {
         colDataAppendDouble(pOutput, pos, &delta);
       }
@@ -2694,7 +2696,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
       double v = *(double*)pv;
       double delta = factor * (v - pDiffInfo->prev.d64);                               // direct previous may be null
       if ((delta < 0 && pDiffInfo->ignoreNegative) || isinf(delta) || isnan(delta)) {  // check for overflow
-        colDataSetNull_f(pOutput->nullbitmap, pos);
+        colDataSetNull_f_s(pOutput, pos);
       } else {
         colDataAppendDouble(pOutput, pos, &delta);
       }
@@ -2729,7 +2731,7 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
 
       if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
         if (pDiffInfo->includeNull) {
-          colDataSetNull_f(pOutput->nullbitmap, pos);
+          colDataSetNull_f_s(pOutput, pos);
 
           numOfElems += 1;
         }
@@ -2767,8 +2769,7 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
 
       if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
         if (pDiffInfo->includeNull) {
-          colDataSetNull_f(pOutput->nullbitmap, pos);
-
+          colDataSetNull_f_s(pOutput, pos);
           numOfElems += 1;
         }
         continue;
