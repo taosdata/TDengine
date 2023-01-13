@@ -154,8 +154,8 @@ int32_t syncBuildAppendEntriesReply(SRpcMsg* pMsg, int32_t vgId) {
   return 0;
 }
 
-int32_t syncBuildAppendEntriesFromRaftLog(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm,
-                                          SRpcMsg* pRpcMsg) {
+int32_t syncBuildAppendEntriesFromRaftEntry(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm,
+                                            SRpcMsg* pRpcMsg) {
   uint32_t dataLen = pEntry->bytes;
   uint32_t bytes = sizeof(SyncAppendEntries) + dataLen;
   pRpcMsg->contLen = bytes;
@@ -176,7 +176,7 @@ int32_t syncBuildAppendEntriesFromRaftLog(SSyncNode* pNode, SSyncRaftEntry* pEnt
   pMsg->prevLogTerm = prevLogTerm;
   pMsg->vgId = pNode->vgId;
   pMsg->srcId = pNode->myRaftId;
-  pMsg->term = pNode->pRaftStore->currentTerm;
+  pMsg->term = pNode->raftStore.currentTerm;
   pMsg->commitIndex = pNode->commitIndex;
   pMsg->privateTerm = 0;
   return 0;

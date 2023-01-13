@@ -16,156 +16,161 @@
 #define _DEFAULT_SOURCE
 #include "syncRaftStore.h"
 #include "syncUtil.h"
+#include "tjson.h"
 
-// private function
-static int32_t raftStoreInit(SRaftStore *pRaftStore);
-static bool    raftStoreFileExist(char *path);
+static int32_t raftStoreDecode(const SJson *pJson, SRaftStore *pStore) {
+  int32_t code = 0;
 
-// public function
-SRaftStore *raftStoreOpen(const char *path) {
-  int32_t ret;
+  tjsonGetNumberValue(pJson, "current_term", pStore->currentTerm, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "vote_for_addr", pStore->voteFor.addr, code);
+  if (code < 0) return -1;
+  tjsonGetInt32ValueFromDouble(pJson, "vote_for_vgid", pStore->voteFor.vgId, code);
+  if (code < 0) return -1;
 
-  SRaftStore *pRaftStore = taosMemoryCalloc(1, sizeof(SRaftStore));
-  if (pRaftStore == NULL) {
+  return 0;
+}
+
+int32_t raftStoreReadFile(SSyncNode *pNode) {
+  int32_t     code = -1;
+  TdFilePtr   pFile = NULL;
+  char       *pData = NULL;
+  SJson      *pJson = NULL;
+  const char *file = pNode->raftStorePath;
+  SRaftStore *pStore = &pNode->raftStore;
+
+  if (taosStatFile(file, NULL, NULL) < 0) {
+    sInfo("vgId:%d, raft store file:%s not exist, use default value", pNode->vgId, file);
+    pStore->currentTerm = 0;
+    pStore->voteFor.addr = 0;
+    pStore->voteFor.vgId = 0;
+    return raftStoreWriteFile(pNode);
+  }
+
+  pFile = taosOpenFile(file, TD_FILE_READ);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    sError("vgId:%d, failed to open raft store file:%s since %s", pNode->vgId, file, terrstr());
+    goto _OVER;
+  }
+
+  int64_t size = 0;
+  if (taosFStatFile(pFile, &size, NULL) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    sError("vgId:%d, failed to fstat raft store file:%s since %s", pNode->vgId, file, terrstr());
+    goto _OVER;
+  }
+
+  pData = taosMemoryMalloc(size + 1);
+  if (pData == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    goto _OVER;
   }
 
-  snprintf(pRaftStore->path, sizeof(pRaftStore->path), "%s", path);
-  if (!raftStoreFileExist(pRaftStore->path)) {
-    ret = raftStoreInit(pRaftStore);
-    ASSERT(ret == 0);
+  if (taosReadFile(pFile, pData, size) != size) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    sError("vgId:%d, failed to read raft store file:%s since %s", pNode->vgId, file, terrstr());
+    goto _OVER;
   }
 
-  char storeBuf[RAFT_STORE_BLOCK_SIZE] = {0};
-  pRaftStore->pFile = taosOpenFile(path, TD_FILE_READ | TD_FILE_WRITE);
-  ASSERT(pRaftStore->pFile != NULL);
+  pData[size] = '\0';
 
-  int len = taosReadFile(pRaftStore->pFile, storeBuf, RAFT_STORE_BLOCK_SIZE);
-  ASSERT(len > 0);
+  pJson = tjsonParse(pData);
+  if (pJson == NULL) {
+    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
 
-  ret = raftStoreDeserialize(pRaftStore, storeBuf, len);
-  ASSERT(ret == 0);
+  if (raftStoreDecode(pJson, pStore) < 0) {
+    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
 
-  return pRaftStore;
+  code = 0;
+  sInfo("vgId:%d, succceed to read raft store file %s", pNode->vgId, file);
+
+_OVER:
+  if (pData != NULL) taosMemoryFree(pData);
+  if (pJson != NULL) cJSON_Delete(pJson);
+  if (pFile != NULL) taosCloseFile(&pFile);
+
+  if (code != 0) {
+    sError("vgId:%d, failed to read raft store file:%s since %s", pNode->vgId, file, terrstr());
+  }
+  return code;
 }
 
-static int32_t raftStoreInit(SRaftStore *pRaftStore) {
-  ASSERT(pRaftStore != NULL);
-
-  pRaftStore->pFile = taosOpenFile(pRaftStore->path, TD_FILE_CREATE | TD_FILE_WRITE);
-  ASSERT(pRaftStore->pFile != NULL);
-
-  pRaftStore->currentTerm = 0;
-  pRaftStore->voteFor.addr = 0;
-  pRaftStore->voteFor.vgId = 0;
-
-  int32_t ret = raftStorePersist(pRaftStore);
-  ASSERT(ret == 0);
-
-  taosCloseFile(&pRaftStore->pFile);
+static int32_t raftStoreEncode(SJson *pJson, SRaftStore *pStore) {
+  if (tjsonAddIntegerToObject(pJson, "current_term", pStore->currentTerm) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "vote_for_addr", pStore->voteFor.addr) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "vote_for_vgid", pStore->voteFor.vgId) < 0) return -1;
   return 0;
 }
 
-int32_t raftStoreClose(SRaftStore *pRaftStore) {
-  if (pRaftStore == NULL) return 0;
+int32_t raftStoreWriteFile(SSyncNode *pNode) {
+  int32_t     code = -1;
+  char       *buffer = NULL;
+  SJson      *pJson = NULL;
+  TdFilePtr   pFile = NULL;
+  const char *realfile = pNode->raftStorePath;
+  SRaftStore *pStore = &pNode->raftStore;
+  char        file[PATH_MAX] = {0};
+  snprintf(file, sizeof(file), "%s.bak", realfile);
 
-  taosCloseFile(&pRaftStore->pFile);
-  taosMemoryFree(pRaftStore);
-  pRaftStore = NULL;
-  return 0;
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  pJson = tjsonCreateObject();
+  if (pJson == NULL) goto _OVER;
+  if (raftStoreEncode(pJson, pStore) != 0) goto _OVER;
+  buffer = tjsonToString(pJson);
+  if (buffer == NULL) goto _OVER;
+  terrno = 0;
+
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) goto _OVER;
+
+  int32_t len = strlen(buffer);
+  if (taosWriteFile(pFile, buffer, len) <= 0) goto _OVER;
+  if (taosFsyncFile(pFile) < 0) goto _OVER;
+
+  taosCloseFile(&pFile);
+  if (taosRenameFile(file, realfile) != 0) goto _OVER;
+
+  code = 0;
+  sInfo("vgId:%d, succeed to write raft store file:%s, len:%d", pNode->vgId, realfile, len);
+
+_OVER:
+  if (pJson != NULL) tjsonDelete(pJson);
+  if (buffer != NULL) taosMemoryFree(buffer);
+  if (pFile != NULL) taosCloseFile(&pFile);
+
+  if (code != 0) {
+    if (terrno == 0) terrno = TAOS_SYSTEM_ERROR(errno);
+    sError("vgId:%d, failed to write raft store file:%s since %s", pNode->vgId, realfile, terrstr());
+  }
+  return code;
 }
 
-int32_t raftStorePersist(SRaftStore *pRaftStore) {
-  ASSERT(pRaftStore != NULL);
-
-  int32_t ret;
-  char    storeBuf[RAFT_STORE_BLOCK_SIZE] = {0};
-  ret = raftStoreSerialize(pRaftStore, storeBuf, sizeof(storeBuf));
-  ASSERT(ret == 0);
-
-  taosLSeekFile(pRaftStore->pFile, 0, SEEK_SET);
-
-  ret = taosWriteFile(pRaftStore->pFile, storeBuf, sizeof(storeBuf));
-  ASSERT(ret == RAFT_STORE_BLOCK_SIZE);
-
-  taosFsyncFile(pRaftStore->pFile);
-  return 0;
-}
-
-static bool raftStoreFileExist(char *path) {
-  bool b = taosStatFile(path, NULL, NULL) >= 0;
-  return b;
-}
-
-int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len) {
-  ASSERT(pRaftStore != NULL);
-
-  cJSON *pRoot = cJSON_CreateObject();
-
-  char u64Buf[128] = {0};
-  snprintf(u64Buf, sizeof(u64Buf), "%" PRIu64 "", pRaftStore->currentTerm);
-  cJSON_AddStringToObject(pRoot, "current_term", u64Buf);
-
-  snprintf(u64Buf, sizeof(u64Buf), "%" PRIu64 "", pRaftStore->voteFor.addr);
-  cJSON_AddStringToObject(pRoot, "vote_for_addr", u64Buf);
-
-  cJSON_AddNumberToObject(pRoot, "vote_for_vgid", pRaftStore->voteFor.vgId);
-
-  char *serialized = cJSON_Print(pRoot);
-  int   len2 = strlen(serialized);
-  ASSERT(len2 < len);
-  memset(buf, 0, len);
-  snprintf(buf, len, "%s", serialized);
-  taosMemoryFree(serialized);
-
-  cJSON_Delete(pRoot);
-  return 0;
-}
-
-int32_t raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len) {
-  ASSERT(pRaftStore != NULL);
-
-  ASSERT(len > 0 && len <= RAFT_STORE_BLOCK_SIZE);
-  cJSON *pRoot = cJSON_Parse(buf);
-
-  cJSON *pCurrentTerm = cJSON_GetObjectItem(pRoot, "current_term");
-  ASSERT(cJSON_IsString(pCurrentTerm));
-  sscanf(pCurrentTerm->valuestring, "%" PRIu64 "", &(pRaftStore->currentTerm));
-
-  cJSON *pVoteForAddr = cJSON_GetObjectItem(pRoot, "vote_for_addr");
-  ASSERT(cJSON_IsString(pVoteForAddr));
-  sscanf(pVoteForAddr->valuestring, "%" PRIu64 "", &(pRaftStore->voteFor.addr));
-
-  cJSON *pVoteForVgid = cJSON_GetObjectItem(pRoot, "vote_for_vgid");
-  pRaftStore->voteFor.vgId = pVoteForVgid->valueint;
-
-  cJSON_Delete(pRoot);
-  return 0;
-}
-
-bool raftStoreHasVoted(SRaftStore *pRaftStore) {
-  bool b = syncUtilEmptyId(&(pRaftStore->voteFor));
+bool raftStoreHasVoted(SSyncNode *pNode) {
+  bool b = syncUtilEmptyId(&pNode->raftStore.voteFor);
   return (!b);
 }
 
-void raftStoreVote(SRaftStore *pRaftStore, SRaftId *pRaftId) {
-  ASSERT(!syncUtilEmptyId(pRaftId));
-  pRaftStore->voteFor = *pRaftId;
-  raftStorePersist(pRaftStore);
+void raftStoreVote(SSyncNode *pNode, SRaftId *pRaftId) {
+  pNode->raftStore.voteFor = *pRaftId;
+  (void)raftStoreWriteFile(pNode);
 }
 
-void raftStoreClearVote(SRaftStore *pRaftStore) {
-  pRaftStore->voteFor = EMPTY_RAFT_ID;
-  raftStorePersist(pRaftStore);
+void raftStoreClearVote(SSyncNode *pNode) {
+  pNode->raftStore.voteFor = EMPTY_RAFT_ID;
+  (void)raftStoreWriteFile(pNode);
 }
 
-void raftStoreNextTerm(SRaftStore *pRaftStore) {
-  ++(pRaftStore->currentTerm);
-  raftStorePersist(pRaftStore);
+void raftStoreNextTerm(SSyncNode *pNode) {
+  pNode->raftStore.currentTerm++;
+  (void)raftStoreWriteFile(pNode);
 }
 
-void raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term) {
-  pRaftStore->currentTerm = term;
-  raftStorePersist(pRaftStore);
+void raftStoreSetTerm(SSyncNode *pNode, SyncTerm term) {
+  pNode->raftStore.currentTerm = term;
+  (void)raftStoreWriteFile(pNode);
 }

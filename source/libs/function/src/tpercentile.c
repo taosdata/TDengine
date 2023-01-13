@@ -99,6 +99,7 @@ static void resetPosInfo(SSlotInfo *pInfo) {
 
 int32_t findOnlyResult(tMemBucket *pMemBucket, double *result) {
   ASSERT(pMemBucket->total == 1);
+  terrno = 0;
 
   for (int32_t i = 0; i < pMemBucket->numOfSlots; ++i) {
     tMemBucketSlot *pSlot = &pMemBucket->pSlots[i];
