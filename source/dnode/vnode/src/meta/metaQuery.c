@@ -1368,7 +1368,7 @@ int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList, SHas
         taosHashPut(tags, id, sizeof(tb_uid_t), val, len);
         tdbFree(val);
       } else {
-        metaError("vgId:%d, failed to table IDs, suid: %" PRId64 ", uid: %" PRId64 "", TD_VID(pMeta->pVnode), suid,
+        metaError("vgId:%d, failed to table tags, suid: %" PRId64 ", uid: %" PRId64 "", TD_VID(pMeta->pVnode), suid,
                   *id);
       }
     }
@@ -1381,31 +1381,35 @@ int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList, SHas
 int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pMeta, suid, 1);
 
-  SHashObj *uHash = NULL;
-  size_t    len = taosArrayGetSize(uidList);  // len > 0 means there already have uids
+  // If len > 0 means there already have uids, and we only want the
+  // tags of the specified tables, of which uid in the uid list. Otherwise, all table tags are retrieved and kept
+  // in the hash map, that may require a lot of memory
+  SHashObj *pSepecifiedUidMap = NULL;
+  size_t    len = taosArrayGetSize(uidList);
   if (len > 0) {
-    uHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    pSepecifiedUidMap = taosHashInit(len / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     for (int i = 0; i < len; i++) {
       int64_t *uid = taosArrayGet(uidList, i);
-      taosHashPut(uHash, uid, sizeof(int64_t), &i, sizeof(i));
+      taosHashPut(pSepecifiedUidMap, uid, sizeof(int64_t), 0, 0);
     }
   }
+
   while (1) {
-    tb_uid_t id = metaCtbCursorNext(pCur);
-    if (id == 0) {
+    tb_uid_t uid = metaCtbCursorNext(pCur);
+    if (uid == 0) {
       break;
     }
 
-    if (len > 0 && taosHashGet(uHash, &id, sizeof(int64_t)) == NULL) {
+    if (len > 0 && taosHashGet(pSepecifiedUidMap, &uid, sizeof(int64_t)) == NULL) {
       continue;
     } else if (len == 0) {
-      taosArrayPush(uidList, &id);
+      taosArrayPush(uidList, &uid);
     }
 
-    taosHashPut(tags, &id, sizeof(int64_t), pCur->pVal, pCur->vLen);
+    taosHashPut(tags, &uid, sizeof(uint64_t), pCur->pVal, pCur->vLen);
   }
 
-  taosHashCleanup(uHash);
+  taosHashCleanup(pSepecifiedUidMap);
   metaCloseCtbCursor(pCur, 1);
   return TSDB_CODE_SUCCESS;
 }

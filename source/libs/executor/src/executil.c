@@ -43,9 +43,9 @@ typedef struct tagFilterAssist {
   SArray*   cInfoList;
 } tagFilterAssist;
 
-static int32_t removeInvalidTable(SArray* uids, SHashObj* tags);
+static int32_t removeInvalidUid(SArray* uids, SHashObj* tags);
 static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond, SHashObj* tags);
-static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond);
+static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* pExistedUidList, SNode* pTagCond);
 static int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond,
                             SNode* pTagIndexCond, STableListInfo* pListInfo);
 
@@ -433,6 +433,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
 
   int32_t filter = optimizeTbnameInCond(metaHandle, suid, uidList, pTagCond, tags);
   if (filter == -1) {
+    // here we retrieve all tags from the vnode table-meta store
     code = metaGetTableTags(metaHandle, suid, uidList, tags);
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to get table tags from meta, reason:%s, suid:%" PRIu64, tstrerror(code), suid);
@@ -440,22 +441,23 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
       goto end;
     }
   }
+
   if (suid != 0) {
-    removeInvalidTable(uidList, tags);
+    removeInvalidUid(uidList, tags);
   }
 
-  int32_t rows = taosArrayGetSize(uidList);
-  if (rows == 0) {
+  int32_t size = taosArrayGetSize(uidList);
+  if (size == 0) {
     goto end;
   }
 
-  code = blockDataEnsureCapacity(pResBlock, rows);
+  code = blockDataEnsureCapacity(pResBlock, size);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     goto end;
   }
 
-  for (int32_t i = 0; i < rows; i++) {
+  for (int32_t i = 0; i < size; i++) {
     int64_t* uid = taosArrayGet(uidList, i);
     for (int32_t j = 0; j < taosArrayGetSize(pResBlock->pDataBlock); j++) {
       SColumnInfoData* pColInfo = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, j);
@@ -468,13 +470,14 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
         qDebug("tagfilter uid:%ld, tbname:%s", *uid, str + 2);
 #endif
       } else {
-        void* tag = taosHashGet(tags, uid, sizeof(int64_t));
-        if (tag == NULL) {
+        void* pTagsVal = taosHashGet(tags, uid, sizeof(uint64_t));
+        if (pTagsVal == NULL) {
           continue;
         }
+
         STagVal tagVal = {0};
         tagVal.cid = pColInfo->info.colId;
-        const char* p = metaGetTableTagVal(tag, pColInfo->info.type, &tagVal);
+        const char* p = metaGetTableTagVal(pTagsVal, pColInfo->info.type, &tagVal);
 
         if (p == NULL || (pColInfo->info.type == TSDB_DATA_TYPE_JSON && ((STag*)p)->nTag == 0)) {
           colDataAppend(pColInfo, i, p, true);
@@ -504,7 +507,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
     }
   }
 
-  pResBlock->info.rows = rows;
+  pResBlock->info.rows = size;
 
   //  int64_t st1 = taosGetTimestampUs();
   //  qDebug("generate tag block rows:%d, cost:%ld us", rows, st1-st);
@@ -513,7 +516,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
   taosArrayPush(pBlockList, &pResBlock);
 
   SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
-  code = createResultData(&type, rows, &output);
+  code = createResultData(&type, size, &output);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     qError("failed to create result, reason:%s", tstrerror(code));
@@ -850,7 +853,7 @@ static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list
     ret = optimizeTbnameInCondImpl(metaHandle, suid, list, cond);
     if (ret != -1) {
       metaGetTableTagsByUids(metaHandle, suid, list, tags);
-      removeInvalidTable(list, tags);
+      removeInvalidUid(list, tags);
     }
   }
 
@@ -882,7 +885,7 @@ static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list
 
   if (hasTbnameCond) {
     ret = metaGetTableTagsByUids(metaHandle, suid, list, tags);
-    removeInvalidTable(list, tags);
+    removeInvalidUid(list, tags);
   }
 
   return ret;
@@ -891,12 +894,15 @@ static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list
 /*
  * handle invalid uid
  */
-static int32_t removeInvalidTable(SArray* uids, SHashObj* tags) {
-  if (taosArrayGetSize(uids) <= 0) return 0;
+static int32_t removeInvalidUid(SArray* uids, SHashObj* tags) {
+  int32_t size = taosArrayGetSize(uids);
+  if (size <= 0) {
+    return 0;
+  }
 
-  SArray* validUid = taosArrayInit(taosArrayGetSize(uids), sizeof(int64_t));
+  SArray* validUid = taosArrayInit(size, sizeof(int64_t));
 
-  for (int32_t i = 0; i < taosArrayGetSize(uids); i++) {
+  for (int32_t i = 0; i < size; i++) {
     int64_t* uid = taosArrayGet(uids, i);
     if (taosHashGet(tags, uid, sizeof(int64_t)) != NULL) {
       taosArrayPush(validUid, uid);
@@ -908,7 +914,8 @@ static int32_t removeInvalidTable(SArray* uids, SHashObj* tags) {
   return 0;
 }
 
-static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond) {
+// only return uid that does not contained in pExistedUidList
+static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* pExistedUidList, SNode* pTagCond) {
   if (nodeType(pTagCond) != QUERY_NODE_OPERATOR) {
     return -1;
   }
@@ -931,11 +938,11 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
     SArray*   pTbList = getTableNameList(pList);
     int32_t   numOfTables = taosArrayGetSize(pTbList);
     SHashObj* uHash = NULL;
-    size_t    listlen = taosArrayGetSize(list);  // len > 0 means there already have uids
-    if (listlen > 0) {
-      uHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-      for (int i = 0; i < listlen; i++) {
-        int64_t* uid = taosArrayGet(list, i);
+    size_t    numOfExisted = taosArrayGetSize(pExistedUidList);  // len > 0 means there already have uids
+    if (numOfExisted > 0) {
+      uHash = taosHashInit(numOfExisted / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+      for (int i = 0; i < numOfExisted; i++) {
+        int64_t* uid = taosArrayGet(pExistedUidList, i);
         taosHashPut(uHash, uid, sizeof(int64_t), &i, sizeof(i));
       }
     }
@@ -948,7 +955,7 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
         ETableType tbType = TSDB_TABLE_MAX;
         if (metaGetTableTypeByName(metaHandle, name, &tbType) == 0 && tbType == TSDB_CHILD_TABLE) {
           if (NULL == uHash || taosHashGet(uHash, &uid, sizeof(uid)) == NULL) {
-            taosArrayPush(list, &uid);
+            taosArrayPush(pExistedUidList, &uid);
           }
         } else {
           taosArrayDestroy(pTbList);
@@ -1057,7 +1064,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       goto _end;
     }
 
-    if (!pTagCond) {  // no tag condition exists, let's fetch all tables of this super table
+    if (!pTagCond) {  // no tag filter condition exists, let's fetch all tables of this super table
       ASSERT(pTagIndexCond == NULL);
       vnodeGetCtbIdList(pVnode, pScanNode->suid, res);
     } else {
