@@ -2627,10 +2627,10 @@ github.com/swaggo/swag v1.8.8/go.mod h1:ezQVUUhly8dludpVk+/PuwJWvLLanB13ygV5Pr9e
 github.com/syndtr/gocapability v0.0.0-20170704070218-db04d3cc01c8/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
 github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
 github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
-github.com/taosdata/driver-go/v3 v3.0.4 h1:XJdQfIrqH1FeviH8I+1m2JH9Sg828RpkiszO8qXYhn8=
-github.com/taosdata/driver-go/v3 v3.0.4/go.mod h1:H2vo/At+rOPY1aMzUV9P49SVX7NlXb3LAbKw+MCLrmU=
-github.com/taosdata/taosadapter/v3 v3.0.0-20221230085955-a2e99207d58c h1:IBBSYfpumN27n1dRz1NdchJY6zdQKli3oCPCT+C5qJs=
-github.com/taosdata/taosadapter/v3 v3.0.0-20221230085955-a2e99207d58c/go.mod h1:GP8Uxu+/tlGx3ppc9aJokJ3FMqlAzUQwj9GEEptG8Kk=
+github.com/taosdata/driver-go/v3 v3.1.0 h1:QhGxmXnHU6tLGuamXdwz2NCX2WbmQ1SBflYreH1TCZ8=
+github.com/taosdata/driver-go/v3 v3.1.0/go.mod h1:H2vo/At+rOPY1aMzUV9P49SVX7NlXb3LAbKw+MCLrmU=
+github.com/taosdata/taosadapter/v3 v3.0.0-20230113065219-213f8b32c6b8 h1:+bOD/LfFwghdXAzwsOKlPneTmCb8RgGq5kQUdVDB7/c=
+github.com/taosdata/taosadapter/v3 v3.0.0-20230113065219-213f8b32c6b8/go.mod h1:1vStOcr5VZUVCmNfOS03sf95NQ6+f18yCBFIcZVfW6I=
 github.com/tbrandon/mbserver v0.0.0-20170611213546-993e1772cc62/go.mod h1:qUzPVlSj2UgxJkVbH0ZwuuiR46U8RBMDT5KLY78Ifpw=
 github.com/tchap/go-patricia v2.2.6+incompatible/go.mod h1:bmLyhP68RS6kStMGxByiQ23RP/odRBOTVjwp2cDyi6I=
 github.com/tdakkota/asciicheck v0.0.0-20200416200610-e657995f937b/go.mod h1:yHp0ai0Z9gUljN3o0xMhYJnH/IcvkdTBOX2fmJ93JEM=

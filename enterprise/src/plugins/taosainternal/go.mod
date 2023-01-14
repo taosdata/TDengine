@@ -9,8 +9,8 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.14.0
 	github.com/stretchr/testify v1.8.1
-	github.com/taosdata/driver-go/v3 v3.0.4
-	github.com/taosdata/taosadapter/v3 v3.0.0-20221230085955-a2e99207d58c
+	github.com/taosdata/driver-go/v3 v3.1.0
+	github.com/taosdata/taosadapter/v3 v3.0.0-20230113065219-213f8b32c6b8
 )
 
 require (
