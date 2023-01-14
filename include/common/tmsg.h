@@ -343,7 +343,8 @@ void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
 
-#define IS_BSMA_ON(s) (((s)->flags & 0x01) == COL_SMA_ON)
+#define IS_BSMA_ON(s)  (((s)->flags & 0x01) == COL_SMA_ON)
+#define IS_SET_NULL(s) (((s)->flags & COL_SET_NULL) == COL_SET_NULL)
 
 #define SSCHMEA_TYPE(s)  ((s)->type)
 #define SSCHMEA_FLAGS(s) ((s)->flags)
@@ -1771,7 +1772,9 @@ typedef struct {
   // 3.0.20
   int64_t checkpointFreq;  // ms
   // 3.0.2.3
-  int8_t createStb;
+  int8_t   createStb;
+  uint64_t targetStbUid;
+  SArray*  fillNullCols;
 } SCMCreateStreamReq;
 
 typedef struct {
