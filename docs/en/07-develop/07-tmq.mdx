@@ -119,12 +119,15 @@ class TaosConsumer():
 ```go
 func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)
 
+// rebalanceCb is reserved for compatibility purpose
 func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error
 
+// rebalanceCb is reserved for compatibility purpose
 func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error
 
 func (c *Consumer) Poll(timeoutMs int) tmq.Event
 
+// tmq.TopicPartition is reserved for compatibility purpose
 func (c *Consumer) Commit() ([]tmq.TopicPartition, error)
 
 func (c *Consumer) Unsubscribe() error

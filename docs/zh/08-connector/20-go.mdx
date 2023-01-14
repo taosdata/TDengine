@@ -15,7 +15,7 @@ import GoOpenTSDBTelnet from "../07-develop/03-insert-data/_go_opts_telnet.mdx"
 import GoOpenTSDBJson from "../07-develop/03-insert-data/_go_opts_json.mdx"
 import GoQuery from "../07-develop/04-query-data/_go.mdx"
 
-`driver-go` 是 TDengine 的官方 Go 语言连接器，实现了 Go 语言[ database/sql ](https://golang.org/pkg/database/sql/) 包的接口。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。
+`driver-go` 是 TDengine 的官方 Go 语言连接器，实现了 Go 语言 [database/sql](https://golang.org/pkg/database/sql/)  包的接口。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。
 
 `driver-go` 提供两种建立连接的方式。一种是**原生连接**，它通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 运行实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。另外一种是 **REST 连接**，它通过 taosAdapter 提供的 REST 接口连接 TDengine 运行实例。REST 连接实现的功能特性集合和原生连接有少量不同。
 
@@ -112,6 +112,7 @@ REST 连接支持所有能运行 Go 的平台。
 ```text
 username:password@protocol(address)/dbname?param=value
 ```
+
 ### 使用连接器进行连接
 
 <Tabs defaultValue="rest">
@@ -176,6 +177,7 @@ func main() {
     }
 }
 ```
+
 </TabItem>
 <TabItem value="WebSocket" label="WebSocket 连接">
 
@@ -207,6 +209,7 @@ func main() {
     }
 }
 ```
+
 </TabItem>
 </Tabs>
 
@@ -362,10 +365,12 @@ func main() {
  创建消费者。
 
 * `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
+注意：出于兼容目的保留 `rebalanceCb` 参数，当前未使用
 
  订阅单个主题。
 
 * `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
+注意：出于兼容目的保留 `rebalanceCb` 参数，当前未使用
 
  订阅主题。
 
@@ -374,6 +379,7 @@ func main() {
  轮询消息。
 
 * `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
+注意：出于兼容目的保留 `tmq.TopicPartition` 参数，当前未使用
 
  提交消息。
 
@@ -444,10 +450,12 @@ func main() {
  创建消费者。
 
 * `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
+注意：出于兼容目的保留 `rebalanceCb` 参数，当前未使用
 
  订阅单个主题。
 
 * `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
+注意：出于兼容目的保留 `rebalanceCb` 参数，当前未使用
 
  订阅主题。
 
@@ -456,6 +464,7 @@ func main() {
  轮询消息。
 
 * `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
+注意：出于兼容目的保留 `tmq.TopicPartition` 参数，当前未使用
 
  提交消息。
 

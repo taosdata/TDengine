@@ -360,10 +360,12 @@ The `af` package encapsulates TDengine advanced functions such as connection man
 Creates consumer group.
 
 * `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
+Note: `rebalanceCb` is reserved for compatibility purpose
 
 Subscribes a topic.
 
 * `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
+Note: `rebalanceCb` is reserved for compatibility purpose
 
 Subscribes to topics.
 
@@ -372,6 +374,7 @@ Subscribes to topics.
 Polling information.
 
 * `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
+Note: `tmq.TopicPartition` is reserved for compatibility purpose
 
 Commit information.
 
@@ -446,10 +449,12 @@ Close consumer.
 Creates consumer group.
 
 * `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
+Note: `rebalanceCb` is reserved for compatibility purpose
 
 Subscribes a topic.
 
 * `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
+Note: `rebalanceCb` is reserved for compatibility purpose
 
 Subscribes to topics.
 
@@ -458,6 +463,7 @@ Subscribes to topics.
 Polling information.
 
 * `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
+Note: `tmq.TopicPartition` is reserved for compatibility purpose
 
 Commit information.
 

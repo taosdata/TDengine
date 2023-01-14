@@ -117,12 +117,15 @@ class TaosConsumer():
 ```go
 func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)
 
+// 出于兼容目的保留 rebalanceCb 参数，当前未使用
 func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error
 
+// 出于兼容目的保留 rebalanceCb 参数，当前未使用
 func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error
 
 func (c *Consumer) Poll(timeoutMs int) tmq.Event
 
+// 出于兼容目的保留 tmq.TopicPartition 参数，当前未使用
 func (c *Consumer) Commit() ([]tmq.TopicPartition, error)
 
 func (c *Consumer) Unsubscribe() error
