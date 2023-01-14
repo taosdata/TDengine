@@ -6,11 +6,11 @@ description: Using topics to share data from TDengine.
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-The topic introduces how to share data from TDengine through the access control management of TDengine Cloud and the subscription interfaces of each supported connectors. The data owner first creates the topic through the topic wizard. Then adds the users or user groups which he wants to share the data with to the subscriber list of the topic. The subscriber of the topic can get the detail information how to access the shared data in TDengine in data subscription way. In this document we will briefly explain these main steps of data sharing.
+The topic introduces how to share data from TDengine instance through the access control management of TDengine Cloud and the subscription interfaces of each supported connectors. The data owner first creates the topic through the topic wizard. Then adds the users or user groups which he wants to share the data with to the subscribers of the topic. The subscriber of the topic can get the details about how to access the shared data from TDengine in the data subscription way. In this document we will briefly explain these main steps of data sharing.
 
 ## Create Topic
 
-You can create the topic in Topics of TDengine Cloud. In the Create Topic dialog, you can choose wizard or SQL way to create the topic. In the wizard way, you need to input the topic name and select the database of the current TDengine instance. Then select the super table or specify the subquery with the super table or sub table. Also you can add fields selections or add result set and condition set for each field. In the following, you can get the detail of how to create the topic in three levels through wizard way. Additional, for SQL way, you can go to the [Data Subscription](../../tmq/) to get the details.
+You can create the topic in Topics of TDengine Cloud. In the Create Topic dialog, you can choose wizard or SQL way to create the topic. In the wizard way, you need to input the topic name and select the database of the current TDengine instance. Then select the super table or specify the subquery with the super table or sub table. Also you can add fields selections or add result set and condition set for each field. In the following, you can get the detail of how to create the topic in three levels through wizard way.
 
 ### To Database
 
@@ -58,62 +58,11 @@ You can click User Groups tab to switch to the User Groups page of the Share Top
 
 The shared user can get all topics which the creator shared with him, when he goes to the Topic page of Data Subscription. The user can click **Sample Code** icon of each topic **Action** area to the **Sample Code** page. Then he can follow the steps of the sample code how to consume the shared topic from TDengine instance.
 
-### Configure TDengine DSN
-
-<Tabs defaultValue="Bash" groupId="config">
-<TabItem value="Bash" label="Bash">
-
-```shell
-export TDENGINE_CLOUD_ENDPOINT="{TDC_GATEWAY}"
-export TDENGINE_CLOUD_TOKEN="{TDC_TOKEN}"
-```
-
-</TabItem>
-<TabItem value="CMD" label="CMD">
-
-```shell
-set TDENGINE_CLOUD_ENDPOINT="{TDC_GATEWAY}"
-set TDENGINE_CLOUD_TOKEN="{TDC_TOKEN}"
-```
-
-</TabItem>
-<TabItem value="Powershell" label="Powershell">
-
-```shell
-$env:TDENGINE_CLOUD_ENDPOINT="{TDC_GATEWAY}"
-$env:TDENGINE_CLOUD_TOKEN="{TDC_TOKEN}"
-```
-
-</TabItem>
-</Tabs>
-
 ### Data Schema and API
 
 The related schemas and APIs in various languages are described as follows:
 
-<Tabs defaultValue="Python" groupId="lang">
-<TabItem value="Python" label="Python">
-
-```python
-class TaosConsumer():
-    def __init__(self, *topics, **configs)
-
-    def __iter__(self)
-
-    def __next__(self)
-
-    def sync_next(self)
-    
-    def subscription(self)
-
-    def unsubscribe(self)
-
-    def close(self)
-    
-    def __del__(self)
-```
-
-</TabItem>
+<Tabs defaultValue="Go" groupId="lang">
 
 <TabItem label="Go" value="Go">
 
@@ -166,8 +115,96 @@ impl AsAsyncConsumer for Consumer
 For more information, see [Crate taos](https://docs.rs/taos).
 
 </TabItem>
+
+<TabItem value="Python" label="Python">
+
+```python
+class TaosConsumer():
+    def __init__(self, *topics, **configs)
+
+    def __iter__(self)
+
+    def __next__(self)
+
+    def sync_next(self)
+    
+    def subscription(self)
+
+    def unsubscribe(self)
+
+    def close(self)
+    
+    def __del__(self)
+```
+
+</TabItem>
 </Tabs>
 
+### Configure TDengine DSN
+
+You can set the following for Go and Rust:
+
+<Tabs defaultValue="Bash" groupId="config">
+<TabItem value="Bash" label="Bash">
+
+```shell
+export TDENGINE_CLOUD_TMQ="<TDENGINE_CLOUD_TMQ>"
+```
+
+</TabItem>
+<TabItem value="CMD" label="CMD">
+
+```shell
+set TDENGINE_CLOUD_TMQ="<TDENGINE_CLOUD_TMQ>"
+```
+
+</TabItem>
+<TabItem value="Powershell" label="Powershell">
+
+```shell
+$env:TDENGINE_CLOUD_TMQ="<TDENGINE_CLOUD_TMQ>"
+```
+
+</TabItem>
+</Tabs>
+
+:::note
+Replace <TDENGINE_CLOUD_TMQ> with the real value, the format should be `wss://<cloud_endpoint>)/rest/tmq?token=<token>`.
+To obtain the value of `TDENGINE_CLOUD_TMQ`, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then click **Sample Code** action of the each topic to **Example** part.
+:::
+
+Especially, for Python, you need to set the following variables:
+
+<Tabs defaultValue="Bash" groupId="config">
+<TabItem value="Bash" label="Bash">
+
+```shell
+export TDENGINE_CLOUD_ENDPOINT="<TDENGINE_CLOUD_ENDPOINT>"
+export TDENGINE_CLOUD_TOKEN="<TDENGINE_CLOUD_TOKEN>"
+```
+
+</TabItem>
+<TabItem value="CMD" label="CMD">
+
+```shell
+set TDENGINE_CLOUD_ENDPOINT="<TDENGINE_CLOUD_ENDPOINT>"
+set TDENGINE_CLOUD_TOKEN="<TDENGINE_CLOUD_TOKEN>"
+```
+
+</TabItem>
+<TabItem value="Powershell" label="Powershell">
+
+```shell
+$env:TDENGINE_CLOUD_ENDPOINT="<TDENGINE_CLOUD_ENDPOINT>"
+$env:TDENGINE_CLOUD_TOKEN="<TDENGINE_CLOUD_TOKEN>"
+```
+
+</TabItem>
+</Tabs>
+
+:::note
+Replace <TDENGINE_CLOUD_ENDPOINT> and <TDENGINE_CLOUD_TOKEN> with the real values. To obtain the value of these, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then click **Sample Code** action of the each topic to the **Python** tab of the **Example** part.
+:::
 ### Create a Consumer from Instance
 
 You configure the following parameters when creating a consumer:
@@ -189,7 +226,44 @@ You configure the following parameters when creating a consumer:
 
 The method of specifying these parameters depends on the language used:
 
-<Tabs defaultValue="Python" groupId="lang">
+<Tabs defaultValue="Go" groupId="lang">
+
+<TabItem label="Go" value="Go">
+
+```go
+import (
+  "github.com/taosdata/driver-go/v3/common"
+	tmqcommon "github.com/taosdata/driver-go/v3/common/tmq"
+	"github.com/taosdata/driver-go/v3/ws/tmq"
+)
+tmqStr := os.Getenv("TDENGINE_CLOUD_TMQ")
+consumer, err := tmq.NewConsumer(&tmqcommon.ConfigMap{
+  "ws.url":                tmqStr,
+  "ws.message.channelLen": uint(0),
+  "ws.message.timeout":    common.DefaultMessageTimeout,
+  "ws.message.writeWait":  common.DefaultWriteWait,
+  "group.id":              "test_group",
+  "client.id":             "test_consumer_ws",
+  "auto.offset.reset":     "earliest",
+})
+if err != nil {
+  panic(err)
+}
+```
+
+</TabItem>
+
+<TabItem label="Rust" value="Rust">
+
+```rust
+let tmq_str = std::env::var("TDENGINE_CLOUD_TMQ")?;
+let tmq_uri = format!( "{}&group.id=test_group_rs&client.id=test_consumer_ws", tmq_str);
+println!("request tmq URI is {tmq_uri}\n");
+let tmq = TmqBuilder::from_dsn(tmq_uri,)?;
+let mut consumer = tmq.build()?;
+```
+
+</TabItem>
 
 <TabItem value="Python" label="Python">
 
@@ -209,57 +283,27 @@ Python programs use the following parameters:
 | `enable_heartbeat_background`  | string | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time |  Specify `true` or `false`.                                           |
 | `experimental_snapshot_enable` | string | Specify whether to consume messages from the WAL or from TSBS                    | Specify `true` or `false`.                                            |
 |     `msg_with_table_name`      | string | Specify whether to deserialize table names from messages                                 | Specify `true` or `false`.
-|           `timeout`            |  int   | Consumer pull timeout                                     |                                             |
+|           `timeout`            |  int   | Consumer pull timeout                                     |                                      |
 
-</TabItem>
+```python
+endpoint = os.environ["TDENGINE_CLOUD_ENDPOINT"]
+token = os.environ["TDENGINE_CLOUD_TOKEN"]
+urlparts = endpoint.split(":", 1)
 
-<TabItem label="Go" value="Go">
-
-```go
-import (
-  "github.com/taosdata/driver-go/v3/ws/tmq"
-)
-endpoint := os.Getenv("TDENGINE_CLOUD_ENDPOINT")
-token := os.Getenv("TDENGINE_CLOUD_TOKEN")
-tmpDSN := fmt.Sprintf("ws://%s/rest/tmq?token=%s", endpoint, token)
-config := tmq.NewConfig(tmpDSN, 0)
-defer config.Destroy()
-err = config.SetGroupID("test_group")
-if err != nil {
-  panic(err)
+conf = {
+    # auth options
+    "td.connect.websocket.scheme": "wss",
+    "td.connect.ip": urlparts[0],
+    "td.connect.port": urlparts[1],
+    "td.connect.token": token,
+    # consume options
+    "group.id": "test_group_py",
+    "client.id": "test_consumer_ws_py",
 }
-err = config.SetClientID("test_consumer_ws") //
-if err != nil {
-  panic(err)
-}
-err = config.EnableHeartBeat()
-if err != nil {
-  panic(err)
-}
-err = config.SetAutoOffsetReset("earliest")
-if err != nil {
-  panic(err)
-}
+consumer = Consumer(conf)
 ```
 
 </TabItem>
-
-<TabItem label="Rust" value="Rust">
-
-```rust
-let mut dsnURL = format!("ws://{}/rest/tmq?token={}", std::env::var("TDENGINE_CLOUD_ENDPOINT"), std::env::var("TDENGINE_CLOUD_TOKEN"));
-let mut dsn: Dsn = dsnURL.parse()?;
-dsn.set("group.id", "test_group");
-dsn.set("client.id", "test_consumer_ws");
-dsn.set("auto.offset.reset", "earliest");
-
-let tmq = TmqBuilder::from_dsn(dsn)?;
-
-let mut consumer = tmq.build()?;
-```
-
-</TabItem>
-
 </Tabs>
 
 A consumer group is automatically created when multiple consumers are configured with the same consumer group ID.
@@ -268,24 +312,14 @@ A consumer group is automatically created when multiple consumers are configured
 
 A single consumer can subscribe to multiple topics.
 
-<Tabs defaultValue="Python" groupId="lang">
-<TabItem value="Python" label="Python">
+<Tabs defaultValue="Go" groupId="lang">
 
-```python
-consumer = TaosConsumer('{TDC_TOPIC}', group_id='test_group')
-```
-
-</TabItem>
 <TabItem value="Go" label="Go">
 
 ```go
-consumer, err := tmq.NewConsumer(config)
+err = consumer.Subscribe("<TDC_TOPIC>", nil)
 if err != nil {
- panic(err)
-}
-err = consumer.Subscribe([]string{"{TDC_TOPIC}"})
-if err != nil {
- panic(err)
+  panic(err)
 }
 ```
 
@@ -293,39 +327,50 @@ if err != nil {
 <TabItem value="Rust" label="Rust">
 
 ```rust
-consumer.subscribe(["{TDC_TOPIC}"]).await?;
+consumer.subscribe(["<TDC_TOPIC>"]).await?;
 ```
 
 </TabItem>
 
+<TabItem value="Python" label="Python">
+
+```python
+consumer.subscribe(["<TDC_TOPIC>"])
+```
+
+</TabItem>
 </Tabs>
+
+:::note
+
+Replace <TDC_TOPIC\> with the real value. To obtain the value of `TDC_TOPIC`, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then copy the topic name you want to consume.
+
+:::
 
 ## Consume messages
 
 The following code demonstrates how to consume the messages in a queue.
 
-<Tabs defaultValue="Python" groupId="lang">
-<TabItem value="Python" label="Python">
-
-```python
-for msg in consumer:
-    for row in msg:
-        print(row)
-```
-
-</TabItem>
+<Tabs defaultValue="Go" groupId="lang">
 
 <TabItem value="Go" label="Go">
 
 ```go
 for {
- result, err := consumer.Poll(time.Second)
- if err != nil {
-  panic(err)
- }
- fmt.Println(result)
- consumer.Commit(context.Background(), result.Message)
- consumer.FreeMessage(result.Message)
+  ev := consumer.Poll(0)
+  if ev != nil {
+    switch e := ev.(type) {
+    case *tmqcommon.DataMessage:
+      fmt.Printf("get message:%v\n", e.String())
+      consumer.Commit()
+    case tmqcommon.Error:
+      fmt.Printf("%% Error: %v: %v\n", e.Code(), e)
+      return
+    default:
+      fmt.Printf("unexpected event:%v\n", e)
+      return
+    }
+  }
 }
 ```
 
@@ -334,56 +379,62 @@ for {
 <TabItem value="Rust" label="Rust">
 
 ```rust
-{
-    let mut stream = consumer.stream();
+// consume loop
+consumer
+    .stream()
+    .try_for_each_concurrent(10, |(offset, message)| async {
+      let topic = offset.topic();
+      // the vgroup id, like partition id in kafka.
+      let vgroup_id = offset.vgroup_id();
+      println!("* in vgroup id {vgroup_id} of topic {topic}\n");
 
-    while let Some((offset, message)) = stream.try_next().await? {
-        // get information from offset
-
-        // the topic
-        let topic = offset.topic();
-        // the vgroup id, like partition id in kafka.
-        let vgroup_id = offset.vgroup_id();
-        println!("* in vgroup id {vgroup_id} of topic {topic}\n");
-
-        if let Some(data) = message.into_data() {
-            while let Some(block) = data.fetch_raw_block().await? {
-                // one block for one table, get table name if needed
-                let name = block.table_name();
-                let records: Vec<Record> = block.deserialize().try_collect()?;
-                println!(
-                    "** table: {}, got {} records: {:#?}\n",
-                    name.unwrap(),
-                    records.len(),
-                    records
-                );
-            }
+      if let Some(data) = message.into_data() {
+        while let Some(block) = data.fetch_raw_block().await? {
+          // A two-dimension matrix while each cell is a [taos::Value] object.
+          let values = block.to_values();
+          // Number of rows.
+          assert_eq!(values.len(), block.nrows());
+          // Number of columns
+          assert_eq!(values[0].len(), block.ncols());
+          println!("first row: {}", values[0].iter().join(", "));
         }
-        consumer.commit(offset).await?;
-    }
-}
+      }
+      consumer.commit(offset).await?;
+      Ok(())
+    })
+    .await?;
 ```
 
 </TabItem>
+<TabItem value="Python" label="Python">
 
+```python
+while 1:
+  message = consumer.poll(timeout=1.0)
+  if message:
+    id = message.vgroup()
+    topic = message.topic()
+    database = message.database()
+
+    for block in message:
+      nrows = block.nrows()
+      ncols = block.ncols()
+      for row in block:
+          print(row)
+      values = block.fetchall()
+      print(nrows, ncols)
+  else:
+    break
+```
+
+</TabItem>
 </Tabs>
 
 ## Close the consumer
 
 After message consumption is finished, the consumer is unsubscribed.
 
-<Tabs defaultValue="Python" groupId="lang">
-
-<TabItem value="Python" label="Python">
-
-```py
-# Unsubscribe
-consumer.unsubscribe()
-# Close consumer
-consumer.close()
-```
-
-</TabItem>
+<Tabs defaultValue="Go" groupId="lang">
 
 <TabItem value="Go" label="Go">
 
@@ -401,26 +452,29 @@ consumer.unsubscribe().await;
 
 </TabItem>
 
-</Tabs>
-
-### Sample Code
-
-The following are full sample codes about how to consume the shared topic:
-
-<Tabs defaultValue="Python" groupId="lang">
-
 <TabItem value="Python" label="Python">
 
-```python
-{{#include docs/examples/rust/cloud-example/examples/subscribe_demo.rs}}
+```py
+# Unsubscribe
+consumer.unsubscribe()
+# Close consumer
+consumer.close()
 ```
 
 </TabItem>
 
+</Tabs>
+
+### Sample Code
+
+The following are full sample codes about how to consume the shared topic **test**:
+
+<Tabs defaultValue="Go" groupId="lang">
+
 <TabItem label="Go" value="Go">
 
 ```go
-{{#include docs/examples/rust/cloud-example/examples/subscribe_demo.rs}}
+{{#include docs/examples/go/sub/cloud/main.go}}
 ```
 
 </TabItem>
@@ -428,7 +482,15 @@ The following are full sample codes about how to consume the shared topic:
 <TabItem label="Rust" value="Rust">
 
 ```rust
-{{#include docs/examples/rust/cloud-example/examples/subscribe_demo.rs}}
+{{#include docs/examples/rust/cloud-example/examples/sub.rs}}
+```
+
+</TabItem>
+
+<TabItem value="Python" label="Python">
+
+```python
+{{#include docs/examples/python/cloud/sub.py}}
 ```
 
 </TabItem>
