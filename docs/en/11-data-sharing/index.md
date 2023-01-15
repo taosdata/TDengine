@@ -58,6 +58,9 @@ You can click User Groups tab to switch to the User Groups page of the Share Top
 
 The shared user can get all topics which the creator shared with him, when he goes to the Topic page of Data Subscription. The user can click **Sample Code** icon of each topic **Action** area to the **Sample Code** page. Then he can follow the steps of the sample code how to consume the shared topic from TDengine instance.
 
+![Share topic example](./example/share-topic-example.webp)
+
+
 ### Data Schema and API
 
 The related schemas and APIs in various languages are described as follows:
