@@ -860,13 +860,6 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
   return TSDB_CODE_SUCCESS;
 }
 
-void releaseSource(STuplePos* pPos) {
-  if (pPos->pageId == -1) {
-    return;
-  }
-  // Todo(liuyao) relase row
-}
-
 // This function append the selectivity to subsidiaries function context directly, without fetching data
 // from intermediate disk based buf page
 void appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t pos) {
@@ -899,7 +892,6 @@ void appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t pos)
 }
 
 void replaceTupleData(STuplePos* pDestPos, STuplePos* pSourcePos) {
-  releaseSource(pDestPos);
   *pDestPos = *pSourcePos;
 }
 
@@ -5370,6 +5362,7 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
   pDistInfo->numOfBlocks += p1.numOfBlocks;
   pDistInfo->numOfTables += p1.numOfTables;
   pDistInfo->numOfInmemRows += p1.numOfInmemRows;
+  pDistInfo->numOfVgroups += p1.numOfVgroups;
   pDistInfo->totalSize += p1.totalSize;
   pDistInfo->totalRows += p1.totalRows;
   pDistInfo->numOfFiles += p1.numOfFiles;
@@ -5404,6 +5397,7 @@ int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDist
   if (tEncodeU16(&encoder, pInfo->numOfFiles) < 0) return -1;
   if (tEncodeU32(&encoder, pInfo->numOfBlocks) < 0) return -1;
   if (tEncodeU32(&encoder, pInfo->numOfTables) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->numOfVgroups) < 0) return -1;
 
   if (tEncodeU64(&encoder, pInfo->totalSize) < 0) return -1;
   if (tEncodeU64(&encoder, pInfo->totalRows) < 0) return -1;
@@ -5435,6 +5429,7 @@ int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo
   if (tDecodeU16(&decoder, &pInfo->numOfFiles) < 0) return -1;
   if (tDecodeU32(&decoder, &pInfo->numOfBlocks) < 0) return -1;
   if (tDecodeU32(&decoder, &pInfo->numOfTables) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->numOfVgroups) < 0) return -1;
 
   if (tDecodeU64(&decoder, &pInfo->totalSize) < 0) return -1;
   if (tDecodeU64(&decoder, &pInfo->totalRows) < 0) return -1;
@@ -5495,7 +5490,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   colDataAppend(pColInfo, row++, st, false);
 
   len = sprintf(st + VARSTR_HEADER_SIZE, "Total_Tables=[%d] Total_Files=[%d] Total_Vgroups=[%d]", pData->numOfTables,
-                pData->numOfFiles, 0);
+                pData->numOfFiles, pData->numOfVgroups);
 
   varDataSetLen(st, len);
   colDataAppend(pColInfo, row++, st, false);

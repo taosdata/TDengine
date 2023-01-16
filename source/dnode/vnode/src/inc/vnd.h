@@ -61,10 +61,19 @@ struct SVBufPoolNode {
 };
 
 struct SVBufPool {
-  SVBufPool*        next;
+  SVBufPool* freeNext;
+  SVBufPool* recycleNext;
+  SVBufPool* recyclePrev;
+
+  // query handle list
+  TdThreadMutex mutex;
+  int32_t       nQuery;
+  SQueryNode    qList;
+
   SVnode*           pVnode;
-  TdThreadSpinlock* lock;
+  int32_t           id;
   volatile int32_t  nRef;
+  TdThreadSpinlock* lock;
   int64_t           size;
   uint8_t*          ptr;
   SVBufPoolNode*    pTail;
@@ -74,6 +83,8 @@ struct SVBufPool {
 int32_t vnodeOpenBufPool(SVnode* pVnode);
 int32_t vnodeCloseBufPool(SVnode* pVnode);
 void    vnodeBufPoolReset(SVBufPool* pPool);
+void    vnodeBufPoolAddToFreeList(SVBufPool* pPool);
+int32_t vnodeBufPoolRecycle(SVBufPool* pPool);
 
 // vnodeQuery.c
 int32_t vnodeQueryOpen(SVnode* pVnode);

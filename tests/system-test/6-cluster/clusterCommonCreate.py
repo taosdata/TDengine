@@ -137,12 +137,24 @@ class ClusterComCreate:
         # for i in range(dbNumbers):
         for i in range(dbNumbers):
             if dropFlag == 1:
-                tsql.execute("drop database if exists %s_%d"%(dbNameIndex,1))
-            tdLog.debug("create database if not exists %s_%d vgroups %d replica %d"%(dbNameIndex,1, vgroups, replica))
-            tsql.execute("create database if not exists %s_%d vgroups %d replica %d"%(dbNameIndex,1, vgroups, replica))
-            tdLog.debug("complete to create database %s_%d"%(dbNameIndex,1))
+                tsql.execute("drop database if exists %s_%d"%(dbNameIndex,i))
+            tdLog.debug("create database if not exists %s_%d vgroups %d replica %d"%(dbNameIndex,i, vgroups, replica))
+            tsql.execute("create database if not exists %s_%d vgroups %d replica %d"%(dbNameIndex,i, vgroups, replica))
+            tdLog.debug("complete to create database %s_%d"%(dbNameIndex,i))
     
+    def createUser(self,tsql,user,password):
+        tdLog.info(f"create new user f{user}")   
+        tsql.execute(f"CREATE USER {user} PASS '{password}';")
 
+    def alterUser(self,tsql,user,password):
+        tdLog.info(f"alter user {user} pass '{password}'")   
+        tsql.execute(f"alter USER {user}  pass '{password}' ;")
+
+    def deleteUser(self,tsql,user):
+        tdLog.info(f"drop user f{user}")   
+        tsql.execute(f"DROP USER {user} ;")
+
+        
     def create_stable(self,tsql, dbName,stbName):
         tsql.execute("create table if not exists %s.%s (ts timestamp, c1 int, c2 int, c3 binary(16)) tags(t1 int, t2 binary(32))"%(dbName, stbName))
         tdLog.debug("complete to create %s.%s" %(dbName, stbName))
@@ -193,6 +205,52 @@ class ClusterComCreate:
                     tsql.execute(sql)
                     if j < rowsPerTbl - 1:
                         sql = "insert into %s_%d values " %(stbName,i)
+                    else:
+                        sql = "insert into "
+        #end sql
+        if sql != pre_insert:
+            #print("insert sql:%s"%sql)
+            tsql.execute(sql)
+        tdLog.debug("insert data ............ [OK]")
+        return
+
+    def alterStbMetaData(self,tsql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs=None):
+        tdLog.debug("alter Stb column ............")
+        tdLog.debug(f"ALTER STABLE {dbName}.{stbName} MODIFY COLUMN c3 binary(20);")
+        tsql.execute(f" ALTER STABLE {dbName}.{stbName} MODIFY COLUMN c3 binary(20);")
+        tdLog.debug(f"ALTER STABLE {dbName}.{stbName} ADD COLUMN c4 DOUBLE;")
+        tsql.execute(f" ALTER STABLE {dbName}.{stbName} ADD COLUMN c4 DOUBLE;")
+        tdLog.debug(f"ALTER STABLE {dbName}.{stbName} DROP COLUMN c2;")
+        tsql.execute(f" ALTER STABLE {dbName}.{stbName} DROP COLUMN c2;")
+        tdLog.debug(f"ALTER STABLE {dbName}.{stbName} RENAME TAG t1 t1r;")
+        tsql.execute(f" ALTER STABLE {dbName}.{stbName} RENAME TAG t1 t1r;")
+        tdLog.debug(f"ALTER STABLE {dbName}.{stbName} DROP TAG t2;")
+        tsql.execute(f" ALTER STABLE {dbName}.{stbName} DROP TAG t2;")
+        tdLog.debug(f"ALTER STABLE {dbName}.{stbName} ADD TAG t2 binary(32) ;")
+        tsql.execute(f" ALTER STABLE {dbName}.{stbName} ADD TAG t2 binary(32);")        
+        tdLog.debug(f"ALTER STABLE {dbName}.{stbName} MODIFY TAG t2 binary(34) ;")
+        tsql.execute(f" ALTER STABLE {dbName}.{stbName}  MODIFY TAG t2 binary(34);")    
+        tdLog.debug(f"ALTER STABLE {dbName}.{stbName} ADD TAG t3 double ;")
+        tsql.execute(f" ALTER STABLE {dbName}.{stbName} ADD TAG t3 double;")  
+        tsql.error(f" ALTER STABLE {dbName}.{stbName} ADD TAG t2 double;")  
+
+        tdLog.debug("start to insert data ............")
+        # tsql.execute("use %s" %dbName)
+        pre_insert = "insert into "
+        sql = pre_insert
+
+        if startTs is None:
+            t = time.time()
+            startTs = int(round(t * 1000))
+        #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
+        for i in range(ctbNum):
+            sql += " %s.%s_%d values "%(dbName,stbName,i)
+            for j in range(rowsPerTbl):
+                sql += "(%d, %d,'mnode_%d',  %d ) "%(startTs + j, j, j,j)
+                if (j > 0) and ((j%batchNum == 0) or (j == rowsPerTbl - 1)):
+                    tsql.execute(sql)
+                    if j < rowsPerTbl - 1:
+                        sql = "insert into %s.%s_%d values " %(dbName,stbName,i)
                     else:
                         sql = "insert into "
         #end sql

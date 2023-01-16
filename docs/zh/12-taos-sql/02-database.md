@@ -27,10 +27,13 @@ database_option: {
   | PRECISION {'ms' | 'us' | 'ns'}
   | REPLICA value
   | RETENTIONS ingestion_duration:keep_duration ...
-  | STRICT {'off' | 'on'}
   | WAL_LEVEL {1 | 2}
   | VGROUPS value
   | SINGLE_STABLE {0 | 1}
+  | STT_TRIGGER value
+  | TABLE_PREFIX value
+  | TABLE_SUFFIX value
+  | TSDB_PAGESIZE value
   | WAL_RETENTION_PERIOD value
   | WAL_ROLL_PERIOD value
   | WAL_RETENTION_SIZE value
@@ -61,9 +64,6 @@ database_option: {
 - PRECISION：数据库的时间戳精度。ms 表示毫秒，us 表示微秒，ns 表示纳秒，默认 ms 毫秒。
 - REPLICA：表示数据库副本数，取值为 1 或 3，默认为 1。在集群中使用，副本数必须小于或等于 DNODE 的数目。
 - RETENTIONS：表示数据的聚合周期和保存时长，如 RETENTIONS 15s:7d,1m:21d,15m:50d 表示数据原始采集周期为 15 秒，原始数据保存 7 天；按 1 分钟聚合的数据保存 21 天；按 15 分钟聚合的数据保存 50 天。目前支持且只支持三级存储周期。
-- STRICT：表示数据同步的一致性要求，默认为 off。
-  - on 表示强一致，即运行标准的 raft 协议，半数提交返回成功。
-  - off 表示弱一致，本地提交即返回成功。
 - WAL_LEVEL：WAL 级别，默认为 1。
   - 1：写 WAL，但不执行 fsync。
   - 2：写 WAL，而且执行 fsync。
@@ -71,6 +71,10 @@ database_option: {
 - SINGLE_STABLE：表示此数据库中是否只可以创建一个超级表，用于超级表列非常多的情况。
   - 0：表示可以创建多张超级表。
   - 1：表示只可以创建一张超级表。
+- STT_TRIGGER：表示落盘文件触发文件合并的个数。默认为 1，范围 1 到 16。对于少表高频场景，此参数建议使用默认配置，或较小的值；而对于多表低频场景，此参数建议配置较大的值。
+- TABLE_PREFIX：内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。
+- TABLE_SUFFIX：内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度。
+- TSDB_PAGESIZE：一个 VNODE 中时序数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB到 16 MB。
 - WAL_RETENTION_PERIOD：wal 文件的额外保留策略，用于数据订阅。wal 的保存时长，单位为 s。单副本默认为 0，即落盘后立即删除。-1 表示不删除。多副本默认为 4 天。
 - WAL_RETENTION_SIZE：wal 文件的额外保留策略，用于数据订阅。wal 的保存的最大上限，单位为 KB。单副本默认为 0，即落盘后立即删除。多副本默认为-1，表示不删除。
 - WAL_ROLL_PERIOD：wal 文件切换时长，单位为 s。当 wal 文件创建并写入后，经过该时间，会自动创建一个新的 wal 文件。单副本默认为 0，即仅在落盘时创建新文件。多副本默认为 1 天。
@@ -112,6 +116,10 @@ alter_database_options:
 alter_database_option: {
     CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
   | CACHESIZE value
+  | BUFFER value
+  | PAGES value
+  | REPLICA value
+  | STT_TRIGGER value
   | WAL_LEVEL value
   | WAL_FSYNC_PERIOD value
   | KEEP value
@@ -154,3 +162,19 @@ TRIM DATABASE db_name;
 ```
 
 删除过期数据，并根据多级存储的配置归整数据。
+
+## 调整VGROUP中VNODE的分布
+
+```sql
+REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3]
+```
+
+按照给定的dnode列表，调整vgroup中的vnode分布。因为副本数目最大为3，所以最多输入3个dnode。
+
+## 自动调整VGROUP中VNODE的分布
+
+```sql
+BALANCE VGROUP
+```
+
+自动调整集群所有vgroup中的vnode分布，相当于在vnode级别对集群进行数据的负载均衡操作。

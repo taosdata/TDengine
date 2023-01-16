@@ -222,7 +222,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   blockDataCleanup(pFinalRes);
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  if (pTaskInfo->streamInfo.pReq) {
+  if (pTaskInfo->streamInfo.submit.msgStr) {
     pOperator->status = OP_OPENED;
   }
 
@@ -278,7 +278,8 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
       // for stream interval
       if (pBlock->info.type == STREAM_RETRIEVE || pBlock->info.type == STREAM_DELETE_RESULT ||
-          pBlock->info.type == STREAM_DELETE_DATA) {
+          pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
+        // printDataBlock1(pBlock, "project1");
         return pBlock;
       }
 

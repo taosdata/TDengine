@@ -22,7 +22,7 @@
 
 typedef struct SExplainCtx SExplainCtx;
 
-int32_t qExecCommand(bool sysInfoUser, SNode *pStmt, SRetrieveTableRsp **pRsp);
+int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode *pStmt, SRetrieveTableRsp **pRsp);
 
 int32_t qExecStaticExplain(SQueryPlan *pDag, SRetrieveTableRsp **pRsp);
 int32_t qExecExplainBegin(SQueryPlan *pDag, SExplainCtx **pCtx, int64_t startTs);

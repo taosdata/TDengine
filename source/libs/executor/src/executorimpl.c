@@ -2260,9 +2260,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL == type) {
     SIntervalPhysiNode* pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
-
-    bool isStream = (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type);
-    pOptr = createIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo, isStream);
+    pOptr = createIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type) {
     pOptr = createStreamIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == type) {
@@ -2747,4 +2745,25 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
   }
   blockDataUpdateTsWindow(pBlock, 0);
   return TSDB_CODE_SUCCESS;
+}
+
+void qStreamCloseTsdbReader(void* task) {
+  if (task == NULL) return;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)task;
+  SOperatorInfo* pOp = pTaskInfo->pRoot;
+  qDebug("stream close tsdb reader, reset status uid %" PRId64 " ts %" PRId64, pTaskInfo->streamInfo.lastStatus.uid,
+         pTaskInfo->streamInfo.lastStatus.ts);
+  pTaskInfo->streamInfo.lastStatus = (STqOffsetVal){0};
+  while (pOp->numOfDownstream == 1 && pOp->pDownstream[0]) {
+    SOperatorInfo* pDownstreamOp = pOp->pDownstream[0];
+    if (pDownstreamOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+      SStreamScanInfo* pInfo = pDownstreamOp->info;
+      if (pInfo->pTableScanOp) {
+        STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+        tsdbReaderClose(pTSInfo->base.dataReader);
+        pTSInfo->base.dataReader = NULL;
+        return;
+      }
+    }
+  }
 }
