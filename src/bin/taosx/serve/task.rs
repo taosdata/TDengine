@@ -12,8 +12,8 @@ use actix_web::{
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::migrate::Migrator;
 use sqlx::SqlitePool;
+use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode};
 use std::str::FromStr;
 use taos::{AsyncQueryable, Code, Dsn, TBuilder, TaosBuilder};
 use taosx::TaskOpts;
@@ -169,7 +169,7 @@ impl TaskController {
         let options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?
             .create_if_missing(true)
             .busy_timeout(Duration::from_secs(30))
-            .;
+            .journal_mode(SqliteJournalMode::Wal);
         let pool = sqlx::SqlitePool::connect_with(options).await?;
         MIGRATOR.run(&pool).await?;
         Ok(Self {
@@ -598,7 +598,7 @@ impl TaskController {
         let task = sqlx::query_as_unchecked!(Task, "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where id = ?", id)
         .fetch_one(&self.pool)
         .await?;
-        if let Some(topic) = task.oneshot_topic {
+        if let Some(topic) = task.oneshot_topic.as_deref() {
             let mut dsn: Dsn = task.from.parse()?;
             let _ = dsn.subject.take();
             let builder = TaosBuilder::from_dsn(dsn).context("cannot drop oneshot topic")?;
@@ -621,7 +621,6 @@ impl TaskController {
         if let Some(action) = task.after_delete.as_deref() {
             if task.to.starts_with("local") && action == "clear" {
                 let dsn: Dsn = task.to.parse()?;
-                std::mem::drop(task);
                 std::mem::drop(task);
                 tokio::spawn(async move { taosx::utils::clear_local(&dsn).await });
             }
