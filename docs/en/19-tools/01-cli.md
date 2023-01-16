@@ -28,16 +28,22 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 ```
 
 </TabItem>
-<TabItem value="windows" label="Config on Windows (coming soon)">
+<TabItem value="windows" label="Config on Windows (experimental)" groupId="sys">
 
-Run this command in your Windows terminal to save cloud DSN as variable:
+Run this command in your Windows CMD prompt to save cloud DSN as variable:
 
-```bash
-set TDENGINE_CLOUD_DSN="<DSN>"
+```cmd
+set TDENGINE_CLOUD_DSN=<DSN>
+```
+
+Or run this command in your Windows PowerShell environment to save cloud DSN as variable:
+
+```cmd
+$env:TDENGINE_CLOUD_DSN='<DSN>'
 ```
 
 </TabItem>
-<TabItem value="mac" label="Config on Mac (coming soon)" groupId="sys">
+<TabItem value="mac" label="Config on Mac (experimental)" groupId="sys">
 
 Run this command in your Mac terminal to save cloud DSN as variable:
 

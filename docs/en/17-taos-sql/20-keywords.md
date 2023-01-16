@@ -217,7 +217,7 @@ There are about 200 keywords reserved by TDengine, they can't be used as the nam
 - STableS
 - STAR
 - STATE
-- STATEMEN
+- STATEMENT
 - STATE_WI
 - STORAGE
 - STREAM
