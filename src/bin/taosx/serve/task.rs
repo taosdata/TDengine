@@ -166,7 +166,10 @@ impl Display for StreamType {
 
 impl TaskController {
     pub async fn from_sqlite(sqlite: &str) -> anyhow::Result<Self> {
-        let options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?.create_if_missing(true);
+        let options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?
+            .create_if_missing(true)
+            .busy_timeout(Duration::from_secs(30))
+            .;
         let pool = sqlx::SqlitePool::connect_with(options).await?;
         MIGRATOR.run(&pool).await?;
         Ok(Self {
@@ -569,12 +572,14 @@ impl TaskController {
     }
 
     pub async fn delete(&self, id: i64) -> anyhow::Result<Option<()>> {
-        if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
-            token.cancel();
-            if !handle.is_finished() {
-                // token.cancel();
-                log::info!("Cancel task {id} before deleted");
-                let _ = handle.await;
+        {
+            if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
+                token.cancel();
+                if !handle.is_finished() {
+                    // token.cancel();
+                    log::info!("Cancel task {id} before deleted");
+                    let _ = handle.await;
+                }
             }
         }
         let now = Utc::now();
@@ -615,7 +620,10 @@ impl TaskController {
 
         if let Some(action) = task.after_delete.as_deref() {
             if task.to.starts_with("local") && action == "clear" {
-                taosx::utils::clear_local(&task.to.parse()?).await?;
+                let dsn: Dsn = task.to.parse()?;
+                std::mem::drop(task);
+                std::mem::drop(task);
+                tokio::spawn(async move { taosx::utils::clear_local(&dsn).await });
             }
         }
         Ok(Some(()))
