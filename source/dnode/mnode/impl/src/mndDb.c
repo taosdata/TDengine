@@ -889,7 +889,7 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   cfgRsp.numOfRetensions = pDb->cfg.numOfRetensions;
   cfgRsp.pRetensions = pDb->cfg.pRetensions;
   cfgRsp.schemaless = pDb->cfg.schemaless;
-
+  cfgRsp.sstTrigger = pDb->cfg.sstTrigger;
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &cfgRsp);
   void   *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
