@@ -71,6 +71,7 @@ void    tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg);
 void    tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type);
 void    tmsgReportStartup(const char* name, const char* desc);
 void    tmsgUpdateDnodeInfo(int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint16_t* port);
+void    tmsgUpdateDnodeEpSet(SEpSet* epset);
 
 #ifdef __cplusplus
 }

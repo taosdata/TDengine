@@ -100,6 +100,7 @@ typedef struct {
   bool           stopped;
   SEpSet         mnodeEps;
   SArray        *dnodeEps;
+  SArray        *oldDnodeEps;
   SHashObj      *dnodeHash;
   TdThreadRwlock lock;
   SMsgCb         msgCb;
