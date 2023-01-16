@@ -476,16 +476,3 @@ void qDestroyStmtDataBlock(void* pBlock) {
   pDataBlock->cloned = false;
   insDestroyDataBlock(pDataBlock);
 }
-
-void qDestroyStmtDataBlockExt(void* pBlock) {
-  if (pBlock == NULL) {
-    return;
-  }
-
-  STableDataBlocks* pDataBlock = (STableDataBlocks*)pBlock;
-  if (pDataBlock->cloned) {
-    qFreeStmtDataBlock(pBlock);
-  } else {
-    qDestroyStmtDataBlock(pBlock);
-  }
-}

@@ -90,7 +90,6 @@ int32_t     qCloneStmtDataBlock(void** pDst, void* pSrc);
 void        qFreeStmtDataBlock(void* pDataBlock);
 int32_t     qRebuildStmtDataBlock(void** pDst, void* pSrc, uint64_t uid, int32_t vgId);
 void        qDestroyStmtDataBlock(void* pBlock);
-void        qDestroyStmtDataBlockExt(void* pBlock);
 STableMeta* qGetTableMetaInDataBlock(void* pDataBlock);
 
 int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx);
