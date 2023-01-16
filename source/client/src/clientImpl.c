@@ -159,6 +159,12 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
   return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst, connType);
 }
 
+void freeQueryParam(SSyncQueryParam* param) {
+  if (param == NULL) return;
+  tsem_destroy(&param->sem);
+  taosMemoryFree(param);
+}
+
 int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, bool validateSql,
                      SRequestObj** pRequest, int64_t reqid) {
   *pRequest = createRequest(connId, TSDB_SQL_SELECT, reqid);
@@ -180,17 +186,18 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   (*pRequest)->sqlLen = sqlLen;
   (*pRequest)->validateOnly = validateSql;
 
+  SSyncQueryParam* newpParam;
   if (param == NULL) {
-    SSyncQueryParam* pParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
-    if (pParam == NULL) {
+    newpParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+    if (newpParam == NULL) {
       destroyRequest(*pRequest);
       *pRequest = NULL;
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    tsem_init(&pParam->sem, 0, 0);
-    pParam->pRequest = (*pRequest);
-    param = pParam;
+    tsem_init(&newpParam->sem, 0, 0);
+    newpParam->pRequest = (*pRequest);
+    param = newpParam;
   }
 
   (*pRequest)->body.param = param;
@@ -201,9 +208,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   if (err) {
     tscError("%" PRId64 " failed to add to request container, reqId:0x%" PRIx64 ", conn:%" PRId64 ", %s",
              (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
-
-    tsem_destroy(&((SSyncQueryParam*)param)->sem);
-    taosMemoryFree(param);
+    freeQueryParam(newpParam);
     destroyRequest(*pRequest);
     *pRequest = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -215,6 +220,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
         nodesCreateAllocator((*pRequest)->requestId, tsQueryNodeChunkSize, &((*pRequest)->allocatorRefId))) {
       tscError("%" PRId64 " failed to create node allocator, reqId:0x%" PRIx64 ", conn:%" PRId64 ", %s",
                (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
+      freeQueryParam(newpParam);
       destroyRequest(*pRequest);
       *pRequest = NULL;
       return TSDB_CODE_OUT_OF_MEMORY;
