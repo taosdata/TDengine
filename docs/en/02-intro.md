@@ -20,7 +20,7 @@ The major features are listed below:
    - Supports exporting data via tool [taosDump](../data-out/taosdump/).
    - Supports writing data to [Prometheus](../data-out/prometheus/).
    - Supports exporting data via [data subscription](../tmq/).
-3. Data Explorer: browse through databases and even run SQL queryies once you login.
+3. Data Explorer: browse through databases and even run SQL queries once you login.
 4. Visualization:
    - Supports [Grafana](../visual/grafana/)
    - Supports Google data studio (to be released soon)
