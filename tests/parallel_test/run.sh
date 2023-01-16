@@ -184,6 +184,10 @@ function run_thread() {
         if [ $? -eq 0 ]; then
             case_file=`echo "$case_cmd"|grep -o ".*\.py"|awk '{print $NF}'`
         fi
+        echo "$case_cmd"|grep -q "^./pytest.sh"
+        if [ $? -eq 0 ]; then
+            case_file=`echo "$case_cmd"|grep -o ".*\.py"|awk '{print $NF}'`
+        fi
         echo "$case_cmd"|grep -q "\.sim"
         if [ $? -eq 0 ]; then
             case_file=`echo "$case_cmd"|grep -o ".*\.sim"|awk '{print $NF}'`
