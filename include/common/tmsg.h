@@ -115,6 +115,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_STREAMS,
   TSDB_MGMT_TABLE_TABLE,
   TSDB_MGMT_TABLE_TAG,
+  TSDB_MGMT_TABLE_COL,
   TSDB_MGMT_TABLE_USER,
   TSDB_MGMT_TABLE_GRANTS,
   TSDB_MGMT_TABLE_VGROUP,
@@ -379,6 +380,13 @@ static FORCE_INLINE void tDeleteSSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
   if (pSchemaWrapper) {
     taosMemoryFree(pSchemaWrapper->pSchema);
     taosMemoryFree(pSchemaWrapper);
+  }
+}
+
+static FORCE_INLINE void tDeleteSSchemaWrapperForHash(void* pSchemaWrapper) {
+  if (pSchemaWrapper != NULL && *(SSchemaWrapper**)pSchemaWrapper != NULL) {
+    taosMemoryFree((*(SSchemaWrapper**)pSchemaWrapper)->pSchema);
+    taosMemoryFree(*(SSchemaWrapper**)pSchemaWrapper);
   }
 }
 
@@ -1393,6 +1401,7 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   char    tb[TSDB_TABLE_NAME_LEN];
   char    user[TSDB_USER_LEN];
+  char    filterTb[TSDB_TABLE_NAME_LEN];
   int64_t showId;
 } SRetrieveTableReq;
 
