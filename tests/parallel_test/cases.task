@@ -145,6 +145,7 @@
 ,,y,script,./test.sh -f tsim/parser/precision_ns.sim
 ,,y,script,./test.sh -f tsim/parser/projection_limit_offset.sim
 ,,y,script,./test.sh -f tsim/parser/regex.sim
+,,y,script,./test.sh -f tsim/parser/regressiontest.sim
 ,,y,script,./test.sh -f tsim/parser/select_across_vnodes.sim
 ,,y,script,./test.sh -f tsim/parser/select_distinct_tag.sim
 ,,y,script,./test.sh -f tsim/parser/select_from_cache_disk.sim
