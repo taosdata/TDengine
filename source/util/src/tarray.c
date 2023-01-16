@@ -220,7 +220,13 @@ void* taosArrayGetP(const SArray* pArray, size_t index) {
   return *(void**)d;
 }
 
-void* taosArrayGetLast(const SArray* pArray) { return TARRAY_GET_ELEM(pArray, pArray->size - 1); }
+void* taosArrayGetLast(const SArray* pArray) {
+  if (pArray->size == 0) {
+    return NULL;
+  }
+
+  return TARRAY_GET_ELEM(pArray, pArray->size - 1);
+}
 
 size_t taosArrayGetSize(const SArray* pArray) {
   if (pArray == NULL) {
