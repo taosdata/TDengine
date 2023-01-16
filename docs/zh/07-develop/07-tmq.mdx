@@ -115,19 +115,22 @@ class TaosConsumer():
 <TabItem label="Go" value="Go">
 
 ```go
-func NewConsumer(conf *Config) (*Consumer, error)
+func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)
 
-func (c *Consumer) Close() error
+// 出于兼容目的保留 rebalanceCb 参数，当前未使用
+func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error
 
-func (c *Consumer) Commit(ctx context.Context, message unsafe.Pointer) error
+// 出于兼容目的保留 rebalanceCb 参数，当前未使用
+func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error
 
-func (c *Consumer) FreeMessage(message unsafe.Pointer)
+func (c *Consumer) Poll(timeoutMs int) tmq.Event
 
-func (c *Consumer) Poll(timeout time.Duration) (*Result, error)
-
-func (c *Consumer) Subscribe(topics []string) error
+// 出于兼容目的保留 tmq.TopicPartition 参数，当前未使用
+func (c *Consumer) Commit() ([]tmq.TopicPartition, error)
 
 func (c *Consumer) Unsubscribe() error
+
+func (c *Consumer) Close() error
 ```
 
 </TabItem>
@@ -355,50 +358,20 @@ public class MetersDeserializer extends ReferenceDeserializer<Meters> {
 <TabItem label="Go" value="Go">
 
 ```go
-config := tmq.NewConfig()
-defer config.Destroy()
-err = config.SetGroupID("test")
-if err != nil {
-  panic(err)
+conf := &tmq.ConfigMap{
+ "group.id":                     "test",
+ "auto.offset.reset":            "earliest",
+ "td.connect.ip":                "127.0.0.1",
+ "td.connect.user":              "root",
+ "td.connect.pass":              "taosdata",
+ "td.connect.port":              "6030",
+ "client.id":                    "test_tmq_c",
+ "enable.auto.commit":           "false",
+ "enable.heartbeat.background":  "true",
+ "experimental.snapshot.enable": "true",
+ "msg.with.table.name":          "true",
 }
-err = config.SetAutoOffsetReset("earliest")
-if err != nil {
-  panic(err)
-}
-err = config.SetConnectIP("127.0.0.1")
-if err != nil {
-  panic(err)
-}
-err = config.SetConnectUser("root")
-if err != nil {
-  panic(err)
-}
-err = config.SetConnectPass("taosdata")
-if err != nil {
-  panic(err)
-}
-err = config.SetConnectPort("6030")
-if err != nil {
-  panic(err)
-}
-err = config.SetMsgWithTableName(true)
-if err != nil {
-  panic(err)
-}
-err = config.EnableHeartBeat()
-if err != nil {
-  panic(err)
-}
-err = config.EnableAutoCommit(func(result *wrapper.TMQCommitCallbackResult) {
-  if result.ErrCode != 0 {
-    errStr := wrapper.TMQErr2Str(result.ErrCode)
-    err := errors.NewError(int(result.ErrCode), errStr)
-    panic(err)
-  }
-})
-if err != nil {
-  panic(err)
-}
+consumer, err := NewConsumer(conf)
 ```
 
 </TabItem>
@@ -532,11 +505,7 @@ consumer.subscribe(topics);
 <TabItem value="Go" label="Go">
 
 ```go
-consumer, err := tmq.NewConsumer(config)
-if err != nil {
- panic(err)
-}
-err = consumer.Subscribe([]string{"example_tmq_topic"})
+err = consumer.Subscribe("example_tmq_topic", nil)
 if err != nil {
  panic(err)
 }
@@ -620,13 +589,17 @@ while(running){
 
 ```go
 for {
- result, err := consumer.Poll(time.Second)
- if err != nil {
-  panic(err)
+ ev := consumer.Poll(0)
+ if ev != nil {
+  switch e := ev.(type) {
+  case *tmqcommon.DataMessage:
+   fmt.Println(e.Value())
+  case tmqcommon.Error:
+   fmt.Fprintf(os.Stderr, "%% Error: %v: %v\n", e.Code(), e)
+   panic(e)
+  }
+  consumer.Commit()
  }
- fmt.Println(result)
- consumer.Commit(context.Background(), result.Message)
- consumer.FreeMessage(result.Message)
 }
 ```
 
@@ -738,7 +711,11 @@ consumer.close();
 <TabItem value="Go" label="Go">
 
 ```go
-consumer.Close()
+/* Unsubscribe */
+_ = consumer.Unsubscribe()
+
+/* Close consumer */
+_ = consumer.Close()
 ```
 
 </TabItem>

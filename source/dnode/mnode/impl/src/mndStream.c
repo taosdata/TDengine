@@ -314,7 +314,11 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   }
   tstrncpy(pObj->targetDb, pTargetDb->name, TSDB_DB_FNAME_LEN);
 
-  pObj->targetStbUid = mndGenerateUid(pObj->targetSTbName, TSDB_TABLE_FNAME_LEN);
+  if (pCreate->createStb == STREAM_CREATE_STABLE_TRUE) {
+    pObj->targetStbUid = mndGenerateUid(pObj->targetSTbName, TSDB_TABLE_FNAME_LEN);
+  } else {
+    pObj->targetStbUid = pCreate->targetStbUid;
+  }
   pObj->targetDbUid = pTargetDb->uid;
   mndReleaseDb(pMnode, pTargetDb);
 
@@ -332,6 +336,38 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   // extract output schema from ast
   if (qExtractResultSchema(pAst, (int32_t *)&pObj->outputSchema.nCols, &pObj->outputSchema.pSchema) != 0) {
     goto FAIL;
+  }
+
+  int32_t numOfNULL = taosArrayGetSize(pCreate->fillNullCols);
+  if(numOfNULL > 0) {
+    pObj->outputSchema.nCols += numOfNULL;
+    SSchema* pFullSchema = taosMemoryCalloc(pObj->outputSchema.nCols, sizeof(SSchema));
+    if (!pFullSchema) {
+      goto FAIL;
+    }
+
+    int32_t nullIndex = 0;
+    int32_t dataIndex = 0;
+    for (int16_t i = 0; i < pObj->outputSchema.nCols; i++) {
+      SColLocation* pos = taosArrayGet(pCreate->fillNullCols, nullIndex);
+      if (i < pos->slotId) {
+        pFullSchema[i].bytes = pObj->outputSchema.pSchema[dataIndex].bytes;
+        pFullSchema[i].colId = i + 1; // pObj->outputSchema.pSchema[dataIndex].colId;
+        pFullSchema[i].flags = pObj->outputSchema.pSchema[dataIndex].flags;
+        strcpy(pFullSchema[i].name, pObj->outputSchema.pSchema[dataIndex].name);
+        pFullSchema[i].type = pObj->outputSchema.pSchema[dataIndex].type;
+        dataIndex++;
+      } else {
+        pFullSchema[i].bytes = 0;
+        pFullSchema[i].colId = pos->colId;
+        pFullSchema[i].flags = COL_SET_NULL;
+        memset(pFullSchema[i].name, 0, TSDB_COL_NAME_LEN);
+        pFullSchema[i].type = pos->type;
+        nullIndex++;
+      }
+    }
+    taosMemoryFree(pObj->outputSchema.pSchema);
+    pObj->outputSchema.pSchema = pFullSchema;
   }
 
   SPlanContext cxt = {
