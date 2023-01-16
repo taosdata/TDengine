@@ -428,9 +428,11 @@ static int32_t dmDecodeEpPairs(SJson *pJson, SDnodeData *pData) {
 
 void dmRemoveDnodePairs(SDnodeData *pData) {
   char file[PATH_MAX] = {0};
+  char bak[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
-  dInfo("dnode file:%s is removed", file);
-  (void)taosRemoveFile(file);
+  snprintf(bak, sizeof(bak), "%s%sdnode%sep.json.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+  dInfo("dnode file:%s is rename to bak file", file);
+  (void)taosRenameFile(file, bak);
 }
 
 static int32_t dmReadDnodePairs(SDnodeData *pData) {
