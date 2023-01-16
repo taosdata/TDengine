@@ -155,6 +155,7 @@ _OVER:
 
   if (code != 0) {
     dError("failed to read dnode file:%s since %s", file, terrstr());
+    return code;
   }
 
   if (taosArrayGetSize(pData->dnodeEps) == 0) {
@@ -162,6 +163,10 @@ _OVER:
     dnodeEp.isMnode = 1;
     taosGetFqdnPortFromEp(tsFirst, &dnodeEp.ep);
     taosArrayPush(pData->dnodeEps, &dnodeEp);
+  }
+
+  if (dmReadDnodePairs(pData) != 0) {
+    return -1;
   }
 
   dDebug("reset dnode list on startup");
@@ -416,6 +421,13 @@ static int32_t dmDecodeEpPairs(SJson *pJson, SDnodeData *pData) {
   return code;
 }
 
+void dmRemoveDnodePairs(SDnodeData *pData) {
+  char file[PATH_MAX] = {0};
+  snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+  dInfo("dnode file:%s is removed", file);
+  (void)taosRemoveFile(file);
+}
+
 static int32_t dmReadDnodePairs(SDnodeData *pData) {
   int32_t   code = -1;
   TdFilePtr pFile = NULL;
@@ -423,12 +435,6 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
   SJson    *pJson = NULL;
   char      file[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
-
-  pData->oldDnodeEps = taosArrayInit(1, sizeof(SDnodeEp));
-  if (pData->oldDnodeEps == NULL) {
-    dError("failed to calloc dnodeEp array since %s", strerror(errno));
-    goto _OVER;
-  }
 
   if (taosStatFile(file, NULL, NULL) < 0) {
     dDebug("dnode file:%s not exist", file);
@@ -470,7 +476,15 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
     goto _OVER;
   }
 
+  pData->oldDnodeEps = taosArrayInit(1, sizeof(SDnodeEp));
+  if (pData->oldDnodeEps == NULL) {
+    dError("failed to calloc dnodeEp array since %s", strerror(errno));
+    goto _OVER;
+  }
+
   if (dmDecodeEpPairs(pJson, pData) < 0) {
+    taosArrayDestroy(pData->oldDnodeEps);
+    pData->oldDnodeEps = NULL;
     terrno = TSDB_CODE_INVALID_JSON_FORMAT;
     goto _OVER;
   }

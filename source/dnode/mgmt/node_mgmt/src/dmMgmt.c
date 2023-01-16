@@ -84,6 +84,9 @@ static void dmClearVars(SDnode *pDnode) {
     pData->dnodeEps = NULL;
   }
   if (pData->oldDnodeEps != NULL) {
+    if (dmWriteEps(pData) == 0) {
+      dmRemoveDnodePairs(pData);
+    }
     taosArrayDestroy(pData->oldDnodeEps);
     pData->oldDnodeEps = NULL;
   }
