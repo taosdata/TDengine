@@ -146,7 +146,7 @@ int32_t dmReadEps(SDnodeData *pData) {
   }
 
   code = 0;
-  dInfo("succceed to read mnode file %s", file);
+  dInfo("succceed to read dnode file %s", file);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
@@ -172,7 +172,7 @@ _OVER:
   dDebug("reset dnode list on startup");
   dmResetEps(pData, pData->dnodeEps);
 
-  if (dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
+  if (pData->dnodeEps == NULL && dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
     dError("localEp %s different with %s and need reconfigured", tsLocalEp, file);
     return -1;
   }
@@ -236,7 +236,8 @@ int32_t dmWriteEps(SDnodeData *pData) {
 
   code = 0;
   pData->updateTime = taosGetTimestampMs();
-  dInfo("succeed to write dnode file:%s, dnodeVer:%" PRId64, realfile, pData->dnodeVer);
+  dInfo("succeed to write dnode file:%s, num:%d ver:%" PRId64, realfile, (int32_t)taosArrayGetSize(pData->dnodeEps),
+        pData->dnodeVer);
 
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
@@ -346,7 +347,8 @@ void dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
   }
 }
 
-void dmUpdateDnodeInfo(void *data, int32_t *did, int64_t *clusterId, char *fqdn, uint16_t *port) {
+bool dmUpdateDnodeInfo(void *data, int32_t *did, int64_t *clusterId, char *fqdn, uint16_t *port) {
+  bool        updated = false;
   SDnodeData *pData = data;
   int32_t     dnodeId = -1;
   if (did != NULL) dnodeId = *did;
@@ -361,6 +363,7 @@ void dmUpdateDnodeInfo(void *data, int32_t *did, int64_t *clusterId, char *fqdn,
         dInfo("dnode:%d, update ep:%s:%u to %s:%u", dnodeId, fqdn, *port, pair->newFqdn, pair->newPort);
         tstrncpy(fqdn, pair->newFqdn, TSDB_FQDN_LEN);
         *port = pair->newPort;
+        updated = true;
       }
     }
   }
@@ -384,12 +387,14 @@ void dmUpdateDnodeInfo(void *data, int32_t *did, int64_t *clusterId, char *fqdn,
         dInfo("dnode:%d, update ep:%s:%u to %s:%u", dnodeId, fqdn, *port, pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
         tstrncpy(fqdn, pDnodeEp->ep.fqdn, TSDB_FQDN_LEN);
         *port = pDnodeEp->ep.port;
+        updated = true;
       }
       if (clusterId != NULL) *clusterId = pData->clusterId;
     }
   }
 
   taosThreadRwlockUnlock(&pData->lock);
+  return updated;
 }
 
 static int32_t dmDecodeEpPairs(SJson *pJson, SDnodeData *pData) {
@@ -476,7 +481,7 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
     goto _OVER;
   }
 
-  pData->oldDnodeEps = taosArrayInit(1, sizeof(SDnodeEp));
+  pData->oldDnodeEps = taosArrayInit(1, sizeof(SDnodeEpPair));
   if (pData->oldDnodeEps == NULL) {
     dError("failed to calloc dnodeEp array since %s", strerror(errno));
     goto _OVER;
@@ -490,7 +495,7 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
   }
 
   code = 0;
-  dInfo("succceed to read mnode file %s", file);
+  dInfo("succceed to read dnode file %s", file);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
@@ -505,40 +510,39 @@ _OVER:
     SDnodeEpPair *pair = taosArrayGet(pData->oldDnodeEps, i);
     for (int32_t j = 0; j < (int32_t)taosArrayGetSize(pData->dnodeEps); ++j) {
       SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, j);
+      if (pDnodeEp->id != pair->id &&
+          (strcmp(pDnodeEp->ep.fqdn, pair->newFqdn) == 0 && pDnodeEp->ep.port == pair->newPort)) {
+        dError("dnode:%d, can't update ep:%s:%u to %s:%u since already exists as dnode:%d", pair->id, pair->oldFqdn,
+               pair->oldPort, pair->newFqdn, pair->newPort, pDnodeEp->id);
+        tstrncpy(pDnodeEp->ep.fqdn, pair->newFqdn, TSDB_FQDN_LEN);
+        pDnodeEp->ep.port = pair->newPort;
+      }
+
+#if 0
+      if (pDnodeEp->id == pair->id &&
+          (strcmp(pDnodeEp->ep.fqdn, pair->oldFqdn) == 0 && pDnodeEp->ep.port == pair->oldPort)) {
+        dError("dnode:%d, can't update ep:%s:%u to %s:%u since endpoint not matched", pair->id, pair->oldFqdn,
+               pair->oldPort, pair->newFqdn, pair->newPort, pDnodeEp->id);
+        tstrncpy(pDnodeEp->ep.fqdn, pair->newFqdn, TSDB_FQDN_LEN);
+        pDnodeEp->ep.port = pair->newPort;
+      }
+#endif
+    }
+  }
+
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pData->oldDnodeEps); ++i) {
+    SDnodeEpPair *pair = taosArrayGet(pData->oldDnodeEps, i);
+    for (int32_t j = 0; j < (int32_t)taosArrayGetSize(pData->dnodeEps); ++j) {
+      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, j);
       if (strcmp(pDnodeEp->ep.fqdn, pair->oldFqdn) == 0 && pDnodeEp->ep.port == pair->oldPort) {
-        dInfo("dnode:%d, will update ep:%s:%u to %s:%u in array", pDnodeEp->id, pDnodeEp->ep.fqdn, pDnodeEp->ep.port,
+        dInfo("dnode:%d, will update ep:%s:%u to %s:%u", pDnodeEp->id, pDnodeEp->ep.fqdn, pDnodeEp->ep.port,
               pair->newFqdn, pair->newPort);
         tstrncpy(pDnodeEp->ep.fqdn, pair->newFqdn, TSDB_FQDN_LEN);
         pDnodeEp->ep.port = pair->newPort;
       }
     }
-    void *pIter = taosHashIterate(pData->dnodeHash, NULL);
-    while (pIter) {
-      SDnodeEp *pDnodeEp = pIter;
-      if (strcmp(pDnodeEp->ep.fqdn, pair->oldFqdn) == 0 && pDnodeEp->ep.port == pair->oldPort) {
-        dDebug("dnode:%d, will update ep:%s:%u to %s:%u in hash", pDnodeEp->id, pDnodeEp->ep.fqdn, pDnodeEp->ep.port,
-               pair->newFqdn, pair->newPort);
-        tstrncpy(pDnodeEp->ep.fqdn, pair->newFqdn, TSDB_FQDN_LEN);
-        pDnodeEp->ep.port = pair->newPort;
-      }
-      pIter = taosHashIterate(pData->dnodeHash, pIter);
-    }
   }
 
-  if (taosArrayGetSize(pData->dnodeEps) == 0) {
-    SDnodeEp dnodeEp = {0};
-    dnodeEp.isMnode = 1;
-    taosGetFqdnPortFromEp(tsFirst, &dnodeEp.ep);
-    taosArrayPush(pData->dnodeEps, &dnodeEp);
-  }
-
-  dDebug("reset dnode list on startup");
-  dmResetEps(pData, pData->dnodeEps);
-
-  if (dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
-    dError("localEp %s different with %s and need reconfigured", tsLocalEp, file);
-    return -1;
-  }
-
+  pData->dnodeVer = 0;
   return code;
 }
