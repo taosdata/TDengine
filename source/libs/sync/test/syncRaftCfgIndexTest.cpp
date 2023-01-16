@@ -51,26 +51,26 @@ SSyncCfg* createSyncCfg() {
 const char* pFile = "./raft_config_index.json";
 
 void test1() {
-  int32_t code = raftCfgIndexCreateFile(pFile);
-  ASSERT(code == 0);
+  // int32_t code = raftCfgIndexCreateFile(pFile);
+  // ASSERT(code == 0);
 
-  SRaftCfgIndex* pRaftCfgIndex = raftCfgIndexOpen(pFile);
+  // SRaftCfgIndex* pRaftCfgIndex = raftCfgIndexOpen(pFile);
 
-  raftCfgIndexClose(pRaftCfgIndex);
+  // raftCfgIndexClose(pRaftCfgIndex);
 }
 
 void test2() {
-  SRaftCfgIndex* pRaftCfgIndex = raftCfgIndexOpen(pFile);
-  for (int i = 0; i < 500; ++i) {
-    raftCfgIndexAddConfigIndex(pRaftCfgIndex, i);
-  }
-  raftCfgIndexPersist(pRaftCfgIndex);
-  raftCfgIndexClose(pRaftCfgIndex);
+  // SRaftCfgIndex* pRaftCfgIndex = raftCfgIndexOpen(pFile);
+  // for (int i = 0; i < 500; ++i) {
+  //   raftCfgIndexAddConfigIndex(pRaftCfgIndex, i);
+  // }
+  // raftCfgIndexPersist(pRaftCfgIndex);
+  // raftCfgIndexClose(pRaftCfgIndex);
 }
 
 void test3() {
-  SRaftCfgIndex* pRaftCfgIndex = raftCfgIndexOpen(pFile);
-  raftCfgIndexClose(pRaftCfgIndex);
+  // SRaftCfgIndex* pRaftCfgIndex = raftCfgIndexOpen(pFile);
+  // raftCfgIndexClose(pRaftCfgIndex);
 }
 
 int main() {

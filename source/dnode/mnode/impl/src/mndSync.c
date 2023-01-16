@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndSync.h"
+#include "mndCluster.h"
 #include "mndTrans.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
@@ -270,9 +271,11 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
 int32_t mndInitSync(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   taosThreadMutexInit(&pMgmt->lock, NULL);
+  taosThreadMutexLock(&pMgmt->lock);
   pMgmt->transId = 0;
   pMgmt->transSec = 0;
   pMgmt->transSeq = 0;
+  taosThreadMutexUnlock(&pMgmt->lock);
 
   SSyncInfo syncInfo = {
       .snapshotStrategy = SYNC_STRATEGY_STANDARD_SNAPSHOT,
@@ -297,9 +300,12 @@ int32_t mndInitSync(SMnode *pMnode) {
   pCfg->myIndex = pMgmt->selfIndex;
   for (int32_t i = 0; i < pMgmt->numOfReplicas; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
-    tstrncpy(pNode->nodeFqdn, pMgmt->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    pNode->nodeId = pMgmt->replicas[i].id;
     pNode->nodePort = pMgmt->replicas[i].port;
-    mInfo("vgId:1, index:%d ep:%s:%u", i, pNode->nodeFqdn, pNode->nodePort);
+    tstrncpy(pNode->nodeFqdn, pMgmt->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    mInfo("vgId:1, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId,
+          pNode->clusterId);
   }
 
   tsem_init(&pMgmt->syncSem, 0, 0);
@@ -365,6 +371,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   if (pMgmt->transId != 0) {
     mError("trans:%d, can't be proposed since trans:%d already waiting for confirm", transId, pMgmt->transId);
     taosThreadMutexUnlock(&pMgmt->lock);
+    rpcFreeCont(req.pCont);
     terrno = TSDB_CODE_MND_LAST_TRANS_NOT_FINISHED;
     return terrno;
   }

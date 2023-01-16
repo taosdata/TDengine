@@ -124,6 +124,7 @@ FAIL:
 }
 
 void sndClose(SSnode *pSnode) {
+  streamMetaCommit(pSnode->pMeta);
   streamMetaClose(pSnode->pMeta);
   taosMemoryFree(pSnode->path);
   taosMemoryFree(pSnode);

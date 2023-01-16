@@ -142,6 +142,15 @@ The parameters described in this document by the effect that they have on the sy
 | Meaning       | Switch for allowing TDengine to collect and report service usage information |
 | Value Range   | 0: Not allowed; 1: Allowed                                                   |
 | Default Value | 1                                                                                                                                                                                   |
+### crashReporting
+
+| Attribute     | Description                                        |
+| -------- | -------------------------------------------- |
+| Applicable | Server Only                                 |
+| Meaning     |Switch for allowing TDengine to collect and report crash related information |
+| Value Range | 0,1   0: Not allowed；1：allowed                                 |
+| Default Value   | 1                                           |
+
 
 ## Query Parameters
 

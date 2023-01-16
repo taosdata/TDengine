@@ -149,7 +149,6 @@ typedef struct STscObj {
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
   SHashObj*     pRequests;
-  int8_t        schemalessType;  // todo remove it, this attribute should be move to request
 } STscObj;
 
 typedef struct SResultColumn {
@@ -313,6 +312,8 @@ extern SAppInfo appInfo;
 extern int32_t  clientReqRefPool;
 extern int32_t  clientConnRefPool;
 extern int32_t  timestampDeltaLimit;
+extern int64_t  lastClusterId;
+
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 
@@ -340,6 +341,7 @@ void  resetConnectDB(STscObj* pTscObj);
 int taos_options_imp(TSDB_OPTION option, const char* str);
 
 void* openTransporter(const char* user, const char* auth, int32_t numOfThreads);
+void tscStopCrashReport();
 
 typedef struct AsyncArg {
   SRpcMsg msg;

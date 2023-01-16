@@ -384,7 +384,11 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.subType = pCreate->subType;
   topicObj.withMeta = pCreate->withMeta;
   if (topicObj.withMeta) {
-    ASSERT(topicObj.subType != TOPIC_SUB_TYPE__COLUMN);
+    if (topicObj.subType == TOPIC_SUB_TYPE__COLUMN) {
+      terrno = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
+      mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      return -1;
+    }
   }
 
   if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
@@ -499,7 +503,6 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       if (code < 0) {
         sdbRelease(pSdb, pVgroup);
         mndTransDrop(pTrans);
-        ASSERT(0);
         return -1;
       }
       void    *buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
@@ -601,22 +604,19 @@ _OVER:
 }
 
 static int32_t mndDropTopic(SMnode *pMnode, STrans *pTrans, SRpcMsg *pReq, SMqTopicObj *pTopic) {
+  int32_t code = -1;
+  if (mndUserRemoveTopic(pMnode, pTrans, pTopic->name) != 0) goto _OVER;
+
   SSdbRaw *pCommitRaw = mndTopicActionEncode(pTopic);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) goto _OVER;
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  code = 0;
 
+_OVER:
   mndTransDrop(pTrans);
-  return 0;
+  return code;
 }
 
 static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
@@ -696,14 +696,9 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     sdbRelease(pSdb, pConsumer);
   }
 
-#if 0
-  if (pTopic->refConsumerCnt != 0) {
-    mndReleaseTopic(pMnode, pTopic);
-    terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-    mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db) != 0) {
     return -1;
   }
-#endif
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "drop-topic");
   if (pTrans == NULL) {
@@ -723,7 +718,6 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   // TODO check if rebalancing
   if (mndDropSubByTopic(pMnode, pTrans, dropReq.name) < 0) {
-    /*ASSERT(0);*/
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
     mndTransDrop(pTrans);
     mndReleaseTopic(pMnode, pTopic);
@@ -888,6 +882,7 @@ int32_t mndCheckTopicExist(SMnode *pMnode, SDbObj *pDb) {
   return 0;
 }
 
+#if 0
 int32_t mndDropTopicByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
@@ -915,3 +910,4 @@ int32_t mndDropTopicByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
 
   return code;
 }
+#endif

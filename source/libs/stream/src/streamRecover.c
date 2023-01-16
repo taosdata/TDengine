@@ -143,6 +143,7 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
       ASSERT(left >= 0);
       if (left == 0) {
         taosArrayDestroy(pTask->checkReqIds);
+        pTask->checkReqIds = NULL;
         streamTaskLaunchRecover(pTask, version);
       }
     } else if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
@@ -199,7 +200,6 @@ int32_t streamBuildSourceRecover2Req(SStreamTask* pTask, SStreamRecoverStep2Req*
 int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver) {
   void* exec = pTask->exec.executor;
   if (qStreamSourceRecoverStep2(exec, ver) < 0) {
-    ASSERT(0);
   }
   return streamScanExec(pTask, 100);
 }

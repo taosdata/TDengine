@@ -35,6 +35,7 @@ typedef struct SHttpModule {
 typedef struct SHttpMsg {
   queue         q;
   char*         server;
+  char*         uri;
   int32_t       port;
   char*         cont;
   int32_t       len;
@@ -63,26 +64,26 @@ static void    httpHandleReq(SHttpMsg* msg);
 static void    httpHandleQuit(SHttpMsg* msg);
 static int32_t httpSendQuit();
 
-static int32_t taosSendHttpReportImpl(const char* server, uint16_t port, char* pCont, int32_t contLen,
+static int32_t taosSendHttpReportImpl(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
                                       EHttpCompFlag flag);
 
-static int32_t taosBuildHttpHeader(const char* server, int32_t contLen, char* pHead, int32_t headLen,
+static int32_t taosBuildHttpHeader(const char* server, const char* uri, int32_t contLen, char* pHead, int32_t headLen,
                                    EHttpCompFlag flag) {
   if (flag == HTTP_FLAT) {
     return snprintf(pHead, headLen,
-                    "POST /report HTTP/1.1\n"
+                    "POST %s HTTP/1.1\n"
                     "Host: %s\n"
                     "Content-Type: application/json\n"
                     "Content-Length: %d\n\n",
-                    server, contLen);
+                    uri, server, contLen);
   } else if (flag == HTTP_GZIP) {
     return snprintf(pHead, headLen,
-                    "POST /report HTTP/1.1\n"
+                    "POST %s HTTP/1.1\n"
                     "Host: %s\n"
                     "Content-Type: application/json\n"
                     "Content-Encoding: gzip\n"
                     "Content-Length: %d\n\n",
-                    server, contLen);
+                    uri, server, contLen);
   } else {
     terrno = TSDB_CODE_INVALID_CFG;
     return -1;
@@ -181,6 +182,7 @@ static void httpDestroyMsg(SHttpMsg* msg) {
   if (msg == NULL) return;
 
   taosMemoryFree(msg->server);
+  taosMemoryFree(msg->uri);
   taosMemoryFree(msg->cont);
   taosMemoryFree(msg);
 }
@@ -293,10 +295,11 @@ int32_t httpSendQuit() {
   return 0;
 }
 
-static int32_t taosSendHttpReportImpl(const char* server, uint16_t port, char* pCont, int32_t contLen,
+static int32_t taosSendHttpReportImpl(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
                                       EHttpCompFlag flag) {
   SHttpMsg* msg = taosMemoryMalloc(sizeof(SHttpMsg));
   msg->server = strdup(server);
+  msg->uri  = strdup(uri);
   msg->port = port;
   msg->cont = taosMemoryMalloc(contLen);
   memcpy(msg->cont, pCont, contLen);
@@ -309,12 +312,10 @@ static int32_t taosSendHttpReportImpl(const char* server, uint16_t port, char* p
     httpDestroyMsg(msg);
     tError("http-report already released");
     return -1;
-  } else {
-    msg->http = load;
-    transAsyncSend(load->asyncPool, &(msg->q));
   }
-
-  return 0;
+  
+  msg->http = load;
+  return transAsyncSend(load->asyncPool, &(msg->q));
 }
 
 static void httpDestroyClientCb(uv_handle_t* handle) {
@@ -360,7 +361,7 @@ static void httpHandleReq(SHttpMsg* msg) {
 
   int32_t len = 2048;
   char*   header = taosMemoryCalloc(1, len);
-  int32_t headLen = taosBuildHttpHeader(msg->server, msg->len, header, len, msg->flag);
+  int32_t headLen = taosBuildHttpHeader(msg->server, msg->uri, msg->len, header, len, msg->flag);
   if (headLen < 0) {
     taosMemoryFree(header);
     goto END;
@@ -380,6 +381,7 @@ static void httpHandleReq(SHttpMsg* msg) {
   cli->port = msg->port;
   cli->dest = dest;
 
+  taosMemoryFree(msg->uri);
   taosMemoryFree(msg);
 
   uv_tcp_init(http->loop, &cli->tcp);
@@ -406,9 +408,9 @@ END:
   httpDestroyMsg(msg);
 }
 
-int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
+int32_t taosSendHttpReport(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
   taosThreadOnce(&transHttpInit, transHttpEnvInit);
-  return taosSendHttpReportImpl(server, port, pCont, contLen, flag);
+  return taosSendHttpReportImpl(server, uri, port, pCont, contLen, flag);
 }
 
 static void transHttpEnvInit() {

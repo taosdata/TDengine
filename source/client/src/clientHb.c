@@ -376,7 +376,6 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
         desc.subPlanNum = 0;
       }
       desc.subPlanNum = taosArrayGetSize(desc.subDesc);
-      ASSERT(desc.subPlanNum == taosArrayGetSize(desc.subDesc));
     } else {
       desc.subDesc = NULL;
     }
@@ -813,7 +812,10 @@ static void hbStopThread() {
 }
 
 SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
-  hbMgrInit();
+  if(hbMgrInit() != 0){
+    terrno = TSDB_CODE_TSC_INTERNAL_ERROR;
+    return NULL;
+  }
   SAppHbMgr *pAppHbMgr = taosMemoryMalloc(sizeof(SAppHbMgr));
   if (pAppHbMgr == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -899,16 +901,28 @@ int hbMgrInit() {
   TdThreadMutexAttr attr = {0};
 
   int ret = taosThreadMutexAttrInit(&attr);
-  assert(ret == 0);
+  if(ret != 0){
+    uError("hbMgrInit:taosThreadMutexAttrInit error")
+    return ret;
+  }
 
   ret = taosThreadMutexAttrSetType(&attr, PTHREAD_MUTEX_RECURSIVE);
-  assert(ret == 0);
+  if(ret != 0){
+    uError("hbMgrInit:taosThreadMutexAttrSetType error")
+    return ret;
+  }
 
   ret = taosThreadMutexInit(&clientHbMgr.lock, &attr);
-  assert(ret == 0);
+  if(ret != 0){
+    uError("hbMgrInit:taosThreadMutexInit error")
+    return ret;
+  }
 
   ret = taosThreadMutexAttrDestroy(&attr);
-  assert(ret == 0);
+  if(ret != 0){
+    uError("hbMgrInit:taosThreadMutexAttrDestroy error")
+    return ret;
+  }
 
   // init handle funcs
   hbMgrInitHandle();

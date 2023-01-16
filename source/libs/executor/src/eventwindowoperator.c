@@ -41,7 +41,7 @@ typedef struct SEventWindowOperatorInfo {
 
 static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator);
 static void         destroyEWindowOperatorInfo(void* param);
-static void eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
+static void         eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
 static SSDataBlock* doEventWindowAgg(SOperatorInfo* pOperator);
 
 // todo : move to  util
@@ -111,7 +111,8 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   SExprInfo* pExprInfo = createExprInfo(pEventWindowNode->window.pFuncs, NULL, &num);
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
-  code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str);
+  code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
+                    pTaskInfo->streamInfo.pState);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -258,7 +259,7 @@ void eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInf
   SExprSupp*     pSup = &pOperator->exprSupp;
 
   SSDataBlock* pRes = pInfo->binfo.pRes;
-  int64_t gid = pBlock->info.id.groupId;
+  int64_t      gid = pBlock->info.id.groupId;
 
   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
   TSKEY*           tsList = (TSKEY*)pColInfoData->pData;

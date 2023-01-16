@@ -361,33 +361,33 @@ typedef struct SVgDataBlocks {
   void*       pData;  // SSubmitReq + SSubmitBlk + ...
 } SVgDataBlocks;
 
-typedef void (*FFreeDataBlockHash)(SHashObj*);
-typedef void (*FFreeDataBlockArray)(SArray*);
+typedef void (*FFreeTableBlockHash)(SHashObj*);
+typedef void (*FFreeVgourpBlockArray)(SArray*);
 
 typedef struct SVnodeModifyOpStmt {
-  ENodeType           nodeType;
-  ENodeType           sqlNodeType;
-  SArray*             pDataBlocks;  // data block for each vgroup, SArray<SVgDataBlocks*>.
-  uint32_t            insertType;   // insert data from [file|sql statement| bound statement]
-  const char*         pSql;         // current sql statement position
-  int32_t             totalRowsNum;
-  int32_t             totalTbNum;
-  SName               targetTableName;
-  SName               usingTableName;
-  const char*         pBoundCols;
-  struct STableMeta*  pTableMeta;
-  SHashObj*           pVgroupsHashObj;
-  SHashObj*           pTableBlockHashObj;
-  SHashObj*           pSubTableHashObj;
-  SHashObj*           pTableNameHashObj;
-  SHashObj*           pDbFNameHashObj;
-  SArray*             pVgDataBlocks;
-  SVCreateTbReq       createTblReq;
-  TdFilePtr           fp;
-  FFreeDataBlockHash  freeHashFunc;
-  FFreeDataBlockArray freeArrayFunc;
-  bool                usingTableProcessing;
-  bool                fileProcessing;
+  ENodeType             nodeType;
+  ENodeType             sqlNodeType;
+  SArray*               pDataBlocks;  // data block for each vgroup, SArray<SVgDataBlocks*>.
+  uint32_t              insertType;   // insert data from [file|sql statement| bound statement]
+  const char*           pSql;         // current sql statement position
+  int32_t               totalRowsNum;
+  int32_t               totalTbNum;
+  SName                 targetTableName;
+  SName                 usingTableName;
+  const char*           pBoundCols;
+  struct STableMeta*    pTableMeta;
+  SHashObj*             pVgroupsHashObj;
+  SHashObj*             pTableBlockHashObj;  // SHashObj<tuid, STableDataCxt*>
+  SHashObj*             pSubTableHashObj;
+  SHashObj*             pTableNameHashObj;
+  SHashObj*             pDbFNameHashObj;
+  SArray*               pVgDataBlocks;  // SArray<SVgroupDataCxt*>
+  SVCreateTbReq*        pCreateTblReq;
+  TdFilePtr             fp;
+  FFreeTableBlockHash   freeHashFunc;
+  FFreeVgourpBlockArray freeArrayFunc;
+  bool                  usingTableProcessing;
+  bool                  fileProcessing;
 } SVnodeModifyOpStmt;
 
 typedef struct SExplainOptions {

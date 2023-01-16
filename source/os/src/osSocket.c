@@ -298,7 +298,7 @@ int32_t taosGetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
     return -1;
   }
 #ifdef WINDOWS
-  assert(0);
+  ASSERT(0);
   return 0;
 #else
   return getsockopt(pSocket->fd, level, optname, optval, (int *)optlen);
@@ -662,7 +662,7 @@ int32_t taosKeepTcpAlive(TdSocketPtr pSocket) {
 int taosGetLocalIp(const char *eth, char *ip) {
 #if defined(WINDOWS)
   // DO NOTHAING
-  assert(0);
+  ASSERT(0);
   return 0;
 #else
   int                fd;
@@ -689,7 +689,7 @@ int taosGetLocalIp(const char *eth, char *ip) {
 int taosValidIp(uint32_t ip) {
 #if defined(WINDOWS)
   // DO NOTHAING
-  assert(0);
+  ASSERT(0);
   return 0;
 #else
   int ret = -1;
@@ -924,7 +924,7 @@ uint32_t ip2uint(const char *const ip_addr) {
 
 void taosBlockSIGPIPE() {
 #ifdef WINDOWS
-  // assert(0);
+  // ASSERT(0);
 #else
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
@@ -988,40 +988,38 @@ int32_t taosGetFqdn(char *fqdn) {
 #endif
   char hostname[1024];
   hostname[1023] = '\0';
-  if (gethostname(hostname, 1023) == -1) {
+  if (taosGetlocalhostname(hostname, 1023) == -1) {
 #ifdef WINDOWS
     printf("failed to get hostname, reason:%s\n", strerror(WSAGetLastError()));
 #else
     printf("failed to get hostname, reason:%s\n", strerror(errno));
 #endif
-    assert(0);
+    ASSERT(0);
     return -1;
   }
 
-  struct addrinfo  hints = {0};
-  struct addrinfo *result = NULL;
 #ifdef __APPLE__
   // on macosx, hostname -f has the form of xxx.local
   // which will block getaddrinfo for a few seconds if AI_CANONNAME is set
   // thus, we choose AF_INET (ipv4 for the moment) to make getaddrinfo return
   // immediately
-  hints.ai_family = AF_INET;
+  // hints.ai_family = AF_INET;
+  strcpy(fqdn, hostname);
+  strcpy(fqdn+strlen(hostname), ".local");
 #else   // __APPLE__
+  struct addrinfo  hints = {0};
+  struct addrinfo *result = NULL;
   hints.ai_flags = AI_CANONNAME;
-#endif  // __APPLE__
+
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
     fprintf(stderr, "failed to get fqdn, code:%d, reason:%s\n", ret, gai_strerror(ret));
     return -1;
   }
-
-#ifdef __APPLE__
-  // refer to comments above
-  strcpy(fqdn, hostname);
-#else   // __APPLE__
   strcpy(fqdn, result->ai_canonname);
-#endif  // __APPLE__
   freeaddrinfo(result);
+#endif  // __APPLE__
+
   return 0;
 }
 
@@ -1033,7 +1031,7 @@ void taosIgnSIGPIPE() { signal(SIGPIPE, SIG_IGN); }
 
 void taosSetMaskSIGPIPE() {
 #ifdef WINDOWS
-  // assert(0);
+  // ASSERT(0);
 #else
   sigset_t signal_mask;
   sigemptyset(&signal_mask);

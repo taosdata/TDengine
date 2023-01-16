@@ -357,7 +357,7 @@ def main():
         print( " crash_gen.sh is not exists ")
         sys.exit(1)
     
-    git_commit = subprocess.Popen("cd %s && git log | head -n1"%crash_gen_path, shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")[8:16]
+    git_commit = subprocess.Popen("cd %s && git log | head -n1"%crash_gen_path, shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")[7:16]
 
     # crash_cmds = get_cmds()
     
@@ -383,14 +383,12 @@ def main():
     else:
         print('======== crash_gen run sucess and exit as expected ========')
 
-    if status!=0 :
-
-        try:
-            text = f"crash_gen instance exit status of docker [ {hostname} ] is : {msg_dict[status]}\n  " + f" and git commit : {git_commit}"
-            send_msg(get_msg(text))  
-        except Exception as e:
-            print("exception:", e)
-        exit(status)
+    try:
+        text = f"crash_gen instance exit status of docker [ {hostname} ] is : {msg_dict[status]}\n  " + f" and git commit : {git_commit}"
+        send_msg(get_msg(text))  
+    except Exception as e:
+        print("exception:", e)
+    exit(status)
         
 
 if __name__ == '__main__':
