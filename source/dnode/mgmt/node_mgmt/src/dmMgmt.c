@@ -83,6 +83,10 @@ static void dmClearVars(SDnode *pDnode) {
     taosArrayDestroy(pData->dnodeEps);
     pData->dnodeEps = NULL;
   }
+  if (pData->oldDnodeEps != NULL) {
+    taosArrayDestroy(pData->oldDnodeEps);
+    pData->oldDnodeEps = NULL;
+  }
   if (pData->dnodeHash != NULL) {
     taosHashCleanup(pData->dnodeHash);
     pData->dnodeHash = NULL;
