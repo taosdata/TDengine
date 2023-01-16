@@ -19,15 +19,14 @@ The major features are listed below:
    - Supports standard [SQL](../data-out/query-data/), including nested query.
    - Supports exporting data via tool [taosDump](../data-out/taosdump/).
    - Supports writing data to [Prometheus](../data-out/prometheus/).
-   - Supports exporting data via [data subscription](../tmq/).
 3. Data Explorer: browse through databases and even run SQL queryies once you login.
 4. Visualization:
    - Supports [Grafana](../visual/grafana/)
    - Supports Google data studio (to be released soon)
    - Supports Grafana cloud (to be released soon)
+5. [Data Sharing](../data-sharing/):  sharing the topics with other users or user groups through simple operations in TDengine Cloud.
 6. [Stream Processing](../stream/): Not only is the continuous query is supported, but TDengine also supports event driven stream processing, so Flink or Spark is not needed for time-series data processing.
-7. [Data Subscription](../tmq/): Application can subscribe a table or a set of tables. API is the same as Kafka, but you can specify filter conditions.
-8. Enterprise
+7. Enterprise
    - Supports backuping data everyday.
    - Supports replicating a database to another region or cloud.
    - Supports VPC peering.

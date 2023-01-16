@@ -19,17 +19,15 @@ This is the documentation structure for TDengine Cloud.
 
 6. [Data Sharing](./data-sharing) is an advanced and useful feature of TDengine Cloud. In this section, we provide an easy way to share your data in the TDengine Cloud to others through only simple click operations.
 
-7. Data [Subscription](./tmq) is an advanced and useful feature of TDengine. It is similar to asynchronous publish/subscribe where a message published to a topic is immediately received by all subscribers to that topic. TDengine Subscriptions allow you to create event driven applications without having to install an external pub/sub messaging system.
+7. [Stream Processing](./stream) is another extremely useful feature of TDengine Cloud that obviates the need to install external stream processing systems like Kafka or Flink. TDengine's Stream Processing feature allows you to process incoming data streams in real time and push data to tables based on rules that you can define easily.  
 
-8. [Stream Processing](./stream) is another extremely useful feature of TDengine Cloud that obviates the need to install external stream processing systems like Kafka or Flink. TDengine's Stream Processing feature allows you to process incoming data streams in real time and push data to tables based on rules that you can define easily.  
+8. TDengine provides sophisticated [Data Replication](./replication) features. You can replicate from Cloud to a private instance and vice versa. You can replicate between Cloud providers regardless of region and you can also replicate between edge instances and Cloud or edge instances and private centralized instances.
 
-9. TDengine provides sophisticated [Data Replication](./replication) features. You can replicate from Cloud to a private instance and vice versa. You can replicate between Cloud providers regardless of region and you can also replicate between edge instances and Cloud or edge instances and private centralized instances.
+9. The [Developer Guide](./programming) is a must read if you are developing IoT or Big Data applications for time series data. In this section we introduce the database connection, data modeling, data ingestion, query, stream processing, cache, data subscription, user-defined functions (coming soon), and other functionality in detail. Sample code is provided for a variety of programming languages. In most cases, you can just copy and paste the sample code, make a few changes to accommodate your application, and it will work.
 
-10. The [Developer Guide](./programming) is a must read if you are developing IoT or Big Data applications for time series data. In this section we introduce the database connection, data modeling, data ingestion, query, stream processing, cache, data subscription, user-defined functions (coming soon), and other functionality in detail. Sample code is provided for a variety of programming languages. In most cases, you can just copy and paste the sample code, make a few changes to accommodate your application, and it will work.
+10. The [TDengine SQL](./taos-sql) section provides comprehensive information about both standard SQL as well as TDengine's extensions for easy time series analysis.
 
-11. The [TDengine SQL](./taos-sql) section provides comprehensive information about both standard SQL as well as TDengine's extensions for easy time series analysis.
-
-12. The [Tools](./tools) section introduces the Taos CLI which gives you shell access to easily perform ad hoc queries on your instances and databases. Additionally, taosBenchmark is introduced. It is a tool that can help you generate large amounts of data very easily with simple configurations and test the performance of TDengine Cloud.
+11. The [Tools](./tools) section introduces the Taos CLI which gives you shell access to easily perform ad hoc queries on your instances and databases. Additionally, taosBenchmark is introduced. It is a tool that can help you generate large amounts of data very easily with simple configurations and test the performance of TDengine Cloud.
 
 <!-- 10. Finally, in the [FAQ](./faq) section, we try to preemptively answer questions that we anticipate. Of course, we will continue to add to this section all the time. -->
 
