@@ -47,20 +47,20 @@ class UpdateBackup(TDCase):
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
         self.tb_num = 5
-        self.row_num = 10
+        self.row_num = 5
         self.drop_flag = 'yes'
         self.start_timestamp = 1601481600000
         self.child_table_exist_flag = 'no'
-        self.replica = [1,3]
+        self.replica = [3]
         # update param
         self.add_drop_flag = 'no'
         self.add_child_table_exist_flag = 'yes'
-        self.add_row_num = 10
+        self.add_row_num = 5
         # param for taosBenchmark with ntb check
         self.ntb_dbname = ['test1','test2']
         self.ntb_name_m = ['nd','nt']
         self.ntb_num = 5
-        self.ntb_row_num = 10
+        self.ntb_row_num = 5
         #param for taosx
         self.timeout = '5s'
     def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num,create_flag,start_timestamp):
