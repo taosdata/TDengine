@@ -202,6 +202,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
     tscError("%" PRId64 " failed to add to request container, reqId:0x%" PRIx64 ", conn:%" PRId64 ", %s",
              (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
 
+    tsem_destroy(&((SSyncQueryParam*)param)->sem);
     taosMemoryFree(param);
     destroyRequest(*pRequest);
     *pRequest = NULL;

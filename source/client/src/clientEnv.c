@@ -385,6 +385,10 @@ void destroyRequest(SRequestObj *pRequest) {
   }
 
   taos_stop_query(pRequest);
+  if (pRequest->body.rspSem) {
+    tsem_destroy(&pRequest->body.rspSem);
+  }
+     ;
   removeRequest(pRequest->self);
 }
 
