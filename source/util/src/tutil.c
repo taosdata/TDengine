@@ -336,7 +336,7 @@ int32_t tintToHex(uint64_t val, char hex[]) {
   return j;
 }
 
-int32_t tintToStr(uint64_t val, size_t radix, char str[]) {
+int32_t titoa(uint64_t val, size_t radix, char str[]) {
   if (radix < 2 || radix > 16) {
     return 0;
   }

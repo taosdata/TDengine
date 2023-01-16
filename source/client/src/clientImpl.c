@@ -1371,7 +1371,7 @@ int32_t doProcessMsgFromServer(void* param) {
 
   STraceId* trace = &pMsg->info.traceId;
   char      tbuf[40] = {0};
-  TRACE_TO_STR(trace, tbuf);
+  TRACE_TO_STR_(trace, tbuf);
 
   tscDebug("processMsgFromServer handle %p, message: %s, size:%d, code: %s, gtid: %s", pMsg->info.handle,
            TMSG_INFO(pMsg->msgType), pMsg->contLen, tstrerror(pMsg->code), tbuf);

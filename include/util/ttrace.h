@@ -52,6 +52,20 @@ typedef struct STraceId {
     sprintf(buf, "0x%" PRIx64 ":0x%" PRIx64 "", rootId, msgId); \
   } while (0)
 
+#define TRACE_TO_STR_(_traceId, _buf)                             \
+  do {                                                            \
+    int64_t rootId = (_traceId) != NULL ? (_traceId)->rootId : 0; \
+    int64_t msgId = (_traceId) != NULL ? (_traceId)->msgId : 0;   \
+    char*   _t = _buf;                                            \
+    _t[0] = '0';                                                  \
+    _t[1] = 'x';                                                  \
+    _t += titoa(rootId, 16, &_t[2]);                              \
+    _t[0] = ':';                                                  \
+    _t[1] = '0';                                                  \
+    _t[2] = 'x';                                                  \
+    _t += titoa(msgId, 16, &_t[3]);                               \
+  } while (0)
+
 #ifdef __cplusplus
 }
 #endif

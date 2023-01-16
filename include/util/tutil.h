@@ -47,7 +47,7 @@ int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]);
 int32_t taosHexStrToByteArray(char hexstr[], char bytes[]);
 
 int32_t tintToHex(uint64_t val, char hex[]);
-int32_t tintToStr(uint64_t val, size_t radix, char str[]);
+int32_t titoa(uint64_t val, size_t radix, char str[]);
 
 char    *taosIpStr(uint32_t ipInt);
 uint32_t ip2uint(const char *const ip_addr);

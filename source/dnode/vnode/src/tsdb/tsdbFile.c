@@ -108,15 +108,15 @@ void tsdbHeadFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SHeadFile *pHeadF,
   *(p++) = TD_DIRSEP[0];
   *(p++) = 'v';
 
-  p += tintToStr(TD_VID(pTsdb->pVnode), 10, p);
+  p += titoa(TD_VID(pTsdb->pVnode), 10, p);
   *(p++) = 'f';
 
-  p += tintToStr(fid, 10, p);
+  p += titoa(fid, 10, p);
 
   memcpy(p, "ver", 3);
   p += 3;
 
-  p += tintToStr(pHeadF->commitID, 10, p);
+  p += titoa(pHeadF->commitID, 10, p);
   memcpy(p, ".head", 5);
   p[5] = 0;
 }
