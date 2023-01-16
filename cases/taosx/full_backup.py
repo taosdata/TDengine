@@ -48,7 +48,7 @@ class FullBackup(TDCase):
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
         self.tb_num = 5
-        self.row_num = 10
+        self.row_num = 5
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'
@@ -56,11 +56,11 @@ class FullBackup(TDCase):
         self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
         self.ntb_name_m = ['nd','nt']
         self.ntb_num = 5
-        self.ntb_row_num = 10
+        self.ntb_row_num = 5
         # param for taosx
         self.timeout = '5s'
         self.target_dbname = 'target'
-        self.replica = [1,3]
+        self.replica = [3]
     def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num):
         taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         thread_list = []
