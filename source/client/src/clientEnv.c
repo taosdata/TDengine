@@ -365,6 +365,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
+  tsem_destroy(&pRequest->body.rspSem);
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
@@ -379,6 +380,9 @@ void doDestroyRequest(void *p) {
   }
 
   if (pRequest->syncQuery) {
+      if (pRequest->body.param){
+        tsem_destroy(&((SSyncQueryParam*)pRequest->body.param)->sem);
+      }
     taosMemoryFree(pRequest->body.param);
   }
 
