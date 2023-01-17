@@ -221,14 +221,17 @@ while(*(start)){\
 //}
 
 static char* smlJsonGetObj(char *payload){
-  int   leftBracketCnt = 0;
+  int  leftBracketCnt = 0;
+  bool isInQuote = false;
   while(*payload) {
-    if (unlikely(*payload == '{')) {
+    if(*payload == '"' && *(payload - 1) != '\\'){
+      isInQuote = !isInQuote;
+    }else if (!isInQuote && unlikely(*payload == '{')) {
       leftBracketCnt++;
       payload++;
       continue;
     }
-    if (unlikely(*payload == '}')) {
+    else if (!isInQuote && unlikely(*payload == '}')) {
       leftBracketCnt--;
       payload++;
       if (leftBracketCnt == 0) {
@@ -288,6 +291,14 @@ int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
           JUMP_JSON_SPACE((*start))
           offset[index++] = *start - sTmp;
           element->timestamp = (*start);
+          if(*(*start) == '{'){
+            char* tmp = smlJsonGetObj((*start));
+            if(tmp){
+              element->timestampLen = tmp - (*start);
+              *start = tmp;
+            }
+            break;
+          }
           hasColon = true;
           continue;
         }
@@ -309,6 +320,14 @@ int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
           JUMP_JSON_SPACE((*start))
           offset[index++] = *start - sTmp;
           element->cols = (*start);
+          if(*(*start) == '{'){
+            char* tmp = smlJsonGetObj((*start));
+            if(tmp){
+              element->colsLen = tmp - (*start);
+              *start = tmp;
+            }
+            break;
+          }
           hasColon = true;
           continue;
         }
@@ -381,6 +400,15 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
     }else if((*start)[1] == 't' && (*start)[2] == 'i'){
       (*start) += offset[index++];
       element->timestamp = *start;
+      if(*(*start) == '{'){
+        char* tmp = smlJsonGetObj((*start));
+        if(tmp){
+          element->timestampLen = tmp - (*start);
+          *start = tmp;
+        }
+        continue;
+      }
+
       while(*(*start)){
         if(unlikely(*(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32)){
           element->timestampLen = (*start) - element->timestamp;
@@ -391,6 +419,14 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
     }else if((*start)[1] == 'v'){
       (*start) += offset[index++];
       element->cols = *start;
+      if(*(*start) == '{'){
+        char* tmp = smlJsonGetObj((*start));
+        if(tmp){
+          element->colsLen = tmp - (*start);
+          *start = tmp;
+        }
+        continue;
+      }
       while(*(*start)){
         if(unlikely( *(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32)){
           element->colsLen = (*start) - element->cols;
@@ -406,7 +442,7 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
         element->tagsLen = tmp - (*start);
         *start = tmp;
       }
-      break;
+      continue;
     }
     if(*(*start) == '}'){
       (*start)++;
@@ -1111,7 +1147,24 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
   }
 
   SSmlKv kv = {.key = VALUE, .keyLen = VALUE_LEN, .value = elements->cols, .length = (size_t)elements->colsLen};
-  if (elements->colsLen == 0 || smlParseValue(&kv, &info->msgBuf) != TSDB_CODE_SUCCESS) {
+
+  if (unlikely(elements->colsLen == 0)) {
+    uError("SML:colsLen == 0");
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }else if(unlikely(elements->cols[0] == '{')){
+    char tmp = elements->cols[elements->colsLen];
+    elements->cols[elements->colsLen] = '\0';
+    cJSON* valueJson = cJSON_Parse(elements->cols);
+    ret = smlParseValueFromJSONObj(valueJson, &kv);
+    if (ret != TSDB_CODE_SUCCESS) {
+      uError("SML:Failed to parse value from JSON Obj:%s", elements->cols);
+      elements->cols[elements->colsLen] = tmp;
+      cJSON_Delete(valueJson);
+      return TSDB_CODE_TSC_INVALID_VALUE;
+    }
+    elements->cols[elements->colsLen] = tmp;
+    cJSON_Delete(valueJson);
+  }else if(smlParseValue(&kv, &info->msgBuf) != TSDB_CODE_SUCCESS){
     uError("SML:cols invalidate:%s", elements->cols);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
@@ -1141,10 +1194,29 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
 
   // Parse timestamp
   // notice!!! put ts back to tag to ensure get meta->precision
-  int64_t ts = smlParseOpenTsdbTime(info, elements->timestamp, elements->timestampLen);
-  if (unlikely(ts < 0)) {
-    uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload", info->id);
+  int64_t ts = 0;
+  if(unlikely(elements->timestampLen == 0)){
+    uError("OTD:0x%" PRIx64 " elements->timestampLen == 0", info->id);
     return TSDB_CODE_INVALID_TIMESTAMP;
+  }else if(elements->timestamp[0] == '{'){
+    char tmp = elements->timestamp[elements->timestampLen];
+    elements->cols[elements->timestampLen] = '\0';
+    cJSON* tsJson = cJSON_Parse(elements->timestamp);
+    ts = smlParseTSFromJSON(info, tsJson);
+    if (unlikely(ts < 0)) {
+      uError("SML:0x%" PRIx64 " Unable to parse timestamp from JSON payload:%s", info->id, elements->timestamp);
+      elements->timestamp[elements->timestampLen] = tmp;
+      cJSON_Delete(tsJson);
+      return TSDB_CODE_INVALID_TIMESTAMP;
+    }
+    elements->timestamp[elements->timestampLen] = tmp;
+    cJSON_Delete(tsJson);
+  }else{
+    ts = smlParseOpenTsdbTime(info, elements->timestamp, elements->timestampLen);
+    if (unlikely(ts < 0)) {
+      uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload", info->id);
+      return TSDB_CODE_INVALID_TIMESTAMP;
+    }
   }
   SSmlKv kvTs = { .key = TS, .keyLen = TS_LEN, .type = TSDB_DATA_TYPE_TIMESTAMP, .i = ts, .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
 
