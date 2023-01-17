@@ -394,6 +394,15 @@ let mut consumer = tmq.build()?;
 
 <TabItem value="Python" label="Python">
 
+```python
+from taos.tmq import Consumer
+
+# Syntax: `consumer = Consumer(configs)`
+#
+# Example:
+consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
+```
+
 Python programs use the following parameters:
 
 | Parameter | Type | Description | Remarks |
@@ -512,7 +521,7 @@ consumer.subscribe(["tmq_meters"]).await?;
 <TabItem value="Python" label="Python">
 
 ```python
-consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
+consumer.subscribe(['topic1', 'topic2'])
 ```
 
 </TabItem>
@@ -631,9 +640,17 @@ for {
 <TabItem value="Python" label="Python">
 
 ```python
-for msg in consumer:
-    for row in msg:
-        print(row)
+while True:
+    res = consumer.poll(100)
+    if not res:
+        continue
+    err = res.error()
+    if err is not None:
+        raise err
+    val = res.value()
+
+    for block in val:
+        print(block.fetchall())
 ```
 
 </TabItem>
