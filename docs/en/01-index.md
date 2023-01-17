@@ -17,7 +17,7 @@ This is the documentation structure for TDengine Cloud.
 
 5. The [Visualization](./visual) section shows you how you can visualize the data that you store in TDengine, as well as how you can visualize and monitor the status of your TDengine Cloud instance(s) and databases.
 
-6. [Data Sharing](./data-sharing) is an advanced and useful feature of TDengine Cloud. In this section, we provide an easy way to share your data in the TDengine Cloud to others through only simple click operations.
+6. [Data Subscription](./data-subscription) is an advanced and useful feature of TDengine. It is similar to asynchronous publish/subscribe where a message published to a topic is immediately received by all subscribers to that topic. TDengine Subscriptions allow you to create event driven applications without having to install an external pub/sub messaging system. In the TDengien Cloud, we provide an easy way to create topic and share your topic in the TDengine Cloud to others through only simple click operations.
 
 7. [Stream Processing](./stream) is another extremely useful feature of TDengine Cloud that obviates the need to install external stream processing systems like Kafka or Flink. TDengine's Stream Processing feature allows you to process incoming data streams in real time and push data to tables based on rules that you can define easily.  
 
