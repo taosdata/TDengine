@@ -2,7 +2,7 @@
 #
 # Generate the deb package for ubuntu, or rpm package for centos, or tar.gz package for other linux os
 
-set -e
+# set -e
 # set -x
 
 # release.sh  -v [cluster | edge]
