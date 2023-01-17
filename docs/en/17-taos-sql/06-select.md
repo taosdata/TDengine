@@ -237,7 +237,7 @@ You can also use the NULLS keyword to specify the position of null values. Ascen
 
 The LIMIT keyword controls the number of results that are displayed. You can also use the OFFSET keyword to specify the result to display first. `LIMIT` and `OFFSET` are executed after `ORDER BY` in the query execution. You can include an offset in a LIMIT clause. For example, LIMIT 5 OFFSET 2 can also be written LIMIT 2, 5. Both of these clauses display the third through the seventh results.
 
-In a statement that includes a PARTITON BY clause, the LIMIT keyword is performed on each partition, not on the entire set of results.
+In a statement that includes a PARTITION BY clause, the LIMIT keyword is performed on each partition, not on the entire set of results.
 
 ## SLIMIT
 

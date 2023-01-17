@@ -17,7 +17,7 @@ stmt.execute("INSERT INTO power.d1001 USING power.meters TAGS(California.SanFran
 ResultSet result = stmt.executeQuery("SELECT ts, current FROM power.meters LIMIT 2");
 // ANCHOR_END: query
 // ANCHOR: meta
-// print colum names
+// print column names
 ResultSetMetaData meta = result.getMetaData();
 System.out.println(meta.getColumnLabel(1) + "\t" + meta.getColumnLabel(2));
 // output: ts	current

@@ -28,16 +28,22 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 ```
 
 </TabItem>
-<TabItem value="windows" label="Config on Windows (coming soon)">
+<TabItem value="windows" label="Config on Windows (beta)" groupId="sys">
 
-Run this command in your Windows terminal to save cloud DSN as variable:
+Run this command in your Windows CMD prompt to save cloud DSN as variable:
 
-```bash
-set TDENGINE_CLOUD_DSN="<DSN>"
+```cmd
+set TDENGINE_CLOUD_DSN=<DSN>
+```
+
+Or run this command in your Windows PowerShell environment to save cloud DSN as variable:
+
+```cmd
+$env:TDENGINE_CLOUD_DSN='<DSN>'
 ```
 
 </TabItem>
-<TabItem value="mac" label="Config on Mac (coming soon)" groupId="sys">
+<TabItem value="mac" label="Config on Mac (beta)" groupId="sys">
 
 Run this command in your Mac terminal to save cloud DSN as variable:
 
@@ -75,7 +81,7 @@ taos -E $TDENGINE_CLOUD_DSN
 ```
 
 </TabItem>
-<TabItem value="windows" label="Connect on Windows (coming soon)">
+<TabItem value="windows" label="Connect on Windows (beta)">
 
 To access the TDengine Cloud, you can execute `taos` if you already set the environment variable.
 
@@ -90,7 +96,7 @@ taos.exe -E $TDENGINE_CLOUD_DSN
 ```
 
 </TabItem>
-<TabItem value="mac" label="Connect on Mac (coming soon)">
+<TabItem value="mac" label="Connect on Mac (beta)">
 
 To access the TDengine Cloud, you can execute `taos` if you already set the environment variable.
 

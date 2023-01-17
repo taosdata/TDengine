@@ -41,7 +41,7 @@ namespace TDengineExample
 
             // 5. execute
             res = TDengine.StmtExecute(stmt);
-            CheckStmtRes(res, "faild to execute");
+            CheckStmtRes(res, "failed to execute");
 
             // 6. free 
             TaosMultiBind.FreeTaosBind(tags);
@@ -90,7 +90,7 @@ namespace TDengineExample
                 int code = TDengine.StmtClose(stmt);
                 if (code != 0)
                 {
-                    Console.WriteLine($"falied to close stmt, {code} reason: {TDengine.StmtErrorStr(stmt)} ");
+                    Console.WriteLine($"failed to close stmt, {code} reason: {TDengine.StmtErrorStr(stmt)} ");
                 }
                 ExitProgram();
             }

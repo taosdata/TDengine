@@ -488,7 +488,7 @@ All functions that return the current time, such as `NOW`, `TODAY`, and `TIMEZON
 
 ```sql
 SELECT NOW() FROM { tb_name | stb_name } [WHERE clause];
-SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior NOW();
+SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operator NOW();
 INSERT INTO tb_name VALUES (NOW(), ...);
 ```
 
@@ -572,7 +572,7 @@ SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
 
 ```sql
 SELECT TODAY() FROM { tb_name | stb_name } [WHERE clause];
-SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior TODAY()];
+SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operator TODAY()];
 INSERT INTO tb_name VALUES (TODAY(), ...);
 ```
 
@@ -656,7 +656,7 @@ If you input a specific column, the number of non-null values in the column is r
 SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE clause] [INTERVAL(interval [, offset]) [SLIDING sliding]];
 ```
 
-**Description**：`elapsed` function can be used to calculate the continuous time length in which there is valid data. If it's used with `INTERVAL` clause, the returned result is the calcualted time length within each time window. If it's used without `INTERVAL` caluse, the returned result is the calculated time length within the specified time range. Please be noted that the return value of `elapsed` is the number of `time_unit` in the calculated time length.
+**Description**：`elapsed` function can be used to calculate the continuous time length in which there is valid data. If it's used with `INTERVAL` clause, the returned result is the calculated time length within each time window. If it's used without `INTERVAL` caluse, the returned result is the calculated time length within the specified time range. Please be noted that the return value of `elapsed` is the number of `time_unit` in the calculated time length.
 
 **Return value type**: Double if the input value is not NULL;
 
@@ -744,7 +744,7 @@ SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **Description**：
   The cardinal number of a specific column is returned by using hyperloglog algorithm. The benefit of using hyperloglog algorithm is that the memory usage is under control when the data volume is huge.
-  However, when the data volume is very small, the result may be not accurate, it's recommented to use `select count(data) from (select unique(col) as data from table)` in this case.
+  However, when the data volume is very small, the result may be not accurate, it's recommended to use `select count(data) from (select unique(col) as data from table)` in this case.
 
 **Return value type**: Integer
 
