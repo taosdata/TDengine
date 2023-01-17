@@ -3884,7 +3884,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     if (pReader->type == TIMEWINDOW_RANGE_CONTAINED) {
       code = doOpenReaderImpl(pReader);
       if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        goto _err;
       }
     } else {
       STsdbReader* pPrevReader = pReader->innerReader[0];
@@ -3905,7 +3905,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
 
       code = doOpenReaderImpl(pPrevReader);
       if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        goto _err;
       }
     }
   }
