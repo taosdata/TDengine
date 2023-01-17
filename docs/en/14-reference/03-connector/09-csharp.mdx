@@ -17,7 +17,7 @@ import CSAsyncQuery from "../../07-develop/04-query-data/_cs_async.mdx"
 
 `TDengine.Connector` is a C# language connector provided by TDengine that allows C# developers to develop C# applications that access TDengine cluster data.
 
-The `TDengine.Connector` connector supports connect to TDengine instances via the TDengine client driver (taosc), providing data writing, querying, subscription, schemaless writing, bind interface, etc.The `TDengine.Connector` also supports WebSocket and developers can build connection through DSN, which supports data writing, querying, and parameter binding, etc.
+The `TDengine.Connector` connector supports connect to TDengine instances via the TDengine client driver (taosc), providing data writing, querying, subscription, schemaless writing, bind interface, etc.The `TDengine.Connector` also supports WebSocket from v3.0.1 and developers can build connection through DSN, which supports data writing, querying, and parameter binding, etc.
 
 This article describes how to install `TDengine.Connector` in a Linux or Windows environment and connect to TDengine clusters via `TDengine.Connector` to perform basic operations such as data writing and querying.
 
@@ -95,9 +95,9 @@ In this scenario, modifying your project file is required in order to copy the W
   </ItemGroup>
   <Target Name="copyDLLDepency" BeforeTargets="BeforeBuild">
     <ItemGroup>
-      <DepDLLFiles Include="$(PkgTDengine_Connector_test)\runtimes\**\*.*" />
+      <DepDLLFiles Include="$(PkgTDengine_Connector)\runtimes\**\*.*" />
     </ItemGroup>
-    <Copy SourceFiles="@(DepDLLFiles)" DestinationFolder="$(OutDir)\dep_lib" />
+    <Copy SourceFiles="@(DepDLLFiles)" DestinationFolder="$(OutDir)" />
   </Target>
 ```
 

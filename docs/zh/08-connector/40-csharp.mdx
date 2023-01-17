@@ -17,7 +17,7 @@ import CSAsyncQuery from "../07-develop/04-query-data/_cs_async.mdx"
 
 `TDengine.Connector` 是 TDengine 提供的 C# 语言连接器。C# 开发人员可以通过它开发存取 TDengine 集群数据的 C# 应用软件。
 
-`TDengine.Connector` 连接器支持通过 TDengine 客户端驱动（taosc）建立与 TDengine 运行实例的连接，提供数据写入、查询、数据订阅、schemaless 数据写入、参数绑定接口数据写入等功能。 `TDengine.Connector` 还支持 WebSocket，通过 DSN 建立 WebSocket 连接，提供数据写入、查询、参数绑定接口数据写入等功能。
+`TDengine.Connector` 连接器支持通过 TDengine 客户端驱动（taosc）建立与 TDengine 运行实例的连接，提供数据写入、查询、数据订阅、schemaless 数据写入、参数绑定接口数据写入等功能。 `TDengine.Connector` 自 v3.0.1 起还支持 WebSocket，通过 DSN 建立 WebSocket 连接，提供数据写入、查询、参数绑定接口数据写入等功能。
 
 本文介绍如何在 Linux 或 Windows 环境中安装 `TDengine.Connector`，并通过 `TDengine.Connector` 连接 TDengine 集群，进行数据写入、查询等基本操作。
 
@@ -90,7 +90,7 @@ dotnet add package TDengine.Connector
 
 <TabItem value="source" label="使用 WebSocket 连接">
 
-需要修改目标项目的 `.csproj` 项目文件，将 `.nupkg` 中的 `runtimes` 目录中的动态库复制到当前项目的 `$(OutDir)` 目录下。下例是复制到 `$(OutDir)\dep_lib`。
+需要修改目标项目的 `.csproj` 项目文件，将 `.nupkg` 中的 `runtimes` 目录中的动态库复制到当前项目的 `$(OutDir)` 目录下。
 
 ```XML
   <ItemGroup>
@@ -98,13 +98,13 @@ dotnet add package TDengine.Connector
   </ItemGroup>
   <Target Name="copyDLLDepency" BeforeTargets="BeforeBuild">
     <ItemGroup>
-      <DepDLLFiles Include="$(PkgTDengine_Connector_test)\runtimes\**\*.*" />
+      <DepDLLFiles Include="$(PkgTDengine_Connector)\runtimes\**\*.*" />
     </ItemGroup>
-    <Copy SourceFiles="@(DepDLLFiles)" DestinationFolder="$(OutDir)\dep_lib" />
+    <Copy SourceFiles="@(DepDLLFiles)" DestinationFolder="$(OutDir)" />
   </Target>
 ```
 
-注意：`TDengine.Connector` 自 version>= 3.0.2 的 nuget package 中才会有动态库。
+注意：`TDengine.Connector` 自 version>= 3.0.2 的 nuget package 中才会有动态库（ taosws.dll，libtaows.so ）。
 
 </TabItem>
 </Tabs>
@@ -163,9 +163,9 @@ namespace TDengineExample
 
 各部分意义见下表：
 
-* **protocol**: 显示指定以何种方式建立连接，例如：`ws://localhost:6041` 指定以 Websocket 方式建立连接(支持http/ws)。
+* **protocol**: 显示指定以何种方式建立连接，例如：`ws://localhost:6041` 指定以 Websocket 方式建立连接（支持 http/ws ）。
   
-* **username/password**: 用于创建连接的用户名及密码（默认`root/taosdata`）。
+* **username/password**: 用于创建连接的用户名及密码（默认 `root/taosdata` ）。
   
 * **host/port**: 指定创建连接的服务器及端口，WebSocket 连接默认为 `localhost:6041` 。
   
