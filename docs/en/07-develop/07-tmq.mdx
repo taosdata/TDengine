@@ -94,22 +94,21 @@ void close() throws SQLException;
 <TabItem value="Python" label="Python">
 
 ```python
-class TaosConsumer():
-    def __init__(self, *topics, **configs)
+class Consumer:
+    def subscribe(self, topics):
+        pass
 
-    def __iter__(self)
+    def unsubscribe(self):
+        pass
 
-    def __next__(self)
+    def poll(self, timeout: float = 1.0):
+        pass
 
-    def sync_next(self)
-    
-    def subscription(self)
+    def close(self):
+        pass
 
-    def unsubscribe(self)
-
-    def close(self)
-    
-    def __del__(self)
+    def commit(self, message):
+        pass
 ```
 
 </TabItem>
@@ -397,21 +396,20 @@ let mut consumer = tmq.build()?;
 
 Python programs use the following parameters:
 
-|            Parameter            |  Type   | Description                                                 | Remarks                                        |
-| :----------------------------: | :----: | -------------------------------------------------------- | ------------------------------------------- |
-|        `td_connect_ip`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td_connect_user`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td_connect_pass`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td_connect_port`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|           `group_id`           | string  | Consumer group ID; consumers with the same ID are in the same group                        | **Required**. Maximum length: 192.                 |
-|          `client_id`           | string  | Client ID                                                | Maximum length: 192.                             |
-|      `auto_offset_reset`       |  string   | Initial offset for the consumer group                                     | Specify `earliest`, `latest`, or `none`(default) |
-|      `enable_auto_commit`      | string | Commit automatically                                             | Specify `true` or `false`.                   |
-|   `auto_commit_interval_ms`    | string | Interval for automatic commits, in milliseconds                           |
-| `enable_heartbeat_background`  | string | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time |  Specify `true` or `false`.                                           |
-| `experimental_snapshot_enable` | string | Specify whether to consume messages from the WAL or from TSBS                    | Specify `true` or `false`.                                            |
-|     `msg_with_table_name`      | string | Specify whether to deserialize table names from messages                                 | Specify `true` or `false`.
-|           `timeout`            |  int   | Consumer pull timeout                                     |                                             |
+| Parameter | Type | Description | Remarks |
+|:---------:|:----:|:-----------:|:-------:|
+| `td.connect.ip` | string | Used in establishing a connection||
+| `td.connect.user` | string | Used in establishing a connection||
+| `td.connect.pass` | string | Used in establishing a connection||
+| `td.connect.port` | string | Used in establishing a connection||
+| `group.id` | string | Consumer group ID; consumers with the same ID are in the same group | **Required**. Maximum length: 192 |
+| `client.id` | string | Client ID | Maximum length: 192 |
+| `msg.with.table.name` | string | Specify whether to deserialize table names from messages | pecify `true` or `false` |
+| `enable.auto.commit` | string | Commit automatically | pecify `true` or `false` |
+| `auto.commit.interval.ms` | string | Interval for automatic commits, in milliseconds | |
+| `auto.offset.reset` | string | Initial offset for the consumer group | Specify `earliest`, `latest`, or `none`(default) |
+| `experimental.snapshot.enable` | string | Specify whether to consume messages from the WAL or from TSDB | Specify `true` or `false` |
+| `enable.heartbeat.background` | string | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time | Specify `true` or `false` |
 
 </TabItem>
 
