@@ -231,6 +231,10 @@ Get all rows and print each row:
 
 In this example, we use query method to execute SQL and get a result object.
 
+``` XML
+{{#include docs/examples/csharp/cloud-example/inout/inout.csproj}}
+```
+
 ```C#
 {{#include docs/examples/csharp/cloud-example/inout/Program.cs:query}}
 ```

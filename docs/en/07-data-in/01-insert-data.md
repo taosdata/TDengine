@@ -89,7 +89,11 @@ In this example, we use `exec` method to execute SQL. `exec` is designed for som
 
 <TabItem value="C#" label="C#">
 
-```C#
+``` XML
+{{#include docs/examples/csharp/cloud-example/inout/inout.csproj}}
+```
+
+```csharp
 {{#include docs/examples/csharp/cloud-example/inout/Program.cs:insert}}
 ```
 
