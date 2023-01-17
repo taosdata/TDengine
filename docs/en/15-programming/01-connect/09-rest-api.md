@@ -25,16 +25,16 @@ export TDENGINE_CLOUD_URL="<url>"
 <TabItem value="cmd" label="CMD">
 
 ```bash
-set TDENGINE_CLOUD_TOKEN="<token>"
-set TDENGINE_CLOUD_URL="<url>"
+set TDENGINE_CLOUD_TOKEN=<token>
+set TDENGINE_CLOUD_URL=<url>
 ```
 
 </TabItem>
 <TabItem value="powershell" label="Powershell">
 
 ```powershell
-$env:TDENGINE_CLOUD_TOKEN="<token>"
-$env:TDENGINE_CLOUD_URL="<url>"
+$env:TDENGINE_CLOUD_TOKEN='<token>'
+$env:TDENGINE_CLOUD_URL='<url>'
 ```
 
 </TabItem>

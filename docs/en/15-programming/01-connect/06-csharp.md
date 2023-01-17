@@ -50,14 +50,14 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 <TabItem value="cmd" label="CMD">
 
 ```bash
-set TDENGINE_CLOUD_DSN="<DSN>"
+set TDENGINE_CLOUD_DSN=<DSN>
 ```
 
 </TabItem>
 <TabItem value="powershell" label="Powershell">
 
 ```powershell
-$env:TDENGINE_CLOUD_DSN="<DSN>"
+$env:TDENGINE_CLOUD_DSN='<DSN>'
 ```
 
 </TabItem>
