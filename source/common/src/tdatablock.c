@@ -2353,6 +2353,7 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
 
   if (pBlock->pDataBlock == NULL) {
     pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+
     taosArraySetSize(pBlock->pDataBlock, numOfCols);
   }
 

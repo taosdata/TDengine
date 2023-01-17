@@ -45,6 +45,26 @@ SArray* taosArrayInit(size_t size, size_t elemSize) {
   return pArray;
 }
 
+SArray* taosArrayInit_s(size_t size, size_t elemSize, size_t initialSize) {
+  SArray* pArray = taosMemoryMalloc(sizeof(SArray));
+  if (pArray == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pArray->size = 0;
+  pArray->pData = taosMemoryCalloc(initialSize, elemSize);
+  if (pArray->pData == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(pArray);
+    return NULL;
+  }
+
+  pArray->capacity = initialSize;
+  pArray->elemSize = elemSize;
+  return pArray;
+}
+
 static int32_t taosArrayResize(SArray* pArray) {
   assert(pArray->size >= pArray->capacity);
 
