@@ -551,7 +551,9 @@ _return:
   if (ctx) {
     QW_UPDATE_RSP_CODE(ctx, code);
 
-    QW_SET_PHASE(ctx, phase);
+    if (QW_PHASE_POST_CQUERY != phase) {
+      QW_SET_PHASE(ctx, phase);
+    }
 
     QW_UNLOCK(QW_WRITE, &ctx->lock);
     qwReleaseTaskCtx(mgmt, ctx);
@@ -758,7 +760,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     QW_LOCK(QW_WRITE, &ctx->lock);
     if (qComplete || (queryStop && (0 == atomic_load_8((int8_t *)&ctx->queryContinue))) || code) {
       // Note: query is not running anymore
-      QW_SET_PHASE(ctx, 0);
+      QW_SET_PHASE(ctx, QW_PHASE_POST_CQUERY);
       QW_UNLOCK(QW_WRITE, &ctx->lock);
       break;
     }
