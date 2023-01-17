@@ -172,8 +172,9 @@ _OVER:
   dDebug("reset dnode list on startup");
   dmResetEps(pData, pData->dnodeEps);
 
-  if (pData->dnodeEps == NULL && dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
+  if (pData->oldDnodeEps == NULL && dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
     dError("localEp %s different with %s and need reconfigured", tsLocalEp, file);
+    terrno = TSDB_CODE_INVALID_CFG;
     return -1;
   }
 
@@ -506,8 +507,22 @@ _OVER:
 
   if (code != 0) {
     dError("failed to read dnode file:%s since %s", file, terrstr());
+    return code;
   }
 
+  // update old fqdn and port
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pData->oldDnodeEps); ++i) {
+    SDnodeEpPair *pair = taosArrayGet(pData->oldDnodeEps, i);
+    for (int32_t j = 0; j < (int32_t)taosArrayGetSize(pData->dnodeEps); ++j) {
+      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, j);
+      if (pDnodeEp->id == pair->id) {
+        tstrncpy(pair->oldFqdn, pDnodeEp->ep.fqdn, TSDB_FQDN_LEN);
+        pair->oldPort = pair->newPort;
+      }
+    }
+  }
+
+  // check new fqdn and port
   for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pData->oldDnodeEps); ++i) {
     SDnodeEpPair *pair = taosArrayGet(pData->oldDnodeEps, i);
     for (int32_t j = 0; j < (int32_t)taosArrayGetSize(pData->dnodeEps); ++j) {
@@ -516,19 +531,11 @@ _OVER:
           (strcmp(pDnodeEp->ep.fqdn, pair->newFqdn) == 0 && pDnodeEp->ep.port == pair->newPort)) {
         dError("dnode:%d, can't update ep:%s:%u to %s:%u since already exists as dnode:%d", pair->id, pair->oldFqdn,
                pair->oldPort, pair->newFqdn, pair->newPort, pDnodeEp->id);
-        tstrncpy(pDnodeEp->ep.fqdn, pair->newFqdn, TSDB_FQDN_LEN);
-        pDnodeEp->ep.port = pair->newPort;
+        taosArrayDestroy(pData->oldDnodeEps);
+        pData->oldDnodeEps = NULL;
+        terrno = TSDB_CODE_INVALID_CFG;
+        return -1;
       }
-
-#if 0
-      if (pDnodeEp->id == pair->id &&
-          (strcmp(pDnodeEp->ep.fqdn, pair->oldFqdn) == 0 && pDnodeEp->ep.port == pair->oldPort)) {
-        dError("dnode:%d, can't update ep:%s:%u to %s:%u since endpoint not matched", pair->id, pair->oldFqdn,
-               pair->oldPort, pair->newFqdn, pair->newPort, pDnodeEp->id);
-        tstrncpy(pDnodeEp->ep.fqdn, pair->newFqdn, TSDB_FQDN_LEN);
-        pDnodeEp->ep.port = pair->newPort;
-      }
-#endif
     }
   }
 
@@ -546,5 +553,5 @@ _OVER:
   }
 
   pData->dnodeVer = 0;
-  return code;
+  return 0;
 }
