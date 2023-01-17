@@ -2477,7 +2477,7 @@ static int32_t syncNodeAppendNoopOld(SSyncNode* ths) {
   LRUHandle* h = NULL;
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
-    int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
+    int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry, false);
     if (code != 0) {
       sError("append noop error");
       return -1;
@@ -2720,7 +2720,7 @@ int32_t syncNodeOnClientRequestOld(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRe
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     // append entry
-    code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
+    code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry, false);
     if (code != 0) {
       if (ths->replicaNum == 1) {
         if (h) {

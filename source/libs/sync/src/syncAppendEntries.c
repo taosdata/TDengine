@@ -357,7 +357,7 @@ int32_t syncNodeOnAppendEntriesOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
         ASSERT(pAppendEntry->index == appendIndex);
 
         // append
-        code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
+        code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry, false);
         if (code != 0) {
           char logBuf[128];
           snprintf(logBuf, sizeof(logBuf), "ignore, append error, append-index:%" PRId64, appendIndex);
@@ -398,7 +398,7 @@ int32_t syncNodeOnAppendEntriesOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
         }
 
         // append
-        code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
+        code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry, false);
         if (code != 0) {
           char logBuf[128];
           snprintf(logBuf, sizeof(logBuf), "ignore, log not exist, append error, append-index:%" PRId64, appendIndex);
