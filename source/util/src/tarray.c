@@ -52,7 +52,7 @@ SArray* taosArrayInit_s(size_t size, size_t elemSize, size_t initialSize) {
     return NULL;
   }
 
-  pArray->size = 0;
+  pArray->size = initialSize;
   pArray->pData = taosMemoryCalloc(initialSize, elemSize);
   if (pArray->pData == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

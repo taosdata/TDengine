@@ -92,7 +92,7 @@ static int32_t tGetSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
 }
 
 // EXPOSED APIS ==================================================
-void tsdbHeadFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SHeadFile *pHeadF, char fname[]) {
+static char* getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t commitId, char fname[]) {
   const char* p1 = tfsGetDiskPath(pTsdb->pVnode->pTfs, did);
   int32_t len = strlen(p1);
 
@@ -116,24 +116,32 @@ void tsdbHeadFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SHeadFile *pHeadF,
   memcpy(p, "ver", 3);
   p += 3;
 
-  p += titoa(pHeadF->commitID, 10, p);
+  p += titoa(commitId, 10, p);
+  return p;
+}
+
+void tsdbHeadFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SHeadFile *pHeadF, char fname[]) {
+  char* p = getFileNamePrefix(pTsdb, did, fid, pHeadF->commitID, fname);
   memcpy(p, ".head", 5);
   p[5] = 0;
 }
 
 void tsdbDataFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SDataFile *pDataF, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTsdb->pVnode->pTfs, did),
-           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pDataF->commitID, ".data");
+  char* p = getFileNamePrefix(pTsdb, did, fid, pDataF->commitID, fname);
+  memcpy(p, ".data", 5);
+  p[5] = 0;
 }
 
 void tsdbSttFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSttFile *pSttF, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTsdb->pVnode->pTfs, did),
-           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pSttF->commitID, ".stt");
+  char* p = getFileNamePrefix(pTsdb, did, fid, pSttF->commitID, fname);
+  memcpy(p, ".stt", 4);
+  p[4] = 0;
 }
 
 void tsdbSmaFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSmaFile *pSmaF, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTsdb->pVnode->pTfs, did),
-           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pSmaF->commitID, ".sma");
+  char* p = getFileNamePrefix(pTsdb, did, fid, pSmaF->commitID, fname);
+  memcpy(p, ".sma", 4);
+  p[4] = 0;
 }
 
 bool tsdbDelFileIsSame(SDelFile *pDelFile1, SDelFile *pDelFile2) { return pDelFile1->commitID == pDelFile2->commitID; }
