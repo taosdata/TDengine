@@ -65,10 +65,10 @@ class TDTestCase:
             params[10].bigint_unsigned(9)
             params[11].float(10.1)
             params[12].double(10.11)
-            binaryStr6w = '123456789'
+            binaryStr = '123456789'
             for i in range(1301):
-                binaryStr6w += "1234567890abcdefghij1234567890abcdefghij12345hello"
-            params[13].binary(binaryStr6w)
+                binaryStr += "1234567890abcdefghij1234567890abcdefghij12345hello"
+            params[13].binary(binaryStr)
             params[14].nchar("stmt")
             params[15].timestamp(1626861392589, PrecisionEnum.Milliseconds)
 
