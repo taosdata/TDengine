@@ -516,7 +516,7 @@ _OVER:
     for (int32_t j = 0; j < (int32_t)taosArrayGetSize(pData->dnodeEps); ++j) {
       SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, j);
       if (pDnodeEp->id == pair->id) {
-        tstrncpy(pair->oldFqdn, pDnodeEp->ep.fqdn, TSDB_FQDN_LEN);
+        tstrncpy(pair->oldFqdn, pair->newFqdn, TSDB_FQDN_LEN);
         pair->oldPort = pair->newPort;
       }
     }
