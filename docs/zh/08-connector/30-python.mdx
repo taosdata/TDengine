@@ -78,6 +78,14 @@ pip3 install git+https://github.com/taosdata/taos-connector-python.git
 </TabItem>
 </Tabs>
 
+#### 安装 `taos-ws`(可选)
+
+taos-ws 提供了通过 websocket 连接 TDengine 的能力，可选安装 taos-ws 以获得 websocket 连接 TDengine 的能力。
+
+```
+pip3 install taos-ws-py
+```
+
 ### 安装验证
 
 <Tabs defaultValue="rest">
@@ -306,6 +314,30 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 </TabItem>
 </Tabs>
 
+### 数据订阅
+
+连接器支持数据订阅功能，数据订阅功能请参考 [数据订阅](../../develop/tmq/)。
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+
+`Consumer` 提供了 Python 连接器订阅 TMQ 数据的 API，相关 API 定义请参考 [数据订阅文档](../../develop/tmq/#%E4%B8%BB%E8%A6%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%92%8C-api)。
+
+```python
+{{#include docs/examples/python/tmq_example.py}}
+```
+</TabItem>
+
+<TabItem value="rest" label="websocket 连接">
+
+除了原生的连接方式，Python 连接器还支持通过 websocket 订阅 TMQ 数据。
+
+```python
+{{#include docs/examples/python/tmq_websocket_example.py}}
+```
+</TabItem>
+</Tabs>
+
 ### 其它示例程序
 
 | 示例程序链接                                                                                                  | 示例程序内容            |
@@ -314,7 +346,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 | [bind_row.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-row.py)               | 参数绑定，一次绑定一行  |
 | [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py)       | InfluxDB 行协议写入     |
 | [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py)               | 使用 JSON 类型的标签    |
-| [tmq.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq.py)                         | tmq 订阅              |
+| [tmq.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq_consumer.py)                | tmq 订阅              |
 
 ## 其它说明 
 
