@@ -621,7 +621,7 @@ impl TaskController {
         if let Some(action) = task.after_delete.as_deref() {
             if task.to.starts_with("local") && action == "clear" {
                 let dsn: Dsn = task.to.parse()?;
-                std::mem::drop(task);
+                // std::mem::drop(task);
                 tokio::spawn(async move { taosx::utils::clear_local(&dsn).await });
             }
         }
