@@ -81,7 +81,7 @@ taos -E $TDENGINE_CLOUD_DSN
 ```
 
 </TabItem>
-<TabItem value="windows" label="Connect on Windows (coming soon)">
+<TabItem value="windows" label="Connect on Windows (beta)">
 
 To access the TDengine Cloud, you can execute `taos` if you already set the environment variable.
 
@@ -96,7 +96,7 @@ taos.exe -E $TDENGINE_CLOUD_DSN
 ```
 
 </TabItem>
-<TabItem value="mac" label="Connect on Mac (coming soon)">
+<TabItem value="mac" label="Connect on Mac (beta)">
 
 To access the TDengine Cloud, you can execute `taos` if you already set the environment variable.
 
