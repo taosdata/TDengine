@@ -1764,6 +1764,12 @@ typedef struct {
 #define STREAM_CREATE_STABLE_TRUE     1
 #define STREAM_CREATE_STABLE_FALSE    0
 
+typedef struct SColLocation {
+  int16_t  slotId;
+  col_id_t colId;
+  int8_t   type;
+} SColLocation;
+
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
   char    sourceDB[TSDB_DB_FNAME_LEN];

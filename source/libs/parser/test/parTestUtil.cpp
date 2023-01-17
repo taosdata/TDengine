@@ -49,9 +49,11 @@ bool    g_dump = false;
 bool    g_testAsyncApis = true;
 int32_t g_logLevel = 131;
 int32_t g_skipSql = 0;
+int32_t g_limitSql = 0;
 
-void setAsyncFlag(const char* pFlag) { g_testAsyncApis = stoi(pFlag) > 0 ? true : false; }
-void setSkipSqlNum(const char* pNum) { g_skipSql = stoi(pNum); }
+void setAsyncFlag(const char* pArg) { g_testAsyncApis = stoi(pArg) > 0 ? true : false; }
+void setSkipSqlNum(const char* pArg) { g_skipSql = stoi(pArg); }
+void setLimitSqlNum(const char* pArg) { g_limitSql = stoi(pArg); }
 
 struct TerminateFlag : public exception {
   const char* what() const throw() { return "success and terminate"; }
@@ -63,22 +65,27 @@ int32_t getLogLevel() { return g_logLevel; }
 
 class ParserTestBaseImpl {
  public:
-  ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase), sqlNo_(0) {}
+  ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase), sqlNo_(0), sqlNum_(0) {}
 
   void login(const std::string& user) { caseEnv_.user_ = user; }
 
   void useDb(const string& acctId, const string& db) {
     caseEnv_.acctId_ = acctId;
     caseEnv_.db_ = db;
-    caseEnv_.nsql_ = g_skipSql;
+    caseEnv_.numOfSkipSql_ = g_skipSql;
+    caseEnv_.numOfLimitSql_ = g_limitSql;
   }
 
   void run(const string& sql, int32_t expect, ParserStage checkStage) {
     ++sqlNo_;
-    if (caseEnv_.nsql_ > 0) {
-      --(caseEnv_.nsql_);
+    if (caseEnv_.numOfSkipSql_ > 0) {
+      --(caseEnv_.numOfSkipSql_);
       return;
     }
+    if (caseEnv_.numOfLimitSql_ > 0 && caseEnv_.numOfLimitSql_ == sqlNum_) {
+      return;
+    }
+    ++sqlNum_;
 
     runInternalFuncs(sql, expect, checkStage);
     runApis(sql, expect, checkStage);
@@ -94,9 +101,10 @@ class ParserTestBaseImpl {
     string  acctId_;
     string  user_;
     string  db_;
-    int32_t nsql_;
+    int32_t numOfSkipSql_;
+    int32_t numOfLimitSql_;
 
-    caseEnv() : user_("wangxiaoyu"), nsql_(0) {}
+    caseEnv() : user_("wangxiaoyu"), numOfSkipSql_(0) {}
   };
 
   struct stmtEnv {
@@ -532,6 +540,7 @@ class ParserTestBaseImpl {
   stmtRes         res_;
   ParserTestBase* pBase_;
   int32_t         sqlNo_;
+  int32_t         sqlNum_;
 };
 
 ParserTestBase::ParserTestBase() : impl_(new ParserTestBaseImpl(this)) {}

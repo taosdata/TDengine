@@ -207,12 +207,6 @@ typedef struct SQueryNodeStat {
   int32_t tableNum;  // vg table number, unit is TSDB_TABLE_NUM_UNIT
 } SQueryNodeStat;
 
-typedef struct SColLocation {
-  int16_t  slotId;
-  col_id_t colId;
-  int8_t   type;
-} SColLocation;
-
 int32_t initTaskQueue();
 int32_t cleanupTaskQueue();
 
