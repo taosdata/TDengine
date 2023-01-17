@@ -4803,6 +4803,12 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   taosHashCleanup(pUpdatedMap);
 
+#if 0
+  char* pBuf = streamStateIntervalDump(pInfo->pState);
+  qDebug("===stream===interval state%s", pBuf);
+  taosMemoryFree(pBuf);
+#endif
+
   doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
   if (pInfo->pDelRes->info.rows > 0) {
     printDataBlock(pInfo->pDelRes, "single interval delete");
