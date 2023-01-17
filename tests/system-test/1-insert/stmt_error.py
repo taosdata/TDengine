@@ -45,7 +45,7 @@ class TDTestCase:
             conn.execute(
                 "create table if not exists log(ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
                 bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
-                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp)",
+                ff float, dd double, bb binary(65059), nn nchar(100), tt timestamp)",
             )
             conn.load_table_info("log")
             
@@ -65,7 +65,10 @@ class TDTestCase:
             params[10].bigint_unsigned(9)
             params[11].float(10.1)
             params[12].double(10.11)
-            params[13].binary("hello")
+            binaryStr6w = '123456789'
+            for i in range(1301):
+                binaryStr6w += "1234567890abcdefghij1234567890abcdefghij12345hello"
+            params[13].binary(binaryStr6w)
             params[14].nchar("stmt")
             params[15].timestamp(1626861392589, PrecisionEnum.Milliseconds)
 
@@ -88,7 +91,7 @@ class TDTestCase:
             #float == may not work as expected
             # assert row[10] == c_float(10.1)
             assert row[12] == 10.11
-            assert row[13] == "hello"
+            assert row[13][65054:] == "hello"
             assert row[14] == "stmt"
 
             conn.execute("drop database if exists %s" % dbname)
