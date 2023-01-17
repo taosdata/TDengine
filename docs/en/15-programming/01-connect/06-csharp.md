@@ -29,9 +29,9 @@ Add following ItemGroup and Task to your project file.
   </ItemGroup>
   <Target Name="copyDLLDepency" BeforeTargets="BeforeBuild">
     <ItemGroup>
-      <DepDLLFiles Include="$(PkgTDengine_Connector_test)\runtimes\**\*.*" />
+      <DepDLLFiles Include="$(PkgTDengine_Connector)\runtimes\**\*.*" />
     </ItemGroup>
-    <Copy SourceFiles="@(DepDLLFiles)" DestinationFolder="$(OutDir)\dep_lib" />
+    <Copy SourceFiles="@(DepDLLFiles)" DestinationFolder="$(OutDir)" />
   </Target>
 ```
 
