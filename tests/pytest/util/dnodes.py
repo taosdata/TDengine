@@ -166,9 +166,9 @@ class TDDnode:
         if value:
             selfPath = os.path.dirname(os.path.realpath(__file__))
             if ("community" in selfPath):
-                self.execPath = os.path.abspath(self.path + "/community/tests/script/sh/exec.sh")        
+                self.execPath = os.path.abspath(self.path + "/community/tests/script/sh/exec.sh")
             else:
-                self.execPath = os.path.abspath(self.path + "/tests/script/sh/exec.sh")        
+                self.execPath = os.path.abspath(self.path + "/tests/script/sh/exec.sh")
 
     def getDataSize(self):
         totalSize = 0
@@ -686,7 +686,7 @@ class TDDnodes:
             if ("community" in selfPath):
                 self.stopDnodesPath = os.path.abspath(self.path + "/community/tests/script/sh/stop_dnodes.sh")
                 self.stopDnodesSigintPath = os.path.abspath(self.path + "/community/tests/script/sh/sigint_stop_dnodes.sh")
-            else:    
+            else:
                 self.stopDnodesPath = os.path.abspath(self.path + "/tests/script/sh/stop_dnodes.sh")
                 self.stopDnodesSigintPath = os.path.abspath(self.path + "/tests/script/sh/sigint_stop_dnodes.sh")
             tdLog.info("run in address sanitizer mode")
@@ -765,7 +765,8 @@ class TDDnodes:
 
     def stopAll(self):
         tdLog.info("stop all dnodes, asan:%d" % self.asan)
-        if self.asan:
+        distro_id = distro.id()
+        if self.asan and distro_id != "alpine":
             tdLog.info("execute script: %s" % self.stopDnodesPath)
             os.system(self.stopDnodesPath)
             tdLog.info("execute finished")
@@ -777,10 +778,10 @@ class TDDnodes:
         for i in range(len(self.dnodes)):
             self.dnodes[i].stop()
 
-        distro_id = distro.id()
+
         if (distro_id == "alpine"):
             print(distro_id)
-            psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v [taosd]| awk '{print $1}' | xargs"
+            psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             while(processID):
                 print(processID)
