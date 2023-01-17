@@ -155,7 +155,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
 
 void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList) {
   if (pGroupResInfo->pRows != NULL) {
-    taosArrayDestroyP(pGroupResInfo->pRows, taosMemoryFree);
+    taosArrayDestroy(pGroupResInfo->pRows);
   }
 
   pGroupResInfo->pRows = pArrayList;
