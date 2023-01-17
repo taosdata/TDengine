@@ -45,14 +45,14 @@ export TDENGINE_JDBC_URL="<jdbcURL>"
 </TabItem>
 <TabItem value="cmd" label="CMD">
 
-```bash
-set TDENGINE_JDBC_URL="<jdbcURL>"
+```shell
+set TDENGINE_JDBC_URL=<jdbcURL>
 ```
 </TabItem>
 <TabItem value="powershell" label="Powershell">
 
 ```powershell
-$env:TDENGINE_JDBC_URL="<jdbcURL>"
+$env:TDENGINE_JDBC_URL='<jdbcURL>'
 ```
 
 </TabItem>

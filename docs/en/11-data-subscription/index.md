@@ -170,7 +170,7 @@ set TDENGINE_CLOUD_TMQ=<TDENGINE_CLOUD_TMQ>
 </TabItem>
 <TabItem value="Powershell" label="Powershell">
 
-```shell
+```powershell
 $env:TDENGINE_CLOUD_TMQ='<TDENGINE_CLOUD_TMQ>'
 ```
 
@@ -203,7 +203,7 @@ set TDENGINE_CLOUD_TOKEN=<TDENGINE_CLOUD_TOKEN>
 </TabItem>
 <TabItem value="Powershell" label="Powershell">
 
-```shell
+```powershell
 $env:TDENGINE_CLOUD_ENDPOINT='<TDENGINE_CLOUD_ENDPOINT>'
 $env:TDENGINE_CLOUD_TOKEN='<TDENGINE_CLOUD_TOKEN>'
 ```
