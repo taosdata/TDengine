@@ -1768,6 +1768,7 @@ typedef struct {
   SArray* pTags;  // array of SField
   // 3.0.20
   int64_t checkpointFreq;  // ms
+  int64_t deleteMark;
 } SCMCreateStreamReq;
 
 typedef struct {

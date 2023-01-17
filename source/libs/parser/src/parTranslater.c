@@ -666,6 +666,9 @@ static uint8_t getPrecisionFromCurrStmt(SNode* pCurrStmt, uint8_t defaultVal) {
   if (isSetOperator(pCurrStmt)) {
     return ((SSetOperator*)pCurrStmt)->precision;
   }
+  if (NULL != pCurrStmt && QUERY_NODE_CREATE_STREAM_STMT == nodeType(pCurrStmt)) {
+    return getPrecisionFromCurrStmt(((SCreateStreamStmt*)pCurrStmt)->pQuery, defaultVal);
+  }
   return defaultVal;
 }
 
@@ -5483,16 +5486,6 @@ static bool crossTableWithUdaf(SSelectStmt* pSelect) {
 }
 
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
-  if (NULL != pStmt->pOptions->pWatermark &&
-      (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pWatermark))) {
-    return pCxt->errCode;
-  }
-
-  if (NULL != pStmt->pOptions->pDelay &&
-      (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pDelay))) {
-    return pCxt->errCode;
-  }
-
   if (NULL == pStmt->pQuery) {
     return TSDB_CODE_SUCCESS;
   }
@@ -5685,6 +5678,17 @@ static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt
   return code;
 }
 
+static int32_t translateStreamOptions(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
+  pCxt->pCurrStmt = (SNode*)pStmt;
+  SStreamOptions* pOptions = pStmt->pOptions;
+  if ((NULL != pOptions->pWatermark && (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pOptions->pWatermark))) ||
+      (NULL != pOptions->pDeleteMark && (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pOptions->pDeleteMark))) ||
+      (NULL != pOptions->pDelay && (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pOptions->pDelay)))) {
+    return pCxt->errCode;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
   pReq->igExists = pStmt->ignoreExists;
 
@@ -5707,9 +5711,15 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    code = translateStreamOptions(pCxt, pStmt);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     pReq->triggerType = pStmt->pOptions->triggerType;
     pReq->maxDelay = (NULL != pStmt->pOptions->pDelay ? ((SValueNode*)pStmt->pOptions->pDelay)->datum.i : 0);
     pReq->watermark = (NULL != pStmt->pOptions->pWatermark ? ((SValueNode*)pStmt->pOptions->pWatermark)->datum.i : 0);
+    pReq->deleteMark =
+        (NULL != pStmt->pOptions->pDeleteMark ? ((SValueNode*)pStmt->pOptions->pDeleteMark)->datum.i : 0);
     pReq->fillHistory = pStmt->pOptions->fillHistory;
     pReq->igExpired = pStmt->pOptions->ignoreExpired;
     columnDefNodeToField(pStmt->pTags, &pReq->pTags);
