@@ -1,41 +1,37 @@
 settings:
   - name: taosd
-    fqdn: [u1-40]
+    fqdn: [u1-41]
     spec:
-      version: 3.0.1.0  # 默认最新版
+      version: 3.0.1.111  # 默认最新版
       config: # common config for all dnodes
-        firstEP: u1-40:6030
+        firstEP: u1-41:6030
       dnodes:
-        - endpoint: u1-40:6030
+        - endpoint: u1-41:6030
           config_dir: /data/cyjia/data/taosd/cluster1
           config: # will write into taos.cfg
-            serverPort: '6030'
             dataDir: /data/cyjia/data/taosd/cluster1
             logDir: /data/cyjia/data/taosd/cluster1
             debugFlag: 135
-            supportVnodes: 1024
-        - endpoint: u1-40:6050
+        - endpoint: u1-41:6050
           config_dir: /data/cyjia/data/taosd/cluster2
           config: # will write into taos.cfg
             dataDir: /data/cyjia/data/taosd/cluster2
             logDir: /data/cyjia/data/taosd/cluster2
             debugFlag: 135
-            supportVnodes: 1024
-        - endpoint: u1-40:6070
+        - endpoint: u1-41:6070
           config_dir: /data/cyjia/data/taosd/cluster3
           config: # will write into taos.cfg
             dataDir: /data/cyjia/data/taosd/cluster3
             logDir: /data/cyjia/data/taosd/cluster3
-            debugFlag: 135
-            supportVnodes: 1024    
+            debugFlag: 135 
   - name: taosd
-    fqdn: [u1-41]
+    fqdn: [u1-42]
     spec:
-      version: 3.0.1.0  # 默认最新版
+      version: 3.0.1.111  # 默认最新版
       config: # common config for all dnodes
-        firstEP: u1-41:6030
+        firstEP: u1-42:6030
       dnodes:
-        - endpoint: u1-41:6030
+        - endpoint: u1-42:6030
           config_dir: /data/cyjia/data/taosd_1/cluster1
           config: # will write into taos.cfg
             serverPort: '6030'
@@ -43,14 +39,14 @@ settings:
             logDir: /data/cyjia/data/taosd_1/cluster1
             debugFlag: 135
             supportVnodes: 1024
-        - endpoint: u1-41:6050
+        - endpoint: u1-42:6050
           config_dir: /data/cyjia/data/taosd_1/cluster2
           config: # will write into taos.cfg
             dataDir: /data/cyjia/data/taosd_1/cluster2
             logDir: /data/cyjia/data/taosd_1/cluster2
             debugFlag: 135
             supportVnodes: 1024
-        - endpoint: u1-41:6070
+        - endpoint: u1-42:6070
           config_dir: /data/cyjia/data/taosd_1/cluster3
           config: # will write into taos.cfg
             dataDir: /data/cyjia/data/taosd_1/cluster3
@@ -58,25 +54,25 @@ settings:
             debugFlag: 135
             supportVnodes: 1024
   - name: taospy
-    fqdn: [u1-40]
-    spec:
-      version: 2.2.0
-      client_version: 3.0.1.0
-      config:
-        firstEP: u1-40:6030
-        logDir: /data/cyjia/data/taosd
-        debugFlag: 143
-  - name: taospy
     fqdn: [u1-41]
     spec:
-      version: 2.2.0
+      version: 2.6.10
       client_version: 3.0.1.0
       config:
         firstEP: u1-41:6030
+        logDir: /data/cyjia/data/taosd
+        debugFlag: 143
+  - name: taospy
+    fqdn: [u1-42]
+    spec:
+      version: 2.6.10
+      client_version: 3.0.1.0
+      config:
+        firstEP: u1-42:6030
         logDir: /data/cyjia/data/taosd_1
         debugFlag: 143
   - name: taosAdapter
-    fqdn: [u1-40]
+    fqdn: [u1-41]
     spec:
       version: 3.0.1.0
       config_file: /data/cyjia/data/taosd/taosadaper.toml
@@ -86,24 +82,12 @@ settings:
         taosConfigDir: /data/cyjia/data/taosd
         log:
           path: /data/cyjia/data/taosd
-        collectd:
-          enable: false
-        influxdb:
-          enable: false
-        node_exporter:
-          enable: false
-        opentsdb_telnet:
-          enable: false
-        prometheus:
-          enable: false
-        statsd:
-          enable: false
       taos_config:
-        firstEP: u1-40:6030
+        firstEP: u1-41:6030
         logDir: /data/cyjia/data/taosd
         debugFlag: 143
   - name: taosAdapter
-    fqdn: [u1-41]
+    fqdn: [u1-42]
     spec:
       version: 3.0.1.0
       config_file: /data/cyjia/data/taosd_1/taosadaper.toml
@@ -113,30 +97,18 @@ settings:
         taosConfigDir: /data/cyjia/data/taosd_1
         log:
           path: /data/cyjia/data/taosd_1
-        collectd:
-          enable: false
-        influxdb:
-          enable: false
-        node_exporter:
-          enable: false
-        opentsdb_telnet:
-          enable: false
-        prometheus:
-          enable: false
-        statsd:
-          enable: false
       taos_config:
-        firstEP: u1-40:6130
+        firstEP: u1-41:6030
         logDir: /data/cyjia/data/taosd_1
         debugFlag: 143
   - name: taosBenchmark
-    fqdn: [u1-40]
+    fqdn: [u1-41]
     spec:
       version: 3.0.0.1
       taos_version: 3.0.0.1
       config_dir: /data/cyjia/data/taosd
       taos_config:
-        firstEP: u1-40:6030
+        firstEP: u1-41:6030
         logDir: /data/cyjia/data/taosd
         debugFlag: 143
   - name: taosx
