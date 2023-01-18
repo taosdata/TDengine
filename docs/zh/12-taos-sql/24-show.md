@@ -183,6 +183,10 @@ SHOW TABLE DISTRIBUTED table_name;
 
 语句： show table distributed d0\G;   竖行显示表 d0 的 BLOCK 分布情况
 
+<details>
+ <summary>显示示例</summary>
+ <pre><code>
+
 *************************** 1.row ***************************
 
 _block_dist: Total_Blocks=[5] Total_Size=[93.65 Kb] Average_size=[18.73 Kb] Compression_Ratio=[23.98 %]
@@ -244,6 +248,8 @@ _block_dist: 3881 ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
 Query OK, 24 row(s) in set (0.002444s)
 
+</code></pre>
+ </details>
 
   上面是块中包含数据行数的块儿分布情况图，这里的 0100 0299 0498 … 表示的是每个块中包含的数据行数，上面的意思就是这个表的 5 个块，分布在 3483 ~3681 行的块有 1 个，占整个块的 20%，分布在 3881 ~ 4096（最大行数）的块数为 4 个，占整个块的 80%， 其它区域内分布块数为 0。
 

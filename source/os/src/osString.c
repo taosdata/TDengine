@@ -112,7 +112,7 @@ int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
 }
 
 TdUcs4 *tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4) {
-  assert(taosMemorySize(target_ucs4) >= len_ucs4 * sizeof(TdUcs4));
+  ASSERT(taosMemorySize(target_ucs4) >= len_ucs4 * sizeof(TdUcs4));
   return memcpy(target_ucs4, source_ucs4, len_ucs4 * sizeof(TdUcs4));
 }
 
@@ -217,7 +217,7 @@ void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type) {
 
 bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
-  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile TDengine.\n");
+  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
   return -1;
 #else
   memset(ucs4, 0, ucs4_max_len);
@@ -245,7 +245,7 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
 
 int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
-  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile TDengine.\n");
+  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
   return -1;
 #else
 
@@ -263,7 +263,7 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
 }
 bool taosValidateEncodec(const char *encodec) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
-  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile TDengine.\n");
+  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
   return true;
 #else
   iconv_t cd = iconv_open(encodec, DEFAULT_UNICODE_ENCODEC);
@@ -355,8 +355,8 @@ int64_t taosStr2Int64(const char *str, char **pEnd, int32_t radix) {
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
 #endif
   return tmp;
 }
@@ -367,8 +367,8 @@ uint64_t taosStr2UInt64(const char *str, char **pEnd, int32_t radix) {
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
 #endif
   return tmp;
 }
@@ -379,8 +379,8 @@ int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
 #endif
   return tmp;
 }
@@ -391,8 +391,8 @@ uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
 #endif
   return tmp;
 }
@@ -403,10 +403,10 @@ int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
-  assert(tmp >= SHRT_MIN);
-  assert(tmp <= SHRT_MAX);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
+  ASSERT(tmp >= SHRT_MIN);
+  ASSERT(tmp <= SHRT_MAX);
 #endif
   return (int16_t)tmp;
 }
@@ -417,9 +417,9 @@ uint16_t taosStr2UInt16(const char *str, char **pEnd, int32_t radix) {
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
-  assert(tmp <= USHRT_MAX);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
+  ASSERT(tmp <= USHRT_MAX);
 #endif
   return (uint16_t)tmp;
 }
@@ -427,10 +427,10 @@ uint16_t taosStr2UInt16(const char *str, char **pEnd, int32_t radix) {
 int8_t taosStr2Int8(const char *str, char **pEnd, int32_t radix) {
   int32_t tmp = strtol(str, pEnd, radix);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
-  assert(tmp >= SCHAR_MIN);
-  assert(tmp <= SCHAR_MAX);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
+  ASSERT(tmp >= SCHAR_MIN);
+  ASSERT(tmp <= SCHAR_MAX);
 #endif
   return tmp;
 }
@@ -441,9 +441,9 @@ uint8_t taosStr2UInt8(const char *str, char **pEnd, int32_t radix) {
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
-  assert(tmp <= UCHAR_MAX);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
+  ASSERT(tmp <= UCHAR_MAX);
 #endif
   return tmp;
 }
@@ -451,9 +451,9 @@ uint8_t taosStr2UInt8(const char *str, char **pEnd, int32_t radix) {
 double taosStr2Double(const char *str, char **pEnd) {
   double tmp = strtod(str, pEnd);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
-  assert(tmp != HUGE_VAL);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
+  ASSERT(tmp != HUGE_VAL);
 #endif
   return tmp;
 }
@@ -461,10 +461,10 @@ double taosStr2Double(const char *str, char **pEnd) {
 float taosStr2Float(const char *str, char **pEnd) {
   float tmp = strtof(str, pEnd);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
-  assert(errno != ERANGE);
-  assert(errno != EINVAL);
-  assert(tmp != HUGE_VALF);
-  assert(tmp != NAN);
+  ASSERT(errno != ERANGE);
+  ASSERT(errno != EINVAL);
+  ASSERT(tmp != HUGE_VALF);
+  ASSERT(tmp != NAN);
 #endif
   return tmp;
 }

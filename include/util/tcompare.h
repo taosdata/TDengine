@@ -36,17 +36,18 @@ extern "C" {
 #define FLT_GREATEREQUAL(_x, _y) (FLT_EQUAL((_x), (_y)) || ((_x) > (_y)))
 #define FLT_LESSEQUAL(_x, _y)    (FLT_EQUAL((_x), (_y)) || ((_x) < (_y)))
 
-#define PATTERN_COMPARE_INFO_INITIALIZER \
-  { '%', '_' }
+#define PATTERN_COMPARE_INFO_INITIALIZER { '%', '_', L'%', L'_' }
 
 typedef struct SPatternCompareInfo {
-  char matchAll;  // symbol for match all wildcard, default: '%'
-  char matchOne;  // symbol for match one wildcard, default: '_'
+  char matchAll;       // symbol for match all wildcard, default: '%'
+  char matchOne;       // symbol for match one wildcard, default: '_'
+  TdUcs4 umatchAll;    // unicode version matchAll
+  TdUcs4 umatchOne;    // unicode version matchOne
 } SPatternCompareInfo;
 
-int32_t patternMatch(const char *pattern, const char *str, size_t size, const SPatternCompareInfo *pInfo);
+int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t ssize, const SPatternCompareInfo *pInfo);
 
-int32_t WCSPatternMatch(const TdUcs4 *pattern, const TdUcs4 *str, size_t size, const SPatternCompareInfo *pInfo);
+int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize, const SPatternCompareInfo *pInfo);
 
 int32_t taosArrayCompareString(const void *a, const void *b);
 
@@ -79,9 +80,11 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight);
 
-int32_t compareStrRegexComp(const void *pLeft, const void *pRight);
-int32_t compareStrRegexCompMatch(const void *pLeft, const void *pRight);
-int32_t compareStrRegexCompNMatch(const void *pLeft, const void *pRight);
+int32_t comparestrRegexMatch(const void *pLeft, const void *pRight);
+int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight);
+
+int32_t comparewcsRegexMatch(const void *pLeft, const void *pRight);
+int32_t comparewcsRegexNMatch(const void *pLeft, const void *pRight);
 
 int32_t compareInt8ValDesc(const void *pLeft, const void *pRight);
 int32_t compareInt16ValDesc(const void *pLeft, const void *pRight);
@@ -99,11 +102,11 @@ int32_t compareUint64ValDesc(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedStrDesc(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight);
 
-int32_t compareStrPatternMatch(const void *pLeft, const void *pRight);
-int32_t compareStrPatternNotMatch(const void *pLeft, const void *pRight);
+int32_t comparestrPatternMatch(const void *pLeft, const void *pRight);
+int32_t comparestrPatternNMatch(const void *pLeft, const void *pRight);
 
-int32_t compareWStrPatternMatch(const void *pLeft, const void *pRight);
-int32_t compareWStrPatternNotMatch(const void *pLeft, const void *pRight);
+int32_t comparewcsPatternMatch(const void *pLeft, const void *pRight);
+int32_t comparewcsPatternNMatch(const void *pLeft, const void *pRight);
 
 int32_t compareInt8Int16(const void *pLeft, const void *pRight);
 int32_t compareInt8Int32(const void *pLeft, const void *pRight);

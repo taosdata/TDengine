@@ -39,7 +39,7 @@ static void median(void *src, int64_t size, int64_t s, int64_t e, const void *pa
     doswap(elePtrAt(src, size, s), elePtrAt(src, size, e), size, buf);
   }
 
-  assert(comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, s), param) <= 0 &&
+  ASSERT(comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, s), param) <= 0 &&
          comparFn(elePtrAt(src, size, s), elePtrAt(src, size, e), param) <= 0);
 
 #ifdef _DEBUG_VIEW

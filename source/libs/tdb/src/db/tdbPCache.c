@@ -236,10 +236,10 @@ void tdbPCacheInvalidatePage(SPCache *pCache, SPager *pPager, SPgno pgno) {
 void tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn) {
   i32 nRef;
 
-  ASSERT(pTxn);
-
-  // nRef = tdbUnrefPage(pPage);
-  // ASSERT(nRef >= 0);
+  if (!pTxn) {
+    tdbError("tdb/pcache: null ptr pTxn, release failed.");
+    return;
+  }
 
   tdbPCacheLock(pCache);
   nRef = tdbUnrefPage(pPage);
@@ -275,7 +275,10 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   SPage *pPage = NULL;
   SPage *pPageH = NULL;
 
-  ASSERT(pTxn);
+  if (!pTxn) {
+    tdbError("tdb/pcache: null ptr pTxn, fetch impl failed.");
+    return NULL;
+  }
 
   // 1. Search the hash table
   pPage = pCache->pgHash[tdbPCachePageHash(pPgid) % pCache->nHash];
@@ -315,8 +318,8 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   if (!pPage && pTxn->xMalloc != NULL) {
     ret = tdbPageCreate(pCache->szPage, &pPage, pTxn->xMalloc, pTxn->xArg);
     if (ret < 0 || pPage == NULL) {
-      // TODO
-      ASSERT(0);
+      tdbError("tdb/pcache: ret: %" PRId32 " pPage: %p, page create failed.", ret, pPage);
+      // TODO: recycle other backup pages
       return NULL;
     }
 
@@ -370,7 +373,11 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
 
 static void tdbPCachePinPage(SPCache *pCache, SPage *pPage) {
   if (pPage->pLruNext != NULL) {
-    ASSERT(tdbGetPageRef(pPage) == 0);
+    int32_t nRef = tdbGetPageRef(pPage);
+    if (nRef != 0) {
+      tdbError("tdb/pcache: pin page's ref not zero: %" PRId32, nRef);
+      return;
+    }
 
     pPage->pLruPrev->pLruNext = pPage->pLruNext;
     pPage->pLruNext->pLruPrev = pPage->pLruPrev;
@@ -383,13 +390,23 @@ static void tdbPCachePinPage(SPCache *pCache, SPage *pPage) {
 }
 
 static void tdbPCacheUnpinPage(SPCache *pCache, SPage *pPage) {
-  i32 nRef;
-
-  ASSERT(pPage->isLocal);
-  ASSERT(!pPage->isDirty);
-  ASSERT(tdbGetPageRef(pPage) == 0);
-
-  ASSERT(pPage->pLruNext == NULL);
+  i32 nRef = tdbGetPageRef(pPage);
+  if (nRef != 0) {
+    tdbError("tdb/pcache: unpin page's ref not zero: %" PRId32, nRef);
+    return;
+  }
+  if (!pPage->isLocal) {
+    tdbError("tdb/pcache: unpin page's not local: %" PRIu8, pPage->isLocal);
+    return;
+  }
+  if (pPage->isDirty) {
+    tdbError("tdb/pcache: unpin page's dirty: %" PRIu8, pPage->isDirty);
+    return;
+  }
+  if (NULL != pPage->pLruNext) {
+    tdbError("tdb/pcache: unpin page's pLruNext not null.");
+    return;
+  }
 
   tdbTrace("pCache:%p unpin page %p/%d, nPages:%d, pgno:%d, ", pCache, pPage, pPage->id, pCache->nPages,
            TDB_PAGE_PGNO(pPage));

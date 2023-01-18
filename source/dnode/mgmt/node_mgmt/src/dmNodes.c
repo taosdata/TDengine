@@ -109,8 +109,8 @@ static int32_t dmStartNodes(SDnode *pDnode) {
     }
   }
 
-  dInfo("TDengine initialized successfully");
-  dmReportStartup("TDengine", "initialized successfully");
+  dInfo("The daemon initialized successfully");
+  dmReportStartup("The daemon", "initialized successfully");
   return 0;
 }
 
@@ -142,7 +142,7 @@ int32_t dmRunDnode(SDnode *pDnode) {
 
   while (1) {
     if (pDnode->stop) {
-      dInfo("TDengine is about to stop");
+      dInfo("The daemon is about to stop");
       dmSetStatus(pDnode, DND_STAT_STOPPED);
       dmStopNodes(pDnode);
       dmCloseNodes(pDnode);

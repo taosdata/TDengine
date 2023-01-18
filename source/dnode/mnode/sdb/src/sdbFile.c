@@ -228,11 +228,12 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   int32_t readLen = 0;
   int64_t ret = 0;
   char    file[PATH_MAX] = {0};
+  int32_t bufLen = TSDB_MAX_MSG_SIZE;
 
   snprintf(file, sizeof(file), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
   mInfo("start to read sdb file:%s", file);
 
-  SSdbRaw *pRaw = taosMemoryMalloc(TSDB_MAX_MSG_SIZE + 100);
+  SSdbRaw *pRaw = taosMemoryMalloc(bufLen + 100);
   if (pRaw == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed read sdb file since %s", terrstr());
@@ -243,7 +244,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   if (pFile == NULL) {
     taosMemoryFree(pRaw);
     terrno = TAOS_SYSTEM_ERROR(errno);
-    mDebug("failed to read sdb file:%s since %s", file, terrstr());
+    mInfo("read sdb file:%s finished since %s", file, terrstr());
     return 0;
   }
 
@@ -275,14 +276,15 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     }
 
     readLen = pRaw->dataLen + sizeof(int32_t);
-    if (readLen >= pRaw->dataLen) {
-      SSdbRaw *pNewRaw = taosMemoryMalloc(pRaw->dataLen + TSDB_MAX_MSG_SIZE);
+    if (readLen >= bufLen) {
+      bufLen = pRaw->dataLen * 2;
+      SSdbRaw *pNewRaw = taosMemoryMalloc(bufLen + 100);
       if (pNewRaw == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
-        mError("failed read sdb file since malloc new sdbRaw size:%d failed", pRaw->dataLen + TSDB_MAX_MSG_SIZE);
+        mError("failed read sdb file since malloc new sdbRaw size:%d failed", bufLen);
         goto _OVER;
       }
-      mInfo("malloc new sdbRaw size:%d, type:%d", pRaw->dataLen + TSDB_MAX_MSG_SIZE, pRaw->type);
+      mInfo("malloc new sdb raw size:%d, type:%d", bufLen, pRaw->type);
       memcpy(pNewRaw, pRaw, sizeof(SSdbRaw));
       sdbFreeRaw(pRaw);
       pRaw = pNewRaw;
@@ -636,15 +638,20 @@ int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter) {
 }
 
 int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, int64_t term, int64_t config) {
-  int32_t code = 0;
+  int32_t code = -1;
 
   if (!isApply) {
     mInfo("sdbiter:%p, not apply to sdb", pIter);
-    sdbCloseIter(pIter);
-    return 0;
+    code = 0;
+    goto _OVER;
   }
 
-  taosFsyncFile(pIter->file);
+  if (taosFsyncFile(pIter->file) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("sdbiter:%p, failed to fasync file %s since %s", pIter, pIter->name, terrstr());
+    goto _OVER;
+  }
+
   taosCloseFile(&pIter->file);
   pIter->file = NULL;
 
@@ -653,14 +660,12 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
   if (taosRenameFile(pIter->name, datafile) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("sdbiter:%p, failed to rename file %s to %s since %s", pIter, pIter->name, datafile, terrstr());
-    sdbCloseIter(pIter);
-    return -1;
+    goto _OVER;
   }
 
   if (sdbReadFile(pSdb) != 0) {
     mError("sdbiter:%p, failed to read from %s since %s", pIter, datafile, terrstr());
-    sdbCloseIter(pIter);
-    return -1;
+    goto _OVER;
   }
 
   if (config > 0) {
@@ -674,8 +679,11 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
   }
 
   mInfo("sdbiter:%p, success applyed to sdb", pIter);
+  code = 0;
+
+_OVER:
   sdbCloseIter(pIter);
-  return 0;
+  return code;
 }
 
 int32_t sdbDoWrite(SSdb *pSdb, SSdbIter *pIter, void *pBuf, int32_t len) {

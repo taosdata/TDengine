@@ -3001,7 +3001,7 @@ int32_t tSerializeSTableIndexRsp(void *buf, int32_t bufLen, const STableIndexRsp
 
 void tFreeSerializeSTableIndexRsp(STableIndexRsp *pRsp) {
   if (pRsp->pIndex != NULL) {
-    taosArrayDestroy(pRsp->pIndex);
+    tFreeSTableIndexRsp(pRsp);
     pRsp->pIndex = NULL;
   }
 }
@@ -3191,6 +3191,7 @@ int32_t tSerializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq
   if (tEncodeI64(&encoder, pReq->showId) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->tb) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->filterTb) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
   tEndEncode(&encoder);
 
@@ -3207,6 +3208,7 @@ int32_t tDeserializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableR
   if (tDecodeI64(&decoder, &pReq->showId) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->tb) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->filterTb) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
 
   tEndDecode(&decoder);
@@ -5424,6 +5426,8 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
     if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
     if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
   }
+  if (tEncodeI8(&encoder, pReq->createStb) < 0) return -1;
+  if (tEncodeU64(&encoder, pReq->targetStbUid) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -5484,6 +5488,8 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
       }
     }
   }
+  if (tDecodeI8(&decoder, &pReq->createStb) < 0) return -1;
+  if (tDecodeU64(&decoder, &pReq->targetStbUid) < 0) return -1;
 
   tEndDecode(&decoder);
 
@@ -5627,30 +5633,6 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
   return 0;
 }
 
-STSchema *tdGetSTSChemaFromSSChema(SSchema *pSchema, int32_t nCols, int32_t sver) {
-  STSchemaBuilder schemaBuilder = {0};
-  if (tdInitTSchemaBuilder(&schemaBuilder, sver) < 0) {
-    return NULL;
-  }
-
-  for (int i = 0; i < nCols; i++) {
-    SSchema *schema = pSchema + i;
-    if (tdAddColToSchema(&schemaBuilder, schema->type, schema->flags, schema->colId, schema->bytes) < 0) {
-      tdDestroyTSchemaBuilder(&schemaBuilder);
-      return NULL;
-    }
-  }
-
-  STSchema *pNSchema = tdGetSchemaFromBuilder(&schemaBuilder);
-  if (pNSchema == NULL) {
-    tdDestroyTSchemaBuilder(&schemaBuilder);
-    return NULL;
-  }
-
-  tdDestroyTSchemaBuilder(&schemaBuilder);
-  return pNSchema;
-}
-
 int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
@@ -5726,6 +5708,25 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
 
   tEndDecode(pCoder);
   return 0;
+}
+
+void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
+  if (pReq == NULL) return;
+
+  if (flags & TSDB_MSG_FLG_ENCODE) {
+    // TODO
+  } else if (flags & TSDB_MSG_FLG_DECODE) {
+    if (pReq->comment) {
+      pReq->comment = NULL;
+      taosMemoryFree(pReq->comment);
+    }
+
+    if (pReq->type == TSDB_CHILD_TABLE) {
+      if (pReq->ctb.tagName) taosArrayDestroy(pReq->ctb.tagName);
+    } else if (pReq->type == TSDB_NORMAL_TABLE) {
+      if (pReq->ntb.schemaRow.pSchema) taosMemoryFree(pReq->ntb.schemaRow.pSchema);
+    }
+  }
 }
 
 int tEncodeSVCreateTbBatchReq(SEncoder *pCoder, const SVCreateTbBatchReq *pReq) {
@@ -6718,4 +6719,329 @@ int32_t tDecodeSBatchDeleteReq(SDecoder *pDecoder, SBatchDeleteReq *pReq) {
     taosArrayPush(pReq->deleteReqs, &deleteReq);
   }
   return 0;
+}
+
+static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubmitTbData) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI32v(pCoder, pSubmitTbData->flags) < 0) return -1;
+
+  // auto create table
+  if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+    ASSERT(pSubmitTbData->pCreateTbReq);
+    if (tEncodeSVCreateTbReq(pCoder, pSubmitTbData->pCreateTbReq) < 0) return -1;
+  }
+
+  // submit data
+  if (tEncodeI64(pCoder, pSubmitTbData->suid) < 0) return -1;
+  if (tEncodeI64(pCoder, pSubmitTbData->uid) < 0) return -1;
+  if (tEncodeI32v(pCoder, pSubmitTbData->sver) < 0) return -1;
+
+  if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    uint64_t  nColData = TARRAY_SIZE(pSubmitTbData->aCol);
+    SColData *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
+
+    if (tEncodeU64v(pCoder, nColData) < 0) return -1;
+
+    for (uint64_t i = 0; i < nColData; i++) {
+      pCoder->pos += tPutColData(pCoder->data ? pCoder->data + pCoder->pos : NULL, &aColData[i]);
+    }
+  } else {
+    if (tEncodeU64v(pCoder, TARRAY_SIZE(pSubmitTbData->aRowP)) < 0) return -1;
+
+    SRow **rows = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
+    for (int32_t iRow = 0; iRow < TARRAY_SIZE(pSubmitTbData->aRowP); ++iRow) {
+      if (pCoder->data) memcpy(pCoder->data + pCoder->pos, rows[iRow], rows[iRow]->len);
+      pCoder->pos += rows[iRow]->len;
+    }
+  }
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbData) {
+  int32_t code = 0;
+
+  if (tStartDecode(pCoder) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  if (tDecodeI32v(pCoder, &pSubmitTbData->flags) < 0) return -1;
+
+  if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+    pSubmitTbData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+    if (pSubmitTbData->pCreateTbReq == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    if (tDecodeSVCreateTbReq(pCoder, pSubmitTbData->pCreateTbReq) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+  }
+
+  // submit data
+  if (tDecodeI64(pCoder, &pSubmitTbData->suid) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  if (tDecodeI64(pCoder, &pSubmitTbData->uid) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  if (tDecodeI32v(pCoder, &pSubmitTbData->sver) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    uint64_t nColData;
+
+    if (tDecodeU64v(pCoder, &nColData) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+
+    pSubmitTbData->aCol = taosArrayInit(nColData, sizeof(SColData));
+    if (pSubmitTbData->aCol == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    for (int32_t i = 0; i < nColData; ++i) {
+      pCoder->pos += tGetColData(pCoder->data + pCoder->pos, taosArrayReserve(pSubmitTbData->aCol, 1));
+    }
+  } else {
+    uint64_t nRow;
+    if (tDecodeU64v(pCoder, &nRow) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+
+    pSubmitTbData->aRowP = taosArrayInit(nRow, sizeof(SRow *));
+    if (pSubmitTbData->aRowP == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+      SRow **ppRow = taosArrayReserve(pSubmitTbData->aRowP, 1);
+
+      *ppRow = (SRow *)(pCoder->data + pCoder->pos);
+      pCoder->pos += (*ppRow)->len;
+    }
+  }
+
+  tEndDecode(pCoder);
+
+_exit:
+  if (code) {
+    // TODO: clear
+  }
+  return 0;
+}
+
+int32_t tEncodeSSubmitReq2(SEncoder *pCoder, const SSubmitReq2 *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeU64v(pCoder, taosArrayGetSize(pReq->aSubmitTbData)) < 0) return -1;
+  for (uint64_t i = 0; i < taosArrayGetSize(pReq->aSubmitTbData); i++) {
+    if (tEncodeSSubmitTbData(pCoder, taosArrayGet(pReq->aSubmitTbData, i)) < 0) return -1;
+  }
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSSubmitReq2(SDecoder *pCoder, SSubmitReq2 *pReq) {
+  int32_t code = 0;
+
+  memset(pReq, 0, sizeof(*pReq));
+
+  // decode
+  if (tStartDecode(pCoder) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  uint64_t nSubmitTbData;
+  if (tDecodeU64v(pCoder, &nSubmitTbData) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  pReq->aSubmitTbData = taosArrayInit(nSubmitTbData, sizeof(SSubmitTbData));
+  if (pReq->aSubmitTbData == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  for (uint64_t i = 0; i < nSubmitTbData; i++) {
+    if (tDecodeSSubmitTbData(pCoder, taosArrayReserve(pReq->aSubmitTbData, 1)) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+  }
+
+  tEndDecode(pCoder);
+
+_exit:
+  if (code) {
+    if (pReq->aSubmitTbData) {
+      // todo
+      taosArrayDestroy(pReq->aSubmitTbData);
+      pReq->aSubmitTbData = NULL;
+    }
+  }
+  return code;
+}
+
+void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
+  if (NULL == pTbData) {
+    return;
+  }
+
+  if (flag == TSDB_MSG_FLG_ENCODE) {
+    if (pTbData->pCreateTbReq) {
+      tdDestroySVCreateTbReq(pTbData->pCreateTbReq);
+      taosMemoryFree(pTbData->pCreateTbReq);
+    }
+
+    if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      int32_t   nColData = TARRAY_SIZE(pTbData->aCol);
+      SColData *aColData = (SColData *)TARRAY_DATA(pTbData->aCol);
+
+      for (int32_t i = 0; i < nColData; ++i) {
+        tColDataDestroy(&aColData[i]);
+      }
+      taosArrayDestroy(pTbData->aCol);
+    } else {
+      int32_t nRow = TARRAY_SIZE(pTbData->aRowP);
+      SRow  **rows = (SRow **)TARRAY_DATA(pTbData->aRowP);
+
+      for (int32_t i = 0; i < nRow; ++i) {
+        tRowDestroy(rows[i]);
+      }
+      taosArrayDestroy(pTbData->aRowP);
+    }
+  } else if (flag == TSDB_MSG_FLG_DECODE) {
+    if (pTbData->pCreateTbReq) {
+      tDestroySVCreateTbReq(pTbData->pCreateTbReq, TSDB_MSG_FLG_DECODE);
+      taosMemoryFree(pTbData->pCreateTbReq);
+    }
+
+    if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      taosArrayDestroy(pTbData->aCol);
+    } else {
+      taosArrayDestroy(pTbData->aRowP);
+    }
+  }
+}
+
+void tDestroySSubmitReq2(SSubmitReq2 *pReq, int32_t flag) {
+  if (pReq->aSubmitTbData == NULL) return;
+
+  int32_t        nSubmitTbData = TARRAY_SIZE(pReq->aSubmitTbData);
+  SSubmitTbData *aSubmitTbData = (SSubmitTbData *)TARRAY_DATA(pReq->aSubmitTbData);
+
+  for (int32_t i = 0; i < nSubmitTbData; i++) {
+    tDestroySSubmitTbData(&aSubmitTbData[i], flag);
+  }
+  taosArrayDestroy(pReq->aSubmitTbData);
+}
+
+int32_t tEncodeSSubmitRsp2(SEncoder *pCoder, const SSubmitRsp2 *pRsp) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI32v(pCoder, pRsp->affectedRows) < 0) return -1;
+
+  if (tEncodeU64v(pCoder, taosArrayGetSize(pRsp->aCreateTbRsp)) < 0) return -1;
+  for (int32_t i = 0; i < taosArrayGetSize(pRsp->aCreateTbRsp); ++i) {
+    if (tEncodeSVCreateTbRsp(pCoder, taosArrayGet(pRsp->aCreateTbRsp, i)) < 0) return -1;
+  }
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSSubmitRsp2(SDecoder *pCoder, SSubmitRsp2 *pRsp) {
+  int32_t code = 0;
+
+  memset(pRsp, 0, sizeof(SSubmitRsp2));
+
+  // decode
+  if (tStartDecode(pCoder) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  if (tDecodeI32v(pCoder, &pRsp->affectedRows) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  uint64_t nCreateTbRsp;
+  if (tDecodeU64v(pCoder, &nCreateTbRsp) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  if (nCreateTbRsp) {
+    pRsp->aCreateTbRsp = taosArrayInit(nCreateTbRsp, sizeof(SVCreateTbRsp));
+    if (pRsp->aCreateTbRsp == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    for (int32_t i = 0; i < nCreateTbRsp; ++i) {
+      SVCreateTbRsp *pCreateTbRsp = taosArrayReserve(pRsp->aCreateTbRsp, 1);
+      if (tDecodeSVCreateTbRsp(pCoder, pCreateTbRsp) < 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+    }
+  }
+
+  tEndDecode(pCoder);
+
+_exit:
+  if (code) {
+    if (pRsp->aCreateTbRsp) {
+      taosArrayDestroyEx(pRsp->aCreateTbRsp, NULL /* todo */);
+    }
+  }
+  return code;
+}
+
+void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
+  if (NULL == pRsp) {
+    return;
+  }
+
+  if (flag & TSDB_MSG_FLG_ENCODE) {
+    if (pRsp->aCreateTbRsp) {
+      int32_t        nCreateTbRsp = TARRAY_SIZE(pRsp->aCreateTbRsp);
+      SVCreateTbRsp *aCreateTbRsp = TARRAY_DATA(pRsp->aCreateTbRsp);
+      for (int32_t i = 0; i < nCreateTbRsp; ++i) {
+        if (aCreateTbRsp[i].pMeta) {
+          taosMemoryFree(aCreateTbRsp[i].pMeta);
+        }
+      }
+      taosArrayDestroy(pRsp->aCreateTbRsp);
+    }
+  } else if (flag & TSDB_MSG_FLG_DECODE) {
+    if (pRsp->aCreateTbRsp) {
+      int32_t        nCreateTbRsp = TARRAY_SIZE(pRsp->aCreateTbRsp);
+      SVCreateTbRsp *aCreateTbRsp = TARRAY_DATA(pRsp->aCreateTbRsp);
+      for (int32_t i = 0; i < nCreateTbRsp; ++i) {
+        if (aCreateTbRsp[i].pMeta) {
+          taosMemoryFree(aCreateTbRsp[i].pMeta);
+        }
+      }
+      taosArrayDestroy(pRsp->aCreateTbRsp);
+    }
+  }
 }

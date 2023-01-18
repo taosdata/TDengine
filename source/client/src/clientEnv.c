@@ -28,13 +28,16 @@
 #include "trpc.h"
 #include "tsched.h"
 #include "ttime.h"
+#include "thttp.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
 
 SAppInfo appInfo;
+int64_t  lastClusterId = 0;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
+int32_t  clientStop = 0;
 
 int32_t timestampDeltaLimit = 900;  // s
 
@@ -62,7 +65,10 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
 
 static void deregisterRequest(SRequestObj *pRequest) {
   const static int64_t SLOW_QUERY_INTERVAL = 3000000L;  // todo configurable
-  assert(pRequest != NULL);
+  if(pRequest == NULL){
+    tscError("pRequest == NULL");
+    return;
+  }
 
   STscObj            *pTscObj = pRequest->pTscObj;
   SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
@@ -76,13 +82,19 @@ static void deregisterRequest(SRequestObj *pRequest) {
            "current:%d, app current:%d",
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
+  tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
+          "us, exec:%" PRId64 "us, stmtType:%d",
+          duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
+          pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
+          pRequest->metric.execEnd - pRequest->metric.semanticEnd, pRequest->stmtType);
+
   if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType) {
-    //    tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
-    //            "us, exec:%" PRId64 "us",
-    //            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
-    //            pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd -
-    //            pRequest->metric.ctgEnd, pRequest->metric.execEnd - pRequest->metric.semanticEnd);
-    atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
+    //        tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
+    //                "us, exec:%" PRId64 "us",
+    //                duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
+    //                pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd -
+    //                pRequest->metric.ctgEnd, pRequest->metric.execEnd - pRequest->metric.semanticEnd);
+    //    atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
   } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
     //    tscPerf("select duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
     //            "us, planner:%" PRId64 "us, exec:%" PRId64 "us, reqId:0x%" PRIx64,
@@ -264,7 +276,6 @@ void *createTscObj(const char *user, const char *auth, const char *db, int32_t c
 
   taosThreadMutexInit(&pObj->mutex, NULL);
   pObj->id = taosAddRef(clientConnRefPool, pObj);
-  pObj->schemalessType = 1;
 
   atomic_add_fetch_64(&pObj->pAppInfo->numOfConns, 1);
 
@@ -354,6 +365,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
+  tsem_destroy(&pRequest->body.rspSem);
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
@@ -368,6 +380,9 @@ void doDestroyRequest(void *p) {
   }
 
   if (pRequest->syncQuery) {
+      if (pRequest->body.param){
+        tsem_destroy(&((SSyncQueryParam*)pRequest->body.param)->sem);
+      }
     taosMemoryFree(pRequest->body.param);
   }
 
@@ -385,12 +400,160 @@ void destroyRequest(SRequestObj *pRequest) {
   removeRequest(pRequest->self);
 }
 
+void taosClientCrash(int signum, void *sigInfo, void *context) {
+  taosIgnSignal(SIGTERM);
+  taosIgnSignal(SIGHUP);
+  taosIgnSignal(SIGINT);
+  taosIgnSignal(SIGBREAK);
+
+#if !defined(WINDOWS)
+  taosIgnSignal(SIGBUS);
+#endif  
+  taosIgnSignal(SIGABRT);
+  taosIgnSignal(SIGFPE);
+  taosIgnSignal(SIGSEGV);
+
+  char *pMsg = NULL;
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;
+  int64_t     msgLen= -1;
+
+  if (tsEnableCrashReport) {
+    if (taosGenCrashJsonMsg(signum, &pMsg, lastClusterId, appInfo.startTime)) {
+      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
+      goto _return;
+    } else {
+      msgLen = strlen(pMsg);  
+    }
+  }
+  
+_return:
+
+  taosLogCrashInfo("taos", pMsg, msgLen, signum, sigInfo);
+
+#ifdef _TD_DARWIN_64
+  exit(signum);
+#elif defined(WINDOWS)
+  exit(signum);
+#endif
+}
+
+void crashReportThreadFuncUnexpectedStopped(void) { atomic_store_32(&clientStop, -1); }
+
+static void *tscCrashReportThreadFp(void *param) {
+  setThreadName("client-crashReport");
+  char filepath[PATH_MAX] = {0};
+  snprintf(filepath, sizeof(filepath), "%s%s.taosCrashLog", tsLogDir, TD_DIRSEP);
+  char *pMsg = NULL;
+  int64_t msgLen = 0;
+  TdFilePtr pFile = NULL;
+  bool truncateFile = false;
+  int32_t sleepTime = 200;
+  int32_t reportPeriodNum = 3600 * 1000 / sleepTime;
+  int32_t loopTimes = reportPeriodNum;
+
+#ifdef WINDOWS
+  if (taosCheckCurrentInDll()) {
+    atexit(crashReportThreadFuncUnexpectedStopped);
+  }
+#endif
+  
+  while (1) {
+    if (clientStop) break;
+    if (loopTimes++ < reportPeriodNum) {
+      taosMsleep(sleepTime);
+      continue;
+    }
+
+    taosReadCrashInfo(filepath, &pMsg, &msgLen, &pFile);
+    if (pMsg && msgLen > 0) {
+      if (taosSendHttpReport(tsTelemServer, tsClientCrashReportUri, tsTelemPort, pMsg, msgLen, HTTP_FLAT) != 0) {
+        tscError("failed to send crash report");
+        if (pFile) {
+          taosReleaseCrashLogFile(pFile, false);
+          continue;
+        }
+      } else {
+        tscInfo("succeed to send crash report");
+        truncateFile = true;
+      }
+    } else {
+      tscDebug("no crash info");
+    }
+
+    taosMemoryFree(pMsg);
+
+    if (pMsg && msgLen > 0) {
+      pMsg = NULL;
+      continue;
+    }
+    
+    if (pFile) {
+      taosReleaseCrashLogFile(pFile, truncateFile);
+      truncateFile = false;
+    }
+    
+    taosMsleep(sleepTime);
+    loopTimes = 0;
+  }
+
+  clientStop = -1;
+  return NULL;
+}
+
+int32_t tscCrashReportInit() {
+  if (!tsEnableCrashReport) {
+    return 0;
+  }
+  
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TdThread            crashReportThread;
+  if (taosThreadCreate(&crashReportThread, &thAttr, tscCrashReportThreadFp, NULL) != 0) {
+    tscError("failed to create crashReport thread since %s", strerror(errno));
+    return -1;
+  }
+
+  taosThreadAttrDestroy(&thAttr);
+  return 0;
+}
+
+void tscStopCrashReport() {
+  if (!tsEnableCrashReport) {
+    return;
+  }
+
+  if (atomic_val_compare_exchange_32(&clientStop, 0, 1)) {
+    tscDebug("hb thread already stopped");
+    return;
+  }
+
+  while (atomic_load_32(&clientStop) > 0) {
+    taosMsleep(100);
+  }
+}
+
+static void tscSetSignalHandle() {
+#if !defined(WINDOWS)
+  taosSetSignal(SIGBUS, taosClientCrash);
+#endif
+  taosSetSignal(SIGABRT, taosClientCrash);
+  taosSetSignal(SIGFPE, taosClientCrash);
+  taosSetSignal(SIGSEGV, taosClientCrash);
+}
+
 void taos_init_imp(void) {
   // In the APIs of other program language, taos_cleanup is not available yet.
   // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
   atexit(taos_cleanup);
   errno = TSDB_CODE_SUCCESS;
   taosSeedRand(taosGetTimestampSec());
+
+  appInfo.pid = taosGetPId();
+  appInfo.startTime = taosGetTimestampMs();
+  appInfo.pInstMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
 
   deltaToUtcInitOnce();
 
@@ -404,10 +567,13 @@ void taos_init_imp(void) {
     return;
   }
 
+  tscSetSignalHandle();
+
   initQueryModuleMsgHandle();
 
   if (taosConvInit() != 0) {
-    ASSERTS(0, "failed to init conv");
+    tscError("failed to init conv");
+    return;
   }
 
   rpcInit();
@@ -433,9 +599,8 @@ void taos_init_imp(void) {
   taosGetAppName(appInfo.appName, NULL);
   taosThreadMutexInit(&appInfo.mutex, NULL);
 
-  appInfo.pid = taosGetPId();
-  appInfo.startTime = taosGetTimestampMs();
-  appInfo.pInstMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  tscCrashReportInit();
+  
   tscDebug("client is initialized successfully");
 }
 

@@ -44,6 +44,7 @@
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
 void syncOneReplicaAdvance(SSyncNode* pSyncNode) {
+  ASSERT(false && "deprecated");
   if (pSyncNode == NULL) {
     sError("pSyncNode is NULL");
     return;
@@ -132,7 +133,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         }
       }
       // cannot commit, even if quorum agree. need check term!
-      if (pEntry->term <= pSyncNode->pRaftStore->currentTerm) {
+      if (pEntry->term <= pSyncNode->raftStore.currentTerm) {
         // update commit index
         newCommitIndex = index;
 
@@ -328,7 +329,7 @@ int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
     SyncIndex commitIndex = indexLikely;
     syncNodeUpdateCommitIndex(ths, commitIndex);
     sTrace("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index: %" PRId64 "", ths->vgId, ths->state,
-           ths->pRaftStore->currentTerm, commitIndex);
+           ths->raftStore.currentTerm, commitIndex);
   }
   return ths->commitIndex;
 }

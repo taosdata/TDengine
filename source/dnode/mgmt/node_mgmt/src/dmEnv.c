@@ -16,9 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 
-static SDnode global = {0};
+static SDnode globalDnode = {0};
 
-SDnode *dmInstance() { return &global; }
+SDnode *dmInstance() { return &globalDnode; }
 
 static int32_t dmCheckRepeatInit(SDnode *pDnode) {
   if (atomic_val_compare_exchange_8(&pDnode->once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
@@ -268,3 +268,8 @@ void dmReportStartup(const char *pName, const char *pDesc) {
   tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
   dDebug("step:%s, %s", pStartup->name, pStartup->desc);
 }
+
+int64_t dmGetClusterId() {
+  return globalDnode.data.clusterId;
+}
+

@@ -1424,6 +1424,18 @@ void createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode) {
   createExprFromOneNode(pExp, pTargetNode->pExpr, pTargetNode->slotId);
 }
 
+SExprInfo* createExpr(SNodeList* pNodeList, int32_t* numOfExprs) {
+  *numOfExprs = LIST_LENGTH(pNodeList);
+  SExprInfo* pExprs = taosMemoryCalloc(*numOfExprs, sizeof(SExprInfo));
+
+  for (int32_t i = 0; i < (*numOfExprs); ++i) {
+    SExprInfo* pExp = &pExprs[i];
+    createExprFromOneNode(pExp, nodesListGetNode(pNodeList, i), i + UD_TAG_COLUMN_INDEX);
+  }
+
+  return pExprs;
+}
+
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs) {
   int32_t numOfFuncs = LIST_LENGTH(pNodeList);
   int32_t numOfGroupKeys = 0;
@@ -1726,8 +1738,10 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
     return w;
   }
 
-  w = getResultRowByPos(pBuf, &pResultRowInfo->cur, false)->win;
-
+  SResultRow* pRow = getResultRowByPos(pBuf, &pResultRowInfo->cur, false);
+  if (pRow) {
+    w = pRow->win;
+  }
   // in case of typical time window, we can calculate time window directly.
   if (w.skey > ts || w.ekey < ts) {
     w = doCalculateTimeWindow(ts, pInterval);

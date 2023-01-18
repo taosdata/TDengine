@@ -137,7 +137,7 @@ int32_t syncNodeOnPreSnapshot(SSyncNode *ths, SyncPreSnapshot *pMsg) {
   SyncPreSnapshotReply *pMsgReply = syncPreSnapshotReplyBuild(ths->vgId);
   pMsgReply->srcId = ths->myRaftId;
   pMsgReply->destId = pMsg->srcId;
-  pMsgReply->term = ths->pRaftStore->currentTerm;
+  pMsgReply->term = ths->raftStore.currentTerm;
 
   SSyncLogStoreData *pData = ths->pLogStore->data;
   SWal              *pWal = pData->pWal;

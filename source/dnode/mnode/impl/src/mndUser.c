@@ -285,14 +285,35 @@ static int32_t mndUserActionInsert(SSdb *pSdb, SUserObj *pUser) {
   return 0;
 }
 
-static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
-  mTrace("user:%s, perform delete action, row:%p", pUser->user, pUser);
+static int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
+  memcpy(pNew, pUser, sizeof(SUserObj));
+  pNew->authVersion++;
+  pNew->updateTime = taosGetTimestampMs();
+
+  taosRLockLatch(&pUser->lock);
+  pNew->readDbs = mndDupDbHash(pUser->readDbs);
+  pNew->writeDbs = mndDupDbHash(pUser->writeDbs);
+  pNew->topics = mndDupTopicHash(pUser->topics);
+  taosRUnLockLatch(&pUser->lock);
+
+  if (pNew->readDbs == NULL || pNew->writeDbs == NULL || pNew->topics == NULL) {
+    return -1;
+  }
+  return 0;
+}
+
+static void mndUserFreeObj(SUserObj *pUser) {
   taosHashCleanup(pUser->readDbs);
   taosHashCleanup(pUser->writeDbs);
   taosHashCleanup(pUser->topics);
   pUser->readDbs = NULL;
   pUser->writeDbs = NULL;
   pUser->topics = NULL;
+}
+
+static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
+  mTrace("user:%s, perform delete action, row:%p", pUser->user, pUser);
+  mndUserFreeObj(pUser);
   return 0;
 }
 
@@ -516,19 +537,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  memcpy(&newUser, pUser, sizeof(SUserObj));
-  newUser.authVersion++;
-  newUser.updateTime = taosGetTimestampMs();
-
-  taosRLockLatch(&pUser->lock);
-  newUser.readDbs = mndDupDbHash(pUser->readDbs);
-  newUser.writeDbs = mndDupDbHash(pUser->writeDbs);
-  newUser.topics = mndDupTopicHash(pUser->topics);
-  taosRUnLockLatch(&pUser->lock);
-
-  if (newUser.readDbs == NULL || newUser.writeDbs == NULL || newUser.topics == NULL) {
-    goto _OVER;
-  }
+  if (mndUserDupObj(pUser, &newUser) != 0) goto _OVER;
 
   if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
     char pass[TSDB_PASSWORD_LEN + 1] = {0};
@@ -654,9 +663,7 @@ _OVER:
 
   mndReleaseUser(pMnode, pOperUser);
   mndReleaseUser(pMnode, pUser);
-  taosHashCleanup(newUser.writeDbs);
-  taosHashCleanup(newUser.readDbs);
-  taosHashCleanup(newUser.topics);
+  mndUserFreeObj(&newUser);
 
   return code;
 }
@@ -884,9 +891,9 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     db = taosHashIterate(pUser->writeDbs, NULL);
     while (db != NULL) {
       cols = 0;
-      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      char             userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+      char userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)userName, false);
 
       char privilege[20] = {0};
@@ -909,9 +916,9 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     char *topic = taosHashIterate(pUser->topics, NULL);
     while (topic != NULL) {
       cols = 0;
-      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      char             userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+      char userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)userName, false);
 
       char privilege[20] = {0};
@@ -1005,5 +1012,76 @@ _OVER:
   *pRspLen = 0;
 
   tFreeSUserAuthBatchRsp(&batchRsp);
+  return code;
+}
+
+int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db) {
+  int32_t   code = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   len = strlen(db) + 1;
+  void     *pIter = NULL;
+  SUserObj *pUser = NULL;
+  SUserObj  newUser = {0};
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
+    if (pIter == NULL) break;
+
+    code = -1;
+    if (mndUserDupObj(pUser, &newUser) != 0) break;
+
+    bool inRead = (taosHashGet(newUser.readDbs, db, len) != NULL);
+    bool inWrite = (taosHashGet(newUser.writeDbs, db, len) != NULL);
+    if (inRead || inWrite) {
+      (void)taosHashRemove(newUser.readDbs, db, len);
+      (void)taosHashRemove(newUser.writeDbs, db, len);
+
+      SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
+      if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) break;
+      (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+    }
+
+    mndUserFreeObj(&newUser);
+    sdbRelease(pSdb, pUser);
+    code = 0;
+  }
+
+  if (pUser != NULL) sdbRelease(pSdb, pUser);
+  if (pIter != NULL) sdbCancelFetch(pSdb, pIter);
+  mndUserFreeObj(&newUser);
+  return code;
+}
+
+int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
+  int32_t   code = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   len = strlen(topic) + 1;
+  void     *pIter = NULL;
+  SUserObj *pUser = NULL;
+  SUserObj  newUser = {0};
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
+    if (pIter == NULL) break;
+
+    code = -1;
+    if (mndUserDupObj(pUser, &newUser) != 0) break;
+
+    bool inTopic = (taosHashGet(newUser.topics, topic, len) != NULL);
+    if (inTopic) {
+      (void)taosHashRemove(newUser.topics, topic, len);
+      SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
+      if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) break;
+      (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+    }
+
+    mndUserFreeObj(&newUser);
+    sdbRelease(pSdb, pUser);
+    code = 0;
+  }
+
+  if (pUser != NULL) sdbRelease(pSdb, pUser);
+  if (pIter != NULL) sdbCancelFetch(pSdb, pIter);
+  mndUserFreeObj(&newUser);
   return code;
 }

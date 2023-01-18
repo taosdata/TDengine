@@ -558,6 +558,10 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
       goto SUBSCRIBE_OVER;
     }
 
+    if (mndCheckTopicPrivilege(pMnode, pMsg->info.conn.user, MND_OPER_SUBSCRIBE, pTopic) != 0) {
+      goto SUBSCRIBE_OVER;
+    }
+
     mndReleaseTopic(pMnode, pTopic);
   }
 
@@ -741,6 +745,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   if (tDecodeSMqConsumerObj(buf, pConsumer) == NULL) {
     goto CM_DECODE_OVER;
   }
+  tmsgUpdateDnodeEpSet(&pConsumer->ep);
 
   terrno = TSDB_CODE_SUCCESS;
 

@@ -18,6 +18,7 @@
 #include "taoserror.h"
 
 #define PROCESS_ITEM 12
+#define uuidLen37 37
 
 typedef struct {
   uint64_t user;
@@ -98,6 +99,9 @@ LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 #include <errno.h>
 #include <libproc.h>
 #include <sys/sysctl.h>
+#include <SystemConfiguration/SCDynamicStoreCopySpecific.h>
+#include <CoreFoundation/CFString.h>
+#include <stdio.h>
 
 #else
 
@@ -246,7 +250,7 @@ void taosGetSystemInfo() {
 
 int32_t taosGetEmail(char *email, int32_t maxLen) {
 #ifdef WINDOWS
-  // assert(0);
+  // ASSERT(0);
 #elif defined(_TD_DARWIN_64)
   const char *filepath = "/usr/local/taos/email";
 
@@ -831,7 +835,8 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   return 0;
 #elif defined(_TD_DARWIN_64)
   uuid_t uuid = {0};
-  char   buf[37] = {0};
+  char   buf[uuidLen37];
+  memset(buf, 0, uuidLen37);
   uuid_generate(uuid);
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
   uuid_unparse_lower(uuid, buf);
@@ -860,7 +865,7 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
 
 char *taosGetCmdlineByPID(int pid) {
 #ifdef WINDOWS
-  assert(0);
+  ASSERT(0);
   return "";
 #elif defined(_TD_DARWIN_64)
   static char cmdline[1024];
@@ -1007,6 +1012,11 @@ SysNameInfo taosGetSysNameInfo() {
     tstrncpy(info.machine, uts.machine, sizeof(info.machine));
   }
 
+  char     localHostName[512];
+  taosGetlocalhostname(localHostName, 512);
+  TdCmdPtr pCmd = taosOpenCmd("scutil --get LocalHostName");
+  tstrncpy(info.nodename, localHostName, sizeof(info.nodename));
+
   return info;
 #else
   SysNameInfo info = {0};
@@ -1040,5 +1050,48 @@ bool taosCheckCurrentInDll() {
   return false;
 #else
   return false;
+#endif
+}
+
+#ifdef _TD_DARWIN_64
+int taosGetMaclocalhostnameByCommand(char *hostname, size_t maxLen) {
+  TdCmdPtr pCmd = taosOpenCmd("scutil --get LocalHostName");
+  if (pCmd != NULL) {
+    if (taosGetsCmd(pCmd, maxLen - 1, hostname) > 0) {
+      int len = strlen(hostname);
+      if (hostname[len - 1] == '\n') {
+        hostname[len - 1] = '\0';
+      }
+      return 0;
+    }
+    taosCloseCmd(&pCmd);
+  }
+  return -1;
+}
+
+int getMacLocalHostNameBySCD(char *hostname, size_t maxLen) {
+  SCDynamicStoreRef store = SCDynamicStoreCreate(NULL, CFSTR(""), NULL, NULL);
+  CFStringRef       hostname_cfstr = SCDynamicStoreCopyLocalHostName(store);
+  if (hostname_cfstr != NULL) {
+    CFStringGetCString(hostname_cfstr, hostname, maxLen - 1, kCFStringEncodingMacRoman);
+    CFRelease(hostname_cfstr);
+  } else {
+    return -1;
+  }
+  CFRelease(store);
+  return 0;
+}
+#endif
+
+int taosGetlocalhostname(char *hostname, size_t maxLen) {
+#ifdef _TD_DARWIN_64
+  int res = getMacLocalHostNameBySCD(hostname, maxLen);
+  if (res != 0) {
+    return taosGetMaclocalhostnameByCommand(hostname, maxLen);
+  } else {
+    return 0;
+  }
+#else
+  return gethostname(hostname, maxLen);
 #endif
 }
