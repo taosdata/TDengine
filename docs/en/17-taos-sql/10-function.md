@@ -662,7 +662,7 @@ SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE 
 
 **Return value type**: TIMESTAMP
 
-**Applicable tables**: table, STable, outter in nested query
+**Applicable tables**: table, STable, outer in nested query
 
 **Explanations**：
 - `field_name` parameter can only be the first column of a table, i.e. timestamp primary key.
