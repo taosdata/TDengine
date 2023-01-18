@@ -294,6 +294,16 @@ struct SSchema {
   char     name[TSDB_COL_NAME_LEN];
 };
 
+struct SSchema2 {
+  int8_t   type;
+  int8_t   flags;
+  col_id_t colId;
+  int32_t  bytes;
+  char     name[TSDB_COL_NAME_LEN];
+  char     alias[TSDB_COL_NAME_LEN];
+
+}
+
 typedef struct {
   char     tbName[TSDB_TABLE_NAME_LEN];
   char     stbName[TSDB_TABLE_NAME_LEN];
@@ -349,10 +359,11 @@ void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 <<<<<<< HEAD
 #define IS_BSMA_ON(s) (((s)->flags & 0x01) == COL_SMA_ON)
 #define IS_IDX_ON(s)  (((s)->flags & 0x2) == COL_IDX_ON)
-=======
+    == == ==
+    =
 #define IS_BSMA_ON(s)  (((s)->flags & 0x01) == COL_SMA_ON)
 #define IS_SET_NULL(s) (((s)->flags & COL_SET_NULL) == COL_SET_NULL)
->>>>>>> origin/3.0
+        >>>>>>> origin / 3.0
 
 #define SSCHMEA_TYPE(s)  ((s)->type)
 #define SSCHMEA_FLAGS(s) ((s)->flags)
@@ -360,7 +371,7 @@ void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define SSCHMEA_BYTES(s) ((s)->bytes)
 #define SSCHMEA_NAME(s)  ((s)->name)
 
-typedef struct {
+                    typedef struct {
   int32_t  nCols;
   int32_t  version;
   SSchema* pSchema;
@@ -1796,7 +1807,7 @@ typedef struct {
   // 3.0.2.3
   int8_t   createStb;
   uint64_t targetStbUid;
-  SArray*  fillNullCols; // array of SColLocation
+  SArray*  fillNullCols;  // array of SColLocation
 } SCMCreateStreamReq;
 
 typedef struct {
