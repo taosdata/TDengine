@@ -33,7 +33,7 @@ Add following ItemGroup and Task to your project file.
     </ItemGroup>
     <Copy SourceFiles="@(DepDLLFiles)" DestinationFolder="$(OutDir)" />
   </Target>
-||||||| eeb4065670
+
 dotnet add package TDengine.Connector
 ```
 
