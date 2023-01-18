@@ -23,7 +23,7 @@ Helm 会使用 kubectl 和 kubeconfig 的配置来操作 Kubernetes，可以参�
 TDengine Chart 尚未发布到 Helm 仓库，当前可以从 GitHub 直接下载：
 
 ```bash
-wget https://github.com/taosdata/TDengine-Operator/raw/3.0/helm/tdengine-3.0.0.tgz
+wget https://github.com/taosdata/TDengine-Operator/raw/3.0/helm/tdengine-3.0.2.tgz
 
 ```
 
@@ -39,7 +39,7 @@ kubectl get storageclass
 之后，使用 helm 命令安装：
 
 ```bash
-helm install tdengine tdengine-3.0.0.tgz \
+helm install tdengine tdengine-3.0.2.tgz \
   --set storage.className=<your storage class name>
 
 ```
@@ -47,7 +47,7 @@ helm install tdengine tdengine-3.0.0.tgz \
 在 minikube 环境下，可以设置一个较小的容量避免超出磁盘可用空间：
 
 ```bash
-helm install tdengine tdengine-3.0.0.tgz \
+helm install tdengine tdengine-3.0.2.tgz \
   --set storage.className=standard \
   --set storage.dataSize=2Gi \
   --set storage.logSize=10Mi
@@ -84,14 +84,14 @@ TDengine 支持 `values.yaml` 自定义。
 通过 helm show values 可以获取 TDengine Chart 支持的全部 values 列表：
 
 ```bash
-helm show values tdengine-3.0.0.tgz
+helm show values tdengine-3.0.2.tgz
 
 ```
 
 你可以将结果保存为 values.yaml，之后可以修改其中的各项参数，如 replica 数量，存储类名称，容量大小，TDengine 配置等，然后使用如下命令安装 TDengine 集群：
 
 ```bash
-helm install tdengine tdengine-3.0.0.tgz -f values.yaml
+helm install tdengine tdengine-3.0.2.tgz -f values.yaml
 
 ```
 
@@ -108,7 +108,7 @@ image:
   prefix: tdengine/tdengine
   #pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-#  tag: "3.0.0.0"
+#  tag: "3.0.2.0"
 
 service:
   # ClusterIP is the default service type, use NodeIP only if you know what you are doing.
