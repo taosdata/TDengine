@@ -491,6 +491,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     pInfo->pCur = metaOpenTbCursor(pInfo->readHandle.meta);
   }
 
+  bool blockFull = false;
   while ((ret = metaTbCursorNext(pInfo->pCur)) == 0) {
     if (pInfo->pCur->mr.me.type != TSDB_CHILD_TABLE) {
       continue;
@@ -512,17 +513,24 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       T_LONG_JMP(pTaskInfo->env, terrno);
     }
 
-    sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows, dataBlock);
-
+    if ((smrSuperTable.me.stbEntry.schemaTag.nCols + numOfRows) > pOperator->resultInfo.capacity) {
+      metaTbCursorPrev(pInfo->pCur);
+      blockFull = true;
+    } else {
+      sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows, dataBlock);
+    }
+    
     metaReaderClear(&smrSuperTable);
 
-    if (numOfRows >= pOperator->resultInfo.capacity) {
+    if (blockFull || numOfRows >= pOperator->resultInfo.capacity) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
       numOfRows = 0;
 
       if (pInfo->pRes->info.rows > 0) {
         break;
       }
+
+      blockFull = false;
     }
   }
 
