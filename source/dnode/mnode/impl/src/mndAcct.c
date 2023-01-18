@@ -48,6 +48,7 @@ int32_t mndInitAcct(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_ACCT, mndProcessAlterAcctReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_ACCT, mndProcessDropAcctReq);
 
+  return 0;
   return sdbSetTable(pMnode->pSdb, table);
 }
 
