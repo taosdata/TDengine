@@ -1941,7 +1941,9 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
   size_t numOfNode = taosArrayGetSize(colList);
   for(int32_t k = 0; k < numOfNode; ++k) {
     SColIndex* pIndex = taosArrayGet(colList, k);
-    if (TSDB_COL_IS_TAG(pIndex->flag)) {
+
+    if (TSDB_COL_IS_TAG(pIndex->flag) || (strcasecmp(pIndex->name, TSQL_TBNAME_L) == 0 && pQueryInfo->pUpstream &&
+                                          taosArrayGetSize(pQueryInfo->pUpstream) == 0)) {
       tExprTreeDestroy(pNode, NULL);
       taosArrayDestroy(&colList);
 
@@ -3986,9 +3988,7 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
   const char* msg1 = "invalid column name";
 
   int16_t tsWinColumnIndex;
-  if (isTablenameToken(pToken)) {
-    pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
-  } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n &&
+  if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n &&
             strncmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
   } else if (isTimeWindowToken(pToken, &tsWinColumnIndex)) {
@@ -4013,6 +4013,11 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
       if (colIndex != COLUMN_INDEX_INITIAL_VAL) {
         pIndex->columnIndex = colIndex;
       }
+    }
+
+    // check tbname
+    if(pIndex->columnIndex == COLUMN_INDEX_INITIAL_VAL && isTablenameToken(pToken)) {
+      pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
     }
 
     if (pIndex->columnIndex == COLUMN_INDEX_INITIAL_VAL) {
