@@ -29,6 +29,7 @@ extern "C" {
 
 typedef struct SBuffer  SBuffer;
 typedef struct SSchema  SSchema;
+typedef struct SSchema2 SSchema2;
 typedef struct STColumn STColumn;
 typedef struct STSchema STSchema;
 typedef struct SValue   SValue;
@@ -146,9 +147,9 @@ extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max,
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind);
 void    tColDataSortMerge(SArray *colDataArr);
 
-//for raw block
-int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes,
-                                    int32_t nRows, char* lengthOrbitmap, char *data);
+// for raw block
+int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
+                                    char *data);
 // for encode/decode
 int32_t tPutColData(uint8_t *pBuf, SColData *pColData);
 int32_t tGetColData(uint8_t *pBuf, SColData *pColData);
