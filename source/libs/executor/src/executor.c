@@ -24,13 +24,14 @@
 static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
 int32_t             exchangeObjRefPool = -1;
 
-static void initRefPool() { 
-  exchangeObjRefPool = taosOpenRef(1024, doDestroyExchangeOperatorInfo);   
-  atexit(cleanupRefPool);
-}
 static void cleanupRefPool() {
   int32_t ref = atomic_val_compare_exchange_32(&exchangeObjRefPool, exchangeObjRefPool, 0);
   taosCloseRef(ref);
+}
+
+static void initRefPool() { 
+  exchangeObjRefPool = taosOpenRef(1024, doDestroyExchangeOperatorInfo);   
+  atexit(cleanupRefPool);
 }
 
 static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id) {
