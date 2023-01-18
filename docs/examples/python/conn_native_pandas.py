@@ -2,7 +2,7 @@ import pandas
 from sqlalchemy import create_engine
 
 engine = create_engine("taos://root:taosdata@localhost:6030/power")
-df = pandas.read_sql("SELECT * FROM meters", engine)
+df = pandas.read_sql("SELECT * FROM power.meters", engine)
 
 # print index
 print(df.index)

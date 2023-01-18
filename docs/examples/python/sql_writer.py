@@ -10,6 +10,7 @@ class SQLWriter:
         self._tb_tags = {}
         self._conn = get_connection_func()
         self._max_sql_length = self.get_max_sql_length()
+        self._conn.execute("create database if not exists test")
         self._conn.execute("USE test")
 
     def get_max_sql_length(self):
@@ -88,3 +89,12 @@ class SQLWriter:
         except BaseException as e:
             self.log.error("Execute SQL: %s", sql)
             raise e
+
+if __name__ == '__main__':
+    def get_connection_func():
+        conn = taos.connect()
+        return conn
+
+    writer = SQLWriter(get_connection_func = get_connection_func)
+    writer.execute_sql("create stable meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int)")
+    writer.execute_sql("INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32)")
