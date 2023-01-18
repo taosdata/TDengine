@@ -128,7 +128,7 @@ int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
   return 0;
 }
 
-SSyncRaftEntry* syncLogAppendEntriesToRaftEntry(const SyncAppendEntries* pMsg) {
+SSyncRaftEntry* syncBuildRaftEntryFromAppendEntries(const SyncAppendEntries* pMsg) {
   SSyncRaftEntry* pEntry = taosMemoryMalloc(pMsg->dataLen);
   if (pEntry == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -159,17 +159,17 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   // prepare response msg
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
-  pReply->term = ths->pRaftStore->currentTerm;
+  pReply->term = ths->raftStore.currentTerm;
   pReply->success = false;
   pReply->matchIndex = SYNC_INDEX_INVALID;
   pReply->lastSendIndex = pMsg->prevLogIndex + 1;
   pReply->startTime = ths->startTime;
 
-  if (pMsg->term < ths->pRaftStore->currentTerm) {
+  if (pMsg->term < ths->raftStore.currentTerm) {
     goto _SEND_RESPONSE;
   }
 
-  if (pMsg->term > ths->pRaftStore->currentTerm) {
+  if (pMsg->term > ths->raftStore.currentTerm) {
     pReply->term = pMsg->term;
   }
 
@@ -182,7 +182,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
-  SSyncRaftEntry* pEntry = syncLogAppendEntriesToRaftEntry(pMsg);
+  SSyncRaftEntry* pEntry = syncBuildRaftEntryFromAppendEntries(pMsg);
 
   if (pEntry == NULL) {
     sError("vgId:%d, failed to get raft entry from append entries since %s", ths->vgId, terrstr());
@@ -253,19 +253,19 @@ int32_t syncNodeOnAppendEntriesOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncAppendEntriesReply* pReply = rpcRsp.pCont;
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
-  pReply->term = ths->pRaftStore->currentTerm;
+  pReply->term = ths->raftStore.currentTerm;
   pReply->success = false;
   // pReply->matchIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
   pReply->matchIndex = SYNC_INDEX_INVALID;
   pReply->lastSendIndex = pMsg->prevLogIndex + 1;
   pReply->startTime = ths->startTime;
 
-  if (pMsg->term < ths->pRaftStore->currentTerm) {
+  if (pMsg->term < ths->raftStore.currentTerm) {
     syncLogRecvAppendEntries(ths, pMsg, "reject, small term");
     goto _SEND_RESPONSE;
   }
 
-  if (pMsg->term > ths->pRaftStore->currentTerm) {
+  if (pMsg->term > ths->raftStore.currentTerm) {
     pReply->term = pMsg->term;
   }
 

@@ -268,6 +268,105 @@ if $data10 != tbn-t2 then
 endi
 
 
+print ===== step5
+print ===== tag name + table name
+
+sql create database result4 vgroups 1;
+
+sql create database test4  vgroups 4;
+sql use test4;
+
+
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql create table t3 using st tags(3,3,3);
+
+sql create stream streams4 trigger at_once  into result4.streamt4 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", tbname)) as select  _wstart, count(*) c1 from st partition by concat("tag-", tbname) as dd, tbname interval(10s);
+sql insert into t1 values(1648791213000,1,1,1) t2 values(1648791213000,2,2,2) t3 values(1648791213000,3,3,3);
+
+
+$loop_count = 0
+loop7:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select table_name from information_schema.ins_tables where db_name="result4" order by 1;
+
+if $rows != 3 then
+  print =====rows=$rows
+  print $data00 $data10
+  goto loop7
+endi
+
+if $data00 != tbn-t1 then
+  print =====data00=$data00
+  goto loop7
+endi
+
+if $data10 != tbn-t2 then
+  print =====data10=$data10
+  goto loop7
+endi
+
+if $data20 != tbn-t3 then
+  print =====data20=$data20
+  goto loop7
+endi
+
+$loop_count = 0
+loop8:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from result4.streamt4 order by 3;
+
+if $rows != 3 then
+  print =====rows=$rows
+  print $data00 $data10
+  goto loop8
+endi
+
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop8
+endi
+
+if $data02 != tag-t1 then
+  print =====data02=$data02
+  goto loop8
+endi
+
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop8
+endi
+
+if $data12 != tag-t2 then
+  print =====data12=$data12
+  goto loop8
+endi
+
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop8
+endi
+
+if $data22 != tag-t3 then
+  print =====data22=$data22
+  goto loop8
+endi
+
 print ======over
 
 system sh/stop_dnodes.sh

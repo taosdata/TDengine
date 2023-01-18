@@ -134,6 +134,21 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
     return NULL;
   }
 
+  // save vnode info on dnode ep changed
+  bool      updated = false;
+  SSyncCfg *pCfg = &info.config.syncCfg;
+  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+    SNodeInfo *pNode = &pCfg->nodeInfo[i];
+    if (tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort)) {
+      updated = true;
+    }
+  }
+  if (updated) {
+    vInfo("vgId:%d, save vnode info since dnode info changed", info.config.vgId);
+    (void)vnodeSaveInfo(dir, &info);
+    (void)vnodeCommitInfo(dir, &info);
+  }
+
   // create handle
   pVnode = taosMemoryCalloc(1, sizeof(*pVnode) + strlen(path) + 1);
   if (pVnode == NULL) {

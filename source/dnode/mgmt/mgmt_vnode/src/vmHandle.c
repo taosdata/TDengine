@@ -137,7 +137,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     pNode->nodeId = pCreate->replicas[i].id;
     pNode->nodePort = pCreate->replicas[i].port;
     tstrncpy(pNode->nodeFqdn, pCreate->replicas[i].fqdn, TSDB_FQDN_LEN);
-    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
   }
 }
 
@@ -157,6 +157,7 @@ static int32_t vmTsmaAdjustDays(SVnodeCfg *pCfg, SCreateVnodeReq *pReq) {
   return 0;
 }
 
+#if 0
 static int32_t vmTsmaProcessCreate(SVnode *pVnode, SCreateVnodeReq *pReq) {
   if (pReq->isTsma) {
     SMsgHead *smaMsg = pReq->pTsma;
@@ -165,6 +166,7 @@ static int32_t vmTsmaProcessCreate(SVnode *pVnode, SCreateVnodeReq *pReq) {
   }
   return 0;
 }
+#endif
 
 int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SCreateVnodeReq req = {0};
@@ -245,12 +247,14 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     goto _OVER;
   }
 
+#if 0
   code = vmTsmaProcessCreate(pImpl, &req);
   if (code != 0) {
     dError("vgId:%d, failed to create tsma since %s", req.vgId, terrstr());
     code = terrno;
     goto _OVER;
   }
+#endif
 
   code = vnodeStart(pImpl);
   if (code != 0) {
