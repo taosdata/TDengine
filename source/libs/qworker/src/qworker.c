@@ -1188,6 +1188,9 @@ void qWorkerStopAllTasks(void *qWorkerMgmt) {
   uint64_t qId, tId, sId;
   int32_t  eId;
   int64_t  rId = 0;
+  
+  atomic_store_8(&mgmt->nodeStopped, 1);
+
   void    *pIter = taosHashIterate(mgmt->ctxHash, NULL);
   while (pIter) {
     SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
