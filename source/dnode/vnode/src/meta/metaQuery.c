@@ -152,7 +152,7 @@ bool metaIsTableExist(SMeta *pMeta, tb_uid_t uid) {
 }
 
 int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
-  SMeta *pMeta = pReader->pMeta;
+  SMeta  *pMeta = pReader->pMeta;
   int64_t version1;
 
   // query uid.idx
@@ -238,7 +238,6 @@ int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
 
   return 0;
 }
-
 
 int metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid) {
   int         code = 0;
@@ -756,9 +755,7 @@ int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
   return pMeta->pVnode->config.vndStats.numOfTimeSeries + pMeta->pVnode->config.vndStats.numOfNTimeSeries;
 }
 
-int64_t metaGetNtbNum(SMeta *pMeta) {
-  return pMeta->pVnode->config.vndStats.numOfNTables;
-}
+int64_t metaGetNtbNum(SMeta *pMeta) { return pMeta->pVnode->config.vndStats.numOfNTables; }
 
 typedef struct {
   SMeta   *pMeta;
@@ -1095,7 +1092,7 @@ int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) 
   if (tdbTbcMoveTo(pCursor->pCur, &ctimeKey, sizeof(ctimeKey), &cmp) < 0) {
     goto END;
   }
-
+  int     count = 0;
   int32_t valid = 0;
   while (1) {
     void   *entryKey = NULL;
@@ -1108,12 +1105,15 @@ int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) 
     int32_t cmp = (*param->filterFunc)((void *)&p->ctime, (void *)&pCtimeKey->ctime, param->type);
     if (cmp == 0) taosArrayPush(pUids, &p->uid);
 
-    if (param->reverse == false) {
-      if (cmp == -1) break;
-    } else if (param->reverse) {
-      if (cmp == 1) break;
+    if (count >= 2) {
+      if (param->reverse == false) {
+        if (cmp == -1) break;
+      } else if (param->reverse) {
+        if (cmp == 1) break;
+      }
     }
 
+    count++;
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) break;
   }
@@ -1151,7 +1151,7 @@ int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   if (tdbTbcMoveTo(pCursor->pCur, pName, strlen(pName) + 1, &cmp) < 0) {
     goto END;
   }
-  bool    first = true;
+  int    count = 0;
   int32_t valid = 0;
   while (1) {
     void   *pEntryKey = NULL, *pEntryVal = NULL;
@@ -1165,10 +1165,12 @@ int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       tb_uid_t tuid = *(tb_uid_t *)pEntryVal;
       taosArrayPush(pUids, &tuid);
     } else if (cmp == 1) {
+      if (count >= 2) break;
       // next
     } else {
-      break;
+      if (count >= 2) break;
     }
+    count++;
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) {
       break;
@@ -1274,6 +1276,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   }
 
   bool    first = true;
+  int     count = 0;
   int32_t valid = 0;
   while (1) {
     void   *entryKey = NULL, *entryVal = NULL;
@@ -1284,21 +1287,14 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       tdbFree(entryVal);
       break;
     }
+
     STagIdxKey *p = entryKey;
     if (p == NULL) break;
-    if (p->type != pCursor->type) {
-      if (first) {
-        valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
-        if (valid < 0) break;
-        continue;
-      } else {
+    if (count >= 2) {
+      if (p->type != pCursor->type || p->suid != pKey->suid) {
         break;
       }
     }
-    if (p->suid != pKey->suid) {
-      break;
-    }
-    first = false;
     int32_t cmp = (*param->filterFunc)(p->data, pKey->data, pKey->type);
     if (cmp == 0) {
       // match
@@ -1310,11 +1306,14 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       }
       taosArrayPush(pUids, &tuid);
     } else if (cmp == 1) {
+      if (count >= 2) break;
       // not match but should continue to iter
     } else {
       // not match and no more result
-      break;
+      if (count >= 2) break;
     }
+
+    count++;
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) {
       break;
