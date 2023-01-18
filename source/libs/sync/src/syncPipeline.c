@@ -364,7 +364,11 @@ _out:
   return ret;
 }
 
-int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
+static inline bool syncLogStoreNeedFlush(SSyncRaftEntry* pEntry, int32_t replicaNum) {
+  return (replicaNum > 1) && (pEntry->originalRpcType == TDMT_VND_COMMIT);
+}
+
+int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncNode* pNode, SSyncRaftEntry* pEntry) {
   ASSERT(pEntry->index >= 0);
   SyncIndex lastVer = pLogStore->syncLogLastIndex(pLogStore);
   if (lastVer >= pEntry->index && pLogStore->syncLogTruncate(pLogStore, pEntry->index) < 0) {
@@ -374,7 +378,8 @@ int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   lastVer = pLogStore->syncLogLastIndex(pLogStore);
   ASSERT(pEntry->index == lastVer + 1);
 
-  if (pLogStore->syncLogAppendEntry(pLogStore, pEntry) < 0) {
+  bool doFsync = syncLogStoreNeedFlush(pEntry, pNode->replicaNum);
+  if (pLogStore->syncLogAppendEntry(pLogStore, pEntry, doFsync) < 0) {
     sError("failed to append sync log entry since %s. index:%" PRId64 ", term:%" PRId64 "", terrstr(), pEntry->index,
            pEntry->term);
     return -1;
@@ -436,7 +441,7 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
     (void)syncNodeReplicateWithoutLock(pNode);
 
     // persist
-    if (syncLogStorePersist(pLogStore, pEntry) < 0) {
+    if (syncLogStorePersist(pLogStore, pNode, pEntry) < 0) {
       sError("vgId:%d, failed to persist sync log entry from buffer since %s. index:%" PRId64, pNode->vgId, terrstr(),
              pEntry->index);
       goto _out;
