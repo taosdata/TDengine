@@ -24,7 +24,10 @@
 static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
 int32_t             exchangeObjRefPool = -1;
 
-static void initRefPool() { exchangeObjRefPool = taosOpenRef(1024, doDestroyExchangeOperatorInfo); }
+static void initRefPool() { 
+  exchangeObjRefPool = taosOpenRef(1024, doDestroyExchangeOperatorInfo);   
+  atexit(cleanupRefPool);
+}
 static void cleanupRefPool() {
   int32_t ref = atomic_val_compare_exchange_32(&exchangeObjRefPool, exchangeObjRefPool, 0);
   taosCloseRef(ref);
@@ -442,7 +445,6 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 
   taosThreadOnce(&initPoolOnce, initRefPool);
-  atexit(cleanupRefPool);
 
   qDebug("start to create subplan task, TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, pSubplan->id.queryId);
 
