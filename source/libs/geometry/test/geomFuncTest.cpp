@@ -25,7 +25,7 @@ void setColumnInfo(SColumnInfo* info, int32_t colId, int32_t type, int32_t bytes
   info->bytes = bytes;
 }
 
-void setScalarParam(SScalarParam* sclParam, int32_t type, void* val[], int32_t rowNum) {
+void setScalarParam(SScalarParam* sclParam, int32_t type, void* valueArray, int32_t rowNum) {
   int32_t bytes = 0;
   switch (type) {
     case TSDB_DATA_TYPE_TINYINT: {
@@ -52,8 +52,12 @@ void setScalarParam(SScalarParam* sclParam, int32_t type, void* val[], int32_t r
       bytes = sizeof(double);
       break;
     }
-    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARCHAR: {
+      bytes = TSDB_MAX_BINARY_LEN;
+      break;
+    }
     case TSDB_DATA_TYPE_GEOMETRY: {
+      bytes = TSDB_MAX_GEOMETRY_LEN;
       break;
     }
     default: {
@@ -68,16 +72,11 @@ void setScalarParam(SScalarParam* sclParam, int32_t type, void* val[], int32_t r
   setColumnInfo(&sclParam->columnData->info, 0, type, bytes);
   colInfoDataEnsureCapacity(sclParam->columnData, rowNum);
 
-  if (val) {
+  if (valueArray) {
     for (int32_t i = 0; i < rowNum; ++i) {
-      colDataAppend(sclParam->columnData, i, (const char *)val[i], false);
+      colDataAppend(sclParam->columnData, i, (const char *)valueArray + (i * bytes), false);
     }
   }
-}
-
-void makeOneScalarParam(SScalarParam **pSclParam, int32_t type, void* val[], int32_t rowNum) {
-  *pSclParam = (SScalarParam *)taosMemoryCalloc(1, sizeof(SScalarParam));
-  setScalarParam(*pSclParam, type, val, rowNum);
 }
 
 void destroyScalarParam(SScalarParam *sclParam, int32_t colNum) {
@@ -88,14 +87,20 @@ void destroyScalarParam(SScalarParam *sclParam, int32_t colNum) {
   taosMemoryFree(sclParam);
 }
 
-void* makeVarStr(const char* szString) {
-  int32_t strSize = strlen(szString);
-  void* varString = taosMemoryCalloc(1, strSize + VARSTR_HEADER_SIZE);
+void makeOneScalarParam(SScalarParam **pSclParam, int32_t type, void* valueArray, int32_t rowNum) {
+  *pSclParam = (SScalarParam *)taosMemoryCalloc(1, sizeof(SScalarParam));
+  setScalarParam(*pSclParam, type, valueArray, rowNum);
+}
 
-  memcpy(varDataVal(varString), szString, strSize);
-  varDataSetLen(varString, strSize);
+void outputGeomParamByGeomFromText(void* strArray, int32_t rowNum, SScalarParam **pOutputGeomFromText) {
+  SScalarParam* pInputGeomFromText;
+  makeOneScalarParam(&pInputGeomFromText, TSDB_DATA_TYPE_VARCHAR, strArray, rowNum);
+  makeOneScalarParam(pOutputGeomFromText, TSDB_DATA_TYPE_GEOMETRY, 0, rowNum);
 
-  return varString;
+  int32_t code = geomFromTextFunction(pInputGeomFromText, 1, *pOutputGeomFromText);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  destroyScalarParam(pInputGeomFromText, 1);
 }
 
 bool compareVarData(unsigned char *input1, unsigned char *input2) {
@@ -109,7 +114,16 @@ bool compareVarData(unsigned char *input1, unsigned char *input2) {
   return (memcmp(varDataVal(input1), varDataVal(input2), varDataLen(input1)) == 0);
 }
 
-void CallMakePointAndCompareResult(SScalarParam *pInputMakePoint, int32_t rowNum, SScalarParam* pOutputGeomFromText) {
+void callMakePointAndCompareResult(int32_t type1, void* valueArray1, bool isConstant1,
+                                   int32_t type2, void* valueArray2, bool isConstant2,
+                                   int32_t rowNum, SScalarParam* pOutputGeomFromText) {
+  int32_t rowNum1 = isConstant1 ? 1 : rowNum;
+  int32_t rowNum2 = isConstant2 ? 1 : rowNum;
+
+  SScalarParam* pInputMakePoint = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  setScalarParam(pInputMakePoint, type1, valueArray1, rowNum1);
+  setScalarParam(pInputMakePoint + 1, type2, valueArray2, rowNum2);
+
   SScalarParam *pOutputMakePoint;
   makeOneScalarParam(&pOutputMakePoint, TSDB_DATA_TYPE_GEOMETRY, 0, rowNum);
 
@@ -118,7 +132,7 @@ void CallMakePointAndCompareResult(SScalarParam *pInputMakePoint, int32_t rowNum
 
   for (int32_t i = 0; i < rowNum; ++i) {
     bool res = compareVarData((unsigned char *)colDataGetData(pOutputMakePoint->columnData, i),
-                               (unsigned char *)colDataGetData(pOutputGeomFromText->columnData, i));
+                              (unsigned char *)colDataGetData(pOutputGeomFromText->columnData, i));
     ASSERT_EQ(res, true);
   }
 
@@ -126,68 +140,86 @@ void CallMakePointAndCompareResult(SScalarParam *pInputMakePoint, int32_t rowNum
   destroyScalarParam(pOutputMakePoint, 1);
 }
 
-// compare geometry results of MakePoint() and GeomFromText(<POINT>)
-TEST(GeomFuncTest, makePointFunction) {
-  SScalarParam *pInputMakePoint;
-  SScalarParam *pOutputGeomFromText;
+#define MAKE_POINT_FIRST_COLUMN_VALUES {2, 3, -4}
+#define MAKE_POINT_SECOND_COLUMN_VALUES {5, -6, -7}
+
+TEST(GeomFuncTest, makePointFunctionTwoColumns) {
   int32_t rowNum = 3;
-  void* paramVal[rowNum];
+  SScalarParam* pOutputGeomFromText;
 
   // call GeomFromText(<POINT>) and generate pOutputGeomFromText to compare later
-  SScalarParam *pInputGeomFromText;
-  paramVal[0] = makeVarStr("POINT(2.0 3.0)");
-  paramVal[1] = makeVarStr("POINT(3.0 3.0)");
-  paramVal[2] = makeVarStr("POINT(4.0 3.0)");
-  makeOneScalarParam(&pInputGeomFromText, TSDB_DATA_TYPE_VARCHAR, paramVal, rowNum);
-  makeOneScalarParam(&pOutputGeomFromText, TSDB_DATA_TYPE_GEOMETRY, 0, rowNum);
-  for (int32_t i = 0; i < rowNum; ++i) {
-    taosMemoryFree(paramVal[i]);
-  }
-  int32_t code = geomFromTextFunction(pInputGeomFromText, 1, pOutputGeomFromText);
-  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  destroyScalarParam(pInputGeomFromText, 1);
+  char strArray[rowNum][TSDB_MAX_BINARY_LEN];
+  STR_TO_VARSTR(strArray[0], "POINT(2.0 5.0)");
+  STR_TO_VARSTR(strArray[1], "POINT(3.0 -6.0)");
+  STR_TO_VARSTR(strArray[2], "POINT(-4.0 -7.0)");
+  outputGeomParamByGeomFromText(strArray, rowNum, &pOutputGeomFromText);
 
-  // call MakePoint() with TINYINT, and compare with result of GeomFromText(<POINT>) 
-  int8_t valTinyInt[2][rowNum] = {{2, 3, 4}, {3, 3, 3}};
-  pInputMakePoint = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
-  for (int32_t i = 0; i < rowNum; ++i) {
-    paramVal[i] = &valTinyInt[0][i];
-  }
-  setScalarParam(pInputMakePoint, TSDB_DATA_TYPE_TINYINT, paramVal, rowNum);
-  for (int32_t i = 0; i < rowNum; ++i) {
-    paramVal[i] = &valTinyInt[1][i];
-  }
-  setScalarParam(pInputMakePoint + 1, TSDB_DATA_TYPE_TINYINT, paramVal, rowNum);
-  CallMakePointAndCompareResult(pInputMakePoint, rowNum, pOutputGeomFromText);
+  // call MakePoint() with TINYINT and SMALLINT, and compare with result of GeomFromText(<POINT>) 
+  int8_t tinyIntArray1[rowNum] = MAKE_POINT_FIRST_COLUMN_VALUES;
+  int16_t smallIntArray2[rowNum] = MAKE_POINT_SECOND_COLUMN_VALUES;
+  callMakePointAndCompareResult(TSDB_DATA_TYPE_TINYINT, tinyIntArray1, false,
+                                TSDB_DATA_TYPE_SMALLINT, smallIntArray2, false,
+                                rowNum, pOutputGeomFromText);
 
-  // call MakePoint() with FLOAT, and compare with result of GeomFromText(<POINT>)
-  float valFloat[2][rowNum] = {{2.0, 3.0, 4.0}, {3.0, 3.0, 3.0}};
-  pInputMakePoint = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
-  for (int32_t i = 0; i < rowNum; ++i) {
-    paramVal[i] = &valFloat[0][i];
-  }
-  setScalarParam(pInputMakePoint, TSDB_DATA_TYPE_FLOAT, paramVal, rowNum);
-  for (int32_t i = 0; i < rowNum; ++i) {
-    paramVal[i] = &valFloat[1][i];
-  }
-  setScalarParam(pInputMakePoint + 1, TSDB_DATA_TYPE_FLOAT, paramVal, rowNum);
-  CallMakePointAndCompareResult(pInputMakePoint, rowNum, pOutputGeomFromText);
+  // call MakePoint() with INT and BIGINT, and compare with result of GeomFromText(<POINT>) 
+  int32_t intArray1[rowNum] = MAKE_POINT_FIRST_COLUMN_VALUES;
+  int64_t bigIntArray2[rowNum] = MAKE_POINT_SECOND_COLUMN_VALUES;
+  callMakePointAndCompareResult(TSDB_DATA_TYPE_INT, intArray1, false,
+                                TSDB_DATA_TYPE_BIGINT, bigIntArray2, false,
+                                rowNum, pOutputGeomFromText);
 
-  // call MakePoint() with TINYINT AND FLOAT, and compare with result of GeomFromText(<POINT>)
-  int8_t val1TinyInt[] = {2, 3, 4};
-  float  val2Float[] = {3.0, 3.0, 3.0};
-  pInputMakePoint = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
-  for (int32_t i = 0; i < rowNum; ++i) {
-    paramVal[i] = &val1TinyInt[i];
-  }
-  setScalarParam(pInputMakePoint + 0, TSDB_DATA_TYPE_TINYINT, paramVal, rowNum);
-  for (int32_t i = 0; i < rowNum; ++i) {
-    paramVal[i] = &val2Float[i];
-  }
-  setScalarParam(pInputMakePoint + 1, TSDB_DATA_TYPE_FLOAT, paramVal, rowNum);
-  CallMakePointAndCompareResult(pInputMakePoint, rowNum, pOutputGeomFromText);
+  // call MakePoint() with FLOAT and DOUBLE, and compare with result of GeomFromText(<POINT>)
+  float floatArray1[rowNum] = MAKE_POINT_FIRST_COLUMN_VALUES;
+  double doubleArray2[rowNum] = MAKE_POINT_SECOND_COLUMN_VALUES;
+  callMakePointAndCompareResult(TSDB_DATA_TYPE_FLOAT, floatArray1, false,
+                                TSDB_DATA_TYPE_DOUBLE, doubleArray2, false,
+                                rowNum, pOutputGeomFromText);
 
   destroyScalarParam(pOutputGeomFromText, 1);
+}
+
+TEST(GeomFuncTest, makePointFunctionLeftConstant) {
+  int32_t rowNum = 3;
+  SScalarParam* pOutputGeomFromText;
+
+  // call GeomFromText(<POINT>) and generate pOutputGeomFromText to compare later
+  char strArray[rowNum][TSDB_MAX_BINARY_LEN];
+  STR_TO_VARSTR(strArray[0], "POINT(3.0 5.0)");
+  STR_TO_VARSTR(strArray[1], "POINT(3.0 -6.0)");
+  STR_TO_VARSTR(strArray[2], "POINT(3.0 -7.0)");
+  outputGeomParamByGeomFromText(strArray, rowNum, &pOutputGeomFromText);
+
+  // call MakePoint() with TINYINT constant and BIGINT, and compare with result of GeomFromText(<POINT>) 
+  int8_t constantValue = 3;
+  int64_t bigIntArrayArray[rowNum] = MAKE_POINT_SECOND_COLUMN_VALUES;
+  callMakePointAndCompareResult(TSDB_DATA_TYPE_TINYINT, &constantValue, true,
+                                TSDB_DATA_TYPE_BIGINT, bigIntArrayArray, false,
+                                rowNum, pOutputGeomFromText);
+}
+
+TEST(GeomFuncTest, makePointFunctionRightConstant) {
+  int32_t rowNum = 3;
+  SScalarParam* pOutputGeomFromText;
+
+  // call GeomFromText(<POINT>) and generate pOutputGeomFromText to compare later
+  char strArray[rowNum][TSDB_MAX_BINARY_LEN];
+  STR_TO_VARSTR(strArray[0], "POINT(2.0 3.0)");
+  STR_TO_VARSTR(strArray[1], "POINT(3.0 3.0)");
+  STR_TO_VARSTR(strArray[2], "POINT(-4.0 3.0)");
+  outputGeomParamByGeomFromText(strArray, rowNum, &pOutputGeomFromText);
+
+  // call MakePoint() with INT and FLOAT constant, and compare with result of GeomFromText(<POINT>) 
+  int32_t intArray[rowNum] = MAKE_POINT_FIRST_COLUMN_VALUES;
+  float constantValue = 3;
+  callMakePointAndCompareResult(TSDB_DATA_TYPE_INT, intArray, false,
+                                TSDB_DATA_TYPE_FLOAT, &constantValue, true,
+                                rowNum, pOutputGeomFromText);
+}
+
+TEST(GeomFuncTest, makePointFunctionWithLeftNull) {
+}
+
+TEST(GeomFuncTest, makePointFunctionWithRightNull) {
 }
 
 int main(int argc, char **argv) {
