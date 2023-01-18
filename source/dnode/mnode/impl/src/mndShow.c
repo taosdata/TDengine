@@ -19,6 +19,7 @@
 #include "systable.h"
 
 #define SHOW_STEP_SIZE 100
+#define SHOW_COLS_STEP_SIZE 4096
 
 static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq);
 static void      mndFreeShowObj(SShowObj *pShow);
@@ -76,6 +77,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_TABLE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_TAGS, len) == 0) {
     type = TSDB_MGMT_TABLE_TAG;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, len) == 0) {
+    type = TSDB_MGMT_TABLE_COL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_TABLE_DISTRIBUTED, len) == 0) {
     //    type = TSDB_MGMT_TABLE_DIST;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USERS, len) == 0) {
@@ -111,7 +114,7 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_PRIVILEGES, len) == 0) {
     type = TSDB_MGMT_TABLE_PRIVILEGES;
   } else {
-    //    ASSERT(0);
+    mError("invalid show name:%s len:%d", name, len);
   }
 
   return type;
@@ -131,6 +134,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   showObj.pMnode = pMnode;
   showObj.type = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
   memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
+  strncpy(showObj.filterTb, pReq->filterTb, TSDB_TABLE_NAME_LEN);
 
   int32_t   keepTime = tsShellActivityTimer * 6 * 1000;
   SShowObj *pShow = taosCachePut(pMgmt->cache, &showId, sizeof(int64_t), &showObj, size, keepTime);
@@ -190,12 +194,14 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   int32_t    rowsToRead = SHOW_STEP_SIZE;
   int32_t    size = 0;
   int32_t    rowsRead = 0;
-
+  mDebug("mndProcessRetrieveSysTableReq start");
   SRetrieveTableReq retrieveReq = {0};
   if (tDeserializeSRetrieveTableReq(pReq->pCont, pReq->contLen, &retrieveReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
+
+  mDebug("mndProcessRetrieveSysTableReq tb:%s", retrieveReq.tb);
 
   if (retrieveReq.showId == 0) {
     STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
@@ -226,6 +232,9 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
   }
 
+  if(pShow->type == TSDB_MGMT_TABLE_COL){   // expend capacity for ins_columns
+    rowsToRead = SHOW_COLS_STEP_SIZE;
+  }
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
   if (retrieveFp == NULL) {
     mndReleaseShowObj(pShow, false);

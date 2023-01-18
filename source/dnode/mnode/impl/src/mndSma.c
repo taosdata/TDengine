@@ -202,11 +202,13 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("sma:%s, failed to decode from raw:%p since %s", pSma == NULL ? "null" : pSma->name, pRaw, terrstr());
-    taosMemoryFreeClear(pSma->expr);
-    taosMemoryFreeClear(pSma->tagsFilter);
-    taosMemoryFreeClear(pSma->sql);
-    taosMemoryFreeClear(pSma->ast);
+    if (pSma != NULL) {
+      mError("sma:%s, failed to decode from raw:%p since %s", pSma->name, pRaw, terrstr());
+      taosMemoryFreeClear(pSma->expr);
+      taosMemoryFreeClear(pSma->tagsFilter);
+      taosMemoryFreeClear(pSma->sql);
+      taosMemoryFreeClear(pSma->ast);
+    }
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -457,8 +459,10 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
 
   int32_t contLen = 0;
   void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
-  taosMemoryFreeClear(pSmaReq);
-  if (pReq == NULL) return -1;
+  if (pReq == NULL) {
+    taosMemoryFreeClear(pSmaReq);
+    return -1;
+  }
 
   action.pCont = pReq;
   action.contLen = contLen;
@@ -466,7 +470,18 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   action.acceptableCode = TSDB_CODE_VND_ALREADY_EXIST;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFreeClear(pSmaReq);
     taosMemoryFree(pReq);
+    return -1;
+  }
+
+  action.pCont = pSmaReq;
+  action.contLen = smaContLen;
+  action.msgType = TDMT_VND_CREATE_SMA;
+  action.acceptableCode = TSDB_CODE_TSMA_ALREADY_EXIST;
+
+  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFreeClear(pSmaReq);
     return -1;
   }
 
@@ -488,7 +503,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   memcpy(smaObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   smaObj.createdTime = taosGetTimestampMs();
   smaObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
-  ASSERT(smaObj.uid != 0);
+
   char resultTbName[TSDB_TABLE_FNAME_LEN + 16] = {0};
   snprintf(resultTbName, TSDB_TABLE_FNAME_LEN + 16, "%s_td_tsma_rst_tb", pCreate->name);
   memcpy(smaObj.dstTbName, resultTbName, TSDB_TABLE_FNAME_LEN);
@@ -558,13 +573,15 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
 
   SNode *pAst = NULL;
   if (nodesStringToNode(streamObj.ast, &pAst) < 0) {
-    ASSERT(0);
+    terrno = TSDB_CODE_MND_INVALID_SMA_OPTION;
+    mError("sma:%s, failed to create since parse ast error", smaObj.name);
     return -1;
   }
 
   // extract output schema from ast
   if (qExtractResultSchema(pAst, (int32_t *)&streamObj.outputSchema.nCols, &streamObj.outputSchema.pSchema) != 0) {
-    ASSERT(0);
+    terrno = TSDB_CODE_MND_INVALID_SMA_OPTION;
+    mError("sma:%s, failed to create since extract result schema error", smaObj.name);
     return -1;
   }
 
@@ -579,15 +596,18 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   };
 
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
-    ASSERT(0);
+    terrno = TSDB_CODE_MND_INVALID_SMA_OPTION;
+    mError("sma:%s, failed to create since create query plan error", smaObj.name);
     return -1;
   }
 
   // save physcial plan
   if (nodesNodeToString((SNode *)pPlan, false, &streamObj.physicalPlan, NULL) != 0) {
-    ASSERT(0);
+    terrno = TSDB_CODE_MND_INVALID_SMA_OPTION;
+    mError("sma:%s, failed to create since save physcial plan error", smaObj.name);
     return -1;
   }
+
   if (pAst != NULL) nodesDestroyNode(pAst);
   nodesDestroyNode((SNode *)pPlan);
 
@@ -826,14 +846,13 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
     if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
       mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
       sdbRelease(pMnode->pSdb, pStream);
-      ASSERT(0);
       goto _OVER;
     }
 
     // drop stream
     if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
+      mError("stream:%s, failed to drop log since %s", pStream->name, terrstr());
       sdbRelease(pMnode->pSdb, pStream);
-      ASSERT(0);
       goto _OVER;
     }
   }

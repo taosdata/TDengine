@@ -134,6 +134,24 @@ taos --dump-config
 | 取值范围 | 1-200000                                     |
 | 缺省值   | 30                                           |
 
+### telemetryReporting
+
+| 属性     | 说明                                         |
+| -------- | -------------------------------------------- |
+| 适用范围 | 仅服务端适用                                 |
+| 含义     |是否上传 telemetry |
+| 取值范围 | 0,1   0: 不上传；1：上传                                   |
+| 缺省值   | 1                                           |
+
+### crashReporting
+
+| 属性     | 说明                                         |
+| -------- | -------------------------------------------- |
+| 适用范围 | 仅服务端适用                                 |
+| 含义     |是否上传 crash 信息 |
+| 取值范围 | 0,1   0: 不上传；1：上传                                   |
+| 缺省值   | 1                                           |
+
 ## 查询相关
 
 ### queryPolicy
@@ -698,7 +716,7 @@ charset 的有效值是 UTF-8。
 | 2  |   numOfThreadsPerCore   | 是              | 否              | 有其它参数设置多种线程池的大小                    |
 | 3  |       numOfMnodes       | 是              | 否              | 通过 create mnode 命令动态创建 mnode              |
 | 4  |        vnodeBak         | 是              | 否              | 3.0 行为未知                                      |
-| 5  |         balance         | 是              | 否              | 负载均衡功能由 split/merge vgroups 实现           |
+| 5  |         balance         | 是              | 否              | 负载均衡功能由 split/merge vgroups 实现 （暂不支持）           |
 | 6  |     balanceInterval     | 是              | 否              | 随着 balance 参数失效                             |
 | 7  |    offlineThreshold     | 是              | 否              | 3.0 行为未知                                      |
 | 8  |          role           | 是              | 否              | 由 supportVnode 决定是否能够创建                  |

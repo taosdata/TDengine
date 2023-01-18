@@ -269,6 +269,7 @@ static SKeyword keywordTable[] = {
     {"_WDURATION",           TK_WDURATION},
     {"_WEND",                TK_WEND},
     {"_WSTART",              TK_WSTART},
+    {"ALIVE",                TK_ALIVE},
 };
 // clang-format on
 
@@ -713,15 +714,4 @@ void taosCleanupKeywordsTable() {
   if (m != NULL && atomic_val_compare_exchange_ptr(&keywordHashTable, m, 0) == m) {
     taosHashCleanup(m);
   }
-}
-
-SToken taosTokenDup(SToken* pToken, char* buf, int32_t len) {
-  assert(pToken != NULL && buf != NULL && len > pToken->n);
-
-  strncpy(buf, pToken->z, pToken->n);
-  buf[pToken->n] = 0;
-
-  SToken token = *pToken;
-  token.z = buf;
-  return token;
 }

@@ -329,6 +329,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       action.pRaw = NULL;
     } else if (action.actionType == TRANS_ACTION_MSG) {
       SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), _OVER);
+      tmsgUpdateDnodeEpSet(&action.epSet);
       SDB_GET_INT16(pRaw, dataPos, &action.msgType, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgSent*/, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgReceived*/, _OVER)
@@ -957,7 +958,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   for (int32_t i = 0; i < size; ++i) {
     SRpcHandleInfo *pInfo = taosArrayGet(pTrans->pRpcArray, i);
     if (pInfo->handle != NULL) {
-      if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+      if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED) {
         code = TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL;
       }
       if (code == TSDB_CODE_SYN_TIMEOUT) {

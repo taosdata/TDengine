@@ -53,7 +53,7 @@ cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
     cJSON *pReplicas = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "replicas", pReplicas);
     for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-      cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pSyncIndexMgr->replicas))[i]));
+      // cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pSyncIndexMgr->replicas))[i]));
     }
 
     {
@@ -76,7 +76,7 @@ cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
       cJSON_AddItemToObject(pRoot, "privateTerm", pIndex);
     }
 
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncIndexMgr->pSyncNode);
+    // snprintf(u64buf, sizeof(u64buf), "%p", pSyncIndexMgr->pSyncNode);
     cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
   }
 

@@ -154,6 +154,8 @@ void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);
  */
 int32_t qAsyncKillTask(qTaskInfo_t tinfo, int32_t rspCode);
 
+bool qTaskIsExecuting(qTaskInfo_t qinfo);
+
 /**
  * destroy query info structure
  * @param qHandle
@@ -216,6 +218,7 @@ int32_t qStreamSourceRecoverStep2(qTaskInfo_t tinfo, int64_t ver);
 int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
 int32_t qStreamRestoreParam(qTaskInfo_t tinfo);
 bool    qStreamRecoverScanFinished(qTaskInfo_t tinfo);
+void    qStreamCloseTsdbReader(void* task);
 
 #ifdef __cplusplus
 }

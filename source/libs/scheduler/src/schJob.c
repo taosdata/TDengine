@@ -668,6 +668,7 @@ void schFreeJobImpl(void *job) {
   taosMemoryFreeClear(pJob->userRes.execRes);
   taosMemoryFreeClear(pJob->fetchRes);
   taosMemoryFreeClear(pJob->sql);
+  tsem_destroy(&pJob->rspSem);
   taosMemoryFree(pJob);
 
   int32_t jobNum = atomic_sub_fetch_32(&schMgmt.jobNum, 1);
@@ -748,7 +749,10 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
     SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  tsem_init(&pJob->rspSem, 0, 0);
+  if (tsem_init(&pJob->rspSem, 0, 0)) {
+    SCH_JOB_ELOG("tsem_init failed, errno:%d", errno);
+    SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   pJob->refId = taosAddRef(schMgmt.jobRef, pJob);
   if (pJob->refId < 0) {

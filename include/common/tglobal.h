@@ -55,7 +55,7 @@ extern int32_t tsNumOfMnodeQueryThreads;
 extern int32_t tsNumOfMnodeFetchThreads;
 extern int32_t tsNumOfMnodeReadThreads;
 extern int32_t tsNumOfVnodeQueryThreads;
-extern int32_t tsNumOfVnodeStreamThreads;
+extern float   tsRatioOfVnodeStreamThreads;
 extern int32_t tsNumOfVnodeFetchThreads;
 extern int32_t tsNumOfVnodeRsmaThreads;
 extern int32_t tsNumOfQnodeQueryThreads;
@@ -68,6 +68,9 @@ extern int64_t tsRpcQueueMemoryAllowed;
 extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
+
+// vnode
+extern int64_t tsVndCommitMaxIntervalMs;
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -82,6 +85,10 @@ extern bool     tsEnableTelem;
 extern int32_t  tsTelemInterval;
 extern char     tsTelemServer[];
 extern uint16_t tsTelemPort;
+extern bool     tsEnableCrashReport;
+extern char*    tsTelemUri;
+extern char*    tsClientCrashReportUri;
+extern char*    tsSvrCrashReportUri;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing

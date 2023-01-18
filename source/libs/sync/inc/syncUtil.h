@@ -62,22 +62,19 @@ extern "C" {
 
 // clang-format on
 
-uint64_t syncUtilAddr2U64(const char* host, uint16_t port);
-void     syncUtilU642Addr(uint64_t u64, char* host, int64_t len, uint16_t* port);
-void     syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet);
-void     syncUtilRaftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet);
-bool     syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId);
-bool     syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2);
-bool     syncUtilEmptyId(const SRaftId* pId);
+#define CID(pRaftId)     (int32_t)(((pRaftId)->addr) >> 32)
+#define DID(pRaftId)     (int32_t)((pRaftId)->addr)
+#define SYNC_ADDR(pInfo) (int64_t)(((pInfo)->clusterId << 32) | (pInfo)->nodeId)
+
+void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet);
+bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId);
+bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2);
+bool syncUtilEmptyId(const SRaftId* pId);
 
 int32_t     syncUtilElectRandomMS(int32_t min, int32_t max);
 int32_t     syncUtilQuorum(int32_t replicaNum);
-cJSON*      syncUtilRaftId2Json(const SRaftId* p);
 const char* syncStr(ESyncState state);
-char*       syncUtilPrintBin(char* ptr, uint32_t len);
-char*       syncUtilPrintBin2(char* ptr, uint32_t len);
 void        syncUtilMsgHtoN(void* msg);
-void        syncUtilMsgNtoH(void* msg);
 bool        syncUtilUserPreCommit(tmsg_t msgType);
 bool        syncUtilUserRollback(tmsg_t msgType);
 

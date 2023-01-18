@@ -25,7 +25,7 @@ cJSON *voteGranted2Json(SVotesGranted *pVotesGranted) {
     cJSON *pReplicas = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "replicas", pReplicas);
     for (int32_t i = 0; i < pVotesGranted->replicaNum; ++i) {
-      cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pVotesGranted->replicas))[i]));
+      // cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pVotesGranted->replicas))[i]));
     }
     int32_t *arr = (int32_t *)taosMemoryMalloc(sizeof(int32_t) * pVotesGranted->replicaNum);
     for (int32_t i = 0; i < pVotesGranted->replicaNum; ++i) {
@@ -40,7 +40,7 @@ cJSON *voteGranted2Json(SVotesGranted *pVotesGranted) {
     cJSON_AddStringToObject(pRoot, "term", u64buf);
     cJSON_AddNumberToObject(pRoot, "quorum", pVotesGranted->quorum);
     cJSON_AddNumberToObject(pRoot, "toLeader", pVotesGranted->toLeader);
-    snprintf(u64buf, sizeof(u64buf), "%p", pVotesGranted->pSyncNode);
+    snprintf(u64buf, sizeof(u64buf), "%p", pVotesGranted->pNode);
     cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
 
     bool majority = voteGrantedMajority(pVotesGranted);
@@ -68,7 +68,7 @@ cJSON *votesRespond2Json(SVotesRespond *pVotesRespond) {
     cJSON *pReplicas = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "replicas", pReplicas);
     for (int32_t i = 0; i < pVotesRespond->replicaNum; ++i) {
-      cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pVotesRespond->replicas))[i]));
+      // cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pVotesRespond->replicas))[i]));
     }
     int32_t  respondNum = 0;
     int32_t *arr = (int32_t *)taosMemoryMalloc(sizeof(int32_t) * pVotesRespond->replicaNum);
@@ -85,7 +85,7 @@ cJSON *votesRespond2Json(SVotesRespond *pVotesRespond) {
 
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pVotesRespond->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pVotesRespond->pSyncNode);
+    snprintf(u64buf, sizeof(u64buf), "%p", pVotesRespond->pNode);
     cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
   }
 

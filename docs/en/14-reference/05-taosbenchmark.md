@@ -92,7 +92,7 @@ taosBenchmark -f <json file>
 
 </details>
 
-## Command-line argument in detailed
+## Command-line argument in detail
 
 - **-f/--file <json file\>** :
   specify the configuration file to use. This file includes All parameters. Users should not use this parameter with other parameters on the command-line. There is no default value.
@@ -198,7 +198,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-R/--disorder-range <timeRange\>** :
   Specify the timestamp range for the disordered data. It leads the resulting disorder timestamp as the ordered timestamp minus a random value in this range. Valid only if the percentage of disordered data specified by `-O/--disorder` is greater than 0.
 
-- **-F/--prepare_rand <Num\>** :
+- **-F/--prepared_rand <Num\>** :
   Specify the number of unique values in the generated random data. A value of 1 means that all data are equal. The default value is 10000.
 
 - **-a/--replica <replicaNum\>** :
@@ -216,7 +216,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-? /--help** :
   Show help information and exit. Users should not use it with other parameters.
 
-## Configuration file parameters in detailed
+## Configuration file parameters in detail
 
 ### General configuration parameters
 
@@ -380,7 +380,7 @@ The configuration parameters for specifying super table tag columns and data col
 - **num_of_records_per_req** :
   Writing the number of rows of records per request to TDengine, the default value is 30000. When it is set too large, the TDengine client driver will return the corresponding error message, so you need to lower the setting of this parameter to meet the writing requirements.
 
-- **prepare_rand**: The number of unique values in the generated random data. A value of 1 means that all data are equal. The default value is 10000.
+- **prepared_rand**: The number of unique values in the generated random data. A value of 1 means that all data are equal. The default value is 10000.
 
 ### Query scenario configuration parameters
 

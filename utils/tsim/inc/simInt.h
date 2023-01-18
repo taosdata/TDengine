@@ -181,7 +181,7 @@ typedef struct _script_t {
 extern SScript *simScriptList[MAX_MAIN_SCRIPT_NUM];
 extern SCommand simCmdList[];
 extern int32_t  simScriptPos;
-extern int32_t  simScriptSucced;
+extern int32_t  simScriptSucceed;
 extern int32_t  simDebugFlag;
 extern char     simScriptDir[];
 extern bool     abortExecution;

@@ -725,6 +725,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen) {
   SMqVDeleteReq* pReq = (SMqVDeleteReq*)msg;
 
+  tqDebug("vgId:%d, tq process delete sub req %s", pTq->pVnode->config.vgId, pReq->subKey);
+
   taosWLockLatch(&pTq->pushLock);
   int32_t code = taosHashRemove(pTq->pPushMgr, pReq->subKey, strlen(pReq->subKey));
   if (code != 0) {
@@ -791,6 +793,9 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
   SMqRebVgReq req = {0};
   tDecodeSMqRebVgReq(msg, &req);
   // todo lock
+
+  tqDebug("vgId:%d, tq process sub req %s", pTq->pVnode->config.vgId, req.subKey);
+
   STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
   if (pHandle == NULL) {
     if (req.oldConsumerId != -1) {
@@ -881,6 +886,9 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
     atomic_store_64(&pHandle->consumerId, req.newConsumerId);
     atomic_add_fetch_32(&pHandle->epoch, 1);
     taosMemoryFree(req.qmsg);
+    if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+      qStreamCloseTsdbReader(pHandle->execHandle.task);
+    }
     if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
     }
     // close handle
@@ -1014,6 +1022,7 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
     tqError("unable to encode rsp %d", __LINE__);
     return -1;
   }
+
   void* buf = rpcMallocCont(sizeof(SMsgHead) + len);
   ((SMsgHead*)buf)->vgId = htonl(req.upstreamNodeId);
 
@@ -1116,6 +1125,11 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   // do recovery step 1
   streamSourceRecoverScanStep1(pTask);
 
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+    return 0;
+  }
+
   // build msg to launch next step
   SStreamRecoverStep2Req req;
   code = streamBuildSourceRecover2Req(pTask, &req);
@@ -1125,6 +1139,10 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+    return 0;
+  }
 
   // serialize msg
   int32_t len = sizeof(SStreamRecoverStep1Req);
@@ -1162,6 +1180,11 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t version, char* msg, int32_t m
   if (code < 0) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
+  }
+
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+    return 0;
   }
 
   // restore param

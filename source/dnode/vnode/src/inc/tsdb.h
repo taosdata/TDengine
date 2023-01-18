@@ -209,10 +209,10 @@ int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, in
 // tsdbMemTable ==============================================================================================
 // SMemTable
 int32_t  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
-void     tsdbMemTableDestroy(SMemTable *pMemTable);
+void     tsdbMemTableDestroy(SMemTable *pMemTable, bool proactive);
 STbData *tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid);
-void     tsdbRefMemTable(SMemTable *pMemTable);
-void     tsdbUnrefMemTable(SMemTable *pMemTable);
+int32_t  tsdbRefMemTable(SMemTable *pMemTable, SQueryNode *pQNode);
+int32_t  tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode, bool proactive);
 SArray  *tsdbMemTableGetTbDataArray(SMemTable *pMemTable);
 // STbDataIter
 int32_t tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
@@ -290,8 +290,8 @@ int32_t tsdbDelFReaderClose(SDelFReader **ppReader);
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData);
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 // tsdbRead.c ==============================================================================================
-int32_t tsdbTakeReadSnap(STsdb *pTsdb, STsdbReadSnap **ppSnap, const char *id);
-void    tsdbUntakeReadSnap(STsdb *pTsdb, STsdbReadSnap *pSnap, const char *id);
+int32_t tsdbTakeReadSnap(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap);
+void    tsdbUntakeReadSnap(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
 // tsdbMerge.c ==============================================================================================
 int32_t tsdbMerge(STsdb *pTsdb);
 
@@ -371,6 +371,8 @@ struct SMemTable {
   STsdb           *pTsdb;
   SVBufPool       *pPool;
   volatile int32_t nRef;
+  int64_t          minVer;
+  int64_t          maxVer;
   TSKEY            minKey;
   TSKEY            maxKey;
   int64_t          nRow;
@@ -605,9 +607,11 @@ struct SDelFWriter {
 };
 
 struct STsdbReadSnap {
-  SMemTable *pMem;
-  SMemTable *pIMem;
-  STsdbFS    fs;
+  SMemTable  *pMem;
+  SQueryNode *pNode;
+  SMemTable  *pIMem;
+  SQueryNode *pINode;
+  STsdbFS     fs;
 };
 
 struct SDataFWriter {
@@ -726,6 +730,9 @@ void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 
 // tsdbCache ==============================================================================================
 typedef struct SCacheRowsReader {
+  STsdb             *pTsdb;
+  SVersionRange      verRange;
+  TdThreadMutex      readerMutex;
   SVnode            *pVnode;
   STSchema          *pSchema;
   uint64_t           uid;
@@ -785,8 +792,8 @@ static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
-#define SL_NODE_FORWARD(n, l)  ((n)->forwards[l])
-#define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
+// #define SL_NODE_FORWARD(n, l)  ((n)->forwards[l])
+// #define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
 
 static FORCE_INLINE TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
   if (pIter == NULL) return NULL;

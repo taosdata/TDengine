@@ -15,4 +15,11 @@
 
 #include "tq.h"
 
-int tqCommit(STQ* pTq) { return tqOffsetCommitFile(pTq->pOffsetStore); }
+int tqCommit(STQ* pTq) {
+  if (streamMetaCommit(pTq->pStreamMeta) < 0) {
+    tqError("vgId:%d, failed to commit stream meta since %s", TD_VID(pTq->pVnode), terrstr());
+    return -1;
+  }
+
+  return tqOffsetCommitFile(pTq->pOffsetStore);
+}

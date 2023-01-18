@@ -193,6 +193,7 @@ typedef struct {
   int64_t    lastAccessTime;
   int32_t    accessTimes;
   int32_t    numOfVnodes;
+  int32_t    numOfOtherNodes;
   int32_t    numOfSupportVnodes;
   float      numOfCores;
   int64_t    memTotal;
@@ -443,6 +444,7 @@ typedef struct {
   STableMetaRsp* pMeta;
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
+  char           filterTb[TSDB_TABLE_NAME_LEN];
 } SShowObj;
 
 typedef struct {

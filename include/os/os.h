@@ -120,6 +120,7 @@ extern "C" {
 #include "osTimer.h"
 #include "osTimezone.h"
 #include "taoserror.h"
+#include "tlog.h"
 
 #ifdef __cplusplus
 }

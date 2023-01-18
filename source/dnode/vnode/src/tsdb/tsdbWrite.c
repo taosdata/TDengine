@@ -83,8 +83,7 @@ static FORCE_INLINE int tsdbCheckRowRange(STsdb *pTsdb, tb_uid_t uid, TSKEY rowK
     tsdbError("vgId:%d, table uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
               " maxKey %" PRId64 " row key %" PRId64,
               TD_VID(pTsdb->pVnode), uid, now, minKey, maxKey, rowKey);
-    terrno = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
-    return -1;
+    return TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
   }
 
   return 0;
@@ -164,14 +163,12 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
 #endif
 
 int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq2 *pMsg) {
-  ASSERT(pMsg != NULL);
+  int32_t       code = 0;
   STsdbKeepCfg *pCfg = &pTsdb->keepCfg;
   TSKEY         now = taosGetTimestamp(pCfg->precision);
   TSKEY         minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep2;
   TSKEY         maxKey = tsMaxKeyByPrecision[pCfg->precision];
   int32_t       size = taosArrayGetSize(pMsg->aSubmitTbData);
-
-  terrno = TSDB_CODE_SUCCESS;
 
   for (int32_t i = 0; i < size; ++i) {
     SSubmitTbData *pData = TARRAY_GET_ELEM(pMsg->aSubmitTbData, i);
@@ -182,8 +179,8 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq2 *pMsg) {
         int32_t nRows = aColData[0].nVal;
         TSKEY  *aKey = (TSKEY *)aColData[0].pData;
         for (int32_t r = 0; r < nRows; ++r) {
-          if (tsdbCheckRowRange(pTsdb, pData->uid, aKey[r], minKey, maxKey, now) < 0) {
-            return -1;
+          if ((code = tsdbCheckRowRange(pTsdb, pData->uid, aKey[r], minKey, maxKey, now)) < 0) {
+            goto _exit;
           }
         }
       }
@@ -191,13 +188,13 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq2 *pMsg) {
       int32_t nRows = taosArrayGetSize(pData->aRowP);
       for (int32_t r = 0; r < nRows; ++r) {
         SRow *pRow = (SRow *)taosArrayGetP(pData->aRowP, r);
-        if (tsdbCheckRowRange(pTsdb, pData->uid, pRow->ts, minKey, maxKey, now) < 0) {
-          return -1;
+        if ((code = tsdbCheckRowRange(pTsdb, pData->uid, pRow->ts, minKey, maxKey, now)) < 0) {
+          goto _exit;
         }
       }
     }
   }
 
-  if (terrno != TSDB_CODE_SUCCESS) return -1;
-  return 0;
+_exit:
+  return code;
 }
