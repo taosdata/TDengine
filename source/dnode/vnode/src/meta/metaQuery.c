@@ -358,7 +358,6 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur) {
   return 0;
 }
 
-
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
   void           *pData = NULL;
   int             nData = 0;
@@ -1199,7 +1198,6 @@ int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       break;
     }
   }
-
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
   if (pCursor->pCur) tdbTbcClose(pCursor->pCur);
