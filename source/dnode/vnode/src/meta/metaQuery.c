@@ -1304,7 +1304,6 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
 
     valid = tdbTbcGet(pCursor->pCur, (const void **)&entryKey, &nEntryKey, (const void **)&entryVal, &nEntryVal);
     if (valid < 0) {
-      tdbFree(entryVal);
       break;
     }
     STagIdxKey *p = entryKey;
@@ -1314,7 +1313,18 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       if (p->type != pCursor->type || p->suid != pKey->suid) {
         break;
       }
+    } else {
+      count++;
+      if (p->type != pCursor->type) {
+        valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
+        if (valid < 0) {
+          break;
+        } else {
+          continue;
+        }
+      }
     }
+
     int32_t cmp = (*param->filterFunc)(p->data, pKey->data, pKey->type);
     if (cmp == 0) {
       // match
