@@ -767,6 +767,19 @@ function is_version_compatible() {
   esac
 }
 
+rpm_erase() {
+  echo -e -n "${RED} Exist tdengine rpm detected, do you want to remove it? [yes|no]${NC}:"
+  read confirm
+  while true; do
+    if [ "yes" -eq "$confirm" ]; then
+      ${csudo}rpm -e tdengine ||:
+      break
+    else
+      break
+    fi
+  done
+}
+
 function updateProduct() {
   # Check if version compatible
   if ! is_version_compatible; then
@@ -779,6 +792,11 @@ function updateProduct() {
     echo "File ${tarName} does not exist"
     exit 1
   fi
+
+  if echo $osinfo | grep -qwi "centos"; then
+    rpm -q tdengine 2>&1 > /dev/null && rpm_erase tdengine || echo "No exist tdengine rpm detected"
+  fi
+
   tar -zxf ${tarName}
   install_jemalloc
 
