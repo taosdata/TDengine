@@ -940,8 +940,11 @@ int32_t syncNodeLogReplMgrInit(SSyncNode* pNode) {
   for (int i = 0; i < TSDB_MAX_REPLICA; i++) {
     ASSERT(pNode->logReplMgrs[i] == NULL);
     pNode->logReplMgrs[i] = syncLogReplMgrCreate();
+    if (pNode->logReplMgrs[i] == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
     pNode->logReplMgrs[i]->peerId = i;
-    ASSERTS(pNode->logReplMgrs[i] != NULL, "Out of memory.");
   }
   return 0;
 }
