@@ -155,15 +155,15 @@ clusterDomainSuffix: ""
 # See the [Configuration Variables](../../reference/config)
 #
 # Note:
-# 1. firstEp/secondEp: should not be setted here, it's auto generated at scale-up.
-# 2. serverPort: should not be setted, we'll use the default 6030 in many places.
-# 3. fqdn: will be auto generated in kubenetes, user should not care about it.
+# 1. firstEp/secondEp: should not be set here, it's auto generated at scale-up.
+# 2. serverPort: should not be set, we'll use the default 6030 in many places.
+# 3. fqdn: will be auto generated in kubernetes, user should not care about it.
 # 4. role: currently role is not supported - every node is able to be mnode and vnode.
 #
 # Btw, keep quotes "" around the value like below, even the value will be number or not.
 taoscfg:
   # Starts as cluster or not, must be 0 or 1.
-  #   0: all pods will start as a seperate TDengine server
+  #   0: all pods will start as a separate TDengine server
   #   1: pods will start as TDengine server cluster. [default]
   CLUSTER: "1"
 

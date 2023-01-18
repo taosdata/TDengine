@@ -4,7 +4,7 @@ title: 使用 Helm 部署 TDengine 集群
 description: 使用 Helm 部署 TDengine 集群的详细指南
 ---
 
-Helm 是 Kubernetes 的包管理器，上一节使用 Kubernets 部署 TDengine 集群的操作已经足够简单，但 Helm 依然可以提供更强大的能力。
+Helm 是 Kubernetes 的包管理器，上一节使用 Kubernetes 部署 TDengine 集群的操作已经足够简单，但 Helm 依然可以提供更强大的能力。
 
 ## 安装 Helm
 
@@ -156,15 +156,15 @@ clusterDomainSuffix: ""
 # See the variable list at https://www.taosdata.com/cn/documentation/administrator .
 #
 # Note:
-# 1. firstEp/secondEp: should not be setted here, it's auto generated at scale-up.
-# 2. serverPort: should not be setted, we'll use the default 6030 in many places.
-# 3. fqdn: will be auto generated in kubenetes, user should not care about it.
+# 1. firstEp/secondEp: should not be set here, it's auto generated at scale-up.
+# 2. serverPort: should not be set, we'll use the default 6030 in many places.
+# 3. fqdn: will be auto generated in kubernetes, user should not care about it.
 # 4. role: currently role is not supported - every node is able to be mnode and vnode.
 #
 # Btw, keep quotes "" around the value like below, even the value will be number or not.
 taoscfg:
   # Starts as cluster or not, must be 0 or 1.
-  #   0: all pods will start as a seperate TDengine server
+  #   0: all pods will start as a separate TDengine server
   #   1: pods will start as TDengine server cluster. [default]
   CLUSTER: "1"
 
