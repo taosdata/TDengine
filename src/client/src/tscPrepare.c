@@ -723,7 +723,7 @@ static FORCE_INLINE int doBindParam(STableDataBlocks* pBlock, char* data, SParam
             if ((*bind->length) > (uintptr_t)param->bytes) {
               return TSDB_CODE_TSC_INVALID_VALUE;
             }
-            short size = (short)*bind->length;
+            uint16_t size = (uint16_t)*bind->length;
             STR_WITH_SIZE_TO_VARSTR(data + param->offset, bind->buffer, size);
             return TSDB_CODE_SUCCESS;
           }
@@ -777,7 +777,7 @@ static FORCE_INLINE int doBindParam(STableDataBlocks* pBlock, char* data, SParam
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  short size = 0;
+  uint16_t size = 0;
   switch(param->type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
@@ -808,7 +808,7 @@ static FORCE_INLINE int doBindParam(STableDataBlocks* pBlock, char* data, SParam
         tscError("column length is too big");
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
-      size = (short)*pBind->length;
+      size = (uint16_t)*pBind->length;
       STR_WITH_SIZE_TO_VARSTR(data + param->offset, pBind->buffer, size);
       return TSDB_CODE_SUCCESS;
 
