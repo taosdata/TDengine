@@ -33,6 +33,8 @@ Add following ItemGroup and Task to your project file.
     </ItemGroup>
     <Copy SourceFiles="@(DepDLLFiles)" DestinationFolder="$(OutDir)" />
   </Target>
+||||||| eeb4065670
+dotnet add package TDengine.Connector
 ```
 
 ## Config
@@ -50,14 +52,14 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 <TabItem value="cmd" label="CMD">
 
 ```bash
-set TDENGINE_CLOUD_DSN="<DSN>"
+set TDENGINE_CLOUD_DSN=<DSN>
 ```
 
 </TabItem>
 <TabItem value="powershell" label="Powershell">
 
 ```powershell
-$env:TDENGINE_CLOUD_DSN="<DSN>"
+$env:TDENGINE_CLOUD_DSN='<DSN>'
 ```
 
 </TabItem>
