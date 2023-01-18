@@ -2210,7 +2210,8 @@ static int32_t dnodeToVgroupsInfo(SArray* pDnodes, SVgroupsInfo** pVgsInfo) {
 }
 
 static bool sysTableFromVnode(const char* pTable) {
-  return ((0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) || (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)) || (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)));
+  return ((0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) || (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)) ||
+          (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)));
 }
 
 static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES); }
@@ -2278,8 +2279,9 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
     ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
   }
 
-  if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) && !hasUserDbCond) ||
-                                    0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS)) {
+  if (TSDB_CODE_SUCCESS == code &&
+          (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) && !hasUserDbCond) ||
+      0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS)) {
     code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &pVgs);
   }
 
@@ -5804,18 +5806,19 @@ static int32_t setFillNullCols(SArray* pProjColPos, const STableMeta* pMeta, SCM
   if (NULL == pReq->fillNullCols) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  int32_t        indexOfSchema = 0;
   const SSchema* pSchemas = getTableColumnSchema(pMeta);
-  for (int32_t i = 0; i < numOfBoundCols; ++i) {
-    SProjColPos* pPos = taosArrayGet(pProjColPos, i);
-    while (indexOfSchema < pMeta->tableInfo.numOfColumns) {
-      const SSchema* pSchema = pSchemas + indexOfSchema++;
+  int32_t        indexOfBoundCols = 0;
+  for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
+    const SSchema* pSchema = pSchemas + i;
+    if (indexOfBoundCols < numOfBoundCols) {
+      SProjColPos* pPos = taosArrayGet(pProjColPos, indexOfBoundCols);
       if (pSchema->colId == pPos->colId) {
-        break;
+        ++indexOfBoundCols;
+        continue;
       }
-      SColLocation colLoc = {.colId = pSchema->colId, .slotId = indexOfSchema - 1, .type = pSchema->type};
-      taosArrayPush(pReq->fillNullCols, &colLoc);
     }
+    SColLocation colLoc = {.colId = pSchema->colId, .slotId = i, .type = pSchema->type};
+    taosArrayPush(pReq->fillNullCols, &colLoc);
   }
   return TSDB_CODE_SUCCESS;
 }

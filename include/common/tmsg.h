@@ -1789,7 +1789,7 @@ typedef struct {
   // 3.0.2.3
   int8_t   createStb;
   uint64_t targetStbUid;
-  SArray*  fillNullCols;
+  SArray*  fillNullCols; // array of SColLocation
 } SCMCreateStreamReq;
 
 typedef struct {
