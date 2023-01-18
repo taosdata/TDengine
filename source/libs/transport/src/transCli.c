@@ -651,7 +651,6 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
 
-  assert(nread <= 0);
   if (nread == 0) {
     // ref http://docs.libuv.org/en/v1.x/stream.html?highlight=uv_read_start#c.uv_read_cb
     // nread might be 0, which does not indicate an error or EOF. This is equivalent to EAGAIN or EWOULDBLOCK under
@@ -801,7 +800,11 @@ static void cliSendCb(uv_write_t* req, int status) {
 }
 
 void cliSend(SCliConn* pConn) {
-  assert(!transQueueEmpty(&pConn->cliMsgs));
+  bool empty = transQueueEmpty(&pConn->cliMsgs);
+  ASSERTS(empty == false, "trans-cli get invalid msg");
+  if (empty == true) {
+    return;
+  }
 
   SCliMsg* pCliMsg = NULL;
   CONN_GET_NEXT_SENDMSG(pConn);
@@ -933,7 +936,6 @@ void cliConnCb(uv_connect_t* req, int status) {
   transSockInfo2Str(&sockname, pConn->src);
 
   tTrace("%s conn %p connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
-  assert(pConn->stream == req->handle);
 
   cliSend(pConn);
 }
@@ -1124,7 +1126,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
 
     int ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
     if (ret != 0) {
-      tGTrace("%s conn %p failed to connect to %s:%d, reason:%s", pTransInst->label, conn, conn->ip, conn->port,
+      tGError("%s conn %p failed to connect to %s:%d, reason:%s", pTransInst->label, conn, conn->ip, conn->port,
               uv_err_name(ret));
 
       uv_timer_stop(conn->timer);
@@ -1237,7 +1239,7 @@ bool cliRecvReleaseReq(SCliConn* conn, STransMsgHead* pHead) {
     for (int i = 0; ahandle == 0 && i < transQueueSize(&conn->cliMsgs); i++) {
       SCliMsg* cliMsg = transQueueGet(&conn->cliMsgs, i);
       if (cliMsg->type == Release) {
-        assert(pMsg == NULL);
+        ASSERTS(pMsg == NULL, "trans-cli recv invaid release-req");
         return true;
       }
     }
@@ -1665,7 +1667,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   if (pCtx->retryCode != TSDB_CODE_SUCCESS) {
     int32_t code = pResp->code;
     // return internal code app
-    if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED) {
+    if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK ||
+        code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED) {
       pResp->code = pCtx->retryCode;
     }
   }

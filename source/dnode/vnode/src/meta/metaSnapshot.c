@@ -189,7 +189,8 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   SDecoder*  pDecoder = &(SDecoder){0};
 
   tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
-  metaDecodeEntry(pDecoder, &metaEntry);
+  code = metaDecodeEntry(pDecoder, &metaEntry);
+  if (code) goto _err;
 
   code = metaHandleEntry(pMeta, &metaEntry);
   if (code) goto _err;
@@ -198,6 +199,7 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   return code;
 
 _err:
+  tDecoderClear(pDecoder);
   metaError("vgId:%d, vnode snapshot meta write failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
   return code;
 }

@@ -161,13 +161,13 @@ print dnode1 openVnodes $data(1)[2]
 print dnode3 openVnodes $data(3)[2]
 print dnode4 openVnodes $data(4)[2]
 print dnode5 openVnodes $data(5)[2]
-if $data(1)[2] != 2 then
+if $data(1)[2] != 3 then
 	return -1
 endi
 if $data(3)[2] != 3 then
 	return -1
 endi
-if $data(4)[2] != 4 then
+if $data(4)[2] != 3 then
 	return -1
 endi
 if $data(5)[2] != 3 then

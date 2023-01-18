@@ -101,6 +101,64 @@ static void vnodeHandleProposeError(SVnode *pVnode, SRpcMsg *pMsg, int32_t code)
   }
 }
 
+static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak) {
+  int64_t seq = 0;
+
+  taosThreadMutexLock(&pVnode->lock);
+  int32_t code = syncPropose(pVnode->sync, pMsg, isWeak, &seq);
+  bool    wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
+  if (wait) {
+    ASSERT(!pVnode->blocked);
+    pVnode->blocked = true;
+    pVnode->blockSec = taosGetTimestampSec();
+    pVnode->blockSeq = seq;
+#if 0
+    pVnode->blockInfo = pMsg->info;
+#endif
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
+
+  if (code > 0) {
+    vnodeHandleWriteMsg(pVnode, pMsg);
+  } else if (code < 0) {
+    if (terrno != 0) code = terrno;
+    vnodeHandleProposeError(pVnode, pMsg, code);
+  }
+
+  if (wait) vnodeWaitBlockMsg(pVnode, pMsg);
+  return code;
+}
+
+void vnodeProposeCommitOnNeed(SVnode *pVnode) {
+  if (!vnodeShouldCommit(pVnode)) {
+    return;
+  }
+
+  int32_t   contLen = sizeof(SMsgHead);
+  SMsgHead *pHead = rpcMallocCont(contLen);
+  pHead->contLen = contLen;
+  pHead->vgId = pVnode->config.vgId;
+
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.msgType = TDMT_VND_COMMIT;
+  rpcMsg.contLen = contLen;
+  rpcMsg.pCont = pHead;
+  rpcMsg.info.noResp = 1;
+
+  bool isWeak = false;
+  if (vnodeProposeMsg(pVnode, &rpcMsg, isWeak) < 0) {
+    vTrace("vgId:%d, failed to propose vnode commit since %s", pVnode->config.vgId, terrstr());
+    goto _out;
+  }
+
+  vInfo("vgId:%d, proposed vnode commit", pVnode->config.vgId);
+
+_out:
+  vnodeUpdCommitSched(pVnode);
+  rpcFreeCont(rpcMsg.pCont);
+  rpcMsg.pCont = NULL;
+}
+
 #if BATCH_ENABLE
 
 static void inline vnodeProposeBatchMsg(SVnode *pVnode, SRpcMsg **pMsgArr, bool *pIsWeakArr, int32_t *arrSize) {
@@ -178,6 +236,8 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
       continue;
     }
 
+    vnodeProposeCommitOnNeed(pVnode);
+
     code = vnodePreProcessWriteMsg(pVnode, pMsg);
     if (code != 0) {
       vGError("vgId:%d, msg:%p failed to pre-process since %s", vgId, pMsg, terrstr());
@@ -205,34 +265,6 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
 
 #else
 
-static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak) {
-  int64_t seq = 0;
-
-  taosThreadMutexLock(&pVnode->lock);
-  int32_t code = syncPropose(pVnode->sync, pMsg, isWeak, &seq);
-  bool    wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
-  if (wait) {
-    ASSERT(!pVnode->blocked);
-    pVnode->blocked = true;
-    pVnode->blockSec = taosGetTimestampSec();
-    pVnode->blockSeq = seq;
-#if 0
-    pVnode->blockInfo = pMsg->info;
-#endif
-  }
-  taosThreadMutexUnlock(&pVnode->lock);
-
-  if (code > 0) {
-    vnodeHandleWriteMsg(pVnode, pMsg);
-  } else if (code < 0) {
-    if (terrno != 0) code = terrno;
-    vnodeHandleProposeError(pVnode, pMsg, code);
-  }
-
-  if (wait) vnodeWaitBlockMsg(pVnode, pMsg);
-  return code;
-}
-
 void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnode  *pVnode = pInfo->ahandle;
   int32_t  vgId = pVnode->config.vgId;
@@ -255,6 +287,8 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
       taosFreeQitem(pMsg);
       continue;
     }
+
+    vnodeProposeCommitOnNeed(pVnode);
 
     code = vnodePreProcessWriteMsg(pVnode, pMsg);
     if (code != 0) {
@@ -578,7 +612,8 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   vInfo("vgId:%d, start to open sync, replica:%d selfIndex:%d", pVnode->config.vgId, pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
-    vInfo("vgId:%d, index:%d ep:%s:%u", pVnode->config.vgId, i, pNode->nodeFqdn, pNode->nodePort);
+    vInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pVnode->config.vgId, i, pNode->nodeFqdn, pNode->nodePort,
+          pNode->nodeId, pNode->clusterId);
   }
 
   pVnode->sync = syncOpen(&syncInfo);
@@ -611,6 +646,11 @@ void vnodeSyncPreClose(SVnode *pVnode) {
     tsem_post(&pVnode->syncSem);
   }
   taosThreadMutexUnlock(&pVnode->lock);
+}
+
+void vnodeSyncPostClose(SVnode *pVnode) {
+  vInfo("vgId:%d, post close sync", pVnode->config.vgId);
+  syncPostStop(pVnode->sync);
 }
 
 void vnodeSyncClose(SVnode *pVnode) {

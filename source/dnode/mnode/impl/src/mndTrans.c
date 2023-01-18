@@ -329,6 +329,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       action.pRaw = NULL;
     } else if (action.actionType == TRANS_ACTION_MSG) {
       SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), _OVER);
+      tmsgUpdateDnodeEpSet(&action.epSet);
       SDB_GET_INT16(pRaw, dataPos, &action.msgType, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgSent*/, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgReceived*/, _OVER)

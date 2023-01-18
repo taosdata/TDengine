@@ -872,6 +872,7 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   }
 
   pAgg->mergeDataBlock = (GROUP_ACTION_KEEP == pAggLogicNode->node.groupAction ? false : true);
+  pAgg->groupKeyOptimized = pAggLogicNode->hasGroupKeyOptimized;
 
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pGroupKeys = NULL;

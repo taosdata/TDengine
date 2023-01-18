@@ -32,11 +32,9 @@ typedef struct SyncRequestVoteReply   SyncRequestVoteReply;
 typedef struct SyncAppendEntries      SyncAppendEntries;
 typedef struct SyncAppendEntriesReply SyncAppendEntriesReply;
 typedef struct SSyncEnv               SSyncEnv;
-typedef struct SRaftStore             SRaftStore;
 typedef struct SVotesGranted          SVotesGranted;
 typedef struct SVotesRespond          SVotesRespond;
 typedef struct SSyncIndexMgr          SSyncIndexMgr;
-typedef struct SRaftCfg               SRaftCfg;
 typedef struct SSyncRespMgr           SSyncRespMgr;
 typedef struct SSyncSnapshotSender    SSyncSnapshotSender;
 typedef struct SSyncSnapshotReceiver  SSyncSnapshotReceiver;
@@ -53,10 +51,27 @@ typedef struct SyncPreSnapshot        SyncPreSnapshot;
 typedef struct SSyncLogBuffer         SSyncLogBuffer;
 typedef struct SSyncLogReplMgr        SSyncLogReplMgr;
 
+#define MAX_CONFIG_INDEX_COUNT 256
+
+typedef struct SRaftCfg {
+  SSyncCfg  cfg;
+  int32_t   batchSize;
+  int8_t    isStandBy;
+  int8_t    snapshotStrategy;
+  SyncIndex lastConfigIndex;
+  int32_t   configIndexCount;
+  SyncIndex configIndexArr[MAX_CONFIG_INDEX_COUNT];
+} SRaftCfg;
+
 typedef struct SRaftId {
   SyncNodeId  addr;
   SyncGroupId vgId;
 } SRaftId;
+
+typedef struct SRaftStore {
+  SyncTerm currentTerm;
+  SRaftId  voteFor;
+} SRaftStore;
 
 typedef struct SSyncHbTimerData {
   int64_t     syncNodeRid;
@@ -93,15 +108,15 @@ typedef struct SPeerState {
 typedef struct SSyncNode {
   // init by SSyncInfo
   SyncGroupId vgId;
-  SRaftCfg*   pRaftCfg;
+  SRaftCfg    raftCfg;
   char        path[TSDB_FILENAME_LEN];
   char        raftStorePath[TSDB_FILENAME_LEN * 2];
   char        configPath[TSDB_FILENAME_LEN * 2];
 
   // sync io
   SSyncLogBuffer* pLogBuf;
-  SWal*         pWal;
-  const SMsgCb* msgcb;
+  SWal*           pWal;
+  const SMsgCb*   msgcb;
   int32_t (*syncSendMSg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
   int32_t (*syncEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
   int32_t (*syncEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
@@ -112,6 +127,7 @@ typedef struct SSyncNode {
 
   int32_t   peersNum;
   SNodeInfo peersNodeInfo[TSDB_MAX_REPLICA];
+  SEpSet    peersEpset[TSDB_MAX_REPLICA];
   SRaftId   peersId[TSDB_MAX_REPLICA];
 
   int32_t replicaNum;
@@ -126,8 +142,8 @@ typedef struct SSyncNode {
   int64_t rid;
 
   // tla+ server vars
-  ESyncState  state;
-  SRaftStore* pRaftStore;
+  ESyncState state;
+  SRaftStore raftStore;
 
   // tla+ candidate vars
   SVotesGranted* pVotesGranted;
@@ -215,7 +231,8 @@ int32_t    syncNodeStart(SSyncNode* pSyncNode);
 int32_t    syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
 void       syncNodePreClose(SSyncNode* pSyncNode);
-int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t *seq);
+void       syncNodePostClose(SSyncNode* pSyncNode);
+int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t* seq);
 int32_t    syncNodeRestore(SSyncNode* pSyncNode);
 void       syncHbTimerDataFree(SSyncHbTimerData* pData);
 
@@ -245,7 +262,6 @@ int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode);
 
 // utils --------------
 int32_t   syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-int32_t   syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode);
 int32_t   syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHandle** h);
 bool      syncNodeHeartbeatReplyTimeout(SSyncNode* pSyncNode);

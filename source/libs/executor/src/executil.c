@@ -954,7 +954,7 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
           return -1;
         }
       } else {
-        qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
+//        qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
         terrno = 0;
       }
     }
@@ -1726,8 +1726,10 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
     return w;
   }
 
-  w = getResultRowByPos(pBuf, &pResultRowInfo->cur, false)->win;
-
+  SResultRow* pRow = getResultRowByPos(pBuf, &pResultRowInfo->cur, false);
+  if (pRow) {
+    w = pRow->win;
+  }
   // in case of typical time window, we can calculate time window directly.
   if (w.skey > ts || w.ekey < ts) {
     w = doCalculateTimeWindow(ts, pInterval);

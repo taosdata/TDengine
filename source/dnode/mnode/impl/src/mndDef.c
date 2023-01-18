@@ -489,7 +489,7 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
     tlen += tEncodeSMqConsumerEp(buf, pConsumerEp);
     cnt++;
   }
-  ASSERT(cnt == sz);
+  if(cnt != sz) return -1;
   tlen += taosEncodeArray(buf, pSub->unassignedVgs, (FEncode)tEncodeSMqVgEp);
   tlen += taosEncodeString(buf, pSub->dbName);
   return tlen;

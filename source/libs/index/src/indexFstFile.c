@@ -100,7 +100,7 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
 
   do {
     char key[1024] = {0};
-    assert(strlen(ctx->file.buf) + 1 + 64 < sizeof(key));
+    ASSERT(strlen(ctx->file.buf) + 1 + 64 < sizeof(key));
     idxGenLRUKey(key, ctx->file.buf, blkId);
     LRUHandle* h = taosLRUCacheLookup(ctx->lru, key, strlen(key));
 
@@ -114,7 +114,8 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
       if (left < kBlockSize) {
         nread = TMIN(left, len);
         int32_t bytes = taosPReadFile(ctx->file.pFile, buf + total, nread, offset);
-        assert(bytes == nread);
+        ASSERTS(bytes == nread, "index read incomplete data");
+        if (bytes != nread) break;
 
         total += bytes;
         return total;
@@ -124,7 +125,8 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
         SDataBlock* blk = taosMemoryCalloc(1, cacheMemSize);
         blk->blockId = blkId;
         blk->nread = taosPReadFile(ctx->file.pFile, blk->buf, kBlockSize, blkId * kBlockSize);
-        assert(blk->nread <= kBlockSize);
+        ASSERTS(blk->nread <= kBlockSize, "index read incomplete data");
+        if (blk->nread > kBlockSize) break;
 
         if (blk->nread < kBlockSize && blk->nread < len) {
           taosMemoryFree(blk);
@@ -275,7 +277,10 @@ int idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len) {
   // update checksum
   IFileCtx* ctx = write->wrt;
   int       nWrite = ctx->write(ctx, buf, len);
-  assert(nWrite == len);
+  ASSERTS(nWrite == len, "index write incomplete data");
+  if (nWrite != len) {
+    return -1;
+  }
   write->count += len;
 
   write->summer = taosCalcChecksum(write->summer, buf, len);
@@ -302,7 +307,6 @@ int idxFileFlush(IdxFstFile* write) {
 }
 
 void idxFilePackUintIn(IdxFstFile* writer, uint64_t n, uint8_t nBytes) {
-  assert(1 <= nBytes && nBytes <= 8);
   uint8_t* buf = taosMemoryCalloc(8, sizeof(uint8_t));
   for (uint8_t i = 0; i < nBytes; i++) {
     buf[i] = (uint8_t)n;

@@ -98,8 +98,6 @@ SName* toName(int32_t acctId, const char* pDbName, const char* pTableName, SName
 }
 
 int32_t tNameExtractFullName(const SName* name, char* dst) {
-  assert(name != NULL && dst != NULL);
-
   // invalid full name format, abort
   if (!tNameIsValid(name)) {
     return -1;
@@ -109,7 +107,7 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {
-    /*assert(name->type == TSDB_TABLE_NAME_T);*/
+    /*ASSERT(name->type == TSDB_TABLE_NAME_T);*/
     dst[len] = TS_PATH_DELIMITER[0];
 
     memcpy(dst + len + 1, name->tname, tnameLen);
@@ -120,25 +118,21 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
 }
 
 int32_t tNameLen(const SName* name) {
-  assert(name != NULL);
-
   char    tmp[12] = {0};
   int32_t len = sprintf(tmp, "%d", name->acctId);
   int32_t len1 = (int32_t)strlen(name->dbname);
   int32_t len2 = (int32_t)strlen(name->tname);
 
   if (name->type == TSDB_DB_NAME_T) {
-    assert(len2 == 0);
+    ASSERT(len2 == 0);
     return len + len1 + TSDB_NAME_DELIMITER_LEN;
   } else {
-    assert(len2 > 0);
+    ASSERT(len2 > 0);
     return len + len1 + len2 + TSDB_NAME_DELIMITER_LEN * 2;
   }
 }
 
 bool tNameIsValid(const SName* name) {
-  assert(name != NULL);
-
   if (!VALID_NAME_TYPE(name->type)) {
     return false;
   }
@@ -151,15 +145,12 @@ bool tNameIsValid(const SName* name) {
 }
 
 SName* tNameDup(const SName* name) {
-  assert(name != NULL);
-
   SName* p = taosMemoryMalloc(sizeof(SName));
   memcpy(p, name, sizeof(SName));
   return p;
 }
 
 int32_t tNameGetDbName(const SName* name, char* dst) {
-  assert(name != NULL && dst != NULL);
   strncpy(dst, name->dbname, tListLen(name->dbname));
   return 0;
 }
@@ -167,28 +158,24 @@ int32_t tNameGetDbName(const SName* name, char* dst) {
 const char* tNameGetDbNameP(const SName* name) { return &name->dbname[0]; }
 
 int32_t tNameGetFullDbName(const SName* name, char* dst) {
-  assert(name != NULL && dst != NULL);
   snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
   return 0;
 }
 
 bool tNameIsEmpty(const SName* name) {
-  assert(name != NULL);
   return name->type == 0 || name->acctId == 0;
 }
 
 const char* tNameGetTableName(const SName* name) {
-  assert(name != NULL && name->type == TSDB_TABLE_NAME_T);
+  ASSERT(name != NULL && name->type == TSDB_TABLE_NAME_T);
   return &name->tname[0];
 }
 
 void tNameAssign(SName* dst, const SName* src) { memcpy(dst, src, sizeof(SName)); }
 
 int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t nameLen) {
-  assert(dst != NULL && dbName != NULL && nameLen > 0);
-
   // too long account id or too long db name
-  if (nameLen >= tListLen(dst->dbname)) {
+  if (nameLen <= 0 || nameLen >= tListLen(dst->dbname)) {
     return -1;
   }
 
@@ -199,8 +186,6 @@ int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t name
 }
 
 int32_t tNameAddTbName(SName* dst, const char* tbName, size_t nameLen) {
-  assert(dst != NULL && tbName != NULL && nameLen > 0);
-
   // too long account id or too long db name
   if (nameLen >= tListLen(dst->tname) || nameLen <= 0) {
     return -1;
@@ -212,7 +197,6 @@ int32_t tNameAddTbName(SName* dst, const char* tbName, size_t nameLen) {
 }
 
 int32_t tNameSetAcctId(SName* dst, int32_t acctId) {
-  assert(dst != NULL);
   dst->acctId = acctId;
   return 0;
 }
@@ -247,7 +231,9 @@ bool tNameTbNameEqual(SName* left, SName* right) {
 }
 
 int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
-  assert(dst != NULL && str != NULL && strlen(str) > 0);
+  if (strlen(str) == 0) {
+    return -1;
+  }
 
   char* p = NULL;
   if ((type & T_NAME_ACCT) == T_NAME_ACCT) {
@@ -344,5 +330,4 @@ void buildChildTableName(RandTableName* rName) {
     strcat(rName->ctbShortName, temp);
   }
   taosStringBuilderDestroy(&sb);
-  rName->uid = *(uint64_t*)(context.digest);
 }

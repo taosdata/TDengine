@@ -58,7 +58,25 @@ int vnodeBegin(SVnode *pVnode) {
   return 0;
 }
 
+void vnodeUpdCommitSched(SVnode *pVnode) {
+  int64_t randNum = taosRand();
+  pVnode->commitSched.commitMs = taosGetMonoTimestampMs();
+  pVnode->commitSched.maxWaitMs = tsVndCommitMaxIntervalMs + (randNum % tsVndCommitMaxIntervalMs);
+}
+
 int vnodeShouldCommit(SVnode *pVnode) {
+  if (!pVnode->inUse || !osDataSpaceAvailable()) {
+    return false;
+  }
+
+  SVCommitSched *pSched = &pVnode->commitSched;
+  int64_t nowMs = taosGetMonoTimestampMs();
+
+  return (((pVnode->inUse->size > pVnode->inUse->node.size) && (pSched->commitMs + SYNC_VND_COMMIT_MIN_MS < nowMs)) ||
+          (pVnode->inUse->size > 0 && pSched->commitMs + pSched->maxWaitMs < nowMs));
+}
+
+int vnodeShouldCommitOld(SVnode *pVnode) {
   if (pVnode->inUse) {
     return osDataSpaceAvailable() && (pVnode->inUse->size > pVnode->inUse->node.size);
   }
@@ -105,8 +123,8 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d", pInfo->config.vgId, fname,
-        pInfo->config.syncCfg.replicaNum);
+  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d", pInfo->config.vgId, fname,
+        pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex);
 
   return 0;
 
@@ -206,6 +224,8 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   } else {
     snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
   }
+
+  vDebug("vgId:%d, save config while prepare commit", TD_VID(pVnode));
   if (vnodeSaveInfo(dir, &pInfo->info) < 0) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -245,6 +265,7 @@ _exit:
   taosMemoryFree(pInfo);
   return code;
 }
+
 int vnodeAsyncCommit(SVnode *pVnode) {
   int32_t code = 0;
 
@@ -292,7 +313,9 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   SVnode *pVnode = pInfo->pVnode;
 
   vInfo("vgId:%d, start to commit, commitId:%" PRId64 " version:%" PRId64 " term: %" PRId64, TD_VID(pVnode),
-        pVnode->state.commitID, pVnode->state.applied, pVnode->state.applyTerm);
+        pInfo->info.state.commitID, pInfo->info.state.committed, pInfo->info.state.commitTerm);
+
+  vnodeUpdCommitSched(pVnode);
 
   // persist wal before starting
   if (walPersist(pVnode->pWal) < 0) {
@@ -306,8 +329,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
   }
 
-  // walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
-  syncBeginSnapshot(pVnode->sync, pVnode->state.applied);
+  syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
 
   // commit each sub-system
   code = tsdbCommit(pVnode->pTsdb, pInfo);
@@ -349,7 +371,6 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     return -1;
   }
 
-  // walEndSnapshot(pVnode->pWal);
   syncEndSnapshot(pVnode->sync);
 
 _exit:

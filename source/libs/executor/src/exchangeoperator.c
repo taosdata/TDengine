@@ -373,7 +373,6 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     pRsp->useconds = htobe64(pRsp->useconds);
     pRsp->numOfBlocks = htonl(pRsp->numOfBlocks);
 
-    ASSERT(pRsp != NULL);
     qDebug("%s fetch rsp received, index:%d, blocks:%d, rows:%" PRId64 ", %p", pSourceDataInfo->taskId, index, pRsp->numOfBlocks,
            pRsp->numOfRows, pExchangeInfo);
   } else {
@@ -585,7 +584,13 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   int32_t index = 0;
   int32_t code = 0;
   while (index++ < pRetrieveRsp->numOfBlocks) {
-    SSDataBlock* pb = createOneDataBlock(pExchangeInfo->pDummyBlock, false);
+    SSDataBlock* pb = NULL;
+    if (taosArrayGetSize(pExchangeInfo->pRecycledBlocks) > 0) {
+      pb = *(SSDataBlock**)taosArrayPop(pExchangeInfo->pRecycledBlocks);
+      blockDataCleanup(pb);
+    } else {
+      pb = createOneDataBlock(pExchangeInfo->pDummyBlock, false);
+    }
 
     code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart);
     if (code != 0) {

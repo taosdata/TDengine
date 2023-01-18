@@ -276,8 +276,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST,      "Subcribe not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_OFFSET_NOT_EXIST,         "Offset not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CONSUMER_NOT_READY,       "Consumer not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_SUBSCRIBED,         "Topic subscribed cannot be dropped")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_MUST_BE_DELETED,    "Topic must be dropped first")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CGROUP_USED,              "Consumer group being used by some consumer")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_MUST_BE_DELETED,    "Topic must be dropped first")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SUB_OPTION,       "Invalid subscribe option")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_IN_REBALANCE,             "Topic being rebalanced")
 
 // mnode-stream
@@ -643,13 +644,10 @@ const char* tstrerror(int32_t err) {
   // this is a system errno
   if ((err & 0x00ff0000) == 0x00ff0000) {
     int32_t code = err & 0x0000ffff;
-    if (code >= 0 && code < 36) {
-      return strerror(code);
-    } else {
-      return "unknown err";
-    }
+    // strerror can handle any invalid code
+    // invalid code return Unknown error 
+    return strerror(code);
   }
-
   int32_t s = 0;
   int32_t e = sizeof(errors) / sizeof(errors[0]);
 
