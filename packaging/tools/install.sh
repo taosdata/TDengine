@@ -795,7 +795,7 @@ function updateProduct() {
   fi
 
   if echo $osinfo | grep -qwi "centos"; then
-    rpm -q tdengine 2>&1 > /dev/null && rpm_erase tdengine || echo "No exist tdengine rpm detected"
+    rpm -q tdengine 2>&1 > /dev/null && rpm_erase tdengine ||:
   fi
 
   tar -zxf ${tarName}
