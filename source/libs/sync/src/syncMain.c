@@ -898,7 +898,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   sInfo("vgId:%d, start to open sync node, replica:%d selfIndex:%d", pSyncNode->vgId, pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
     SNodeInfo* pNode = &pCfg->nodeInfo[i];
-    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
     sInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pSyncNode->vgId, i, pNode->nodeFqdn, pNode->nodePort,
           pNode->nodeId, pNode->clusterId);
   }
@@ -1703,8 +1703,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 
 _END:
   // log end config change
-  sNInfo(pSyncNode, "end do config change, from %d to %d", pSyncNode->vgId, oldConfig.replicaNum,
-         pNewConfig->replicaNum);
+  sNInfo(pSyncNode, "end do config change, from %d to %d", oldConfig.replicaNum, pNewConfig->replicaNum);
 }
 
 // raft state change --------------
@@ -2478,7 +2477,7 @@ static int32_t syncNodeAppendNoopOld(SSyncNode* ths) {
   LRUHandle* h = NULL;
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
-    int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
+    int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry, false);
     if (code != 0) {
       sError("append noop error");
       return -1;
@@ -2721,7 +2720,7 @@ int32_t syncNodeOnClientRequestOld(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRe
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     // append entry
-    code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
+    code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry, false);
     if (code != 0) {
       if (ths->replicaNum == 1) {
         if (h) {
