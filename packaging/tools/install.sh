@@ -767,6 +767,20 @@ function is_version_compatible() {
   esac
 }
 
+deb_erase() {
+  confirm=""
+  while [ "" == "${confirm}" ]; do
+    echo -e -n "${RED}Exist tdengine deb detected, do you want to remove it? [yes|no] ${NC}:"
+    read confirm
+    if [ "yes" == "$confirm" ]; then
+      ${csudo}dpkg --remove tdengine ||:
+      break
+    elif [ "no" == "$confirm" ]; then
+      break
+    fi
+  done
+}
+
 rpm_erase() {
   confirm=""
   while [ "" == "${confirm}" ]; do
@@ -796,6 +810,8 @@ function updateProduct() {
 
   if echo $osinfo | grep -qwi "centos"; then
     rpm -q tdengine 2>&1 > /dev/null && rpm_erase tdengine ||:
+  elif echo $osinfo | grep -qwi "ubuntu"; then
+    dpkg -l tdengine 2>&1 > /dev/null && deb_erase tdengine ||:
   fi
 
   tar -zxf ${tarName}
