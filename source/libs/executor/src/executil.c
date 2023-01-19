@@ -1759,6 +1759,11 @@ void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimit
   pLimitInfo->remainGroupOffset = slimit.offset;
 }
 
+void resetLimitInfoForNextGroup(SLimitInfo* pLimitInfo) {
+  pLimitInfo->numOfOutputRows = 0;
+  pLimitInfo->remainOffset = pLimitInfo->limit.offset;
+}
+
 uint64_t tableListGetSize(const STableListInfo* pTableList) {
   ASSERT(taosArrayGetSize(pTableList->pTableList) == taosHashGetSize(pTableList->map));
   return taosArrayGetSize(pTableList->pTableList);
