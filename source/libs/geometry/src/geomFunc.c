@@ -362,19 +362,23 @@ int32_t geomPreparedSwappableFunction(SScalarParam *pInput, SScalarParam *pOutpu
   }
   else {
     // only if two params are from 1 to X, make PreparedGeometry for the one param and call executePreparedFn()
+    int32_t constantIndex = -1;
+    int32_t scalarIndex = -1;
     if (isConstant1 && !isConstant2) { // make first param constant to be PreparedGeometry as input1
-      code = makePreparedGeometry(colDataGetData(pInputData[0], 0), &geom1, &preparedGeom1);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _exit;
-      }
-      pInputData2 = pInputData[1];
+      constantIndex = 0;
+      scalarIndex = 1;
     }
     else if (isConstant2 && !isConstant1) { // make second param constant to be PreparedGeometry as input1 since the two params are swappable
-      code = makePreparedGeometry(colDataGetData(pInputData[1], 0), &geom1, &preparedGeom1);
+      constantIndex = 1;
+      scalarIndex = 0;
+    }
+
+    if (constantIndex != -1) {
+      code = makePreparedGeometry(colDataGetData(pInputData[constantIndex], 0), &geom1, &preparedGeom1);
       if (code != TSDB_CODE_SUCCESS) {
         goto _exit;
       }
-      pInputData2 = pInputData[0];
+      pInputData2 = pInputData[scalarIndex];
     }
 
     int32_t i1 = 0;
