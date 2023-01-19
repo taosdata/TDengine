@@ -768,13 +768,14 @@ function is_version_compatible() {
 }
 
 rpm_erase() {
-  echo -e -n "${RED} Exist tdengine rpm detected, do you want to remove it? [yes|no]${NC}:"
-  read confirm
-  while true; do
-    if [ "yes" -eq "$confirm" ]; then
+  confirm=""
+  while [ "" == "${confirm}" ]; do
+    echo -e -n "${RED}Exist tdengine rpm detected, do you want to remove it? [yes|no] ${NC}:"
+    read confirm
+    if [ "yes" == "$confirm" ]; then
       ${csudo}rpm -e tdengine ||:
       break
-    else
+    elif [ "no" == "$confirm" ]; then
       break
     fi
   done
