@@ -237,6 +237,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
       continue;
     }
 
+    // there are bugs?
     bool limitReached = applyLimitOffset(&pInfo->limitInfo, pBlock, pTaskInfo);
     if (limitReached) {
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
@@ -666,6 +667,7 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
       break;
     }
 
+    // todo fix it: we need to decide whether this block is belonged to previous group or not .
     bool limitReached = applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
     if (limitReached) {
       resetLimitInfoForNextGroup(&pInfo->limitInfo);

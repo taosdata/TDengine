@@ -90,7 +90,16 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
 
   pInfo->binfo.pRes = pResBlock;
   pInfo->pFinalRes = createOneDataBlock(pResBlock, false);
-  pInfo->mergeDataBlocks = (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) ? false : pProjPhyNode->mergeDataBlock;
+
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+    pInfo->mergeDataBlocks = false;
+  } else {
+    if (!pProjPhyNode->ignoreGroupId) {
+      pInfo->mergeDataBlocks = false;
+    } else {
+      pInfo->mergeDataBlocks = pProjPhyNode->mergeDataBlock;
+    }
+  }
 
   int32_t numOfRows = 4096;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
