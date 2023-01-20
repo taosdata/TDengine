@@ -222,6 +222,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
+  // multi-group case not handle here
   SSDataBlock* pBlock = NULL;
   while (1) {
     pBlock = getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
@@ -236,28 +237,13 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
       continue;
     }
 
-    // todo add the limit/offset info
-    if (pInfo->limitInfo.remainOffset > 0) {
-      if (pInfo->limitInfo.remainOffset >= blockDataGetNumOfRows(pBlock)) {
-        pInfo->limitInfo.remainOffset -= pBlock->info.rows;
-        continue;
-      }
-
-      blockDataTrimFirstNRows(pBlock, pInfo->limitInfo.remainOffset);
-      pInfo->limitInfo.remainOffset = 0;
+    bool limitReached = applyLimitOffset(&pInfo->limitInfo, pBlock, pTaskInfo);
+    if (limitReached) {
+      resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }
 
-    if (pInfo->limitInfo.limit.limit > 0 &&
-        pInfo->limitInfo.limit.limit <= pInfo->limitInfo.numOfOutputRows + blockDataGetNumOfRows(pBlock)) {
-      int32_t remain = pInfo->limitInfo.limit.limit - pInfo->limitInfo.numOfOutputRows;
-      blockDataKeepFirstNRows(pBlock, remain);
-    }
-
-    size_t numOfRows = blockDataGetNumOfRows(pBlock);
-    pInfo->limitInfo.numOfOutputRows += numOfRows;
-    pOperator->resultInfo.totalRows += numOfRows;
-
-    if (numOfRows > 0) {
+    pOperator->resultInfo.totalRows += pBlock->info.rows;
+    if (pBlock->info.rows > 0) {
       break;
     }
   }
@@ -680,7 +666,7 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
       break;
     }
 
-    bool limitReached = applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo, pOperator);
+    bool limitReached = applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
     if (limitReached) {
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }

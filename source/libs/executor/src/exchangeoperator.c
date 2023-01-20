@@ -707,6 +707,8 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
 }
 
 int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, bool holdDataInBuf) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+
   if (pLimitInfo->remainGroupOffset > 0) {
     if (pLimitInfo->currentGroupId == 0) {  // it is the first group
       pLimitInfo->currentGroupId = pBlock->info.id.groupId;
@@ -750,36 +752,20 @@ int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDa
   // set current group id
   pLimitInfo->currentGroupId = pBlock->info.id.groupId;
 
-  if (pLimitInfo->remainOffset >= pBlock->info.rows) {
-    pLimitInfo->remainOffset -= pBlock->info.rows;
-    blockDataCleanup(pBlock);
+  bool limitReached = applyLimitOffset(pLimitInfo, pBlock, pTaskInfo);
+  if (pBlock->info.rows == 0) {
     return PROJECT_RETRIEVE_CONTINUE;
-  } else if (pLimitInfo->remainOffset < pBlock->info.rows && pLimitInfo->remainOffset > 0) {
-    blockDataTrimFirstNRows(pBlock, pLimitInfo->remainOffset);
-    pLimitInfo->remainOffset = 0;
-  }
-
-  // check for the limitation in each group
-  if (pLimitInfo->limit.limit >= 0 && pLimitInfo->numOfOutputRows + pBlock->info.rows >= pLimitInfo->limit.limit) {
-    int32_t keepRows = (int32_t)(pLimitInfo->limit.limit - pLimitInfo->numOfOutputRows);
-    blockDataKeepFirstNRows(pBlock, keepRows);
-    if (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups) {
+  } else {
+    if (limitReached && (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
       setOperatorCompleted(pOperator);
-    } else {
-      // current group limitation is reached, and future blocks of this group need to be discarded.
-      if (pBlock->info.rows == 0) {
-        return PROJECT_RETRIEVE_CONTINUE;
-      }
+      return PROJECT_RETRIEVE_DONE;
     }
-
-    return PROJECT_RETRIEVE_DONE;
   }
 
   // todo optimize performance
   // If there are slimit/soffset value exists, multi-round result can not be packed into one group, since the
   // they may not belong to the same group the limit/offset value is not valid in this case.
-  if ((!holdDataInBuf) || (pBlock->info.rows >= pOperator->resultInfo.threshold) || pLimitInfo->slimit.offset != -1 ||
-      pLimitInfo->slimit.limit != -1) {
+  if ((!holdDataInBuf) || (pBlock->info.rows >= pOperator->resultInfo.threshold) || hasSlimitOffsetInfo(pLimitInfo)) {
     return PROJECT_RETRIEVE_DONE;
   } else {  // not full enough, continue to accumulate the output data in the buffer.
     return PROJECT_RETRIEVE_CONTINUE;

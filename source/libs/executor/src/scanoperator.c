@@ -256,12 +256,11 @@ static void doSetTagColumnData(STableScanBase* pTableScanInfo, SSDataBlock* pBlo
   }
 }
 
-// todo handle the slimit info
-bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo, SOperatorInfo* pOperator) {
+bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
   SLimit*     pLimit = &pLimitInfo->limit;
   const char* id = GET_TASKID(pTaskInfo);
 
-  if (pLimit->offset > 0 && pLimitInfo->remainOffset > 0) {
+  if (pLimitInfo->remainOffset > 0) {
     if (pLimitInfo->remainOffset >= pBlock->info.rows) {
       pLimitInfo->remainOffset -= pBlock->info.rows;
       blockDataEmpty(pBlock);
@@ -276,12 +275,14 @@ bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo
   if (pLimit->limit != -1 && pLimit->limit <= (pLimitInfo->numOfOutputRows + pBlock->info.rows)) {
     // limit the output rows
     int32_t keep = (int32_t)(pLimit->limit - pLimitInfo->numOfOutputRows);
-
     blockDataKeepFirstNRows(pBlock, keep);
+
+    pLimitInfo->numOfOutputRows += pBlock->info.rows;
     qDebug("output limit %" PRId64 " has reached, %s", pLimit->limit, id);
     return true;
   }
 
+  pLimitInfo->numOfOutputRows += pBlock->info.rows;
   return false;
 }
 
@@ -393,13 +394,12 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     }
   }
 
-  bool limitReached = applyLimitOffset(&pTableScanInfo->limitInfo, pBlock, pTaskInfo, pOperator);
+  bool limitReached = applyLimitOffset(&pTableScanInfo->limitInfo, pBlock, pTaskInfo);
   if (limitReached) { // set operator flag is done
     setOperatorCompleted(pOperator);
   }
 
   pCost->totalRows += pBlock->info.rows;
-  pTableScanInfo->limitInfo.numOfOutputRows = pCost->totalRows;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2714,9 +2714,7 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
     }
   }
 
-  applyLimitOffset(&pInfo->limitInfo, pResBlock, pTaskInfo, pOperator);
-  pInfo->limitInfo.numOfOutputRows += pResBlock->info.rows;
-
+  applyLimitOffset(&pInfo->limitInfo, pResBlock, pTaskInfo);
   qDebug("%s get sorted row block, rows:%d, limit:%"PRId64, GET_TASKID(pTaskInfo), pResBlock->info.rows,
       pInfo->limitInfo.numOfOutputRows);
 
