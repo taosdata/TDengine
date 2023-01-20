@@ -343,13 +343,12 @@ static void vmCheckSyncTimeout(SVnodeMgmt *pMgmt) {
   int32_t     numOfVnodes = 0;
   SVnodeObj **ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
 
-  for (int32_t i = 0; i < numOfVnodes; ++i) {
-    SVnodeObj *pVnode = ppVnodes[i];
-    vnodeSyncCheckTimeout(pVnode->pImpl);
-    vmReleaseVnode(pMgmt, pVnode);
-  }
-
   if (ppVnodes != NULL) {
+    for (int32_t i = 0; i < numOfVnodes; ++i) {
+      SVnodeObj *pVnode = ppVnodes[i];
+      vnodeSyncCheckTimeout(pVnode->pImpl);
+      vmReleaseVnode(pMgmt, pVnode);
+    }
     taosMemoryFree(ppVnodes);
   }
 }

@@ -41,14 +41,49 @@ static void dmGetDnodeEp(SDnodeData *pData, int32_t dnodeId, char *pEp, char *pF
   taosThreadRwlockUnlock(&pData->lock);
 }
 
+static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
+  int32_t code = 0;
+
+  tjsonGetInt32ValueFromDouble(pJson, "dnodeId", pData->dnodeId, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "dnodeVer", pData->dnodeVer, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "clusterId", pData->clusterId, code);
+  if (code < 0) return -1;
+  tjsonGetInt32ValueFromDouble(pJson, "dropped", pData->dropped, code);
+  if (code < 0) return -1;
+
+  SJson *dnodes = tjsonGetObjectItem(pJson, "dnodes");
+  if (dnodes == NULL) return 0;
+  int32_t numOfDnodes = tjsonGetArraySize(dnodes);
+
+  for (int32_t i = 0; i < numOfDnodes; ++i) {
+    SJson *dnode = tjsonGetArrayItem(dnodes, i);
+    if (dnode == NULL) return -1;
+
+    SDnodeEp dnodeEp = {0};
+    tjsonGetInt32ValueFromDouble(dnode, "id", dnodeEp.id, code);
+    if (code < 0) return -1;
+    code = tjsonGetStringValue(dnode, "fqdn", dnodeEp.ep.fqdn);
+    if (code < 0) return -1;
+    tjsonGetUInt16ValueFromDouble(dnode, "port", dnodeEp.ep.port, code);
+    if (code < 0) return -1;
+    tjsonGetInt8ValueFromDouble(dnode, "isMnode", dnodeEp.isMnode, code);
+    if (code < 0) return -1;
+
+    if (taosArrayPush(pData->dnodeEps, &dnodeEp) == NULL) return -1;
+  }
+
+  return 0;
+}
+
 int32_t dmReadEps(SDnodeData *pData) {
-  int32_t   code = TSDB_CODE_INVALID_JSON_FORMAT;
-  int32_t   len = 0;
-  int32_t   maxLen = 256 * 1024;
-  char     *content = taosMemoryCalloc(1, maxLen + 1);
-  cJSON    *root = NULL;
-  char      file[PATH_MAX] = {0};
+  int32_t   code = -1;
   TdFilePtr pFile = NULL;
+  char     *content = NULL;
+  SJson    *pJson = NULL;
+  char      file[PATH_MAX] = {0};
+  snprintf(file, sizeof(file), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
 
   pData->dnodeEps = taosArrayInit(1, sizeof(SDnodeEp));
   if (pData->dnodeEps == NULL) {
@@ -56,112 +91,62 @@ int32_t dmReadEps(SDnodeData *pData) {
     goto _OVER;
   }
 
-  snprintf(file, sizeof(file), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
+  if (taosStatFile(file, NULL, NULL) < 0) {
+    dInfo("dnode file:%s not exist", file);
     code = 0;
     goto _OVER;
   }
 
-  len = (int32_t)taosReadFile(pFile, content, maxLen);
-  if (len <= 0) {
-    dError("failed to read %s since content is null", file);
+  pFile = taosOpenFile(file, TD_FILE_READ);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to open dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
 
-  content[len] = 0;
-  root = cJSON_Parse(content);
-  if (root == NULL) {
-    dError("failed to read %s since invalid json format", file);
+  int64_t size = 0;
+  if (taosFStatFile(pFile, &size, NULL) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to fstat dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
 
-  cJSON *dnodeId = cJSON_GetObjectItem(root, "dnodeId");
-  if (!dnodeId || dnodeId->type != cJSON_Number) {
-    dError("failed to read %s since dnodeId not found", file);
-    goto _OVER;
-  }
-  pData->dnodeId = dnodeId->valueint;
-
-  cJSON *dnodeVer = cJSON_GetObjectItem(root, "dnodeVer");
-  if (!dnodeVer || dnodeVer->type != cJSON_String) {
-    dError("failed to read %s since dnodeVer not found", file);
-    goto _OVER;
-  }
-  pData->dnodeVer = atoll(dnodeVer->valuestring);
-
-  cJSON *clusterId = cJSON_GetObjectItem(root, "clusterId");
-  if (!clusterId || clusterId->type != cJSON_String) {
-    dError("failed to read %s since clusterId not found", file);
-    goto _OVER;
-  }
-  pData->clusterId = atoll(clusterId->valuestring);
-
-  cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
-  if (!dropped || dropped->type != cJSON_Number) {
-    dError("failed to read %s since dropped not found", file);
-    goto _OVER;
-  }
-  pData->dropped = dropped->valueint;
-
-  cJSON *dnodes = cJSON_GetObjectItem(root, "dnodes");
-  if (!dnodes || dnodes->type != cJSON_Array) {
-    dError("failed to read %s since dnodes not found", file);
+  content = taosMemoryMalloc(size + 1);
+  if (content == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
 
-  int32_t numOfDnodes = cJSON_GetArraySize(dnodes);
-  if (numOfDnodes <= 0) {
-    dError("failed to read %s since numOfDnodes:%d invalid", file, numOfDnodes);
+  if (taosReadFile(pFile, content, size) != size) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to read dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
 
-  for (int32_t i = 0; i < numOfDnodes; ++i) {
-    cJSON *node = cJSON_GetArrayItem(dnodes, i);
-    if (node == NULL) break;
+  content[size] = '\0';
 
-    SDnodeEp dnodeEp = {0};
+  pJson = tjsonParse(content);
+  if (pJson == NULL) {
+    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
 
-    cJSON *did = cJSON_GetObjectItem(node, "id");
-    if (!did || did->type != cJSON_Number) {
-      dError("failed to read %s since dnodeId not found", file);
-      goto _OVER;
-    }
-
-    dnodeEp.id = did->valueint;
-
-    cJSON *dnodeFqdn = cJSON_GetObjectItem(node, "fqdn");
-    if (!dnodeFqdn || dnodeFqdn->type != cJSON_String || dnodeFqdn->valuestring == NULL) {
-      dError("failed to read %s since dnodeFqdn not found", file);
-      goto _OVER;
-    }
-    tstrncpy(dnodeEp.ep.fqdn, dnodeFqdn->valuestring, TSDB_FQDN_LEN);
-
-    cJSON *dnodePort = cJSON_GetObjectItem(node, "port");
-    if (!dnodePort || dnodePort->type != cJSON_Number) {
-      dError("failed to read %s since dnodePort not found", file);
-      goto _OVER;
-    }
-
-    dnodeEp.ep.port = dnodePort->valueint;
-
-    cJSON *isMnode = cJSON_GetObjectItem(node, "isMnode");
-    if (!isMnode || isMnode->type != cJSON_Number) {
-      dError("failed to read %s since isMnode not found", file);
-      goto _OVER;
-    }
-    dnodeEp.isMnode = isMnode->valueint;
-
-    taosArrayPush(pData->dnodeEps, &dnodeEp);
+  if (dmDecodeEps(pJson, pData) < 0) {
+    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
   }
 
   code = 0;
-  dDebug("succcessed to read file %s", file);
+  dInfo("succceed to read mnode file %s", file);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
-  if (root != NULL) cJSON_Delete(root);
+  if (pJson != NULL) cJSON_Delete(pJson);
   if (pFile != NULL) taosCloseFile(&pFile);
+
+  if (code != 0) {
+    dError("failed to read dnode file:%s since %s", file, terrstr());
+  }
 
   if (taosArrayGetSize(pData->dnodeEps) == 0) {
     SDnodeEp dnodeEp = {0};
@@ -178,7 +163,6 @@ _OVER:
     return -1;
   }
 
-  terrno = code;
   return code;
 }
 
@@ -247,7 +231,7 @@ _OVER:
 
   if (code != 0) {
     if (terrno == 0) terrno = TAOS_SYSTEM_ERROR(errno);
-    dInfo("succeed to write dnode file:%s since %s, dnodeVer:%" PRId64, realfile, terrstr(), pData->dnodeVer);
+    dError("failed to write dnode file:%s since %s, dnodeVer:%" PRId64, realfile, terrstr(), pData->dnodeVer);
   }
   return code;
 }
@@ -348,40 +332,48 @@ void dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
   }
 }
 
-int32_t dmUpdateDnodeInfo(void *data, int32_t *dnodeId, int64_t *clusterId, char *fqdn, uint16_t *port) {
+void dmUpdateDnodeInfo(void *data, int32_t *did, int64_t *clusterId, char *fqdn, uint16_t *port) {
   SDnodeData *pData = data;
-  int32_t     ret = -1;
+  int32_t     dnodeId = -1;
+  if (did != NULL) dnodeId = *did;
+
   taosThreadRwlockRdlock(&pData->lock);
-  if (*dnodeId <= 0) {
-    for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pData->dnodeEps); ++i) {
-      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, i);
+
+  if (pData->oldDnodeEps != NULL) {
+    int32_t size = (int32_t)taosArrayGetSize(pData->oldDnodeEps);
+    for (int32_t i = 0; i < size; ++i) {
+      SDnodeEp *pDnodeEp = taosArrayGet(pData->oldDnodeEps, i);
       if (strcmp(pDnodeEp->ep.fqdn, fqdn) == 0 && pDnodeEp->ep.port == *port) {
-        dInfo("dnode:%s:%u, update dnodeId from %d to %d", fqdn, *port, *dnodeId, pDnodeEp->id);
-        *dnodeId = pDnodeEp->id;
-        *clusterId = pData->clusterId;
-        ret = 0;
-      }
-    }
-    if (ret != 0) {
-      dInfo("dnode:%s:%u, failed to update dnodeId:%d", fqdn, *port, *dnodeId);
-    }
-  } else {
-    SDnodeEp *pDnodeEp = taosHashGet(pData->dnodeHash, dnodeId, sizeof(int32_t));
-    if (pDnodeEp) {
-      if (strcmp(pDnodeEp->ep.fqdn, fqdn) != 0) {
-        dInfo("dnode:%d, update port from %s to %s", *dnodeId, fqdn, pDnodeEp->ep.fqdn);
+        dInfo("dnode:%d, update ep:%s:%u to %s:%u", dnodeId, fqdn, *port, pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
         tstrncpy(fqdn, pDnodeEp->ep.fqdn, TSDB_FQDN_LEN);
-      }
-      if (pDnodeEp->ep.port != *port) {
-        dInfo("dnode:%d, update port from %u to %u", *dnodeId, *port, pDnodeEp->ep.port);
         *port = pDnodeEp->ep.port;
       }
-      *clusterId = pData->clusterId;
-      ret = 0;
-    } else {
-      dInfo("dnode:%d, failed to update dnode info", *dnodeId);
     }
   }
+
+  if (did != NULL && dnodeId <= 0) {
+    int32_t size = (int32_t)taosArrayGetSize(pData->dnodeEps);
+    for (int32_t i = 0; i < size; ++i) {
+      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, i);
+      if (strcmp(pDnodeEp->ep.fqdn, fqdn) == 0 && pDnodeEp->ep.port == *port) {
+        dInfo("dnode:%s:%u, update dnodeId to dnode:%d", fqdn, *port, pDnodeEp->id);
+        *did = pDnodeEp->id;
+        if (clusterId != NULL) *clusterId = pData->clusterId;
+      }
+    }
+  }
+
+  if (dnodeId > 0) {
+    SDnodeEp *pDnodeEp = taosHashGet(pData->dnodeHash, &dnodeId, sizeof(int32_t));
+    if (pDnodeEp) {
+      if (strcmp(pDnodeEp->ep.fqdn, fqdn) != 0 || pDnodeEp->ep.port != *port) {
+        dInfo("dnode:%d, update ep:%s:%u to %s:%u", dnodeId, fqdn, *port, pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
+        tstrncpy(fqdn, pDnodeEp->ep.fqdn, TSDB_FQDN_LEN);
+        *port = pDnodeEp->ep.port;
+      }
+      if (clusterId != NULL) *clusterId = pData->clusterId;
+    }
+  }
+
   taosThreadRwlockUnlock(&pData->lock);
-  return ret;
 }

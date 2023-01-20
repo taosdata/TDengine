@@ -3231,7 +3231,9 @@ static void buildVnodeGroupedNtbTableCount(STableCountScanOperatorInfo* pInfo, S
   uint64_t groupId = calcGroupId(fullStbName, strlen(fullStbName));
   pRes->info.id.groupId = groupId;
   int64_t ntbNum = metaGetNtbNum(pInfo->readHandle.meta);
-  fillTableCountScanDataBlock(pSupp, dbName, "", ntbNum, pRes);
+  if (ntbNum != 0) {
+    fillTableCountScanDataBlock(pSupp, dbName, "", ntbNum, pRes);
+  }
 }
 
 static void buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo, STableCountScanSupp* pSupp,
