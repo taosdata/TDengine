@@ -647,7 +647,7 @@ function install_TDengine() {
     install_bin
 
     if [[ "$?" != 0 ]];then
-      log_print "Install TDengine failed, ${last_error_desc}!"
+      log_print "install TDengine failed!"
       return 1
     fi
 
@@ -693,7 +693,7 @@ function install_TDengine() {
       echo -e "${GREEN_DARK}To access TDengine    ${NC}: taos -h $serverFqdn${GREEN_DARK} to login into TDengine server${NC}"
       echo
     fi
-    log_print "Install TDengine successfully!"
+    log_print "install TDengine successfully!"
     echo
     echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
 }
