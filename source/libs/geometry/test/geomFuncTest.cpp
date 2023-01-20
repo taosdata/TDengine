@@ -102,9 +102,9 @@ void makeOneScalarParam(SScalarParam **pSclParam, int32_t type, void *valueArray
   setScalarParam(*pSclParam, type, valueArray, rowNum);
 }
 
-void callGeomFromTextInputType(int32_t inputType, void *strArray, int32_t rowNum,
-                               SScalarParam **pInputGeomFromText, SScalarParam **pOutputGeomFromText,
-                               int32_t expectedCode) {
+void callGeomFromText(int32_t inputType, void *strArray, int32_t rowNum,
+                      SScalarParam **pInputGeomFromText, SScalarParam **pOutputGeomFromText,
+                      int32_t expectedCode) {
   makeOneScalarParam(pInputGeomFromText, inputType, strArray, rowNum);
   makeOneScalarParam(pOutputGeomFromText, TSDB_DATA_TYPE_GEOMETRY, 0, rowNum);
 
@@ -112,27 +112,44 @@ void callGeomFromTextInputType(int32_t inputType, void *strArray, int32_t rowNum
   ASSERT_EQ(code, expectedCode);
 }
 
-void callGeomFromText(void *strArray, int32_t rowNum,
-                      SScalarParam **pInputGeomFromText, SScalarParam **pOutputGeomFromText,
-                      int32_t expectedCode) {
-  callGeomFromTextInputType(TSDB_DATA_TYPE_VARCHAR, strArray, rowNum,
-                            pInputGeomFromText, pOutputGeomFromText, expectedCode);
+void callGeomFromTextWrapper(int32_t inputType, void *strArray, int32_t rowNum, int32_t expectedCode) {
+  SScalarParam *pInputGeomFromText;
+  SScalarParam *pOutputGeomFromText;
+
+  callGeomFromText(inputType, strArray, rowNum, &pInputGeomFromText, &pOutputGeomFromText, expectedCode);
+
+  destroyScalarParam(pInputGeomFromText, 1);
+  destroyScalarParam(pOutputGeomFromText, 1);
+}
+
+void callGeomFromTextWrapperEx(void *strArray, int32_t rowNum, int32_t expectedCode) {
+  callGeomFromTextWrapper(TSDB_DATA_TYPE_VARCHAR, strArray, rowNum, expectedCode);
 }
 
 void outputGeomParamByGeomFromText(void *strArray, int32_t rowNum, SScalarParam **pOutputGeomFromText) {
   SScalarParam *pInputGeomFromText;
-  callGeomFromText(strArray, rowNum, &pInputGeomFromText, pOutputGeomFromText, TSDB_CODE_SUCCESS);
+  callGeomFromText(TSDB_DATA_TYPE_VARCHAR, strArray, rowNum, &pInputGeomFromText, pOutputGeomFromText, TSDB_CODE_SUCCESS);
   destroyScalarParam(pInputGeomFromText, 1);
 }
 
-void callGeomFromTextAndCheckCode(void *strArray, int32_t rowNum, int32_t expectedCode) {
-  SScalarParam *pInputGeomFromText;
-  SScalarParam *pOutputGeomFromText;
+void callAsText(int32_t inputType, void *strArray, int32_t rowNum,
+                SScalarParam **pInputAsText, SScalarParam **pOutputAsText,
+                int32_t expectedCode) {
+  makeOneScalarParam(pInputAsText, inputType, strArray, rowNum);
+  makeOneScalarParam(pOutputAsText, TSDB_DATA_TYPE_VARCHAR, 0, rowNum);
 
-  callGeomFromText(strArray, rowNum, &pInputGeomFromText, &pOutputGeomFromText, expectedCode);
+  int32_t code = geomFromTextFunction(*pInputAsText, 1, *pOutputAsText);
+  ASSERT_EQ(code, expectedCode);
+}
 
-  destroyScalarParam(pInputGeomFromText, 1);
-  destroyScalarParam(pOutputGeomFromText, 1);
+void callAsTextWrapper(int32_t inputType, void *strArray, int32_t rowNum, int32_t expectedCode) {
+  SScalarParam *pInputAsText;
+  SScalarParam *pASText;
+
+  callAsText(inputType, strArray, rowNum, &pInputAsText, &pASText, expectedCode);
+
+  destroyScalarParam(pInputAsText, 1);
+  destroyScalarParam(pASText, 1);
 }
 
 bool compareVarData(unsigned char *varData1, unsigned char *varData2) {
@@ -331,41 +348,37 @@ TEST(GeomFuncTest, makePointFunctionWithNull) {
 }
 
 TEST(GeomFuncTest, geomFromTextFunction) {
-  int32_t rowNum = 4;
-  char strArray[rowNum][TSDB_MAX_BINARY_LEN];
-
-  // test on main geometry types like POINT, LINESTRING, POLYGON
-  STR_TO_VARSTR(strArray[0], "POINT(2 5)");
-  callGeomFromTextAndCheckCode(strArray, 1, TSDB_CODE_SUCCESS);
-  STR_TO_VARSTR(strArray[0], "POIN(2 5)");
-  callGeomFromTextAndCheckCode(strArray, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
-
-  STR_TO_VARSTR(strArray[0], "LINESTRING(3 -6.1,-7.1 4.2)");
-  callGeomFromTextAndCheckCode(strArray, 1, TSDB_CODE_SUCCESS);
-  STR_TO_VARSTR(strArray[0], "LINESTRING(3 -6.1,-7.1 4.2,)"); //redundant comma at the end
-  callGeomFromTextAndCheckCode(strArray, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
-
-  STR_TO_VARSTR(strArray[0], "POLYGON((-71.1 42.3,-71.2 42.4,-71.3 42.5,-71.1 42.3))");
-  callGeomFromTextAndCheckCode(strArray, 1, TSDB_CODE_SUCCESS);
-  STR_TO_VARSTR(strArray[0], "POLYGON((-71.1 42.3,-71.2 42.4,-71.3 42.5,-71.1 42.8))"); //the first point and last one are not same
-  callGeomFromTextAndCheckCode(strArray, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
-
   SScalarParam *pInputGeomFromText;
   SScalarParam *pOutputGeomFromText;
 
   // test on input NULL type
-  callGeomFromTextInputType(TSDB_DATA_TYPE_NULL, 0, 1,
-                            &pInputGeomFromText, &pOutputGeomFromText, TSDB_CODE_SUCCESS);
+  callGeomFromText(TSDB_DATA_TYPE_NULL, 0, 1, &pInputGeomFromText, &pOutputGeomFromText, TSDB_CODE_SUCCESS);
   ASSERT_EQ(colDataIsNull_s(pOutputGeomFromText->columnData, 0), true);
   destroyScalarParam(pInputGeomFromText, 1);
   destroyScalarParam(pOutputGeomFromText, 1);
 
   // test on input wrong type [ToDo] make sure it is handled in geomFunc
   int32_t intConstant = 3;
-  callGeomFromTextInputType(TSDB_DATA_TYPE_INT, &intConstant, 1,
-                            &pInputGeomFromText, &pOutputGeomFromText, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
-  destroyScalarParam(pInputGeomFromText, 1);
-  destroyScalarParam(pOutputGeomFromText, 1);
+  callGeomFromTextWrapper(TSDB_DATA_TYPE_INT, &intConstant, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
+
+  // test on input main geometry types like POINT, LINESTRING, POLYGON with right or wrong contents
+  int32_t rowNum = 4;
+  char strArray[rowNum][TSDB_MAX_BINARY_LEN];
+
+  STR_TO_VARSTR(strArray[0], "POINT(2 5)");
+  callGeomFromTextWrapperEx(strArray, 1, TSDB_CODE_SUCCESS);
+  STR_TO_VARSTR(strArray[0], "POIN(2 5)");
+  callGeomFromTextWrapperEx(strArray, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
+
+  STR_TO_VARSTR(strArray[0], "LINESTRING(3 -6.1,-7.1 4.2)");
+  callGeomFromTextWrapperEx(strArray, 1, TSDB_CODE_SUCCESS);
+  STR_TO_VARSTR(strArray[0], "LINESTRING(3 -6.1,-7.1 4.2,)"); //redundant comma at the end
+  callGeomFromTextWrapperEx(strArray, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
+
+  STR_TO_VARSTR(strArray[0], "POLYGON((-71.1 42.3,-71.2 42.4,-71.3 42.5,-71.1 42.3))");
+  callGeomFromTextWrapperEx(strArray, 1, TSDB_CODE_SUCCESS);
+  STR_TO_VARSTR(strArray[0], "POLYGON((-71.1 42.3,-71.2 42.4,-71.3 42.5,-71.1 42.8))"); //the first point and last one are not same
+  callGeomFromTextWrapperEx(strArray, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
 
   // test on input of GeomFromText (with NULL value) and output of AsText are same after calling GeomFromText() and AsText()
   SScalarParam *pOutputAsText;
@@ -374,7 +387,7 @@ TEST(GeomFuncTest, geomFromTextFunction) {
   setVardataNull(&strArray[1], TSDB_DATA_TYPE_VARCHAR); //NULL value
   STR_TO_VARSTR(strArray[2], "LINESTRING (3.000000 -6.000000, -71.160837 42.259113)");
   STR_TO_VARSTR(strArray[3], "POLYGON ((-71.177658 42.390290, -71.177682 42.390370, -71.177606 42.390382, -71.177582 42.390303, -71.177658 42.390290))");
-  callGeomFromText(strArray, rowNum, &pInputGeomFromText, &pOutputGeomFromText, TSDB_CODE_SUCCESS);
+  callGeomFromText(TSDB_DATA_TYPE_VARCHAR, strArray, rowNum, &pInputGeomFromText, &pOutputGeomFromText, TSDB_CODE_SUCCESS);
 
   makeOneScalarParam(&pOutputAsText, TSDB_DATA_TYPE_VARCHAR, 0, rowNum);
   int32_t code = asTextFunction(pOutputGeomFromText, 1, pOutputAsText);   // pOutputGeomFromText is input for AsText
@@ -385,6 +398,27 @@ TEST(GeomFuncTest, geomFromTextFunction) {
   destroyScalarParam(pInputGeomFromText, 1);
   destroyScalarParam(pOutputGeomFromText, 1);
   destroyScalarParam(pOutputAsText, 1);
+}
+
+TEST(GeomFuncTest, asTextFunction) {
+  // test on input NULL type
+  SScalarParam *pInputAsText;
+  SScalarParam *pOutputAsText;
+  callAsText(TSDB_DATA_TYPE_NULL, 0, 1, &pInputAsText, &pOutputAsText, TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataIsNull_s(pOutputAsText->columnData, 0), true);
+  destroyScalarParam(pInputAsText, 1);
+  destroyScalarParam(pOutputAsText, 1);
+
+  // test on input wrong type [ToDo] make sure it is handled in geomFunc
+  int32_t intConstant = 3;
+  callAsTextWrapper(TSDB_DATA_TYPE_INT, &intConstant, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
+
+  // test on input wrong content
+  char strInput[TSDB_MAX_BINARY_LEN];
+  STR_TO_VARSTR(strInput, "XXX");
+  callAsTextWrapper(TSDB_DATA_TYPE_GEOMETRY, strInput, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
+
+  // test on input right content has been tested in geomFromTextFunction
 }
 
 int main(int argc, char **argv) {
