@@ -218,10 +218,7 @@ static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
       if (status == PROJECT_RETRIEVE_CONTINUE) {
         continue;
       } else if (status == PROJECT_RETRIEVE_DONE) {
-        size_t rows = pBlock->info.rows;
-        pExchangeInfo->limitInfo.numOfOutputRows += rows;
-
-        if (rows == 0) {
+        if (pBlock->info.rows == 0) {
           setOperatorCompleted(pOperator);
           return NULL;
         } else {
