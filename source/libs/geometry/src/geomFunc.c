@@ -254,16 +254,22 @@ int32_t geomOneParamFunction(SScalarParam *pInput, SScalarParam *pOutput,
     return code;
   }
 
-  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
-    if (colDataIsNull_s(pInputData, i)) {
-      colDataAppendNULL(pOutputData, i);
-      code = TSDB_CODE_SUCCESS;
-      continue;
-    }
+  if (IS_NULL_TYPE(GET_PARAM_TYPE(pInput))) {
+    colDataAppendNNULL(pOutputData, 0, pInput->numOfRows);
+    code = TSDB_CODE_SUCCESS;
+  }
+  else {
+    for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+      if (colDataIsNull_s(pInputData, i)) {
+        colDataAppendNULL(pOutputData, i);
+        code = TSDB_CODE_SUCCESS;
+        continue;
+      }
 
-    code = executeOneParamFn(pInputData, i, pOutputData);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      code = executeOneParamFn(pInputData, i, pOutputData);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
 
