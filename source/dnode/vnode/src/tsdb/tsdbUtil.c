@@ -722,7 +722,7 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
     pTColumn = &pMerger->pTSchema->columns[iCol];
     if (pTSchema->columns[jCol].colId < pTColumn->colId) {
       ++jCol;
-      // --iCol;
+      --iCol;
       continue;
     } else if (pTSchema->columns[jCol].colId > pTColumn->colId) {
       continue;
