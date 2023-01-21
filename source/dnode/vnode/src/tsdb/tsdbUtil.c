@@ -744,7 +744,6 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
           }
           tColVal->flag = 0;
         } else {
-
           taosArraySet(pMerger->pArray, iCol, pColVal);
         }
       }
