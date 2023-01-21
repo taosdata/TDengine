@@ -722,7 +722,7 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
     pTColumn = &pMerger->pTSchema->columns[iCol];
     if (pTSchema->columns[jCol].colId < pTColumn->colId) {
       ++jCol;
-      --iCol;
+      // --iCol;
       continue;
     } else if (pTSchema->columns[jCol].colId > pTColumn->colId) {
       continue;
@@ -731,6 +731,7 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
     tsdbRowGetColVal(pRow, pTSchema, jCol++, pColVal);
 
     if (key.version > pMerger->version) {
+#if 0
       if (!COL_VAL_IS_NONE(pColVal)) {
         if ((!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->type)) {
           SColVal *tColVal = taosArrayGet(pMerger->pArray, iCol);
@@ -743,10 +744,34 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
           }
           tColVal->flag = 0;
         } else {
+
+          taosArraySet(pMerger->pArray, iCol, pColVal);
+        }
+      }
+#endif
+      if (!COL_VAL_IS_NONE(pColVal)) {
+        if (IS_VAR_DATA_TYPE(pColVal->type)) {
+          SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
+          if (!COL_VAL_IS_NULL(pColVal)) {
+            code = tRealloc(&pTColVal->value.pData, pColVal->value.nData);
+            if (code) return code;
+
+            pTColVal->value.nData = pColVal->value.nData;
+            if (pTColVal->value.nData) {
+              memcpy(pTColVal->value.pData,  pColVal->value.pData, pTColVal->value.nData);
+            }
+            pTColVal->flag = 0;
+          } else {
+            tFree(pTColVal->value.pData);
+            pTColVal->value.pData = NULL;
+            taosArraySet(pMerger->pArray, iCol, pColVal);
+          }
+        } else {
           taosArraySet(pMerger->pArray, iCol, pColVal);
         }
       }
     } else if (key.version < pMerger->version) {
+#if 0
       SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
       if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
         if ((!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->type)) {
@@ -758,6 +783,28 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
             memcpy(tColVal->value.pData, pColVal->value.pData, pColVal->value.nData);
           }
           tColVal->flag = 0;
+        } else {
+          taosArraySet(pMerger->pArray, iCol, pColVal);
+        }
+      }
+#endif
+      SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
+      if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
+        if (IS_VAR_DATA_TYPE(pColVal->type)) {
+          if (!COL_VAL_IS_NULL(pColVal)) {
+            code = tRealloc(&tColVal->value.pData, pColVal->value.nData);
+            if (code) return code;
+
+            tColVal->value.nData = pColVal->value.nData;
+            if (tColVal->value.nData) {
+              memcpy(tColVal->value.pData,  pColVal->value.pData, tColVal->value.nData);
+            }
+            tColVal->flag = 0;
+          } else {
+            tFree(tColVal->value.pData);
+            tColVal->value.pData = NULL;
+            taosArraySet(pMerger->pArray, iCol, pColVal);
+          }
         } else {
           taosArraySet(pMerger->pArray, iCol, pColVal);
         }
