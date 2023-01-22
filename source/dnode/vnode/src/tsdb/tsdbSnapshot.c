@@ -1255,6 +1255,8 @@ static int32_t tsdbSnapWriteFileDataEnd(STsdbSnapWriter* pWriter) {
   code = tsdbSnapWriteTableData(pWriter, NULL);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // TODO: ??
+
   if (pWriter->sData.nRow) {
     code = tsdbWriteSttBlock(pWriter->pDataFWriter, &pWriter->sData, pWriter->aSttBlk, pWriter->cmprAlg);
     TSDB_CHECK_CODE(code, lino, _exit);
