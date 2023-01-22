@@ -274,7 +274,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
         }
       }
       if (!compactTb) {
-        compactTb = (int64_t)ceil(nTbRows / defaultRows) > (int64_t)pTh->pBlkIdx->numOfBlocks;
+        compactTb = (int64_t)ceil((double)nTbRows / defaultRows) > (int64_t)pTh->pBlkIdx->numOfBlocks;
       }
     }
     return (((nSubBlocks * 1.0 / tblocks) > 0.33) || (compactTb && ((nSmallBlocks * 1.0 / tblocks) > 0.33)) ||
