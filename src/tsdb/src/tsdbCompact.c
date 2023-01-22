@@ -243,16 +243,20 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
     int     nSubBlocks = 0;    // # of blocks with sub-blocks
     int     nSmallBlocks = 0;  // # of blocks with rows < defaultRows
     int64_t tsize = 0;
+    int64_t nTbRows = 0;
+    bool    compactTb = false;
 
     for (size_t i = 0; i < taosArrayGetSize(pComph->tbArray); i++) {
       pTh = (STableCompactH *)taosArrayGet(pComph->tbArray, i);
 
       if (pTh->pTable == NULL || pTh->pBlkIdx == NULL) continue;
 
+      if (!compactTb) nTbRows = 0;
       for (size_t bidx = 0; bidx < pTh->pBlkIdx->numOfBlocks; bidx++) {
         tblocks++;
         pBlock = pTh->pInfo->blocks + bidx;
 
+        if (!compactTb) nTbRows += pBlock->numOfRows;
         if (pBlock->numOfRows < defaultRows) {
           nSmallBlocks++;
         }
@@ -269,9 +273,11 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
           ASSERT(0);
         }
       }
+      if (!compactTb) {
+        compactTb = (int64_t)ceil(nTbRows / defaultRows) > (int64_t)pTh->pBlkIdx->numOfBlocks;
+      }
     }
-
-    return (((nSubBlocks * 1.0 / tblocks) > 0.33) || ((nSmallBlocks * 1.0 / tblocks) > 0.33) ||
+    return (((nSubBlocks * 1.0 / tblocks) > 0.33) || (compactTb && ((nSmallBlocks * 1.0 / tblocks) > 0.33)) ||
             (tsize * 1.0 / (pDataF->info.size + pLastF->info.size - 2 * TSDB_FILE_HEAD_SIZE) < 0.85));
   }
 
