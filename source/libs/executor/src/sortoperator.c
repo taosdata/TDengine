@@ -680,11 +680,13 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
       break;
     }
 
+    bool limitReached = applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo, pOperator);
+    if (limitReached) {
+      resetLimitInfoForNextGroup(&pInfo->limitInfo);
+    }
+
     if (p->info.rows > 0) {
-      applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo, pOperator);
-      if (p->info.rows > 0) {
-        break;
-      }
+      break;
     }
   }
 
@@ -698,7 +700,6 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
       colDataAssign(pDst, pSrc, p->info.rows, &pDataBlock->info);
     }
 
-    pInfo->limitInfo.numOfOutputRows += p->info.rows;
     pDataBlock->info.rows = p->info.rows;
     pDataBlock->info.id.groupId = pInfo->groupId;
     pDataBlock->info.dataLoad = 1;
