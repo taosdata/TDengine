@@ -901,7 +901,10 @@ int sml_ts2164_Test() {
 int sml_ttl_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "drop database if exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
   taos_free_result(pRes);
 
   const char *sql[] = {

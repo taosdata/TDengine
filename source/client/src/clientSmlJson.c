@@ -1283,8 +1283,8 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
       continue;
     }
 
-    if(*dataPointStart == '\0') break;
     cnt++;
+    if(*dataPointStart == '\0') break;
   }
   info->lineNum = cnt;
 
