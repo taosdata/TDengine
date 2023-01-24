@@ -32,7 +32,7 @@ We recommend using the latest version of `taospy`, regardless of the version of 
 
 ### Preparation
 
-1. Install Python. The recent taospy package requires Python 3.6+. The earlier version of taospy requires Python 3.7+.  The taos-ws-py package requires Python 3.7+. If Python is not available on your system, refer to the [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) to install it.
+1. Install Python. The recent taospy package requires Python 3.6+. The earlier versions of taospy require Python 3.7+.  The taos-ws-py package requires Python 3.7+. If Python is not available on your system, refer to the [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) to install it.
 2. Install [pip](https://pypi.org/project/pip/). In most cases, the Python installer comes with the pip utility. If not, please refer to [pip documentation](https://pip.pypa.io/en/stable/installation/) to install it.
 If you use a native connection, you will also need to [Install Client Driver](/reference/connector#Install-Client-Driver). The client install package includes the TDengine client dynamic link library (`libtaos.so` or `taos.dll`) and the TDengine CLI.
 
@@ -82,7 +82,15 @@ pip3 install git+https://github.com/taosdata/taos-connector-python.git
 
 The taos-ws-py package provides the way to access TDengine via WebSocket.
 
+##### Install taos-ws-py with taospy
+
+```bash
+pip3 install taospy[ws]
 ```
+
+##### Install taos-ws-py only
+
+```bash
 pip3 install taos-ws-py
 ```
 
