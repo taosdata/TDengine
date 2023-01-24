@@ -126,7 +126,11 @@ static void setPageNotInBuf(SPageInfo* pPageInfo) { pPageInfo->pData = NULL; }
 static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) { return pageSize + POINTER_BYTES + sizeof(SFilePage); }
 
 static char* doFlushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
-  ASSERT(!pg->used && pg->pData != NULL);
+  if (pg->pData == NULL || pg->used) {
+    uError("invalid params in paged buffer process when flushing buf to disk, %s", pBuf->id);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 
   int32_t size = pBuf->pageSize;
   char*   t = NULL;
@@ -333,7 +337,6 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   pPBuf->pageSize = pagesize;
   pPBuf->numOfPages = 0;  // all pages are in buffer in the first place
   pPBuf->totalBufSize = 0;
-  pPBuf->inMemPages = inMemBufSize / pagesize;  // maximum allowed pages, it is a soft limit.
   pPBuf->allocateId = -1;
   pPBuf->pFile = NULL;
   pPBuf->id = strdup(id);
@@ -342,13 +345,22 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   pPBuf->freePgList = tdListNew(POINTER_BYTES);
 
   // at least more than 2 pages must be in memory
-  ASSERT(inMemBufSize >= pagesize * 2);
+  if (inMemBufSize < pagesize * 2) {
+    inMemBufSize = pagesize * 2;
+  }
 
+  pPBuf->inMemPages = inMemBufSize / pagesize;  // maximum allowed pages, it is a soft limit.
   pPBuf->lruList = tdListNew(POINTER_BYTES);
+  if (pPBuf->lruList == NULL) {
+    goto _error;
+  }
 
   // init id hash table
   _hash_fn_t fn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
   pPBuf->pIdList = taosArrayInit(4, POINTER_BYTES);
+  if (pPBuf->pIdList == NULL) {
+    goto _error;
+  }
 
   pPBuf->assistBuf = taosMemoryMalloc(pPBuf->pageSize + 2);  // EXTRA BYTES
   if (pPBuf->assistBuf == NULL) {
@@ -503,7 +515,12 @@ void releaseBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* pi) {
   uDebug("page_releaseBufPageInfo pageId:%d, used:%d, offset:%" PRId64, pi->pageId, pi->used, pi->offset);
 #endif
 
-  if (ASSERTS(pi->pData != NULL, "pi->pData is NULL")) {
+  if (pi == NULL) {
+    return;
+  }
+
+  if (pi->pData == NULL) {
+    uError("pi->pData (page data) is null");
     return;
   }
 
@@ -514,7 +531,6 @@ void releaseBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* pi) {
 size_t getTotalBufSize(const SDiskbasedBuf* pBuf) { return (size_t)pBuf->totalBufSize; }
 
 SArray* getDataBufPagesIdList(SDiskbasedBuf* pBuf) {
-  ASSERT(pBuf != NULL);
   return pBuf->pIdList;
 }
 
@@ -592,7 +608,6 @@ SPageInfo* getLastPageInfo(SArray* pList) {
 }
 
 int32_t getPageId(const SPageInfo* pPgInfo) {
-  ASSERT(pPgInfo != NULL);
   return pPgInfo->pageId;
 }
 
