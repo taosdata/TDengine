@@ -227,6 +227,7 @@ STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem 
       uError("worker:%s:%d failed to create", pool->name, curWorkerNum);
       taosMemoryFree(worker);
       taosCloseQueue(queue);
+      taosThreadMutexUnlock(&pool->mutex);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }

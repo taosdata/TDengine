@@ -1973,6 +1973,7 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
   return (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
 }
 
+// todo make this as an non-blocking operator
 SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWinodwPhysiNode* pStateNode,
                                              SExecTaskInfo* pTaskInfo) {
   SStateWindowOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStateWindowOperatorInfo));

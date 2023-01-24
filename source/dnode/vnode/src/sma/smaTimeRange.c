@@ -25,14 +25,13 @@ static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *
 static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg);
 static int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 
-// TODO: Who is responsible for resource allocate and release?
 int32_t tdProcessTSmaInsert(SSma *pSma, int64_t indexUid, const char *msg) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if ((code = tdProcessTSmaInsertImpl(pSma, indexUid, msg)) < 0) {
     smaWarn("vgId:%d, insert tsma data failed since %s", SMA_VID(pSma), tstrerror(terrno));
   }
-  // TODO: destroy SSDataBlocks(msg)
+
   return code;
 }
 
@@ -42,7 +41,6 @@ int32_t tdProcessTSmaCreate(SSma *pSma, int64_t version, const char *msg) {
   if ((code = tdProcessTSmaCreateImpl(pSma, version, msg)) < 0) {
     smaWarn("vgId:%d, create tsma failed since %s", SMA_VID(pSma), tstrerror(terrno));
   }
-  // TODO: destroy SSDataBlocks(msg)
   return code;
 }
 
@@ -258,28 +256,23 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
 
     int32_t rows = pDataBlock->info.rows;
 
-    SSubmitTbData *pTbData = (SSubmitTbData *)taosMemoryCalloc(1, sizeof(SSubmitTbData));
-    if (!pTbData) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      goto _end;
-    }
+    SSubmitTbData tbData = {0};
+    
 
-    if (!(pTbData->aRowP = taosArrayInit(rows, sizeof(SRow *)))) {
-      taosMemoryFree(pTbData);
+    if (!(tbData.aRowP = taosArrayInit(rows, sizeof(SRow *)))) {
       goto _end;
     }
-    pTbData->suid = suid;
-    pTbData->uid = 0;  // uid is assigned by vnode
-    pTbData->sver = pTSchema->version;
+    tbData.suid = suid;
+    tbData.uid = 0;  // uid is assigned by vnode
+    tbData.sver = pTSchema->version;
 
     if (createTb) {
-      pTbData->pCreateTbReq = taosArrayGetP(createTbArray, i);
-      if (pTbData->pCreateTbReq) pTbData->flags = SUBMIT_REQ_AUTO_CREATE_TABLE;
+      tbData.pCreateTbReq = taosArrayGetP(createTbArray, i);
+      if (tbData.pCreateTbReq) tbData.flags = SUBMIT_REQ_AUTO_CREATE_TABLE;
     }
 
     if (!pVals && !(pVals = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal)))) {
-      taosArrayDestroy(pTbData->aRowP);
-      taosMemoryFree(pTbData);
+      taosArrayDestroy(tbData.aRowP);
       goto _end;
     }
 
@@ -307,14 +300,13 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
       }
       SRow *pRow = NULL;
       if ((terrno = tRowBuild(pVals, (STSchema *)pTSchema, &pRow)) < 0) {
-        tDestroySSubmitTbData(pTbData, TSDB_MSG_FLG_ENCODE);
+        tDestroySSubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
         goto _end;
       }
-      ASSERT(pRow);
-      taosArrayPush(pTbData->aRowP, &pRow);
+      taosArrayPush(tbData.aRowP, &pRow);
     }
 
-    taosArrayPush(pReq->aSubmitTbData, pTbData);
+    taosArrayPush(pReq->aSubmitTbData, &tbData);
   }
 
   // encode
@@ -336,9 +328,13 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     tEncoderClear(&encoder);
   }
 _end:
+  taosArrayDestroy(createTbArray);
   taosArrayDestroy(tagArray);
   taosArrayDestroy(pVals);
-  tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+  if (pReq) {
+    tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+    taosMemoryFree(pReq);
+  }
 
   if (terrno != 0) {
     rpcFreeCont(pBuf);

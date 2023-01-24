@@ -760,6 +760,27 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
     goto SUB_DECODE_OVER;
   }
 
+  // update epset saved in mnode
+  if (pSub->unassignedVgs != NULL) {
+    int32_t size = (int32_t)taosArrayGetSize(pSub->unassignedVgs);
+    for (int32_t i = 0; i < size; ++i) {
+      SMqVgEp *pMqVgEp = taosArrayGet(pSub->unassignedVgs, i);
+      tmsgUpdateDnodeEpSet(&pMqVgEp->epSet);
+    }
+  }
+  if (pSub->consumerHash != NULL) {
+    void *pIter = taosHashIterate(pSub->consumerHash, NULL);
+    while (pIter) {
+      SMqConsumerEp *pConsumerEp = pIter;
+      int32_t        size = (int32_t)taosArrayGetSize(pConsumerEp->vgs);
+      for (int32_t i = 0; i < size; ++i) {
+        SMqVgEp *pMqVgEp = taosArrayGet(pConsumerEp->vgs, i);
+        tmsgUpdateDnodeEpSet(&pMqVgEp->epSet);
+      }
+      pIter = taosHashIterate(pSub->consumerHash, pIter);
+    }
+  }
+
   terrno = TSDB_CODE_SUCCESS;
 
 SUB_DECODE_OVER:

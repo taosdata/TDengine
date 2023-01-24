@@ -39,7 +39,7 @@ typedef enum {
   QUEUE_MAX,
 } EQueueType;
 
-typedef int32_t (*UpdateDnodeInfoFp)(void* pData, int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint16_t* port);
+typedef bool (*UpdateDnodeInfoFp)(void* pData, int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint16_t* port);
 typedef int32_t (*PutToQueueFp)(void* pMgmt, EQueueType qtype, SRpcMsg* pMsg);
 typedef int32_t (*GetQueueSizeFp)(void* pMgmt, int32_t vgId, EQueueType qtype);
 typedef int32_t (*SendReqFp)(const SEpSet* pEpSet, SRpcMsg* pMsg);
@@ -70,7 +70,8 @@ void    tmsgSendRsp(SRpcMsg* pMsg);
 void    tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg);
 void    tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type);
 void    tmsgReportStartup(const char* name, const char* desc);
-int32_t tmsgUpdateDnodeInfo(int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint16_t* port);
+bool    tmsgUpdateDnodeInfo(int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint16_t* port);
+void    tmsgUpdateDnodeEpSet(SEpSet* epset);
 
 #ifdef __cplusplus
 }

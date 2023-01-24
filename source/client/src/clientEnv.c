@@ -365,6 +365,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
+  tsem_destroy(&pRequest->body.rspSem);
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
@@ -379,6 +380,9 @@ void doDestroyRequest(void *p) {
   }
 
   if (pRequest->syncQuery) {
+      if (pRequest->body.param){
+        tsem_destroy(&((SSyncQueryParam*)pRequest->body.param)->sem);
+      }
     taosMemoryFree(pRequest->body.param);
   }
 
@@ -428,7 +432,11 @@ _return:
 
   taosLogCrashInfo("taos", pMsg, msgLen, signum, sigInfo);
 
+#ifdef _TD_DARWIN_64
   exit(signum);
+#elif defined(WINDOWS)
+  exit(signum);
+#endif
 }
 
 void crashReportThreadFuncUnexpectedStopped(void) { atomic_store_32(&clientStop, -1); }
