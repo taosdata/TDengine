@@ -738,9 +738,7 @@ int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDa
     }
 
     // reset the value for a new group data
-    pLimitInfo->numOfOutputRows = 0;
-    pLimitInfo->remainOffset = pLimitInfo->limit.offset;
-
+    resetLimitInfoForNextGroup(pLimitInfo);
     // existing rows that belongs to previous group.
     if (pBlock->info.rows > 0) {
       return PROJECT_RETRIEVE_DONE;
@@ -766,7 +764,12 @@ int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDa
     int32_t keepRows = (int32_t)(pLimitInfo->limit.limit - pLimitInfo->numOfOutputRows);
     blockDataKeepFirstNRows(pBlock, keepRows);
     if (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups) {
-      pOperator->status = OP_EXEC_DONE;
+      setOperatorCompleted(pOperator);
+    } else {
+      // current group limitation is reached, and future blocks of this group need to be discarded.
+      if (pBlock->info.rows == 0) {
+        return PROJECT_RETRIEVE_CONTINUE;
+      }
     }
 
     return PROJECT_RETRIEVE_DONE;
