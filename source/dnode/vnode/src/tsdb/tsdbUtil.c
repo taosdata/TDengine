@@ -757,7 +757,7 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
 
             pTColVal->value.nData = pColVal->value.nData;
             if (pTColVal->value.nData) {
-              memcpy(pTColVal->value.pData,  pColVal->value.pData, pTColVal->value.nData);
+              memcpy(pTColVal->value.pData, pColVal->value.pData, pTColVal->value.nData);
             }
             pTColVal->flag = 0;
           } else {
