@@ -1075,12 +1075,7 @@ static int32_t tsdbSnapWriteTableDataStart(STsdbSnapWriter* pWriter, TABLEID* pI
     }
   }
 
-  if (pId == NULL) {
-    if (pWriter->sData.nRow) {
-      code = tsdbWriteSttBlock(pWriter->pDataFWriter, &pWriter->sData, pWriter->aSttBlk, pWriter->cmprAlg);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
-  } else {
+  if (pId) {
     code = tsdbUpdateTableSchema(pWriter->pTsdb->pVnode->pMeta, pId->suid, pId->uid, &pWriter->skmTable);
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1088,8 +1083,17 @@ static int32_t tsdbSnapWriteTableDataStart(STsdbSnapWriter* pWriter, TABLEID* pI
 
     code = tBlockDataInit(&pWriter->bData, pId, pWriter->skmTable.pTSchema, NULL, 0);
     TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
-    // TODO: init pWriter->sData ??
+  if (!TABLE_SAME_SCHEMA(pWriter->tbid.suid, pWriter->tbid.uid, pWriter->sData.suid, pWriter->sData.uid)) {
+    if ((pWriter->sData.nRow > 0)) {
+      code = tsdbWriteSttBlock(pWriter->pDataFWriter, &pWriter->sData, pWriter->aSttBlk, pWriter->cmprAlg);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    TABLEID id = {.suid = pWriter->tbid.suid, .uid = pWriter->tbid.suid ? 0 : pWriter->tbid.uid};
+    code = tBlockDataInit(&pWriter->sData, &id, pWriter->skmTable.pTSchema, NULL, 0);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
