@@ -4,6 +4,7 @@ description: '快速设置 TDengine 环境并体验其高效写入和查询'
 ---
 
 import xiaot from './xiaot.webp'
+import xiaot_new from './xiaot-new.webp'
 import channel from './channel.webp'
 import official_account from './official-account.webp'
 
@@ -35,13 +36,13 @@ TDengine 知识地图中涵盖了 TDengine 的各种知识点，揭示了各概�
 
 <table width="100%">
 <tr align="center">
-<td style={{padding:'1em 3em',border:0}}><img src={xiaot} alt="小 T 的二维码" width="200" /></td>
+<td style={{padding:'1em 3em',border:0}}><img src={xiaot_new} alt="小 T 的二维码" width="200" /></td>
 <td style={{padding:'1em 3em',border:0}}><img src={channel} alt="TDengine 微信视频号" width="200" /></td>
 <td style={{padding:'1em 3em',border:0}}><img src={official_account} alt="TDengine 微信公众号" width="200" /></td>
 </tr>
 <tr align="center">
-<td style={{padding:'1em 3em',border:0}}>加入“物联网大数据技术前沿群”<br/>与大家进行技术交流</td>
-<td style={{padding:'1em 3em',border:0}}>关注 TDengine 微信视频号<br/>收看技术直播与教学视频</td>
-<td style={{padding:'1em 3em',border:0}}>关注 TDengine 微信公众号<br/>阅读核心技术与行业案例文章</td>
+<td style={{padding:'1em 3em',border:0}}>加入“物联网大数据技术群”<br/>与大家进行技术交流</td>
+<td style={{padding:'1em 3em',border:0}}>关注 TDengine 视频号<br/>收看技术直播与教学视频</td>
+<td style={{padding:'1em 3em',border:0}}>关注 TDengine 公众号<br/>阅读技术文章与行业案例</td>
 </tr>
 </table>

@@ -115,6 +115,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_STREAMS,
   TSDB_MGMT_TABLE_TABLE,
   TSDB_MGMT_TABLE_TAG,
+  TSDB_MGMT_TABLE_COL,
   TSDB_MGMT_TABLE_USER,
   TSDB_MGMT_TABLE_GRANTS,
   TSDB_MGMT_TABLE_VGROUP,
@@ -343,7 +344,8 @@ void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
 
-#define IS_BSMA_ON(s) (((s)->flags & 0x01) == COL_SMA_ON)
+#define IS_BSMA_ON(s)  (((s)->flags & 0x01) == COL_SMA_ON)
+#define IS_SET_NULL(s) (((s)->flags & COL_SET_NULL) == COL_SET_NULL)
 
 #define SSCHMEA_TYPE(s)  ((s)->type)
 #define SSCHMEA_FLAGS(s) ((s)->flags)
@@ -378,6 +380,13 @@ static FORCE_INLINE void tDeleteSSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
   if (pSchemaWrapper) {
     taosMemoryFree(pSchemaWrapper->pSchema);
     taosMemoryFree(pSchemaWrapper);
+  }
+}
+
+static FORCE_INLINE void tDeleteSSchemaWrapperForHash(void* pSchemaWrapper) {
+  if (pSchemaWrapper != NULL && *(SSchemaWrapper**)pSchemaWrapper != NULL) {
+    taosMemoryFree((*(SSchemaWrapper**)pSchemaWrapper)->pSchema);
+    taosMemoryFree(*(SSchemaWrapper**)pSchemaWrapper);
   }
 }
 
@@ -1392,6 +1401,7 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   char    tb[TSDB_TABLE_NAME_LEN];
   char    user[TSDB_USER_LEN];
+  char    filterTb[TSDB_TABLE_NAME_LEN];
   int64_t showId;
 } SRetrieveTableReq;
 
@@ -1754,6 +1764,12 @@ typedef struct {
 #define STREAM_CREATE_STABLE_TRUE     1
 #define STREAM_CREATE_STABLE_FALSE    0
 
+typedef struct SColLocation {
+  int16_t  slotId;
+  col_id_t colId;
+  int8_t   type;
+} SColLocation;
+
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
   char    sourceDB[TSDB_DB_FNAME_LEN];
@@ -1771,7 +1787,9 @@ typedef struct {
   // 3.0.20
   int64_t checkpointFreq;  // ms
   // 3.0.2.3
-  int8_t createStb;
+  int8_t   createStb;
+  uint64_t targetStbUid;
+  SArray*  fillNullCols; // array of SColLocation
 } SCMCreateStreamReq;
 
 typedef struct {

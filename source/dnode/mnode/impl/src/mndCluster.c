@@ -20,6 +20,8 @@
 
 #define CLUSTER_VER_NUMBE    1
 #define CLUSTER_RESERVE_SIZE 60
+char    tsVersionName[16] = "community";
+int64_t tsExpireTime = 0;
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster);
 static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw);
@@ -290,6 +292,18 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pCluster->createdTime, false);
+
+    char ver[12] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(ver, tsVersionName, pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)ver, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (tsExpireTime <= 0) {
+      colDataAppendNULL(pColInfo, numOfRows);
+    } else {
+      colDataAppend(pColInfo, numOfRows, (const char *)&tsExpireTime, false);
+    }
 
     sdbRelease(pSdb, pCluster);
     numOfRows++;

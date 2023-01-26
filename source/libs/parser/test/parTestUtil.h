@@ -65,10 +65,11 @@ class ParserDdlTest : public ParserTestBase {
 
 extern bool g_dump;
 
-extern void    setAsyncFlag(const char* pFlag);
-extern void    setLogLevel(const char* pLogLevel);
+extern void    setAsyncFlag(const char* pArg);
+extern void    setLogLevel(const char* pArg);
 extern int32_t getLogLevel();
-extern void    setSkipSqlNum(const char* pNum);
+extern void    setSkipSqlNum(const char* pArg);
+extern void    setLimitSqlNum(const char* pArg);
 
 }  // namespace ParserTest
 

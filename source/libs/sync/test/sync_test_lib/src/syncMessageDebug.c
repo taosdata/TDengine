@@ -2858,11 +2858,11 @@ cJSON* syncLocalCmd2Json(const SyncLocalCmd* pMsg) {
 
     cJSON_AddNumberToObject(pRoot, "cmd", pMsg->cmd);
 
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->sdNewTerm);
-    cJSON_AddStringToObject(pRoot, "sd-new-term", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->sdNewTerm);
+    // cJSON_AddStringToObject(pRoot, "sd-new-term", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->fcIndex);
-    cJSON_AddStringToObject(pRoot, "fc-index", u64buf);
+    // snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->fcIndex);
+    // cJSON_AddStringToObject(pRoot, "fc-index", u64buf);
   }
 
   cJSON* pJson = cJSON_CreateObject();

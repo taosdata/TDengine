@@ -32,11 +32,9 @@ typedef struct SyncRequestVoteReply   SyncRequestVoteReply;
 typedef struct SyncAppendEntries      SyncAppendEntries;
 typedef struct SyncAppendEntriesReply SyncAppendEntriesReply;
 typedef struct SSyncEnv               SSyncEnv;
-typedef struct SRaftStore             SRaftStore;
 typedef struct SVotesGranted          SVotesGranted;
 typedef struct SVotesRespond          SVotesRespond;
 typedef struct SSyncIndexMgr          SSyncIndexMgr;
-typedef struct SRaftCfg               SRaftCfg;
 typedef struct SSyncRespMgr           SSyncRespMgr;
 typedef struct SSyncSnapshotSender    SSyncSnapshotSender;
 typedef struct SSyncSnapshotReceiver  SSyncSnapshotReceiver;
@@ -69,6 +67,11 @@ typedef struct SRaftId {
   SyncNodeId  addr;
   SyncGroupId vgId;
 } SRaftId;
+
+typedef struct SRaftStore {
+  SyncTerm currentTerm;
+  SRaftId  voteFor;
+} SRaftStore;
 
 typedef struct SSyncHbTimerData {
   int64_t     syncNodeRid;
@@ -112,8 +115,8 @@ typedef struct SSyncNode {
 
   // sync io
   SSyncLogBuffer* pLogBuf;
-  SWal*         pWal;
-  const SMsgCb* msgcb;
+  SWal*           pWal;
+  const SMsgCb*   msgcb;
   int32_t (*syncSendMSg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
   int32_t (*syncEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
   int32_t (*syncEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
@@ -139,8 +142,8 @@ typedef struct SSyncNode {
   int64_t rid;
 
   // tla+ server vars
-  ESyncState  state;
-  SRaftStore* pRaftStore;
+  ESyncState state;
+  SRaftStore raftStore;
 
   // tla+ candidate vars
   SVotesGranted* pVotesGranted;
@@ -229,7 +232,7 @@ int32_t    syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
 void       syncNodePreClose(SSyncNode* pSyncNode);
 void       syncNodePostClose(SSyncNode* pSyncNode);
-int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t *seq);
+int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t* seq);
 int32_t    syncNodeRestore(SSyncNode* pSyncNode);
 void       syncHbTimerDataFree(SSyncHbTimerData* pData);
 

@@ -202,11 +202,13 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("sma:%s, failed to decode from raw:%p since %s", pSma == NULL ? "null" : pSma->name, pRaw, terrstr());
-    taosMemoryFreeClear(pSma->expr);
-    taosMemoryFreeClear(pSma->tagsFilter);
-    taosMemoryFreeClear(pSma->sql);
-    taosMemoryFreeClear(pSma->ast);
+    if (pSma != NULL) {
+      mError("sma:%s, failed to decode from raw:%p since %s", pSma->name, pRaw, terrstr());
+      taosMemoryFreeClear(pSma->expr);
+      taosMemoryFreeClear(pSma->tagsFilter);
+      taosMemoryFreeClear(pSma->sql);
+      taosMemoryFreeClear(pSma->ast);
+    }
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -457,8 +459,10 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
 
   int32_t contLen = 0;
   void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
-  taosMemoryFreeClear(pSmaReq);
-  if (pReq == NULL) return -1;
+  if (pReq == NULL) {
+    taosMemoryFreeClear(pSmaReq);
+    return -1;
+  }
 
   action.pCont = pReq;
   action.contLen = contLen;
@@ -466,7 +470,18 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   action.acceptableCode = TSDB_CODE_VND_ALREADY_EXIST;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFreeClear(pSmaReq);
     taosMemoryFree(pReq);
+    return -1;
+  }
+
+  action.pCont = pSmaReq;
+  action.contLen = smaContLen;
+  action.msgType = TDMT_VND_CREATE_SMA;
+  action.acceptableCode = TSDB_CODE_TSMA_ALREADY_EXIST;
+
+  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFreeClear(pSmaReq);
     return -1;
   }
 
