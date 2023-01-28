@@ -77,10 +77,12 @@ void walUnrefVer(SWalRef *pRef) {
 }
 #endif
 
-SWalRef *walRefFirstVer(SWal *pWal) {
-  SWalRef *pRef = walOpenRef(pWal);
+SWalRef *walRefFirstVer(SWal *pWal, SWalRef *pRef) {
   if (pRef == NULL) {
-    return NULL;
+    pRef = walOpenRef(pWal);
+    if (pRef == NULL) {
+      return NULL;
+    }
   }
   taosThreadMutexLock(&pWal->mutex);
 
