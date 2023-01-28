@@ -164,7 +164,7 @@ void* tsdbCacherowsReaderClose(void* pReader) {
 
   destroyLastBlockLoadInfo(p->pLoadInfo);
 
-  taosMemoryFree((void*) p->idstr);
+  taosMemoryFree((void*)p->idstr);
   taosMemoryFree(pReader);
   return NULL;
 }
@@ -241,7 +241,11 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     taosArrayPush(pLastCols, &p);
   }
 
-  tsdbTakeReadSnap(pr->pVnode->pTsdb, &pr->pReadSnap, "cache-l");
+  code = tsdbTakeReadSnap(pr->pVnode->pTsdb, &pr->pReadSnap, "cache-l");
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _end;
+  }
+
   pr->pDataFReader = NULL;
   pr->pDataFReaderLast = NULL;
 
@@ -252,7 +256,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
       code = doExtractCacheRow(pr, lruCache, pKeyInfo->uid, &pRow, &h);
       if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        goto _end;
       }
 
       if (h == NULL) {
@@ -321,7 +325,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];
       code = doExtractCacheRow(pr, lruCache, pKeyInfo->uid, &pRow, &h);
       if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        goto _end;
       }
 
       if (h == NULL) {

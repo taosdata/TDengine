@@ -1136,10 +1136,8 @@ int32_t shellExecute() {
 
   taosSetSignal(SIGTERM, shellQueryInterruptHandler);
   taosSetSignal(SIGHUP, shellQueryInterruptHandler);
-  taosSetSignal(SIGABRT, shellQueryInterruptHandler);
-
   taosSetSignal(SIGINT, shellQueryInterruptHandler);
-
+  
 #ifdef WEBSOCKET
   if (!shell.args.restful && !shell.args.cloud) {
 #endif

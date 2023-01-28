@@ -3061,14 +3061,12 @@ static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, 
     if (pHandle->currentPage == -1) {
       pPage = getNewBufPage(pHandle->pBuf, &pHandle->currentPage);
       if (pPage == NULL) {
-        terrno = TSDB_CODE_NO_AVAIL_DISK;
         return terrno;
       }
       pPage->num = sizeof(SFilePage);
     } else {
       pPage = getBufPage(pHandle->pBuf, pHandle->currentPage);
       if (pPage == NULL) {
-        terrno = TSDB_CODE_NO_AVAIL_DISK;
         return terrno;
       }
       if (pPage->num + length > getBufPageSize(pHandle->pBuf)) {
@@ -3076,7 +3074,6 @@ static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, 
         releaseBufPage(pHandle->pBuf, pPage);
         pPage = getNewBufPage(pHandle->pBuf, &pHandle->currentPage);
         if (pPage == NULL) {
-          terrno = TSDB_CODE_NO_AVAIL_DISK;
           return terrno;
         }
         pPage->num = sizeof(SFilePage);
@@ -3123,7 +3120,6 @@ static int32_t doUpdateTupleData(SSerializeDataHandle* pHandle, const void* pBuf
   if (pHandle->pBuf != NULL) {
     SFilePage* pPage = getBufPage(pHandle->pBuf, pPos->pageId);
     if (pPage == NULL) {
-      terrno = TSDB_CODE_NO_AVAIL_DISK;
       return terrno;
     }
     memcpy(pPage->data + pPos->offset, pBuf, length);

@@ -357,6 +357,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
+  tsem_destroy(&pRequest->body.rspSem);
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
@@ -371,6 +372,9 @@ void doDestroyRequest(void *p) {
   }
 
   if (pRequest->syncQuery) {
+      if (pRequest->body.param){
+        tsem_destroy(&((SSyncQueryParam*)pRequest->body.param)->sem);
+      }
     taosMemoryFree(pRequest->body.param);
   }
 
@@ -386,45 +390,6 @@ void destroyRequest(SRequestObj *pRequest) {
 
   taos_stop_query(pRequest);
   removeRequest(pRequest->self);
-}
-
-void taosClientCrash(int signum, void *sigInfo, void *context) {
-  taosIgnSignal(SIGTERM);
-  taosIgnSignal(SIGHUP);
-  taosIgnSignal(SIGINT);
-  taosIgnSignal(SIGBREAK);
-
-#if !defined(WINDOWS)
-  taosIgnSignal(SIGBUS);
-#endif  
-  taosIgnSignal(SIGABRT);
-  taosIgnSignal(SIGFPE);
-  taosIgnSignal(SIGSEGV);
-
-  char *pMsg = NULL;
-  const char *flags = "UTL FATAL ";
-  ELogLevel   level = DEBUG_FATAL;
-  int32_t     dflag = 255;
-  int64_t     msgLen= -1;
-
-  if (tsEnableCrashReport) {
-    if (taosGenCrashJsonMsg(signum, &pMsg, lastClusterId, appInfo.startTime)) {
-      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
-      goto _return;
-    } else {
-      msgLen = strlen(pMsg);  
-    }
-  }
-  
-_return:
-
-  taosLogCrashInfo("taos", pMsg, msgLen, signum, sigInfo);
-
-#ifdef _TD_DARWIN_64
-  exit(signum);
-#elif defined(WINDOWS)
-  exit(signum);
-#endif
 }
 
 void crashReportThreadFuncUnexpectedStopped(void) { atomic_store_32(&clientStop, -1); }
@@ -523,14 +488,25 @@ void tscStopCrashReport() {
   }
 }
 
-static void tscSetSignalHandle() {
-#if !defined(WINDOWS)
-  taosSetSignal(SIGBUS, taosClientCrash);
-#endif
-  taosSetSignal(SIGABRT, taosClientCrash);
-  taosSetSignal(SIGFPE, taosClientCrash);
-  taosSetSignal(SIGSEGV, taosClientCrash);
+
+void tscWriteCrashInfo(int signum, void *sigInfo, void *context) {
+  char *pMsg = NULL;
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;
+  int64_t     msgLen= -1;
+
+  if (tsEnableCrashReport) {
+    if (taosGenCrashJsonMsg(signum, &pMsg, lastClusterId, appInfo.startTime)) {
+      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
+    } else {
+      msgLen = strlen(pMsg);  
+    }
+  }
+
+  taosLogCrashInfo("taos", pMsg, msgLen, signum, sigInfo);
 }
+
 
 void taos_init_imp(void) {
   // In the APIs of other program language, taos_cleanup is not available yet.
@@ -554,8 +530,6 @@ void taos_init_imp(void) {
     tscInitRes = -1;
     return;
   }
-
-  tscSetSignalHandle();
 
   initQueryModuleMsgHandle();
 

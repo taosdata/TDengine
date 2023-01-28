@@ -954,7 +954,7 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
           return -1;
         }
       } else {
-        qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
+//        qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
         terrno = 0;
       }
     }
@@ -1757,6 +1757,11 @@ void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimit
   pLimitInfo->slimit = slimit;
   pLimitInfo->remainOffset = limit.offset;
   pLimitInfo->remainGroupOffset = slimit.offset;
+}
+
+void resetLimitInfoForNextGroup(SLimitInfo* pLimitInfo) {
+  pLimitInfo->numOfOutputRows = 0;
+  pLimitInfo->remainOffset = pLimitInfo->limit.offset;
 }
 
 uint64_t tableListGetSize(const STableListInfo* pTableList) {
