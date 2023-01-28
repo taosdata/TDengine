@@ -521,7 +521,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
             tqOffsetResetToData(&fetchOffsetNew, 0, 0);
           }
         } else {
-          tqOffsetResetToLog(&fetchOffsetNew, walGetFirstVer(pTq->pVnode->pWal));
+          int64_t firstVer = walGetFirstVer(pTq->pVnode->pWal);
+          walRefVer(pHandle->pRef, firstVer);
+          tqOffsetResetToLog(&fetchOffsetNew, firstVer - 1);
         }
       } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
         if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
