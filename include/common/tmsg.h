@@ -907,6 +907,7 @@ typedef struct {
   int32_t numOfRetensions;
   SArray* pRetensions;
   int8_t  schemaless;
+  int16_t sstTrigger;
 } SDbCfgRsp;
 
 int32_t tSerializeSDbCfgRsp(void* buf, int32_t bufLen, const SDbCfgRsp* pRsp);

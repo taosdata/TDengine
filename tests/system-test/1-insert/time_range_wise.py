@@ -600,6 +600,11 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
 
+        # add for TS-2440
+        for i in range(self.rows):
+            tdSql.execute("drop database if exists db3 ")
+            tdSql.execute("create database db3 retentions 1s:4m,2s:8m,3s:12m")
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

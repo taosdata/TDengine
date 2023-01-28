@@ -55,6 +55,8 @@ void taos_cleanup(void) {
     return;
   }
 
+  tscStopCrashReport();
+
   int32_t id = clientReqRefPool;
   clientReqRefPool = -1;
   taosCloseRef(id);
@@ -106,7 +108,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   if (pass == NULL) {
     pass = TSDB_DEFAULT_PASS;
   }
-
+  
   STscObj *pObj = taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY);
   if (pObj) {
     int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
@@ -507,9 +509,8 @@ void taos_stop_query(TAOS_RES *res) {
   SRequestObj *pRequest = (SRequestObj *)res;
   pRequest->killed = true;
 
-  int32_t numOfFields = taos_num_fields(pRequest);
   // It is not a query, no need to stop.
-  if (numOfFields == 0) {
+  if (NULL == pRequest->pQuery || QUERY_EXEC_MODE_SCHEDULE != pRequest->pQuery->execMode) {
     tscDebug("request 0x%" PRIx64 " no need to be killed since not query", pRequest->requestId);
     return;
   }

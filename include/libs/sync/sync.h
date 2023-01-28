@@ -49,10 +49,12 @@ extern "C" {
 #define SYNC_HEARTBEAT_REPLY_SLOW_MS 1500
 #define SYNC_SNAP_RESEND_MS          1000 * 60
 
+#define SYNC_VND_COMMIT_MIN_MS 1000
+
 #define SYNC_MAX_BATCH_SIZE 1
 #define SYNC_INDEX_BEGIN    0
 #define SYNC_INDEX_INVALID  -1
-#define SYNC_TERM_INVALID   -1  // 0xFFFFFFFFFFFFFFFF
+#define SYNC_TERM_INVALID   -1
 
 typedef enum {
   SYNC_STRATEGY_NO_SNAPSHOT = 0,
@@ -191,7 +193,7 @@ typedef struct SSyncLogStore {
   SyncIndex (*syncLogLastIndex)(struct SSyncLogStore* pLogStore);
   SyncTerm (*syncLogLastTerm)(struct SSyncLogStore* pLogStore);
 
-  int32_t (*syncLogAppendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
+  int32_t (*syncLogAppendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, bool forcSync);
   int32_t (*syncLogGetEntry)(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry);
   int32_t (*syncLogTruncate)(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
 

@@ -86,7 +86,7 @@ int32_t vnodeAlter(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs) {
     pNode->nodeId = pReq->replicas[i].id;
     pNode->nodePort = pReq->replicas[i].port;
     tstrncpy(pNode->nodeFqdn, pReq->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
-    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
     vInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", pReq->vgId, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId);
   }
 
@@ -159,6 +159,8 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   tsem_init(&(pVnode->canCommit), 0, 1);
   taosThreadMutexInit(&pVnode->mutex, NULL);
   taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
+
+  vnodeUpdCommitSched(pVnode);
 
   int8_t rollback = vnodeShouldRollback(pVnode);
 
@@ -254,7 +256,7 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
-    vnodeSyncCommit(pVnode);
+    tsem_wait(&pVnode->canCommit);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     walClose(pVnode->pWal);
@@ -263,6 +265,8 @@ void vnodeClose(SVnode *pVnode) {
     smaClose(pVnode->pSma);
     metaClose(pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
+    tsem_post(&pVnode->canCommit);
+
     // destroy handle
     tsem_destroy(&(pVnode->canCommit));
     tsem_destroy(&pVnode->syncSem);

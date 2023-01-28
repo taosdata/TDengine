@@ -24,9 +24,9 @@ from util.dnodes import tdDnodes
 from util.dnodes import *
 
 class TDTestCase:
-    updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
-    "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
-    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143}
+    updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 131 ,"cDebugFlag":131,"uDebugFlag":131 ,"rpcDebugFlag":131 , "tmrDebugFlag":131 ,
+    "jniDebugFlag":131 ,"simDebugFlag":131,"dDebugFlag":131, "dDebugFlag":131,"vDebugFlag":131,"mDebugFlag":131,"qDebugFlag":131,
+    "wDebugFlag":131,"sDebugFlag":131,"tsdbDebugFlag":131,"tqDebugFlag":131 ,"fsDebugFlag":131 ,"fnDebugFlag":131}
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)

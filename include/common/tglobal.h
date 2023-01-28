@@ -69,6 +69,9 @@ extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
 
+// vnode
+extern int64_t tsVndCommitMaxIntervalMs;
+
 // monitor
 extern bool     tsEnableMonitor;
 extern int32_t  tsMonitorInterval;
@@ -82,6 +85,10 @@ extern bool     tsEnableTelem;
 extern int32_t  tsTelemInterval;
 extern char     tsTelemServer[];
 extern uint16_t tsTelemPort;
+extern bool     tsEnableCrashReport;
+extern char*    tsTelemUri;
+extern char*    tsClientCrashReportUri;
+extern char*    tsSvrCrashReportUri;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing

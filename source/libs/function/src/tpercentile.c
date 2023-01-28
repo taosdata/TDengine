@@ -43,8 +43,8 @@ static SFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) 
     if (pg == NULL) {
       return NULL;
     }
-    memcpy(buffer->data + offset, pg->data, (size_t)(pg->num * pMemBucket->bytes));
 
+    memcpy(buffer->data + offset, pg->data, (size_t)(pg->num * pMemBucket->bytes));
     offset += (int32_t)(pg->num * pMemBucket->bytes);
   }
 
@@ -92,6 +92,7 @@ static void resetPosInfo(SSlotInfo *pInfo) {
 
 int32_t findOnlyResult(tMemBucket *pMemBucket, double *result) {
   ASSERT(pMemBucket->total == 1);
+  terrno = 0;
 
   for (int32_t i = 0; i < pMemBucket->numOfSlots; ++i) {
     tMemBucketSlot *pSlot = &pMemBucket->pSlots[i];
@@ -108,7 +109,7 @@ int32_t findOnlyResult(tMemBucket *pMemBucket, double *result) {
       int32_t   *pageId = taosArrayGet(list, 0);
       SFilePage *pPage = getBufPage(pMemBucket->pBuffer, *pageId);
       if (pPage == NULL) {
-        return TSDB_CODE_NO_AVAIL_DISK;
+        return terrno;
       }
       ASSERT(pPage->num == 1);
 
@@ -275,7 +276,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
     return NULL;
   }
 
-  int32_t ret = createDiskbasedBuf(&pBucket->pBuffer, pBucket->bufPageSize, pBucket->bufPageSize * 512, "1", tsTempDir);
+  int32_t ret = createDiskbasedBuf(&pBucket->pBuffer, pBucket->bufPageSize, pBucket->bufPageSize * 1024, "1", tsTempDir);
   if (ret != 0) {
     tMemBucketDestroy(pBucket);
     return NULL;
@@ -387,7 +388,7 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
 
       pSlot->info.data = getNewBufPage(pBucket->pBuffer, &pageId);
       if (pSlot->info.data == NULL) {
-        return TSDB_CODE_NO_AVAIL_DISK;
+        return terrno;
       }
       pSlot->info.pageId = pageId;
       taosArrayPush(pPageIdList, &pageId);
@@ -481,8 +482,9 @@ int32_t getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction
         // data in buffer and file are merged together to be processed.
         SFilePage *buffer = loadDataFromFilePage(pMemBucket, i);
         if (buffer == NULL) {
-          return TSDB_CODE_NO_AVAIL_DISK;
+          return terrno;
         }
+
         int32_t    currentIdx = count - num;
 
         char *thisVal = buffer->data + pMemBucket->bytes * currentIdx;
@@ -519,7 +521,7 @@ int32_t getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction
           int32_t *pageId = taosArrayGet(list, f);
           SFilePage *pg = getBufPage(pMemBucket->pBuffer, *pageId);
           if (pg == NULL) {
-            return TSDB_CODE_NO_AVAIL_DISK;
+            return terrno;
           }
 
           int32_t code = tMemBucketPut(pMemBucket, pg->data, (int32_t)pg->num);

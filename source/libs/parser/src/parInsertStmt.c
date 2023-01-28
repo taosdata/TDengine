@@ -425,6 +425,27 @@ int32_t qCloneStmtDataBlock(void** pDst, void* pSrc) {
     pBlock->pTableMeta = pNewMeta;
   }
 
+  if (pBlock->boundColumnInfo.boundColumns) {
+    int32_t size = pBlock->boundColumnInfo.numOfCols * sizeof(col_id_t);
+    void* tmp = taosMemoryMalloc(size);
+    memcpy(tmp, pBlock->boundColumnInfo.boundColumns, size);
+    pBlock->boundColumnInfo.boundColumns = tmp;
+  }
+
+  if (pBlock->boundColumnInfo.cols) {
+    int32_t size = pBlock->boundColumnInfo.numOfCols * sizeof(SBoundColumn);
+    void* tmp = taosMemoryMalloc(size);
+    memcpy(tmp, pBlock->boundColumnInfo.cols, size);
+    pBlock->boundColumnInfo.cols = tmp;
+  }
+
+  if (pBlock->boundColumnInfo.colIdxInfo) {
+    int32_t size = pBlock->boundColumnInfo.numOfBound * sizeof(SBoundIdxInfo);
+    void* tmp = taosMemoryMalloc(size);
+    memcpy(tmp, pBlock->boundColumnInfo.colIdxInfo, size);
+    pBlock->boundColumnInfo.colIdxInfo = tmp;
+  }
+
   return qResetStmtDataBlock(*pDst, false);
 }
 
@@ -437,7 +458,7 @@ int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc, uint64_t uid, int32_t vgI
   STableDataBlocks* pBlock = (STableDataBlocks*)*pDst;
   pBlock->pData = taosMemoryMalloc(pBlock->nAllocSize);
   if (NULL == pBlock->pData) {
-    qFreeStmtDataBlock(pBlock);
+    qDestroyStmtDataBlock(pBlock);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 

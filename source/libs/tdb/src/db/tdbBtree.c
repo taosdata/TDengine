@@ -1063,11 +1063,11 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
     } else {
       int nLeftKey = kLen;
       // pack partial key and nextPgno
-      memcpy(pCell + nHeader, pKey, nLocal - 4);
-      nLeft -= nLocal - 4;
-      nLeftKey -= nLocal - 4;
+      memcpy(pCell + nHeader, pKey, nLocal - nHeader - sizeof(pgno));
+      nLeft -= nLocal - nHeader - sizeof(pgno);
+      nLeftKey -= nLocal - nHeader - sizeof(pgno);
 
-      memcpy(pCell + nHeader + nLocal - 4, &pgno, sizeof(pgno));
+      memcpy(pCell + nLocal - sizeof(pgno), &pgno, sizeof(pgno));
 
       int lastKeyPageSpace = 0;
       // pack left key & val to ovpages
@@ -1087,9 +1087,12 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 
         if (lastKeyPage) {
           if (lastKeyPageSpace >= vLen) {
-            memcpy(pBuf + kLen - nLeftKey, pVal, vLen);
+            if (vLen > 0) {
+              memcpy(pBuf + kLen - nLeftKey, pVal, vLen);
 
-            nLeft -= vLen;
+              nLeft -= vLen;
+            }
+
             pgno = 0;
           } else {
             memcpy(pBuf + kLen - nLeftKey, pVal, lastKeyPageSpace);
@@ -1111,7 +1114,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
           }
         }
 
-        memcpy(pBuf + kLen - nLeft, &pgno, sizeof(pgno));
+        memcpy(pBuf + bytes, &pgno, sizeof(pgno));
 
         ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
         if (ret < 0) {
@@ -1313,11 +1316,11 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
       }
       TDB_CELLDECODER_SET_FREE_KEY(pDecoder);
 
-      memcpy(pDecoder->pKey, pCell + nHeader, nLocal - 4);
-      nLeft -= nLocal - 4;
-      nLeftKey -= nLocal - 4;
+      memcpy(pDecoder->pKey, pCell + nHeader, nLocal - nHeader - sizeof(pgno));
+      nLeft -= nLocal - nHeader - sizeof(pgno);
+      nLeftKey -= nLocal - nHeader - sizeof(pgno);
 
-      memcpy(&pgno, pCell + nHeader + nLocal - 4, sizeof(pgno));
+      memcpy(&pgno, pCell + nLocal - sizeof(pgno), sizeof(pgno));
 
       int lastKeyPageSpace = 0;
       // load left key & val to ovpages
@@ -1343,9 +1346,11 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
 
         if (lastKeyPage) {
           if (lastKeyPageSpace >= vLen) {
-            pDecoder->pVal = ofpCell + kLen - nLeftKey;
+            if (vLen > 0) {
+              pDecoder->pVal = ofpCell + kLen - nLeftKey;
 
-            nLeft -= vLen;
+              nLeft -= vLen;
+            }
             pgno = 0;
           } else {
             // read partial val to local
