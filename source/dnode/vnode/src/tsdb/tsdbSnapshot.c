@@ -1370,63 +1370,6 @@ _exit:
   return code;
 }
 
-static int32_t tsdbSnapWriteFileDataEnd(STsdbSnapWriter* pWriter) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  ASSERT(pWriter->pDataFWriter);
-
-  // consume remain data and end with a NULL table row
-  SRowInfo* pRowInfo;
-  code = tsdbSnapWriteGetRow(pWriter, &pRowInfo);
-  TSDB_CHECK_CODE(code, lino, _exit);
-  for (;;) {
-    code = tsdbSnapWriteTableData(pWriter, pRowInfo);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    if (pRowInfo == NULL) break;
-
-    code = tsdbSnapWriteNextRow(pWriter, &pRowInfo);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  // do file-level updates
-  code = tsdbWriteSttBlk(pWriter->pDataFWriter, pWriter->aSttBlk);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbWriteBlockIdx(pWriter->pDataFWriter, pWriter->aBlockIdx);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbUpdateDFileSetHeader(pWriter->pDataFWriter);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbFSUpsertFSet(&pWriter->fs, &pWriter->pDataFWriter->wSet);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbDataFWriterClose(&pWriter->pDataFWriter, 1);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  if (pWriter->pDataFReader) {
-    code = tsdbDataFReaderClose(&pWriter->pDataFReader);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  // clear sources
-  while (pWriter->iterList) {
-    STsdbDataIter2* pIter = pWriter->iterList;
-    pWriter->iterList = pIter->next;
-    tsdbCloseDataIter2(pIter);
-  }
-
-_exit:
-  if (code) {
-    tsdbError("vgId:%d %s failed since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, tstrerror(code));
-  } else {
-    tsdbDebug("vgId:%d %s is done", TD_VID(pWriter->pTsdb->pVnode), __func__);
-  }
-  return code;
-}
-
 static int32_t tsdbSnapWriteNextRow(STsdbSnapWriter* pWriter, SRowInfo** ppRowInfo) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -1489,6 +1432,63 @@ static int32_t tsdbSnapWriteGetRow(STsdbSnapWriter* pWriter, SRowInfo** ppRowInf
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tsdbSnapWriteFileDataEnd(STsdbSnapWriter* pWriter) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  ASSERT(pWriter->pDataFWriter);
+
+  // consume remain data and end with a NULL table row
+  SRowInfo* pRowInfo;
+  code = tsdbSnapWriteGetRow(pWriter, &pRowInfo);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  for (;;) {
+    code = tsdbSnapWriteTableData(pWriter, pRowInfo);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (pRowInfo == NULL) break;
+
+    code = tsdbSnapWriteNextRow(pWriter, &pRowInfo);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  // do file-level updates
+  code = tsdbWriteSttBlk(pWriter->pDataFWriter, pWriter->aSttBlk);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbWriteBlockIdx(pWriter->pDataFWriter, pWriter->aBlockIdx);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbUpdateDFileSetHeader(pWriter->pDataFWriter);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbFSUpsertFSet(&pWriter->fs, &pWriter->pDataFWriter->wSet);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbDataFWriterClose(&pWriter->pDataFWriter, 1);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (pWriter->pDataFReader) {
+    code = tsdbDataFReaderClose(&pWriter->pDataFReader);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  // clear sources
+  while (pWriter->iterList) {
+    STsdbDataIter2* pIter = pWriter->iterList;
+    pWriter->iterList = pIter->next;
+    tsdbCloseDataIter2(pIter);
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, tstrerror(code));
+  } else {
+    tsdbDebug("vgId:%d %s is done", TD_VID(pWriter->pTsdb->pVnode), __func__);
   }
   return code;
 }
