@@ -184,6 +184,7 @@ typedef struct {
   SSmlLineInfo      *lines; // element is SSmlLineInfo
   bool               parseJsonByLib;
   SArray      *tagJsonArray;
+  SArray      *valueJsonArray;
 
   //
   SArray      *preLineTagKV;
