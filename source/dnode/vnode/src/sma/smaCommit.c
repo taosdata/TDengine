@@ -17,10 +17,18 @@
 
 extern SSmaMgmt smaMgmt;
 
-static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma);
+static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit);
 static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo);
 static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma);
 static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat);
+
+/**
+ * @brief only applicable to Rollup SMA
+ *
+ * @param pSma
+ * @return int32_t
+ */
+int32_t smaPreClose(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma, false); }
 
 /**
  * @brief async commit, only applicable to Rollup SMA
@@ -28,7 +36,7 @@ static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat);
  * @param pSma
  * @return int32_t
  */
-int32_t smaPrepareAsyncCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma); }
+int32_t smaPrepareAsyncCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma, true); }
 
 /**
  * @brief async commit, only applicable to Rollup SMA
@@ -124,7 +132,7 @@ _exit:
  * @param pSma
  * @return int32_t
  */
-static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
+static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -139,15 +147,18 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
 
   // step 1: set rsma stat
   atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED);
-  while (atomic_val_compare_exchange_8(RSMA_COMMIT_STAT(pRSmaStat), 0, 1) != 0) {
-    ++nLoops;
-    if (nLoops > 1000) {
-      sched_yield();
-      nLoops = 0;
+  if (isCommit) {
+    while (atomic_val_compare_exchange_8(RSMA_COMMIT_STAT(pRSmaStat), 0, 1) != 0) {
+      ++nLoops;
+      if (nLoops > 1000) {
+        sched_yield();
+        nLoops = 0;
+      }
     }
   }
+
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
-  if (ASSERTS(pRSmaStat->commitAppliedVer >= 0, "commit applied version %" PRIi64 " < 0",
+  if (ASSERTS(pRSmaStat->commitAppliedVer >= -1, "commit applied version %" PRIi64 " < 0",
               pRSmaStat->commitAppliedVer)) {
     code = TSDB_CODE_APP_ERROR;
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -156,7 +167,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   // step 2: wait for all triggered fetch tasks to finish
   nLoops = 0;
   while (1) {
-    if (T_REF_VAL_GET(pStat) == 0) {
+    if (atomic_load_32(&pRSmaStat->nFetchAll) <= 0) {
       smaDebug("vgId:%d, rsma commit, fetch tasks are all finished", SMA_VID(pSma));
       break;
     } else {
@@ -184,6 +195,9 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
       nLoops = 0;
     }
   }
+
+  if (!isCommit) goto _exit;
+
   smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
   code = tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
   TSDB_CHECK_CODE(code, lino, _exit);
