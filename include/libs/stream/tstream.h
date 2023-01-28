@@ -372,7 +372,7 @@ void         tFreeSStreamTask(SStreamTask* pTask);
 static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
   int8_t type = pItem->type;
   if (type == STREAM_INPUT__DATA_SUBMIT) {
-    SStreamDataSubmit* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit*)pItem);
+    SStreamDataSubmit2* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit2*)pItem);
     if (pSubmitClone == NULL) {
       qDebug("task %d %p submit enqueue failed since out of memory", pTask->taskId, pTask);
       terrno = TSDB_CODE_OUT_OF_MEMORY;

@@ -1781,10 +1781,10 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
         return terrno;
       }
       if (init) {
-        tRowMergerAdd(&merge, pRow, pSchema);
+        tsdbRowMergerAdd(&merge, pRow, pSchema);
       } else {
         init = true;
-        int32_t code = tRowMergerInit(&merge, pRow, pSchema);
+        int32_t code = tsdbRowMergerInit(&merge, pRow, pSchema);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
