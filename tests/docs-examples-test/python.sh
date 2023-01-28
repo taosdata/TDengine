@@ -67,3 +67,13 @@ python3 result_set_examples.py
 
 # 16
 python3 tmq_example.py
+
+# 17
+python3 sql_writer.py
+
+# 18
+python3 mockdatasource.py
+
+# 19
+python3 fast_write_example.py
+

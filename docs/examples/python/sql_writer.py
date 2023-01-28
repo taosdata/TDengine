@@ -21,7 +21,7 @@ class SQLWriter:
                 return int(r[1])
         return 1024 * 1024
 
-    def process_lines(self, lines: str):
+    def process_lines(self, lines: [str]):
         """
         :param lines: [[tbName,ts,current,voltage,phase,location,groupId]]
         """
@@ -65,6 +65,7 @@ class SQLWriter:
         self._tb_values.clear()
 
     def execute_sql(self, sql):
+        self.create_tables()
         try:
             self._conn.execute(sql)
         except taos.Error as e:
@@ -90,11 +91,17 @@ class SQLWriter:
             self.log.error("Execute SQL: %s", sql)
             raise e
 
+
 if __name__ == '__main__':
     def get_connection_func():
         conn = taos.connect()
         return conn
 
-    writer = SQLWriter(get_connection_func = get_connection_func)
-    writer.execute_sql("create stable meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int)")
-    writer.execute_sql("INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32)")
+
+    writer = SQLWriter(get_connection_func=get_connection_func)
+    writer.execute_sql(
+        "create stable if not exists meters (ts timestamp, current float, voltage int, phase float) "
+        "tags (location binary(64), groupId int)")
+    writer.execute_sql(
+        "INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) "
+        "VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32)")
