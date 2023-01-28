@@ -663,7 +663,7 @@ static int32_t smlParseValueFromJSON(cJSON *root, SSmlKv *kv) {
        * user configured parameter tsDefaultJSONStrType
        */
 
-      char *tsDefaultJSONStrType = "nchar";  // todo
+      char *tsDefaultJSONStrType = "binary";  // todo
       smlConvertJSONString(kv, tsDefaultJSONStrType, root);
       break;
     }
