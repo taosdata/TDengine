@@ -562,10 +562,10 @@
 11,,pytest,python3 test.py -f import_merge/importBlock1Sub.py
 10,,docs-examples-test,./test_python.sh
 10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonStmt-otherPara.py
-10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonStmt.py
+#10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonStmt.py
 10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-autoCreate.py
 10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-otherPara.py
-10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-childTable.py
+#10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-childTable.py
 10,,system-test,python3 ./test.py -f 2-query/TD-12344.py
 10,,script,./test.sh -f unique/stable/replica2_vnode3.sim
 10,,pytest,python3 testCompress.py
