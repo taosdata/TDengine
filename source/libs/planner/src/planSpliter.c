@@ -560,6 +560,8 @@ static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
     if (NULL == pMerge->node.pLimit) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
+    ((SLimitNode*)pSplitNode->pLimit)->limit += ((SLimitNode*)pSplitNode->pLimit)->offset;
+    ((SLimitNode*)pSplitNode->pLimit)->offset = 0;
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL == pSubplan) {
