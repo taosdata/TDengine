@@ -332,7 +332,7 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
     while (tqNextDataBlock2(pReader)) {
       // TODO mem free
       memset(&ret->data, 0, sizeof(SSDataBlock));
-      int32_t code = tqRetrieveDataBlock2(&ret->data, pReader);
+      int32_t code = tqRetrieveDataBlock2(&ret->data, pReader, NULL);
       if (code != 0 || ret->data.info.rows == 0) {
         continue;
       }
@@ -550,7 +550,7 @@ int32_t tqScanSubmitSplit(SArray* pBlocks, SArray* schemas, STqReader* pReader) 
 }
 #endif
 
-int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader) {
+int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbData** pSubmitTbDataRet) {
   int32_t blockSz = taosArrayGetSize(pReader->submit.aSubmitTbData);
   ASSERT(pReader->nextBlk < blockSz);
 
@@ -559,6 +559,7 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader) {
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
   pReader->nextBlk++;
 
+  if(pSubmitTbDataRet) *pSubmitTbDataRet = pSubmitTbData;
   int32_t sversion = pSubmitTbData->sver;
   int64_t suid = pSubmitTbData->suid;
   int64_t uid = pSubmitTbData->uid;
@@ -1006,9 +1007,9 @@ FAIL:
 }
 #endif
 
-int32_t tqRetrieveTaosxBlock2(STqReader* pReader, SArray* blocks, SArray* schemas) {
+int32_t tqRetrieveTaosxBlock2(STqReader* pReader, SArray* blocks, SArray* schemas, SSubmitTbData** pSubmitTbDataRet) {
   SSDataBlock block = {0};
-  if (tqRetrieveDataBlock2(&block, pReader) == 0) {
+  if (tqRetrieveDataBlock2(&block, pReader, pSubmitTbDataRet) == 0) {
     taosArrayPush(blocks, &block);
     SSchemaWrapper* pSW = tCloneSSchemaWrapper(pReader->pSchemaWrapper);
     taosArrayPush(schemas, &pSW);
