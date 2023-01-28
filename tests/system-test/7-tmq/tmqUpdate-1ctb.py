@@ -100,14 +100,6 @@ class TDTestCase:
 
         # update to half tables
         paraDict['rowsPerTbl'] = int(self.rowsPerTbl / 2)
-        
-        tdLog.info("create topics from stb1")
-        topicFromStb1 = 'topic_stb1'
-        queryString = "select ts, c1, c2 from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
-        sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
-        tdLog.info("create topic sql: %s"%sqlString)
-        tdSql.execute(sqlString)
-
         # tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix="ctbx",
         #                                       ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
         #                                       startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
@@ -115,6 +107,12 @@ class TDTestCase:
                                                ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
                                                startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
 
+        tdLog.info("create topics from stb1")
+        topicFromStb1 = 'topic_stb1'
+        queryString = "select ts, c1, c2 from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
+        sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
+        tdLog.info("create topic sql: %s"%sqlString)
+        tdSql.execute(sqlString)
 
         # paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
@@ -158,7 +156,6 @@ class TDTestCase:
 
     def tmqCase2(self):
         tdLog.printNoPrefix("======== test case 2: ")
-
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
@@ -178,7 +175,7 @@ class TDTestCase:
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
-        self.snapshot = 1
+
         paraDict['snapshot'] = self.snapshot
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
@@ -190,6 +187,12 @@ class TDTestCase:
         # update to half tables
         paraDict['startTs'] = paraDict['startTs'] + int(self.rowsPerTbl / 2)
         paraDict['rowsPerTbl'] = int(self.rowsPerTbl / 2)
+        tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict["ctbPrefix"],
+                                              ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+                                              startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
+        # tmqCom.insert_data_interlaceByMultiTbl(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],
+        #                                        ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+        #                                        startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
 
         tmqCom.initConsumerTable()
         tdLog.info("create topics from stb1")
@@ -199,19 +202,11 @@ class TDTestCase:
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
 
-        tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict["ctbPrefix"],
-                                              ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
-                                              startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
-        # tmqCom.insert_data_interlaceByMultiTbl(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],
-        #                                        ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
-        #                                        startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
-
-
         # paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
         consumerId     = 1
         if self.snapshot == 0:
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (2))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1/2))
         elif self.snapshot == 1:
             expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1))
 
