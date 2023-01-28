@@ -36,18 +36,18 @@ class RwSyncTest(TDCase):
         self.file_name2 = "insert1.json"
         self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
         self.replica = 1
-        self.vgroups = 16
-        self.create_table_thread_count=16
-        self.thread_count = 16
-        self.childtable_count = 10000
+        self.vgroups = 40
+        self.create_table_thread_count = 40
+        self.thread_count = 40
+        self.childtable_count = 100000
         self.insert_rows = 100000
         self.num_of_records_per_req1 = 1000
-        self.num_of_records_per_req2 = 5000
+        self.num_of_records_per_req2 = 10000
         self.childtable_prefix1 = "ctb1_"
         self.childtable_prefix2 = "ctb2_"
         self.dbname = "db_test"
         self.stbname = "stb"
-        self.query_interval = 10
+        self.query_interval = 120
 
     def desc(self):
         pass
@@ -106,7 +106,8 @@ class RwSyncTest(TDCase):
         self.tdCom.add_back_ground_scheduler(self.tdCom.multi_thread_query, 'interval', seconds=self.query_interval, max_instances=10, args=[f'{self.dbname}.{self.stbname}', None, 10])
 
         self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
-
+        self.tdSql.query(f'select count(*) from {self.dbname}.{self.stbname}')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.childtable_count*self.insert_rows*2)
 
         # jfile = InsertFile()
         # Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
