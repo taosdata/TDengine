@@ -681,7 +681,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
 
     tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
     fields += sizeof(int8_t) + sizeof(int32_t);
-    pStart += colLength[c];
+    pStart += htonl(colLength[c]);
   }
 
 end:
