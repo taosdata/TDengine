@@ -615,7 +615,7 @@ charset 的有效值是 UTF-8。
 | 属性     | 说明                          |
 | -------- | ----------------------------- |
 | 适用范围 | 仅客户端适用                  |
-| 含义     | schemaless 列数据是否顺序一致 |
+| 含义     | schemaless 列数据是否顺序一致，从3.0.3.0开始，该配置废弃 |
 | 值域     | 0：不一致；1: 一致            |
 | 缺省值   | 1                             |
 
@@ -675,7 +675,7 @@ charset 的有效值是 UTF-8。
 | 20  |     minimalTmpDirGB     | 是              | 是              |                                                   |
 | 21  |    smlChildTableName    | 是              | 是              |                                                   |
 | 22  |       smlTagName        | 是              | 是              |                                                   |
-| 23  |      smlDataFormat      | 否              | 是              |                                                   |
+| 23  |      smlDataFormat      | 否              | 是（从3.0.3.0开始，该配置废弃）              |                                                   |
 | 24  |     statusInterval      | 是              | 是              |                                                   |
 | 25  |         logDir          | 是              | 是              |                                                   |
 | 26  |     minimalLogDirGB     | 是              | 是              |                                                   |

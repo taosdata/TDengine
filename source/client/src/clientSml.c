@@ -1072,6 +1072,12 @@ void smlDestroyInfo(SSmlHandle *info) {
   }
   taosArrayDestroy(info->tagJsonArray);
 
+  for (int i = 0; i < taosArrayGetSize(info->valueJsonArray); i++) {
+    cJSON *value = (cJSON *)taosArrayGetP(info->valueJsonArray, i);
+    cJSON_Delete(value);
+  }
+  taosArrayDestroy(info->valueJsonArray);
+
   taosArrayDestroy(info->preLineTagKV);
   taosArrayDestroy(info->maxTagKVs);
   taosArrayDestroy(info->preLineColKV);
@@ -1111,6 +1117,7 @@ SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
   info->dataFormat = true;
 
   info->tagJsonArray = taosArrayInit(8, POINTER_BYTES);
+  info->valueJsonArray = taosArrayInit(8, POINTER_BYTES);
   info->preLineTagKV = taosArrayInit(8, sizeof(SSmlKv));
   info->maxTagKVs = taosArrayInit(8, sizeof(SSmlKv));
   info->preLineColKV = taosArrayInit(8, sizeof(SSmlKv));

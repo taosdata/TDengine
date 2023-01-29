@@ -310,7 +310,7 @@ void metaCloseTbCursor(SMTbCursor *pTbCur) {
   }
 }
 
-int metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
+int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
   int    ret;
   void  *pBuf;
   STbCfg tbCfg;
@@ -325,6 +325,30 @@ int metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
 
     metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
     if (pTbCur->mr.me.type == jumpTableType) {
+      continue;
+    }
+
+    break;
+  }
+
+  return 0;
+}
+
+int32_t metaTbCursorPrev(SMTbCursor *pTbCur) {
+  int    ret;
+  void  *pBuf;
+  STbCfg tbCfg;
+
+  for (;;) {
+    ret = tdbTbcPrev(pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
+    if (ret < 0) {
+      return -1;
+    }
+
+    tDecoderClear(&pTbCur->mr.coder);
+
+    metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
+    if (pTbCur->mr.me.type == TSDB_SUPER_TABLE) {
       continue;
     }
 

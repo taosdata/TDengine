@@ -257,7 +257,7 @@ static void doSetTagColumnData(STableScanBase* pTableScanInfo, SSDataBlock* pBlo
 }
 
 // todo handle the slimit info
-void applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo, SOperatorInfo* pOperator) {
+bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo, SOperatorInfo* pOperator) {
   SLimit*     pLimit = &pLimitInfo->limit;
   const char* id = GET_TASKID(pTaskInfo);
 
@@ -266,6 +266,7 @@ void applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo
       pLimitInfo->remainOffset -= pBlock->info.rows;
       blockDataEmpty(pBlock);
       qDebug("current block ignore due to offset, current:%" PRId64 ", %s", pLimitInfo->remainOffset, id);
+      return false;
     } else {
       blockDataTrimFirstNRows(pBlock, pLimitInfo->remainOffset);
       pLimitInfo->remainOffset = 0;
@@ -274,13 +275,14 @@ void applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo
 
   if (pLimit->limit != -1 && pLimit->limit <= (pLimitInfo->numOfOutputRows + pBlock->info.rows)) {
     // limit the output rows
-    int32_t overflowRows = pLimitInfo->numOfOutputRows + pBlock->info.rows - pLimit->limit;
-    int32_t keep = pBlock->info.rows - overflowRows;
+    int32_t keep = (int32_t)(pLimit->limit - pLimitInfo->numOfOutputRows);
 
     blockDataKeepFirstNRows(pBlock, keep);
     qDebug("output limit %" PRId64 " has reached, %s", pLimit->limit, id);
-    pOperator->status = OP_EXEC_DONE;
+    return true;
   }
+
+  return false;
 }
 
 static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableScanInfo, SSDataBlock* pBlock,
@@ -395,7 +397,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     }
   }
 
-  applyLimitOffset(&pTableScanInfo->limitInfo, pBlock, pTaskInfo, pOperator);
+  bool limitReached = applyLimitOffset(&pTableScanInfo->limitInfo, pBlock, pTaskInfo, pOperator);
+  if (limitReached) { // set operator flag is done
+    setOperatorCompleted(pOperator);
+  }
 
   pCost->totalRows += pBlock->info.rows;
   pTableScanInfo->limitInfo.numOfOutputRows = pCost->totalRows;
@@ -772,8 +777,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
     // reset value for the next group data output
     pOperator->status = OP_OPENED;
-    pInfo->base.limitInfo.numOfOutputRows = 0;
-    pInfo->base.limitInfo.remainOffset = pInfo->base.limitInfo.limit.offset;
+    resetLimitInfoForNextGroup(&pInfo->base.limitInfo);
 
     int32_t        num = 0;
     STableKeyInfo* pList = NULL;
@@ -2685,9 +2689,12 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
   taosArrayDestroy(pInfo->queryConds);
   pInfo->queryConds = NULL;
 
+  resetLimitInfoForNextGroup(&pInfo->limitInfo);
   return TSDB_CODE_SUCCESS;
 }
 
+// all data produced by this function only belongs to one group
+// slimit/soffset does not need to be concerned here, since this function only deal with data within one group.
 SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock* pResBlock, int32_t capacity,
                                               SOperatorInfo* pOperator) {
   STableMergeScanInfo* pInfo = pOperator->info;
@@ -2707,9 +2714,11 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
     }
   }
 
-  qDebug("%s get sorted row blocks, rows:%d", GET_TASKID(pTaskInfo), pResBlock->info.rows);
   applyLimitOffset(&pInfo->limitInfo, pResBlock, pTaskInfo, pOperator);
   pInfo->limitInfo.numOfOutputRows += pResBlock->info.rows;
+
+  qDebug("%s get sorted row block, rows:%d, limit:%"PRId64, GET_TASKID(pTaskInfo), pResBlock->info.rows,
+      pInfo->limitInfo.numOfOutputRows);
 
   return (pResBlock->info.rows > 0) ? pResBlock : NULL;
 }
@@ -2749,11 +2758,13 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
       pOperator->resultInfo.totalRows += pBlock->info.rows;
       return pBlock;
     } else {
+      // Data of this group are all dumped, let's try the next group
       stopGroupTableMergeScan(pOperator);
       if (pInfo->tableEndIndex >= tableListSize - 1) {
         setOperatorCompleted(pOperator);
         break;
       }
+
       pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
       pInfo->groupId = tableListGetInfo(pTaskInfo->pTableInfoList, pInfo->tableStartIndex)->groupId;
       startGroupTableMergeScan(pOperator);

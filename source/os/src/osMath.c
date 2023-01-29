@@ -32,7 +32,17 @@ void swapStr(char* j, char* J, int width) {
 }
 #endif
 
+int32_t qsortHelper(const void* p1, const void* p2, const void* param) {
+  __compar_fn_t comparFn = param;
+  return comparFn(p1, p2);
+}
+
 // todo refactor: 1) move away; 2) use merge sort instead; 3) qsort is not a stable sort actually.
-void taosSort(void* arr, int64_t sz, int64_t width, __compar_fn_t compar) {
-  qsort(arr, sz, width, compar);
+void taosSort(void* base, int64_t sz, int64_t width, __compar_fn_t compar) {
+#ifdef _ALPINE
+  void* param = compar;
+  taosqsort(base, width, sz, param, qsortHelper);
+#else
+  qsort(base, sz, width, compar);
+#endif
 }

@@ -914,6 +914,7 @@ typedef struct {
   int32_t numOfRetensions;
   SArray* pRetensions;
   int8_t  schemaless;
+  int16_t sstTrigger;
 } SDbCfgRsp;
 
 int32_t tSerializeSDbCfgRsp(void* buf, int32_t bufLen, const SDbCfgRsp* pRsp);
@@ -1789,7 +1790,7 @@ typedef struct {
   // 3.0.2.3
   int8_t   createStb;
   uint64_t targetStbUid;
-  SArray*  fillNullCols;
+  SArray*  fillNullCols; // array of SColLocation
 } SCMCreateStreamReq;
 
 typedef struct {
