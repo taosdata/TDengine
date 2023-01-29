@@ -292,8 +292,6 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
     goto _DEL_WAL;
 
   } else {
-    lastApplyIndex -= SYNC_VNODE_LOG_RETENTION;
-
     SyncIndex beginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
     SyncIndex endIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
     bool      isEmpty = pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore);
@@ -307,6 +305,8 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
     // vnode
     if (pSyncNode->replicaNum > 1) {
       // multi replicas
+
+      lastApplyIndex -= SYNC_VNODE_LOG_RETENTION;
 
       if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
         pSyncNode->minMatchIndex = syncMinMatchIndex(pSyncNode);
