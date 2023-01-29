@@ -61,11 +61,11 @@ class SQLWriter:
             buf.append(q)
             sql_len += len(q)
         sql += " ".join(buf)
+        self.create_tables()
         self.execute_sql(sql)
         self._tb_values.clear()
 
     def execute_sql(self, sql):
-        self.create_tables()
         try:
             self._conn.execute(sql)
         except taos.Error as e:

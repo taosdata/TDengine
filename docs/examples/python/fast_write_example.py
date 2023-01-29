@@ -59,6 +59,8 @@ def run_read_task(task_id: int, task_queues: List[Queue], infinity):
                 queue.put(_DONE_MESSAGE)
     except KeyboardInterrupt:
         pass
+    finally:
+        logging.info('read task over')
 
 
 # ANCHOR_END: read
@@ -75,7 +77,7 @@ def run_write_task(task_id: int, queue: Queue, done_queue: Queue):
             lines = []
             for _ in range(MAX_BATCH_SIZE):
                 try:
-                    line = queue.get(block=False, timeout=1)
+                    line = queue.get_nowait()
                     if line == _DONE_MESSAGE:
                         over = True
                         break
@@ -93,6 +95,8 @@ def run_write_task(task_id: int, queue: Queue, done_queue: Queue):
     except BaseException as e:
         log.debug(f"lines={lines}")
         raise e
+    finally:
+        log.debug('write task over')
 
 
 # ANCHOR_END: write
@@ -152,11 +156,11 @@ def main(infinity):
     conn.execute("CREATE DATABASE IF NOT EXISTS test")
     conn.execute("CREATE STABLE IF NOT EXISTS test.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) "
                  "TAGS (location BINARY(64), groupId INT)")
-    conn.close()
 
     done_queue = Queue()
     monitor_process = Process(target=run_monitor_process, args=(done_queue,))
     monitor_process.start()
+    logging.debug(f"monitor task started with pid {monitor_process.pid}")
 
     task_queues: List[Queue] = []
     write_processes = []
@@ -195,6 +199,9 @@ def main(infinity):
         [p.terminate() for p in read_processes]
         [p.terminate() for p in write_processes]
         [q.close() for q in task_queues]
+
+    conn.execute("DROP DATABASE IF EXISTS test")
+    conn.close()
 
 
 def assign_queues(read_task_id, task_queues):

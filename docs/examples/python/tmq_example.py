@@ -19,8 +19,14 @@ def init_tmq_env(db, topic):
     conn.execute("insert into tb3 values (now, 3, 3.0, 'tmq test')")
 
 
+def cleanup(db, topic):
+    conn = taos.connect()
+    conn.execute("drop topic if exists {}".format(topic))
+    conn.execute("drop database if exists {}".format(db))
+
+
 if __name__ == '__main__':
-    init_tmq_env("tmq_test", "tmq_test_topic") # init env
+    init_tmq_env("tmq_test", "tmq_test_topic")  # init env
     consumer = Consumer(
         {
             "group.id": "tg2",
@@ -33,9 +39,9 @@ if __name__ == '__main__':
 
     try:
         while True:
-            res = consumer.poll(100)
+            res = consumer.poll(1)
             if not res:
-                continue
+                break
             err = res.error()
             if err is not None:
                 raise err
@@ -46,3 +52,4 @@ if __name__ == '__main__':
     finally:
         consumer.unsubscribe()
         consumer.close()
+        cleanup("tmq_test", "tmq_test_topic")

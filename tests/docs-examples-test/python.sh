@@ -49,6 +49,7 @@ pip install pandas
 taosBenchmark -y -d power -t 10 -n 10
 python3 conn_native_pandas.py
 python3 conn_rest_pandas.py
+taos -s "drop database if exists power"
 
 # 11
 taos -s "create database if not exists test"
@@ -63,6 +64,7 @@ python3 handle_exception.py
 # 14
 taosBenchmark -y -d power -t 2 -n 10
 python3 rest_client_example.py
+taos -s "drop database if exists power"
 
 # 15
 python3 result_set_examples.py
