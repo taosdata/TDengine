@@ -23,7 +23,7 @@ The major features are listed below:
 3. Data Explorer: browse through databases and even run SQL queries once you login.
 4. Visualization:
    - Supports [Grafana](../visual/grafana/)
-   - Supports Google data studio (to be released soon)
+   - Supports Google data studio
    - Supports Grafana cloud (to be released soon)
 5. [Data Subscription](../data-subscription/):  Application can subscribe a table or a set of tables. API is the same as Kafka, but you can specify filter conditions and you can share the topic with other users and user groups in TDengien Cloud.
 6. [Stream Processing](../stream/): Not only is the continuous query is supported, but TDengine also supports event driven stream processing, so Flink or Spark is not needed for time-series data processing.
