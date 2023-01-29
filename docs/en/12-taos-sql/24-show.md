@@ -363,7 +363,7 @@ Shows information about all vgroups in the system or about the vgroups for a spe
 ## SHOW VNODES
 
 ```sql
-SHOW VNODES [dnode_name];
+SHOW VNODES {dnode_id | dnode_endpoint};
 ```
 
 Shows information about all vnodes in the system or about the vnodes for a specified dnode.
