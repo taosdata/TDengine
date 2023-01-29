@@ -1,0 +1,79 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  centos:
+    name: CentOS 7.9
+    runs-on: ubuntu-latest
+    container: docker.io/centos:7
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Rust
+        id: setup-rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          default: true
+      - name: Install compiler
+        run: |
+          yum install -y autoconf make automake cmake gcc gcc-g++ openssl-devel
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ steps.setup-rust.outputs.rustc_hash }}
+
+      - name: Build taosX
+        run: |
+          cargo build --release --no-default-features --features optin --features native-tls
+          mv target/release/taosx target/release/taosx-amd64
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: taosx
+          path: target/release/taosx-amd64
+  alpine:
+    name: Alpine
+    runs-on: ubuntu-latest
+    container: docker.io/frolvlad/alpine-rust
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install compiler
+        run: |
+          apk add autoconf make automake cmake gcc g++ openssl-dev
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ steps.setup-rust.outputs.rustc_hash }}
+
+      - name: Build taosX
+        run: |
+          cargo build --release --no-default-features --features optin --features native-tls
+          mv target/release/taosx target/release/taosx-amd64-musl
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: taosx
+          path: target/release/taosx-amd64-musl

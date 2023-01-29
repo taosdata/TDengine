@@ -1,6 +1,6 @@
 [package]
 name = "taosx"
-version = "0.4.1-alpha.0"
+version = "0.4.1"
 edition = "2021"
 homepage = "https://taosdata.com"
 description = "taosX - TDengine data integration tool"
@@ -10,7 +10,7 @@ exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 
 [dependencies]
 anyhow = "1"
-arrow = "29.0.0"
+arrow = { version = "29.0.0", default-features = false }
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bitflags = "1"
@@ -73,6 +73,12 @@ sys = ["taos/native"]
 rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls"]
 native-tls = ["sqlx/runtime-tokio-native-tls", "taos/ws-native-tls"]
 disable-enterprise-only-validation = []
+
+[target.'cfg(target_env = "musl")']
+rustflags = ["-C", "target-feature=-crt-static"]
+
+[target.debug]
+rustflags = ["-Z", "sanitizer=address"]
 
 [profile.sanitizer]
 inherits = "dev"
