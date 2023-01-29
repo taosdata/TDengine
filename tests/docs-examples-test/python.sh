@@ -45,7 +45,8 @@ python3 json_protocol_example.py
 
 # 10
 pip install SQLAlchemy
-taosBenchmark -d power -t 10 -n 10
+pip install pandas
+taosBenchmark -y -d power -t 10 -n 10
 python3 conn_native_pandas.py
 python3 conn_rest_pandas.py
 
@@ -60,7 +61,7 @@ python3 connect_rest_examples.py
 python3 handle_exception.py
 
 # 14
-taosBenchmark -d power -t 2 -n 10
+taosBenchmark -y -d power -t 2 -n 10
 python3 rest_client_example.py
 
 # 15
