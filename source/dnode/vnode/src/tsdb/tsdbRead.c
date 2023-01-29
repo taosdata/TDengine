@@ -4096,6 +4096,28 @@ int32_t tsdbReaderSuspend(STsdbReader* pReader) {
       // pInfo->lastKey = ts;
     }
   } else {
+    // resetDataBlockScanInfo excluding lastKey
+    STableBlockScanInfo** p = NULL;
+
+    while ((p = taosHashIterate(pStatus->pTableMap, p)) != NULL) {
+      STableBlockScanInfo* pInfo = *(STableBlockScanInfo**)p;
+
+      pInfo->iterInit = false;
+      pInfo->iter.hasVal = false;
+      pInfo->iiter.hasVal = false;
+
+      if (pInfo->iter.iter != NULL) {
+        pInfo->iter.iter = tsdbTbDataIterDestroy(pInfo->iter.iter);
+      }
+
+      if (pInfo->iiter.iter != NULL) {
+        pInfo->iiter.iter = tsdbTbDataIterDestroy(pInfo->iiter.iter);
+      }
+
+      pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
+      // pInfo->lastKey = ts;
+    }
+
     pBlockScanInfo = pStatus->pTableIter == NULL ? NULL : *pStatus->pTableIter;
     if (pBlockScanInfo) {
       // save lastKey to restore memory iterator
