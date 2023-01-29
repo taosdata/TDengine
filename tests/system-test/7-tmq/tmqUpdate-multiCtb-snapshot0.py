@@ -213,9 +213,9 @@ class TDTestCase:
         paraDict['rowsPerTbl'] = self.rowsPerTbl
         consumerId     = 1
         if self.snapshot == 0:
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (2 + 1/2*1/2*2 + 1/2*1/2))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1/2) * (1/2*3))
         elif self.snapshot == 1:
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (2 + 1/2*1/2))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 + 1/2))
 
         topicList      = topicFromStb1
         ifcheckdata    = 1
