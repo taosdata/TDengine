@@ -32,7 +32,7 @@ void swapStr(char* j, char* J, int width) {
 }
 #endif
 
-int32_t qsortHelper(const void* p1, const void* p2, const void* param) {
+int qsortHelper(const void* p1, const void* p2, const void* param) {
   __compar_fn_t comparFn = param;
   return comparFn(p1, p2);
 }
